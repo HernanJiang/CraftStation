@@ -19,6 +19,7 @@ export function UniversalDockedChatInput(props: {
   craftMode: CraftMode;
   onCraftModeChange: (mode: CraftMode) => void;
   paneId?: string;
+  worktreePath?: string;
   onProjectChange?: (projectId: string) => void;
 }) {
   return (
@@ -37,6 +38,7 @@ export function UniversalDockedChatInput(props: {
           craftMode={props.craftMode}
           onCraftModeChange={props.onCraftModeChange}
           {...(props.paneId ? { paneId: props.paneId } : {})}
+          {...(props.worktreePath ? { worktreePath: props.worktreePath } : {})}
           {...(props.onProjectChange ? { onProjectChange: props.onProjectChange } : {})}
         />
       ) : null}

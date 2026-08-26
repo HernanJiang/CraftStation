@@ -31,6 +31,10 @@ import {
 } from "./parts/useResizablePanels";
 import { SIDEBAR_COLLAPSED_WIDTH, useSidebarOverlayEffects } from "./parts/useSidebarOverlay";
 import { AsideSlot } from "./parts/AsideSlot";
+import {
+  resolveExplicitDockedPanelWidth,
+  shouldUseRightPanelOverlay,
+} from "./parts/explicitDockedPanelWidth";
 import { usePanelVisibility } from "./parts/usePanelVisibility";
 import { usePanelStore } from "@/renderer/state/panelStore";
 
@@ -474,7 +478,7 @@ export function AppShell(props: {
   // the existing resize handle remains available for later adjustment.
   useLayoutEffect(() => {
     if (!props.balanceRightPanelOnOpen || !rightPanelOpen || isBottom) return;
-    const host = mainRef.current?.parentElement;
+    const host = mainRef.current?.closest<HTMLElement>(".craftstation-workspace-frame");
     if (!host) return;
     const availableWidth = host.getBoundingClientRect().width;
     if (availableWidth <= 0) return;
@@ -493,9 +497,9 @@ export function AppShell(props: {
     updatePanelHeight(availableHeight / 2);
   }, [isBottom, props.balanceBottomPanelOnOpen, rightPanelOpen, updatePanelHeight]);
 
-  // When the right-side panel(s) cannot dock without squeezing main below
-  // CONTENT_MIN_WIDTH, render them as a fixed overlay anchored to the right
-  // edge (mirroring the sidebar's narrow overlay).
+  // Legacy utility panels may float on narrow windows. CraftStation's explicit
+  // multi-tool workspace never does: it remains a peer column so the backdrop
+  // cannot intercept composer input.
   const dockedRightPanelOpen = !isBottom && rightPanelOpen;
   const wantsRightOverlay = sidePanelOpen;
   // Compute the docked main width even when panels are currently overlaid, so
@@ -506,11 +510,13 @@ export function AppShell(props: {
       (dockedRightPanelOpen ? panelWidth : 0) -
       (gitPanelOpen ? gitPanelWidth : 0)
     : null;
-  const computedRightOverlayActive =
-    !forceSidebarExpanded &&
-    wantsRightOverlay &&
-    wouldBeMainWidth !== null &&
-    wouldBeMainWidth < CONTENT_MIN_WIDTH;
+  const computedRightOverlayActive = shouldUseRightPanelOverlay({
+    hasExplicitOpenState: props.rightPanelOpen !== undefined,
+    forceSidebarExpanded,
+    wantsRightOverlay,
+    wouldBeMainWidth,
+    contentMinWidth: CONTENT_MIN_WIDTH,
+  });
   const [rightOverlayMounted, setRightOverlayMounted] = useState(false);
   const [rightOverlaySlot, setRightOverlaySlot] = useState<RightOverlaySlot | null>(null);
   const [prevRightOverlay, setPrevRightOverlay] = useState<{
@@ -594,6 +600,14 @@ export function AppShell(props: {
       : "0px";
   const rightPanelAsOverlay = rightOverlayDisplayed && displayedRightOverlaySlot === "right";
   const gitPanelAsOverlay = rightOverlayDisplayed && displayedRightOverlaySlot === "git";
+  const dockedRightPanelWidth =
+    props.rightPanelOpen !== undefined && layoutMetricsReady
+      ? resolveExplicitDockedPanelWidth({
+          requestedWidth: panelWidth,
+          shellWidth,
+          sidebarWidth: observedSidebarWidth,
+        })
+      : panelWidth;
 
   // Overlay panels are resizable too, but with their own bounds: capped by the
   // gutter (above) and floored just above the width at which the panel would
@@ -644,7 +658,7 @@ export function AppShell(props: {
       orientation={isBottom ? "horizontal" : "vertical"}
       isOpen={rightPanelOpen}
       fill={auxiliaryPanelMaximized && !isBottom}
-      targetWidth={rightPanelAsOverlay ? overlayRightPanelWidth : panelWidth}
+      targetWidth={rightPanelAsOverlay ? overlayRightPanelWidth : dockedRightPanelWidth}
       targetHeight={panelHeight}
       onResizeStart={isBottom ? handlePanelBottomResizeStart : handlePanelResizeStart}
       onResizeKeyDown={isBottom ? handlePanelBottomResizeKeyDown : handlePanelResizeKeyDown}

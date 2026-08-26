@@ -51,6 +51,7 @@ import { useSourceBranchData } from "./parts/useSourceBranchData";
 import { useConflictResolver, type ConflictResolverLaunchInput } from "./parts/useConflictResolver";
 import { ConflictResolutionActions } from "./parts/ConflictResolutionActions";
 import { CommitSyncPanel } from "./parts/CommitSyncPanel";
+import { BranchSyncGraph } from "./parts/BranchSyncGraph";
 import { PrSection } from "./parts/PrSection";
 import { CreatePrModal } from "./parts/CreatePrModal";
 import { GitReviewSection } from "./parts/GitReviewSection";
@@ -550,6 +551,8 @@ export function GitReviewSidebar(props: {
               handlePullFromSource={handlePullFromSource}
             />
           )}
+
+          {gitStatus?.isRepo ? <BranchSyncGraph gitStatus={gitStatus} /> : null}
 
           {showPrSection && ghAvailable && hasPr && effectivePrKey && (
             <PrSection

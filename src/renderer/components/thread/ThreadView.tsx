@@ -29,7 +29,6 @@ import { ContinueInProviderDialog } from "./ContinueInProviderDialog";
 import { GuiThreadContent } from "./ThreadContent";
 import { TerminalThreadContent } from "./TerminalThreadContent";
 import { ThreadHeaderStatusButton } from "./ThreadHeaderStatus";
-import { ThreadToolRail } from "./ThreadToolRail";
 
 /**
  * Strip Electron's `Error invoking remote method '<channel>': Error: ` prefix
@@ -205,10 +204,6 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
   const usesTerminalPresentation =
     (thread.presentationMode ?? agentStatus?.capabilities.presentationMode ?? "terminal") ===
     "terminal";
-  const awaitingWorktree = useAppStore(
-    (state) =>
-      state.provisioningWorktreeThreadIds[thread.id] === true && thread.status === "launching",
-  );
   const launchTerminalSize = usesTerminalPresentation ? terminalSize : DEFAULT_HIDDEN_TERMINAL_SIZE;
 
   useLayoutEffect(() => {
@@ -403,13 +398,6 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                 <CircleCheck className="size-3.5" />
               </button>
             ) : null}
-            {awaitingWorktree ? null : (
-              <ThreadToolRail
-                projectId={thread.projectId}
-                paneCount={paneCount}
-                {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
-              />
-            )}
             {showCloseButton ? (
               <button
                 type="button"

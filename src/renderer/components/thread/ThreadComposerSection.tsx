@@ -721,6 +721,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
             placement="conversation"
             craftMode={craftMode}
             onCraftModeChange={handleCraftModeChange}
+            {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
           >
             <div
               className={`grid transition-[grid-template-rows] ease-[cubic-bezier(0.16,1,0.3,1)] ${isComposerCollapsed ? "duration-300" : "duration-200"}`}

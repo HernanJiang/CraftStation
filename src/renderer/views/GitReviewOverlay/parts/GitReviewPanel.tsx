@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   Archive,
+  Columns2,
   GitBranch,
   Maximize2,
   PanelRightClose,
   RefreshCw,
+  Rows2,
   Trash2,
-  WrapText,
 } from "lucide-react";
 import { toast, Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
@@ -24,7 +25,11 @@ import { BranchSelector } from "@/renderer/components/common";
 import { overlaySidebarSurfaceClass } from "@/renderer/components/layout/sidebarChrome";
 import { SidebarContext } from "@/renderer/views/MainView/parts/AppShell/AppShell";
 import { GitReviewSidebar } from "./GitReviewSidebar/GitReviewSidebar";
+import { GitDiffContent, type DiffFilter } from "./GitDiffContent/GitDiffContent";
 import { addGitRemote, initGitRepository } from "./initGitRepository";
+
+/** Matches DiffModeEnum values from @git-diff-view/react without eagerly importing the heavy package. */
+const DIFF_MODE = { Split: 1, Unified: 4 } as const;
 
 const alwaysExpanded = {
   isCollapsed: false,
@@ -66,7 +71,8 @@ export function GitReviewPanel(props: {
   const [selectedStaged, setSelectedStaged] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [wrapLines, setWrapLines] = useState(false);
+  const [diffMode, setDiffMode] = useState<number>(DIFF_MODE.Unified);
+  const [diffFilter, setDiffFilter] = useState<DiffFilter>("changes");
   const gitStatus = useGitStore((s) =>
     statusKey ? s.worktreeStatuses[statusKey] : s.statuses[project.id],
   ) as GitStatusResult | undefined;
@@ -96,6 +102,7 @@ export function GitReviewPanel(props: {
   function handleSelectFile(path: string | null, staged: boolean) {
     setSelectedFile(path);
     setSelectedStaged(staged);
+    if (path) setDiffFilter(staged ? "staged" : "changes");
   }
 
   // Refetch the worktree's PR (data + details) into `prData[worktreePath]` so the
@@ -245,11 +252,21 @@ export function GitReviewPanel(props: {
             )}
             <button
               type="button"
-              className={`rounded p-1 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground ${wrapLines ? "text-foreground" : "text-muted"}`}
-              title={wrapLines ? t`No wrap` : t`Wrap lines`}
-              onClick={() => setWrapLines((v) => !v)}
+              aria-pressed={diffMode === DIFF_MODE.Split}
+              className={`rounded p-1 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground ${diffMode === DIFF_MODE.Split ? "text-foreground" : "text-muted"}`}
+              title={t`Split view`}
+              onClick={() => setDiffMode(DIFF_MODE.Split)}
             >
-              <WrapText className="size-3" />
+              <Columns2 className="size-3" />
+            </button>
+            <button
+              type="button"
+              aria-pressed={diffMode === DIFF_MODE.Unified}
+              className={`rounded p-1 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground ${diffMode === DIFF_MODE.Unified ? "text-foreground" : "text-muted"}`}
+              title={t`Unified view`}
+              onClick={() => setDiffMode(DIFF_MODE.Unified)}
+            >
+              <Rows2 className="size-3" />
             </button>
             <button
               type="button"
@@ -339,14 +356,6 @@ export function GitReviewPanel(props: {
             )}
             <button
               type="button"
-              className={`rounded p-0.5 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground ${wrapLines ? "text-foreground" : "text-muted"}`}
-              title={wrapLines ? t`No wrap` : t`Wrap lines`}
-              onClick={() => setWrapLines((v) => !v)}
-            >
-              <WrapText className="size-3" />
-            </button>
-            <button
-              type="button"
               className="rounded p-0.5 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
               title={t`Refresh`}
               onClick={() => void handleRefresh()}
@@ -372,44 +381,65 @@ export function GitReviewPanel(props: {
           </div>
         )}
 
-        {/* Sidebar content */}
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <GitReviewSidebar
-            project={effectiveProject}
-            gitStatus={gitStatus}
-            selectedFile={selectedFile}
-            selectedStaged={selectedStaged}
-            worktreeBranch={worktreeBranch}
-            worktreePath={worktreePath}
-            onMergeAndRemove={onMergeAndRemove}
-            onSelectFile={handleSelectFile}
-            onClose={onClose}
-            refreshKey={refreshKey}
-            onRefresh={() => void handleRefresh()}
-            onInitRepository={() =>
-              void initGitRepository({
-                project,
-                effectiveLocation,
-                statusKey,
-                setRefreshing,
-                bumpRefreshKey: () => setRefreshKey((k) => k + 1),
-              })
-            }
-            onAddRemote={(remote, url) =>
-              addGitRemote({
-                project,
-                effectiveLocation,
-                statusKey,
-                remote,
-                url,
-                setRefreshing,
-                bumpRefreshKey: () => setRefreshKey((k) => k + 1),
-              })
-            }
-            statusKey={statusKey}
-            mode="panel"
-            wrapLines={wrapLines}
-          />
+        {/* Codex-style review workspace: code changes on the left, changed files and
+            commit/sync controls on the right. At genuinely narrow panel widths the
+            two surfaces stack so neither the diff nor its controls become unusable. */}
+        <div data-git-review-workspace="" className="@container min-h-0 flex-1 overflow-hidden">
+          <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_minmax(280px,38%)] @max-[720px]:grid-cols-1 @max-[720px]:grid-rows-[minmax(220px,1fr)_minmax(260px,1fr)]">
+            <section
+              data-git-review-diff=""
+              className="min-h-0 min-w-0 overflow-hidden border-r border-[color:var(--border)] @max-[720px]:border-b @max-[720px]:border-r-0"
+            >
+              <GitDiffContent
+                project={effectiveProject}
+                gitStatus={gitStatus}
+                selectedFile={selectedFile}
+                selectedStaged={selectedStaged}
+                diffMode={diffMode}
+                diffFilter={diffFilter}
+                refreshKey={refreshKey}
+                worktreePath={worktreePath}
+              />
+            </section>
+            <aside data-git-review-files="" className="min-h-0 min-w-0 overflow-hidden">
+              <GitReviewSidebar
+                project={effectiveProject}
+                gitStatus={gitStatus}
+                selectedFile={selectedFile}
+                selectedStaged={selectedStaged}
+                worktreeBranch={worktreeBranch}
+                worktreePath={worktreePath}
+                onMergeAndRemove={onMergeAndRemove}
+                onSelectFile={handleSelectFile}
+                onClose={onClose}
+                refreshKey={refreshKey}
+                onRefresh={() => void handleRefresh()}
+                onInitRepository={() =>
+                  void initGitRepository({
+                    project,
+                    effectiveLocation,
+                    statusKey,
+                    setRefreshing,
+                    bumpRefreshKey: () => setRefreshKey((k) => k + 1),
+                  })
+                }
+                onAddRemote={(remote, url) =>
+                  addGitRemote({
+                    project,
+                    effectiveLocation,
+                    statusKey,
+                    remote,
+                    url,
+                    setRefreshing,
+                    bumpRefreshKey: () => setRefreshKey((k) => k + 1),
+                  })
+                }
+                statusKey={statusKey}
+                mode="overlay"
+                hideFooterNav
+              />
+            </aside>
+          </div>
         </div>
       </div>
     </SidebarContext.Provider>
