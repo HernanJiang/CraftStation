@@ -24,7 +24,9 @@ export function MainContentHeaderControls() {
     <div className="relative flex min-w-0 flex-1 items-center gap-2">
       <div
         id={MAIN_THREAD_HEADER_PORTAL_ID}
-        className="flex h-full min-w-0 flex-1 items-center overflow-hidden"
+        className={`flex h-full min-w-0 flex-1 items-center overflow-hidden ${
+          isAuxiliaryPanelOpen ? "" : "pr-10"
+        }`}
       >
         {!focusedThreadExists && project && !isHomeProjectId(project.id) ? (
           <div className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted">

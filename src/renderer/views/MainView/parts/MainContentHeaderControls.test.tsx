@@ -39,16 +39,19 @@ describe("MainContentHeaderControls", () => {
     const { container } = render(<MainContentHeaderControls />);
 
     const toggle = screen.getByRole("button", { name: "Toggle tools panel" });
+    const portal = container.querySelector("#craftstation-main-thread-header");
     const positionedTrigger = toggle.parentElement;
     expect(positionedTrigger?.className).toContain("absolute");
     expect(positionedTrigger?.className).toContain("right-2.5");
     expect(container.querySelector("#craftstation-main-thread-header")).toBeInTheDocument();
     expect(container.querySelector("#craftstation-auxiliary-panel-header")).toBeNull();
     expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(portal).toHaveClass("pr-10");
 
     fireEvent.click(toggle);
     expect(usePanelStore.getState().auxiliaryPanelPlacement).toBe("right");
     expect(screen.queryByRole("button", { name: "Toggle tools panel" })).toBeNull();
+    expect(container.querySelector("#craftstation-main-thread-header")).not.toHaveClass("pr-10");
   });
 
   it("keeps the collapsed-panel toggle interactive when an existing thread owns the header", () => {

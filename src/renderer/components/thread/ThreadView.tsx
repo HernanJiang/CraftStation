@@ -292,7 +292,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
       <div
         className={`${dragHandleRef ? "poracode-content-over-drag-region" : "poracode-content-over-drag-region--drag"} @container ${
           threadHeaderIsPortaled ? "" : alignClass
-        } flex w-full min-w-0 max-w-[920px] items-center gap-2 ${
+        } flex w-full min-w-0 ${threadHeaderIsPortaled ? "max-w-none" : "max-w-[920px]"} items-center gap-2 ${
           threadHeaderIsPortaled ? "h-full" : "py-1"
         }`}
       >
