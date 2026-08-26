@@ -1,0 +1,37 @@
+{
+  "name": "poracode-website",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Marketing website for Poracode.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "next build --webpack",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint ."
+  },
+  "dependencies": {
+    "@heroui/react": "3.2.4",
+    "@heroui/styles": "3.2.4",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "framer-motion": "13.1.0",
+    "lucide-react": "1.31.0",
+    "next": "^16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tailwindcss": "4.3.3",
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@types/web-push": "3.6.4",
+    "cross-env": "^10.1.0",
+    "oxlint": "^1.78.0",
+    "typescript": "^7.0.2"
+  },
+  "packageManager": "pnpm@11.19.0+sha512.7881f3ed590d472c4a955e2b88b2121791116066dcc88cbca3849ec9b60f1bbaa6d2ccb221fa91da4e1c65bef2bcbe379365aea7ac539c7bf86dedc3a1b22dce"
+}

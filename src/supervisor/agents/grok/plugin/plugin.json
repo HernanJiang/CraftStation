@@ -1,0 +1,7 @@
+{
+  "name": "poracode-status-grok",
+  "version": "1.2.0",
+  "description": "Grok CLI lifecycle hook forwarder for Poracode thread status",
+  "author": "Poracode",
+  "license": "Apache-2.0"
+}

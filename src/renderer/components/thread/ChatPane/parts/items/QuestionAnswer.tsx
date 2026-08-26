@@ -1,0 +1,75 @@
+import { Surface } from "@heroui/react";
+import { Check, MessageSquare } from "lucide-react";
+import type { QuestionAnswerItemPayload } from "@/shared/contracts";
+import {
+  getRuntimeItemPayload,
+  type RuntimeChatItem,
+} from "@/renderer/state/slices/runtimeEventSlice";
+import { CheckpointRevertButton, type CheckpointRevertRequest } from "../CheckpointRevertControls";
+import { chatPromptSurfaceClass } from "./chatMessageSurface";
+import { ItemMarkdown } from "./ItemMarkdown";
+
+interface QuestionAnswerProps {
+  item: RuntimeChatItem;
+  checkpointRevert: CheckpointRevertRequest | null;
+}
+
+export function QuestionAnswer({ item, checkpointRevert }: QuestionAnswerProps) {
+  const payload = getRuntimeItemPayload<QuestionAnswerItemPayload>(item, "question_answer");
+  const questions = payload?.questions ?? [];
+  if (questions.length === 0) return null;
+  return (
+    <Surface variant="tertiary" className={chatPromptSurfaceClass}>
+      <div className="min-w-0 space-y-2 leading-snug">
+        {questions.map((entry, index) => (
+          <div
+            key={`${entry.header}-${index}`}
+            className={`min-w-0 space-y-1 ${index > 0 ? "border-t border-[color:var(--border)] pt-2" : ""}`}
+          >
+            {/* Providers without a distinct header (Kimi) repeat the question as
+                the header; render it once instead of duplicating the same line. */}
+            {entry.header.length > 0 && entry.header !== entry.question ? (
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                {entry.header}
+              </div>
+            ) : null}
+            {entry.question.length > 0 ? (
+              <div className="text-[11px] text-[color:var(--muted)]">{entry.question}</div>
+            ) : null}
+            <div className="space-y-1.5 pt-0.5">
+              {entry.selected.map((selection, i) => (
+                <div key={`sel-${i}`} className="flex items-start gap-1.5">
+                  <Check className="mt-[3px] size-3 shrink-0 text-foreground/70" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium text-foreground">{selection.label}</div>
+                    {selection.description ? (
+                      <div className="text-[11px] text-[color:var(--muted)]">
+                        {selection.description}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+              {entry.customAnswer ? (
+                <div className="flex items-start gap-1.5">
+                  <MessageSquare className="mt-[3px] size-3 shrink-0 text-foreground/70" />
+                  <div className="min-w-0 flex-1">
+                    <ItemMarkdown text={entry.customAnswer} />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+      {checkpointRevert ? (
+        <div className="poracode-message-action-strip absolute right-2 top-1/2 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover/checkpoint:opacity-100 focus-within:opacity-100">
+          <CheckpointRevertButton
+            itemId={checkpointRevert.itemId}
+            onRequestRevert={checkpointRevert.onRequestRevert}
+          />
+        </div>
+      ) : null}
+    </Surface>
+  );
+}

@@ -1,0 +1,220 @@
+import { useRef, useState } from "react";
+import { Tooltip } from "@heroui/react";
+import type { StatusTone } from "@/renderer/components/providers/statusTone";
+import { handleKeyActivate } from "@/renderer/utils/a11y";
+
+/**
+ * The idle sidebar-row treatment, shared with rows that can't be a
+ * `SidebarButton` because they are a menu trigger and must own their own
+ * element (e.g. the workspace switcher). Keeping one definition means padding,
+ * radius, and hover can't drift between neighbouring rows.
+ */
+export function sidebarRowClass(
+  options: { density?: "default" | "compact"; size?: "md" | "xs" } = {},
+): string {
+  const compact = options.density === "compact";
+  const sizeClass = options.size === "xs" ? "text-xs" : "text-sm";
+  return `flex w-full shrink-0 cursor-default items-center gap-2 rounded-lg px-2 ${
+    compact ? "py-1" : "py-1.5"
+  } text-left ${sizeClass} text-muted outline-none transition-colors hover:bg-[var(--row-hover)] hover:text-foreground focus-visible:focus-ring`;
+}
+
+/**
+ * The icon-only `SidebarButton` box, exported for trigger elements that must
+ * own their own element (menu triggers like the workspace switcher or an
+ * overflow kebab) and therefore can't be a `SidebarButton` themselves.
+ * `isActive` mirrors the `SidebarButton` active treatment so an overflow
+ * trigger can still show that the current destination lives behind it.
+ */
+export function sidebarIconButtonClass(options: { isActive?: boolean } = {}): string {
+  const stateClass = options.isActive
+    ? "bg-[var(--row-active)] text-foreground"
+    : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground";
+  return `flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-3xl outline-none transition-colors focus-visible:focus-ring ${stateClass}`;
+}
+
+export function SidebarButton(props: {
+  ref?: React.Ref<HTMLDivElement>;
+  icon: React.ReactNode;
+  label: React.ReactNode;
+  onPress?: () => void;
+  onPreload?: () => void;
+  isDisabled?: boolean;
+  isActive?: boolean;
+  iconOnly?: boolean;
+  /** Row text size. `xs` is used for thread and worktree list rows. */
+  size?: "md" | "xs";
+  /**
+   * Row height. `compact` trims the vertical padding (32px → 28px rows) and the
+   * icon-rail button box so long navigation lists — e.g. the settings sidebar —
+   * fit without scrolling, while keeping the icon/label gap of a normal row.
+   */
+  density?: "default" | "compact";
+  /**
+   * When set, `liveText` defaults to on unless the state is `inactive` or `done`
+   * (same rule as list rows for thread status). Overridden by an explicit `liveText` prop.
+   */
+  statusTone?: StatusTone;
+  tooltip?: React.ReactNode;
+  /** Override the default truncation tooltip behaviour for rich row details. */
+  tooltipAlways?: boolean;
+  tooltipDelay?: number;
+  tooltipClassName?: string;
+  /**
+   * Icon-only tooltip placement. Defaults to "right" for the vertical icon
+   * rail; bottom icon rows (e.g. the collapsed footer nav) pass "top" so the
+   * tooltip opens over the sidebar instead of covering neighbouring icons.
+   */
+  tooltipPlacement?: "right" | "top";
+  suffix?: React.ReactNode;
+  className?: string;
+  onDoubleClick?: () => void;
+  isDragging?: boolean;
+  isDraggingAnything?: boolean;
+  onContextMenu?: React.MouseEventHandler | undefined;
+  liveText?: boolean;
+}) {
+  const {
+    ref,
+    icon,
+    label,
+    onPress,
+    onPreload,
+    isDisabled = false,
+    isActive = false,
+    iconOnly = false,
+    size = "md",
+    density = "default",
+    statusTone,
+    tooltip,
+    tooltipAlways = false,
+    tooltipDelay = 500,
+    tooltipClassName,
+    tooltipPlacement = "right",
+    suffix,
+    className,
+    onDoubleClick,
+    isDragging,
+    isDraggingAnything = false,
+    onContextMenu,
+    liveText: liveTextProp,
+  } = props;
+
+  const liveText =
+    liveTextProp !== undefined
+      ? liveTextProp
+      : statusTone != null
+        ? statusTone !== "inactive" && statusTone !== "done"
+        : false;
+
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+
+  const inactiveText = liveText ? "text-foreground/85" : "text-muted";
+
+  const stateClass =
+    isDisabled || isDragging
+      ? "cursor-not-allowed text-muted/40"
+      : isActive && !isDraggingAnything
+        ? "bg-[var(--row-active)] text-foreground"
+        : `${inactiveText} ${!isDraggingAnything ? "hover:bg-[var(--row-hover)] hover:text-foreground" : ""}`;
+
+  const sizeClass = size === "xs" ? "text-xs" : "text-sm";
+  const compact = density === "compact";
+  const dragRowDim = isDragging && !iconOnly && !isDisabled ? " opacity-60" : "";
+
+  if (iconOnly) {
+    const tooltipContent = tooltip ?? label;
+    return (
+      <Tooltip delay={150}>
+        <Tooltip.Trigger className="flex min-h-0 flex-col">
+          <button
+            ref={ref as React.Ref<HTMLButtonElement>}
+            aria-label={typeof label === "string" ? label : undefined}
+            className={`flex ${compact ? "h-7 w-7" : "h-8 w-8"} shrink-0 cursor-default items-center justify-center rounded-3xl outline-none transition-colors focus-visible:focus-ring ${stateClass} ${className ?? ""}`}
+            disabled={isDisabled}
+            onClick={onPress}
+            onContextMenu={onContextMenu}
+            onFocus={onPreload}
+            onPointerEnter={onPreload}
+            type="button"
+          >
+            {icon}
+          </button>
+        </Tooltip.Trigger>
+        {/* pointer-events-none: hovering the tooltip itself is a no-op, so it
+            can't block the neighbouring icons it overlaps. */}
+        <Tooltip.Content placement={tooltipPlacement} className="pointer-events-none">
+          {tooltipContent}
+        </Tooltip.Content>
+      </Tooltip>
+    );
+  }
+
+  const row = (
+    <div
+      ref={ref as React.Ref<HTMLDivElement>}
+      role="button"
+      tabIndex={isDisabled ? -1 : 0}
+      aria-disabled={isDisabled || undefined}
+      aria-grabbed={isDragging}
+      className={`group relative flex w-full shrink-0 cursor-default items-center gap-2 ${compact ? "py-1" : "py-1.5"} rounded-lg px-2 text-left ${sizeClass} outline-none transition-colors ${stateClass}${dragRowDim} ${className ?? ""}`}
+      onClick={isDisabled ? undefined : onPress}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
+      onFocus={onPreload}
+      onPointerEnter={onPreload}
+      onKeyDown={(e) => {
+        if (isDisabled) return;
+        // Ignore key events bubbling from a focusable suffix control (e.g. a
+        // dismiss button) — only the row itself should activate onPress, so a
+        // keyboard user pressing Enter/Space on the suffix doesn't also fire it.
+        if (e.target !== e.currentTarget) return;
+        handleKeyActivate(e, () => onPress?.());
+      }}
+    >
+      {icon}
+      <div className="min-w-0 flex-1">
+        <span ref={labelRef} className="block truncate">
+          {label}
+        </span>
+      </div>
+      {suffix && <div className="flex shrink-0 items-center gap-[3px]">{suffix}</div>}
+    </div>
+  );
+
+  if (!tooltip) return row;
+
+  return (
+    <Tooltip
+      delay={tooltipDelay}
+      isOpen={isTooltipOpen}
+      onOpenChange={(open) => {
+        if (open && tooltipAlways) {
+          setIsTooltipOpen(true);
+        } else if (open) {
+          // Labels may truncate on the wrapper itself or on a nested `.truncate`
+          // element (e.g. a title inside a flex row with trailing markers).
+          const el = labelRef.current;
+          const measured = el?.querySelector<HTMLElement>(".truncate") ?? el;
+          if (measured && measured.scrollWidth > measured.clientWidth) {
+            setIsTooltipOpen(true);
+          }
+        } else {
+          setIsTooltipOpen(false);
+        }
+      }}
+    >
+      <Tooltip.Trigger className="flex w-full min-h-0 flex-col" tabIndex={-1} role="none">
+        {row}
+      </Tooltip.Trigger>
+      <Tooltip.Content
+        placement="right"
+        showArrow
+        className={`max-w-[28rem] text-xs ${tooltipClassName ?? ""}`}
+      >
+        {tooltip}
+      </Tooltip.Content>
+    </Tooltip>
+  );
+}

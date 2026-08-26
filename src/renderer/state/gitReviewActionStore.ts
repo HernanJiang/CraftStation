@@ -1,0 +1,184 @@
+import { create } from "zustand";
+import type { PrWatch } from "@/shared/contracts";
+
+/**
+ * Per-(project, worktree) working state for the git review panel: in-progress
+ * drafts (commit message, PR title/body/target) and the in-flight flags for
+ * every async action the panel can run (generate, commit, sync, merge, pull,
+ * create PR).
+ *
+ * Lives in a module-level store — NOT component `useState` — so it survives
+ * the panel unmounting and remounting when the user switches projects. The
+ * panel is keyed by `${projectId}:${worktreePath}` (see AppOverlays /
+ * GitReviewPanelContent), so switching away and back fully remounts the
+ * subtree; local state there would reset to empty. Because every action
+ * (commit, push, merge, and especially the long-running generate/PR-summary
+ * supervisor calls) keeps running across that remount, its pending flag and
+ * any result must live somewhere that outlives the component. Routing all of
+ * it through this store — keyed by the same `storeKey` the panel uses
+ * (`statusKey ?? project.id`) — means spinners reappear on return and async
+ * results land against the right panel even if it unmounted mid-flight,
+ * instead of resolving into a dead component instance.
+ *
+ * Intentionally in-memory only (no localStorage): an in-flight flag must not
+ * survive an app restart, or an action killed with the process would leave its
+ * spinner stuck on forever.
+ */
+/**
+ * Provenance of an AI-generated draft, kept alongside the draft text so a
+ * later commit/PR that uses it is attributed to the right provider/model even
+ * when the user pressed "Generate" explicitly (which fills the draft, so the
+ * commit/PR code path sees a non-empty field and skips its inline-generate
+ * branch). `text` is the exact generated string, matched against the final
+ * value to confirm the AI draft actually survived to the action.
+ */
+export interface GeneratedDraftMeta {
+  text: string;
+  provider: string;
+  model: string;
+}
+
+/**
+ * Fine-grained step of the git action currently in flight. The panel renders it
+ * as a live status line ("Committing…", "Pushing…", "Creating PR…") so a
+ * multi-step action like "Commit & Create PR" shows which step is running
+ * instead of one opaque spinner. Every action offered by the commit/sync
+ * controls maps to a phase, so the slot doubles as the panel's mutual-exclusion
+ * lock: while one action owns it the others stay disabled. Null when idle.
+ */
+export type GitActionPhase =
+  | "generating-message"
+  | "committing"
+  | "pushing"
+  | "pulling"
+  | "syncing"
+  | "creating-pr"
+  | "generating-pr-summary";
+
+export interface GitReviewActionState {
+  /** Draft commit message — typed by the user or filled in by generation. */
+  commitMessage: string;
+  /** Last Git merge-message template observed for this panel. */
+  mergeMessageTemplate: string | null;
+  /** Provenance of the last AI-generated commit message (null once consumed/replaced). */
+  commitGen: GeneratedDraftMeta | null;
+  /** Draft PR title. */
+  prTitle: string;
+  /** Draft PR body. */
+  prBody: string;
+  /** Provenance of the last AI-generated PR summary (matched on title). */
+  prGen: GeneratedDraftMeta | null;
+  /** Draft PR target branch (null = use the resolved source branch). */
+  prTargetBranch: string | null;
+  /** Automation record returned while creating the newest PR in this panel. */
+  createdPrWatch: { prNumber: number; watch: PrWatch | null } | null;
+  /** A commit-message generation is in flight (supervisor one-shot LLM call). */
+  isGenerating: boolean;
+  /** A PR-summary generation is in flight. */
+  isGeneratingPr: boolean;
+  /** A commit (and optional push) is in flight. */
+  isCommitting: boolean;
+  /** A push/sync/pull is in flight. */
+  isSyncing: boolean;
+  /** A worktree merge is in flight. */
+  isMerging: boolean;
+  /** A pull-from-source is in flight. */
+  isPullingFromSource: boolean;
+  /** A merge abort is in flight. */
+  isAbortingMerge: boolean;
+  /** A merge finish (commit) is in flight. */
+  isFinishingMerge: boolean;
+  /** A PR creation is in flight. */
+  isCreatingPr: boolean;
+  /** Current step of the git action in flight (null when idle). */
+  actionPhase: GitActionPhase | null;
+  /** Commit hash of the Poracode pull stash awaiting re-apply after the in-progress merge. */
+  pullStashCommit: string | null;
+}
+
+/** Stable default returned for panels with no state yet — never mutate. */
+const EMPTY_STATE: GitReviewActionState = Object.freeze({
+  commitMessage: "",
+  mergeMessageTemplate: null,
+  commitGen: null,
+  prTitle: "",
+  prBody: "",
+  prGen: null,
+  prTargetBranch: null,
+  createdPrWatch: null,
+  isGenerating: false,
+  isGeneratingPr: false,
+  isCommitting: false,
+  isSyncing: false,
+  isMerging: false,
+  isPullingFromSource: false,
+  isAbortingMerge: false,
+  isFinishingMerge: false,
+  isCreatingPr: false,
+  actionPhase: null,
+  pullStashCommit: null,
+});
+
+/**
+ * Key of a panel's slice in this store — must stay identical to the key the
+ * git review panel computes (`statusKey ?? project.id`, where `statusKey` is
+ * the worktree path; see GitReviewSidebar), so writers outside the panel
+ * (e.g. PullFromSourceDialog) land state where the panel will read it.
+ */
+export function gitReviewActionStoreKey(
+  projectId: string,
+  worktreePath: string | undefined,
+): string {
+  return worktreePath ?? projectId;
+}
+
+interface GitReviewActionStore {
+  panels: Record<string, GitReviewActionState>;
+  /** Merge `patch` into the state for `key`; no-op writes are skipped. */
+  patch: (key: string, patch: Partial<GitReviewActionState>) => void;
+  /** Claim the panel's phase slot; only one tracked action may own it. */
+  beginActionPhase: (key: string, phase: GitActionPhase) => boolean;
+  /** Advance a phase only when the caller still owns the expected phase. */
+  transitionActionPhase: (key: string, from: GitActionPhase, to: GitActionPhase) => boolean;
+  /** Clear a phase only when the caller still owns it. */
+  clearActionPhase: (key: string, phase: GitActionPhase) => boolean;
+}
+
+export const useGitReviewActionStore = create<GitReviewActionStore>((set, get) => ({
+  panels: {},
+  patch: (key, patch) => {
+    const current = get().panels[key] ?? EMPTY_STATE;
+    const keys = Object.keys(patch) as (keyof GitReviewActionState)[];
+    if (keys.every((k) => current[k] === patch[k])) return;
+    set((state) => ({
+      panels: { ...state.panels, [key]: { ...current, ...patch } },
+    }));
+  },
+  beginActionPhase: (key, phase) => {
+    if (get().panels[key]?.actionPhase) return false;
+    get().patch(key, { actionPhase: phase });
+    return true;
+  },
+  transitionActionPhase: (key, from, to) => {
+    if (get().panels[key]?.actionPhase !== from) return false;
+    get().patch(key, { actionPhase: to });
+    return true;
+  },
+  clearActionPhase: (key, phase) => {
+    if (get().panels[key]?.actionPhase !== phase) return false;
+    get().patch(key, { actionPhase: null });
+    return true;
+  },
+}));
+
+export function resetGitReviewActionStore(): void {
+  useGitReviewActionStore.setState({ panels: {} });
+}
+
+/**
+ * Reactive read of a single panel's state. Returns a stable empty default when
+ * the panel has no state yet, so an absent key never triggers re-render churn.
+ */
+export function useGitReviewActionState(key: string): GitReviewActionState {
+  return useGitReviewActionStore((s) => s.panels[key] ?? EMPTY_STATE);
+}

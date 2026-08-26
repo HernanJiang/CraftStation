@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript"],
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off"
+  },
+  "rules": {
+    "typescript/await-thenable": "error",
+    "typescript/no-array-delete": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-misused-spread": "error",
+    "typescript/only-throw-error": "error"
+  },
+  "ignorePatterns": ["dist", "node_modules"]
+}

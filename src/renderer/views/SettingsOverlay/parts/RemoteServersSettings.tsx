@@ -1,0 +1,454 @@
+import { type Ref, useEffect, useRef, useState } from "react";
+import { Button, Input } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
+import {
+  Check,
+  ChevronRight,
+  FolderOpen,
+  FolderPlus,
+  GitBranch,
+  Link2,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
+import { cloneFolderNameFromUrl } from "@/shared/createProject";
+import { useAsyncOperation } from "@/renderer/hooks/useAsyncOperation";
+import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
+import type { RemoteServerRecord } from "@/renderer/state/remoteServers/types";
+import {
+  RemoteServerStatusDot,
+  useRemoteServerStatusLabel,
+} from "@/renderer/components/common/RemoteServerStatusDot";
+import { RemoteServerProjectList } from "./RemoteServerProjectList";
+import { SettingsPage } from "./SettingsForm";
+import { RemoteHostFolderPicker } from "./RemoteHostFolderPicker";
+import { RemoteHostUpdateControl } from "./RemoteHostUpdateControl";
+import { SshConnectionForm } from "./SshConnectionForm";
+
+const INPUT_CLASS =
+  "w-full rounded-lg border border-default-200 bg-default-50 px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/50 focus:border-default-400";
+
+/** "http://172.16.21.25:49152/" → "172.16.21.25:49152". */
+function endpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return endpoint;
+  }
+}
+
+/** Compact bare input used across the remote-server forms. */
+function CompactInput(props: {
+  readonly value: string;
+  readonly placeholder: string;
+  readonly ariaLabel: string;
+  readonly onChange: (value: string) => void;
+  readonly inputMode?: "url" | "text";
+  readonly inputRef?: Ref<HTMLInputElement>;
+  readonly onEnter?: () => void;
+  readonly onEscape?: () => void;
+}) {
+  return (
+    <Input
+      className={INPUT_CLASS}
+      value={props.value}
+      aria-label={props.ariaLabel}
+      placeholder={props.placeholder}
+      inputMode={props.inputMode ?? "text"}
+      spellCheck={false}
+      autoCapitalize="off"
+      autoCorrect="off"
+      ref={props.inputRef}
+      onChange={(event) => props.onChange(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && props.onEnter) {
+          event.preventDefault();
+          props.onEnter();
+        } else if (event.key === "Escape" && props.onEscape) {
+          event.preventDefault();
+          props.onEscape();
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * Reveal-on-click "add folder" / "clone repo" affordances for one server. Both
+ * create the project on the host, so they are locked while it is unreachable.
+ */
+function ManageProjects({
+  desktopId,
+  isOnline,
+}: {
+  readonly desktopId: string;
+  readonly isOnline: boolean;
+}) {
+  const { t } = useLingui();
+  const runProjectCommand = useRemoteServersStore((s) => s.runProjectCommand);
+  const { busy, error, run } = useAsyncOperation();
+  const [mode, setMode] = useState<"none" | "folder" | "clone">("none");
+  const [folderPath, setFolderPath] = useState("");
+  const [cloneParent, setCloneParent] = useState("");
+  const [cloneUrl, setCloneUrl] = useState("");
+  const [pickerTarget, setPickerTarget] = useState<"folder" | "clone" | null>(null);
+  const cloneName = cloneFolderNameFromUrl(cloneUrl);
+
+  const reset = () => {
+    setMode("none");
+    setFolderPath("");
+    setCloneParent("");
+    setCloneUrl("");
+  };
+
+  const addFolder = () =>
+    run(async () => {
+      await runProjectCommand(desktopId, { kind: "add-existing", path: folderPath.trim() });
+      reset();
+    });
+  const clone = () =>
+    run(async () => {
+      await runProjectCommand(desktopId, {
+        kind: "clone",
+        parentPath: cloneParent.trim(),
+        name: cloneName,
+        source: { kind: "url", url: cloneUrl.trim() },
+      });
+      reset();
+    });
+
+  if (mode === "none") {
+    return (
+      <div className="flex flex-wrap items-center gap-1 pl-5 pt-0.5">
+        <Button variant="ghost" size="sm" isDisabled={!isOnline} onPress={() => setMode("folder")}>
+          <FolderPlus className="size-3.5" />
+          <Trans>Add folder</Trans>
+        </Button>
+        <Button variant="ghost" size="sm" isDisabled={!isOnline} onPress={() => setMode("clone")}>
+          <GitBranch className="size-3.5" />
+          <Trans>Clone repo</Trans>
+        </Button>
+        {isOnline ? null : (
+          <span className="text-xs text-muted/70">
+            <Trans>Reconnect the server to add projects.</Trans>
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 pl-5 pt-1">
+      {mode === "folder" ? (
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            fullWidth
+            className={`${INPUT_CLASS} h-auto min-w-0 justify-start gap-2 text-left font-normal`}
+            aria-label={t`Folder path on the server`}
+            onPress={() => setPickerTarget("folder")}
+          >
+            <FolderOpen className="size-4 shrink-0 text-muted" />
+            <span className={`min-w-0 flex-1 truncate ${folderPath ? "" : "text-muted/50"}`}>
+              {folderPath || t`Choose a folder…`}
+            </span>
+          </Button>
+          <Button
+            variant="tertiary"
+            size="sm"
+            isDisabled={busy || !folderPath.trim()}
+            onPress={addFolder}
+          >
+            <Trans>Add</Trans>
+          </Button>
+          <Button variant="ghost" size="sm" isIconOnly aria-label={t`Cancel`} onPress={reset}>
+            <X className="size-4" />
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Button
+            variant="ghost"
+            fullWidth
+            className={`${INPUT_CLASS} h-auto min-w-0 justify-start gap-2 text-left font-normal`}
+            aria-label={t`Parent folder`}
+            onPress={() => setPickerTarget("clone")}
+          >
+            <FolderOpen className="size-4 shrink-0 text-muted" />
+            <span className={`min-w-0 flex-1 truncate ${cloneParent ? "" : "text-muted/50"}`}>
+              {cloneParent || t`Choose a folder…`}
+            </span>
+          </Button>
+          <div className="flex items-center gap-1.5">
+            <CompactInput
+              value={cloneUrl}
+              ariaLabel={t`Repository URL`}
+              placeholder="https://github.com/owner/repo.git"
+              inputMode="url"
+              onChange={setCloneUrl}
+              onEnter={clone}
+            />
+            <Button
+              variant="tertiary"
+              size="sm"
+              isDisabled={busy || !cloneParent.trim() || !cloneName}
+              onPress={clone}
+            >
+              <Trans>Clone</Trans>
+            </Button>
+            <Button variant="ghost" size="sm" isIconOnly aria-label={t`Cancel`} onPress={reset}>
+              <X className="size-4" />
+            </Button>
+          </div>
+        </>
+      )}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+      {pickerTarget ? (
+        <RemoteHostFolderPicker
+          desktopId={desktopId}
+          title={t`Choose a folder`}
+          initialPath={pickerTarget === "folder" ? folderPath : cloneParent}
+          onClose={() => setPickerTarget(null)}
+          onSelect={pickerTarget === "folder" ? setFolderPath : setCloneParent}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function RemoteServerRow({ server }: { readonly server: RemoteServerRecord }) {
+  const { t } = useLingui();
+  const runtime = useRemoteServersStore((s) => s.runtime[server.desktopId]);
+  const reconnectServer = useRemoteServersStore((s) => s.reconnectServer);
+  const renameServer = useRemoteServersStore((s) => s.renameServer);
+  const removeServer = useRemoteServersStore((s) => s.removeServer);
+  const { busy, run } = useAsyncOperation();
+  const [expanded, setExpanded] = useState(false);
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const isRenaming = nameDraft !== null;
+
+  useEffect(() => {
+    if (!isRenaming) return;
+    nameInputRef.current?.focus();
+    nameInputRef.current?.select();
+  }, [isRenaming]);
+
+  const status = runtime?.status ?? "offline";
+  const statusLabel = useRemoteServerStatusLabel(status);
+  const canManage = server.scopes.includes("projects:manage");
+  const projects = runtime?.projects ?? [];
+  const saveName = () => {
+    const name = nameDraft?.trim();
+    if (!name) return;
+    renameServer(server.desktopId, name);
+    setNameDraft(null);
+  };
+
+  return (
+    <div className="border-b border-[var(--hairline)] last:border-b-0">
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-default-100/60"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <ChevronRight
+            className={`size-3.5 shrink-0 text-muted transition-transform ${expanded ? "rotate-90" : ""}`}
+          />
+          <RemoteServerStatusDot status={status} />
+          <span className="truncate text-sm text-foreground">{server.label}</span>
+          {status !== "online" ? (
+            <span className="shrink-0 text-xs text-muted">{statusLabel}</span>
+          ) : null}
+          {server.remoteLabel && server.remoteLabel !== server.label ? (
+            <span className="truncate text-xs text-muted/70">{server.remoteLabel}</span>
+          ) : null}
+          <span className="truncate text-xs text-muted/70">
+            {server.transport?.kind === "ssh"
+              ? server.transport.connection.target
+              : endpointHost(server.endpoint)}
+          </span>
+        </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          isIconOnly
+          aria-label={`${t`Rename`} ${server.label}`}
+          onPress={() => setNameDraft(server.label)}
+        >
+          <Pencil className="size-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          isIconOnly
+          aria-label={t`Refresh`}
+          isDisabled={busy}
+          onPress={() => run(() => reconnectServer(server.desktopId))}
+        >
+          <RefreshCw className={`size-3.5 ${status === "connecting" ? "animate-spin" : ""}`} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          isIconOnly
+          aria-label={t`Disconnect server`}
+          onPress={() => removeServer(server.desktopId)}
+        >
+          <Trash2 className="size-3.5 text-danger" />
+        </Button>
+      </div>
+
+      {nameDraft !== null ? (
+        <div className="flex items-center gap-1.5 px-3 pb-2 pl-8">
+          <CompactInput
+            value={nameDraft}
+            ariaLabel={t`Name`}
+            placeholder={server.label}
+            inputRef={nameInputRef}
+            onChange={setNameDraft}
+            onEnter={saveName}
+            onEscape={() => setNameDraft(null)}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            isIconOnly
+            aria-label={t`Save`}
+            isDisabled={!nameDraft.trim()}
+            onPress={saveName}
+          >
+            <Check className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            isIconOnly
+            aria-label={t`Cancel`}
+            onPress={() => setNameDraft(null)}
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
+      ) : null}
+
+      {expanded ? (
+        <div className="space-y-0.5 pb-2 pl-3 pr-2">
+          {runtime?.status === "error" && runtime.message ? (
+            <p className="pl-5 text-xs text-danger">{runtime.message}</p>
+          ) : null}
+          {server.hostMode !== "helper" && canManage ? (
+            <RemoteHostUpdateControl server={server} isOnline={status === "online"} />
+          ) : null}
+          <RemoteServerProjectList desktopId={server.desktopId} projects={projects} />
+          {canManage ? (
+            <ManageProjects desktopId={server.desktopId} isOnline={status === "online"} />
+          ) : (
+            <p className="pl-5 pt-0.5 text-xs text-muted/70">
+              <Trans>View-only — this connection can't manage projects.</Trans>
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function RemoteServersSettings() {
+  const { t } = useLingui();
+  const servers = useRemoteServersStore((s) => s.servers);
+  const pairServer = useRemoteServersStore((s) => s.pairServer);
+  const connectAll = useRemoteServersStore((s) => s.connectAll);
+
+  // Reconnect persisted servers when the panel opens so their projects are live.
+  useEffect(() => {
+    void connectAll();
+  }, [connectAll]);
+
+  const [adding, setAdding] = useState<"direct" | "ssh" | null>(null);
+  const [endpoint, setEndpoint] = useState("");
+  const [token, setToken] = useState("");
+  const { busy: pairing, error, run } = useAsyncOperation();
+
+  const canConnect = !pairing && endpoint.trim().length > 0 && token.trim().length > 0;
+  const onPair = () => {
+    if (!canConnect) return;
+    run(async () => {
+      await pairServer({ endpoint, token });
+      await connectAll();
+      setEndpoint("");
+      setToken("");
+      setAdding(null);
+    });
+  };
+
+  return (
+    <SettingsPage
+      title={t`Remote Environments`}
+      description={t`Connect directly, through a relay, or over SSH. Every transport uses the same Poracode remote protocol, projects, threads, and agent runtimes.`}
+      bodyClassName="space-y-3"
+    >
+      {servers.length > 0 ? (
+        <div className="overflow-hidden rounded-xl border border-[var(--hairline)]">
+          {servers.map((server) => (
+            <RemoteServerRow key={server.desktopId} server={server} />
+          ))}
+        </div>
+      ) : null}
+
+      {adding === "direct" ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-[var(--hairline)] p-3">
+          <CompactInput
+            value={endpoint}
+            ariaLabel={t`Endpoint`}
+            placeholder={t`Endpoint, e.g. http://192.168.1.20:49152/`}
+            inputMode="url"
+            onChange={setEndpoint}
+            onEnter={onPair}
+          />
+          <CompactInput
+            value={token}
+            ariaLabel={t`Pairing token`}
+            placeholder="lc_pair_…"
+            onChange={setToken}
+            onEnter={onPair}
+          />
+          <div className="flex items-center gap-2">
+            <Button variant="tertiary" size="sm" isDisabled={!canConnect} onPress={onPair}>
+              {pairing ? <Loader2 className="size-4 animate-spin" /> : <Link2 className="size-4" />}
+              {pairing ? <Trans>Connecting…</Trans> : <Trans>Connect</Trans>}
+            </Button>
+            <Button variant="ghost" size="sm" isDisabled={pairing} onPress={() => setAdding(null)}>
+              <Trans>Cancel</Trans>
+            </Button>
+            {error ? <span className="min-w-0 truncate text-xs text-danger">{error}</span> : null}
+          </div>
+        </div>
+      ) : adding === "ssh" ? (
+        <SshConnectionForm onConnected={() => setAdding(null)} onCancel={() => setAdding(null)} />
+      ) : (
+        <div className="flex gap-2">
+          <Button variant="tertiary" size="sm" onPress={() => setAdding("direct")}>
+            <Link2 className="size-4" />
+            <Trans>Pair with Poracode</Trans>
+          </Button>
+          <Button variant="tertiary" size="sm" onPress={() => setAdding("ssh")}>
+            <Plus className="size-4" />
+            <Trans>Connect over SSH</Trans>
+          </Button>
+        </div>
+      )}
+
+      {servers.length === 0 && adding === null ? (
+        <p className="text-xs text-muted">
+          <Trans>No remote environments connected yet.</Trans>
+        </p>
+      ) : null}
+    </SettingsPage>
+  );
+}

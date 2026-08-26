@@ -1,0 +1,1145 @@
+{
+  "releases": [
+    {
+      "version": "1.6.5",
+      "date": "2026-08-18",
+      "title": "Windows shell preferences, sturdier ACP agents & smarter PR targets",
+      "summary": "You can now choose which Windows shell runs your terminals and which one Poracode uses behind the scenes. Removing an ACP agent, opening a pull request from a worktree, and closing the app all behave the way you expect.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Windows",
+          "text": "You can now choose which shell the Terminal panel opens — PowerShell 7, Windows PowerShell 5.1, or Command Prompt — pick a separate PowerShell host for agents, logins, installs, and Poracode's internal commands, and pass extra arguments such as -NoProfile to every new terminal session."
+        },
+        {
+          "kind": "improved",
+          "label": "ACP agents",
+          "text": "Session modes reported by ACP agents now read as prose in the approval picker, so goose shows Smart approve instead of smart_approve."
+        },
+        {
+          "kind": "improved",
+          "label": "Codex",
+          "text": "New chats now start with the context window you saved for the provider, and changing a thread's context window reuses the running app server instead of spawning a second one."
+        },
+        {
+          "kind": "improved",
+          "text": "An agent that reports a successful sign-in Poracode cannot confirm now explains how to finish setup instead of showing a raw error, and an environment with a working session no longer asks you to log in again."
+        },
+        {
+          "kind": "fixed",
+          "label": "ACP agents",
+          "text": "Removing an installed agent now stops its running threads first and clears the install folder even while Windows still holds the binary, so a stale copy no longer blocks the next install."
+        },
+        {
+          "kind": "fixed",
+          "label": "Pull requests",
+          "text": "Creating a pull request from a worktree now resolves the base branch against your local branches, so the target branch is prefilled correctly, keeps its exact name when it collides with a remote ref, and stays selectable in the target list."
+        },
+        {
+          "kind": "fixed",
+          "label": "Windows",
+          "text": "Closing the main window now quits Poracode when close-to-tray is off, instead of leaving the app running with nothing on screen."
+        },
+        {
+          "kind": "fixed",
+          "label": "Codex",
+          "text": "Closing a Codex thread while a turn is still running now interrupts that turn instead of leaving it working against the shared app server."
+        },
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Antigravity sessions started from a project now bind to that project so its file tools stay scoped to the folder you opened, while Home sessions stay projectless."
+        }
+      ]
+    },
+    {
+      "version": "1.6.4",
+      "date": "2026-08-17",
+      "title": "Codex context windows, Home permissions & project terminals",
+      "summary": "Poracode adds configurable context windows and compaction thresholds for Codex, enables unrestricted agent sessions in your Home directory, and adds direct terminal access to project menus. Branch tracking in worktrees and ACP skill badges in the composer also get useful fixes.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Codex",
+          "text": "You can now customize the context window sizes available in the Codex composer under Settings, defaulting new chats to 400k with automatic compaction starting at 95% of your chosen window."
+        },
+        {
+          "kind": "added",
+          "label": "Projects",
+          "text": "You can now open a project's terminal directly from the project menu in both the grouped sidebar and flat project filter."
+        },
+        {
+          "kind": "improved",
+          "label": "Home",
+          "text": "Agent sessions started in the projectless Home folder now run with unrestricted permissions across all providers, allowing full read and write access across your home directory."
+        },
+        {
+          "kind": "improved",
+          "label": "Composer",
+          "text": "Skills invoked with slash commands in the composer and chat messages now display with a dedicated sparkles icon and accessible badge instead of generic slash-command text."
+        },
+        {
+          "kind": "fixed",
+          "label": "Worktrees",
+          "text": "Creating a new worktree branch no longer accidentally inherits origin/main as its remote tracking upstream, preventing new worktrees from falsely reporting behind commits."
+        }
+      ]
+    },
+    {
+      "version": "1.6.3",
+      "date": "2026-08-16",
+      "title": "Muse Code, Claude skills & sturdier sessions",
+      "summary": "Poracode adds Muse Code as a first-class terminal agent, surfaces Claude's own skills in the composer, and keeps launches and follow-ups alive when you switch panes or a session disappears.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Muse Code",
+          "text": "You can now run Meta's Muse Code CLI as a terminal session in Poracode — pick Muse Spark models and reasoning effort, sign in from Settings, and resume where you left off. On Windows, install it through WSL."
+        },
+        {
+          "kind": "improved",
+          "label": "Claude",
+          "text": "Claude's own skills — the ones the CLI ships, not just files on disk — now appear in the composer slash menu and run as streaming skills instead of silent local commands."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "Threads show a Connecting… state in the header and chat while the session is starting, so a launch no longer looks idle."
+        },
+        {
+          "kind": "fixed",
+          "text": "Starting a thread and switching or closing the pane no longer leaves the agent silently never started; launch failures now show as an error on the thread."
+        },
+        {
+          "kind": "fixed",
+          "text": "If a session is gone when you send a message — after a restart or unload — Poracode relaunches it and delivers the prompt instead of dropping it, including from the send_to_thread MCP tool. Interrupting a thread whose session already died now settles it to Inactive instead of leaving it stuck Working."
+        },
+        {
+          "kind": "fixed",
+          "label": "Codex",
+          "text": "Steering a running Codex turn now lands on the in-flight work instead of starting a conflicting turn, answers no longer vanish while Codex is compacting or running concurrent turns, and app-server sessions no longer stall when acquiring a server fails or two launches race."
+        }
+      ]
+    },
+    {
+      "version": "1.6.2",
+      "date": "2026-08-11",
+      "title": "Agent Plugins, merged PR sync & stoppable actions",
+      "summary": "A big feature release: Poracode adds a standards-based Agent Plugins marketplace, syncs merged pull request branches automatically, and lets you stop running project actions from context menus. Worktree launches, pane placement, subagent status, usage reporting, and provider reliability all get substantial polish.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Agent Plugins",
+          "text": "Browse, install, and manage Agent Plugins in Settings, with bundled Browser Tools, Chrome Tools, Computer Use, GitHub, Outlook, and Subagent Delegation packages."
+        },
+        {
+          "kind": "added",
+          "label": "Agent Plugins",
+          "text": "Plugin skills and MCP servers work across supported agents, can be enabled individually or invoked from composer mentions, and carry through restarts, recovery, WSL, and remote sessions."
+        },
+        {
+          "kind": "added",
+          "label": "Worktrees",
+          "text": "Worktree threads launch more responsively: your message appears instantly with a live \"Creating worktree…\" indicator while Poracode sets everything up."
+        },
+        {
+          "kind": "added",
+          "label": "Pull requests",
+          "text": "After you merge a pull request, Poracode pulls the merged base branch into your checkout once per project, and sync badges now appear on experiment groups, thread groups, and thread rows until the pull completes."
+        },
+        {
+          "kind": "added",
+          "text": "Stop any running project action straight from the thread, worktree, or project context menu, and running actions are tracked even after their terminal tab closes."
+        },
+        {
+          "kind": "added",
+          "label": "MCP",
+          "text": "The Poracode MCP server can identify the current thread and list or read live terminal panes with worktree-scoped scrollback, and you can @-mention Terminal in the composer when app controls are enabled."
+        },
+        {
+          "kind": "added",
+          "label": "Subagents",
+          "text": "Resumed Claude subagents get their own labeled Agent Resume row, and cancelled Crossagents runs show a clear cancelled state instead of looking stuck."
+        },
+        {
+          "kind": "added",
+          "label": "Command Code",
+          "text": "Usage now shows Command Code's rolling 5-hour and weekly dollar limits alongside monthly credits, with reset countdowns, matching Studio and the CLI."
+        },
+        {
+          "kind": "added",
+          "label": "Panes",
+          "text": "The New thread menu lists your projects, and you can drag any of them straight onto a pane or the gap between two panes to start that project's draft exactly where you want it."
+        },
+        {
+          "kind": "improved",
+          "label": "Crossagents",
+          "text": "Subagent runs are named with the model's sub-provider so similar selections are easy to tell apart, the learned selections list scrolls when it grows long, and the provider filter explains that unchecked providers only opt out of automatic routing."
+        },
+        {
+          "kind": "improved",
+          "label": "Usage",
+          "text": "Dollar-denominated usage windows lead with the percent on the bar, and spend amounts sit next to the reset countdown as smaller muted text."
+        },
+        {
+          "kind": "improved",
+          "label": "Projects",
+          "text": "Project pickers now mark local and remote projects with distinct icons, and you can open GitHub Actions from a worktree group's context menu."
+        },
+        {
+          "kind": "improved",
+          "label": "Sidebar",
+          "text": "Collapsed worktree groups tint their icon when a thread inside is working or has finished, so you can read a group's state without expanding it."
+        },
+        {
+          "kind": "improved",
+          "label": "Composer",
+          "text": "The add menu is tidier: Computer Use and Experiment keep single-line rows with their descriptions moved into info tooltips."
+        },
+        {
+          "kind": "fixed",
+          "label": "Panes",
+          "text": "Opening a pane now splits the space evenly instead of squeezing the newest one, existing panes keep their relative widths, and the insert line lights up as soon as you drag near the edge between two panes."
+        },
+        {
+          "kind": "fixed",
+          "text": "Renaming a thread no longer bumps it to the top of the list, completed turns stay closed when trailing plan or goal updates arrive, and the turn timer stops ticking as soon as the turn ends."
+        },
+        {
+          "kind": "fixed",
+          "label": "Sidebar",
+          "text": "Disabled, hidden, and offline-server projects reappear in a dedicated section of the project filter so you can re-enable them, and Remove Project is disabled for servers you can't reach."
+        },
+        {
+          "kind": "fixed",
+          "text": "Cancelling agent detection now stops probes and cleanup promptly across every provider, and hung WSL processes are killed on timeout instead of lingering."
+        },
+        {
+          "kind": "fixed",
+          "text": "Kimi subscription tiers show the correct credit multipliers, an explicit Fast mode off now carries over to your next draft, and one-shot responses that leak raw tool-call markers are rejected instead of shown as text."
+        },
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Every reasoning level reported by agy now appears in the model picker, including High for Gemini 3.6 Flash."
+        },
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Threads created in linked Git worktrees now keep agy's file tools bound to that exact worktree instead of falling back to the main checkout."
+        },
+        {
+          "kind": "fixed",
+          "label": "OpenCode",
+          "text": "Go plan usage now comes from your live opencode.ai subscription instead of local CLI spend, and sign-in remains available when CLI authentication has no meters, so empty local snapshots no longer strand you."
+        },
+        {
+          "kind": "fixed",
+          "label": "Grok",
+          "text": "An explicit request to push now runs without a redundant confirmation, while force pushes, merges, and destructive actions remain guarded."
+        },
+        {
+          "kind": "fixed",
+          "label": "Windows",
+          "text": "Settings saves now retry brief file locks from antivirus, indexing, or another app instance instead of failing immediately."
+        },
+        {
+          "kind": "fixed",
+          "label": "Sidebar",
+          "text": "In the flat thread list, main-branch rows now show Files and Terminal controls the same way worktree rows do."
+        },
+        {
+          "kind": "fixed",
+          "label": "Crossagents",
+          "text": "Crossagents only spawn subagents after you explicitly ask in that thread — for example with an @Crossagents mention — and that ask covers later turns in the same thread."
+        },
+        {
+          "kind": "fixed",
+          "label": "Qwen",
+          "text": "Current Alibaba Token Plan models, including Qwen3.7 Max, Qwen3.7 Plus, Qwen3.6 Flash, and DeepSeek V4 Flash 0731, are detected and labeled correctly."
+        }
+      ]
+    },
+    {
+      "version": "1.6.1",
+      "date": "2026-08-07",
+      "title": "Flat thread list, worktree moves & workspace switching",
+      "summary": "The sidebar can now show every project's threads in one flat, filterable list, and you can move an existing thread into a worktree straight from its context menu. Remote-paired projects, Kimi Code sessions, Factory Droid subagents, and Windows agent launches are all more dependable.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Sidebar",
+          "text": "Switch the thread list to a flat layout that shows every project's threads together, tagged by project and with Git status on each row, plus per-project filters."
+        },
+        {
+          "kind": "added",
+          "label": "Sidebar",
+          "text": "The collapsed rail now has Browser and New thread buttons, and right-clicking a thread there opens the same context menu as the expanded sidebar."
+        },
+        {
+          "kind": "added",
+          "label": "Worktrees",
+          "text": "Move an existing thread into a new worktree from its context menu, either clean or carrying its uncommitted changes along."
+        },
+        {
+          "kind": "added",
+          "label": "Workspaces",
+          "text": "The project switcher groups projects by workspace, remembers the last project you used in each one, and follows you when you open a thread from another workspace."
+        },
+        {
+          "kind": "added",
+          "label": "Cursor",
+          "text": "Cursor SDK chat gains the standard composer slash commands for model, effort, fast mode, plan mode, and agent selection."
+        },
+        {
+          "kind": "added",
+          "label": "Plans",
+          "text": "When an ACP agent proposes a plan, the full plan shows in the approval request so you can read it before you accept, and plan mode stays in sync when the agent switches modes on its own."
+        },
+        {
+          "kind": "improved",
+          "label": "Pull requests",
+          "text": "The PR automation control now shows a distinct icon and label for Auto Fix and Auto Merge so the selected mode is clear at a glance."
+        },
+        {
+          "kind": "improved",
+          "label": "Kimi",
+          "text": "Kimi Code handles workspace trust, signing out, thinking levels, question dialogs, and background tasks much more reliably, and a resumed thread now waits on 0.34's cache-expiry dialog instead of answering it by accident."
+        },
+        {
+          "kind": "improved",
+          "label": "Factory",
+          "text": "Factory Droid subagent transcripts now stream dependably into the parent thread, and built-in HTTP MCP servers reach Droid sessions."
+        },
+        {
+          "kind": "improved",
+          "label": "Remote",
+          "text": "Mirrored projects are labeled with their server across the sidebar and project switcher, their threads launch on the host machine and reopen dependably, and you can move a remote thread into a worktree from the desktop or your phone."
+        },
+        {
+          "kind": "improved",
+          "label": "Settings",
+          "text": "A single Prevent sleep policy in General settings replaces the old scattered toggles — keep the machine awake while agents are working, while remote access is enabled, or always."
+        },
+        {
+          "kind": "improved",
+          "label": "Editor",
+          "text": "Overflowing editor tabs scroll horizontally with the mouse wheel, and the active tab is always scrolled into view."
+        },
+        {
+          "kind": "improved",
+          "label": "Qwen",
+          "text": "Your saved Qwen model selections move from the retired Qwen 3.8 Max Preview to the released Qwen 3.8 Max."
+        },
+        {
+          "kind": "improved",
+          "text": "Idle Files and Terminal buttons on sidebar rows now tuck away until you hover, and workflow actions in the GitHub Actions view stand out better on hover."
+        },
+        {
+          "kind": "fixed",
+          "label": "Windows",
+          "text": "Agent commands containing quotes, newlines, or shell metacharacters now launch correctly through WSL and PowerShell instead of failing to parse."
+        },
+        {
+          "kind": "fixed",
+          "text": "A thread marked done stays done when you open it, and a worktree group collapses once its last thread is marked done."
+        },
+        {
+          "kind": "fixed",
+          "label": "Remote",
+          "text": "Pasted images now show a preview and reach the agent on remote threads, and threads created on the host no longer disappear during sync."
+        },
+        {
+          "kind": "fixed",
+          "text": "Provider usage keeps reporting after a browser sign-in rotates its cookies, duplicated question headers are gone, and the model visibility list no longer overflows the window."
+        },
+        {
+          "kind": "fixed",
+          "text": "Closing the last browser tab no longer leaves the right panel stuck on a blank browser view, the side panel border no longer shifts the layout when it closes, and project settings open without a brief empty flash."
+        }
+      ]
+    },
+    {
+      "version": "1.6.0",
+      "date": "2026-08-03",
+      "title": "Remote machines, GitHub Actions & PR automation",
+      "summary": "Poracode now runs agents on remote machines over SSH, manages GitHub Actions, and automates pull request fixes and merges. This release also adds project workspaces, configurable Crossagents routing, structured Cursor SDK chat, goal controls for Codex and Grok, and performance and reliability improvements.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Remote",
+          "text": "Connect a machine from your SSH config to install the Poracode runtime and run agents, clone repositories, open threads and terminals, and review Git while project data remains on the remote machine."
+        },
+        {
+          "kind": "added",
+          "label": "Remote",
+          "text": "Remote machines report their reachability in the sidebar, block launches while offline, support per-project sync and host updates, and can keep your desktop awake while remote access is enabled."
+        },
+        {
+          "kind": "added",
+          "label": "GitHub",
+          "text": "Use the GitHub Actions view to pin and browse workflows, dispatch runs with inputs, rerun, cancel, or delete runs, and inspect job and step status from pull request checks."
+        },
+        {
+          "kind": "added",
+          "label": "Pull requests",
+          "text": "PR automation monitors a pull request, fixes failed checks, merges with your selected method, marks the thread done, and shows live PR status in the thread's changes bubble."
+        },
+        {
+          "kind": "added",
+          "label": "Workspaces",
+          "text": "Group projects into named workspaces and switch the sidebar between them."
+        },
+        {
+          "kind": "added",
+          "label": "Crossagents",
+          "text": "Configure delegation routing in settings by ranking providers by usage, favorites, and tags; pinning overrides; pausing providers; hiding models; and editing learned routing data."
+        },
+        {
+          "kind": "added",
+          "label": "Crossagents",
+          "text": "Delegated agents can run in the background and notify you after the parent turn becomes idle."
+        },
+        {
+          "kind": "added",
+          "label": "Providers",
+          "text": "Cursor now supports structured SDK chat alongside CLI and ACP modes, with a default runtime setting, per-thread selection from the model menu, and managed installation and updates."
+        },
+        {
+          "kind": "added",
+          "label": "Goals",
+          "text": "Codex threads now support edit, pause, resume, and clear goal controls from the composer on desktop and PWA, while Grok supports goal tracking and subagent work."
+        },
+        {
+          "kind": "added",
+          "label": "Experiments",
+          "text": "AI judging can grade captured, anonymized chat responses instead of comparing only diffs."
+        },
+        {
+          "kind": "added",
+          "label": "Git review",
+          "text": "Add an inline comment to any diff line to place it and its context in the composer as a fix prompt."
+        },
+        {
+          "kind": "improved",
+          "label": "Layout",
+          "text": "Tool rails can attach to either edge of a thread, side panels can lock to threads, floating right panels and the bottom terminal are resizable, and sidebar footer shortcuts are configurable."
+        },
+        {
+          "kind": "improved",
+          "text": "Thread plans now dock in the right panel alongside Git and terminals, and diff counters animate as numbers change."
+        },
+        {
+          "kind": "improved",
+          "label": "Performance",
+          "text": "Idle resource use is lower: the composer avoids continuous GPU work, Git polling backs off, and terminal panels prewarm for faster opening."
+        },
+        {
+          "kind": "improved",
+          "label": "Git",
+          "text": "Pull with rebase now stashes and reapplies local changes, preserving the stash if reapplication conflicts."
+        },
+        {
+          "kind": "improved",
+          "label": "Remote",
+          "text": "Remote sessions now render remote-hosted images in chat and preserve previews when uploading clipboard pastes and staged attachments."
+        },
+        {
+          "kind": "improved",
+          "label": "PWA",
+          "text": "The PWA groups completed threads into a Done section, identifies the paired desktop in the wide sidebar, and uses lighter iOS transitions for fullscreen pages."
+        },
+        {
+          "kind": "improved",
+          "label": "Command Code",
+          "text": "Command Code now reuses CLI credentials across native and WSL environments and reports OAuth usage in provider stats."
+        },
+        {
+          "kind": "improved",
+          "text": "A recovery screen now provides update and migration options when the database cannot open after an update."
+        },
+        {
+          "kind": "fixed",
+          "label": "Remote",
+          "text": "Pairing links refresh before they expire, the PWA recovers from stale cached assets after a deployment, and unresponsive SSH machines are marked offline instead of leaving projects stuck loading."
+        },
+        {
+          "kind": "fixed",
+          "text": "Virtual chat rows no longer overlap after growing mid-list, the transcript stays pinned to the bottom while the composer resizes, and tool groups re-pin correctly on touch screens."
+        },
+        {
+          "kind": "fixed",
+          "text": "Replacement Codex sessions survive teardown, pending agent questions recover after a remote reconnect, and agent-initiated follow-up turns no longer remain stuck open."
+        },
+        {
+          "kind": "fixed",
+          "label": "Usage",
+          "text": "Usage reporting is more accurate and reliable: exhausted plans show zero credits, empty Codex credit cards stay hidden, and Grok CLI tokens refresh before they expire."
+        },
+        {
+          "kind": "fixed",
+          "label": "Windows",
+          "text": "Agent detection resolves Scoop shims correctly, and Cursor probes and launches without the cmd wrapper."
+        },
+        {
+          "kind": "fixed",
+          "text": "Built-in agent updates verify the installed version before reporting failure, and native and WSL environments track available updates independently."
+        }
+      ]
+    },
+    {
+      "version": "1.5.3",
+      "date": "2026-07-24",
+      "title": "Pi & Qoder agents, Opus 5, a mobile workspace & synced notes",
+      "summary": "Poracode gains two new coding agents — Pi and Qoder — defaults new Claude threads to Opus 5, and turns the mobile web app into a real workspace with a dockable side panel and notes and to-dos that sync with your desktop. Subagents get their own views, provider token usage finally survives restarts, and a wide round of mobile and notification fixes completes the release.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Providers",
+          "text": "Two new coding agents join the roster: Pi brings native structured chat with resumable sessions, readable model and reasoning-effort discovery, and goal tracking, while Qoder adds plan and approval modes, session resume, and live turn status."
+        },
+        {
+          "kind": "added",
+          "label": "Claude",
+          "text": "Opus 5 is here and becomes the default for new Claude threads, with its effort tiers, 1M context option, and Fast-mode support read straight from the SDK rather than hardcoded."
+        },
+        {
+          "kind": "added",
+          "label": "Subagents",
+          "text": "Delegated work opens in a view of its own — a dedicated panel beside the parent thread on desktop, a full page with real back navigation on mobile — so you can follow a subagent's live transcript without losing your place."
+        },
+        {
+          "kind": "added",
+          "label": "Usage",
+          "text": "Token usage for Claude, Codex, and OpenCode is now written to a durable ledger, so your provider spend carries across app restarts, and providers that never report tokens say so instead of quietly showing zero."
+        },
+        {
+          "kind": "added",
+          "label": "Remote",
+          "text": "On a widescreen browser, the web app now docks a resizable workspace beside your threads with Git, Files, Terminal, Usage, Notes, and Ports tabs — no more full-screen hopping between tools."
+        },
+        {
+          "kind": "added",
+          "label": "Remote",
+          "text": "Notes and to-dos are now available on mobile and stay in sync with the paired desktop, including starting a new thread straight from a to-do."
+        },
+        {
+          "kind": "added",
+          "text": "Agents connected to the built-in Poracode MCP server can now orchestrate the whole app — managing threads, projects, files, Git, GitHub pull requests, MCP servers, skills, and settings."
+        },
+        {
+          "kind": "improved",
+          "label": "Skills",
+          "text": "Skills reach further: Codex and Gemini CLI now pick up the shared .agents/skills folder automatically, Claude Code and Factory see skill edits instantly, and every skill can also be invoked with the /skill:name form."
+        },
+        {
+          "kind": "improved",
+          "label": "ACP agents",
+          "text": "Delegation is tracked more faithfully — goal progress shows paused states and elapsed time, concurrent subagents are attributed to the right parent, and a turn no longer flashes idle while its background subagents are still running."
+        },
+        {
+          "kind": "improved",
+          "label": "ACP agents",
+          "text": "To-do lists that agents like Kimi Code write through tools now feed the plan dock instead of cluttering the transcript as raw tool rows, and the plan follows along as the agent revises or drops it."
+        },
+        {
+          "kind": "improved",
+          "text": "Steering a running turn is smoother: in-flight commands hand off to the background before the agent restarts with your message, and the pending-steer indicator only appears when a steer is genuinely waiting."
+        },
+        {
+          "kind": "improved",
+          "label": "Remote",
+          "text": "Mobile sessions feel more native with faster thread opening, smoother page transitions, fresher Git summaries, right-click menus for mouse users, swipe-to-dismiss toasts, real file-type icons, and a pairing QR code that rotates automatically after each device pairs."
+        },
+        {
+          "kind": "improved",
+          "text": "New threads now start in each provider's recommended autonomy preset, so Antigravity, Grok, Kimi Code, and Factory approve more actions automatically by default — switch a thread back to a supervised mode if you prefer to confirm each step."
+        },
+        {
+          "kind": "improved",
+          "label": "Settings",
+          "text": "Settings are easier to navigate: the sidebar is regrouped into clearer sections with plainer labels, and finished threads now tidy themselves away after three days instead of a week."
+        },
+        {
+          "kind": "fixed",
+          "text": "Opening a finished thread on desktop now clears its attention badge on paired phones immediately, and stopping or steering a turn no longer fires a false completion notification."
+        },
+        {
+          "kind": "fixed",
+          "label": "Remote",
+          "text": "The mobile web app no longer hangs while loading Git diffs, wakes from a suspended tab with a stale transcript, leaks data from a previously paired desktop, or misplaces the page after iOS Safari sheets and keyboards close."
+        },
+        {
+          "kind": "fixed",
+          "label": "ACP agents",
+          "text": "Background subagent progress in Kimi Code and Qwen Code survives concurrent runs and session resumes instead of being dropped or double-counted."
+        },
+        {
+          "kind": "fixed",
+          "text": "The Git review panel picks up pull request details right after you commit or open a PR, truncated previews keep their italic text, and collapsing a long message no longer leaves the chat scrolled somewhere unexpected."
+        },
+        {
+          "kind": "fixed",
+          "label": "Security",
+          "text": "Next.js and a batch of vulnerable transitive dependencies are pinned to patched releases."
+        }
+      ]
+    },
+    {
+      "version": "1.5.2",
+      "date": "2026-07-21",
+      "title": "Web push, richer ACP agents & smoother chat",
+      "summary": "Installed Poracode web apps can now notify you when remote agents need attention, Qwen exposes its live goals, and Kimi and Qwen show background subagent work as it happens. A broad set of provider, chat, mobile, and browser refinements makes everyday sessions more reliable.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Remote",
+          "text": "Installed Poracode web apps can now receive push notifications from a paired desktop—even while suspended—when an agent finishes or needs input."
+        },
+        {
+          "kind": "added",
+          "label": "Qwen Code",
+          "text": "Qwen Code now shows live goal progress with elapsed time, iterations, and completed, failed, or cancelled outcomes, and identifies regional Token Plan tiers so usage labels are accurate."
+        },
+        {
+          "kind": "added",
+          "label": "ACP agents",
+          "text": "ACP subagent runs now appear as nested agent activity, and Kimi Code and Qwen Code background agents keep streaming progress and results after the foreground turn ends."
+        },
+        {
+          "kind": "added",
+          "label": "Claude",
+          "text": "Claude profiles can now choose the effort levels exposed by each custom model, so external-provider models only offer tiers they actually support."
+        },
+        {
+          "kind": "improved",
+          "text": "Provider integrations better match their current CLIs: Antigravity discovers available models and effort levels dynamically, keeps terminal choices in sync, and Kimi updates through its official non-interactive installer."
+        },
+        {
+          "kind": "improved",
+          "text": "Markdown images now share preview, copy, and download controls—including local project images—while long chats stay anchored during streaming and iOS can leave a long thread without stalling on a history snapshot."
+        },
+        {
+          "kind": "improved",
+          "label": "Poracode",
+          "text": "Poracode's icon set is refreshed across desktop, tray, mobile, web, and browser surfaces, while the website gains a dedicated About page and clearer remote-pairing presentation."
+        },
+        {
+          "kind": "fixed",
+          "text": "Structured chats preserve a queued steer if an unresponsive provider must restart; Kimi questions select the intended answer, Qwen resumes work immediately after a reply, and late or duplicate ACP updates no longer corrupt settled turns."
+        },
+        {
+          "kind": "fixed",
+          "text": "Browser screenshots no longer include Poracode's presence cursor or click ripple, and Codex can use Poracode's Browser MCP without a conflicting browser skill overriding it."
+        },
+        {
+          "kind": "fixed",
+          "label": "Security",
+          "text": "Known-vulnerable transitive versions of adm-zip, brace-expansion, protobufjs, and shell-quote are overridden with patched releases."
+        }
+      ]
+    },
+    {
+      "version": "1.5.1",
+      "date": "2026-07-19",
+      "title": "Smoother macOS rebrand upgrades",
+      "summary": "A focused hotfix makes the move from Lightcode to Poracode seamless on macOS, with reliable relaunching, correctly sized Dock artwork, and release notes highlighted in the sidebar after updating.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "Poracode now relaunches automatically after updating an existing Lightcode installation on macOS."
+        },
+        {
+          "kind": "fixed",
+          "label": "Dock",
+          "text": "The Poracode Dock icon now keeps the correct macOS optical size when the app launches instead of visibly growing."
+        },
+        {
+          "kind": "fixed",
+          "label": "What's New",
+          "text": "Your previous changelog state now carries over from Lightcode, and What's New appears in the sidebar after an update without interrupting launch."
+        }
+      ]
+    },
+    {
+      "version": "1.5.0",
+      "date": "2026-07-17",
+      "title": "Poracode arrives with mobile access & cross-provider agents",
+      "summary": "A big feature release, and the first under the Poracode name: Lightcode graduates into Poracode with a brand-new identity, your threads follow you to any phone or browser through the Poracode PWA, and your agents can now hand work to one another across providers. New agents, a full MCP toolkit, multi-agent worktree experiments, and a chat rebuilt for long, tool-heavy sessions round it out.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Poracode",
+          "text": "Lightcode becomes Poracode — a new name and a fresh visual identity with the indigo Pora-dot wordmark, Geist type, and refreshed dark and moonlight themes, all with a new home at poracode.com; your projects, settings, and automatic updates carry over."
+        },
+        {
+          "kind": "added",
+          "label": "PWA",
+          "text": "Take your work anywhere with the Poracode PWA at app.poracode.com — pair it with your desktop over your local network or an SSH connection to follow live threads, read terminal output, and send messages from a phone or any browser, with dynamic port forwarding and native iOS and Android betas on the way."
+        },
+        {
+          "kind": "added",
+          "label": "Crossagents",
+          "text": "Your agents can now delegate to one another: a thread can spawn subagents on any agent you have installed — Claude, Codex, Grok, Kimi Code, Cursor, OpenCode, and more — through a built-in orchestration layer, and you can watch every subagent and workflow chat unfold live from the parent thread, approving child actions when they need it."
+        },
+        {
+          "kind": "added",
+          "label": "Kimi Code",
+          "text": "Run Kimi Code as a new built-in agent with sign-in and usage tracking, add Factory Droid through a new ACP integration, drive Antigravity in plan or accept-edits mode, and pick Codex's Fast mode straight from the model menu."
+        },
+        {
+          "kind": "added",
+          "label": "Qwen Code",
+          "text": "Run Qwen Code as a built-in agent through native terminal or ACP sessions, sign in from your browser or paste an API key, and track your usage quotas from Poracode."
+        },
+        {
+          "kind": "added",
+          "label": "MCP",
+          "text": "A full MCP toolkit lands: manage MCP servers globally and toggle them per thread, give agents computer-use control of your desktop, connect an external Chrome browser, and let scheduled tasks run agents automatically or drive Poracode itself through app-control tools."
+        },
+        {
+          "kind": "added",
+          "label": "Skills",
+          "text": "Create a skill once and inject it into any provider, then see the skills you attach rendered as badges on your message."
+        },
+        {
+          "kind": "added",
+          "label": "Experiments",
+          "text": "Race the same task across competing agents in separate Git worktrees, compare each candidate's diff and stats, have Claude judge the results, and merge the winner with safeguards."
+        },
+        {
+          "kind": "added",
+          "label": "Pull requests",
+          "text": "Review pull requests from every project in one global view, complete with check statuses and how long each run took, and start merges from a prefilled commit message."
+        },
+        {
+          "kind": "added",
+          "label": "Quick composer",
+          "text": "Summon a quick composer from anywhere with a global shortcut, and reopen recent threads straight from the system tray."
+        },
+        {
+          "kind": "added",
+          "label": "Attachments",
+          "text": "Preview PDFs inline, drop files into the composer to attach them, render local images directly in Markdown, and include media attachments in Grok sessions."
+        },
+        {
+          "kind": "added",
+          "label": "Projects",
+          "text": "Open an existing WSL folder as a project straight from the project picker, and spot threads that hold unsent drafts right in the sidebar."
+        },
+        {
+          "kind": "improved",
+          "label": "Performance",
+          "text": "Long conversations stay fast: transcripts are virtualized with paged loading, streamed Markdown renders smoothly, background events are batched, and animations ease off while the window sits in the background."
+        },
+        {
+          "kind": "improved",
+          "label": "Chat",
+          "text": "Reasoning now groups with its tool calls into collapsible runs with live previews, repeated edits to the same file merge into a single diff, Claude goals show their iterations and completion reasons, and every message gains copy controls."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "Switching threads keeps your pane, composer text, and scroll position intact."
+        },
+        {
+          "kind": "fixed",
+          "text": "Claude now applies a model change before a steered turn and reports its usage limits correctly again."
+        },
+        {
+          "kind": "fixed",
+          "text": "Codex identifies rate-limit windows by their real duration, keeps reasoning-summary boundaries intact, and holds goal commands active through model turns."
+        },
+        {
+          "kind": "fixed",
+          "text": "Cursor usage dollars stay aligned with your plan limit and percentage, unnamed ACP tool calls keep their labels, and Grok reconnects with its current session and model ID formats."
+        },
+        {
+          "kind": "fixed",
+          "text": "The Git panel preserves staging state and decodes quoted paths, pulls follow an explicit strategy, and agent updates keep npm shims and version-prefixed releases intact across every profile that shares a binary."
+        }
+      ]
+    },
+    {
+      "version": "1.4.3",
+      "date": "2026-07-02",
+      "title": "Fable 5 weekly usage tracking",
+      "summary": "A focused patch for Claude usage tracking: the usage panel now shows your per-model weekly limits, including Claude Fable 5's, and Claude usage stays signed in and up to date.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "The Claude card in the usage panel now tracks per-model weekly limits, so you can watch your Claude Fable 5 weekly quota fill and reset alongside the session and overall weekly bars."
+        },
+        {
+          "kind": "fixed",
+          "text": "Claude usage keeps loading after your sign-in token expires — Poracode now renews it automatically instead of showing a misleading “Not signed in”."
+        }
+      ]
+    },
+    {
+      "version": "1.4.2",
+      "date": "2026-07-01",
+      "title": "Claude Fable 5 returns",
+      "summary": "A focused patch that brings Claude Fable 5 back to the model picker, with its frontier reasoning effort levels and one-million-token context window.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "You can now run Claude Fable 5 from the model picker again, with its frontier reasoning effort levels and a one-million-token context window."
+        }
+      ]
+    },
+    {
+      "version": "1.4.1",
+      "date": "2026-06-30",
+      "title": "Claude Sonnet 5 with a 1M-token context",
+      "summary": "A focused update that brings Claude Sonnet 5 to the model picker, complete with its frontier reasoning effort levels and a one-million-token context window.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "You can now run Claude Sonnet 5 from the model picker, with its frontier reasoning effort levels and a one-million-token context window, once your Claude CLI is up to date."
+        }
+      ]
+    },
+    {
+      "version": "1.4.0",
+      "date": "2026-06-28",
+      "title": "Poracode in 13 languages, a dockable browser & custom shortcuts",
+      "summary": "A big feature release: Poracode now speaks 13 languages, the built-in browser pops out into its own window with a real address bar and bookmarks, and you can rebind every keyboard shortcut. New usage providers, configurable worktree placement, and a built-in What's New round it out, alongside broad reliability fixes.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "Poracode is now available in 13 languages — English, Spanish, Russian, Ukrainian, Simplified Chinese, Japanese, Brazilian Portuguese, German, French, Korean, Polish, Vietnamese, and Turkish — with a new Language setting to choose your display language or follow your operating system, and a separate language for AI-generated commit messages and pull request summaries."
+        },
+        {
+          "kind": "added",
+          "text": "Pop the built-in browser out into its own window and dock it back whenever you want, now with a real address bar, search suggestions, bookmarks, and browsing history."
+        },
+        {
+          "kind": "added",
+          "text": "A new Shortcuts page lets you browse every keyboard shortcut and rebind it — record a new key, add extra bindings, or reset to the default — with conflicts flagged as you go."
+        },
+        {
+          "kind": "added",
+          "text": "Catch up without leaving the app: a sidebar entry now flags unread releases and a Changelog page lays out each release's highlights."
+        },
+        {
+          "kind": "added",
+          "text": "Find any setting by typing its name in the settings sidebar and jump straight to it."
+        },
+        {
+          "kind": "added",
+          "text": "Choose where Poracode creates git worktrees — in one shared folder or nested inside each project under .poracode/worktrees — with per-project overrides for native and WSL paths, and point a project at its new location if you move its folder on disk."
+        },
+        {
+          "kind": "added",
+          "text": "Track your Z.ai (GLM Coding Plan) and Factory (Droid) usage right in the usage panel, by pasting an API key for Z.ai or signing in to Factory through the built-in browser."
+        },
+        {
+          "kind": "added",
+          "text": "Run GitHub Copilot and Cursor as new built-in agents you can install, update, and launch directly in Poracode."
+        },
+        {
+          "kind": "improved",
+          "text": "Generating thread titles, commit messages, and conflict resolutions is quicker thanks to a new Fast mode for these utility tasks."
+        },
+        {
+          "kind": "improved",
+          "text": "A thread launched by a background workflow now shows a live working status in the chat header, provider icon, and sidebar until the whole orchestration finishes, instead of looking idle the moment a turn ends."
+        },
+        {
+          "kind": "improved",
+          "text": "The usage panel keeps loading even when no Claude session is active, adds 7-day, 30-day, and all-time windows for your profile stats, and lets you right-click Antigravity's ring to switch which quota it tracks."
+        },
+        {
+          "kind": "improved",
+          "text": "Your unsent composer text and attachments now stay put when you switch threads and come back, and clear cleanly once you send."
+        },
+        {
+          "kind": "fixed",
+          "text": "Signing in to Google now works inside the built-in browser, which previously turned the attempt away as an insecure browser."
+        },
+        {
+          "kind": "fixed",
+          "text": "System notifications now appear reliably, and clicking one brings Poracode to the front and opens the thread that triggered it."
+        },
+        {
+          "kind": "fixed",
+          "text": "Starting and updating agents is more reliable, with Windows launching native agent binaries directly, native updates resolving through Homebrew including cask-backed apps, and Claude shutting down its spawned tool processes when you close a thread."
+        },
+        {
+          "kind": "fixed",
+          "text": "Chat is smoother and more faithful — scroll jumps, spacer flashes, and image flicker are gone, streamed agent text keeps every character, a thread that resumes on its own shows as working again, and Codex tool activity renders MCP, skill, and subagent calls with the right details."
+        }
+      ]
+    },
+    {
+      "version": "1.3.1",
+      "date": "2026-06-17",
+      "title": "One-click setups for Z.ai, DeepSeek, and MiniMax",
+      "summary": "Claude Code Profiles gain ready-made presets that let you set up Z.ai (GLM), DeepSeek, and MiniMax with a single click. This release also keeps provider-specific model IDs intact and tidies up agent status when you remove a profile.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "You can now configure Z.ai (GLM), DeepSeek, and MiniMax with one click thanks to ready-made presets in your Claude Code Profiles."
+        },
+        {
+          "kind": "improved",
+          "text": "Claude Code Profiles now seed a provider's environment and model configuration from a single menu, so you no longer have to enter it by hand."
+        },
+        {
+          "kind": "fixed",
+          "text": "External-provider model IDs such as glm-5.2 are now preserved exactly when launching Claude, so provider-specific suffixes are no longer stripped away."
+        },
+        {
+          "kind": "fixed",
+          "text": "Deleting a Claude profile now clears its agent status across native, WSL, and discovery lists, keeping what Poracode detects in sync with your saved profiles."
+        }
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-06-16",
+      "title": "Multiple Claude profiles, a usage dashboard & glass sidebar",
+      "summary": "This release lets you run multiple Claude profiles with their own logins, models, and environments, adds a usage dashboard with a year-long activity heatmap, and gives the sidebar a translucent glass look. It also brings GitHub repo cloning, inline agent images, and smarter commit and PR actions.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "Set up multiple Claude profiles, each with its own login, model, reasoning effort, and environment variables, so you can switch between separate accounts and configurations."
+        },
+        {
+          "kind": "added",
+          "text": "Start a new project by cloning any GitHub repository directly from Poracode."
+        },
+        {
+          "kind": "added",
+          "text": "Track your activity in a new usage dashboard featuring a 52-week heatmap, per-account filtering, and a breakdown of skill usage."
+        },
+        {
+          "kind": "added",
+          "text": "See images that agents generate rendered inline in the chat, with a hover toolbar for quick actions."
+        },
+        {
+          "kind": "added",
+          "text": "Enjoy a translucent glass sidebar with macOS vibrancy and tunable Windows acrylic frosting."
+        },
+        {
+          "kind": "added",
+          "text": "Choose how pull requests are created with a configurable PR creation mode, and refresh PR status on demand from the Git Review sidebar."
+        },
+        {
+          "kind": "improved",
+          "text": "Commit and create PRs more easily with sticky commit actions in Git Review and clearer loading states for PR actions."
+        },
+        {
+          "kind": "improved",
+          "text": "Work more smoothly in non-git projects and new worktrees, which now carry over your gitignored and uncommitted files."
+        },
+        {
+          "kind": "fixed",
+          "text": "Improved Command Code reliability by syncing its model picker with live models, fixing session resume, and quieting background updates during detection."
+        }
+      ]
+    },
+    {
+      "version": "1.2.1",
+      "date": "2026-06-09",
+      "title": "Projects without git, notes panel, and Claude Fable 5",
+      "summary": "This release lets you create and open projects even when there's no git repository yet, adds a per-project notes and to-do panel, and brings support for Claude Fable 5. It also sharpens reliability for Claude on Windows and Codex turn handling.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "You can now create or open a project even when it isn't a git repository yet, with a unified setup flow that can initialize git for you on the spot."
+        },
+        {
+          "kind": "added",
+          "text": "A new per-project notes and to-do panel gives you a dedicated place to jot down reminders and track tasks alongside your work."
+        },
+        {
+          "kind": "added",
+          "text": "Poracode now supports Claude Fable 5, so you can run the latest Claude model directly in your sessions."
+        },
+        {
+          "kind": "improved",
+          "text": "Built-in browser windows now present a Chrome-like identity, so more websites load and behave correctly."
+        },
+        {
+          "kind": "improved",
+          "text": "The git review panel now keeps its state as you move around the app, so you no longer lose your place when it remounts."
+        },
+        {
+          "kind": "fixed",
+          "text": "Starting Claude on Windows is far more reliable, with fixes for npm shim paths, slower job-helper startup, and stray startup errors."
+        },
+        {
+          "kind": "fixed",
+          "text": "Codex turns now complete cleanly even when the completion notification arrives without details, and pending output is flushed before a turn is marked idle."
+        }
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "date": "2026-06-05",
+      "title": "Provider usage tracking, Command Code, and rebuilt themes",
+      "summary": "A big feature release: track your provider quotas and usage for Claude Code, Codex, and more in one place, run the new Command Code CLI entirely inside Poracode, and enjoy fully rebuilt light and dark themes. Git worktrees are faster with inline diffs and live status, and WSL and Windows support is stronger across the board.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "A new usage panel tracks your provider quotas and consumption across Claude Code, Codex, Command Code, Grok, and other providers so you always know where you stand."
+        },
+        {
+          "kind": "added",
+          "text": "Command Code joins as a built-in CLI provider that you can install, update, log in to, and resume sessions with entirely inside Poracode."
+        },
+        {
+          "kind": "added",
+          "text": "You can now drag and drop file attachments straight into the composer instead of browsing for them."
+        },
+        {
+          "kind": "added",
+          "text": "Selectable theme presets let you pick a look you like, with the terminal palette automatically synced to match."
+        },
+        {
+          "kind": "added",
+          "text": "Live subagent progress and token usage now appear in the UI so you can follow exactly what your agents are doing."
+        },
+        {
+          "kind": "improved",
+          "text": "Light and dark themes have been rebuilt from the ground up with better contrast and refined, theme-aware colors throughout."
+        },
+        {
+          "kind": "improved",
+          "text": "Git worktrees are faster and richer, with inline diffs when opening changed files, live status summaries, and the ability to merge right from the Create PR flow."
+        },
+        {
+          "kind": "improved",
+          "text": "WSL and Windows support is stronger for running agents, installing providers, and applying updates, including native Grok Build installs and npm-installed command shims."
+        },
+        {
+          "kind": "fixed",
+          "text": "Stuck or prematurely ended turns now recover reliably instead of leaving the conversation hung."
+        },
+        {
+          "kind": "fixed",
+          "text": "Codex sessions are more stable, with deduplicated errors, quieter resumes, and correct service-tier handling each turn."
+        },
+        {
+          "kind": "fixed",
+          "text": "Grok login and usage collection have been fixed so account status reports correctly."
+        }
+      ]
+    },
+    {
+      "version": "1.1.1",
+      "date": "2026-05-30",
+      "title": "Smoother microphone access and wider file reach",
+      "summary": "A focused patch that smooths out microphone permissions and lets Poracode open files beyond your active project, plus a fix for links to deeply nested paths.",
+      "changes": [
+        {
+          "kind": "improved",
+          "text": "Poracode now handles OS-level microphone permission gracefully and gives you a direct link to system settings when access needs to be granted."
+        },
+        {
+          "kind": "added",
+          "text": "You can now open and read files that live outside your active project root, so reference material elsewhere on your machine is just a click away."
+        },
+        {
+          "kind": "fixed",
+          "text": "Links to files with long or deeply nested paths no longer get truncated and now open the correct location every time."
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-05-29",
+      "title": "Grok Build, Opus 4.8 workflows, voice input & thread rollback",
+      "summary": "A big feature release: install and run Grok Build straight from the app, drive Claude Opus 4.8 with Ultracode effort and workflows, talk to your agents with local voice input, and undo an agent's work with thread rollback. Plus one-click agent installs, live GitHub PRs in-app, and more than 70 improvements and fixes.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "You can now install and run Grok Build directly from the app, no separate setup required."
+        },
+        {
+          "kind": "added",
+          "text": "Claude Opus 4.8 is available with the new Ultracode effort level and a redesigned workflow runner with trigger chips."
+        },
+        {
+          "kind": "added",
+          "text": "Local voice input lets you dictate prompts to your agents using on-device Whisper speech recognition, with audio settings to tune it."
+        },
+        {
+          "kind": "added",
+          "text": "Coding agents like Grok, Antigravity, and others now install with a single click using platform-native install paths."
+        },
+        {
+          "kind": "added",
+          "text": "Thread rollback lets you undo an agent's work and retry from an earlier point, with the agent session and file watchers automatically restored."
+        },
+        {
+          "kind": "added",
+          "text": "GitHub pull requests are now shown live inside the app, with check status that refreshes automatically as your PRs run."
+        },
+        {
+          "kind": "added",
+          "text": "You can install and uninstall hook plugins for your CLI agents straight from the settings UI."
+        },
+        {
+          "kind": "added",
+          "text": "An expanded built-in browser, available via an @Browser mention, lets agents navigate and extract pages, and a resizable browser drawer keeps it handy."
+        },
+        {
+          "kind": "improved",
+          "text": "Settings have been reorganized into focused pages, and the sidebar now shows installed agent icons, completion states, and animated terminal activity at a glance."
+        },
+        {
+          "kind": "improved",
+          "text": "Chat now renders Markdown tables, clickable links, read results, and subagent progress more clearly across Claude, Codex, and ACP agents."
+        },
+        {
+          "kind": "improved",
+          "text": "Git and worktree workflows are smoother, with stashing on pull, automatic status refresh, randomized branch names, and cleaner branch and worktree cleanup."
+        },
+        {
+          "kind": "fixed",
+          "text": "Sign-in, install, and update flows for agents are more reliable, including terminal login handoff, version detection, and update progress."
+        },
+        {
+          "kind": "fixed",
+          "text": "Interrupted or replayed Claude turns no longer surface false failure states after a reconnect."
+        },
+        {
+          "kind": "fixed",
+          "text": "Terminal paste from the clipboard and pressing Escape to dismiss overlays now work as expected."
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-05-22",
+      "title": "Poracode reaches its first stable release",
+      "summary": "The first stable public release of Poracode, graduating from the 0.9.x betas into a polished build with refreshed chrome, smoother Browser MCP controls, and better multi-agent diff handling.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "Poracode reaches its first stable public release, bringing the workspace-native experience for orchestrating Claude, Codex, Gemini, Grok, Command Code, and other coding agents out of beta."
+        },
+        {
+          "kind": "improved",
+          "text": "The thread, home, and welcome screens have a refreshed look with cleaner rounded tabs, smoother project switching, and a more polished overall presentation."
+        },
+        {
+          "kind": "improved",
+          "text": "Browser MCP controls now live right in the message composer with a clearer header-style indicator, so you can toggle browser access without leaving your conversation."
+        },
+        {
+          "kind": "improved",
+          "text": "OpenCode threads now render multi-file unified diffs inline, making it easier to review changes that span several files at once."
+        },
+        {
+          "kind": "fixed",
+          "text": "Cancelling a request mid-stream no longer surfaces a spurious error in the composer, so stopping an agent stays quiet and clean."
+        }
+      ]
+    }
+  ]
+}

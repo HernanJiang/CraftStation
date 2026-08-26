@@ -1,0 +1,223 @@
+name: Build (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit to check out and build from"
+        required: true
+        type: string
+      version:
+        description: "Version to write to package.json before building"
+        required: true
+        type: string
+      channel:
+        description: "Poracode release channel (stable | nightly)"
+        required: true
+        type: string
+      sentry_environment:
+        description: "Value to send as SENTRY_ENVIRONMENT"
+        required: false
+        type: string
+        default: production
+    secrets:
+      MAC_CSC_LINK:
+        required: false
+      MAC_CSC_KEY_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_APP_SPECIFIC_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      SENTRY_AUTH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  # Release runners are disposable single checkouts; use pnpm's standard local
+  # virtual store so postinstall native rebuilds operate on this checkout.
+  PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: "false"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: dist-windows
+            platform: win
+            electron-cache: "~/AppData/Local/electron/Cache"
+          - os: ubuntu-latest
+            artifact: dist-linux
+            platform: linux
+            electron-cache: "~/.cache/electron"
+          - os: macos-latest
+            artifact: dist-mac
+            platform: mac
+            electron-cache: "~/Library/Caches/electron"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Set package version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = process.env.RELEASE_VERSION;
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+        shell: bash
+
+      - name: Cache Electron binary
+        uses: actions/cache@v5
+        with:
+          path: ${{ matrix.electron-cache }}
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          # The packaging pipeline never launches Electron from the project's
+          # node_modules: `pnpm run build` only bundles, and packaging runs
+          # electron-builder in a clean staging dir that fetches its own Electron
+          # dist. The root postinstall's enforced Chromium download is therefore
+          # dead weight here, and its flaky/partial extractions (which exit 0 yet
+          # leave no usable binary) intermittently fail the build. Skip it; the
+          # other native deps (node-pty, better-sqlite3) are still verified.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Build app
+        run: pnpm run build
+        shell: bash
+        env:
+          PORACODE_CHANNEL: ${{ inputs.channel }}
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          SENTRY_ENVIRONMENT: ${{ inputs.sentry_environment }}
+          POSTHOG_ENABLED: ${{ vars.POSTHOG_ENABLED || '1' }}
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST || 'https://us.i.posthog.com' }}
+          POSTHOG_ENABLE_DEV: "0"
+
+      - name: Upload Sentry source maps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Local `pnpm run dist` cleans source maps before packaging. Release CI
+          # uploads them from the build output first, then removes them below.
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
+            echo "Sentry secrets are not configured; skipping source map upload."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if pnpm run sentry:sourcemaps; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Sentry source map upload failed after $attempt attempts."
+              exit 1
+            fi
+            echo "::warning::Sentry source map upload attempt $attempt failed; retrying."
+            sleep $((attempt * 10))
+          done
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+
+      - name: Remove packaged source maps
+        run: pnpm run clean:sourcemaps
+        shell: bash
+
+      - name: Package Windows/Linux
+        if: matrix.os != 'macos-latest'
+        run: |
+          pnpm run prepare:package-assets
+          node scripts/build-desktop-artifact.mjs --platform "${{ matrix.platform }}" --skip-build
+        shell: bash
+        env:
+          PORACODE_CHANNEL: ${{ inputs.channel }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Package macOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          pnpm run prepare:package-assets
+          node scripts/build-desktop-artifact.mjs --platform mac --skip-build
+        shell: bash
+        env:
+          PORACODE_CHANNEL: ${{ inputs.channel }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS Developer ID signing (base64-encoded .p12 + password).
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # macOS notarization via Apple ID + app-specific password.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify macOS app bundle
+        if: matrix.os == 'macos-latest'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apps=(release/mac*/Poracode*.app)
+          if [ "${#apps[@]}" -eq 0 ]; then
+            echo "::error::No packaged macOS app bundles found under release/mac*."
+            exit 1
+          fi
+          for app in "${apps[@]}"; do
+            codesign --verify --deep --strict --verbose=4 "$app"
+            main_executable="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+            expected_arch="$(lipo -archs "$main_executable")"
+            if [[ "$expected_arch" == *arm64* ]]; then
+              while IFS= read -r -d '' binary; do
+                binary_arches="$(lipo -archs "$binary" 2>/dev/null || true)"
+                if [[ -n "$binary_arches" && "$binary_arches" != *arm64* ]]; then
+                  echo "::error file=$binary::Apple-silicon app contains a Mach-O binary without an arm64 slice: $binary_arches"
+                  exit 1
+                fi
+              done < <(find "$app" -type f -print0)
+            fi
+          done
+        shell: bash
+
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            release/Poracode-*.exe
+            release/Poracode-*.dmg
+            release/Poracode-*.zip
+            release/Poracode-*.AppImage
+            release/Poracode-*.deb
+            release/latest*.yml
+            release/nightly*.yml
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 7

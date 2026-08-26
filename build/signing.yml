@@ -1,0 +1,6 @@
+win:
+  azureSignOptions:
+    publisherName: ${AZURE_SIGNING_PUBLISHER_NAME}
+    endpoint: ${AZURE_SIGNING_ENDPOINT}
+    codeSigningAccountName: ${AZURE_SIGNING_ACCOUNT_NAME}
+    certificateProfileName: ${AZURE_SIGNING_CERT_PROFILE}

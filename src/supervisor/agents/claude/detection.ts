@@ -1,0 +1,199 @@
+import { compactAgentProviderMetadata, type AgentCapability } from "@/shared/contracts";
+import { readAgentCommandOutput, type DetectionSpec, type StatusProbeResult } from "../base";
+import { getAgentProbeCwd } from "../probeCwd";
+import {
+  CLAUDE_BUILTIN_FAST_MODELS,
+  CLAUDE_BUILTIN_MODEL_CONTEXT_SIZES,
+  CLAUDE_BUILTIN_MODEL_EFFORTS,
+  CLAUDE_BUILTIN_MODELS,
+  CLAUDE_PREMIUM_EFFORT_TIERS,
+} from "./models";
+import { probeClaudeCapabilities } from "./probe";
+
+/** Default `--permission-mode` when `ThreadConfig.approvalPolicy` is omitted. */
+export const CLAUDE_DEFAULT_APPROVAL_POLICY = "auto" as const;
+
+/**
+ * Shown on the disabled Fast toggle when the capabilities probe finds fast mode
+ * is unavailable for the account. Mirrors Claude Code's own `/fast` wording.
+ */
+export const CLAUDE_FAST_MODE_DISABLED_MESSAGE = "Fast mode has been disabled by your organization";
+
+const CLAUDE_BUILT_IN_SLASH_COMMANDS: AgentCapability["slashCommands"] = [
+  {
+    id: "goal",
+    label: "goal — Set a goal — keep working until the condition is met",
+    description: "Set a goal — keep working until the condition is met",
+  },
+];
+
+export const claudeCapabilities: AgentCapability = {
+  models: CLAUDE_BUILTIN_MODELS,
+  efforts: CLAUDE_PREMIUM_EFFORT_TIERS,
+  defaultEffort: "high",
+  modelEfforts: CLAUDE_BUILTIN_MODEL_EFFORTS,
+  contextSizes: [
+    { id: "200k", label: "200k" },
+    { id: "1m", label: "1M" },
+  ],
+  // Order matters: the first entry is the per-model default. Frontier models
+  // default to 1M (the long-context build users select these for).
+  modelContextSizes: CLAUDE_BUILTIN_MODEL_CONTEXT_SIZES,
+  defaultContextSize: "200k",
+  fastModels: CLAUDE_BUILTIN_FAST_MODELS,
+  modes: ["agent", "plan"],
+  approvalPolicies: [
+    { id: "default", label: "Default" },
+    { id: "auto", label: "Auto mode" },
+    { id: "acceptEdits", label: "Accept Edits" },
+    { id: "dontAsk", label: "Don't Ask" },
+    { id: "bypassPermissions", label: "Bypass Permissions" },
+  ],
+  sandboxModes: [],
+  supportsResume: true,
+  supportsOneShot: true,
+  supportsTextOnlyOneShot: true,
+  supportsDirectInput: true,
+  readsPdfAttachmentsFromHost: true,
+  slashCommands: CLAUDE_BUILT_IN_SLASH_COMMANDS,
+  liveInputMode: "terminal",
+  presentationMode: "terminal",
+  presentationModes: ["terminal", "gui"],
+  defaultApprovalPolicy: CLAUDE_DEFAULT_APPROVAL_POLICY,
+  bypassPermissions: { approvalPolicy: CLAUDE_DEFAULT_APPROVAL_POLICY },
+  // SDK GUI sessions rebuild the MCP server set on every turn, so both
+  // toggles stay live mid-thread. The TUI has no per-thread MCP gating.
+  mcpScope: { terminal: "none", gui: "always" },
+  settingDefs: [
+    {
+      key: "usePowershellTool",
+      type: "toggle" as const,
+      env: { CLAUDE_CODE_USE_POWERSHELL_TOOL: "1" },
+      label: "Use PowerShell tool",
+      description: "Use PowerShell as the shell tool instead of Bash.",
+      default: process.platform === "win32",
+      platforms: ["win32"],
+    },
+    {
+      key: "noFlicker",
+      type: "toggle" as const,
+      env: { CLAUDE_CODE_NO_FLICKER: "1" },
+      label: "No flicker mode",
+      description: "Reduces terminal flicker in the Claude Code TUI.",
+      default: true,
+    },
+    {
+      key: "scrollSpeed",
+      type: "select" as const,
+      envVar: "CLAUDE_CODE_SCROLL_SPEED",
+      label: "TUI scroll speed",
+      description: "Scroll speed inside the no-flicker TUI.",
+      default: "5",
+      options: Array.from({ length: 10 }, (_, i) => ({
+        id: String(i + 1),
+        label: `${i + 1}x`,
+      })),
+    },
+  ],
+};
+
+/**
+ * Built-in Claude model ids whose `[<size>]` suffix Poracode owns — it derives
+ * that suffix from the thread's `contextSize` selector (see
+ * {@link applyClaudeContextSuffix}). Any model id NOT in this set is a custom /
+ * external-provider model (e.g. z.ai `glm-5.2[1m]`) whose suffix is part of the
+ * provider's real model name and must be sent to the CLI/SDK verbatim. Keyed off
+ * `modelContextSizes` so adding a context-managed model stays a one-line change.
+ */
+export const CLAUDE_CONTEXT_MANAGED_MODEL_IDS: ReadonlySet<string> = new Set(
+  Object.keys(claudeCapabilities.modelContextSizes ?? {}),
+);
+
+interface ClaudeAuthStatusResponse {
+  loggedIn?: boolean;
+  authMethod?: string;
+  email?: string;
+  orgName?: string;
+  subscriptionType?: string;
+}
+
+function titleCaseWords(value: string): string {
+  return value
+    .split(/[\s_-]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function formatClaudePlan(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  return /subscription$/i.test(trimmed)
+    ? titleCaseWords(trimmed)
+    : `${titleCaseWords(trimmed)} Subscription`;
+}
+
+export function parseClaudeAuthStatusJson(output: string): StatusProbeResult | undefined {
+  const trimmed = output.trim();
+  if (!trimmed) return undefined;
+
+  let parsed: ClaudeAuthStatusResponse;
+  try {
+    parsed = JSON.parse(trimmed) as ClaudeAuthStatusResponse;
+  } catch {
+    return undefined;
+  }
+
+  const providerMetadata = compactAgentProviderMetadata({
+    ...(parsed.email?.trim() ? { authenticatedAs: parsed.email.trim() } : {}),
+    ...(parsed.orgName?.trim() ? { organization: parsed.orgName.trim() } : {}),
+    ...(formatClaudePlan(parsed.subscriptionType)
+      ? { plan: formatClaudePlan(parsed.subscriptionType) }
+      : {}),
+    ...(parsed.authMethod?.trim()
+      ? { authMethod: parsed.authMethod === "claude.ai" ? "Claude.ai" : parsed.authMethod.trim() }
+      : {}),
+  });
+
+  return {
+    ...(parsed.loggedIn === true ? { authState: "authenticated" as const } : {}),
+    ...(parsed.loggedIn === false ? { authState: "missing" as const } : {}),
+    ...(providerMetadata ? { providerMetadata } : {}),
+  };
+}
+
+export async function probeClaudeStatus(
+  ctx: Parameters<NonNullable<DetectionSpec["statusProbe"]>>[0],
+  options?: { env?: Record<string, string> },
+) {
+  if (!ctx.executablePath) return undefined;
+  const result = await readAgentCommandOutput(
+    ctx.location,
+    ctx.executablePath,
+    ["auth", "status"],
+    {
+      posixCwd: getAgentProbeCwd(ctx.location),
+      ...(options?.env ? { env: options.env } : {}),
+      ...(ctx.signal ? { signal: ctx.signal } : {}),
+    },
+  );
+  const parsed = parseClaudeAuthStatusJson(result.stdout || result.stderr);
+  if (parsed) return parsed;
+  return result.ok ? { authState: "authenticated" as const } : { authState: "unknown" as const };
+}
+
+export const claudeDetectionSpec: DetectionSpec = {
+  kind: "claude",
+  label: "Claude Code",
+  binary: "claude",
+  loginCommand: "claude auth login",
+  capabilities: claudeCapabilities,
+  update: {
+    builtIn: { binary: "claude", args: ["update"] },
+    npm: "@anthropic-ai/claude-code",
+    brew: "claude",
+    winget: "Anthropic.ClaudeCode",
+  },
+  statusProbe: probeClaudeStatus,
+  capabilitiesProbe: (ctx) => probeClaudeCapabilities(ctx),
+};

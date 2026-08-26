@@ -1,0 +1,724 @@
+import { startTransition } from "react";
+import { toast } from "@heroui/react";
+import {
+  isProjectInWorkspace,
+  type Project,
+  type RemoteThreadCommand,
+  type Thread,
+} from "@/shared/contracts";
+import { isHomeProject } from "@/shared/homeScope";
+import { friendlyError } from "@/shared/messages";
+import { isDraftPaneId, parseDraftProjectId } from "@/shared/paneId";
+import { shouldRelaunchThreadOnOpen } from "@/shared/threadRelaunch";
+import { readBridge } from "@/renderer/bridge";
+import { useAppStore } from "@/renderer/state/appStore";
+import { findExperimentByThreadId, useExperimentStore } from "@/renderer/state/experimentStore";
+import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
+import { remoteOwner } from "@/renderer/state/remoteProjection";
+import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
+import {
+  hasHydratedThreadRuntimeItems,
+  hydrateThreadRuntimeItems,
+} from "@/renderer/state/chatRuntimePersister";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
+import { shouldConfirmThreadDelete } from "@/renderer/state/threadDeletePreference";
+import { getActiveWorkspaceId, getLastWorkspaceProjectId } from "@/renderer/state/workspaceStore";
+import { useWorktreeDeleteStore } from "@/renderer/state/worktreeDeleteStore";
+import { buildSidebarProjectRows } from "@/renderer/views/MainView/parts/Sidebar/parts/sidebarProjectRows";
+import { resolveWorktreeBranch } from "@/renderer/utils/gitHelpers";
+import { closeThreads } from "@/renderer/utils/shellUtils";
+import { closePanelsForUnloadedThread } from "./panelActions";
+import { getCurrentProjectId } from "./currentProject";
+import { switchWorkspaceForProject } from "./workspaceActions";
+import { deleteWorktreeGroup } from "./worktreeActions";
+
+let openThreadRequestId = 0;
+let threadRuntimeReopenEnabled = true;
+
+function dispatchRemoteThreadMutation(
+  thread: Thread,
+  command: (remoteThreadId: string) => RemoteThreadCommand,
+  apply: () => void,
+): boolean {
+  const owner = remoteOwner(thread);
+  if (!owner) return false;
+  void useRemoteServersStore
+    .getState()
+    .sendThreadCommand(owner.desktopId, command(owner.remoteId))
+    .then(apply)
+    .catch((error) => toast.danger(friendlyError(error)));
+  return true;
+}
+
+export function setThreadRuntimeReopenEnabled(enabled: boolean): void {
+  threadRuntimeReopenEnabled = enabled;
+}
+
+function discardReplacedDraftContents(targetProjectId: string): void {
+  const store = useAppStore.getState();
+  const view = store.view;
+  if (view.kind === "draft") {
+    if (view.projectId !== targetProjectId) store.discardDraftContent(view.projectId);
+    return;
+  }
+  if (view.kind !== "thread") return;
+  for (const paneId of view.panes) {
+    const draftProjectId = parseDraftProjectId(paneId);
+    if (draftProjectId && draftProjectId !== targetProjectId) {
+      store.discardDraftContent(draftProjectId);
+    }
+  }
+}
+
+/**
+ * Which project a new thread starts in when the caller names none. Every
+ * candidate is checked against the active workspace: a workspace switch has to
+ * change what "new thread" means, or the fresh draft lands in work the user just
+ * navigated away from. The remembered pick comes second so returning to a
+ * workspace resumes its last project, while the project currently on screen
+ * still wins when it belongs to this workspace.
+ */
+function resolveNewThreadProjectId(): string | undefined {
+  const store = useAppStore.getState();
+  const knownWorkspaceIds = new Set(
+    (useSharedSettings.getState().workspaces ?? []).map((workspace) => workspace.id),
+  );
+  const activeWorkspaceId = getActiveWorkspaceId();
+  const isVisible = (project: Project) =>
+    (isHomeProject(project) || !project.disabled) &&
+    isProjectInWorkspace(project, activeWorkspaceId, knownWorkspaceIds);
+  const visibleId = (projectId: string | undefined) =>
+    store.projects.find((project) => project.id === projectId && isVisible(project))?.id;
+
+  return (
+    visibleId(getCurrentProjectId()) ??
+    visibleId(getLastWorkspaceProjectId()) ??
+    (useSharedSettings.getState().homeScopeEnabled
+      ? store.projects.find(isHomeProject)?.id
+      : undefined) ??
+    store.projects.find((project) => !isHomeProject(project) && isVisible(project))?.id ??
+    // Nothing in this workspace: better a draft in another workspace's project
+    // than dropping the user back on Home with no way to type.
+    store.projects.find((project) => !project.disabled && !isHomeProject(project))?.id
+  );
+}
+
+export function openNewThread(projectId?: string): void {
+  openThreadRequestId += 1;
+  const targetProjectId = projectId ?? resolveNewThreadProjectId();
+  startTransition(() => {
+    if (!targetProjectId) {
+      useAppStore.getState().openHome();
+      return;
+    }
+    const mode = useSharedSettings.getState().newThreadMode;
+    const view = useAppStore.getState().view;
+    if (mode === "panel" && view.kind === "thread" && view.panes.length > 0) {
+      useAppStore.getState().openDraftSideBySide(targetProjectId);
+    } else {
+      discardReplacedDraftContents(targetProjectId);
+      useAppStore.getState().openDraft(targetProjectId);
+    }
+  });
+}
+
+export function openNewThreadSideBySide(projectId: string): void {
+  openThreadRequestId += 1;
+  startTransition(() => {
+    useAppStore.getState().openDraftSideBySide(projectId);
+  });
+}
+
+export function openNewThreadInWorktree(input: {
+  projectId: string;
+  worktreePath: string;
+  worktreeBranch: string;
+}): void {
+  openThreadRequestId += 1;
+  startTransition(() => {
+    const store = useAppStore.getState();
+    store.setPendingDraftWorktreeSelection(input.projectId, {
+      branch: input.worktreeBranch,
+      baseBranch: input.worktreeBranch,
+      isWorktree: true,
+      worktreePath: input.worktreePath,
+    });
+    const mode = useSharedSettings.getState().newThreadMode;
+    const view = useAppStore.getState().view;
+    if (mode === "panel" && view.kind === "thread" && view.panes.length > 0) {
+      useAppStore.getState().openDraftSideBySide(input.projectId);
+    } else {
+      discardReplacedDraftContents(input.projectId);
+      useAppStore.getState().openDraft(input.projectId);
+    }
+  });
+}
+
+export function openThread(
+  threadId: string,
+  options?: { focusComposer?: boolean; standalone?: boolean; switchWorkspace?: boolean },
+): void {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((item) => item.id === threadId);
+  if (thread && options?.switchWorkspace) {
+    switchWorkspaceForProject(thread.projectId);
+  }
+  const owner = remoteOwner(thread);
+  if (owner) {
+    store.setPendingActiveThread(threadId);
+    startTransition(() => {
+      if (options?.standalone) store.openThreadStandalone(threadId);
+      else store.openThread(threadId);
+      store.setPendingActiveThread(null);
+      if (options?.focusComposer !== false) store.requestComposerFocus(threadId);
+    });
+    // Same open pipeline as local: hydrate remote history, then if still
+    // inactive queue the empty-prompt reopen. ThreadView runs
+    // performInitialThreadLaunch, which uses remote startThread instead of
+    // local IPC — the only intentional difference.
+    void useRemoteServersStore
+      .getState()
+      .openRemoteThread(owner.desktopId, owner.remoteId)
+      .then((opened) => {
+        // Reopen only when this open actually applied. A superseded open (the
+        // user already clicked another thread) or a failed one (host
+        // unreachable — the relaunch would fail noisily) resolves false.
+        if (opened && threadRuntimeReopenEnabled) reopenStoredThread(threadId);
+      });
+    return;
+  }
+  const standalone = options?.standalone ?? findExperimentByThreadId(threadId) !== undefined;
+  const requestId = ++openThreadRequestId;
+  const threadIdsToHydrate = getGuiThreadIdsToHydrateBeforeOpen(threadId, standalone);
+
+  // Phase 1 (urgent): flip the optimistic active-thread id in its own cheap
+  // commit so the sidebar row highlights immediately. This does not touch
+  // `view.panes`, so it does not trigger the heavy pane remount. Snapshot the
+  // current view so the deferred swap can bail if the user navigates elsewhere
+  // within the frame (setPendingActiveThread leaves `view`'s reference intact).
+  store.setPendingActiveThread(threadId);
+  const viewAtSchedule = store.view;
+
+  // Phase 2 (deferred): perform the real pane swap that mounts the target
+  // thread. Kept behind a frame so the highlight paints first; the previous
+  // pane stays visible until the new one mounts (no blank flash).
+  const applyOpen = () => {
+    // Superseded by a newer openThread — that call owns the pending id and will
+    // clear it, so leave it untouched here.
+    if (requestId !== openThreadRequestId) return;
+    // The user navigated somewhere else (Home/Draft/another pane) during the
+    // frame; honor that instead of clobbering it, and drop the stale highlight.
+    if (useAppStore.getState().view !== viewAtSchedule) {
+      useAppStore.getState().setPendingActiveThread(null);
+      return;
+    }
+
+    startTransition(() => {
+      const nextStore = useAppStore.getState();
+      if (standalone) nextStore.openThreadStandalone(threadId);
+      else nextStore.openThread(threadId);
+      // Clear in the same auto-batched commit as the pane swap so the highlight
+      // hands off to `view.panes` without a flicker.
+      nextStore.setPendingActiveThread(null);
+      // Opening a thread on the desktop is a handoff to its composer. GUI
+      // panes deliberately keep their DOM slot mounted across thread switches,
+      // so mount-time autofocus alone cannot cover this path.
+      if (options?.focusComposer !== false) {
+        useAppStore.getState().requestComposerFocus(threadId);
+      }
+      // Late-rendering items (virtualizer measurement, hydration, streaming) can
+      // leave the chat slightly above the bottom on reopen. Re-arm stick-to-bottom
+      // so any post-mount growth keeps the view pinned.
+      if (thread?.presentationMode === "gui") {
+        useAppStore.getState().requestChatScrollToBottom(threadId);
+      }
+    });
+
+    if (threadRuntimeReopenEnabled && thread?.status === "inactive") {
+      reopenStoredThread(threadId);
+    }
+  };
+
+  if (threadIdsToHydrate.length > 0) {
+    // Hydration already yields (awaited), so the highlight paints during the
+    // SQLite fetch — no extra frame needed before the swap.
+    void Promise.all(threadIdsToHydrate.map((id) => hydrateThreadRuntimeItems(id))).then(
+      applyOpen,
+      applyOpen,
+    );
+    return;
+  }
+
+  // Defer the heavy pane swap one frame so the urgent highlight commit paints
+  // first. requestAnimationFrame alone is not enough: Chromium parks rAF
+  // entirely for occluded windows, which would stall the open until the window
+  // is next visible (e.g. thread opens driven from the mobile remote). The
+  // timeout fallback keeps the swap flowing (throttled timers still fire) while
+  // the rAF path preserves the paint-first ordering when visible.
+  let applied = false;
+  let frameId: number | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const applyOnce = () => {
+    if (applied) return;
+    applied = true;
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    applyOpen();
+  };
+  frameId = requestAnimationFrame(applyOnce);
+  if (!applied) timeoutId = setTimeout(applyOnce, 50);
+}
+
+/**
+ * Open the thread immediately before/after the current one in the sidebar's
+ * visible order (the "Next chat" / "Previous chat" shortcuts). Navigation is
+ * scoped to the current thread's project and wraps around at the ends. The order
+ * mirrors the sidebar exactly — same sort mode and starred/recent grouping — but
+ * with worktree groups expanded and the "See more" cap lifted so every
+ * non-archived thread is reachable, even ones not currently rendered.
+ */
+export function switchToAdjacentThread(current: Thread, direction: "next" | "previous"): void {
+  const store = useAppStore.getState();
+  const projectThreads = store.threads.filter(
+    (thread) => thread.projectId === current.projectId && !thread.archived,
+  );
+  if (projectThreads.length < 2) return;
+
+  const orderedIds = buildSidebarProjectRows({
+    projectId: current.projectId,
+    projectThreads,
+    sortMode: usePanelStore.getState().threadSortMode,
+    collapsedWorktrees: {},
+    expandAllGroups: true,
+    visibleLimit: Number.MAX_SAFE_INTEGER,
+  }).flatMap((row) => (row.kind === "thread" ? [row.thread.id] : []));
+
+  const index = orderedIds.indexOf(current.id);
+  if (index === -1) return;
+  const delta = direction === "next" ? 1 : -1;
+  const nextId = orderedIds[(index + delta + orderedIds.length) % orderedIds.length];
+  if (nextId && nextId !== current.id) openThread(nextId);
+}
+
+function getGuiThreadIdsToHydrateBeforeOpen(threadId: string, standalone = false): string[] {
+  const state = useAppStore.getState();
+  const clickedThread = state.threads.find((thread) => thread.id === threadId);
+  if (!clickedThread) return [];
+
+  let candidates = [clickedThread];
+  if (!standalone && clickedThread.groupId) {
+    const groupThreads = state.threads.filter(
+      (thread) => thread.groupId === clickedThread.groupId && !thread.done && !thread.archived,
+    );
+    if (groupThreads.length >= 2) {
+      candidates = groupThreads;
+    }
+  }
+
+  return candidates
+    .filter(
+      (thread) => thread.presentationMode === "gui" && !hasHydratedThreadRuntimeItems(thread.id),
+    )
+    .map((thread) => thread.id);
+}
+
+export function reopenStoredThread(threadId: string): void {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((item) => item.id === threadId);
+  if (!thread) return;
+  if (!shouldRelaunchThreadOnOpen(thread) || store.pendingThreadLaunches[thread.id] !== undefined) {
+    return;
+  }
+
+  const isGuiReconnect = thread.presentationMode === "gui" && thread.sessionRef !== undefined;
+  startTransition(() => {
+    store.updateThreadRuntime(thread.id, {
+      status: isGuiReconnect ? "idle" : "launching",
+      attention: "none",
+      ...(thread.sessionRef ? { sessionRef: thread.sessionRef } : {}),
+      canResumeWithConfig: thread.canResumeWithConfig || thread.sessionRef !== undefined,
+    });
+    if (isGuiReconnect) store.beginThreadConnecting(thread.id);
+  });
+  // Local and remote share this queue; performInitialThreadLaunch picks the
+  // host (local bridge vs remote client.startThread).
+  store.queueThreadLaunch(thread.id, "");
+}
+
+export async function unloadStoredThread(
+  threadId: string,
+  options?: { closeThreadPane?: boolean; keepSidePanels?: boolean },
+): Promise<void> {
+  const thread = useAppStore.getState().threads.find((item) => item.id === threadId);
+  if (!thread || thread.status === "inactive") {
+    return;
+  }
+
+  const view = useAppStore.getState().view;
+  const inVisiblePane = view.kind === "thread" && view.panes.includes(threadId);
+
+  const owner = remoteOwner(thread);
+  await readBridge().closeThread({ threadId });
+  if (owner) await useRemoteServersStore.getState().refreshServer(owner.desktopId);
+  startTransition(() => {
+    useAppStore.getState().markThreadExited(threadId);
+    if (inVisiblePane && !options?.keepSidePanels) {
+      closePanelsForUnloadedThread(thread);
+    }
+    if (options?.closeThreadPane && inVisiblePane) {
+      useAppStore.getState().closePane(threadId);
+    }
+  });
+}
+
+export function sweepStaleThreads(): void {
+  const staleThreadUnloadMinutes = useSharedSettings.getState().staleThreadUnloadMinutes;
+  if (staleThreadUnloadMinutes <= 0) return;
+
+  const store = useAppStore.getState();
+  const visibleThreadIds = new Set(store.view.kind === "thread" ? store.view.panes : []);
+  if (store.view.kind === "experiment") {
+    const experiment = useExperimentStore.getState().experiments[store.view.experimentId];
+    for (const candidate of experiment?.candidates ?? []) {
+      visibleThreadIds.add(candidate.threadId);
+    }
+  }
+  const staleBefore = Date.now() - staleThreadUnloadMinutes * 60_000;
+
+  for (const thread of store.threads) {
+    if (visibleThreadIds.has(thread.id) || thread.status !== "idle" || !thread.sessionRef) {
+      continue;
+    }
+    const updatedAtMs = new Date(thread.updatedAt).getTime();
+    const lastViewedAtMs = store.lastViewedAtByThreadId[thread.id] ?? 0;
+    const lastActiveMs = Math.max(updatedAtMs, lastViewedAtMs);
+    if (lastActiveMs > staleBefore) {
+      continue;
+    }
+
+    void unloadStoredThread(thread.id).catch(() => undefined);
+  }
+}
+
+export function archiveThread(threadId: string): void {
+  if (findExperimentByThreadId(threadId)) return;
+  const thread = useAppStore.getState().threads.find((candidate) => candidate.id === threadId);
+  if (
+    thread &&
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({
+        kind: "archive",
+        threadId: remoteThreadId,
+      }),
+      () => useAppStore.getState().archiveThread(threadId),
+    )
+  )
+    return;
+  void unloadStoredThread(threadId).catch(() => undefined);
+  useAppStore.getState().archiveThread(threadId);
+}
+
+export function unarchiveThread(threadId: string): void {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((candidate) => candidate.id === threadId);
+  if (!thread) return;
+  if (
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({ kind: "unarchive", threadId: remoteThreadId }),
+      () => useAppStore.getState().unarchiveThread(threadId),
+    )
+  )
+    return;
+  store.unarchiveThread(threadId);
+}
+
+export function unloadThread(threadId: string): void {
+  void unloadStoredThread(threadId, { closeThreadPane: true }).catch((error) =>
+    toast.danger(friendlyError(error)),
+  );
+}
+
+/**
+ * Marks a thread done: unloads its runtime, drops the worktree's terminal tabs
+ * once no live thread is left there, and flips the store flag. When this was
+ * the worktree's last open thread, the sidebar worktree group is now fully
+ * done and gets collapsed. Shared by the manual affordances (context menu,
+ * sidebar Done button) and the PR-merge automation.
+ */
+export function markThreadDone(threadId: string, options?: { preservePane?: boolean }): void {
+  if (findExperimentByThreadId(threadId)) return;
+  const store = useAppStore.getState();
+  const thread = store.threads.find((t) => t.id === threadId);
+  if (!thread || thread.done) return;
+  if (
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({ kind: "set-done", threadId: remoteThreadId, done: true }),
+      () => useAppStore.getState().markThreadDone(threadId, options),
+    )
+  )
+    return;
+
+  if (!options?.preservePane) {
+    void unloadStoredThread(threadId, { keepSidePanels: true }).catch(() => undefined);
+  }
+  const worktreePath = thread.worktreePath;
+  const isLastOpenWorktreeThread =
+    worktreePath !== undefined &&
+    store.threads.every(
+      (t) => t.id === threadId || t.worktreePath !== worktreePath || t.done || t.archived,
+    );
+  if (!options?.preservePane && worktreePath && isLastOpenWorktreeThread) {
+    useSidebarUiStore.getState().setWorktreeCollapsed(worktreePath, true);
+    const termStore = useDevTerminalStore.getState();
+    const removedTabIds = termStore.removeTabsForWorktree(worktreePath);
+    void closeThreads(removedTabIds);
+    if (termStore.isOpen && termStore.activeWorktreePath === worktreePath) {
+      termStore.closePanel();
+    }
+  }
+  store.markThreadDone(threadId, options);
+}
+
+export function toggleMarkThreadDone(threadId: string, options?: { preservePane?: boolean }): void {
+  if (findExperimentByThreadId(threadId)) return;
+  const store = useAppStore.getState();
+  const thread = store.threads.find((t) => t.id === threadId);
+  if (!thread) return;
+  const done = !thread.done;
+  if (
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({ kind: "set-done", threadId: remoteThreadId, done }),
+      () => {
+        const nextStore = useAppStore.getState();
+        if (done) nextStore.markThreadDone(threadId, options);
+        else nextStore.unmarkThreadDone(threadId);
+      },
+    )
+  )
+    return;
+  if (thread.done) {
+    store.unmarkThreadDone(threadId);
+  } else {
+    markThreadDone(threadId, options);
+  }
+}
+
+export function toggleStarThread(threadId: string): void {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((t) => t.id === threadId);
+  if (!thread) return;
+  const starred = !thread.starred;
+  if (
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({ kind: "set-starred", threadId: remoteThreadId, starred }),
+      () => {
+        const nextStore = useAppStore.getState();
+        if (starred) nextStore.starThread(threadId);
+        else nextStore.unstarThread(threadId);
+      },
+    )
+  )
+    return;
+  if (thread.starred) {
+    store.unstarThread(threadId);
+  } else {
+    store.starThread(threadId);
+  }
+}
+
+export function renameThread(threadId: string, title: string): void {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((candidate) => candidate.id === threadId);
+  if (
+    thread &&
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({ kind: "rename", threadId: remoteThreadId, title }),
+      () => useAppStore.getState().renameThread(threadId, title),
+    )
+  )
+    return;
+  store.renameThread(threadId, title);
+}
+
+/**
+ * Tag a thread with worktree metadata. Local threads update the store (and
+ * persist via the app DB); remote projected threads go through the host's
+ * existing `set-worktree` command so the durable row is updated on the machine
+ * that owns the project.
+ */
+export async function setThreadWorktree(
+  threadId: string,
+  worktreePath: string,
+  worktreeBranch?: string,
+  options?: { isNewWorktree?: boolean },
+): Promise<void> {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((candidate) => candidate.id === threadId);
+  if (!thread) return;
+
+  const apply = () => {
+    useAppStore.getState().setThreadWorktree(threadId, worktreePath, worktreeBranch);
+  };
+
+  const owner = remoteOwner(thread);
+  if (owner) {
+    await useRemoteServersStore.getState().sendThreadCommand(owner.desktopId, {
+      kind: "set-worktree",
+      threadId: owner.remoteId,
+      worktreePath,
+      ...(worktreeBranch ? { worktreeBranch } : {}),
+      ...(options?.isNewWorktree ? { isNewWorktree: true } : {}),
+    });
+  }
+  apply();
+}
+
+/** Clear the unread completion marker without navigating the source desktop. */
+export function acknowledgeThread(threadId: string): void {
+  const thread = useAppStore.getState().threads.find((item) => item.id === threadId);
+  const apply = () => {
+    useAppStore.setState((state) => {
+      const current = state.threads.find((item) => item.id === threadId);
+      if (current?.status !== "finished") return {};
+      return {
+        threads: state.threads.map((item) =>
+          item.id === threadId ? { ...item, status: "idle" as const } : item,
+        ),
+      };
+    });
+  };
+  if (
+    thread &&
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({ kind: "acknowledge", threadId: remoteThreadId }),
+      apply,
+    )
+  )
+    return;
+  apply();
+}
+
+function deleteThreadOnly(threadId: string): void {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((candidate) => candidate.id === threadId);
+  if (store.provisioningWorktreeThreadIds[threadId] === true) {
+    store.deleteThread(threadId);
+    return;
+  }
+  if (
+    thread &&
+    dispatchRemoteThreadMutation(
+      thread,
+      (remoteThreadId) => ({ kind: "delete", threadId: remoteThreadId }),
+      () => useAppStore.getState().deleteThread(threadId),
+    )
+  )
+    return;
+  store.deleteThread(threadId);
+  void readBridge()
+    .closeThread({ threadId })
+    .catch(() => undefined);
+}
+
+/** True when `threadId` is the only thread still using `worktreePath`. */
+function ownsWorktreeAlone(threadId: string, worktreePath: string): boolean {
+  return !useAppStore
+    .getState()
+    .threads.some(
+      (candidate) => candidate.worktreePath === worktreePath && candidate.id !== threadId,
+    );
+}
+
+/**
+ * Deletes a thread, also removing its worktree directory when this was the last
+ * thread using it. Confirmation is the caller's job — see `requestDeleteThread`
+ * for the interactive entry point.
+ */
+export function deleteThread(threadId: string, worktreePath?: string, projectId?: string): void {
+  if (findExperimentByThreadId(threadId)) return;
+  // No worktree, or siblings still use it — drop the thread and keep the directory.
+  if (!worktreePath || !ownsWorktreeAlone(threadId, worktreePath)) {
+    deleteThreadOnly(threadId);
+    return;
+  }
+
+  const project = useAppStore.getState().projects.find((p) => p.id === projectId);
+  if (!project) {
+    useAppStore.getState().deleteThread(threadId);
+    return;
+  }
+  deleteWorktreeGroup(project.id, worktreePath, [threadId]);
+}
+
+/**
+ * Sidebar-initiated delete: asks first unless the user turned confirmation off,
+ * then routes through `deleteThread`. Every thread is confirmed the same way,
+ * whether or not it owns a worktree — the popover only names the worktree when
+ * deleting this thread is what would take the directory with it.
+ */
+export function requestDeleteThread(
+  threadId: string,
+  worktreePath: string | undefined,
+  projectId: string | undefined,
+  options?: {
+    anchorPosition?: { x: number; y: number };
+    returnFocusElement?: HTMLElement;
+  },
+): void {
+  if (findExperimentByThreadId(threadId)) return;
+  if (!shouldConfirmThreadDelete()) {
+    deleteThread(threadId, worktreePath, projectId);
+    return;
+  }
+
+  const thread = useAppStore.getState().threads.find((candidate) => candidate.id === threadId);
+  // Named in the confirmation only when this delete is what removes the directory.
+  const worktreeToRemove =
+    worktreePath !== undefined &&
+    projectId !== undefined &&
+    ownsWorktreeAlone(threadId, worktreePath)
+      ? {
+          worktreePath,
+          worktreeBranch:
+            resolveWorktreeBranch(projectId, worktreePath, thread?.worktreeBranch) ??
+            worktreePath.split(/[/\\]/).pop() ??
+            worktreePath,
+        }
+      : {};
+  useWorktreeDeleteStore.getState().setDialog({
+    kind: "single-thread",
+    threadId,
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...worktreeToRemove,
+    anchorPosition: options?.anchorPosition ?? {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    },
+    ...(options?.returnFocusElement ? { returnFocusElement: options.returnFocusElement } : {}),
+  });
+}
+
+export function continueInProvider(threadId: string): void {
+  openThread(threadId);
+}
+
+export function reopenPaneThreadsIfInactive(): void {
+  if (!threadRuntimeReopenEnabled) return;
+  const store = useAppStore.getState();
+  if (store.view.kind !== "thread") return;
+  for (const paneId of store.view.panes) {
+    if (isDraftPaneId(paneId)) continue;
+    const thread = store.threads.find((t) => t.id === paneId);
+    if (!thread || thread.status !== "inactive") continue;
+    reopenStoredThread(thread.id);
+  }
+}

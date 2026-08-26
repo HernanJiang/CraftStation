@@ -1,0 +1,339 @@
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { McpServer, ProjectLocation, ThreadConfig } from "@/shared/contracts";
+import type { OscNotification, OscTitle } from "@/shared/osc";
+import { createKnownSessionRef } from "../base";
+import { GROK_AUTOMATION_RULES } from "./argv";
+import { grokDetectionSpec } from "./detection";
+import { createGrokAdapter } from "./index";
+
+function oscTitle(text: string, code: 0 | 1 | 2 = 0): OscTitle {
+  return { code, text };
+}
+
+function oscNotify(body: string, code: 9 | 99 | 777 = 9): OscNotification {
+  return { code, title: "", body, payload: undefined };
+}
+
+// Observed live from grok PTY captures (0.1.218, re-verified on 0.2.118 —
+// idle title is still plain "grok"):
+//   OSC 0 "grok"                       (idle, frequent)
+//   OSC 0 "⠴ - Waiting - grok"         (working, braille frames ⠴ / ⠦)
+//   OSC 9 "4;0;0"                      (iTerm2 progress: clear → idle)
+// No OSC 777 / 99 / 133 / 633 / 1337 emitted in the same run.
+describe("createGrokAdapter handleOscTitle", () => {
+  const adapter = createGrokAdapter();
+
+  it("maps Grok's '⠴/⠦ - Waiting - grok' braille spinner to working", () => {
+    for (const glyph of ["⠴", "⠦"]) {
+      expect(adapter.handleOscTitle?.(oscTitle(`${glyph} - Waiting - grok`))).toEqual({
+        status: "working",
+        attention: "working",
+        corroborated: true,
+      });
+    }
+  });
+
+  it("accepts any braille glyph in the U+2800–U+28FF range", () => {
+    for (const glyph of ["⠀", "⠁", "⣾", "⣿"]) {
+      expect(adapter.handleOscTitle?.(oscTitle(`${glyph} task`))?.status).toBe("working");
+    }
+  });
+
+  it("returns null for Grok's idle title (plain 'grok')", () => {
+    expect(adapter.handleOscTitle?.(oscTitle("grok"))).toBeNull();
+  });
+
+  it("returns null when the braille glyph is not at the start of the title", () => {
+    expect(adapter.handleOscTitle?.(oscTitle("grok ⠴"))).toBeNull();
+  });
+});
+
+describe("createGrokAdapter handleOscNotification (iTerm2 OSC 9;4 progress)", () => {
+  const adapter = createGrokAdapter();
+
+  it("maps state 0 (remove progress) to idle — Grok's observed turn-end signal", () => {
+    for (const body of ["4;0", "4;0;", "4;0;0"]) {
+      expect(adapter.handleOscNotification?.(oscNotify(body))).toEqual({
+        status: "idle",
+        attention: "none",
+        corroborated: true,
+      });
+    }
+  });
+
+  it("maps state 1 / 3 to working", () => {
+    expect(adapter.handleOscNotification?.(oscNotify("4;1;42"))?.status).toBe("working");
+    expect(adapter.handleOscNotification?.(oscNotify("4;3;0"))?.status).toBe("working");
+  });
+
+  it("ignores OSC 9 bodies outside the 9;4 progress sub-protocol", () => {
+    expect(adapter.handleOscNotification?.(oscNotify("Hello from some other agent"))).toBeNull();
+    expect(adapter.handleOscNotification?.(oscNotify(""))).toBeNull();
+  });
+
+  it("ignores OSC 777 / OSC 99 — Grok only emits iTerm2 OSC 9", () => {
+    expect(adapter.handleOscNotification?.(oscNotify("4;0", 777))).toBeNull();
+    expect(adapter.handleOscNotification?.(oscNotify("4;3;0", 99))).toBeNull();
+  });
+});
+
+describe("createGrokAdapter OSC plumbing", () => {
+  it("keeps OSC parsing active alongside the L1 hook plugin", () => {
+    const adapter = createGrokAdapter();
+    expect(adapter.oscHintsDeferToHookPlugin).toBeUndefined();
+  });
+});
+
+describe("createGrokAdapter skill roots", () => {
+  it("uses the native shared root without creating Grok projections", () => {
+    const support = createGrokAdapter().skillSupport;
+
+    expect(support?.roots.map((root) => root.id)).toContain("agents");
+    expect(support?.projectionRoots).toBeUndefined();
+  });
+});
+
+describe("createGrokAdapter goal controls", () => {
+  const adapter = createGrokAdapter();
+
+  it("maps Grok-supported goal actions to native slash commands", () => {
+    expect(adapter.buildGoalControlPrompt?.({ action: "pause" })).toBe("/goal pause");
+    expect(adapter.buildGoalControlPrompt?.({ action: "resume" })).toBe("/goal resume");
+    expect(adapter.buildGoalControlPrompt?.({ action: "clear" })).toBe("/goal clear");
+  });
+
+  it("does not advertise an in-place edit command that Grok lacks", () => {
+    expect(
+      adapter.buildGoalControlPrompt?.({ action: "edit", objective: "Replacement goal" }),
+    ).toBeUndefined();
+  });
+});
+
+describe("grokDetectionSpec", () => {
+  it("uses device auth for WSL login to avoid localhost callback nonce mismatches", () => {
+    expect(typeof grokDetectionSpec.loginCommand).toBe("function");
+    const loginCommand =
+      typeof grokDetectionSpec.loginCommand === "function"
+        ? grokDetectionSpec.loginCommand({
+            location: {
+              kind: "wsl",
+              distro: "Ubuntu",
+              linuxPath: "/home/demo/project",
+              uncPath: "\\\\wsl.localhost\\Ubuntu\\home\\demo\\project",
+            },
+            executablePath: "grok",
+          })
+        : grokDetectionSpec.loginCommand;
+
+    expect(loginCommand).toBe("grok login --device-auth");
+  });
+
+  it("keeps normal OAuth login for native Windows", () => {
+    const loginCommand =
+      typeof grokDetectionSpec.loginCommand === "function"
+        ? grokDetectionSpec.loginCommand({
+            location: { kind: "windows", path: "C:\\repo" },
+            executablePath: "grok",
+          })
+        : grokDetectionSpec.loginCommand;
+
+    expect(loginCommand).toBe("grok login");
+  });
+});
+
+describe("createGrokAdapter buildLaunchArgv / buildResumeArgv session flags", () => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const SESSION_ID = "11111111-2222-4333-8444-555555555555";
+  const config = { model: "grok-4.5", mode: "agent" } as ThreadConfig;
+  let grokHome: string;
+  let projectDir: string;
+  let location: ProjectLocation;
+  let previousGrokHome: string | undefined;
+
+  beforeEach(() => {
+    grokHome = mkdtempSync(join(tmpdir(), "grok-home-"));
+    projectDir = join(tmpdir(), "grok-proj");
+    previousGrokHome = process.env["GROK_HOME"];
+    process.env["GROK_HOME"] = grokHome;
+    location = { kind: "windows", path: projectDir } as ProjectLocation;
+  });
+
+  afterEach(() => {
+    if (previousGrokHome === undefined) delete process.env["GROK_HOME"];
+    else process.env["GROK_HOME"] = previousGrokHome;
+    rmSync(grokHome, { recursive: true, force: true });
+  });
+
+  it("pre-assigns a fresh UUID with -s and returns it as the session ref", () => {
+    const adapter = createGrokAdapter();
+    const result = adapter.buildLaunchArgv(location, config, "", undefined, {});
+    expect(result.args[0]).toBe("--no-auto-update");
+    expect(result.args.slice(1, 3)).toEqual(["--rules", GROK_AUTOMATION_RULES]);
+    expect(result.args[3]).toBe("-s");
+    expect(result.args[4]).toMatch(UUID_RE);
+    expect(result.sessionRef?.providerSessionId).toBe(result.args[4]);
+  });
+
+  it("resumes a known id with -r when the session dir has materialized", () => {
+    mkdirSync(join(grokHome, "sessions", encodeURIComponent(projectDir), SESSION_ID), {
+      recursive: true,
+    });
+    const adapter = createGrokAdapter();
+    const result = adapter.buildLaunchArgv(
+      location,
+      config,
+      "",
+      createKnownSessionRef(SESSION_ID),
+      {},
+    );
+    expect(result.args.slice(0, 5)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-r",
+      SESSION_ID,
+    ]);
+    expect(result.sessionRef?.providerSessionId).toBe(SESSION_ID);
+  });
+
+  it("re-assigns a known id with -s when the session never materialized", () => {
+    const adapter = createGrokAdapter();
+    const result = adapter.buildLaunchArgv(
+      location,
+      config,
+      "",
+      createKnownSessionRef(SESSION_ID),
+      {},
+    );
+    expect(result.args.slice(0, 5)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-s",
+      SESSION_ID,
+    ]);
+    expect(result.sessionRef?.providerSessionId).toBe(SESSION_ID);
+  });
+
+  it("resumes a known UUID after the project directory moves", () => {
+    const originalProjectDir = join(tmpdir(), "grok-original-proj");
+    mkdirSync(join(grokHome, "sessions", encodeURIComponent(originalProjectDir), SESSION_ID), {
+      recursive: true,
+    });
+
+    const adapter = createGrokAdapter();
+    const result = adapter.buildLaunchArgv(
+      location,
+      config,
+      "",
+      createKnownSessionRef(SESSION_ID),
+      {},
+    );
+    expect(result.args.slice(0, 5)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-r",
+      SESSION_ID,
+    ]);
+  });
+
+  it("buildResumeArgv applies the same materialization fallback", () => {
+    const adapter = createGrokAdapter();
+    const fresh = adapter.buildResumeArgv(location, config, "", createKnownSessionRef(SESSION_ID));
+    expect(fresh.args.slice(0, 5)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-s",
+      SESSION_ID,
+    ]);
+
+    mkdirSync(join(grokHome, "sessions", encodeURIComponent(projectDir), SESSION_ID), {
+      recursive: true,
+    });
+    const materialized = adapter.buildResumeArgv(
+      location,
+      config,
+      "",
+      createKnownSessionRef(SESSION_ID),
+    );
+    expect(materialized.args.slice(0, 5)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-r",
+      SESSION_ID,
+    ]);
+  });
+
+  it("does not project custom MCP servers into Grok's global config", () => {
+    const server = {
+      id: "vercel",
+      name: "Vercel",
+      description: "",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "http", url: "https://mcp.vercel.com", headers: {} },
+    } satisfies McpServer;
+    const adapter = createGrokAdapter();
+    adapter.buildLaunchArgv(location, config, "", undefined, {
+      mcpServers: [server],
+    });
+    adapter.buildResumeArgv(location, config, "", createKnownSessionRef(SESSION_ID), {
+      mcpServers: [server],
+    });
+
+    expect(existsSync(join(grokHome, "config.toml"))).toBe(false);
+    expect(existsSync(join(grokHome, ".poracode-managed-mcp.json"))).toBe(false);
+  });
+});
+
+describe("createGrokAdapter L1 hook plugin support", () => {
+  it("declares poracode-status@grok with protocol version 1", () => {
+    const adapter = createGrokAdapter();
+    expect(adapter.pluginId).toBe("poracode-status@grok");
+    expect(adapter.minProtocolVersion).toBe(1);
+    expect(typeof adapter.pluginVersion).toBe("string");
+    expect(adapter.pluginVersion?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it("returns no extra args/env from pluginLaunchExtras (auto-loaded global hooks)", async () => {
+    const adapter = createGrokAdapter();
+    const extras = await adapter.pluginLaunchExtras?.({ envKind: "posix" });
+    expect(extras).toEqual({});
+    expect(extras?.args).toBeUndefined();
+    expect(extras?.env).toBeUndefined();
+  });
+});
+
+describe("createGrokAdapter one-shot", () => {
+  const adapter = createGrokAdapter();
+
+  it("defaults to the model grok advertises as current and builds the headless -p command", () => {
+    // `grok models` and the ACP handshake both report grok-4.6 as the default
+    // on 1.0.5 (grok-4.5 stays selectable). Utility runs follow that default.
+    expect(adapter.defaultOneShotModel).toBe("grok-4.6");
+    expect(adapter.buildOneShotCommand?.("grok-4.6", "low", "hello")).toEqual({
+      command: "grok",
+      args: [
+        "--no-auto-update",
+        "-p",
+        "hello",
+        "-m",
+        "grok-4.6",
+        "--reasoning-effort",
+        "low",
+        "--always-approve",
+      ],
+      stdin: "",
+    });
+  });
+
+  it("returns undefined without a prompt", () => {
+    expect(adapter.buildOneShotCommand?.("grok-4.6", undefined, "")).toBeUndefined();
+  });
+});

@@ -1,0 +1,3978 @@
+/* Poracode brand type — Geist (Vercel, SIL OFL), bundled for offline use. */
+@font-face {
+  font-family: "Geist";
+  src: url("../renderer/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../renderer/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --poracode-modal-radius: 0.7rem;
+}
+
+.modal__dialog:not(.modal__dialog--cover):not(.modal__dialog--full),
+.alert-dialog__dialog:not(.alert-dialog__dialog--cover) {
+  border-radius: var(--poracode-modal-radius);
+}
+
+/* Icon + title on the same row for every Modal/AlertDialog header that leads
+   with an icon. HeroUI stacks the header as `flex flex-col`, which drops the
+   icon above the heading. Switch headers that contain an icon to a two-column
+   grid: the icon occupies the first column and spans the full block height
+   (vertically centered), while the heading and any following description stack
+   in the second column. This keeps single-line dialogs (icon + heading)
+   centered and lets multi-line headers (icon + heading + description) read as
+   one left-aligned text block beside the icon. Applied at the base level so all
+   Modal-based dialogs inherit the convention. */
+.modal__header:has(> .modal__icon),
+.alert-dialog__header:has(> .alert-dialog__icon) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+}
+
+.modal__header:has(> .modal__icon) > .modal__icon,
+.alert-dialog__header:has(> .alert-dialog__icon) > .alert-dialog__icon {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  align-self: center;
+}
+
+.modal__header:has(> .modal__icon) > :not(.modal__icon),
+.alert-dialog__header:has(> .alert-dialog__icon) > :not(.alert-dialog__icon) {
+  grid-column: 2;
+}
+
+/* In-content Find highlights (chat, git diff). Painted via the CSS Custom
+   Highlight API so matches never mutate React-managed / virtualized DOM. The
+   active match (lc-find-current) is registered at higher priority so it paints
+   over the base set. Theme-independent colors so both light and dark read well. */
+::highlight(lc-find) {
+  background-color: rgb(250 204 21 / 0.4);
+}
+::highlight(lc-find-current) {
+  background-color: rgb(249 115 22 / 0.95);
+  color: rgb(0 0 0 / 0.92);
+}
+
+@property --lc-chat-bottom-mask-end-alpha {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: false;
+}
+
+@property --ring-angle-1 {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@property --ring-angle-2 {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes poracode-welcome-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes poracode-ring-spin-1 {
+  from {
+    --ring-angle-1: 0deg;
+  }
+  to {
+    --ring-angle-1: 360deg;
+  }
+}
+
+@keyframes poracode-ring-spin-2 {
+  from {
+    --ring-angle-2: 360deg;
+  }
+  to {
+    --ring-angle-2: 0deg;
+  }
+}
+
+@keyframes poracode-lightning-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent),
+      0 0 18px color-mix(in oklab, var(--accent) 22%, transparent),
+      0 0 32px color-mix(in oklab, var(--accent) 10%, transparent);
+  }
+  33% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 55%, transparent),
+      0 0 24px color-mix(in oklab, var(--accent) 30%, transparent),
+      0 0 40px color-mix(in oklab, var(--accent) 15%, transparent),
+      0 0 8px color-mix(in oklab, #fff 20%, transparent);
+  }
+  66% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent),
+      0 0 14px color-mix(in oklab, var(--accent) 24%, transparent),
+      0 0 28px color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+}
+
+@keyframes poracode-welcome-orbit {
+  0% {
+    opacity: 0;
+    transform: rotateX(50deg) rotateY(-30deg) rotateZ(-360deg) scale(18);
+  }
+  15% {
+    opacity: 1;
+  }
+  65% {
+    transform: rotateX(20deg) rotateY(-10deg) rotateZ(180deg) scale(2);
+    opacity: 1;
+  }
+  85% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(350deg) scale(0.01);
+    opacity: 1;
+  }
+  91%,
+  100% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(360deg) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes poracode-welcome-splash {
+  0%,
+  85% {
+    opacity: 0;
+    transform: scale(0.01);
+  }
+  90% {
+    opacity: 1;
+    transform: scale(2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(6);
+  }
+}
+
+@keyframes poracode-welcome-light {
+  0%,
+  85% {
+    opacity: 0;
+    transform: scale(0.1);
+  }
+  90% {
+    opacity: 0.6;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0.2;
+    transform: scale(0.6);
+  }
+}
+
+.poracode-welcome-page {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-secondary) 70%, transparent) 0%,
+      var(--background) 58%
+    ),
+    var(--background);
+}
+
+.poracode-welcome-stage {
+  transform: translate3d(0, -1.5vh, 0);
+}
+
+.poracode-welcome-reveal {
+  animation: poracode-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: 2s;
+}
+
+.poracode-welcome-reveal-1 {
+  animation-delay: 2.2s;
+}
+
+.poracode-welcome-reveal-2 {
+  animation-delay: 2.4s;
+}
+
+.poracode-welcome-ring {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent),
+    0 0 18px color-mix(in oklab, var(--accent) 22%, transparent);
+  animation:
+    poracode-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    poracode-lightning-glow 4s ease-in-out infinite;
+  animation-delay: 2s, 2.8s;
+  transform: translateZ(0);
+}
+
+.poracode-welcome-ring::before,
+.poracode-welcome-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.poracode-welcome-ring::before {
+  background: conic-gradient(
+    from var(--ring-angle-1) at center,
+    transparent 0deg,
+    transparent 180deg,
+    color-mix(in oklab, var(--accent) 15%, transparent) 220deg,
+    var(--accent) 270deg,
+    #ffffff 295deg,
+    var(--accent) 320deg,
+    color-mix(in oklab, var(--accent) 15%, transparent) 350deg,
+    transparent 360deg
+  );
+  filter: blur(0.5px);
+  animation: poracode-ring-spin-1 6s linear infinite;
+  will-change: transform;
+}
+
+.poracode-welcome-ring::after {
+  background: conic-gradient(
+    from var(--ring-angle-2) at center,
+    transparent 0deg,
+    transparent 120deg,
+    color-mix(in oklab, var(--accent) 15%, transparent) 160deg,
+    var(--accent) 220deg,
+    #ffffff 250deg,
+    var(--accent) 280deg,
+    color-mix(in oklab, var(--accent) 15%, transparent) 320deg,
+    transparent 360deg
+  );
+  filter: blur(0.6px);
+  animation: poracode-ring-spin-2 4s linear infinite;
+  will-change: transform;
+}
+
+.poracode-welcome-light {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.1) 40%,
+    transparent 70%
+  );
+  animation: poracode-welcome-light 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: center;
+  filter: blur(8px);
+}
+
+.poracode-welcome-orbit {
+  animation: poracode-welcome-orbit 2.2s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  transform-origin: center;
+  transform-style: preserve-3d;
+}
+
+.poracode-welcome-comet {
+  background: rgba(255, 255, 255, 1);
+  box-shadow:
+    0 0 6px 3px rgba(255, 255, 255, 1),
+    0 0 16px 8px rgba(255, 255, 255, 0.5),
+    0 0 32px 16px rgba(255, 255, 255, 0.2);
+  mix-blend-mode: screen;
+  filter: blur(1px);
+}
+
+.poracode-welcome-comet::before,
+.poracode-welcome-comet::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.4) 30%,
+    transparent 80%
+  );
+}
+
+.poracode-welcome-comet::before {
+  width: 56px;
+  height: 2px;
+}
+
+.poracode-welcome-comet::after {
+  width: 2px;
+  height: 56px;
+}
+
+.poracode-welcome-splash {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 40%,
+    transparent 70%
+  );
+  animation: poracode-welcome-splash 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  filter: blur(4px);
+}
+
+.poracode-welcome-icon-glass {
+  background: color-mix(in oklab, var(--surface-secondary) 80%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 22px 80px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.poracode-welcome-button {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: scale(1);
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  border-radius: 0.75rem;
+}
+
+.poracode-welcome-button:hover,
+.poracode-welcome-button[data-hovered="true"] {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.poracode-welcome-button:active,
+.poracode-welcome-button[data-pressed="true"] {
+  background: rgba(255, 255, 255, 0.02);
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.poracode-welcome-bg-glow {
+  /* Isolate this full-viewport gradient's repaint so it can't invalidate the
+     sibling code wall or the z-10 stage content. */
+  contain: paint;
+  background:
+    radial-gradient(
+      150px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      250px circle at var(--comet-x, -1000px) var(--comet-y, -1000px),
+      rgba(255, 255, 255, 0.06) 0%,
+      transparent 100%
+    );
+}
+
+.poracode-welcome-code-wall {
+  /* Scope the masked glyph layer's repaint to itself (paint-only containment,
+     so the multi-column flow is unaffected). */
+  contain: paint;
+  mask-image:
+    radial-gradient(
+      200px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.6) 40%,
+      transparent 100%
+    ),
+    radial-gradient(
+      300px circle at var(--comet-x, -1000px) var(--comet-y, -1000px),
+      rgba(0, 0, 0, 0.8) 0%,
+      rgba(0, 0, 0, 0.4) 40%,
+      transparent 100%
+    );
+  -webkit-mask-image:
+    radial-gradient(
+      200px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.6) 40%,
+      transparent 100%
+    ),
+    radial-gradient(
+      300px circle at var(--comet-x, -1000px) var(--comet-y, -1000px),
+      rgba(0, 0, 0, 0.8) 0%,
+      rgba(0, 0, 0, 0.4) 40%,
+      transparent 100%
+    );
+  color: rgba(255, 255, 255, 0.8);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  column-width: 500px;
+  column-gap: 3rem;
+  user-select: none;
+}
+
+/* The welcome intro is otherwise unguarded for reduced motion. Hide the
+   decorative movers and stop the always-on ring animations — the reveal
+   elements stay visible (their steady state is opacity 1), and the JS glow
+   sampler already bails out under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .poracode-welcome-orbit,
+  .poracode-welcome-light,
+  .poracode-welcome-splash {
+    animation: none;
+    opacity: 0;
+  }
+  /* The infinite conic spins (poracode-ring-spin-1/2) live on the ring
+     PSEUDO-elements; `animation: none` on the base element does NOT reach
+     them. The base selector also stops the ring's infinite lightning-glow
+     box-shadow pulse. */
+  .poracode-welcome-ring,
+  .poracode-welcome-ring::before,
+  .poracode-welcome-ring::after {
+    animation: none;
+  }
+  /* Show the wordmark/CTAs immediately: the reveal's `both` fill otherwise
+     holds them hidden through its ~2s delay. */
+  .poracode-welcome-reveal {
+    animation: none;
+  }
+}
+
+/* Goal dock active indicator — rotates a soft accent arc around the
+   target icon to suggest work in progress. The icon itself is already a
+   bullseye, so a thin ring traveling around it reads as "shining in
+   circle". A gentle outer halo pulse adds depth without competing with
+   the rotating shine.
+
+   Both animations are compositor-only: the shine rotates via `transform`
+   (not a CSS-var-driven conic gradient, which would repaint every frame)
+   and the halo pulses via opacity on a separate `::after` (not via the
+   parent's `filter: drop-shadow()`, which would re-rasterize every frame).
+   Both pseudos are layer-promoted so the work stays out of ancestor
+   paint layers. */
+@keyframes poracode-goal-shine-spin {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+}
+
+@keyframes poracode-goal-active-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.poracode-goal-active-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  /* Keep the icon's paint contained so the halo/shine animations don't drag
+     the parent goal-dock surface into per-frame repaints. `isolation` makes
+     the icon a stacking context; `will-change` + `transform` promote it to
+     its own compositor layer so the pseudos' transforms/opacity animate
+     entirely on the GPU and don't invalidate the surface's paint layer. */
+  isolation: isolate;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.poracode-goal-active-icon__ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(
+    closest-side,
+    transparent calc(100% - 1.5px),
+    #000 calc(100% - 1.5px)
+  );
+  mask: radial-gradient(closest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.poracode-goal-active-icon__ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--snow, white) 60deg,
+    var(--snow, white) 90deg,
+    transparent 140deg,
+    transparent 360deg
+  );
+  animation: poracode-goal-shine-spin 1.6s linear infinite;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Outer halo pulse. Replaces the parent's animated `filter: drop-shadow()`
+   with an opacity-animated radial-gradient sphere — same soft glow, but
+   only `opacity` changes (compositor-friendly, no per-frame paint). */
+.poracode-goal-active-icon::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--snow, white) 70%, transparent) 0%,
+    color-mix(in oklab, var(--snow, white) 35%, transparent) 45%,
+    transparent 80%
+  );
+  z-index: -1;
+  animation: poracode-goal-active-pulse 2.4s ease-in-out infinite;
+  will-change: opacity;
+  pointer-events: none;
+}
+
+/* Shiki output (tool-call / file_change accordion bodies). The wrapper
+   provides the scroll/font sizing; the inner <pre class="shiki"> needs to
+   inherit those and shed Shiki's default block styling so it lines up with
+   the plain-text fallback. */
+.lc-shiki > pre.shiki {
+  background-color: transparent !important;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.lc-shiki > pre.shiki code {
+  font-family: inherit;
+}
+
+/* Soften the default HeroUI focus rings globally */
+@utility focus-ring {
+  @apply ring-1 ring-inset ring-focus/50 ring-offset-0 ring-offset-background outline-none;
+  --tw-ring-offset-width: 1px;
+}
+
+@utility focus-field-ring {
+  @apply ring-1 ring-focus/50 ring-offset-0 outline-none;
+  --tw-ring-offset-width: 0px;
+}
+
+/* HeroUI Link: suppress the default focus ring/outline globally. */
+.link,
+.link[data-focus-visible="true"],
+.link:focus,
+.link:focus-visible {
+  outline: none;
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+}
+
+/* Keep arbitrary toast content inside the viewport. HeroUI renders its Text
+   slots inline by default, so the description must be a block for max-height
+   and overflow scrolling to take effect. */
+.lc-toast-region {
+  width: min(32rem, calc(100vw - 2rem));
+  min-width: 0;
+  max-width: calc(100vw - 2rem);
+}
+
+.lc-toast {
+  --lc-toast-swipe-x: 0px;
+  --lc-toast-swipe-y: 0px;
+  --lc-toast-swipe-opacity: 1;
+
+  max-height: calc(100dvh - 2rem);
+  overflow: hidden;
+  box-shadow:
+    0 0 1px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 12px 24px -4px rgba(0, 0, 0, 0.2),
+    0 20px 48px -8px rgba(0, 0, 0, 0.3);
+  filter: opacity(var(--lc-toast-swipe-opacity));
+  /* Preserve upward finger drags that scroll long descriptions down; downward
+     and horizontal finger drags belong to swipe dismissal. */
+  touch-action: pan-down;
+  transform: translate3d(var(--lc-toast-swipe-x), var(--lc-toast-swipe-y), 0);
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.lc-toast[data-swipe-dragging="true"] {
+  transition: none;
+}
+
+.lc-toast[data-swipe-dismissing="true"] {
+  pointer-events: none;
+  transition:
+    transform 0.16s ease-in,
+    filter 0.16s ease-in;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lc-toast:hover {
+    transform: translate3d(var(--lc-toast-swipe-x), var(--lc-toast-swipe-y), 0) translateY(-2px);
+  }
+}
+
+.lc-toast:hover {
+  box-shadow:
+    0 0 1px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.1),
+    0 16px 32px -4px rgba(0, 0, 0, 0.25),
+    0 24px 64px -8px rgba(0, 0, 0, 0.35);
+}
+
+.toast__content {
+  min-width: 0;
+  scrollbar-gutter: stable;
+}
+
+.toast__title,
+.toast__description {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.lc-toast__title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  text-overflow: ellipsis;
+}
+
+.lc-toast__description {
+  display: block;
+  max-height: max(4rem, min(22rem, calc(100dvh - 12rem)));
+  overflow-y: auto;
+}
+
+/* Keep variant icons tinted, but render the title in the default
+   overlay-foreground color rather than inheriting the variant tint. */
+.toast--success .toast__title,
+.toast--warning .toast__title,
+.toast--danger .toast__title,
+.toast--accent .toast__title {
+  color: var(--overlay-foreground);
+}
+
+/* HeroUI component overrides */
+[data-react-aria-pressable] {
+  cursor: default;
+}
+
+/* Buttons use neutral foregrounds across every app theme. HeroUI's stock
+   secondary variant uses --accent-soft-foreground, which makes ordinary
+   controls (including shared OptionMenu triggers) accent-colored by default.
+   Keep accent text opt-in and make all neutral action variants inherit the
+   theme foreground: off-white in dark themes and dark in light themes. */
+.button--primary {
+  --button-bg: var(--default);
+  --button-bg-hover: var(--default-hover);
+  --button-bg-pressed: var(--default-hover);
+  --button-fg: var(--foreground);
+}
+
+.button--secondary {
+  --button-fg: var(--foreground);
+}
+
+/* Tertiary: a quiet neutral that still reads as interactive. Borderless, like
+   HeroUI's stock tertiary — the separation comes from a fill a touch darker than
+   the panel. Derived by darkening --content-background (the surface these controls
+   render on) a fixed fraction toward black, NOT by mixing toward --foreground:
+   a toward-fg step darkens by a fraction of the gap to fg, so themes with a dark
+   foreground (e.g. Poracode light, fg ~L0.21) over-darken and read heavy. Scaling
+   the panel's own luminance toward black is foreground-independent, so the fill
+   lands at a uniform ~1.28:1 across every light preset. Dark keeps HeroUI's stock
+   fill, so this is light-only. */
+.button--tertiary {
+  --button-fg: var(--foreground);
+}
+
+.light .button--tertiary,
+[data-theme="light"] .button--tertiary,
+.light .button--primary,
+[data-theme="light"] .button--primary {
+  --button-bg: color-mix(in oklab, var(--content-background) 89%, #000);
+  --button-bg-hover: color-mix(in oklab, var(--content-background) 84%, #000);
+  --button-bg-pressed: var(--button-bg-hover);
+}
+
+/* Commit-message field. HeroUI's secondary textarea fills with --default, which
+   in light themes (--default L0.86) sits ~1.1:1 on the near-white git panel — the
+   field reads as part of the background. Derived the same way as .button--tertiary
+   above (darken --content-background toward black, foreground-independent), stepped
+   slightly stronger so the input reads as recessed relative to the button. Dark
+   themes separate cleanly with the stock fill, so this is light only; the
+   placeholder is derived from the recessed fill to keep its contrast.
+   Scoped to this field only (variant="secondary" + .lc-commit-message). */
+:where(.light, [data-theme="light"]) .lc-commit-message.textarea--secondary {
+  --textarea-bg: color-mix(in oklab, var(--content-background) 87%, #000);
+  --textarea-bg-hover: color-mix(in oklab, var(--content-background) 84%, #000);
+  --textarea-bg-focus: var(--textarea-bg);
+  --field-placeholder: color-mix(in oklab, var(--textarea-bg) 68%, var(--foreground));
+}
+
+/* HeroUI sets `.tooltip__trigger { display: inline-block }`, which inherits
+   line-height from the surrounding text and adds descender space below
+   block-level children (e.g. svg). That makes triggers wrapping an icon render
+   taller than the icon and pushes adjacent text off the Y center. Switch to
+   inline-flex so the trigger tracks its child's box exactly. */
+.tooltip__trigger {
+  display: inline-flex;
+  align-items: center;
+}
+
+.button--sm,
+.toggle-button--sm {
+  font-size: 0.75rem;
+}
+
+.menu-item {
+  min-height: 1.75rem;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+  font-size: 0.75rem;
+
+  [data-slot="label"] {
+    font-size: 0.75rem;
+  }
+}
+
+.dropdown__popover [data-slot="dropdown-menu"] {
+  padding: 0.25rem;
+}
+
+/* ── Compact list-box menu ──────────────────────────
+   App-wide override applied by adding `poracode-menu`
+   to a ListBox (or any container with `.list-box-item`
+   descendants). Tightens HeroUI defaults (which target
+   touch UI) for the dense desktop dropdown rows used by
+   the model picker, branch picker, effort/context menu,
+   etc. Keeps the indicator-aware right padding so the
+   absolute-positioned checkmark never overlaps an
+   `ms-auto` hint on the same row. */
+.poracode-menu.list-box,
+.poracode-menu .list-box {
+  padding: 0;
+  margin: 0;
+  gap: 0;
+}
+
+.poracode-menu .list-box-item {
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  gap: 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+
+/* HeroUI's .label hardcodes text-sm (14px); make it inherit so
+   the poracode-menu item font-size actually wins. */
+.poracode-menu .list-box-item [data-slot="label"] {
+  font-size: inherit;
+}
+
+/* Mirror of `.list-box-item` styling for hand-rolled menu rows
+   (e.g. the custom virtualizer in ProviderModelMenu, which can't
+   use HeroUI's ListBox without a perf regression). Lets manual
+   `<div role="option">` rows pick up the same sizing and hover
+   colors as HeroUI's listbox items. Mark the keyboard-active row
+   with `data-active="true"` for the focused background. */
+.poracode-menu-item {
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  gap: 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+
+@media (hover: hover) {
+  .poracode-menu-item:hover {
+    background-color: var(--default);
+  }
+}
+
+.poracode-menu-item[data-active="true"] {
+  background-color: var(--default);
+}
+
+/* Custom virtualized model rows do not inherit HeroUI's press state. Give
+   touch and pointer presses a stronger fill before the selected model closes
+   the responsive menu. */
+.poracode-model-menu-listbox .poracode-menu-item:active {
+  background-color: var(--row-active);
+}
+
+.poracode-menu .list-box-item:has(.list-box-item__indicator) {
+  padding-right: 1.75rem;
+}
+
+/* Inner padding for popover dialogs that host a poracode-menu.
+   HeroUI's default `p-4` (16px) is too generous for dense menus;
+   menus that need flush content (search bar over list) opt out by
+   setting their own `!p-0`, which beats this non-important rule. */
+.popover__dialog:has(.poracode-menu) {
+  padding: 0.375rem;
+}
+
+.popover__dialog,
+.dropdown__popover,
+.modal__dialog,
+[data-slot="popover"] {
+  border-radius: 0.875rem;
+}
+
+.poracode-menu .list-box-item,
+.poracode-menu-item,
+.list-box-item,
+.menu-item {
+  border-radius: 0.625rem;
+}
+
+/* Section header (HeroUI <Header>) preceding a poracode-menu
+   listbox gains a 4px gap so the first row doesn't sit flush
+   against the header's bottom border. Uses `~` (general sibling)
+   because React Aria injects focus-scope `<span>` and `<template>`
+   nodes between the Header and the listbox. */
+[data-slot="header"]:has(~ .poracode-menu) {
+  margin-bottom: 0.25rem;
+  padding-left: 0.5rem;
+}
+
+/* Truncate a single-line element at the START (ellipsis at the beginning)
+   instead of the end. Used for path-like text in tool-call titles where the
+   tail (filename) is more informative than the head. The bidi flip preserves
+   LTR path text inside an isolated RTL container; only the truncation side is
+   affected. */
+.lc-truncate-start {
+  direction: rtl;
+  text-align: left;
+  unicode-bidi: isolate;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Italic ink leans past the text advance on the inline-end side; `truncate`'s
+   hidden overflow clips at the padding box and shaves the last glyph's edge
+   (model-visibility sub-headers, file-editor preview tabs, reasoning previews,
+   agent pending messages). Keep a hair of inline-end padding wherever italic
+   text is or sits inside a truncate box so the overhang stays painted. */
+.italic.truncate,
+.italic .truncate {
+  padding-inline-end: 0.2em;
+}
+
+/* HeroUI Disclosure: drop the default expand/collapse height/opacity
+   transition and indicator rotation easing. Long chat threads can host
+   hundreds of disclosures (one per tool_call, file_change, web_search,
+   command_execution); keeping animations causes paint storms and visible
+   resize lag. The expand/collapse remains correct — it just snaps. */
+.disclosure__content,
+.disclosure__indicator {
+  transition: none !important;
+}
+
+/* HeroUI radio: default unselected ring is too low-contrast on dark surfaces.
+   Bump the unselected border so the control is visible without changing the
+   selected-state styling (which still flows from the variant tokens). */
+.radio__control {
+  border-color: color-mix(in oklch, var(--muted) 70%, transparent);
+}
+.radio[data-selected="true"] .radio__control,
+.radio--selected .radio__control {
+  border-color: var(--primary);
+}
+
+/* HeroUI switch off-state track: HeroUI fills it with --default, which sits
+   ~1:1 on the page in light themes — an off toggle reads as empty background.
+   Step the track toward --foreground so it reads as a control and the white
+   thumb stays distinct (~1.8:1 in light, ~2.8:1 in dark). The checked track
+   (--switch-control-bg-checked = accent) and the hover/pressed derivations are
+   untouched — they still flow from this base. */
+.switch {
+  --switch-control-bg: color-mix(in oklab, var(--surface) 70%, var(--foreground));
+}
+
+/* Switches and sliders are continuous controls, so their geometry stays pill-
+   shaped even though Poracode intentionally uses a sharp global --radius for
+   fields, menus, and cards. HeroUI derives rounded-xl/rounded-lg from that
+   global token; component-scoped radii preserve the pre-refactor controls
+   without softening the rest of the interface. */
+.switch__control,
+.switch__thumb,
+.slider .slider__track,
+.slider .slider__thumb,
+.slider .slider__thumb::after {
+  border-radius: 9999px;
+}
+
+@layer base {
+  :root {
+    /* Intentional overrides from HeroUI defaults */
+    --radius: 0.75rem;
+    --field-radius: 0.75rem;
+    --link: var(--accent);
+    --focus: var(--foreground);
+
+    /* Soft-accent text remains available for explicitly accent-tinted controls
+       such as selected toggles, badges, and chips. Neutral buttons override
+       their foreground above instead of inheriting this accent treatment. */
+    --color-accent-soft-foreground: color-mix(in oklab, var(--accent) 65%, var(--foreground));
+    --surface-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+    --overlay-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+
+    /* App-specific variables (not HeroUI) */
+    --working-tone: var(--success);
+    --pr-merged: oklch(0.7 0.17 292);
+    --git-branch-tone: var(--muted);
+    --sidebar-background: var(--surface);
+    /* Overlay painted on the translucent ("liquid glass") sidebar: the content
+       background (matching the main panes) at partial alpha. The OS blur behind
+       is the *wallpaper*, not the theme color, so higher alpha keeps the sidebar
+       reading as the theme (less wallpaper/grey showing); lower alpha shows more
+       wallpaper blur (more glassy, but tinted by whatever's on the desktop). */
+    --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 35%, transparent);
+    --content-background: var(--background);
+    /* Floating chrome that hovers over the conversation — thread tool rail,
+       changes bubble, scroll-to-bottom. One shared surface so the three read as
+       a set, tinted like the sidebar (side chrome) rather than the pane beneath
+       it. Derived, so it follows --sidebar-background in every theme. */
+    --floating-chrome-surface: color-mix(in oklab, var(--sidebar-background) 82%, transparent);
+    /* Selected floating chrome stays dark: make the glass denser with the
+       sidebar tone instead of brightening it with the foreground color. */
+    --floating-chrome-active-surface: color-mix(
+      in oklab,
+      var(--floating-chrome-surface) 84%,
+      var(--sidebar-background) 16%
+    );
+    --window-header-background: var(--sidebar-background);
+    --window-overlay-background: rgba(0, 0, 0, 0);
+    --composer-surface: var(--surface);
+    --interactive-cursor: default;
+    --cursor-interactive: default;
+
+    /* Theme-adaptive interaction overlays. Derived from --foreground so they
+       invert per theme: a light wash on dark themes (matching the old
+       white/[x] look) and a dark wash on light themes — where a white wash was
+       invisible. Replaces hardcoded bg-white/[x] selection/hover and
+       border-white/x hairlines so every surface follows the active theme. */
+    --row-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
+    --row-active: color-mix(in oklab, var(--foreground) 11%, transparent);
+    --hairline: color-mix(in oklab, var(--foreground) 9%, transparent);
+    --hairline-strong: color-mix(in oklab, var(--foreground) 15%, transparent);
+  }
+
+  .light,
+  [data-theme="light"] {
+    color-scheme: light;
+    --background: oklch(0.96 0.004 286);
+    --foreground: oklch(0.21 0.006 286);
+    --surface: oklch(0.985 0.002 286);
+    --surface-secondary: oklch(0.955 0.003 286);
+    --surface-tertiary: oklch(0.94 0.003 286);
+    --overlay: oklch(0.99 0.002 286);
+    --muted: oklch(0.52 0.01 286);
+    --scrollbar: oklch(0.78 0.01 286);
+    /* Neutral fill behind secondary/tertiary buttons, selects, chips, badges,
+       toggle/checkbox/radio controls. Stepped darker than HeroUI's stock
+       near-white default (~0.94) so these controls separate from the panel in
+       light themes (~1.35:1 vs page) instead of vanishing into it. */
+    --default: oklch(0.86 0.004 286);
+    --accent: #5f6cd9;
+    --accent-foreground: var(--snow);
+    --success: oklch(0.45 0.16 150);
+    --success-foreground: var(--snow);
+    --warning: oklch(0.5 0.14 78);
+    --warning-foreground: var(--snow);
+    --danger: oklch(0.48 0.2 25);
+    --danger-foreground: var(--snow);
+    --pr-merged: oklch(0.5 0.18 292);
+    --git-branch-tone: oklch(0.5 0.13 265);
+    /* Decorative palette for user-chosen project icon colours. Fixed hues
+       rather than semantic tokens (--danger, --success, …): the swatch a user
+       picks has no state meaning and must keep reading as "the red one" under
+       every theme preset. Darker here than on dark surfaces for contrast. */
+    --project-icon-red: oklch(0.55 0.19 25);
+    --project-icon-orange: oklch(0.58 0.16 55);
+    --project-icon-amber: oklch(0.6 0.14 85);
+    --project-icon-green: oklch(0.52 0.15 150);
+    --project-icon-teal: oklch(0.53 0.11 195);
+    --project-icon-blue: oklch(0.53 0.16 255);
+    --project-icon-violet: oklch(0.53 0.19 292);
+    --project-icon-pink: oklch(0.56 0.19 345);
+    --field-background: oklch(0.975 0.002 286);
+    --field-placeholder: oklch(0.55 0.01 286);
+    --field-border: oklch(0.84 0.006 286 / 0.7);
+    --segment: oklch(0.975 0.002 286);
+    --border: oklch(0.84 0.006 286 / 0.7);
+    --separator: oklch(0.88 0.004 286 / 0.9);
+
+    /* App-specific */
+    --sidebar-background: oklch(0.945 0.004 286);
+    --content-background: oklch(0.975 0.003 286);
+    --window-header-background: var(--sidebar-background);
+    --composer-surface: oklch(0.982 0.002 286);
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    color-scheme: dark;
+    /* Poracode "moonlight" — dark/cool surfaces, indigo accent. */
+    --background: #121214;
+    /* Primary text is a neutral off-white (no blue/violet chroma) so active
+       rows and chat prose read clean and "clear" like the Poracode Legacy
+       theme. The moonlight coolness lives in the surfaces/accent, not the
+       text — a tinted foreground made active text look violet. */
+    --foreground: #fafafa;
+    --surface: #1c1d22;
+    --surface-secondary: #212228;
+    /* Matches --composer-surface so chat bubbles (user message) and the
+       composer read as one surface. */
+    --surface-tertiary: #1c1d22;
+    /* Floating chrome (modals, menus, popovers, tooltips) sits just above the
+       panel surfaces. Fields/controls are lighter than this, so they read as
+       raised cards on overlays instead of blending into them. */
+    --overlay: #1e1e20;
+    /* Neutral cool-grey for secondary text — deliberately low chroma so it
+       reads as grey (not the old blue/violet cast). Kept a step below the
+       bright foreground so idle/secondary rows recede clearly from active
+       (foreground) ones. */
+    --muted: oklch(0.7 0 0);
+    --scrollbar: #3a3a48;
+    --default: #2a2a2c;
+    --accent: #8892ef;
+    --accent-foreground: #0a0a12;
+    --danger: oklch(0.64 0.2 24.63);
+    --danger-foreground: var(--snow);
+    /* Same project-icon hues, lifted for dark surfaces (see the light block). */
+    --project-icon-red: oklch(0.7 0.18 25);
+    --project-icon-orange: oklch(0.75 0.15 55);
+    --project-icon-amber: oklch(0.8 0.13 85);
+    --project-icon-green: oklch(0.74 0.15 150);
+    --project-icon-teal: oklch(0.75 0.1 195);
+    --project-icon-blue: oklch(0.7 0.14 255);
+    --project-icon-violet: oklch(0.71 0.16 292);
+    --project-icon-pink: oklch(0.74 0.16 345);
+    --field-background: #232326;
+    --field-placeholder: #6b6b7b;
+    --field-border: oklch(0.35 0 0 / 0.85);
+    --segment: #343538;
+    --border: oklch(0.32 0 0 / 0.9);
+    --separator: oklch(0.3 0 0 / 0.85);
+    /* Brighter selected-row wash on dark so the active thread/list item reads
+       as a clearer, whiter highlight, well separated from the dimmed idle
+       rows (base is 11%). */
+    --row-active: color-mix(in oklab, var(--foreground) 20%, transparent);
+
+    /* App-specific */
+    --sidebar-background: #121214;
+    --content-background: #17181c;
+    /* Dark surfaces read muddier through heavy blur, so lean more on the theme
+       color (higher alpha = less transparent) than the light default above. */
+    --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 65%, transparent);
+    --window-header-background: rgba(18, 18, 20, 0.82);
+    --composer-surface: #212228;
+  }
+
+  * {
+    scrollbar-color: var(--scrollbar) transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Global subtle focus ring for interactive elements not styled by HeroUI utilities */
+:focus-visible:not(
+  [data-rac],
+  [data-focus-visible="true"],
+  [class*="focus-ring"],
+  [class*="focus-field-ring"],
+  [class*="poracode-mention-input"],
+  [class*="lc-notes-prose"]
+) {
+  @apply focus-ring;
+}
+
+/* Let HeroUI's ring-based utilities handle their own focus styling */
+:focus-visible:where([class*="focus-ring"], [class*="focus-field-ring"]) {
+  outline: none;
+}
+
+/* Remove focus rings from inputs and textareas */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+
+button,
+[role="button"] {
+  cursor: var(--interactive-cursor);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Geist", "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  overflow: hidden;
+}
+
+html[data-window-kind="quickComposer"],
+html[data-window-kind="quickComposer"] body,
+html[data-window-kind="quickComposer"] #root {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+@keyframes quick-composer-enter {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes quick-composer-exit {
+  from {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    filter: blur(5px);
+    transform: translateY(12px) scale(0.96);
+  }
+}
+
+@keyframes quick-composer-send {
+  0% {
+    opacity: 1;
+    filter: blur(0) brightness(1);
+    transform: translateY(0) scale(1);
+  }
+  38% {
+    opacity: 1;
+    filter: blur(0) brightness(1.16);
+    transform: translateY(-5px) scale(1.018);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(7px) brightness(1.08);
+    transform: translateY(-18px) scale(0.91);
+  }
+}
+
+.quick-composer-root {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 32px;
+  background: transparent;
+}
+
+.quick-composer-dismiss-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.quick-composer-frame {
+  position: relative;
+  width: 100%;
+  cursor: grab;
+  transform-origin: 50% 100%;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.quick-composer-frame:active {
+  cursor: grabbing;
+}
+
+.quick-composer-frame button,
+.quick-composer-frame input,
+.quick-composer-frame textarea,
+.quick-composer-frame a,
+.quick-composer-frame [contenteditable="true"],
+.quick-composer-frame [role="button"],
+.quick-composer-frame [role="dialog"],
+.quick-composer-frame [role="listbox"],
+.quick-composer-frame [role="menu"],
+.quick-composer-frame [role="menuitem"],
+.quick-composer-frame [role="option"] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.quick-composer-root--opening .quick-composer-frame {
+  animation: quick-composer-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.quick-composer-root--closing .quick-composer-frame {
+  pointer-events: none;
+  animation: quick-composer-exit 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.quick-composer-root--sending .quick-composer-frame {
+  pointer-events: none;
+  animation: quick-composer-send 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.quick-composer-control-surface {
+  border: 1px solid color-mix(in oklab, var(--hairline-strong) 72%, transparent);
+  border-radius: 1.9rem;
+  background: color-mix(in oklab, var(--composer-surface) 98%, transparent);
+  box-shadow:
+    0 18px 36px -20px rgb(0 0 0 / 0.9),
+    0 4px 12px -7px rgb(0 0 0 / 0.68);
+  padding: 8px;
+}
+
+.quick-composer-root .quick-composer-frame .poracode-composer-shell {
+  border-radius: 1.4rem;
+  background: var(--composer-surface);
+  box-shadow: 0 3px 12px -8px rgb(0 0 0 / 0.72) !important;
+}
+
+.quick-composer-root--sending .quick-composer-frame .poracode-composer-shell {
+  border-color: color-mix(in oklab, var(--accent) 52%, transparent);
+  box-shadow:
+    0 8px 22px -12px rgb(0 0 0 / 0.72),
+    0 0 20px color-mix(in oklab, var(--accent) 22%, transparent) !important;
+}
+
+.quick-composer-status {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 1.55rem;
+  background: color-mix(in oklab, var(--composer-surface) 97%, transparent);
+  box-shadow: 0 8px 22px -12px rgb(0 0 0 / 0.72);
+  padding: 18px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-composer-root--opening .quick-composer-frame,
+  .quick-composer-root--closing .quick-composer-frame,
+  .quick-composer-root--sending .quick-composer-frame {
+    animation-duration: 1ms;
+  }
+}
+
+#root {
+  width: 100%;
+}
+
+.poracode-shell {
+  position: relative;
+  box-sizing: border-box;
+  padding-top: env(titlebar-area-height, 0px);
+  background: var(--content-background);
+}
+
+/* v0.2.13: the React shell owns the complete 38px title row, so the native
+   titleBarOverlay height must not be reserved a second time. */
+html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
+  padding-top: 0;
+  background: linear-gradient(135deg, rgba(22, 18, 22, 0.88) 0%, rgba(18, 16, 20, 0.92) 100%);
+  backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
+}
+
+.craftstation-titlebar {
+  background: transparent !important;
+}
+
+.craftstation-titlebar,
+.craftstation-titlebar-drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.craftstation-titlebar-control,
+.craftstation-titlebar-control button,
+.craftstation-titlebar-control [role="button"] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.craftstation-shell-body {
+  background: transparent;
+}
+
+.craftstation-workspace-frame {
+  box-shadow: none;
+  border-left-color: transparent;
+}
+
+.poracode-shell:has(.craftstation-titlebar)
+  .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay) {
+  border-right-color: rgba(255, 255, 255, 0.05) !important;
+  background: transparent !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.poracode-shell:has(.craftstation-titlebar) .poracode-sidebar-body,
+.poracode-shell:has(.craftstation-titlebar) .poracode-overlay-header {
+  background: transparent;
+}
+
+.poracode-shell:has(.craftstation-titlebar) .poracode-sidebar-body {
+  border-right-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.craftstation-mc-slot {
+  background: linear-gradient(145deg, rgb(255 255 255 / 2%), transparent 44%), #141518;
+  box-shadow:
+    inset 0 2px 8px rgb(0 0 0 / 42%),
+    inset 0 0 0 1px rgb(255 255 255 / 2%);
+}
+
+.craftstation-result-slot {
+  box-shadow:
+    inset 0 1px 8px rgb(0 0 0 / 30%),
+    0 0 18px rgb(251 191 36 / 4%);
+}
+
+@keyframes craftstation-recipe-flow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translateX(-2px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(2px);
+  }
+}
+
+.craftstation-recipe-arrow {
+  animation: craftstation-recipe-flow 1.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgb(251 191 36 / 28%));
+}
+
+/* macOS: add padding for traffic lights when titlebar-area-height is not available */
+@supports not (env: titlebar-area-height) {
+  .poracode-shell {
+    padding-top: 0;
+  }
+}
+
+.poracode-drag-region {
+  position: absolute;
+  top: env(titlebar-area-y, 0px);
+  left: env(titlebar-area-x, 0px);
+  width: env(titlebar-area-width, 100%);
+  height: env(titlebar-area-height, 0px);
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+  z-index: 10;
+}
+
+.poracode-content-drag-region {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: min(env(titlebar-area-height, 32px), 12px);
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+  z-index: 10;
+}
+
+.poracode-content-over-drag-region {
+  position: relative;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  z-index: 20;
+}
+
+/* === Translucent ("liquid glass") sidebar ===================================
+   Opt-in via the Appearance toggle (default off). Two paths:
+
+   1. Native material — [data-native-material="on"] is set by the renderer ONLY
+      after the main process confirms it actually applied a blur material
+      (macOS vibrancy / Windows 11 acrylic). The whole window is blurred by the
+      OS, so we clear the opaque window layers (body, shell) and re-cover the
+      main content with an opaque pane; only the sidebar (and the thin titlebar /
+      resize-handle gaps) stay translucent. <main> has no background of its own,
+      so it must be given one explicitly or the whole window goes translucent.
+
+   2. In-app fallback — [data-sidebar-glass="on"] without a native material
+      (Linux, Windows 10, older builds). The window stays opaque; the docked,
+      flush-left sidebar gets a faux-translucent gradient + bevel (a real
+      backdrop-filter would blur almost nothing there). Real blur is reserved
+      for the floating *overlay* sidebar, which genuinely sits over content.
+
+   These rules are intentionally unlayered so they win over Tailwind utilities
+   (e.g. the sidebar's bg-[var(--content-background)] header class). */
+
+/* 1. Native material: clear opaque window layers, keep main content opaque.
+   index.html's boot script sets an inline opaque background on <html> to avoid a
+   load flash; override it with !important so the OS blur shows through. */
+html[data-native-material="on"] {
+  background: transparent !important;
+}
+html[data-native-material="on"] body,
+html[data-native-material="on"] .poracode-shell {
+  background: transparent;
+}
+html[data-native-material="on"] .poracode-shell main {
+  background: var(--content-background);
+}
+html[data-sidebar-glass="on"][data-theme="dark"]
+  .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay) {
+  /* The regular dark-theme active wash is intentionally strong on opaque
+     lists. On glass it reads as a bright solid slab, so let more of the
+     sidebar material show through while retaining separation from hover. */
+  --row-active: color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+/* Faint tint so sidebar text/icons stay legible over the live OS blur. The
+   sidebar header (shared .poracode-overlay-header class) is forced transparent
+   so the aside's single tint layer shows through instead of stacking. */
+html[data-native-material="on"] .poracode-sidebar-aside {
+  background: var(--sidebar-glass-tint);
+}
+html[data-native-material="on"] .poracode-sidebar-aside .poracode-overlay-header {
+  background: transparent;
+}
+/* The floating overlay sidebar sits over dimmed content, where a translucent
+   tint reads muddy and hurts legibility — paint it fully opaque (the glass tint
+   at 100%). Docked sidebars keep the translucent tint set above. */
+html[data-native-material="on"] .poracode-sidebar-aside--overlay {
+  background: var(--content-background);
+}
+/* While the overlay sidebar slides out and snaps to the collapsed rail, the
+   spacer that reserves the rail's slot is briefly uncovered. Give it the same
+   glass tint as the docked collapsed rail so the strip never flashes raw
+   acrylic before the rail paints in. */
+html[data-native-material="on"] .poracode-sidebar-spacer {
+  background: var(--sidebar-glass-tint);
+}
+/* Windows-only frosting bump. DWM acrylic blurs whatever sits behind the window,
+   so the backdrop bleeds through the tint and drags the sidebar toward it: a dark
+   theme over a bright window washes out toward grey, while a light theme over a
+   dark backdrop goes too dark. Lean the tint more opaque on Windows so the sidebar
+   holds its own theme color regardless of what's behind. Dark leans heavier (85%)
+   since a dark surface over a bright backdrop swings the most; light needs less
+   (65%). macOS vibrancy composites its own adaptive material, so darwin is left
+   untouched; these rules are unlayered so they win over the @layer base token. */
+html[data-platform="win32"][data-native-material="on"] {
+  --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 65%, transparent);
+}
+html[data-platform="win32"][data-native-material="on"].dark,
+html[data-platform="win32"][data-native-material="on"][data-theme="dark"] {
+  --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 85%, transparent);
+}
+
+/* Platform frosting for the *floating chrome* (thread tool rail, changes bubble,
+   chat + terminal scroll-to-bottom). These pills sit over the opaque
+   conversation pane, not over the OS window material, so their glass is
+   entirely ours to author.
+
+   The dark treatment stays deliberately low-alpha with a short blur: underlying
+   transcript shapes remain perceptible instead of being homogenized into a
+   bright frosted patch. A faint edge and shallow shadow separate the control
+   without the specular gradients or inset highlights of a raised glossy button.
+   Windows remains slightly denser because Chromium's blur is visually weaker. */
+html[data-platform="darwin"] {
+  --floating-chrome-surface: color-mix(in oklab, var(--sidebar-background) 38%, transparent);
+  --floating-chrome-backdrop: blur(12px) saturate(140%);
+}
+html[data-platform="darwin"].dark,
+html[data-platform="darwin"][data-theme="dark"] {
+  --floating-chrome-surface: color-mix(in oklab, var(--sidebar-background) 24%, transparent);
+  --floating-chrome-backdrop: blur(10px) saturate(135%);
+}
+html[data-platform="win32"] {
+  --floating-chrome-surface: color-mix(in oklab, var(--sidebar-background) 44%, transparent);
+  --floating-chrome-backdrop: blur(12px) saturate(135%);
+}
+html[data-platform="win32"].dark,
+html[data-platform="win32"][data-theme="dark"] {
+  --floating-chrome-surface: color-mix(in oklab, var(--sidebar-background) 30%, transparent);
+  --floating-chrome-backdrop: blur(10px) saturate(130%);
+}
+html:is([data-platform="darwin"], [data-platform="win32"]) .poracode-floating-chrome {
+  border-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+  background-image: none;
+  backdrop-filter: var(--floating-chrome-backdrop);
+  -webkit-backdrop-filter: var(--floating-chrome-backdrop);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.18);
+}
+.poracode-floating-chrome--active {
+  background-color: var(--floating-chrome-active-surface);
+}
+html:is([data-platform="darwin"], [data-platform="win32"]) .poracode-floating-chrome--active {
+  border-color: color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+/* 2. In-app fallback: opaque window, faux-translucent gradient sidebar. */
+html[data-sidebar-glass="on"]:not([data-native-material="on"]) .poracode-sidebar-aside {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--sidebar-background) 90%, transparent) 0%,
+    color-mix(in oklab, var(--sidebar-background) 74%, transparent) 100%
+  );
+  box-shadow:
+    inset 1px 0 0 color-mix(in oklab, var(--foreground) 7%, transparent),
+    inset 0 1px 0 color-mix(in oklab, var(--foreground) 9%, transparent);
+}
+html[data-sidebar-glass="on"]:not([data-native-material="on"])
+  .poracode-sidebar-aside
+  .poracode-overlay-header {
+  background: transparent;
+}
+/* In-app fallback overlay sidebar: opaque too — it floats over dimmed content,
+   so the faux-glass tint/blur used for the docked fallback would read muddy. */
+html[data-sidebar-glass="on"]:not([data-native-material="on"]) .poracode-sidebar-aside--overlay {
+  background: var(--sidebar-background);
+}
+
+/* Overlays (settings, git review, file editor, …) reuse the same AppShell, so
+   they get the glass sidebar too. The overlay sidebar body normally paints an
+   opaque surface (`overlaySidebarSurfaceClass`); clear it inside the sidebar
+   column so the aside's single glass tint shows through and the header (already
+   transparent) matches — no seam. Docked tool panels use the same surface class
+   but live outside `.poracode-sidebar-aside`, so they stay opaque. */
+html[data-sidebar-glass="on"] .poracode-sidebar-aside .poracode-overlay-surface {
+  background: transparent;
+}
+/* For overlays that actually have a glass sidebar, let the OverlayShell cover
+   pass the native blur through (its opaque <main> still covers the content).
+   Plain dialogs without a sidebar keep their opaque backdrop. */
+html[data-native-material="on"] [data-overlay-surface]:has(.poracode-sidebar-aside) {
+  background: transparent;
+}
+/* …and hide the base app behind such an overlay so the overlay's translucent
+   sidebar reveals the desktop, not the app underneath (which would bleed through
+   the tint). visibility:hidden keeps the app mounted — preserving scroll, chat,
+   and terminal state — while painting nothing. Hide every shell, then keep the
+   overlay's own shell visible. Gated on [data-overlay-visible] (set only while
+   the overlay is fully shown) so on open/close the base app fades in/out with
+   the overlay instead of flashing bare desktop underneath. */
+html[data-native-material="on"]
+  #root:has([data-overlay-surface][data-overlay-visible] .poracode-sidebar-aside)
+  .poracode-shell {
+  visibility: hidden;
+}
+html[data-native-material="on"]
+  #root:has([data-overlay-surface][data-overlay-visible] .poracode-sidebar-aside)
+  [data-overlay-surface]
+  .poracode-shell {
+  visibility: visible;
+}
+
+/* Accessibility: drop translucency when the OS asks for reduced transparency.
+   The renderer also gates this in JS, so this is a first-paint safety net. */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-native-material="on"] body,
+  html[data-native-material="on"] .poracode-shell {
+    background: var(--content-background);
+  }
+  html[data-sidebar-glass="on"] .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay),
+  html[data-native-material="on"] .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay) {
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  /* Floating chrome leans hard on backdrop blur, so paint the pills solid when
+     reduced transparency is requested. Set this on the element rather than the
+     token so it wins over the platform-specific dark-theme overrides above. */
+  .poracode-floating-chrome {
+    background: var(--sidebar-background);
+    background-image: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Counterpart to .poracode-content-over-drag-region: used on pane headers
+   when the pane can't be reordered (single-pane layouts), so the header
+   acts as the window drag region instead of a dnd handle. macOS-only —
+   Windows/Linux use the OS-provided titleBarOverlay for window dragging.
+   Interactive children opt out via .poracode-overlay-header__controls. */
+.poracode-content-over-drag-region--drag {
+  position: relative;
+  user-select: none;
+  z-index: 20;
+}
+html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+/* Defeat the drag region whenever the header lives inside an overlay surface
+   (rendered above main content via OverlayShell). The single-pane drag
+   handle is a main-content-only affordance. */
+[data-overlay-surface] .poracode-content-over-drag-region--drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.poracode-git-diff-content {
+  contain: layout paint;
+}
+
+.poracode-git-diff-body {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}
+
+.poracode-window-header {
+  background: var(--window-header-background);
+}
+
+/* Hairline = panel border (full height/width). The handle is only a wide hit target with no
+   visible affordance; hover accent is the long shared border (see rules below). */
+.poracode-resize-handle {
+  /* 2× default hit area; negative margins keep layout close to 1px hairline. */
+  width: 12px;
+  margin-left: -8px;
+  margin-right: -4px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+}
+
+.poracode-resize-handle-horizontal {
+  height: 12px;
+  margin-top: -8px;
+  margin-bottom: -4px;
+  cursor: row-resize;
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+}
+
+/* Right / git panel floating as a right-edge overlay: the handle sits inside the
+   fixed aside (which clips its children), so it cannot straddle the shared
+   border with negative margins. Keep the hit area inside the panel's left
+   gutter and draw the hover accent over the border itself. */
+.poracode-resize-handle-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 20;
+}
+
+.poracode-resize-handle-overlay::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.poracode-resize-handle-overlay:hover::after,
+.poracode-resize-handle-overlay:focus-visible::after {
+  background: var(--accent);
+}
+
+/* Right / git / bottom terminal: [handle][aside] or [horizontal handle][aside] */
+.poracode-resize-handle[aria-label="Resize terminal panel"]:hover + aside,
+.poracode-resize-handle[aria-label="Resize git panel"]:hover + aside {
+  border-left-color: var(--accent);
+}
+
+.poracode-resize-handle-horizontal[aria-label="Resize terminal panel"]:hover + aside {
+  border-top-color: var(--accent);
+}
+
+.poracode-pane-divider {
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+.poracode-pane-divider::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--separator);
+  transition:
+    background 0.15s,
+    width 0.15s;
+}
+
+.poracode-pane-divider:hover::after,
+.poracode-pane-divider.is-highlighted::after {
+  width: 2px;
+  background: var(--accent);
+}
+
+.poracode-pane-divider-drop-zone {
+  position: absolute;
+  inset: 0;
+}
+
+.poracode-pane-divider-drop-zone--vertical.is-highlighted::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--accent);
+}
+
+.poracode-pane-divider-horizontal {
+  height: 8px;
+  cursor: row-resize;
+  position: relative;
+  z-index: 5;
+}
+
+.poracode-pane-divider-horizontal::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: var(--separator);
+  transition:
+    background 0.15s,
+    height 0.15s;
+}
+
+.poracode-pane-divider-horizontal:hover::after,
+.poracode-pane-divider-horizontal.is-highlighted::after {
+  height: 2px;
+  background: var(--accent);
+}
+
+.poracode-pane-divider-drop-zone--horizontal.is-highlighted::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--accent);
+}
+
+/* --- Unified provider icon styles --- */
+.poracode-provider-icon {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in oklab, var(--muted) 80%, var(--foreground));
+  vertical-align: middle;
+  /* Stacking context so the scan overlay composites cleanly above the SVG
+     without joining the parent sidebar row's paint layer. (Doesn't clip,
+     unlike `contain: paint` — the working drop-shadow can still bleed out.) */
+  isolation: isolate;
+}
+
+.poracode-provider-icon__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.poracode-provider-icon__fill {
+  fill: currentColor;
+}
+
+.poracode-provider-icon__mask {
+  width: 100%;
+  height: 100%;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+.poracode-provider-icon--external .poracode-provider-icon__mask {
+  width: 88%;
+  height: 88%;
+}
+
+/* Working-state shine overlay. The element is clipped to the brand shape via
+   `mask-image` (set inline from the provider's path data or icon URL). An
+   inner `__mask-scan-band` carries the gradient and animates `transform`, so
+   the shine runs entirely on the compositor — no paint per frame. */
+.poracode-provider-icon__mask-scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.95;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.poracode-provider-icon__mask-scan::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Band stretches 3× the parent so the gradient peak can start fully off the
+     left edge and end fully off the right — matches the original SMIL sweep. */
+  left: -100%;
+  width: 300%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.98) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  transform: translate3d(-33.333%, 0, 0);
+  /* Throttle the shine to 20fps with steps() rather than advancing every display
+     refresh. The compositor only produces a new frame when the stepped transform
+     actually changes, so a 120Hz ProMotion panel draws ~20 frames/s here instead
+     of ~120 — a ~6x cut in GPU compositing for a sweep this subtle and slow.
+     32 steps / 1.6s = 20fps. Raise the step count for a smoother sweep. */
+  animation: poracode-provider-icon-mask-scan 1.6s steps(32, jump-end) infinite;
+  will-change: transform;
+}
+
+.poracode-provider-icon--external .poracode-provider-icon__mask-scan {
+  inset: 6%;
+  width: auto;
+  height: auto;
+}
+
+.poracode-provider-icon__generic {
+  display: flex;
+  /* Match the 88% footprint of external mask icons so the bordered letter
+     doesn't read bigger than the brand icons it sits beside in list rows. */
+  width: 88%;
+  height: 88%;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in oklab, currentColor 34%, transparent);
+  border-radius: 0.25rem;
+  font-size: 0.56em;
+  font-weight: 650;
+  line-height: 1;
+}
+
+@keyframes poracode-provider-icon-mask-scan {
+  from {
+    transform: translate3d(-33.333%, 0, 0);
+  }
+  to {
+    transform: translate3d(33.333%, 0, 0);
+  }
+}
+
+/* Keep status-icon animations alive at about 5fps when the window is hidden or
+   unfocused (attributes toggled by uiAnimationActivity.ts). This preserves the
+   working signal in a visible background window without paying the foreground
+   compositor cost. */
+html[data-app-hidden] .poracode-provider-icon__mask-scan::before,
+html[data-app-unfocused] .poracode-provider-icon__mask-scan::before {
+  animation-timing-function: steps(8, jump-end);
+}
+
+html[data-app-hidden] .poracode-provider-icon--attention,
+html[data-app-unfocused] .poracode-provider-icon--attention,
+html[data-app-hidden] .poracode-provider-icon--finished,
+html[data-app-unfocused] .poracode-provider-icon--finished {
+  animation-timing-function: steps(9, jump-end);
+}
+
+/* Honour the OS "reduce motion" setting — drop the moving sweep/pulse entirely
+   and let the static glow + colour signal status. (The thinking shimmer + brain
+   are JS-driven via thinkingAnimator.ts, which checks prefers-reduced-motion
+   itself and paints a single static frame.) */
+@media (prefers-reduced-motion: reduce) {
+  .poracode-provider-icon__mask-scan::before,
+  .poracode-provider-icon--attention,
+  .poracode-provider-icon--finished {
+    animation: none;
+  }
+}
+
+.poracode-provider-icon__shell {
+  fill: currentColor;
+  opacity: 0.32;
+}
+
+.poracode-provider-icon__scan {
+  opacity: 0.95;
+}
+
+.poracode-provider-icon--inactive {
+  color: color-mix(in oklab, var(--muted) 94%, var(--foreground));
+  opacity: 0.78;
+}
+
+.poracode-provider-icon--active {
+  color: var(--foreground);
+  filter: drop-shadow(0 0 0.35rem color-mix(in oklab, var(--foreground) 18%, transparent));
+}
+
+.poracode-provider-icon--working {
+  color: color-mix(in oklab, var(--working-tone) 92%, var(--white));
+}
+
+.poracode-provider-icon--working .poracode-provider-icon__svg,
+.poracode-provider-icon--working
+  .poracode-provider-icon__mask:not(.poracode-provider-icon__mask-scan) {
+  filter: drop-shadow(0 0 0.25rem color-mix(in oklab, var(--working-tone) 45%, transparent))
+    drop-shadow(0 0 0.5rem color-mix(in oklab, var(--working-tone) 22%, transparent));
+  /* Promote to a compositor layer ONLY while working — the glow drop-shadow and
+     the shine sweep need it. Idle/gray icons (often dozens across the sidebar +
+     recent-threads lists) no longer each carry a standing `will-change` layer
+     and its GPU memory. */
+  will-change: filter, transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.poracode-provider-icon--error {
+  color: var(--danger);
+  filter: drop-shadow(0 0 0.45rem color-mix(in oklab, var(--danger) 35%, transparent));
+}
+
+.poracode-provider-icon--attention {
+  color: var(--warning);
+  animation: poracode-attention-pulse 1.8s ease-in-out infinite;
+  will-change: opacity, transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.poracode-provider-icon--attention svg {
+  filter: drop-shadow(0 0 0.35rem color-mix(in oklab, var(--warning) 55%, transparent));
+}
+
+@keyframes poracode-attention-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.poracode-provider-icon--finished {
+  color: oklch(0.82 0.12 260);
+  animation: poracode-finished-pulse 1.8s ease-in-out infinite;
+  will-change: opacity, transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.poracode-provider-icon--finished svg {
+  filter: drop-shadow(0 0 0.35rem oklch(0.82 0.12 260 / 0.55))
+    drop-shadow(0 0 0.7rem oklch(0.82 0.12 260 / 0.25));
+}
+
+@keyframes poracode-finished-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Transient highlight when the settings search scrolls to a specific setting.
+   Net-zero layout: the symmetric negative margin / padding keeps content in
+   place while the tinted band gets a little breathing room. Removed on
+   animationend so re-triggering the same setting flashes again. */
+.poracode-setting-highlight {
+  animation: poracode-setting-highlight 1.4s ease-out;
+  margin-inline: -0.5rem;
+  padding-inline: 0.5rem;
+  border-radius: 0.5rem;
+}
+
+@keyframes poracode-setting-highlight {
+  0% {
+    background-color: color-mix(in oklab, var(--accent) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.poracode-provider-icon--done {
+  color: var(--muted);
+}
+
+.poracode-provider-icon__done-check {
+  position: absolute;
+  top: 15%;
+  left: 15%;
+  width: 70%;
+  height: 70%;
+  pointer-events: none;
+}
+
+.poracode-brain-thinking {
+  filter: drop-shadow(0 0 0.1rem color-mix(in oklab, currentColor 32%, transparent));
+}
+
+/* The per-path "firing" opacities are driven from a shared 20fps timer
+   (thinkingAnimator.ts), NOT a CSS animation: a continuously-active opacity
+   animation on SVG paths can't composite, so it would force a main-thread style
+   recalc + frame on every display refresh (~120fps). 0.55 is the static
+   fallback shown before the timer first paints. */
+.poracode-brain-thinking path {
+  opacity: 0.55;
+}
+
+/* "Thinking"/"Working for"/"Compacting"/"Proposed plan" label that pairs with
+   the brain. The highlight sweeps via `background-position` — a main-thread
+   *paint* property that can't composite, so an always-active CSS animation here
+   repaints AND recalcs style every display refresh (~120fps). Instead the sweep
+   is driven from a shared 20fps timer (thinkingAnimator.ts) that writes
+   `background-position-x` only ~20×/s, letting the frame pipeline idle between
+   ticks. `contain: paint` keeps each repaint scoped to the label box; the
+   `background-position: 0% 0` below is the static fallback before the timer
+   runs.
+
+   IMPORTANT: only apply this class to text that is STABLE while shimmering.
+   `background-clip: text` paints the glyphs as a cached text mask, and if the
+   text changes mid-shimmer Chromium can skip invalidating the old mask —
+   leaving the previous string ghosted under the new one (overlapping-text
+   corruption seen in tool-call rows whose file path swapped absolute →
+   project-relative). Tool rows therefore shimmer only their stable prefix
+   ("Edit · "), never the path. `will-change` additionally isolates the label
+   on its own composited layer, fully re-rastered each tick, so a stray text
+   change still cannot strand stale glyphs in the parent layer's tiles. */
+.poracode-thinking-text {
+  position: relative;
+  display: inline-block;
+  contain: paint;
+  will-change: background-position;
+  background-image: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    var(--muted) 35%,
+    var(--foreground) 50%,
+    var(--muted) 65%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  background-position: 0% 0;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes poracode-plan-check-1-anim {
+  0%,
+  15% {
+    opacity: 0;
+  }
+  25%,
+  80% {
+    opacity: 1;
+  }
+  90%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes poracode-plan-check-2-anim {
+  0%,
+  45% {
+    opacity: 0;
+  }
+  55%,
+  80% {
+    opacity: 1;
+  }
+  90%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.poracode-plan-proposal-icon {
+  color: var(--foreground);
+}
+
+.poracode-plan-proposal-icon .poracode-plan-check-1 {
+  animation: poracode-plan-check-1-anim 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: opacity;
+}
+
+.poracode-plan-proposal-icon .poracode-plan-check-2 {
+  animation: poracode-plan-check-2-anim 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: opacity;
+}
+
+/* Monaco editor — opaque backgrounds for overlaid elements (sticky scroll, etc.)
+   The editor itself uses a transparent background so var(--content-background) shows through. */
+.monaco-editor .sticky-widget,
+.monaco-editor .sticky-widget .monaco-editor-background {
+  background-color: var(--content-background) !important;
+}
+
+.lc-git-add-line {
+  background-color: rgba(64, 200, 174, 0.12);
+}
+
+.lc-git-add-rail {
+  background-color: rgb(64, 200, 174);
+  width: 3px !important;
+  margin-left: 2px;
+}
+
+.lc-git-delete-rail {
+  background-color: rgb(239, 68, 68);
+  width: 3px !important;
+  margin-left: 2px;
+}
+
+.lc-git-delete-zone {
+  height: 100%;
+  overflow: hidden;
+  background-color: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  font-family: var(--monaco-monospace-font, "Cascadia Code", Consolas, monospace);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.lc-git-delete-zone-line {
+  display: flex;
+  min-width: max-content;
+  white-space: pre;
+}
+
+.lc-git-delete-zone-marker {
+  width: 1.5ch;
+  flex: 0 0 auto;
+  color: #ef4444;
+}
+
+.lc-git-delete-zone-margin {
+  height: 100%;
+  background-color: rgb(239, 68, 68);
+  width: 3px !important;
+  margin-left: 2px;
+}
+
+.poracode-terminal-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--poracode-terminal-scrollbar-width);
+  width: calc(100% + var(--poracode-terminal-scrollbar-width));
+  background: var(--content-background);
+}
+
+.poracode-terminal-shell > .poracode-terminal-pane {
+  grid-column: 1;
+  width: 100% !important;
+}
+
+.poracode-terminal-pane,
+.poracode-terminal-pane .xterm,
+.poracode-terminal-pane .xterm-viewport,
+.poracode-terminal-pane .xterm-screen,
+.poracode-terminal-pane .xterm-scroll-area {
+  background: var(--content-background) !important;
+}
+
+.poracode-terminal-pane .xterm .xterm-cursor-layer {
+  display: none !important;
+}
+
+.poracode-composer-shell {
+  position: relative;
+  border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+  border-radius: 1rem;
+  background: var(--composer-surface);
+  transition: background-color 0.15s ease;
+}
+
+[data-draft-context-bar] + [data-poracode-composer] .poracode-composer-shell--draft {
+  background: #212228;
+}
+
+.poracode-composer-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  border: 1px dashed color-mix(in oklab, var(--focus) 72%, transparent);
+  background: color-mix(in oklab, var(--composer-surface) 82%, transparent);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.poracode-composer-label-hideable.is-hidden {
+  display: none;
+}
+
+.poracode-composer-toolbar[data-wrap-level="1"]
+  .poracode-composer-label-hideable[data-collapse-tier="1"],
+.poracode-composer-toolbar[data-wrap-level="2"]
+  .poracode-composer-label-hideable[data-collapse-tier="1"],
+.poracode-composer-toolbar[data-wrap-level="2"]
+  .poracode-composer-label-hideable[data-collapse-tier="2"],
+.poracode-composer-toolbar[data-wrap-level="3"]
+  .poracode-composer-label-hideable[data-collapse-tier="1"],
+.poracode-composer-toolbar[data-wrap-level="3"]
+  .poracode-composer-label-hideable[data-collapse-tier="2"],
+.poracode-composer-toolbar[data-wrap-level="3"]
+  .poracode-composer-label-hideable[data-collapse-tier="3"],
+.poracode-composer-toolbar[data-wrap-level="4"]
+  .poracode-composer-label-hideable[data-collapse-tier="1"],
+.poracode-composer-toolbar[data-wrap-level="4"]
+  .poracode-composer-label-hideable[data-collapse-tier="2"],
+.poracode-composer-toolbar[data-wrap-level="4"]
+  .poracode-composer-label-hideable[data-collapse-tier="3"],
+.poracode-composer-toolbar[data-wrap-level="4"]
+  .poracode-composer-label-hideable[data-collapse-tier="4"],
+.poracode-composer-toolbar[data-wrap-level="5"]
+  .poracode-composer-label-hideable[data-collapse-tier="1"],
+.poracode-composer-toolbar[data-wrap-level="5"]
+  .poracode-composer-label-hideable[data-collapse-tier="2"],
+.poracode-composer-toolbar[data-wrap-level="5"]
+  .poracode-composer-label-hideable[data-collapse-tier="3"],
+.poracode-composer-toolbar[data-wrap-level="5"]
+  .poracode-composer-label-hideable[data-collapse-tier="4"],
+.poracode-composer-toolbar[data-wrap-level="5"]
+  .poracode-composer-label-hideable[data-collapse-tier="5"] {
+  display: none;
+}
+
+/* Clickaway layer for a context menu stacked over another overlay. HeroUI
+   popovers render at z-index 100000, so the backdrop joins that layer: it comes
+   later in the portal order than the surface below it, and the menu it belongs
+   to is portaled later still, so the paint order is surface → backdrop → menu. */
+.poracode-menu-backdrop {
+  z-index: 100000;
+}
+
+.poracode-composer-shell:focus-within {
+  border-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  transition: background-color 0.12s ease;
+}
+
+.poracode-composer-shell--draft:focus-within {
+  border-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+.poracode-model-menu-listbox:focus-visible,
+.poracode-model-menu-listbox[data-focus-visible="true"] {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
+.poracode-composer-editor.textarea,
+.poracode-composer-editor.input-group,
+.poracode-composer-editor .textarea,
+.poracode-composer-editor .input-group {
+  min-height: 56px;
+  resize: none;
+  border: 0;
+  border-radius: var(--radius-4xl) var(--radius-4xl) 0 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.875rem 1rem 0.5rem;
+}
+
+.poracode-composer-custom-input {
+  min-height: calc(0.95rem + 0.35rem + 0.875rem * 1.5);
+  background: transparent;
+}
+
+.poracode-composer-editor--compact,
+.poracode-composer-editor--compact.textarea,
+.poracode-composer-editor--compact.input-group,
+.poracode-composer-editor--compact .textarea,
+.poracode-composer-editor--compact .input-group {
+  min-height: calc(0.75rem + 0.1rem + 0.875rem * 1.35) !important;
+  padding: 0.75rem 0.5rem 0.1rem 0.75rem !important;
+}
+
+.poracode-composer-custom-input--compact {
+  min-height: calc(0.75rem + 0.1rem + 0.875rem * 1.35) !important;
+}
+
+.poracode-composer-editor.textarea__input,
+.poracode-composer-editor .textarea__input {
+  min-height: 28px;
+  resize: none;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.poracode-composer-editor--compact.textarea__input,
+.poracode-composer-editor--compact .textarea__input {
+  min-height: calc(0.875rem * 1.35) !important;
+  line-height: 1.35;
+}
+
+.poracode-composer-editor.textarea:focus,
+.poracode-composer-editor.textarea:focus-visible,
+.poracode-composer-editor.textarea[data-focused="true"],
+.poracode-composer-editor.textarea[data-focus-visible="true"],
+.poracode-composer-editor.input-group:focus,
+.poracode-composer-editor.input-group:focus-within,
+.poracode-composer-editor.input-group[data-focused="true"],
+.poracode-composer-editor.input-group[data-focus-within="true"],
+.poracode-composer-editor .textarea:focus,
+.poracode-composer-editor .textarea:focus-visible,
+.poracode-composer-editor .textarea[data-focused="true"],
+.poracode-composer-editor .textarea[data-focus-visible="true"],
+.poracode-composer-editor .input-group:focus,
+.poracode-composer-editor .input-group:focus-within,
+.poracode-composer-editor .input-group[data-focused="true"],
+.poracode-composer-editor .input-group[data-focus-within="true"],
+.poracode-composer-editor.textarea__input:focus,
+.poracode-composer-editor .textarea__input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-shadow: 0 0 #0000 !important;
+}
+
+.poracode-composer-toolbar {
+  padding: 0.25rem 0.85rem 0.85rem;
+}
+
+.poracode-composer-toolbar--compact {
+  padding: 0.1rem 0.6rem 0.6rem;
+}
+
+.poracode-composer-editor.textarea,
+.poracode-composer-editor.input-group,
+.poracode-composer-editor.textarea__input,
+.poracode-composer-editor .textarea,
+.poracode-composer-editor .input-group,
+.poracode-composer-editor .textarea__input {
+  background: transparent;
+}
+
+.poracode-composer-menu {
+  height: 2.25rem;
+  color: var(--foreground);
+  gap: 0.35rem;
+}
+
+/* Compact variant for secondary control rows (e.g. the worktree row under the composer). */
+.poracode-composer-menu--compact {
+  height: 1.625rem;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.poracode-composer-static {
+  display: inline-flex;
+  height: 2.25rem;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.poracode-context-indicator {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--field-radius);
+  background: transparent;
+  padding: 0 0.35rem;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.poracode-context-indicator:hover,
+.poracode-context-indicator--open {
+  color: var(--foreground);
+}
+
+.poracode-context-indicator__ring {
+  --lc-context-ring: color-mix(in oklab, var(--foreground) 65%, transparent);
+
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.poracode-context-indicator__ring-track {
+  stroke: color-mix(in oklab, var(--muted) 40%, transparent);
+}
+
+.poracode-context-indicator__ring-progress {
+  stroke: var(--lc-context-ring);
+  transition:
+    stroke 0.15s ease,
+    stroke-dasharray 0.2s ease;
+}
+
+.poracode-context-indicator[data-tone="unknown"] .poracode-context-indicator__ring {
+  --lc-context-ring: color-mix(in oklab, var(--muted) 50%, transparent);
+}
+
+.poracode-context-indicator[data-tone="warning"] .poracode-context-indicator__ring {
+  --lc-context-ring: oklch(0.86 0.16 86);
+}
+
+.poracode-context-indicator[data-tone="danger"] .poracode-context-indicator__ring {
+  --lc-context-ring: oklch(0.62 0.22 28);
+}
+
+.poracode-context-dock__bar {
+  height: 0.45rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted) 24%, transparent);
+}
+
+.poracode-context-dock__bar-fill {
+  height: 100%;
+  width: var(--lc-context-progress);
+  border-radius: inherit;
+  background: var(--foreground);
+}
+
+.poracode-context-dock__bar-fill--warning {
+  background: var(--warning);
+}
+
+.poracode-context-dock__bar-fill--danger {
+  background: var(--danger);
+}
+
+.poracode-composer-toggle {
+  --toggle-button-bg-selected: transparent;
+  --toggle-button-bg-selected-hover: var(--toggle-button-bg-hover);
+  --toggle-button-bg-selected-pressed: var(--toggle-button-bg-pressed);
+  --toggle-button-fg-selected: var(--foreground);
+
+  color: var(--muted);
+  height: 2.25rem;
+  padding-inline: 0.75rem;
+}
+
+.poracode-composer-toggle[data-selected="true"] {
+  color: var(--foreground);
+}
+
+.poracode-composer-toggle--current {
+  color: var(--foreground);
+}
+
+.poracode-composer-toggle--fill-icon-selected[data-selected="true"] svg {
+  fill: currentColor;
+}
+
+.poracode-composer-toggle[data-selected="true"] svg {
+  filter: drop-shadow(0 0 0.45rem color-mix(in oklab, currentColor 35%, transparent));
+}
+
+.poracode-composer-utility {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--field-radius);
+  background: transparent;
+  color: var(--muted);
+}
+
+.poracode-composer-send {
+  height: 2.25rem;
+  width: 2.25rem;
+  background: color-mix(in oklab, var(--accent) 18%, var(--surface));
+  color: var(--foreground);
+}
+
+.poracode-composer-send:hover,
+.poracode-composer-send[data-hovered="true"] {
+  background: color-mix(in oklab, var(--accent) 28%, var(--surface));
+}
+
+.poracode-composer-send[aria-disabled="true"] {
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+}
+
+.poracode-composer-shell--preserve-disabled-controls
+  .poracode-composer-menu:is(:disabled, [aria-disabled="true"], [data-disabled="true"]),
+.poracode-composer-shell--preserve-disabled-controls
+  .poracode-composer-toggle:is(:disabled, [aria-disabled="true"], [data-disabled="true"]) {
+  opacity: 1;
+}
+
+.poracode-inline-control {
+  height: 2.25rem;
+  min-width: 0;
+}
+
+.poracode-inline-action {
+  height: 2.25rem;
+  width: 2.25rem;
+}
+
+/* ── Mention Input (contentEditable) ──────────────────────── */
+
+.poracode-mention-input {
+  min-height: calc(0.95rem + 0.35rem + 1lh);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0.95rem 1.1rem 0.35rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--foreground);
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+
+.poracode-mention-input--compact {
+  min-height: calc(1lh + 0.75rem + 0.25rem);
+  max-height: calc(6lh + 0.75rem + 0.25rem);
+  padding: 0.75rem 0.75rem 0.25rem;
+  line-height: 1.35;
+}
+
+.poracode-mention-input:focus,
+.poracode-mention-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-shadow: 0 0 #0000 !important;
+}
+
+.poracode-mention-input:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* ── Mention Chip (inline in contentEditable) ────────────── */
+
+.poracode-mention-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15em 0.3em;
+  margin: 0 2px;
+  border-radius: 0.3rem;
+  background: color-mix(in oklab, var(--accent) 15%, var(--surface));
+  color: var(--foreground);
+  font-size: 0.875em;
+  line-height: 1;
+  vertical-align: text-bottom;
+  user-select: none;
+  cursor: default;
+}
+
+.poracode-mention-chip__icon {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: middle;
+}
+
+.poracode-mention-chip__name {
+  font-weight: 400;
+  position: relative;
+  top: -1.5px;
+}
+
+.poracode-mention-chip__delete {
+  display: none;
+  position: absolute;
+  right: -0.3rem;
+  top: -0.3rem;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: var(--interactive-cursor);
+}
+
+.poracode-mention-chip__delete:hover {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--accent) 20%, var(--surface));
+}
+
+.poracode-mention-chip:hover .poracode-mention-chip__delete {
+  display: inline-flex;
+}
+
+/* ── Slash Command Chip (composer + chat user message) ──────── */
+
+.poracode-slash-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 0.1em 0.3em;
+  margin: 0 1px;
+  border: 0;
+  border-radius: 0.25rem;
+  background: color-mix(in oklab, var(--accent) 12%, var(--surface));
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 0.875em;
+  line-height: 1.3;
+  vertical-align: middle;
+  user-select: none;
+  cursor: default;
+}
+
+.poracode-slash-chip[data-skill-name],
+.poracode-slash-chip[data-mcp-name] {
+  gap: 0.25em;
+}
+
+.poracode-slash-chip__slash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  color: color-mix(in oklab, var(--accent) 80%, var(--foreground));
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.poracode-slash-chip__slash svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.poracode-slash-chip__name {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.poracode-diff-comment-chip {
+  gap: 0.25em;
+}
+
+.poracode-diff-comment-chip__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  height: 1em;
+  overflow: hidden;
+  color: var(--muted);
+  opacity: 0;
+  transition:
+    width 120ms ease,
+    opacity 120ms ease;
+  cursor: var(--interactive-cursor, pointer);
+}
+
+.poracode-diff-comment-chip:hover .poracode-diff-comment-chip__delete {
+  width: 1em;
+  opacity: 1;
+}
+
+.poracode-diff-comment-chip__delete svg {
+  width: 0.8em;
+  height: 0.8em;
+}
+
+.poracode-user-message-inline-content .poracode-inline-path-chip {
+  background: var(--surface-secondary);
+}
+
+.poracode-user-message-inline-content .poracode-inline-path-chip:hover {
+  background: color-mix(in oklab, var(--surface-secondary) 86%, var(--foreground) 14%);
+}
+
+.poracode-user-message-inline-content .poracode-inline-path-chip--inert:hover {
+  background: var(--surface-secondary);
+}
+
+/* ── Inline File Path Chip (clickable, in chat markdown) ────── */
+
+.poracode-inline-path-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1em 0.3em;
+  margin: 0 1px;
+  border: 0;
+  border-radius: 0.25rem;
+  background: color-mix(in oklab, var(--accent) 12%, var(--surface));
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 0.875em;
+  line-height: 1.3;
+  vertical-align: middle;
+  cursor: var(--interactive-cursor, pointer);
+  transition: background 120ms ease;
+}
+
+.poracode-inline-path-chip:hover {
+  background: color-mix(in oklab, var(--accent) 22%, var(--surface));
+}
+
+.poracode-inline-path-chip--inert {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.poracode-inline-path-chip--inert:hover {
+  background: color-mix(in oklab, var(--accent) 12%, var(--surface));
+}
+
+.poracode-inline-path-chip__icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+.poracode-inline-path-chip__name {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.poracode-inline-path-chip__line {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── Attachment Bar (file/image chips above editor) ────────── */
+
+.poracode-attachment-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.65rem 0 0;
+  max-height: 6.5rem;
+  overflow-y: auto;
+}
+
+.poracode-attachment-bar--inset {
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+}
+
+.poracode-attachment-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25em 0.45em;
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--accent) 12%, var(--surface));
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  cursor: default;
+  user-select: none;
+  max-width: 12rem;
+}
+
+.poracode-browser-chip {
+  padding: 0.25em 0.45em;
+  height: 1.35rem;
+  gap: 0.3rem;
+  border-radius: 0.35rem;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}
+
+.poracode-attachment-chip[role="button"] {
+  cursor: var(--interactive-cursor);
+}
+
+.poracode-attachment-chip__thumb {
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 0.2rem;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.poracode-attachment-chip__icon {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+}
+
+.poracode-attachment-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+.poracode-attachment-chip__selector {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  color: color-mix(in oklab, var(--accent) 65%, var(--foreground));
+  max-width: 22rem;
+}
+
+.poracode-attachment-chip__delete {
+  display: none;
+  position: absolute;
+  right: -0.3rem;
+  top: -0.3rem;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: var(--interactive-cursor);
+}
+
+.poracode-browser-chip .poracode-attachment-chip__delete {
+  right: -0.25rem;
+  top: -0.25rem;
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.poracode-attachment-chip__delete:hover {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--accent) 20%, var(--surface));
+}
+
+.poracode-attachment-chip:hover .poracode-attachment-chip__delete {
+  display: inline-flex;
+}
+
+/* ── Attachment bar image preview (no chip wrapper) ───────── */
+
+.poracode-attachment-image-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  background: color-mix(in oklab, var(--surface) 88%, black);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+  cursor: var(--interactive-cursor);
+  contain: layout paint;
+}
+
+.poracode-attachment-image-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+.poracode-image-card {
+  contain: layout paint;
+}
+
+.poracode-image-action-toolbar {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.poracode-image-card:hover > .poracode-image-action-toolbar,
+.poracode-image-card:focus-within > .poracode-image-action-toolbar {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+/* ── Image Lightbox ──────────────────────────────────────── */
+
+.poracode-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.82);
+  cursor: var(--interactive-cursor);
+  animation: poracode-lightbox-fade-in 150ms ease-out;
+  overflow: hidden;
+}
+
+@keyframes poracode-lightbox-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Docked right/bottom panel content fade. The panel's <aside> background stays
+   opaque (so the OS blur never shows through); only this content layer fades.
+   Keyframes, not a transition, because the layer is clipped to zero by the
+   aside's collapsing size and a transition's start value is unreliable there. */
+@keyframes poracode-panel-content-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes poracode-panel-content-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.poracode-image-lightbox__stage {
+  position: absolute;
+  inset: 3rem 3rem 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.poracode-image-lightbox__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  cursor: default;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  transform-origin: center;
+  transition: transform 120ms ease-out;
+  user-select: none;
+  will-change: transform;
+}
+
+.poracode-image-lightbox__image--zoomed {
+  cursor: grab;
+}
+
+.poracode-image-lightbox__image--zoomed:active {
+  cursor: grabbing;
+  transition: none;
+}
+
+.poracode-image-lightbox__close {
+  position: absolute;
+  top: calc(env(titlebar-area-height, 32px) + 1rem);
+  right: max(
+    1.5rem,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 1rem)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  cursor: var(--interactive-cursor);
+  transition: background 150ms;
+  z-index: 2;
+}
+
+.poracode-image-lightbox__close:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.poracode-image-lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: var(--interactive-cursor);
+  transition: background 150ms;
+  z-index: 2;
+}
+
+.poracode-image-lightbox__nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.poracode-image-lightbox__nav--prev {
+  left: 1.5rem;
+}
+
+.poracode-image-lightbox__nav--next {
+  right: 1.5rem;
+}
+
+.poracode-image-lightbox__footer {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 2;
+}
+
+.poracode-image-lightbox__zoom,
+.poracode-image-lightbox__counter {
+  display: flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8125rem;
+  user-select: none;
+}
+
+.poracode-image-lightbox__zoom {
+  gap: 0.25rem;
+  padding: 0.2rem 0.35rem;
+}
+
+.poracode-image-lightbox__zoom-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 50%;
+  color: white;
+  cursor: var(--interactive-cursor);
+  transition: background 150ms;
+}
+
+.poracode-image-lightbox__zoom-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.poracode-image-lightbox__zoom-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.poracode-image-lightbox__zoom-value {
+  min-width: 2.75rem;
+  text-align: center;
+}
+
+/* ── Mention Popover (file search dropdown) ──────────────── */
+
+.poracode-mention-popover {
+  width: 30rem;
+  max-height: 20rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.poracode-mention-popover__list {
+  overflow-y: auto;
+  max-height: 20rem;
+  padding: 0.25rem;
+}
+
+.poracode-mention-popover__icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+}
+
+.poracode-mention-popover__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  cursor: var(--interactive-cursor);
+  color: var(--foreground);
+}
+
+.poracode-mention-popover__label,
+.poracode-mention-popover__detail {
+  display: flex;
+  align-items: center;
+  min-height: 1.125rem;
+  transform: translateY(-1px);
+}
+
+.poracode-mention-popover__item--active {
+  background: color-mix(in oklab, var(--accent) 12%, var(--surface));
+}
+
+.poracode-overlay-header {
+  /* Above .poracode-resize-handle (z-20) so title rows are not covered by
+     main / right / git panels on macOS when subpixel or titlebar env() causes overlap. */
+  position: relative;
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+  z-index: 30;
+  border: none;
+  border-bottom: none;
+  box-shadow: none;
+}
+
+/* macOS only — Windows unchanged. Y alignment via translateY only (no padding/height/line changes). */
+html[data-platform="darwin"] .poracode-overlay-header .poracode-overlay-header__controls,
+html[data-platform="darwin"] .poracode-overlay-header > p.text-xs,
+html[data-platform="darwin"] .poracode-sidebar-project-nudge {
+  transform: translateY(2px);
+}
+
+.poracode-overlay-header__controls {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.poracode-overlay-header--no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* macOS only: when the sidebar is collapsed, the traffic-light controls sit over
+   the top-left of the content area. Elements opting in via this class get an
+   extra 28px of left padding so they clear the controls. The data-attribute
+   gate means non-Mac and expanded states match nothing — no descendant
+   subscribes to sidebar state for this. */
+[data-mac-collapsed] .poracode-mac-traffic-light-pad {
+  padding-left: calc(0.5rem + 28px);
+}
+
+.poracode-terminal-pane .xterm .xterm-scrollable-element > .scrollbar.vertical {
+  display: none !important;
+}
+
+.poracode-terminal-scrollbar {
+  grid-column: 2;
+  width: var(--poracode-terminal-scrollbar-width);
+  cursor: default;
+  transition: opacity 150ms ease-out;
+}
+
+.poracode-terminal-scrollbar__thumb {
+  position: absolute;
+  width: 4px !important;
+  left: 2px !important;
+  border-radius: 999px;
+  background: var(--scrollbar) !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  width: 4px !important;
+  left: 2px !important;
+  border-radius: 999px;
+  background: var(--scrollbar) !important;
+}
+
+.xterm .xterm-scrollable-element .arrow-background,
+.xterm .xterm-scrollable-element .up-arrow,
+.xterm .xterm-scrollable-element .down-arrow {
+  display: none !important;
+}
+
+/* Kill the native webkit scrollbar on xterm's viewport — the VS Code–style
+   scrollbar in .xterm-scrollable-element is the one we want visible. The
+   viewport's native scrollbar can otherwise render up/down arrow buttons
+   that peek through next to the slider. */
+.xterm .xterm-viewport {
+  scrollbar-width: none !important;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar,
+.xterm .xterm-viewport::-webkit-scrollbar-button,
+.xterm .xterm-viewport::-webkit-scrollbar-track,
+.xterm .xterm-viewport::-webkit-scrollbar-track-piece,
+.xterm .xterm-viewport::-webkit-scrollbar-thumb,
+.xterm .xterm-viewport::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.xterm,
+.xterm-viewport,
+.xterm-screen {
+  height: 100% !important;
+}
+
+/* New files: neutralize green add-line highlight */
+.diff-new-file {
+  --diff-add-content--: transparent;
+  --diff-add-lineNumber--: transparent;
+  --diff-add-content-highlight--: transparent;
+}
+
+/* Adaptive diff line-number gutter.
+   In unified mode @git-diff-view reserves TWO number columns (old + new) and
+   sizes the gutter to (aside + 5px) * 2 ≈ 90px. That's fine on the full-width
+   Git review, but wastes a quarter of the width in a narrow panel — the chat
+   inline diff, a split editor, PR file cards, or a small window — half of it an
+   empty old-number column on added/new files. We collapse the gutter to the
+   single relevant number whenever the diff's OWN container is ≤768px wide.
+
+   This is a container query, not a viewport media query: a 420px chat pane
+   inside an 1800px window still compacts, and a full-width review stays as-is.
+   .diff-view-wrapper is the library's per-diff root (w-full block), so its
+   inline-size tracks the panel width. This stylesheet is imported by both the
+   desktop renderer and the mobile entry (src/mobile/main.tsx), so one rule set
+   covers every surface, phones included.
+
+   Each unified row nests three spans in .diff-line-num: [old-num][10px spacer]
+   [new-num]. Added lines leave the old span empty, deletions leave the new span
+   empty (and drop its data-attribute), context lines fill both — so we key off
+   position (:nth-child) + :empty, not the data-line-*-num attributes. The
+   number column is shared with the hunk "expand" cells (.diff-line-hunk-action,
+   a different class that also forces ~90px); in this auto-layout table the
+   widest cell wins the column, so both must shrink together.
+
+   Gated on @supports selector(:has(*)) so engines without :has() keep the
+   default gutter — no regression, just no improvement. */
+.diff-view-wrapper {
+  container-type: inline-size;
+}
+
+@supports selector(:has(*)) {
+  @container (max-width: 768px) {
+    .diff-view-wrapper .diff-line-num,
+    .diff-view-wrapper .diff-line-hunk-action {
+      width: 48px !important;
+      min-width: 48px !important;
+      max-width: none !important;
+      padding-left: 4px !important;
+      padding-right: 6px !important;
+    }
+
+    /* Drop the 10px spacer between the old/new numbers. */
+    .diff-view-wrapper .diff-line-num > div > span:nth-child(2) {
+      display: none !important;
+    }
+
+    /* Added / context lines: the new-line number (3rd span) is present — show it
+       alone, full width, and hide the old-line number. */
+    .diff-view-wrapper
+      .diff-line-num
+      > div:has(> span:nth-child(3):not(:empty))
+      > span:nth-child(1) {
+      display: none !important;
+    }
+    .diff-view-wrapper
+      .diff-line-num
+      > div:has(> span:nth-child(3):not(:empty))
+      > span:nth-child(3) {
+      width: 100% !important;
+    }
+
+    /* Pure deletion lines: no new-line number (3rd span empty) — show the old. */
+    .diff-view-wrapper .diff-line-num > div:has(> span:nth-child(3):empty) > span:nth-child(3) {
+      display: none !important;
+    }
+    .diff-view-wrapper .diff-line-num > div:has(> span:nth-child(3):empty) > span:nth-child(1) {
+      width: 100% !important;
+    }
+  }
+}
+
+/* Keep the diff's horizontal scroll self-contained so a sideways swipe or
+   trackpad gesture through long lines doesn't trigger back navigation. */
+.diff-table-scroll-container {
+  overscroll-behavior-x: contain;
+}
+
+/* ── Markdown Preview ─────────────────────────────────────── */
+
+.poracode-markdown-preview {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--foreground);
+}
+
+.poracode-markdown-preview h1,
+.poracode-markdown-preview h2,
+.poracode-markdown-preview h3,
+.poracode-markdown-preview h4,
+.poracode-markdown-preview h5,
+.poracode-markdown-preview h6 {
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.poracode-markdown-preview h1 {
+  font-size: 1.5rem;
+  border-bottom: 1px solid var(--separator);
+  padding-bottom: 0.3em;
+}
+.poracode-markdown-preview h2 {
+  font-size: 1.25rem;
+  border-bottom: 1px solid var(--separator);
+  padding-bottom: 0.2em;
+}
+.poracode-markdown-preview h3 {
+  font-size: 1.1rem;
+}
+.poracode-markdown-preview h4 {
+  font-size: 1rem;
+}
+
+.poracode-markdown-preview p {
+  margin: 0.75em 0;
+}
+
+.poracode-markdown-preview a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.poracode-markdown-preview code {
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 0.85em;
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+  background: var(--surface-secondary);
+}
+
+.poracode-markdown-preview pre {
+  margin: 1em 0;
+  padding: 0.85em 1em;
+  border-radius: 0.5rem;
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.poracode-markdown-preview pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.poracode-markdown-preview ul,
+.poracode-markdown-preview ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.poracode-markdown-preview li {
+  margin: 0.25em 0;
+}
+.poracode-markdown-preview li::marker {
+  color: var(--muted);
+}
+
+.poracode-markdown-preview blockquote {
+  margin: 0.75em 0;
+  padding: 0.25em 1em;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+}
+
+.poracode-markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.8125rem;
+}
+
+.poracode-markdown-preview th,
+.poracode-markdown-preview td {
+  padding: 0.4em 0.75em;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.poracode-markdown-preview th {
+  font-weight: 600;
+  background: var(--surface-secondary);
+}
+
+.poracode-markdown-preview hr {
+  border: none;
+  border-top: 1px solid var(--separator);
+  margin: 1.5em 0;
+}
+
+.poracode-markdown-preview img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+}
+
+.poracode-markdown-preview input[type="checkbox"] {
+  margin-right: 0.4em;
+  vertical-align: middle;
+}
+
+.poracode-markdown-preview--compact {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.poracode-markdown-preview--compact h1,
+.poracode-markdown-preview--compact h2,
+.poracode-markdown-preview--compact h3,
+.poracode-markdown-preview--compact h4,
+.poracode-markdown-preview--compact h5,
+.poracode-markdown-preview--compact h6 {
+  margin-top: 1em;
+  margin-bottom: 0.35em;
+}
+
+.poracode-markdown-preview--compact h1 {
+  font-size: 1.125rem;
+}
+.poracode-markdown-preview--compact h2 {
+  font-size: 1rem;
+}
+.poracode-markdown-preview--compact h3 {
+  font-size: 0.925rem;
+}
+.poracode-markdown-preview--compact h4,
+.poracode-markdown-preview--compact h5,
+.poracode-markdown-preview--compact h6 {
+  font-size: 0.875rem;
+}
+
+.poracode-markdown-preview--compact p {
+  margin: 0.5em 0;
+}
+
+.poracode-markdown-preview--compact hr {
+  margin: 0.75em 0;
+}
+
+.lc-chat-markdown h1,
+.lc-chat-markdown h2,
+.lc-chat-markdown h3,
+.lc-chat-markdown h4,
+.lc-chat-markdown h5,
+.lc-chat-markdown h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0.6em 0 0.2em;
+  color: var(--foreground, currentColor);
+}
+.lc-chat-markdown h1 {
+  font-size: 1.35em;
+}
+.lc-chat-markdown h2 {
+  font-size: 1.22em;
+}
+.lc-chat-markdown h3 {
+  font-size: 1.05em;
+}
+.lc-chat-markdown h4,
+.lc-chat-markdown h5,
+.lc-chat-markdown h6 {
+  font-size: 1em;
+}
+.lc-chat-markdown :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+
+.lc-chat-markdown ol {
+  list-style: decimal outside;
+  padding-left: 1.5em;
+  margin: 0.1em 0 0.75em;
+}
+.lc-chat-markdown ul {
+  list-style: disc outside;
+  padding-left: 1.5em;
+  margin: 0.1em 0 0.75em;
+}
+.lc-chat-markdown li {
+  /* Streamdown's default <li> ships a `py-1` utility; margins alone don't
+     remove that gap, so zero the vertical padding too. */
+  margin: 0.1em 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  white-space: normal;
+}
+.lc-chat-markdown ol > li + li {
+  margin-top: 0.3em;
+}
+.lc-chat-markdown p {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.lc-chat-markdown li::marker {
+  color: var(--lc-text-muted, currentColor);
+}
+.lc-chat-markdown li > p {
+  margin: 0.05em 0;
+}
+.lc-chat-markdown li > ol,
+.lc-chat-markdown li > ul {
+  margin: 0.1em 0;
+}
+.lc-chat-markdown p + ol,
+.lc-chat-markdown p + ul {
+  margin-top: 0.1em;
+}
+.lc-chat-markdown > :first-child,
+.lc-chat-markdown > :first-child > :first-child {
+  margin-top: 0;
+}
+.lc-chat-markdown > :last-child,
+.lc-chat-markdown > :last-child > :last-child {
+  margin-bottom: 0;
+}
+
+/* Agent discovery screen — first-launch detection.
+ *
+ * Each agent is just an icon + label. The icon defaults to a dim "searching"
+ * state and animates to a bright, full-color state when `data-found="true"`
+ * is applied (driven by streamed `agent-detected` events). The pop animation
+ * runs only on the found→true transition because we toggle `data-found` on a
+ * persistent node, so unfound items don't replay it on every re-render.
+ */
+.agent-discovery-item {
+  transition:
+    opacity 320ms ease,
+    transform 320ms ease;
+}
+
+.agent-discovery-item .agent-discovery-item__icon {
+  filter: grayscale(1) brightness(0.55);
+  opacity: 0.45;
+  transition:
+    filter 320ms ease,
+    opacity 320ms ease,
+    transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.agent-discovery-item[data-found="true"] .agent-discovery-item__icon {
+  filter: none;
+  opacity: 1;
+  animation: poracode-agent-icon-pop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes poracode-agent-icon-pop {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes poracode-tool-call-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-tool-call-enter {
+  animation: poracode-tool-call-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes poracode-compacting-squeeze {
+  0%,
+  100% {
+    transform: scaleY(0.9) translateY(0);
+    opacity: 0.75;
+  }
+  33% {
+    transform: scaleY(0.75) translateY(10%);
+    opacity: 1;
+  }
+  66% {
+    transform: scaleY(1.1) translateY(-5%);
+    opacity: 1;
+  }
+}
+
+.poracode-compacting-icon {
+  transform-origin: center;
+  will-change: transform, opacity;
+  animation: poracode-compacting-squeeze 1.6s ease-in-out infinite;
+}
+
+.poracode-compacted-icon {
+  transform: scaleY(0.7);
+  transform-origin: center;
+}
+
+/* Take chat scrollers out of dnd-kit's AutoScroller ancestor scan while a
+   drag is active. */
+html[data-poracode-drag-active="true"] [data-poracode-chat-scroller="true"] {
+  overflow: hidden !important;
+}
+
+/* PixelLoader — stepped via pure CSS keyframe animations.
+   1. Per-pattern data-frame selectors are injected at module load.
+   2. Opacity is animated purely on the GPU compositor lanes via keyframes.
+   3. Visual identity is fully restored using native SVG viewBox scaling and a
+      volumetric double-blur filter that scales proportionally. */
+.poracode-pixel-loader {
+  aspect-ratio: 1 / 1;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.poracode-pixel-loader.size-3 {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+.poracode-pixel-loader.size-3\.5 {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.poracode-pixel-loader.size-4 {
+  width: 1rem;
+  height: 1rem;
+}
+.poracode-pixel-loader.size-6 {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.poracode-pixel-loader.size-8 {
+  width: 2rem;
+  height: 2rem;
+}
+
+.poracode-pixel-loader__cell {
+  opacity: 0;
+  fill: var(--pixel-loader-color, currentColor);
+  transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.poracode-pixel-loader--animated .poracode-pixel-loader__cell {
+  /* Prevent keyframe animation from thrashing with the CSS transition */
+  transition: none !important;
+}
+
+/* ── Project notes editor (TipTap) ──────────────────────────────────
+   Scoped to `.lc-notes-prose` (the contenteditable root) so the editor
+   themes with the app's design tokens rather than TipTap defaults. */
+.lc-notes-prose {
+  outline: none;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--foreground);
+  min-height: 100%;
+}
+.lc-notes-prose:focus,
+.lc-notes-prose:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+/* The editable fills its scroll container so clicking anywhere focuses it. */
+.lc-notes-content {
+  height: 100%;
+}
+.lc-notes-prose p {
+  margin: 0 0 0.5em;
+}
+.lc-notes-prose h1 {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 0.5em 0 0.3em;
+}
+.lc-notes-prose h2 {
+  font-size: 1.15em;
+  font-weight: 600;
+  margin: 0.5em 0 0.3em;
+}
+.lc-notes-prose h3 {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin: 0.5em 0 0.3em;
+}
+.lc-notes-prose ul,
+.lc-notes-prose ol {
+  padding-left: 1.25em;
+  margin: 0 0 0.5em;
+}
+.lc-notes-prose ul {
+  list-style: disc;
+}
+.lc-notes-prose ol {
+  list-style: decimal;
+}
+.lc-notes-prose li {
+  margin: 0.1em 0;
+}
+.lc-notes-prose li > p {
+  margin: 0;
+}
+.lc-notes-prose blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.75em;
+  margin: 0 0 0.5em;
+  color: var(--muted);
+}
+.lc-notes-prose code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.92em;
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+.lc-notes-prose pre {
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  padding: 0.6em 0.75em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0 0 0.5em;
+}
+.lc-notes-prose pre code {
+  background: none;
+  padding: 0;
+}
+.lc-notes-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.lc-notes-prose hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.6em 0;
+}
+/* TipTap Placeholder extension: shown when the document is empty. */
+.lc-notes-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  opacity: 0.6;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* HeroUI's `.tooltip` base sets `word-break: break-all`, which splits words
+   mid-word ("lis t/paragraph"). Break only tokens that cannot fit otherwise. */
+.tooltip {
+  word-break: normal;
+  overflow-wrap: break-word;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.375rem;
+  background: rgba(34, 35, 41, 0.96);
+  color: rgb(245 245 245);
+  box-shadow:
+    0 10px 30px rgb(0 0 0 / 0.35),
+    0 2px 8px rgb(0 0 0 / 0.28);
+}
+
+.craftstation-control-tooltip {
+  z-index: 50;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* v0.2.4 — CraftStation mascot: surroundings rotate slowly while the center
+   `>_` face stays put and blinks (Codex mascot homage, brand asset swapped). */
+@keyframes cs-mascot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cs-mascot-blink {
+  0%,
+  91%,
+  98%,
+  100% {
+    transform: scaleY(1);
+  }
+  94.5% {
+    transform: scaleY(0.08);
+  }
+}
+
+/* Codex style: highlight Full Access / Auto Approve in warm amber */
+.poracode-composer-toggle[data-permission-full="true"],
+.poracode-composer-toggle[data-selected="true"]:has(.poracode-composer-permission-icon) {
+  color: #ea8e3b !important;
+}
+.poracode-composer-toggle[data-permission-full="true"] svg,
+.poracode-composer-toggle[data-selected="true"] .poracode-composer-permission-icon {
+  color: #ea8e3b !important;
+}

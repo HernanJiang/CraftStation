@@ -1,0 +1,1163 @@
+import { randomUUID } from "node:crypto";
+import type { ChildProcess } from "node:child_process";
+import type {
+  CanUseTool,
+  Options as ClaudeQueryOptions,
+  PermissionMode,
+  PermissionResult,
+  PermissionUpdate,
+  Query,
+  SDKMessage,
+  SlashCommand,
+  SpawnOptions,
+  SpawnedProcess,
+} from "@anthropic-ai/claude-agent-sdk";
+import type {
+  AgentSlashCommand,
+  PromptSegment,
+  RuntimeEvent,
+  SessionRef,
+  ThreadAttention,
+  ThreadConfig,
+  ThreadServerRequestId,
+  ThreadStatus,
+  TurnState,
+} from "@/shared/contracts";
+import { areAgentSlashCommandsEqual } from "@/shared/contracts";
+import { terminateChildProcessTree } from "@/shared/processTree";
+import { buildClaudeMcpServers } from "../userMcp";
+import {
+  createKnownSessionRef,
+  getPrimedPosixEnv,
+  getProjectShellEnv,
+  primeWslProjectShellEnv,
+  resolveExecutablePathAsync,
+  type AgentLaunchOptions,
+  type CreateStructuredSessionInput,
+  type StartTurnOptions,
+  type StructuredSessionHandle,
+  type StructuredSessionListener,
+  type StructuredSessionUpdate,
+  type ThreadHistory,
+} from "../base";
+import { captureSupervisorException } from "../../diagnostics/sentry";
+import { resolveAgentBinaryPath } from "../binaryResolver";
+import { DeferredTurnCompletion } from "./deferredTurnCompletion";
+import { applyClaudeContextSuffix } from "./argv";
+import {
+  buildClaudeQuestionAnswerEvents,
+  ClaudeUsageScopeTracker,
+  closeClaudeOpenItems,
+  completeActiveGoalOnTaskDrainEvents,
+  createClaudeMapperState,
+  emitActiveGoalTick,
+  extractResultErrorMessage,
+  isApiErrorResult,
+  mapClaudePermissionRequest,
+  mapClaudeQuestionRequest,
+  mapClaudeContextUsageResponse,
+  mapClaudeSdkMessage,
+  nonDiagnosticErrors,
+  parseClaudeQuestions,
+  readParentToolUseId,
+  startClaudeTurn,
+  type ClaudeMapperState,
+} from "./sdkCanonicalMapping";
+import { mapClaudeSlashCommands } from "./probe";
+import { AsyncPromptQueue } from "./promptQueue";
+import { projectCwd, spawnClaudeInWsl, spawnClaudeNative } from "./sdkSpawn";
+import { buildSdkUserMessage } from "./sdkPrompt";
+import {
+  basePermissionModeForConfig,
+  buildDenyMessage,
+  isQuestionCancelResponse,
+  normalizeQuestionAnswersForSdk,
+  permissionDecision,
+  permissionModeForConfig,
+  rawQuestionAnswers,
+  type PendingRequest,
+} from "./sdkResponses";
+
+type CompletedClaudeTurn = {
+  resumeSessionAt: string | undefined;
+};
+
+/**
+ * How long a drained deferred completion waits before settling the thread.
+ * Sized to cover the SDK's task_notification → model-wake gap (a
+ * session_state "running" restarts it, so it only needs to reach the wake
+ * signal, not the first streamed token).
+ */
+const DEFERRED_FLUSH_RESUME_GRACE_MS = 5000;
+
+export class ClaudeSdkSession implements StructuredSessionHandle {
+  launchOptions: AgentLaunchOptions = { suppressResumeConfigOverrides: true };
+
+  private readonly input: CreateStructuredSessionInput;
+  private listener: StructuredSessionListener | undefined;
+  private mapperState: ClaudeMapperState;
+  private promptQueue = new AsyncPromptQueue();
+  private queryRuntime: Query | undefined;
+  private queryReady: Promise<Query> | undefined;
+  // OS processes the SDK spawned through our custom spawn hook (win32 native +
+  // WSL). Captured so dispose() can force-kill the whole tree; the SDK's own
+  // Query.close() only ends the immediate child after a grace window. See
+  // trackSpawnedProcess.
+  private readonly spawnedProcesses = new Set<ChildProcess>();
+  private streamStarted = false;
+  private disposed = false;
+  private sessionId: string | undefined;
+  private openedResumeSessionId: string | undefined;
+  private currentConfig: ThreadConfig;
+  private appliedModel: string | undefined;
+  private appliedPermissionMode: PermissionMode | undefined;
+  private appliedUltracode = false;
+  private appliedFast = false;
+  private currentStatus: ThreadStatus = "idle";
+  private currentAttention: ThreadAttention = "none";
+  private currentSlashCommands: AgentSlashCommand[] | undefined;
+  /** Raw SDK command list, kept so a later skill-name update can re-flavor it. */
+  private lastSdkCommands: readonly SlashCommand[] | undefined;
+  /** Skill names last reported by the CLI (`skills` on the `system` init message). */
+  private lastSkillNames: ReadonlySet<string> | undefined;
+  private pendingRequests = new Map<ThreadServerRequestId, PendingRequest>();
+  private completedTurns: CompletedClaudeTurn[] = [];
+  private currentTurnAssistantUuid: string | undefined;
+  private currentTurnInFlight = false;
+  // A turn's `result` settles its status immediately, but flipping the thread
+  // to idle while a background subagent task is still live would mark a GUI
+  // thread finished mid-work. Hold the completion status here until the
+  // live-task registry drains; flush it if the stream stops first.
+  private readonly deferredCompletion = new DeferredTurnCompletion();
+  // Grace timer between the last task_notification draining the registry and
+  // the deferred completion actually flushing. The SDK usually wakes the model
+  // right after that notification to consume the results; flushing idle in
+  // that gap resets the thread's "Working for" timer and fires a premature
+  // done-notification. See flushDeferredCompletionIfDrained.
+  private deferredFlushTimer: ReturnType<typeof setTimeout> | undefined;
+  // openThread() fires `startQuery` as a fire-and-forget IIFE and returns
+  // synchronously, but the runtime calls `setListener` only afterwards from
+  // `spawnThread`. Anything emitted in that window — early SDK system/stream
+  // messages, or the catch-block error from a failed spawn/import — would be
+  // dropped by `?.` chaining. Buffer here and drain on attach.
+  private bufferedRuntimeEvents: RuntimeEvent[] = [];
+  private pendingError: string | undefined;
+  // Set when `interruptTurn()` runs; cleared when the next `result` arrives.
+  // Lets us classify the post-interrupt result as interrupted even when
+  // claude.exe emits subtype "error_during_execution" without "abort"/"interrupt"
+  // in the errors array — otherwise the supervisor's drain-on-idle hook would
+  // miss the steer and the staged prompt would never flush.
+  private interruptInFlight = false;
+  private goalTrackingTimer: ReturnType<typeof setInterval> | undefined;
+
+  private constructor(input: CreateStructuredSessionInput) {
+    this.input = input;
+    this.currentConfig = input.config;
+    this.mapperState = createClaudeMapperState(input.threadId);
+  }
+
+  static create(input: CreateStructuredSessionInput): Promise<ClaudeSdkSession> {
+    return Promise.resolve(new ClaudeSdkSession(input));
+  }
+
+  setListener(listener: StructuredSessionListener): void {
+    this.listener = listener;
+    if (this.bufferedRuntimeEvents.length > 0 && listener.onRuntimeEvent) {
+      const drain = this.bufferedRuntimeEvents;
+      this.bufferedRuntimeEvents = [];
+      for (const ev of drain) listener.onRuntimeEvent(ev);
+    }
+    if (this.currentSlashCommands !== undefined) {
+      listener.onUpdate({
+        status: this.currentStatus,
+        attention: this.currentAttention,
+        slashCommands: this.currentSlashCommands,
+        ...(this.sessionId ? { sessionRef: createKnownSessionRef(this.sessionId) } : {}),
+      });
+    }
+    if (this.pendingError !== undefined) {
+      const message = this.pendingError;
+      this.pendingError = undefined;
+      listener.onError(message);
+    }
+  }
+
+  private emitUpdate(update: StructuredSessionUpdate): void {
+    this.currentStatus = update.status;
+    this.currentAttention = update.attention;
+    this.listener?.onUpdate({
+      ...update,
+      ...(this.currentSlashCommands !== undefined && update.slashCommands === undefined
+        ? { slashCommands: this.currentSlashCommands }
+        : {}),
+    });
+  }
+
+  private updateSlashCommands(commands: AgentSlashCommand[]): void {
+    if (areAgentSlashCommandsEqual(this.currentSlashCommands, commands)) {
+      return;
+    }
+    this.currentSlashCommands = commands;
+    this.listener?.onUpdate({
+      status: this.currentStatus,
+      attention: this.currentAttention,
+      slashCommands: commands,
+      ...(this.sessionId ? { sessionRef: createKnownSessionRef(this.sessionId) } : {}),
+    });
+  }
+
+  /**
+   * Re-maps the last raw SDK command list against the last-seen skill names.
+   * Commands and skill names arrive on independent paths (control response vs.
+   * the `system` init stream message), so either side re-applies on arrival and
+   * `updateSlashCommands` swallows the no-op.
+   */
+  private applySdkSlashCommands(commands?: readonly SlashCommand[]): void {
+    if (commands) this.lastSdkCommands = commands;
+    const raw = this.lastSdkCommands;
+    if (!raw || raw.length === 0) return;
+    this.updateSlashCommands(mapClaudeSlashCommands(raw, this.lastSkillNames));
+  }
+
+  /** Skill names from the CLI's `system` init message; ignored on older CLIs. */
+  private captureSkillNames(names: unknown): void {
+    if (!Array.isArray(names)) return;
+    const skillNames = new Set(names.filter((name): name is string => typeof name === "string"));
+    if (
+      this.lastSkillNames &&
+      this.lastSkillNames.size === skillNames.size &&
+      [...skillNames].every((name) => this.lastSkillNames?.has(name))
+    ) {
+      return;
+    }
+    this.lastSkillNames = skillNames;
+    this.applySdkSlashCommands();
+  }
+
+  private async refreshSlashCommands(runtime: Query): Promise<void> {
+    try {
+      const init = await runtime.initializationResult();
+      if (init.commands.length > 0) {
+        this.applySdkSlashCommands(init.commands);
+        return;
+      }
+    } catch {
+      // Fall back to the narrower command-list control request below.
+    }
+
+    try {
+      const supported = await runtime.supportedCommands();
+      if (supported.length > 0) {
+        // Reuses the last-seen skill set, so the fallback list is split the
+        // same way as the init list.
+        this.applySdkSlashCommands(supported);
+      }
+    } catch {
+      // Install-time/default capabilities still provide the static fallback.
+    }
+  }
+
+  async activate(): Promise<void> {
+    if (this.disposed) throw new Error("ClaudeSdkSession was disposed before activation.");
+  }
+
+  async openThread(config: ThreadConfig, sessionRef?: SessionRef): Promise<string> {
+    this.currentConfig = config;
+    this.sessionId = sessionRef?.providerSessionId ?? randomUUID();
+    this.openedResumeSessionId = sessionRef?.providerSessionId;
+    // Usage scope for per-call spend events: fresh only when the SDK session
+    // starts brand-new (a resumed session's history is not new spend).
+    this.mapperState.usageScope = new ClaudeUsageScopeTracker(
+      this.sessionId,
+      this.openedResumeSessionId === undefined,
+    );
+    this.startQuery(sessionRef?.providerSessionId);
+    await this.requireQuery();
+    return this.sessionId ?? "";
+  }
+
+  async startTurn(
+    prompt: string,
+    config: ThreadConfig,
+    segments?: PromptSegment[],
+    options?: StartTurnOptions,
+  ): Promise<void> {
+    if (this.disposed) return;
+    this.currentConfig = config;
+    const turnId = `turn-${randomUUID()}`;
+    this.currentTurnAssistantUuid = undefined;
+    this.currentTurnInFlight = true;
+    this.deferredCompletion.clear();
+    this.clearDeferredFlushTimer();
+    this.emitRuntimeEvents(
+      startClaudeTurn(this.mapperState, turnId, prompt, segments, options?.userMessageItemId),
+    );
+    this.emitUpdate({ status: "working", attention: "working" });
+    this.startGoalTracking();
+
+    const query = await this.requireQuery();
+    await this.syncModel(query, config);
+    const permissionMode = permissionModeForConfig(config);
+    if (permissionMode !== this.appliedPermissionMode || config.mode === "plan") {
+      try {
+        await query.setPermissionMode(permissionMode);
+        this.appliedPermissionMode = permissionMode;
+      } catch {
+        // Same best-effort rule as model updates.
+      }
+    }
+
+    await this.syncUltracodeFlag(query);
+    await this.syncFastMode(query);
+
+    const message = await buildSdkUserMessage(prompt, segments, options?.inlineInstructions);
+    this.promptQueue.push(message);
+  }
+
+  /**
+   * Preserve Claude's foreground Bash commands and subagents before the shared
+   * steer lifecycle interrupts the main turn. The SDK turns them into
+   * background tasks, while Poracode stages the replacement prompt and opens it
+   * as a fresh turn after the interrupted result settles.
+   */
+  async prepareSteerInterrupt(): Promise<void> {
+    await this.queryRuntime?.backgroundTasks();
+  }
+
+  /**
+   * Apply the configured model via a live control request when it differs from
+   * the last applied one. setModel takes effect at the next turn boundary; it
+   * never affects an in-flight turn.
+   */
+  private async syncModel(runtime: Query, config: ThreadConfig): Promise<void> {
+    const model = applyClaudeContextSuffix(config.model, config.contextSize);
+    if (model === this.appliedModel) return;
+    try {
+      await runtime.setModel(model);
+      this.appliedModel = model;
+    } catch {
+      // Older SDK transports can reject live model updates; the launch model still applies.
+    }
+  }
+
+  /**
+   * `ultracode` is not a model-level effort: it's a Claude Code session flag
+   * that sends `xhigh` to the model and enables dynamic-workflow orchestration.
+   * It lives in the flag-settings layer (CLI: `--settings '{"ultracode":true}'`;
+   * SDK: applyFlagSettings). Cast through `unknown` because the SDK type
+   * definitions for `Settings` (v0.3.142) don't yet declare `ultracode`, but
+   * the underlying CLI (2.1.154+) recognizes the key.
+   */
+  private async syncUltracodeFlag(runtime: Query): Promise<void> {
+    const wantUltracode = this.currentConfig.effort === "ultracode";
+    if (wantUltracode === this.appliedUltracode) return;
+    try {
+      await runtime.applyFlagSettings({
+        ultracode: wantUltracode ? true : null,
+      } as unknown as Parameters<Query["applyFlagSettings"]>[0]);
+      this.appliedUltracode = wantUltracode;
+    } catch {
+      // Older CLIs ignore the unknown flag; effort still degrades to xhigh.
+    }
+  }
+
+  /**
+   * Fast mode is a session flag (`fastMode`), not a model-level setting. Apply
+   * it through the flag-settings layer when the user enabled the Fast toggle.
+   * When the account can't use fast mode the toggle is gated off upstream, so
+   * `config.fast` is never true here in that case.
+   */
+  private async syncFastMode(runtime: Query): Promise<void> {
+    const wantFast = this.currentConfig.fast === true;
+    if (wantFast === this.appliedFast) return;
+    try {
+      await runtime.applyFlagSettings({ fastMode: wantFast ? true : null });
+      this.appliedFast = wantFast;
+    } catch {
+      // Older CLIs ignore the flag; fast mode simply stays off.
+    }
+  }
+
+  async rollbackThread(numTurns: number): Promise<ThreadHistory> {
+    if (!Number.isInteger(numTurns) || numTurns <= 0) {
+      throw new Error(`rollbackThread: numTurns must be a positive integer (got ${numTurns}).`);
+    }
+    if (this.currentStatus === "working" || this.currentAttention === "working") {
+      throw new Error("Claude SDK rollback is unavailable while a turn is running.");
+    }
+    if (this.pendingRequests.size > 0) {
+      throw new Error("Claude SDK rollback is unavailable while a request is pending.");
+    }
+    if (!this.sessionId) {
+      throw new Error("Claude SDK rollback requires an open session.");
+    }
+    if (numTurns > this.completedTurns.length) {
+      throw new Error("Claude SDK rollback only supports turns completed in this runtime.");
+    }
+
+    const nextTurns = this.completedTurns.slice(0, this.completedTurns.length - numTurns);
+    const resumeSessionAt = nextTurns.at(-1)?.resumeSessionAt;
+    if (!resumeSessionAt) {
+      throw new Error("Claude SDK rollback requires an assistant resume point.");
+    }
+
+    this.completedTurns = nextTurns;
+    this.currentTurnAssistantUuid = undefined;
+    this.currentTurnInFlight = false;
+    this.openedResumeSessionId = this.sessionId;
+    this.promptQueue.close();
+    this.queryRuntime?.close();
+    this.promptQueue = new AsyncPromptQueue();
+    this.queryRuntime = undefined;
+    this.queryReady = undefined;
+    this.streamStarted = false;
+    this.appliedModel = undefined;
+    this.appliedPermissionMode = undefined;
+    this.appliedUltracode = false;
+    this.appliedFast = false;
+    this.startQuery(this.sessionId, resumeSessionAt);
+    await this.requireQuery();
+
+    return { providerSessionId: this.sessionId, messages: [] };
+  }
+
+  async interruptTurn(): Promise<void> {
+    this.interruptInFlight = true;
+    try {
+      await this.queryRuntime?.interrupt();
+    } catch {
+      // Best-effort; stream/result handling will settle state if the SDK already stopped.
+    }
+  }
+
+  async resolveServerRequest(requestId: ThreadServerRequestId, response: unknown): Promise<void> {
+    const pending = this.pendingRequests.get(requestId);
+    if (!pending) return;
+    this.pendingRequests.delete(requestId);
+
+    if (pending.kind === "question") {
+      if (isQuestionCancelResponse(response)) {
+        pending.resolve({ behavior: "deny", message: "User cancelled tool execution." });
+        this.emitRuntimeEvents([
+          {
+            type: "request.resolved",
+            threadId: this.input.threadId,
+            requestId: String(requestId),
+            outcome: "cancelled",
+          },
+        ]);
+        this.emitUpdate({ status: "working", attention: "working" });
+        return;
+      }
+      const rawAnswers = rawQuestionAnswers(response, pending);
+      const answers = normalizeQuestionAnswersForSdk(rawAnswers, pending);
+      pending.resolve({
+        behavior: "allow",
+        updatedInput: {
+          questions: pending.originalQuestions,
+          answers,
+        },
+      });
+      this.emitRuntimeEvents([
+        {
+          type: "request.resolved",
+          threadId: this.input.threadId,
+          requestId: String(requestId),
+          outcome: "answered",
+        },
+        ...buildClaudeQuestionAnswerEvents({
+          threadId: this.input.threadId,
+          itemId: `question-answer-${randomUUID()}`,
+          questions: pending.questions,
+          answers: rawAnswers,
+        }),
+      ]);
+      this.emitUpdate({ status: "working", attention: "working" });
+      return;
+    }
+
+    const decision = permissionDecision(response);
+    if (decision.kind === "accept" || decision.kind === "acceptForSession") {
+      const pickedSuggestion =
+        decision.suggestionIndex !== undefined
+          ? pending.suggestions?.[decision.suggestionIndex]
+          : undefined;
+      const updatedPermissions: PermissionUpdate[] | undefined =
+        decision.kind === "acceptForSession" && pending.suggestions
+          ? pickedSuggestion
+            ? [pickedSuggestion]
+            : pending.suggestions
+          : undefined;
+      pending.resolve({
+        behavior: "allow",
+        updatedInput: pending.toolInput,
+        ...(updatedPermissions ? { updatedPermissions } : {}),
+      });
+      this.emitRuntimeEvents([
+        {
+          type: "request.resolved",
+          threadId: this.input.threadId,
+          requestId: String(requestId),
+          outcome: "accepted",
+        },
+      ]);
+      this.emitUpdate({ status: "working", attention: "working" });
+      return;
+    }
+
+    pending.resolve({
+      behavior: "deny",
+      message: buildDenyMessage(decision.kind, pending),
+    });
+    this.emitRuntimeEvents([
+      {
+        type: "request.resolved",
+        threadId: this.input.threadId,
+        requestId: String(requestId),
+        outcome: "declined",
+      },
+    ]);
+    this.emitUpdate({ status: "working", attention: "working" });
+  }
+
+  private startGoalTracking(): void {
+    this.stopGoalTracking();
+    if (!this.mapperState.activeGoalItemId) return;
+    this.goalTrackingTimer = setInterval(() => {
+      if (this.disposed || !this.mapperState.activeGoalItemId) {
+        this.stopGoalTracking();
+        return;
+      }
+      void this.refreshContextUsage();
+    }, 15_000);
+  }
+
+  private stopGoalTracking(): void {
+    if (this.goalTrackingTimer !== undefined) {
+      clearInterval(this.goalTrackingTimer);
+      this.goalTrackingTimer = undefined;
+    }
+  }
+
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stopGoalTracking();
+    this.flushDeferredCompletion();
+    for (const [requestId, pending] of this.pendingRequests) {
+      if (pending.kind === "permission") {
+        pending.resolve({ behavior: "deny", message: "Session closed." });
+      } else {
+        pending.resolve({ behavior: "deny", message: "Session closed." });
+      }
+      this.emitRuntimeEvents([
+        {
+          type: "request.resolved",
+          threadId: this.input.threadId,
+          requestId: String(requestId),
+          outcome: "cancelled",
+        },
+      ]);
+    }
+    this.pendingRequests.clear();
+    this.emitRuntimeEvents(closeClaudeOpenItems(this.mapperState, { closePlan: true }));
+    this.promptQueue.close();
+    try {
+      this.queryRuntime?.close();
+    } catch {
+      // ignore
+    }
+    // Query.close() only ends the immediate child — and only after a ~2s
+    // stdin-EOF grace — so on Windows it orphans claude's descendant tool
+    // processes, and for WSL it kills the host wsl.exe relay rather than the
+    // in-distro tree. Force-kill the captured process tree so a removed /
+    // archived / unloaded / app-closed GUI Claude thread can't keep running
+    // tools and modifying files. Mirrors the ACP and Codex structured sessions.
+    for (const child of [...this.spawnedProcesses]) {
+      this.killSpawnedProcess(child);
+    }
+    this.listener?.onClose();
+  }
+
+  /**
+   * Record an OS process spawned by the SDK through our custom spawn hook so
+   * {@link dispose} can force-kill its tree. The process drops out of the set on
+   * its own exit. If a spawn races in after disposal, kill it immediately so it
+   * can't outlive the session.
+   */
+  private trackSpawnedProcess(proc: SpawnedProcess): SpawnedProcess {
+    const child = proc as unknown as ChildProcess;
+    this.spawnedProcesses.add(child);
+    const forget = (): void => {
+      this.spawnedProcesses.delete(child);
+    };
+    child.once("exit", forget);
+    if (this.disposed) {
+      this.killSpawnedProcess(child);
+    }
+    return proc;
+  }
+
+  private killSpawnedProcess(child: ChildProcess): void {
+    this.spawnedProcesses.delete(child);
+    // Windows: taskkill /T /F reaps the whole tree. POSIX: best-effort kill of
+    // the captured process (the SDK's own teardown handles the rest).
+    // terminateChildProcessTree swallows its own errors, so no guard is needed.
+    terminateChildProcessTree(child);
+  }
+
+  private requireQuery(): Promise<Query> {
+    if (!this.queryReady) throw new Error("ClaudeSdkSession.openThread has not completed.");
+    return this.queryReady;
+  }
+
+  private startQuery(resumeSessionId: string | undefined, resumeSessionAt?: string): void {
+    if (this.streamStarted) return;
+    this.streamStarted = true;
+
+    this.queryReady = (async () => {
+      const wslPrime =
+        this.input.projectLocation.kind === "wsl"
+          ? primeWslProjectShellEnv(
+              this.input.projectLocation.distro,
+              this.input.projectLocation.linuxPath,
+            )
+          : undefined;
+      const { query } = await import("@anthropic-ai/claude-agent-sdk");
+      if (wslPrime) {
+        await wslPrime;
+      }
+      const permissionMode = basePermissionModeForConfig(this.currentConfig);
+      const model = applyClaudeContextSuffix(
+        this.currentConfig.model,
+        this.currentConfig.contextSize,
+      );
+      // POSIX: the SDK spawns the `claude` CLI internally, so its env is what
+      // determines PATH for the child. Prefer the project-scoped shell env
+      // captured by `primeProjectShellEnv` (fnm / asdf / mise / volta cd-hooks
+      // applied at the project root) over Electron's `process.env`, which on
+      // macOS-from-Finder is launchd's skeleton PATH and pins the CLI to
+      // homebrew node regardless of `.nvmrc`. Falls back to the homedir-scoped
+      // primed env, then to bare `process.env`.
+      const posixCwd = projectCwd(this.input.projectLocation);
+      const posixEnv =
+        this.input.projectLocation.kind === "posix"
+          ? (getProjectShellEnv(posixCwd) ??
+            getPrimedPosixEnv() ??
+            (process.env as Record<string, string>))
+          : undefined;
+      const env =
+        this.input.projectLocation.kind === "wsl"
+          ? {
+              CLAUDE_AGENT_SDK_CLIENT_APP: "poracode",
+              BROWSER: "/bin/true",
+              ...(this.input.env ?? {}),
+            }
+          : {
+              ...(posixEnv ?? process.env),
+              CLAUDE_AGENT_SDK_CLIENT_APP: "poracode",
+              ...(this.input.env ?? {}),
+            };
+      // Posix builds ship without the SDK's bundled `claude` SEA binary
+      // (electron-builder strips `@anthropic-ai/claude-agent-sdk-*` from the
+      // asar). The SDK falls back to that binary when `pathToClaudeCodeExecutable`
+      // is missing, so unresolved on posix is a hard error — surface it
+      // explicitly instead of letting the SDK throw its "Native CLI binary
+      // for darwin-arm64 not found" message.
+      let claudeExecutablePath: string | undefined;
+      switch (this.input.projectLocation.kind) {
+        case "posix": {
+          claudeExecutablePath =
+            resolveAgentBinaryPath(this.input.projectLocation, "claude") ??
+            (await resolveExecutablePathAsync("claude"));
+          if (!claudeExecutablePath) {
+            throw new Error(
+              "Claude Code CLI not found on PATH. Install Claude Code (`npm i -g @anthropic-ai/claude-code` or via Homebrew) and restart Poracode.",
+            );
+          }
+          break;
+        }
+        case "windows": {
+          claudeExecutablePath = resolveAgentBinaryPath(this.input.projectLocation, "claude");
+          break;
+        }
+        case "wsl":
+          // WSL spawns through wsl.exe (see spawnClaudeInWsl), but the SDK
+          // still resolves `pathToClaudeCodeExecutable` eagerly — if unset,
+          // it tries to load its bundled win32-x64 SEA binary and throws
+          // "Native CLI binary for win32-x64 not found" even though our
+          // custom `spawnClaudeCodeProcess` will override the actual spawn.
+          // Pass the in-distro path as a placeholder; fall back to `claude`
+          // so the SDK's truthy check passes when detection hasn't primed
+          // the binary cache yet.
+          claudeExecutablePath =
+            resolveAgentBinaryPath(this.input.projectLocation, "claude") ?? "claude";
+          break;
+        default: {
+          const _exhaustive: never = this.input.projectLocation;
+          void _exhaustive;
+        }
+      }
+      const mcpServers = buildClaudeMcpServers(this.input.mcpServers ?? []);
+      const hasMcpServers = Object.keys(mcpServers).length > 0;
+      let spawnClaudeCodeProcess: ((spawnOptions: SpawnOptions) => SpawnedProcess) | undefined;
+      switch (this.input.projectLocation.kind) {
+        case "wsl": {
+          const location = this.input.projectLocation;
+          spawnClaudeCodeProcess = (spawnOptions) =>
+            this.trackSpawnedProcess(spawnClaudeInWsl(location, spawnOptions));
+          break;
+        }
+        case "windows": {
+          const location = this.input.projectLocation;
+          spawnClaudeCodeProcess = (spawnOptions) =>
+            this.trackSpawnedProcess(spawnClaudeNative(location, spawnOptions));
+          break;
+        }
+      }
+      const options: ClaudeQueryOptions = {
+        cwd: projectCwd(this.input.projectLocation),
+        model,
+        systemPrompt: { type: "preset", preset: "claude_code" },
+        settingSources: ["user", "project", "local"],
+        permissionMode,
+        ...(permissionMode === "bypassPermissions"
+          ? { allowDangerouslySkipPermissions: true }
+          : {}),
+        ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+        ...(resumeSessionAt ? { resumeSessionAt } : {}),
+        ...(!resumeSessionId && this.sessionId ? { sessionId: this.sessionId } : {}),
+        includePartialMessages: true,
+        forwardSubagentText: true,
+        canUseTool: this.canUseTool,
+        env,
+        ...(this.currentConfig.effort
+          ? {
+              // `ultracode` is not a model-level effort value — the CLI rejects
+              // it on `--effort`. It maps to `xhigh` reasoning + dynamic
+              // workflows, where the workflows toggle is sent below via
+              // applyFlagSettings after the query starts.
+              effort: (this.currentConfig.effort === "ultracode"
+                ? "xhigh"
+                : this.currentConfig.effort) as NonNullable<ClaudeQueryOptions["effort"]>,
+            }
+          : {}),
+        ...(claudeExecutablePath ? { pathToClaudeCodeExecutable: claudeExecutablePath } : {}),
+        ...(hasMcpServers ? ({ mcpServers } as Partial<ClaudeQueryOptions>) : {}),
+        ...(spawnClaudeCodeProcess ? { spawnClaudeCodeProcess } : {}),
+      };
+
+      this.queryRuntime = query({ prompt: this.promptQueue, options });
+      this.appliedModel = model;
+      this.appliedPermissionMode = permissionMode;
+      void this.refreshSlashCommands(this.queryRuntime);
+      void this.syncUltracodeFlag(this.queryRuntime);
+      void this.syncFastMode(this.queryRuntime);
+      return this.queryRuntime;
+    })();
+
+    void this.queryReady
+      .then(async (runtime) => {
+        try {
+          for await (const message of runtime) {
+            if (this.disposed) break;
+            this.handleSdkMessage(message);
+          }
+          if (!this.disposed) this.flushDeferredCompletion();
+        } catch (error) {
+          if (!this.disposed) {
+            captureSupervisorException(error, {
+              "poracode.feature_area": "provider-sdk",
+              "poracode.provider": "claude",
+            });
+            const message = error instanceof Error ? error.message : String(error);
+            this.reportError(message);
+            this.emitRuntimeEvents([{ type: "error", threadId: this.input.threadId, message }]);
+            this.flushDeferredCompletion();
+          }
+        }
+      })
+      .catch((error) => {
+        if (this.disposed) return;
+        captureSupervisorException(error, {
+          "poracode.feature_area": "provider-sdk",
+          "poracode.provider": "claude",
+        });
+        const message = error instanceof Error ? error.message : String(error);
+        this.reportError(message);
+        this.emitRuntimeEvents([{ type: "error", threadId: this.input.threadId, message }]);
+      });
+  }
+
+  private readonly canUseTool: CanUseTool = async (toolName, toolInput, callbackOptions) => {
+    if (this.disposed) return { behavior: "deny", message: "Session closed." };
+    if (toolName === "AskUserQuestion") {
+      const requestId = `claude-question-${randomUUID()}` as ThreadServerRequestId;
+      const questions = parseClaudeQuestions(toolInput);
+      return await new Promise<PermissionResult>((resolve) => {
+        this.pendingRequests.set(requestId, {
+          kind: "question",
+          questions,
+          originalQuestions: toolInput.questions,
+          resolve,
+        });
+        callbackOptions.signal.addEventListener(
+          "abort",
+          () => {
+            if (!this.pendingRequests.delete(requestId)) return;
+            resolve({ behavior: "deny", message: "User cancelled tool execution." });
+          },
+          { once: true },
+        );
+        this.emitRuntimeEvents([
+          mapClaudeQuestionRequest({
+            threadId: this.input.threadId,
+            requestId: String(requestId),
+            questions,
+          }),
+        ]);
+        this.emitUpdate({ status: "needs_reply", attention: "needs_reply" });
+      });
+    }
+
+    const requestId = `claude-perm-${randomUUID()}` as ThreadServerRequestId;
+    return await new Promise<PermissionResult>((resolve) => {
+      this.pendingRequests.set(requestId, {
+        kind: "permission",
+        toolName,
+        toolInput,
+        ...(callbackOptions.suggestions ? { suggestions: [...callbackOptions.suggestions] } : {}),
+        resolve,
+      });
+      callbackOptions.signal.addEventListener(
+        "abort",
+        () => {
+          if (!this.pendingRequests.delete(requestId)) return;
+          resolve({ behavior: "deny", message: "User cancelled tool execution." });
+        },
+        { once: true },
+      );
+      this.emitRuntimeEvents([
+        mapClaudePermissionRequest({
+          threadId: this.input.threadId,
+          requestId: String(requestId),
+          toolName,
+          toolInput,
+          ...(callbackOptions.title ? { title: callbackOptions.title } : {}),
+          ...(callbackOptions.description ? { description: callbackOptions.description } : {}),
+          ...(callbackOptions.displayName ? { displayName: callbackOptions.displayName } : {}),
+          ...(callbackOptions.blockedPath ? { blockedPath: callbackOptions.blockedPath } : {}),
+          ...(callbackOptions.decisionReason
+            ? { decisionReason: callbackOptions.decisionReason }
+            : {}),
+          ...(callbackOptions.toolUseID ? { toolUseID: callbackOptions.toolUseID } : {}),
+          ...(callbackOptions.suggestions ? { suggestions: callbackOptions.suggestions } : {}),
+        }),
+      ]);
+      this.emitUpdate({ status: "needs_approval", attention: "needs_approval" });
+    });
+  };
+
+  /**
+   * The SDK can resume the model after a turn has already settled to `idle` —
+   * a `ScheduleWakeup`, a `/loop` tick, or a backgrounded Bash task finishing
+   * all re-invoke it WITHOUT a user prompt, so none of them flow through
+   * `startTurn`. Such a resume streams assistant content (`item.started` /
+   * `content.delta`) with neither a fresh `turn.started` nor a `working`
+   * status, which leaves the GUI thread stuck on `idle` while answers stream
+   * in: the renderer's reopen safety-net is gated off by the prior
+   * `turn.completed`, and the SDK does not reliably emit
+   * `session_state_changed: "running"` on these resumes. Detect the first
+   * assistant activity after a settled turn and open a new runtime turn so both
+   * the status channel and the renderer's turn-open gate reflect that the model
+   * is working again. The eventual `result` then closes this turn normally.
+   */
+  private beginResumedTurnIfNeeded(message: SDKMessage): void {
+    if (this.disposed || this.currentTurnInFlight) return;
+    if (!isResumedAssistantActivity(message)) return;
+    const turnId = `turn-${randomUUID()}`;
+    this.currentTurnInFlight = true;
+    this.currentTurnAssistantUuid = undefined;
+    this.deferredCompletion.clear();
+    this.clearDeferredFlushTimer();
+    delete this.mapperState.pendingGoalCompletionOnTaskDrain;
+    // Seed the mapper's turn id so the eventual `result` emits the matching
+    // `turn.completed`, re-closing the renderer's turn-open gate.
+    this.mapperState.currentTurnId = turnId;
+    this.emitRuntimeEvents([{ type: "turn.started", threadId: this.input.threadId, turnId }]);
+    this.emitUpdate({ status: "working", attention: "working" });
+    this.startGoalTracking();
+  }
+
+  private handleSdkMessage(message: SDKMessage): void {
+    const sessionId =
+      "session_id" in message && typeof message.session_id === "string"
+        ? message.session_id
+        : undefined;
+    if (sessionId && sessionId !== this.sessionId && this.shouldAdoptSessionId(message)) {
+      this.sessionId = sessionId;
+      // Same conversation under a new provider session id: new usage scope epoch.
+      this.mapperState.usageScope?.adoptScope(sessionId);
+      this.emitUpdate({
+        status: this.currentStatus,
+        attention: this.currentAttention,
+        sessionRef: createKnownSessionRef(sessionId),
+      });
+    }
+
+    this.beginResumedTurnIfNeeded(message);
+
+    if (message.type === "system" && message.subtype === "init") {
+      // Bundled skills are reported both here and in the slash-command list;
+      // this set is what splits them out as model-invoked (streaming) skills.
+      this.captureSkillNames(message.skills);
+    }
+
+    if (message.type === "system" && message.subtype === "session_state_changed") {
+      const mapped = mapSessionState(message.state);
+      // While a turn completion is deferred behind live background tasks, a
+      // session-state idle must not settle the thread — the deferred update
+      // owns the settling status (and preserves an error outcome). Non-settling
+      // states (working, needs_approval) still pass through.
+      if (mapped.status !== "idle" || !this.deferredCompletion.hasPending) {
+        this.emitUpdate(mapped);
+      }
+      // A running state while a drained completion sits in its grace window
+      // means the model is waking to consume the task results — restart the
+      // grace so the first assistant activity (beginResumedTurnIfNeeded) can
+      // clear the stale completion instead of it flushing mid-resume.
+      if (
+        mapped.status === "working" &&
+        this.deferredCompletion.hasPending &&
+        this.deferredFlushTimer !== undefined
+      ) {
+        this.clearDeferredFlushTimer();
+        this.scheduleDeferredFlush();
+      }
+    }
+
+    if (message.type === "assistant" && !readParentToolUseId(message)) {
+      // Only main-thread assistant uuids are valid resume anchors; a sub-agent
+      // uuid (parent_tool_use_id set) must never become a rollback resume point.
+      this.currentTurnAssistantUuid = message.uuid;
+    }
+
+    let wasInterrupted = false;
+    let resultState: TurnState | undefined;
+    if (message.type === "result") {
+      wasInterrupted =
+        this.interruptInFlight || (message.subtype !== "success" && isInterruptedResult(message));
+      if (wasInterrupted) resultState = "interrupted";
+    }
+    const events = mapClaudeSdkMessage(
+      message,
+      this.mapperState,
+      resultState ? { resultState } : undefined,
+    );
+    this.emitRuntimeEvents(events);
+    if (message.type === "result") {
+      void this.refreshContextUsage();
+      this.interruptInFlight = false;
+      const remaining = nonDiagnosticErrors(message);
+      // claude.exe surfaces upstream API failures (e.g. 401 auth, 429 rate
+      // limit) as subtype "success" with `is_error: true` / `api_error_status`
+      // set — the failure text lives in `result`, not `errors[]`.
+      const apiErrored = isApiErrorResult(message);
+      // An interrupt always wins. A steered/aborted turn comes back as
+      // `error_during_execution` with `is_error: true` and only
+      // `[ede_diagnostic]` lines — that would otherwise trip both the API-error
+      // and non-success checks below and surface a spurious "Claude turn
+      // failed." every time the user steers. Genuine API failures (401/429)
+      // arrive with `wasInterrupted` false, so they still surface. The
+      // diagnostic-only case is itself treated as an interrupt via
+      // `isInterruptedResult`, covering external (in-CLI) Esc interrupts where
+      // `interruptInFlight` is false.
+      const failed =
+        !wasInterrupted && (apiErrored || (message.subtype !== "success" && remaining.length > 0));
+      const errorMessage = failed
+        ? (extractResultErrorMessage(message) ?? "Claude turn failed.")
+        : undefined;
+      if (this.currentTurnInFlight && !failed && !wasInterrupted) {
+        this.completedTurns.push({ resumeSessionAt: this.currentTurnAssistantUuid });
+      }
+      this.currentTurnAssistantUuid = undefined;
+      this.currentTurnInFlight = false;
+      // Stop the 15s goal-tracking poller on every turn end — including
+      // interrupts and steers — so it does not keep firing context-usage
+      // round-trips while the thread sits idle. The goal itself is NOT cleared
+      // here: completion is driven by the SDK's `active_goal` Stop-hook
+      // verdict (see applyActiveGoalMessage; clean turn end is only a
+      // fallback for CLIs that never emit it), and the next turn restarts
+      // tracking via startGoalTracking().
+      this.stopGoalTracking();
+      const completion: StructuredSessionUpdate = {
+        status: failed ? "error" : "idle",
+        attention: failed ? "error" : "none",
+        ...(errorMessage ? { errorMessage } : {}),
+        ...(this.sessionId ? { sessionRef: createKnownSessionRef(this.sessionId) } : {}),
+      };
+      if (this.hasLiveSubAgentTasks()) {
+        this.deferredCompletion.defer(completion);
+      } else {
+        this.emitUpdate(completion);
+      }
+    }
+    this.flushDeferredCompletionIfDrained();
+  }
+
+  private hasLiveSubAgentTasks(): boolean {
+    return (this.mapperState.activeSubAgentTaskToTool?.size ?? 0) > 0;
+  }
+
+  /**
+   * Release a deferred turn-completion status once the live background-task
+   * registry has drained. Called after every SDK message so the authoritative
+   * `task_notification` that closes the last subagent task flips the thread to
+   * its held idle/error state.
+   *
+   * The release is not immediate: the SDK typically wakes the model right
+   * after that notification to consume the task's results. Settling idle in
+   * that gap resets the renderer's "Working for" timer to zero and fires a
+   * premature done-notification, only for the thread to flip back to working
+   * a moment later. A short grace window lets the resume win: assistant
+   * activity clears the held completion (beginResumedTurnIfNeeded) and the
+   * thread stays continuously live. If nothing resumes, the held status
+   * flushes when the grace expires.
+   */
+  private flushDeferredCompletionIfDrained(): void {
+    if (!this.deferredCompletion.hasPending || this.hasLiveSubAgentTasks()) return;
+    this.scheduleDeferredFlush();
+  }
+
+  private scheduleDeferredFlush(): void {
+    if (this.deferredFlushTimer !== undefined) return;
+    this.deferredFlushTimer = setTimeout(() => {
+      this.deferredFlushTimer = undefined;
+      if (this.disposed || this.hasLiveSubAgentTasks()) return;
+      this.emitRuntimeEvents(completeActiveGoalOnTaskDrainEvents(this.mapperState));
+      const update = this.deferredCompletion.take();
+      if (update) this.emitUpdate(update);
+    }, DEFERRED_FLUSH_RESUME_GRACE_MS);
+  }
+
+  private clearDeferredFlushTimer(): void {
+    if (this.deferredFlushTimer !== undefined) {
+      clearTimeout(this.deferredFlushTimer);
+      this.deferredFlushTimer = undefined;
+    }
+  }
+
+  /**
+   * Emit any held turn-completion status unconditionally — used when the stream
+   * ends, errors, or the session is disposed while background tasks were still
+   * live, so the thread never stays stuck `working`.
+   */
+  private flushDeferredCompletion(): void {
+    this.clearDeferredFlushTimer();
+    this.emitRuntimeEvents(completeActiveGoalOnTaskDrainEvents(this.mapperState));
+    const update = this.deferredCompletion.take();
+    if (update) this.emitUpdate(update);
+  }
+
+  private shouldAdoptSessionId(message: SDKMessage): boolean {
+    if (this.openedResumeSessionId) {
+      return false;
+    }
+    if (message.type !== "system") {
+      return true;
+    }
+    return (
+      message.subtype !== "hook_started" &&
+      message.subtype !== "hook_progress" &&
+      message.subtype !== "hook_response"
+    );
+  }
+
+  private async refreshContextUsage(): Promise<void> {
+    try {
+      const runtime = this.queryRuntime;
+      if (!runtime) return;
+      const usage = await runtime.getContextUsage();
+      if (this.disposed) return;
+      const event = mapClaudeContextUsageResponse(this.input.threadId, usage);
+      if (event) this.emitRuntimeEvents([event]);
+      // Goal token spend accumulates from per-call assistant-message usage
+      // (see accumulateActiveGoalAssistantSpend); the `apiUsage` snapshot on
+      // this response is the LAST call's usage, not spend, so it must not feed
+      // the goal total. The tick just rolls the dock's elapsed time forward.
+      if (this.mapperState.activeGoalItemId) {
+        const tick = emitActiveGoalTick(this.mapperState);
+        if (tick) this.emitRuntimeEvents([tick]);
+      }
+    } catch {
+      // Older transports can reject this control call. In that case, keep the
+      // existing context snapshot; assistant messages still update goal spend.
+    }
+  }
+
+  private emitRuntimeEvents(events: RuntimeEvent[]): void {
+    if (events.length === 0) return;
+    if (!this.listener?.onRuntimeEvent) {
+      this.bufferedRuntimeEvents.push(...events);
+      return;
+    }
+    for (const event of events) this.listener.onRuntimeEvent(event);
+  }
+
+  private reportError(message: string): void {
+    if (this.listener) {
+      this.listener.onError(message);
+      return;
+    }
+    // Surface in supervisor stderr so silent listener-not-yet-attached
+    // failures still leave a trail; the message is also queued for replay
+    // when `setListener` runs.
+    console.error(`[claude-sdk-session] ${this.input.threadId} pre-listener error: ${message}`);
+    this.pendingError = message;
+  }
+}
+
+/**
+ * Whether an SDK message represents the model starting to produce fresh
+ * assistant output. A streamed message opens with a `message_start` stream
+ * event; non-streaming transports deliver a whole `assistant` message instead.
+ * Sub-agent output also arrives as assistant messages / stream events, but it
+ * carries a `parent_tool_use_id` and keeps arriving AFTER the main turn's
+ * `result` — it must never open a resumed turn (that would flip the thread back
+ * to working on background subagent chatter). Exclude anything parent-attributed
+ * here. Used to detect a wakeup/background resume that bypassed `startTurn`.
+ */
+function isResumedAssistantActivity(message: SDKMessage): boolean {
+  if (readParentToolUseId(message)) return false;
+  if (message.type === "assistant") return true;
+  if (message.type === "stream_event") {
+    return message.event.type === "message_start";
+  }
+  return false;
+}
+
+function isInterruptedResult(message: Extract<SDKMessage, { type: "result" }>): boolean {
+  const filtered = nonDiagnosticErrors(message);
+  // claude.exe emits an `error_during_execution` result whose only error is
+  // an `[ede_diagnostic]` line when a turn was interrupted before producing
+  // assistant content. Treat that as an interrupt — the SDK itself filters
+  // those lines out as informational.
+  if (filtered.length === 0) return true;
+  const joined = filtered.join(" ").toLowerCase();
+  return joined.includes("abort") || joined.includes("interrupt");
+}
+
+function mapSessionState(messageState: string): {
+  status: ThreadStatus;
+  attention: ThreadAttention;
+} {
+  switch (messageState) {
+    case "running":
+      return { status: "working", attention: "working" };
+    case "requires_action":
+      return { status: "needs_approval", attention: "needs_approval" };
+    case "idle":
+    default:
+      return { status: "idle", attention: "none" };
+  }
+}

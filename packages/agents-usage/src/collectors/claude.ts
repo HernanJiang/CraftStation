@@ -1,0 +1,405 @@
+import { DEFAULT_CLIENT_VERSIONS } from "../clientVersions";
+import { parseRetryAfter, toEpochMs } from "../formatters";
+import type { CollectOptions, HostPort, HttpClient, HttpResponse, OAuthToken } from "../host";
+import type { UsageSnapshot, UsageWindow, UsageWindowId } from "../types";
+
+/**
+ * Claude (Anthropic / Claude Code). Reuses the Claude Code OAuth access token
+ * the host resolves from ~/.claude/.credentials.json (or, on native Windows,
+ * the Windows Credential Manager) and reads the same usage endpoint the CLI
+ * uses. Utilization windows are reported directly by the API — never estimated.
+ */
+
+export const CLAUDE_USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage";
+export const CLAUDE_OAUTH_BETA = "oauth-2025-04-20";
+/**
+ * Fallback backoff when a 429 carries no (parseable) `Retry-After` header. The
+ * endpoint typically does send one (~30 min observed), but when it doesn't we
+ * still gate re-polling for a while rather than hammering every cycle.
+ */
+export const CLAUDE_RATE_LIMIT_COOLDOWN_MS = 5 * 60_000;
+
+interface ClaudeWindowRaw {
+  utilization?: number;
+  resets_at?: string | null;
+}
+
+interface ClaudeLimitRaw {
+  kind?: string;
+  group?: string;
+  percent?: number;
+  resets_at?: string | null;
+  scope?: {
+    model?: { id?: string | null; display_name?: string | null } | null;
+  } | null;
+}
+
+interface ClaudeUsageResponse {
+  five_hour?: ClaudeWindowRaw;
+  seven_day?: ClaudeWindowRaw;
+  seven_day_opus?: ClaudeWindowRaw;
+  seven_day_sonnet?: ClaudeWindowRaw;
+  seven_day_fable?: ClaudeWindowRaw;
+  seven_day_fable_5?: ClaudeWindowRaw;
+  limits?: ClaudeLimitRaw[] | null;
+  /** Pay-as-you-go overage, billed in `currency` (USD) — not a rate window. */
+  extra_usage?: {
+    is_enabled?: boolean;
+    monthly_limit?: number;
+    used_credits?: number;
+    utilization?: number;
+    currency?: string;
+  };
+}
+
+function titleCase(value: string): string {
+  return value
+    .split(/[\s_-]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/** Render a subscription type like "claude_pro" as "Claude Pro Subscription". */
+export function formatClaudePlan(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  return /subscription$/i.test(trimmed) ? titleCase(trimmed) : `${titleCase(trimmed)} Subscription`;
+}
+
+function windowFrom(
+  id: UsageWindowId,
+  label: string,
+  raw: ClaudeWindowRaw | undefined,
+): UsageWindow | undefined {
+  const usedPercent = normalizeClaudePercent(raw?.utilization);
+  if (usedPercent === undefined) return undefined;
+  const resetsAt = toEpochMs(raw?.resets_at);
+  return {
+    id,
+    label,
+    usedPercent,
+    unit: "percent",
+    ...(resetsAt !== undefined ? { resetsAt } : {}),
+  };
+}
+
+/**
+ * The Claude `/api/oauth/usage` endpoint reports `utilization` already in
+ * percent (0-100) for every window — session, weekly, and overage alike. Clamp
+ * to 0-100 and round to one decimal; never rescale (a value of 1 means 1%, not
+ * the fraction 1.0 → 100%).
+ */
+function normalizeClaudePercent(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value) || value < 0) return undefined;
+  return Math.min(100, Math.max(0, Math.round(value * 10) / 10));
+}
+
+/**
+ * Newer `/api/oauth/usage` responses stopped reporting per-model weekly
+ * windows as top-level `seven_day_<model>` fields (those come back null) and
+ * instead carry them in a generic `limits` array — `weekly_scoped` entries
+ * whose scope names the model ("Fable", "Opus", ...). Map those onto the same
+ * canonical window ids. The window-id vocabulary is closed, so only known
+ * model names map; unknown scopes are skipped rather than inventing ids.
+ */
+const SCOPED_WEEKLY_WINDOWS: Record<string, { id: UsageWindowId; label: string }> = {
+  opus: { id: "weekly-opus", label: "Weekly (Opus)" },
+  sonnet: { id: "weekly-sonnet", label: "Weekly (Sonnet)" },
+  fable: { id: "weekly-fable", label: "Weekly (Fable)" },
+};
+
+function windowFromLimit(limit: ClaudeLimitRaw): UsageWindow | undefined {
+  const usedPercent = normalizeClaudePercent(limit.percent);
+  if (usedPercent === undefined) return undefined;
+  let target: { id: UsageWindowId; label: string } | undefined;
+  if (limit.kind === "session") {
+    target = { id: "session-5h", label: "Session (5h)" };
+  } else if (limit.kind === "weekly_all") {
+    target = { id: "weekly", label: "Weekly" };
+  } else if (limit.kind === "weekly_scoped") {
+    const model = limit.scope?.model?.display_name?.trim().toLowerCase();
+    target = model ? SCOPED_WEEKLY_WINDOWS[model] : undefined;
+  }
+  if (!target) return undefined;
+  const resetsAt = toEpochMs(limit.resets_at);
+  return {
+    id: target.id,
+    label: target.label,
+    usedPercent,
+    unit: "percent",
+    ...(resetsAt !== undefined ? { resetsAt } : {}),
+  };
+}
+
+/** Pure: map a parsed `/api/oauth/usage` body to a snapshot. */
+export function parseClaudeUsage(
+  body: unknown,
+  nowMs: number,
+  meta: { plan?: string; authenticatedAs?: string } = {},
+): UsageSnapshot {
+  const data = (body ?? {}) as ClaudeUsageResponse;
+  const windows: UsageWindow[] = [];
+  for (const w of [
+    windowFrom("session-5h", "Session (5h)", data.five_hour),
+    windowFrom("weekly", "Weekly", data.seven_day),
+    windowFrom("weekly-opus", "Weekly (Opus)", data.seven_day_opus),
+    windowFrom("weekly-sonnet", "Weekly (Sonnet)", data.seven_day_sonnet),
+    windowFrom("weekly-fable", "Weekly (Fable)", data.seven_day_fable ?? data.seven_day_fable_5),
+  ]) {
+    if (w) windows.push(w);
+  }
+
+  // Supplement from `limits[]` — the top-level fields stay authoritative when
+  // both report the same window.
+  if (Array.isArray(data.limits)) {
+    for (const limit of data.limits) {
+      if (!limit || typeof limit !== "object") continue;
+      const w = windowFromLimit(limit);
+      if (w && !windows.some((existing) => existing.id === w.id)) windows.push(w);
+    }
+  }
+
+  // Pay-as-you-go overage: surfaced as its own dollar-denominated "Extra usage"
+  // line, NOT as a rate-limit window.
+  if (data.extra_usage?.is_enabled) {
+    // Anthropic reports these amounts in cents — store dollars for display.
+    const usedCents = data.extra_usage.used_credits;
+    const limitCents = data.extra_usage.monthly_limit;
+    const pct =
+      normalizeClaudePercent(data.extra_usage.utilization) ??
+      (usedCents !== undefined && limitCents ? Math.min(100, (usedCents / limitCents) * 100) : 0);
+    windows.push({
+      id: "extra-usage",
+      label: "Extra usage",
+      usedPercent: pct,
+      unit: "usd",
+      ...(usedCents !== undefined ? { used: usedCents / 100 } : {}),
+      ...(limitCents !== undefined ? { limit: limitCents / 100 } : {}),
+      currency: data.extra_usage.currency ?? "USD",
+    });
+  }
+
+  return {
+    providerId: "claude",
+    status: "ok",
+    windows,
+    fetchedAt: nowMs,
+    ...(meta.plan ? { plan: meta.plan } : {}),
+    ...(meta.authenticatedAs ? { authenticatedAs: meta.authenticatedAs } : {}),
+  };
+}
+
+function isClaudeAuthRejected(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+function claudeAuthMissingSnapshot(now: number, status?: number): UsageSnapshot {
+  return {
+    providerId: "claude",
+    status: "auth-missing",
+    windows: [],
+    fetchedAt: now,
+    ...(status !== undefined ? { error: `access token rejected (${status})` } : {}),
+  };
+}
+
+function claudeRateLimitedSnapshot(res: HttpResponse, now: number): UsageSnapshot {
+  // Honor the server's backoff: capture Retry-After (delta-seconds or
+  // HTTP-date) so the poller stops re-hitting the throttled endpoint until it
+  // clears. Read the header case-insensitively (hosts may not lower-case it).
+  const retryAfter = res.headers["retry-after"] ?? res.headers["Retry-After"];
+  const rateLimitedUntil = parseRetryAfter(retryAfter, now) ?? now + CLAUDE_RATE_LIMIT_COOLDOWN_MS;
+  return {
+    providerId: "claude",
+    status: "rate-limited",
+    windows: [],
+    fetchedAt: now,
+    rateLimitedUntil,
+  };
+}
+
+function claudeErrorSnapshot(res: HttpResponse, now: number): UsageSnapshot {
+  return {
+    providerId: "claude",
+    status: "error",
+    windows: [],
+    fetchedAt: now,
+    error: `HTTP ${res.status}`,
+  };
+}
+
+function claudeInvalidJsonSnapshot(now: number): UsageSnapshot {
+  return {
+    providerId: "claude",
+    status: "error",
+    windows: [],
+    fetchedAt: now,
+    error: "invalid JSON response",
+  };
+}
+
+async function requestClaudeUsage(
+  host: HostPort,
+  token: OAuthToken,
+  version: string,
+): Promise<HttpResponse> {
+  return host.http.request({
+    method: "GET",
+    url: CLAUDE_USAGE_ENDPOINT,
+    headers: {
+      Authorization: `Bearer ${token.accessToken}`,
+      "anthropic-beta": CLAUDE_OAUTH_BETA,
+      "User-Agent": `claude-code/${version}`,
+      Accept: "application/json",
+    },
+    timeoutMs: 15_000,
+  });
+}
+
+function parseClaudeUsageResponse(
+  res: HttpResponse,
+  token: OAuthToken,
+  now: number,
+): UsageSnapshot {
+  if (res.status === 429) return claudeRateLimitedSnapshot(res, now);
+  if (res.status < 200 || res.status >= 300) return claudeErrorSnapshot(res, now);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(res.body);
+  } catch {
+    return claudeInvalidJsonSnapshot(now);
+  }
+
+  const plan = formatClaudePlan(token.subscriptionType);
+  return parseClaudeUsage(parsed, now, plan ? { plan } : {});
+}
+
+export async function collectClaude(
+  host: HostPort,
+  _opts?: CollectOptions,
+): Promise<UsageSnapshot> {
+  const now = host.now();
+  const initialToken = await host.credentials.getOAuthToken("claude");
+  if (!initialToken?.accessToken) {
+    return claudeAuthMissingSnapshot(now);
+  }
+
+  let token: OAuthToken = initialToken;
+  const version = host.clientVersions?.claudeCode ?? DEFAULT_CLIENT_VERSIONS.claudeCode;
+  const triedAccessTokens = new Set<string>();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    triedAccessTokens.add(token.accessToken);
+    const res = await requestClaudeUsage(host, token, version);
+    if (!isClaudeAuthRejected(res.status)) {
+      return parseClaudeUsageResponse(res, token, now);
+    }
+    const next = await host.credentials.refreshOAuthToken?.("claude", token);
+    if (!next?.accessToken || triedAccessTokens.has(next.accessToken)) {
+      return claudeAuthMissingSnapshot(now, res.status);
+    }
+    token = next;
+  }
+  return claudeAuthMissingSnapshot(now);
+}
+
+/**
+ * Claude Code OAuth token endpoint and public client id, used to exchange a
+ * stored refresh token for a fresh access token — the same grant the CLI runs.
+ * The access token is short-lived (~8h); when no running CLI keeps it fresh it
+ * expires and the usage endpoint 401s, so a caller that can persist the rotated
+ * token uses {@link refreshClaudeOAuthToken} to renew it before collecting.
+ */
+export const CLAUDE_OAUTH_TOKEN_ENDPOINT = "https://console.anthropic.com/v1/oauth/token";
+export const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+
+export interface ClaudeRefreshedToken {
+  accessToken: string;
+  refreshToken: string;
+  /** Epoch milliseconds. */
+  expiresAt: number;
+}
+
+interface ClaudeRefreshResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
+/**
+ * Pure: map a parsed `/v1/oauth/token` refresh response to a token bundle.
+ * Anthropic rotates the refresh token but may omit it from the body, in which
+ * case the current one is retained. Every field is type-checked at runtime (the
+ * body is untrusted network JSON, not the `as`-cast shape) so a malformed 200 —
+ * e.g. from a proxy or captive portal — yields undefined (a failed refresh that
+ * keeps the stale token) instead of writing garbage into the credentials file.
+ * Requires a finite, positive `expires_in`; otherwise the derived expiry would
+ * be "now", marking the token instantly stale and re-refreshing every cycle.
+ */
+export function parseClaudeRefreshResponse(
+  body: unknown,
+  nowMs: number,
+  currentRefreshToken: string,
+): ClaudeRefreshedToken | undefined {
+  const data = (body ?? {}) as ClaudeRefreshResponse;
+  if (typeof data.access_token !== "string" || !data.access_token) return undefined;
+  if (
+    typeof data.expires_in !== "number" ||
+    !Number.isFinite(data.expires_in) ||
+    data.expires_in <= 0
+  ) {
+    return undefined;
+  }
+  const refreshToken =
+    typeof data.refresh_token === "string" && data.refresh_token
+      ? data.refresh_token
+      : currentRefreshToken;
+  return {
+    accessToken: data.access_token,
+    refreshToken,
+    expiresAt: nowMs + data.expires_in * 1000,
+  };
+}
+
+/**
+ * Exchange a Claude Code refresh token for a fresh access token via the same
+ * OAuth endpoint + public client id the CLI uses. Returns undefined on any
+ * network error, non-2xx, or unparseable body — the caller then keeps the
+ * existing (stale) token, which degrades to "not signed in" exactly as before.
+ * Secrets are never logged.
+ */
+export async function refreshClaudeOAuthToken(
+  http: HttpClient,
+  refreshToken: string,
+  nowMs: number,
+  clientVersion?: string,
+): Promise<ClaudeRefreshedToken | undefined> {
+  const version = clientVersion ?? DEFAULT_CLIENT_VERSIONS.claudeCode;
+  let res: HttpResponse;
+  try {
+    res = await http.request({
+      method: "POST",
+      url: CLAUDE_OAUTH_TOKEN_ENDPOINT,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": `claude-code/${version}`,
+      },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: CLAUDE_OAUTH_CLIENT_ID,
+      }),
+      timeoutMs: 15_000,
+    });
+  } catch {
+    return undefined;
+  }
+  if (res.status < 200 || res.status >= 300) return undefined;
+  try {
+    return parseClaudeRefreshResponse(JSON.parse(res.body), nowMs, refreshToken);
+  } catch {
+    return undefined;
+  }
+}

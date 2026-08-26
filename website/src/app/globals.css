@@ -1,0 +1,321 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans), "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Poracode brand palette — moonlight + ink + one cool accent.
+     See branding/BRAND.md §6. No orange, ever. */
+  --color-night: #070709; /* page / canvas */
+  --color-tile: #0e0e14; /* panels, raised surfaces */
+  --color-tile-2: #14141c; /* slightly lifted panel */
+  --color-moon: #eaf0fb; /* primary text / the P on dark */
+  --color-dim: #9ba6be; /* secondary text */
+  --color-accent: #8b7bff; /* indigo — the Pora dot, links, active states */
+  --color-accent-soft: #b6acff;
+  --color-ice: #5ee6e0; /* secondary accent */
+}
+
+:root {
+  --background: #070709;
+  --foreground: #eaf0fb;
+  --hairline: rgba(234, 240, 251, 0.08);
+  --hairline-strong: rgba(234, 240, 251, 0.14);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Minimal scrollbars: thin rounded moon-white thumb, no track ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(234, 240, 251, 0.16) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* 10px lane with a 3px transparent inset → visually ~4px floating thumb */
+::-webkit-scrollbar-thumb {
+  background: rgba(234, 240, 251, 0.14);
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(234, 240, 251, 0.3);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+  background: rgba(139, 123, 255, 0.45);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ---- The Pora dot (motif): one round indigo dot, baseline-aligned ---- */
+.pora-dot {
+  display: inline-block;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  box-shadow:
+    0 0 0.6em rgba(139, 123, 255, 0.55),
+    0 0 1.4em rgba(139, 123, 255, 0.35);
+}
+.pora-pulse {
+  animation: pora-pulse 2.8s ease-in-out infinite;
+}
+@keyframes pora-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(0.86);
+  }
+}
+
+/* Traveling dot on the pairing link inside the hero web-app browser card.
+   Base `left` is the reduced-motion resting spot (mid-line); the animation
+   overrides it while running. */
+.pora-pair-dot {
+  left: calc(50% - 3.5px);
+  animation: pora-pair 2.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+@keyframes pora-pair {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% - 7px);
+    opacity: 0;
+  }
+}
+
+/* Hero entrance stays in CSS so the primary heading and CTA are visible in
+   server HTML and do not depend on hydration to appear. */
+.hero-fade-up {
+  animation: hero-fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hero-fade-up-delay-1 {
+  animation-delay: 0.12s;
+}
+.hero-fade-up-delay-2 {
+  animation-delay: 0.2s;
+}
+.hero-fade-up-delay-3 {
+  animation-delay: 0.28s;
+}
+@keyframes hero-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Uniform-cell grids: stretch the final item across the remainder so a partial
+   last row never leaves an empty cell showing the container background. Done in
+   CSS because it has to be right at every breakpoint the grid declares — a
+   span computed in JS only knows about one of them. Cells must be equal-width
+   (no per-item spans) for the nth-child arithmetic to hold. */
+@media (min-width: 640px) {
+  .grid-fill-last > :last-child:nth-child(2n + 1) {
+    grid-column: span 2;
+  }
+}
+@media (min-width: 1024px) {
+  .grid-fill-last > :last-child {
+    grid-column: auto;
+  }
+  .grid-fill-last > :last-child:nth-child(3n + 1) {
+    grid-column: span 3;
+  }
+  .grid-fill-last > :last-child:nth-child(3n + 2) {
+    grid-column: span 2;
+  }
+}
+
+/* Lightbox entrance. The reduced-motion block below collapses every animation
+   duration globally, so this needs no separate opt-out. */
+.lightbox-in {
+  animation: lightbox-in 0.18s ease-out both;
+}
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The brand forbids text gradients — the headline accent is the SVG Pora dot
+   (DotPeriod), never a clipped gradient. No `.brand-gradient-text` /
+   `.brand-shimmer` helpers exist by design. */
+
+/* ---- Keyboard focus: a clear indigo ring on near-black surfaces ---- */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* ---- Subtle blueprint grid, faded toward the edges ---- */
+.brand-grid {
+  background-image:
+    linear-gradient(to right, rgba(234, 240, 251, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(234, 240, 251, 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 55% at 50% 0%, #000 20%, transparent 72%);
+  mask-image: radial-gradient(ellipse 75% 55% at 50% 0%, #000 20%, transparent 72%);
+}
+
+/* ---- Gradient hairline card: indigo edge-light on hover ---- */
+.brand-card {
+  position: relative;
+  border-radius: 1rem;
+  background: linear-gradient(
+    180deg,
+    rgba(234, 240, 251, 0.035) 0%,
+    rgba(234, 240, 251, 0.012) 100%
+  );
+  border: 1px solid var(--hairline);
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    background 0.3s ease;
+}
+.brand-card:hover {
+  border-color: rgba(139, 123, 255, 0.4);
+  background: linear-gradient(
+    180deg,
+    rgba(139, 123, 255, 0.07) 0%,
+    rgba(234, 240, 251, 0.014) 100%
+  );
+}
+
+/* ---- Chip: tile pill with hairline border ---- */
+.brand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--hairline);
+  background: rgba(234, 240, 251, 0.035);
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    color 0.25s ease;
+}
+.brand-chip:hover {
+  border-color: rgba(139, 123, 255, 0.4);
+  background: rgba(139, 123, 255, 0.08);
+}
+
+@keyframes acp-marquee-forward {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes acp-marquee-reverse {
+  to {
+    transform: translateX(0);
+  }
+}
+.acp-marquee-forward {
+  animation: acp-marquee-forward 48s linear infinite;
+}
+.acp-marquee-reverse-track {
+  transform: translateX(-50%);
+}
+.acp-marquee-reverse {
+  animation: acp-marquee-reverse 58s linear infinite;
+}
+
+/* Reusable soft glow ring under primary buttons / framed media */
+.brand-glow {
+  box-shadow:
+    0 0 0 1px rgba(234, 240, 251, 0.06),
+    0 24px 70px -28px rgba(139, 123, 255, 0.5);
+}
+
+/* Deeper lift for the phone docked over the §3b browser window — declared
+   after .brand-glow so it wins when both classes are applied. */
+.dock-shadow {
+  box-shadow:
+    0 0 0 1px rgba(234, 240, 251, 0.07),
+    0 32px 90px -24px rgba(0, 0, 0, 0.85),
+    0 24px 70px -28px rgba(139, 123, 255, 0.5);
+}
+
+/* ---- Blinking block cursor for the `pora.code` CLI signature ---- */
+.pora-cursor {
+  animation: pora-blink 1.06s steps(1) infinite;
+}
+@keyframes pora-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---- Faint CRT scanline texture (hero only) ---- */
+.brand-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(234, 240, 251, 0.015) 0px,
+    rgba(234, 240, 251, 0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Respect reduced-motion: silence looping brand and marquee animations. The
+   pointer parallax is additionally gated in JS. */
+@media (prefers-reduced-motion: reduce) {
+  .pora-pulse,
+  .pora-pair-dot,
+  .pora-cursor,
+  .hero-fade-up,
+  .acp-marquee-forward,
+  .acp-marquee-reverse {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

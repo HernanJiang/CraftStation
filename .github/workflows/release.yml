@@ -1,0 +1,310 @@
+name: Release (stable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.0.1). If empty, master's package.json is used."
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Dry run — skip tag push and build (for testing)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-stable
+  cancel-in-progress: false
+
+jobs:
+  # ── Step 1: Resolve version and push release commit ──────────────
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      source_ref: ${{ steps.commit.outputs.source_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          INPUT_VERSION="${{ inputs.version }}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ -z "$INPUT_VERSION" ]; then
+            VERSION="$PKG_VERSION"
+            echo "Using master's package.json version: $VERSION"
+          else
+            VERSION="$INPUT_VERSION"
+            echo "Using workflow input version: $VERSION"
+          fi
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Stable version must be plain semver (X.Y.Z), got '$VERSION'."
+            exit 1
+          fi
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      # The desktop app reads website/public/changelog.json (served by the
+      # marketing site) for the in-app "What's New" entry. Require a well-formed
+      # entry for this version BEFORE tagging, so the binary never ships ahead of
+      # its notes. Write the changelog first (use the release-notes skill) and
+      # push it to master, then run this release.
+      - name: Require changelog entry
+        run: |
+          node -e "
+            const fs = require('fs');
+            const version = '${{ steps.resolve.outputs.version }}';
+            const path = 'website/public/changelog.json';
+            let doc;
+            try {
+              doc = JSON.parse(fs.readFileSync(path, 'utf8'));
+            } catch (err) {
+              console.error('::error::Could not read ' + path + ': ' + err.message);
+              process.exit(1);
+            }
+            const releases = Array.isArray(doc.releases) ? doc.releases : [];
+            const entry = releases.find((r) => r && r.version === version);
+            if (!entry) {
+              console.error('::error::No changelog entry for ' + version + ' in ' + path + '. Add the release notes and push to master before releasing (the desktop app reads this file for the in-app changelog).');
+              process.exit(1);
+            }
+            const isoDate = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(entry.date || '');
+            const wellFormed =
+              typeof entry.title === 'string' && entry.title.trim().length > 0 &&
+              typeof entry.summary === 'string' && entry.summary.trim().length > 0 &&
+              Array.isArray(entry.changes) && entry.changes.length > 0 &&
+              isoDate;
+            if (!wellFormed) {
+              console.error('::error::Changelog entry for ' + version + ' is incomplete; it needs a title, summary, an ISO (YYYY-MM-DD) date, and at least one change.');
+              process.exit(1);
+            }
+            console.log('Changelog entry for ' + version + ' is present and well-formed.');
+          "
+
+      - name: Bump package.json if needed
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const next = '${{ steps.resolve.outputs.version }}';
+            if (pkg.version !== next) {
+              pkg.version = next;
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+              console.log('Updated package.json to ' + next);
+            } else {
+              console.log('package.json already at ' + next + '; no bump needed.');
+            }
+          "
+
+      - name: Commit release version
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          if git diff --cached --quiet; then
+            echo "No package.json changes; using HEAD as the release commit."
+          else
+            git commit -m "release: ${{ steps.resolve.outputs.tag }}"
+          fi
+          echo "source_ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push release commit
+        if: ${{ !inputs.dry_run }}
+        run: git push origin HEAD
+
+  # ── Step 2: Build installers for each platform ───────────────────
+  build:
+    needs: prepare
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/_build.yml
+    with:
+      ref: ${{ needs.prepare.outputs.source_ref }}
+      version: ${{ needs.prepare.outputs.version }}
+      channel: stable
+      sentry_environment: production
+    secrets:
+      MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+      MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+  # ── Step 3: Create GitHub Release with auto-generated notes ──────
+  release:
+    needs: [prepare, build]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/release-assets
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -lh "${{ runner.temp }}/release-assets"
+
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          SOURCE_REF: ${{ needs.prepare.outputs.source_ref }}
+        run: |
+          gh api repos/${{ github.repository }}/releases/generate-notes \
+            -f "tag_name=$RELEASE_TAG" \
+            -f "target_commitish=$SOURCE_REF" \
+            --jq .body > "$RUNNER_TEMP/release-notes.md"
+
+      # electron-updater treats bare semver tags in GitHub's releases.atom feed
+      # as releases. Use a deliberately non-semver tag while draft assets upload
+      # so the final tag is created only with a complete, published release.
+      - name: Checkout release commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.source_ref }}
+          fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - name: Create and push staging tag
+        env:
+          DRAFT_TAG: release-draft-${{ github.run_id }}
+        run: |
+          git tag "$DRAFT_TAG"
+          git push origin "$DRAFT_TAG"
+
+      # Upload every asset to a draft associated with the non-semver staging tag.
+      # Clients ignore that tag, and the final semver tag does not exist yet.
+      - name: Create GitHub Release (draft)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: release-draft-${{ github.run_id }}
+          name: Poracode ${{ needs.prepare.outputs.tag }}
+          draft: true
+          make_latest: false
+          body_path: ${{ runner.temp }}/release-notes.md
+          fail_on_unmatched_files: true
+          files: ${{ runner.temp }}/release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Rename the draft to the final tag and publish it in one API update. The
+      # final tag and complete release therefore become visible together.
+      - name: Publish release atomically
+        env:
+          DRAFT_TAG: release-draft-${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          SOURCE_REF: ${{ needs.prepare.outputs.source_ref }}
+        run: |
+          release_id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$DRAFT_TAG\") | .id")
+          if [ -z "$release_id" ]; then
+            echo "::error::Draft release for $DRAFT_TAG was not found."
+            exit 1
+          fi
+          gh api --method PATCH "repos/${{ github.repository }}/releases/$release_id" \
+            -f tag_name="$RELEASE_TAG" \
+            -f target_commitish="$SOURCE_REF" \
+            -F draft=false \
+            -F prerelease=false \
+            -f make_latest=true
+          gh api --method DELETE \
+            "repos/${{ github.repository }}/git/refs/tags/$DRAFT_TAG" ||
+            echo "::warning::Published successfully but could not delete staging tag $DRAFT_TAG."
+
+  cleanup-failed-release:
+    needs: [prepare, build, release]
+    if: ${{ always() && !inputs.dry_run && (needs.release.result == 'failure' || needs.release.result == 'cancelled') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Remove failed release and tag
+        env:
+          DRAFT_TAG: release-draft-${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          gh release delete "$DRAFT_TAG" \
+            --repo "${{ github.repository }}" \
+            --cleanup-tag --yes 2>/dev/null || true
+          gh release delete "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --cleanup-tag --yes 2>/dev/null || true
+          if gh api "repos/${{ github.repository }}/git/ref/tags/$DRAFT_TAG" >/dev/null 2>&1; then
+            gh api --method DELETE "repos/${{ github.repository }}/git/refs/tags/$DRAFT_TAG"
+          fi
+          if gh api "repos/${{ github.repository }}/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            gh api --method DELETE "repos/${{ github.repository }}/git/refs/tags/$RELEASE_TAG"
+          fi
+
+  # ── Step 4: Bump master to next plain patch version ──────────────
+  post-release:
+    needs: [prepare, release]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v6
+        with:
+          ref: master
+          fetch-depth: 1
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Bump to next plain patch version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const v = p.version.split('-')[0].split('.').map(Number);
+            p.version = v[0] + '.' + v[1] + '.' + (v[2] + 1);
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          if git diff --cached --quiet; then
+            echo "No bump needed."
+          else
+            git commit -m "chore: bump to next patch version"
+            git push
+          fi

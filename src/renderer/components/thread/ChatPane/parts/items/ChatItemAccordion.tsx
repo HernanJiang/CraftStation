@@ -1,0 +1,211 @@
+import { Disclosure, Tooltip } from "@heroui/react";
+import { useRef, useState, type ReactNode } from "react";
+import { useShimmerRef } from "@/renderer/thinkingAnimator";
+import { useChatPaneActions } from "../../chatPaneActionsContext";
+import { ChatFilePath } from "./ChatFilePath";
+import {
+  ChatRowMeta,
+  chatRowBodyClass,
+  chatRowClass,
+  chatRowHoverClass,
+  chatRowIndicatorClass,
+  chatRowShellClass,
+  normalizeCallTitleSeparator,
+} from "./chatRow";
+
+export interface ChatItemAccordionProps {
+  /** Leading icon (sized 12px to match the command row icon). */
+  icon: ReactNode;
+  /** Single-line title; truncated with ellipsis when too long. */
+  title: ReactNode;
+  /**
+   * Optional structured title. When provided the row renders `prefix` (kept
+   * fully visible) followed by `path` truncated from the START — the ellipsis
+   * appears at the beginning of the path so the tail (filename) stays
+   * readable. When `filePath` is true the path renders as `<basename> <muted
+   * dir>` with head-ellipsis on the directory. `title` is still used as the
+   * tooltip / accessible label.
+   */
+  titleParts?: { prefix: string; path: string; filePath?: boolean };
+  /** Optional muted/danger label rendered on the right of the trigger row. */
+  rightLabel?: ReactNode;
+  /** Tailwind class applied to `rightLabel` (e.g. `"text-danger"`). */
+  rightLabelClassName?: string;
+  /**
+   * While true the stable part of the title shimmers (the `titleParts.prefix`,
+   * or the whole title when it is a plain string) — the same treatment as
+   * grouped tool rows, replacing any spinner. Only stable text may shimmer:
+   * mutating text under `background-clip: text` ghosts old glyphs (see
+   * `.poracode-thinking-text` in styles.css). ReactNode titles are the
+   * caller's responsibility.
+   */
+  isRunning?: boolean;
+  /** When false the row renders without a trigger / chevron (no body to toggle). */
+  hasBody?: boolean;
+  /** Controlled expand state. Required when `hasBody`. */
+  isExpanded?: boolean;
+  /** Toggle handler. Required when `hasBody`. */
+  onExpandedChange?: (next: boolean) => void;
+  /** Body markup; only rendered when expanded. */
+  children?: ReactNode;
+}
+
+/**
+ * Shared accordion shell for chat tool/command rows.
+ *
+ * All rows that hide their detail behind a disclosure (tool_call, web_search,
+ * file_change, command_execution) share this layout: bordered tile, single-row
+ * trigger with `[icon, title, …, right label, chevron]`, and a body separated
+ * by a top border. Keeping one component prevents the four item renderers from
+ * drifting apart visually.
+ *
+ * Disclosure transitions are globally disabled in `styles.css` for perf — the
+ * panel snaps open/closed.
+ */
+// ChatItemAccordion's variant of the shared quiet-row recipe (see `chatRow`):
+// dense `gap-1.5`, plus a `<code>`-muting override for the title's mono text.
+// `rowClass` is the static form (rows with no body to expand); `triggerClass`
+// adds the hover affordance for clickable (has-body) rows.
+const rowClass = `${chatRowClass} gap-1.5 [&>code]:!text-[color:var(--muted)]`;
+
+const triggerClass = `group ${rowClass} ${chatRowHoverClass}`;
+
+// `w-full` is load-bearing: HeroUI's `Tooltip.Trigger` computes to
+// `display: inline-flex`, so this `<code>` is a flex item. Without an explicit
+// width it shrink-wraps to its content instead of filling the trigger, which
+// starves the nested PathDisplay's width measurement and collapses the muted
+// directory to a lone "…". Filling the trigger gives PathDisplay the real row
+// width to lay the directory out against.
+const codeClass = "block w-full truncate font-mono !text-[color:var(--muted)]";
+
+export function ChatItemAccordion({
+  icon,
+  title,
+  titleParts,
+  rightLabel,
+  rightLabelClassName = "!text-[color:var(--muted)]",
+  isRunning = false,
+  hasBody = true,
+  isExpanded,
+  onExpandedChange,
+  children,
+}: ChatItemAccordionProps) {
+  const actions = useChatPaneActions();
+  const displayTitle = typeof title === "string" ? normalizeCallTitleSeparator(title) : title;
+  const displayPrefix = titleParts ? normalizeCallTitleSeparator(titleParts.prefix) : undefined;
+  const titleString =
+    typeof displayTitle === "string"
+      ? displayTitle
+      : titleParts
+        ? `${displayPrefix}${titleParts.path}`
+        : undefined;
+  const codeRef = useRef<HTMLElement | null>(null);
+  const pathRef = useRef<HTMLSpanElement | null>(null);
+  const prefixRef = useRef<HTMLSpanElement | null>(null);
+  // Shimmer target: the prefix span when the title is structured, otherwise the
+  // whole <code> — but only when it is a plain string (stable text).
+  const shimmerPlainTitle = isRunning && !titleParts && typeof displayTitle === "string";
+  useShimmerRef(prefixRef, isRunning && !!titleParts);
+  useShimmerRef(codeRef, shimmerPlainTitle);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  // PathDisplay handles its own truncation (basename always visible, head-
+  // ellipsis on the dir), so the wrapping `<code>` never overflows in that
+  // mode — skip the overflow-tooltip dance.
+  const usesPathDisplay = !!titleParts?.filePath;
+
+  // Do not force layout (scrollWidth/clientWidth) for every tool row on mount.
+  // Thread switches mount ~overscan rows at once; CDP profiles spent ~140ms+ in
+  // that check. Tooltip overflow is only needed on hover/focus — measure then.
+  const measureTitleOverflow = () => {
+    if (usesPathDisplay) return;
+    const el = titleParts ? pathRef.current : codeRef.current;
+    if (!el) return;
+    const next = el.scrollWidth > el.clientWidth + 1;
+    setIsOverflowing((prev) => (prev === next ? prev : next));
+  };
+
+  const titleContent = titleParts ? (
+    <code className={`${codeClass} flex items-baseline overflow-hidden`}>
+      <span
+        ref={prefixRef}
+        className={`shrink-0 whitespace-pre ${isRunning ? "poracode-thinking-text" : ""}`}
+        {...(isRunning ? { "data-poracode-shimmer-text": displayPrefix } : {})}
+      >
+        {displayPrefix}
+      </span>
+      {titleParts.filePath ? (
+        <ChatFilePath
+          className="flex-1"
+          path={titleParts.path}
+          basenameClassName="!text-[color:var(--foreground)]"
+          dirClassName="!text-[color:var(--muted)]"
+        />
+      ) : (
+        <span ref={pathRef} className="lc-truncate-start flex-1">
+          {titleParts.path}
+        </span>
+      )}
+    </code>
+  ) : (
+    <code
+      ref={codeRef}
+      className={`${codeClass} ${shimmerPlainTitle ? "poracode-thinking-text !block" : ""}`}
+      {...(shimmerPlainTitle ? { "data-poracode-shimmer-text": displayTitle as string } : {})}
+    >
+      {displayTitle}
+    </code>
+  );
+
+  const titleNode = (
+    <span className="min-w-0" onPointerEnter={measureTitleOverflow} onFocus={measureTitleOverflow}>
+      <Tooltip delay={300} isDisabled={!isOverflowing || !titleString}>
+        <Tooltip.Trigger className="block min-w-0 w-full">{titleContent}</Tooltip.Trigger>
+        <Tooltip.Content placement="top" className="max-w-[80vw]">
+          {titleString}
+        </Tooltip.Content>
+      </Tooltip>
+    </span>
+  );
+
+  if (!hasBody) {
+    return (
+      <div className={chatRowShellClass}>
+        <div className={`${rowClass} text-[length:var(--lc-chat-font-size-command)] leading-tight`}>
+          <span className="size-3 shrink-0 text-[color:var(--muted)]">{icon}</span>
+          {titleNode}
+          <ChatRowMeta label={rightLabel} className={rightLabelClassName} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={chatRowShellClass}>
+      <Disclosure
+        className="text-[length:var(--lc-chat-font-size-command)] leading-tight"
+        isExpanded={isExpanded ?? false}
+        onExpandedChange={(next) => {
+          onExpandedChange?.(next);
+          actions?.onContentHeightChange();
+        }}
+      >
+        <Disclosure.Heading>
+          <Disclosure.Trigger className={triggerClass}>
+            <span className="size-3 shrink-0 text-[color:var(--muted)]">{icon}</span>
+            {titleNode}
+            <ChatRowMeta label={rightLabel} className={rightLabelClassName} />
+            <Disclosure.Indicator className={chatRowIndicatorClass} />
+          </Disclosure.Trigger>
+        </Disclosure.Heading>
+        <Disclosure.Content>
+          <div className="min-h-0 overflow-hidden">
+            <Disclosure.Body className={`${chatRowBodyClass} pt-2.5`}>
+              {isExpanded ? children : null}
+            </Disclosure.Body>
+          </div>
+        </Disclosure.Content>
+      </Disclosure>
+    </div>
+  );
+}

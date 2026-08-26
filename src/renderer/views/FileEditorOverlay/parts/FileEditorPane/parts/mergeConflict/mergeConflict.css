@@ -1,0 +1,47 @@
+.lc-merge-current,
+.lc-merge-current-header,
+.lc-merge-incoming,
+.lc-merge-incoming-footer,
+.lc-merge-separator,
+.lc-merge-base {
+  width: 100% !important;
+}
+
+.lc-merge-current {
+  background-color: rgba(64, 200, 174, 0.16);
+}
+
+.lc-merge-current-header {
+  background-color: rgba(64, 200, 174, 0.36);
+  font-weight: 600;
+}
+
+.lc-merge-incoming {
+  background-color: rgba(64, 166, 255, 0.16);
+}
+
+.lc-merge-incoming-footer {
+  background-color: rgba(64, 166, 255, 0.36);
+  font-weight: 600;
+}
+
+.lc-merge-base {
+  background-color: rgba(255, 255, 255, 0.05);
+  font-style: italic;
+}
+
+.lc-merge-separator {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.lc-merge-rail-current {
+  background-color: rgb(64, 200, 174);
+  width: 3px !important;
+  margin-left: 2px;
+}
+
+.lc-merge-rail-incoming {
+  background-color: rgb(64, 166, 255);
+  width: 3px !important;
+  margin-left: 2px;
+}

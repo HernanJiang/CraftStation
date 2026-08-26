@@ -1,0 +1,84 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["import", "react", "jsx-a11y", "node", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "import/no-unassigned-import": "off",
+    "import/no-duplicates": "error",
+    "eslint/no-underscore-dangle": "off",
+    "jsx-a11y/alt-text": "error",
+    "import/no-dynamic-require": "error",
+    "import/no-mutable-exports": "error",
+    "node/no-path-concat": "error",
+    "oxc/bad-object-literal-comparison": "error",
+    "oxc/missing-throw": "error",
+    "oxc/uninvoked-array-callback": "error",
+    "react/button-has-type": "error",
+    "react/checked-requires-onchange-or-readonly": "error",
+    "react/jsx-key": "error",
+    "react/jsx-no-target-blank": "error",
+    "react/no-object-type-as-default-prop": "error",
+    "react/rules-of-hooks": "error",
+    "react/react-in-jsx-scope": "off",
+    "react/no-unsafe": "off",
+    "react/self-closing-comp": "error",
+    "vitest/no-duplicate-hooks": "error",
+    "vitest/no-identical-title": "error",
+    "vitest/no-test-return-statement": "error",
+    "vitest/prefer-called-exactly-once-with": "error",
+    "jsx-a11y/prefer-tag-over-role": "off"
+  },
+  "overrides": [
+    {
+      "files": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx"],
+      "excludeFiles": [
+        "src/renderer/**/*.test.ts",
+        "src/renderer/**/*.test.tsx",
+        "src/renderer/**/*.spec.ts",
+        "src/renderer/**/*.spec.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "node:*",
+                  "child_process",
+                  "fs",
+                  "fs/*",
+                  "path",
+                  "path/*",
+                  "os",
+                  "os/*",
+                  "net",
+                  "net/*",
+                  "tls",
+                  "tls/*",
+                  "http",
+                  "http/*",
+                  "https",
+                  "https/*",
+                  "worker_threads",
+                  "cluster",
+                  "vm",
+                  "@/main/**",
+                  "@/supervisor/**",
+                  "@/server/**"
+                ],
+                "message": "Renderer code must use the typed preload bridge; privileged APIs belong in main or supervisor."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "ignorePatterns": ["dist", "node_modules"]
+}

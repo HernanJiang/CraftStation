@@ -1,0 +1,114 @@
+import { memo } from "react";
+import { Surface } from "@heroui/react";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import type { TranslateFn } from "@/renderer/i18n/i18n";
+import { Layers } from "lucide-react";
+import type { ToolCallPayload } from "@/shared/contracts";
+import type { RuntimeChatItem } from "@/renderer/state/slices/runtimeEventSlice";
+import { formatTokenCount } from "@/renderer/components/thread/formatTokenCount";
+import { useShimmer } from "@/renderer/thinkingAnimator";
+import { chatMessageSurfaceClass } from "./chatMessageSurface";
+
+interface ContextCompactionProps {
+  item: RuntimeChatItem;
+}
+
+export const ContextCompaction = memo(function ContextCompaction({ item }: ContextCompactionProps) {
+  const { t } = useLingui();
+  const isRunning = item.state !== "completed";
+  const summary = isRunning ? null : formatCompactionSummary(item.payload, t);
+  const thinkingTextRef = useShimmer<HTMLSpanElement>(isRunning);
+
+  if (isRunning) {
+    const compactingLabel = t`Compacting context`;
+    return (
+      <Surface variant="transparent" className={chatMessageSurfaceClass}>
+        <div className="inline-flex min-w-0 items-center gap-1.5 text-[length:var(--lc-chat-font-size-meta)] text-foreground-muted">
+          <Layers className="size-3 shrink-0 poracode-compacting-icon" />
+          <span
+            ref={thinkingTextRef}
+            className="poracode-thinking-text"
+            data-poracode-shimmer-text={compactingLabel}
+          >
+            {compactingLabel}
+          </span>
+        </div>
+      </Surface>
+    );
+  }
+
+  return (
+    <Surface variant="transparent" className={chatMessageSurfaceClass}>
+      <div className="flex min-w-0 flex-col items-stretch justify-center text-[length:var(--lc-chat-font-size-meta)] text-foreground-muted">
+        <span className="inline-flex min-w-0 items-center gap-1.5 self-start leading-none italic opacity-80">
+          <Layers className="size-3 shrink-0 poracode-compacted-icon" />
+          {summary ?? t`Context compacted`}
+        </span>
+      </div>
+    </Surface>
+  );
+});
+
+interface CompactMetadata {
+  trigger?: "manual" | "auto" | string;
+  pre_tokens?: number;
+  post_tokens?: number;
+  duration_ms?: number;
+}
+
+function formatCompactionSummary(payload: unknown, t: TranslateFn): string | null {
+  const meta = readCompactMetadata(payload);
+  if (!meta) return null;
+  const before = formatTokenLabel(meta.pre_tokens);
+  const after = formatTokenLabel(meta.post_tokens);
+  const isManual = meta.trigger === "manual";
+  if (before && after) {
+    return isManual
+      ? t(msg`Context manually compacted: ${before} → ${after} tokens`)
+      : t(msg`Context compacted: ${before} → ${after} tokens`);
+  }
+  if (before) {
+    return isManual
+      ? t(msg`Context manually compacted from ${before} tokens`)
+      : t(msg`Context compacted from ${before} tokens`);
+  }
+  return null;
+}
+
+function readCompactMetadata(payload: unknown): CompactMetadata | null {
+  if (!payload || typeof payload !== "object") return null;
+  const args = (payload as { args?: unknown }).args;
+  if (!args || typeof args !== "object") return null;
+  return args as CompactMetadata;
+}
+
+function formatTokenLabel(value: number | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return formatTokenCount(value);
+}
+
+/**
+ * Names known to denote a context-compaction tool call. Compared
+ * case-insensitively after stripping `_`, `-`, and whitespace, so codex's
+ * `contextCompaction` and a hypothetical `context_compaction` /
+ * `Context Compaction` from another agent all match.
+ *
+ * Add new providers here as their emission shape is discovered. Keep names
+ * unambiguous — a bare `compaction` would risk false positives with unrelated
+ * tools.
+ */
+const COMPACTION_NAME_KEYS: readonly string[] = [
+  "contextcompaction",
+  "compactcontext",
+  "conversationcompaction",
+  "compactconversation",
+];
+
+export function isContextCompactionToolCall(item: RuntimeChatItem): boolean {
+  if (item.type !== "tool_call") return false;
+  const name = (item.payload as ToolCallPayload | undefined)?.name;
+  if (!name) return false;
+  const normalized = name.toLowerCase().replace(/[\s_-]/g, "");
+  return COMPACTION_NAME_KEYS.includes(normalized);
+}

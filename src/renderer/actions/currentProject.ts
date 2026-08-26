@@ -1,0 +1,55 @@
+import type { AppView } from "@/shared/contracts";
+import { parseDraftProjectId } from "@/shared/paneId";
+import { useAppStore } from "@/renderer/state/appStore";
+
+/** The focused pane of a thread view, falling back to the first pane. */
+export function resolveActivePaneId(
+  panes: readonly [string, ...string[]],
+  focusedPaneId: string | null,
+): string {
+  return focusedPaneId && panes.includes(focusedPaneId) ? focusedPaneId : panes[0];
+}
+
+/** The project the given view is looking at (draft target or focused pane's thread). */
+export function resolveProjectIdForView(
+  view: AppView,
+  threads: ReadonlyArray<{ id: string; projectId: string }>,
+  focusedPaneId: string | null,
+): string | undefined {
+  if (view.kind === "draft" || view.kind === "experiment") return view.projectId;
+  if (view.kind === "thread") {
+    const paneId = resolveActivePaneId(view.panes, focusedPaneId);
+    const draftProjectId = parseDraftProjectId(paneId);
+    if (draftProjectId) return draftProjectId;
+    return threads.find((t) => t.id === paneId)?.projectId;
+  }
+  return undefined;
+}
+
+export function getCurrentProjectId(): string | undefined {
+  const s = useAppStore.getState();
+  return resolveProjectIdForView(s.view, s.threads, s.focusedPaneId);
+}
+
+/**
+ * Resolve the complete project/worktree scope of the focused conversation.
+ * Keeping this beside `getCurrentProjectId` prevents auxiliary surfaces from
+ * silently dropping the worktree half of an otherwise valid project scope.
+ */
+export function getCurrentProjectScope(): { projectId: string; worktreePath?: string } | undefined {
+  const s = useAppStore.getState();
+  if (s.view.kind === "thread") {
+    const paneId = resolveActivePaneId(s.view.panes, s.focusedPaneId);
+    const thread = s.threads.find((candidate) => candidate.id === paneId);
+    if (thread) {
+      return {
+        projectId: thread.projectId,
+        ...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {}),
+      };
+    }
+  }
+  if (s.view.kind === "draft" || s.view.kind === "experiment") {
+    return { projectId: s.view.projectId };
+  }
+  return undefined;
+}

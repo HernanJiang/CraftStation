@@ -1,0 +1,73 @@
+const LANG_MAP: Record<string, string> = {
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  json: "json",
+  jsonc: "json",
+  json5: "json",
+  md: "markdown",
+  mdx: "markdown",
+  html: "html",
+  htm: "html",
+  css: "css",
+  scss: "scss",
+  less: "less",
+  yaml: "yaml",
+  yml: "yaml",
+  toml: "ini",
+  xml: "xml",
+  svg: "xml",
+  sh: "shell",
+  bash: "shell",
+  zsh: "shell",
+  fish: "shell",
+  ps1: "powershell",
+  psm1: "powershell",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  go: "go",
+  java: "java",
+  kt: "kotlin",
+  kts: "kotlin",
+  c: "c",
+  h: "c",
+  cpp: "cpp",
+  cc: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  cs: "csharp",
+  swift: "swift",
+  sql: "sql",
+  graphql: "graphql",
+  gql: "graphql",
+  dockerfile: "dockerfile",
+  lua: "lua",
+  r: "r",
+  dart: "dart",
+  vue: "html",
+  svelte: "html",
+  php: "php",
+  ini: "ini",
+  conf: "ini",
+  cfg: "ini",
+  env: "ini",
+  gitignore: "ignore",
+  makefile: "makefile",
+};
+
+export function getLanguageFromPath(filePath: string): string {
+  const fileName = filePath.split("/").pop()?.toLowerCase() ?? "";
+  if (fileName === "dockerfile") return "dockerfile";
+  if (fileName === "makefile") return "makefile";
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return LANG_MAP[ext] ?? "plaintext";
+}
+
+export function isMarkdownFile(filePath: string): boolean {
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return ext === "md" || ext === "mdx";
+}

@@ -1,0 +1,4 @@
+{
+  "name": "craftstation-dev",
+  "main": "../../dist/main/main.cjs"
+}

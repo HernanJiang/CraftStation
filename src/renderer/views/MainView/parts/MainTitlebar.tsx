@@ -1,0 +1,199 @@
+import { startTransition } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Download,
+  Gauge,
+  GitPullRequest,
+  Hammer,
+  PanelLeft,
+  Plus,
+  Puzzle,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
+import { Dropdown, Label } from "@heroui/react";
+import { useLingui } from "@lingui/react/macro";
+import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
+import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
+import { openModelUsageDialog } from "@/renderer/actions/panelActions";
+import { readBridge } from "@/renderer/bridge";
+import { useAppStore } from "@/renderer/state/appStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
+import { toggleSidebar } from "@/renderer/state/sidebarOverlayStore";
+import { useUpdateStore } from "@/renderer/state/updateStore";
+
+const buttonClass =
+  "craftstation-titlebar-control inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs text-muted transition-all duration-150 hover:-translate-y-px hover:bg-[var(--row-hover)] hover:text-foreground active:translate-y-0";
+
+export function MainTitlebar() {
+  const { t } = useLingui();
+  const view = useAppStore((state) => state.view);
+  const openPullRequests = useAppStore((state) => state.openPullRequests);
+  const openSchedules = useAppStore((state) => state.openSchedules);
+  const openGitHubActions = useAppStore((state) => state.openGitHubActions);
+  const updatePhase = useUpdateStore((state) => state.phase);
+  const updateVersion = useUpdateStore((state) => state.version);
+  const updatePercent = useUpdateStore((state) => state.downloadPercent);
+
+  function openCraftingTable() {
+    const panel = usePanelStore.getState();
+    panel.setAuxiliaryPanelPlacement("right");
+    panel.setAuxiliaryPanelTab("harness");
+    panel.setRightPanelTab("harness");
+  }
+
+  return (
+    <header className="craftstation-titlebar flex h-[38px] min-w-0 items-center bg-[var(--window-header-background)] px-2 text-foreground">
+      <div className="craftstation-titlebar-control flex shrink-0 items-center gap-0.5">
+        <ControlTooltip label={t`Toggle sidebar`} shortcut="Ctrl+B">
+          <button
+            type="button"
+            className={buttonClass}
+            aria-label={t`Toggle sidebar`}
+            onClick={toggleSidebar}
+          >
+            <PanelLeft className="size-4" />
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Back`}>
+          <button
+            type="button"
+            className={`${buttonClass} px-1.5`}
+            aria-label={t`Back`}
+            onClick={() => cycleRecentThread(-1)}
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Forward`}>
+          <button
+            type="button"
+            className={`${buttonClass} px-1.5`}
+            aria-label={t`Forward`}
+            onClick={() => cycleRecentThread(1)}
+          >
+            <ArrowRight className="size-4" />
+          </button>
+        </ControlTooltip>
+      </div>
+
+      <nav className="craftstation-titlebar-control ml-1 flex min-w-0 items-center gap-0.5">
+        <ControlTooltip label={t`Pull requests`} detail={t`View and review pull requests`}>
+          <button
+            type="button"
+            className={`${buttonClass} ${view.kind === "pullRequests" ? "bg-[var(--row-active)] text-foreground" : ""}`}
+            onClick={() => startTransition(() => openPullRequests())}
+          >
+            <GitPullRequest className="size-3.5" />
+            <span>{t`Pull requests`}</span>
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Plan`} detail={t`View plans and scheduled tasks`}>
+          <button
+            type="button"
+            className={`${buttonClass} ${view.kind === "schedules" ? "bg-[var(--row-active)] text-foreground" : ""}`}
+            onClick={() => startTransition(() => openSchedules())}
+          >
+            <CalendarDays className="size-3.5" />
+            <span>{t`Plan`}</span>
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Work`} detail={t`View automated work`}>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => startTransition(() => openGitHubActions())}
+          >
+            <Hammer className="size-3.5" />
+            <span>{t`Work`}</span>
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Plugins`} detail={t`Manage extensions and plugins`}>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => usePanelStore.getState().openSettingsSection("plugins")}
+          >
+            <Puzzle className="size-3.5" />
+            <span>{t`Plugins`}</span>
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Skills`} detail={t`Manage agent skills`}>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => usePanelStore.getState().openSettingsSection("skills")}
+          >
+            <Sparkles className="size-3.5" />
+            <span>{t`Skills`}</span>
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Usage`} detail={t`View model authorization and usage`}>
+          <button type="button" className={buttonClass} onClick={() => usePanelStore.getState().openModelUsageDialog()}>
+            <Gauge className="size-3.5" />
+            <span>{t`Usage`}</span>
+          </button>
+        </ControlTooltip>
+        <Dropdown>
+          <ControlTooltip label={t`Customize shortcuts`} detail={t`Open more features`}>
+            <Dropdown.Trigger
+              aria-label={t`Customize shortcuts`}
+              className={`${buttonClass} px-1.5`}
+            >
+              <Plus className="size-4" />
+            </Dropdown.Trigger>
+          </ControlTooltip>
+          <Dropdown.Popover placement="bottom start" className="min-w-[220px] rounded-[14px]">
+            <Dropdown.Menu
+              aria-label={t`Customize shortcuts`}
+              onAction={(key) => {
+                if (key === "crafting") openCraftingTable();
+                if (key === "mcp") usePanelStore.getState().openSettingsSection("mcpServers");
+                if (key === "settings") usePanelStore.getState().openSettings();
+              }}
+            >
+              <Dropdown.Item id="crafting" textValue={t`Crafting Table`}>
+                <Hammer className="size-4 text-amber-300" />
+                <Label>{t`Crafting Table`}</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id="mcp" textValue={t`MCP Servers`}>
+                <Puzzle className="size-4 text-muted" />
+                <Label>{t`MCP Servers`}</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id="settings" textValue={t`Settings`}>
+                <Sparkles className="size-4 text-muted" />
+                <Label>{t`Settings`}</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      </nav>
+
+      <div className="craftstation-titlebar-drag min-w-8 flex-1 self-stretch" aria-hidden="true" />
+      {updatePhase === "downloading" || updatePhase === "downloaded" ? (
+        <button
+          type="button"
+          disabled={updatePhase !== "downloaded"}
+          onClick={() => void readBridge().installUpdate()}
+          className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-white/5 px-2 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-200 disabled:cursor-default disabled:hover:bg-white/5"
+        >
+          {updatePhase === "downloaded" ? (
+            <Download className="size-3.5" />
+          ) : (
+            <RefreshCw className="size-3.5 animate-spin" />
+          )}
+          <span>
+            {updatePhase === "downloaded"
+              ? `${t`Update available`}${updateVersion ? ` v${updateVersion}` : ""}`
+              : t`Downloading… ${Math.round(updatePercent)}%`}
+          </span>
+        </button>
+      ) : null}
+      {/* Electron's native min/max/close buttons occupy the transparent overlay at the right. */}
+      <div className="w-[138px] shrink-0" aria-hidden="true" />
+    </header>
+  );
+}
+

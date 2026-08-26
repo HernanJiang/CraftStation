@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "preserveSymlinks": true,
+    "jsx": "react-jsx",
+    "allowJs": false,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noEmit": true,
+    "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
+    "exactOptionalPropertyTypes": true,
+    "useDefineForClassFields": true,
+    "types": ["node", "vite/client"]
+  },
+  "include": [
+    "src",
+    "tests",
+    "packages/agents-usage/src",
+    "packages/codex-protocol",
+    "native/activity-bridge/src",
+    "native/ssh-bridge/src",
+    "vite.config.ts",
+    "tsdown.config.ts",
+    "lingui.config.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "git": {
+    "deploymentEnabled": false
+  },
+  "installCommand": "pnpm install --frozen-lockfile --ignore-scripts --filter poracode... --config.node-linker=isolated --config.enable-global-virtual-store=false",
+  "buildCommand": "node scripts/vercel-build-mobile.mjs",
+  "outputDirectory": "dist/mobile",
+  "rewrites": [{ "source": "/:path*", "destination": "/mobile.html" }],
+  "headers": [
+    {
+      "source": "/service-worker.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [{ "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }]
+    },
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [{ "key": "Content-Type", "value": "application/json" }]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}
