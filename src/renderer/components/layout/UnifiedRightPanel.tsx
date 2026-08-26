@@ -5,13 +5,11 @@ export interface AuxiliaryBrowserTab {
   faviconUrl?: string | null;
   loading?: boolean;
 }
-import { type CSSProperties, type ReactNode, useRef } from "react";
-import { Lock, LockOpen, Maximize2, PanelRightClose, PictureInPicture2, X } from "lucide-react";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
+import { Lock, LockOpen, Maximize2, Minimize2, PanelRightClose, Plus, X } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
-import { PanelHeaderProjectName } from "@/renderer/components/layout/PanelHeaderProjectName";
 import { PanelDockDropZone } from "@/renderer/components/layout/PanelDock/PanelDockDropZone";
 import { PanelSectionHeader } from "@/renderer/components/layout/PanelDock/PanelSectionHeader";
-import { PanelTabDragButton } from "@/renderer/components/layout/PanelDock/PanelTabDragButton";
 import {
   PANEL_TAB_ICONS,
   usePanelTabLabels,
@@ -22,7 +20,7 @@ import {
   panelHeaderRowClass,
   panelHeaderTabIconButtonClass,
 } from "@/renderer/components/layout/sidebarChrome";
-import { DOCKABLE_PANEL_TABS, type RightPanelTab } from "@/renderer/state/panelStore";
+import { type RightPanelTab } from "@/renderer/state/panelStore";
 
 export type { RightPanelTab };
 
@@ -116,16 +114,23 @@ export function UnifiedRightPanel(props: {
     showPlanTab = false,
     showSubagentTab = false,
     showBrowserTab = true,
-  showHarnessTab = false,
-  showSideChatTab = false,
-  harnessContent,
-  sideChatContent,
+    showHarnessTab = false,
+    showSideChatTab = false,
+    harnessContent,
+    sideChatContent,
     onCloseSubagent,
-    projectName,
-    onExpandGitToOverlay,
-    onExpandFilesToOverlay,
-    onExpandBrowserToOverlay,
-    onExtractBrowserToWindow,
+    onToggleMaximize,
+    isMaximized = false,
+    onCloseTab,
+    openTabs,
+    browserTabs = [],
+    activeBrowserTabId,
+    onAddTool,
+    launcherOpen = false,
+    launcherContent,
+    onActivateBrowserTab,
+    onCloseBrowserTab,
+    showPanelCloseButton,
     onOpenGit,
     onOpenTerminal,
     onOpenFiles,
@@ -142,6 +147,8 @@ export function UnifiedRightPanel(props: {
     onClose,
   } = props;
   const { t } = useLingui();
+  const shouldShowPanelCloseButton = showPanelCloseButton ?? openTabs !== undefined;
+  const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const splitFirstPaneRef = useRef<HTMLDivElement>(null);
   const {
@@ -273,125 +280,209 @@ export function UnifiedRightPanel(props: {
   const isTabOnScreen = (tab: RightPanelTab) =>
     tab === activeTab || tab === splitEntry?.id || dockedTabs.includes(tab);
 
+  // The right panel has two separate concepts: available tools and opened
+  // tool tabs.  The old implementation rendered every available tool as a
+  // bare icon, which made the header look like a toolbar and hid the actual
+  // multi-tab state.  `openTabs` is authoritative when supplied; the fallback
+  // keeps this low-level component backwards-compatible for existing callers.
+  const visibleTabs = tabs.filter((tab) => tab.visible);
+  const headerTabs = (
+    openTabs === undefined ? visibleTabs : visibleTabs.filter((tab) => openTabs.includes(tab.id))
+  ).filter(
+    (tab) => tab.id !== "browser" || browserTabs.length === 0 || openTabs?.includes("browser"),
+  );
+  const browserTabButtons = browserTabs.map((tab) => ({
+    ...tab,
+    label: tab.title || tab.url,
+  }));
+  const addableTabs = visibleTabs.filter((tab) =>
+    ["git", "terminal", "browser", "files", "harness", "side-chat"].includes(tab.id),
+  );
+
+  const renderToolTab = (tab: (typeof tabs)[number]) => {
+    const Icon = tab.icon;
+    const onScreen = isTabOnScreen(tab.id);
+    const handlePress = () => {
+      if (tab.onOpen) tab.onOpen();
+      else onTabChange(tab.id);
+    };
+    const buttonClass = `group inline-flex min-w-0 items-center gap-1.5 border-b-2 px-2.5 text-xs transition-colors ${
+      onScreen
+        ? "border-foreground/50 bg-[var(--surface-secondary)] text-foreground"
+        : "border-transparent text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+    }`;
+    const tabButton = (
+      <button
+        key={tab.id}
+        type="button"
+        className={buttonClass}
+        title={tab.label}
+        aria-pressed={onScreen}
+        onClick={handlePress}
+      >
+        <Icon className="size-3.5 shrink-0" />
+        <span className="max-w-28 truncate">{tab.label}</span>
+      </button>
+    );
+    if (!onCloseTab) return tabButton;
+    return (
+      <div key={tab.id} className="group flex h-full min-w-0 items-center">
+        {tabButton}
+        <button
+          type="button"
+          aria-label={t`Close ${tab.label}`}
+          title={t`Close ${tab.label}`}
+          className="-ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100"
+          onClick={(event) => {
+            event.stopPropagation();
+            onCloseTab(tab.id);
+          }}
+        >
+          <X className="size-3" />
+        </button>
+      </div>
+    );
+  };
+
+  const renderBrowserTab = (tab: (typeof browserTabButtons)[number]) => (
+    <div key={tab.tabId} className="group flex h-full min-w-0 items-center">
+      <button
+        type="button"
+        aria-label={tab.label}
+        aria-pressed={activeBrowserTabId === tab.tabId}
+        title={tab.label}
+        className={`inline-flex h-full min-w-0 items-center gap-1.5 border-b-2 px-2.5 text-xs transition-colors ${
+          activeBrowserTabId === tab.tabId
+            ? "border-foreground/50 bg-[var(--surface-secondary)] text-foreground"
+            : "border-transparent text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+        }`}
+        onClick={() => onActivateBrowserTab?.(tab.tabId)}
+      >
+        <span className="max-w-32 truncate">{tab.label}</span>
+      </button>
+      {onCloseBrowserTab ? (
+        <button
+          type="button"
+          aria-label={t`Close tab`}
+          title={t`Close tab`}
+          className="-ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100"
+          onClick={(event) => {
+            event.stopPropagation();
+            onCloseBrowserTab(tab.tabId);
+          }}
+        >
+          <X className="size-3" />
+        </button>
+      ) : null}
+    </div>
+  );
+
   return (
     <div
       data-poracode-panel=""
+      data-craftstation-tools-column=""
       className="flex h-full min-h-0 flex-col bg-[var(--content-background)]"
     >
-      <div className={`poracode-overlay-header ${panelHeaderRowClass}`} data-active-tab={activeTab}>
+      <div
+        className={`poracode-overlay-header ${panelHeaderRowClass} min-w-0 gap-0`}
+        data-active-tab={activeTab}
+        data-auxiliary-panel-header=""
+      >
         {hasSubagentModel ? (
           <div className="flex min-w-0 flex-1 items-center">{subagentModel}</div>
-        ) : projectName ? (
-          <PanelHeaderProjectName
-            name={projectName}
-            maxWidthClass="max-w-[100px]"
-            triggerClassName={dragCtl}
-          />
         ) : null}
-        {hasSubagentModel ? null : <div className="flex-1" />}
-        {activeTab === "git" && onExpandGitToOverlay && (
-          <button
-            type="button"
-            className={`${dragCtl} ${panelHeaderIconButtonClass}`}
-            title={t`Maximize`}
-            onClick={onExpandGitToOverlay}
-          >
-            <Maximize2 className="size-3.5" />
-          </button>
-        )}
-        {activeTab === "files" && onExpandFilesToOverlay && (
-          <button
-            type="button"
-            className={`${dragCtl} ${panelHeaderIconButtonClass}`}
-            title={t`Maximize`}
-            onClick={onExpandFilesToOverlay}
-          >
-            <Maximize2 className="size-3.5" />
-          </button>
-        )}
-        {activeTab === "browser" && onExpandBrowserToOverlay && (
-          <button
-            type="button"
-            className={`${dragCtl} ${panelHeaderIconButtonClass}`}
-            title={t`Maximize`}
-            onClick={onExpandBrowserToOverlay}
-          >
-            <Maximize2 className="size-3.5" />
-          </button>
-        )}
-        {activeTab === "browser" && onExtractBrowserToWindow && (
-          <button
-            type="button"
-            className={`${dragCtl} ${panelHeaderIconButtonClass}`}
-            title={t`Move browser to window`}
-            onClick={onExtractBrowserToWindow}
-          >
-            <PictureInPicture2 className="size-3.5" />
-          </button>
-        )}
-        {activeTab === "usage" ? usageHeaderActions : null}
-        <div className="mx-0.5 h-3 w-px bg-border" />
-        {tabs.map((tab) => {
-          if (!tab.visible) return null;
-          const Icon = tab.icon;
-          // Lit whenever the panel is painted somewhere — the active layer, the
-          // split half, or a bottom dock slot.
-          const onScreen = isTabOnScreen(tab.id);
-          const buttonClass = `${dragCtl} ${panelHeaderTabIconButtonClass(onScreen)}`;
-          const handlePress = () => {
-            if (tab.onOpen) tab.onOpen();
-            else onTabChange(tab.id);
-          };
-          if (DOCKABLE_PANEL_TABS.has(tab.id)) {
-            return (
-              <PanelTabDragButton
-                key={tab.id}
-                tab={tab.id}
-                label={tab.label}
-                className={buttonClass}
-                aria-pressed={onScreen}
-                onPress={handlePress}
+        <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
+          {headerTabs.map(renderToolTab)}
+          {browserTabButtons.map(renderBrowserTab)}
+          {onAddTool ? (
+            <div className="relative flex h-full shrink-0 items-center">
+              <button
+                type="button"
+                aria-label={t`Add tool`}
+                aria-expanded={toolMenuOpen}
+                title={t`Add tool`}
+                className="inline-flex h-full items-center justify-center px-2 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+                onClick={() => {
+                  onAddTool();
+                  setToolMenuOpen((open) => !open);
+                }}
               >
-                <Icon className="size-3.5" />
-              </PanelTabDragButton>
-            );
-          }
-          return (
+                <Plus className="size-3.5" />
+              </button>
+              {toolMenuOpen ? (
+                <div
+                  role="menu"
+                  aria-label={t`Add tool`}
+                  className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-44 rounded-xl border border-white/10 bg-[#222329]/[.98] p-1.5 shadow-2xl backdrop-blur-md"
+                >
+                  {addableTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 transition-colors hover:bg-white/[.07] hover:text-white"
+                        onClick={() => {
+                          if (tab.onOpen) tab.onOpen();
+                          else onTabChange(tab.id);
+                          setToolMenuOpen(false);
+                        }}
+                      >
+                        <Icon className="size-3.5 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {activeTab === "usage" ? usageHeaderActions : null}
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 pl-1">
+          {onToggleFollowsThread ? (
             <button
-              key={tab.id}
               type="button"
-              className={buttonClass}
-              title={tab.label}
-              aria-pressed={onScreen}
-              onClick={handlePress}
+              className={`${dragCtl} ${panelHeaderTabIconButtonClass(followsThread)}`}
+              title={
+                followsThread
+                  ? t`Unlock panel from the open thread`
+                  : t`Lock panel to the open thread`
+              }
+              aria-pressed={followsThread}
+              onClick={onToggleFollowsThread}
             >
-              <Icon className="size-3.5" />
+              {followsThread ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
             </button>
-          );
-        })}
-        {onToggleFollowsThread ? (
-          <button
-            type="button"
-            className={`${dragCtl} ${panelHeaderTabIconButtonClass(followsThread)}`}
-            title={
-              followsThread
-                ? t`Unlock panel from the open thread`
-                : t`Lock panel to the open thread`
-            }
-            aria-pressed={followsThread}
-            onClick={onToggleFollowsThread}
-          >
-            {followsThread ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className={`${dragCtl} ${panelHeaderIconButtonClass}`}
-          title={t`Hide panel`}
-          onClick={onClose}
-        >
-          <PanelRightClose className="size-3.5" />
-        </button>
+          ) : null}
+          {onToggleMaximize ? (
+            <button
+              type="button"
+              aria-label={isMaximized ? t`Restore side panel` : t`Maximize side panel`}
+              className={`${dragCtl} ${panelHeaderIconButtonClass}`}
+              title={isMaximized ? t`Restore side panel` : t`Maximize side panel`}
+              onClick={onToggleMaximize}
+            >
+              {isMaximized ? (
+                <Minimize2 className="size-3.5" />
+              ) : (
+                <Maximize2 className="size-3.5" />
+              )}
+            </button>
+          ) : null}
+          {shouldShowPanelCloseButton ? (
+            <button
+              type="button"
+              aria-label={t`Hide panel`}
+              className={`${dragCtl} ${panelHeaderIconButtonClass}`}
+              title={t`Hide panel`}
+              onClick={onClose}
+            >
+              <PanelRightClose className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
       </div>
       {hasSubagentTitle ? (
         <div className="poracode-right-panel-subagent-meta flex h-6 shrink-0 items-center gap-2 border-b border-[color:var(--border)] px-3">
@@ -416,6 +507,13 @@ export function UnifiedRightPanel(props: {
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         {(() => {
+          if (launcherOpen) {
+            return (
+              <div data-craftstation-tools-column="" className="flex min-h-0 flex-1 flex-col">
+                {launcherContent}
+              </div>
+            );
+          }
           const layerStack = (
             <div className="relative min-h-0 flex-1 overflow-hidden">
               {tabs.map((tab) =>
@@ -479,9 +577,3 @@ export function UnifiedRightPanel(props: {
     </div>
   );
 }
-
-
-
-
-
-

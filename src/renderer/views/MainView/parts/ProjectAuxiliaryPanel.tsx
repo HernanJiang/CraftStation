@@ -11,6 +11,9 @@ import {
   injectBrowserToMain,
 } from "@/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/browserWindowActions";
 import { DevTerminalPanel } from "@/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/DevTerminalPanel";
+import { AuxiliaryPanelLauncher } from "@/renderer/views/MainView/parts/AuxiliaryPanelLauncher";
+import { HarnessPanel } from "./RightPanel/parts/HarnessPanel/HarnessPanel";
+import { SideChatPanel } from "./RightPanel/parts/SideChatPanel";
 import {
   UnifiedRightPanel,
   type RightPanelTab,
@@ -31,6 +34,7 @@ import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { useFileEditorStore, type FileEditorRootContext } from "@/renderer/state/fileEditorStore";
 import { usePanelStore, type GitReviewContext } from "@/renderer/state/panelStore";
 import { useThreadTodoDockStore } from "@/renderer/state/threadTodoDockStore";
+import { useSideChatStore } from "@/renderer/state/sideChatStore";
 import { watchRemoteTerminal } from "@/renderer/state/remoteTerminalFeed";
 import { prefetchVisibleGitPanelPrData } from "@/renderer/state/gitRefresh";
 import {
@@ -70,7 +74,11 @@ function scopeFromFilesContext(context: FileEditorRootContext | null): PanelProj
   };
 }
 
-export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible: boolean; showLauncher?: boolean }) {
+export function ProjectAuxiliaryPanel(props: {
+  includeTerminal: boolean;
+  visible: boolean;
+  showLauncher?: boolean;
+}) {
   const { t } = useLingui();
   const projects = useAppStore((s) => s.projects);
   const gitReviewContext = usePanelStore((s) => s.gitReviewContext);
@@ -78,6 +86,9 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
   const filesPanelContext = usePanelStore((s) => s.filesPanelContext);
   const subAgentPanelContext = usePanelStore((s) => s.subAgentPanelContext);
   const rightPanelTab = usePanelStore((s) => s.rightPanelTab);
+  const auxiliaryPanelTab = usePanelStore((s) => s.auxiliaryPanelTab);
+  const auxiliaryPanelTabs = usePanelStore((s) => s.auxiliaryPanelTabs);
+  const auxiliaryPanelMaximized = usePanelStore((s) => s.auxiliaryPanelMaximized);
   const rightPanelSplit = usePanelStore((s) => s.rightPanelSplit);
   const bottomDocks = useBottomDockedTabs();
   const dockedTabs = [bottomDocks.left, bottomDocks.right].filter(
@@ -85,6 +96,9 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
   );
   const isBottomDocked = (tab: RightPanelTab) => dockedTabs.includes(tab);
   const setRightPanelTab = usePanelStore((s) => s.setRightPanelTab);
+  const setAuxiliaryPanelTab = usePanelStore((s) => s.setAuxiliaryPanelTab);
+  const closeAuxiliaryPanelTab = usePanelStore((s) => s.closeAuxiliaryPanelTab);
+  const toggleAuxiliaryPanelMaximized = usePanelStore((s) => s.toggleAuxiliaryPanelMaximized);
   const rightPanelFollowsThread = usePanelStore((s) => s.rightPanelFollowsThread);
   const toggleRightPanelFollowsThread = usePanelStore((s) => s.toggleRightPanelFollowsThread);
   const browserPanelOpen = usePanelStore((s) => s.browserPanelOpen);
@@ -208,6 +222,77 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
   }
 
   const activeTab = requestedTabIsAvailable() ? requestedTab : fallbackActiveTab();
+
+  const gitTabIsOpen = auxiliaryPanelTabs.includes("git") || auxiliaryPanelTab === "git";
+  const filesTabIsOpen = auxiliaryPanelTabs.includes("files") || auxiliaryPanelTab === "files";
+
+  const launcherOpen = props.showLauncher === true || auxiliaryPanelTab === null;
+
+  // A persisted/legacy selected tab can outlive its content context. Clear it
+  // back to the launcher instead of rendering a black, content-less layer.
+  useEffect(() => {
+    if (!props.visible || props.showLauncher || auxiliaryPanelTab === null) return;
+    const hasContent =
+      (auxiliaryPanelTab === "git" && gitPanelOpen) ||
+      (auxiliaryPanelTab === "files" && filesPanelOpen) ||
+      (auxiliaryPanelTab === "browser" && browserPanelOpen) ||
+      (auxiliaryPanelTab === "terminal" && terminalOpen) ||
+      (auxiliaryPanelTab === "usage" && usagePanelOpen) ||
+      (auxiliaryPanelTab === "notes" && notesPanelOpen) ||
+      (auxiliaryPanelTab === "plan" && planInCurrentThread) ||
+      (auxiliaryPanelTab === "subagent" && subAgentInCurrentThread) ||
+      auxiliaryPanelTab === "harness" ||
+      (auxiliaryPanelTab === "side-chat" && currentThreadId !== null);
+    if (!hasContent) closeAuxiliaryPanelTab(auxiliaryPanelTab);
+  }, [
+    auxiliaryPanelTab,
+    browserPanelOpen,
+    currentThreadId,
+    closeAuxiliaryPanelTab,
+    filesPanelOpen,
+    gitPanelOpen,
+    notesPanelOpen,
+    planInCurrentThread,
+    props.showLauncher,
+    props.visible,
+    setAuxiliaryPanelTab,
+    subAgentInCurrentThread,
+    terminalOpen,
+    usagePanelOpen,
+  ]);
+
+  // Review and Files are project-scoped surfaces. When an opened tab has no
+  // explicit scope, bind it to the focused thread's project before painting the
+  // content. This is the same Project -> Worktree -> panel chain used by the
+  // sidebar actions and prevents the "need a project scope" dead end.
+  useEffect(() => {
+    if (!props.visible || props.showLauncher || !currentThreadId) return;
+    const thread = useAppStore
+      .getState()
+      .threads.find((candidate) => candidate.id === currentThreadId);
+    if (!thread || isHomeProjectId(thread.projectId)) return;
+    const projectExists = projects.some(
+      (project) =>
+        !project.disabled && !isHomeProjectId(project.id) && project.id === thread.projectId,
+    );
+    if (!projectExists) return;
+    if (activeTab === "git" && gitTabIsOpen && !gitPanelOpen) {
+      showGitReviewPanel(thread.projectId, thread.worktreePath);
+    } else if (activeTab === "files" && filesTabIsOpen && !filesPanelOpen) {
+      showFilesPanel(thread.projectId, thread.worktreePath);
+    }
+  }, [
+    activeTab,
+    currentThreadId,
+    filesPanelOpen,
+    gitPanelOpen,
+    projects,
+    gitTabIsOpen,
+    filesTabIsOpen,
+    props.showLauncher,
+    props.visible,
+  ]);
+
   useEffect(() => {
     if (!props.visible) return;
     let refreshTimer: number | undefined;
@@ -346,6 +431,23 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
     handleClose();
   }
 
+  function handleCloseTab(tab: RightPanelTab): void {
+    if (tab === "git") setGitReviewContext(null);
+    if (tab === "files") usePanelStore.getState().setFilesPanelContext(null);
+    if (tab === "browser") setBrowserPanelOpen(false);
+    if (tab === "usage") setUsagePanelOpen(false);
+    if (tab === "notes") setNotesPanelOpen(false);
+    if (tab === "terminal") useDevTerminalStore.getState().closePanel();
+    if (tab === "side-chat") useSideChatStore.getState().close();
+    closeAuxiliaryPanelTab(tab);
+  }
+
+  function handleAddTool(): void {
+    setBrowserOverlayMaximized(false);
+    setBrowserOverlayOpen(false);
+    setAuxiliaryPanelTab(null);
+  }
+
   // A bottom-docked tab renders in the bottom row; keep it out of this panel so
   // singleton surfaces (the browser webview) are never mounted twice.
   const renderTerminalContent = props.includeTerminal && terminalOpen;
@@ -357,6 +459,18 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
     notesPanelOpen && notesProjectId !== undefined && !isBottomDocked("notes");
   const renderPlanContent = planInCurrentThread;
   const renderSubAgentContent = subAgentInCurrentThread;
+  const openTabs = auxiliaryPanelTabs.filter((tab) => {
+    if (tab === "git") return gitPanelOpen || gitTabIsOpen;
+    if (tab === "files") return filesPanelOpen || filesTabIsOpen;
+    if (tab === "browser") return browserPanelOpen || auxiliaryPanelTabs.includes("browser");
+    if (tab === "terminal") return renderTerminalContent || auxiliaryPanelTabs.includes("terminal");
+    if (tab === "usage") return usagePanelOpen || auxiliaryPanelTabs.includes("usage");
+    if (tab === "notes") return notesPanelOpen || auxiliaryPanelTabs.includes("notes");
+    if (tab === "plan") return renderPlanContent;
+    if (tab === "subagent") return renderSubAgentContent;
+    if (tab === "side-chat") return currentThreadId !== null;
+    return true;
+  });
 
   return (
     <UnifiedRightPanel
@@ -443,6 +557,8 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
           />
         ) : undefined
       }
+      harnessContent={<HarnessPanel />}
+      sideChatContent={<SideChatPanel />}
       usageHeaderActions={
         <UsagePanelHeaderActions dragControlClass="poracode-overlay-header__controls" />
       }
@@ -452,6 +568,15 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
       showNotesTab={notesProjectId !== undefined}
       showPlanTab={renderPlanContent}
       showSubagentTab={renderSubAgentContent}
+      showHarnessTab
+      showSideChatTab={currentThreadId !== null}
+      openTabs={openTabs}
+      launcherOpen={launcherOpen}
+      launcherContent={<AuxiliaryPanelLauncher />}
+      onAddTool={handleAddTool}
+      onCloseTab={handleCloseTab}
+      onToggleMaximize={toggleAuxiliaryPanelMaximized}
+      isMaximized={auxiliaryPanelMaximized}
       {...(renderSubAgentContent
         ? {
             subagentModel: (
@@ -522,4 +647,3 @@ export function ProjectAuxiliaryPanel(props: { includeTerminal: boolean; visible
     />
   );
 }
-

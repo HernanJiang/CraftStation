@@ -33,12 +33,12 @@ export const PANEL_TAB_ICONS: Record<RightPanelTab, LucideIcon> = {
 export function usePanelTabLabels(): Record<RightPanelTab, string> {
   const { t } = useLingui();
   return {
-    harness: t`Harness`,
+    harness: t`Crafting Table`,
     plan: t`Plan`,
     subagent: t`Subagent`,
     terminal: t`Terminal`,
     files: t`Files`,
-    git: t`Git`,
+    git: t`Review`,
     usage: t`Usage`,
     notes: t`Notes`,
     ports: t`Ports`,
