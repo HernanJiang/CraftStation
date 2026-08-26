@@ -1,5 +1,14 @@
 # Poracode
 
+## CraftStation Overlay
+
+This working copy is CraftStation, based on PoraCode/lightcode.
+
+- Project identity and long-lived rules: `CRAFTSTATION.md`
+- Current Feature status: `PROJECT_STATUS.md`
+- Feature docs: `ai_workspace/agent_docs/`
+- GitHub origin: `https://github.com/HernanJiang/CraftStation.git` (private)
+
 Universal AI agent orchestrator — Electron desktop app managing Claude, Codex, and Gemini via real PTY sessions (terminal-native) and structured runtimes (native chat).
 
 ## Quick Reference
