@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "@heroui/react";
 import { isRemoteSession, readBridge } from "@/renderer/bridge";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useProviderUsage } from "@/renderer/state/providerUsageStore";
@@ -51,6 +52,12 @@ export function useUsageProviderLogin(id: string) {
     (!hasStoredSession || sessionRejected);
   const canBrowserSignIn = canSignIn && isBrowserLogin;
   const canApiKeySignIn = canSignIn && isApiKeyLogin;
+  const canManageApiKey = supportsLogin && isApiKeyLogin;
+  // The usage panel hides sign-in once a provider is connected, but the
+  // account-management surfaces still need a real action for "Add account" /
+  // "Re-authorize". Keep this separate from `canSignIn` so callers do not
+  // have to fake an auth-missing snapshot just to open the existing flow.
+  const canReauthenticate = supportsLogin && isBrowserLogin;
   const canSignOut = supportsLogin && hasStoredSession;
 
   const handleSignIn = async () => {
@@ -78,39 +85,61 @@ export function useUsageProviderLogin(id: string) {
       // closed it). Unsubscribe first so this dismiss doesn't re-fire cancel.
       unsubscribe();
       usePanelStore.getState().setBrowserOverlayOpen(false);
-      if (!outcome.ok) return;
+      if (!outcome.ok) {
+        if (!outcome.cancelled) {
+          toast.danger(outcome.error ?? `Unable to sign in to ${id}.`);
+        }
+        return;
+      }
       // Mark the session stored so the UI reads as signed in immediately,
       // independent of whether the usage fetch below yields displayable data.
       useUsageLoginStateStore.getState().setStored(id, true);
       await refreshAndMergeProviderUsage(id);
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : `Unable to sign in to ${id}.`);
     } finally {
       unsubscribe();
       setSigningIn(false);
     }
   };
 
-  const handleSubmitApiKey = async () => {
+  const handleSubmitApiKey = async (): Promise<boolean> => {
     const key = apiKey.trim();
-    if (!key || signingIn) return;
+    if (!key || signingIn) return false;
     setSigningIn(true);
     try {
       const outcome = await readBridge().submitUsageApiKey({ providerId: id, apiKey: key });
-      if (!outcome.ok) return;
+      if (!outcome.ok) {
+        toast.danger(outcome.error ?? `Unable to save the ${id} API key.`);
+        return false;
+      }
       setApiKey("");
       useUsageLoginStateStore.getState().setStored(id, true);
       await refreshAndMergeProviderUsage(id);
+      return true;
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : `Unable to save the ${id} API key.`);
+      return false;
     } finally {
       setSigningIn(false);
     }
   };
 
-  const handleSignOut = async () => {
-    if (signingOut) return;
+  const handleSignOut = async (): Promise<boolean> => {
+    if (signingOut) return false;
     setSigningOut(true);
     try {
-      await readBridge().clearUsageLogin({ providerId: id });
+      const outcome = await readBridge().clearUsageLogin({ providerId: id });
+      if (!outcome.ok) {
+        toast.danger(`Unable to sign out of ${id}.`);
+        return false;
+      }
       useUsageLoginStateStore.getState().setStored(id, false);
       await refreshAndMergeProviderUsage(id);
+      return true;
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : `Unable to sign out of ${id}.`);
+      return false;
     } finally {
       setSigningOut(false);
     }
@@ -121,6 +150,8 @@ export function useUsageProviderLogin(id: string) {
     canSignIn,
     canBrowserSignIn,
     canApiKeySignIn,
+    canManageApiKey,
+    canReauthenticate,
     canSignOut,
     signingIn,
     signingOut,
