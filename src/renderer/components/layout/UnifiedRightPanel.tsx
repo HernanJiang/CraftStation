@@ -6,6 +6,7 @@ export interface AuxiliaryBrowserTab {
   loading?: boolean;
 }
 import { type CSSProperties, type ReactNode, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Lock, LockOpen, Maximize2, Minimize2, PanelRightClose, Plus, X } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import { PanelDockDropZone } from "@/renderer/components/layout/PanelDock/PanelDockDropZone";
@@ -23,6 +24,9 @@ import {
 import { type RightPanelTab } from "@/renderer/state/panelStore";
 
 export type { RightPanelTab };
+
+const TOOL_MENU_WIDTH_PX = 176;
+const TOOL_MENU_VIEWPORT_MARGIN_PX = 8;
 
 export function UnifiedRightPanel(props: {
   activeTab: RightPanelTab;
@@ -148,6 +152,10 @@ export function UnifiedRightPanel(props: {
   const { t } = useLingui();
   const shouldShowPanelCloseButton = showPanelCloseButton ?? openTabs !== undefined;
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const toolMenuAnchorRef = useRef<HTMLDivElement>(null);
+  const [toolMenuPosition, setToolMenuPosition] = useState<{ top: number; left: number } | null>(
+    null,
+  );
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const splitFirstPaneRef = useRef<HTMLDivElement>(null);
   const {
@@ -314,10 +322,14 @@ export function UnifiedRightPanel(props: {
       // tab after that context has been prepared.
       onTabChange(tab.id);
     };
-    const buttonClass = `${dragCtl} group inline-flex h-6 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors ${
-      onScreen
-        ? "bg-[var(--surface-secondary)] text-foreground shadow-sm"
-        : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+    const buttonClass = `${dragCtl} group inline-flex h-6 min-w-0 items-center gap-1.5 px-2.5 text-xs transition-colors ${
+      onCloseTab
+        ? "text-current"
+        : `rounded-lg ${
+            onScreen
+              ? "bg-[var(--surface-secondary)] text-foreground shadow-sm"
+              : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+          }`
     }`;
     const tabButton = (
       <button
@@ -335,13 +347,21 @@ export function UnifiedRightPanel(props: {
     );
     if (!onCloseTab) return tabButton;
     return (
-      <div key={tab.id} className="group flex h-full min-w-0 items-center">
+      <div
+        key={tab.id}
+        data-tool-tab={tab.id}
+        className={`group flex h-6 min-w-0 items-center rounded-lg transition-colors ${
+          onScreen
+            ? "bg-[var(--surface-secondary)] text-foreground shadow-sm"
+            : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+        }`}
+      >
         {tabButton}
         <button
           type="button"
           aria-label={t`Close ${tab.label}`}
           title={t`Close ${tab.label}`}
-          className={`${dragCtl} -ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100`}
+          className={`${dragCtl} mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100`}
           onClick={(event) => {
             event.stopPropagation();
             onCloseTab(tab.id);
@@ -354,17 +374,21 @@ export function UnifiedRightPanel(props: {
   };
 
   const renderBrowserTab = (tab: (typeof browserTabButtons)[number]) => (
-    <div key={tab.tabId} className="group flex h-full min-w-0 items-center">
+    <div
+      key={tab.tabId}
+      data-browser-tool-tab={tab.tabId}
+      className={`group flex h-6 min-w-0 items-center rounded-lg transition-colors ${
+        activeBrowserTabId === tab.tabId
+          ? "bg-[var(--surface-secondary)] text-foreground shadow-sm"
+          : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+      }`}
+    >
       <button
         type="button"
         aria-label={tab.label}
         aria-pressed={activeBrowserTabId === tab.tabId}
         title={tab.label}
-        className={`${dragCtl} inline-flex h-6 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors ${
-          activeBrowserTabId === tab.tabId
-            ? "bg-[var(--surface-secondary)] text-foreground shadow-sm"
-            : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
-        }`}
+        className={`${dragCtl} inline-flex h-6 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs text-current transition-colors`}
         onClick={() => {
           onTabChange("browser");
           onActivateBrowserTab?.(tab.tabId);
@@ -377,7 +401,7 @@ export function UnifiedRightPanel(props: {
           type="button"
           aria-label={t`Close tab`}
           title={t`Close tab`}
-          className={`${dragCtl} -ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100`}
+          className={`${dragCtl} mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100`}
           onClick={(event) => {
             event.stopPropagation();
             onCloseBrowserTab(tab.tabId);
@@ -403,32 +427,59 @@ export function UnifiedRightPanel(props: {
         {hasSubagentModel ? (
           <div className="flex min-w-0 flex-1 items-center">{subagentModel}</div>
         ) : null}
-        <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
-          <div className="flex min-w-max h-full items-center gap-0.5">
-            {headerTabs.map(renderToolTab)}
-            {browserTabButtons.map(renderBrowserTab)}
+        <div className="relative flex min-w-0 flex-1 items-center overflow-hidden">
+          <div className="flex h-full min-w-0 flex-1 items-center overflow-x-auto">
+            <div data-tool-tab-row="" className="flex h-full min-w-max items-center gap-0.5">
+              {headerTabs.map(renderToolTab)}
+              {browserTabButtons.map(renderBrowserTab)}
+              {onAddTool ? (
+                <div
+                  ref={toolMenuAnchorRef}
+                  data-add-tool-anchor=""
+                  className="relative flex h-full shrink-0 items-center"
+                >
+                  <button
+                    type="button"
+                    aria-label={t`Add tool`}
+                    aria-expanded={toolMenuOpen}
+                    title={t`Add tool`}
+                    className={`${dragCtl} inline-flex h-6 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground`}
+                    onClick={() => {
+                      onAddTool();
+                      const rect = toolMenuAnchorRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        setToolMenuPosition({
+                          top: rect.bottom + 4,
+                          left: Math.max(
+                            TOOL_MENU_VIEWPORT_MARGIN_PX,
+                            Math.min(
+                              rect.left,
+                              window.innerWidth - TOOL_MENU_WIDTH_PX - TOOL_MENU_VIEWPORT_MARGIN_PX,
+                            ),
+                          ),
+                        });
+                      }
+                      setToolMenuOpen((open) => !open);
+                    }}
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
-        {onAddTool ? (
-          <div className="relative flex h-full shrink-0 items-center">
-            <button
-              type="button"
-              aria-label={t`Add tool`}
-              aria-expanded={toolMenuOpen}
-              title={t`Add tool`}
-              className={`${dragCtl} inline-flex h-full items-center justify-center px-2 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground`}
-              onClick={() => {
-                onAddTool();
-                setToolMenuOpen((open) => !open);
-              }}
-            >
-              <Plus className="size-3.5" />
-            </button>
-            {toolMenuOpen ? (
+        {toolMenuOpen && toolMenuPosition
+          ? createPortal(
               <div
                 role="menu"
                 aria-label={t`Add tool`}
-                className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-44 rounded-xl border border-white/10 bg-[#222329]/[.98] p-1.5 shadow-2xl backdrop-blur-md"
+                style={{
+                  position: "fixed",
+                  top: toolMenuPosition.top,
+                  left: toolMenuPosition.left,
+                }}
+                className="z-[200] min-w-44 rounded-xl border border-white/10 bg-[#222329]/[.98] p-1.5 shadow-2xl backdrop-blur-md"
               >
                 {addableTabs.map((tab) => {
                   const Icon = tab.icon;
@@ -442,6 +493,7 @@ export function UnifiedRightPanel(props: {
                         if (tab.onOpen) tab.onOpen();
                         onTabChange(tab.id);
                         setToolMenuOpen(false);
+                        setToolMenuPosition(null);
                       }}
                     >
                       <Icon className="size-3.5 shrink-0" />
@@ -449,10 +501,10 @@ export function UnifiedRightPanel(props: {
                     </button>
                   );
                 })}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+              </div>,
+              document.body,
+            )
+          : null}
         {activeTab === "usage" ? usageHeaderActions : null}
         <div className="ml-auto flex shrink-0 items-center gap-0.5 pl-1">
           {onToggleFollowsThread ? (

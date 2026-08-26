@@ -101,14 +101,64 @@ describe("UnifiedRightPanel", () => {
     expect(onCloseTab).toHaveBeenCalledWith("git");
 
     const reviewTab = screen.getByRole("button", { name: "Review" });
-    expect(reviewTab.className).toContain("rounded-lg");
+    const reviewSelection = reviewTab.closest("[data-tool-tab='git']");
+    expect(reviewSelection).toHaveClass("rounded-lg");
+    expect(reviewSelection).toContainElement(screen.getByRole("button", { name: "Close Review" }));
     expect(reviewTab.className).not.toContain("border-b-2");
     expect(reviewTab).toHaveClass("poracode-overlay-header__controls");
+
+    const tabRow = container.querySelector("[data-tool-tab-row]");
+    const addToolAnchor = container.querySelector("[data-add-tool-anchor]");
+    expect(tabRow?.lastElementChild).toBe(addToolAnchor);
 
     fireEvent.click(screen.getByRole("button", { name: "Add tool" }));
     expect(onAddTool).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Maximize side panel" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hide panel" })).toBeInTheDocument();
+  });
+
+  it("keeps add-tool interactive above an opened browser surface", () => {
+    const onAddTool = vi.fn<() => void>();
+    const onTabChange = vi.fn<(tab: RightPanelTab) => void>();
+
+    render(
+      <UnifiedRightPanel
+        activeTab="browser"
+        onTabChange={onTabChange}
+        gitContent={<div>review-content</div>}
+        filesContent={<div>files-content</div>}
+        browserContent={<div>browser-content</div>}
+        showTerminalTab={false}
+        showFilesTab={false}
+        showGitTab={false}
+        showHarnessTab
+        showUsageTab={false}
+        showNotesTab={false}
+        showBrowserTab
+        openTabs={["browser"]}
+        browserTabs={[
+          {
+            tabId: "browser-1",
+            title: "Example",
+            url: "https://example.com",
+          },
+        ]}
+        activeBrowserTabId="browser-1"
+        projectName="CraftStation"
+        onAddTool={onAddTool}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add tool" }));
+
+    expect(onAddTool).toHaveBeenCalledTimes(1);
+    const menu = screen.getByRole("menu", { name: "Add tool" });
+    expect(menu).toBeInTheDocument();
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu).toHaveClass("z-[200]");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Crafting Table" }));
+    expect(onTabChange).toHaveBeenCalledWith("harness");
   });
 
   it("switches an open tab and selects a tool from the plus menu", () => {
