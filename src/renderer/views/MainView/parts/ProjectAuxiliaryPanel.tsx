@@ -38,7 +38,6 @@ import { useSideChatStore } from "@/renderer/state/sideChatStore";
 import { watchRemoteTerminal } from "@/renderer/state/remoteTerminalFeed";
 import { prefetchVisibleGitPanelPrData } from "@/renderer/state/gitRefresh";
 import {
-  closeAllPanels,
   moveThreadTodoDock,
   showFilesPanel,
   showGitReviewPanel,
@@ -98,6 +97,7 @@ export function ProjectAuxiliaryPanel(props: {
   const setRightPanelTab = usePanelStore((s) => s.setRightPanelTab);
   const setAuxiliaryPanelTab = usePanelStore((s) => s.setAuxiliaryPanelTab);
   const closeAuxiliaryPanelTab = usePanelStore((s) => s.closeAuxiliaryPanelTab);
+  const hideAuxiliaryPanel = usePanelStore((s) => s.hideAuxiliaryPanel);
   const toggleAuxiliaryPanelMaximized = usePanelStore((s) => s.toggleAuxiliaryPanelMaximized);
   const rightPanelFollowsThread = usePanelStore((s) => s.rightPanelFollowsThread);
   const toggleRightPanelFollowsThread = usePanelStore((s) => s.toggleRightPanelFollowsThread);
@@ -420,10 +420,9 @@ export function ProjectAuxiliaryPanel(props: {
   }
 
   function handleClose() {
-    if (props.includeTerminal) {
-      useDevTerminalStore.getState().closePanel();
-    }
-    closeAllPanels();
+    // Collapsing the right rail is visibility-only. Keep the active tab and
+    // its tool context so reopening the rail returns to the same workspace.
+    hideAuxiliaryPanel();
   }
 
   function handleCloseSubAgent() {
@@ -445,7 +444,6 @@ export function ProjectAuxiliaryPanel(props: {
   function handleAddTool(): void {
     setBrowserOverlayMaximized(false);
     setBrowserOverlayOpen(false);
-    setAuxiliaryPanelTab(null);
   }
 
   // A bottom-docked tab renders in the bottom row; keep it out of this panel so

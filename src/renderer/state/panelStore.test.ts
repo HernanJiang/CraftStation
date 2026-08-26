@@ -259,6 +259,46 @@ describe("panel dock state", () => {
   });
 });
 
+describe("auxiliary panel visibility", () => {
+  beforeEach(() => {
+    resetPanelStore();
+    usePanelStore.setState({
+      auxiliaryPanelPlacement: "right",
+      auxiliaryPanelTab: "files",
+      auxiliaryPanelTabs: ["git", "files"],
+      rightPanelTab: "files",
+      auxiliaryPanelMaximized: true,
+    });
+  });
+
+  afterEach(() => {
+    resetPanelStore();
+  });
+
+  it("hides the rail without forgetting the selected tool tabs", () => {
+    usePanelStore.getState().hideAuxiliaryPanel();
+
+    expect(usePanelStore.getState()).toMatchObject({
+      auxiliaryPanelPlacement: "hidden",
+      auxiliaryPanelTab: "files",
+      auxiliaryPanelTabs: ["git", "files"],
+      rightPanelTab: "files",
+      auxiliaryPanelMaximized: false,
+    });
+  });
+
+  it("reopens the rail on the tool that was active before collapsing", () => {
+    usePanelStore.getState().hideAuxiliaryPanel();
+    usePanelStore.getState().toggleAuxiliaryPanel("right");
+
+    expect(usePanelStore.getState()).toMatchObject({
+      auxiliaryPanelPlacement: "right",
+      auxiliaryPanelTab: "files",
+      rightPanelTab: "files",
+    });
+  });
+});
+
 describe("create project modal", () => {
   beforeEach(() => {
     resetPanelStore();
@@ -336,4 +376,3 @@ describe("browserOverlayMaximized lifecycle", () => {
     expect(usePanelStore.getState().browserOverlayMaximized).toBe(true);
   });
 });
-

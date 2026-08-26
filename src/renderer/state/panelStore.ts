@@ -168,6 +168,8 @@ interface PanelState {
   setAuxiliaryPanelTab: (tab: RightPanelTab | null) => void;
   closeAuxiliaryPanelTab: (tab: RightPanelTab) => void;
   toggleAuxiliaryPanel: (placement: Exclude<AuxiliaryPanelPlacement, "hidden">) => void;
+  /** Hide the auxiliary panel while preserving its active tab and open tabs. */
+  hideAuxiliaryPanel: () => void;
   toggleAuxiliaryPanelMaximized: () => void;
   setRightPanelSplit: (split: RightPanelSplit | null) => void;
   /** Put a tab in one bottom slot (or clear it); a tab never occupies two slots. */
@@ -320,7 +322,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
       ) {
         return {};
       }
-      
+
       return {
         gitReviewContext: ctx,
         ...(ctx === null ? releaseClosedTab(state, "git") : {}),
@@ -328,12 +330,10 @@ export const usePanelStore = create<PanelState>()((set) => ({
     }),
 
   setThreadSortMode: (threadSortMode) => {
-    
     set({ threadSortMode });
   },
 
   setThreadListLayout: (threadListLayout) => {
-    
     set({ threadListLayout });
   },
 
@@ -387,7 +387,9 @@ export const usePanelStore = create<PanelState>()((set) => ({
     }),
 
   setAuxiliaryPanelPlacement: (placement) =>
-    set((state) => (state.auxiliaryPanelPlacement === placement ? {} : { auxiliaryPanelPlacement: placement })),
+    set((state) =>
+      state.auxiliaryPanelPlacement === placement ? {} : { auxiliaryPanelPlacement: placement },
+    ),
 
   setAuxiliaryPanelTab: (tab) =>
     set((state) => {
@@ -425,7 +427,6 @@ export const usePanelStore = create<PanelState>()((set) => ({
       if (state.auxiliaryPanelPlacement === placement) {
         return {
           auxiliaryPanelPlacement: "hidden",
-          auxiliaryPanelTab: null,
           auxiliaryPanelMaximized: false,
         };
       }
@@ -433,6 +434,16 @@ export const usePanelStore = create<PanelState>()((set) => ({
         auxiliaryPanelPlacement: placement,
       };
     }),
+
+  hideAuxiliaryPanel: () =>
+    set((state) =>
+      state.auxiliaryPanelPlacement === "hidden" && !state.auxiliaryPanelMaximized
+        ? {}
+        : {
+            auxiliaryPanelPlacement: "hidden",
+            auxiliaryPanelMaximized: false,
+          },
+    ),
 
   toggleAuxiliaryPanelMaximized: () =>
     set((state) => ({ auxiliaryPanelMaximized: !state.auxiliaryPanelMaximized })),
@@ -479,12 +490,11 @@ export const usePanelStore = create<PanelState>()((set) => ({
   toggleRightPanelFollowsThread: () =>
     set((state) => {
       const next = !state.rightPanelFollowsThread;
-      
+
       return { rightPanelFollowsThread: next };
     }),
 
   setThreadToolRailOffset: (offset) => {
-    
     set({ threadToolRailOffset: offset });
   },
 
@@ -518,7 +528,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
 
   setBrowserOverlayDrawerWidth: (drawerWidth) => {
     const clamped = clampDrawerWidth(drawerWidth);
-    
+
     set({ browserOverlayDrawerWidth: clamped });
   },
 
@@ -595,5 +605,3 @@ persistStoreSlice(usePanelStore, PERSIST_KEY, (state) => ({
   threadSortMode: state.threadSortMode,
   threadListLayout: state.threadListLayout,
 }));
-
-

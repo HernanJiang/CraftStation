@@ -66,11 +66,12 @@ describe("UnifiedRightPanel", () => {
   it("owns its local tool header and wires close plus add", () => {
     const onCloseTab = vi.fn<(tab: RightPanelTab) => void>();
     const onAddTool = vi.fn<() => void>();
+    const onTabChange = vi.fn<(tab: RightPanelTab) => void>();
 
     const { container } = render(
       <UnifiedRightPanel
         activeTab="git"
-        onTabChange={() => {}}
+        onTabChange={onTabChange}
         gitContent={<div>review-content</div>}
         filesContent={<div>files-content</div>}
         browserContent={<div>browser-content</div>}
@@ -99,10 +100,51 @@ describe("UnifiedRightPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close Review" }));
     expect(onCloseTab).toHaveBeenCalledWith("git");
 
+    const reviewTab = screen.getByRole("button", { name: "Review" });
+    expect(reviewTab.className).toContain("rounded-lg");
+    expect(reviewTab.className).not.toContain("border-b-2");
+    expect(reviewTab).toHaveClass("poracode-overlay-header__controls");
+
     fireEvent.click(screen.getByRole("button", { name: "Add tool" }));
     expect(onAddTool).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Maximize side panel" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hide panel" })).toBeInTheDocument();
+  });
+
+  it("switches an open tab and selects a tool from the plus menu", () => {
+    const onTabChange = vi.fn<(tab: RightPanelTab) => void>();
+    const onAddTool = vi.fn<() => void>();
+
+    render(
+      <UnifiedRightPanel
+        activeTab="git"
+        onTabChange={onTabChange}
+        gitContent={<div>review-content</div>}
+        filesContent={<div>files-content</div>}
+        browserContent={<div>browser-content</div>}
+        showTerminalTab={false}
+        showFilesTab
+        showGitTab
+        showHarnessTab
+        showUsageTab={false}
+        showNotesTab={false}
+        showBrowserTab={false}
+        openTabs={["git", "files"]}
+        projectName="CraftStation"
+        onAddTool={onAddTool}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    expect(onTabChange).toHaveBeenCalledWith("files");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add tool" }));
+    expect(onAddTool).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("menu", { name: "Add tool" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Crafting Table" }));
+    expect(onTabChange).toHaveBeenCalledWith("harness");
   });
 
   it("keeps open tabs in the header while the launcher replaces tool content", () => {

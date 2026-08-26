@@ -154,7 +154,7 @@ describe("ProjectAuxiliaryPanel", () => {
     });
   });
 
-  it("closes a stale browser overlay before showing the tool launcher", async () => {
+  it("closes a stale browser overlay without replacing the active tool", async () => {
     usePanelStore.setState({
       auxiliaryPanelPlacement: "right",
       auxiliaryPanelTab: "browser",
@@ -175,7 +175,7 @@ describe("ProjectAuxiliaryPanel", () => {
     act(() => unifiedRightPanelProps.current?.onAddTool?.());
 
     expect(usePanelStore.getState()).toMatchObject({
-      auxiliaryPanelTab: null,
+      auxiliaryPanelTab: "browser",
       auxiliaryPanelTabs: ["harness", "browser"],
       browserOverlayOpen: false,
       browserOverlayMaximized: false,

@@ -143,7 +143,6 @@ export function UnifiedRightPanel(props: {
     splitTab,
     splitPlacement = "bottom",
     onCloseSplit,
-    dockedTabs = [],
     onClose,
   } = props;
   const { t } = useLingui();
@@ -276,21 +275,27 @@ export function UnifiedRightPanel(props: {
     splitTab && splitTab !== activeTab
       ? tabs.find((tab) => tab.id === splitTab && tab.visible && tab.content !== undefined)
       : undefined;
-  /** Painted right now: the active layer, the split section, or a bottom dock slot. */
-  const isTabOnScreen = (tab: RightPanelTab) =>
-    tab === activeTab || tab === splitEntry?.id || dockedTabs.includes(tab);
-
   // The right panel has two separate concepts: available tools and opened
   // tool tabs.  The old implementation rendered every available tool as a
   // bare icon, which made the header look like a toolbar and hid the actual
   // multi-tab state.  `openTabs` is authoritative when supplied; the fallback
   // keeps this low-level component backwards-compatible for existing callers.
   const visibleTabs = tabs.filter((tab) => tab.visible);
-  const headerTabs = (
-    openTabs === undefined ? visibleTabs : visibleTabs.filter((tab) => openTabs.includes(tab.id))
-  ).filter(
-    (tab) => tab.id !== "browser" || browserTabs.length === 0 || openTabs?.includes("browser"),
-  );
+  const openedTabIds = new Set(openTabs ?? visibleTabs.map((tab) => tab.id));
+  // Older persisted panel state may contain a selected tab but no entry in the
+  // tab list. Keep that selected tab visible until the next store write; this
+  // prevents a seemingly dead header after upgrading from the single-tool
+  // panel implementation. The launcher intentionally has no selected tab.
+  if (!launcherOpen) openedTabIds.add(activeTab);
+  const headerTabs = visibleTabs
+    .filter((tab) => openedTabIds.has(tab.id))
+    .filter(
+      (tab) =>
+        tab.id !== "browser" ||
+        browserTabs.length === 0 ||
+        openTabs === undefined ||
+        openTabs.includes("browser"),
+    );
   const browserTabButtons = browserTabs.map((tab) => ({
     ...tab,
     label: tab.title || tab.url,
@@ -301,15 +306,18 @@ export function UnifiedRightPanel(props: {
 
   const renderToolTab = (tab: (typeof tabs)[number]) => {
     const Icon = tab.icon;
-    const onScreen = isTabOnScreen(tab.id);
+    const onScreen = activeTab === tab.id;
     const handlePress = () => {
       if (tab.onOpen) tab.onOpen();
-      else onTabChange(tab.id);
+      // `onOpen` binds project/worktree context for scoped tools. It must not
+      // replace the activation path: the tab still has to become the selected
+      // tab after that context has been prepared.
+      onTabChange(tab.id);
     };
-    const buttonClass = `group inline-flex min-w-0 items-center gap-1.5 border-b-2 px-2.5 text-xs transition-colors ${
+    const buttonClass = `${dragCtl} group inline-flex h-6 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors ${
       onScreen
-        ? "border-foreground/50 bg-[var(--surface-secondary)] text-foreground"
-        : "border-transparent text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+        ? "bg-[var(--surface-secondary)] text-foreground shadow-sm"
+        : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
     }`;
     const tabButton = (
       <button
@@ -318,6 +326,7 @@ export function UnifiedRightPanel(props: {
         className={buttonClass}
         title={tab.label}
         aria-pressed={onScreen}
+        aria-label={tab.label}
         onClick={handlePress}
       >
         <Icon className="size-3.5 shrink-0" />
@@ -332,7 +341,7 @@ export function UnifiedRightPanel(props: {
           type="button"
           aria-label={t`Close ${tab.label}`}
           title={t`Close ${tab.label}`}
-          className="-ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100"
+          className={`${dragCtl} -ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100`}
           onClick={(event) => {
             event.stopPropagation();
             onCloseTab(tab.id);
@@ -351,12 +360,15 @@ export function UnifiedRightPanel(props: {
         aria-label={tab.label}
         aria-pressed={activeBrowserTabId === tab.tabId}
         title={tab.label}
-        className={`inline-flex h-full min-w-0 items-center gap-1.5 border-b-2 px-2.5 text-xs transition-colors ${
+        className={`${dragCtl} inline-flex h-6 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors ${
           activeBrowserTabId === tab.tabId
-            ? "border-foreground/50 bg-[var(--surface-secondary)] text-foreground"
-            : "border-transparent text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+            ? "bg-[var(--surface-secondary)] text-foreground shadow-sm"
+            : "text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
         }`}
-        onClick={() => onActivateBrowserTab?.(tab.tabId)}
+        onClick={() => {
+          onTabChange("browser");
+          onActivateBrowserTab?.(tab.tabId);
+        }}
       >
         <span className="max-w-32 truncate">{tab.label}</span>
       </button>
@@ -365,7 +377,7 @@ export function UnifiedRightPanel(props: {
           type="button"
           aria-label={t`Close tab`}
           title={t`Close tab`}
-          className="-ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100"
+          className={`${dragCtl} -ml-1 mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted/70 opacity-70 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground group-hover:opacity-100`}
           onClick={(event) => {
             event.stopPropagation();
             onCloseBrowserTab(tab.tabId);
@@ -391,54 +403,56 @@ export function UnifiedRightPanel(props: {
         {hasSubagentModel ? (
           <div className="flex min-w-0 flex-1 items-center">{subagentModel}</div>
         ) : null}
-        <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
-          {headerTabs.map(renderToolTab)}
-          {browserTabButtons.map(renderBrowserTab)}
-          {onAddTool ? (
-            <div className="relative flex h-full shrink-0 items-center">
-              <button
-                type="button"
-                aria-label={t`Add tool`}
-                aria-expanded={toolMenuOpen}
-                title={t`Add tool`}
-                className="inline-flex h-full items-center justify-center px-2 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
-                onClick={() => {
-                  onAddTool();
-                  setToolMenuOpen((open) => !open);
-                }}
-              >
-                <Plus className="size-3.5" />
-              </button>
-              {toolMenuOpen ? (
-                <div
-                  role="menu"
-                  aria-label={t`Add tool`}
-                  className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-44 rounded-xl border border-white/10 bg-[#222329]/[.98] p-1.5 shadow-2xl backdrop-blur-md"
-                >
-                  {addableTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 transition-colors hover:bg-white/[.07] hover:text-white"
-                        onClick={() => {
-                          if (tab.onOpen) tab.onOpen();
-                          else onTabChange(tab.id);
-                          setToolMenuOpen(false);
-                        }}
-                      >
-                        <Icon className="size-3.5 shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+        <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
+          <div className="flex min-w-max h-full items-center gap-0.5">
+            {headerTabs.map(renderToolTab)}
+            {browserTabButtons.map(renderBrowserTab)}
+          </div>
         </div>
+        {onAddTool ? (
+          <div className="relative flex h-full shrink-0 items-center">
+            <button
+              type="button"
+              aria-label={t`Add tool`}
+              aria-expanded={toolMenuOpen}
+              title={t`Add tool`}
+              className={`${dragCtl} inline-flex h-full items-center justify-center px-2 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground`}
+              onClick={() => {
+                onAddTool();
+                setToolMenuOpen((open) => !open);
+              }}
+            >
+              <Plus className="size-3.5" />
+            </button>
+            {toolMenuOpen ? (
+              <div
+                role="menu"
+                aria-label={t`Add tool`}
+                className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-44 rounded-xl border border-white/10 bg-[#222329]/[.98] p-1.5 shadow-2xl backdrop-blur-md"
+              >
+                {addableTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="menuitem"
+                      className={`${dragCtl} flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 transition-colors hover:bg-white/[.07] hover:text-white`}
+                      onClick={() => {
+                        if (tab.onOpen) tab.onOpen();
+                        onTabChange(tab.id);
+                        setToolMenuOpen(false);
+                      }}
+                    >
+                      <Icon className="size-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {activeTab === "usage" ? usageHeaderActions : null}
         <div className="ml-auto flex shrink-0 items-center gap-0.5 pl-1">
           {onToggleFollowsThread ? (
