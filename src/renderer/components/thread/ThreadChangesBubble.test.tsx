@@ -73,7 +73,7 @@ describe("ThreadChangesBubble", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("poracode/fix-pwa-worktree-setup");
   });
 
-  it("shows worktree changes beside the icon and opens Git review for that worktree", () => {
+  it("keeps worktree change statistics out of the conversation and opens Git review", () => {
     const worktreePath = "C:\\repo-worktrees\\calm-viper";
     useGitStore.setState({
       worktreeStatuses: {
@@ -85,8 +85,9 @@ describe("ThreadChangesBubble", () => {
 
     const bubble = screen.getByRole("button", { name: "Review changes" });
 
-    expect(bubble).toHaveTextContent("+42");
-    expect(bubble).toHaveTextContent("-7");
+    expect(bubble).not.toHaveTextContent("+42");
+    expect(bubble).not.toHaveTextContent("-7");
+    expect(bubble.querySelector(".lucide-git-fork")).not.toBeNull();
     expect(screen.getByRole("tooltip")).toHaveTextContent("calm-viper");
 
     fireEvent.click(bubble);

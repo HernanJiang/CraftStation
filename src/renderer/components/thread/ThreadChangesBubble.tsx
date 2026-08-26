@@ -1,10 +1,9 @@
 import { useShallow } from "zustand/shallow";
 import { Tooltip } from "@heroui/react";
-import { GitFork, GitPullRequest } from "lucide-react";
+import { FileDiff, GitFork, GitPullRequest } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import { getBasename } from "@/shared/pathUtils";
 import { closeAllPanels, showGitReviewPanel } from "@/renderer/actions/panelActions";
-import { DiffStat } from "@/renderer/components/common";
 import {
   floatingGlassActiveClass,
   floatingGlassSurfaceClass,
@@ -32,8 +31,7 @@ export function ThreadChangesBubble(props: {
 }) {
   const { t } = useLingui();
   const {
-    insertions,
-    deletions,
+    hasChanges,
     prNumber,
     prState,
     checksStatus,
@@ -48,8 +46,7 @@ export function ThreadChangesBubble(props: {
       const pr = s.prData[resolvePrKey(props.projectId, props.worktreePath)];
       const details = pr?.number ? s.prDetails[`${props.projectId}#${pr.number}`] : undefined;
       return {
-        insertions: status?.totalInsertions ?? 0,
-        deletions: status?.totalDeletions ?? 0,
+        hasChanges: Boolean(status?.staged.length || status?.unstaged.length),
         prNumber: pr?.number,
         prState: pr?.state,
         reviewDecision: pr?.reviewDecision,
@@ -71,7 +68,6 @@ export function ThreadChangesBubble(props: {
       s.gitReviewContext?.worktreePath === props.worktreePath,
   );
 
-  const hasChanges = insertions > 0 || deletions > 0;
   const hasVisiblePr =
     prNumber !== undefined &&
     prState !== "closed" &&
@@ -90,7 +86,7 @@ export function ThreadChangesBubble(props: {
       /* Sized to a 28px pill — same height as the scroll-to-bottom circle and the
          rail's icon buttons, so the floating chrome shares one scale. */
       className={`${floatingGlassSurfaceClass} flex h-7 items-center gap-1.5 rounded-full text-xs font-medium transition-colors ${
-        hasChanges || hasVisiblePr ? "px-3" : "w-7 justify-center px-0"
+        hasVisiblePr ? "px-3" : "w-7 justify-center px-0"
       } ${isOpen ? floatingGlassActiveClass : "hover:border-border/30"}`}
       onClick={() => {
         if (isOpen) {
@@ -109,8 +105,9 @@ export function ThreadChangesBubble(props: {
         </>
       ) : props.worktreePath ? (
         <GitFork className="size-3.5 shrink-0 text-muted" />
-      ) : null}
-      <DiffStat animated insertions={insertions} deletions={deletions} />
+      ) : (
+        <FileDiff className="size-3.5 shrink-0 text-muted" />
+      )}
     </button>
   );
 

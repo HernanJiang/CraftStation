@@ -37,9 +37,11 @@ export async function loadGitDiffForDisplay(
     return { result, oldContent: "", newContent: "" };
   }
 
-  const [result, content] = await Promise.all([
-    readBridge().getGitDiff(payload),
-    readBridge().getGitFileContent(payload),
-  ]);
+  // Local IPC can stall too (for example while Git walks a generated file).
+  // Bound both calls so one selected file cannot leave Review spinning forever.
+  const [result, content] = await withTimeout(
+    Promise.all([readBridge().getGitDiff(payload), readBridge().getGitFileContent(payload)]),
+    timeoutMs,
+  );
   return { result, ...content };
 }

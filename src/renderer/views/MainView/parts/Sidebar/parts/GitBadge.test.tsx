@@ -195,7 +195,7 @@ describe("GitBadge", () => {
     expect(icon).toHaveClass("lucide-git-branch");
   });
 
-  it("pads a glyph-only badge into a square, and only widens one carrying diff counts", () => {
+  it("keeps the project badge glyph-only even when the repository has changes", () => {
     useGitStore.setState({
       worktreeStatuses: { "/wt/feature": makeStatus() },
       prData: { "/wt/feature": basePr },
@@ -219,12 +219,14 @@ describe("GitBadge", () => {
     });
     render(<GitBadge projectId="project-1" projectName="feature/pr" worktreePath="/wt/feature" />);
 
-    const withCounts = screen.getByRole("button", { name: "Git status for feature/pr" });
-    expect(withCounts).toHaveClass("px-1");
-    expect(withCounts).not.toHaveClass("p-[3px]");
+    const changedBadge = screen.getByRole("button", { name: "Git status for feature/pr" });
+    expect(changedBadge).toHaveClass("p-[3px]");
+    expect(changedBadge).not.toHaveClass("px-1");
+    expect(changedBadge).not.toHaveTextContent("+12");
+    expect(changedBadge).not.toHaveTextContent("-3");
   });
 
-  it("renders diff stats before the PR icon so the icon stays aligned with the timestamp", () => {
+  it("keeps diff statistics out of the project row", () => {
     useGitStore.setState({
       worktreeStatuses: {
         "/wt/feature": makeStatus({ totalInsertions: 12, totalDeletions: 3 }),
@@ -237,13 +239,11 @@ describe("GitBadge", () => {
     render(<GitBadge projectId="project-1" projectName="feature/pr" worktreePath="/wt/feature" />);
 
     const badge = screen.getByRole("button", { name: "Git status for feature/pr" });
-    const insertion = screen.getByText("+12");
     const prIcon = badge.querySelector(".lucide-git-pull-request");
 
     expect(prIcon).not.toBeNull();
-    expect(
-      insertion.compareDocumentPosition(prIcon!) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(screen.queryByText("+12")).not.toBeInTheDocument();
+    expect(screen.queryByText("-3")).not.toBeInTheDocument();
   });
 
   it("does not show a stale project PR while fetching the current branch PR", async () => {

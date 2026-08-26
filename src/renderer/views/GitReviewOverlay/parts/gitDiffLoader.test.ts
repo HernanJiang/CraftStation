@@ -59,4 +59,11 @@ describe("loadGitDiffForDisplay", () => {
 
     await expect(loadGitDiffForDisplay(payload, 1)).rejects.toThrow("Timed out loading Git diff");
   });
+
+  it("bounds stalled local Git IPC instead of leaving Review loading forever", async () => {
+    bridgeMock.getGitDiff.mockReturnValue(new Promise(() => undefined));
+    bridgeMock.getGitFileContent.mockReturnValue(new Promise(() => undefined));
+
+    await expect(loadGitDiffForDisplay(payload, 1)).rejects.toThrow("Timed out loading Git diff");
+  });
 });
