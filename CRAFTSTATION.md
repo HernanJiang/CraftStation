@@ -144,3 +144,12 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 - Product Working Copy remote: `origin` = `https://github.com/HernanJiang/CraftStation.git`
 - Default branch: `main`
 - This file is the CraftStation governance overlay; PoraCode `AGENTS.md` in the same repo remains the implementation working rules.
+
+## Git Worktree Topology
+
+- Product Git Root：`D:\Work\CraftStation\craftstation`。
+- Main Worktree：`D:\Work\CraftStation\craftstation`，分支 `main`，稳定产品线；用户用 main 版 CraftStation 长期开发其它项目（dogfooding）。
+- Dev Worktree：`D:\Work\CraftStation\craftstation-dev`，分支 `dev`，当前 Feature 的唯一默认开发线。
+- Remote：`origin = https://github.com/HernanJiang/CraftStation.git`；`main` 与 `dev` 均跟踪对应远端分支。
+- 当前 Feature 的 Manager、Coder、Debugger 只在 Dev Worktree 工作；不得把当前 Feature 源码写入 Main Worktree。
+- 用户验收 dev candidate 后，Manager 才能执行 `dev -> main` fast-forward、正式 tag/push，并将 dev 同步到新的 main 基线。

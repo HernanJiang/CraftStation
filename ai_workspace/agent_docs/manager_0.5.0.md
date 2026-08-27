@@ -31,8 +31,8 @@ Supervisor
         └── Account / Peripheral capability
              ├── Multi-account store
              ├── account/profile isolation
-             ├── selected account
-             ├── ordered fallback
+             ├── provider pool scheduling mode
+             ├── ordered account priority / round-robin cursor
              ├── session stickiness
              └── token usage / Tokscale integration
 ```
@@ -84,7 +84,7 @@ v0.5 完成后，CraftStation 的现有“模型与用量”应该成为可真�
 ```text
 Account & Usage Peripheral
         ↓
-resolve selected/native profile
+resolve pool/explicit native profile
         ↓
 Official / Native Harness Runtime
         ↓
@@ -109,8 +109,8 @@ Provider
 
 - 用户继续使用现有“模型与用量”入口，不新增一套独立 Accounts 页面或第二个重复 Usage 系统。
 - “账号与额度”中，同一个 Provider/Harness 可以展示 0/N 个账号；每个账号显示自身 identity、plan、quota windows、reset、状态和必要操作。
-- 用户可以添加/导入账号、删除账号、刷新额度、启用/禁用账号、设为当前账号，并通过拖拽或等价现有交互维护 fallback 顺序。
-- `selected account` 与 `fallback order` 是两个不同概念；UI 必须让用户行为可预测，而不是隐藏在模糊“首选”逻辑里。
+- 用户可以添加/导入账号、删除账号、刷新额度、启用/禁用账号，并通过拖拽维护账号池顺序；Provider Card 拖拽只维护展示顺序。
+- 产品不再提供 `selectedAccountId` / “设为首选”语义。Auto 使用每个 Provider Pool 的调度模式；显式账号只存在于创建新 Session 的 override。
 - 显式 per-run/account override 不可用时，CraftStation 明确报错，不偷偷替换成其它账号。
 - Auto/default 模式允许按明确规则 fallback。
 - 已经运行的 Session 默认保持账号 sticky；某账号后续额度耗尽，不允许后台悄悄把正在运行的 Session 切到另一个账号。
@@ -121,21 +121,18 @@ Provider
 
 - 现有 provider quota infrastructure、UsageService、cache-first、stale-while-revalidate、background refresh、request coalescing、429/Retry-After 等已存在能力优先复用；本 Feature 不重写第二套 quota collector framework。
 - Plan 首先审计当前仓库真实实现，输出 `DONE / FIX / MISSING` Gap Matrix，再决定实际改动；禁止按照历史讨论假设“某模块还没做”而重建已存在代码。
-- Account Resolver 保持简单、确定性，不演化为智能调度器、cost optimizer、load balancer 或 round-robin router。
+- Account Resolver 保持简单、确定性，不演化为智能调度器、cost optimizer 或跨 Provider load balancer；Round-Robin 仅是 Provider Pool 的显式模式。
 - 默认 resolve 语义：
 
 ```text
-explicit per-run override
+explicit per-session override
   ├── usable -> use it
   └── unusable -> explicit unavailable error, no silent fallback
 
-otherwise selectedAccountId
-  ├── usable -> use it
-  └── unusable -> continue ordered fallback
-
-otherwise orderedAccountIds
-  -> skip disabled / auth-expired / quota-exhausted / unavailable / error
-  -> first usable account wins
+otherwise provider pool scheduling mode
+  ├── priority -> first usable account in Account Row order
+  ├── round-robin -> next usable account in persisted ring
+  └── random -> random usable account
 ```
 
 - `quota-low` 只是 warning，仍允许使用；只有 provider-specific evidence 表明真正 exhausted/unavailable 时才进入 fallback。
@@ -150,7 +147,7 @@ otherwise orderedAccountIds
 2. A/B 各自显示独立 plan/quota/reset/status；刷新 A 不覆盖 B，刷新 B 不污染 A。
 3. 用户将顺序设为 `B > A`，Auto 新 Session 默认使用 B。
 4. 用户显式选择 A，新 Session 使用 A；若 A 此时 unavailable，则明确报错，不偷偷改用 B。
-5. Auto 模式下首选/当前账号耗尽或 unavailable，新 Session 按 ordered fallback 选择下一个可用账号。
+5. Auto 模式下 Pool 当前模式选择的账号耗尽或 unavailable，新 Session 按该 Pool 的规则选择下一个可用账号。
 6. 已经绑定 A 的运行中 Session 在 A 后续 exhausted 时仍保持 A；新的 Auto Session 才允许选择 B。
 7. 重启 CraftStation 后，account list、enabled state、selection、order 等非敏感管理状态保持一致。
 8. Quota reset 后刷新，账号自动恢复可用状态。
@@ -165,8 +162,8 @@ otherwise orderedAccountIds
 - 对当前仓库已经存在的 Account & Usage 实现做完整 repository-driven audit。
 - 输出 `DONE / FIX / MISSING` capability matrix，并仅修复/补齐真实 gap。
 - 继续复用现有“模型与用量”UI 和快速 UsagePanel；允许内部拆 component，但不新建重复产品入口。
-- Multi-account list、identity、enabled state、selection、ordering、remove/import/add/refresh 等已批准行为的修复与收口。
-- Account Resolver 的 deterministic selected + ordered fallback 行为。
+- Multi-account list、identity、enabled state、ordering、remove/import/add/refresh 等已批准行为的修复与收口；创建 Session 时支持 explicit override。
+- Account Pool Resolver 的 deterministic mode + ordered account 行为。
 - Session sticky account binding。
 - Per-account quota isolation、status、reset recovery 和错误语义。
 - Grok 作为 primary real-world multi-account reference implementation / E2E validation target。
@@ -201,9 +198,9 @@ otherwise orderedAccountIds
 2. **Grok 是真实多账号验收基准。** 因用户拥有多个 Grok 账号，v0.5 的 production-level multi-account E2E 以 Grok 为 primary reference implementation。
 3. **Codex 不再承担唯一多账号 E2E 证明。** Codex 继续保证 architecture compatibility、single-account real path 和 multi-account automated coverage。
 4. **Explicit override 不 silent fallback。** 用户明确指定 Account A 时，A 不可用就报错；只有 Auto/default resolve 才允许 fallback。
-5. **Selected 与 Order 分离。** `selectedAccountId` 表达当前默认偏好；`orderedAccountIds` 表达自动 fallback 顺序。
-6. **Priority Ordered Fallback，不是 Round Robin。** 只要高优先级账号可用，就继续使用它；不会每个请求轮换账号。
-7. **Session Sticky。** fallback 影响新 Session，不默认改变运行中 Session 的账号 identity。
+5. **Pool Mode 与 Order 是唯一 Auto 语义。** `selectedAccountId` / “设为首选”从产品模型移除；Account Row 顺序在 Priority/Round-Robin 中承担调度语义，Random 中只影响展示。
+6. **三种 Pool Mode。** 每个 Provider 独立支持 Priority、Round-Robin、Random，默认 Priority；调度只发生在新 Session。
+7. **Session Sticky。** Pool mode 只影响新 Session，不默认改变运行中 Session 的账号 identity。
 8. **Quota Exhaustion 是 provider-aware service decision。** Renderer 不通过单一百分比自行推断。
 9. **Quota 与 Token Usage 分离。** 现有 quota snapshot 保持其职责；Token history 使用独立 contract/store/normalization。
 10. **本 Feature 是外围能力。** 不污染 CraftStation Core domain ontology。
@@ -222,7 +219,7 @@ Supervisor
   │
   ├── Account orchestration / existing equivalent
   │    ├── account views
-  │    ├── selected + ordered fallback
+  │    ├── pool scheduling mode + ordered accounts
   │    ├── provider-scoped profile refs
   │    └── status derivation
   │
@@ -285,7 +282,7 @@ Capability | Current Evidence | Expected | DONE / FIX / MISSING | Action
 - [ ] account list / N-account rendering
 - [ ] add/import/remove
 - [ ] enable/disable
-- [ ] selected account persistence
+- [ ] pool scheduling mode / account order persistence
 - [ ] drag/order persistence
 - [ ] per-account quota isolation
 - [ ] status derivation
@@ -309,7 +306,7 @@ v0.5 不得 Feature PASS，除非至少两个真实 Grok 账号完成以下 offi
 - [ ] Account A、Account B 都能被 CraftStation 安全识别/管理。
 - [ ] A/B 的 credential/profile scope 不串号。
 - [ ] A/B 独立显示 quota/status/reset；刷新互不覆盖。
-- [ ] 用户可以改变当前账号与 fallback order，重启后保持。
+- [ ] 用户可以改变账号池模式与 Account Row order，重启后保持。
 - [ ] Auto + `B > A` 时，新 Grok Session 实际由 B 的官方 profile 启动。
 - [ ] 显式选择 A 时，新 Session 实际由 A 启动。
 - [ ] 显式 A 不可用时明确报错，不 silent fallback。
@@ -351,7 +348,7 @@ v0.5 不得 Feature PASS，除非至少两个真实 Grok 账号完成以下 offi
 
 - 当前仓库实际已经完成哪些 Account Pool、Tokscale、Rust/peripheral、store、IPC、UI 和 provider adapter 能力；哪些旧讨论已被实现替代。
 - Grok 当前官方 profile/account isolation 的真实机制在 v0.4 adapter 中如何暴露给 v0.5，是否需要最小补充 seam。
-- 当前实现中 `selected account` 与 `ordered fallback` 的既有语义是否已经一致；如不一致，以本 Ideate 冻结语义为准修复。
+- 当前实现中的 `selected account` 遗留状态如何迁移为 pool mode / explicit override；如不一致，以本 Ideate 冻结语义为准修复。
 - 当前 Token Usage 是否已经完整使用 Tokscale、部分 parser、或其它等价实现；Plan 只修真实缺口，不强制为了名称一致做迁移。
 
 ### Questions Reserved for Plan
@@ -371,3 +368,108 @@ v0.5 不得 Feature PASS，除非至少两个真实 Grok 账号完成以下 offi
 - Ready for Plan：Yes
 - Plan Status：Not Started
 - Notes：本 Part I 冻结 v0.5 的产品与验收方向。该 Feature 不是重新开发 Account & Usage，而是基于当前仓库已大部分存在的实现进行审计、修复、补齐和真实验证。核心架构沿用既定方向：复用现有“模型与用量”UI、existing IPC、Supervisor、UsageService 和 provider collectors；Account Pool 作为外围能力提供账号/profile selection、ordered fallback 和 Session stickiness；Quota 与 Token Usage 分离；Official / Native Harness Runtime 保持唯一执行路径。Grok 因具备多个真实账号，成为 v0.5 multi-account 的 primary E2E reference implementation；Codex 保持 single-account real validation 与 multi-account automated architecture coverage。后续 Manager / Plan 必须首先读取当前仓库并形成 `DONE / FIX / MISSING` Gap Matrix，再拆 Plan/Tickets，不得按旧对话假设重建已经实现的模块。
+
+---
+
+## Part II — Manager Plan
+
+### Plan Gate Check（2026-08-28）
+
+结论：**OK，进入 Plan**。
+
+- **Feasibility**：现有 AccountStore、managed profile、sticky binding、UsageService、TokenUsage contract、Renderer-safe projection 与 CodeGraph 已存在；新增能力可放在现有 IPC/Supervisor/UI seam，不需要改写 Harness loop。
+- **Practicality**：先做调度与 Grok tracer bullet，再完成 UI/数据和 Tokscale packaging，最后做真实 E2E；单 Coder 可按序执行。
+- **Alignment**：Account & Usage 保持外围能力；Official / Native Harness only；不污染 Item/Recipe/Crafter，不复活 CLIProxyAPI。
+- **Info completeness**：Part I 已冻结产品行为，无阻塞产品问题；实现不确定性由审计型 Ticket 收敛。
+
+### Current Implementation Gap Matrix
+
+| Capability | 当前事实 | Verdict | 计划动作 |
+|---|---|---|---|
+| AccountStore 持久化、启用/禁用、重命名、排序、atomic write/backup | 已存在 | DONE | 保留并补回归 |
+| Grok/Codex managed profile 与基础 Session binding | 已存在；Grok 使用隔离 `GROK_HOME`，Codex 使用隔离 `CODEX_HOME` | DONE | 接入调度与 E2E 证据 |
+| selected/首选账号语义 | `selected`、`selectAccount`、`selectedAccountId` 和 UI 仍存在 | FIX | 删除产品层 preferred 语义，迁移为 pool mode + explicit override |
+| 新 Session 账号传递 | `craftAgent` 当前主要只传 `craftPlan/projectLocation/prompt` | FIX | 在新 Session seam 解析并持久绑定最终 account/profile |
+| Priority / Round-Robin / Random | resolver 只有 selected + priority fallback | MISSING | 新增 provider-scoped scheduling contract、cursor 与 resolver |
+| hard-error 与 quota-low 过滤 | 现有 `error` 会停止 fallback | FIX | usable filtering：quota-low 可用，hard-error 跳过并保留诊断 |
+| Provider Card display order | 未持久化，排序硬编码 | MISSING | presentation-only order store 与 DnD |
+| Account Row order | 有 reorder，但 Codex/Grok drop provider 参数接反 | FIX | 修复 scope，明确只影响 pool scheduling order |
+| Identity / alias | UI 主副文本反向；Grok 默认 alias 不合约 | FIX | identity 大字、alias 小字、`<Provider> Account N` 默认生成 |
+| Account Row 2×2 usage grid | 当前无固定 per-account grid | MISSING | 在现有 Modal/UsagePanel 增量接入 |
+| Account-scoped quota/reset/status | quota refresh 固定走 Codex collector，Grok 行会错 provider | FIX/MISSING | provider-aware collectors、独立 snapshot、reset recovery |
+| Token usage/cache hit | TokenUsage contract 存在，UI/account 聚合未完整接线 | FIX | account-scoped summary、quality/provenance、无数据显示 `—` |
+| Tokscale | sidecar 明确返回未 bundled | MISSING | 正式 adapter、binary/version/capabilities/schema normalization、打包验证 |
+| 删除/refresh 安全 | managed-scope 基础已有；active Session 防护和 Grok reauth 仍缺 | FIX | binding guard、per-account refresh lock、原账号 reauth |
+| Renderer secret isolation | Renderer-safe view 不含 credential secret | DONE | 维持并加负向测试 |
+| Real Grok multi-account E2E | 尚无至少两个账号的完整产品级证据 | MISSING | v0.5 blocking acceptance |
+
+### Deep Module Seams
+
+1. **Provider Presentation Ordering**：`readOrder()` / `reorder(providerIds)`。只负责 UI 展示顺序，不可被 Runtime resolver 读取。
+2. **Account Pool Scheduling**：`resolveForNewSession(providerId, explicitAccountId?)`。隐藏 mode、usable filtering、priority/RR/random、cursor 与持久化；返回最终 binding，Session 生命周期内不再次调度。
+3. **Token Usage Scanner**：`inspectCapabilities()` / `scan(scope)`。隐藏 Tokscale binary、profile scope、版本兼容、normalization、provenance 和错误映射；Renderer 只消费 CraftStation `TokenUsageResponse`。
+
+### Feature Spec
+
+#### 目标行为
+
+- 现有“模型与用量”入口改为左侧 4 列已认证 Provider Pool、右侧 1 列未认证 Provider；Provider Card DnD 只改变展示顺序。
+- 每个 Pool 支持 `priority`（默认）、`round-robin`、`random`；Account Row 顺序在 priority/RR 中有运行语义，在 random 中仅为展示。
+- 调度只发生在新 Session；显式账号不可用返回稳定错误，Auto 才能按 pool 规则 fallback；运行中 Session 永远 sticky。
+- identity/email 为主文字，用户 alias 为副文字；账号右侧固定 2×2 显示 5h quota、weekly quota、Input/Output Token、Cache Hit Rate。
+- Quota 与 Token Usage 使用独立 contract；所有 quota reset 保留 `resetsAt`；未知 cache 数据显示 `—` 并标明 unavailable/quality。
+- Tokscale 或等价 scanner 通过正式 Adapter 接入，支持 profile-aware scope、能力探测、打包后二进制定位和 schema normalization。
+- 全执行链仍为 Official / Native Harness Runtime；不得引入 CLIProxyAPI；Renderer/IPC/logs 不得泄露 secret。
+
+#### 错误语义与可观测性
+
+- `explicit_account_unavailable`：显式账号不可用，不 fallback。
+- `pool_exhausted`：Auto pool 没有 usable account。
+- `account_hard_error_skipped`：hard-error 被跳过并保留原始原因。
+- 关键事件至少携带 `phase`、`operation`、`providerId`、`accountId`、`sessionId`、`requestId`、`status` 和稳定 `code`；禁止 token/cookie/auth body。
+
+### Tickets / Dependencies / Execution Order
+
+以下 Tickets 是单 Coder 的 tracer-bullet 顺序；每项都要求跨 contract、IPC/service、UI（若涉及）与测试的完整可验证切片。
+
+| Ticket | 标题 | Blocked by | 交付与验收重点 |
+|---|---|---|---|
+| T01 | Audit baseline 与迁移契约 | None | 固化 Gap Matrix；定义 selected→mode/explicit 迁移、持久化版本和兼容回归；无 secret 进入投影。 |
+| T02 | Account Pool scheduling contract | T01 | provider-scoped mode、ordered accounts、usable filtering、稳定错误；默认 priority。 |
+| T03 | Priority tracer 与 Session sticky | T02 | 新 Session 真实绑定 profile；priority fallback、显式不可用报错、resume/restart sticky。 |
+| T04 | Round-Robin / Random | T02,T03 | RR cursor/顺序持久化策略、随机只取 usable、测试不依赖具体随机序列。 |
+| T05 | Provider presentation order 与 4/1 UI | T01 | Provider DnD 持久化且不影响 runtime；认证/未认证左右区域和响应式滚动。 |
+| T06 | Identity、alias 与 Account Row 2×2 | T02,T05 | 主副文字、默认 alias、编辑持久化、优先级文案和四格 usage view model。 |
+| T07 | Account-scoped quota/status/reset | T02,T03,T06 | provider-aware collector；A/B quota、reset、status 独立；刷新不串号。 |
+| T08 | Tokscale adapter 与 packaging | T01,T06,T07 | capability/version/binary resolution、profile scope、normalization/provenance、打包产物验证。 |
+| T09 | Security、删除与 refresh hardening | T03,T07,T08 | active binding guard、原账号 reauth、atomic/lock、managed-only 删除、日志脱敏。 |
+| T10 | Grok 双账号真实 E2E 与回归 | T03,T04,T07,T08,T09 | 至少两个真实 Grok 账号完成 Priority/RR/explicit/sticky/quota/profile/native runtime 全链路；形成独立证据。 |
+
+### Detailed Acceptance Criteria
+
+- [ ] `selectedAccountId`/“设为首选”不再作为产品调度语义；迁移后 Auto 使用 provider pool mode。
+- [ ] Provider Card 顺序与 Account Row 顺序分别持久化，二者互不改变对方语义。
+- [ ] Priority、Round-Robin、Random 仅在新 Session 解析；Session 后续 prompt/resume 保持同一 account binding。
+- [ ] explicit account unavailable 返回稳定错误，不 silent fallback；Auto 跳过 disabled、auth-expired、quota-exhausted、runtime-unavailable、hard-error，保留 quota-low。
+- [ ] identity/email 大字、可编辑 alias 小字；默认 alias 为 `<Provider> Account N`，重启保持。
+- [ ] 每个账号独立展示 5h/weekly quota 与可靠 `resetsAt`、Input/Output token、cache hit（无可靠数据为 `—`）。
+- [ ] Quota 与 Token Usage contract 分离；Tokscale/等价 scanner 通过 adapter 接入，标记 exact/derived/estimated，禁止重复计数。
+- [ ] UI/IPC/logs/crash diagnostics 不包含 access token、refresh token、cookie、API key 或 raw auth 文件。
+- [ ] 删除只作用于 managed profile；active Session 有明确阻止/停止流程；refresh 具备 per-account lock 和 atomic write。
+- [ ] 至少两个真实 Grok 账号在 Official Grok Harness Runtime 上完成独立 profile、quota、Priority/RR/explicit/sticky E2E；否则 Feature 保持 NOT PASS。
+
+### Definition of Done / Quality Gate
+
+Feature 只有在 T01–T10 全部完成、`pnpm typecheck`、`pnpm lint`、相关 Vitest/integration tests 通过，并由 Debugger 在 dev 独立复现 Grok 双账号 E2E 后才可标记 `DEV PASS / USER ACCEPTANCE PENDING`。绿测、文档或 commit 单独不足以证明完成；缺少真实账号/官方 runtime 证据时必须保持 `FAIL / BLOCKED`。
+
+### Published Tickets
+
+本次采用仓库本地 tracker；票据将发布到 `.scratch/craftstation-0.5.0/issues/`，编号按依赖顺序 `01`–`10`，状态统一为 `ready-for-agent`。Coder 从 `01-audit-baseline.md` 开始，按表中顺序连续执行。
+
+### Plan Handoff
+
+- Plan Status：**Ready for Coder**
+- Active Development Branch：`dev`
+- Dev Worktree：`D:\Work\CraftStation\craftstation-dev`
+- Main Worktree：`D:\Work\CraftStation\craftstation`
+- Coder 必须在 dev 工作树读取本文件 Part II、`PROJECT_STATUS.md` 与票据，完成 T01→T10；不得修改 main。

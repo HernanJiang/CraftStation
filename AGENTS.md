@@ -10,6 +10,14 @@ This working copy is CraftStation, based on PoraCode/lightcode.
 - Cloud Manager Ideate prompt: `IDEA_GUIDE.md`
 - GitHub origin: `https://github.com/HernanJiang/CraftStation.git` (private)
 
+## CraftStation Git Worktree Topology
+
+- 稳定 Main Worktree：`D:\Work\CraftStation\craftstation`（`main`）。用户用 main 版产品开发其它项目，形成长期 dogfooding。
+- 活跃 Dev Worktree：`D:\Work\CraftStation\craftstation-dev`（`dev`）。当前 Feature 的 Manager Plan、Coder 实现和 Debugger 验收全部在此进行。
+- Product remote：`origin = https://github.com/HernanJiang/CraftStation.git`；禁止通过切换分支把 Main Worktree 临时改作 dev。
+- 每个 Feature 是 dev 上的版本级逻辑单元；默认不额外创建 feature 分支或第三个 worktree。
+- 只有用户完成 dev candidate 验收并明确要求进入下一 Feature，Manager 才执行 dev 到 main 的 fast-forward promotion、正式 tag/push 和 dev 同步。
+
 Universal AI agent orchestrator — Electron desktop app managing Claude, Codex, and Gemini via real PTY sessions (terminal-native) and structured runtimes (native chat).
 
 ## Quick Reference

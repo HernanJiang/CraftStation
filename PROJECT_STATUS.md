@@ -82,12 +82,12 @@ Model Item + Harness Item
 | Field | Current Value |
 |---|---|
 | Major Stage | `v0` |
-| Lifecycle State | CHECKPOINT FROZEN / NEXT VERSION IDEATE |
-| Active Feature | `v0.4.0 — Native Multi-Harness Compatibility` |
-| Active Ticket | `v0.4/T10 — Capability Decomposition Design Handoff` |
-| Current Fix Cycle | `v0.4.12` |
+| Lifecycle State | MANAGER PLAN READY / CODER HANDOFF |
+| Active Feature | `v0.5.0 — Account Pool + Quota + Token Usage Stabilization` |
+| Active Ticket | `v0.5/T01 — Audit baseline 与迁移契约` |
+| Current Fix Cycle | `v0.4.12` checkpoint（历史；未通过） |
 | Current Role | Manager |
-| Review Status | FAIL / BLOCKED — v0.4.12 checkpoint freeze；不是 Feature PASS；下一版本交 Manager Ideate |
+| Review Status | v0.4 FAIL / BLOCKED；v0.5 Plan Ready，等待 Coder 在 dev 执行 |
 
 ## Historical v0.3 Closeout
 
@@ -128,19 +128,30 @@ Model Item + Harness Item
 
 ## Repository State
 
-- 唯一产品 Working Copy：`craftstation/`。
+- Product Git Root：`craftstation/`（独立产品仓）。
+- Main Worktree：`D:\Work\CraftStation\craftstation`，`main`，稳定产品线；用于运行 main 版 CraftStation 开发其它项目（dogfooding）。
+- Dev Worktree：`D:\Work\CraftStation\craftstation-dev`，`dev`，当前 Feature 唯一开发线。
+- Active Development Branch：`dev`（本文件与当前 Manager 文档均以 dev 为准）。
 - GitHub origin：`https://github.com/HernanJiang/CraftStation.git`（产品仓 `main`）。
-- 根仓库没有 tracking remote；云端 Manager 以 GitHub 产品仓治理文档为准。
+- `main`、`dev` 均 tracking 对应 `origin` 分支；当前两工作树 HEAD 均为 `b1af0e2`。
+- 根仓库 `D:\Work\CraftStation` 是无 remote 的治理仓，不承载产品源码提交。
 - 产品仓检查点 tag：`checkpoint-v0.4.12`（不是 PASS tag，也不是 `v0.4.0`）。
 - 旧 `deepseek-harness/`：`NOT PASSED / SUPERSEDED / DO NOT USE`。
 
+## Active v0.5 Feature
+
+`v0.5.0 — Account Pool + Quota + Token Usage Stabilization`
+
+- Manager：`ai_workspace/agent_docs/manager_0.5.0.md`
+- Tickets：`.scratch/craftstation-0.5.0/issues/01-audit-baseline.md` 至 `10-grok-e2e.md`
+- Plan Status：`Ready for Coder`
+- 执行顺序：`T01 → T02 → T03 → T04 → T05 → T06 → T07 → T08 → T09 → T10`
+- Blocking acceptance：至少两个真实 Grok 账号在 Official Grok Harness Runtime 上完成独立 profile、quota、Priority/RR/explicit/sticky E2E；无真实证据不得 PASS。
+- Out of scope：CLIProxyAPI、第二套 Usage 系统、Account/Quota/Usage 进入 Item/Recipe/Crafter、智能路由和 Auto-Crafting。
+
 ## Next Step
 
-1. v0.4.0 **不得宣称 PASS**。Debugger 检查点：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`。不要开 v0.4.13。
-2. 当前工作树已按用户授权做 Git checkpoint（产品仓 `checkpoint-v0.4.12`，push `origin/main`）。云端 Manager 以 GitHub `HernanJiang/CraftStation` 为准。
-3. 下一动作：**Manager / Ideate 讨论下一版本目的**。必须拍板的产品问题：
-   - 选号是 selected+auto，还是真正 explicit sticky
-   - 耗尽时静默填补，还是保留「Grok 额度已耗尽」给 explicit
-   - F04 五 Harness 真实 response 是否仍作为质量门
-   - 毛玻璃透光率等 UI 小改是否并入下一 Feature
-4. 绑定事实（未改代码）：新 Session 的 `craftAgent` 当前不传 `accountId`，走 Auto；点账号行只改 selected。不能把「无论选哪个都能回复」当成 per-account sticky PASS。
+1. Coder 在 `D:\Work\CraftStation\craftstation-dev` 读取 Manager v0.5 Part II 与 `.scratch/craftstation-0.5.0/issues/`，按 T01→T10 连续执行。
+2. Coder 完成后交 Debugger 在 dev 独立验收；Debugger 只在真实证据满足时形成 DEV PASS candidate。
+3. 用户验收 dev candidate 后，Manager 才执行上一 Feature/当前 candidate 的 dev→main promotion；在此之前 main 保持 `b1af0e2` 稳定基线。
+4. v0.4.0 仍为 FAIL/BLOCKED checkpoint，不能宣称 PASS、不能创建 v0.4.13。
