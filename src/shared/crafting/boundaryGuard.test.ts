@@ -29,9 +29,7 @@ describe("Deep Module Boundary Guards", () => {
 
   it("ensures src/shared/crafting has no deep imports to codex low-level transport", () => {
     const craftingDir = path.resolve(__dirname);
-    const files = getFilesRecursively(craftingDir).filter(
-      (f) => !f.endsWith("boundaryGuard.test.ts"),
-    );
+    const files = getFilesRecursively(craftingDir).filter((f) => !f.endsWith(".test.ts"));
 
     expect(files.length).toBeGreaterThan(0);
 

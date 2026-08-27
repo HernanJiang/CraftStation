@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { compositionProvenanceSchema } from "../crafting/types";
+import { accountBindingSchema } from "./accountBinding";
 import { agentSlashCommandSchema } from "./agent";
 import { agentInstanceIdSchema } from "./agentInstance";
 import {
@@ -42,6 +43,8 @@ export const threadSchema = z.object({
    * a crafted thread can rebuild its CraftPlan after restart.
    */
   compositionProvenance: compositionProvenanceSchema.optional(),
+  /** Immutable account selected when this Session was created. */
+  accountBinding: accountBindingSchema.optional(),
   worktreePath: z.string().optional(),
   worktreeBranch: z.string().optional(),
   prNumber: z.number().optional(),
@@ -405,6 +408,11 @@ export const startShellPayloadSchema = z.object({
    * ephemeral) worktree.
    */
   startInHome: z.boolean().optional(),
+  /**
+   * Supervisor-only working directory override. Used by managed Codex login so
+   * the official CLI cannot pick up the host ~/.codex Codex-Router overlay.
+   */
+  cwdOverride: z.string().min(1).optional(),
   /**
    * Native Windows shells default to the user's interactive preference.
    * Login/install overlays emit PowerShell, so they request a PowerShell host

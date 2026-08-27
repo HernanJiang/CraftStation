@@ -6,9 +6,9 @@ import { beginPanelResize, endPanelResize } from "@/renderer/state/panelResizeSi
 
 // Wide enough to fit a Home-row suffix button (terminal icon) plus a few
 // characters of an active thread title without truncating to ellipses.
-export const SIDEBAR_MIN_WIDTH = 160;
+export const SIDEBAR_MIN_WIDTH = 196;
 const SIDEBAR_MAX_WIDTH = 400;
-const SIDEBAR_DEFAULT_WIDTH = 210;
+const SIDEBAR_DEFAULT_WIDTH = 236;
 const PANEL_MIN_WIDTH = 320;
 const PANEL_MAX_WIDTH = 1100;
 const PANEL_DEFAULT_WIDTH = 480;
@@ -64,9 +64,11 @@ export function useResizablePanels(
   },
   options?: { getResizeLimits?: (target: ResizeTarget) => ResizeLimits | null },
 ) {
-  const [sidebarWidth, setSidebarWidth] = useState(() =>
-    readStoredNumber("poracode-sidebar-width", SIDEBAR_DEFAULT_WIDTH),
-  );
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = readStoredNumber("poracode-sidebar-width", SIDEBAR_DEFAULT_WIDTH);
+    // Legacy Poracode widths truncate the CraftStation wordmark in the title row.
+    return stored < SIDEBAR_DEFAULT_WIDTH ? SIDEBAR_DEFAULT_WIDTH : stored;
+  });
   const [panelWidth, setPanelWidth] = useState(() =>
     readStoredNumber("poracode-panel-width", PANEL_DEFAULT_WIDTH),
   );

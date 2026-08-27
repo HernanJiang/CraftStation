@@ -138,20 +138,65 @@ function isGenericAcpPromptRpcErrorMessage(message: string): boolean {
 
 /** JSON-RPC error from `session/prompt` — may follow a separate agent_message_chunk. */
 export function resolveAcpPromptRpcErrorMessage(error: unknown): string {
-  if (error instanceof RequestError) {
-    const data = error.data as { details?: unknown; detail?: unknown } | undefined;
+  if (error && typeof error === "object") {
+    const candidate = error as { data?: unknown; message?: unknown };
+    const data =
+      candidate.data && typeof candidate.data === "object"
+        ? (candidate.data as {
+            details?: unknown;
+            detail?: unknown;
+            message?: unknown;
+            http_status?: unknown;
+          })
+        : undefined;
+    const providerMessage = typeof data?.message === "string" ? data.message.trim() : "";
+    const httpStatus =
+      typeof data?.http_status === "number"
+        ? data.http_status
+        : typeof data?.http_status === "string"
+          ? Number(data.http_status)
+          : undefined;
+    if (
+      httpStatus === 402 &&
+      /(?:grok(?:\s+build)?[^\n]*\s+)?usage\s+balance\s+exhausted/i.test(providerMessage)
+    ) {
+      return "Grok 额度已耗尽";
+    }
     const detail =
       typeof data?.details === "string" && data.details.trim().length > 0
         ? data.details.trim()
         : typeof data?.detail === "string" && data.detail.trim().length > 0
           ? data.detail.trim()
+          : providerMessage.length > 0
+            ? providerMessage
           : undefined;
-    const message = error.message.trim();
+    const message = typeof candidate.message === "string" ? candidate.message.trim() : "";
     if (detail && isGenericAcpPromptRpcErrorMessage(message)) return detail;
     if (message.length > 0) return message;
     if (detail) return detail;
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+/** True only for the official Grok Build usage-balance error shape. */
+export function isAcpPromptQuotaExhaustedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { data?: unknown };
+  const data =
+    candidate.data && typeof candidate.data === "object"
+      ? (candidate.data as { message?: unknown; http_status?: unknown })
+      : undefined;
+  const httpStatus =
+    typeof data?.http_status === "number"
+      ? data.http_status
+      : typeof data?.http_status === "string"
+        ? Number(data.http_status)
+        : undefined;
+  return (
+    httpStatus === 402 &&
+    typeof data?.message === "string" &&
+    /usage\s+balance\s+exhausted/i.test(data.message)
+  );
 }
 
 /**

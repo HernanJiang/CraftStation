@@ -242,6 +242,18 @@ export class ProvenanceStore {
 
     const runtimeModelId = modelProv.itemId.replace(/^openai:/, "");
     const harnessKind = harnessProv.itemId.replace(/^harness:/, "");
+    const storedBinding = provenance.runtimeBinding;
+    if (storedBinding && storedBinding.harnessKind !== harnessKind) {
+      throw CraftingError.recoveryFailed(
+        `Runtime binding harness '${storedBinding.harnessKind}' does not match ingredient harness '${harnessKind}'.`,
+        {
+          threadId,
+          storedHarnessKind: storedBinding.harnessKind,
+          ingredientHarnessKind: harnessKind,
+        },
+        "Recreate the thread with a matching Native Harness Item.",
+      );
+    }
 
     const planId = `plan:recovered:${randomUUID()}`;
     const resultItemId = `result:${modelProv.itemId}+${harnessProv.itemId}`;
@@ -252,10 +264,13 @@ export class ProvenanceStore {
       resultItemId,
       ingredients: provenance.ingredients,
       runtimeBinding: {
+        ...(storedBinding ?? {}),
         harnessKind,
-        modelId: runtimeModelId,
+        modelId: storedBinding?.modelId ?? runtimeModelId,
         vendor: modelProv.vendor,
-        runtimeAdapterId: "codex-structured",
+        runtimeAdapterId:
+          storedBinding?.runtimeAdapterId ??
+          (harnessKind === "codex" ? "codex-structured" : `native-harness:${harnessKind}`),
       },
       ...(options.workspace !== undefined ? { workspace: options.workspace } : {}),
       ...(options.sessionRef !== undefined ? { sessionRef: options.sessionRef } : {}),

@@ -1,10 +1,19 @@
 ﻿import type { JsonRpcNotification } from "./types";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
+interface UsageScope {
+  scopeId: string;
+  epoch: number;
+  lastCounter: number | undefined;
+  freshPending: boolean;
+}
 
 export interface EventMappingContext {
   threadId: string;
   turnId?: string;
   activeItemIds?: Set<string>;
+  usageScope?: UsageScope;
+  usageScopeFresh?: boolean;
+  accountId?: string;
 }
 
 export function mapCodexNotificationToRuntimeEvents(
@@ -124,14 +133,41 @@ export function mapCodexNotificationToRuntimeEvents(
 
     case "thread/tokenUsage/updated":
     case "tokenUsage/updated": {
-      const tokenUsage = params.tokenUsage ?? {};
-      const last = tokenUsage.last ?? {};
-      events.push({
-        type: "usage.spent",
-        threadId,
-        inputTokens: (last.inputTokens ?? params.inputTokens ?? 0) as number,
-        outputTokens: (last.outputTokens ?? params.outputTokens ?? 0) as number,
-      } as any);
+      const counter = readCumulativeTokenTotal(params);
+      if (counter !== undefined) {
+        context.usageScope ??= {
+          scopeId: threadId,
+          epoch: 0,
+          lastCounter: undefined,
+          freshPending: context.usageScopeFresh !== false,
+        };
+        if (
+          context.usageScope.lastCounter !== undefined &&
+          counter < context.usageScope.lastCounter
+        ) {
+          context.usageScope.epoch += 1;
+          context.usageScope.lastCounter = undefined;
+          context.usageScope.freshPending = false;
+        }
+        context.usageScope.lastCounter = counter;
+        const fresh = context.usageScope.freshPending;
+        context.usageScope.freshPending = false;
+        events.push({
+          type: "usage.spent",
+          threadId,
+          usage: {
+            counterKind: "cumulative",
+            counter,
+            scopeId: context.usageScope.scopeId,
+            epoch: context.usageScope.epoch,
+            ...(fresh ? { fresh: true } : {}),
+            sampleId: `${context.usageScope.scopeId}:${context.usageScope.epoch}:${counter}`,
+            turnId: context.turnId,
+            occurredAt: Date.now(),
+            ...(context.accountId ? { accountId: context.accountId } : {}),
+          },
+        });
+      }
       break;
     }
 
@@ -183,4 +219,56 @@ export function mapCodexNotificationToRuntimeEvents(
   }
 
   return events;
+}
+
+function readCumulativeTokenTotal(params: Record<string, unknown>): number | undefined {
+  const tokenUsage = readRecord(params.tokenUsage);
+  const currentTotal = readTokenTotal(readRecord(tokenUsage?.total));
+  if (currentTotal !== undefined) return currentTotal;
+
+  const legacy = readRecord(params.token_usage) ?? tokenUsage;
+  const legacyTotal = readTokenTotal(
+    readRecord(legacy?.total) ??
+      readRecord(legacy?.totalTokenUsage) ??
+      readRecord(legacy?.total_token_usage),
+  );
+  if (legacyTotal !== undefined) return legacyTotal;
+
+  const info = readRecord(params.info);
+  return readTokenTotal(readRecord(info?.total_token_usage) ?? readRecord(info?.totalTokenUsage));
+}
+
+function readTokenTotal(value: Record<string, unknown> | undefined): number | undefined {
+  if (!value) return undefined;
+  const explicit = value.totalTokens ?? value.total_tokens;
+  if (typeof explicit === "number" && Number.isFinite(explicit) && explicit >= 0) {
+    return Math.trunc(explicit);
+  }
+  const componentValues: unknown[] = [
+    value.inputTokens,
+    value.input_tokens,
+    value.outputTokens,
+    value.output_tokens,
+    value.reasoningTokens,
+    value.reasoning_tokens,
+    value.cachedInputTokens,
+    value.cached_input_tokens,
+    value.cacheReadTokens,
+    value.cache_read_tokens,
+    value.cachedWriteTokens,
+    value.cacheWriteTokens,
+    value.cache_write_tokens,
+  ];
+  if (!componentValues.some((item) => typeof item === "number" && Number.isFinite(item))) {
+    return undefined;
+  }
+  return componentValues.reduce<number>(
+    (sum, item) =>
+      sum + (typeof item === "number" && Number.isFinite(item) && item >= 0 ? Math.trunc(item) : 0),
+    0,
+  );
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
 }

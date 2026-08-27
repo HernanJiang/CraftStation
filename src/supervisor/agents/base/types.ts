@@ -181,6 +181,13 @@ export interface CreateStructuredSessionInput {
   presentationMode?: ThreadPresentationMode;
   loadSessionErrorRewriter?: (error: unknown, sessionId: string) => Error;
   /**
+   * Observe the raw provider error for a failed ACP prompt before the shared
+   * mapper projects it into a renderer-safe error event. Runtime owners use
+   * this for provider/account state transitions; the callback must never
+   * replace the original prompt failure.
+   */
+  onPromptError?: (error: unknown) => void | Promise<void>;
+  /**
    * Provider-boundary guard for ACP agents that can incorrectly return a
    * successful `end_turn` without emitting any agent activity.
    */

@@ -267,9 +267,10 @@ describe("ThreadComposer", () => {
 
   it("renders the compact permission and model controls without a Chat or CLI switch", () => {
     const onPermissionChange = vi.fn<(selected: boolean) => void>();
-    const onModelChange = vi.fn<
-      (next: { agentKind: string; model: string; presentationMode?: "terminal" | "gui" }) => void
-    >();
+    const onModelChange =
+      vi.fn<
+        (next: { agentKind: string; model: string; presentationMode?: "terminal" | "gui" }) => void
+      >();
 
     render(
       <ThreadComposer

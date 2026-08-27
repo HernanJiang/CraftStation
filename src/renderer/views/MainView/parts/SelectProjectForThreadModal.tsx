@@ -6,7 +6,10 @@ import { usePanelStore } from "@/renderer/state/panelStore";
 import { openNewThread } from "@/renderer/actions/threadActions";
 import { formatProjectLocation } from "@/renderer/views/MainView/parts/Sidebar/parts/formatProjectLocation";
 import { isHomeProject } from "@/shared/homeScope";
-import { ProjectSelectorIcon, useProjectRemoteServer } from "@/renderer/components/common/ProjectRemoteServer";
+import {
+  ProjectSelectorIcon,
+  useProjectRemoteServer,
+} from "@/renderer/components/common/ProjectRemoteServer";
 
 export function SelectProjectForThreadModal() {
   const open = usePanelStore((s) => s.selectProjectModalOpen);
@@ -59,11 +62,7 @@ function SelectProjectForThreadForm() {
             <p className="text-sm text-muted">
               <Trans>No projects found.</Trans>
             </p>
-            <Button
-              variant="tertiary"
-              className="gap-2 text-xs"
-              onPress={handleOpenCreateProject}
-            >
+            <Button variant="tertiary" className="gap-2 text-xs" onPress={handleOpenCreateProject}>
               <FolderPlus className="size-4" />
               <Trans>Create project</Trans>
             </Button>

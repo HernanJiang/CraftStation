@@ -474,7 +474,7 @@ describe("App", () => {
     useAppStore.persist.onFinishHydration = vi.fn<() => () => void>(() => () => undefined);
 
     render(<App />);
-    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByTestId("welcome-loading-status")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(STARTUP_RECOVERY_TIMEOUT_MS);
@@ -482,7 +482,7 @@ describe("App", () => {
     expect(screen.getByText("Startup is taking longer than expected")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Keep waiting" }));
-    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByTestId("welcome-loading-status")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(STARTUP_RECOVERY_TIMEOUT_MS);

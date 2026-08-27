@@ -145,12 +145,17 @@ describe("ACP registry installs", () => {
       );
       expect(execFileMock).toHaveBeenCalledOnce();
       const [command, args, options] = execFileMock.mock.calls[0] ?? [];
-      const invocation = [String(command), ...(Array.isArray(args) ? args.map(String) : [])].join(
-        " ",
-      );
-      expect(invocation).toContain("npx");
-      expect(invocation).toContain("codex-acp@1.0.0");
-      expect(invocation).toContain("--help");
+      const commandArgs = Array.isArray(args) ? args.map(String) : [];
+      const invocation = [String(command), ...commandArgs].join(" ");
+      const encoded = commandArgs.find((arg) => arg === "-EncodedCommand");
+      const encodedIndex = commandArgs.indexOf("-EncodedCommand");
+      const decodedInvocation =
+        encoded && encodedIndex >= 0 && commandArgs[encodedIndex + 1]
+          ? Buffer.from(commandArgs[encodedIndex + 1]!, "base64").toString("utf16le")
+          : invocation;
+      expect(`${invocation} ${decodedInvocation}`).toContain("npx");
+      expect(`${invocation} ${decodedInvocation}`).toContain("codex-acp@1.0.0");
+      expect(`${invocation} ${decodedInvocation}`).toContain("--help");
       expect(options).toMatchObject({ timeout: 120_000, windowsHide: true });
     } finally {
       vi.unstubAllGlobals();

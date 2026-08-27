@@ -40,8 +40,9 @@ describe("database migration registry", () => {
       [33, "project GitHub account"],
       [34, "projects.icon"],
       [35, "threads.composition_provenance"],
+      [36, "threads.account_binding and usage dimensions"],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(35);
+    expect(LATEST_SCHEMA_VERSION).toBe(36);
     expect(() => validateMigrationRegistry()).not.toThrow();
   });
 

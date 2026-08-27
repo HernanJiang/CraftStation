@@ -16,19 +16,28 @@ describe("CodexHarnessRuntimeAdapter", () => {
     const crafter = new Crafter();
     const gptModel = BUILTIN_MODEL_ITEMS[0]!;
 
-    const craftResult = crafter.compile({
-      slots: {
-        model: gptModel,
-        harness: "auto",
+    const craftResult = crafter.compile(
+      {
+        slots: {
+          model: gptModel,
+          harness: "auto",
+        },
       },
-    }, { workspace: "D:\\test\\repo", threadId: "thread-fixed-1" });
+      { workspace: "D:\\test\\repo", threadId: "thread-fixed-1" },
+    );
 
     expect(craftResult.success).toBe(true);
     const plan = craftResult.craftPlan!;
 
-    const startThreadMock = vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>().mockResolvedValue({ threadId: "thread-fixed-1" });
-    const sendThreadInputMock = vi.fn<(payload: SendThreadInputPayload) => Promise<void>>().mockResolvedValue(undefined);
-    const closeThreadMock = vi.fn<(payload: CloseThreadPayload) => Promise<void>>().mockResolvedValue(undefined);
+    const startThreadMock = vi
+      .fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>()
+      .mockResolvedValue({ threadId: "thread-fixed-1" });
+    const sendThreadInputMock = vi
+      .fn<(payload: SendThreadInputPayload) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const closeThreadMock = vi
+      .fn<(payload: CloseThreadPayload) => Promise<void>>()
+      .mockResolvedValue(undefined);
 
     const mockManager = {
       startThread: startThreadMock,
@@ -37,7 +46,9 @@ describe("CodexHarnessRuntimeAdapter", () => {
     } as unknown as ThreadSessionManager;
 
     let eventListener: ((threadId: string, event: RuntimeEvent) => void) | undefined;
-    const subscribeMock = vi.fn<(listener: (threadId: string, event: RuntimeEvent) => void) => () => void>((listener) => {
+    const subscribeMock = vi.fn<
+      (listener: (threadId: string, event: RuntimeEvent) => void) => () => void
+    >((listener) => {
       eventListener = listener;
       return () => {
         eventListener = undefined;
@@ -110,7 +121,9 @@ describe("CodexHarnessRuntimeAdapter", () => {
     const plan = crafter.compile({ slots: { model: gptModel, harness: "auto" } }).craftPlan!;
 
     const mockManager = {
-      startThread: vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>().mockResolvedValue({ threadId: "thread-no-bus" }),
+      startThread: vi
+        .fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>()
+        .mockResolvedValue({ threadId: "thread-no-bus" }),
       sendThreadInput: vi.fn<(payload: SendThreadInputPayload) => Promise<void>>(),
       closeThread: vi.fn<(payload: CloseThreadPayload) => Promise<void>>(),
     } as unknown as ThreadSessionManager;
@@ -128,11 +141,18 @@ describe("CodexHarnessRuntimeAdapter", () => {
   it("rejects sendPrompt when turn completes with failure status", async () => {
     const crafter = new Crafter();
     const gptModel = BUILTIN_MODEL_ITEMS[0]!;
-    const plan = crafter.compile({ slots: { model: gptModel, harness: "auto" } }, { threadId: "thread-fail-1" }).craftPlan!;
+    const plan = crafter.compile(
+      { slots: { model: gptModel, harness: "auto" } },
+      { threadId: "thread-fail-1" },
+    ).craftPlan!;
 
     const mockManager = {
-      startThread: vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>().mockResolvedValue({ threadId: "thread-fail-1" }),
-      sendThreadInput: vi.fn<(payload: SendThreadInputPayload) => Promise<void>>().mockResolvedValue(undefined),
+      startThread: vi
+        .fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>()
+        .mockResolvedValue({ threadId: "thread-fail-1" }),
+      sendThreadInput: vi
+        .fn<(payload: SendThreadInputPayload) => Promise<void>>()
+        .mockResolvedValue(undefined),
       closeThread: vi.fn<(payload: CloseThreadPayload) => Promise<void>>(),
     } as unknown as ThreadSessionManager;
 
@@ -171,7 +191,9 @@ describe("CodexHarnessRuntimeAdapter", () => {
     });
 
     const plan = craftResult.craftPlan!;
-    const startThreadMock = vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>().mockResolvedValue({ threadId: "thread-resume-1" });
+    const startThreadMock = vi
+      .fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>()
+      .mockResolvedValue({ threadId: "thread-resume-1" });
 
     const mockManager = {
       startThread: startThreadMock,
@@ -201,7 +223,9 @@ describe("CodexHarnessRuntimeAdapter", () => {
     const plan = crafter.compile({ slots: { model: gptModel, harness: "auto" } }).craftPlan!;
 
     const authMockManager = {
-      startThread: vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>().mockRejectedValue(new Error("Unauthorized: login required")),
+      startThread: vi
+        .fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>()
+        .mockRejectedValue(new Error("Unauthorized: login required")),
     } as unknown as ThreadSessionManager;
 
     const adapter = new CodexHarnessRuntimeAdapter({

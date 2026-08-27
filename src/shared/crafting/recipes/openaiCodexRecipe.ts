@@ -72,7 +72,7 @@ export class OpenAICodexNativeRecipe implements Recipe {
 
     // Deterministic plan ID based on recipe, ingredients and context
     const hash = sha256Hex(
-      `${this.id}:${model.id}:${harness.id}:${context.workspace ?? ""}:${context.threadId ?? ""}`,
+      `${this.id}:${model.id}:${harness.id}:${context.workspace ?? ""}:${context.threadId ?? ""}:${context.profileRef ?? ""}:${JSON.stringify(context.environment ?? null)}`,
     ).slice(0, 16);
     const planId = `plan:${this.id}:${hash}`;
     const resultItemId = `result:${model.metadata.id}+${harness.metadata.id}`;
@@ -103,6 +103,8 @@ export class OpenAICodexNativeRecipe implements Recipe {
         modelId: runtimeModelId,
         vendor: model.metadata.vendor,
         runtimeAdapterId: "codex-structured",
+        ...(context.profileRef ? { profileRef: context.profileRef } : {}),
+        ...(context.environment ? { environment: context.environment } : {}),
         ...(context.clientProperties ? { options: context.clientProperties } : {}),
       },
       ...(context.workspace ? { workspace: context.workspace } : {}),

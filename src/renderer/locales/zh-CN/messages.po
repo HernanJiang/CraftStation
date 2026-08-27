@@ -6607,6 +6607,9 @@ msgstr "正在加载工作流运行记录"
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/parts/TreeEntryRow.tsx
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 #: src/renderer/views/SettingsOverlay/parts/RemoteHostFolderPicker.tsx
+msgid "Starting up"
+msgstr "正在加载"
+
 msgid "Loading…"
 msgstr "加载中..."
 
@@ -14276,3 +14279,12 @@ msgstr "放大"
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom out"
 msgstr "缩小"
+
+msgid "Enter Chat"
+msgstr "进入对话"
+
+msgid "Enter Project"
+msgstr "进入项目"
+
+msgid "Choose how you want to enter CraftStation."
+msgstr "选择进入方式"

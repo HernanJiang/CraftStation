@@ -21,7 +21,9 @@ vi.mock("electron", () => ({
 
 import { refreshMacDockIcon } from "./macDockIcon";
 
-describe("refreshMacDockIcon", () => {
+const describeMac = process.platform === "darwin" ? describe : describe.skip;
+
+describeMac("refreshMacDockIcon", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     electronMock.app.isPackaged = true;

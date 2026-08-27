@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Dropdown, Label, Modal, toast } from "@heroui/react";
 import {
   Check,
@@ -32,14 +32,18 @@ import {
   type UsageProvider,
 } from "@/renderer/components/providers/usageProviders";
 import { useUsageProviderLogin } from "@/renderer/components/providers/useUsageProviderLogin";
-import { runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
+import {
+  createAndRunCodexProfileLogin,
+  createAndRunGrokProfileLogin,
+  runAgentLoginCommand,
+  runCodexProfileLogin,
+} from "@/renderer/actions/agentLoginActions";
 import { refreshAndMergeProviderUsage } from "@/renderer/components/providers/refreshProviderUsageSnapshot";
 import { useProviderUsage, useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
-import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import { readBridge } from "@/renderer/bridge";
 import { usePanelStore } from "@/renderer/state/panelStore";
-import type { UsageStatus } from "@/shared/contracts";
+import type { AccountView, UsageStatus } from "@/shared/contracts";
 
 const PREFERRED_PROVIDER_ORDER = [
   "codex",
@@ -153,6 +157,7 @@ const AUTHORIZED_USAGE_STATUSES = new Set<UsageStatus>([
   "quota-hit",
   "error",
 ]);
+const CODEX_LOGIN_REQUIRED_STATUSES = new Set(["auth-expired", "unavailable", "error"]);
 
 /**
  * Usage cards also act as the entry point to the provider's real auth flow.
@@ -161,7 +166,6 @@ const AUTHORIZED_USAGE_STATUSES = new Set<UsageStatus>([
  * by Settings instead of falling through to a dead placeholder.
  */
 const CLI_LOGIN_COMMANDS: Record<string, string> = {
-  codex: "codex login",
   claude: "claude auth login",
   gemini: "gemini /auth",
   cursor: "cursor-agent login",
@@ -297,7 +301,11 @@ function UsageBar(props: { label: string; value: number | null }) {
 
 function OpenAiCompatibleCard() {
   return (
-    <article className="flex min-h-[76px] items-center gap-3 rounded-xl border border-white/5 bg-[#1c1d22] p-4">
+    <article
+      data-testid="provider-card-openai-compatible"
+      data-grid-span="1"
+      className="col-span-1 flex min-h-[88px] items-center gap-2.5 rounded-xl border border-white/5 bg-[#1c1d22] p-3"
+    >
       <ProviderBadge id="openai-compatible" iconKind="codex" label="OpenAI 兼容账户" size="card" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-semibold text-foreground">OpenAI 兼容账户</h3>
@@ -306,7 +314,7 @@ function OpenAiCompatibleCard() {
       <button
         type="button"
         onClick={() => usePanelStore.getState().openSettingsSection("agents")}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl bg-white/5 px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-white/10"
+        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10"
       >
         <UserRoundPlus className="size-3.5" />
         登录/授权
@@ -317,6 +325,17 @@ function OpenAiCompatibleCard() {
 
 function ProviderCard(props: { id: string; label: string }) {
   const snapshot = useProviderUsage(props.id);
+  const managedAccounts = useUsageAccountsStore(
+    useShallow((state) =>
+      props.id === "codex" || props.id === "grok"
+        ? state.accounts.filter(
+            (account) =>
+              account.provider === props.id &&
+              (Boolean(account.maskedIdentity) || Boolean(account.providerAccountId)),
+          )
+        : [],
+    ),
+  );
   const {
     canSignIn,
     canReauthenticate,
@@ -331,6 +350,7 @@ function ProviderCard(props: { id: string; label: string }) {
     handleSignIn,
   } = useUsageProviderLogin(props.id);
   const [cliSigningIn, setCliSigningIn] = useState(false);
+  const [accountActionInFlight, setAccountActionInFlight] = useState<string | null>(null);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
   const connected =
     snapshot?.status === "ok" ||
@@ -355,6 +375,25 @@ function ProviderCard(props: { id: string; label: string }) {
         : "bg-emerald-400/10 text-emerald-300";
 
   const handleAccountAction = () => {
+    if (props.id === "codex") {
+      // Codex accounts must never use the process-global `codex login` path:
+      // each account owns an isolated supervisor-managed CODEX_HOME.
+      setCliSigningIn(true);
+      void createAndRunCodexProfileLogin({ label: "New Codex" }).finally(() =>
+        setCliSigningIn(false),
+      );
+      return;
+    }
+    if (props.id === "grok") {
+      // Grok follows the same isolated-profile rule as Codex: the official
+      // `grok login --device-auth` runs inside a pending managed GROK_HOME and
+      // only becomes an account once the auth file carries an identity.
+      setCliSigningIn(true);
+      void createAndRunGrokProfileLogin({ label: "New Grok" }).finally(() =>
+        setCliSigningIn(false),
+      );
+      return;
+    }
     const cliCommand = CLI_LOGIN_COMMANDS[props.id];
     if (cliCommand) {
       // CLI-backed providers use the same login terminal as Settings. This is
@@ -383,10 +422,55 @@ function ProviderCard(props: { id: string; label: string }) {
     usePanelStore.getState().openSettingsSection("usage");
   };
 
+  const refreshManagedAccounts = async () => {
+    const next = await readBridge().listAccounts({ provider: props.id });
+    const current = useUsageAccountsStore.getState().accounts;
+    useUsageAccountsStore
+      .getState()
+      .setAccounts([...current.filter((account) => account.provider !== props.id), ...next]);
+  };
+
+  const selectCompactAccount = async (account: AccountView) => {
+    setAccountActionInFlight(account.accountId);
+    try {
+      await readBridge().setAccountEnabled({ accountId: account.accountId, enabled: true });
+      await readBridge().selectAccount({ accountId: account.accountId });
+      await refreshManagedAccounts();
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : "无法选择账号。");
+    } finally {
+      setAccountActionInFlight(null);
+    }
+  };
+
+  const renameCompactAccount = async (account: AccountView) => {
+    const nextLabel = window.prompt("重命名账号", account.label);
+    if (nextLabel === null) return;
+    const normalizedLabel = nextLabel.trim();
+    if (!normalizedLabel) {
+      toast.danger("账号名称不能为空。");
+      return;
+    }
+    setAccountActionInFlight(account.accountId);
+    try {
+      await readBridge().renameAccount({
+        accountId: account.accountId,
+        label: normalizedLabel,
+      });
+      await refreshManagedAccounts();
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : "无法重命名账号。");
+    } finally {
+      setAccountActionInFlight(null);
+    }
+  };
+
   return (
     <article
-      className={`rounded-xl border border-white/5 bg-[#1c1d22] p-4 transition-[min-height] duration-200 ${
-        connected ? "min-h-[170px]" : "min-h-[76px]"
+      data-testid={`provider-card-${props.id}`}
+      data-grid-span={connected ? "2" : "1"}
+      className={`rounded-xl border border-white/5 bg-[#1c1d22] p-3 transition-[min-height] duration-200 ${
+        connected ? "col-span-2 min-h-[170px]" : "col-span-1 min-h-[76px]"
       }`}
     >
       <header className="flex items-center gap-3">
@@ -401,7 +485,7 @@ function ProviderCard(props: { id: string; label: string }) {
           type="button"
           disabled={signingIn || cliSigningIn}
           onClick={handleAccountAction}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl bg-white/5 px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
         >
           <UserRoundPlus className="size-3.5" />
           {cliSigningIn || signingIn
@@ -413,6 +497,58 @@ function ProviderCard(props: { id: string; label: string }) {
               : "登录/授权"}
         </button>
       </header>
+
+      {managedAccounts.length > 0 ? (
+        <div className="mt-2 space-y-1 rounded-lg border border-white/5 bg-black/10 p-1.5">
+          {managedAccounts.map((account) => (
+            <div
+              key={account.accountId}
+              data-testid={`compact-account-row-${account.accountId}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`${account.label} ${label}账号`}
+              onClick={() => void selectCompactAccount(account)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                void renameCompactAccount(account);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  void selectCompactAccount(account);
+                }
+              }}
+              className={`flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-white/5 ${accountActionInFlight === account.accountId ? "opacity-60" : ""}`}
+            >
+              <span className="min-w-0 flex-1 truncate text-[9px] text-neutral-400">
+                {account.label}
+              </span>
+              {CODEX_LOGIN_REQUIRED_STATUSES.has(account.status) ? (
+                <button
+                  type="button"
+                  disabled={cliSigningIn || accountActionInFlight !== null || !account.enabled}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setCliSigningIn(true);
+                    const login =
+                      props.id === "grok"
+                        ? createAndRunGrokProfileLogin({ label: account.label })
+                        : runCodexProfileLogin({
+                            accountId: account.accountId,
+                            label: account.label,
+                          });
+                    void login.finally(() => setCliSigningIn(false));
+                  }}
+                  className="shrink-0 rounded-md bg-white/5 px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+                  aria-label={`${account.label} 登录授权`}
+                >
+                  登录授权
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {connected ? (
         <div className="mt-3 rounded-xl border border-white/5 bg-[#17181c] p-3">
@@ -497,15 +633,207 @@ function ProviderCard(props: { id: string; label: string }) {
   );
 }
 
+interface AccountRowProps {
+  account: AccountView;
+  busy: boolean;
+  onReauth?: ((account: AccountView) => void) | undefined;
+  onSelect: (account: AccountView) => void;
+  onRename: (account: AccountView) => void;
+  onRefresh: (account: AccountView) => void;
+  onToggleEnabled: (account: AccountView) => void;
+  onRemove: (account: AccountView) => void;
+  onDragStart: (accountId: string) => void;
+  onDrop: (accountId: string) => void;
+}
+
+function AccountRow(props: AccountRowProps) {
+  const { account, busy, onReauth } = props;
+  return (
+    <div
+      key={account.accountId}
+      draggable
+      onDragStart={() => props.onDragStart(account.accountId)}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={() => props.onDrop(account.accountId)}
+      onClick={() => props.onSelect(account)}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        props.onRename(account);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          props.onSelect(account);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      className="flex items-center gap-2 rounded-lg border border-white/5 bg-[#17181c] px-2 py-1.5"
+    >
+      <GripVertical className="size-3.5 shrink-0 text-neutral-500" aria-label="拖拽排序" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px] text-foreground">{account.label}</p>
+        <p className="truncate text-[9px] text-neutral-500">{account.maskedIdentity ?? "未认证"}</p>
+      </div>
+      <span className="text-[9px] text-neutral-400">{account.status}</span>
+      {CODEX_LOGIN_REQUIRED_STATUSES.has(account.status) && account.enabled && onReauth ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(event) => {
+            event.stopPropagation();
+            onReauth(account);
+          }}
+          className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+          aria-label={`${account.label} 登录授权`}
+        >
+          登录授权
+        </button>
+      ) : null}
+      <button
+        type="button"
+        disabled={busy || !account.enabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          props.onSelect(account);
+        }}
+        className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+      >
+        {account.selected ? "首选" : "设为首选"}
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={(event) => {
+          event.stopPropagation();
+          props.onRefresh(account);
+        }}
+        className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+        aria-label="刷新账号配额"
+      >
+        <RefreshCw className="size-3" />
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={(event) => {
+          event.stopPropagation();
+          props.onToggleEnabled(account);
+        }}
+        className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+        aria-label={account.enabled ? "禁用账号" : "启用账号"}
+      >
+        <Power className={`size-3 ${account.enabled ? "text-emerald-300" : ""}`} />
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={(event) => {
+          event.stopPropagation();
+          props.onRemove(account);
+        }}
+        className="rounded p-1 text-neutral-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+        aria-label="移除账号"
+      >
+        <Trash2 className="size-3" />
+      </button>
+    </div>
+  );
+}
+
+interface ManagedAccountPoolProps {
+  providerId: string;
+  title: string;
+  badgeLabel: string;
+  addAriaLabel: string;
+  accounts: AccountView[];
+  busy: boolean;
+  actionError: string | null;
+  onAdd: () => void;
+  onImport?: () => void;
+  importAriaLabel?: string;
+  onReauth?: ((account: AccountView) => void) | undefined;
+  onSelect: (account: AccountView) => void;
+  onRename: (account: AccountView) => void;
+  onRefresh: (account: AccountView) => void;
+  onToggleEnabled: (account: AccountView) => void;
+  onRemove: (account: AccountView) => void;
+  onDragStart: (accountId: string) => void;
+  onDrop: (accountId: string) => void;
+}
+
+function ManagedAccountPool(props: ManagedAccountPoolProps) {
+  const { providerId, title, badgeLabel, addAriaLabel, accounts, busy, actionError } = props;
+  return (
+    <section
+      data-testid={`provider-card-${providerId}`}
+      data-grid-span="2"
+      className="col-span-2 rounded-xl border border-white/5 bg-[#1c1d22] p-3"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <ProviderBadge id={providerId} label={badgeLabel} size="card" />
+          <div className="min-w-0">
+            <h3 className="truncate text-xs font-semibold text-foreground">{title}</h3>
+            <p className="mt-0.5 truncate text-[10px] text-neutral-400">首选账号与自动回退顺序</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={props.onAdd}
+          aria-label={addAriaLabel}
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
+        >
+          <UserRoundPlus className="size-3" /> 添加账号
+        </button>
+        {props.onImport ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={props.onImport}
+            aria-label={props.importAriaLabel}
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
+          >
+            导入本机登录
+          </button>
+        ) : null}
+      </div>
+      {actionError ? <p className="mb-2 text-[10px] text-red-300">{actionError}</p> : null}
+      {accounts.length === 0 ? (
+        <p className="rounded-lg bg-black/10 p-3 text-[10px] text-neutral-400">
+          尚未添加 {badgeLabel} 账号
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {accounts.map((account) => (
+            <AccountRow
+              key={account.accountId}
+              account={account}
+              busy={busy}
+              onReauth={props.onReauth}
+              onSelect={props.onSelect}
+              onRename={props.onRename}
+              onRefresh={props.onRefresh}
+              onToggleEnabled={props.onToggleEnabled}
+              onRemove={props.onRemove}
+              onDragStart={props.onDragStart}
+              onDrop={props.onDrop}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ModelUsageDialog() {
   const open = usePanelStore((state) => state.modelUsageDialogOpen);
   const close = usePanelStore((state) => state.closeModelUsageDialog);
   const accounts = useUsageAccountsStore((state) => state.accounts);
-  const tokenUsage = useTokenUsageStore((state) => state.response);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"accounts" | "tokens">("accounts");
 
   useEffect(() => {
     if (!open) return;
@@ -532,33 +860,68 @@ function ModelUsageDialog() {
   };
 
   const codexAccounts = accounts.filter((account) => account.provider === "codex");
+  const grokAccounts = accounts.filter((account) => account.provider === "grok");
+  const signedInCodexAccounts = useMemo(
+    () =>
+      codexAccounts.filter(
+        (account) =>
+          Boolean(account.credentialScopeRef) ||
+          Boolean(account.maskedIdentity) ||
+          Boolean(account.providerAccountId),
+      ),
+    [codexAccounts],
+  );
+  const signedGrokAccounts = useMemo(
+    () =>
+      grokAccounts.filter(
+        (account) =>
+          Boolean(account.credentialScopeRef) ||
+          Boolean(account.maskedIdentity) ||
+          Boolean(account.providerAccountId),
+      ),
+    [grokAccounts],
+  );
   const refreshAccountList = async () => {
     const next = await readBridge().listAccounts({});
     useUsageAccountsStore.getState().setAccounts(next);
     return next;
   };
-  const importCodexProfile = async () => {
-    const picked = await readBridge().pickFiles({
-      title: "导入 Codex auth.json",
-      filters: [{ name: "Codex auth", extensions: ["json"] }],
-    });
-    const source = picked?.[0];
-    if (!source) return;
-    const account = await readBridge().importCodexProfile({
-      label: "Imported Codex",
-      profileRoot: source.replace(/\\auth\.json$/i, ""),
-    });
-    useUsageAccountsStore.getState().upsertAccount(account);
+  const renameAccount = async (account: AccountView) => {
+    const nextLabel = window.prompt("重命名账号", account.label);
+    if (nextLabel === null) return;
+    const label = nextLabel.trim();
+    if (!label) throw new Error("账号名称不能为空。");
+    await readBridge().renameAccount({ accountId: account.accountId, label });
+    await refreshAccountList();
+  };
+  const selectAccount = async (account: AccountView) => {
+    // Selecting a row is a recoverable user choice. Re-enable only this row
+    // before making it selected; do not mutate the rest of the provider pool.
+    await readBridge().setAccountEnabled({ accountId: account.accountId, enabled: true });
+    await readBridge().selectAccount({ accountId: account.accountId });
     await refreshAccountList();
   };
   const createCodexProfile = async () => {
-    const account = await readBridge().createCodexProfile({ label: "New Codex" });
-    useUsageAccountsStore.getState().upsertAccount(account);
-    await refreshAccountList();
+    await createAndRunCodexProfileLogin({ label: "New Codex" });
   };
-  const reorder = (targetId: string) => {
+  const createGrokProfile = async () => {
+    await createAndRunGrokProfileLogin({ label: "New Grok" });
+  };
+  const importHostCodexLogin = async () => {
+    const account = await readBridge().importCodexProfile({
+      label: "本机 Codex",
+    });
+    await refreshAccountList();
+    toast.success(
+      account.status === "available"
+        ? "已导入本机 Codex / ChatGPT 登录（开发期复用，不含 Codex-Router catalog）"
+        : "已创建账号，但本机 ~/.codex/auth.json 无法解析",
+    );
+  };
+  const reorder = (targetId: string, provider = "codex") => {
     if (!draggedAccountId || draggedAccountId === targetId) return;
-    const ordered = [...codexAccounts].sort((a, b) => a.order - b.order);
+    const pool = provider === "grok" ? grokAccounts : codexAccounts;
+    const ordered = [...pool].sort((a, b) => a.order - b.order);
     const from = ordered.findIndex((account) => account.accountId === draggedAccountId);
     const to = ordered.findIndex((account) => account.accountId === targetId);
     if (from < 0 || to < 0) return;
@@ -566,7 +929,7 @@ function ModelUsageDialog() {
     ordered.splice(to, 0, moved!);
     void accountActions(async () => {
       await readBridge().reorderAccounts({
-        provider: "codex",
+        provider,
         orderedAccountIds: ordered.map((account) => account.accountId),
       });
       await refreshAccountList();
@@ -601,180 +964,106 @@ function ModelUsageDialog() {
                 管理各厂商订阅与多账号池状态，并查看每个账户的独立用量。
               </p>
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-1 pr-8">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void accountActions(importCodexProfile)}
-                className="inline-flex h-7 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
-              >
-                <UserRoundPlus className="size-3" /> 导入账号
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void accountActions(createCodexProfile)}
-                className="inline-flex h-7 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
-              >
-                <UserRoundPlus className="size-3" /> 新增账号
-              </button>
-            </div>
           </Modal.Header>
           <Modal.Body className="max-h-[72vh] overflow-y-auto">
-            {codexAccounts.length > 0 ? (
-              <section className="mb-4 rounded-xl border border-white/5 bg-[#1c1d22] p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-semibold text-foreground">ChatGPT 账号池</h3>
-                    <p className="mt-0.5 text-[10px] text-neutral-400">首选账号与自动回退顺序</p>
-                  </div>
-                </div>
-                <div
-                  className="mb-2 flex gap-1 rounded-lg bg-black/10 p-1"
-                  role="tablist"
-                  aria-label="账号与用量"
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === "accounts"}
-                    onClick={() => setActiveTab("accounts")}
-                    className={`flex-1 rounded-md px-2 py-1 text-[10px] ${activeTab === "accounts" ? "bg-white/10 text-foreground" : "text-neutral-500"}`}
-                  >
-                    Account &amp; Quota
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === "tokens"}
-                    onClick={() => setActiveTab("tokens")}
-                    className={`flex-1 rounded-md px-2 py-1 text-[10px] ${activeTab === "tokens" ? "bg-white/10 text-foreground" : "text-neutral-500"}`}
-                  >
-                    Token Usage
-                  </button>
-                </div>
-                {actionError ? (
-                  <p className="mb-2 text-[10px] text-red-300">{actionError}</p>
-                ) : null}
-                {activeTab === "accounts" && codexAccounts.length === 0 ? (
-                  <p className="rounded-lg bg-black/10 p-3 text-[10px] text-neutral-400">
-                    尚未添加 Codex 账号
-                  </p>
-                ) : activeTab === "accounts" ? (
-                  <div className="space-y-1.5">
-                    {codexAccounts.map((account) => (
-                      <div
-                        key={account.accountId}
-                        draggable
-                        onDragStart={() => setDraggedAccountId(account.accountId)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => reorder(account.accountId)}
-                        className="flex items-center gap-2 rounded-lg border border-white/5 bg-[#17181c] px-2 py-1.5"
-                      >
-                        <GripVertical
-                          className="size-3.5 shrink-0 text-neutral-500"
-                          aria-label="拖拽排序"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[11px] text-foreground">{account.label}</p>
-                          <p className="truncate text-[9px] text-neutral-500">
-                            {account.maskedIdentity ?? account.credentialScopeRef}
-                          </p>
-                        </div>
-                        <span className="text-[9px] text-neutral-400">{account.status}</span>
-                        <button
-                          type="button"
-                          disabled={busy || !account.enabled}
-                          onClick={() =>
-                            void accountActions(async () => {
-                              await readBridge().selectAccount({ accountId: account.accountId });
-                              await refreshAccountList();
-                            })
-                          }
-                          className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
-                        >
-                          {account.selected ? "首选" : "设为首选"}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() =>
-                            void accountActions(async () => {
-                              await readBridge().refreshAccountQuota({
-                                accountId: account.accountId,
-                              });
-                              await refreshAccountList();
-                            })
-                          }
-                          className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
-                          aria-label="刷新账号配额"
-                        >
-                          <RefreshCw className="size-3" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() =>
-                            void accountActions(async () => {
-                              await readBridge().setAccountEnabled({
-                                accountId: account.accountId,
-                                enabled: !account.enabled,
-                              });
-                              await refreshAccountList();
-                            })
-                          }
-                          className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
-                          aria-label={account.enabled ? "禁用账号" : "启用账号"}
-                        >
-                          <Power
-                            className={`size-3 ${account.enabled ? "text-emerald-300" : ""}`}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() =>
-                            void accountActions(async () => {
-                              await readBridge().removeAccount({ accountId: account.accountId });
-                              await refreshAccountList();
-                            })
-                          }
-                          className="rounded p-1 text-neutral-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
-                          aria-label="移除账号"
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {(tokenUsage?.summaries ?? []).map((summary) => (
-                      <div
-                        key={`${summary.source}-${summary.period}`}
-                        className="rounded-lg bg-black/10 p-2"
-                      >
-                        <p className="text-[9px] text-neutral-500">{summary.period}</p>
-                        <p className="mt-1 text-xs tabular-nums text-foreground">
-                          {summary.totalTokens.toLocaleString()}
-                        </p>
-                        <p className="mt-0.5 text-[9px] text-neutral-500">
-                          {summary.source} · {summary.quality}
-                        </p>
-                      </div>
-                    ))}
-                    {tokenUsage?.summaries.length ? null : (
-                      <p className="col-span-3 rounded-lg bg-black/10 p-3 text-[10px] text-neutral-400">
-                        暂无 Token Usage 数据
-                      </p>
-                    )}
-                  </div>
-                )}
-              </section>
-            ) : null}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-4 gap-3" data-testid="provider-grid">
+              {signedInCodexAccounts.length > 0 ? (
+                <ManagedAccountPool
+                  providerId="codex"
+                  title="ChatGPT 账号池"
+                  badgeLabel="ChatGPT"
+                  addAriaLabel="添加 ChatGPT 账号"
+                  accounts={signedInCodexAccounts}
+                  busy={busy}
+                  actionError={actionError}
+                  onAdd={() => void accountActions(createCodexProfile)}
+                  onImport={() => void accountActions(importHostCodexLogin)}
+                  importAriaLabel="导入本机 Codex 登录"
+                  onReauth={(account) =>
+                    void accountActions(async () => {
+                      await runCodexProfileLogin({
+                        accountId: account.accountId,
+                        label: account.label,
+                      });
+                    })
+                  }
+                  onSelect={(account) => void accountActions(() => selectAccount(account))}
+                  onRename={(account) => void accountActions(() => renameAccount(account))}
+                  onRefresh={(account) =>
+                    void accountActions(async () => {
+                      await readBridge().refreshAccountQuota({ accountId: account.accountId });
+                      await refreshAccountList();
+                    })
+                  }
+                  onToggleEnabled={(account) =>
+                    void accountActions(async () => {
+                      await readBridge().setAccountEnabled({
+                        accountId: account.accountId,
+                        enabled: !account.enabled,
+                      });
+                      await refreshAccountList();
+                    })
+                  }
+                  onRemove={(account) =>
+                    void accountActions(async () => {
+                      await readBridge().removeAccount({ accountId: account.accountId });
+                      await refreshAccountList();
+                    })
+                  }
+                  onDragStart={(accountId) => setDraggedAccountId(accountId)}
+                  onDrop={(accountId) => reorder(accountId, "grok")}
+                />
+              ) : (
+                <ProviderCard id="codex" label="ChatGPT" />
+              )}
+              {signedGrokAccounts.length > 0 ? (
+                <ManagedAccountPool
+                  providerId="grok"
+                  title="Grok 账号池"
+                  badgeLabel="Grok"
+                  addAriaLabel="添加 Grok 账号"
+                  accounts={signedGrokAccounts}
+                  busy={busy}
+                  actionError={actionError}
+                  onAdd={() => void accountActions(createGrokProfile)}
+                  onReauth={(account) =>
+                    void accountActions(async () => {
+                      await createAndRunGrokProfileLogin({ label: account.label });
+                    })
+                  }
+                  onSelect={(account) => void accountActions(() => selectAccount(account))}
+                  onRename={(account) => void accountActions(() => renameAccount(account))}
+                  onRefresh={(account) =>
+                    void accountActions(async () => {
+                      await readBridge().refreshAccountQuota({ accountId: account.accountId });
+                      await refreshAccountList();
+                    })
+                  }
+                  onToggleEnabled={(account) =>
+                    void accountActions(async () => {
+                      await readBridge().setAccountEnabled({
+                        accountId: account.accountId,
+                        enabled: !account.enabled,
+                      });
+                      await refreshAccountList();
+                    })
+                  }
+                  onRemove={(account) =>
+                    void accountActions(async () => {
+                      await readBridge().removeAccount({ accountId: account.accountId });
+                      await refreshAccountList();
+                    })
+                  }
+                  onDragStart={(accountId) => setDraggedAccountId(accountId)}
+                  onDrop={(accountId) => reorder(accountId)}
+                />
+              ) : (
+                <ProviderCard id="grok" label="Grok" />
+              )}
               <OpenAiCompatibleCard />
-              {SORTED_USAGE_PROVIDERS.map((provider) => (
+              {SORTED_USAGE_PROVIDERS.filter(
+                (provider) => provider.id !== "codex" && provider.id !== "grok",
+              ).map((provider) => (
                 <ProviderCard key={provider.id} id={provider.id} label={provider.label} />
               ))}
             </div>

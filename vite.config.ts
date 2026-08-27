@@ -202,7 +202,6 @@ function rendererBootstrapTiming(): Plugin {
     name: "poracode:renderer-bootstrap-timing",
     apply: "serve",
     configureServer(server) {
-      const serverStartedAt = performance.now();
       server.middlewares.use((req, res, next) => {
         const path = (req.url ?? "").split("?", 1)[0] ?? "";
         if (!watchedPaths.has(path)) {

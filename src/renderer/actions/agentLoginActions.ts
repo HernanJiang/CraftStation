@@ -8,11 +8,14 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { useLoginTerminalStore } from "@/renderer/state/loginTerminalStore";
 import { watchRoutedTerminal } from "@/renderer/state/remoteTerminalFeed";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import {
   disposeRoutedShellSession,
   startShellWithCurrentSettings,
   writeScriptToShell,
 } from "@/renderer/utils/shellUtils";
+
+let codexProfileLoginStartInFlight = false;
 
 function resolveLoginProject(): Project | undefined {
   const app = useAppStore.getState();
@@ -152,6 +155,388 @@ export function runAgentLoginCommand(input: {
   });
   writeScriptToShell(shellId, script, project.remoteServerId);
   return true;
+}
+
+/**
+ * Start an isolated Codex profile login. The supervisor owns the managed
+ * CODEX_HOME and only exposes a shell id plus a non-secret completion token;
+ * the renderer reuses the existing login terminal and completion protocol.
+ */
+export async function runCodexProfileLogin(input: {
+  accountId: string;
+  label: string;
+  project?: Project;
+}): Promise<boolean> {
+  const active = useLoginTerminalStore.getState().active;
+  if (active || codexProfileLoginStartInFlight) {
+    toast.info(i18n._(msg`A login terminal is already active.`));
+    return false;
+  }
+
+  codexProfileLoginStartInFlight = true;
+  try {
+    return await runCodexProfileLoginInternal(input);
+  } finally {
+    codexProfileLoginStartInFlight = false;
+  }
+}
+
+/** Atomically create a managed Codex profile and open its isolated login. */
+export async function createAndRunCodexProfileLogin(input?: {
+  label?: string;
+  project?: Project;
+}): Promise<boolean> {
+  if (useLoginTerminalStore.getState().active || codexProfileLoginStartInFlight) {
+    toast.info(i18n._(msg`A login terminal is already active.`));
+    return false;
+  }
+  codexProfileLoginStartInFlight = true;
+  try {
+    const project = input?.project ?? resolveLoginProject();
+    if (!project) {
+      toast.warning(i18n._(msg`Add a project before signing in.`));
+      return false;
+    }
+    const account = await readBridge().createCodexProfile({
+      label: input?.label?.trim() || "New Codex",
+    });
+    const succeeded = await runCodexProfileLoginInternal({
+      accountId: account.accountId,
+      label: account.label,
+      project,
+    });
+    if (!succeeded) {
+      await readBridge()
+        .removeAccount({ accountId: account.accountId })
+        .catch(() => undefined);
+      const remaining = useUsageAccountsStore
+        .getState()
+        .accounts.filter((entry) => entry.accountId !== account.accountId);
+      useUsageAccountsStore.getState().setAccounts(remaining);
+    }
+    return succeeded;
+  } catch (error) {
+    toast.danger(
+      error instanceof Error ? error.message : i18n._(msg`Unable to create a Codex account.`),
+    );
+    return false;
+  } finally {
+    codexProfileLoginStartInFlight = false;
+  }
+}
+
+let grokProfileLoginStartInFlight = false;
+
+/** Atomically create a pending managed Grok home and open its isolated login. */
+export async function createAndRunGrokProfileLogin(input?: {
+  label?: string;
+  project?: Project;
+}): Promise<boolean> {
+  if (useLoginTerminalStore.getState().active || grokProfileLoginStartInFlight) {
+    toast.info(i18n._(msg`A login terminal is already active.`));
+    return false;
+  }
+  grokProfileLoginStartInFlight = true;
+  try {
+    const project = input?.project ?? resolveLoginProject();
+    if (!project) {
+      toast.warning(i18n._(msg`Add a project before signing in.`));
+      return false;
+    }
+    const pending = await readBridge().createGrokProfileLogin({
+      label: input?.label?.trim() || "New Grok",
+    });
+    return await runGrokProfileLoginInternal({
+      pendingRef: pending.pendingRef,
+      label: pending.label,
+      project,
+    });
+  } catch (error) {
+    toast.danger(
+      error instanceof Error ? error.message : i18n._(msg`Unable to create a Grok account.`),
+    );
+    return false;
+  } finally {
+    grokProfileLoginStartInFlight = false;
+  }
+}
+
+async function runGrokProfileLoginInternal(input: {
+  pendingRef: string;
+  label: string;
+  project: Project;
+}): Promise<boolean> {
+  const shellId = `login:${crypto.randomUUID()}`;
+  const completionToken = createCompletionToken();
+  let cancelled = false;
+  let completed = false;
+  let completionStop: () => void = () => undefined;
+  let closeRequested = false;
+  let pollTimer: number | undefined;
+
+  const stopPolling = () => {
+    if (pollTimer !== undefined) {
+      window.clearInterval(pollTimer);
+      pollTimer = undefined;
+    }
+  };
+
+  const closeShell = () => {
+    if (closeRequested) return;
+    closeRequested = true;
+    void readBridge()
+      .closeThread({ threadId: shellId })
+      .catch(() => undefined);
+  };
+
+  let loginSucceeded = false;
+  let settleLogin: (succeeded: boolean) => void = () => undefined;
+  const loginFinished = new Promise<boolean>((resolve) => {
+    settleLogin = resolve;
+  });
+
+  const finish = async (exitCode: number) => {
+    if (completed) return;
+    completed = true;
+    stopPolling();
+    completionStop();
+    if (exitCode === 0) {
+      try {
+        // Promote the pending managed home only when the official auth file
+        // carries an identity; otherwise this throws and no row is inserted.
+        // When the poll path already promoted it, complete throws
+        // "Unknown pending Grok login" — treat that as already-successful.
+        await readBridge().completeGrokProfileLogin({ pendingRef: input.pendingRef });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/Unknown pending Grok login/i.test(message)) {
+          await readBridge()
+            .cancelGrokProfileLogin({ pendingRef: input.pendingRef })
+            .catch(() => undefined);
+          useLoginTerminalStore.getState().markFailed(shellId, -1);
+          loginSucceeded = false;
+          settleLogin(false);
+          return;
+        }
+        // Already promoted by the poll path — success.
+      }
+      const refreshedAccounts = await readBridge()
+        .listAccounts({ provider: "grok" })
+        .catch(() => undefined);
+      if (refreshedAccounts) {
+        const current = useUsageAccountsStore.getState().accounts;
+        useUsageAccountsStore
+          .getState()
+          .setAccounts([
+            ...current.filter((account) => account.provider !== "grok"),
+            ...refreshedAccounts,
+          ]);
+      }
+      loginSucceeded = true;
+      window.setTimeout(() => {
+        if (useLoginTerminalStore.getState().active?.shellId === shellId) {
+          useLoginTerminalStore.getState().close();
+        }
+      }, 1200);
+    } else {
+      await readBridge()
+        .cancelGrokProfileLogin({ pendingRef: input.pendingRef })
+        .catch(() => undefined);
+      useLoginTerminalStore.getState().markFailed(shellId, exitCode);
+      loginSucceeded = false;
+    }
+    settleLogin(loginSucceeded);
+  };
+
+  completionStop = watchCommandCompletion(
+    shellId,
+    completionToken,
+    (exitCode) => void finish(exitCode),
+    input.project.location.remoteServerId,
+  );
+  useLoginTerminalStore.getState().open({
+    shellId,
+    label: input.label,
+    projectLocation: input.project.location,
+    onForceClose: () => {
+      cancelled = true;
+      stopPolling();
+      completionStop();
+      closeShell();
+      void readBridge()
+        .cancelGrokProfileLogin({ pendingRef: input.pendingRef })
+        .catch(() => undefined);
+      settleLogin(false);
+    },
+  });
+
+  try {
+    await readBridge().startGrokProfileLogin({
+      pendingRef: input.pendingRef,
+      shellId,
+      projectLocation: input.project.location,
+      completionToken,
+      ...(input.project.location.kind === "windows"
+        ? { windowsShellRuntime: "powershell" as const }
+        : {}),
+    });
+    if (cancelled) {
+      stopPolling();
+      closeShell();
+      settleLogin(false);
+      return false;
+    }
+    // The official flow may not write our OSC marker or exit cleanly after the
+    // user approves auth.x.ai. Poll the pending home: as soon as the official
+    // auth.json carries an identity, promote it and close the overlay.
+    pollTimer = window.setInterval(() => {
+      void readBridge()
+        .pollGrokProfileLogin({ pendingRef: input.pendingRef })
+        .then((result) => {
+          if (result.done) void finish(0);
+        })
+        .catch(() => undefined);
+    }, 1000);
+    return await loginFinished;
+  } catch (error) {
+    stopPolling();
+    completionStop();
+    closeShell();
+    if (useLoginTerminalStore.getState().active?.shellId === shellId) {
+      useLoginTerminalStore.getState().close();
+    }
+    await readBridge()
+      .cancelGrokProfileLogin({ pendingRef: input.pendingRef })
+      .catch(() => undefined);
+    toast.danger(error instanceof Error ? error.message : i18n._(msg`Unable to open Grok login.`));
+    settleLogin(false);
+    return false;
+  }
+}
+
+async function runCodexProfileLoginInternal(input: {
+  accountId: string;
+  label: string;
+  project?: Project;
+}): Promise<boolean> {
+  // The caller owns the startup lock. This internal entry point is used by
+  // both public actions so create+login and direct login share one lifecycle.
+  const project = input.project ?? resolveLoginProject();
+  if (!project) {
+    toast.warning(i18n._(msg`Add a project before signing in.`));
+    return false;
+  }
+
+  const shellId = `login:${crypto.randomUUID()}`;
+  const completionToken = createCompletionToken();
+  let cancelled = false;
+  let completed = false;
+  let completionStop: () => void = () => undefined;
+  let closeRequested = false;
+
+  const closeShell = () => {
+    if (closeRequested) return;
+    closeRequested = true;
+    void readBridge()
+      .closeThread({ threadId: shellId })
+      .catch(() => undefined);
+  };
+
+  let loginSucceeded = false;
+  let settleLogin: (succeeded: boolean) => void = () => undefined;
+  const loginFinished = new Promise<boolean>((resolve) => {
+    settleLogin = resolve;
+  });
+
+  const finish = async (exitCode: number) => {
+    if (completed) return;
+    completed = true;
+    completionStop();
+    if (exitCode === 0) {
+      await readBridge()
+        .refreshAccountQuota({ accountId: input.accountId })
+        .catch(() => undefined);
+      const refreshedAccounts = await readBridge()
+        .listAccounts({ provider: "codex" })
+        .catch(() => undefined);
+      if (refreshedAccounts) {
+        const current = useUsageAccountsStore.getState().accounts;
+        useUsageAccountsStore
+          .getState()
+          .setAccounts([
+            ...current.filter((account) => account.provider !== "codex"),
+            ...refreshedAccounts,
+          ]);
+      }
+      const authorized = useUsageAccountsStore
+        .getState()
+        .accounts.find((account) => account.accountId === input.accountId);
+      loginSucceeded = Boolean(
+        authorized &&
+          (authorized.status === "available" ||
+            authorized.status === "quota-low" ||
+            authorized.status === "quota-exhausted" ||
+            authorized.maskedIdentity ||
+            authorized.providerAccountId),
+      );
+      window.setTimeout(() => {
+        if (useLoginTerminalStore.getState().active?.shellId === shellId) {
+          useLoginTerminalStore.getState().close();
+        }
+      }, 1200);
+    } else {
+      useLoginTerminalStore.getState().markFailed(shellId, exitCode);
+    }
+    settleLogin(loginSucceeded);
+  };
+
+  completionStop = watchCommandCompletion(
+    shellId,
+    completionToken,
+    (exitCode) => void finish(exitCode),
+    project.location.remoteServerId,
+  );
+  useLoginTerminalStore.getState().open({
+    shellId,
+    label: input.label,
+    projectLocation: project.location,
+    onForceClose: () => {
+      cancelled = true;
+      completionStop();
+      closeShell();
+      // Cancel is synchronous from the user's perspective: settle the login
+      // promise immediately instead of waiting for the (possibly pending)
+      // startCodexProfileLogin IPC round-trip to resolve.
+      settleLogin(false);
+    },
+  });
+
+  try {
+    await readBridge().startCodexProfileLogin({
+      accountId: input.accountId,
+      shellId,
+      projectLocation: project.location,
+      completionToken,
+      ...(project.location.kind === "windows"
+        ? { windowsShellRuntime: "powershell" as const }
+        : {}),
+    });
+    if (cancelled) {
+      closeShell();
+      settleLogin(false);
+      return false;
+    }
+    return await loginFinished;
+  } catch (error) {
+    completionStop();
+    closeShell();
+    if (useLoginTerminalStore.getState().active?.shellId === shellId) {
+      useLoginTerminalStore.getState().close();
+    }
+    toast.danger(error instanceof Error ? error.message : i18n._(msg`Unable to open Codex login.`));
+    settleLogin(false);
+    return false;
+  }
 }
 
 /**
@@ -419,7 +804,7 @@ function appendCompletionSignal(command: string, project: Project, token: string
   return `command bash -lc ${quotePosixShellArg(bashCommand)}`;
 }
 
-function watchCommandCompletion(
+export function watchCommandCompletion(
   shellId: string,
   token: string,
   onCommandComplete: (exitCode: number) => void,
@@ -453,11 +838,16 @@ function watchCommandCompletion(
       onReset: () => {
         buffer = "";
       },
-      onExited: () => {
+      onExited: (exitCode) => {
         if (done) return;
         done = true;
         window.clearTimeout(timeout);
         unsubscribe();
+        // A shell can disappear before the command writes its OSC marker
+        // (spawn failure, user cancellation, or an unexpected CLI crash).
+        // Surface that as an unsuccessful completion instead of leaving the
+        // account login flow pending forever.
+        onCommandComplete(exitCode ?? -1);
       },
     },
     remoteServerId,

@@ -145,6 +145,7 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       id, project_id, title, agent_kind, agent_instance_id, config, status,
       attention, can_resume_with_config, session_ref, terminal_prompt, worktree_path,
       composition_provenance,
+      account_binding,
       worktree_branch, pr_number, group_id, group_name, parent_thread_id, archived, done, done_at,
       starred, presentation_mode, sort_order, created_at, updated_at,
       active_turn_started_at, last_turn_started_at, last_turn_ended_at
@@ -152,6 +153,7 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       @id, @projectId, @title, @agentKind, @agentInstanceId, @config, @status,
       @attention, @canResumeWithConfig, @sessionRef, NULL, @worktreePath,
       @compositionProvenance,
+      @accountBinding,
       @worktreeBranch, @prNumber, @groupId, @groupName, @parentThreadId, @archived, @done, @doneAt,
       @starred, @presentationMode, @sortOrder, @createdAt, @updatedAt,
       @activeTurnStartedAt, @lastTurnStartedAt, @lastTurnEndedAt
@@ -165,6 +167,7 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       can_resume_with_config = excluded.can_resume_with_config,
       session_ref = excluded.session_ref,
       composition_provenance = excluded.composition_provenance,
+      account_binding = excluded.account_binding,
       terminal_prompt = excluded.terminal_prompt,
       worktree_path = excluded.worktree_path,
       worktree_branch = excluded.worktree_branch,
@@ -200,6 +203,7 @@ function runThreadSync(stmt: SqliteStatement, thread: Thread, sortOrder: number)
     compositionProvenance: thread.compositionProvenance
       ? JSON.stringify(thread.compositionProvenance)
       : null,
+    accountBinding: thread.accountBinding ? JSON.stringify(thread.accountBinding) : null,
     worktreePath: thread.worktreePath ?? null,
     worktreeBranch: thread.worktreeBranch ?? null,
     prNumber: thread.prNumber ?? null,

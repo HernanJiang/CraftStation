@@ -4,7 +4,6 @@ import { stripScheme } from "@/shared/url";
 const HISTORY_KEY = "browser-history-v1";
 const MAX_ENTRIES = 2000;
 const PERSIST_DEBOUNCE_MS = 1000;
-const SUGGEST_TIMEOUT_MS = 2500;
 
 export interface BrowserHistoryEntry {
   url: string;
@@ -123,4 +122,3 @@ export class BrowserHistoryStore {
 export async function fetchSearchSuggestions(_query: string, _userAgent: string): Promise<string[]> {
   return [];
 }
-

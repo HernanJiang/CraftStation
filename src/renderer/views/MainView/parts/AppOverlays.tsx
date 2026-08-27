@@ -1,4 +1,4 @@
-import { SelectProjectForThreadModal } from './SelectProjectForThreadModal';
+import { SelectProjectForThreadModal } from "./SelectProjectForThreadModal";
 import { Suspense, useEffect, useState } from "react";
 import { AlertDialog } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
@@ -34,7 +34,6 @@ import { readBridge } from "@/renderer/bridge";
 import { Button } from "@/renderer/components/common/Button";
 import { useBrowserPanelStore } from "@/renderer/state/browserPanelStore";
 import type { UsageLoginConfirmationAction } from "@/shared/contracts";
-import { WelcomeOverlay } from "@/renderer/views/WelcomeOverlay";
 import { WhatsNewOverlay } from "@/renderer/views/WhatsNewOverlay";
 import { useLoginTerminalStore } from "@/renderer/state/loginTerminalStore";
 import { findExperimentByWorktree } from "@/renderer/state/experimentStore";
@@ -99,7 +98,6 @@ export function AppOverlays() {
 
   return (
     <>
-      <WelcomeOverlay />
       <WhatsNewOverlay />
       <OverlayShell open={settingsOpen} onExited={() => usePanelStore.getState().closeSettings()}>
         <Suspense fallback={<OverlayLoader />}>
@@ -365,5 +363,3 @@ function UsageLoginConfirmationDialog() {
     </AlertDialog.Backdrop>
   );
 }
-
-

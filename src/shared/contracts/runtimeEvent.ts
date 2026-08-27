@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nativeEventEnvelopeSchema } from "../crafting/nativeHarness";
 
 /**
  * Canonical chat-runtime events.
@@ -376,6 +377,8 @@ export const usageSpentSchema = z.object({
   turnId: z.string().optional(),
   occurredAt: z.number().int().nonnegative().optional(),
   model: z.string().optional(),
+  /** Account binding captured at runtime spawn, before the Thread row may persist it. */
+  accountId: z.string().min(1).optional(),
 });
 export type UsageSpent = z.infer<typeof usageSpentSchema>;
 
@@ -490,7 +493,7 @@ export type TurnState = z.infer<typeof turnStateSchema>;
 export const requestOutcomeSchema = z.enum(["accepted", "declined", "answered", "cancelled"]);
 export type RequestOutcome = z.infer<typeof requestOutcomeSchema>;
 
-export const runtimeEventSchema = z.discriminatedUnion("type", [
+const canonicalRuntimeEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("session.started"),
     threadId: z.string(),
@@ -578,4 +581,14 @@ export const runtimeEventSchema = z.discriminatedUnion("type", [
     message: z.string(),
   }),
 ]);
+
+/**
+ * Keep the provider-native event reference beside the canonical projection.
+ * Existing events remain valid because the envelope is optional.
+ */
+export const runtimeEventSchema = canonicalRuntimeEventSchema.and(
+  z.object({
+    nativeEnvelope: nativeEventEnvelopeSchema.optional(),
+  }),
+);
 export type RuntimeEvent = z.infer<typeof runtimeEventSchema>;

@@ -60,8 +60,7 @@ export function CraftingRegistrySections() {
     harnesses: true,
     recipes: true,
   });
-  const toggle = (id: SectionId) =>
-    setCollapsed((current) => ({ ...current, [id]: !current[id] }));
+  const toggle = (id: SectionId) => setCollapsed((current) => ({ ...current, [id]: !current[id] }));
 
   const sections: {
     id: SectionId;
@@ -70,7 +69,13 @@ export function CraftingRegistrySections() {
     accentClass: string;
     count: number;
   }[] = [
-    { id: "models", label: t`Models`, icon: Cpu, accentClass: "text-sky-400", count: models.length },
+    {
+      id: "models",
+      label: t`Models`,
+      icon: Cpu,
+      accentClass: "text-sky-400",
+      count: models.length,
+    },
     {
       id: "harnesses",
       label: t`Harness Library`,

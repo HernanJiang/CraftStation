@@ -33,15 +33,19 @@ const ORBIT_DURATION_MS = 2400;
 // pipeline idles between ticks instead of stalling on per-frame repaints.
 const COMET_LIGHT_TICK_MS = 50; // ~20fps
 
-// The intro reveal fully settles ~3.2s after mount — the CTA buttons carry the
-// latest reveal (2.4s delay + 0.8s duration). Until then we hold first-launch
-// background work (agent detection) so its cold process spawns and re-render
-// churn don't starve the animation's first paint and snap it to its final
-// frame. A user who clicks a CTA sooner releases the gate immediately in
-// `dismissWelcome`.
+// Hold deferred first-launch background work (agent detection) until the
+// cinematic intro has settled, so cold process spawns don't starve the first
+// paint. A user who clicks a CTA sooner releases the gate immediately.
 const WELCOME_SETTLE_MS = 3200;
 
-export function WelcomeOverlay() {
+declare global {
+  interface Window {
+    __craftstationRemoveBootSplash?: () => void;
+  }
+}
+
+export function WelcomeOverlay(props: { ready?: boolean } = {}) {
+  const ready = props.ready ?? true;
   const containerRef = useRef<HTMLDivElement>(null);
   const cometRef = useRef<HTMLSpanElement>(null);
   const mouseRafRef = useRef<number | null>(null);
@@ -63,6 +67,10 @@ export function WelcomeOverlay() {
   // paint — the inner reveal/orbit animations are driven by CSS keyframes,
   // not by toggling `visible`, so we don't need a RAF flip on entry.
   const [visible, setVisible] = useState(open);
+
+  useEffect(() => {
+    window.__craftstationRemoveBootSplash?.();
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -164,12 +172,21 @@ export function WelcomeOverlay() {
 
   if (!mounted) return null;
 
+  const loading = open && !ready;
+  const reducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  const spinning = open && loading && !reducedMotion;
+  const actionsVisible = ready;
+
   return (
     <div
       ref={containerRef}
       className={`poracode-welcome-page fixed inset-0 z-50 flex flex-col bg-background transition-opacity ${
         visible ? "opacity-100 duration-150" : "opacity-0 duration-500"
       }`}
+      data-welcome-loading={loading ? "true" : "false"}
+      data-welcome-spinning={spinning ? "true" : "false"}
       onTransitionEnd={handleTransitionEnd}
       onMouseMove={(e) => {
         mousePosRef.current = { x: e.clientX, y: e.clientY };
@@ -213,22 +230,28 @@ export function WelcomeOverlay() {
       <div className="relative z-10 flex flex-1 items-center justify-center px-6">
         <div className="poracode-welcome-stage flex w-full max-w-[680px] flex-col items-center gap-8 text-center">
           <div className="poracode-welcome-icon-wrap relative flex size-24 items-center justify-center">
-            <span className="poracode-welcome-light absolute inset-[-18px] rounded-full" />
-            <span className="poracode-welcome-splash absolute inset-[-26px] rounded-full" />
-            <span className="poracode-welcome-orbit absolute inset-[-12px] rounded-full">
+            <span className="poracode-welcome-light absolute inset-[-18px] rounded-none" />
+            <span className="poracode-welcome-splash absolute inset-[-26px] rounded-none" />
+            <span className="poracode-welcome-orbit absolute inset-[-12px] rounded-none">
               <span
                 ref={cometRef}
                 className="poracode-welcome-comet absolute left-1/2 top-0 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
               />
             </span>
-            <span className="poracode-welcome-ring absolute inset-[5px] rounded-[1.85rem]" />
-            <span className="poracode-welcome-reveal poracode-welcome-icon-glass absolute inset-2 rounded-[1.65rem]" />
-            <img
-              src={appIconUrl}
-              alt=""
-              draggable={false}
-              className="poracode-welcome-reveal relative size-20 rounded-[1.55rem]"
-            />
+            <div
+              className={`poracode-welcome-logo-spin absolute inset-0 flex items-center justify-center${
+                spinning ? " poracode-welcome-icon-spinning" : ""
+              }`}
+            >
+              <span className="poracode-welcome-ring absolute inset-[5px] rounded-none" />
+              <span className="poracode-welcome-reveal poracode-welcome-icon-glass absolute inset-2 rounded-none" />
+              <img
+                src={appIconUrl}
+                alt=""
+                draggable={false}
+                className="poracode-welcome-reveal relative size-20 rounded-none"
+              />
+            </div>
           </div>
 
           <div
@@ -239,41 +262,45 @@ export function WelcomeOverlay() {
             <h1 className="flex items-baseline gap-3 overflow-visible pr-[0.22em] pb-[0.2em] text-[clamp(3.25rem,8vw,6.25rem)] leading-[1.28] font-semibold tracking-normal">
               <BrandWordmark className="inline-block pr-[0.04em] pb-[0.12em]" />
             </h1>
-            <p className="text-sm text-muted">
-              <Trans>Where do you want to begin?</Trans>
-            </p>
+            {actionsVisible ? (
+              <p className="text-sm text-muted">
+                <Trans>Choose how you want to enter CraftStation.</Trans>
+              </p>
+            ) : null}
           </div>
 
-          <div
-            className={`poracode-welcome-reveal poracode-welcome-reveal-2 grid w-full max-w-[460px] grid-cols-1 gap-3 transition-all delay-150 duration-700 sm:grid-cols-2 ${
-              visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-            }`}
-          >
-            <Button
-              fullWidth
-              size="lg"
-              variant="tertiary"
-              className="poracode-welcome-button h-12 justify-center gap-2 !text-white"
-              onPress={handleAskQuestion}
-            >
-              <MessageSquareText className="size-4" />
-              <Trans>Ask Question</Trans>
-              <span className="rounded-full bg-white/12 px-1.5 py-0.5 text-[10px] leading-none text-white/90">
-                <Trans>Home</Trans>
-              </span>
-            </Button>
-            <CreateProjectMenu onSelect={dismissWelcome}>
+          {actionsVisible ? (
+            <div className="grid w-full max-w-[460px] grid-cols-1 gap-3 sm:grid-cols-2">
               <Button
                 fullWidth
                 size="lg"
                 variant="tertiary"
                 className="poracode-welcome-button h-12 justify-center gap-2 !text-white"
+                onPress={handleAskQuestion}
               >
-                <FolderPlus className="size-4" />
-                <Trans>Add Project</Trans>
+                <MessageSquareText className="size-4" />
+                <Trans>Enter Chat</Trans>
               </Button>
-            </CreateProjectMenu>
-          </div>
+              <CreateProjectMenu onSelect={dismissWelcome}>
+                <Button
+                  fullWidth
+                  size="lg"
+                  variant="tertiary"
+                  className="poracode-welcome-button h-12 justify-center gap-2 !text-white"
+                >
+                  <FolderPlus className="size-4" />
+                  <Trans>Enter Project</Trans>
+                </Button>
+              </CreateProjectMenu>
+            </div>
+          ) : (
+            <p
+              className="poracode-welcome-loading-label text-sm text-muted"
+              data-testid="welcome-loading-status"
+            >
+              <Trans>Starting up</Trans>
+            </p>
+          )}
         </div>
       </div>
     </div>

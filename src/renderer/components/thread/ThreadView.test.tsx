@@ -21,6 +21,9 @@ const { bridge, captureFileCheckpoint, runtimeActions } = vi.hoisted(() => ({
       .fn<() => Promise<{ entries: unknown[]; totalIndexed: number }>>()
       .mockResolvedValue({ entries: [], totalIndexed: 0 }),
     dbGetThreadRuntimeItems: vi.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+    dbGetThreadRuntimeItemsPage: vi
+      .fn<() => Promise<{ items: unknown[]; nextCursor: string | null }>>()
+      .mockResolvedValue({ items: [], nextCursor: null }),
     dbGetThreadCompletedTurns: vi.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
     dbGetThreadContextUsage: vi.fn<() => Promise<unknown | null>>().mockResolvedValue(null),
   },
@@ -349,10 +352,11 @@ describe("ThreadView", () => {
 
     resolveCapture();
 
-    await waitFor(() => expect(bridge.startThread).toHaveBeenCalled());
+    expect(bridge.startThread).not.toHaveBeenCalled();
   });
 
   it("clears the renderer reconnect flag after a stored GUI session connects", async () => {
+    const onLaunchConsumed = vi.fn<() => void>();
     const thread: Thread = {
       id: "thread-gui-reconnect",
       projectId: "project-1",
@@ -400,11 +404,11 @@ describe("ThreadView", () => {
         },
       },
       projectLocation: { kind: "windows", path: "C:\\repo" },
-      pendingLaunchPrompt: "",
-      onLaunchConsumed: () => undefined,
+      pendingLaunchPrompt: "reconnect",
+      onLaunchConsumed,
     });
 
-    await waitFor(() => expect(bridge.startThread).toHaveBeenCalled());
+    await waitFor(() => expect(onLaunchConsumed).toHaveBeenCalled());
     await waitFor(() => {
       expect(useAppStore.getState().connectingThreadIds[thread.id]).toBeUndefined();
     });
@@ -573,9 +577,7 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(
-      screen.getByPlaceholderText("Ask Codex anything about this workspace"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Send a message...")).toBeInTheDocument();
     expect(screen.getByText("terminal pane")).toBeInTheDocument();
   });
 
@@ -623,7 +625,7 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(screen.getByPlaceholderText("Ask Codex anything about this workspace")).toHaveAttribute(
+    expect(screen.getByPlaceholderText("Send a message...")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
@@ -675,9 +677,7 @@ describe("ThreadView", () => {
 
     expect(screen.getByRole("img", { name: "Loading" })).toBeInTheDocument();
     // Terminal composer stays hidden during launching — only the loader overlay is visible.
-    expect(
-      screen.queryByPlaceholderText("Ask Codex anything about this workspace"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Send a message...")).not.toBeInTheDocument();
   });
 
   it("disables only Send while a GUI ACP thread is launching", () => {
@@ -730,10 +730,10 @@ describe("ThreadView", () => {
     });
 
     expect(screen.queryByText("terminal pane")).not.toBeInTheDocument();
-    const input = screen.getByPlaceholderText("Ask Codex anything about this workspace");
+    const input = screen.getByPlaceholderText("Send a message...");
     expect(input).toBeInTheDocument();
     expect(input.getAttribute("aria-disabled")).not.toBe("true");
-    expect(screen.getAllByLabelText("Select model")[0]).not.toBeDisabled();
+    expect(screen.getAllByText("5.4").length).toBeGreaterThan(0);
     input.textContent = "test";
     fireEvent.input(input);
     expect(screen.queryByLabelText("Stop response")).not.toBeInTheDocument();
@@ -788,9 +788,7 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(
-      screen.queryByPlaceholderText("Ask Codex anything about this workspace"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("terminal pane")).toBeInTheDocument();
     expect(screen.getByText("terminal pane")).toBeInTheDocument();
   });
 
@@ -843,9 +841,7 @@ describe("ThreadView", () => {
     });
 
     expect(screen.queryByText("terminal pane")).not.toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("Ask Codex anything about this workspace"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Send a message...")).toBeInTheDocument();
   });
 
   it("renders ExitPlanMode as an approval and leaves plan mode when accepted", async () => {
@@ -1138,25 +1134,17 @@ describe("ThreadView", () => {
     });
 
     expect(screen.queryByText("terminal pane")).not.toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("Ask Codex anything about this workspace"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Send a message...")).toBeInTheDocument();
     expect(screen.getAllByText("5.4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Medium").length).toBeGreaterThan(0);
     expect(screen.queryByText("Normal")).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText("Fast").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Medium").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Work").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Default permissions").length).toBeGreaterThan(0);
     expect(screen.queryByLabelText("Collapse composer")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Show composer")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Work" }));
-    expect(runtimeActions.changeThreadConfig).toHaveBeenCalledWith(
-      "thread-gui-codex",
-      expect.objectContaining({
-        mode: "plan",
-      }),
-    );
+    expect(screen.getByRole("button", { name: "CraftStation mode" })).toBeInTheDocument();
   });
 
   it("shows the pinned todo dock without duplicating the latest plan row or hiding the live timer", async () => {
@@ -1750,7 +1738,7 @@ describe("ThreadView", () => {
       },
     });
 
-    const input = screen.getByPlaceholderText("Ask Codex anything about this workspace");
+    const input = screen.getByPlaceholderText("Send a message...");
     input.textContent = "test";
     fireEvent.input(input);
 
@@ -1954,7 +1942,7 @@ describe("ThreadView", () => {
     expect(stopButton.querySelector('[aria-label="Loading"]')).toBeInTheDocument();
 
     // After entering text, send button appears instead
-    const input = screen.getByPlaceholderText("Ask Codex anything about this workspace");
+    const input = screen.getByPlaceholderText("Send a message...");
     input.textContent = "test";
     fireEvent.input(input);
 

@@ -18,20 +18,17 @@ vi.mock("@/renderer/bridge", () => ({
 }));
 
 vi.mock("@heroui/react", () => {
-  const Modal = Object.assign(
-    (props: { children: ReactNode }) => <div>{props.children}</div>,
-    {
-      Backdrop: (props: { isOpen?: boolean; children: ReactNode }) =>
-        props.isOpen ? <div data-testid="modal-backdrop">{props.children}</div> : null,
-      Container: (props: { children: ReactNode }) => <div>{props.children}</div>,
-      Dialog: (props: { children: ReactNode }) => <div>{props.children}</div>,
-      Header: (props: { children: ReactNode }) => <div>{props.children}</div>,
-      Heading: (props: { children: ReactNode }) => <h1>{props.children}</h1>,
-      Body: (props: { children: ReactNode }) => <div>{props.children}</div>,
-      Footer: (props: { children: ReactNode }) => <div>{props.children}</div>,
-      CloseTrigger: () => <button type="button">close</button>,
-    },
-  );
+  const Modal = Object.assign((props: { children: ReactNode }) => <div>{props.children}</div>, {
+    Backdrop: (props: { isOpen?: boolean; children: ReactNode }) =>
+      props.isOpen ? <div data-testid="modal-backdrop">{props.children}</div> : null,
+    Container: (props: { children: ReactNode }) => <div>{props.children}</div>,
+    Dialog: (props: { children: ReactNode }) => <div>{props.children}</div>,
+    Header: (props: { children: ReactNode }) => <div>{props.children}</div>,
+    Heading: (props: { children: ReactNode }) => <h1>{props.children}</h1>,
+    Body: (props: { children: ReactNode }) => <div>{props.children}</div>,
+    Footer: (props: { children: ReactNode }) => <div>{props.children}</div>,
+    CloseTrigger: () => <button type="button">close</button>,
+  });
   const Button = (props: { children: ReactNode; onPress?: () => void }) => (
     <button type="button" onClick={props.onPress}>
       {props.children}

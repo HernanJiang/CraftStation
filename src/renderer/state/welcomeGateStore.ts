@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { readStoredBoolean } from "@/renderer/utils/localStorage";
 
 /**
  * localStorage flag set once the user has seen (and dismissed) the first-launch
@@ -14,8 +13,10 @@ export const WELCOME_SEEN_STORAGE_KEY = "poracode-welcome-seen-v16";
  * environment can never suppress the real first-launch experience.
  */
 export function isWelcomeSeen(): boolean {
+  // Isolated tests can skip the launch screen. Ordinary launches always show it
+  // so the window is useful while Electron/Vite finish loading in the background.
   const skipForTesting = import.meta.env.DEV && import.meta.env.VITE_PORACODE_SKIP_WELCOME === "1";
-  return skipForTesting || readStoredBoolean(WELCOME_SEEN_STORAGE_KEY, false);
+  return skipForTesting;
 }
 
 interface WelcomeGateStore {

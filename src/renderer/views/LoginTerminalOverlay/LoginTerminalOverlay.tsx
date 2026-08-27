@@ -114,17 +114,25 @@ export function LoginTerminalOverlay() {
       />
       <div
         data-overlay-surface="login-terminal"
-        className="pointer-events-auto fixed bottom-8 right-8 top-8 flex w-[640px] max-w-[calc(100vw-4rem)] flex-col overflow-hidden rounded-3xl border border-border bg-background shadow-2xl will-change-transform"
-        style={{
-          // Inline transform avoids Tailwind arbitrary-value pitfalls with
-          // `calc(...)` spaces. Off-screen state translates the panel its full
-          // width PLUS the 2rem (right-8) margin so it disappears completely.
-          transform: visible ? "translateX(0)" : "translateX(calc(100% + 2rem))",
-          transition: "transform 300ms ease-out",
-        }}
+        // Keep the panel below the window caption so the Windows
+        // titleBarOverlay drag region never overlaps the X button.
+        className="pointer-events-auto fixed bottom-8 right-4 top-16 flex w-[640px] max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-3xl border border-border bg-background shadow-2xl will-change-transform"
+        style={
+          {
+            appRegion: "no-drag",
+            // Inline transform avoids Tailwind arbitrary-value pitfalls with
+            // `calc(...)` spaces. Off-screen state translates the panel its full
+            // width PLUS the 2rem (right-8) margin so it disappears completely.
+            transform: visible ? "translateX(0)" : "translateX(calc(100% + 2rem))",
+            transition: "transform 300ms ease-out",
+          } as React.CSSProperties
+        }
         onTransitionEnd={handleTransitionEnd}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <div
+          className="flex items-center justify-between border-b border-border px-4 py-2"
+          style={{ appRegion: "no-drag" } as React.CSSProperties}
+        >
           <div className="min-w-0">
             <p
               className={`truncate text-sm font-medium ${

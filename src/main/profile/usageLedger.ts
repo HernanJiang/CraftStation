@@ -97,6 +97,9 @@ export function recordUsageSpentFromRuntimeEvents(
         kind: "tokens_v2",
         provider,
         model: usage.model ?? thread.config.model ?? null,
+        projectId: thread.projectId,
+        sessionId: usage.scopeId,
+        accountId: usage.accountId ?? thread.accountBinding?.accountId ?? null,
         value: amount,
       });
     }

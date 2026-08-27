@@ -6,7 +6,7 @@ This working copy is CraftStation, based on PoraCode/lightcode.
 
 - Project identity and long-lived rules: `CRAFTSTATION.md`
 - Current Feature status: `PROJECT_STATUS.md`
-- Feature docs: `ai_workspace/agent_docs/` (current Manager: `manager_0.3.0.md`)
+- Feature docs: i_workspace/agent_docs/ (current Manager: manager_0.4.0.md; checkpoint: debugger_0.4.12-checkpoint.md)
 - Cloud Manager Ideate prompt: `IDEA_GUIDE.md`
 - GitHub origin: `https://github.com/HernanJiang/CraftStation.git` (private)
 

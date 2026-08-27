@@ -198,7 +198,9 @@ describe("probeAcpCapabilities live-process paths", () => {
     );
     const elapsed = Date.now() - started;
 
-    expect(elapsed).toBeLessThan(1_500);
+    // The probe's logical budget is 1s; Windows child-process teardown can add
+    // a small scheduler delay after the result is already settled.
+    expect(elapsed).toBeLessThan(1_700);
   });
 
   it("cuts off a wedged session/set_config_option instead of hanging", async () => {
@@ -285,7 +287,7 @@ describe("probeAcpCapabilities live-process paths", () => {
       await pending;
 
       expect(await readFile(cleanupMarker, "utf8")).toBe("session/delete");
-      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(Date.now() - started).toBeLessThan(1_300);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

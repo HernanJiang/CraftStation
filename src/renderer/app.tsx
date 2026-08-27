@@ -3,6 +3,8 @@ import { msg as linguiMsg } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { Suspense, useEffect, useState } from "react";
 import { PixelLoader } from "./components/common/PixelLoader";
+import { WelcomeOverlay } from "./views/WelcomeOverlay";
+import { isWelcomeSeen } from "./state/welcomeGateStore";
 import { StartupRecoveryScreen } from "./components/startup/StartupRecoveryScreen";
 import { msg } from "@/shared/messages";
 import type { RuntimeEvent } from "@/shared/contracts";
@@ -40,6 +42,8 @@ import { useDevTerminalStore } from "./state/devTerminalStore";
 import { useThreadOutputStore } from "./state/threadOutputStore";
 import { applyAgentStatusSupervisorEvent, useAgentStatusesStore } from "./state/agentStatusesStore";
 import { useProviderUsageStore } from "./state/providerUsageStore";
+import { useUsageAccountsStore } from "./state/usageAccountsStore";
+import { useTokenUsageStore } from "./state/tokenUsageStore";
 import { useUpdateStore } from "./state/updateStore";
 import { clearRuntimeItemStoreSelectorCacheForThread } from "./components/thread/ChatPane/chatPaneSelectors";
 
@@ -267,6 +271,12 @@ function handleSupervisorEvent(event: SupervisorEvent): void {
   }
   if (event.type === "provider-usage-all") {
     useProviderUsageStore.getState().setSnapshots(event.snapshots);
+  }
+  if (event.type === "usage-accounts") {
+    useUsageAccountsStore.getState().setAccounts(event.accounts);
+  }
+  if (event.type === "token-usage") {
+    useTokenUsageStore.getState().setResponse(event.response);
   }
 }
 
@@ -609,42 +619,40 @@ function MainApp() {
     };
   }, [initialLoading]);
 
-  if (initialLoading) {
-    console.log(
-      `[renderer] +${Date.now() - loadT0}ms: rendering spinner (hydrated=${storeHydrated})`,
-    );
-    return (
-      <AppProvider contentReady={false}>
-        {showStartupRecovery ? (
-          <StartupRecoveryScreen
-            onKeepWaiting={() => {
-              setShowStartupRecovery(false);
-              setStartupRecoveryCycle((cycle) => cycle + 1);
-            }}
-          />
-        ) : (
-          <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
-            <div className="flex flex-col items-center gap-4">
-              <PixelLoader size="lg" />
-              <p className="text-sm text-muted">
-                <Trans>Loading…</Trans>
-              </p>
-            </div>
-          </div>
-        )}
-      </AppProvider>
-    );
-  }
-
   return (
-    <AppProvider contentReady>
-      <MainView
-        storeHydrated={storeHydrated}
-        runtimeSnapshotsReady={runtimeSnapshotsReady}
-        loadT0={loadT0}
-      />
-      <DeferredCommandPalette />
-      <ImageLightboxHost />
+    <AppProvider contentReady={!initialLoading}>
+      {showStartupRecovery ? (
+        <StartupRecoveryScreen
+          onKeepWaiting={() => {
+            setShowStartupRecovery(false);
+            setStartupRecoveryCycle((cycle) => cycle + 1);
+          }}
+        />
+      ) : (
+        <>
+          {!initialLoading ? (
+            <>
+              <MainView
+                storeHydrated={storeHydrated}
+                runtimeSnapshotsReady={runtimeSnapshotsReady}
+                loadT0={loadT0}
+              />
+              <DeferredCommandPalette />
+              <ImageLightboxHost />
+            </>
+          ) : isWelcomeSeen() ? (
+            <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
+              <div className="flex flex-col items-center gap-4">
+                <PixelLoader size="lg" />
+                <p className="text-sm text-muted">
+                  <Trans>Loading…</Trans>
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <WelcomeOverlay ready={!initialLoading} />
+        </>
+      )}
     </AppProvider>
   );
 }

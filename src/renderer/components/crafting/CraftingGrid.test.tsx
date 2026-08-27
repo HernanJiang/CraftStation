@@ -41,7 +41,9 @@ describe("CraftingGrid Component", () => {
   });
 
   it("calls onCraft with compiled CraftResult when craft button is clicked", async () => {
-    const onCraftMock = vi.fn<(result: CraftResult, prompt: string) => Promise<void>>().mockResolvedValue(undefined);
+    const onCraftMock = vi
+      .fn<(result: CraftResult, prompt: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
     const testWs = "/test/workspace";
     render(<CraftingGrid workspace={testWs} onCraft={onCraftMock} />);
 
@@ -61,5 +63,28 @@ describe("CraftingGrid Component", () => {
     expect(craftResult.craftPlan?.workspace).toBe(testWs);
     expect(craftResult.resultItem?.provenance.recipeId).toBe(OPENAI_CODEX_RECIPE_ID);
     expect(prompt).toBe("Implement feature X");
+  });
+
+  it.each([
+    ["xAI Grok Build Native Recipe", "xai:grok-4.6", "harness:grok", "grok"],
+    ["Moonshot Kimi Code Native Recipe", "moonshot:kimi-for-coding", "harness:kimi", "kimi"],
+    ["Google Antigravity Native Recipe", "google:antigravity-default", "harness:antigravity", "antigravity"],
+    ["DeepSeek / DSH Native Recipe", "deepseek:deepseek-chat", "harness:deepseek", "deepseek"],
+  ] as const)("quick-fills and compiles the %s", async (recipeName, modelId, harnessId, harnessKind) => {
+    const onCraftMock = vi
+      .fn<(result: CraftResult, prompt: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    render(<CraftingGrid onCraft={onCraftMock} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "配方" }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(recipeName, "u") }));
+
+    expect((screen.getByTestId("model-select") as HTMLSelectElement).value).toBe(modelId);
+    expect((screen.getByTestId("harness-select") as HTMLSelectElement).value).toBe(harnessId);
+    expect(screen.getByText(new RegExp(`Resolved:.*${harnessKind}`, "iu"))).toBeDefined();
+
+    fireEvent.click(screen.getByTestId("craft-button"));
+    await waitFor(() => expect(onCraftMock).toHaveBeenCalledTimes(1));
+    expect(onCraftMock.mock.calls[0]?.[0].craftPlan?.runtimeBinding.harnessKind).toBe(harnessKind);
   });
 });

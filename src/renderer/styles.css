@@ -204,27 +204,71 @@
   transform: translate3d(0, -1.5vh, 0);
 }
 
+@keyframes poracode-welcome-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes poracode-welcome-ellipsis {
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75%,
+  100% {
+    content: "...";
+  }
+}
+
+.poracode-welcome-icon-wrap,
+.poracode-welcome-logo-spin {
+  transform: rotate(0deg);
+}
+
+.poracode-welcome-logo-spin {
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.poracode-welcome-icon-spinning {
+  animation: poracode-welcome-icon-spin 8s linear infinite;
+  transition: none;
+}
+
+.poracode-welcome-loading-label::after {
+  content: "";
+  animation: poracode-welcome-ellipsis 1.2s steps(4, end) infinite;
+}
+
 .poracode-welcome-reveal {
   animation: poracode-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  animation-delay: 2s;
+  animation-delay: 0s;
 }
 
 .poracode-welcome-reveal-1 {
-  animation-delay: 2.2s;
+  animation-delay: 0.12s;
 }
 
 .poracode-welcome-reveal-2 {
-  animation-delay: 2.4s;
+  animation-delay: 0s;
 }
 
 .poracode-welcome-ring {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent),
-    0 0 18px color-mix(in oklab, var(--accent) 22%, transparent);
+    0 0 0 1px color-mix(in oklab, #d4a017 38%, transparent),
+    0 0 18px color-mix(in oklab, #d4a017 22%, transparent);
   animation:
     poracode-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both,
     poracode-lightning-glow 4s ease-in-out infinite;
-  animation-delay: 2s, 2.8s;
+  animation-delay: 0s, 0.6s;
   transform: translateZ(0);
 }
 
@@ -252,11 +296,11 @@
     from var(--ring-angle-1) at center,
     transparent 0deg,
     transparent 180deg,
-    color-mix(in oklab, var(--accent) 15%, transparent) 220deg,
-    var(--accent) 270deg,
-    #ffffff 295deg,
-    var(--accent) 320deg,
-    color-mix(in oklab, var(--accent) 15%, transparent) 350deg,
+    color-mix(in oklab, #d4a017 15%, transparent) 220deg,
+    #d4a017 270deg,
+    #93c5fd 295deg,
+    #d4a017 320deg,
+    color-mix(in oklab, #d4a017 15%, transparent) 350deg,
     transparent 360deg
   );
   filter: blur(0.5px);
@@ -269,11 +313,11 @@
     from var(--ring-angle-2) at center,
     transparent 0deg,
     transparent 120deg,
-    color-mix(in oklab, var(--accent) 15%, transparent) 160deg,
-    var(--accent) 220deg,
-    #ffffff 250deg,
-    var(--accent) 280deg,
-    color-mix(in oklab, var(--accent) 15%, transparent) 320deg,
+    color-mix(in oklab, #d4a017 15%, transparent) 160deg,
+    #d4a017 220deg,
+    #93c5fd 250deg,
+    #d4a017 280deg,
+    color-mix(in oklab, #d4a017 15%, transparent) 320deg,
     transparent 360deg
   );
   filter: blur(0.6px);
@@ -335,12 +379,12 @@
 }
 
 .poracode-welcome-splash {
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid color-mix(in oklab, #d4a017 45%, #3b82f6 35%);
   background: radial-gradient(
     circle,
-    rgba(255, 255, 255, 0.3) 0%,
-    rgba(255, 255, 255, 0.1) 40%,
-    transparent 70%
+    color-mix(in oklab, #f0c14b 55%, transparent) 0%,
+    color-mix(in oklab, #3b82f6 28%, transparent) 42%,
+    transparent 72%
   );
   animation: poracode-welcome-splash 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   filter: blur(4px);
@@ -445,9 +489,17 @@
 @media (prefers-reduced-motion: reduce) {
   .poracode-welcome-orbit,
   .poracode-welcome-light,
-  .poracode-welcome-splash {
+  .poracode-welcome-splash,
+  .poracode-welcome-icon-spinning {
     animation: none;
     opacity: 0;
+  }
+  .poracode-welcome-icon-spinning {
+    opacity: 1;
+  }
+  .poracode-welcome-loading-label::after {
+    animation: none;
+    content: "...";
   }
   /* The infinite conic spins (poracode-ring-spin-1/2) live on the ring
      PSEUDO-elements; `animation: none` on the base element does NOT reach
@@ -1375,7 +1427,9 @@ html[data-window-kind="quickComposer"] #root {
    titleBarOverlay height must not be reserved a second time. */
 html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
   padding-top: 0;
-  background: linear-gradient(135deg, rgba(22, 18, 22, 0.88) 0%, rgba(18, 16, 20, 0.92) 100%);
+  /* Keep the titlebar dark and legible, but let a little more of the native
+     material bleed through instead of painting an almost opaque slab. */
+  background: linear-gradient(135deg, rgba(22, 18, 22, 0.76) 0%, rgba(18, 16, 20, 0.81) 100%);
   backdrop-filter: blur(28px) saturate(130%);
   -webkit-backdrop-filter: blur(28px) saturate(130%);
 }
@@ -1404,12 +1458,17 @@ html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
 
 .craftstation-workspace-frame {
   box-shadow: none;
-  border-left-color: transparent;
+  /* This is the one intentional vertical seam: it starts below the rounded
+     chat frame corner. The sidebar itself must not add a second line. */
+  border-left-color: rgba(255, 255, 255, 0.05);
 }
 
 .poracode-shell:has(.craftstation-titlebar)
   .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay) {
-  border-right-color: rgba(255, 255, 255, 0.05) !important;
+  /* The workspace frame below owns the single visible seam. Do not paint a
+     second separator on the sidebar edge. Keep the border box itself stable
+     so resizing does not move the chat column by one pixel. */
+  border-right-color: transparent !important;
   background: transparent !important;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -1422,7 +1481,7 @@ html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
 }
 
 .poracode-shell:has(.craftstation-titlebar) .poracode-sidebar-body {
-  border-right-color: rgba(255, 255, 255, 0.05) !important;
+  border-right-color: transparent !important;
 }
 
 .craftstation-mc-slot {
@@ -1559,16 +1618,17 @@ html[data-native-material="on"] .poracode-sidebar-spacer {
    so the backdrop bleeds through the tint and drags the sidebar toward it: a dark
    theme over a bright window washes out toward grey, while a light theme over a
    dark backdrop goes too dark. Lean the tint more opaque on Windows so the sidebar
-   holds its own theme color regardless of what's behind. Dark leans heavier (85%)
-   since a dark surface over a bright backdrop swings the most; light needs less
-   (65%). macOS vibrancy composites its own adaptive material, so darwin is left
-   untouched; these rules are unlayered so they win over the @layer base token. */
+   holds its own theme color regardless of what's behind. Dark remains denser
+   than macOS but now allows a little more material light through (72%); light
+   stays at 65%. macOS vibrancy composites its own adaptive material, so darwin
+   is left untouched; these rules are unlayered so they win over the @layer base
+   token. */
 html[data-platform="win32"][data-native-material="on"] {
   --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 65%, transparent);
 }
 html[data-platform="win32"][data-native-material="on"].dark,
 html[data-platform="win32"][data-native-material="on"][data-theme="dark"] {
-  --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 85%, transparent);
+  --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 72%, transparent);
 }
 
 /* Platform frosting for the *floating chrome* (thread tool rail, changes bubble,
@@ -1617,8 +1677,8 @@ html:is([data-platform="darwin"], [data-platform="win32"]) .poracode-floating-ch
 html[data-sidebar-glass="on"]:not([data-native-material="on"]) .poracode-sidebar-aside {
   background: linear-gradient(
     180deg,
-    color-mix(in oklab, var(--sidebar-background) 90%, transparent) 0%,
-    color-mix(in oklab, var(--sidebar-background) 74%, transparent) 100%
+    color-mix(in oklab, var(--sidebar-background) 80%, transparent) 0%,
+    color-mix(in oklab, var(--sidebar-background) 64%, transparent) 100%
   );
   box-shadow:
     inset 1px 0 0 color-mix(in oklab, var(--foreground) 7%, transparent),
@@ -2315,6 +2375,16 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   border-radius: 1rem;
   background: var(--composer-surface);
   transition: background-color 0.15s ease;
+}
+
+/* Draft-focus glow remains a cheap compositor-only affordance. */
+.poracode-composer-border-glow::before {
+  content: "";
+  display: block;
+}
+
+.poracode-composer-shell--draft:focus-within .poracode-composer-border-glow::before {
+  animation: poracode-composer-border-spin 1.2s ease-out 1 both;
 }
 
 [data-draft-context-bar] + [data-poracode-composer] .poracode-composer-shell--draft {

@@ -16,7 +16,12 @@ export function SettingsTitlebar(props: { onClose: () => void }) {
   return (
     <header className="craftstation-titlebar flex h-[38px] min-w-0 items-center bg-[var(--window-header-background)] px-2 text-foreground">
       <div className="craftstation-titlebar-control flex shrink-0 items-center gap-0.5">
-        <button type="button" className={buttonClass} aria-label={t`Toggle sidebar`} onClick={toggleSidebar}>
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t`Toggle sidebar`}
+          onClick={toggleSidebar}
+        >
           <PanelLeft className="size-4" />
         </button>
         <button type="button" className={buttonClass} onClick={props.onClose}>

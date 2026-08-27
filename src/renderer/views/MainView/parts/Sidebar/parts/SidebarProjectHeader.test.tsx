@@ -135,7 +135,9 @@ describe("SidebarProjectHeader", () => {
 
     expect(screen.getByTitle("Offline")).toHaveClass("bg-default-400");
     expect(container.querySelector(".poracode-sidebar-project-nudge")).toHaveClass("opacity-50");
-    expect(screen.queryByRole("button", { name: `Git status for ${project.name}` })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Git status for ${project.name}` }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the project body while the remote server is offline", () => {
@@ -155,8 +157,12 @@ describe("SidebarProjectHeader", () => {
   it("removes project-level Files and Terminal controls, keeping new chat button and Git available", () => {
     renderHeader();
 
-    expect(screen.queryByRole("button", { name: `Files for ${project.name}` })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: `Terminal for ${project.name}` })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Files for ${project.name}` }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Terminal for ${project.name}` }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: `New chat in ${project.name}` })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: `Git status for ${project.name}` })).toHaveAttribute(
       "data-always-visible",
@@ -168,8 +174,3 @@ describe("SidebarProjectHeader", () => {
     expect(openNewThreadMock).toHaveBeenCalledWith(project.id);
   });
 });
-
-
-
-
-

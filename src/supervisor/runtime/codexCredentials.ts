@@ -36,10 +36,19 @@ function codexAuthFilePath(): string {
   return home ? join(home, "auth.json") : join(homedir(), ".codex", "auth.json");
 }
 
-export async function resolveCodexToken(): Promise<OAuthToken | undefined> {
+export interface CodexCredentialScope {
+  /** Explicit isolated CODEX_HOME. Omitted means the user's normal Codex home. */
+  codexHome?: string;
+  /** Disable the WSL fallback for a managed native profile. */
+  allowWslFallback?: boolean;
+}
+
+export async function resolveCodexToken(
+  scope: CodexCredentialScope = {},
+): Promise<OAuthToken | undefined> {
   // Read fresh every call — the access token is a short-lived JWT the Codex CLI
   // refreshes (~5 min); a cached Bearer would go stale and 401.
-  const path = codexAuthFilePath();
+  const path = scope.codexHome ? join(scope.codexHome, "auth.json") : codexAuthFilePath();
   if (existsSync(path)) {
     try {
       const token = parseCodexAuth(readFileSync(path, "utf8"));
@@ -48,7 +57,7 @@ export async function resolveCodexToken(): Promise<OAuthToken | undefined> {
       // fall through to the WSL fallback
     }
   }
-  if (process.platform === "win32") {
+  if (process.platform === "win32" && scope.allowWslFallback !== false && !scope.codexHome) {
     const blob = await readCodexAuthFromWsl();
     if (blob) {
       const token = parseCodexAuth(blob);

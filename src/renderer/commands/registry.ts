@@ -158,6 +158,12 @@ function baseCommands(): AppCommand[] {
       run: toggleSidebar,
     },
     {
+      id: "auxiliary.toggle",
+      title: msg`Toggle auxiliary panel`,
+      group: "Poracode",
+      run: () => usePanelStore.getState().toggleAuxiliaryPanel("right"),
+    },
+    {
       id: "project.add",
       title: msg`Open folder`,
       subtitle: msg`Add a local project`,

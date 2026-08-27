@@ -96,6 +96,11 @@ export class UsageService {
     this.loadCache();
   }
 
+  /** Host seam for provider-scoped adapters; callers never receive credentials. */
+  getHostForAccountAdapter(): HostPort {
+    return this.host;
+  }
+
   private defaultProviderIds(): string[] {
     const baseIds = [...(this.options.providerIds ?? DEFAULT_PROVIDER_IDS)];
     if (this.options.providerIds) return baseIds;

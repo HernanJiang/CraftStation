@@ -861,7 +861,7 @@ describe("RemoteAccessServer", () => {
     const manifestResponse = await fetch(new URL("/manifest.webmanifest", info.httpBaseUrl));
     expect(manifestResponse.status).toBe(200);
     await expect(manifestResponse.json()).resolves.toMatchObject({
-      name: "Poracode",
+      name: "CraftStation",
       start_url: "/app",
       display: "standalone",
     });
@@ -2797,7 +2797,7 @@ describe("RemoteAccessServer", () => {
     expect(db.threads()[0]).toMatchObject({
       id: "thread-remote",
       projectId: "project-1",
-      title: "New thread",
+      title: "Crafted Agent",
       status: "launching",
       presentationMode: "terminal",
     });

@@ -140,7 +140,7 @@ describe("installGeminiPlugin", () => {
     expect(command).toMatch(/agent-plugins[\\/]+gemini[\\/]+poracode-hook\.(?:sh|cmd|ps1)/);
     expect(command).toMatch(
       process.platform === "win32"
-        ? /^(?:pwsh(?:\.exe)?|powershell(?:\.exe)?|cmd\.exe \/d \/s \/c call ")/
+        ? /^(?:"[^"]+[\\/](?:pwsh|powershell)\.exe"|pwsh(?:\.exe)?|powershell(?:\.exe)?|cmd\.exe \/d \/s \/c call ")/i
         : /^(?!cmd\.exe)/,
     );
   });

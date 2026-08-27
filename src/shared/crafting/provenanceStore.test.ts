@@ -73,6 +73,82 @@ describe("ProvenanceStore & Session Recovery", () => {
     expect(recovered.craftPlan.runtimeBinding.modelId).toBe("gpt-5.3-codex");
   });
 
+  it("preserves Native Harness profile and environment binding across recovery", () => {
+    const crafter = new Crafter();
+    const gptModel = BUILTIN_MODEL_ITEMS[0]!;
+    const craftResult = crafter.compile(
+      {
+        slots: {
+          model: gptModel,
+          harness: "auto",
+        },
+      },
+      {
+        workspace: "C:\\repo",
+        threadId: "thread-native-binding",
+        profileRef: "profile:work",
+        environment: { kind: "windows" },
+      },
+    );
+    const provenance = craftResult.resultItem!.provenance;
+
+    expect(provenance.runtimeBinding).toMatchObject({
+      harnessKind: "codex",
+      profileRef: "profile:work",
+      environment: { kind: "windows" },
+    });
+
+    const store = new ProvenanceStore();
+    const recovered = store.reconstructCraftPlan("thread-native-binding", provenance, {
+      workspace: "C:\\reopened",
+      sessionRef: "codex-thread-saved",
+    });
+
+    expect(recovered.craftPlan.runtimeBinding).toMatchObject({
+      harnessKind: "codex",
+      runtimeAdapterId: "codex-structured",
+      profileRef: "profile:work",
+      environment: { kind: "windows" },
+    });
+    expect(recovered.craftPlan.workspace).toBe("C:\\reopened");
+    expect(recovered.craftPlan.sessionRef).toBe("codex-thread-saved");
+  });
+
+  it("rejects a recovered binding whose harness identity disagrees with provenance", () => {
+    const store = new ProvenanceStore();
+    const provenance = {
+      recipeId: OPENAI_CODEX_RECIPE_ID,
+      recipeVersion: "1.0.0",
+      craftedAt: new Date().toISOString(),
+      ingredients: {
+        model: {
+          slot: "model",
+          itemId: "openai:gpt-5.3-codex",
+          itemVersion: "1.0",
+          vendor: "openai",
+          kind: "model" as const,
+        },
+        harness: {
+          slot: "harness",
+          itemId: "harness:codex",
+          itemVersion: "1.0",
+          vendor: "codex",
+          kind: "harness" as const,
+        },
+      },
+      runtimeBinding: {
+        harnessKind: "grok",
+        modelId: "grok-4.6",
+        vendor: "xai",
+        runtimeAdapterId: "native-harness:grok",
+      },
+    };
+
+    expect(() => store.reconstructCraftPlan("thread-mismatched-binding", provenance)).toThrow(
+      /does not match ingredient harness/,
+    );
+  });
+
   it("throws RECOVERY_FAILED when recovering with an unregistered recipe", () => {
     const store = new ProvenanceStore();
     const threadId = "thread-invalid-recipe";

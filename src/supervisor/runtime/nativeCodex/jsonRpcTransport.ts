@@ -18,6 +18,7 @@ export class JsonRpcTransport {
   private _nextId = 1;
   private readonly _pendingRequests = new Map<JsonRpcId, PendingRequest>();
   private readonly _notificationListeners = new Set<(notification: JsonRpcNotification) => void>();
+  private readonly _closeListeners = new Set<() => void>();
   private _serverRequestHandler?: ((request: JsonRpcRequest) => Promise<unknown>) | undefined;
   private _buffer = "";
   private _closed = false;
@@ -51,6 +52,13 @@ export class JsonRpcTransport {
     this._notificationListeners.add(listener);
     return () => {
       this._notificationListeners.delete(listener);
+    };
+  }
+
+  onClose(listener: () => void): () => void {
+    this._closeListeners.add(listener);
+    return () => {
+      this._closeListeners.delete(listener);
     };
   }
 
@@ -199,6 +207,7 @@ export class JsonRpcTransport {
   }
 
   private handleClose(): void {
+    if (this._closed) return;
     this._closed = true;
     for (const [id, pending] of this._pendingRequests) {
       if (pending.timeoutTimer) clearTimeout(pending.timeoutTimer);
@@ -208,6 +217,14 @@ export class JsonRpcTransport {
     }
     this._pendingRequests.clear();
     this._notificationListeners.clear();
+    for (const listener of this._closeListeners) {
+      try {
+        listener();
+      } catch (err) {
+        console.error("[JsonRpcTransport] Error in close listener:", err);
+      }
+    }
+    this._closeListeners.clear();
   }
 
   private handleError(err: Error): void {

@@ -4,10 +4,7 @@ import { useLingui } from "@lingui/react/macro";
 
 export type CraftMode = "auto" | "efficient" | "creative";
 
-export function CraftModeSwitch(props: {
-  value: CraftMode;
-  onChange: (mode: CraftMode) => void;
-}) {
+export function CraftModeSwitch(props: { value: CraftMode; onChange: (mode: CraftMode) => void }) {
   const { t } = useLingui();
   const modes = [
     {

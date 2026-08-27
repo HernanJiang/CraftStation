@@ -387,6 +387,17 @@ export const DATABASE_MIGRATIONS = [
     name: "threads.composition_provenance",
     migrate: (sqlite) => addColumnIfMissing(sqlite, "threads", "composition_provenance", "TEXT"),
   },
+  {
+    version: 36,
+    name: "threads.account_binding and usage dimensions",
+    migrate: (sqlite) => {
+      addColumnIfMissing(sqlite, "threads", "account_binding", "TEXT");
+      addColumnIfMissing(sqlite, "usage_events", "project_id", "TEXT");
+      addColumnIfMissing(sqlite, "usage_events", "session_id", "TEXT");
+      addColumnIfMissing(sqlite, "usage_events", "tool", "TEXT");
+      addColumnIfMissing(sqlite, "usage_events", "account_id", "TEXT");
+    },
+  },
 ] as const satisfies readonly DatabaseMigration[];
 
 export const LATEST_SCHEMA_VERSION = DATABASE_MIGRATIONS[DATABASE_MIGRATIONS.length - 1]!.version;
@@ -461,6 +472,11 @@ const SAFE_COLUMN_REPAIRS = [
   ["threads", "last_turn_started_at", "TEXT"],
   ["threads", "last_turn_ended_at", "TEXT"],
   ["threads", "composition_provenance", "TEXT"],
+  ["threads", "account_binding", "TEXT"],
+  ["usage_events", "project_id", "TEXT"],
+  ["usage_events", "session_id", "TEXT"],
+  ["usage_events", "tool", "TEXT"],
+  ["usage_events", "account_id", "TEXT"],
   ["thread_runtime_items", "parent_item_id", "TEXT"],
   ["scheduled_tasks", "project_id", "TEXT"],
   ["pr_watches", "blocked_reason", "TEXT"],
@@ -513,6 +529,7 @@ const REQUIRED_COLUMNS = {
     "can_resume_with_config",
     "session_ref",
     "composition_provenance",
+    "account_binding",
     "terminal_prompt",
     "worktree_path",
     "worktree_branch",
@@ -531,6 +548,21 @@ const REQUIRED_COLUMNS = {
     "active_turn_started_at",
     "last_turn_started_at",
     "last_turn_ended_at",
+  ],
+  usage_events: [
+    "ts",
+    "kind",
+    "provider",
+    "model",
+    "mode",
+    "fast",
+    "effort",
+    "name",
+    "project_id",
+    "session_id",
+    "tool",
+    "account_id",
+    "value",
   ],
   thread_runtime_items: [
     "thread_id",

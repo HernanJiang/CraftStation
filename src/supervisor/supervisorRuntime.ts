@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
   AgentKind,
   CaptureExperimentSnapshotPayload,
@@ -22,7 +22,36 @@ import type {
   RemoveExperimentWorktreesResult,
   RelocateProjectPayload,
   RelocateProjectResult,
+  AccountAddPayload,
+  AccountBinding,
+  AccountProviderPayload,
+  AccountRenamePayload,
+  AccountResolution,
+  AccountResolutionRequest,
+  AccountView,
+  TokenUsagePayload,
+  TokenUsageResponse,
+  CodexProfileCreatePayload,
+  CodexProfileImportPayload,
+  CodexProfileLoginPayload,
+  CodexProfileLoginResult,
+  GrokProfileLoginCreatePayload,
+  GrokProfileLoginCreateResult,
+  GrokProfileLoginPayload,
+  GrokProfileLoginResult,
+  GrokProfileCompletePayload,
+  GrokProfileCancelPayload,
+  GrokProfilePollPayload,
+  GrokProfilePollResult,
 } from "@/shared/contracts";
+import type {
+  CraftSession,
+  HarnessRuntimeAdapter,
+  NativeHarnessDiagnostic,
+  NativeHarnessControlPlaneEntry,
+  NativeHarnessControlPlanePayload,
+} from "@/shared/crafting";
+import { AccountControlError } from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
 import type {
   CraftAgentPayload,
@@ -99,7 +128,33 @@ import { dropSkillSegmentsOnPolicyFailure } from "./skills/pluginSkillPolicy";
 import { PluginRegistry, resolvePluginMcpServers } from "./plugins";
 import { captureExperimentResponseSnapshot } from "./experimentResponseSnapshot";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
+import { AppServerProcessHost } from "./runtime/nativeCodex/appServerProcessHost";
 import { CraftingError } from "@/shared/crafting/errors";
+import { AccountResolver } from "./runtime/accountResolver";
+import { AccountStore } from "./runtime/accountStore";
+import { createNativeHarnessRuntimeAdapter } from "./runtime/nativeHarness";
+import {
+  isAcpPromptQuotaExhaustedError,
+  resolveAcpPromptRpcErrorMessage,
+} from "./agents/acp/sessionErrors";
+import {
+  createRuntimeLedgerTokenUsageScanner,
+  TokenUsageAdapter,
+} from "./runtime/tokenUsageAdapter";
+import { CodexProfileService, buildCodexLoginScript, managedCodexLoginCwd, managedCodexProcessEnvironment } from "./runtime/codexProfiles";
+import {
+  GrokProfileService,
+  buildGrokLoginScript,
+  createPendingGrokHome,
+  managedGrokLoginCwd,
+  managedGrokProcessEnvironment,
+  grokAccountIdentityFromContainer,
+} from "./runtime/grokProfiles";
+import { grokAuthContainer } from "./runtime/grokCredentials";
+import {
+  NATIVE_HARNESS_DESCRIPTORS,
+} from "./runtime/nativeHarness/descriptors";
+import { projectNativeHarnessControlPlane } from "./runtime/nativeHarness/controlPlane";
 
 export { detectWslAgentStatuses, writeSubmittedPrompt };
 
@@ -171,6 +226,13 @@ export class SupervisorRuntime {
   readonly fileIndexService = new FileIndexService();
   readonly projectTreeService = new ProjectTreeService();
   private readonly adapters = new Map<AgentKind, AgentAdapter>();
+  /**
+   * Native composition adapters are created per CraftPlan. Keep the latest
+   * instance for the control-plane read model so provider failures observed
+   * after construction are not lost between IPC reads.
+   */
+  private readonly nativeHarnessAdapters = new Map<string, HarnessRuntimeAdapter>();
+  private readonly nativeHarnessSessions = new Map<string, CraftSession>();
   private availableWindowsShellsCache:
     | { shells: ReturnType<typeof detectWindowsShells>; ts: number }
     | undefined;
@@ -186,6 +248,20 @@ export class SupervisorRuntime {
   readonly mcpProbeService: McpProbeService;
   readonly skillsService: SkillsService;
   readonly pluginRegistry: PluginRegistry;
+  readonly accountStore: AccountStore;
+  readonly accountResolver: AccountResolver;
+  readonly tokenUsageAdapter: TokenUsageAdapter;
+  readonly codexProfileService: CodexProfileService;
+  readonly grokProfileService: GrokProfileService;
+  /**
+   * Pending isolated Grok logins. A pending home is created WITHOUT an
+   * AccountStore row; it is only promoted to an account by
+   * `completeGrokProfileLogin` once the official auth file carries an identity.
+   */
+  readonly grokPendingLogins = new Map<
+    string,
+    { label: string; home: string; createdAt: number }
+  >();
   private readonly pluginDataDir: string;
   private readonly crossagentMcpIngress: CrossagentMcpIngress;
   private readonly subagentRunManager: SubagentRunManager;
@@ -588,6 +664,13 @@ export class SupervisorRuntime {
     this.disposeWslCredentialProjectScope = setWslCredentialProjectScope(() =>
       this.hasActiveWslContext(),
     );
+    this.accountStore = new AccountStore(join(paths.baseDir, "craftstation-accounts"));
+    this.accountResolver = new AccountResolver(this.accountStore);
+    this.tokenUsageAdapter = new TokenUsageAdapter(
+      createRuntimeLedgerTokenUsageScanner(paths.dbPath),
+    );
+    this.codexProfileService = new CodexProfileService({ store: this.accountStore });
+    this.grokProfileService = new GrokProfileService({ store: this.accountStore });
     this.usageService = new UsageService({
       emit,
       cachePath: join(paths.cacheDir, "provider-usage.json"),
@@ -621,18 +704,352 @@ export class SupervisorRuntime {
     return () => this.runtimeEventSubscribers.delete(listener);
   }
 
+  listAccounts(payload: AccountProviderPayload = {}): AccountView[] {
+    const accounts = this.accountStore.list(payload.provider);
+    this.emit({ type: "usage-accounts", accounts });
+    return accounts;
+  }
+
+  addAccount(payload: AccountAddPayload): AccountView {
+    const account = this.accountStore.add({
+      provider: payload.provider,
+      label: payload.label,
+      ...(payload.maskedIdentity !== undefined ? { maskedIdentity: payload.maskedIdentity } : {}),
+      ...(payload.plan !== undefined ? { plan: payload.plan } : {}),
+      ...(payload.providerAccountId !== undefined
+        ? { providerAccountId: payload.providerAccountId }
+        : {}),
+      ...(payload.credentialScopeRef !== undefined
+        ? { credentialScopeRef: payload.credentialScopeRef }
+        : {}),
+      ...(payload.enabled !== undefined ? { enabled: payload.enabled } : {}),
+    });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(payload.provider) });
+    return account;
+  }
+
+  removeAccount(accountId: string): void {
+    this.accountStore.remove(accountId);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+  }
+
+  selectAccount(accountId: string): AccountView {
+    const account = this.accountStore.select(accountId);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(account.provider) });
+    return account;
+  }
+
+  setAccountEnabled(accountId: string, enabled: boolean): AccountView {
+    const account = this.accountStore.setEnabled(accountId, enabled);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(account.provider) });
+    return account;
+  }
+
+  renameAccount(payload: AccountRenamePayload): AccountView {
+    const account = this.accountStore.rename(payload.accountId, payload.label);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(account.provider) });
+    return account;
+  }
+
+  reorderAccounts(provider: string, orderedAccountIds: string[]): AccountView[] {
+    const accounts = this.accountStore.reorder(provider, orderedAccountIds);
+    this.emit({ type: "usage-accounts", accounts });
+    return accounts;
+  }
+
+  resolveAccount(payload: AccountResolutionRequest): AccountResolution {
+    return this.accountResolver.resolve(payload);
+  }
+
+  async getTokenUsage(payload: TokenUsagePayload): Promise<TokenUsageResponse> {
+    const response = await this.tokenUsageAdapter.getUsage(payload);
+    this.emit({ type: "token-usage", response });
+    return response;
+  }
+
+  createCodexProfile(payload: CodexProfileCreatePayload): AccountView {
+    const account = this.codexProfileService.createEmpty(payload.label);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list("codex") });
+    return account;
+  }
+
+  importCodexProfile(payload: CodexProfileImportPayload): AccountView {
+    const account = this.codexProfileService.importAuthJson(payload);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list("codex") });
+    return account;
+  }
+
+  async startCodexProfileLogin(
+    payload: CodexProfileLoginPayload,
+  ): Promise<CodexProfileLoginResult> {
+    const record = this.accountStore.getRecord(payload.accountId);
+    if (!record) {
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${payload.accountId}'.`);
+    }
+    if (record.provider !== "codex") {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Codex profile login can only target a Codex account.",
+      );
+    }
+    if (!record.enabled) {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "The selected Codex account is disabled.",
+        { accountId: payload.accountId },
+      );
+    }
+    const hostShellKind = process.platform === "win32" ? "windows" : "posix";
+    if (payload.projectLocation.kind !== hostShellKind) {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Managed Codex profile login requires a host-native project location; the isolated credential scope cannot be projected into WSL or another host environment.",
+        {
+          accountId: payload.accountId,
+          locationKind: payload.projectLocation.kind,
+          hostPlatform: process.platform,
+        },
+      );
+    }
+    const codexHome = this.codexProfileService.managedCodexHome(payload.accountId);
+    const script = buildCodexLoginScript(hostShellKind, payload.completionToken);
+    try {
+      await this.threadSessionManager.startShellWithEnvironment(
+        {
+          shellId: payload.shellId,
+          projectLocation: payload.projectLocation,
+          cwdOverride: managedCodexLoginCwd(codexHome),
+          ...(process.platform === "win32"
+            ? { windowsShellRuntime: payload.windowsShellRuntime ?? "powershell" }
+            : {}),
+        },
+        managedCodexProcessEnvironment(codexHome),
+      );
+      await this.threadSessionManager.writeTerminal({
+        threadId: payload.shellId,
+        data: `${script}\r`,
+      });
+    } catch (error) {
+      await this.threadSessionManager
+        .closeThread({ threadId: payload.shellId })
+        .catch(() => undefined);
+      throw error;
+    }
+    return {
+      shellId: payload.shellId,
+      label: record.label,
+      completionToken: payload.completionToken,
+    };
+  }
+  async refreshAccountQuota(accountId: string): Promise<AccountView> {
+    const account = await this.codexProfileService.collectQuota(
+      accountId,
+      this.usageService.getHostForAccountAdapter(),
+    );
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list("codex") });
+    return account;
+  }
+
+  /** Create a pending isolated Grok login home (no AccountStore row yet). */
+  createGrokProfileLogin(
+    payload: GrokProfileLoginCreatePayload,
+  ): GrokProfileLoginCreateResult {
+    const pendingRef = `grok-pending:${crypto.randomUUID()}`;
+    const home = createPendingGrokHome(this.accountStore.managedRoot, payload.label);
+    this.grokPendingLogins.set(pendingRef, {
+      label: payload.label,
+      home,
+      createdAt: Date.now(),
+    });
+    return { pendingRef, label: payload.label };
+  }
+
+  /** Run the official Grok device-auth login inside the pending managed home. */
+  async startGrokProfileLogin(payload: GrokProfileLoginPayload): Promise<GrokProfileLoginResult> {
+    const pending = this.grokPendingLogins.get(payload.pendingRef);
+    if (!pending) {
+      throw new AccountControlError(
+        "ACCOUNT_NOT_FOUND",
+        "Unknown pending Grok login; start a new one first.",
+      );
+    }
+    const hostShellKind = process.platform === "win32" ? "windows" : "posix";
+    if (payload.projectLocation.kind !== hostShellKind) {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Managed Grok profile login requires a host-native project location; the pending GROK_HOME cannot be projected into WSL or another host environment.",
+        {
+          locationKind: payload.projectLocation.kind,
+          hostPlatform: process.platform,
+        },
+      );
+    }
+    const script = buildGrokLoginScript(hostShellKind, payload.completionToken);
+    try {
+      await this.threadSessionManager.startShellWithEnvironment(
+        {
+          shellId: payload.shellId,
+          projectLocation: payload.projectLocation,
+          cwdOverride: managedGrokLoginCwd(pending.home),
+          ...(process.platform === "win32"
+            ? { windowsShellRuntime: payload.windowsShellRuntime ?? "powershell" }
+            : {}),
+        },
+        managedGrokProcessEnvironment(pending.home),
+      );
+      await this.threadSessionManager.writeTerminal({
+        threadId: payload.shellId,
+        data: `${script}\r`,
+      });
+    } catch (error) {
+      await this.threadSessionManager
+        .closeThread({ threadId: payload.shellId })
+        .catch(() => undefined);
+      throw error;
+    }
+    return {
+      shellId: payload.shellId,
+      label: pending.label,
+      completionToken: payload.completionToken,
+    };
+  }
+
+  /** Promote a completed pending Grok login into a managed account (identity-gated). */
+  completeGrokProfileLogin(payload: GrokProfileCompletePayload): AccountView {
+    const pending = this.grokPendingLogins.get(payload.pendingRef);
+    if (!pending) {
+      throw new AccountControlError(
+        "ACCOUNT_NOT_FOUND",
+        "Unknown pending Grok login; start a new one first.",
+      );
+    }
+    try {
+      const account = this.grokProfileService.importAuthJson({
+        label: pending.label,
+        profileRoot: pending.home,
+      });
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list("grok") });
+      this.grokPendingLogins.delete(payload.pendingRef);
+      return account;
+    } catch (error) {
+      // No official identity => never insert an AccountStore row. Drop the
+      // pending home handle so a failed login cannot be reused.
+      this.grokPendingLogins.delete(payload.pendingRef);
+      this.removeGrokPendingHome(pending.home);
+      throw error;
+    }
+  }
+
+  /** Abandon a pending Grok login without touching the AccountStore. */
+  cancelGrokProfileLogin(payload: GrokProfileCancelPayload): void {
+    const pending = this.grokPendingLogins.get(payload.pendingRef);
+    if (!pending) return;
+    this.grokPendingLogins.delete(payload.pendingRef);
+    this.removeGrokPendingHome(pending.home);
+  }
+
+  /**
+   * Poll a pending Grok login: when the official auth.json written into the
+   * pending home carries an identity, promote it and signal `done`. Lets the
+   * renderer close the login overlay as soon as the official flow completes,
+   * without waiting for the CLI to write its OSC marker or exit.
+   */
+  pollGrokProfileLogin(payload: GrokProfilePollPayload): GrokProfilePollResult {
+    const pending = this.grokPendingLogins.get(payload.pendingRef);
+    if (!pending) return { done: false };
+    const authPath = join(pending.home, "auth.json");
+    if (!existsSync(authPath)) return { done: false };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(authPath, "utf8"));
+    } catch {
+      return { done: false };
+    }
+    const found = grokAuthContainer(parsed);
+    if (!found || !grokAccountIdentityFromContainer(found.container)) return { done: false };
+    const account = this.completeGrokProfileLogin({ pendingRef: payload.pendingRef });
+    return { done: true, account };
+  }
+
+  /**
+   * Best-effort cleanup of a pending Grok login home. Only deletes a directory
+   * that resolves inside the account store's managed root, so a stray value can
+   * never target an arbitrary path.
+   */
+  private removeGrokPendingHome(home: string): void {
+    const managedRoot = resolve(this.accountStore.managedRoot);
+    const resolvedHome = resolve(home);
+    const rel = relative(managedRoot, resolvedHome);
+    if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+      return;
+    }
+    rmSync(resolvedHome, { recursive: true, force: true });
+  }
+
+  async getNativeHarnessControlPlane(
+    payload: NativeHarnessControlPlanePayload = {},
+  ): Promise<NativeHarnessControlPlaneEntry[]> {
+    const descriptors = payload.harnessKind
+      ? Object.values(NATIVE_HARNESS_DESCRIPTORS).filter(
+          (descriptor) => descriptor.harnessKind === payload.harnessKind,
+        )
+      : Object.values(NATIVE_HARNESS_DESCRIPTORS);
+    const statuses = (await this.agentStatusService.getAgentStatuses({ wslDistros: [] })).windows;
+    // An empty account record is only a pending profile shell. Do not expose
+    // it as an authenticated/configured profile until a provider credential
+    // or a successful provider-specific status has been recorded.
+    const configuredProfiles = new Set(
+      this.accountStore
+        .records()
+        .filter((account) =>
+          ["available", "quota-low", "quota-exhausted", "auth-expired"].includes(account.status),
+        )
+        .map((account) => account.provider)
+        .filter((provider): provider is string => provider.length > 0),
+    );
+    // AgentStatusService is the provider-owned source for native auth signals
+    // (Grok/Kimi credential probes and the Antigravity soft keyring signal),
+    // while AccountStore only owns explicit CraftStation account bindings.
+    for (const status of statuses) {
+      if (status.installed && status.authState === "authenticated") {
+        configuredProfiles.add(status.kind);
+      }
+    }
+    const diagnostics = new Map<string, readonly NativeHarnessDiagnostic[]>();
+    for (const [harnessKind, adapter] of this.nativeHarnessAdapters) {
+      const records = [
+        ...(adapter.getDiagnostics?.() ?? []),
+        ...(this.nativeHarnessSessions.get(harnessKind)?.getDiagnostics?.() ?? []),
+      ];
+      if (records.length > 0) diagnostics.set(harnessKind, records);
+    }
+    return projectNativeHarnessControlPlane({
+      descriptors,
+      statuses,
+      profileConfigured: configuredProfiles,
+      environmentKind: process.platform === "win32" ? "windows" : "posix",
+      diagnostics,
+    });
+  }
+
   async craftAgent(payload: CraftAgentPayload): Promise<CraftAgentResult> {
     let entityId: string | undefined;
     let sessionId: string | undefined;
+    let accountBinding: AccountBinding | undefined;
     try {
-      const { adapter, plan } = this.createCraftingAdapter(
+      const created = this.createCraftingAdapter(
         payload.craftPlan,
         payload.projectLocation,
+        payload.accountId,
+        payload.accountMode,
       );
+      const { adapter, plan } = created;
+      accountBinding = created.accountBinding;
       const entity = await adapter.spawnEntity(plan);
       entityId = entity.id;
       const session = await adapter.createSession(entity);
       sessionId = session.id;
+      this.nativeHarnessSessions.set(plan.runtimeBinding.harnessKind, session);
       const response =
         payload.prompt.trim().length > 0
           ? await session.sendPrompt(payload.prompt)
@@ -645,8 +1062,15 @@ export class SupervisorRuntime {
         entityId: entity.id,
         sessionId: session.id,
         response: response.response,
+        ...(accountBinding ? { accountBinding } : {}),
       };
     } catch (error) {
+      // The native ACP session normally observes this before projecting the
+      // failure. Keep the Supervisor boundary defensive as well: custom
+      // adapters and a first-turn rejection may bypass that callback.
+      if (accountBinding?.provider === "grok") {
+        this.handleGrokNativePromptError(accountBinding.accountId, error);
+      }
       if (error instanceof CraftingError) {
         throw new Error(
           JSON.stringify(enrichCraftingError(error, payload.craftPlan, entityId, sessionId)),
@@ -660,15 +1084,20 @@ export class SupervisorRuntime {
   async resumeCraftAgent(payload: ResumeCraftAgentPayload): Promise<CraftAgentResult> {
     let entityId: string | undefined;
     let sessionId: string | undefined;
+    let accountBinding: AccountBinding | undefined;
     try {
-      const { adapter, plan } = this.createCraftingAdapter(
+      const created = this.createCraftingAdapter(
         payload.craftPlan,
         payload.projectLocation,
+        payload.accountId,
       );
+      const { adapter, plan } = created;
+      accountBinding = created.accountBinding;
       const entity = await adapter.spawnEntity({ ...plan, sessionRef: payload.sessionRef });
       entityId = entity.id;
       const session = await adapter.resumeSession(entity, payload.sessionRef);
       sessionId = session.id;
+      this.nativeHarnessSessions.set(plan.runtimeBinding.harnessKind, session);
       const response = payload.prompt?.trim()
         ? await session.sendPrompt(payload.prompt)
         : { response: "" };
@@ -677,8 +1106,12 @@ export class SupervisorRuntime {
         entityId: entity.id,
         sessionId: session.id,
         response: response.response,
+        ...(accountBinding ? { accountBinding } : {}),
       };
     } catch (error) {
+      if (accountBinding?.provider === "grok") {
+        this.handleGrokNativePromptError(accountBinding.accountId, error);
+      }
       if (error instanceof CraftingError) {
         throw new Error(
           JSON.stringify(enrichCraftingError(error, payload.craftPlan, entityId, sessionId)),
@@ -692,26 +1125,111 @@ export class SupervisorRuntime {
   private createCraftingAdapter(
     craftPlan: CraftAgentPayload["craftPlan"],
     projectLocation: ProjectLocation,
+    accountId?: string,
+    accountMode?: "explicit" | "selected" | "auto",
   ): {
     adapter: import("@/shared/crafting").HarnessRuntimeAdapter;
     plan: CraftAgentPayload["craftPlan"];
+    accountBinding?: AccountBinding;
   } {
     const plan = {
       ...craftPlan,
       workspace: projectLocation.kind === "wsl" ? projectLocation.linuxPath : projectLocation.path,
+      runtimeBinding: {
+        ...craftPlan.runtimeBinding,
+        environment: {
+          kind: projectLocation.kind,
+          ...(projectLocation.kind === "wsl" ? { distro: projectLocation.distro } : {}),
+        },
+      },
     };
 
-    // Use CraftStation Native Codex Runtime Adapter (T09 Cutover)
+    let accountRoot: string | undefined;
+    let accountBinding: AccountBinding | undefined;
+    const managedProvider =
+      plan.runtimeBinding.harnessKind === "codex"
+        ? "codex"
+        : plan.runtimeBinding.harnessKind === "grok"
+          ? "grok"
+          : undefined;
+    if (managedProvider && (accountId || this.accountStore.list(managedProvider).length > 0)) {
+      const resolution = this.accountResolver.resolve({
+        provider: managedProvider,
+        mode: accountMode ?? (accountId ? "explicit" : "auto"),
+        ...(accountId ? { explicitAccountId: accountId } : {}),
+        ...(!accountId && accountMode !== "explicit"
+          ? { selectedAccountId: this.accountStore.selectedAccount(managedProvider)?.accountId }
+          : {}),
+      });
+      accountBinding = {
+        accountId: resolution.account.accountId,
+        provider: resolution.account.provider,
+        credentialScopeRef: resolution.account.credentialScopeRef,
+        reason: resolution.reason,
+        boundAt: Date.now(),
+      };
+      accountRoot = this.accountStore.credentialRoot(resolution.account.accountId);
+    }
+
     const adapter = this._customCraftingAdapter
       ? this._customCraftingAdapter(plan, projectLocation)
-      : new NativeCodexRuntimeAdapter();
+      : plan.runtimeBinding.harnessKind === "codex"
+        ? new NativeCodexRuntimeAdapter({
+            ...(accountRoot ? { host: new AppServerProcessHost({ codexHome: accountRoot }) } : {}),
+            ...(accountBinding ? { accountBinding } : {}),
+          })
+        : createNativeHarnessRuntimeAdapter(plan.runtimeBinding.harnessKind, {
+            projectLocation,
+            ...(plan.runtimeBinding.profileRef ? { profileRef: plan.runtimeBinding.profileRef } : {}),
+            ...(accountBinding ? { accountBinding } : {}),
+            ...(accountRoot && plan.runtimeBinding.harnessKind === "grok"
+              ? { baseSpawnEnv: managedGrokProcessEnvironment(accountRoot) }
+              : {}),
+            ...(accountBinding && plan.runtimeBinding.harnessKind === "grok"
+              ? {
+                  onPromptError: (error: unknown) =>
+                    this.handleGrokNativePromptError(accountBinding!.accountId, error),
+                }
+              : {}),
+          });
+    if (!adapter) {
+      throw CraftingError.runtimeUnavailable(
+        plan.runtimeBinding.harnessKind,
+        `No native Harness adapter is registered for '${plan.runtimeBinding.harnessKind}'.`,
+      );
+    }
     if (!adapter.supports(plan)) {
       throw CraftingError.runtimeUnavailable(
         plan.runtimeBinding.harnessKind,
         `No production runtime adapter is available for '${plan.runtimeBinding.harnessKind}'.`,
       );
     }
-    return { adapter, plan };
+    if (!this._customCraftingAdapter) {
+      this.nativeHarnessAdapters.set(plan.runtimeBinding.harnessKind, adapter);
+    }
+    return { adapter, plan, ...(accountBinding ? { accountBinding } : {}) };
+  }
+
+  /**
+   * A Grok ACP prompt can reject with a generic -32603 while carrying the
+   * provider's actionable quota signal in `data.message`. Keep the account
+   * pool's state tied to the session's immutable binding; never mark the
+   * selected account or another account just because the UI selection changed.
+   */
+  private handleGrokNativePromptError(accountId: string, error: unknown): void {
+    if (!isAcpPromptQuotaExhaustedError(error)) return;
+    const message = resolveAcpPromptRpcErrorMessage(error);
+    try {
+      this.accountStore.updateStatus(accountId, "quota-exhausted", {
+        lastError: message,
+        lastQuotaAt: Date.now(),
+      });
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list("grok") });
+    } catch (statusError) {
+      // The provider error remains authoritative for the current turn. A
+      // metadata lock/corruption must not replace it with bookkeeping noise.
+      console.warn("[supervisor] failed to record Grok quota exhaustion:", statusError);
+    }
   }
 
   /**

@@ -327,6 +327,7 @@ async function main() {
     run("pnpm", ["run", "build"], { cwd: repoRoot });
     run("pnpm", ["run", "clean:sourcemaps"], { cwd: repoRoot });
     run("pnpm", ["run", "prepare:package-assets"], { cwd: repoRoot });
+    run("pnpm", ["run", "prepare:peripheral-sidecar"], { cwd: repoRoot });
   }
 
   // Fail before the expensive clean install/rebuild if tsdown emitted a new
@@ -548,6 +549,10 @@ extraResources:
       - "**/*"
   - from: resources/plugins
     to: plugins
+    filter:
+      - "**/*"
+  - from: resources/peripheral-sidecar
+    to: peripheral-sidecar
     filter:
       - "**/*"
   - from: build/icon${runtimeIconSuffix}.png

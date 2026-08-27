@@ -1,6 +1,22 @@
 # PROJECT_STATUS.md
 
-> CraftStation 当前动态状态的唯一来源。长期规则见 `AGENTS.md`，外部仓库 commit 见 `reference/BASELINES.md`。
+> CraftStation 当前动态状态的唯一来源。长期规则见 `AGENTS.md`，外部仓库精确基线见 `reference/BASELINES.md`。
+
+## 如何接手本项目
+
+云端 / 本地 Manager 先读这 4 个文件，不要扫描整个 Repo：
+
+1. 本文件 —— 当前 Feature、Verdict、Git 检查点、Next Step
+2. `AGENTS.md` / 产品仓 `CRAFTSTATION.md` —— 硬规则与仓库边界
+3. `IDEA_GUIDE.md` —— Ideate Mode 提示词
+4. `ai_workspace/agent_docs/manager_0.4.0.md` —— 当前 Feature 的 Ideate + Plan
+
+当前冻结点：
+
+- Feature `v0.4.0` **没有 PASS**，Fix Cycle 停在 `v0.4.12`
+- Debugger 检查点：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`
+- 用户授权 Git 收口后，下一版本目标改由 Manager / Ideate 讨论
+- 产品源码与治理文档推送到 `https://github.com/HernanJiang/CraftStation.git`
 
 ## Roadmap
 
@@ -63,28 +79,23 @@ Model Item + Harness Item
 
 ## Lifecycle Snapshot
 
-| Field             | Current Value |
-| ----------------- | ------------- |
-| Major Stage       | `v0`          |
-| Lifecycle State   | FEATURE PASS  |
-| Active Feature    | None          |
-| Active Ticket     | None          |
-| Current Fix Cycle | None          |
-| Current Role      | None          |
-| Review Status     | PASS          |
+| Field | Current Value |
+|---|---|
+| Major Stage | `v0` |
+| Lifecycle State | CHECKPOINT FROZEN / NEXT VERSION IDEATE |
+| Active Feature | `v0.4.0 — Native Multi-Harness Compatibility` |
+| Active Ticket | `v0.4/T10 — Capability Decomposition Design Handoff` |
+| Current Fix Cycle | `v0.4.12` |
+| Current Role | Manager |
+| Review Status | FAIL / BLOCKED — v0.4.12 checkpoint freeze；不是 Feature PASS；下一版本交 Manager Ideate |
 
-## Historical Debugger Re-review (v0.3.1 -> v0.3.2)
+## Historical v0.3 Closeout
 
-- Document: `ai_workspace/agent_docs/debugger_0.3.2.md`
-- Verdict: FAIL
-- Requires Manager Re-plan: No
-- Closed: F03 model/list silent fallback
-- Still blocking: no successful official initialize/turn; wire may still send jsonrpc field omitted by official stdio; evidence lacks stderr/exit
-- Next: Coder Fix Cycle `v0.3.2`
-
-## Current Fix Cycle v0.3.2
-
-Fix Cycle v0.3.2 已完成 Coder 修复与自检：官方 JSONL wire framing 省略 `jsonrpc`，真实集成证据通过 `SupervisorRuntime.craftAgent` 产品 seam 执行，并保存 binary/version、initialize、model discovery、双轮 response、stderr、spawn args 与 exit 信息；等待 Debugger 复审，不宣称 Feature 已最终 PASS。
+- Feature：`v0.3.0 — Codex Native Runtime Parity & CraftStation Control Plane`
+- Final tag/HEAD：`v0.3.2` / `67bbea5` (`feature(v0.3): Codex native app-server runtime — PASS`)
+- Verdict：PASS
+- Report：`ai_workspace/reports/report_0.3.md`
+- 说明：此前的 v0.3.1/v0.3.2 re-review 文本是历史过程记录，不再代表当前阻塞状态。
 
 ## Completed Feature
 
@@ -99,31 +110,37 @@ Fix Cycle v0.3.2 已完成 Coder 修复与自检：官方 JSONL wire framing 省
 
 完成并关闭 `v0.2.16 — UI 细节精修与品牌规范落地`（纯 UI 与既有交互接线、无功能迭代）。`v0.3.0` 的 Manager Plan 已就绪，但在 v0.2 关闭前不启动产品实现。不要把旧 `deepseek-harness/` 路线当作工作副本。
 
-## Next Feature Plan
+## Active v0.4 Feature
 
-- `v0.3.0 — Codex Native Runtime Parity & CraftStation Control Plane` 已完成 Ideate、Gate Check 和 Manager Plan。
-- Feature 目标：`CraftPlan -> CraftStation-owned Codex Runtime -> official codex app-server -> Entity -> Session -> real response`。
-- Codex 系列 Model Items 共享同一个 Codex Harness Runtime Adapter，不为每个模型分别实现 Adapter。
-- 最终产品路径不得依赖或 fallback 到 PoraCode 的 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter`、`CodexStructuredSession`、canonical event mapping 或 Codex hook plugin。
-- Codex Agent Loop、Context/Compaction、Tools、MCP、Skills、Subagents 与原生 Session 语义继续由官方 Codex Runtime 拥有。
-- Runtime parity 指相同官方 Runtime、effective configuration、protocol semantics、events 与 lifecycle，不要求非确定性模型输出逐字相同。
-- 默认继承用户现有 Codex binary、account/auth、`CODEX_HOME`、config、requirements、MCP 与 Skills；只有 UI 显式选择才形成 override。
-- Manager 文档：`ai_workspace/agent_docs/manager_0.3.0.md`。
-- 历史 Ideate 输入：`ai_workspace/agent_docs/ideate_0.3.0.md`。
-- Tickets：`.scratch/craftstation-0.3.0/issues/01-...md` 至 `09-...md`，线性顺序 `T01 -> T09`。
-- 当前 frontier：等待 `v0.2.16` 关闭；关闭后从 `v0.3/T01 — Native Codex Runtime Interface 与 Parity Harness` 开始。
-- 根治理仓库当前没有 tracking remote，Plan 前的 `git pull --ff-only` 未完成；Coder 启动前需重新确认同步基线。
+`v0.4.0 — Native Multi-Harness Compatibility`
+
+- Status：`FAIL / BLOCKED — v0.4.12 checkpoint freeze（用户授权 Git 收口；不是 Feature PASS；不要开 v0.4.13）`
+- Coder delivery：`ai_workspace/agent_docs/coder_0.4.12-native-harness.md`
+- Debugger review：`ai_workspace/agent_docs/debugger_0.4.12-rereview-native-harness.md`
+- Checkpoint freeze：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`
+- Prior Fix Plan：`ai_workspace/agent_docs/debugger_0.4.12-native-harness.md`
+- Prior re-review：`ai_workspace/agent_docs/debugger_0.4.10-rereview-native-harness.md`
+- Manager document：`ai_workspace/agent_docs/manager_0.4.0.md`
+- Next-version Ideate：`ai_workspace/agent_docs/manager_0.5.0.md`
+- Grok Account Control Brief：`ai_workspace/agent_docs/debugger_0.5.0-grok-account-control-brief.md`
+- Current evidence：F08–F24 工程项已关闭；F04 五 Harness 产品级真实 response 仍 BLOCKED。新 Session 的 `craftAgent` 当前不传 `accountId`，走 Auto；点账号行只改 selected。不能把「无论选哪个都能回复」当成 per-account sticky PASS。
+- Binding finding：用户希望耗尽时静默填补、不要把「Grok 额度已耗尽」挡在聊天前面。这与冻结的 F20 explicit 语义冲突，必须由下一版本 Manager / Ideate 拍板，不能静默改代码。
 
 ## Repository State
 
 - 唯一产品 Working Copy：`craftstation/`。
-- Working branch：`codex/v0.2.0`（基于 `codex/v0.1.0` 未提交工作树创建）。
-- HEAD：`2a646f8`；PoraCode 基线：`a28b995c47987b09862d8d18cb1203ddfb4ba159`。
-- CraftStation 自有远端尚未配置。
+- GitHub origin：`https://github.com/HernanJiang/CraftStation.git`（产品仓 `main`）。
+- 根仓库没有 tracking remote；云端 Manager 以 GitHub 产品仓治理文档为准。
+- 产品仓检查点 tag：`checkpoint-v0.4.12`（不是 PASS tag，也不是 `v0.4.0`）。
 - 旧 `deepseek-harness/`：`NOT PASSED / SUPERSEDED / DO NOT USE`。
 
 ## Next Step
 
-1. Debugger 读取 `ai_workspace/agent_docs/coder_0.3.2.md` 与 `ai_workspace/validation/craftstation_execution_path_v0.3.2.json`，执行 Fix Cycle v0.3.2 re-review。
-2. Debugger 重点复核真实证据是否满足官方 initialize -> thread -> turn -> second turn、wire framing、stderr/exit 与 legacy boundary acceptance。
-3. 仅当 Debugger PASS 后进入 Feature Closeout；若再次 FAIL，按新报告继续 Fix Cycle。
+1. v0.4.0 **不得宣称 PASS**。Debugger 检查点：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`。不要开 v0.4.13。
+2. 当前工作树已按用户授权做 Git checkpoint（产品仓 `checkpoint-v0.4.12`，push `origin/main`）。云端 Manager 以 GitHub `HernanJiang/CraftStation` 为准。
+3. 下一动作：**Manager / Ideate 讨论下一版本目的**。必须拍板的产品问题：
+   - 选号是 selected+auto，还是真正 explicit sticky
+   - 耗尽时静默填补，还是保留「Grok 额度已耗尽」给 explicit
+   - F04 五 Harness 真实 response 是否仍作为质量门
+   - 毛玻璃透光率等 UI 小改是否并入下一 Feature
+4. 绑定事实（未改代码）：新 Session 的 `craftAgent` 当前不传 `accountId`，走 Auto；点账号行只改 selected。不能把「无论选哪个都能回复」当成 per-account sticky PASS。

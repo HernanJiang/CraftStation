@@ -10,6 +10,7 @@ export interface AppServerProcessOptions {
   args?: string[] | undefined;
   onStderr?: ((chunk: string) => void) | undefined;
   onExit?: ((code: number | null, signal: string | null) => void) | undefined;
+  codexHome?: string | undefined;
 }
 
 export class AppServerProcessHost {
@@ -74,6 +75,7 @@ export class AppServerProcessHost {
     const env = {
       ...process.env,
       ...this.options?.env,
+      ...(this.options?.codexHome ? { CODEX_HOME: this.options.codexHome } : {}),
     };
 
     try {

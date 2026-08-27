@@ -89,6 +89,7 @@ export const NON_ROUTER_PROJECT_PROCEDURES = {
   dbReplaceThreadCompletedTurns: "remote-runtime-mirror-local",
   dbReplaceThreadRuntimeSnapshot: "remote-runtime-mirror-local",
   dbGetThreadContextUsage: "remote-runtime-mirror-local",
+  appendUsageEvents: "device-owned-usage-ledger",
   readTerminalScrollback: "remote-thread-snapshot-provided",
   readTerminalSize: "remote-server-internal",
   dbPersistExperimentState: "remote-experiments-excluded",

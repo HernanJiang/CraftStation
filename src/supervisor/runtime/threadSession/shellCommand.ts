@@ -12,13 +12,14 @@ import type { WindowsShellPreference } from "../../shellPreference";
 export function buildShellCommand(
   location: ProjectLocation,
   windowsShell: WindowsShellPreference,
-  options?: { startInHome?: boolean },
+  options?: { startInHome?: boolean; cwdOverride?: string },
 ): {
   command: string;
   args: string[];
   cwd?: string;
 } {
   const startInHome = options?.startInHome === true;
+  const cwdOverride = options?.cwdOverride?.trim();
   if (location.kind === "wsl") {
     // `wsl --cd ~` lands in the distro's Linux home; otherwise the worktree.
     return {
@@ -31,7 +32,7 @@ export function buildShellCommand(
     return {
       command: windowsShell.shell,
       args: [...windowsShell.args],
-      cwd: startInHome ? homedir() : location.path,
+      cwd: cwdOverride || (startInHome ? homedir() : location.path),
     };
   }
 
@@ -39,6 +40,6 @@ export function buildShellCommand(
   return {
     command: shell,
     args: ["-l"],
-    cwd: startInHome ? homedir() : location.path,
+    cwd: cwdOverride || (startInHome ? homedir() : location.path),
   };
 }

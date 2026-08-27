@@ -306,7 +306,7 @@ describe("projectsThreads (real sqlite round-trip)", () => {
 
     initDatabase(databasePath);
 
-    expect(dbGetState("schema_version")).toBe("35");
+    expect(dbGetState("schema_version")).toBe("36");
     const legacyProject = dbGetProject("legacy-project");
     expect(legacyProject).toMatchObject({
       id: "legacy-project",
@@ -322,6 +322,22 @@ describe("projectsThreads (real sqlite round-trip)", () => {
     });
     dbUpsertProject(legacyProject!, 0);
     expect(dbGetProject("legacy-project")?.ghAccount).toBeUndefined();
+  });
+
+  it("round-trips the immutable account binding with a crafted thread", () => {
+    const thread = testThread({
+      id: "account-bound-thread",
+      accountBinding: {
+        accountId: "codex:work",
+        provider: "codex",
+        credentialScopeRef: "managed:codex:work",
+        reason: "priority-fallback",
+        boundAt: 123,
+      },
+    });
+    dbUpsertThread(thread, 0);
+
+    expect(dbGetThread(thread.id)?.accountBinding).toEqual(thread.accountBinding);
   });
 
   it("repairs a schema-v28 database that is missing the workspace column", () => {

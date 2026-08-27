@@ -23,7 +23,7 @@ export function appIdFor(channel: PoracodeChannel): string {
 }
 
 export function userDataDirNameFor(channel: PoracodeChannel): string {
-  return channel === "nightly" ? ".poracode-nightly" : ".poracode";
+  return channel === "nightly" ? ".craftstation-nightly" : ".craftstation";
 }
 
 export function updaterChannelFor(channel: PoracodeChannel): string | undefined {

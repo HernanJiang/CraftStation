@@ -965,6 +965,14 @@ export class ThreadSessionManager {
   }
 
   async startShell(payload: StartShellPayload): Promise<void> {
+    return this.startShellWithEnvironment(payload);
+  }
+
+  /** Supervisor-only shell launch seam for trusted profile-scoped credentials. */
+  async startShellWithEnvironment(
+    payload: StartShellPayload,
+    extraEnvironment: Record<string, string> = {},
+  ): Promise<void> {
     ensureNodePtySpawnHelperExecutable();
     this.recentlyRemovedThreadIds.delete(payload.shellId);
     const existing = this.shellSessions.get(payload.shellId);
@@ -989,6 +997,7 @@ export class ThreadSessionManager {
         : { shell: "", kind: "cmd" as const, args: [] };
     const shellCommand = buildShellCommand(payload.projectLocation, windowsShell, {
       startInHome: payload.startInHome === true,
+      ...(payload.cwdOverride ? { cwdOverride: payload.cwdOverride } : {}),
     });
     this.options.emit({ type: "thread-reset", threadId: payload.shellId });
     const terminalEnv = resolveTerminalColorEnv(payload.projectLocation);
@@ -999,6 +1008,7 @@ export class ThreadSessionManager {
     const shellEnv: Record<string, string> = {
       ...sanitizedProcessEnv,
       ...terminalEnv,
+      ...extraEnvironment,
     };
     if (payload.projectLocation.kind === "wsl") {
       const existingWslEnv = process.env.WSLENV ?? "";

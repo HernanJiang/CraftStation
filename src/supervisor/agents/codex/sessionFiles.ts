@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { isolatedCodexAuthPath, isolatedCodexHomeCandidates } from "./codexRouterOverlay";
 
 export function parseCodexSessionIndex(content: string): Array<{
   id: string;
@@ -39,12 +39,14 @@ export function readCodexSessionIndex(): Array<{
   updatedAt: number;
   threadName: string;
 }> {
-  const sessionIndexPath = join(homedir(), ".codex", "session_index.jsonl");
-  if (!existsSync(sessionIndexPath)) {
-    return [];
-  }
-
-  return parseCodexSessionIndex(readFileSync(sessionIndexPath, "utf8"));
+  const homes = isolatedCodexHomeCandidates();
+  return homes.flatMap((home) => {
+    const sessionIndexPath = join(home, "session_index.jsonl");
+    if (!existsSync(sessionIndexPath)) {
+      return [];
+    }
+    return parseCodexSessionIndex(readFileSync(sessionIndexPath, "utf8"));
+  });
 }
 
 export function parseCodexRolloutIdFromPath(path: string): string | undefined {
@@ -105,5 +107,5 @@ export function parseCodexRolloutMeta(
 }
 
 export function codexAuthPath(): string {
-  return join(homedir(), ".codex", "auth.json");
+  return isolatedCodexAuthPath();
 }

@@ -1,5 +1,7 @@
 ﻿import { z } from "zod";
 
+import { nativeHarnessEnvironmentSchema } from "./nativeHarness";
+
 export const compatibilityStatusSchema = z.enum([
   "NATIVE",
   "SUPPORTED",
@@ -66,22 +68,30 @@ export const ingredientProvenanceSchema = z.object({
 });
 export type IngredientProvenance = z.infer<typeof ingredientProvenanceSchema>;
 
-export const compositionProvenanceSchema = z.object({
-  recipeId: z.string().min(1),
-  recipeVersion: z.string().min(1),
-  craftedAt: z.string().min(1),
-  ingredients: z.record(z.string(), ingredientProvenanceSchema),
-});
-export type CompositionProvenance = z.infer<typeof compositionProvenanceSchema>;
-
 export const runtimeBindingSchema = z.object({
   harnessKind: z.string().min(1),
   modelId: z.string().min(1),
   vendor: z.string().min(1),
   runtimeAdapterId: z.string().min(1),
+  profileRef: z.string().min(1).optional(),
+  environment: nativeHarnessEnvironmentSchema.optional(),
   options: z.record(z.string(), z.unknown()).optional(),
 });
 export type RuntimeBinding = z.infer<typeof runtimeBindingSchema>;
+
+export const compositionProvenanceSchema = z.object({
+  recipeId: z.string().min(1),
+  recipeVersion: z.string().min(1),
+  craftedAt: z.string().min(1),
+  ingredients: z.record(z.string(), ingredientProvenanceSchema),
+  /**
+   * Optional for backward compatibility with provenance written before the
+   * Native Harness seam. When present it keeps the selected provider profile
+   * and execution environment sticky across recovery.
+   */
+  runtimeBinding: runtimeBindingSchema.optional(),
+});
+export type CompositionProvenance = z.infer<typeof compositionProvenanceSchema>;
 
 export const reasoningEffortSchema = z.enum(["low", "medium", "high"]);
 export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
@@ -128,6 +138,8 @@ export const craftContextSchema = z.object({
   workspace: z.string().optional(),
   sessionRef: z.string().optional(),
   threadId: z.string().optional(),
+  profileRef: z.string().min(1).optional(),
+  environment: nativeHarnessEnvironmentSchema.optional(),
   clientProperties: z.record(z.string(), z.unknown()).optional(),
   overrides: runtimeOverridesSchema.optional(),
 });
@@ -158,6 +170,9 @@ export interface Recipe {
   description: string;
   compatibilityStatus: CompatibilityStatus;
   requirements: Record<string, RecipeSlotRequirement>;
+  /** Optional native recipe metadata used by the Craft Table quick-fill UI. */
+  harnessItemId?: string;
+  modelVendors?: readonly string[];
   matches(ingredients: Record<string, Item>): boolean;
   compile(ingredients: Record<string, Item>, context: CraftContext): CraftPlan;
 }

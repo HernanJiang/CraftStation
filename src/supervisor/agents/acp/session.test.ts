@@ -20,7 +20,12 @@ import {
   toAcpResourceUri,
 } from "./session";
 import { shouldSpawnAcpSession } from "./sessionFactory";
-import { resolveAcpPromptFailureMessage, shouldEmitAcpPromptRpcErrorItem } from "./sessionErrors";
+import {
+  isAcpPromptQuotaExhaustedError,
+  resolveAcpPromptFailureMessage,
+  resolveAcpPromptRpcErrorMessage,
+  shouldEmitAcpPromptRpcErrorItem,
+} from "./sessionErrors";
 
 function makeInput(
   overrides: Partial<CreateStructuredSessionInput> = {},
@@ -339,6 +344,31 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
     ).toBe("401 invalid access token or token expired");
   });
 
+  it("projects the official Grok 402 data.message shape instead of Internal error", () => {
+    const error = new RequestError(-32603, "Internal error", {
+      message: "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+      http_status: 402,
+    });
+
+    expect(resolveAcpPromptRpcErrorMessage(error)).toBe("Grok 额度已耗尽");
+    expect(resolveAcpPromptFailureMessage(error)).toBe("Grok 额度已耗尽");
+    expect(isAcpPromptQuotaExhaustedError(error)).toBe(true);
+  });
+
+  it("recognizes the same Grok quota shape without an SDK RequestError instance", () => {
+    const error = {
+      code: -32603,
+      message: "Internal error",
+      data: {
+        message: "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+        http_status: 402,
+      },
+    };
+
+    expect(resolveAcpPromptRpcErrorMessage(error)).toBe("Grok 额度已耗尽");
+    expect(isAcpPromptQuotaExhaustedError(error)).toBe(true);
+  });
+
   it("suppresses a generic Internal error row when usage detail was already streamed", () => {
     const usage = "Usage limit reached.";
     const transport = RequestError.internalError({ details: "Internal error: Agent error" });
@@ -349,6 +379,31 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
   it("still emits the RPC error row when no agent-surfaced message exists", () => {
     const transport = RequestError.internalError({ details: "Agent error" });
     expect(shouldEmitAcpPromptRpcErrorItem(transport, undefined)).toBe(true);
+  });
+});
+
+describe("ACP prompt error observer", () => {
+  it("observes the raw Grok quota error before projecting the renderer error", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    (session as unknown as Record<string, unknown>)["onPromptError"] = onPromptError;
+    const error = new RequestError(-32603, "Internal error", {
+      message: "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+      http_status: 402,
+    });
+    connection.prompt.mockRejectedValueOnce(error);
+
+    await session.startTurn("quota", { model: "model-a" });
+
+    expect(onPromptError).toHaveBeenCalledWith(error);
+    expect(listener.onUpdate).toHaveBeenLastCalledWith({
+      status: "error",
+      attention: "error",
+      errorMessage: "Grok 额度已耗尽",
+    });
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error", message: "Grok 额度已耗尽" }),
+    );
   });
 });
 

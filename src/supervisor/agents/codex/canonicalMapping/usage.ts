@@ -73,7 +73,31 @@ export function readCodexCumulativeTotalTokens(
 }
 
 function readTotalTokens(total: Record<string, unknown> | undefined): number | undefined {
-  return readNonNegativeInteger(total?.totalTokens) ?? readNonNegativeInteger(total?.total_tokens);
+  const explicitTotal =
+    readNonNegativeInteger(total?.totalTokens) ?? readNonNegativeInteger(total?.total_tokens);
+  if (explicitTotal !== undefined) return explicitTotal;
+
+  // A few older app-server builds exposed the cumulative object with only
+  // component counters. Keep this compatibility path scoped to `total` (the
+  // cumulative object); never use `last`, whose value is per-turn and would
+  // double-count after the next notification.
+  const components = [
+    total?.inputTokens,
+    total?.input_tokens,
+    total?.outputTokens,
+    total?.output_tokens,
+    total?.reasoningTokens,
+    total?.reasoning_tokens,
+    total?.cachedInputTokens,
+    total?.cached_input_tokens,
+    total?.cacheReadTokens,
+    total?.cache_read_tokens,
+    total?.cachedWriteTokens,
+    total?.cacheWriteTokens,
+    total?.cache_write_tokens,
+  ].map(readNonNegativeInteger);
+  if (!components.some((value) => value !== undefined)) return undefined;
+  return components.reduce<number>((sum, value) => sum + (value ?? 0), 0);
 }
 
 export function createCodexTokenUsageEvent(

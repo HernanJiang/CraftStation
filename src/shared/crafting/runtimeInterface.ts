@@ -5,6 +5,12 @@ export type EntityStatus = "spawned" | "running" | "idle" | "terminated" | "erro
 export type CraftSessionStatus = "active" | "busy" | "idle" | "terminated" | "error";
 export type TurnStatus = "idle" | "running" | "interrupted" | "completed" | "failed" | "cancelled";
 
+import type {
+  NativeEventEnvelope,
+  NativeHarnessDescriptor,
+  NativeHarnessDiagnostic,
+} from "./nativeHarness";
+
 export interface Entity {
   readonly id: string;
   readonly resultItemId: string;
@@ -12,6 +18,7 @@ export interface Entity {
   status: EntityStatus;
   readonly createdAt: string;
   metadata?: Record<string, unknown> | undefined;
+  readonly nativeHarness?: NativeHarnessDescriptor | undefined;
 }
 
 export interface PromptResult {
@@ -28,6 +35,9 @@ export interface SessionSnapshot {
   readonly activeTurnId?: string | undefined;
   readonly activeTurnStatus?: TurnStatus | undefined;
   readonly events: readonly RuntimeEvent[];
+  readonly nativeSessionRef?: string | undefined;
+  readonly nativeEvents?: readonly NativeEventEnvelope[] | undefined;
+  readonly diagnostics?: readonly NativeHarnessDiagnostic[] | undefined;
   readonly effectiveOverrides?: RuntimeOverrides | undefined;
   readonly metadata?: Record<string, unknown> | undefined;
 }
@@ -54,6 +64,7 @@ export interface CraftSession {
   readonly threadId?: string | undefined;
   readonly entityId: string;
   readonly sessionRef?: string | undefined;
+  readonly nativeSessionRef?: string | undefined;
   readonly status: CraftSessionStatus;
 
   /**
@@ -83,6 +94,13 @@ export interface CraftSession {
   getSnapshot(): SessionSnapshot;
 
   /**
+   * Provider-native diagnostics are optional on the compatibility seam. The
+   * canonical session/event contract remains usable when an adapter has no
+   * extra diagnostic records.
+   */
+  getDiagnostics?(): readonly NativeHarnessDiagnostic[];
+
+  /**
    * Subscribe to real-time runtime events emitted by this session.
    */
   subscribe(listener: SessionEventListener): () => void;
@@ -100,8 +118,10 @@ export interface CraftSession {
 export interface HarnessRuntimeAdapter {
   readonly id: string;
   readonly harnessKind: string;
+  readonly descriptor?: NativeHarnessDescriptor | undefined;
   supports(craftPlan: CraftPlan): boolean;
   spawnEntity(craftPlan: CraftPlan): Promise<Entity>;
   createSession(entity: Entity): Promise<CraftSession>;
   resumeSession(entity: Entity, sessionRef: string): Promise<CraftSession>;
+  getDiagnostics?(): readonly NativeHarnessDiagnostic[];
 }

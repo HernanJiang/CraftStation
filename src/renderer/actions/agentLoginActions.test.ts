@@ -5,6 +5,16 @@ import type { SupervisorEvent } from "@/shared/ipc";
 const bridge = vi.hoisted(() => ({
   startShell: vi.fn<(payload: unknown) => Promise<void>>(),
   closeThread: vi.fn<() => Promise<void>>(),
+  createCodexProfile: vi.fn<() => Promise<unknown>>(),
+  removeAccount: vi.fn<(payload: unknown) => Promise<void>>(),
+  startCodexProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  createGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  startGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  pollGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  completeGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  cancelGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  refreshAccountQuota: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  listAccounts: vi.fn<(payload: unknown) => Promise<unknown>>(),
   onSupervisorEvent: vi.fn<(handler: (event: SupervisorEvent) => void) => () => void>(),
   openExternal: vi.fn<(url: string) => Promise<void>>(),
   openExternalNative: vi.fn<(url: string) => Promise<void>>(),
@@ -27,6 +37,7 @@ vi.mock("@heroui/react", () => ({
     danger: vi.fn<(message: string) => void>(),
     success: vi.fn<(message: string) => void>(),
     warning: vi.fn<(message: string) => void>(),
+    info: vi.fn<(message: string) => void>(),
   },
 }));
 
@@ -71,7 +82,14 @@ vi.mock("@/renderer/utils/shellUtils", () => ({
 }));
 
 import { toast } from "@heroui/react";
-import { runAgentInstallCommand, runAgentLoginCommand } from "./agentLoginActions";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import {
+  createAndRunCodexProfileLogin,
+  createAndRunGrokProfileLogin,
+  runAgentInstallCommand,
+  runAgentLoginCommand,
+  runCodexProfileLogin,
+} from "./agentLoginActions";
 
 const wslProject: Project = {
   id: "project",
@@ -124,6 +142,19 @@ describe("runAgentLoginCommand", () => {
     supervisorHandlers.length = 0;
     bridge.startShell.mockReset().mockResolvedValue(undefined);
     bridge.closeThread.mockReset().mockResolvedValue(undefined);
+    bridge.createCodexProfile.mockReset();
+    bridge.removeAccount.mockReset().mockResolvedValue(undefined);
+    bridge.startCodexProfileLogin.mockReset().mockResolvedValue({});
+    bridge.createGrokProfileLogin.mockReset().mockResolvedValue({
+      pendingRef: "grok-pending:test",
+      label: "New Grok",
+    });
+    bridge.startGrokProfileLogin.mockReset().mockResolvedValue({});
+    bridge.pollGrokProfileLogin.mockReset().mockResolvedValue({ done: false });
+    bridge.completeGrokProfileLogin.mockReset().mockResolvedValue({});
+    bridge.cancelGrokProfileLogin.mockReset().mockResolvedValue(undefined);
+    bridge.refreshAccountQuota.mockReset().mockResolvedValue({});
+    bridge.listAccounts.mockReset().mockResolvedValue([]);
     bridge.openExternal.mockReset().mockResolvedValue(undefined);
     bridge.openExternalNative.mockReset().mockResolvedValue(undefined);
     bridge.onSupervisorEvent.mockReset().mockImplementation((handler) => {
@@ -137,6 +168,7 @@ describe("runAgentLoginCommand", () => {
     loginTerminalStore.close.mockReset();
     loginTerminalStore.markFailed.mockReset();
     loginTerminalStore.active = undefined;
+    useUsageAccountsStore.getState().reset();
     writeScriptToShellMock.mockReset();
     startShellWithCurrentSettingsMock
       .mockReset()
@@ -205,6 +237,36 @@ describe("runAgentLoginCommand", () => {
     vi.advanceTimersByTime(250);
 
     expect(bridge.openExternalNative).toHaveBeenCalledWith(url);
+  });
+
+  it("opens the Grok device-authorization URL from the official CLI, never grok.com", () => {
+    runAgentLoginCommand({
+      label: "Grok",
+      command: "grok login --device-auth",
+      project: wslProject,
+    });
+
+    const shellId = loginTerminalStore.open.mock.calls[0]?.[0].shellId;
+    expect(shellId).toBeTruthy();
+    const script = writeScriptToShellMock.mock.calls[0]?.[1] ?? "";
+    expect(unwrapBashScript(script)).toContain(
+      "clear; BROWSER='/bin/true' DISPLAY='' WAYLAND_DISPLAY='' grok login --device-auth",
+    );
+
+    emit({
+      type: "thread-output",
+      threadId: shellId!,
+      data: "To authenticate, please visit:\n  https://accounts.x.ai/oauth2/device?user_code=ABCD-EFGH-1234-5678\n",
+      outputLength: 0,
+    });
+    vi.advanceTimersByTime(250);
+
+    expect(bridge.openExternalNative).toHaveBeenCalledWith(
+      "https://accounts.x.ai/oauth2/device?user_code=ABCD-EFGH",
+    );
+    expect(
+      bridge.openExternalNative.mock.calls.map((call) => call[0]).join(" "),
+    ).not.toContain("grok.com");
   });
 
   it("sets profile env via PowerShell assignments on native Windows, not a POSIX prefix", () => {
@@ -506,5 +568,215 @@ describe("runAgentLoginCommand", () => {
     expect(startShellWithCurrentSettingsMock.mock.calls[0]?.[0]).not.toHaveProperty(
       "windowsShellRuntime",
     );
+  });
+
+  it("creates a profile, starts its isolated login, and refreshes account state after completion", async () => {
+    const account = {
+      accountId: "codex:account-1",
+      provider: "codex",
+      label: "New Codex",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "unavailable",
+      credentialScopeRef: "managed:codex:account-1",
+    } as const;
+    bridge.createCodexProfile.mockResolvedValue(account);
+    const authorizedAccount = {
+      ...account,
+      status: "available" as const,
+      maskedIdentity: "user@example.com",
+    };
+    bridge.listAccounts.mockResolvedValue([authorizedAccount]);
+
+    const started = createAndRunCodexProfileLogin({ project: windowsProject });
+    await vi.waitFor(() => expect(bridge.startCodexProfileLogin).toHaveBeenCalledOnce());
+
+    const payload = bridge.startCodexProfileLogin.mock.calls[0]?.[0] as {
+      accountId: string;
+      shellId: string;
+      completionToken: string;
+    };
+    expect(bridge.createCodexProfile).toHaveBeenCalledWith({ label: "New Codex" });
+    expect(payload).toMatchObject({
+      accountId: account.accountId,
+      projectLocation: windowsProject.location,
+      windowsShellRuntime: "powershell",
+    });
+    expect(payload.completionToken).toMatch(/^lc_[A-Za-z0-9_-]+$/u);
+
+    emit({
+      type: "thread-output",
+      threadId: payload.shellId,
+      data: `\u001B]777;poracode-login-complete=${payload.completionToken}:0\u0007`,
+      outputLength: 0,
+    });
+    await vi.waitFor(() => expect(bridge.refreshAccountQuota).toHaveBeenCalledOnce());
+    await started;
+
+    expect(bridge.refreshAccountQuota).toHaveBeenCalledWith({ accountId: account.accountId });
+    expect(bridge.listAccounts).toHaveBeenCalledWith({ provider: "codex" });
+    await vi.waitFor(() =>
+      expect(useUsageAccountsStore.getState().accounts).toEqual([authorizedAccount]),
+    );
+    expect(bridge.removeAccount).not.toHaveBeenCalled();
+    expect(loginTerminalStore.markFailed).not.toHaveBeenCalled();
+  });
+
+  it("does not keep an unauthenticated Codex profile after login fails", async () => {
+    const account = {
+      accountId: "codex:orphan",
+      provider: "codex",
+      label: "New Codex",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "unavailable",
+      credentialScopeRef: "managed:codex:orphan",
+    } as const;
+    bridge.createCodexProfile.mockResolvedValue(account);
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    const started = createAndRunCodexProfileLogin({ project: windowsProject });
+    await vi.waitFor(() => expect(bridge.startCodexProfileLogin).toHaveBeenCalledOnce());
+    const payload = bridge.startCodexProfileLogin.mock.calls[0]?.[0] as {
+      shellId: string;
+      completionToken: string;
+    };
+    emit({
+      type: "thread-output",
+      threadId: payload.shellId,
+      data: `\u001B]777;poracode-login-complete=${payload.completionToken}:1\u0007`,
+      outputLength: 0,
+    });
+    await expect(started).resolves.toBe(false);
+    expect(bridge.removeAccount).toHaveBeenCalledWith({ accountId: account.accountId });
+    expect(useUsageAccountsStore.getState().accounts).toEqual([]);
+  });
+
+  it("does not create an orphaned profile when no project can host the login", async () => {
+    await expect(createAndRunCodexProfileLogin()).resolves.toBe(false);
+
+    expect(bridge.createCodexProfile).not.toHaveBeenCalled();
+    expect(bridge.startCodexProfileLogin).not.toHaveBeenCalled();
+    expect(toast.warning).toHaveBeenCalled();
+  });
+
+  it("marks an isolated profile login failed for a non-zero completion and for an unexpected shell exit", async () => {
+    const firstPending = runCodexProfileLogin({
+      accountId: "codex:account-2",
+      label: "Existing",
+      project: posixProject,
+    });
+    await vi.waitFor(() => expect(bridge.startCodexProfileLogin).toHaveBeenCalledOnce());
+    const first = bridge.startCodexProfileLogin.mock.calls[0]?.[0] as {
+      shellId: string;
+      completionToken: string;
+    };
+    emit({
+      type: "thread-output",
+      threadId: first.shellId,
+      data: `\u001B]777;poracode-login-complete=${first.completionToken}:7\u0007`,
+      outputLength: 0,
+    });
+    await vi.waitFor(() =>
+      expect(loginTerminalStore.markFailed).toHaveBeenCalledWith(first.shellId, 7),
+    );
+    await firstPending;
+
+    loginTerminalStore.active = undefined;
+    loginTerminalStore.markFailed.mockReset();
+    const secondPending = runCodexProfileLogin({
+      accountId: "codex:account-3",
+      label: "Crashes",
+      project: posixProject,
+    });
+    await vi.waitFor(() => expect(bridge.startCodexProfileLogin).toHaveBeenCalledTimes(2));
+    const second = bridge.startCodexProfileLogin.mock.calls[1]?.[0] as { shellId: string };
+    emit({ type: "thread-exited", threadId: second.shellId, exitCode: 9 });
+    await vi.waitFor(() =>
+      expect(loginTerminalStore.markFailed).toHaveBeenCalledWith(second.shellId, 9),
+    );
+    await secondPending;
+    expect(bridge.refreshAccountQuota).not.toHaveBeenCalled();
+  });
+
+  it("cancels the profile shell and prevents completion refresh", async () => {
+    const pending = runCodexProfileLogin({
+      accountId: "codex:account-cancel",
+      label: "Cancel",
+      project: posixProject,
+    });
+    await vi.waitFor(() => expect(loginTerminalStore.open).toHaveBeenCalledOnce());
+    const opened = loginTerminalStore.open.mock.calls[0]?.[0] as {
+      shellId: string;
+      onForceClose?: () => void;
+    };
+    opened.onForceClose?.();
+    await vi.waitFor(() => expect(bridge.closeThread).toHaveBeenCalled());
+    expect(bridge.closeThread).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: opened.shellId }),
+    );
+    expect(bridge.refreshAccountQuota).not.toHaveBeenCalled();
+    expect(bridge.listAccounts).not.toHaveBeenCalled();
+    await expect(pending).resolves.toBe(false);
+  });
+
+  it("rejects repeated profile login starts and reports backend failures", async () => {
+    loginTerminalStore.active = { shellId: "login:already-active" };
+    await expect(
+      runCodexProfileLogin({
+        accountId: "codex:duplicate",
+        label: "Duplicate",
+        project: posixProject,
+      }),
+    ).resolves.toBe(false);
+    loginTerminalStore.active = undefined;
+
+    bridge.startCodexProfileLogin.mockRejectedValueOnce(new Error("ACCOUNT_NOT_FOUND"));
+    await expect(
+      runCodexProfileLogin({ accountId: "codex:unknown", label: "Unknown", project: posixProject }),
+    ).resolves.toBe(false);
+    expect(bridge.closeThread).toHaveBeenCalledWith({
+      threadId: expect.stringMatching(/^login:/u),
+    });
+    expect(toast.danger).toHaveBeenCalledWith("ACCOUNT_NOT_FOUND");
+  });
+
+  it("promotes a Grok login once the pending auth.json carries an identity and closes the overlay", async () => {
+    loginTerminalStore.open.mockImplementation((session) => {
+      loginTerminalStore.active = {
+        shellId: session.shellId,
+      };
+    });
+    const account = {
+      accountId: "grok:1",
+      provider: "grok",
+      label: "New Grok",
+      maskedIdentity: "person***@example.com",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:1",
+    };
+    bridge.pollGrokProfileLogin.mockResolvedValueOnce({ done: false });
+    bridge.pollGrokProfileLogin.mockResolvedValueOnce({ done: true, account });
+    bridge.listAccounts.mockResolvedValueOnce([account]);
+
+    const pending = createAndRunGrokProfileLogin({ project: posixProject });
+    await vi.waitFor(() => expect(bridge.startGrokProfileLogin).toHaveBeenCalledOnce());
+
+    // First tick: no identity yet. Second tick: identity arrives → complete.
+    vi.advanceTimersByTime(1100);
+    vi.advanceTimersByTime(1000);
+    await vi.waitFor(() => expect(bridge.completeGrokProfileLogin).toHaveBeenCalledOnce());
+    await expect(pending).resolves.toBe(true);
+
+    vi.advanceTimersByTime(1300);
+    expect(loginTerminalStore.close).toHaveBeenCalled();
   });
 });

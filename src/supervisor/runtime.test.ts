@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { IPty } from "node-pty";
+import { RequestError } from "@agentclientprotocol/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEvent, ThreadConfig } from "@/shared/contracts";
 import {
@@ -9,6 +10,7 @@ import {
   BUILTIN_MODEL_ITEMS,
   CraftingError,
   FakeCodexParityHarness,
+  type HarnessRuntimeAdapter,
 } from "@/shared/crafting";
 import { TranscriptBuffer } from "@/shared/transcriptBuffer";
 import type { SessionRuntime } from "./runtime/sessionTypes";
@@ -17,6 +19,9 @@ const taskkillSpawnSyncMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unk
 const ptySpawnMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>());
 const appendFileMock = vi.hoisted(() =>
   vi.fn<(path: string, data: string, encoding: string) => Promise<void>>(),
+);
+const nativeHarnessFactoryOverrides = vi.hoisted(
+  () => new Map<string, (...args: unknown[]) => unknown>(),
 );
 
 vi.mock("node:child_process", async (importActual) => {
@@ -43,6 +48,19 @@ vi.mock("node:fs/promises", async (importActual) => {
 vi.mock("node-pty", () => ({
   spawn: ptySpawnMock,
 }));
+
+vi.mock("./runtime/nativeHarness", async (importActual) => {
+  const actual = await importActual<typeof import("./runtime/nativeHarness")>();
+  return {
+    ...actual,
+    createNativeHarnessRuntimeAdapter: (harnessKind: string, options: unknown) => {
+      const override = nativeHarnessFactoryOverrides.get(harnessKind);
+      return override
+        ? (override(harnessKind, options) as HarnessRuntimeAdapter | undefined)
+        : actual.createNativeHarnessRuntimeAdapter(harnessKind, options as never);
+    },
+  };
+});
 
 // Skip the slow $SHELL -l -c probe on non-Windows hosts. The tests using
 // `windowsProject` only exercise argv-shaping logic; resolving the binary
@@ -110,6 +128,7 @@ afterEach(() => {
   taskkillSpawnSyncMock.mockReset();
   ptySpawnMock.mockReset();
   appendFileMock.mockReset();
+  nativeHarnessFactoryOverrides.clear();
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -2680,6 +2699,294 @@ describe("SupervisorRuntime thread input", () => {
   );
 });
 
+describe("SupervisorRuntime Codex profile login", () => {
+  const windowsLocation = { kind: "windows" as const, path: "C:\\repo" };
+  const posixLocation = { kind: "posix" as const, path: "/srv/repo" };
+  const wslLocation = {
+    kind: "wsl" as const,
+    distro: "Ubuntu",
+    linuxPath: "/home/demo/repo",
+    uncPath: "\\\\wsl.localhost\\Ubuntu\\home\\demo\\repo",
+  };
+
+  async function withPlatform<T>(platform: NodeJS.Platform, callback: () => Promise<T>) {
+    const original = process.platform;
+    Object.defineProperty(process, "platform", { configurable: true, value: platform });
+    try {
+      return await callback();
+    } finally {
+      Object.defineProperty(process, "platform", { configurable: true, value: original });
+    }
+  }
+
+  async function startLoginForHost(platform: NodeJS.Platform) {
+    return withPlatform(platform, async () => {
+      const tempDir = makeTempDir();
+      process.env.PORACODE_DATA_DIR = tempDir;
+      const emitted: unknown[] = [];
+      const runtime = makeRuntime((event) => emitted.push(event));
+      const account = runtime.createCodexProfile({ label: `${platform} profile` });
+      const pty = createMockPty();
+      ptySpawnMock.mockReturnValueOnce(pty);
+      const projectLocation = platform === "win32" ? windowsLocation : posixLocation;
+      const result = await runtime.startCodexProfileLogin({
+        accountId: account.accountId,
+        shellId: `login:${platform}`,
+        projectLocation,
+        completionToken: "lc_supervisor_test",
+        ...(platform === "win32" ? { windowsShellRuntime: "powershell" as const } : {}),
+      });
+      return { account, emitted, pty, projectLocation, result, runtime };
+    });
+  }
+
+  it("starts an isolated Windows login with CODEX_HOME only in the trusted PTY environment", async () => {
+    const { account, emitted, pty, result, runtime } = await startLoginForHost("win32");
+    const spawnCall = ptySpawnMock.mock.calls.at(-1);
+    if (!spawnCall) throw new Error("Expected a PTY spawn call.");
+    const spawnOptions = spawnCall[2] as { cwd?: string; env?: Record<string, string> };
+    const managedHome = runtime.codexProfileService.managedCodexHome(account.accountId);
+    const script = pty.write.mock.calls[0]?.[0] ?? "";
+
+    expect(result).toEqual({
+      shellId: "login:win32",
+      label: "win32 profile",
+      completionToken: "lc_supervisor_test",
+    });
+    expect(spawnOptions.cwd?.replaceAll('\\', '/')).toMatch(/CraftStation\/.local\/codex-login$/i);
+    expect(spawnOptions.env?.CODEX_HOME).toBe(managedHome);
+    expect(script).toContain("codex -c model_provider=openai -c sandbox_mode=danger-full-access login");
+    expect(script).not.toContain("model_catalog_json");
+    expect(script).toContain("poracode-login-complete=lc_supervisor_test");
+    expect(script).not.toContain(managedHome);
+    expect(JSON.stringify(result)).not.toContain(managedHome);
+    expect(emitted).toContainEqual({ type: "thread-reset", threadId: "login:win32" });
+  });
+
+  it("starts a POSIX login with a shell-native script and the isolated environment", async () => {
+    const { account, pty, result, runtime } = await startLoginForHost("linux");
+    const spawnCall = ptySpawnMock.mock.calls.at(-1);
+    if (!spawnCall) throw new Error("Expected a PTY spawn call.");
+    const spawnOptions = spawnCall[2] as { cwd?: string; env?: Record<string, string> };
+    const managedHome = runtime.codexProfileService.managedCodexHome(account.accountId);
+    const script = pty.write.mock.calls[0]?.[0] ?? "";
+
+    expect(result.shellId).toBe("login:linux");
+    expect(spawnOptions.cwd?.replaceAll('\\', '/')).toMatch(/CraftStation\/.local\/codex-login$/i);
+    expect(spawnOptions.env?.CODEX_HOME).toBe(managedHome);
+    expect(script).toMatch(/^command bash -lc '/u);
+    expect(script).toContain("codex -c model_provider=openai -c sandbox_mode=danger-full-access login");
+    expect(script).not.toContain("model_catalog_json");
+    expect(script).toContain("poracode-login-complete=lc_supervisor_test");
+    expect(script).not.toContain(managedHome);
+  });
+
+  it("rejects WSL projection instead of passing a Windows managed home into another host", async () => {
+    await withPlatform("win32", async () => {
+      const tempDir = makeTempDir();
+      process.env.PORACODE_DATA_DIR = tempDir;
+      const runtime = makeRuntime(() => undefined);
+      const account = runtime.createCodexProfile({ label: "WSL blocked" });
+
+      await expect(
+        runtime.startCodexProfileLogin({
+          accountId: account.accountId,
+          shellId: "login:wsl-blocked",
+          projectLocation: wslLocation,
+          completionToken: "lc_wsl_test",
+        }),
+      ).rejects.toMatchObject({ code: "ACCOUNT_RUNTIME_UNSUPPORTED" });
+      expect(ptySpawnMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it.each([
+    ["unknown", "missing-account", "ACCOUNT_NOT_FOUND"],
+    ["non-codex", "non-codex", "ACCOUNT_RUNTIME_UNSUPPORTED"],
+    ["disabled", "disabled", "ACCOUNT_RUNTIME_UNSUPPORTED"],
+  ] as const)("rejects %s account login before spawning a shell", async (kind, label, code) => {
+    await withPlatform("win32", async () => {
+      const tempDir = makeTempDir();
+      process.env.PORACODE_DATA_DIR = tempDir;
+      const runtime = makeRuntime(() => undefined);
+      const account =
+        kind === "unknown"
+          ? undefined
+          : kind === "non-codex"
+            ? runtime.addAccount({ provider: "claude", label })
+            : runtime.createCodexProfile({ label });
+      if (kind === "disabled" && account) runtime.setAccountEnabled(account.accountId, false);
+      const accountId = account?.accountId ?? "codex:does-not-exist";
+
+      await expect(
+        runtime.startCodexProfileLogin({
+          accountId,
+          shellId: `login:${kind}`,
+          projectLocation: windowsLocation,
+          completionToken: "lc_rejection_test",
+        }),
+      ).rejects.toMatchObject({ code });
+      expect(ptySpawnMock).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("SupervisorRuntime Grok profile login", () => {
+  const windowsLocation = { kind: "windows" as const, path: "C:\\repo" };
+
+  function makeGrokRuntime() {
+    const tempDir = makeTempDir();
+    process.env.PORACODE_DATA_DIR = tempDir;
+    const emitted: unknown[] = [];
+    const runtime = makeRuntime((event) => emitted.push(event));
+    return { emitted, runtime };
+  }
+
+  function officialAuth(identity: Record<string, string>): string {
+    return JSON.stringify({
+      "https://auth.x.ai::test-client": {
+        key: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: "9999999999999",
+        ...identity,
+      },
+    });
+  }
+
+  it("creates a pending Grok login without an AccountStore row", () => {
+    const { runtime } = makeGrokRuntime();
+    const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
+    expect(pending.pendingRef).toMatch(/^grok-pending:/u);
+    expect(runtime.accountStore.list("grok")).toEqual([]);
+    expect(runtime.grokPendingLogins.size).toBe(1);
+  });
+
+  it("starts the official device-auth login with the managed GROK_HOME env", async () => {
+    const { runtime } = makeGrokRuntime();
+    const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
+    const pty = createMockPty();
+    ptySpawnMock.mockReturnValueOnce(pty);
+    // Seed host leak candidates; the final login shell env must blank them.
+    const priorGrokApiKey = process.env.GROK_API_KEY;
+    const priorXaiApiKey = process.env.XAI_API_KEY;
+    const priorClipProxy = process.env.CLIPROXY_HOME;
+    const priorCodexRouter = process.env.CODEX_ROUTER_HOME;
+    const priorModelCatalog = process.env.MODEL_CATALOG_PATH;
+    process.env.GROK_API_KEY = "host-leak";
+    process.env.XAI_API_KEY = "host-xai";
+    process.env.CLIPROXY_HOME = "host-cli";
+    process.env.CODEX_ROUTER_HOME = "host-router";
+    process.env.MODEL_CATALOG_PATH = "host-catalog";
+
+    const result = await runtime.startGrokProfileLogin({
+      pendingRef: pending.pendingRef,
+      shellId: "login:grok-a",
+      projectLocation: windowsLocation,
+      completionToken: "lc_grok_supervisor_test",
+      windowsShellRuntime: "powershell",
+    });
+
+    expect(result.shellId).toBe("login:grok-a");
+    const spawnCall = ptySpawnMock.mock.calls.at(-1);
+    const spawnOptions = spawnCall?.[2] as { env?: Record<string, string> };
+    const pendingHome = [...runtime.grokPendingLogins.values()][0]!.home;
+    expect(spawnOptions?.env?.GROK_HOME).toBe(pendingHome);
+    expect(spawnOptions?.env?.GROK_API_KEY).toBe("");
+    expect(spawnOptions?.env?.XAI_API_KEY).toBe("");
+    expect(spawnOptions?.env?.CLIPROXY_HOME).toBe("");
+    expect(spawnOptions?.env?.CODEX_ROUTER_HOME).toBe("");
+    expect(spawnOptions?.env?.MODEL_CATALOG_PATH).toBe("");
+    const script = pty.write.mock.calls[0]?.[0] ?? "";
+    expect(script).toContain("grok login --device-auth");
+
+    if (priorGrokApiKey === undefined) delete process.env.GROK_API_KEY;
+    else process.env.GROK_API_KEY = priorGrokApiKey;
+    if (priorXaiApiKey === undefined) delete process.env.XAI_API_KEY;
+    else process.env.XAI_API_KEY = priorXaiApiKey;
+    if (priorClipProxy === undefined) delete process.env.CLIPROXY_HOME;
+    else process.env.CLIPROXY_HOME = priorClipProxy;
+    if (priorCodexRouter === undefined) delete process.env.CODEX_ROUTER_HOME;
+    else process.env.CODEX_ROUTER_HOME = priorCodexRouter;
+    if (priorModelCatalog === undefined) delete process.env.MODEL_CATALOG_PATH;
+    else process.env.MODEL_CATALOG_PATH = priorModelCatalog;
+  });
+
+  it("promotes a completed login with an official identity into an account", async () => {
+    const { emitted, runtime } = makeGrokRuntime();
+    const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
+    const pendingHome = [...runtime.grokPendingLogins.values()][0]!.home;
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(
+      `${pendingHome}\\auth.json`,
+      officialAuth({ email: "person@example.com", principal_id: "principal-1" }),
+      "utf8",
+    );
+
+    const account = runtime.completeGrokProfileLogin({ pendingRef: pending.pendingRef });
+
+    expect(account.provider).toBe("grok");
+    expect(account.status).toBe("available");
+    expect(account.maskedIdentity).toBe("per***son@example.com");
+    expect(runtime.accountStore.list("grok")).toHaveLength(1);
+    expect(runtime.grokPendingLogins.size).toBe(0);
+    expect(emitted).toContainEqual(
+      expect.objectContaining({
+        type: "usage-accounts",
+        accounts: expect.arrayContaining([expect.objectContaining({ provider: "grok" })]),
+      }),
+    );
+  });
+
+  it("does not insert an account when the completed login has no identity", async () => {
+    const { runtime } = makeGrokRuntime();
+    const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
+    const pendingHome = [...runtime.grokPendingLogins.values()][0]!.home;
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(`${pendingHome}\\auth.json`, officialAuth({}), "utf8");
+
+    expect(() =>
+      runtime.completeGrokProfileLogin({ pendingRef: pending.pendingRef }),
+    ).toThrow(/No official Grok identity/i);
+    expect(runtime.accountStore.list("grok")).toEqual([]);
+    expect(runtime.grokPendingLogins.size).toBe(0);
+    expect(existsSync(pendingHome)).toBe(false);
+  });
+
+  it("polls a pending login and promotes it once the official auth.json has an identity", async () => {
+    const { runtime } = makeGrokRuntime();
+    const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
+    const pendingHome = [...runtime.grokPendingLogins.values()][0]!.home;
+
+    // No auth.json yet — not done.
+    expect(runtime.pollGrokProfileLogin({ pendingRef: pending.pendingRef })).toEqual({
+      done: false,
+    });
+    expect(runtime.accountStore.list("grok")).toEqual([]);
+
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(
+      `${pendingHome}\\auth.json`,
+      officialAuth({ email: "person@example.com", user_id: "user-1" }),
+      "utf8",
+    );
+
+    const result = runtime.pollGrokProfileLogin({ pendingRef: pending.pendingRef });
+    expect(result.done).toBe(true);
+    expect(runtime.accountStore.list("grok")).toHaveLength(1);
+    expect(runtime.grokPendingLogins.size).toBe(0);
+  });
+
+  it("cancels a pending login without inserting an account", () => {
+    const { runtime } = makeGrokRuntime();
+    const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
+    const pendingHome = [...runtime.grokPendingLogins.values()][0]!.home;
+    runtime.cancelGrokProfileLogin({ pendingRef: pending.pendingRef });
+    expect(runtime.accountStore.list("grok")).toEqual([]);
+    expect(runtime.grokPendingLogins.size).toBe(0);
+    expect(existsSync(pendingHome)).toBe(false);
+  });
+});
+
 describe("SupervisorRuntime craftAgent", () => {
   function craftPlan(threadId = "craft-runtime-thread") {
     const result = new Crafter().compile(
@@ -2689,6 +2996,125 @@ describe("SupervisorRuntime craftAgent", () => {
     expect(result.success).toBe(true);
     return result.craftPlan!;
   }
+
+  function nativeCraftPlan(
+    harnessKind: "grok" | "kimi" | "antigravity" | "deepseek",
+    vendor: "xai" | "moonshot" | "google" | "deepseek",
+    threadId = `craft-${harnessKind}`,
+  ) {
+    const base = craftPlan(threadId);
+    return {
+      ...base,
+      ingredients: {
+        model: { ...base.ingredients.model!, vendor, itemId: `${vendor}:model` },
+        harness: {
+          ...base.ingredients.harness!,
+          vendor,
+          itemId: `harness:${harnessKind}`,
+        },
+      },
+      runtimeBinding: {
+        ...base.runtimeBinding,
+        harnessKind,
+        vendor,
+        modelId: `${harnessKind}-model`,
+        runtimeAdapterId: `native-harness:${harnessKind}`,
+      },
+    };
+  }
+
+  function routedAdapter(harnessKind: string): HarnessRuntimeAdapter {
+    return {
+      id: `test-native:${harnessKind}`,
+      harnessKind,
+      supports: vi.fn<HarnessRuntimeAdapter["supports"]>(
+        (plan) => plan.runtimeBinding.harnessKind === harnessKind,
+      ),
+      spawnEntity: vi.fn<HarnessRuntimeAdapter["spawnEntity"]>(async (plan) => ({
+        id: `entity:test:${harnessKind}`,
+        resultItemId: plan.resultItemId,
+        craftPlan: plan,
+        status: "spawned" as const,
+        createdAt: new Date(0).toISOString(),
+      })),
+      createSession: async (entity) => ({
+        id: `session:test:${harnessKind}`,
+        threadId: entity.craftPlan.threadId,
+        entityId: entity.id,
+        status: "idle" as const,
+        startTurn: async () => ({ turnId: "turn:test", status: "completed" as const, events: [] }),
+        interrupt: async () => undefined,
+        terminate: async () => undefined,
+        getSnapshot: () => ({
+          sessionId: `session:test:${harnessKind}`,
+          entityId: entity.id,
+          status: "idle" as const,
+          events: [],
+        }),
+        subscribe: () => () => undefined,
+        sendPrompt: async (prompt: string) => ({
+          response: `${harnessKind}:${prompt}`,
+          events: [],
+        }),
+      }),
+      resumeSession: async () => {
+        throw new Error("resume is not used by this route test");
+      },
+    };
+  }
+
+  it.each([
+    ["grok", "xai"],
+    ["kimi", "moonshot"],
+    ["antigravity", "google"],
+  ] as const)("routes %s through the native adapter factory from craftAgent", async (harnessKind, vendor) => {
+    const runtime = makeRuntime(() => undefined);
+    const adapter = routedAdapter(harnessKind);
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+    nativeHarnessFactoryOverrides.set(harnessKind, factory);
+
+    const result = await runtime.craftAgent({
+      craftPlan: nativeCraftPlan(harnessKind, vendor),
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "native route",
+    });
+
+    expect(factory).toHaveBeenCalledWith(
+      harnessKind,
+      expect.objectContaining({
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+      }),
+    );
+    expect(adapter.spawnEntity).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      entityId: `entity:test:${harnessKind}`,
+      sessionId: `session:test:${harnessKind}`,
+      response: `${harnessKind}:native route`,
+    });
+  });
+
+  it("routes DeepSeek through the unavailable native adapter without creating an Entity", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const plan = nativeCraftPlan("deepseek", "deepseek");
+
+    const rejection = runtime.craftAgent({
+      craftPlan: plan,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "must not spawn",
+    });
+    await expect(rejection).rejects.toThrow(/RUNTIME_UNAVAILABLE/);
+    await expect(rejection).rejects.toThrow(/no synthetic Entity/);
+
+    const diagnostics = await runtime.getNativeHarnessControlPlane({ harnessKind: "deepseek" });
+    expect(diagnostics[0]).toMatchObject({
+      status: "unavailable",
+      descriptor: { harnessKind: "deepseek" },
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" }),
+      ]),
+    });
+    expect(JSON.stringify(diagnostics)).not.toContain("CODEX_HOME");
+  });
 
   it("runs spawn/create/send through Native Codex adapter and returns composition identities", async () => {
     const runtime = makeRuntime(() => undefined);
@@ -2796,5 +3222,242 @@ describe("SupervisorRuntime craftAgent", () => {
         prompt: "hello",
       }),
     ).rejects.toThrow(/RUNTIME_UNAVAILABLE/);
+  });
+
+  describe("Grok account control plane", () => {
+    beforeEach(() => {
+      process.env.PORACODE_DATA_DIR = makeTempDir();
+    });
+
+    function addGrokAccount(
+      runtime: SupervisorRuntime,
+      label: string,
+      status: "available" | "quota-exhausted" = "available",
+    ) {
+      const account = runtime.addAccount({ provider: "grok", label, maskedIdentity: `${label}@example.com` });
+      runtime.accountStore.updateStatus(account.accountId, status);
+      return account;
+    }
+
+    it("binds the new Session to the selected Grok account and injects its managed GROK_HOME", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const accountA = addGrokAccount(runtime, "A");
+      const accountB = addGrokAccount(runtime, "B");
+      runtime.selectAccount(accountA.accountId);
+
+      const adapter = routedAdapter("grok");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-selected-a"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "bind A",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as {
+        accountBinding?: { accountId: string; provider: string };
+        baseSpawnEnv?: Record<string, string>;
+      };
+      expect(options.accountBinding?.accountId).toBe(accountA.accountId);
+      expect(options.accountBinding?.provider).toBe("grok");
+      expect(options.baseSpawnEnv?.GROK_HOME).toBe(
+        runtime.accountStore.credentialRoot(accountA.accountId),
+      );
+      expect(options.baseSpawnEnv?.GROK_HOME).not.toBe(
+        runtime.accountStore.credentialRoot(accountB.accountId),
+      );
+    });
+
+    it("binds a new Session to the newly selected Grok account", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const accountA = addGrokAccount(runtime, "A");
+      const accountB = addGrokAccount(runtime, "B");
+      runtime.selectAccount(accountB.accountId);
+
+      const adapter = routedAdapter("grok");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-selected-b"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "bind B",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as { accountBinding?: { accountId: string } };
+      expect(options.accountBinding?.accountId).toBe(accountB.accountId);
+      void accountA;
+    });
+
+    it("auto-falls back to the next Grok account when the selected account is exhausted", async () => {
+      const runtime = makeRuntime(() => undefined);
+      addGrokAccount(runtime, "A", "quota-exhausted");
+      const accountB = addGrokAccount(runtime, "B");
+      // The first account is selected by default; exhaustion must not stick.
+      runtime.accountStore.updateStatus(accountB.accountId, "available");
+
+      const adapter = routedAdapter("grok");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-auto-fallback"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "auto fallback",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as { accountBinding?: { accountId: string } };
+      const selectedId = runtime.accountStore.selectedAccount("grok")?.accountId;
+      const recordA = runtime.accountStore.getRecord(runtime.accountStore.list("grok")[0]!.accountId);
+      const recordB = runtime.accountStore.getRecord(accountB.accountId);
+      const listGrok = runtime.accountStore.list("grok").map((a) => [a.label, a.status]);
+      expect(listGrok).toEqual([
+        ["A", "quota-exhausted"],
+        ["B", "available"],
+      ]);
+      expect(recordA?.status).toBe("quota-exhausted");
+      expect(recordB?.status).toBe("available");
+      expect(selectedId).not.toBe(accountB.accountId);
+      const resolved = runtime.accountResolver.resolve({
+        provider: "grok",
+        mode: "auto",
+        selectedAccountId: selectedId,
+      });
+      expect(resolved.account.accountId).toBe(accountB.accountId);
+      expect(resolved.candidates).toContainEqual(
+        expect.objectContaining({ accountId: accountB.accountId, eligible: true }),
+      );
+      expect(options.accountBinding?.accountId).toBe(accountB.accountId);
+    });
+
+    it("marks only the bound Grok account quota-exhausted from the official ACP error shape", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const accountA = addGrokAccount(runtime, "A");
+      const accountB = addGrokAccount(runtime, "B");
+      runtime.selectAccount(accountA.accountId);
+
+      const adapter = routedAdapter("grok");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-quota-error"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "bound A",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as {
+        onPromptError?: (error: unknown) => void | Promise<void>;
+      };
+      expect(options.onPromptError).toBeTypeOf("function");
+      await options.onPromptError?.(
+        new RequestError(-32603, "Internal error", {
+          message: "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+          http_status: 402,
+        }),
+      );
+
+      expect(runtime.accountStore.get(accountA.accountId)?.status).toBe("quota-exhausted");
+      expect(runtime.accountStore.get(accountB.accountId)?.status).toBe("available");
+    });
+
+    it("persists quota exhaustion when the first craftAgent prompt rejects with a duck-typed error", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = addGrokAccount(runtime, "A");
+      runtime.selectAccount(account.accountId);
+
+      const adapter = routedAdapter("grok");
+      const originalCreateSession = adapter.createSession.bind(adapter);
+      const quotaError = Object.assign(new Error("Internal error"), {
+        code: -32603,
+        data: {
+          message: "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+          http_status: 402,
+        },
+      });
+      adapter.createSession = async (entity) => {
+        const session = await originalCreateSession(entity);
+        session.sendPrompt = async () => {
+          throw quotaError;
+        };
+        return session;
+      };
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await expect(
+        runtime.craftAgent({
+          craftPlan: nativeCraftPlan("grok", "xai", "grok-first-turn-quota"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          prompt: "first turn",
+        }),
+      ).rejects.toMatchObject(quotaError);
+
+      expect(runtime.accountStore.get(account.accountId)).toMatchObject({
+        status: "quota-exhausted",
+        lastError: "Grok 额度已耗尽",
+        lastQuotaAt: expect.any(Number),
+      });
+      const metadata = JSON.parse(
+        readFileSync(join(runtime.accountStore.managedRoot, "accounts.json"), "utf8"),
+      ) as { accounts: Array<{ accountId: string; status: string }> };
+      expect(metadata.accounts).toEqual([
+        expect.objectContaining({ accountId: account.accountId, status: "quota-exhausted" }),
+      ]);
+    });
+
+    it("rejects an exhausted explicit Grok account instead of silently falling back", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const accountA = addGrokAccount(runtime, "A", "quota-exhausted");
+      addGrokAccount(runtime, "B");
+
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>();
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await expect(
+        runtime.craftAgent({
+          craftPlan: nativeCraftPlan("grok", "xai", "grok-session-explicit-error"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          accountId: accountA.accountId,
+          accountMode: "explicit",
+          prompt: "must not fall back",
+        }),
+      ).rejects.toThrow(/explicitly requested account is unavailable/);
+      expect(factory).not.toHaveBeenCalled();
+    });
+
+    it("keeps an already-started Session bound to its original account after selection changes", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const accountA = addGrokAccount(runtime, "A");
+      const accountB = addGrokAccount(runtime, "B");
+      runtime.selectAccount(accountA.accountId);
+
+      const adapterA = routedAdapter("grok");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>();
+      nativeHarnessFactoryOverrides.set("grok", factory);
+      factory.mockImplementation(() => adapterA);
+
+      const sessionA = await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-sticky-a"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "sticky A",
+      });
+      expect(sessionA.accountBinding?.accountId).toBe(accountA.accountId);
+
+      // Switch selection mid-flight: a NEW session picks B while session A stays A.
+      runtime.selectAccount(accountB.accountId);
+      const adapterB = routedAdapter("grok");
+      factory.mockImplementation(() => adapterB);
+      const sessionB = await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-sticky-b"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "sticky B",
+      });
+
+      expect(sessionB.accountBinding?.accountId).toBe(accountB.accountId);
+      expect(sessionA.accountBinding?.accountId).toBe(accountA.accountId);
+      expect(sessionA.accountBinding?.accountId).not.toBe(sessionB.accountBinding?.accountId);
+    });
   });
 });

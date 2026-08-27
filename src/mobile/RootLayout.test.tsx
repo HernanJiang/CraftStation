@@ -419,7 +419,7 @@ describe("mobile RootLayout", () => {
 
     render(<RootLayout />);
 
-    const brand = screen.getByRole("button", { name: "Poracode" });
+    const brand = screen.getByRole("button", { name: "CraftStation" });
     const connection = screen.getByTestId("connection-pill");
     const more = screen.getByLabelText("More");
     expect(
@@ -461,7 +461,7 @@ describe("mobile RootLayout", () => {
 
     render(<RootLayout />);
 
-    expect(screen.getByRole("button", { name: "Poracode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CraftStation" })).toBeInTheDocument();
     expect(screen.queryByTestId("thread-title-row")).not.toBeInTheDocument();
   });
 

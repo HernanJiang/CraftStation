@@ -110,6 +110,7 @@ export function dbUpsertThread(thread: Thread, sortOrder: number): void {
       compositionProvenance: thread.compositionProvenance
         ? JSON.stringify(thread.compositionProvenance)
         : null,
+      accountBinding: thread.accountBinding ? JSON.stringify(thread.accountBinding) : null,
       terminalPrompt: null,
       worktreePath: thread.worktreePath ?? null,
       worktreeBranch: thread.worktreeBranch ?? null,
@@ -143,6 +144,7 @@ export function dbUpsertThread(thread: Thread, sortOrder: number): void {
         compositionProvenance: thread.compositionProvenance
           ? JSON.stringify(thread.compositionProvenance)
           : null,
+        accountBinding: thread.accountBinding ? JSON.stringify(thread.accountBinding) : null,
         terminalPrompt: null,
         worktreePath: thread.worktreePath ?? null,
         worktreeBranch: thread.worktreeBranch ?? null,

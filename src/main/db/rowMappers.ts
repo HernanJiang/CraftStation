@@ -1,6 +1,7 @@
 import type { ProjectLocation, Project, Thread } from "@/shared/contracts";
 import * as schema from "../db.schema";
 import { compositionProvenanceSchema } from "@/shared/crafting/types";
+import { accountBindingSchema } from "@/shared/contracts/accountBinding";
 
 // ── Converters ──────────────────────────────────────────────────────
 
@@ -73,6 +74,9 @@ export function rowToThread(row: typeof schema.threads.$inferSelect): Thread {
   const parsedCompositionProvenance = row.compositionProvenance
     ? compositionProvenanceSchema.safeParse(safeParse(row.compositionProvenance))
     : undefined;
+  const parsedAccountBinding = row.accountBinding
+    ? accountBindingSchema.safeParse(safeParse(row.accountBinding))
+    : undefined;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -90,6 +94,7 @@ export function rowToThread(row: typeof schema.threads.$inferSelect): Thread {
     ...(parsedCompositionProvenance?.success
       ? { compositionProvenance: parsedCompositionProvenance.data }
       : {}),
+    ...(parsedAccountBinding?.success ? { accountBinding: parsedAccountBinding.data } : {}),
     ...(row.worktreePath ? { worktreePath: row.worktreePath } : {}),
     ...(row.worktreeBranch ? { worktreeBranch: row.worktreeBranch } : {}),
     ...(row.prNumber != null ? { prNumber: row.prNumber } : {}),

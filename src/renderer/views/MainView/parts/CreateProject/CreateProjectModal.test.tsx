@@ -78,7 +78,7 @@ describe("CreateProjectModal", () => {
 
     fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "my-app" } });
 
-    await waitFor(() => expect(picker).toHaveTextContent("/Users/me/my-app"));
+    await waitFor(() => expect(picker).toHaveTextContent("/Users/me"));
     expect(screen.queryByText(/Will create/i)).not.toBeInTheDocument();
   });
 

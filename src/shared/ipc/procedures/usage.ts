@@ -4,6 +4,31 @@ import {
   usageLoginConfirmationPayloadSchema,
   usageLoginPayloadSchema,
   usageLoginStatePayloadSchema,
+  accountAddPayloadSchema,
+  accountEnabledPayloadSchema,
+  accountRenamePayloadSchema,
+  accountIdPayloadSchema,
+  accountProviderPayloadSchema,
+  accountReorderPayloadSchema,
+  accountResolutionRequestSchema,
+  tokenUsagePayloadSchema,
+  codexProfileCreatePayloadSchema,
+  codexProfileImportPayloadSchema,
+  codexProfileLoginPayloadSchema,
+  grokProfileLoginCreatePayloadSchema,
+  grokProfileLoginPayloadSchema,
+  grokProfileCompletePayloadSchema,
+  grokProfileCancelPayloadSchema,
+  grokProfilePollPayloadSchema,
+  type AccountAddPayload,
+  type AccountEnabledPayload,
+  type AccountIdPayload,
+  type AccountProviderPayload,
+  type AccountRenamePayload,
+  type AccountReorderPayload,
+  type AccountResolution,
+  type AccountResolutionRequest,
+  type AccountView,
   type ProviderUsagePayload,
   type ProviderUsageResponse,
   type UsageApiKeyPayload,
@@ -13,6 +38,20 @@ import {
   type UsageLoginStatePayload,
   type UsageLoginStateResponse,
   type UsageLogoutResult,
+  type TokenUsagePayload,
+  type TokenUsageResponse,
+  type CodexProfileCreatePayload,
+  type CodexProfileImportPayload,
+  type CodexProfileLoginPayload,
+  type CodexProfileLoginResult,
+  type GrokProfileLoginCreatePayload,
+  type GrokProfileLoginCreateResult,
+  type GrokProfileLoginPayload,
+  type GrokProfileLoginResult,
+  type GrokProfileCompletePayload,
+  type GrokProfileCancelPayload,
+  type GrokProfilePollPayload,
+  type GrokProfilePollResult,
 } from "../../contracts";
 import { definePayloadProcedure } from "../core";
 
@@ -57,4 +96,99 @@ export const usageProcedures = {
     ProviderUsageResponse,
     "supervisor"
   >("refreshProviderUsage", "supervisor", providerUsagePayloadSchema),
+  listAccounts: definePayloadProcedure<AccountProviderPayload, AccountView[], "supervisor">(
+    "listAccounts",
+    "supervisor",
+    accountProviderPayloadSchema,
+  ),
+  addAccount: definePayloadProcedure<AccountAddPayload, AccountView, "supervisor">(
+    "addAccount",
+    "supervisor",
+    accountAddPayloadSchema,
+  ),
+  removeAccount: definePayloadProcedure<AccountIdPayload, void, "supervisor">(
+    "removeAccount",
+    "supervisor",
+    accountIdPayloadSchema,
+  ),
+  selectAccount: definePayloadProcedure<AccountIdPayload, AccountView, "supervisor">(
+    "selectAccount",
+    "supervisor",
+    accountIdPayloadSchema,
+  ),
+  setAccountEnabled: definePayloadProcedure<AccountEnabledPayload, AccountView, "supervisor">(
+    "setAccountEnabled",
+    "supervisor",
+    accountEnabledPayloadSchema,
+  ),
+  renameAccount: definePayloadProcedure<AccountRenamePayload, AccountView, "supervisor">(
+    "renameAccount",
+    "supervisor",
+    accountRenamePayloadSchema,
+  ),
+  reorderAccounts: definePayloadProcedure<AccountReorderPayload, AccountView[], "supervisor">(
+    "reorderAccounts",
+    "supervisor",
+    accountReorderPayloadSchema,
+  ),
+  resolveAccount: definePayloadProcedure<AccountResolutionRequest, AccountResolution, "supervisor">(
+    "resolveAccount",
+    "supervisor",
+    accountResolutionRequestSchema,
+  ),
+  getTokenUsage: definePayloadProcedure<TokenUsagePayload, TokenUsageResponse, "supervisor">(
+    "getTokenUsage",
+    "supervisor",
+    tokenUsagePayloadSchema,
+  ),
+  refreshTokenUsage: definePayloadProcedure<TokenUsagePayload, TokenUsageResponse, "supervisor">(
+    "refreshTokenUsage",
+    "supervisor",
+    tokenUsagePayloadSchema,
+  ),
+  createCodexProfile: definePayloadProcedure<CodexProfileCreatePayload, AccountView, "supervisor">(
+    "createCodexProfile",
+    "supervisor",
+    codexProfileCreatePayloadSchema,
+  ),
+  importCodexProfile: definePayloadProcedure<CodexProfileImportPayload, AccountView, "supervisor">(
+    "importCodexProfile",
+    "supervisor",
+    codexProfileImportPayloadSchema,
+  ),
+  startCodexProfileLogin: definePayloadProcedure<
+    CodexProfileLoginPayload,
+    CodexProfileLoginResult,
+    "supervisor"
+  >("startCodexProfileLogin", "supervisor", codexProfileLoginPayloadSchema),
+  createGrokProfileLogin: definePayloadProcedure<
+    GrokProfileLoginCreatePayload,
+    GrokProfileLoginCreateResult,
+    "supervisor"
+  >("createGrokProfileLogin", "supervisor", grokProfileLoginCreatePayloadSchema),
+  startGrokProfileLogin: definePayloadProcedure<
+    GrokProfileLoginPayload,
+    GrokProfileLoginResult,
+    "supervisor"
+  >("startGrokProfileLogin", "supervisor", grokProfileLoginPayloadSchema),
+  completeGrokProfileLogin: definePayloadProcedure<
+    GrokProfileCompletePayload,
+    AccountView,
+    "supervisor"
+  >("completeGrokProfileLogin", "supervisor", grokProfileCompletePayloadSchema),
+  cancelGrokProfileLogin: definePayloadProcedure<
+    GrokProfileCancelPayload,
+    void,
+    "supervisor"
+  >("cancelGrokProfileLogin", "supervisor", grokProfileCancelPayloadSchema),
+  pollGrokProfileLogin: definePayloadProcedure<
+    GrokProfilePollPayload,
+    GrokProfilePollResult,
+    "supervisor"
+  >("pollGrokProfileLogin", "supervisor", grokProfilePollPayloadSchema),
+  refreshAccountQuota: definePayloadProcedure<AccountIdPayload, AccountView, "supervisor">(
+    "refreshAccountQuota",
+    "supervisor",
+    accountIdPayloadSchema,
+  ),
 } as const;

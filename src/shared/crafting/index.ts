@@ -3,6 +3,8 @@ export * from "./errors";
 export * from "./registry";
 export * from "./crafter";
 export * from "./runtimeInterface";
+export * from "./nativeHarness";
 export * from "./provenanceStore";
 export * from "./recipes/openaiCodexRecipe";
+export * from "./recipes/nativeHarnessRecipe";
 export * from "./fakeCodexHarness";

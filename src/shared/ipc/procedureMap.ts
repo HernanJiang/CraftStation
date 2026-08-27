@@ -17,6 +17,7 @@ import { sshProcedures } from "./procedures/ssh";
 import { threadProcedures } from "./procedures/thread";
 import { updatesProcedures } from "./procedures/updates";
 import { usageProcedures } from "./procedures/usage";
+import { nativeHarnessProcedures } from "./procedures/nativeHarness";
 
 export const groupedIpcProcedures = {
   app: appProcedures,
@@ -33,6 +34,7 @@ export const groupedIpcProcedures = {
   mcp: mcpProcedures,
   browser: browserProcedures,
   usage: usageProcedures,
+  nativeHarness: nativeHarnessProcedures,
   profile: profileProcedures,
   schedules: scheduleProcedures,
   prWatches: prWatchProcedures,
@@ -55,6 +57,7 @@ export const ipcProcedureMap = {
   ...mcpProcedures,
   ...browserProcedures,
   ...usageProcedures,
+  ...nativeHarnessProcedures,
   ...profileProcedures,
   ...scheduleProcedures,
   ...prWatchProcedures,

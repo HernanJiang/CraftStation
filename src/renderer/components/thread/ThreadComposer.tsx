@@ -223,11 +223,7 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
   const fullAccess = !planMode && permissionIsFull(permissionControl);
   const label = planMode ? "计划模式" : fullAccess ? "完全访问权限" : "请求批准";
   const Icon = planMode ? ClipboardList : fullAccess ? Zap : ShieldCheck;
-  const tone = planMode
-    ? "text-sky-300"
-    : fullAccess
-      ? "text-amber-300"
-      : "text-emerald-300";
+  const tone = planMode ? "text-sky-300" : fullAccess ? "text-amber-300" : "text-emerald-300";
 
   return (
     <Dropdown>
@@ -1018,6 +1014,7 @@ export function ThreadComposer(props: {
         onDragLeave={handleAttachmentDragLeave}
         onDrop={handleAttachmentDrop}
       >
+        <span className="poracode-composer-border-glow" aria-hidden="true" />
         {isAttachmentDropActive ? (
           <div className="poracode-composer-drop-overlay">
             <Trans>Drop here to attach</Trans>

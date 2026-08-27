@@ -185,7 +185,7 @@ let poracodePaths: PoracodePaths | null = null;
 if (hasSingleInstanceLock) {
   const electronUserDataDir = app.getPath("userData");
   poracodePaths = preparePoracodeDataRoot(
-    baseDirOverride ?? (isDev ? join(homedir(), ".poracode-dev") : resolvePoracodeBaseDir(channel)),
+    baseDirOverride ?? (isDev ? join(homedir(), ".craftstation-dev") : resolvePoracodeBaseDir(channel)),
     {
       channel,
       electronUserDataDir,

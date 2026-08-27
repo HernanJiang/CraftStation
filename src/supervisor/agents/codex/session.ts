@@ -1,14 +1,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ProjectLocation } from "@/shared/contracts";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
 import {
   findSessionFiles,
   getCachedWslHomeDirectory,
   readSessionFileText,
   resolveWslHomeDirectoryAsync,
 } from "../base";
+import { isolatedCodexHomeCandidates, nativePrivateCodexHome } from "./codexRouterOverlay";
 import {
   parseCodexRolloutIdFromPath,
   parseCodexRolloutMeta,
@@ -17,12 +16,8 @@ import {
   type CodexRolloutMeta,
 } from "./sessionFiles";
 
-function nativePrivateCodexHome(): string {
-  return join(resolvePoracodePaths(process.env.PORACODE_DATA_DIR).agentPluginsDir, "codex", "home");
-}
-
 function nativeCodexHomeCandidates(): string[] {
-  return [join(homedir(), ".codex"), nativePrivateCodexHome()];
+  return isolatedCodexHomeCandidates();
 }
 
 /** Append the codex private-home suffix to a resolved WSL `$HOME`, if present. */
@@ -258,10 +253,7 @@ export function resolveCodexSessionWatchPaths(location: ProjectLocation): string
       privateHome ? `${privateHome}/sessions` : undefined,
     ].filter((p): p is string => Boolean(p));
   }
-  const paths: string[] = [];
-  const publicSessions = join(homedir(), ".codex", "sessions");
-  if (existsSync(publicSessions)) paths.push(publicSessions);
-  const privateSessions = join(nativePrivateCodexHome(), "sessions");
-  if (existsSync(privateSessions)) paths.push(privateSessions);
-  return paths;
+  return isolatedCodexHomeCandidates()
+    .map((home) => join(home, "sessions"))
+    .filter((path) => existsSync(path));
 }

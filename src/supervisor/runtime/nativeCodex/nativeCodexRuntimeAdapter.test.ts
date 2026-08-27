@@ -7,7 +7,7 @@ import { AppServerClient } from "./appServerClient";
 import { NativeCodexRuntimeAdapter } from "./nativeCodexRuntimeAdapter";
 
 describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
-  function setupMockClientTransport() {
+  function setupMockClientTransport(options: { turnStartError?: string } = {}) {
     const clientToHost = new PassThrough();
     const hostToClient = new PassThrough();
     const transport = new JsonRpcTransport(hostToClient, clientToHost);
@@ -48,6 +48,14 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
                     cwd: msg.params?.cwd,
                   },
                 },
+              }) + "\n",
+            );
+          } else if (msg.method === "turn/start" && options.turnStartError) {
+            hostToClient.write(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: msg.id,
+                error: { code: -32001, message: options.turnStartError },
               }) + "\n",
             );
           } else if (msg.method === "turn/start") {
@@ -228,14 +236,91 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
     expect(eventTypes).toContain("item.completed");
     expect(eventTypes).toContain("turn.completed");
 
-    const tokenEvent = emittedEvents.find((e) => e.type === "usage.spent") as any;
-    expect(tokenEvent?.inputTokens).toBe(42);
-    expect(tokenEvent?.outputTokens).toBe(10);
+    const tokenEvent = emittedEvents.find((e) => e.type === "usage.spent");
+    expect(tokenEvent).toMatchObject({
+      type: "usage.spent",
+      nativeEnvelope: {
+        harnessKind: "codex",
+        source: "native",
+        nativeType: "thread/tokenUsage/updated",
+        providerSessionId: "thread-official-123",
+      },
+      usage: {
+        counterKind: "cumulative",
+        counter: 52,
+        scopeId: "thread-official-123",
+        epoch: 0,
+        fresh: true,
+      },
+    });
 
     const snapshot = session.getSnapshot();
     expect(snapshot.status).toBe("idle");
     expect(snapshot.activeTurnStatus).toBe("completed");
+    expect(snapshot.nativeSessionRef).toBe("thread-official-123");
+    expect(snapshot.nativeEvents?.length).toBe(emittedEvents.length);
     expect(snapshot.events.length).toBe(emittedEvents.length);
+  });
+
+  it("reports an app-server protocol failure as a stable native diagnostic", async () => {
+    const { client } = setupMockClientTransport({
+      turnStartError: "native protocol mismatch",
+    });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { threadId: "thread-transport-close" },
+    ).craftPlan!;
+
+    const entity = await adapter.spawnEntity(plan);
+    const session = await adapter.createSession(entity);
+    const turn = session.startTurn({ prompt: "close transport" });
+
+    await expect(turn).rejects.toMatchObject({ code: "EXECUTION_FAILED" });
+    expect(session.getDiagnostics?.() ?? []).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "PROTOCOL_MISMATCH",
+          operation: "startTurn",
+        }),
+      ]),
+    );
+    expect(session.getSnapshot().events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "turn.completed",
+          state: "failed",
+        }),
+      ]),
+    );
+  });
+
+  it("carries the launch account into native usage events before thread persistence catches up", async () => {
+    const { client } = setupMockClientTransport();
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: {
+        accountId: "codex:work",
+        provider: "codex",
+        credentialScopeRef: "managed:codex:work",
+        reason: "selected",
+        boundAt: 1,
+      },
+    });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { threadId: "thread-account-usage" },
+    ).craftPlan!;
+
+    const entity = await adapter.spawnEntity(plan);
+    const session = await adapter.createSession(entity);
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    await session.startTurn({ prompt: "account usage" });
+
+    expect(events.find((event) => event.type === "usage.spent")).toMatchObject({
+      usage: { accountId: "codex:work" },
+    });
   });
 
   it("supports continuous multi-turn conversations on the same native Session", async () => {

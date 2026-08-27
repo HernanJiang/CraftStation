@@ -6607,6 +6607,9 @@ msgstr "Loading workflow runs"
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/parts/TreeEntryRow.tsx
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 #: src/renderer/views/SettingsOverlay/parts/RemoteHostFolderPicker.tsx
+msgid "Starting up"
+msgstr "Starting up"
+
 msgid "Loading…"
 msgstr "Loading…"
 

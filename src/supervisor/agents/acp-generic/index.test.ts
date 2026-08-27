@@ -176,14 +176,14 @@ describe("createAcpGenericAdapter", () => {
     await adapter.detectInstall();
 
     const launchArgs = vi.mocked(probeAcpCapabilities).mock.calls[0]?.[1] ?? [];
-    const launchTokens = launchArgs.flatMap((arg) => arg.replaceAll("'", "").split(/\s+/u));
-    expect(launchTokens.slice(-5)).toEqual([
-      "-y",
-      "droid@0.170.0",
-      "exec",
-      "--output-format",
-      "acp",
-    ]);
+    const encodedIndex = launchArgs.indexOf("-EncodedCommand");
+    const decoded =
+      encodedIndex >= 0 && typeof launchArgs[encodedIndex + 1] === "string"
+        ? Buffer.from(launchArgs[encodedIndex + 1]!, "base64").toString("utf16le")
+        : launchArgs.join(" ");
+    for (const arg of ["-y", "droid@0.170.0", "exec", "--output-format", "acp"]) {
+      expect(decoded).toContain(`'${arg}'`);
+    }
     expect(launchArgs.join(" ")).not.toContain("acp-daemon");
   });
 

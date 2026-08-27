@@ -5,13 +5,36 @@
 delete process.env.ELECTRON_RUN_AS_NODE;
 
 import { execSync, spawn } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { resolveDevServerPort } from "./dev-server-port.mjs";
 import { sweepStaleSupervisors } from "./sweepStaleSupervisors.mjs";
 
-// Reap orphaned dev supervisors left behind by crashed / force-quit dev
-// instances before launching a new one. Best effort; never blocks launch.
+const here = dirname(fileURLToPath(import.meta.url));
+const mainEntry = resolve(here, "../dist/main/main.cjs");
+
+function fileLooksReady(path) {
+  try {
+    return existsSync(path) && statSync(path).size > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForMainEntry(timeoutMs = 30_000) {
+  const started = Date.now();
+  while (!fileLooksReady(mainEntry)) {
+    if (Date.now() - started > timeoutMs) {
+      throw new Error(`Timed out waiting for ${mainEntry}`);
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 150));
+  }
+}
+
 sweepStaleSupervisors();
+await waitForMainEntry();
 
 const env = {
   ...process.env,

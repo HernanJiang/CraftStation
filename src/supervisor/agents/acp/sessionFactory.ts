@@ -63,6 +63,7 @@ export function createAcpStructuredSession(
     ...(input.loadSessionErrorRewriter
       ? { loadSessionErrorRewriter: input.loadSessionErrorRewriter }
       : {}),
+    ...(input.onPromptError ? { onPromptError: input.onPromptError } : {}),
     ...(input.acpEmptyResponseErrorResolver
       ? { emptyResponseErrorResolver: input.acpEmptyResponseErrorResolver }
       : {}),

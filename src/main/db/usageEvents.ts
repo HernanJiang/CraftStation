@@ -16,6 +16,10 @@ export interface UsageEventInput {
   fast?: boolean | undefined;
   effort?: string | null | undefined;
   name?: string | null | undefined;
+  projectId?: string | null | undefined;
+  sessionId?: string | null | undefined;
+  tool?: string | null | undefined;
+  accountId?: string | null | undefined;
   value?: number | undefined;
 }
 
@@ -28,6 +32,10 @@ export interface UsageEventRow {
   fast: boolean;
   effort: string | null;
   name: string | null;
+  projectId: string | null;
+  sessionId: string | null;
+  tool: string | null;
+  accountId: string | null;
   value: number;
 }
 
@@ -35,7 +43,7 @@ export function dbAppendUsageEvents(events: readonly UsageEventInput[]): void {
   const sqlite = getSqlite();
   if (events.length === 0) return;
   const stmt = sqlite.prepare(
-    "INSERT INTO usage_events (ts, kind, provider, model, mode, fast, effort, name, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO usage_events (ts, kind, provider, model, mode, fast, effort, name, project_id, session_id, tool, account_id, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   sqlite.transaction((rows: readonly UsageEventInput[]) => {
     for (const e of rows) {
@@ -48,6 +56,10 @@ export function dbAppendUsageEvents(events: readonly UsageEventInput[]): void {
         e.fast ? 1 : 0,
         e.effort ?? null,
         e.name ?? null,
+        e.projectId ?? null,
+        e.sessionId ?? null,
+        e.tool ?? null,
+        e.accountId ?? null,
         e.value ?? 1,
       );
     }
@@ -67,7 +79,9 @@ export function dbGetAllUsageEvents(): UsageEventRow[] {
     return _usageEventsCache.rows;
   }
   const rows = sqlite
-    .prepare("SELECT ts, kind, provider, model, mode, fast, effort, name, value FROM usage_events")
+    .prepare(
+      "SELECT ts, kind, provider, model, mode, fast, effort, name, project_id, session_id, tool, account_id, value FROM usage_events",
+    )
     .all() as Array<{
     ts: number;
     kind: string;
@@ -77,6 +91,10 @@ export function dbGetAllUsageEvents(): UsageEventRow[] {
     fast: number;
     effort: string | null;
     name: string | null;
+    project_id: string | null;
+    session_id: string | null;
+    tool: string | null;
+    account_id: string | null;
     value: number;
   }>;
   const mapped: UsageEventRow[] = rows.map((r) => ({
@@ -88,6 +106,10 @@ export function dbGetAllUsageEvents(): UsageEventRow[] {
     fast: r.fast === 1,
     effort: r.effort,
     name: r.name,
+    projectId: r.project_id,
+    sessionId: r.session_id,
+    tool: r.tool,
+    accountId: r.account_id,
     value: r.value,
   }));
   _usageEventsCache = { generation: getProfileDataGeneration(), rows: mapped };

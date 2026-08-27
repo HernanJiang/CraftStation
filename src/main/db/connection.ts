@@ -127,6 +127,7 @@ export function initDatabase(dbPath: string) {
       can_resume_with_config INTEGER NOT NULL DEFAULT 0,
       session_ref TEXT,
       composition_provenance TEXT,
+      account_binding TEXT,
       terminal_prompt TEXT,
       worktree_path TEXT,
       worktree_branch TEXT,
@@ -185,6 +186,10 @@ export function initDatabase(dbPath: string) {
       fast INTEGER NOT NULL DEFAULT 0,
       effort TEXT,
       name TEXT,
+      project_id TEXT,
+      session_id TEXT,
+      tool TEXT,
+      account_id TEXT,
       value INTEGER NOT NULL DEFAULT 1
     );
     CREATE INDEX IF NOT EXISTS idx_usage_events_kind ON usage_events (kind);

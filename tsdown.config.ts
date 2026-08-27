@@ -10,6 +10,7 @@ import {
 
 const isProd = process.env.NODE_ENV === "production";
 const sourcemap = isProd ? ("hidden" as const) : true;
+const isWatch = process.argv.includes("--watch");
 
 function readEnvValue(key: string): string {
   return (process.env[key] ?? "").trim();
@@ -116,7 +117,9 @@ const cliShared = {
 export default defineConfig([
   {
     entry: { main: "src/main/main.ts" },
-    clean: true,
+    // Watch rebuilds must not wipe dist/main; electronmon restarts as soon as
+    // main.cjs disappears and Electron then reports a missing package main.
+    clean: isProd && !isWatch,
     ...shared,
   },
   {

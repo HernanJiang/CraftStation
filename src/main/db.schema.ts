@@ -39,6 +39,8 @@ export const threads = sqliteTable("threads", {
     .default(false),
   sessionRef: text("session_ref"), // JSON
   compositionProvenance: text("composition_provenance"), // JSON
+  /** Immutable account binding captured when a composed Codex session starts. */
+  accountBinding: text("account_binding"), // JSON
   terminalPrompt: text("terminal_prompt"), // JSON
   worktreePath: text("worktree_path"),
   worktreeBranch: text("worktree_branch"),

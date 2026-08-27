@@ -97,6 +97,8 @@ export const craftAgentPayloadSchema = z.object({
   craftPlan: craftPlanSchema,
   projectLocation: projectLocationSchema,
   prompt: z.string(),
+  accountId: z.string().min(1).optional(),
+  accountMode: z.enum(["explicit", "selected", "auto"]).optional(),
 });
 export type CraftAgentPayload = z.infer<typeof craftAgentPayloadSchema>;
 
@@ -105,6 +107,15 @@ export const craftAgentResultSchema = z.object({
   entityId: z.string().min(1),
   sessionId: z.string().min(1),
   response: z.string(),
+  accountBinding: z
+    .object({
+      accountId: z.string().min(1),
+      provider: z.string().min(1),
+      credentialScopeRef: z.string().min(1),
+      reason: z.enum(["explicit", "selected", "priority-fallback"]),
+      boundAt: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 export type CraftAgentResult = z.infer<typeof craftAgentResultSchema>;
 
@@ -113,6 +124,7 @@ export const resumeCraftAgentPayloadSchema = z.object({
   projectLocation: projectLocationSchema,
   sessionRef: z.string().min(1),
   prompt: z.string().optional(),
+  accountId: z.string().min(1).optional(),
 });
 export type ResumeCraftAgentPayload = z.infer<typeof resumeCraftAgentPayloadSchema>;
 

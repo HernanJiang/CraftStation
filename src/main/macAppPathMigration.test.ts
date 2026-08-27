@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { repairLegacyMacAppPath } from "./macAppPathMigration";
 
-describe("repairLegacyMacAppPath", () => {
+const describeMac = process.platform === "darwin" ? describe : describe.skip;
+
+describeMac("repairLegacyMacAppPath", () => {
   let root: string;
 
   beforeEach(() => {

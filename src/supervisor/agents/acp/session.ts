@@ -207,6 +207,8 @@ export interface AcpStructuredSessionOptions {
    * sessionId that was being loaded; must return the Error to throw.
    */
   loadSessionErrorRewriter?: (error: unknown, sessionId: string) => Error;
+  /** Observe raw prompt failures for provider-specific runtime state updates. */
+  onPromptError?: (error: unknown) => void | Promise<void>;
   emptyResponseErrorResolver?: AcpEmptyResponseErrorResolver;
   /**
    * Per-adapter notification preprocessor. When set, every `session/update`
@@ -271,6 +273,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     rewriteLoadSessionError;
 
   private emptyResponseErrorResolver?: AcpEmptyResponseErrorResolver;
+  private onPromptError?: (error: unknown) => void | Promise<void>;
 
   private sessionUpdateTransform?: (notification: SessionNotification) => SessionNotification;
   private extensionSessionUpdateTransform?: import("../base/types").AcpExtensionSessionUpdateTransform;
@@ -446,6 +449,9 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     }
     if (options?.emptyResponseErrorResolver) {
       this.emptyResponseErrorResolver = options.emptyResponseErrorResolver;
+    }
+    if (options?.onPromptError) {
+      this.onPromptError = options.onPromptError;
     }
     if (options?.sessionUpdateTransform) {
       this.sessionUpdateTransform = options.sessionUpdateTransform;
@@ -1074,6 +1080,13 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         this.emitListenerUpdate({ status: "idle", attention: "none" });
         this.completeTurn(this.ensureMapperState(), "cancelled");
       } else {
+        try {
+          await this.onPromptError?.(error);
+        } catch (callbackError) {
+          // Provider/account bookkeeping must not hide the original prompt
+          // failure or prevent the canonical error event from reaching UI.
+          console.warn("[acp] prompt error observer failed:", callbackError);
+        }
         this.emitPromptFailure(error);
       }
     } finally {

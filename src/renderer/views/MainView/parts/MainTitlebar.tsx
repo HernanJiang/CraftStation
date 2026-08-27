@@ -17,7 +17,6 @@ import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
 import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
-import { openModelUsageDialog } from "@/renderer/actions/panelActions";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -131,7 +130,11 @@ export function MainTitlebar() {
           </button>
         </ControlTooltip>
         <ControlTooltip label={t`Usage`} detail={t`View model authorization and usage`}>
-          <button type="button" className={buttonClass} onClick={() => usePanelStore.getState().openModelUsageDialog()}>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => usePanelStore.getState().openModelUsageDialog()}
+          >
             <Gauge className="size-3.5" />
             <span>{t`Usage`}</span>
           </button>
@@ -196,4 +199,3 @@ export function MainTitlebar() {
     </header>
   );
 }
-

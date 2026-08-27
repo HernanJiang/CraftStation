@@ -32,11 +32,12 @@ describe("welcomeGateStore", () => {
     expect(mod.useWelcomeGateStore.getState().backgroundWorkReleased).toBe(false);
   });
 
-  it("seeds released=true for a returning user (welcome already seen)", async () => {
+  it("still shows the launch screen for a returning user so startup can finish in the background", async () => {
     vi.resetModules();
     localStorage.setItem(WELCOME_SEEN_STORAGE_KEY, "true");
     const mod = await import("./welcomeGateStore");
-    expect(mod.useWelcomeGateStore.getState().backgroundWorkReleased).toBe(true);
+    expect(mod.isWelcomeSeen()).toBe(false);
+    expect(mod.useWelcomeGateStore.getState().backgroundWorkReleased).toBe(false);
   });
 
   it("treats a manual test launch as welcome-seen without persisting the flag", async () => {
@@ -52,6 +53,7 @@ describe("welcomeGateStore", () => {
   });
 
   it("does not bypass welcome during an ordinary dev launch", () => {
+    localStorage.setItem(WELCOME_SEEN_STORAGE_KEY, "true");
     expect(isWelcomeSeen()).toBe(false);
   });
 });

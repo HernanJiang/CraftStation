@@ -54,6 +54,10 @@ export class AppServerClient {
     return this.transport.onNotification(listener);
   }
 
+  onClose(listener: () => void): () => void {
+    return this.transport.onClose(listener);
+  }
+
   setServerRequestHandler(handler: (request: JsonRpcRequest) => Promise<unknown>): void {
     this.transport.setServerRequestHandler(handler);
   }

@@ -1,4 +1,5 @@
 import type { Item, ItemKind, Recipe, SlotSelection } from "./types";
+import { NativeHarnessRecipe } from "./recipes/nativeHarnessRecipe";
 import { OpenAICodexNativeRecipe } from "./recipes/openaiCodexRecipe";
 
 export const BUILTIN_MODEL_ITEMS: Item[] = [
@@ -100,6 +101,103 @@ export const BUILTIN_MODEL_ITEMS: Item[] = [
   },
 ];
 
+export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
+  {
+    id: "xai:grok-4.6",
+    kind: "model",
+    metadata: {
+      id: "xai:grok-4.6",
+      name: "Grok 4.6",
+      version: "audit-2026-08",
+      vendor: "xai",
+      source: "builtin",
+      description: "xAI model family paired with the official Grok Build Harness.",
+      tags: ["coding", "xai", "grok"],
+      compatibilityStatus: "NATIVE",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "xai",
+        modelId: "grok-4.6",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "moonshot:kimi-for-coding",
+    kind: "model",
+    metadata: {
+      id: "moonshot:kimi-for-coding",
+      name: "Kimi for Coding",
+      version: "audit-2026-08",
+      vendor: "moonshot",
+      source: "builtin",
+      description: "Moonshot coding model paired with the official Kimi Code Harness.",
+      tags: ["coding", "moonshot", "kimi"],
+      compatibilityStatus: "NATIVE",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "moonshot",
+        modelId: "kimi-for-coding",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "google:antigravity-default",
+    kind: "model",
+    metadata: {
+      id: "google:antigravity-default",
+      name: "Antigravity Default Model",
+      version: "audit-2026-08",
+      vendor: "google",
+      source: "builtin",
+      description: "Google-side model family paired with the official Antigravity Harness.",
+      tags: ["coding", "google", "antigravity"],
+      compatibilityStatus: "NATIVE",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "google",
+        modelId: "antigravity-default",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "deepseek:deepseek-chat",
+    kind: "model",
+    metadata: {
+      id: "deepseek:deepseek-chat",
+      name: "DeepSeek Chat",
+      version: "reserved-native",
+      vendor: "deepseek",
+      source: "builtin",
+      description: "Reserved model family for the official DeepSeek / DSH Harness.",
+      tags: ["coding", "deepseek", "reserved"],
+      compatibilityStatus: "EXPERIMENTAL",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "deepseek",
+        modelId: "deepseek-chat",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+];
+
+BUILTIN_MODEL_ITEMS.push(...BUILTIN_NATIVE_HARNESS_MODEL_ITEMS);
+
 export const BUILTIN_CODEX_HARNESS_ITEM: Item = {
   id: "harness:codex",
   kind: "harness",
@@ -124,6 +222,119 @@ export const BUILTIN_CODEX_HARNESS_ITEM: Item = {
   ],
 };
 
+function createNativeHarnessItem(input: {
+  id: string;
+  name: string;
+  vendor: string;
+  description: string;
+  compatibilityStatus?: "NATIVE" | "SUPPORTED" | "EXPERIMENTAL" | "INCOMPATIBLE";
+  executionMode: "structured_session" | "terminal_pty";
+}): Item {
+  return {
+    id: input.id,
+    kind: "harness",
+    metadata: {
+      id: input.id,
+      name: input.name,
+      version: "0.4.0",
+      vendor: input.vendor,
+      source: "builtin",
+      description: input.description,
+      tags: ["harness", input.vendor, "official", "native"],
+      compatibilityStatus: input.compatibilityStatus ?? "NATIVE",
+    },
+    components: [
+      {
+        kind: "harness_runtime",
+        harnessKind: input.id.replace(/^harness:/, ""),
+        supportedVendors: [input.vendor],
+        executionMode: input.executionMode,
+      },
+    ],
+  };
+}
+
+export const BUILTIN_GROK_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:grok",
+  name: "Grok Build Harness",
+  vendor: "xai",
+  description: "Official Grok Build agent runtime through its ACP stdio boundary.",
+  executionMode: "structured_session",
+});
+
+export const BUILTIN_KIMI_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:kimi",
+  name: "Kimi Code Harness",
+  vendor: "moonshot",
+  description: "Official Kimi Code agent runtime through its ACP boundary.",
+  executionMode: "structured_session",
+});
+
+export const BUILTIN_ANTIGRAVITY_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:antigravity",
+  name: "Antigravity Harness",
+  vendor: "google",
+  description: "Official Antigravity agent runtime through its interactive PTY.",
+  executionMode: "terminal_pty",
+});
+
+export const BUILTIN_DEEPSEEK_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:deepseek",
+  name: "DeepSeek / DSH Harness",
+  vendor: "deepseek",
+  description: "Reserved official DeepSeek / DSH native runtime binding.",
+  compatibilityStatus: "EXPERIMENTAL",
+  executionMode: "structured_session",
+});
+
+export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
+  BUILTIN_GROK_HARNESS_ITEM,
+  BUILTIN_KIMI_HARNESS_ITEM,
+  BUILTIN_ANTIGRAVITY_HARNESS_ITEM,
+  BUILTIN_DEEPSEEK_HARNESS_ITEM,
+];
+
+export const NATIVE_HARNESS_RECIPES = [
+  new NativeHarnessRecipe({
+    id: "recipe:xai-grok-native",
+    name: "xAI Grok Build Native Recipe",
+    description: "Native xAI model composition through the official Grok Build Harness.",
+    harnessKind: "grok",
+    harnessItemId: BUILTIN_GROK_HARNESS_ITEM.id,
+    modelVendors: ["xai"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:moonshot-kimi-native",
+    name: "Moonshot Kimi Code Native Recipe",
+    description: "Native Moonshot model composition through the official Kimi Code Harness.",
+    harnessKind: "kimi",
+    harnessItemId: BUILTIN_KIMI_HARNESS_ITEM.id,
+    modelVendors: ["moonshot"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:google-antigravity-native",
+    name: "Google Antigravity Native Recipe",
+    description: "Native Google-side composition through the official Antigravity Harness.",
+    harnessKind: "antigravity",
+    harnessItemId: BUILTIN_ANTIGRAVITY_HARNESS_ITEM.id,
+    modelVendors: ["google"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:deepseek-native",
+    name: "DeepSeek / DSH Native Recipe",
+    description: "Reserved native DeepSeek composition; unavailable until DSH is installed.",
+    harnessKind: "deepseek",
+    harnessItemId: BUILTIN_DEEPSEEK_HARNESS_ITEM.id,
+    modelVendors: ["deepseek"],
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+] as const;
+
+export const BUILTIN_HARNESS_ITEMS: Item[] = [
+  BUILTIN_CODEX_HARNESS_ITEM,
+  ...BUILTIN_NATIVE_HARNESS_ITEMS,
+];
+
 export class ItemRegistry {
   private items = new Map<string, Item>();
   private recipes = new Map<string, Recipe>();
@@ -136,8 +347,10 @@ export class ItemRegistry {
     for (const model of BUILTIN_MODEL_ITEMS) {
       this.registerItem(model);
     }
+    for (const harness of BUILTIN_NATIVE_HARNESS_ITEMS) this.registerItem(harness);
     this.registerItem(BUILTIN_CODEX_HARNESS_ITEM);
     this.registerRecipe(new OpenAICodexNativeRecipe());
+    for (const recipe of NATIVE_HARNESS_RECIPES) this.registerRecipe(recipe);
   }
 
   registerItem(item: Item): void {
@@ -180,7 +393,15 @@ export class ItemRegistry {
    * "auto" for harness slot resolves to BUILTIN_CODEX_HARNESS_ITEM.
    */
 
-  refreshCodexModels(models: Array<{ id: string; displayName?: string; contextWindow?: number; supportsStreaming?: boolean; supportsToolCalling?: boolean }>): void {
+  refreshCodexModels(
+    models: Array<{
+      id: string;
+      displayName?: string;
+      contextWindow?: number;
+      supportsStreaming?: boolean;
+      supportsToolCalling?: boolean;
+    }>,
+  ): void {
     for (const m of models) {
       const itemId = `openai:${m.id}`;
       const item: Item = {

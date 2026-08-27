@@ -168,9 +168,7 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(
-      screen.getByPlaceholderText("Ask Codex anything about this workspace"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Send a message...")).toBeInTheDocument();
     expect(screen.getByText("terminal pane")).toBeInTheDocument();
   });
 
@@ -218,7 +216,7 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(screen.getByPlaceholderText("Ask Codex anything about this workspace")).toHaveAttribute(
+    expect(screen.getByPlaceholderText("Send a message...")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
@@ -269,10 +267,8 @@ describe("ThreadView", () => {
     });
 
     expect(screen.getByRole("img", { name: "Loading" })).toBeInTheDocument();
-    // Composer is not rendered during launching — only the loader overlay is visible.
-    expect(
-      screen.queryByPlaceholderText("Ask Codex anything about this workspace"),
-    ).not.toBeInTheDocument();
+    // Terminal Composer is not rendered during launching — only the loader overlay is visible.
+    expect(screen.queryByPlaceholderText("Send a message...")).not.toBeInTheDocument();
   });
 
   it("keeps Claude live threads terminal-driven", () => {
@@ -323,9 +319,7 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(
-      screen.queryByPlaceholderText("Ask Codex anything about this workspace"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Send a message...")).toBeInTheDocument();
     expect(screen.getByText("terminal pane")).toBeInTheDocument();
   });
 
@@ -378,9 +372,7 @@ describe("ThreadView", () => {
     });
 
     expect(screen.queryByText("terminal pane")).not.toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("Ask Codex anything about this workspace"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Send a message...")).toBeInTheDocument();
   });
 
   it("keeps send disabled while a Codex thread is running", () => {
@@ -431,7 +423,7 @@ describe("ThreadView", () => {
       },
     });
 
-    const input = screen.getByPlaceholderText("Ask Codex anything about this workspace");
+    const input = screen.getByPlaceholderText("Send a message...");
     input.textContent = "test";
     fireEvent.input(input);
 

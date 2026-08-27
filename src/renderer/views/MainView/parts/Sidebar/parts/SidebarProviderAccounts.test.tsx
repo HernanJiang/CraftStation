@@ -1,23 +1,63 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { SidebarProviderAccounts } from "./SidebarProviderAccounts";
+
+const actions = vi.hoisted(() => ({
+  createAndRunCodexProfileLogin: vi.fn<() => Promise<boolean>>(),
+  createAndRunGrokProfileLogin: vi.fn<() => Promise<boolean>>(),
+  runAgentLoginCommand: vi.fn<() => boolean>(),
+  runCodexProfileLogin: vi.fn<() => Promise<boolean>>(),
+}));
+
+const usageLogin = vi.hoisted(() => ({
+  handleSignIn: vi.fn<() => Promise<void>>(),
+  handleSubmitApiKey: vi.fn<() => Promise<boolean>>(),
+  handleSignOut: vi.fn<() => Promise<boolean>>(),
+  setApiKey: vi.fn<(value: string) => void>(),
+}));
+
+const bridge = vi.hoisted(() => ({
+  listAccounts: vi.fn<() => Promise<unknown[]>>(),
+  refreshAccountQuota: vi.fn<() => Promise<void>>(),
+  removeAccount: vi.fn<() => Promise<void>>(),
+  reorderAccounts: vi.fn<() => Promise<void>>(),
+  renameAccount: vi.fn<() => Promise<void>>(),
+  selectAccount: vi.fn<() => Promise<void>>(),
+  setAccountEnabled: vi.fn<() => Promise<void>>(),
+}));
+
+vi.mock("@/renderer/actions/agentLoginActions", () => actions);
+
+vi.mock("@/renderer/bridge", () => ({
+  readBridge: () => bridge,
+}));
 
 vi.mock("@/renderer/components/providers/usageProviders", () => ({
   USAGE_PROVIDERS: [
     { id: "codex", label: "ChatGPT" },
     { id: "claude", label: "Claude" },
     { id: "gemini", label: "Gemini" },
+    { id: "grok", label: "Grok" },
   ],
 }));
 
 vi.mock("@/renderer/components/providers/useUsageProviderLogin", () => ({
   useUsageProviderLogin: () => ({
     canSignIn: true,
+    canReauthenticate: false,
+    canApiKeySignIn: false,
+    canManageApiKey: false,
+    canSignOut: false,
     signingIn: false,
-    handleSignIn: vi.fn<() => Promise<void>>().mockResolvedValue(),
+    apiKey: "",
+    setApiKey: usageLogin.setApiKey,
+    handleSignIn: usageLogin.handleSignIn,
+    handleSubmitApiKey: usageLogin.handleSubmitApiKey,
+    handleSignOut: usageLogin.handleSignOut,
   }),
 }));
 
@@ -29,6 +69,22 @@ describe("SidebarProviderAccounts", () => {
       settingsSection: "general",
     });
     useProviderUsageStore.setState({ snapshots: {} });
+    useUsageAccountsStore.getState().reset();
+    bridge.listAccounts.mockReset().mockResolvedValue([]);
+    bridge.refreshAccountQuota.mockReset().mockResolvedValue(undefined);
+    bridge.removeAccount.mockReset().mockResolvedValue(undefined);
+    bridge.reorderAccounts.mockReset().mockResolvedValue(undefined);
+    bridge.renameAccount.mockReset().mockResolvedValue(undefined);
+    bridge.selectAccount.mockReset().mockResolvedValue(undefined);
+    bridge.setAccountEnabled.mockReset().mockResolvedValue(undefined);
+    actions.createAndRunCodexProfileLogin.mockReset().mockResolvedValue(true);
+    actions.createAndRunGrokProfileLogin.mockReset().mockResolvedValue(true);
+    actions.runCodexProfileLogin.mockReset().mockResolvedValue(true);
+    actions.runAgentLoginCommand.mockReset().mockReturnValue(true);
+    usageLogin.handleSignIn.mockReset().mockResolvedValue();
+    usageLogin.handleSubmitApiKey.mockReset().mockResolvedValue(true);
+    usageLogin.handleSignOut.mockReset().mockResolvedValue(true);
+    usageLogin.setApiKey.mockReset();
   });
 
   it("renders the default provider avatar group and the two-line model usage entry", () => {
@@ -82,8 +138,288 @@ describe("SidebarProviderAccounts", () => {
     expect(dialog.querySelector('[data-provider-logo="gemini"]')).toBeInTheDocument();
     expect(dialog).not.toHaveTextContent("🔑 模型与用量");
     expect(dialog).not.toHaveTextContent("等待授权");
+    expect(within(dialog).getByTestId("provider-grid")).toHaveClass("grid-cols-4");
+    expect(within(dialog).getByTestId("provider-card-codex")).toHaveAttribute(
+      "data-grid-span",
+      "1",
+    );
+    expect(within(dialog).queryByRole("button", { name: "导入账号" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "关闭模型与用量" }));
     expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
+  });
+
+  it("routes the ChatGPT card through isolated profile login without duplicate header actions", async () => {
+    render(<SidebarProviderAccounts />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+    const chatGptCard = screen.getByRole("heading", { name: "ChatGPT" }).closest("article");
+    expect(chatGptCard).not.toBeNull();
+
+    fireEvent.click(within(chatGptCard!).getByRole("button", { name: "登录/授权" }));
+    await waitFor(() =>
+      expect(actions.createAndRunCodexProfileLogin).toHaveBeenCalledWith({ label: "New Codex" }),
+    );
+    expect(actions.runAgentLoginCommand).not.toHaveBeenCalled();
+    expect(within(dialog).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
+  });
+
+  it("uses isolated profile creation for Add account on an authorised ChatGPT card", async () => {
+    const account = {
+      accountId: "codex:signed-in",
+      provider: "codex",
+      label: "Work profile",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:codex:signed-in",
+      maskedIdentity: "si***@example.com",
+    };
+    bridge.listAccounts.mockResolvedValue([account]);
+    useUsageAccountsStore.getState().setAccounts([account]);
+    render(<SidebarProviderAccounts />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+    const accountPoolCard = within(dialog).getByTestId("provider-card-codex");
+    expect(accountPoolCard).toHaveAttribute("data-grid-span", "2");
+    expect(accountPoolCard).toHaveClass("col-span-2");
+    fireEvent.click(within(accountPoolCard).getByRole("button", { name: "添加 ChatGPT 账号" }));
+
+    await waitFor(() =>
+      expect(actions.createAndRunCodexProfileLogin).toHaveBeenCalledWith({ label: "New Codex" }),
+    );
+    expect(actions.runAgentLoginCommand).not.toHaveBeenCalled();
+  });
+
+  it("expands only an authorised provider card to two columns", async () => {
+    useProviderUsageStore.setState({
+      snapshots: {
+        claude: {
+          providerId: "claude",
+          status: "ok",
+          authenticatedAs: "claude@example.com",
+          windows: [],
+          fetchedAt: 1,
+        },
+      },
+    });
+    render(<SidebarProviderAccounts />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("provider-card-claude")).toHaveAttribute(
+      "data-grid-span",
+      "2",
+    );
+    expect(within(dialog).getByTestId("provider-card-gemini")).toHaveAttribute(
+      "data-grid-span",
+      "1",
+    );
+  });
+
+  it("routes an existing unauthorised account through its managed profile login", async () => {
+    const account = {
+      accountId: "codex:existing",
+      provider: "codex",
+      label: "Work profile",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "auth-expired" as const,
+      credentialScopeRef: "managed:codex:existing",
+    };
+    bridge.listAccounts.mockResolvedValue([account]);
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    await screen.findByRole("dialog");
+    fireEvent.click(await screen.findByRole("button", { name: "Work profile 登录授权" }));
+
+    await waitFor(() =>
+      expect(actions.runCodexProfileLogin).toHaveBeenCalledWith({
+        accountId: account.accountId,
+        label: account.label,
+      }),
+    );
+    expect(actions.runAgentLoginCommand).not.toHaveBeenCalled();
+  });
+
+  it("routes the Grok card through the isolated official device login, never the browser usage login", async () => {
+    render(<SidebarProviderAccounts />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    await screen.findByRole("dialog");
+    const grokCard = screen.getByRole("heading", { name: "Grok" }).closest("article");
+    expect(grokCard).not.toBeNull();
+
+    fireEvent.click(within(grokCard!).getByRole("button", { name: "登录/授权" }));
+
+    await waitFor(() =>
+      expect(actions.createAndRunGrokProfileLogin).toHaveBeenCalledWith({ label: "New Grok" }),
+    );
+    expect(actions.runAgentLoginCommand).not.toHaveBeenCalled();
+    expect(usageLogin.handleSignIn).not.toHaveBeenCalled();
+    expect(actions.createAndRunCodexProfileLogin).not.toHaveBeenCalled();
+  });
+
+  it("selects and enables a Grok account from the compact sidebar card", async () => {
+    const grokAccount = {
+      accountId: "grok:compact",
+      provider: "grok",
+      label: "her",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: false,
+      selected: false,
+      order: 0,
+      status: "disabled" as const,
+      credentialScopeRef: "managed:grok:compact",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const grokCard = await screen.findByTestId("provider-card-grok");
+    fireEvent.click(within(grokCard).getByText("her", { selector: "p" }));
+
+    await waitFor(() =>
+      expect(bridge.setAccountEnabled).toHaveBeenCalledWith({
+        accountId: grokAccount.accountId,
+        enabled: true,
+      }),
+    );
+    expect(bridge.selectAccount).toHaveBeenCalledWith({ accountId: grokAccount.accountId });
+    expect(actions.createAndRunGrokProfileLogin).not.toHaveBeenCalled();
+  });
+
+  it("renames a Grok account from the compact sidebar card context menu", async () => {
+    const grokAccount = {
+      accountId: "grok:compact-rename",
+      provider: "grok",
+      label: "her",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:compact-rename",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Work");
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const grokCard = await screen.findByTestId("provider-card-grok");
+    fireEvent.contextMenu(within(grokCard).getByText("her", { selector: "p" }));
+
+    await waitFor(() =>
+      expect(bridge.renameAccount).toHaveBeenCalledWith({
+        accountId: grokAccount.accountId,
+        label: "Work",
+      }),
+    );
+    expect(prompt).toHaveBeenCalledWith("重命名账号", "her");
+    prompt.mockRestore();
+  });
+
+  it("renders an imported Grok account in the model usage dialog", async () => {
+    const grokAccount = {
+      accountId: "grok:existing",
+      provider: "grok",
+      label: "New Grok",
+      maskedIdentity: "person***@example.com",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:existing",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+
+    await waitFor(() =>
+      expect(within(dialog).getByTestId("provider-card-grok")).toBeInTheDocument(),
+    );
+    expect(within(dialog).getByText("Grok 账号池")).toBeInTheDocument();
+    expect(within(dialog).getByText("person***@example.com")).toBeInTheDocument();
+    expect(within(dialog).getByText("available")).toBeInTheDocument();
+  });
+
+  it("enables and selects a Grok row when the account row is clicked", async () => {
+    const grokAccount = {
+      accountId: "grok:disabled",
+      provider: "grok",
+      label: "per",
+      maskedIdentity: "per***son@example.com",
+      createdAt: 1,
+      enabled: false,
+      selected: false,
+      order: 0,
+      status: "disabled" as const,
+      credentialScopeRef: "managed:grok:disabled",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByText("per", { selector: "p" }));
+
+    await waitFor(() =>
+      expect(bridge.setAccountEnabled).toHaveBeenCalledWith({
+        accountId: grokAccount.accountId,
+        enabled: true,
+      }),
+    );
+    expect(bridge.selectAccount).toHaveBeenCalledWith({ accountId: grokAccount.accountId });
+    expect(actions.createAndRunGrokProfileLogin).not.toHaveBeenCalled();
+  });
+
+  it("renames a Grok account from its context menu without exposing credentials", async () => {
+    const grokAccount = {
+      accountId: "grok:rename",
+      provider: "grok",
+      label: "per",
+      maskedIdentity: "per***son@example.com",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:rename",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Renamed");
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.contextMenu(within(dialog).getByText("per", { selector: "p" }));
+
+    await waitFor(() =>
+      expect(bridge.renameAccount).toHaveBeenCalledWith({
+        accountId: grokAccount.accountId,
+        label: "Renamed",
+      }),
+    );
+    expect(prompt).toHaveBeenCalledWith("重命名账号", "per");
+    prompt.mockRestore();
   });
 });

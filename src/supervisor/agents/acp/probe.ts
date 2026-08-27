@@ -21,7 +21,7 @@ import {
   type SessionMode,
 } from "@agentclientprotocol/sdk";
 import type { AgentSlashCommand, AuthState, ThreadMode } from "@/shared/contracts";
-import { terminateChildProcessTree } from "@/shared/processTree";
+import { terminateChildProcessTree, terminateChildProcessTreeAsync } from "@/shared/processTree";
 import {
   findThoughtLevelConfigOption,
   isToggleOnlyThoughtLevelConfig,
@@ -846,7 +846,7 @@ export async function probeAcpCapabilities(
       } catch {
         /* ignore */
       }
-      terminateChildProcessTree(child, { ownedProcessGroup });
+      terminateChildProcessTreeAsync(child, { ownedProcessGroup });
     }
   }
 }

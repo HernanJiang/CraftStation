@@ -171,6 +171,10 @@ export const usageEventInputSchema = z.object({
   fast: z.boolean().optional(),
   effort: z.string().nullable().optional(),
   name: z.string().nullable().optional(),
+  projectId: z.string().nullable().optional(),
+  sessionId: z.string().nullable().optional(),
+  tool: z.string().nullable().optional(),
+  accountId: z.string().nullable().optional(),
   value: z.number().optional(),
 });
 export type UsageEventInputPayload = z.infer<typeof usageEventInputSchema>;

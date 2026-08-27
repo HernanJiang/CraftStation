@@ -611,7 +611,16 @@ export async function startThreadFromCraft(
     await bridge.dbUpsertThread(thread);
     const store = configureProvenanceStore(bridge);
     await store.saveProvenanceAsync(threadId, craftResult.resultItem.provenance);
-    await bridge.craftAgent({ craftPlan: plan, projectLocation, prompt });
+    const craftAgentResult = await bridge.craftAgent({ craftPlan: plan, projectLocation, prompt });
+    if (craftAgentResult.accountBinding) {
+      const boundThread = { ...thread, accountBinding: craftAgentResult.accountBinding };
+      useAppStore.setState((state) => ({
+        threads: state.threads.map((candidate) =>
+          candidate.id === thread.id ? boundThread : candidate,
+        ),
+      }));
+      await bridge.dbUpsertThread(boundThread);
+    }
   } catch (error) {
     const detail = parseCraftingError(error);
     const userMessage = detail.code ? `[${detail.code}] ${detail.message}` : detail.message;
@@ -645,6 +654,9 @@ async function resumeCraftedThread(input: {
     craftPlan: recovered.craftPlan,
     projectLocation: input.projectLocation,
     sessionRef: providerSessionId,
+    ...(input.thread.accountBinding?.accountId
+      ? { accountId: input.thread.accountBinding.accountId }
+      : {}),
     ...(input.prompt.length > 0 ? { prompt: input.prompt } : {}),
   });
   if (result.threadId !== input.thread.id) {

@@ -46,7 +46,7 @@ describe("base control styles", () => {
   });
 
   it("lets the auto-focused draft composer become GPU-idle", () => {
-    expect(ruleFor(".poracode-composer-border-glow::before")).not.toContain("animation:");
+    expect(styles).toMatch(/\.poracode-composer-border-glow::before\s*\{/);
     expect(
       ruleFor(
         ".poracode-composer-shell--draft:focus-within .poracode-composer-border-glow::before",

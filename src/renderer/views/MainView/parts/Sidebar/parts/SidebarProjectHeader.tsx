@@ -17,9 +17,7 @@ import {
   setProjectDisabled,
 } from "@/renderer/actions/projectActions";
 import { openNewThread } from "@/renderer/actions/threadActions";
-import {
-  useIsProjectGitPanelActive,
-} from "@/renderer/hooks/uiSelectors";
+import { useIsProjectGitPanelActive } from "@/renderer/hooks/uiSelectors";
 import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { formatProjectLocation } from "./formatProjectLocation";
 import { useProjectMenu } from "./useProjectMenu";
@@ -113,7 +111,8 @@ export function SidebarProjectHeader(props: {
                 aria-label={t`New chat in ${project.name}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  useSidebarUiStore.getState().setProjectCollapsed(project.id, false); openNewThread(project.id);
+                  useSidebarUiStore.getState().setProjectCollapsed(project.id, false);
+                  openNewThread(project.id);
                 }}
               >
                 <Plus className="size-3.5" />
@@ -164,4 +163,3 @@ export function SidebarProjectHeader(props: {
     </ContextMenu>
   );
 }
-

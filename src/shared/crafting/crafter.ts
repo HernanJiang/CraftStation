@@ -240,6 +240,7 @@ export class Crafter {
           recipeVersion: recipe.version,
           craftedAt: craftPlan.createdAt,
           ingredients: craftPlan.ingredients,
+          runtimeBinding: craftPlan.runtimeBinding,
         },
         craftPlan,
       };

@@ -116,9 +116,7 @@ export function ThreadDraftHero(props: { compact?: boolean | undefined }) {
         </h1>
         {!props.compact && (
           <div className="mt-3 flex flex-col items-center gap-3">
-            <p className="text-sm tracking-wide text-muted">
-              Agent Runtime Composition System
-            </p>
+            <p className="text-sm tracking-wide text-muted">Agent Runtime Composition System</p>
             {/* Ingredients -> Result motif echoing the Crafting Grid. */}
             <div aria-hidden="true" className="flex items-center gap-2 opacity-80">
               <span className="size-2.5 rounded-[3px] border border-border bg-[var(--surface-secondary)]" />

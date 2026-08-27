@@ -13,7 +13,6 @@ import { useShallow } from "zustand/shallow";
 import { useLingui } from "@lingui/react/macro";
 import { isMac, isWindows } from "@/renderer/bridge";
 import { useTwoRafReady } from "@/renderer/hooks/useTwoRafReady";
-import { useSidebarGlassActive } from "@/renderer/hooks/useGlassState";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { macosTrafficLightPadClass } from "@/renderer/components/layout/sidebarChrome";
 import {
@@ -226,17 +225,9 @@ function ShellSidebarAside(props: {
   sidebarHeader: ReactNode | undefined;
   sidebar: ReactNode;
   hasHeaders: boolean;
-  isSidebarHandleHovered: boolean;
   forceSidebarExpanded: boolean;
 }) {
-  const {
-    sidebarRef,
-    sidebarHeader,
-    sidebar,
-    hasHeaders,
-    isSidebarHandleHovered,
-    forceSidebarExpanded,
-  } = props;
+  const { sidebarRef, sidebarHeader, sidebar, hasHeaders, forceSidebarExpanded } = props;
   const isCollapsed = useSidebarOverlayStore((s) => s.isCollapsed);
   const closingOverlay = useSidebarOverlayStore((s) => s.closingOverlay);
   const overlayReady = useSidebarOverlayStore((s) => s.overlayReady);
@@ -244,28 +235,6 @@ function ShellSidebarAside(props: {
   const effectiveIsCollapsed = forceSidebarExpanded ? false : isCollapsed;
   const effectiveClosingOverlay = forceSidebarExpanded ? false : closingOverlay;
   const effectiveIsOverlay = forceSidebarExpanded ? false : isOverlay;
-
-  // A translucent sidebar reads as its own glass edge, so the hard hairline
-  // between it and the content looks heavy. Drop it (transparent, keeping the
-  // 1px so width doesn't shift) while glass is active — but still flash the
-  // accent on resize-handle hover, since that border is the only resize cue.
-  const glassActive = useSidebarGlassActive();
-  const sidebarDividerColorClass =
-    isSidebarHandleHovered && !effectiveIsOverlay
-      ? "border-[color:var(--accent)]"
-      : glassActive
-        ? "border-transparent"
-        : "border-[color:var(--border)]";
-  // Windows: stop the sidebar divider below the header so it doesn't run through the title row —
-  // the opaque title row shares --content-background across sidebar + content, reading as one
-  // continuous titlebar that a line through would split. EXCEPT when the sidebar is translucent:
-  // the header turns to glass, the seam already exists, so we keep the divider full-height to let
-  // the resize-handle hover accent run all the way to the top.
-  // macOS keeps the full-height border because the header sits inside the hidden-inset titlebar.
-  // HOWEVER, if the sidebar is too narrow (e.g. collapsed), the full-height border would run
-  // directly through the macOS traffic light controls, so we push it below the header in that case.
-  const sidebarDividerBelowHeader =
-    hasHeaders && !effectiveIsOverlay && (isMac() ? effectiveIsCollapsed : !glassActive);
 
   // `width` and `min-width` are driven imperatively by `SidebarWidthDriver`
   // (raf-interpolated to match the drag path). React just owns the rest of
@@ -280,9 +249,7 @@ function ShellSidebarAside(props: {
           ? `poracode-sidebar-aside--overlay fixed inset-y-0 left-0 z-[60] border-r border-[color:var(--border)] bg-background shadow-2xl transition-transform duration-200 ${
               effectiveClosingOverlay || !overlayReady ? "-translate-x-full" : "translate-x-0"
             }`
-          : `relative ${
-              sidebarDividerBelowHeader ? "" : `border-r ${sidebarDividerColorClass}`
-            } ${!hasHeaders ? "-mt-5 h-[calc(100%+0.75rem)]" : ""}`
+          : `relative ${!hasHeaders ? "-mt-5 h-[calc(100%+0.75rem)]" : ""}`
       }`}
     >
       {/* Collapsed icon rail on Windows/Linux starts at the window top — the
@@ -307,13 +274,7 @@ function ShellSidebarAside(props: {
           {sidebarHeader}
         </div>
       )}
-      <div
-        className={`poracode-sidebar-body min-h-0 flex-1 overflow-hidden ${
-          sidebarDividerBelowHeader ? `border-r ${sidebarDividerColorClass}` : ""
-        }`}
-      >
-        {sidebar}
-      </div>
+      <div className="poracode-sidebar-body min-h-0 flex-1 overflow-hidden">{sidebar}</div>
     </aside>
   );
 }
@@ -712,7 +673,6 @@ export function AppShell(props: {
           sidebarHeader={sidebarHeader}
           sidebar={sidebar}
           hasHeaders={hasHeaders}
-          isSidebarHandleHovered={isSidebarHandleHovered}
           forceSidebarExpanded={forceSidebarExpanded}
         />
         <SidebarWidthDriver
@@ -731,7 +691,9 @@ export function AppShell(props: {
         />
 
         <div
-          className={`craftstation-workspace-frame relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-tl-[12px] border-l border-t border-[rgba(255,255,255,0.05)] bg-[var(--content-background)] ${
+          className={`craftstation-workspace-frame relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-tl-[20px] border-l border-t border-[rgba(255,255,255,0.05)] bg-[var(--content-background)] ${
+            isSidebarHandleHovered ? "border-l-[color:var(--accent)]" : ""
+          } ${
             isBottom ? "flex-col" : "flex-row"
           } ${rightOverlayDisplayed ? "" : "[isolation:isolate]"}`}
         >

@@ -65,4 +65,21 @@ describe("LoginTerminalOverlay", () => {
     expect(remoteTerminal.watch).toHaveBeenCalledWith("login:remote", listener, "desktop-1");
     view.unmount();
   });
+
+  it("keeps the panel below the caption and makes the header/X non-draggable", async () => {
+    useLoginTerminalStore.getState().open({
+      shellId: "login:caption",
+      label: "Grok",
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+    });
+
+    const view = render(<LoginTerminalOverlay />);
+    const panel = await view.findByTestId("login-terminal");
+    const surface = panel.closest("[data-overlay-surface='login-terminal']");
+    expect(surface).not.toBeNull();
+    const className = (surface as HTMLElement).className;
+    expect(className).toContain("top-16");
+    const style = (surface as HTMLElement).style as unknown as Record<string, string>;
+    expect(style.appRegion ?? style.WebkitAppRegion).toBe("no-drag");
+  });
 });

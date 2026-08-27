@@ -15,6 +15,8 @@ import type {
   UsageLoginConfirmationRequest,
   UsageLoginDeviceCode,
   UsageSnapshot,
+  AccountView,
+  TokenUsageResponse,
 } from "../contracts";
 import type { BrowserState, BrowserTabInfo } from "./procedures/browser";
 import type { BrowserLinkPresentationMode, CrossagentRoutingOverride } from "../settings";
@@ -122,6 +124,8 @@ export type SupervisorEvent =
   | { type: "agent-status-updated"; status: AgentStatus }
   | { type: "provider-usage"; snapshot: UsageSnapshot }
   | { type: "provider-usage-all"; snapshots: UsageSnapshot[] }
+  | { type: "usage-accounts"; accounts: AccountView[] }
+  | { type: "token-usage"; response: TokenUsageResponse }
   | { type: "git-changed"; projectId: string }
   | { type: "project-tree-changed"; projectId: string }
   | { type: "lsp-message"; sessionId: string; message: unknown }

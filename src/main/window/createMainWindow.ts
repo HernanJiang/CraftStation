@@ -139,7 +139,7 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
     ...(saved?.x != null && saved?.y != null ? { x: saved.x, y: saved.y } : {}),
     minWidth: options.minWidth ?? 540,
     minHeight: options.minHeight ?? 720,
-    backgroundColor: isMacOS || winGlassAtStart ? "#00000000" : backgroundColor,
+    backgroundColor,
     autoHideMenuBar: true,
     ...(isMacOS
       ? { vibrancy: "sidebar" as const, visualEffectState: "active" as const, transparent: true }

@@ -1,17 +1,9 @@
 import { Dropdown, Label } from "@heroui/react";
-import {
-  ChevronDown,
-  Cpu,
-  Gauge,
-  RotateCcw,
-  Sparkles,
-} from "lucide-react";
+import { ChevronDown, Cpu, Gauge, RotateCcw, Sparkles } from "lucide-react";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 import type { ComposerControl } from "./ThreadComposer";
 
-export function DraftParameterMenu(props: {
-  controls: ComposerControl[];
-}) {
+export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const modelControl = props.controls.find((control) => control.kind === "provider-model");
   const effortControl = props.controls.find((control) => control.kind === "effort-context");
   const selectedProvider = modelControl?.providers.find(
@@ -74,7 +66,10 @@ export function DraftParameterMenu(props: {
                 <Dropdown.SubmenuIndicator />
               </Dropdown.Item>
               <Dropdown.Popover className="min-w-[190px] rounded-[14px]">
-                <Dropdown.Menu aria-label="上下文窗口大小" onAction={(key) => effortControl.onContextChange?.(String(key))}>
+                <Dropdown.Menu
+                  aria-label="上下文窗口大小"
+                  onAction={(key) => effortControl.onContextChange?.(String(key))}
+                >
                   {effortControl.contextSizes.map((context) => (
                     <Dropdown.Item key={context.id} id={context.id} textValue={context.label}>
                       <Label>{context.label}</Label>
@@ -90,7 +85,9 @@ export function DraftParameterMenu(props: {
               <Dropdown.Item id="models" textValue="模型列表">
                 <Cpu className="size-4 text-muted" />
                 <Label>模型列表</Label>
-                <span className="ml-auto max-w-24 truncate text-[10px] text-muted">{selectedModel?.label}</span>
+                <span className="ml-auto max-w-24 truncate text-[10px] text-muted">
+                  {selectedModel?.label}
+                </span>
                 <Dropdown.SubmenuIndicator />
               </Dropdown.Item>
               <Dropdown.Popover className="max-h-[420px] min-w-[250px] rounded-[14px]">
@@ -98,12 +95,16 @@ export function DraftParameterMenu(props: {
                   aria-label="模型列表"
                   onAction={(key) => {
                     const [agentKind, model] = String(key).split("::");
-                    const provider = modelControl.providers.find((candidate) => candidate.kind === agentKind);
+                    const provider = modelControl.providers.find(
+                      (candidate) => candidate.kind === agentKind,
+                    );
                     if (agentKind && model) {
                       modelControl.onChange({
                         agentKind,
                         model,
-                        ...(provider?.presentationMode ? { presentationMode: provider.presentationMode } : {}),
+                        ...(provider?.presentationMode
+                          ? { presentationMode: provider.presentationMode }
+                          : {}),
                       });
                     }
                   }}
@@ -141,7 +142,10 @@ export function DraftParameterMenu(props: {
                 <Dropdown.SubmenuIndicator />
               </Dropdown.Item>
               <Dropdown.Popover className="min-w-[190px] rounded-[14px]">
-                <Dropdown.Menu aria-label="推理强度" onAction={(key) => effortControl.onEffortChange?.(String(key))}>
+                <Dropdown.Menu
+                  aria-label="推理强度"
+                  onAction={(key) => effortControl.onEffortChange?.(String(key))}
+                >
                   {effortControl.efforts.map((effort) => (
                     <Dropdown.Item key={effort.id} id={effort.id} textValue={effort.label}>
                       <Label>{effort.label}</Label>
