@@ -215,9 +215,20 @@ export class CodexProfileService {
           : snapshot.status === "auth-missing"
             ? "auth-expired"
             : "unavailable";
-    return this.options.store.updateStatus(accountId, status, {
+    const updated = this.options.store.updateStatus(accountId, status, {
       ...(snapshot.error ? { lastError: snapshot.error } : {}),
       lastQuotaAt: snapshot.fetchedAt,
     });
+    return (
+      this.options.store.updateQuota(
+        accountId,
+        snapshot.windows.map((window) => ({
+          id: window.id,
+          label: window.label,
+          usedPercent: window.usedPercent,
+          ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
+        })),
+      ) ?? updated
+    );
   }
 }

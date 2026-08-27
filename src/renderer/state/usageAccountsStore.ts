@@ -4,9 +4,13 @@ import type { AccountView } from "@/shared/contracts";
 interface UsageAccountsStore {
   accounts: AccountView[];
   hydrated: boolean;
+  /** One-shot override for the next newly-created crafted Session. */
+  nextSessionAccountId: string | null;
   setAccounts: (accounts: AccountView[]) => void;
   upsertAccount: (account: AccountView) => void;
   removeAccount: (accountId: string) => void;
+  setNextSessionAccount: (accountId: string) => void;
+  clearNextSessionAccount: () => void;
   reset: () => void;
 }
 
@@ -17,6 +21,7 @@ function sameAccount(left: AccountView, right: AccountView): boolean {
 export const useUsageAccountsStore = create<UsageAccountsStore>()((set) => ({
   accounts: [],
   hydrated: false,
+  nextSessionAccountId: null,
   setAccounts: (accounts) =>
     set((state) => {
       if (
@@ -40,6 +45,10 @@ export const useUsageAccountsStore = create<UsageAccountsStore>()((set) => ({
   removeAccount: (accountId) =>
     set((state) => ({
       accounts: state.accounts.filter((account) => account.accountId !== accountId),
+      nextSessionAccountId:
+        state.nextSessionAccountId === accountId ? null : state.nextSessionAccountId,
     })),
-  reset: () => set({ accounts: [], hydrated: false }),
+  setNextSessionAccount: (accountId) => set({ nextSessionAccountId: accountId }),
+  clearNextSessionAccount: () => set({ nextSessionAccountId: null }),
+  reset: () => set({ accounts: [], hydrated: false, nextSessionAccountId: null }),
 }));

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Dropdown, Label, Modal, toast } from "@heroui/react";
 import {
-  Check,
   GripVertical,
   LogOut,
   MoreHorizontal,
@@ -29,6 +28,7 @@ import zaiLogo from "@/renderer/assets/provider-logos/zai.svg";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 import {
   USAGE_PROVIDERS,
+  resolveDisplayedProviders,
   type UsageProvider,
 } from "@/renderer/components/providers/usageProviders";
 import { useUsageProviderLogin } from "@/renderer/components/providers/useUsageProviderLogin";
@@ -41,9 +41,11 @@ import {
 import { refreshAndMergeProviderUsage } from "@/renderer/components/providers/refreshProviderUsageSnapshot";
 import { useProviderUsage, useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { AccountUsageGrid } from "./AccountUsageGrid";
 import { readBridge } from "@/renderer/bridge";
 import { usePanelStore } from "@/renderer/state/panelStore";
-import type { AccountView, UsageStatus } from "@/shared/contracts";
+import type { AccountSchedulingMode, AccountView, UsageStatus } from "@/shared/contracts";
 
 const PREFERRED_PROVIDER_ORDER = [
   "codex",
@@ -323,16 +325,18 @@ function OpenAiCompatibleCard() {
   );
 }
 
-function ProviderCard(props: { id: string; label: string }) {
+function ProviderCard(props: {
+  id: string;
+  label: string;
+  index?: number;
+  onDragStartProvider?: (providerId: string) => void;
+  onDropProvider?: (targetId: string) => void;
+}) {
   const snapshot = useProviderUsage(props.id);
   const managedAccounts = useUsageAccountsStore(
     useShallow((state) =>
       props.id === "codex" || props.id === "grok"
-        ? state.accounts.filter(
-            (account) =>
-              account.provider === props.id &&
-              (Boolean(account.maskedIdentity) || Boolean(account.providerAccountId)),
-          )
+        ? state.accounts.filter((account) => account.provider === props.id)
         : [],
     ),
   );
@@ -434,7 +438,9 @@ function ProviderCard(props: { id: string; label: string }) {
     setAccountActionInFlight(account.accountId);
     try {
       await readBridge().setAccountEnabled({ accountId: account.accountId, enabled: true });
-      await readBridge().selectAccount({ accountId: account.accountId });
+      // Selecting an account only affects the next newly-created crafted
+      // Session. Existing sessions keep their native account binding.
+      useUsageAccountsStore.getState().setNextSessionAccount(account.accountId);
       await refreshManagedAccounts();
     } catch (error) {
       toast.danger(error instanceof Error ? error.message : "无法选择账号。");
@@ -466,9 +472,32 @@ function ProviderCard(props: { id: string; label: string }) {
   };
 
   return (
-    <article
+    <div
       data-testid={`provider-card-${props.id}`}
       data-grid-span={connected ? "2" : "1"}
+      role="button"
+      aria-label={label}
+      tabIndex={0}
+      draggable={props.index != null}
+      onDragStart={
+        props.index != null && props.onDragStartProvider
+          ? (event) => {
+              event.dataTransfer?.setData("text/plain", props.id);
+              props.onDragStartProvider?.(props.id);
+            }
+          : undefined
+      }
+      onDragOver={
+        props.index != null && props.onDropProvider ? (event) => event.preventDefault() : undefined
+      }
+      onDrop={
+        props.index != null && props.onDropProvider
+          ? (event) => {
+              event.preventDefault();
+              props.onDropProvider?.(props.id);
+            }
+          : undefined
+      }
       className={`rounded-xl border border-white/5 bg-[#1c1d22] p-3 transition-[min-height] duration-200 ${
         connected ? "col-span-2 min-h-[170px]" : "col-span-1 min-h-[76px]"
       }`}
@@ -574,15 +603,9 @@ function ProviderCard(props: { id: string; label: string }) {
                       void refreshAndMergeProviderUsage(props.id);
                     } else if (key === "remove" && canSignOut) {
                       void handleSignOut();
-                    } else if (key === "preferred") {
-                      toast.success(`${label} 当前授权已作为默认使用方式。`);
                     }
                   }}
                 >
-                  <Dropdown.Item id="preferred" textValue="设为首选">
-                    <Check className="size-4 text-muted" />
-                    <Label>设为首选</Label>
-                  </Dropdown.Item>
                   <Dropdown.Item id="refresh" textValue="刷新状态">
                     <RefreshCw className="size-4 text-muted" />
                     <Label>刷新状态</Label>
@@ -629,7 +652,7 @@ function ProviderCard(props: { id: string; label: string }) {
           </button>
         </form>
       ) : null}
-    </article>
+    </div>
   );
 }
 
@@ -668,75 +691,71 @@ function AccountRow(props: AccountRowProps) {
       }}
       role="button"
       tabIndex={0}
-      className="flex items-center gap-2 rounded-lg border border-white/5 bg-[#17181c] px-2 py-1.5"
+      data-account-id={account.accountId}
+      className="rounded-lg border border-white/5 bg-[#17181c] px-2 py-1.5"
     >
-      <GripVertical className="size-3.5 shrink-0 text-neutral-500" aria-label="拖拽排序" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[11px] text-foreground">{account.label}</p>
-        <p className="truncate text-[9px] text-neutral-500">{account.maskedIdentity ?? "未认证"}</p>
-      </div>
-      <span className="text-[9px] text-neutral-400">{account.status}</span>
-      {CODEX_LOGIN_REQUIRED_STATUSES.has(account.status) && account.enabled && onReauth ? (
+      <div className="flex items-center gap-2">
+        <GripVertical className="size-3.5 shrink-0 text-neutral-500" aria-label="拖拽排序" />
+        <div className="min-w-0 flex-1">
+          {/* v0.5: real identity is the primary text, editable alias the secondary. */}
+          <p className="truncate text-[11px] font-medium text-foreground">
+            {account.maskedIdentity ?? account.providerAccountId ?? account.label}
+          </p>
+          <p className="truncate text-[9px] text-neutral-500">{account.label}</p>
+        </div>
+        <span className="text-[9px] text-neutral-400">{account.status}</span>
+        {CODEX_LOGIN_REQUIRED_STATUSES.has(account.status) && account.enabled && onReauth ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={(event) => {
+              event.stopPropagation();
+              onReauth(account);
+            }}
+            className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+            aria-label={`${account.label} 登录授权`}
+          >
+            登录授权
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={busy}
           onClick={(event) => {
             event.stopPropagation();
-            onReauth(account);
+            props.onRefresh(account);
           }}
-          className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
-          aria-label={`${account.label} 登录授权`}
+          className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+          aria-label="刷新账号配额"
         >
-          登录授权
+          <RefreshCw className="size-3" />
         </button>
-      ) : null}
-      <button
-        type="button"
-        disabled={busy || !account.enabled}
-        onClick={(event) => {
-          event.stopPropagation();
-          props.onSelect(account);
-        }}
-        className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
-      >
-        {account.selected ? "首选" : "设为首选"}
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={(event) => {
-          event.stopPropagation();
-          props.onRefresh(account);
-        }}
-        className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
-        aria-label="刷新账号配额"
-      >
-        <RefreshCw className="size-3" />
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={(event) => {
-          event.stopPropagation();
-          props.onToggleEnabled(account);
-        }}
-        className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
-        aria-label={account.enabled ? "禁用账号" : "启用账号"}
-      >
-        <Power className={`size-3 ${account.enabled ? "text-emerald-300" : ""}`} />
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={(event) => {
-          event.stopPropagation();
-          props.onRemove(account);
-        }}
-        className="rounded p-1 text-neutral-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
-        aria-label="移除账号"
-      >
-        <Trash2 className="size-3" />
-      </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onToggleEnabled(account);
+          }}
+          className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+          aria-label={account.enabled ? "禁用账号" : "启用账号"}
+        >
+          <Power className={`size-3 ${account.enabled ? "text-emerald-300" : ""}`} />
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onRemove(account);
+          }}
+          className="rounded p-1 text-neutral-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+          aria-label="移除账号"
+        >
+          <Trash2 className="size-3" />
+        </button>
+      </div>
+      <AccountUsageGrid account={account} />
     </div>
   );
 }
@@ -762,42 +781,94 @@ interface ManagedAccountPoolProps {
   onDrop: (accountId: string) => void;
 }
 
+function PoolSchedulingControl(props: { providerId: string }) {
+  const [scheduling, setScheduling] = useState<AccountSchedulingMode>("priority");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const bridge = readBridge();
+    void bridge
+      .getAccountPoolScheduling({ provider: props.providerId })
+      .then((config) => {
+        if (mounted) setScheduling(config.scheduling);
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [props.providerId]);
+
+  const handleChange = (value: AccountSchedulingMode) => {
+    const previous = scheduling;
+    setScheduling(value);
+    setSaving(true);
+    void readBridge()
+      .setAccountPoolScheduling({ provider: props.providerId, scheduling: value })
+      .catch(() => setScheduling(previous))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <label className="flex items-center gap-1.5 text-[9px] text-neutral-500">
+      <span>新会话调度</span>
+      <select
+        data-testid={`account-scheduling-${props.providerId}`}
+        aria-label={`${props.providerId} 账号池调度`}
+        value={scheduling}
+        disabled={saving}
+        onChange={(event) => handleChange(event.target.value as AccountSchedulingMode)}
+        className="rounded-md border border-white/10 bg-black/20 px-1.5 py-1 text-[9px] text-neutral-300 outline-none"
+      >
+        <option value="priority">Priority</option>
+        <option value="round-robin">Round-Robin</option>
+        <option value="random">Random</option>
+      </select>
+    </label>
+  );
+}
+
 function ManagedAccountPool(props: ManagedAccountPoolProps) {
   const { providerId, title, badgeLabel, addAriaLabel, accounts, busy, actionError } = props;
   return (
     <section
       data-testid={`provider-card-${providerId}`}
-      data-grid-span="2"
-      className="col-span-2 rounded-xl border border-white/5 bg-[#1c1d22] p-3"
+      data-grid-span="4"
+      className="col-span-4 rounded-xl border border-white/5 bg-[#1c1d22] p-3"
     >
       <div className="mb-2 flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2.5">
           <ProviderBadge id={providerId} label={badgeLabel} size="card" />
           <div className="min-w-0">
             <h3 className="truncate text-xs font-semibold text-foreground">{title}</h3>
-            <p className="mt-0.5 truncate text-[10px] text-neutral-400">首选账号与自动回退顺序</p>
+            <p className="mt-0.5 truncate text-[10px] text-neutral-400">
+              新会话按账号池规则调度 · 点击账号指定下一次会话
+            </p>
           </div>
         </div>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={props.onAdd}
-          aria-label={addAriaLabel}
-          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
-        >
-          <UserRoundPlus className="size-3" /> 添加账号
-        </button>
-        {props.onImport ? (
+        <div className="flex items-center gap-2">
+          <PoolSchedulingControl providerId={providerId} />
           <button
             type="button"
             disabled={busy}
-            onClick={props.onImport}
-            aria-label={props.importAriaLabel}
+            onClick={props.onAdd}
+            aria-label={addAriaLabel}
             className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
           >
-            导入本机登录
+            <UserRoundPlus className="size-3" /> 添加账号
           </button>
-        ) : null}
+          {props.onImport ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={props.onImport}
+              aria-label={props.importAriaLabel}
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
+            >
+              导入本机登录
+            </button>
+          ) : null}
+        </div>
       </div>
       {actionError ? <p className="mb-2 text-[10px] text-red-300">{actionError}</p> : null}
       {accounts.length === 0 ? (
@@ -831,6 +902,11 @@ function ModelUsageDialog() {
   const open = usePanelStore((state) => state.modelUsageDialogOpen);
   const close = usePanelStore((state) => state.closeModelUsageDialog);
   const accounts = useUsageAccountsStore((state) => state.accounts);
+  const usageSnapshots = useProviderUsageStore((state) => state.snapshots);
+  const providerOrder = useSharedSettings((state) => state.usage.providerOrder);
+  const disabledProviders = useSharedSettings((state) => state.usage.disabledProviders);
+  const setUsageSetting = useSharedSettings((state) => state.setUsageSetting);
+  const [draggedProviderId, setDraggedProviderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
@@ -864,22 +940,37 @@ function ModelUsageDialog() {
   const signedInCodexAccounts = useMemo(
     () =>
       codexAccounts.filter(
-        (account) =>
-          Boolean(account.credentialScopeRef) ||
-          Boolean(account.maskedIdentity) ||
-          Boolean(account.providerAccountId),
+        (account) => Boolean(account.maskedIdentity) || Boolean(account.providerAccountId),
       ),
     [codexAccounts],
   );
   const signedGrokAccounts = useMemo(
     () =>
       grokAccounts.filter(
-        (account) =>
-          Boolean(account.credentialScopeRef) ||
-          Boolean(account.maskedIdentity) ||
-          Boolean(account.providerAccountId),
+        (account) => Boolean(account.maskedIdentity) || Boolean(account.providerAccountId),
       ),
     [grokAccounts],
+  );
+  const otherDisplayedProviders = useMemo(
+    () =>
+      resolveDisplayedProviders(providerOrder, disabledProviders).filter(
+        (provider) => provider.id !== "codex" && provider.id !== "grok",
+      ),
+    [disabledProviders, providerOrder],
+  );
+  const authenticatedOtherProviders = useMemo(
+    () =>
+      otherDisplayedProviders.filter((provider) =>
+        isAuthorizedUsageStatus(usageSnapshots[provider.id]?.status),
+      ),
+    [otherDisplayedProviders, usageSnapshots],
+  );
+  const unauthenticatedOtherProviders = useMemo(
+    () =>
+      otherDisplayedProviders.filter(
+        (provider) => !isAuthorizedUsageStatus(usageSnapshots[provider.id]?.status),
+      ),
+    [otherDisplayedProviders, usageSnapshots],
   );
   const refreshAccountList = async () => {
     const next = await readBridge().listAccounts({});
@@ -894,11 +985,11 @@ function ModelUsageDialog() {
     await readBridge().renameAccount({ accountId: account.accountId, label });
     await refreshAccountList();
   };
-  const selectAccount = async (account: AccountView) => {
+  const chooseAccountForNextSession = async (account: AccountView) => {
     // Selecting a row is a recoverable user choice. Re-enable only this row
-    // before making it selected; do not mutate the rest of the provider pool.
+    // and carry it to the next crafted Session; it is not a preferred account.
     await readBridge().setAccountEnabled({ accountId: account.accountId, enabled: true });
-    await readBridge().selectAccount({ accountId: account.accountId });
+    useUsageAccountsStore.getState().setNextSessionAccount(account.accountId);
     await refreshAccountList();
   };
   const createCodexProfile = async () => {
@@ -918,6 +1009,23 @@ function ModelUsageDialog() {
         : "已创建账号，但本机 ~/.codex/auth.json 无法解析",
     );
   };
+  const handleProviderDrop = (targetId: string) => {
+    if (!draggedProviderId || draggedProviderId === targetId) return;
+    const displayed = resolveDisplayedProviders(providerOrder, disabledProviders)
+      .map((provider) => provider.id)
+      .filter((id) => id !== "codex" && id !== "grok");
+    const from = displayed.indexOf(draggedProviderId);
+    const to = displayed.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    const [moved] = displayed.splice(from, 1);
+    displayed.splice(to, 0, moved!);
+    // Presentation-only: never affects runtime account selection.
+    const merged = [...providerOrder.filter((id) => id !== "codex" && id !== "grok")];
+    for (const id of displayed) if (!merged.includes(id)) merged.push(id);
+    setUsageSetting("providerOrder", merged);
+    setDraggedProviderId(null);
+  };
+
   const reorder = (targetId: string, provider = "codex") => {
     if (!draggedAccountId || draggedAccountId === targetId) return;
     const pool = provider === "grok" ? grokAccounts : codexAccounts;
@@ -966,106 +1074,138 @@ function ModelUsageDialog() {
             </div>
           </Modal.Header>
           <Modal.Body className="max-h-[72vh] overflow-y-auto">
-            <div className="grid grid-cols-4 gap-3" data-testid="provider-grid">
-              {signedInCodexAccounts.length > 0 ? (
-                <ManagedAccountPool
-                  providerId="codex"
-                  title="ChatGPT 账号池"
-                  badgeLabel="ChatGPT"
-                  addAriaLabel="添加 ChatGPT 账号"
-                  accounts={signedInCodexAccounts}
-                  busy={busy}
-                  actionError={actionError}
-                  onAdd={() => void accountActions(createCodexProfile)}
-                  onImport={() => void accountActions(importHostCodexLogin)}
-                  importAriaLabel="导入本机 Codex 登录"
-                  onReauth={(account) =>
-                    void accountActions(async () => {
-                      await runCodexProfileLogin({
-                        accountId: account.accountId,
-                        label: account.label,
-                      });
-                    })
-                  }
-                  onSelect={(account) => void accountActions(() => selectAccount(account))}
-                  onRename={(account) => void accountActions(() => renameAccount(account))}
-                  onRefresh={(account) =>
-                    void accountActions(async () => {
-                      await readBridge().refreshAccountQuota({ accountId: account.accountId });
-                      await refreshAccountList();
-                    })
-                  }
-                  onToggleEnabled={(account) =>
-                    void accountActions(async () => {
-                      await readBridge().setAccountEnabled({
-                        accountId: account.accountId,
-                        enabled: !account.enabled,
-                      });
-                      await refreshAccountList();
-                    })
-                  }
-                  onRemove={(account) =>
-                    void accountActions(async () => {
-                      await readBridge().removeAccount({ accountId: account.accountId });
-                      await refreshAccountList();
-                    })
-                  }
-                  onDragStart={(accountId) => setDraggedAccountId(accountId)}
-                  onDrop={(accountId) => reorder(accountId, "grok")}
-                />
-              ) : (
-                <ProviderCard id="codex" label="ChatGPT" />
-              )}
-              {signedGrokAccounts.length > 0 ? (
-                <ManagedAccountPool
-                  providerId="grok"
-                  title="Grok 账号池"
-                  badgeLabel="Grok"
-                  addAriaLabel="添加 Grok 账号"
-                  accounts={signedGrokAccounts}
-                  busy={busy}
-                  actionError={actionError}
-                  onAdd={() => void accountActions(createGrokProfile)}
-                  onReauth={(account) =>
-                    void accountActions(async () => {
-                      await createAndRunGrokProfileLogin({ label: account.label });
-                    })
-                  }
-                  onSelect={(account) => void accountActions(() => selectAccount(account))}
-                  onRename={(account) => void accountActions(() => renameAccount(account))}
-                  onRefresh={(account) =>
-                    void accountActions(async () => {
-                      await readBridge().refreshAccountQuota({ accountId: account.accountId });
-                      await refreshAccountList();
-                    })
-                  }
-                  onToggleEnabled={(account) =>
-                    void accountActions(async () => {
-                      await readBridge().setAccountEnabled({
-                        accountId: account.accountId,
-                        enabled: !account.enabled,
-                      });
-                      await refreshAccountList();
-                    })
-                  }
-                  onRemove={(account) =>
-                    void accountActions(async () => {
-                      await readBridge().removeAccount({ accountId: account.accountId });
-                      await refreshAccountList();
-                    })
-                  }
-                  onDragStart={(accountId) => setDraggedAccountId(accountId)}
-                  onDrop={(accountId) => reorder(accountId)}
-                />
-              ) : (
-                <ProviderCard id="grok" label="Grok" />
-              )}
-              <OpenAiCompatibleCard />
-              {SORTED_USAGE_PROVIDERS.filter(
-                (provider) => provider.id !== "codex" && provider.id !== "grok",
-              ).map((provider) => (
-                <ProviderCard key={provider.id} id={provider.id} label={provider.label} />
-              ))}
+            <div
+              className="grid grid-cols-[minmax(0,4fr)_minmax(190px,1fr)] items-start gap-3"
+              data-testid="provider-grid"
+            >
+              <div
+                className="grid min-w-0 grid-cols-4 gap-3"
+                data-testid="authorized-provider-grid"
+              >
+                {signedInCodexAccounts.length > 0 ? (
+                  <ManagedAccountPool
+                    providerId="codex"
+                    title="ChatGPT 账号池"
+                    badgeLabel="ChatGPT"
+                    addAriaLabel="添加 ChatGPT 账号"
+                    accounts={signedInCodexAccounts}
+                    busy={busy}
+                    actionError={actionError}
+                    onAdd={() => void accountActions(createCodexProfile)}
+                    onImport={() => void accountActions(importHostCodexLogin)}
+                    importAriaLabel="导入本机 Codex 登录"
+                    onReauth={(account) =>
+                      void accountActions(async () => {
+                        await runCodexProfileLogin({
+                          accountId: account.accountId,
+                          label: account.label,
+                        });
+                      })
+                    }
+                    onSelect={(account) =>
+                      void accountActions(() => chooseAccountForNextSession(account))
+                    }
+                    onRename={(account) => void accountActions(() => renameAccount(account))}
+                    onRefresh={(account) =>
+                      void accountActions(async () => {
+                        await readBridge().refreshAccountQuota({ accountId: account.accountId });
+                        await refreshAccountList();
+                      })
+                    }
+                    onToggleEnabled={(account) =>
+                      void accountActions(async () => {
+                        await readBridge().setAccountEnabled({
+                          accountId: account.accountId,
+                          enabled: !account.enabled,
+                        });
+                        await refreshAccountList();
+                      })
+                    }
+                    onRemove={(account) =>
+                      void accountActions(async () => {
+                        await readBridge().removeAccount({ accountId: account.accountId });
+                        await refreshAccountList();
+                      })
+                    }
+                    onDragStart={(accountId) => setDraggedAccountId(accountId)}
+                    onDrop={(accountId) => reorder(accountId, "codex")}
+                  />
+                ) : null}
+                {signedGrokAccounts.length > 0 ? (
+                  <ManagedAccountPool
+                    providerId="grok"
+                    title="Grok 账号池"
+                    badgeLabel="Grok"
+                    addAriaLabel="添加 Grok 账号"
+                    accounts={signedGrokAccounts}
+                    busy={busy}
+                    actionError={actionError}
+                    onAdd={() => void accountActions(createGrokProfile)}
+                    onReauth={(account) =>
+                      void accountActions(async () => {
+                        await createAndRunGrokProfileLogin({ label: account.label });
+                      })
+                    }
+                    onSelect={(account) =>
+                      void accountActions(() => chooseAccountForNextSession(account))
+                    }
+                    onRename={(account) => void accountActions(() => renameAccount(account))}
+                    onRefresh={(account) =>
+                      void accountActions(async () => {
+                        await readBridge().refreshAccountQuota({ accountId: account.accountId });
+                        await refreshAccountList();
+                      })
+                    }
+                    onToggleEnabled={(account) =>
+                      void accountActions(async () => {
+                        await readBridge().setAccountEnabled({
+                          accountId: account.accountId,
+                          enabled: !account.enabled,
+                        });
+                        await refreshAccountList();
+                      })
+                    }
+                    onRemove={(account) =>
+                      void accountActions(async () => {
+                        await readBridge().removeAccount({ accountId: account.accountId });
+                        await refreshAccountList();
+                      })
+                    }
+                    onDragStart={(accountId) => setDraggedAccountId(accountId)}
+                    onDrop={(accountId) => reorder(accountId, "grok")}
+                  />
+                ) : null}
+                {authenticatedOtherProviders.map((provider, index) => (
+                  <ProviderCard
+                    key={provider.id}
+                    id={provider.id}
+                    label={provider.label}
+                    index={index}
+                    onDragStartProvider={(providerId) => setDraggedProviderId(providerId)}
+                    onDropProvider={(targetId) => handleProviderDrop(targetId)}
+                  />
+                ))}
+              </div>
+              <div
+                className="grid min-w-0 grid-cols-1 gap-3 overflow-y-auto pr-1"
+                data-testid="unauthorized-provider-grid"
+              >
+                {signedInCodexAccounts.length === 0 ? (
+                  <ProviderCard id="codex" label="ChatGPT" />
+                ) : null}
+                {signedGrokAccounts.length === 0 ? <ProviderCard id="grok" label="Grok" /> : null}
+                <OpenAiCompatibleCard />
+                {unauthenticatedOtherProviders.map((provider, index) => (
+                  <ProviderCard
+                    key={provider.id}
+                    id={provider.id}
+                    label={provider.label}
+                    index={index}
+                    onDragStartProvider={(providerId) => setDraggedProviderId(providerId)}
+                    onDropProvider={(targetId) => handleProviderDrop(targetId)}
+                  />
+                ))}
+              </div>
             </div>
           </Modal.Body>
         </Modal.Dialog>

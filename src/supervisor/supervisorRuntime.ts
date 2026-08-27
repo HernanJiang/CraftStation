@@ -24,6 +24,7 @@ import type {
   RelocateProjectResult,
   AccountAddPayload,
   AccountBinding,
+  AccountPoolConfigPayload,
   AccountProviderPayload,
   AccountRenamePayload,
   AccountResolution,
@@ -43,6 +44,7 @@ import type {
   GrokProfileCancelPayload,
   GrokProfilePollPayload,
   GrokProfilePollResult,
+  ProviderPoolConfig,
 } from "@/shared/contracts";
 import type {
   CraftSession,
@@ -141,7 +143,12 @@ import {
   createRuntimeLedgerTokenUsageScanner,
   TokenUsageAdapter,
 } from "./runtime/tokenUsageAdapter";
-import { CodexProfileService, buildCodexLoginScript, managedCodexLoginCwd, managedCodexProcessEnvironment } from "./runtime/codexProfiles";
+import {
+  CodexProfileService,
+  buildCodexLoginScript,
+  managedCodexLoginCwd,
+  managedCodexProcessEnvironment,
+} from "./runtime/codexProfiles";
 import {
   GrokProfileService,
   buildGrokLoginScript,
@@ -151,9 +158,7 @@ import {
   grokAccountIdentityFromContainer,
 } from "./runtime/grokProfiles";
 import { grokAuthContainer } from "./runtime/grokCredentials";
-import {
-  NATIVE_HARNESS_DESCRIPTORS,
-} from "./runtime/nativeHarness/descriptors";
+import { NATIVE_HARNESS_DESCRIPTORS } from "./runtime/nativeHarness/descriptors";
 import { projectNativeHarnessControlPlane } from "./runtime/nativeHarness/controlPlane";
 
 export { detectWslAgentStatuses, writeSubmittedPrompt };
@@ -232,7 +237,19 @@ export class SupervisorRuntime {
    * after construction are not lost between IPC reads.
    */
   private readonly nativeHarnessAdapters = new Map<string, HarnessRuntimeAdapter>();
+  /** Latest session per harness for the control-plane diagnostics projection. */
   private readonly nativeHarnessSessions = new Map<string, CraftSession>();
+  /** Crafted sessions are not ThreadSessionManager sessions, so keep their
+   * lifecycle and account binding indexed by the durable CraftStation thread.
+   * This prevents an account from remaining locked after a crafted session
+   * exits, while still protecting an account while any crafted session uses it.
+   */
+  private readonly craftedSessionBindings = new Map<string, AccountBinding>();
+  /** Every live crafted session, keyed by its durable CraftStation thread id. */
+  private readonly craftedSessionsByThread = new Map<string, CraftSession>();
+  private readonly craftedSessionUnsubscribers = new Map<string, () => void>();
+  /** Per-account quota refresh locks so concurrent refreshes coalesce (v0.5 T09). */
+  private readonly accountRefreshLocks = new Map<string, Promise<unknown>>();
   private availableWindowsShellsCache:
     | { shells: ReturnType<typeof detectWindowsShells>; ts: number }
     | undefined;
@@ -729,8 +746,31 @@ export class SupervisorRuntime {
   }
 
   removeAccount(accountId: string): void {
+    if (
+      [...this.craftedSessionBindings.values()].some((binding) => binding.accountId === accountId)
+    ) {
+      throw new AccountControlError(
+        "ACCOUNT_LOCKED",
+        "This account has a live Session binding and cannot be removed while in use.",
+        { accountId },
+      );
+    }
     this.accountStore.remove(accountId);
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+  }
+
+  /** Close either a crafted native session or a regular terminal/ACP thread. */
+  async closeThread(payload: { threadId: string }): Promise<void> {
+    const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
+    if (craftedSession) {
+      try {
+        await craftedSession.terminate();
+      } finally {
+        this.releaseCraftedSession(payload.threadId);
+      }
+      return;
+    }
+    await this.threadSessionManager.closeThread(payload);
   }
 
   selectAccount(accountId: string): AccountView {
@@ -759,6 +799,20 @@ export class SupervisorRuntime {
 
   resolveAccount(payload: AccountResolutionRequest): AccountResolution {
     return this.accountResolver.resolve(payload);
+  }
+
+  setAccountPoolScheduling(payload: AccountPoolConfigPayload): ProviderPoolConfig {
+    const config = this.accountStore.setPoolSchedulingMode(payload.provider, payload.scheduling);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(payload.provider) });
+    return config;
+  }
+
+  getAccountPoolScheduling(payload: AccountProviderPayload): ProviderPoolConfig {
+    return this.accountStore.poolConfig(payload.provider ?? "grok");
+  }
+
+  getTokenUsageCapabilities(): import("@/shared/contracts").TokenUsageCapabilities {
+    return this.tokenUsageAdapter.inspectCapabilities();
   }
 
   async getTokenUsage(payload: TokenUsagePayload): Promise<TokenUsageResponse> {
@@ -842,18 +896,37 @@ export class SupervisorRuntime {
     };
   }
   async refreshAccountQuota(accountId: string): Promise<AccountView> {
-    const account = await this.codexProfileService.collectQuota(
-      accountId,
-      this.usageService.getHostForAccountAdapter(),
-    );
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list("codex") });
-    return account;
+    const record = this.accountStore.getRecord(accountId);
+    if (!record)
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
+    // v0.5 T07: route quota collection by the account's own provider so Grok
+    // rows never go through the Codex collector.
+    const provider = record.provider;
+    // v0.5 T09: per-account refresh lock coalesces concurrent refreshes.
+    const inFlight = this.accountRefreshLocks.get(accountId);
+    if (inFlight) return inFlight as Promise<AccountView>;
+    const refresh = (async () => {
+      const account =
+        provider === "grok"
+          ? await this.grokProfileService.collectQuota(
+              accountId,
+              this.usageService.getHostForAccountAdapter(),
+            )
+          : await this.codexProfileService.collectQuota(
+              accountId,
+              this.usageService.getHostForAccountAdapter(),
+            );
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list(provider) });
+      return account;
+    })().finally(() => {
+      this.accountRefreshLocks.delete(accountId);
+    });
+    this.accountRefreshLocks.set(accountId, refresh);
+    return refresh;
   }
 
   /** Create a pending isolated Grok login home (no AccountStore row yet). */
-  createGrokProfileLogin(
-    payload: GrokProfileLoginCreatePayload,
-  ): GrokProfileLoginCreateResult {
+  createGrokProfileLogin(payload: GrokProfileLoginCreatePayload): GrokProfileLoginCreateResult {
     const pendingRef = `grok-pending:${crypto.randomUUID()}`;
     const home = createPendingGrokHome(this.accountStore.managedRoot, payload.label);
     this.grokPendingLogins.set(pendingRef, {
@@ -1036,6 +1109,8 @@ export class SupervisorRuntime {
     let entityId: string | undefined;
     let sessionId: string | undefined;
     let accountBinding: AccountBinding | undefined;
+    let craftedThreadId: string | undefined;
+    let craftedSession: CraftSession | undefined;
     try {
       const created = this.createCraftingAdapter(
         payload.craftPlan,
@@ -1048,8 +1123,15 @@ export class SupervisorRuntime {
       const entity = await adapter.spawnEntity(plan);
       entityId = entity.id;
       const session = await adapter.createSession(entity);
+      craftedSession = session;
       sessionId = session.id;
-      this.nativeHarnessSessions.set(plan.runtimeBinding.harnessKind, session);
+      craftedThreadId = session.threadId ?? plan.threadId;
+      this.registerCraftedSession(
+        craftedThreadId,
+        plan.runtimeBinding.harnessKind,
+        session,
+        accountBinding,
+      );
       const response =
         payload.prompt.trim().length > 0
           ? await session.sendPrompt(payload.prompt)
@@ -1071,6 +1153,14 @@ export class SupervisorRuntime {
       if (accountBinding?.provider === "grok") {
         this.handleGrokNativePromptError(accountBinding.accountId, error);
       }
+      if (craftedSession) {
+        await craftedSession.terminate().catch(() => undefined);
+        if (craftedThreadId) this.releaseCraftedSession(craftedThreadId);
+      } else if (accountBinding) {
+        // Resolution succeeded but spawning/opening the session failed before
+        // a lifecycle owner existed. Do not leave the account delete guard set.
+        this.releaseCraftedBinding(accountBinding);
+      }
       if (error instanceof CraftingError) {
         throw new Error(
           JSON.stringify(enrichCraftingError(error, payload.craftPlan, entityId, sessionId)),
@@ -1085,6 +1175,8 @@ export class SupervisorRuntime {
     let entityId: string | undefined;
     let sessionId: string | undefined;
     let accountBinding: AccountBinding | undefined;
+    let craftedThreadId: string | undefined;
+    let craftedSession: CraftSession | undefined;
     try {
       const created = this.createCraftingAdapter(
         payload.craftPlan,
@@ -1096,8 +1188,15 @@ export class SupervisorRuntime {
       const entity = await adapter.spawnEntity({ ...plan, sessionRef: payload.sessionRef });
       entityId = entity.id;
       const session = await adapter.resumeSession(entity, payload.sessionRef);
+      craftedSession = session;
       sessionId = session.id;
-      this.nativeHarnessSessions.set(plan.runtimeBinding.harnessKind, session);
+      craftedThreadId = session.threadId ?? plan.threadId;
+      this.registerCraftedSession(
+        craftedThreadId,
+        plan.runtimeBinding.harnessKind,
+        session,
+        accountBinding,
+      );
       const response = payload.prompt?.trim()
         ? await session.sendPrompt(payload.prompt)
         : { response: "" };
@@ -1111,6 +1210,12 @@ export class SupervisorRuntime {
     } catch (error) {
       if (accountBinding?.provider === "grok") {
         this.handleGrokNativePromptError(accountBinding.accountId, error);
+      }
+      if (craftedSession) {
+        await craftedSession.terminate().catch(() => undefined);
+        if (craftedThreadId) this.releaseCraftedSession(craftedThreadId);
+      } else if (accountBinding) {
+        this.releaseCraftedBinding(accountBinding);
       }
       if (error instanceof CraftingError) {
         throw new Error(
@@ -1153,13 +1258,13 @@ export class SupervisorRuntime {
           ? "grok"
           : undefined;
     if (managedProvider && (accountId || this.accountStore.list(managedProvider).length > 0)) {
+      // v0.5: provider-pool scheduling drives auto selection; the legacy
+      // selectedAccountId marker no longer routes auto sessions. Explicit
+      // per-session overrides still never fall back.
       const resolution = this.accountResolver.resolve({
         provider: managedProvider,
         mode: accountMode ?? (accountId ? "explicit" : "auto"),
         ...(accountId ? { explicitAccountId: accountId } : {}),
-        ...(!accountId && accountMode !== "explicit"
-          ? { selectedAccountId: this.accountStore.selectedAccount(managedProvider)?.accountId }
-          : {}),
       });
       accountBinding = {
         accountId: resolution.account.accountId,
@@ -1180,7 +1285,9 @@ export class SupervisorRuntime {
           })
         : createNativeHarnessRuntimeAdapter(plan.runtimeBinding.harnessKind, {
             projectLocation,
-            ...(plan.runtimeBinding.profileRef ? { profileRef: plan.runtimeBinding.profileRef } : {}),
+            ...(plan.runtimeBinding.profileRef
+              ? { profileRef: plan.runtimeBinding.profileRef }
+              : {}),
             ...(accountBinding ? { accountBinding } : {}),
             ...(accountRoot && plan.runtimeBinding.harnessKind === "grok"
               ? { baseSpawnEnv: managedGrokProcessEnvironment(accountRoot) }
@@ -1208,6 +1315,41 @@ export class SupervisorRuntime {
       this.nativeHarnessAdapters.set(plan.runtimeBinding.harnessKind, adapter);
     }
     return { adapter, plan, ...(accountBinding ? { accountBinding } : {}) };
+  }
+
+  private registerCraftedSession(
+    threadId: string | undefined,
+    harnessKind: string,
+    session: CraftSession,
+    binding: AccountBinding | undefined,
+  ): void {
+    if (!threadId) return;
+    const previousUnsubscribe = this.craftedSessionUnsubscribers.get(threadId);
+    previousUnsubscribe?.();
+    this.craftedSessionsByThread.set(threadId, session);
+    this.nativeHarnessSessions.set(harnessKind, session);
+    if (binding) this.craftedSessionBindings.set(threadId, binding);
+    const unsubscribe = session.subscribe((event) => {
+      if (event.type === "session.exited") this.releaseCraftedSession(threadId);
+    });
+    this.craftedSessionUnsubscribers.set(threadId, unsubscribe);
+  }
+
+  private releaseCraftedBinding(binding: AccountBinding): void {
+    for (const [threadId, candidate] of this.craftedSessionBindings) {
+      if (candidate === binding) this.craftedSessionBindings.delete(threadId);
+    }
+  }
+
+  private releaseCraftedSession(threadId: string): void {
+    this.craftedSessionUnsubscribers.get(threadId)?.();
+    this.craftedSessionUnsubscribers.delete(threadId);
+    const session = this.craftedSessionsByThread.get(threadId);
+    this.craftedSessionsByThread.delete(threadId);
+    for (const [harnessKind, candidate] of this.nativeHarnessSessions) {
+      if (candidate === session) this.nativeHarnessSessions.delete(harnessKind);
+    }
+    this.craftedSessionBindings.delete(threadId);
   }
 
   /**
@@ -1667,6 +1809,12 @@ export class SupervisorRuntime {
     this.mcpOAuthService.dispose();
     this.lspManager.dispose();
     await this._projectWatcher?.dispose();
+    await Promise.allSettled(
+      [...this.craftedSessionsByThread.entries()].map(async ([threadId, session]) => {
+        await session.terminate().catch(() => undefined);
+        this.releaseCraftedSession(threadId);
+      }),
+    );
     await this.threadSessionManager.dispose();
     this.crossagentMcpIngress.dispose();
     this.sharedSettingsCache.dispose();

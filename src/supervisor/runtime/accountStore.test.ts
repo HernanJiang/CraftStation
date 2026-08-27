@@ -207,16 +207,84 @@ describe("AccountStore", () => {
     });
 
     reopened.updateStatus(accounts[5]!.accountId, "quota-exhausted");
+    // v0.5: legacy selected markers no longer route auto sessions; the provider
+    // pool scheduling (priority) picks the first usable account.
     expect(
       new AccountResolver(reopened).resolve({
         provider: "grok",
         mode: "auto",
-        selectedAccountId: accounts[5]!.accountId,
       }),
     ).toMatchObject({
       account: { accountId: accounts[0]!.accountId },
-      reason: "priority-fallback",
+      reason: "priority",
     });
+  });
+
+  it("promotes a legacy v1 metadata file to v2 with default pool scheduling", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-accounts-"));
+    roots.push(root);
+    const first = new AccountStore(root).add({ provider: "grok", label: "legacy" });
+    expect(first.label).toBe("legacy");
+    const metadataPath = join(root, "accounts.json");
+    const raw = JSON.parse(readFileSync(metadataPath, "utf8"));
+    // Simulate the pre-v0.5 on-disk shape (version 1, no pools).
+    const v1 = { version: 1, accounts: raw.accounts };
+    writeFileSync(metadataPath, JSON.stringify(v1));
+
+    const reopened = new AccountStore(root);
+    expect(reopened.list("grok")).toHaveLength(1);
+    expect(reopened.list("grok")[0]!.label).toBe("legacy");
+    expect(reopened.poolConfig("grok")).toEqual({ scheduling: "priority" });
+    // The on-disk file is upgraded to version 2 with pools present.
+    const persisted = JSON.parse(readFileSync(metadataPath, "utf8"));
+    expect(persisted.version).toBe(2);
+    expect(persisted.pools).toEqual({});
+  });
+
+  it("persists provider scheduling mode and round-robin cursor across reopen", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-accounts-"));
+    roots.push(root);
+    const store = new AccountStore(root);
+    const first = store.add({ provider: "grok", label: "first" });
+    const second = store.add({ provider: "grok", label: "second" });
+
+    expect(store.setPoolSchedulingMode("grok", "round-robin")).toEqual({
+      scheduling: "round-robin",
+    });
+    store.advanceRoundRobinCursor("grok", first.accountId);
+
+    const reopened = new AccountStore(root);
+    expect(reopened.poolConfig("grok")).toEqual({
+      scheduling: "round-robin",
+      roundRobinCursor: first.accountId,
+    });
+    expect(reopened.get(second.accountId)).toBeDefined();
+  });
+
+  it("never projects secrets into AccountView across reopen", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-accounts-"));
+    roots.push(root);
+    const store = new AccountStore(root);
+    const account = store.add({
+      provider: "grok",
+      label: "secret-holder",
+      providerAccountId: "user@example.com",
+    });
+    const projected = store.projectCredential({
+      accountId: account.accountId,
+      provider: "grok",
+      authJson: '{"access_token":"super-secret","refresh_token":"also-secret"}',
+    });
+    const serialized = JSON.stringify({
+      view: store.get(account.accountId),
+      projectedPath: projected,
+    });
+    expect(serialized).not.toContain("super-secret");
+    expect(serialized).not.toContain("also-secret");
+
+    const reopened = new AccountStore(root);
+    expect(JSON.stringify(reopened.get(account.accountId))).not.toContain("super-secret");
+    expect(reopened.get(account.accountId)).not.toHaveProperty("credentialRoot");
   });
 
   it("does not revive a Grok account whose disabled state is an explicit quota or auth state", () => {

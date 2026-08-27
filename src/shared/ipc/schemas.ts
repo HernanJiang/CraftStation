@@ -112,7 +112,7 @@ export const craftAgentResultSchema = z.object({
       accountId: z.string().min(1),
       provider: z.string().min(1),
       credentialScopeRef: z.string().min(1),
-      reason: z.enum(["explicit", "selected", "priority-fallback"]),
+      reason: z.enum(["explicit", "selected", "priority", "round-robin", "random"]),
       boundAt: z.number().int().nonnegative(),
     })
     .optional(),

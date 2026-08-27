@@ -1,11 +1,9 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  AccountControlError,
-  type AccountView,
-} from "@/shared/contracts";
+import { AccountControlError, type AccountView } from "@/shared/contracts";
+import { collectGrok, type HostPort, type UsageSnapshot } from "@poracode/agents-usage";
 import { AccountStore } from "./accountStore";
-import { grokAuthContainer } from "./grokCredentials";
+import { grokAuthContainer, parseGrokAuth } from "./grokCredentials";
 
 /**
  * Managed Grok account control plane. Grok's official CLI honours `GROK_HOME`
@@ -21,6 +19,11 @@ const GROK_IDENTITY_KEYS = ["email", "principal_id", "user_id"] as const;
 export interface GrokAccountIdentity {
   maskedIdentity: string;
   providerAccountId?: string;
+}
+
+function isPlaceholderGrokLabel(label: string): boolean {
+  const normalized = label.trim().toLowerCase();
+  return normalized === "" || normalized === "new grok" || normalized === "new account";
 }
 
 export function defaultGrokAccountLabel(identity: string): string {
@@ -58,7 +61,11 @@ export function grokAccountIdentityFromContainer(
  * leaks a phantom account.
  */
 export function createPendingGrokHome(managedRoot: string, label: string): string {
-  const safe = label.trim().replace(/[^a-zA-Z0-9_.-]/gu, "-").slice(0, 64) || "grok";
+  const safe =
+    label
+      .trim()
+      .replace(/[^a-zA-Z0-9_.-]/gu, "-")
+      .slice(0, 64) || "grok";
   const home = join(managedRoot, `grok-pending-${safe}-${Date.now().toString(36)}`);
   mkdirSync(home, { recursive: true });
   return home;
@@ -115,15 +122,12 @@ export class GrokProfileService {
     }
     const account = this.options.store.add({
       provider: this.provider,
-      label:
-        input.label.trim() && input.label.trim() !== "New Grok"
-          ? input.label
-          : defaultGrokAccountLabel(identity.maskedIdentity),
+      // v0.5 default alias contract: placeholder labels are rewritten by the
+      // store to "<Provider> Account N". Explicit user labels are preserved.
+      label: input.label.trim() && !isPlaceholderGrokLabel(input.label) ? input.label : "New Grok",
       maskedIdentity: identity.maskedIdentity,
       enabled: true,
-      ...(identity.providerAccountId
-        ? { providerAccountId: identity.providerAccountId }
-        : {}),
+      ...(identity.providerAccountId ? { providerAccountId: identity.providerAccountId } : {}),
     });
     try {
       const managedRoot = this.options.store.projectCredential({
@@ -138,6 +142,70 @@ export class GrokProfileService {
       this.options.store.remove(account.accountId);
       throw error;
     }
+  }
+
+  /**
+   * Account-scoped quota collection (v0.5 T07). Reads only the managed
+   * GROK_HOME/auth.json for this account and maps snapshot status onto the
+   * account row so A/B quota/reset/status stay isolated. Never touches the host
+   * ~/.grok or Codex-Router oauth pool.
+   */
+  async collectQuota(accountId: string, host: HostPort): Promise<AccountView> {
+    const account = this.options.store.getRecord(accountId);
+    if (!account)
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
+    const grokHome = this.managedGrokHome(accountId);
+    const authPath = join(grokHome, "auth.json");
+    let token: ReturnType<typeof parseGrokAuth> | undefined;
+    if (existsSync(authPath)) {
+      token = parseGrokAuth(readFileSync(authPath, "utf8"));
+    }
+    const scopedHost: HostPort = {
+      ...host,
+      credentials: {
+        ...host.credentials,
+        getOAuthToken: async () =>
+          token?.accessToken ? { accessToken: token.accessToken } : undefined,
+        getSecret: async () => undefined,
+      },
+    };
+    let snapshot: UsageSnapshot;
+    try {
+      snapshot = await collectGrok(scopedHost);
+    } catch (error) {
+      const lastError = error instanceof Error ? error.message : String(error);
+      return this.options.store.updateStatus(accountId, "error", {
+        lastError,
+        lastQuotaAt: Date.now(),
+      });
+    }
+    const status =
+      snapshot.status === "ok"
+        ? snapshot.windows.some((window) => window.usedPercent >= 90)
+          ? "quota-low"
+          : "available"
+        : snapshot.status === "quota-hit"
+          ? "quota-exhausted"
+          : snapshot.status === "auth-missing"
+            ? "auth-expired"
+            : snapshot.status === "rate-limited"
+              ? "quota-low"
+              : "unavailable";
+    const updated = this.options.store.updateStatus(accountId, status, {
+      ...(snapshot.error ? { lastError: snapshot.error } : {}),
+      lastQuotaAt: snapshot.fetchedAt,
+    });
+    return (
+      this.options.store.updateQuota(
+        accountId,
+        snapshot.windows.map((window) => ({
+          id: window.id,
+          label: window.label,
+          usedPercent: window.usedPercent,
+          ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
+        })),
+      ) ?? updated
+    );
   }
 
   managedGrokHome(accountId: string): string {

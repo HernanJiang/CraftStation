@@ -19,16 +19,21 @@ import {
   type AccountCredentialProjection,
   type AccountMutationInput,
   type AccountRecord,
+  type AccountQuotaWindow,
+  type AccountSchedulingMode,
   type AccountStatus,
   type AccountView,
+  type ProviderPoolConfig,
 } from "@/shared/contracts";
 
 interface AccountFile {
-  version: 1;
+  version: 2;
   accounts: AccountRecord[];
+  /** Provider pool scheduling state (v0.5). Missing pool = default priority. */
+  pools?: Record<string, ProviderPoolConfig>;
 }
 
-const ACCOUNT_FILE_VERSION = 1 as const;
+const ACCOUNT_FILE_VERSION = 2 as const;
 const LOCK_STALE_MS = 30_000;
 interface LockHandle {
   fd: number;
@@ -63,6 +68,25 @@ function assertInside(root: string, candidate: string): string {
     );
   }
   return resolvedCandidate;
+}
+
+function isPlaceholderLabel(label: string): boolean {
+  const normalized = label.trim().toLowerCase();
+  return (
+    normalized === "" ||
+    normalized === "new grok" ||
+    normalized === "new codex" ||
+    normalized === "new account"
+  );
+}
+
+function defaultProviderAccountLabel(provider: string): string {
+  const display = provider
+    .split(/[-_:]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  return display || "Account";
 }
 
 export function maskIdentity(identity: string | undefined): string | undefined {
@@ -146,22 +170,68 @@ export class AccountStore {
       .sort((left, right) => left.order - right.order);
   }
 
+  /** Effective pool scheduling config for a provider (defaults to priority). */
+  poolConfig(provider: string): ProviderPoolConfig {
+    const file = this.read();
+    const pool = (file.pools ?? {})[provider];
+    if (pool && pool.scheduling) return pool;
+    return { scheduling: "priority" };
+  }
+
+  /** Persist a provider pool scheduling mode and reset the round-robin cursor. */
+  setPoolSchedulingMode(provider: string, scheduling: AccountSchedulingMode): ProviderPoolConfig {
+    return this.withMetadataMutation((file) => {
+      file.pools ??= {};
+      file.pools[provider] = { scheduling };
+      return { scheduling };
+    });
+  }
+
+  /** Persist the round-robin cursor after a pick (keeps scheduling mode). */
+  advanceRoundRobinCursor(provider: string, accountId: string): void {
+    this.withMetadataMutation((file) => {
+      file.pools ??= {};
+      const current = file.pools[provider];
+      file.pools[provider] = {
+        scheduling: current?.scheduling ?? "priority",
+        roundRobinCursor: accountId,
+      };
+    });
+  }
+
+  /** Reset the persisted round-robin cursor for a provider. */
+  resetRoundRobinCursor(provider: string): void {
+    this.withMetadataMutation((file) => {
+      file.pools ??= {};
+      const current = file.pools[provider];
+      if (current) {
+        file.pools[provider] = { scheduling: current.scheduling ?? "priority" };
+      }
+    });
+  }
+
   selectedAccount(provider: string): AccountRecord | undefined {
     return this.records(provider).find((account) => account.selected);
   }
 
   add(input: AccountMutationInput): AccountView {
     const provider = input.provider.trim();
-    const label = input.label.trim();
-    if (!provider || !label)
-      throw new AccountControlError("ACCOUNT_CORRUPT", "Provider and label are required.");
+    const rawLabel = input.label.trim();
     return this.withMetadataMutation((file) => {
+      const providerAccounts = file.accounts.filter((account) => account.provider === provider);
+      // v0.5 default alias contract: placeholder labels ("New Grok" etc.) are
+      // rewritten to "<Provider> Account N" so every row shows a stable, editable
+      // alias secondary to the real identity. Explicit user labels are kept.
+      const label = isPlaceholderLabel(rawLabel)
+        ? `${defaultProviderAccountLabel(provider)} ${providerAccounts.length + 1}`
+        : rawLabel;
+      if (!provider || !label)
+        throw new AccountControlError("ACCOUNT_CORRUPT", "Provider and label are required.");
       const accountId = `${safeSegment(provider)}:${randomUUID()}`;
       // The logical identity may contain `:` but a physical Windows directory
       // must not. Keep the profile directory opaque and independently validated.
       const profileDirectory = `profile-${randomUUID()}`;
       const accountRoot = assertInside(this.managedRoot, join(this.managedRoot, profileDirectory));
-      const providerAccounts = file.accounts.filter((account) => account.provider === provider);
       const record: AccountRecord = {
         accountId,
         provider,
@@ -282,6 +352,12 @@ export class AccountStore {
     });
   }
 
+  updateQuota(accountId: string, quotaWindows: AccountQuotaWindow[]): AccountView {
+    return this.update(accountId, (account) => {
+      account.quotaWindows = quotaWindows.map((window) => ({ ...window }));
+    });
+  }
+
   projectCredential(projection: AccountCredentialProjection): string {
     const account = this.getRecord(projection.accountId);
     if (!account)
@@ -399,20 +475,30 @@ export class AccountStore {
     if (!existsSync(this.metadataPath)) return { version: ACCOUNT_FILE_VERSION, accounts: [] };
     try {
       const parsed = JSON.parse(readFileSync(this.metadataPath, "utf8")) as AccountFile;
-      if (parsed.version !== ACCOUNT_FILE_VERSION || !Array.isArray(parsed.accounts))
-        throw new Error("invalid account file");
-      return parsed;
+      if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("invalid account file");
+      // v0.5 migration: v1 files carry accounts only; promote to v2 with empty pools.
+      const migrated: AccountFile = {
+        version: ACCOUNT_FILE_VERSION,
+        accounts: parsed.accounts,
+        pools: parsed.pools ?? {},
+      };
+      return migrated;
     } catch {
       const backup = `${this.metadataPath}.bak`;
       if (existsSync(backup)) {
         try {
           const recovered = JSON.parse(readFileSync(backup, "utf8")) as AccountFile;
-          if (recovered.version === ACCOUNT_FILE_VERSION && Array.isArray(recovered.accounts)) {
-            writeFileAtomic(this.metadataPath, JSON.stringify(recovered), {
+          if (recovered && Array.isArray(recovered.accounts)) {
+            const migrated: AccountFile = {
+              version: ACCOUNT_FILE_VERSION,
+              accounts: recovered.accounts,
+              pools: recovered.pools ?? {},
+            };
+            writeFileAtomic(this.metadataPath, JSON.stringify(migrated), {
               encoding: "utf8",
               mode: 0o600,
             });
-            return recovered;
+            return migrated;
           }
         } catch {
           // Report the stable corruption error below.
@@ -432,18 +518,41 @@ export class AccountStore {
     if (existsSync(this.metadataPath)) {
       copyFileSync(this.metadataPath, `${this.metadataPath}.bak`);
     }
-    writeFileAtomic(this.metadataPath, JSON.stringify(file, null, 2), {
-      encoding: "utf8",
-      mode: 0o600,
-    });
+    writeFileAtomic(
+      this.metadataPath,
+      JSON.stringify({ ...file, version: ACCOUNT_FILE_VERSION, pools: file.pools ?? {} }, null, 2),
+      {
+        encoding: "utf8",
+        mode: 0o600,
+      },
+    );
   }
 
   private migrateLegacyMetadata(): void {
     if (!existsSync(this.metadataPath)) return;
     const lock = this.acquireLock(this.lockPath);
     try {
+      // v0.5: promote v1 files to v2 and persist the pool map on disk so the
+      // provider-pool scheduling contract survives a restart. read() already
+      // normalizes the in-memory shape, so inspect the raw disk version here.
+      let diskVersion: number = ACCOUNT_FILE_VERSION;
+      let diskHasPools = false;
+      try {
+        const raw = JSON.parse(readFileSync(this.metadataPath, "utf8")) as {
+          version?: number;
+          pools?: unknown;
+        };
+        diskVersion = raw.version ?? 0;
+        diskHasPools = Object.prototype.hasOwnProperty.call(raw, "pools");
+      } catch {
+        // Fall back to the normalized shape below.
+      }
       const file = this.read();
       let changed = false;
+      if (diskVersion !== ACCOUNT_FILE_VERSION || !diskHasPools) {
+        file.pools ??= {};
+        changed = true;
+      }
       for (const account of file.accounts) {
         if (normalizeLegacyAccount(account)) changed = true;
       }

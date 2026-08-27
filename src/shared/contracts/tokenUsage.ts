@@ -54,6 +54,18 @@ export interface TokenUsageResponse {
   }>;
 }
 
+export interface TokenUsageCapabilities {
+  /** Available scanner source (runtime-ledger / tokscale / peripheral-sidecar). */
+  source: TokenUsageSource;
+  /** Exactness of the data this scanner can produce. */
+  quality: TokenUsageQuality;
+  /** Whether the scanner is wired and can locate its backing store/binary. */
+  available: boolean;
+  unavailableReason?: string;
+  /** How the scanner resolves its backing store/binary in this build. */
+  locating: "dev-path" | "packaged-resource" | "runtime-ledger";
+}
+
 export const tokenUsagePayloadSchema = z.object({
   periods: z.array(tokenUsagePeriodSchema).min(1).default(["today", "month", "allTime"]),
   accountId: z.string().min(1).optional(),

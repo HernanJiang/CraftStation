@@ -9,13 +9,17 @@
 1. 本文件 —— 当前 Feature、Verdict、Git 检查点、Next Step
 2. `AGENTS.md` / 产品仓 `CRAFTSTATION.md` —— 硬规则与仓库边界
 3. `IDEA_GUIDE.md` —— Ideate Mode 提示词
-4. `ai_workspace/agent_docs/manager_0.4.0.md` —— 当前 Feature 的 Ideate + Plan
+4. `ai_workspace/agent_docs/manager_0.5.0.md` —— 当前 Feature 的 Ideate + Plan
 
 当前冻结点：
 
-- Feature `v0.4.0` **没有 PASS**，Fix Cycle 停在 `v0.4.12`
-- Debugger 检查点：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`
-- 用户授权 Git 收口后，下一版本目标改由 Manager / Ideate 讨论
+- 当前 Feature：`v0.5.0 — Account Pool + Quota + Token Usage Stabilization`
+- Debugger 独立复检：**PASS**（`ai_workspace/agent_docs/debugger_0.5.2.md`）；生命周期 DEV PASS / USER ACCEPTANCE PENDING
+- Coder 交付：`ai_workspace/agent_docs/coder_0.5.2.md`；Debugger 独立复检已关闭 F13
+- 关闭项：F10 / F11 / F12 / F14 / F15 / F13 均已关闭；v0.4 F04 仍 FAIL/BLOCKED
+- 报告：`ai_workspace/reports/report_0.5.md`；真实探针 `ai_workspace/validation/v0.5.2-grok-product-path.json`
+- 上一 Feature `v0.4.0` 保持 **NOT PASS**，Fix Cycle 停在 `v0.4.12`；Debugger 检查点：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`
+- 下一步：用户按 debugger_0.5.2.md 最短 Smoke 亲自验收；通过前不得 merge main、不得打正式 v0.5.0 tag
 - 产品源码与治理文档推送到 `https://github.com/HernanJiang/CraftStation.git`
 
 ## Roadmap
@@ -79,15 +83,15 @@ Model Item + Harness Item
 
 ## Lifecycle Snapshot
 
-| Field | Current Value |
-|---|---|
-| Major Stage | `v0` |
-| Lifecycle State | MANAGER PLAN READY / CODER HANDOFF |
-| Active Feature | `v0.5.0 — Account Pool + Quota + Token Usage Stabilization` |
-| Active Ticket | `v0.5/T01 — Audit baseline 与迁移契约` |
-| Current Fix Cycle | `v0.4.12` checkpoint（历史；未通过） |
-| Current Role | Manager |
-| Review Status | v0.4 FAIL / BLOCKED；v0.5 Plan Ready，等待 Coder 在 dev 执行 |
+| Field             | Current Value                                                          |
+| ----------------- | ---------------------------------------------------------------------- |
+| Major Stage       | `v0`                                                                   |
+| Lifecycle State   | DEV PASS / USER ACCEPTANCE PENDING                                     |
+| Active Feature    | `v0.5.0 — Account Pool + Quota + Token Usage Stabilization`            |
+| Active Ticket     | User Smoke pending (debugger_0.5.2.md)                                 |
+| Current Fix Cycle | `v0.5.2` Debugger PASS                                                 |
+| Current Role      | User                                                                   |
+| Review Status     | v0.5 DEV PASS；Main Promotion NOT AUTHORIZED；v0.4 F04 仍 FAIL/BLOCKED |
 
 ## Historical v0.3 Closeout
 
@@ -133,7 +137,7 @@ Model Item + Harness Item
 - Dev Worktree：`D:\Work\CraftStation\craftstation-dev`，`dev`，当前 Feature 唯一开发线。
 - Active Development Branch：`dev`（本文件与当前 Manager 文档均以 dev 为准）。
 - GitHub origin：`https://github.com/HernanJiang/CraftStation.git`（产品仓 `main`）。
-- `main`、`dev` 均 tracking 对应 `origin` 分支；当前两工作树 HEAD 均为 `b1af0e2`。
+- `main` tracking `origin/main`，HEAD `b1af0e2`。`dev` tracking `origin/dev`，closeout 前 HEAD `be8d8c2`；Debugger PASS closeout 后以 `origin/dev` SHA 为准。不得 merge main。
 - 根仓库 `D:\Work\CraftStation` 是无 remote 的治理仓，不承载产品源码提交。
 - 产品仓检查点 tag：`checkpoint-v0.4.12`（不是 PASS tag，也不是 `v0.4.0`）。
 - 旧 `deepseek-harness/`：`NOT PASSED / SUPERSEDED / DO NOT USE`。
@@ -144,14 +148,20 @@ Model Item + Harness Item
 
 - Manager：`ai_workspace/agent_docs/manager_0.5.0.md`
 - Tickets：`.scratch/craftstation-0.5.0/issues/01-audit-baseline.md` 至 `10-grok-e2e.md`
-- Plan Status：`Ready for Coder`
-- 执行顺序：`T01 → T02 → T03 → T04 → T05 → T06 → T07 → T08 → T09 → T10`
-- Blocking acceptance：至少两个真实 Grok 账号在 Official Grok Harness Runtime 上完成独立 profile、quota、Priority/RR/explicit/sticky E2E；无真实证据不得 PASS。
+- Coder 交付：`ai_workspace/agent_docs/coder_0.5.2.md`；Debugger 独立复检已关闭 F13
+- Debugger Review：`ai_workspace/agent_docs/debugger_0.5.2.md` — **PASS**
+- Prior review：`ai_workspace/agent_docs/debugger_0.5.0.md` / `ai_workspace/agent_docs/debugger_0.5.1.md`
+- Report：`ai_workspace/reports/report_0.5.md`
+- Real probe：`ai_workspace/validation/v0.5.2-grok-product-path.json`
+- Lifecycle：DEV PASS / USER ACCEPTANCE PENDING
+- Main Promotion：NOT AUTHORIZED
+- F10 / F11 / F12 / F14 / F15 / F13 均已关闭。用户 Smoke 通过前不得 merge main、不得打正式 `v0.5.0` tag。
+- v0.4 F04 五 Harness 仍 FAIL/BLOCKED，不得升格。
 - Out of scope：CLIProxyAPI、第二套 Usage 系统、Account/Quota/Usage 进入 Item/Recipe/Crafter、智能路由和 Auto-Crafting。
 
 ## Next Step
 
-1. Coder 在 `D:\Work\CraftStation\craftstation-dev` 读取 Manager v0.5 Part II 与 `.scratch/craftstation-0.5.0/issues/`，按 T01→T10 连续执行。
-2. Coder 完成后交 Debugger 在 dev 独立验收；Debugger 只在真实证据满足时形成 DEV PASS candidate。
-3. 用户验收 dev candidate 后，Manager 才执行上一 Feature/当前 candidate 的 dev→main promotion；在此之前 main 保持 `b1af0e2` 稳定基线。
-4. v0.4.0 仍为 FAIL/BLOCKED checkpoint，不能宣称 PASS、不能创建 v0.4.13。
+1. Debugger v0.5.2 Re-review **PASS**。dev candidate 进入 DEV PASS / USER ACCEPTANCE PENDING。
+2. 用户按 `ai_workspace/agent_docs/debugger_0.5.2.md` 的最短 Smoke 亲自验收功能。
+3. 用户验收通过并明确授权后，才由 Manager 执行 dev→main promotion。现在不得 merge main、不得打 `v0.5.0` tag。
+4. v0.4.0 仍为 FAIL/BLOCKED checkpoint `checkpoint-v0.4.12` / `b1af0e2`，不能宣称 PASS。

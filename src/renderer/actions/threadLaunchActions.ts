@@ -32,6 +32,7 @@ import { isRemoteProjectUnreachable } from "@/renderer/state/remoteServers/reach
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import type { RemoteThreadLaunchResult } from "@/renderer/state/remoteServers/types";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { generateTitleAsync } from "@/renderer/utils/titleGen";
 import { buildProjectDraftConfig } from "@/renderer/views/MainView/parts/AppContent/draftConfig";
 import {
@@ -162,6 +163,15 @@ interface ThreadLaunchRequest {
   readonly userMessageItemId?: string;
   readonly isNewWorktree: boolean;
   readonly options: { replacePaneId?: string; preserveActiveGroup?: boolean };
+}
+
+export interface CraftedSessionLaunchOptions {
+  replacePaneId?: string;
+  preserveActiveGroup?: boolean;
+  /** Explicit account for this newly-created crafted Session only. */
+  accountId?: string;
+  /** Defaults to auto; explicit requires accountId and never falls back. */
+  accountMode?: "auto" | "explicit";
 }
 
 interface ThreadLaunchHostTransport {
@@ -555,7 +565,7 @@ export async function startThreadFromCraft(
   project: Project,
   craftResult: CraftResult,
   prompt: string,
-  options: { replacePaneId?: string; preserveActiveGroup?: boolean } = {},
+  options: CraftedSessionLaunchOptions = {},
 ): Promise<void> {
   if (!craftResult.success || !craftResult.craftPlan) {
     const errorMsg =
@@ -611,7 +621,24 @@ export async function startThreadFromCraft(
     await bridge.dbUpsertThread(thread);
     const store = configureProvenanceStore(bridge);
     await store.saveProvenanceAsync(threadId, craftResult.resultItem.provenance);
-    const craftAgentResult = await bridge.craftAgent({ craftPlan: plan, projectLocation, prompt });
+    // Account-row selection is a one-shot explicit override for the next new
+    // Session. It is intentionally resolved here, at the product launch
+    // boundary, rather than inferred from the legacy `selected` marker in the
+    // Supervisor. An explicit caller option (including `auto`) wins over the
+    // pending UI choice.
+    const pendingAccountId = useUsageAccountsStore.getState().nextSessionAccountId;
+    const accountMode =
+      options.accountMode ?? (options.accountId || pendingAccountId ? "explicit" : "auto");
+    const accountId =
+      options.accountId ??
+      (options.accountMode === undefined ? (pendingAccountId ?? undefined) : undefined);
+    const craftAgentResult = await bridge.craftAgent({
+      craftPlan: plan,
+      projectLocation,
+      prompt,
+      accountMode,
+      ...(accountMode === "explicit" && accountId ? { accountId } : {}),
+    });
     if (craftAgentResult.accountBinding) {
       const boundThread = { ...thread, accountBinding: craftAgentResult.accountBinding };
       useAppStore.setState((state) => ({
@@ -620,6 +647,9 @@ export async function startThreadFromCraft(
         ),
       }));
       await bridge.dbUpsertThread(boundThread);
+    }
+    if (accountMode === "explicit" && accountId === pendingAccountId) {
+      useUsageAccountsStore.getState().clearNextSessionAccount();
     }
   } catch (error) {
     const detail = parseCraftingError(error);

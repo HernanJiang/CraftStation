@@ -148,3 +148,47 @@ describe("TokenUsageAdapter", () => {
     });
   });
 });
+
+describe("TokenUsageAdapter v0.5 capabilities", () => {
+  it("reports scanner capabilities through inspectCapabilities (v0.5 T08)", () => {
+    const adapter = new TokenUsageAdapter(undefined, () => 1_000);
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      source: "tokscale",
+      quality: "estimated",
+      available: false,
+      unavailableReason: expect.any(String),
+      locating: "runtime-ledger",
+    });
+
+    const ledger = new RuntimeLedgerTokenUsageScanner(
+      () => [],
+      () => 1_000,
+    );
+    expect(new TokenUsageAdapter(ledger, () => 1_000).inspectCapabilities()).toMatchObject({
+      source: "runtime-ledger",
+      quality: "exact",
+      available: true,
+      locating: "runtime-ledger",
+    });
+  });
+
+  it("keeps exact vs estimated provenance distinct across periods (v0.5 T08)", async () => {
+    const scanner: TokenUsageScanner = {
+      source: "runtime-ledger",
+      quality: "exact",
+      locating: "runtime-ledger",
+      scan: async () => ({
+        available: true,
+        summaries: [
+          { ...summary("today"), source: "runtime-ledger", quality: "exact" },
+          { ...summary("month"), source: "runtime-ledger", quality: "exact" },
+        ],
+      }),
+    };
+    const result = await new TokenUsageAdapter(scanner, () => 1_000).getUsage({
+      periods: ["today", "month"],
+    });
+    expect(result.sources[0]).toMatchObject({ source: "runtime-ledger", quality: "exact" });
+    expect(result.summaries.every((entry) => entry.quality === "exact")).toBe(true);
+  });
+});

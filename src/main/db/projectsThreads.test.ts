@@ -331,7 +331,7 @@ describe("projectsThreads (real sqlite round-trip)", () => {
         accountId: "codex:work",
         provider: "codex",
         credentialScopeRef: "managed:codex:work",
-        reason: "priority-fallback",
+        reason: "priority",
         boundAt: 123,
       },
     });

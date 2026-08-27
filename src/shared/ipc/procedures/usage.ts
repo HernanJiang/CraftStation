@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   providerUsagePayloadSchema,
   usageApiKeyPayloadSchema,
@@ -8,6 +9,7 @@ import {
   accountEnabledPayloadSchema,
   accountRenamePayloadSchema,
   accountIdPayloadSchema,
+  accountPoolConfigPayloadSchema,
   accountProviderPayloadSchema,
   accountReorderPayloadSchema,
   accountResolutionRequestSchema,
@@ -23,9 +25,11 @@ import {
   type AccountAddPayload,
   type AccountEnabledPayload,
   type AccountIdPayload,
+  type AccountPoolConfigPayload,
   type AccountProviderPayload,
   type AccountRenamePayload,
   type AccountReorderPayload,
+  type ProviderPoolConfig,
   type AccountResolution,
   type AccountResolutionRequest,
   type AccountView,
@@ -38,6 +42,7 @@ import {
   type UsageLoginStatePayload,
   type UsageLoginStateResponse,
   type UsageLogoutResult,
+  type TokenUsageCapabilities,
   type TokenUsagePayload,
   type TokenUsageResponse,
   type CodexProfileCreatePayload,
@@ -131,11 +136,26 @@ export const usageProcedures = {
     "supervisor",
     accountReorderPayloadSchema,
   ),
+  setAccountPoolScheduling: definePayloadProcedure<
+    AccountPoolConfigPayload,
+    ProviderPoolConfig,
+    "supervisor"
+  >("setAccountPoolScheduling", "supervisor", accountPoolConfigPayloadSchema),
+  getAccountPoolScheduling: definePayloadProcedure<
+    AccountProviderPayload,
+    ProviderPoolConfig,
+    "supervisor"
+  >("getAccountPoolScheduling", "supervisor", accountProviderPayloadSchema),
   resolveAccount: definePayloadProcedure<AccountResolutionRequest, AccountResolution, "supervisor">(
     "resolveAccount",
     "supervisor",
     accountResolutionRequestSchema,
   ),
+  getTokenUsageCapabilities: definePayloadProcedure<
+    Record<string, never>,
+    TokenUsageCapabilities,
+    "supervisor"
+  >("getTokenUsageCapabilities", "supervisor", z.object({})),
   getTokenUsage: definePayloadProcedure<TokenUsagePayload, TokenUsageResponse, "supervisor">(
     "getTokenUsage",
     "supervisor",
@@ -176,11 +196,11 @@ export const usageProcedures = {
     AccountView,
     "supervisor"
   >("completeGrokProfileLogin", "supervisor", grokProfileCompletePayloadSchema),
-  cancelGrokProfileLogin: definePayloadProcedure<
-    GrokProfileCancelPayload,
-    void,
-    "supervisor"
-  >("cancelGrokProfileLogin", "supervisor", grokProfileCancelPayloadSchema),
+  cancelGrokProfileLogin: definePayloadProcedure<GrokProfileCancelPayload, void, "supervisor">(
+    "cancelGrokProfileLogin",
+    "supervisor",
+    grokProfileCancelPayloadSchema,
+  ),
   pollGrokProfileLogin: definePayloadProcedure<
     GrokProfilePollPayload,
     GrokProfilePollResult,

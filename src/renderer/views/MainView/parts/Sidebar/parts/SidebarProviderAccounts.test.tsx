@@ -28,6 +28,15 @@ const bridge = vi.hoisted(() => ({
   renameAccount: vi.fn<() => Promise<void>>(),
   selectAccount: vi.fn<() => Promise<void>>(),
   setAccountEnabled: vi.fn<() => Promise<void>>(),
+  getAccountPoolScheduling:
+    vi.fn<() => Promise<{ scheduling: "priority" | "round-robin" | "random" }>>(),
+  setAccountPoolScheduling:
+    vi.fn<
+      (payload: {
+        provider: string;
+        scheduling: "priority" | "round-robin" | "random";
+      }) => Promise<unknown>
+    >(),
 }));
 
 vi.mock("@/renderer/actions/agentLoginActions", () => actions);
@@ -36,13 +45,32 @@ vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridge,
 }));
 
-vi.mock("@/renderer/components/providers/usageProviders", () => ({
-  USAGE_PROVIDERS: [
+const usageProvidersMock = vi.hoisted(() => ({
+  providers: [
     { id: "codex", label: "ChatGPT" },
     { id: "claude", label: "Claude" },
     { id: "gemini", label: "Gemini" },
     { id: "grok", label: "Grok" },
   ],
+}));
+
+vi.mock("@/renderer/components/providers/usageProviders", () => ({
+  USAGE_PROVIDERS: usageProvidersMock.providers,
+  resolveDisplayedProviders: (providerOrder: readonly string[] = []) => {
+    const ordered: typeof usageProvidersMock.providers = [];
+    const seen = new Set<string>();
+    for (const id of providerOrder) {
+      const provider = usageProvidersMock.providers.find((candidate) => candidate.id === id);
+      if (provider && !seen.has(id)) {
+        ordered.push(provider);
+        seen.add(id);
+      }
+    }
+    for (const provider of usageProvidersMock.providers) {
+      if (!seen.has(provider.id)) ordered.push(provider);
+    }
+    return ordered;
+  },
 }));
 
 vi.mock("@/renderer/components/providers/useUsageProviderLogin", () => ({
@@ -77,6 +105,8 @@ describe("SidebarProviderAccounts", () => {
     bridge.renameAccount.mockReset().mockResolvedValue(undefined);
     bridge.selectAccount.mockReset().mockResolvedValue(undefined);
     bridge.setAccountEnabled.mockReset().mockResolvedValue(undefined);
+    bridge.getAccountPoolScheduling.mockReset().mockResolvedValue({ scheduling: "priority" });
+    bridge.setAccountPoolScheduling.mockReset().mockResolvedValue({ scheduling: "priority" });
     actions.createAndRunCodexProfileLogin.mockReset().mockResolvedValue(true);
     actions.createAndRunGrokProfileLogin.mockReset().mockResolvedValue(true);
     actions.runCodexProfileLogin.mockReset().mockResolvedValue(true);
@@ -138,7 +168,11 @@ describe("SidebarProviderAccounts", () => {
     expect(dialog.querySelector('[data-provider-logo="gemini"]')).toBeInTheDocument();
     expect(dialog).not.toHaveTextContent("🔑 模型与用量");
     expect(dialog).not.toHaveTextContent("等待授权");
-    expect(within(dialog).getByTestId("provider-grid")).toHaveClass("grid-cols-4");
+    expect(within(dialog).getByTestId("provider-grid")).toHaveClass(
+      "grid-cols-[minmax(0,4fr)_minmax(190px,1fr)]",
+    );
+    expect(within(dialog).getByTestId("authorized-provider-grid")).toHaveClass("grid-cols-4");
+    expect(within(dialog).getByTestId("unauthorized-provider-grid")).toHaveClass("grid-cols-1");
     expect(within(dialog).getByTestId("provider-card-codex")).toHaveAttribute(
       "data-grid-span",
       "1",
@@ -155,10 +189,12 @@ describe("SidebarProviderAccounts", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const dialog = await screen.findByRole("dialog");
-    const chatGptCard = screen.getByRole("heading", { name: "ChatGPT" }).closest("article");
-    expect(chatGptCard).not.toBeNull();
+    const chatGptCard = screen
+      .getByRole("heading", { name: "ChatGPT" })
+      .closest('[data-testid="provider-card-codex"]');
+    expect(chatGptCard).toBeInstanceOf(HTMLElement);
 
-    fireEvent.click(within(chatGptCard!).getByRole("button", { name: "登录/授权" }));
+    fireEvent.click(within(chatGptCard as HTMLElement).getByRole("button", { name: "登录/授权" }));
     await waitFor(() =>
       expect(actions.createAndRunCodexProfileLogin).toHaveBeenCalledWith({ label: "New Codex" }),
     );
@@ -186,14 +222,46 @@ describe("SidebarProviderAccounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const dialog = await screen.findByRole("dialog");
     const accountPoolCard = within(dialog).getByTestId("provider-card-codex");
-    expect(accountPoolCard).toHaveAttribute("data-grid-span", "2");
-    expect(accountPoolCard).toHaveClass("col-span-2");
+    expect(accountPoolCard).toHaveAttribute("data-grid-span", "4");
+    expect(accountPoolCard).toHaveClass("col-span-4");
     fireEvent.click(within(accountPoolCard).getByRole("button", { name: "添加 ChatGPT 账号" }));
 
     await waitFor(() =>
       expect(actions.createAndRunCodexProfileLogin).toHaveBeenCalledWith({ label: "New Codex" }),
     );
     expect(actions.runAgentLoginCommand).not.toHaveBeenCalled();
+  });
+
+  it("persists provider pool scheduling from the authorised pool header", async () => {
+    const grokAccount = {
+      accountId: "grok:scheduling",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:scheduling",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+    bridge.getAccountPoolScheduling.mockResolvedValue({ scheduling: "priority" });
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+    const scheduling = await within(dialog).findByTestId("account-scheduling-grok");
+
+    fireEvent.change(scheduling, { target: { value: "round-robin" } });
+
+    await waitFor(() =>
+      expect(bridge.setAccountPoolScheduling).toHaveBeenCalledWith({
+        provider: "grok",
+        scheduling: "round-robin",
+      }),
+    );
   });
 
   it("expands only an authorised provider card to two columns", async () => {
@@ -256,10 +324,12 @@ describe("SidebarProviderAccounts", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     await screen.findByRole("dialog");
-    const grokCard = screen.getByRole("heading", { name: "Grok" }).closest("article");
-    expect(grokCard).not.toBeNull();
+    const grokCard = screen
+      .getByRole("heading", { name: "Grok" })
+      .closest('[data-testid="provider-card-grok"]');
+    expect(grokCard).toBeInstanceOf(HTMLElement);
 
-    fireEvent.click(within(grokCard!).getByRole("button", { name: "登录/授权" }));
+    fireEvent.click(within(grokCard as HTMLElement).getByRole("button", { name: "登录/授权" }));
 
     await waitFor(() =>
       expect(actions.createAndRunGrokProfileLogin).toHaveBeenCalledWith({ label: "New Grok" }),
@@ -296,7 +366,8 @@ describe("SidebarProviderAccounts", () => {
         enabled: true,
       }),
     );
-    expect(bridge.selectAccount).toHaveBeenCalledWith({ accountId: grokAccount.accountId });
+    expect(bridge.selectAccount).not.toHaveBeenCalled();
+    expect(useUsageAccountsStore.getState().nextSessionAccountId).toBe(grokAccount.accountId);
     expect(actions.createAndRunGrokProfileLogin).not.toHaveBeenCalled();
   });
 
@@ -357,7 +428,7 @@ describe("SidebarProviderAccounts", () => {
     );
     expect(within(dialog).getByText("Grok 账号池")).toBeInTheDocument();
     expect(within(dialog).getByText("person***@example.com")).toBeInTheDocument();
-    expect(within(dialog).getByText("available")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("available").length).toBeGreaterThan(0);
   });
 
   it("enables and selects a Grok row when the account row is clicked", async () => {
@@ -387,7 +458,8 @@ describe("SidebarProviderAccounts", () => {
         enabled: true,
       }),
     );
-    expect(bridge.selectAccount).toHaveBeenCalledWith({ accountId: grokAccount.accountId });
+    expect(bridge.selectAccount).not.toHaveBeenCalled();
+    expect(useUsageAccountsStore.getState().nextSessionAccountId).toBe(grokAccount.accountId);
     expect(actions.createAndRunGrokProfileLogin).not.toHaveBeenCalled();
   });
 
@@ -421,5 +493,97 @@ describe("SidebarProviderAccounts", () => {
     );
     expect(prompt).toHaveBeenCalledWith("重命名账号", "per");
     prompt.mockRestore();
+  });
+
+  it("shows the real identity as primary text with the alias secondary (v0.5 T06)", async () => {
+    const grokAccount = {
+      accountId: "grok:identity",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:identity",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+
+    await waitFor(() =>
+      expect(within(dialog).getByText("her***g01@gmail.com")).toBeInTheDocument(),
+    );
+    expect(within(dialog).getByText("Grok Account 1")).toBeInTheDocument();
+  });
+
+  it("renders the per-account 2x2 usage grid and shows — when no cache is available (v0.5 T06)", async () => {
+    const grokAccount = {
+      accountId: "grok:grid",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:grid",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+    useProviderUsageStore.setState({
+      snapshots: {
+        grok: {
+          providerId: "grok",
+          status: "ok",
+          windows: [{ id: "session-5h", usedPercent: 42 }],
+          fetchedAt: Date.now(),
+        } as never,
+      },
+    });
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+
+    await waitFor(() =>
+      expect(within(dialog).getByTestId("account-usage-grid-grok:grid")).toBeInTheDocument(),
+    );
+    const grid = within(dialog).getByTestId("account-usage-grid-grok:grid");
+    // Provider-wide usage must not be copied to every account row. Without an
+    // account-scoped quota window this row intentionally has no exact value.
+    expect(grid).not.toHaveTextContent("42%");
+    expect(grid).toHaveTextContent("—");
+    expect(grid).toHaveTextContent("available");
+  });
+
+  it("renders quota only when the account carries an account-scoped window", async () => {
+    const grokAccount = {
+      accountId: "grok:scoped-quota",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:scoped-quota",
+      quotaWindows: [{ id: "session-5h", label: "5h", usedPercent: 42 }],
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByRole("dialog");
+    const grid = await within(dialog).findByTestId("account-usage-grid-grok:scoped-quota");
+
+    expect(grid).toHaveTextContent("42%");
   });
 });

@@ -1,9 +1,32 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountControlError } from "@/shared/contracts";
 import { AccountStore } from "./accountStore";
+import { collectGrok } from "@poracode/agents-usage";
+
+vi.mock("@poracode/agents-usage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@poracode/agents-usage")>();
+  return {
+    ...actual,
+    collectGrok: vi
+      .fn<
+        () => Promise<{
+          providerId: string;
+          status: string;
+          windows: Array<{ id: string; usedPercent: number }>;
+          fetchedAt: number;
+        }>
+      >()
+      .mockResolvedValue({
+        providerId: "grok",
+        status: "ok",
+        windows: [{ id: "weekly", usedPercent: 95 }],
+        fetchedAt: 1234,
+      }),
+  };
+});
 import {
   buildGrokLoginScript,
   defaultGrokAccountLabel,
@@ -45,15 +68,11 @@ describe("GrokProfileService", () => {
     const store = new AccountStore(root);
     const service = new GrokProfileService({ store });
     const pendingHome = createRoot();
-    writeFileSync(
-      join(pendingHome, "auth.json"),
-      officialAuthJson({}),
-      "utf8",
-    );
+    writeFileSync(join(pendingHome, "auth.json"), officialAuthJson({}), "utf8");
 
-    expect(() => service.importAuthJson({ label: "No identity", profileRoot: pendingHome })).toThrow(
-      AccountControlError,
-    );
+    expect(() =>
+      service.importAuthJson({ label: "No identity", profileRoot: pendingHome }),
+    ).toThrow(AccountControlError);
     expect(store.list("grok")).toEqual([]);
   });
 
@@ -72,7 +91,8 @@ describe("GrokProfileService", () => {
     expect(account.provider).toBe("grok");
     expect(account.status).toBe("available");
     expect(account.maskedIdentity).toBe("per***son@example.com");
-    expect(account.label).toBe("per");
+    // v0.5 default alias contract: placeholder labels become "<Provider> Account N".
+    expect(account.label).toBe("Grok 1");
     expect(account).not.toHaveProperty("credentialRoot");
 
     const managedHome = service.managedGrokHome(account.accountId);
@@ -174,5 +194,31 @@ describe("buildGrokLoginScript", () => {
     const cwd = managedGrokLoginCwd(root);
     expect(cwd).toBe(root);
     mkdirSync(root, { recursive: true });
+  });
+
+  it("collects account-scoped Grok quota from the managed GROK_HOME only (v0.5 T07)", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const service = new GrokProfileService({ store });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "quota@example.com", principal_id: "principal-quota" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Grok quota", profileRoot: pendingHome });
+    vi.mocked(collectGrok).mockClear();
+
+    const host = {
+      now: () => 0,
+      credentials: { getOAuthToken: async () => undefined, getSecret: async () => undefined },
+    };
+    const result = await service.collectQuota(account.accountId, host as never);
+    expect(result).toMatchObject({ accountId: account.accountId, status: "quota-low" });
+    expect(collectGrok).toHaveBeenCalled();
+    // The scoped host carries the managed credential seam.
+    expect(collectGrok).toHaveBeenCalledWith(
+      expect.objectContaining({ credentials: expect.anything() }),
+    );
   });
 });

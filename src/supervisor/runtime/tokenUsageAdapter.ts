@@ -1,4 +1,5 @@
 import type {
+  TokenUsageCapabilities,
   TokenUsagePayload,
   TokenUsagePeriod,
   TokenUsageResponse,
@@ -17,6 +18,7 @@ export interface TokenUsageScanResult {
 export interface TokenUsageScanner {
   readonly source?: "tokscale" | "runtime-ledger" | "peripheral-sidecar";
   readonly quality?: "exact" | "derived" | "estimated";
+  readonly locating?: TokenUsageCapabilities["locating"];
   scan(payload: TokenUsagePayload): Promise<TokenUsageScanResult>;
 }
 
@@ -55,6 +57,10 @@ function unavailableSummary(
 }
 
 export class PeripheralTokenUsageScanner implements TokenUsageScanner {
+  readonly source = "peripheral-sidecar" as const;
+  readonly quality = "exact" as const;
+  readonly locating = "packaged-resource" as const;
+
   constructor(private readonly sidecar: PeripheralSidecarClient) {}
 
   async scan(payload: TokenUsagePayload): Promise<TokenUsageScanResult> {
@@ -72,6 +78,17 @@ export class TokenUsageAdapter {
     private readonly scanner?: TokenUsageScanner,
     private readonly now = () => Date.now(),
   ) {}
+
+  inspectCapabilities(): TokenUsageCapabilities {
+    const scanner = this.scanner;
+    return {
+      source: scanner?.source ?? "tokscale",
+      quality: scanner?.quality ?? "estimated",
+      available: Boolean(scanner),
+      ...(scanner ? {} : { unavailableReason: "Tokscale scanner is unavailable." }),
+      locating: scanner?.locating ?? "runtime-ledger",
+    };
+  }
 
   async getUsage(payload: TokenUsagePayload): Promise<TokenUsageResponse> {
     const now = this.now();
@@ -147,6 +164,7 @@ export interface RuntimeLedgerUsageRow {
 export class RuntimeLedgerTokenUsageScanner implements TokenUsageScanner {
   readonly source = "runtime-ledger" as const;
   readonly quality = "exact" as const;
+  readonly locating = "runtime-ledger" as const;
 
   constructor(
     private readonly loadRows: () => Promise<RuntimeLedgerUsageRow[]> | RuntimeLedgerUsageRow[],

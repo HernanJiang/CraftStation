@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project, Thread } from "@/shared/contracts";
 import type { RemoteThreadLaunchResult } from "@/renderer/state/remoteServers/types";
 import { BUILTIN_MODEL_ITEMS, Crafter } from "@/shared/crafting";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -190,6 +191,7 @@ describe("startThreadFromDraft host transport", () => {
     mocks.appState.projects = [];
     mocks.appState.threads = [];
     mocks.appState.provisioningWorktreeThreadIds = {};
+    useUsageAccountsStore.getState().reset();
     mocks.appState.createThread.mockImplementation((input) => {
       const values = input as Partial<Thread> & {
         threadId?: string;
@@ -267,6 +269,7 @@ describe("startThreadFromDraft host transport", () => {
     expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: "inspect the repository",
+        accountMode: "auto",
         projectLocation: localProject.location,
         craftPlan: expect.objectContaining({ threadId: "craft-thread-1", workspace: "C:\\repo" }),
       }),
@@ -278,6 +281,40 @@ describe("startThreadFromDraft host transport", () => {
     expect(mocks.appState.createThread).toHaveBeenCalledWith(
       expect.objectContaining({ threadId: "craft-thread-1", agentKind: "codex" }),
     );
+  });
+
+  it("passes an account-row choice as an explicit one-shot launch override", async () => {
+    useUsageAccountsStore.getState().setNextSessionAccount("grok:account-a");
+    const craftResult = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+      { workspace: "C:\\repo", threadId: "craft-thread-explicit" },
+    );
+
+    await startThreadFromCraft(localProject, craftResult, "use account A");
+
+    expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "grok:account-a",
+        accountMode: "explicit",
+      }),
+    );
+    expect(useUsageAccountsStore.getState().nextSessionAccountId).toBeNull();
+  });
+
+  it("lets an explicit auto launch clear the pending account-row choice", async () => {
+    useUsageAccountsStore.getState().setNextSessionAccount("grok:account-a");
+    const craftResult = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+      { workspace: "C:\\repo", threadId: "craft-thread-auto" },
+    );
+
+    await startThreadFromCraft(localProject, craftResult, "use the pool", { accountMode: "auto" });
+
+    expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ accountMode: "auto" }),
+    );
+    expect(mocks.bridge.craftAgent.mock.calls[0]?.[0]).not.toHaveProperty("accountId");
+    expect(useUsageAccountsStore.getState().nextSessionAccountId).toBe("grok:account-a");
   });
 
   it("opens a local thread before its new worktree finishes provisioning", async () => {

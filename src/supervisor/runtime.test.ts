@@ -2753,9 +2753,11 @@ describe("SupervisorRuntime Codex profile login", () => {
       label: "win32 profile",
       completionToken: "lc_supervisor_test",
     });
-    expect(spawnOptions.cwd?.replaceAll('\\', '/')).toMatch(/CraftStation\/.local\/codex-login$/i);
+    expect(spawnOptions.cwd?.replaceAll("\\", "/")).toMatch(/CraftStation\/.local\/codex-login$/i);
     expect(spawnOptions.env?.CODEX_HOME).toBe(managedHome);
-    expect(script).toContain("codex -c model_provider=openai -c sandbox_mode=danger-full-access login");
+    expect(script).toContain(
+      "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
+    );
     expect(script).not.toContain("model_catalog_json");
     expect(script).toContain("poracode-login-complete=lc_supervisor_test");
     expect(script).not.toContain(managedHome);
@@ -2772,10 +2774,12 @@ describe("SupervisorRuntime Codex profile login", () => {
     const script = pty.write.mock.calls[0]?.[0] ?? "";
 
     expect(result.shellId).toBe("login:linux");
-    expect(spawnOptions.cwd?.replaceAll('\\', '/')).toMatch(/CraftStation\/.local\/codex-login$/i);
+    expect(spawnOptions.cwd?.replaceAll("\\", "/")).toMatch(/CraftStation\/.local\/codex-login$/i);
     expect(spawnOptions.env?.CODEX_HOME).toBe(managedHome);
     expect(script).toMatch(/^command bash -lc '/u);
-    expect(script).toContain("codex -c model_provider=openai -c sandbox_mode=danger-full-access login");
+    expect(script).toContain(
+      "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
+    );
     expect(script).not.toContain("model_catalog_json");
     expect(script).toContain("poracode-login-complete=lc_supervisor_test");
     expect(script).not.toContain(managedHome);
@@ -2944,9 +2948,9 @@ describe("SupervisorRuntime Grok profile login", () => {
     const { writeFileSync } = await import("node:fs");
     writeFileSync(`${pendingHome}\\auth.json`, officialAuth({}), "utf8");
 
-    expect(() =>
-      runtime.completeGrokProfileLogin({ pendingRef: pending.pendingRef }),
-    ).toThrow(/No official Grok identity/i);
+    expect(() => runtime.completeGrokProfileLogin({ pendingRef: pending.pendingRef })).toThrow(
+      /No official Grok identity/i,
+    );
     expect(runtime.accountStore.list("grok")).toEqual([]);
     expect(runtime.grokPendingLogins.size).toBe(0);
     expect(existsSync(pendingHome)).toBe(false);
@@ -3067,31 +3071,34 @@ describe("SupervisorRuntime craftAgent", () => {
     ["grok", "xai"],
     ["kimi", "moonshot"],
     ["antigravity", "google"],
-  ] as const)("routes %s through the native adapter factory from craftAgent", async (harnessKind, vendor) => {
-    const runtime = makeRuntime(() => undefined);
-    const adapter = routedAdapter(harnessKind);
-    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
-    nativeHarnessFactoryOverrides.set(harnessKind, factory);
+  ] as const)(
+    "routes %s through the native adapter factory from craftAgent",
+    async (harnessKind, vendor) => {
+      const runtime = makeRuntime(() => undefined);
+      const adapter = routedAdapter(harnessKind);
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set(harnessKind, factory);
 
-    const result = await runtime.craftAgent({
-      craftPlan: nativeCraftPlan(harnessKind, vendor),
-      projectLocation: { kind: "windows", path: "C:\\repo" },
-      prompt: "native route",
-    });
-
-    expect(factory).toHaveBeenCalledWith(
-      harnessKind,
-      expect.objectContaining({
+      const result = await runtime.craftAgent({
+        craftPlan: nativeCraftPlan(harnessKind, vendor),
         projectLocation: { kind: "windows", path: "C:\\repo" },
-      }),
-    );
-    expect(adapter.spawnEntity).toHaveBeenCalledOnce();
-    expect(result).toMatchObject({
-      entityId: `entity:test:${harnessKind}`,
-      sessionId: `session:test:${harnessKind}`,
-      response: `${harnessKind}:native route`,
-    });
-  });
+        prompt: "native route",
+      });
+
+      expect(factory).toHaveBeenCalledWith(
+        harnessKind,
+        expect.objectContaining({
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+        }),
+      );
+      expect(adapter.spawnEntity).toHaveBeenCalledOnce();
+      expect(result).toMatchObject({
+        entityId: `entity:test:${harnessKind}`,
+        sessionId: `session:test:${harnessKind}`,
+        response: `${harnessKind}:native route`,
+      });
+    },
+  );
 
   it("routes DeepSeek through the unavailable native adapter without creating an Entity", async () => {
     const runtime = makeRuntime(() => undefined);
@@ -3234,33 +3241,37 @@ describe("SupervisorRuntime craftAgent", () => {
       label: string,
       status: "available" | "quota-exhausted" = "available",
     ) {
-      const account = runtime.addAccount({ provider: "grok", label, maskedIdentity: `${label}@example.com` });
+      const account = runtime.addAccount({
+        provider: "grok",
+        label,
+        maskedIdentity: `${label}@example.com`,
+      });
       runtime.accountStore.updateStatus(account.accountId, status);
       return account;
     }
 
-    it("binds the new Session to the selected Grok account and injects its managed GROK_HOME", async () => {
+    it("binds a new Session to the first usable Grok account and injects its managed GROK_HOME", async () => {
       const runtime = makeRuntime(() => undefined);
       const accountA = addGrokAccount(runtime, "A");
       const accountB = addGrokAccount(runtime, "B");
-      runtime.selectAccount(accountA.accountId);
 
       const adapter = routedAdapter("grok");
       const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
       nativeHarnessFactoryOverrides.set("grok", factory);
 
       await runtime.craftAgent({
-        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-selected-a"),
-        projectLocation: { kind: "windows", path: "C:\\repo" },
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-priority-a"),
+        projectLocation: { kind: "windows", path: "C:\repo" },
         prompt: "bind A",
       });
 
       const options = factory.mock.calls[0]?.[1] as {
-        accountBinding?: { accountId: string; provider: string };
+        accountBinding?: { accountId: string; provider: string; reason: string };
         baseSpawnEnv?: Record<string, string>;
       };
       expect(options.accountBinding?.accountId).toBe(accountA.accountId);
       expect(options.accountBinding?.provider).toBe("grok");
+      expect(options.accountBinding?.reason).toBe("priority");
       expect(options.baseSpawnEnv?.GROK_HOME).toBe(
         runtime.accountStore.credentialRoot(accountA.accountId),
       );
@@ -3269,33 +3280,35 @@ describe("SupervisorRuntime craftAgent", () => {
       );
     });
 
-    it("binds a new Session to the newly selected Grok account", async () => {
+    it("binds a new Session to an explicitly overridden Grok account", async () => {
       const runtime = makeRuntime(() => undefined);
       const accountA = addGrokAccount(runtime, "A");
       const accountB = addGrokAccount(runtime, "B");
-      runtime.selectAccount(accountB.accountId);
 
       const adapter = routedAdapter("grok");
       const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
       nativeHarnessFactoryOverrides.set("grok", factory);
 
       await runtime.craftAgent({
-        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-selected-b"),
-        projectLocation: { kind: "windows", path: "C:\\repo" },
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-session-explicit-b"),
+        projectLocation: { kind: "windows", path: "C:\repo" },
+        accountId: accountB.accountId,
+        accountMode: "explicit",
         prompt: "bind B",
       });
 
-      const options = factory.mock.calls[0]?.[1] as { accountBinding?: { accountId: string } };
+      const options = factory.mock.calls[0]?.[1] as {
+        accountBinding?: { accountId: string; reason: string };
+      };
       expect(options.accountBinding?.accountId).toBe(accountB.accountId);
+      expect(options.accountBinding?.reason).toBe("explicit");
       void accountA;
     });
 
-    it("auto-falls back to the next Grok account when the selected account is exhausted", async () => {
+    it("auto-picks the next Grok account in priority order when the first is exhausted", async () => {
       const runtime = makeRuntime(() => undefined);
       addGrokAccount(runtime, "A", "quota-exhausted");
       const accountB = addGrokAccount(runtime, "B");
-      // The first account is selected by default; exhaustion must not stick.
-      runtime.accountStore.updateStatus(accountB.accountId, "available");
 
       const adapter = routedAdapter("grok");
       const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
@@ -3303,28 +3316,26 @@ describe("SupervisorRuntime craftAgent", () => {
 
       await runtime.craftAgent({
         craftPlan: nativeCraftPlan("grok", "xai", "grok-session-auto-fallback"),
-        projectLocation: { kind: "windows", path: "C:\\repo" },
+        projectLocation: { kind: "windows", path: "C:\repo" },
         prompt: "auto fallback",
       });
 
       const options = factory.mock.calls[0]?.[1] as { accountBinding?: { accountId: string } };
-      const selectedId = runtime.accountStore.selectedAccount("grok")?.accountId;
-      const recordA = runtime.accountStore.getRecord(runtime.accountStore.list("grok")[0]!.accountId);
-      const recordB = runtime.accountStore.getRecord(accountB.accountId);
+      const recordA = runtime.accountStore.getRecord(
+        runtime.accountStore.list("grok")[0]!.accountId,
+      );
       const listGrok = runtime.accountStore.list("grok").map((a) => [a.label, a.status]);
       expect(listGrok).toEqual([
         ["A", "quota-exhausted"],
         ["B", "available"],
       ]);
       expect(recordA?.status).toBe("quota-exhausted");
-      expect(recordB?.status).toBe("available");
-      expect(selectedId).not.toBe(accountB.accountId);
       const resolved = runtime.accountResolver.resolve({
         provider: "grok",
         mode: "auto",
-        selectedAccountId: selectedId,
       });
       expect(resolved.account.accountId).toBe(accountB.accountId);
+      expect(resolved.reason).toBe("priority");
       expect(resolved.candidates).toContainEqual(
         expect.objectContaining({ accountId: accountB.accountId, eligible: true }),
       );
@@ -3335,7 +3346,6 @@ describe("SupervisorRuntime craftAgent", () => {
       const runtime = makeRuntime(() => undefined);
       const accountA = addGrokAccount(runtime, "A");
       const accountB = addGrokAccount(runtime, "B");
-      runtime.selectAccount(accountA.accountId);
 
       const adapter = routedAdapter("grok");
       const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
@@ -3343,7 +3353,9 @@ describe("SupervisorRuntime craftAgent", () => {
 
       await runtime.craftAgent({
         craftPlan: nativeCraftPlan("grok", "xai", "grok-session-quota-error"),
-        projectLocation: { kind: "windows", path: "C:\\repo" },
+        projectLocation: { kind: "windows", path: "C:\repo" },
+        accountId: accountA.accountId,
+        accountMode: "explicit",
         prompt: "bound A",
       });
 
@@ -3365,7 +3377,6 @@ describe("SupervisorRuntime craftAgent", () => {
     it("persists quota exhaustion when the first craftAgent prompt rejects with a duck-typed error", async () => {
       const runtime = makeRuntime(() => undefined);
       const account = addGrokAccount(runtime, "A");
-      runtime.selectAccount(account.accountId);
 
       const adapter = routedAdapter("grok");
       const originalCreateSession = adapter.createSession.bind(adapter);
@@ -3389,7 +3400,9 @@ describe("SupervisorRuntime craftAgent", () => {
       await expect(
         runtime.craftAgent({
           craftPlan: nativeCraftPlan("grok", "xai", "grok-first-turn-quota"),
-          projectLocation: { kind: "windows", path: "C:\\repo" },
+          projectLocation: { kind: "windows", path: "C:\repo" },
+          accountId: account.accountId,
+          accountMode: "explicit",
           prompt: "first turn",
         }),
       ).rejects.toMatchObject(quotaError);
@@ -3418,7 +3431,7 @@ describe("SupervisorRuntime craftAgent", () => {
       await expect(
         runtime.craftAgent({
           craftPlan: nativeCraftPlan("grok", "xai", "grok-session-explicit-error"),
-          projectLocation: { kind: "windows", path: "C:\\repo" },
+          projectLocation: { kind: "windows", path: "C:\repo" },
           accountId: accountA.accountId,
           accountMode: "explicit",
           prompt: "must not fall back",
@@ -3427,11 +3440,10 @@ describe("SupervisorRuntime craftAgent", () => {
       expect(factory).not.toHaveBeenCalled();
     });
 
-    it("keeps an already-started Session bound to its original account after selection changes", async () => {
+    it("keeps an already-started Session bound to its original account after pool changes", async () => {
       const runtime = makeRuntime(() => undefined);
       const accountA = addGrokAccount(runtime, "A");
       const accountB = addGrokAccount(runtime, "B");
-      runtime.selectAccount(accountA.accountId);
 
       const adapterA = routedAdapter("grok");
       const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>();
@@ -3440,18 +3452,21 @@ describe("SupervisorRuntime craftAgent", () => {
 
       const sessionA = await runtime.craftAgent({
         craftPlan: nativeCraftPlan("grok", "xai", "grok-session-sticky-a"),
-        projectLocation: { kind: "windows", path: "C:\\repo" },
+        projectLocation: { kind: "windows", path: "C:\repo" },
+        accountId: accountA.accountId,
+        accountMode: "explicit",
         prompt: "sticky A",
       });
       expect(sessionA.accountBinding?.accountId).toBe(accountA.accountId);
 
-      // Switch selection mid-flight: a NEW session picks B while session A stays A.
-      runtime.selectAccount(accountB.accountId);
+      // A NEW session with an explicit override binds B while session A stays A.
       const adapterB = routedAdapter("grok");
       factory.mockImplementation(() => adapterB);
       const sessionB = await runtime.craftAgent({
         craftPlan: nativeCraftPlan("grok", "xai", "grok-session-sticky-b"),
-        projectLocation: { kind: "windows", path: "C:\\repo" },
+        projectLocation: { kind: "windows", path: "C:\repo" },
+        accountId: accountB.accountId,
+        accountMode: "explicit",
         prompt: "sticky B",
       });
 
@@ -3459,5 +3474,80 @@ describe("SupervisorRuntime craftAgent", () => {
       expect(sessionA.accountBinding?.accountId).toBe(accountA.accountId);
       expect(sessionA.accountBinding?.accountId).not.toBe(sessionB.accountBinding?.accountId);
     });
+
+    it("blocks removing an account with a live craft session binding (v0.5 T09)", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = addGrokAccount(runtime, "A");
+
+      const adapter = routedAdapter("grok");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-lifecycle-bound"),
+        projectLocation: { kind: "windows", path: "C:\repo" },
+        accountId: account.accountId,
+        accountMode: "explicit",
+        prompt: "bind",
+      });
+
+      expect(() => runtime.removeAccount(account.accountId)).toThrow(/live Session binding/);
+      expect(runtime.accountStore.get(account.accountId)).toBeDefined();
+    });
+
+    it("releases a crafted account binding when the public closeThread seam terminates it", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = addGrokAccount(runtime, "A");
+      const adapter = routedAdapter("grok");
+      nativeHarnessFactoryOverrides.set(
+        "grok",
+        vi.fn(() => adapter),
+      );
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-lifecycle-release"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        accountId: account.accountId,
+        accountMode: "explicit",
+        prompt: "bind",
+      });
+
+      await expect(
+        runtime.closeThread({ threadId: "grok-lifecycle-release" }),
+      ).resolves.toBeUndefined();
+      expect(() => runtime.removeAccount(account.accountId)).not.toThrow();
+      expect(runtime.accountStore.get(account.accountId)).toBeUndefined();
+    });
+
+    it("allows removing an unbound account and does not touch the host profile (v0.5 T09)", () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = runtime.addAccount({ provider: "grok", label: "A" });
+      runtime.removeAccount(account.accountId);
+      expect(runtime.accountStore.get(account.accountId)).toBeUndefined();
+    });
+  });
+});
+
+describe("SupervisorRuntime account refresh lock (v0.5 T09)", () => {
+  it("coalesces concurrent per-account quota refreshes into one collector call", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const account = runtime.addAccount({ provider: "codex", label: "A" });
+    runtime.accountStore.updateStatus(account.accountId, "available");
+    let calls = 0;
+    runtime.codexProfileService.collectQuota = vi.fn<
+      () => Promise<import("@/shared/contracts").AccountView>
+    >(async () => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return runtime.accountStore.get(account.accountId)!;
+    });
+
+    const [first, second] = await Promise.all([
+      runtime.refreshAccountQuota(account.accountId),
+      runtime.refreshAccountQuota(account.accountId),
+    ]);
+    expect(calls).toBe(1);
+    expect(first.accountId).toBe(account.accountId);
+    expect(second.accountId).toBe(account.accountId);
   });
 });
