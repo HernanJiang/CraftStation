@@ -44,6 +44,8 @@ Universal AI agent orchestrator — Electron desktop app managing Claude, Codex,
 
 ## Working Rules
 
+- Feature 协作采用 Coder 主动交接的一对一配对：Coder 完成全部 Ticket 与 Feature-level self-check 后，自动创建对应 Debugger 任务并交接；Manager 不预先创建 Debugger。Debugger 固定使用 `grok-4.6`、推理强度 `high`，只验收绑定 Coder 的同一 Feature worktree。Coder 默认使用 `gpt-5.6-sol`、推理强度 `high`。
+
 - For UI changes, follow existing app patterns first. Prefer shared variants and local component conventions over raw library defaults or new visual treatments.
 - For absolutely positioned HeroUI tooltips, put positioning on an out-of-flow wrapper and keep `Tooltip.Trigger` normally positioned inside it. `Tooltip.Trigger` renders an `inline-block`; wrapping an absolute child directly can add layout space and anchor the tooltip to the wrong box.
 - Keep visual scope tight. Do not add layout stabilizers, decorative styling, or state treatments unless they are part of the request.
