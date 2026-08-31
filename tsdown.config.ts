@@ -82,6 +82,10 @@ const deps = {
     "zod",
     "@sindresorhus/slugify",
     /^@poracode\/agents-usage(?:\/|$)/,
+    // @opencode-ai/sdk exposes import-only ESM subpaths. Leaving it external in
+    // the CJS Supervisor turns the generated import into require(), which Node
+    // rejects with ERR_PACKAGE_PATH_NOT_EXPORTED before the app can start.
+    /^@opencode-ai\/sdk(?:\/|$)/,
   ],
   onlyBundle: false as const,
   neverBundle: [
@@ -90,7 +94,6 @@ const deps = {
     "better-sqlite3",
     "@anthropic-ai/claude-agent-sdk",
     "@cursor/sdk",
-    "@opencode-ai/sdk",
   ],
 };
 
