@@ -14288,3 +14288,66 @@ msgstr "进入项目"
 
 msgid "Choose how you want to enter CraftStation."
 msgstr "选择进入方式"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Abort current turn and switch"
+msgstr "终止当前轮次并切换"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "After current turn"
+msgstr "当前轮次完成后"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Cancel queued switch"
+msgstr "取消排队中的切换"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Choose the GUI presentation to switch in place."
+msgstr "选择要在当前对话中切换到的 GUI 展示方式。"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Confirm the source turn stopped before activating a new Runtime Segment."
+msgstr "请确认源轮次已停止，再激活新的 Runtime Segment。"
+
+#. placeholder {0}: activeSegment?.recipeId ?? thread.compositionProvenance?.recipeId
+#. placeholder {1}: activeSegment?.runtimeBinding.modelId ?? thread.config.model
+#. placeholder {2}: activeSegment?.runtimeBinding.harnessKind ?? thread.agentKind
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Current: {0} · {1} · {2}"
+msgstr "当前：{0} · {1} · {2}"
+
+#. placeholder {0}: shortId(payload.entityId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Entity {0}"
+msgstr "实体 {0}"
+
+#. placeholder {0}: payload.ordinal + 1
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Runtime segment {0}"
+msgstr "Runtime Segment {0}"
+
+#. placeholder {0}: shortId(payload.runtimeSessionId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Session {0}"
+msgstr "Session {0}"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch in this conversation"
+msgstr "在当前对话中切换"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch timing"
+msgstr "切换时机"
+
+#. placeholder {0}: targetConfig.model
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Target: {0} · {selectedKind}"
+msgstr "目标：{0} · {selectedKind}"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "This transfers portable conversation context; it does not resume another provider's native Session. Attachments are not copied into the checkpoint."
+msgstr "这会传递可移植的对话上下文，不会恢复其他提供商的原生 Session。附件不会复制到 checkpoint。"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Wait for a completed-turn boundary, then create a portable checkpoint and a new native Session."
+msgstr "等待当前轮次完成，然后创建可移植 checkpoint 和新的原生 Session。"

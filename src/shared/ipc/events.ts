@@ -22,6 +22,7 @@ import type { BrowserState, BrowserTabInfo } from "./procedures/browser";
 import type { BrowserLinkPresentationMode, CrossagentRoutingOverride } from "../settings";
 import type { IpcProcedurePayload, SupervisorProcedureName } from "./procedureMap";
 import type { MessageKey } from "../messages";
+import type { SessionSwitchState } from "../sessionHandoff";
 
 export type SupervisorRequest = {
   [Name in SupervisorProcedureName]: {
@@ -81,6 +82,7 @@ export type SupervisorEvent =
   | { type: "thread-reset"; threadId: string }
   | { type: "thread-output"; threadId: string; data: string; outputLength: number }
   | { type: "thread-runtime-event"; threadId: string; event: RuntimeEvent }
+  | { type: "session-switch-state"; threadId: string; state: SessionSwitchState }
   | { type: "thread-runtime-events"; threadId: string; events: RuntimeEvent[] }
   | {
       type: "thread-runtime-events-multi";

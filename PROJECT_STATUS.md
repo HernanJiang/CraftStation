@@ -1,5 +1,19 @@
 # PROJECT_STATUS.md
 
+## Active Feature — v0.9.0 Cross-Harness Session Handoff
+
+- Feature：`v0.9.0 — Cross-Harness Session Handoff`
+- 唯一 Feature worktree：`D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff`
+- Feature branch：`dev/v0.9-cross-harness-handoff`
+- Manager Plan：`ai_workspace/agent_docs/manager_0.9.0.md`
+- Manager Plan base：`7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`
+- Coder 状态：T01–T08 已连续实现，Feature-level self-check 已完成。
+- Ticket 状态：T01 Segment Ledger、T02 ConversationCheckpoint、T03 Same-Thread Switch、T04 Turn Boundary、T05 Abort/Rollback、T06 Event/Input Fence、T07 In-place UI、T08 Real Acceptance 均已实现并有对应源码/测试。
+- T08 真实证据：`ai_workspace/validation/v0.9-cross-harness-handoff-real.json`；`synthetic: false`，当前 `BLOCKED BY ENVIRONMENT / RUNTIME_UNAVAILABLE`。未取得真实 Codex → Grok Build → Codex non-synthetic response，不将 Feature 升格为 PASS。
+- Feature-level verdict：`IMPLEMENTED / BLOCKED BY ENVIRONMENT / READY FOR DEBUGGER`
+- 当前下一步：完成 Coder self-check、写 `ai_workspace/agent_docs/coder_0.9.0.md`，提交 Feature 分支并交接全新的项目绑定 `Debugger-0.9-Cross-Harness Handoff`。
+- Git 边界：Coder 不 merge `main`、不 merge共享 Dev、不打正式 tag、不 push；Debugger 独立验收后在本版本分支完成候选收口，用户明确授权后才允许 Main promotion。
+
 ## Dev Integration — v0.8.0
 
 - `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility` 已于 2026-08-31 合入本地 `dev`。
@@ -106,25 +120,25 @@ Model Item + Harness Item
 
 ## Lifecycle Snapshot
 
-| Field             | Current Value                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------ |
-| Major Stage       | `v0`                                                                                                   |
-| Lifecycle State   | `v0.8.0 / MERGED TO DEV / USER ACCEPTANCE PENDING`                                                     |
-| Active Feature    | `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility`                                       |
-| Active Ticket     | User acceptance；其余 5 条 Provider assistant route 仍未验证                                           |
-| Current Fix Cycle | `v0.8.7`                                                                                               |
-| Current Role      | User                                                                                                   |
-| Review Status     | v0.8 merged to dev；仅 Kimi 两轮真实通过；v0.6 F35/F36 与既有 Grok/F29/v0.5/v0.4 门仍保持 FAIL/BLOCKED |
+| Field             | Current Value                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| Major Stage       | `v0`                                                                                                    |
+| Lifecycle State   | `v0.9.0 / IMPLEMENTED / BLOCKED BY ENVIRONMENT / READY FOR DEBUGGER`                                    |
+| Active Feature    | `v0.9.0 — Cross-Harness Session Handoff`                                                                |
+| Active Ticket     | T01–T08 implemented；T08 real Codex → Grok Build → Codex gate `RUNTIME_UNAVAILABLE`                     |
+| Current Fix Cycle | `v0.9.0`                                                                                                |
+| Current Role      | Coder                                                                                                   |
+| Review Status     | Coder self-check evidence complete; real provider evidence blocked; independent Debugger review pending |
 
-## Future Feature — v0.9.0 (Plan Ready)
+## v0.9.0 Plan Reference
 
 - Feature：`v0.9.0 — Cross-Harness Session Handoff`
 - Manager Ideate + Plan：`ai_workspace/agent_docs/manager_0.9.0.md`
 - Tickets：`.scratch/craftstation-0.9.0/issues/01-runtime-segment-ledger.md` 至 `08-real-cross-harness-acceptance.md`
-- 状态：`PLAN READY / NOT EXECUTING / AWAITING CODER AUTHORIZATION`
-- Feature worktree：`D:\Work\CraftStation\craftstation-dev\.worktrees\v0.9-cross-harness-handoff`
-- Feature branch：`feature/v0.9-cross-harness-handoff`
-- Planning base：`dev@8bc45cfe408a6e603c777f04bce3c22627b76656`
+- 状态：`IMPLEMENTED / BLOCKED BY ENVIRONMENT / READY FOR DEBUGGER`
+- Feature worktree：`D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff`
+- Feature branch：`dev/v0.9-cross-harness-handoff`
+- Planning base：`7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`
 - 目标：在同一 CraftStation 用户可见 Thread 和同一工作区中，让后续 Turn 在不同 Model × Harness Runtime Segment 之间安全接力；不伪造跨厂商 native Session resume。
 - 已确认产品语义：
   1. 默认在当前 Turn 完成后自动切换，同时提供“终止当前 Turn 并切换”；
@@ -134,7 +148,7 @@ Model Item + Harness Item
 - 验收主线：真实 `Codex -> Grok Build -> Codex continuation`、目标启动失败回滚、事件 epoch 隔离、应用重启恢复和凭据安全。
 - Gate Check：`OK`。采用 expand → migrate active writers → contract；以独立 Runtime Segment ledger、versioned ConversationCheckpoint 与 Supervisor-owned Session Handoff Module 实现。
 - Ticket 顺序：T01 Segment Ledger → T02 Checkpoint → T03 Same-Thread Tracer → T04 Turn Boundary → T05 Abort/Rollback → T06 Event/Input Fence → T07 UI → T08 Real Acceptance。
-- 当前不执行：Coder/Debugger、产品源码修改、merge、tag 或 push。等待用户明确授权启动 Coder。
+- Coder 已完成源码实现与 Feature-level self-check；真实 T08 仍因首段官方 Codex Runtime 在当前环境不可用而 `BLOCKED BY ENVIRONMENT`。待独立 Debugger 读取交付文档并验收；不执行 merge、tag 或 push。
 
 ## Historical v0.3 Closeout
 
@@ -208,4 +222,4 @@ Model Item + Harness Item
 2. OpenAI、xAI、Google、DeepSeek、OpenAI-compatible Kimi 获得有效对应凭据后，再逐条补真实 assistant stream/后续 turn；未验证 route 继续 fail-closed。
 3. v0.6 F35/F36、Grok 真实额度、F29 exact Token、v0.5.0 与 v0.4 F04 继续保持 FAIL/BLOCKED。
 4. v0.8 尚未合入 main、未 tag、未 push；只有用户后续明确授权时才执行 Dev → Main promotion。
-5. v0.9 Manager Plan 已在独立 Feature worktree完成；用户授权执行后，由 Manager 创建项目绑定的 `Coder-0.9-Cross-Harness Handoff`。当前不改变 v0.8 的验收或发布状态。
+5. v0.9 Coder 已在唯一 Feature worktree 完成 T01–T08 与 self-check；真实 T08 保持 `UNVERIFIED/BLOCKED`，下一步由配对 Debugger 独立验收。

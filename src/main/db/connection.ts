@@ -264,6 +264,52 @@ export function initDatabase(dbPath: string) {
     );
     CREATE INDEX IF NOT EXISTS idx_remote_command_receipts_updated
       ON remote_command_receipts (updated_at);
+    CREATE TABLE IF NOT EXISTS runtime_segments (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      ordinal INTEGER NOT NULL,
+      binding_epoch INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      craft_plan_id TEXT NOT NULL,
+      recipe_id TEXT NOT NULL,
+      result_item_id TEXT NOT NULL,
+      runtime_binding TEXT NOT NULL,
+      entity_id TEXT,
+      runtime_session_id TEXT,
+      native_session_ref TEXT,
+      predecessor_segment_id TEXT,
+      checkpoint_id TEXT,
+      created_at TEXT NOT NULL,
+      activated_at TEXT,
+      deactivated_at TEXT,
+      failure_code TEXT,
+      UNIQUE(thread_id, ordinal),
+      UNIQUE(thread_id, binding_epoch)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_runtime_segments_one_active
+      ON runtime_segments(thread_id) WHERE status = 'active';
+    CREATE TABLE IF NOT EXISTS runtime_segment_event_archive (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      segment_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      event_sequence INTEGER,
+      received_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS conversation_checkpoints (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      source_segment_id TEXT NOT NULL,
+      schema_version INTEGER NOT NULL,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS session_switch_transactions (
+      request_id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      phase TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   const storedVersion = Number(

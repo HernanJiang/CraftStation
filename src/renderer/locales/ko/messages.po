@@ -14262,3 +14262,66 @@ msgstr "확대"
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom out"
 msgstr "축소"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Abort current turn and switch"
+msgstr "현재 턴을 중단하고 전환"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "After current turn"
+msgstr "현재 턴 이후"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Cancel queued switch"
+msgstr "대기 중인 전환 취소"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Choose the GUI presentation to switch in place."
+msgstr "이 대화에서 전환할 GUI 표시 방식을 선택하세요."
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Confirm the source turn stopped before activating a new Runtime Segment."
+msgstr "새 Runtime Segment를 활성화하기 전에 원본 턴이 중지되었는지 확인하세요."
+
+#. placeholder {0}: activeSegment?.recipeId ?? thread.compositionProvenance?.recipeId
+#. placeholder {1}: activeSegment?.runtimeBinding.modelId ?? thread.config.model
+#. placeholder {2}: activeSegment?.runtimeBinding.harnessKind ?? thread.agentKind
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Current: {0} · {1} · {2}"
+msgstr "현재: {0} · {1} · {2}"
+
+#. placeholder {0}: shortId(payload.entityId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Entity {0}"
+msgstr "Entity {0}"
+
+#. placeholder {0}: payload.ordinal + 1
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Runtime segment {0}"
+msgstr "Runtime segment {0}"
+
+#. placeholder {0}: shortId(payload.runtimeSessionId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Session {0}"
+msgstr "Session {0}"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch in this conversation"
+msgstr "이 대화에서 전환"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch timing"
+msgstr "전환 시점"
+
+#. placeholder {0}: targetConfig.model
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Target: {0} · {selectedKind}"
+msgstr "대상: {0} · {selectedKind}"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "This transfers portable conversation context; it does not resume another provider's native Session. Attachments are not copied into the checkpoint."
+msgstr "이 작업은 이식 가능한 대화 컨텍스트를 전송하며 다른 제공자의 네이티브 Session을 재개하지 않습니다. 첨부 파일은 checkpoint에 복사되지 않습니다."
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Wait for a completed-turn boundary, then create a portable checkpoint and a new native Session."
+msgstr "완료된 턴의 경계를 기다린 후 이식 가능한 checkpoint와 새 네이티브 Session을 만듭니다."

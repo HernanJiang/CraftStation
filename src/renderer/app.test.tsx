@@ -16,6 +16,7 @@ import { useExperimentStore } from "./state/experimentStore";
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { resetDevTerminalStore, useDevTerminalStore } from "./state/devTerminalStore";
 import { useThreadOutputStore } from "./state/threadOutputStore";
+import { useSessionHandoffStore } from "./state/sessionHandoffStore";
 import { gitMergeAndRemove } from "@/renderer/actions/gitActions";
 import { openThread, unloadThread } from "@/renderer/actions/threadActions";
 
@@ -637,6 +638,33 @@ describe("App", () => {
     expect(applyRuntimeEventBatches.mock.calls[1]?.[0].map((batch) => batch.threadId)).toEqual([
       "hidden",
     ]);
+  });
+
+  it("projects durable session switch progress through the single supervisor subscription", () => {
+    useSessionHandoffStore.setState({ statesByThread: {} });
+    const state = {
+      requestId: "switch-1",
+      threadId: "thread-handoff",
+      mode: "after-current-turn" as const,
+      phase: "queued" as const,
+      sourceSegmentId: "segment-1",
+      targetBinding: {
+        harnessKind: "grok",
+        modelId: "grok-4.6",
+        vendor: "xai",
+        runtimeAdapterId: "native-harness:grok",
+      },
+      requestedAt: "2026-08-31T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z",
+    };
+
+    supervisorEventListeners.at(-1)?.({
+      type: "session-switch-state",
+      threadId: state.threadId,
+      state,
+    });
+
+    expect(useSessionHandoffStore.getState().statesByThread[state.threadId]).toEqual(state);
   });
 
   it("clears the running marker when an action shell exits", () => {

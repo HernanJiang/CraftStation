@@ -41,6 +41,7 @@ import {
   runWorktreeSetupScript,
 } from "./worktreeLaunchActions";
 import { performWorktreeRemoval } from "./worktreeActions";
+import { readSessionHandoffState } from "./sessionHandoffActions";
 
 export async function performInitialThreadLaunch(input: {
   thread: Thread;
@@ -667,25 +668,47 @@ async function resumeCraftedThread(input: {
 }): Promise<boolean> {
   const bridge = readBridge();
   const store = configureProvenanceStore(bridge);
+  const handoffState = await readSessionHandoffState(input.thread.id).catch(() => null);
+  const activeHandoff =
+    handoffState?.phase === "active" &&
+    handoffState.activeSegment &&
+    handoffState.targetCraftPlan &&
+    handoffState.targetProvenance
+      ? handoffState
+      : undefined;
   const provenance =
-    input.thread.compositionProvenance ?? (await store.loadProvenanceAsync(input.thread.id));
-  const providerSessionId = input.thread.sessionRef?.providerSessionId;
+    activeHandoff?.targetProvenance ??
+    input.thread.compositionProvenance ??
+    (await store.loadProvenanceAsync(input.thread.id));
+  const providerSessionId =
+    activeHandoff?.activeSegment?.nativeSessionRef ?? input.thread.sessionRef?.providerSessionId;
   if (!provenance || !providerSessionId) return false;
 
   const workspace =
     input.projectLocation.kind === "wsl"
       ? input.projectLocation.linuxPath
       : input.projectLocation.path;
-  const recovered = store.reconstructCraftPlan(input.thread.id, provenance, {
-    workspace,
-    sessionRef: providerSessionId,
-  });
+  const recoveredCraftPlan = activeHandoff
+    ? {
+        ...activeHandoff.targetCraftPlan!,
+        threadId: input.thread.id,
+        workspace,
+        sessionRef: providerSessionId,
+      }
+    : store.reconstructCraftPlan(input.thread.id, provenance, {
+        workspace,
+        sessionRef: providerSessionId,
+      }).craftPlan;
   const result = await bridge.resumeCraftAgent({
-    craftPlan: recovered.craftPlan,
+    craftPlan: recoveredCraftPlan,
     projectLocation: input.projectLocation,
     sessionRef: providerSessionId,
-    ...(input.thread.accountBinding?.accountId
-      ? { accountId: input.thread.accountBinding.accountId }
+    ...((activeHandoff?.activeAccountBinding?.accountId ?? input.thread.accountBinding?.accountId)
+      ? {
+          accountId:
+            activeHandoff?.activeAccountBinding?.accountId ??
+            input.thread.accountBinding!.accountId,
+        }
       : {}),
     ...(input.prompt.length > 0 ? { prompt: input.prompt } : {}),
   });

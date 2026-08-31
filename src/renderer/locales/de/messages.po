@@ -14262,3 +14262,66 @@ msgstr "Vergrößern"
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom out"
 msgstr "Verkleinern"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Abort current turn and switch"
+msgstr "Aktuellen Durchlauf abbrechen und wechseln"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "After current turn"
+msgstr "Nach dem aktuellen Durchlauf"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Cancel queued switch"
+msgstr "Wartenden Wechsel abbrechen"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Choose the GUI presentation to switch in place."
+msgstr "Wähle die GUI-Darstellung für den Wechsel in dieser Unterhaltung."
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Confirm the source turn stopped before activating a new Runtime Segment."
+msgstr "Bestätige, dass der Quelldurchlauf beendet ist, bevor ein neues Runtime Segment aktiviert wird."
+
+#. placeholder {0}: activeSegment?.recipeId ?? thread.compositionProvenance?.recipeId
+#. placeholder {1}: activeSegment?.runtimeBinding.modelId ?? thread.config.model
+#. placeholder {2}: activeSegment?.runtimeBinding.harnessKind ?? thread.agentKind
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Current: {0} · {1} · {2}"
+msgstr "Aktuell: {0} · {1} · {2}"
+
+#. placeholder {0}: shortId(payload.entityId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Entity {0}"
+msgstr "Entity {0}"
+
+#. placeholder {0}: payload.ordinal + 1
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Runtime segment {0}"
+msgstr "Runtime-Segment {0}"
+
+#. placeholder {0}: shortId(payload.runtimeSessionId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Session {0}"
+msgstr "Session {0}"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch in this conversation"
+msgstr "In dieser Unterhaltung wechseln"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch timing"
+msgstr "Zeitpunkt des Wechsels"
+
+#. placeholder {0}: targetConfig.model
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Target: {0} · {selectedKind}"
+msgstr "Ziel: {0} · {selectedKind}"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "This transfers portable conversation context; it does not resume another provider's native Session. Attachments are not copied into the checkpoint."
+msgstr "Dies überträgt portablen Unterhaltungskontext; die native Session eines anderen Anbieters wird nicht fortgesetzt. Anhänge werden nicht in den Checkpoint kopiert."
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Wait for a completed-turn boundary, then create a portable checkpoint and a new native Session."
+msgstr "Warte auf eine abgeschlossene Durchlaufgrenze, erstelle dann einen portablen Checkpoint und eine neue native Session."

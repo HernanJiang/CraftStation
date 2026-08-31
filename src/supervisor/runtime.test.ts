@@ -3150,6 +3150,72 @@ describe("SupervisorRuntime craftAgent", () => {
     expect(result.entityId).toMatch(/^entity:fake-codex:/);
   });
 
+  it("keeps the CraftStation Thread identity stable when the native Session uses its own UUID", async () => {
+    const runtime = makeRuntime(() => undefined);
+    runtime.setCustomCraftingAdapter((plan) => ({
+      id: `native-identity:${plan.runtimeBinding.harnessKind}`,
+      harnessKind: plan.runtimeBinding.harnessKind,
+      supports: () => true,
+      spawnEntity: async (resolvedPlan) => ({
+        id: `entity:${resolvedPlan.runtimeBinding.harnessKind}`,
+        resultItemId: resolvedPlan.resultItemId,
+        craftPlan: resolvedPlan,
+        status: "spawned",
+        createdAt: new Date(0).toISOString(),
+      }),
+      createSession: async (entity) => {
+        const harnessKind = entity.craftPlan.runtimeBinding.harnessKind;
+        return {
+          id: `runtime-session:${harnessKind}`,
+          threadId: `official-native-uuid:${harnessKind}`,
+          entityId: entity.id,
+          status: "idle" as const,
+          startTurn: async () => ({
+            turnId: `turn:${harnessKind}`,
+            status: "completed" as const,
+            events: [],
+          }),
+          interrupt: async () => undefined,
+          terminate: async () => undefined,
+          getSnapshot: () => ({
+            sessionId: `runtime-session:${harnessKind}`,
+            threadId: `official-native-uuid:${harnessKind}`,
+            entityId: entity.id,
+            status: "idle" as const,
+            events: [],
+          }),
+          subscribe: () => () => undefined,
+          sendPrompt: async () => ({ response: "continued", events: [] }),
+        };
+      },
+      resumeSession: async () => {
+        throw new Error("resume is not used by this identity test");
+      },
+    }));
+
+    const threadId = "craft-thread:visible";
+    const created = await runtime.craftAgent({
+      craftPlan: craftPlan(threadId),
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "",
+    });
+
+    expect(created.threadId).toBe(threadId);
+    await expect(
+      runtime.requestSessionSwitch({
+        threadId,
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        targetCraftPlan: nativeCraftPlan("grok", "xai", threadId),
+        mode: "after-current-turn",
+        prompt: "continue in the same conversation",
+      }),
+    ).resolves.toMatchObject({
+      disposition: "activated",
+      state: { threadId, phase: "active" },
+    });
+    expect(runtime.readSessionSwitchState(threadId)).toMatchObject({ threadId, phase: "active" });
+  });
+
   it("binds an explicit OpenAI-compatible account to an isolated Native Codex host", () => {
     const baseDir = makeTempDir();
     process.env.PORACODE_DATA_DIR = baseDir;

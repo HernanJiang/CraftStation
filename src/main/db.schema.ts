@@ -177,3 +177,47 @@ export const threadCompletedTurns = sqliteTable(
     pk: primaryKey({ columns: [table.threadId, table.idx] }),
   }),
 );
+
+export const runtimeSegments = sqliteTable("runtime_segments", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id")
+    .notNull()
+    .references(() => threads.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  bindingEpoch: integer("binding_epoch").notNull(),
+  status: text("status").notNull(),
+  craftPlanId: text("craft_plan_id").notNull(),
+  recipeId: text("recipe_id").notNull(),
+  resultItemId: text("result_item_id").notNull(),
+  runtimeBinding: text("runtime_binding").notNull(),
+  entityId: text("entity_id"),
+  runtimeSessionId: text("runtime_session_id"),
+  nativeSessionRef: text("native_session_ref"),
+  predecessorSegmentId: text("predecessor_segment_id"),
+  checkpointId: text("checkpoint_id"),
+  createdAt: text("created_at").notNull(),
+  activatedAt: text("activated_at"),
+  deactivatedAt: text("deactivated_at"),
+  failureCode: text("failure_code"),
+});
+
+export const conversationCheckpoints = sqliteTable("conversation_checkpoints", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id")
+    .notNull()
+    .references(() => threads.id, { onDelete: "cascade" }),
+  sourceSegmentId: text("source_segment_id").notNull(),
+  schemaVersion: integer("schema_version").notNull(),
+  payload: text("payload").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const sessionSwitchTransactions = sqliteTable("session_switch_transactions", {
+  requestId: text("request_id").primaryKey(),
+  threadId: text("thread_id")
+    .notNull()
+    .references(() => threads.id, { onDelete: "cascade" }),
+  phase: text("phase").notNull(),
+  payload: text("payload").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

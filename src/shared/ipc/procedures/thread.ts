@@ -69,6 +69,16 @@ import type {
   WriteTerminalPayload,
 } from "../../contracts";
 import type { CrossagentRoutingState } from "../../crossagentRanking";
+import {
+  cancelSessionSwitchPayloadSchema,
+  readSessionSwitchStatePayloadSchema,
+  requestSessionSwitchPayloadSchema,
+  type CancelSessionSwitchPayload,
+  type ReadSessionSwitchStatePayload,
+  type RequestSessionSwitchPayload,
+  type SessionSwitchResult,
+  type SessionSwitchState,
+} from "../../sessionHandoff";
 import type { AvailableWindowsShell } from "../../settings";
 import { defineIpcProcedure, defineNoArgProcedure, definePayloadProcedure } from "../core";
 import {
@@ -204,6 +214,21 @@ export const threadProcedures = {
     "supervisor",
     resumeCraftAgentPayloadSchema,
   ),
+  requestSessionSwitch: definePayloadProcedure<
+    RequestSessionSwitchPayload,
+    SessionSwitchResult,
+    "supervisor"
+  >("requestSessionSwitch", "supervisor", requestSessionSwitchPayloadSchema),
+  cancelSessionSwitch: definePayloadProcedure<CancelSessionSwitchPayload, void, "supervisor">(
+    "cancelSessionSwitch",
+    "supervisor",
+    cancelSessionSwitchPayloadSchema,
+  ),
+  readSessionSwitchState: definePayloadProcedure<
+    ReadSessionSwitchStatePayload,
+    SessionSwitchState | null,
+    "supervisor"
+  >("readSessionSwitchState", "supervisor", readSessionSwitchStatePayloadSchema),
   sendThreadInput: definePayloadProcedure<SendThreadInputPayload, void, "supervisor">(
     "sendThreadInput",
     "supervisor",

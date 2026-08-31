@@ -41,8 +41,11 @@ describe("database migration registry", () => {
       [34, "projects.icon"],
       [35, "threads.composition_provenance"],
       [36, "threads.account_binding and usage dimensions"],
+      [37, "runtime segment ledger"],
+      [38, "conversation checkpoints"],
+      [39, "session switch transactions"],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(36);
+    expect(LATEST_SCHEMA_VERSION).toBe(39);
     expect(() => validateMigrationRegistry()).not.toThrow();
   });
 

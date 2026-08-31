@@ -58,6 +58,9 @@ export const REMOTE_PROCEDURE_ROUTES = {
 export const NON_ROUTER_PROJECT_PROCEDURES = {
   craftAgent: "crafting-is-local-supervisor-only",
   resumeCraftAgent: "crafting-is-local-supervisor-only",
+  requestSessionSwitch: "handoff-is-local-supervisor-only",
+  cancelSessionSwitch: "handoff-is-local-supervisor-only",
+  readSessionSwitchState: "handoff-is-local-supervisor-only",
   startThread: "explicit-remote-thread-launch",
   startCodexProfileLogin: "device-owned-profile-login",
   startGrokProfileLogin: "device-owned-profile-login",

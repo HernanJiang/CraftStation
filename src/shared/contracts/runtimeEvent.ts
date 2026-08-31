@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { nativeEventEnvelopeSchema } from "../crafting/nativeHarness";
+import { runtimeExecutionEnvelopeSchema } from "../sessionHandoff";
 
 /**
  * Canonical chat-runtime events.
@@ -26,6 +27,7 @@ export const canonicalItemTypeSchema = z.enum([
   "dynamic_tool_call",
   "web_search",
   "question_answer",
+  "runtime_segment",
   "error",
 ]);
 export type CanonicalItemType = z.infer<typeof canonicalItemTypeSchema>;
@@ -309,6 +311,20 @@ export const errorItemPayloadSchema = z.object({
 });
 export type ErrorItemPayload = z.infer<typeof errorItemPayloadSchema>;
 
+export const runtimeSegmentItemPayloadSchema = z.object({
+  segmentId: z.string().min(1),
+  ordinal: z.number().int().nonnegative(),
+  recipeId: z.string().min(1),
+  craftPlanId: z.string().min(1),
+  modelId: z.string().min(1),
+  harnessKind: z.string().min(1),
+  entityId: z.string().min(1),
+  runtimeSessionId: z.string().min(1),
+  nativeSessionRef: z.string().min(1).optional(),
+  bindingEpoch: z.number().int().positive(),
+});
+export type RuntimeSegmentItemPayload = z.infer<typeof runtimeSegmentItemPayloadSchema>;
+
 /**
  * Provider-agnostic record of a user's reply to a structured user-input request
  * (e.g. Claude's `AskUserQuestion`, Codex's user_input, ACP elicitation forms).
@@ -589,6 +605,7 @@ const canonicalRuntimeEventSchema = z.discriminatedUnion("type", [
 export const runtimeEventSchema = canonicalRuntimeEventSchema.and(
   z.object({
     nativeEnvelope: nativeEventEnvelopeSchema.optional(),
+    execution: runtimeExecutionEnvelopeSchema.optional(),
   }),
 );
 export type RuntimeEvent = z.infer<typeof runtimeEventSchema>;

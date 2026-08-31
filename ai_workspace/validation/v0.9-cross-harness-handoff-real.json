@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-08-31T11:56:45.325Z",
+  "synthetic": false,
+  "feature": "v0.9.0 — Cross-Harness Session Handoff",
+  "executionPath": "SupervisorRuntime.craftAgent/requestSessionSwitch -> official Codex app-server / official Grok ACP -> Runtime Segment ledger",
+  "workspaceSameForAllSegments": true,
+  "verdict": "BLOCKED BY ENVIRONMENT",
+  "scenarios": [],
+  "blockedReason": {
+    "code": "RUNTIME_UNAVAILABLE"
+  },
+  "runtimeEventCount": 19
+}
