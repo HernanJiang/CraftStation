@@ -3,14 +3,14 @@
 ## Active Feature — v0.6.0
 
 - `v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`：`DEBUGGER FAIL / BLOCKED`
-- Release Lifecycle：`USER ACCEPTED RUNNABLE CANDIDATE / LOCAL MAIN PROMOTION AUTHORIZED`
+- Release Lifecycle：`LOCAL MAIN PROMOTED / USER ACCEPTED RUNNABLE CANDIDATE CHECKPOINT`
 - Manager Plan：`ai_workspace/agent_docs/manager_0.6.0.md`
 - 允许工作树：本 `dev` worktree；用户已于 2026-08-29 明确授权切换并开始执行。
 - 范围：Antigravity 系统浏览器 Google OAuth + loopback/main-process exchange/安全存储/刷新；移除独立 Gemini usage surface 但保留 Gemini CLI agent/runtime 与 Antigravity Gemini quota group；新增官方事实核验驱动的 Volcengine Ark Token Plan。
 - Coder 交付：`ai_workspace/agent_docs/coder_0.6.0.md`
 - Debugger 复检：`ai_workspace/agent_docs/debugger_0.6.0.md`（2026-08-29 18:00 独立复检：定向 11 files / 110 passed；工程项可关闭；F35 真实 Google OAuth E2E 与 F36 真实 Ark 线上凭据仍 BLOCKED；Feature 不能 PASS）
 - 用户已于 2026-08-31 完成当前原生 Electron 候选的手动验收并明确授权本地 `dev -> main` 收口。该授权是对当前可运行候选的接受，不会把 F35/F36、F33、F29、v0.5.0 或 v0.4 F04 升格为 PASS。
-- 本轮允许本地 commit、`dev -> main` fast-forward 与 checkpoint tag；不允许 push，不创建正式 `v0.6.0` PASS tag。
+- 本地 `dev -> main` fast-forward 已于 2026-08-31 完成；本轮只创建 accepted-candidate checkpoint tag，不允许 push，不创建正式 `v0.6.0` PASS tag。
 
 > CraftStation 当前动态状态的唯一来源。长期规则见 `AGENTS.md`，外部仓库精确基线见 `reference/BASELINES.md`。
 
@@ -27,12 +27,12 @@
 
 - 当前 Feature：`v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`
 - Debugger 独立复检：**FAIL / BLOCKED**（`ai_workspace/agent_docs/debugger_0.6.0.md`）；OAuth broker / Gemini usage 移除 / Ark parser / titlebar 工程项可关闭；F35 真实 Google OAuth E2E 与 F36 真实 Ark 线上凭据仍 BLOCKED；Feature 不能 PASS
-- Release Lifecycle：用户于 2026-08-31 接受当前可运行候选并授权本地 Main promotion；这是 accepted-candidate checkpoint，不是 Feature PASS
+- Release Lifecycle：用户于 2026-08-31 接受当前可运行候选；本地 Main promotion 已完成。这是 accepted-candidate checkpoint，不是 Feature PASS
 - Coder 交付：`ai_workspace/agent_docs/coder_0.6.0.md`
 - 关闭项：v0.6 工程契约与定向测试；未关闭：F35 / F36，以及既有 F29 / F33 / v0.5.0 / v0.4 F04
 - v0.5.0 继续 **FAIL / BLOCKED**（`ai_workspace/agent_docs/debugger_0.5.7.md`；真实探针 `ai_workspace/validation/v0.5.7-grok-quota-probe.json`）
 - 上一 Feature `v0.4.0` 保持 **NOT PASS**，Fix Cycle 停在 `v0.4.12`；Debugger 检查点：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`
-- 下一步：Manager 完成本地 Dev → Main accepted-candidate checkpoint；有真实 Google / Ark 凭据时再补 F35/F36 证据。无论本轮是否完成 promotion，均不 push、不创建正式 PASS tag
+- 下一步：从 Main 完成回归并启动原生 Electron 供用户复核；有真实 Google / Ark 凭据时再补 F35/F36 证据。保持不 push、不创建正式 PASS tag
 - 产品源码与治理文档推送到 `https://github.com/HernanJiang/CraftStation.git`
 
 ## Roadmap
@@ -96,15 +96,15 @@ Model Item + Harness Item
 
 ## Lifecycle Snapshot
 
-| Field             | Current Value                                                                                                               |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Major Stage       | `v0`                                                                                                                        |
-| Lifecycle State   | `v0.6.0 / USER ACCEPTED RUNNABLE CANDIDATE / FEATURE FAIL-BLOCKED`                                                          |
-| Active Feature    | `v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`                                                          |
-| Active Ticket     | T10 independent acceptance evidence                                                                                         |
-| Current Fix Cycle | `v0.6.0` evidence-only F35/F36（无凭据则保持 BLOCKED，不改已关闭工程项）                                                    |
-| Current Role      | Manager                                                                                                                     |
-| Review Status     | Local Main promotion authorized for accepted candidate; v0.6 F35/F36 and prior Grok/F29/v0.5/v0.4 gates remain FAIL/BLOCKED |
+| Field             | Current Value                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| Major Stage       | `v0`                                                                                                |
+| Lifecycle State   | `v0.6.0 / LOCAL MAIN ACCEPTED-CANDIDATE CHECKPOINT / FEATURE FAIL-BLOCKED`                          |
+| Active Feature    | `v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`                                  |
+| Active Ticket     | T10 independent acceptance evidence                                                                 |
+| Current Fix Cycle | `v0.6.0` evidence-only F35/F36（无凭据则保持 BLOCKED，不改已关闭工程项）                            |
+| Current Role      | Manager                                                                                             |
+| Review Status     | Local Main promotion completed; v0.6 F35/F36 and prior Grok/F29/v0.5/v0.4 gates remain FAIL/BLOCKED |
 
 ## Historical v0.3 Closeout
 
@@ -167,7 +167,7 @@ Model Item + Harness Item
 - Report：`ai_workspace/reports/report_0.5.md`
 - Real probe：`ai_workspace/validation/v0.5.2-grok-product-path.json`
 - Lifecycle: FAIL / BLOCKED；F32/F34 关闭；F33 真实 billing 与 F29 exact Token 未关闭
-- Main Promotion：NOT AUTHORIZED
+- Main Promotion：`COMPLETED AS ACCEPTED-CANDIDATE CHECKPOINT / NOT FEATURE PASS`
 - F10 / F11 / F12 / F13 / F14 / F15 / F25 / F26 / F28 / F30 / F31 工程项已完成；F29 真实 Token 证据与 Grok billing 仍 BLOCKED。用户 Smoke 通过前不得 merge main、不得打正式 `v0.5.0` tag。
 - v0.4 F04 五 Harness 仍 FAIL/BLOCKED，不得升格。
 - Out of scope：CLIProxyAPI、第二套 Usage 系统、Account/Quota/Usage 进入 Item/Recipe/Crafter、智能路由和 Auto-Crafting。
@@ -177,4 +177,4 @@ Model Item + Harness Item
 1. v0.6.0 Debugger 独立复检已完成：**FAIL / BLOCKED**。文档：`ai_workspace/agent_docs/debugger_0.6.0.md`。定向 11 files / 110 passed；未执行真实 Google OAuth / Ark 线上凭据。
 2. 工程项（OAuth broker、Gemini usage 移除、Ark parser、titlebar）无需 Coder 重做。F35/F36 仅在有真实 Google / Ark 凭据时补脱敏探针。
 3. Grok 真实额度、F29 exact Token、v0.5.0 与 v0.4 F04 必须保持 FAIL/BLOCKED，不得因 v0.6 工程测试通过而升格。
-4. 用户已于 2026-08-31 授权本地 accepted-candidate promotion；Manager 可 commit、fast-forward main 并创建 checkpoint tag。仍禁止 push 和正式 `v0.6.0` PASS tag。
+4. 本地 accepted-candidate promotion 已完成；保持禁止 push 和正式 `v0.6.0` PASS tag。后续仅在真实凭据可用时补 F35/F36。

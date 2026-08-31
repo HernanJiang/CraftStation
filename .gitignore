@@ -18,6 +18,8 @@ poracode-diff.patch
 review.diff
 .spec-workflow/
 **/worktrees/
+/.worktrees/
+/craftstation-dev/
 .cursor/
 .grok/
 .commandcode/

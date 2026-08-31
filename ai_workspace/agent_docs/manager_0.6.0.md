@@ -55,3 +55,11 @@ Feasibility/Alignment：OK（现有 Antigravity collector、usage IPC、safe sto
 - F33 Grok 真实 billing、F29 exact Token、v0.5.0 与 v0.4 F04 继续 `FAIL / BLOCKED`。
 
 运行缓存、Cookie、账号或凭据材料、`ai_workspace/temp/`、未跟踪的 `ai_workspace/validation/` 运行产物、误生成目录和一次性 Ticket 草稿不进入 Git；它们在收口时移到仓库外可恢复隔离区。
+
+### Local Promotion Result
+
+- 2026-08-31 已将完整 accepted candidate 归档到 Dev，并以 `--ff-only` 提升到本地 Main。
+- Main 与 Dev 在 closeout 完成后同步到同一提交。
+- 本地 checkpoint tag：`checkpoint-accepted-candidate-2026-08-31`。
+- 未 push `origin/main`、`origin/dev` 或 tag。
+- Feature verdict 不变：v0.6 F35/F36、F33、F29、v0.5.0 与 v0.4 F04 继续 `FAIL / BLOCKED`。
