@@ -130,19 +130,22 @@ Model Item + Harness Item
 - 验收主线：真实 `Codex -> Grok Build -> Codex continuation`、目标启动失败回滚、事件 epoch 隔离、应用重启恢复和凭据安全。
 - 当前不执行：Manager Plan、Feature worktree、Coder/Debugger、源码修改、merge、tag 或 push。进入 Plan 前以最新 Dev 基线执行 Gate Check。
 
-## Parallel Feature — v0.10.0 (Ideate Ready)
+## Parallel Feature — v0.10.0 (Plan Ready)
 
 - Feature：`v0.10.0 — Cross-Thread Model × Harness Dialogue`
-- Manager Ideate：`ai_workspace/agent_docs/manager_0.10.0.md`
+- Manager Ideate + Plan：`ai_workspace/agent_docs/manager_0.10.0.md`
 - Source Review：`ai_workspace/agent_docs/research_0.10.0-poracode-cross-thread.md`
-- 状态：`IDEATE READY / PLAN PENDING / NOT EXECUTING`
+- Tickets：`.scratch/craftstation-0.10.0/issues/01-thread-control-adapter.md` 至 `08-real-cross-thread-acceptance.md`
+- 状态：`PLAN READY / READY FOR CODER`
 - Feature worktree：`D:\Work\CraftStation\craftstation-dev\.worktrees\v0.10-cross-thread-collaboration`
 - Feature branch：`feature/v0.10-cross-thread-collaboration`
 - Base：`dev@8bc45cfe408a6e603c777f04bce3c22627b76656`
 - 与 v0.9 的关系：两条独立并行 Feature。v0.9 解决同 Thread Runtime handoff；v0.10 解决长期 Thread 之间 request/reply。v0.10 不依赖未完成的 v0.9 implementation，只保留 optional integration seam。
 - PoraCode 事实：长期 Thread orchestration 已存在于 always-on App Controls MCP；Crossagents 是 ephemeral subagent lane，不作为 v0.10 主体。
 - 目标：同项目任意 Model × Harness Thread 可以通过 durable exchange 对话，目标回复保留在目标 Thread并带 provenance 回流源 Thread。
-- 当前不执行：产品源码、Coder/Debugger、merge、tag、push。下一步由 Manager 完成 Gate Check 与 Plan。
+- Gate Check：`OK`。复用App Controls MCP长期Thread lane；Crossagents保持ephemeral lane；新exchange/link ledger与optional provenance adapter隔离v0.9并行开发。
+- Execution：T01 Thread Adapter → T02 Idle Dialogue → T03 Busy Queue → T04 Interrupt/Failure → T05 Context/Provenance → T06 Agent MCP → T07 UI/Remote/Restart → T08 Real Acceptance。
+- 下一步：Manager创建项目绑定的`Coder-0.10-Cross-Thread Collaboration`。当前不merge/tag/push。
 
 ## Historical v0.3 Closeout
 
