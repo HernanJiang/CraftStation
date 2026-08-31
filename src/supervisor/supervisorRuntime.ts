@@ -44,8 +44,10 @@ import type {
   GrokProfilePollPayload,
   GrokProfilePollResult,
   ProviderPoolConfig,
+  ResolveThreadServerRequestPayload,
 } from "@/shared/contracts";
 import type {
+  CraftRequestResolution,
   CraftSession,
   HarnessRuntimeAdapter,
   NativeHarnessDiagnostic,
@@ -161,6 +163,9 @@ import { OpenAiCompatibleProfileService } from "./runtime/openaiCompatibleProfil
 import { grokAuthContainer } from "./runtime/grokCredentials";
 import { NATIVE_HARNESS_DESCRIPTORS } from "./runtime/nativeHarness/descriptors";
 import { projectNativeHarnessControlPlane } from "./runtime/nativeHarness/controlPlane";
+import { AccountStoreOpenCodeRuntimeBindingResolver } from "./runtime/openCodeNative/runtimeBinding";
+import { OpenCodeNativeServerPool } from "./runtime/openCodeNative/serverPool";
+import { resolveCraftedRequest, type CraftedRequest } from "./runtime/craftedRequestResolution";
 
 export { detectWslAgentStatuses, writeSubmittedPrompt };
 
@@ -249,6 +254,7 @@ export class SupervisorRuntime {
   /** Every live crafted session, keyed by its durable CraftStation thread id. */
   private readonly craftedSessionsByThread = new Map<string, CraftSession>();
   private readonly craftedSessionUnsubscribers = new Map<string, () => void>();
+  private readonly craftedRequestsByThread = new Map<string, Map<string, CraftedRequest>>();
   /** Per-account quota refresh locks so concurrent refreshes coalesce (v0.5 T09). */
   private readonly accountRefreshLocks = new Map<string, Promise<unknown>>();
   private availableWindowsShellsCache:
@@ -268,6 +274,8 @@ export class SupervisorRuntime {
   readonly pluginRegistry: PluginRegistry;
   readonly accountStore: AccountStore;
   readonly accountResolver: AccountResolver;
+  private readonly openCodeRuntimeBindingResolver: AccountStoreOpenCodeRuntimeBindingResolver;
+  private readonly openCodeServerPool: OpenCodeNativeServerPool;
   readonly tokenUsageAdapter: TokenUsageAdapter;
   readonly codexProfileService: CodexProfileService;
   readonly grokProfileService: GrokProfileService;
@@ -686,6 +694,10 @@ export class SupervisorRuntime {
     );
     this.accountStore = new AccountStore(join(paths.baseDir, "craftstation-accounts"));
     this.accountResolver = new AccountResolver(this.accountStore);
+    this.openCodeRuntimeBindingResolver = new AccountStoreOpenCodeRuntimeBindingResolver(
+      this.accountStore,
+    );
+    this.openCodeServerPool = new OpenCodeNativeServerPool();
     this.tokenUsageAdapter = new TokenUsageAdapter(
       createRuntimeLedgerTokenUsageScanner(paths.dbPath),
     );
@@ -792,6 +804,25 @@ export class SupervisorRuntime {
       return;
     }
     await this.threadSessionManager.closeThread(payload);
+  }
+
+  async resolveThreadServerRequest(payload: ResolveThreadServerRequestPayload): Promise<void> {
+    const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
+    if (!craftedSession) {
+      await this.threadSessionManager.resolveThreadServerRequest(payload);
+      return;
+    }
+    if (!craftedSession.respondToRequest) {
+      throw new Error(`Crafted thread ${payload.threadId} does not support request resolution.`);
+    }
+    const requestId = String(payload.requestId);
+    const pending = this.craftedRequestsByThread.get(payload.threadId)?.get(requestId);
+    if (!pending) {
+      throw new Error(`Crafted thread ${payload.threadId} has no pending request ${requestId}.`);
+    }
+    const resolution: CraftRequestResolution = resolveCraftedRequest(pending, payload.response);
+    await craftedSession.respondToRequest(requestId, resolution);
+    this.craftedRequestsByThread.get(payload.threadId)?.delete(requestId);
   }
 
   selectAccount(accountId: string): AccountView {
@@ -1335,7 +1366,9 @@ export class SupervisorRuntime {
           ? "codex"
           : plan.runtimeBinding.harnessKind === "grok"
             ? "grok"
-            : undefined;
+            : plan.runtimeBinding.harnessKind === "opencode"
+              ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
+              : undefined;
     if (managedProvider && (accountId || this.accountStore.list(managedProvider).length > 0)) {
       // v0.5: provider-pool scheduling drives auto selection; the legacy
       // selectedAccountId marker no longer routes auto sessions. Explicit
@@ -1383,6 +1416,16 @@ export class SupervisorRuntime {
               ? { profileRef: plan.runtimeBinding.profileRef }
               : {}),
             ...(accountBinding ? { accountBinding } : {}),
+            ...(plan.runtimeBinding.harnessKind === "opencode"
+              ? {
+                  openCodeRuntimeBindingResolver: this.openCodeRuntimeBindingResolver,
+                  openCodeServerPool: this.openCodeServerPool,
+                  openCodeReadinessProvider: () => ({
+                    status: "unverified" as const,
+                    reason: "No provider assistant response evidence is registered for this route.",
+                  }),
+                }
+              : {}),
             ...(accountRoot && plan.runtimeBinding.harnessKind === "grok"
               ? { baseSpawnEnv: managedGrokProcessEnvironment(accountRoot) }
               : {}),
@@ -1424,6 +1467,16 @@ export class SupervisorRuntime {
     this.nativeHarnessSessions.set(harnessKind, session);
     if (binding) this.craftedSessionBindings.set(threadId, binding);
     const unsubscribe = session.subscribe((event) => {
+      if (event.type === "request.opened") {
+        let requests = this.craftedRequestsByThread.get(threadId);
+        if (!requests) {
+          requests = new Map();
+          this.craftedRequestsByThread.set(threadId, requests);
+        }
+        requests.set(event.requestId, event);
+      } else if (event.type === "request.resolved") {
+        this.craftedRequestsByThread.get(threadId)?.delete(event.requestId);
+      }
       if (event.type === "session.exited") this.releaseCraftedSession(threadId);
     });
     this.craftedSessionUnsubscribers.set(threadId, unsubscribe);
@@ -1440,6 +1493,7 @@ export class SupervisorRuntime {
     this.craftedSessionUnsubscribers.delete(threadId);
     const session = this.craftedSessionsByThread.get(threadId);
     this.craftedSessionsByThread.delete(threadId);
+    this.craftedRequestsByThread.delete(threadId);
     for (const [harnessKind, candidate] of this.nativeHarnessSessions) {
       if (candidate === session) this.nativeHarnessSessions.delete(harnessKind);
     }
@@ -1915,6 +1969,7 @@ export class SupervisorRuntime {
     await this.cliHookPluginCoordinator.dispose().catch((error) => {
       console.warn("[supervisor] CLI hook plugin coordinator dispose failed:", error);
     });
+    await this.openCodeServerPool.dispose();
     const { shutdownSpawnedOpenCodeServers } = await import("./agents/opencode/sdkClient");
     shutdownSpawnedOpenCodeServers();
     const { shutdownSpawnedCodexAppServers } = await import("./agents/codex/serverPool");

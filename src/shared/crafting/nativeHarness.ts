@@ -48,6 +48,7 @@ export const nativeHarnessTransportSchema = z.enum([
   "codex-app-server-json-rpc",
   "acp-stdio",
   "official-pty",
+  "official-http-sse",
   "unavailable",
 ]);
 export type NativeHarnessTransport = z.infer<typeof nativeHarnessTransportSchema>;

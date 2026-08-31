@@ -25,6 +25,7 @@ import {
   type AccountView,
   type ProviderPoolConfig,
 } from "@/shared/contracts";
+import { isOpenCodePrivateRuntimeEnvironmentKey } from "./privateRuntimeEnvironment";
 
 interface AccountFile {
   version: 2;
@@ -418,6 +419,15 @@ export class AccountStore {
         );
       }
     }
+    for (const key of Object.keys(projection.environment ?? {})) {
+      if (isOpenCodePrivateRuntimeEnvironmentKey(key)) {
+        throw new AccountControlError(
+          "ACCOUNT_PATH_INVALID",
+          `${key} is reserved for the Supervisor-owned private runtime root.`,
+          { accountId: projection.accountId },
+        );
+      }
+    }
     mkdirSync(root, { recursive: true });
     const lock = this.acquireLock(join(root, "projection.lock"));
     try {
@@ -458,6 +468,72 @@ export class AccountStore {
     if (!account)
       throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
     return assertInside(this.managedRoot, account.credentialRoot);
+  }
+
+  /**
+   * Read a supervisor-only process environment previously projected for an
+   * account. The values must never be returned over IPC or copied into plans.
+   */
+  readCredentialEnvironment(accountId: string): Record<string, string> {
+    const root = this.credentialRoot(accountId);
+    const environmentPath = join(root, "environment.json");
+    if (!existsSync(environmentPath)) return {};
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(environmentPath, "utf8"));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Credential environment must be an object.");
+      }
+      const environment: Record<string, string> = {};
+      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (!/^[A-Z_][A-Z0-9_]{0,127}$/u.test(key) || typeof value !== "string") {
+          throw new Error("Credential environment contains an invalid entry.");
+        }
+        if (isOpenCodePrivateRuntimeEnvironmentKey(key)) {
+          throw new Error(`${key} is reserved for the private runtime root.`);
+        }
+        environment[key] = value;
+      }
+      return environment;
+    } catch (error) {
+      throw new AccountControlError(
+        "ACCOUNT_CORRUPT",
+        "Managed credential environment is invalid.",
+        { accountId, cause: error instanceof Error ? error.message : String(error) },
+      );
+    }
+  }
+
+  /**
+   * Install a managed OpenCode auth store into this account's private XDG data
+   * root. Only a boolean crosses the resolver seam; raw auth material remains
+   * inside the Supervisor-owned account directory.
+   */
+  prepareOpenCodeRuntimeRoot(accountId: string): {
+    runtimeRoot: string;
+    authConfigured: boolean;
+  } {
+    const runtimeRoot = this.credentialRoot(accountId);
+    const source = join(runtimeRoot, "auth.json");
+    const target = join(runtimeRoot, "data", "opencode", "auth.json");
+    if (!existsSync(source)) {
+      rmSync(target, { force: true });
+      return { runtimeRoot, authConfigured: false };
+    }
+    try {
+      const raw = readFileSync(source, "utf8");
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("OpenCode auth store must be an object.");
+      }
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileAtomic(target, raw, { encoding: "utf8", mode: 0o600 });
+      return { runtimeRoot, authConfigured: true };
+    } catch (error) {
+      throw new AccountControlError("ACCOUNT_CORRUPT", "Managed OpenCode auth store is invalid.", {
+        accountId,
+        cause: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   recoverCredential(accountId: string): boolean {

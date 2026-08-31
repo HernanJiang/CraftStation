@@ -108,6 +108,47 @@ describe("AccountStore", () => {
     ).toThrow(/CODEX_HOME/);
   });
 
+  it.each([
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "OPENCODE_CONFIG_DIR",
+  ])("rejects reserved OpenCode private-root environment key %s", (reservedKey) => {
+    const store = createStore();
+    const account = store.add({ provider: "openai", label: "OpenCode" });
+
+    expect(() =>
+      store.projectCredential({
+        accountId: account.accountId,
+        provider: "openai",
+        environment: { OPENAI_API_KEY: "selected-secret", [reservedKey]: "C:/escape" },
+      }),
+    ).toThrow(/reserved|private runtime root/i);
+  });
+
+  it("fails closed when a persisted credential environment contains a reserved private-root key", () => {
+    const store = createStore();
+    const account = store.add({ provider: "deepseek", label: "OpenCode" });
+    const root = store.projectCredential({
+      accountId: account.accountId,
+      provider: "deepseek",
+      environment: { DEEPSEEK_API_KEY: "selected-secret" },
+    });
+    writeFileSync(
+      join(root, "environment.json"),
+      JSON.stringify({ DEEPSEEK_API_KEY: "selected-secret", HOME: "C:/escape" }),
+      "utf8",
+    );
+
+    expect(() => store.readCredentialEnvironment(account.accountId)).toThrow(
+      /invalid|reserved|private runtime root/i,
+    );
+  });
+
   it("fails closed on unknown account operations", () => {
     const store = createStore();
     expect(() => store.select("codex:missing")).toThrow(AccountControlError);

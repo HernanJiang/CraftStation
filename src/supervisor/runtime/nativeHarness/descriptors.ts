@@ -146,10 +146,46 @@ export const DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   ),
 };
 
+export const OPENCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:opencode",
+  harnessKind: "opencode",
+  label: "OpenCode Native Harness",
+  vendor: "opencode",
+  official: true,
+  transport: "official-http-sse",
+  machineFacingBoundary: "opencode serve (HTTP/OpenAPI + SSE)",
+  capabilities: {
+    ...capabilityMap([
+      "auth",
+      "profile",
+      "multi_turn",
+      "streaming",
+      "tool_execution",
+      "file_access",
+      "shell_execution",
+      "permission",
+      "mcp",
+      "skills",
+      "context",
+      "compaction",
+    ]),
+    // Verified against the official v1.18.25 headless carrier. Provider/model
+    // assistant readiness remains a separate fail-closed route gate.
+    discovery: "supported+integrated",
+    start: "supported+integrated",
+    resume: "supported+integrated",
+    events: "supported+integrated",
+    interrupt: "supported+integrated",
+    cleanup: "supported+integrated",
+    diagnostics: "supported+integrated",
+  },
+};
+
 export const NATIVE_HARNESS_DESCRIPTORS = {
   codex: CODEX_NATIVE_HARNESS_DESCRIPTOR,
   grok: GROK_NATIVE_HARNESS_DESCRIPTOR,
   kimi: KIMI_NATIVE_HARNESS_DESCRIPTOR,
   antigravity: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   deepseek: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+  opencode: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
 } as const;

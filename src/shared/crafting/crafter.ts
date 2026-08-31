@@ -11,9 +11,16 @@ import type {
   ResolvedGrid,
   ResultItem,
 } from "./types";
+import type {
+  OpenCodeExecutableReadiness,
+  OpenCodeExecutableReadinessQuery,
+} from "@/shared/opencodeNative";
 
 export interface CrafterOptions {
   checkRuntimeAvailable?: ((harnessKind: string) => boolean) | undefined;
+  checkExecutableReadiness?:
+    | ((query: OpenCodeExecutableReadinessQuery) => OpenCodeExecutableReadiness)
+    | undefined;
 }
 
 export class Crafter {
@@ -210,6 +217,30 @@ export class Crafter {
       const recipe = validation.matchedRecipe;
       const ingredients = validation.resolvedIngredients;
       const craftPlan = recipe.compile(ingredients, context);
+
+      if (craftPlan.runtimeBinding.harnessKind === "opencode") {
+        const query: OpenCodeExecutableReadinessQuery = {
+          providerID: craftPlan.runtimeBinding.providerID ?? craftPlan.runtimeBinding.vendor,
+          modelID: craftPlan.runtimeBinding.modelId,
+          ...(craftPlan.runtimeBinding.authRef
+            ? { authRef: craftPlan.runtimeBinding.authRef }
+            : {}),
+          ...(craftPlan.runtimeBinding.profileRef
+            ? { profileRef: craftPlan.runtimeBinding.profileRef }
+            : {}),
+        };
+        const readiness = this.options?.checkExecutableReadiness?.(query) ?? {
+          status: "unverified" as const,
+          reason: "No route-specific OpenCode executable readiness provider was configured.",
+        };
+        if (readiness.status !== "ready") {
+          throw CraftingError.runtimeUnavailable(
+            "opencode",
+            `OpenCode route '${query.providerID}:${query.modelID}' is not executable (${readiness.status}): ${readiness.reason}`,
+            "Configure a verified provider/model/auth binding before compiling an executable CraftPlan.",
+          );
+        }
+      }
 
       const modelItem = ingredients.model;
       const harnessItem = ingredients.harness;

@@ -43,6 +43,9 @@ function statusFor(
   diagnostics: readonly NativeHarnessDiagnostic[],
 ): NativeHarnessControlPlaneEntry["status"] {
   if (descriptor.transport === "unavailable") return "unavailable";
+  if (diagnostics.some((diagnostic) => diagnostic.code === "RUNTIME_UNAVAILABLE")) {
+    return "unavailable";
+  }
   if (
     diagnostics.some((diagnostic) =>
       [
