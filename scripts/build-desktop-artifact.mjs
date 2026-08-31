@@ -599,6 +599,9 @@ nsis:
   buildUniversalInstaller: false
   artifactName: ${prefix}-Setup-\${version}-\${arch}.\${ext}
 
+portable:
+  artifactName: ${prefix}-Portable-\${version}-\${arch}.\${ext}
+
 linux:
   target:
     - target: AppImage
