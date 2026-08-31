@@ -116,11 +116,15 @@ Model Item + Harness Item
 | Current Role      | User                                                                                                   |
 | Review Status     | v0.8 merged to dev；仅 Kimi 两轮真实通过；v0.6 F35/F36 与既有 Grok/F29/v0.5/v0.4 门仍保持 FAIL/BLOCKED |
 
-## Future Feature — v0.9.0 (Ideate Ready)
+## Future Feature — v0.9.0 (Plan Ready)
 
 - Feature：`v0.9.0 — Cross-Harness Session Handoff`
-- Manager Ideate：`ai_workspace/agent_docs/manager_0.9.0.md`
-- 状态：`IDEATE COMMITTED / READY FOR PLAN / NOT EXECUTING`
+- Manager Ideate + Plan：`ai_workspace/agent_docs/manager_0.9.0.md`
+- Tickets：`.scratch/craftstation-0.9.0/issues/01-runtime-segment-ledger.md` 至 `08-real-cross-harness-acceptance.md`
+- 状态：`PLAN READY / NOT EXECUTING / AWAITING CODER AUTHORIZATION`
+- Feature worktree：`D:\Work\CraftStation\craftstation-dev\.worktrees\v0.9-cross-harness-handoff`
+- Feature branch：`feature/v0.9-cross-harness-handoff`
+- Planning base：`dev@8bc45cfe408a6e603c777f04bce3c22627b76656`
 - 目标：在同一 CraftStation 用户可见 Thread 和同一工作区中，让后续 Turn 在不同 Model × Harness Runtime Segment 之间安全接力；不伪造跨厂商 native Session resume。
 - 已确认产品语义：
   1. 默认在当前 Turn 完成后自动切换，同时提供“终止当前 Turn 并切换”；
@@ -128,7 +132,9 @@ Model Item + Harness Item
   3. 切回曾使用的 Harness 时，只要中间产生新内容，就创建新的 continuation Segment。
 - 实现边界：`ConversationCheckpoint` 与 `Runtime Segment` 均为 implementation-level 术语，不提升为一级 Item；每次切换保留不可变 Recipe/CraftPlan provenance，并创建新的 Entity/native Session。
 - 验收主线：真实 `Codex -> Grok Build -> Codex continuation`、目标启动失败回滚、事件 epoch 隔离、应用重启恢复和凭据安全。
-- 当前不执行：Manager Plan、Feature worktree、Coder/Debugger、源码修改、merge、tag 或 push。进入 Plan 前以最新 Dev 基线执行 Gate Check。
+- Gate Check：`OK`。采用 expand → migrate active writers → contract；以独立 Runtime Segment ledger、versioned ConversationCheckpoint 与 Supervisor-owned Session Handoff Module 实现。
+- Ticket 顺序：T01 Segment Ledger → T02 Checkpoint → T03 Same-Thread Tracer → T04 Turn Boundary → T05 Abort/Rollback → T06 Event/Input Fence → T07 UI → T08 Real Acceptance。
+- 当前不执行：Coder/Debugger、产品源码修改、merge、tag 或 push。等待用户明确授权启动 Coder。
 
 ## Historical v0.3 Closeout
 
@@ -202,3 +208,4 @@ Model Item + Harness Item
 2. OpenAI、xAI、Google、DeepSeek、OpenAI-compatible Kimi 获得有效对应凭据后，再逐条补真实 assistant stream/后续 turn；未验证 route 继续 fail-closed。
 3. v0.6 F35/F36、Grok 真实额度、F29 exact Token、v0.5.0 与 v0.4 F04 继续保持 FAIL/BLOCKED。
 4. v0.8 尚未合入 main、未 tag、未 push；只有用户后续明确授权时才执行 Dev → Main promotion。
+5. v0.9 Manager Plan 已在独立 Feature worktree完成；用户授权执行后，由 Manager 创建项目绑定的 `Coder-0.9-Cross-Harness Handoff`。当前不改变 v0.8 的验收或发布状态。
