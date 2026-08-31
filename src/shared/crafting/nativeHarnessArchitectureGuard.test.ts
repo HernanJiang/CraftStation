@@ -46,7 +46,9 @@ describe("Native Harness architecture guards", () => {
   });
 
   it("keeps the Native Harness adapter layer free of legacy execution and API-proxy fallbacks", () => {
-    const files = productionSources(path.resolve(__dirname, "../../supervisor/runtime/nativeHarness"));
+    const files = productionSources(
+      path.resolve(__dirname, "../../supervisor/runtime/nativeHarness"),
+    );
     expect(files.length).toBeGreaterThan(0);
 
     for (const file of files) {

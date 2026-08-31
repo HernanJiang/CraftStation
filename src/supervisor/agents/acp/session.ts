@@ -119,6 +119,7 @@ import {
   createAcpPromptUsageSpentEvent,
   isAcpPromptCancellationError,
   normalizeAcpStopReason,
+  resolveAcpPromptResponseUsage,
   resolveAcpPromptFailureMessage,
   resolveAcpPromptRpcErrorMessage,
   rewriteLoadSessionError,
@@ -201,6 +202,8 @@ function isOrphanTurnActivity(update: SessionUpdate): boolean {
 // ── Session ──────────────────────────────────────────────────────
 
 export interface AcpStructuredSessionOptions {
+  /** Immutable managed account id copied into every exact usage event. */
+  usageAccountId?: string;
   /**
    * Hook the adapter passes in when it wants to control the message a failed
    * `session/load` produces. Receives the raw transport error and the
@@ -296,6 +299,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private readonly optimisticMcpTransports: readonly McpTransportKind[] | undefined;
   private readonly fsAgentHomeDirs: readonly string[];
   private readonly fsTextCapability: boolean;
+  private readonly usageAccountId: string | undefined;
   private planModeToolTrackerInstance: AcpPlanModeToolTracker | undefined;
   /** Poracode thread id (stable identifier we report in RuntimeEvents). */
   private readonly threadId: string;
@@ -469,6 +473,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     this.optimisticMcpTransports = options?.optimisticMcpTransports;
     this.fsAgentHomeDirs = options?.fsAgentHomeDirs ?? [];
     this.fsTextCapability = options?.fsTextCapability !== false;
+    this.usageAccountId = options?.usageAccountId;
   }
 
   /** Initialize the canonical mapper once we have a stable thread id. */
@@ -1022,16 +1027,21 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         sessionId: this.sessionId,
         prompt: contentBlocks,
       });
-      const usageEvent = createAcpPromptUsageEvent(this.threadId, result.usage);
+      // ACP-standard bridges expose PromptResponse.usage. Native providers
+      // may place the same real counters in response-level `_meta`; resolve
+      // once and feed that exact payload to both canonical usage projections.
+      const promptUsage = resolveAcpPromptResponseUsage(result);
+      const usageEvent = createAcpPromptUsageEvent(this.threadId, promptUsage);
       if (usageEvent) this.emitRuntimeEvents([usageEvent]);
       // The same prompt response also carries the session-cumulative counter
       // for the token ledger (absent on most bridges — then nothing is emitted
       // and the provider lands on the profile's unavailable list).
       if (this.usageScopeId) {
-        const spentEvent = createAcpPromptUsageSpentEvent(this.threadId, result.usage, {
+        const spentEvent = createAcpPromptUsageSpentEvent(this.threadId, promptUsage, {
           scopeId: this.usageScopeId,
           epoch: this.usageEpoch,
           ...(this.usageScopeFresh ? { fresh: true } : {}),
+          ...(this.usageAccountId ? { accountId: this.usageAccountId } : {}),
         });
         if (spentEvent) {
           this.emitRuntimeEvents([spentEvent]);

@@ -86,13 +86,13 @@ Settings 已有正确路径：`grok login --device-auth`，并由 login terminal
 
 保持 v0.4.5：
 
-| Harness | 状态 |
-|---|---|
-| Codex | 已有 v0.4.4 marker，不升格为五 Harness PASS |
-| Grok | official ACP handshake + usage exhausted；等有余额的官方 CLI 身份 |
-| Kimi | `AUTH_REQUIRED` |
-| Antigravity | unprobed |
-| DeepSeek/DSH | unavailable |
+| Harness      | 状态                                                              |
+| ------------ | ----------------------------------------------------------------- |
+| Codex        | 已有 v0.4.4 marker，不升格为五 Harness PASS                       |
+| Grok         | official ACP handshake + usage exhausted；等有余额的官方 CLI 身份 |
+| Kimi         | `AUTH_REQUIRED`                                                   |
+| Antigravity  | unprobed                                                          |
+| DeepSeek/DSH | unavailable                                                       |
 
 F01–F03 / F05–F07 保持关闭。生产 capability 不得升格。
 

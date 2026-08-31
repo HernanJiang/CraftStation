@@ -215,6 +215,10 @@ export class CodexProfileService {
           : snapshot.status === "auth-missing"
             ? "auth-expired"
             : "unavailable";
+    const withMetadata = this.options.store.updateProviderMetadata(accountId, {
+      ...(snapshot.authenticatedAs ? { providerAccountId: snapshot.authenticatedAs } : {}),
+      ...(snapshot.plan ? { plan: snapshot.plan } : {}),
+    });
     const updated = this.options.store.updateStatus(accountId, status, {
       ...(snapshot.error ? { lastError: snapshot.error } : {}),
       lastQuotaAt: snapshot.fetchedAt,
@@ -228,7 +232,9 @@ export class CodexProfileService {
           usedPercent: window.usedPercent,
           ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
         })),
-      ) ?? updated
+      ) ??
+      withMetadata ??
+      updated
     );
   }
 }

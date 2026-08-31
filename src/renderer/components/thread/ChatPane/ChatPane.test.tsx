@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "@heroui/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonicalContentBlock, Project, Thread } from "@/shared/contracts";
@@ -1238,6 +1238,42 @@ describe("ChatPane", () => {
     expect((await screen.findByText("5 steps")).parentElement).toHaveTextContent("·5 steps");
   });
 
+  it("right-aligns user messages and lets short prompts shrink to their content", async () => {
+    const thread = makeThread();
+    seedUserMessage(thread.id, "Short prompt");
+
+    const { container } = renderChatPane(thread);
+    await waitFor(() => expect(hydrateThreadRuntimeItems).toHaveBeenCalledWith(thread.id));
+
+    const row = container.querySelector('[data-user-message-row="true"]');
+    const message = container.querySelector('[data-user-message="true"]');
+    expect(row).toHaveClass("ml-auto", "w-fit");
+    expect(message).not.toHaveClass("w-full");
+    expect(message).toHaveClass("rounded-2xl");
+    expect(message).not.toHaveClass("rounded-3xl");
+    expect(row?.className).toContain("max-w-");
+  });
+
+  it("puts the local send time and copy action below the user bubble", async () => {
+    const thread = makeThread();
+    seedUserMessage(thread.id, "Timed prompt");
+    const item = useAppStore.getState().runtimeItemsByIdByThread[thread.id]?.["user-1"];
+    if (item) item.startedAt = new Date("2026-08-30T12:34:00.000Z").getTime();
+
+    const { container } = renderChatPane(thread);
+    await waitFor(() => expect(hydrateThreadRuntimeItems).toHaveBeenCalledWith(thread.id));
+
+    const bubble = container.querySelector('[data-user-message="true"]');
+    const actions = container.querySelector('[data-user-message-actions="true"]');
+    expect(actions).not.toBeNull();
+    expect(bubble?.contains(actions)).toBe(false);
+    expect(actions).not.toHaveClass("absolute", "top-2");
+    expect(actions?.querySelector("time")).toHaveAttribute("datetime", "2026-08-30T12:34:00.000Z");
+    expect(
+      within(actions as HTMLElement).getByRole("button", { name: "Copy message" }),
+    ).toBeInTheDocument();
+  });
+
   it("collapses long user messages behind a show more button", async () => {
     const thread = makeThread();
     seedUserMessage(
@@ -1995,7 +2031,9 @@ describe("ChatPane", () => {
 
     const buttons = screen.getAllByRole("button", { name: "Revert to this checkpoint" });
     expect(buttons).toHaveLength(1);
-    expect(screen.getByText("Follow-up prompt").closest(".surface")).toContainElement(buttons[0]!);
+    const bubble = screen.getByText("Follow-up prompt").closest(".surface");
+    expect(bubble).not.toContainElement(buttons[0]!);
+    expect(buttons[0]!.closest('[data-user-message-actions="true"]')).not.toBeNull();
     expect(buttons[0]!.closest(".poracode-message-action-strip")).not.toBeNull();
 
     fireEvent.click(buttons[0]!);

@@ -42,31 +42,31 @@ Coder 本轮：
 
 ### 独立测试 / 工具
 
-| 检查 | 结果 |
-|---|---|
-| nativeHarness + crafting + Codex baseline + CraftingGrid + HarnessPanel | **16 files / 71 passed** |
-| `runtime.test.ts -t routes` | **5 passed** |
-| `pnpm typecheck` | **PASS** |
-| `codegraph status` | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges |
+| 检查                                                                    | 结果                                                            |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------- |
+| nativeHarness + crafting + Codex baseline + CraftingGrid + HarnessPanel | **16 files / 71 passed**                                        |
+| `runtime.test.ts -t routes`                                             | **5 passed**                                                    |
+| `pnpm typecheck`                                                        | **PASS**                                                        |
+| `codegraph status`                                                      | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges |
 
 未整包复跑 Coder 自称的 19 files / 131 tests。定向复跑足以证明接线未回退。
 
 ### 五 Harness 质量门
 
-| Harness | 证据 | 门控 |
-|---|---|---|
-| Codex | v0.4.4 官方 app-server：server turn id + `turn/completed` + `NATIVE_PROBE_OK`（len 15 / hash `4f624a202114`） | probe 可审计；产品 capability 仍 `implementation missing`；不是产品 `craftAgent` 路径 |
-| Grok | 官方 ACP session 后 usage exhausted | BLOCKED，等有余额的官方环境 |
-| Kimi | 官方 ACP session 后 `AUTH_REQUIRED` | BLOCKED，等用户官方 `kimi` 登录 |
-| Antigravity | 无安全非交互 PTY | unprobed |
-| DeepSeek / DSH | 无官方 executable | unavailable |
+| Harness        | 证据                                                                                                          | 门控                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Codex          | v0.4.4 官方 app-server：server turn id + `turn/completed` + `NATIVE_PROBE_OK`（len 15 / hash `4f624a202114`） | probe 可审计；产品 capability 仍 `implementation missing`；不是产品 `craftAgent` 路径 |
+| Grok           | 官方 ACP session 后 usage exhausted                                                                           | BLOCKED，等有余额的官方环境                                                           |
+| Kimi           | 官方 ACP session 后 `AUTH_REQUIRED`                                                                           | BLOCKED，等用户官方 `kimi` 登录                                                       |
+| Antigravity    | 无安全非交互 PTY                                                                                              | unprobed                                                                              |
+| DeepSeek / DSH | 无官方 executable                                                                                             | unavailable                                                                           |
 
 ## Fix Cycle Disposition
 
-| Finding | v0.4.5 | 说明 |
-|---|---|---|
-| F01 / F02 / F03 / F05 / F06 / F07 | **仍关闭** | 接线与诚实性未回退 |
-| F04 | **仍 OPEN / BLOCKED** | 外部门控，不是新的代码缺陷 |
+| Finding                           | v0.4.5                | 说明                       |
+| --------------------------------- | --------------------- | -------------------------- |
+| F01 / F02 / F03 / F05 / F06 / F07 | **仍关闭**            | 接线与诚实性未回退         |
+| F04                               | **仍 OPEN / BLOCKED** | 外部门控，不是新的代码缺陷 |
 
 ## Remaining Findings
 

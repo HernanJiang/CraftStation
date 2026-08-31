@@ -185,7 +185,8 @@ let poracodePaths: PoracodePaths | null = null;
 if (hasSingleInstanceLock) {
   const electronUserDataDir = app.getPath("userData");
   poracodePaths = preparePoracodeDataRoot(
-    baseDirOverride ?? (isDev ? join(homedir(), ".craftstation-dev") : resolvePoracodeBaseDir(channel)),
+    baseDirOverride ??
+      (isDev ? join(homedir(), ".craftstation-dev") : resolvePoracodeBaseDir(channel)),
     {
       channel,
       electronUserDataDir,
@@ -1337,5 +1338,3 @@ app.on("window-all-closed", () => {
   if (process.platform === "darwin" || tray?.available) return;
   app.quit();
 });
-
-

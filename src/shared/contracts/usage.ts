@@ -58,10 +58,88 @@ export const usageApiKeyPayloadSchema = z.object({
 });
 export type UsageApiKeyPayload = z.infer<typeof usageApiKeyPayloadSchema>;
 
+export const volcengineCredentialsPayloadSchema = z
+  .object({
+    apiKey: z.string().optional(),
+    accessKeyId: z.string().optional(),
+    secretAccessKey: z.string().optional(),
+    region: z.string().optional(),
+  })
+  .refine(
+    (value) =>
+      Boolean(value.apiKey?.trim()) ||
+      (Boolean(value.accessKeyId?.trim()) && Boolean(value.secretAccessKey?.trim())),
+    "Provide an Ark API Key or both AK and SK",
+  );
+export type VolcengineCredentialsPayload = z.infer<typeof volcengineCredentialsPayloadSchema>;
+
+export const openAiCompatibleCredentialsPayloadSchema = z.object({
+  baseUrl: z.string().min(1),
+  apiKey: z.string().min(1),
+  /** 用户自定义提供商名称（卡片第一行）；缺省用 Base URL 域名。 */
+  providerName: z.string().trim().max(120).optional(),
+  /** 要使用的模型 id。 */
+  model: z.string().trim().max(200).optional(),
+  /** 模型展示名称（卡片第二行）；缺省用模型 id。 */
+  displayName: z.string().trim().max(200).optional(),
+});
+export type OpenAiCompatibleCredentialsPayload = z.infer<
+  typeof openAiCompatibleCredentialsPayloadSchema
+>;
+
+/** 读取一个 OpenAI 兼容号池账号的非机密配置（编辑表单回填；Key 永不回传）。 */
+export const openAiCompatibleProfileQueryPayloadSchema = z.object({
+  accountId: z.string().min(1).max(160),
+});
+export type OpenAiCompatibleProfileQueryPayload = z.infer<
+  typeof openAiCompatibleProfileQueryPayloadSchema
+>;
+
+export const openAiCompatibleProfileConfigSchema = z.object({
+  baseUrl: z.string().optional(),
+  model: z.string().optional(),
+  displayName: z.string().optional(),
+  providerName: z.string().optional(),
+});
+export type OpenAiCompatibleProfileConfig = z.infer<typeof openAiCompatibleProfileConfigSchema>;
+
+export const openAiCompatibleProfileImportPayloadSchema = z.object({
+  /** 编辑/重授权已有账号；缺省为追加新账号。 */
+  accountId: z.string().min(1).max(160).optional(),
+});
+export type OpenAiCompatibleProfileImportPayload = z.infer<
+  typeof openAiCompatibleProfileImportPayloadSchema
+>;
+
+export const channelModelsPayloadSchema = z.object({
+  provider: z.string().min(1),
+  accountId: z.string().min(1).max(160).optional(),
+});
+export type ChannelModelsPayload = z.infer<typeof channelModelsPayloadSchema>;
+
+export const channelModelsResponseSchema = z.object({
+  models: z.array(z.string()),
+});
+export type ChannelModelsResponse = z.infer<typeof channelModelsResponseSchema>;
+
+export const usageCookiePayloadSchema = z.object({
+  /** Provider whose pasted session cookie is being stored (e.g. "commandcode"). */
+  providerId: z.string(),
+  /**
+   * Cookie header the user pasted after signing in in their own browser — a
+   * full `a=1; b=2` header or a single `name=value` pair carrying the
+   * provider's session cookie.
+   */
+  cookie: z.string().min(1),
+});
+export type UsageCookiePayload = z.infer<typeof usageCookiePayloadSchema>;
+
 export interface UsageLoginResult {
   ok: boolean;
   /** True when the user closed the login window before completing. */
   cancelled?: boolean;
+  /** Stable machine-readable failure code for native/provider login flows. */
+  code?: string;
   error?: string;
 }
 

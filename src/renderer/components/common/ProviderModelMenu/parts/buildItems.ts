@@ -32,6 +32,8 @@ export interface ProviderModelMenuProvider {
   modelPickerKey?: string;
   /** Settings key used for hidden-model persistence. */
   hiddenModelsKey?: string;
+  /** Key/Base-URL account that must back this provider surface. */
+  accountId?: string;
   capabilities: AgentCapability;
 }
 
@@ -48,6 +50,7 @@ export interface ModelRef {
   agentKind: string;
   modelId: string;
   presentationMode?: ThreadPresentationMode;
+  accountId?: string;
 }
 
 export interface BuildProviderModelItemsInput {
@@ -57,6 +60,7 @@ export interface BuildProviderModelItemsInput {
   /** Current selection — surfaced even if absent from `providers[*].capabilities.models`. */
   currentAgentKind?: string;
   currentModel?: string;
+  currentAccountId?: string;
   /** Persisted favorites (provider/model pairs). Surfaced as a sticky section. */
   favorites?: readonly ModelRef[];
   /** Favorite state used for row stars without affecting section ordering. */
@@ -471,6 +475,9 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
         providerKey: visibleProvider?.key ?? m.ref.agentKind,
         hiddenModelsKey: visibleProvider?.visibilityKey ?? m.ref.agentKind,
         providerLabel: m.providerLabel,
+        ...(visibleProvider?.provider.accountId
+          ? { accountId: visibleProvider.provider.accountId }
+          : {}),
         modelId: m.ref.modelId,
         label: m.label,
         ...(m.ref.presentationMode ? { presentationMode: m.ref.presentationMode } : {}),
@@ -506,7 +513,10 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
     const cap = provider.capabilities;
     const providerHit = isSearching && searchText.includes(query);
     const currentEntry =
-      currentAgentKind === provider.kind && currentModel && !cache.modelById.has(currentModel)
+      currentAgentKind === provider.kind &&
+      provider.accountId === input.currentAccountId &&
+      currentModel &&
+      !cache.modelById.has(currentModel)
         ? makeModelEntry(currentModel, DEFAULT_LABEL(currentModel), cap)
         : undefined;
     const sourceModelCount = cache.models.length + (currentEntry ? 1 : 0);
@@ -543,6 +553,7 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
           providerKey: key,
           hiddenModelsKey: visibilityKey,
           providerLabel: provider.label,
+          ...(provider.accountId ? { accountId: provider.accountId } : {}),
           modelId: m.id,
           label: m.label,
           ...(provider.presentationMode ? { presentationMode: provider.presentationMode } : {}),
@@ -581,6 +592,7 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
         providerKey: key,
         hiddenModelsKey: visibilityKey,
         providerLabel: provider.label,
+        ...(provider.accountId ? { accountId: provider.accountId } : {}),
         modelId: m.id,
         label: m.label,
         ...(provider.presentationMode ? { presentationMode: provider.presentationMode } : {}),
@@ -614,6 +626,7 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
           providerKey: key,
           hiddenModelsKey: visibilityKey,
           providerLabel: provider.label,
+          ...(provider.accountId ? { accountId: provider.accountId } : {}),
           modelId: m.id,
           label: m.label,
           ...(provider.presentationMode ? { presentationMode: provider.presentationMode } : {}),

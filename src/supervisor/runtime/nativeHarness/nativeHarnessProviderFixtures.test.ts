@@ -9,10 +9,7 @@ import type {
 import type { ProjectLocation, RuntimeEvent } from "@/shared/contracts";
 import type { AccountBinding } from "@/shared/contracts/accountBinding";
 import type { CraftPlan } from "@/shared/crafting";
-import {
-  GROK_NATIVE_HARNESS_DESCRIPTOR,
-  KIMI_NATIVE_HARNESS_DESCRIPTOR,
-} from "./descriptors";
+import { GROK_NATIVE_HARNESS_DESCRIPTOR, KIMI_NATIVE_HARNESS_DESCRIPTOR } from "./descriptors";
 import { StructuredNativeHarnessRuntimeAdapter } from "./structuredAdapter";
 
 const windowsProject: ProjectLocation = { kind: "windows", path: "C:\\repo" };
@@ -57,7 +54,9 @@ function makeHandle(providerSessionId: string): StructuredSessionHandle {
   const handle: StructuredSessionHandle = {
     launchOptions: {},
     activate: vi.fn(async () => undefined),
-    openThread: vi.fn(async (_config, sessionRef) => sessionRef?.providerSessionId ?? providerSessionId),
+    openThread: vi.fn(
+      async (_config, sessionRef) => sessionRef?.providerSessionId ?? providerSessionId,
+    ),
     startTurn: vi.fn(async (prompt) => {
       const turnId = `turn:${providerSessionId}`;
       const events: RuntimeEvent[] = [
@@ -69,7 +68,12 @@ function makeHandle(providerSessionId: string): StructuredSessionHandle {
           stream: "assistant_text",
           delta: `${providerSessionId}: ${prompt}`,
         },
-        { type: "turn.completed", threadId: `thread:${providerSessionId}`, turnId, state: "completed" },
+        {
+          type: "turn.completed",
+          threadId: `thread:${providerSessionId}`,
+          turnId,
+          state: "completed",
+        },
       ];
       for (const event of events) listener?.onRuntimeEvent?.(event);
     }),

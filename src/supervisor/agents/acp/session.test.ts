@@ -73,6 +73,7 @@ afterEach(() => {
 
 function makeConfigSyncSession(
   overrides: {
+    accountId?: string;
     currentConfig?: ThreadConfig;
     agentMcpCapabilities?: { http?: boolean; sse?: boolean } | undefined;
     assumedMcpCapabilities?: { http?: boolean; sse?: boolean };
@@ -205,6 +206,7 @@ function makeConfigSyncSession(
   session["usageScopeId"] = undefined;
   session["usageEpoch"] = 0;
   session["usageScopeFresh"] = false;
+  session["usageAccountId"] = overrides.accountId;
   session["launchOptions"] = {};
   session["mcpServers"] = overrides.mcpServers ?? [];
   session["loadSessionErrorRewriter"] = rewriteLoadSessionError;
@@ -515,7 +517,9 @@ describe("ACP transport close lifecycle", () => {
 
 describe("ACP prompt-response usage → usage.spent", () => {
   it("emits cumulative usage.spent from a new session's prompt usage, fresh once", async () => {
-    const { connection, listener, session } = makeConfigSyncSession();
+    const { connection, listener, session } = makeConfigSyncSession({
+      accountId: "grok:managed-account",
+    });
     await session.openThread({ model: "model-a" });
 
     connection.prompt.mockResolvedValueOnce({
@@ -534,6 +538,7 @@ describe("ACP prompt-response usage → usage.spent", () => {
         epoch: 0,
         fresh: true,
         sampleId: "session-1:0:1200",
+        accountId: "grok:managed-account",
       },
     });
     // The dock's context.updated is still emitted from the same payload.
@@ -557,6 +562,54 @@ describe("ACP prompt-response usage → usage.spent", () => {
         scopeId: "session-1",
         epoch: 0,
         sampleId: "session-1:0:1500",
+        accountId: "grok:managed-account",
+      },
+    });
+  });
+
+  it("normalizes real provider token counters from the prompt response _meta", async () => {
+    const { connection, listener, session } = makeConfigSyncSession({
+      accountId: "grok:managed-account",
+    });
+    await session.openThread({ model: "model-a" });
+
+    connection.prompt.mockResolvedValueOnce({
+      stopReason: "end_turn",
+      _meta: {
+        totalTokens: 2400,
+        inputTokens: 2100,
+        outputTokens: 300,
+        reasoningTokens: 100,
+        cachedReadTokens: 50,
+      },
+    } as { stopReason: string });
+
+    await session.startTurn("hello", { model: "model-a" });
+
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith({
+      type: "usage.spent",
+      threadId: "thread-1",
+      usage: {
+        counterKind: "cumulative",
+        counter: 2400,
+        scopeId: "session-1",
+        epoch: 0,
+        fresh: true,
+        sampleId: "session-1:0:2400",
+        accountId: "grok:managed-account",
+      },
+    });
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith({
+      type: "context.updated",
+      threadId: "thread-1",
+      usage: {
+        usedTokens: 2400,
+        breakdown: [
+          { id: "input", label: "Input", tokens: 2100 },
+          { id: "output", label: "Output", tokens: 300 },
+          { id: "reasoning", label: "Reasoning", tokens: 100 },
+          { id: "cache-read", label: "Cache read", tokens: 50 },
+        ],
       },
     });
   });

@@ -4,11 +4,12 @@ import { collectCommandCode } from "./collectors/commandcode";
 import { collectCopilot } from "./collectors/copilot";
 import { collectCursor } from "./collectors/cursor";
 import { collectFactory } from "./collectors/factory";
-import { collectGemini } from "./collectors/gemini";
 import { collectGrok } from "./collectors/grok";
 import { collectKimi } from "./collectors/kimi";
 import { collectQwen } from "./collectors/qwen";
 import { collectZai } from "./collectors/zai";
+import { collectVolcengine } from "./collectors/volcengine";
+import { collectOpenAiCompatible } from "./collectors/openaiCompatible";
 import type { CollectOptions, HostPort } from "./host";
 import { BUILT_IN_USAGE_PROVIDER_DESCRIPTORS } from "./providers";
 import type { UsageProviderDescriptor, UsageSnapshot } from "./types";
@@ -48,11 +49,6 @@ const GROK_COLLECTOR: UsageCollector = {
   collect: collectGrok,
 };
 
-const GEMINI_COLLECTOR: UsageCollector = {
-  descriptor: BUILT_IN_USAGE_PROVIDER_DESCRIPTORS.gemini,
-  collect: collectGemini,
-};
-
 const COMMANDCODE_COLLECTOR: UsageCollector = {
   descriptor: BUILT_IN_USAGE_PROVIDER_DESCRIPTORS.commandcode,
   collect: collectCommandCode,
@@ -78,6 +74,16 @@ const QWEN_COLLECTOR: UsageCollector = {
   collect: collectQwen,
 };
 
+const VOLCENGINE_COLLECTOR: UsageCollector = {
+  descriptor: BUILT_IN_USAGE_PROVIDER_DESCRIPTORS.volcengine,
+  collect: collectVolcengine,
+};
+
+const OPENAI_COMPATIBLE_COLLECTOR: UsageCollector = {
+  descriptor: BUILT_IN_USAGE_PROVIDER_DESCRIPTORS["openai-compatible"],
+  collect: collectOpenAiCompatible,
+};
+
 // Antigravity is collected supervisor-side from its local language server
 // (LS-only), not here; see src/supervisor/runtime/antigravityUsageScanner.ts.
 
@@ -87,12 +93,13 @@ const BUILT_IN: UsageCollector[] = [
   COPILOT_COLLECTOR,
   CURSOR_COLLECTOR,
   GROK_COLLECTOR,
-  GEMINI_COLLECTOR,
   COMMANDCODE_COLLECTOR,
   FACTORY_COLLECTOR,
   ZAI_COLLECTOR,
   KIMI_COLLECTOR,
   QWEN_COLLECTOR,
+  VOLCENGINE_COLLECTOR,
+  OPENAI_COMPATIBLE_COLLECTOR,
 ];
 
 export interface UsageCollectorRegistry {

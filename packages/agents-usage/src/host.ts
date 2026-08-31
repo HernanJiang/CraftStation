@@ -48,6 +48,8 @@ export interface OAuthToken {
   expiresAt?: number;
   tokenType?: string;
   accountId?: string;
+  /** Signed-in account email when the credential bundle carries one (e.g. id_token). */
+  email?: string;
   /** Vendor plan/subscription hint when the creds file carries one. */
   subscriptionType?: string;
   /** Remaining provider-specific fields, for collectors that need extras. */
@@ -98,6 +100,26 @@ export interface HostPort {
   now(): number;
   clientVersions?: ClientVersions;
   log?: Logger;
+}
+
+/**
+ * A small in-memory credential host used by main-process validation probes.
+ * It is intentionally not part of the renderer contract: callers provide
+ * secrets for one request and the collector returns only a normalized result.
+ */
+export function createCredentialProbeHost(
+  http: HttpClient,
+  secrets: Record<string, Record<string, string | undefined>>,
+  now: () => number = () => Date.now(),
+): HostPort {
+  return {
+    http,
+    now,
+    credentials: {
+      getOAuthToken: async () => undefined,
+      getSecret: async (providerId, key) => secrets[providerId]?.[key],
+    },
+  };
 }
 
 export interface CollectOptions {

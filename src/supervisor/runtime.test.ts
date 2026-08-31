@@ -13,7 +13,10 @@ import {
   type HarnessRuntimeAdapter,
 } from "@/shared/crafting";
 import { TranscriptBuffer } from "@/shared/transcriptBuffer";
+import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { setUsageSecret } from "@/shared/usageSecretStore";
 import type { SessionRuntime } from "./runtime/sessionTypes";
+import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
 
 const taskkillSpawnSyncMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>());
 const ptySpawnMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>());
@@ -2930,7 +2933,8 @@ describe("SupervisorRuntime Grok profile login", () => {
 
     expect(account.provider).toBe("grok");
     expect(account.status).toBe("available");
-    expect(account.maskedIdentity).toBe("per***son@example.com");
+    // 邮箱全称 contract: the Grok row keeps the unmasked email.
+    expect(account.maskedIdentity).toBe("person@example.com");
     expect(runtime.accountStore.list("grok")).toHaveLength(1);
     expect(runtime.grokPendingLogins.size).toBe(0);
     expect(emitted).toContainEqual(
@@ -3144,6 +3148,55 @@ describe("SupervisorRuntime craftAgent", () => {
       response: "real native seam response",
     });
     expect(result.entityId).toMatch(/^entity:fake-codex:/);
+  });
+
+  it("binds an explicit OpenAI-compatible account to an isolated Native Codex host", () => {
+    const baseDir = makeTempDir();
+    process.env.PORACODE_DATA_DIR = baseDir;
+    const cacheDir = resolvePoracodePaths(baseDir).cacheDir;
+    const stagingBucket = "openai-compatible:pending";
+    setUsageSecret(cacheDir, stagingBucket, "baseUrl", "https://relay.example.com/v1");
+    setUsageSecret(cacheDir, stagingBucket, "apiKey", "sk-runtime-test");
+    setUsageSecret(cacheDir, stagingBucket, "providerName", "Chiral-API");
+
+    const runtime = makeRuntime(() => undefined);
+    const account = runtime.importOpenAiCompatibleProfile({});
+    const created = (
+      runtime as unknown as {
+        createCraftingAdapter: (
+          plan: ReturnType<typeof craftPlan>,
+          projectLocation: { kind: "windows"; path: string },
+          accountId: string,
+          accountMode: "explicit",
+        ) => {
+          adapter: HarnessRuntimeAdapter;
+          accountBinding?: { accountId: string; provider: string; reason: string };
+        };
+      }
+    ).createCraftingAdapter(
+      craftPlan("craft-openai-compatible"),
+      { kind: "windows", path: "C:\\repo" },
+      account.accountId,
+      "explicit",
+    );
+
+    expect(created.accountBinding).toMatchObject({
+      accountId: account.accountId,
+      provider: "openai-compatible",
+      reason: "explicit",
+    });
+    expect(created.adapter).toBeInstanceOf(NativeCodexRuntimeAdapter);
+    const host = (created.adapter as NativeCodexRuntimeAdapter).host as unknown as {
+      options?: { codexHome?: string; env?: Record<string, string> };
+    };
+    expect(host.options?.codexHome).toContain("openai-compatible-codex");
+    expect(host.options?.codexHome).not.toContain(`openai-compatible:${account.accountId}`);
+    expect(host.options?.env).toEqual({
+      CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY: "sk-runtime-test",
+    });
+    expect(readFileSync(join(host.options!.codexHome!, "config.toml"), "utf8")).toContain(
+      'name = "Chiral-API"',
+    );
   });
 
   it("skips sendPrompt for an empty prompt", async () => {

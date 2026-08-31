@@ -144,6 +144,7 @@
     "smol-toml": "^1.7.0",
     "streamdown": "^2.5.0",
     "tailwindcss": "^4.3.2",
+    "undici": "^7.29.0",
     "vscode-jsonrpc": "^9.0.1",
     "vscode-languageserver-protocol": "^3.18.2",
     "ws": "^8.21.0",

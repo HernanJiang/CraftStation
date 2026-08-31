@@ -138,6 +138,17 @@ describe.skipIf(!sqliteAvailable)("usageLedger (real sqlite round-trip)", () => 
     expect(ledgerCounter("scope-1", 0)).toBe(1200);
   });
 
+  it("persists the immutable managed account id on exact token rows", () => {
+    recordUsageSpentFromRuntimeEvents(THREAD_ID, [
+      spent({ counter: 42, fresh: true, accountId: "grok:managed-account" }),
+    ]);
+
+    const row = getSqlite()
+      .prepare("SELECT account_id FROM usage_events WHERE kind = 'tokens_v2' LIMIT 1")
+      .get() as { account_id: string | null } | undefined;
+    expect(row?.account_id).toBe("grok:managed-account");
+  });
+
   it("establishes a zero baseline for a non-fresh first sample (resume-safe)", () => {
     // A resumed scope's first counter reflects already-counted history, so it
     // only establishes the baseline; genuine growth after it counts the delta.

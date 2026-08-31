@@ -1166,7 +1166,7 @@
        color (higher alpha = less transparent) than the light default above. */
     --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 65%, transparent);
     --window-header-background: rgba(18, 18, 20, 0.82);
-    --composer-surface: #212228;
+    --composer-surface: #2b2b2b;
   }
 
   * {
@@ -2388,7 +2388,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
 }
 
 [data-draft-context-bar] + [data-poracode-composer] .poracode-composer-shell--draft {
-  background: #212228;
+  background: #2b2b2b;
 }
 
 .poracode-composer-drop-overlay {
@@ -2477,7 +2477,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
 .poracode-composer-editor.input-group,
 .poracode-composer-editor .textarea,
 .poracode-composer-editor .input-group {
-  min-height: 56px;
+  min-height: 72px;
   resize: none;
   border: 0;
   border-radius: var(--radius-4xl) var(--radius-4xl) 0 0;

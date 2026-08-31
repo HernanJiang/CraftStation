@@ -1,8 +1,8 @@
-import { Ellipsis, Loader2, Pin } from "lucide-react";
+import { Archive, Ellipsis, Loader2, Pin } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import type { Thread } from "@/shared/contracts";
 import type { StatusTone } from "@/renderer/components/providers/statusTone";
-import { toggleStarThread } from "@/renderer/actions/threadActions";
+import { archiveThread, toggleStarThread } from "@/renderer/actions/threadActions";
 
 interface ThreadItemSuffixProps {
   thread: Thread;
@@ -35,7 +35,7 @@ export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
   const { t } = useLingui();
 
   return (
-    <span className="relative flex w-[38px] shrink-0 items-center justify-end">
+    <span className="relative flex w-[58px] shrink-0 items-center justify-end">
       <span className="flex size-[18px] items-center justify-center transition-opacity group-hover:opacity-0">
         <ThreadStatus thread={props.thread} statusTone={props.statusTone} />
       </span>
@@ -64,6 +64,17 @@ export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
             }}
           >
             <Ellipsis className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label={t`Archive ${props.thread.title}`}
+            className={iconButtonClass}
+            onClick={(event) => {
+              event.stopPropagation();
+              archiveThread(props.thread.id);
+            }}
+          >
+            <Archive className="size-3" />
           </button>
         </span>
       ) : null}

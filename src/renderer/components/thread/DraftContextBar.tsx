@@ -9,6 +9,7 @@ import { showGitReviewPanel } from "@/renderer/actions/panelActions";
 import { BranchSelector } from "@/renderer/components/common";
 import { useGitStore } from "@/renderer/state/gitStore";
 import type { ReactNode } from "react";
+import { PlanProgressSlot } from "./ComposerStatusRow";
 import { ProjectSwitchMenu } from "./ProjectSwitchMenu";
 import { CraftModeSwitch, type CraftMode } from "./CraftModeSwitch";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -22,6 +23,8 @@ import { usePanelStore } from "@/renderer/state/panelStore";
 export function DraftContextBar(props: {
   project: Project;
   paneId?: string;
+  /** 会话 id：有计划时在标签栏左侧显示计划进度胶囊。 */
+  threadId?: string;
   worktreePath?: string;
   onProjectChange?: (projectId: string) => void;
   craftMode: CraftMode;
@@ -73,6 +76,7 @@ export function DraftContextBar(props: {
       className="relative z-[1] -mb-px mx-auto flex w-[calc(100%-32px)] items-center justify-between rounded-t-lg border border-b-0 border-[rgba(255,255,255,0.07)] bg-[#1c1d22] px-3 py-1.5 text-xs text-muted"
     >
       <div className="flex min-w-0 items-center gap-3">
+        {props.threadId ? <PlanProgressSlot threadId={props.threadId} /> : null}
         <ProjectSwitchMenu
           currentProjectId={props.project.id}
           variant="compact"

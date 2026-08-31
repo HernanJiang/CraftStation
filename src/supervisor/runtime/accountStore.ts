@@ -104,6 +104,11 @@ export function maskIdentity(identity: string | undefined): string | undefined {
   return identity.length < 6 ? identity : `${identity.slice(0, 3)}***${identity.slice(-3)}`;
 }
 
+// User acceptance contract: Grok account rows must show the FULL email
+// (邮箱全称), never a masked alias. Other providers keep the masked form.
+const displayIdentity = (provider: string, identity: string | undefined) =>
+  provider === "grok" ? identity : maskIdentity(identity);
+
 function normalizeLegacyAccount(account: AccountRecord): boolean {
   const hasOfficialIdentity =
     account.provider === "grok" &&
@@ -111,9 +116,10 @@ function normalizeLegacyAccount(account: AccountRecord): boolean {
       Boolean(account.maskedIdentity?.includes("@")));
   if (!hasOfficialIdentity) return false;
   let changed = false;
-  const masked = maskIdentity(account.providerAccountId ?? account.maskedIdentity);
-  if (masked && account.maskedIdentity !== masked) {
-    account.maskedIdentity = masked;
+  const full = account.providerAccountId ?? account.maskedIdentity;
+  const display = displayIdentity(account.provider, full);
+  if (display && account.maskedIdentity !== display) {
+    account.maskedIdentity = display;
     changed = true;
   }
   if (account.label === "New Grok" && account.providerAccountId?.includes("@")) {
@@ -236,7 +242,12 @@ export class AccountStore {
         accountId,
         provider,
         label,
-        ...(input.maskedIdentity ? { maskedIdentity: maskIdentity(input.maskedIdentity) } : {}),
+        ...(input.maskedIdentity
+          ? {
+              maskedIdentity:
+                displayIdentity(provider, input.maskedIdentity) ?? input.maskedIdentity,
+            }
+          : {}),
         ...(input.plan ? { plan: input.plan } : {}),
         ...(input.providerAccountId ? { providerAccountId: input.providerAccountId } : {}),
         createdAt: Date.now(),
@@ -349,12 +360,34 @@ export class AccountStore {
       account.status = status;
       if (details?.lastError !== undefined) account.lastError = details.lastError;
       if (details?.lastQuotaAt !== undefined) account.lastQuotaAt = details.lastQuotaAt;
+      if (status !== "error" && details?.lastError === undefined) delete account.lastError;
     });
   }
 
   updateQuota(accountId: string, quotaWindows: AccountQuotaWindow[]): AccountView {
     return this.update(accountId, (account) => {
       account.quotaWindows = quotaWindows.map((window) => ({ ...window }));
+    });
+  }
+
+  /**
+   * Persist non-secret provider metadata learned during an identity/quota probe.
+   * The renderer needs the provider's real identity and subscription tier on
+   * the managed account row; the user-editable label remains independent.
+   */
+  updateProviderMetadata(
+    accountId: string,
+    metadata: { providerAccountId?: string; plan?: string },
+  ): AccountView {
+    return this.update(accountId, (account) => {
+      const providerAccountId = metadata.providerAccountId?.trim();
+      const plan = metadata.plan?.trim();
+      if (providerAccountId) account.providerAccountId = providerAccountId;
+      if (plan) account.plan = plan;
+      if (providerAccountId && account.provider === "grok") {
+        // 邮箱全称 contract: keep the full email on the Grok row.
+        account.maskedIdentity = providerAccountId;
+      }
     });
   }
 

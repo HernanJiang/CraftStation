@@ -9,6 +9,7 @@ import { z } from "zod";
 
 export const knownUsageWindowIdSchema = z.enum([
   "session-5h",
+  "daily",
   "weekly",
   "weekly-opus",
   "weekly-sonnet",
@@ -28,6 +29,8 @@ export type KnownUsageWindowId = z.infer<typeof knownUsageWindowIdSchema>;
  * dynamic, namespaced set: Gemini Code Assist reports one daily bucket per model
  * (`gemini:<modelId>`), Codex has model-specific limits (`codex:<limitId>`),
  * Antigravity folds models into broad quota pools (`antigravity:<pool>`), and
+ * Volcengine keeps Coding Plan and Agent Plan windows distinct
+ * (`volcengine:<plan>:<cadence>`), and
  * Factory/Droid carries an extra "core" token-rate-limit pool plus a legacy
  * "premium" cycle pool (`factory:<pool>`). These ids flow through without a
  * schema change.
@@ -37,6 +40,7 @@ export const usageWindowIdSchema = z.union([
   z.string().regex(/^gemini:.+/, "expected gemini:<modelId>"),
   z.string().regex(/^codex:.+/, "expected codex:<limitId>"),
   z.string().regex(/^antigravity:.+/, "expected antigravity:<pool>"),
+  z.string().regex(/^volcengine:.+/, "expected volcengine:<plan>:<cadence>"),
   z.string().regex(/^factory:.+/, "expected factory:<pool>"),
 ]);
 export type UsageWindowId =
@@ -44,6 +48,7 @@ export type UsageWindowId =
   | `gemini:${string}`
   | `codex:${string}`
   | `antigravity:${string}`
+  | `volcengine:${string}`
   | `factory:${string}`;
 
 export const usageUnitSchema = z.enum(["percent", "tokens", "requests", "credits", "usd"]);

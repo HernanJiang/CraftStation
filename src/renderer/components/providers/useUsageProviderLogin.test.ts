@@ -11,8 +11,11 @@ const bridgeMock = vi.hoisted(() => ({
   startUsageLogin: vi.fn<() => Promise<{ ok: boolean; cancelled?: boolean }>>(),
   cancelUsageLogin: vi.fn<() => Promise<void>>(),
   submitUsageApiKey: vi.fn<() => Promise<{ ok: boolean }>>(),
+  submitUsageCookie: vi.fn<() => Promise<{ ok: boolean }>>(),
   clearUsageLogin: vi.fn<() => Promise<{ ok: boolean }>>(),
+  forgetProviderUsage: vi.fn<(p: { providerId: string }) => Promise<void>>(),
   refreshProviderUsage: vi.fn<() => Promise<{ snapshots: UsageSnapshot[]; fromCache: boolean }>>(),
+  openExternal: vi.fn<(url: string) => Promise<void>>(async () => {}),
 }));
 
 vi.mock("@/renderer/bridge", () => ({
@@ -21,8 +24,11 @@ vi.mock("@/renderer/bridge", () => ({
     startUsageLogin: bridgeMock.startUsageLogin,
     cancelUsageLogin: bridgeMock.cancelUsageLogin,
     submitUsageApiKey: bridgeMock.submitUsageApiKey,
+    submitUsageCookie: bridgeMock.submitUsageCookie,
     clearUsageLogin: bridgeMock.clearUsageLogin,
+    forgetProviderUsage: bridgeMock.forgetProviderUsage,
     refreshProviderUsage: bridgeMock.refreshProviderUsage,
+    openExternal: bridgeMock.openExternal,
   }),
 }));
 
@@ -62,6 +68,7 @@ describe("useUsageProviderLogin", () => {
     bridgeMock.cancelUsageLogin.mockReset().mockResolvedValue(undefined);
     bridgeMock.submitUsageApiKey.mockReset();
     bridgeMock.clearUsageLogin.mockReset();
+    bridgeMock.forgetProviderUsage.mockReset().mockResolvedValue(undefined);
     bridgeMock.refreshProviderUsage.mockReset();
     useProviderUsageStore.setState({ snapshots: {} });
     useUsageLoginStateStore.setState({ stored: {} });
@@ -151,12 +158,12 @@ describe("useUsageProviderLogin", () => {
         }),
     );
     bridgeMock.refreshProviderUsage.mockResolvedValue({
-      snapshots: [okSnapshot("opencode")],
+      snapshots: [okSnapshot("grok")],
       fromCache: false,
     });
-    useProviderUsageStore.getState().mergeSnapshot(authMissingSnapshot("opencode"));
+    useProviderUsageStore.getState().mergeSnapshot(authMissingSnapshot("grok"));
 
-    const { result } = renderHook(() => useUsageProviderLogin("opencode"));
+    const { result } = renderHook(() => useUsageProviderLogin("grok"));
 
     let signInDone: Promise<void> | undefined;
     await act(async () => {
@@ -168,24 +175,38 @@ describe("useUsageProviderLogin", () => {
     await act(async () => {
       usePanelStore.getState().setBrowserOverlayOpen(false);
     });
-    expect(bridgeMock.cancelUsageLogin).toHaveBeenCalledWith({ providerId: "opencode" });
+    expect(bridgeMock.cancelUsageLogin).toHaveBeenCalledWith({ providerId: "grok" });
 
     await act(async () => {
       resolveLogin?.({ ok: true });
       await signInDone;
     });
 
-    expect(useUsageLoginStateStore.getState().stored.opencode).toBe(true);
+    expect(useUsageLoginStateStore.getState().stored.grok).toBe(true);
     expect(bridgeMock.refreshProviderUsage).toHaveBeenCalledWith({
-      providerIds: ["opencode"],
+      providerIds: ["grok"],
       force: true,
     });
-    expect(useProviderUsageStore.getState().snapshots.opencode?.status).toBe("ok");
+    expect(useProviderUsageStore.getState().snapshots.grok?.status).toBe("ok");
     expect(result.current.signingIn).toBe(false);
   });
 
   it("does not mark signed-in or refresh when browser login is cancelled", async () => {
     bridgeMock.startUsageLogin.mockResolvedValue({ ok: false, cancelled: true });
+    useProviderUsageStore.getState().mergeSnapshot(authMissingSnapshot("grok"));
+
+    const { result } = renderHook(() => useUsageProviderLogin("grok"));
+
+    await act(async () => {
+      await result.current.handleSignIn();
+    });
+
+    expect(useUsageLoginStateStore.getState().stored.grok).toBeUndefined();
+    expect(bridgeMock.refreshProviderUsage).not.toHaveBeenCalled();
+    expect(result.current.signingIn).toBe(false);
+  });
+
+  it("opens the system browser, not the overlay, for external-cookie providers", async () => {
     useProviderUsageStore.getState().mergeSnapshot(authMissingSnapshot("opencode"));
 
     const { result } = renderHook(() => useUsageProviderLogin("opencode"));
@@ -194,8 +215,41 @@ describe("useUsageProviderLogin", () => {
       await result.current.handleSignIn();
     });
 
-    expect(useUsageLoginStateStore.getState().stored.opencode).toBeUndefined();
-    expect(bridgeMock.refreshProviderUsage).not.toHaveBeenCalled();
+    expect(result.current.externalLoginUrl).toBe("https://opencode.ai/");
+    expect(bridgeMock.openExternal).toHaveBeenCalledWith("https://opencode.ai/");
+    expect(bridgeMock.startUsageLogin).not.toHaveBeenCalled();
+    expect(usePanelStore.getState().browserOverlayOpen).toBe(false);
+    expect(result.current.signingIn).toBe(false);
+  });
+
+  it("stores a pasted cookie and refreshes after external-browser sign-in", async () => {
+    bridgeMock.submitUsageCookie.mockResolvedValue({ ok: true });
+    bridgeMock.refreshProviderUsage.mockResolvedValue({
+      snapshots: [okSnapshot("qwen")],
+      fromCache: false,
+    });
+    useProviderUsageStore.getState().mergeSnapshot(authMissingSnapshot("qwen"));
+
+    const { result } = renderHook(() => useUsageProviderLogin("qwen"));
+
+    act(() => {
+      result.current.setCookie("ali-apollo-token=abc");
+    });
+    let submitted = false;
+    await act(async () => {
+      submitted = await result.current.handleSubmitCookie();
+    });
+
+    expect(submitted).toBe(true);
+    expect(bridgeMock.submitUsageCookie).toHaveBeenCalledWith({
+      providerId: "qwen",
+      cookie: "ali-apollo-token=abc",
+    });
+    expect(useUsageLoginStateStore.getState().stored.qwen).toBe(true);
+    expect(bridgeMock.refreshProviderUsage).toHaveBeenCalledWith({
+      providerIds: ["qwen"],
+      force: true,
+    });
     expect(result.current.signingIn).toBe(false);
   });
 

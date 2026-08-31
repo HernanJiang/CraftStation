@@ -72,15 +72,15 @@ F13 测试只断言 `spawnOptions.env.GROK_API_KEY` 为 undefined，**没有先�
 
 ## Spec Fidelity
 
-| 要求 | 结果 |
-|---|---|
-| 点 Grok 不再打开 grok.com | **关闭** |
-| pending GROK_HOME 跑官方 device-auth | **关闭**（IPC/UI 已接） |
-| 无 identity 不插账号 | **关闭**（单测 + 真机 auth.json 键名对齐） |
-| Session sticky / auto / explicit | **单测关闭** |
-| spawn 剥离 API key / Router 变量 | **未关闭**：ACP/登录 shell 再 merge `process.env` |
-| Codex profile 回归 | **关闭**（本轮独立 126 全绿，含原先 4 个红测） |
-| 五 Harness 真实 response | **仍 BLOCKED** |
+| 要求                                 | 结果                                              |
+| ------------------------------------ | ------------------------------------------------- |
+| 点 Grok 不再打开 grok.com            | **关闭**                                          |
+| pending GROK_HOME 跑官方 device-auth | **关闭**（IPC/UI 已接）                           |
+| 无 identity 不插账号                 | **关闭**（单测 + 真机 auth.json 键名对齐）        |
+| Session sticky / auto / explicit     | **单测关闭**                                      |
+| spawn 剥离 API key / Router 变量     | **未关闭**：ACP/登录 shell 再 merge `process.env` |
+| Codex profile 回归                   | **关闭**（本轮独立 126 全绿，含原先 4 个红测）    |
+| 五 Harness 真实 response             | **仍 BLOCKED**                                    |
 
 ## Findings
 

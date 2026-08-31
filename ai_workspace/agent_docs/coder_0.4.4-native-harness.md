@@ -28,13 +28,13 @@
 
 ## 生产状态与验收边界
 
-| Harness | 最新真实证据 | capability 结论 |
-|---|---|---|
-| Codex | server turn identity；turn completed；assistant marker、长度和短 hash；process cleanup | `implementation missing` / probe partial |
-| Grok Build | session 建立；官方 usage exhausted | `implementation missing` / error |
-| Kimi Code | session 建立；`AUTH_REQUIRED`；cancel error | `implementation missing` / partial |
-| Antigravity | 无安全 PTY probe | `unprobed` |
-| DeepSeek / DSH | 无官方 executable | `unavailable` |
+| Harness        | 最新真实证据                                                                           | capability 结论                          |
+| -------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Codex          | server turn identity；turn completed；assistant marker、长度和短 hash；process cleanup | `implementation missing` / probe partial |
+| Grok Build     | session 建立；官方 usage exhausted                                                     | `implementation missing` / error         |
+| Kimi Code      | session 建立；`AUTH_REQUIRED`；cancel error                                            | `implementation missing` / partial       |
+| Antigravity    | 无安全 PTY probe                                                                       | `unprobed`                               |
+| DeepSeek / DSH | 无官方 executable                                                                      | `unavailable`                            |
 
 本轮只修复探针证据链，没有因 turn/completed、delta、session/new、usage exhausted 或 AUTH_REQUIRED 修改生产 descriptor，也没有把 Codex 单次 marker 结果写成五 Harness Feature PASS。
 

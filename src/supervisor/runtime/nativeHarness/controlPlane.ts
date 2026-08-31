@@ -63,7 +63,10 @@ function statusFor(
   return "not-configured";
 }
 
-function stableDiagnosticMessage(code: NativeHarnessPublicDiagnostic["code"], harnessKind: string): string {
+function stableDiagnosticMessage(
+  code: NativeHarnessPublicDiagnostic["code"],
+  harnessKind: string,
+): string {
   switch (code) {
     case "AUTH_REQUIRED":
       return `${harnessKind} requires authentication.`;
@@ -100,9 +103,7 @@ function stableRemediation(code: NativeHarnessPublicDiagnostic["code"]): string 
   }
 }
 
-function publicDiagnostic(
-  diagnostic: NativeHarnessDiagnostic,
-): NativeHarnessPublicDiagnostic {
+function publicDiagnostic(diagnostic: NativeHarnessDiagnostic): NativeHarnessPublicDiagnostic {
   const code = diagnostic.code;
   return {
     code,

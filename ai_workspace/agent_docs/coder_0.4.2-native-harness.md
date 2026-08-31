@@ -21,13 +21,13 @@
 
 ## 状态与验收边界
 
-| Harness | 真实证据 | 生产 capability 结论 |
-|---|---|---|
-| Codex | initialize + thread/start；turn 超时；interrupt error；process cleanup | `implementation missing` / partial |
-| Grok Build | initialize + session/new；prompt 因余额耗尽失败；session/close | `implementation missing` / error |
-| Kimi Code | initialize + session/new；prompt `AUTH_REQUIRED`；cancel error；session/close | `implementation missing` / partial |
-| Antigravity | 无安全 PTY probe | `unprobed` |
-| DeepSeek / DSH | 无官方 executable | `unavailable` |
+| Harness        | 真实证据                                                                      | 生产 capability 结论               |
+| -------------- | ----------------------------------------------------------------------------- | ---------------------------------- |
+| Codex          | initialize + thread/start；turn 超时；interrupt error；process cleanup        | `implementation missing` / partial |
+| Grok Build     | initialize + session/new；prompt 因余额耗尽失败；session/close                | `implementation missing` / error   |
+| Kimi Code      | initialize + session/new；prompt `AUTH_REQUIRED`；cancel error；session/close | `implementation missing` / partial |
+| Antigravity    | 无安全 PTY probe                                                              | `unprobed`                         |
+| DeepSeek / DSH | 无官方 executable                                                             | `unavailable`                      |
 
 本轮没有任何完整 `start → turn/response → interrupt/cleanup` 的五 Harness 证据，因此没有改 capability descriptor，也没有写 Feature PASS。partial handshake、session identity、fixture、`--version` 和 auth 文件存在性均未被升格为 integrated。
 

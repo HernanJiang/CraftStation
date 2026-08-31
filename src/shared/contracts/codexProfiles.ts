@@ -28,3 +28,9 @@ export const codexProfileLoginResultSchema = z.object({
   completionToken: z.string().min(1),
 });
 export type CodexProfileLoginResult = z.infer<typeof codexProfileLoginResultSchema>;
+
+export const antigravityProfileImportPayloadSchema = z.object({
+  /** Existing pool account to re-authorize; omit to append a new account. */
+  accountId: z.string().min(1).max(160).optional(),
+});
+export type AntigravityProfileImportPayload = z.infer<typeof antigravityProfileImportPayloadSchema>;

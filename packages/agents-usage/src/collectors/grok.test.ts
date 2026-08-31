@@ -51,12 +51,13 @@ describe("parseGrokUsage", () => {
         billingPeriodEnd: "2026-06-01T00:00:00+00:00",
       },
     };
-    const settings = { subscription_tier_display: "SuperGrok" };
+    const settings = { subscription_tier_display: "SuperGrok", email: "grok-user@x.ai" };
     const snap = parseGrokUsage(billing, settings, NOW);
 
     expect(snap.providerId).toBe("grok");
     expect(snap.status).toBe("ok");
     expect(snap.plan).toBe("SuperGrok");
+    expect(snap.authenticatedAs).toBe("grok-user@x.ai");
 
     const w = snap.windows[0]!;
     expect(w.id).toBe("monthly");
@@ -137,7 +138,26 @@ describe("collectGrok cookie session", () => {
     // No CLI token on disk: no plan chip, and a reset far outside a plausible
     // billing cycle stays on the bare label.
     expect(snap.plan).toBeUndefined();
+    expect(snap.authenticatedAs).toBeUndefined();
     expect(snap.windows[0]!.label).toBe("Credits");
+  });
+
+  it("keeps the signed-in email from auth.json when cookie usage has no settings", async () => {
+    const host = createFakeHost({
+      secrets: { grok: { cookie: "sso=abc" } },
+      tokens: { grok: { accessToken: "cli-token", email: "hernan.g01@gmail.com" } },
+      routes: {
+        [GROK_BILLING_ENDPOINT]: { status: 500 },
+        [GROK_GRPC_ENDPOINT]: { bodyBytes: LIVE_GRPC_BODY },
+        [GROK_SETTINGS_ENDPOINT]: { status: 500 },
+      },
+    });
+
+    const snap = await collectGrok(host);
+
+    expect(snap.status).toBe("ok");
+    expect(snap.authenticatedAs).toBe("hernan.g01@gmail.com");
+    expect(snap.windows[0]!.usedPercent).toBe(42.5);
   });
 
   it("labels the window monthly when the reset is further out than a weekly cycle", async () => {

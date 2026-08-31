@@ -5,11 +5,11 @@ import { resolvePoracodeBaseDir, resolvePoracodePaths } from "./poracodePaths";
 
 describe("poracodePaths", () => {
   it("derives the default base dir under the user home", () => {
-    expect(resolvePoracodeBaseDir("stable")).toBe(join(homedir(), ".poracode"));
+    expect(resolvePoracodeBaseDir("stable")).toBe(join(homedir(), ".craftstation"));
   });
 
   it("returns the nightly base dir when the channel is nightly", () => {
-    expect(resolvePoracodeBaseDir("nightly")).toBe(join(homedir(), ".poracode-nightly"));
+    expect(resolvePoracodeBaseDir("nightly")).toBe(join(homedir(), ".craftstation-nightly"));
   });
 
   it("derives all persisted paths from the provided base dir", () => {

@@ -15,6 +15,7 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { useGitStore } from "@/renderer/state/gitStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 
 const { composerSpy, launchExperimentMock } = vi.hoisted(() => ({
   composerSpy: vi.fn<(props: unknown) => void>(),
@@ -447,6 +448,7 @@ describe("ThreadDraftView", () => {
       providerModelPreferences: {},
       agentSettings: {},
       hiddenModels: {},
+      customModels: [],
       disabledAgents: [],
       lastPresentationModeByAgent: {},
       enabledMcpServers: {},
@@ -454,6 +456,7 @@ describe("ThreadDraftView", () => {
       sharedSettingsHydrated: true,
     });
     useAppStore.setState({ pendingDraftWorktreeSelections: {} });
+    useUsageAccountsStore.getState().reset();
     useRemoteServersStore.setState({
       servers: [],
       runtime: {},
@@ -469,7 +472,8 @@ describe("ThreadDraftView", () => {
       document.querySelector('[data-universal-docked-chat-input][data-placement="home"]'),
     ).toBeInTheDocument();
     expect(document.querySelector("[data-draft-context-bar]")).toBeInTheDocument();
-    expect(document.querySelector("[data-session-metrics]")).toBeInTheDocument();
+    // 用量/额度不再常驻显示：旧指标行已移除，详情收敛进工具栏的悬浮圆环。
+    expect(document.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
   });
 
   it("adds experiment candidates without a prompt and keeps the composer submit button", () => {
@@ -1162,7 +1166,7 @@ describe("ThreadDraftView", () => {
 
     const desktopProps = composerSpy.mock.lastCall?.[0] as { fixedContent?: ReactNode };
     expect(collectElementTypeNames(desktopProps.fixedContent)).toEqual(
-      expect.arrayContaining(["ThreadAgentUpdateDock", "HookInstallProposal"]),
+      expect.arrayContaining(["HookInstallProposal"]),
     );
 
     composerSpy.mockClear();
@@ -1253,6 +1257,131 @@ describe("ThreadDraftView", () => {
       },
       presentationMode: "gui",
       prompt: "hello world",
+    });
+  });
+
+  it("surfaces an OpenAI-compatible account by its channel name and binds its model selection", async () => {
+    const accountId = "openai-compatible:chiral-account";
+    useSharedSettings.setState({
+      customModels: [
+        {
+          id: "chiral-gpt-5.6-sol",
+          provider: "codex",
+          accountId,
+          channelLabel: "Chiral-API",
+          modelId: "gpt-5.6-sol",
+          displayName: "GPT-5.6 Sol",
+          contextSize: "",
+        },
+      ],
+    });
+    useUsageAccountsStore.getState().setAccounts([
+      {
+        accountId,
+        provider: "openai-compatible",
+        label: "Chiral-API",
+        providerAccountId: "Chiral-API",
+        createdAt: 1,
+        enabled: true,
+        selected: false,
+        order: 0,
+        status: "available",
+        credentialScopeRef: "usage-account:chiral-account",
+      },
+    ]);
+
+    render(
+      <ThreadDraftView
+        project={project}
+        agentStatuses={[dualModeCodexStatus]}
+        onStart={() => {}}
+      />,
+    );
+
+    type ModelControl = {
+      kind?: string;
+      currentAccountId?: string;
+      currentModel?: string;
+      providers?: Array<{
+        label: string;
+        accountId?: string;
+        capabilities: { models: Array<{ id: string; label: string }> };
+      }>;
+      onChange?: (next: {
+        agentKind: string;
+        model: string;
+        presentationMode?: "terminal" | "gui";
+        accountId?: string;
+      }) => void;
+    };
+    const currentModelControl = () => {
+      const props = composerSpy.mock.lastCall?.[0] as { controls: ModelControl[] };
+      return props.controls.find((control) => control.kind === "provider-model");
+    };
+
+    await waitFor(() => {
+      expect(currentModelControl()?.providers).toContainEqual(
+        expect.objectContaining({
+          label: "Chiral-API",
+          accountId,
+          capabilities: expect.objectContaining({
+            models: [{ id: "gpt-5.6-sol", label: "GPT-5.6 Sol" }],
+          }),
+        }),
+      );
+    });
+
+    act(() => {
+      currentModelControl()?.onChange?.({
+        agentKind: "codex",
+        model: "gpt-5.6-sol",
+        presentationMode: "gui",
+        accountId,
+      });
+    });
+
+    await waitFor(() => {
+      expect(currentModelControl()?.currentAccountId).toBe(accountId);
+      expect(currentModelControl()?.currentModel).toBe("gpt-5.6-sol");
+      expect(useUsageAccountsStore.getState().nextSessionAccountId).toBe(accountId);
+    });
+  });
+
+  it("updates the mounted draft model picker immediately when model management changes visibility", async () => {
+    render(
+      <ThreadDraftView
+        project={project}
+        agentStatuses={[dualModeCodexStatus]}
+        onStart={vi.fn<(input: unknown) => void>()}
+      />,
+    );
+
+    type ModelControl = {
+      kind?: string;
+      providers?: Array<{
+        kind: string;
+        capabilities: { models: Array<{ id: string; label: string }> };
+      }>;
+    };
+    const currentCodexModels = () => {
+      const props = composerSpy.mock.lastCall?.[0] as { controls: ModelControl[] };
+      return props.controls
+        .find((control) => control.kind === "provider-model")
+        ?.providers?.find((provider) => provider.kind === "codex")
+        ?.capabilities.models.map((model) => model.id);
+    };
+
+    await waitFor(() => {
+      expect(currentCodexModels()).toEqual(["gpt-5.4", "gpt-5.4-mini"]);
+    });
+
+    composerSpy.mockClear();
+    act(() => {
+      useSharedSettings.getState().setHiddenModels("codex", ["gpt-5.4-mini"]);
+    });
+
+    await waitFor(() => {
+      expect(currentCodexModels()).toEqual(["gpt-5.4"]);
     });
   });
 
@@ -2326,5 +2455,63 @@ describe("ThreadDraftView", () => {
     };
     expect(settledProps.controls.some((control) => control.label === "Plan")).toBe(true);
     expect(settledProps.controls.some((control) => control.label === "Work")).toBe(false);
+  });
+
+  it("keeps work mode when one menu action also changes the permission preset", async () => {
+    render(
+      <ThreadDraftView
+        project={project}
+        agentStatuses={[dualModeCodexStatus]}
+        lastDraftConfig={{
+          agentKind: "codex",
+          model: "gpt-5.4",
+          effort: "high",
+          mode: "plan",
+          approvalPolicy: "on-request",
+          approvalsReviewer: "auto_review",
+          sandboxMode: "workspace-write",
+        }}
+        onStart={vi.fn<(input: unknown) => void>()}
+      />,
+    );
+
+    type ExecutionControl = {
+      iconKind?: string;
+      label?: string;
+      value?: string;
+      onChange?: ((selected: boolean) => void) | ((value: string) => void);
+    };
+
+    await waitFor(() => {
+      const props = composerSpy.mock.lastCall?.[0] as { controls: ExecutionControl[] };
+      expect(props.controls.find((control) => control.iconKind === "mode")?.label).toBe("Plan");
+      expect(props.controls.find((control) => control.iconKind === "permission")).toBeDefined();
+    });
+
+    const initialProps = composerSpy.mock.lastCall?.[0] as { controls: ExecutionControl[] };
+    const modeControl = initialProps.controls.find((control) => control.iconKind === "mode");
+    const permissionControl = initialProps.controls.find(
+      (control) => control.iconKind === "permission",
+    );
+
+    act(() => {
+      (modeControl?.onChange as ((selected: boolean) => void) | undefined)?.(false);
+      (permissionControl?.onChange as ((value: string) => void) | undefined)?.("full-access");
+    });
+
+    await waitFor(() => {
+      const props = composerSpy.mock.lastCall?.[0] as { controls: ExecutionControl[] };
+      expect(props.controls.find((control) => control.iconKind === "mode")?.label).toBe("Work");
+      expect(props.controls.find((control) => control.iconKind === "permission")?.value).toBe(
+        "full-access",
+      );
+    });
+    expect(useSharedSettings.getState().providerConfigs.codex).toEqual(
+      expect.objectContaining({
+        mode: "agent",
+        approvalPolicy: "never",
+        sandboxMode: "danger-full-access",
+      }),
+    );
   });
 });

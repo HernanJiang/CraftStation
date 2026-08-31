@@ -87,15 +87,15 @@ F18/F19/F20 过滤用例全部通过，包括：
 
 ## Integration / Regression / Edge Cases
 
-| 项 | 结论 |
-|---|---|
-| F18 UI 文案 | Session 失败路径投影为「Grok 额度已耗尽」。账号行仍显示 raw `quota-exhausted`（既有 AccountRow），不是新的 P0 |
-| F19 绑定回写 | observer 使用 bound accountId，不读当前 selected |
-| F20 Auto 填补 | selected 耗尽时新 Session 解析到下一个 available；selected 本身不偷偷改成 B |
-| F20 explicit | exhausted explicit → error，factory 不被调用 |
-| F20 sticky | Session A 绑定后改 selected 不影响 A |
-| F08–F17 | 保持关闭：Grok 不打开 grok.com、managed GROK_HOME、overlay 可关、identity 才落行、spawn env 空值覆盖宿主泄漏 |
-| F04 | **仍 BLOCKED**：Kimi AUTH_REQUIRED、Antigravity unprobed、DSH unavailable；Grok 3/6 marker 只证明号池部分有额度，不是五 Harness PASS |
+| 项            | 结论                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| F18 UI 文案   | Session 失败路径投影为「Grok 额度已耗尽」。账号行仍显示 raw `quota-exhausted`（既有 AccountRow），不是新的 P0                        |
+| F19 绑定回写  | observer 使用 bound accountId，不读当前 selected                                                                                     |
+| F20 Auto 填补 | selected 耗尽时新 Session 解析到下一个 available；selected 本身不偷偷改成 B                                                          |
+| F20 explicit  | exhausted explicit → error，factory 不被调用                                                                                         |
+| F20 sticky    | Session A 绑定后改 selected 不影响 A                                                                                                 |
+| F08–F17       | 保持关闭：Grok 不打开 grok.com、managed GROK_HOME、overlay 可关、identity 才落行、spawn env 空值覆盖宿主泄漏                         |
+| F04           | **仍 BLOCKED**：Kimi AUTH_REQUIRED、Antigravity unprobed、DSH unavailable；Grok 3/6 marker 只证明号池部分有额度，不是五 Harness PASS |
 
 ## Findings
 

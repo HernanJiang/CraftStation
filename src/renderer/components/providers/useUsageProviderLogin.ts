@@ -9,10 +9,13 @@ import {
 } from "@/renderer/state/usageLoginStateStore";
 import { refreshAndMergeProviderUsage } from "./refreshProviderUsageSnapshot";
 import {
+  externalBrowserLoginUrl,
   needsBrowserSessionForUsage,
   supportsApiKeyLogin,
   supportsBrowserLogin,
+  usesSystemBrowserOAuth,
 } from "./usageProviders";
+import { openExternalWithFeedback } from "@/renderer/utils/openExternal";
 
 /**
  * Sign-in / sign-out flow for a usage provider, shared by the usage panel card
@@ -26,10 +29,13 @@ export function useUsageProviderLogin(id: string) {
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [apiKey, setApiKey] = useState("");
+  const [cookie, setCookie] = useState("");
   const isRemote = isRemoteSession();
 
   const isApiKeyLogin = supportsApiKeyLogin(id);
   const isBrowserLogin = supportsBrowserLogin(id);
+  const externalLoginUrl = externalBrowserLoginUrl(id);
+  const systemBrowserOAuth = usesSystemBrowserOAuth(id);
   const supportsLogin = !isRemote && (isBrowserLogin || isApiKeyLogin);
   // A stored session the latest fetch reports as rejected (expired cookie) still
   // warrants a "Sign in" to re-auth; an unauthenticated provider always does. But
@@ -58,9 +64,38 @@ export function useUsageProviderLogin(id: string) {
   // "Re-authorize". Keep this separate from `canSignIn` so callers do not
   // have to fake an auth-missing snapshot just to open the existing flow.
   const canReauthenticate = supportsLogin && isBrowserLogin;
-  const canSignOut = supportsLogin && hasStoredSession;
+  const canSignOut =
+    !isRemote &&
+    ((supportsLogin && hasStoredSession) ||
+      id === "grok" ||
+      id === "commandcode" ||
+      id === "antigravity");
 
   const handleSignIn = async () => {
+    if (externalLoginUrl) {
+      // External-browser providers sign in in the user's own browser; the
+      // caller surfaces the cookie-paste form. No embedded capture tab, and
+      // no lingering "signing in" state — completion is the cookie submit.
+      openExternalWithFeedback(externalLoginUrl);
+      return;
+    }
+    if (systemBrowserOAuth) {
+      setSigningIn(true);
+      try {
+        const outcome = await readBridge().startUsageLogin({ providerId: id });
+        if (!outcome.ok) {
+          if (!outcome.cancelled) toast.danger(outcome.error ?? `Unable to sign in to ${id}.`);
+          return;
+        }
+        useUsageLoginStateStore.getState().setStored(id, true);
+        await refreshAndMergeProviderUsage(id);
+      } catch (error) {
+        toast.danger(error instanceof Error ? error.message : `Unable to sign in to ${id}.`);
+      } finally {
+        setSigningIn(false);
+      }
+      return;
+    }
     setSigningIn(true);
     // Open the browser-overlay drawer (not maximized) so the login tab renders
     // there. Force-clear maximized in case a prior session left it fullscreen.
@@ -125,6 +160,30 @@ export function useUsageProviderLogin(id: string) {
     }
   };
 
+  const handleSubmitCookie = async (): Promise<boolean> => {
+    const value = cookie.trim();
+    if (!value || signingIn) return false;
+    setSigningIn(true);
+    try {
+      const outcome = await readBridge().submitUsageCookie({ providerId: id, cookie: value });
+      if (!outcome.ok) {
+        toast.danger(outcome.error ?? "Unable to save the " + id + " session cookie.");
+        return false;
+      }
+      setCookie("");
+      useUsageLoginStateStore.getState().setStored(id, true);
+      await refreshAndMergeProviderUsage(id);
+      return true;
+    } catch (error) {
+      toast.danger(
+        error instanceof Error ? error.message : "Unable to save the " + id + " session cookie.",
+      );
+      return false;
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
   const handleSignOut = async (): Promise<boolean> => {
     if (signingOut) return false;
     setSigningOut(true);
@@ -134,6 +193,12 @@ export function useUsageProviderLogin(id: string) {
         toast.danger(`Unable to sign out of ${id}.`);
         return false;
       }
+      // Drop the supervisor's cached snapshot (memory + persisted cache) in the
+      // same breath: a remembered identity (e.g. Antigravity's app-not-running
+      // preservation) must never resurrect a deleted authorization.
+      await readBridge()
+        .forgetProviderUsage?.({ providerId: id })
+        .catch(() => undefined);
       useUsageLoginStateStore.getState().setStored(id, false);
       await refreshAndMergeProviderUsage(id);
       return true;
@@ -157,8 +222,12 @@ export function useUsageProviderLogin(id: string) {
     signingOut,
     apiKey,
     setApiKey,
+    cookie,
+    setCookie,
+    externalLoginUrl,
     handleSignIn,
     handleSubmitApiKey,
+    handleSubmitCookie,
     handleSignOut,
   };
 }

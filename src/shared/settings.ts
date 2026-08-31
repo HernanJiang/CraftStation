@@ -313,6 +313,25 @@ export const sharedSettingsSchema = z.object({
   agentSettings: z.record(z.string(), z.record(z.string(), z.union([z.boolean(), z.string()]))),
   /** Per-agent hidden model IDs keyed by agent kind. */
   hiddenModels: z.record(z.string(), z.array(z.string())),
+  /**
+   * 用户在「管理模型」页添加的自定义模型：按渠道（agent kind）追加到首页模型
+   * 选择器，并带用户选择的上下文档位（""＝默认最高，其余如 "128K"/"1M"）。
+   */
+  customModels: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        provider: z.string().min(1),
+        /** Optional usage-account binding for key/Base-URL backed model channels. */
+        accountId: z.string().min(1).optional(),
+        /** User-defined channel name (for example "Chiral-API"). */
+        channelLabel: z.string().min(1).optional(),
+        modelId: z.string().min(1),
+        displayName: z.string().min(1),
+        contextSize: z.string(),
+      }),
+    )
+    .default([]),
   /** Agent kinds that the user has disabled (hidden from the agent picker). */
   disabledAgents: z.array(z.string()),
   /**
@@ -662,6 +681,7 @@ export const defaultSharedSettings: SharedSettings = {
   wslConflictResolverPresentationMode: "gui",
   agentSettings: {},
   hiddenModels: {},
+  customModels: [],
   disabledAgents: [],
   providerOrder: [],
   acpRegistryInstalledAgents: {},

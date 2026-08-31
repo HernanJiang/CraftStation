@@ -137,6 +137,21 @@ describe("parseCodexAuth", () => {
     expect(parseCodexAuth(JSON.stringify({ OPENAI_API_KEY: "sk-..." }))).toBeUndefined();
     expect(parseCodexAuth("nope")).toBeUndefined();
   });
+
+  it("extracts the account email from the id_token JWT payload", () => {
+    const payload = Buffer.from(JSON.stringify({ email: "user@example.com" })).toString(
+      "base64url",
+    );
+    const token = parseCodexAuth(
+      JSON.stringify({
+        tokens: { access_token: "at", id_token: "header." + payload + ".sig" },
+      }),
+    );
+    expect(token?.email).toBe("user@example.com");
+    expect(
+      parseCodexAuth(JSON.stringify({ tokens: { access_token: "at", id_token: "bad" } }))?.email,
+    ).toBeUndefined();
+  });
 });
 
 describe("Command Code credentials", () => {
@@ -152,6 +167,7 @@ describe("Command Code credentials", () => {
       parseCommandCodeAuth(JSON.stringify({ apiKey: "cc-file-key", userName: "command-user" })),
     ).toEqual({
       accessToken: "cc-file-key",
+      accountId: "command-user",
       raw: { userName: "command-user" },
     });
   });

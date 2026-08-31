@@ -264,9 +264,9 @@ describe("runAgentLoginCommand", () => {
     expect(bridge.openExternalNative).toHaveBeenCalledWith(
       "https://accounts.x.ai/oauth2/device?user_code=ABCD-EFGH",
     );
-    expect(
-      bridge.openExternalNative.mock.calls.map((call) => call[0]).join(" "),
-    ).not.toContain("grok.com");
+    expect(bridge.openExternalNative.mock.calls.map((call) => call[0]).join(" ")).not.toContain(
+      "grok.com",
+    );
   });
 
   it("sets profile env via PowerShell assignments on native Windows, not a POSIX prefix", () => {

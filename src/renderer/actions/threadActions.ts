@@ -107,6 +107,10 @@ function resolveNewThreadProjectId(): string | undefined {
 
 export function openNewThread(projectId?: string): void {
   openThreadRequestId += 1;
+  // The inline usage workspace replaces the main content area. Any thread
+  // navigation is an explicit handoff back to the conversation surface, so
+  // do not leave the usage workspace mounted over the newly opened draft.
+  usePanelStore.getState().closeModelUsageDialog();
   const targetProjectId = projectId ?? resolveNewThreadProjectId();
   startTransition(() => {
     if (!targetProjectId) {
@@ -126,6 +130,7 @@ export function openNewThread(projectId?: string): void {
 
 export function openNewThreadSideBySide(projectId: string): void {
   openThreadRequestId += 1;
+  usePanelStore.getState().closeModelUsageDialog();
   startTransition(() => {
     useAppStore.getState().openDraftSideBySide(projectId);
   });
@@ -137,6 +142,7 @@ export function openNewThreadInWorktree(input: {
   worktreeBranch: string;
 }): void {
   openThreadRequestId += 1;
+  usePanelStore.getState().closeModelUsageDialog();
   startTransition(() => {
     const store = useAppStore.getState();
     store.setPendingDraftWorktreeSelection(input.projectId, {
@@ -160,6 +166,10 @@ export function openThread(
   threadId: string,
   options?: { focusComposer?: boolean; standalone?: boolean; switchWorkspace?: boolean },
 ): void {
+  // Model usage is an inline workspace rather than a route. Close it at the
+  // shared thread-navigation seam so every sidebar/thread entry point returns
+  // to the conversation surface instead of changing an obscured view.
+  usePanelStore.getState().closeModelUsageDialog();
   const store = useAppStore.getState();
   const thread = store.threads.find((item) => item.id === threadId);
   if (thread && options?.switchWorkspace) {

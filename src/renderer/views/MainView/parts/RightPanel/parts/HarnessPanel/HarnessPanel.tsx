@@ -177,9 +177,7 @@ function NativeHarnessStatusSection(props: {
           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
             Native Harness 状态
           </p>
-          <p className="mt-0.5 text-[11px] text-muted">
-            官方运行时与安全诊断投影
-          </p>
+          <p className="mt-0.5 text-[11px] text-muted">官方运行时与安全诊断投影</p>
         </div>
         <button
           type="button"
@@ -238,9 +236,9 @@ export function HarnessPanel() {
     () => crafter.validate({ slots: { model: model ?? undefined, harness: "auto" } }),
     [crafter, model],
   );
-  const [nativeHarnessEntries, setNativeHarnessEntries] = useState<NativeHarnessControlPlaneEntry[]>(
-    [],
-  );
+  const [nativeHarnessEntries, setNativeHarnessEntries] = useState<
+    NativeHarnessControlPlaneEntry[]
+  >([]);
   const [nativeHarnessLoading, setNativeHarnessLoading] = useState(true);
   const [nativeHarnessError, setNativeHarnessError] = useState(false);
 

@@ -42,6 +42,30 @@ function writeAll(path: string, data: SecretsFile): void {
   renameSync(tmp, path);
 }
 
+/**
+ * Atomically merge one sealed bucket into another without decrypting values.
+ * Existing destination keys win so a legacy snapshot can never overwrite a
+ * newer canonical credential. The source bucket is removed only after the
+ * merged file has been written successfully.
+ */
+export function mergeUsageSecretBuckets(
+  cacheDir: string,
+  sourceProviderId: string,
+  destinationProviderId: string,
+): void {
+  if (sourceProviderId === destinationProviderId) return;
+  const path = usageSecretsPath(cacheDir);
+  const data = readAll(path);
+  const source = data[sourceProviderId];
+  if (!source) return;
+  data[destinationProviderId] = {
+    ...source,
+    ...(data[destinationProviderId] ?? {}),
+  };
+  delete data[sourceProviderId];
+  writeAll(path, data);
+}
+
 /** Seal and persist a provider secret. */
 export function setUsageSecret(
   cacheDir: string,

@@ -23,21 +23,21 @@
 
 已关闭（工程项，不是 Feature PASS）：
 
-| ID | 状态 | 含义 |
-|---|---|---|
-| F08 | 关闭 | Grok 登录不打开 grok.com，走官方 device-auth |
-| F09 | 关闭 | 不导入 Router oauth、不接 CLIProxyAPI、不覆盖 `~/.grok` |
-| F12 | 关闭 | 受管 GROK_HOME 登录闭环；无 identity 不落账号行 |
-| F13 | 关闭 | spawn env 用空值覆盖宿主 API key / Router / catalog |
-| F14 | 关闭 | Codex profile 登录测试死锁与 overlay 关闭 |
-| F15 | 关闭 | 「模型与用量」显示 Grok 账号池 |
-| F16 / F17 | 关闭 | overlay 可点关闭；官方 identity 出现即 complete |
-| F18 / F21 | 关闭 | 官方 402 duck-type → 「Grok 额度已耗尽」映射，并按 bound account 落盘 |
-| F19 / F20 | 关闭 | sticky 绑定；Auto 新 Session 才 fallback；explicit 不换号 |
-| F22 | 关闭 | 点账号行 = enable + select；右键改名；登录授权不冒泡 |
-| F23 | 关闭 | 邮箱 local 前3+***+后3；默认名前3 |
-| F24 | 关闭 | legacy disabled Grok 全量回启用 |
-| F04 | **仍 BLOCKED** | 五个官方 Harness 没有完整产品级 real response |
+| ID        | 状态           | 含义                                                                  |
+| --------- | -------------- | --------------------------------------------------------------------- |
+| F08       | 关闭           | Grok 登录不打开 grok.com，走官方 device-auth                          |
+| F09       | 关闭           | 不导入 Router oauth、不接 CLIProxyAPI、不覆盖 `~/.grok`               |
+| F12       | 关闭           | 受管 GROK_HOME 登录闭环；无 identity 不落账号行                       |
+| F13       | 关闭           | spawn env 用空值覆盖宿主 API key / Router / catalog                   |
+| F14       | 关闭           | Codex profile 登录测试死锁与 overlay 关闭                             |
+| F15       | 关闭           | 「模型与用量」显示 Grok 账号池                                        |
+| F16 / F17 | 关闭           | overlay 可点关闭；官方 identity 出现即 complete                       |
+| F18 / F21 | 关闭           | 官方 402 duck-type → 「Grok 额度已耗尽」映射，并按 bound account 落盘 |
+| F19 / F20 | 关闭           | sticky 绑定；Auto 新 Session 才 fallback；explicit 不换号             |
+| F22       | 关闭           | 点账号行 = enable + select；右键改名；登录授权不冒泡                  |
+| F23       | 关闭           | 邮箱 local 前3+***+后3；默认名前3                                     |
+| F24       | 关闭           | legacy disabled Grok 全量回启用                                       |
+| F04       | **仍 BLOCKED** | 五个官方 Harness 没有完整产品级 real response                         |
 
 约束保持：Official/Native Runtime First；Renderer 零 secret；不 commit 账号库 / token / `.env`。
 

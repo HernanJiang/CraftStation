@@ -199,6 +199,19 @@ export class UsageService {
     return { snapshots: cached, fromCache: this.loadedFromCache && cached.length > 0 };
   }
 
+  /**
+   * Drop one provider's snapshot from memory and the persisted cache after an
+   * explicit sign-out / credential deletion. Without this the remembered
+   * identity (preserveOnTransientFailure for Antigravity's app-not-running
+   * state, and the on-disk cache across restarts) resurrects a deleted
+   * authorization on the very next refresh.
+   */
+  forgetProvider(providerId: string): void {
+    this.snapshots.delete(providerId);
+    this.writeCache();
+    this.options.emit({ type: "provider-usage-all", snapshots: [...this.snapshots.values()] });
+  }
+
   /** Forces a live collection of the requested providers and emits the results. */
   async refreshProviderUsage(payload: ProviderUsagePayload): Promise<ProviderUsageResponse> {
     const ids = this.resolveIds(payload);
@@ -266,6 +279,21 @@ export class UsageService {
    */
   private preserveOnTransientFailure(snap: UsageSnapshot): UsageSnapshot {
     const preserveClaudeAuthMiss = shouldPreserveClaudeAuthMiss(snap);
+    // Antigravity's quota source is a live local language server. When the
+    // app closes, keep the last real identity/plan visible while changing the
+    // status to app-not-running; do not keep its old quota windows as if they
+    // were live. This avoids replacing a known full email with a blank card
+    // without misrepresenting stale quota as currently available.
+    if (snap.status === "app-not-running") {
+      const prev = this.snapshots.get(snap.providerId);
+      if (prev?.authenticatedAs || prev?.plan) {
+        return {
+          ...snap,
+          ...(prev.authenticatedAs ? { authenticatedAs: prev.authenticatedAs } : {}),
+          ...(prev.plan ? { plan: prev.plan } : {}),
+        };
+      }
+    }
     if (snap.status !== "rate-limited" && snap.status !== "error" && !preserveClaudeAuthMiss) {
       return snap;
     }

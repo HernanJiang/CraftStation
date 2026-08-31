@@ -664,6 +664,27 @@ export function createLocalIpcHandlers(
         options.requirePoracodePaths,
         options.getBrowserPanelManager,
       ).submitApiKey(payload.providerId, payload.apiKey),
+    submitVolcengineCredentials: (payload) =>
+      getUsageLoginManager(
+        options.requirePoracodePaths,
+        options.getBrowserPanelManager,
+      ).submitVolcengineCredentials(payload),
+    submitOpenAiCompatibleCredentials: (payload) =>
+      getUsageLoginManager(
+        options.requirePoracodePaths,
+        options.getBrowserPanelManager,
+      ).submitOpenAiCompatibleCredentials({
+        baseUrl: payload.baseUrl,
+        apiKey: payload.apiKey,
+        ...(payload.providerName ? { providerName: payload.providerName } : {}),
+        ...(payload.model ? { model: payload.model } : {}),
+        ...(payload.displayName ? { displayName: payload.displayName } : {}),
+      }),
+    submitUsageCookie: (payload) =>
+      getUsageLoginManager(
+        options.requirePoracodePaths,
+        options.getBrowserPanelManager,
+      ).submitCookie(payload.providerId, payload.cookie),
     resolveUsageLoginConfirmation: (payload) => {
       requireBrowserPanel(options.getBrowserPanelManager).resolveUsageLoginConfirmation(payload);
     },

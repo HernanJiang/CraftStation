@@ -12,6 +12,8 @@ interface ProviderUsageStore {
   snapshots: Record<string, UsageSnapshot>;
   setSnapshots: (snapshots: UsageSnapshot[]) => void;
   mergeSnapshot: (snapshot: UsageSnapshot) => void;
+  /** Drop one provider's snapshot (e.g. after its account was removed). */
+  removeSnapshot: (providerId: string) => void;
 }
 
 function creditsEqual(a: UsageCredits | undefined, b: UsageCredits | undefined): boolean {
@@ -29,15 +31,37 @@ function snapshotEqual(a: UsageSnapshot | undefined, b: UsageSnapshot): boolean 
   if (
     a.status !== b.status ||
     a.plan !== b.plan ||
+    a.authenticatedAs !== b.authenticatedAs ||
+    a.error !== b.error ||
+    a.rateLimitedUntil !== b.rateLimitedUntil ||
     a.fetchedAt !== b.fetchedAt ||
     !creditsEqual(a.credits, b.credits) ||
-    a.windows.length !== b.windows.length
+    a.windows.length !== b.windows.length ||
+    a.cost?.amount !== b.cost?.amount ||
+    a.cost?.currency !== b.cost?.currency ||
+    a.cost?.period !== b.cost?.period ||
+    a.cost?.estimated !== b.cost?.estimated ||
+    a.tokens?.total !== b.tokens?.total ||
+    a.tokens?.input !== b.tokens?.input ||
+    a.tokens?.output !== b.tokens?.output ||
+    a.tokens?.cacheRead !== b.tokens?.cacheRead ||
+    a.tokens?.cacheWrite !== b.tokens?.cacheWrite ||
+    a.tokens?.period !== b.tokens?.period
   ) {
     return false;
   }
   return a.windows.every((w, i) => {
     const o = b.windows[i]!;
-    return w.id === o.id && w.usedPercent === o.usedPercent && w.resetsAt === o.resetsAt;
+    return (
+      w.id === o.id &&
+      w.label === o.label &&
+      w.usedPercent === o.usedPercent &&
+      w.resetsAt === o.resetsAt &&
+      w.used === o.used &&
+      w.limit === o.limit &&
+      w.unit === o.unit &&
+      w.currency === o.currency
+    );
   });
 }
 
@@ -68,6 +92,13 @@ export const useProviderUsageStore = create<ProviderUsageStore>()((set) => ({
       return {
         snapshots: { ...prev.snapshots, [snapshot.providerId]: snapshot },
       };
+    }),
+  removeSnapshot: (providerId) =>
+    set((prev) => {
+      if (!(providerId in prev.snapshots)) return prev;
+      const snapshots = { ...prev.snapshots };
+      delete snapshots[providerId];
+      return { snapshots };
     }),
 }));
 

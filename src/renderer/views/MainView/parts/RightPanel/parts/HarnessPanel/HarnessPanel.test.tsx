@@ -5,7 +5,9 @@ import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting";
 
 const bridgeMock = vi.hoisted(() => ({
   getNativeHarnessControlPlane: vi.fn<() => Promise<NativeHarnessControlPlaneEntry[]>>(),
-  onSupervisorEvent: vi.fn<(listener: (event: unknown) => void) => () => void>(() => () => undefined),
+  onSupervisorEvent: vi.fn<(listener: (event: unknown) => void) => () => void>(
+    () => () => undefined,
+  ),
 }));
 
 vi.mock("@/renderer/bridge", () => ({ readBridge: () => bridgeMock }));
@@ -88,6 +90,8 @@ describe("HarnessPanel native control-plane surface", () => {
 
     listener?.({ type: "agent-status-updated" });
     await waitFor(() => expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalledTimes(2));
-    expect(screen.queryByText(/CODEX_HOME|executablePath|token|C:\\Users/u)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/CODEX_HOME|executablePath|token|C:\\Users/u),
+    ).not.toBeInTheDocument();
   });
 });

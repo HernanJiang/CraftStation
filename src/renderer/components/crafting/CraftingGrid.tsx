@@ -356,9 +356,10 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
                 type="button"
                 title={recipe.description}
                 onClick={() => {
-                  const recipeModel = availableModels.find((model) =>
-                    recipe.modelVendors?.includes(model.metadata.vendor) ??
-                    recipe.requirements.model?.allowedVendors?.includes(model.metadata.vendor),
+                  const recipeModel = availableModels.find(
+                    (model) =>
+                      recipe.modelVendors?.includes(model.metadata.vendor) ??
+                      recipe.requirements.model?.allowedVendors?.includes(model.metadata.vendor),
                   );
                   if (recipeModel) setSelectedModelId(recipeModel.id);
                   setHarnessSelection(recipe.harnessItemId ?? "auto");

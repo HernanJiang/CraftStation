@@ -11,9 +11,5 @@ export const nativeHarnessProcedures = {
     NativeHarnessControlPlanePayload,
     NativeHarnessControlPlaneEntry[],
     "supervisor"
-  >(
-    "getNativeHarnessControlPlane",
-    "supervisor",
-    nativeHarnessControlPlanePayloadSchema,
-  ),
+  >("getNativeHarnessControlPlane", "supervisor", nativeHarnessControlPlanePayloadSchema),
 } as const;

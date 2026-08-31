@@ -35,6 +35,15 @@ export type UsageProvider = {
   /** Offers an in-app browser login (web-session cookie or OAuth device flow). */
   supportsBrowserLogin?: boolean;
   /**
+   * Signs in in the user's OWN browser (opened via shell.openExternal) and
+   * pastes the session cookie back — no embedded capture tab.
+   */
+  externalBrowserLogin?: boolean;
+  /** Native OAuth opens the system browser and completes through loopback IPC. */
+  systemBrowserOAuth?: boolean;
+  /** Page opened in the system browser for external-browser login providers. */
+  loginUrl?: string;
+  /**
    * All windows reset on one shared clock, so the UI shows a single reset
    * countdown in the header instead of one per window (e.g. Cursor).
    */
@@ -66,6 +75,12 @@ const RENDERER_META: Record<string, Omit<UsageProvider, "id" | "label">> = {
   // Gemini by default — and right-click swaps to the other. All four windows
   // still render as bars in the expanded usage card.
   antigravity: {
+    supportsBrowserLogin: true,
+    // Antigravity owns the Google sign-in flow in `agy` / its local language
+    // server.  Do not reproduce that flow in CraftStation: Token Monitor and
+    // Cockpit Tools both launch the native client and read its loopback LS,
+    // which avoids the invalid-client / redirect mismatch seen in the custom
+    // OAuth broker.
     ringGroups: [
       {
         key: "gemini",
@@ -103,7 +118,19 @@ const RENDERER_META: Record<string, Omit<UsageProvider, "id" | "label">> = {
     rings: { outer: ["session-5h"], inner: ["weekly", "monthly"] },
   },
   grok: { supportsBrowserLogin: true },
-  opencode: { supportsBrowserLogin: true },
+  // Command Code signs in in the user's own browser on commandcode.ai, then
+  // pastes the session cookie back; the CLI API key paste remains as fallback
+  // (apiKeyFallback on the descriptor).
+  commandcode: {
+    supportsBrowserLogin: true,
+    externalBrowserLogin: true,
+    loginUrl: "https://commandcode.ai/settings/usage",
+  },
+  opencode: {
+    supportsBrowserLogin: true,
+    externalBrowserLogin: true,
+    loginUrl: "https://opencode.ai/",
+  },
   // z.ai authenticates with a pasted API key, not a browser session.
   // The ring tracks token rate-limits only: the 5h window plus the weekly window
   // when the plan returns one. The monthly MCP-tools quota is a different kind of
@@ -120,6 +147,8 @@ const RENDERER_META: Record<string, Omit<UsageProvider, "id" | "label">> = {
   },
   qwen: {
     supportsBrowserLogin: true,
+    externalBrowserLogin: true,
+    loginUrl: "https://bailian.console.aliyun.com/",
     rings: { outer: ["session-5h"], inner: ["weekly", "monthly"] },
   },
 };
@@ -179,6 +208,20 @@ export function usageProvidersForAgentInstances(
 /** Providers that expose the browser-overlay login (cookie or device flow). */
 export function supportsBrowserLogin(providerId: string): boolean {
   return rendererMeta(providerId)?.supportsBrowserLogin === true;
+}
+
+/**
+ * Providers whose browser sign-in opens the user's OWN browser and completes
+ * with a pasted cookie. Returns the page to open, or undefined when the
+ * provider uses the embedded capture overlay instead.
+ */
+export function externalBrowserLoginUrl(providerId: string): string | undefined {
+  const meta = rendererMeta(providerId);
+  return meta?.externalBrowserLogin === true ? meta.loginUrl : undefined;
+}
+
+export function usesSystemBrowserOAuth(providerId: string): boolean {
+  return rendererMeta(providerId)?.systemBrowserOAuth === true;
 }
 
 /** Providers that accept a pasted API key, including hybrid browser providers. */

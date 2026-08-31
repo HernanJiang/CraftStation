@@ -490,6 +490,42 @@ describe("ProviderModelMenu", () => {
     });
   });
 
+  it("returns the account binding for an OpenAI-compatible channel", async () => {
+    const provider = makeNamedProvider("codex", "Chiral-API", 2);
+    provider.accountId = "openai-compatible:chiral";
+    provider.modelPickerKey = "openai-compatible:chiral";
+    const onChange =
+      vi.fn<
+        (next: {
+          agentKind: string;
+          model: string;
+          presentationMode?: "terminal" | "gui";
+          accountId?: string;
+        }) => void
+      >();
+
+    render(
+      <ProviderModelMenu
+        providers={[provider]}
+        currentAgentKind="codex"
+        currentAccountId="openai-compatible:chiral"
+        currentModel="model-1"
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Select model" }));
+    fireEvent.click(await screen.findByText("Model 2"));
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith({
+        agentKind: "codex",
+        accountId: "openai-compatible:chiral",
+        model: "model-2",
+      }),
+    );
+  });
+
   it("resets the window when a long list shrinks so rows do not render blank", async () => {
     const { rerender } = render(
       <ProviderModelMenu

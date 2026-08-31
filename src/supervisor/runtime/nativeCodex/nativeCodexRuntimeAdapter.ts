@@ -105,7 +105,11 @@ export class NativeCodexCraftSession implements CraftSession {
       const error = new Error("Codex App-Server transport closed unexpectedly.");
       this._diagnostics.push(codexDiagnostic("turn", "transport-close", error));
       this._status = "error";
-      this.emitEvent({ type: "error", threadId: this.threadId, message: error.message }, "transport/closed", "native");
+      this.emitEvent(
+        { type: "error", threadId: this.threadId, message: error.message },
+        "transport/closed",
+        "native",
+      );
       this.emitEvent(
         {
           type: "session.exited",
@@ -302,7 +306,11 @@ export class NativeCodexCraftSession implements CraftSession {
         });
         this._diagnostics.push(diagnostic);
         const errorMsg = error instanceof Error ? error.message : String(error);
-        this.emitEvent({ type: "error", threadId: this.threadId, message: errorMsg }, "turn/start", "native");
+        this.emitEvent(
+          { type: "error", threadId: this.threadId, message: errorMsg },
+          "turn/start",
+          "native",
+        );
         this.emitEvent(
           {
             type: "turn.completed",
@@ -540,7 +548,9 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         this.accountBinding?.accountId,
       );
     } catch (error) {
-      this.diagnostics.push(codexDiagnostic("start", "createSession", error, { entityId: entity.id }));
+      this.diagnostics.push(
+        codexDiagnostic("start", "createSession", error, { entityId: entity.id }),
+      );
       throw error;
     }
   }
@@ -576,7 +586,9 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         this.accountBinding?.accountId,
       );
     } catch (error) {
-      this.diagnostics.push(codexDiagnostic("resume", "resumeSession", error, { entityId: entity.id, sessionRef }));
+      this.diagnostics.push(
+        codexDiagnostic("resume", "resumeSession", error, { entityId: entity.id, sessionRef }),
+      );
       throw error;
     }
   }

@@ -39,9 +39,7 @@
 
 ```ts
 {
-  shellId,
-  label,
-  completionToken
+  (shellId, label, completionToken);
 }
 ```
 

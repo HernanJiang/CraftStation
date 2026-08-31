@@ -61,10 +61,10 @@ export const GROK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   official: true,
   transport: "acp-stdio",
   machineFacingBoundary: "grok agent stdio (ACP)",
-  capabilities: capabilityMap([...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents"], [
-    "context",
-    "compaction",
-  ]),
+  capabilities: capabilityMap(
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents"],
+    ["context", "compaction"],
+  ),
 };
 
 export const KIMI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {

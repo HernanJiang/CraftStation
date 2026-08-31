@@ -5,17 +5,13 @@ import { projectLocationSchema } from "./common";
 export const grokProfileLoginCreatePayloadSchema = z.object({
   label: z.string().trim().min(1).max(120),
 });
-export type GrokProfileLoginCreatePayload = z.infer<
-  typeof grokProfileLoginCreatePayloadSchema
->;
+export type GrokProfileLoginCreatePayload = z.infer<typeof grokProfileLoginCreatePayloadSchema>;
 
 export const grokProfileLoginCreateResultSchema = z.object({
   pendingRef: z.string().min(1),
   label: z.string().min(1),
 });
-export type GrokProfileLoginCreateResult = z.infer<
-  typeof grokProfileLoginCreateResultSchema
->;
+export type GrokProfileLoginCreateResult = z.infer<typeof grokProfileLoginCreateResultSchema>;
 
 export const grokProfileLoginPayloadSchema = z.object({
   pendingRef: z.string().min(1),

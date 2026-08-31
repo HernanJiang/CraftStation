@@ -29,6 +29,7 @@ function makePanel() {
         cookie: "sso=abc",
       }),
     ),
+    clearLoginCookies: vi.fn<(opts: unknown) => Promise<void>>(async () => {}),
   };
 }
 
@@ -193,6 +194,26 @@ describe("UsageLoginManager API-key flow", () => {
     expect(hasUsageSecret(cacheDir, "zai")).toBe(true);
   });
 
+  it("clears the CraftStation secret without deleting the official Grok auth.json", async () => {
+    const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+    const grokHome = join(cacheDir, "grok-home");
+    mkdirSync(grokHome, { recursive: true });
+    writeFileSync(join(grokHome, "auth.json"), JSON.stringify({ key: "stale" }), "utf8");
+    const previous = process.env.GROK_HOME;
+    process.env.GROK_HOME = grokHome;
+    try {
+      const manager = newManager(makePanel());
+      await expect(manager.submitCookie("grok", "sso=abc")).resolves.toEqual({ ok: true });
+      expect(hasUsageSecret(cacheDir, "grok")).toBe(true);
+      await expect(manager.clearLogin("grok")).resolves.toEqual({ ok: true });
+      expect(hasUsageSecret(cacheDir, "grok")).toBe(false);
+      expect(existsSync(join(grokHome, "auth.json"))).toBe(true);
+    } finally {
+      if (previous === undefined) delete process.env.GROK_HOME;
+      else process.env.GROK_HOME = previous;
+    }
+  });
+
   it("seals a pasted Kimi Code key and reports it stored", async () => {
     const manager = newManager(makePanel());
     await expect(manager.submitApiKey("kimi", "kimi-secret")).resolves.toEqual({ ok: true });
@@ -232,5 +253,54 @@ describe("UsageLoginManager API-key flow", () => {
     expect(hasUsageSecret(cacheDir, "zai")).toBe(true);
     await expect(manager.clearLogin("zai")).resolves.toEqual({ ok: true });
     expect(hasUsageSecret(cacheDir, "zai")).toBe(false);
+  });
+});
+
+describe("UsageLoginManager pasted-cookie flow (system-browser login)", () => {
+  it("seals a pasted header carrying the provider auth cookie", async () => {
+    const manager = newManager(makePanel());
+    await expect(manager.submitCookie("grok", "sso=abc; other=1")).resolves.toEqual({
+      ok: true,
+    });
+    expect(hasUsageSecret(cacheDir, "grok")).toBe(true);
+  });
+
+  it("rejects a pasted header without the auth cookie name", async () => {
+    const manager = newManager(makePanel());
+    const result = await manager.submitCookie("grok", "other=1");
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("Cookie");
+    expect(hasUsageSecret(cacheDir, "grok")).toBe(false);
+  });
+
+  it("rejects empty input and non-cookie providers without storing anything", async () => {
+    const manager = newManager(makePanel());
+    await expect(manager.submitCookie("grok", "   ")).resolves.toMatchObject({ ok: false });
+    await expect(manager.submitCookie("zai", "sso=abc")).resolves.toMatchObject({
+      ok: false,
+    });
+    expect(hasUsageSecret(cacheDir, "grok")).toBe(false);
+    expect(hasUsageSecret(cacheDir, "zai")).toBe(false);
+  });
+});
+
+describe("UsageLoginManager Volcengine and OpenAI-compatible flows", () => {
+  it("fails closed on invalid Volcengine credentials without modifying stored secrets", async () => {
+    const manager = newManager(makePanel());
+    const result = await manager.submitVolcengineCredentials({
+      apiKey: "ark-invalid",
+    });
+    expect(result.ok).toBe(false);
+    expect(hasUsageSecret(cacheDir, "volcengine")).toBe(false);
+  });
+
+  it("fails closed on invalid OpenAI-compatible credentials without modifying stored secrets", async () => {
+    const manager = newManager(makePanel());
+    const result = await manager.submitOpenAiCompatibleCredentials({
+      baseUrl: "https://api.example.com/v1",
+      apiKey: "sk-invalid",
+    });
+    expect(result.ok).toBe(false);
+    expect(hasUsageSecret(cacheDir, "openai-compatible")).toBe(false);
   });
 });

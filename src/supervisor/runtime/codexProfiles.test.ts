@@ -45,13 +45,17 @@ describe("CodexProfileService", () => {
     const winScript = buildCodexLoginScript("windows", token);
     expect(winScript).toContain("CraftStation CODEX_HOME=");
     expect(winScript).toContain("CraftStation CODEX_HOME=");
-    expect(winScript).toContain("codex -c model_provider=openai -c sandbox_mode=danger-full-access login");
+    expect(winScript).toContain(
+      "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
+    );
     expect(winScript).toContain(`poracode-login-complete=${token}`);
 
     const posixScript = buildCodexLoginScript("posix", token);
-    expect(posixScript).toContain('CraftStation login cwd=');
-    expect(posixScript).toContain('CraftStation CODEX_HOME=');
-    expect(posixScript).toContain("codex -c model_provider=openai -c sandbox_mode=danger-full-access login");
+    expect(posixScript).toContain("CraftStation login cwd=");
+    expect(posixScript).toContain("CraftStation CODEX_HOME=");
+    expect(posixScript).toContain(
+      "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
+    );
     expect(posixScript).toContain(`poracode-login-complete=${token}`);
   });
 });

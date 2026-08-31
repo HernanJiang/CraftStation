@@ -95,8 +95,7 @@ export class NativeHarnessRecipe implements Recipe {
     }
 
     const modelCapability = model.components.find(
-      (component): component is ModelCapabilityComponent =>
-        component.kind === "model_capability",
+      (component): component is ModelCapabilityComponent => component.kind === "model_capability",
     );
     const runtimeModelId =
       modelCapability?.modelId ??
@@ -107,9 +106,10 @@ export class NativeHarnessRecipe implements Recipe {
       profileRef: context.profileRef ?? null,
       environment: context.environment ?? null,
     });
-    const hash = sha256Hex(
-      `${this.id}:${model.id}:${harness.id}:${contextFingerprint}`,
-    ).slice(0, 16);
+    const hash = sha256Hex(`${this.id}:${model.id}:${harness.id}:${contextFingerprint}`).slice(
+      0,
+      16,
+    );
 
     return {
       id: `plan:${this.id}:${hash}`,

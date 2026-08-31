@@ -60,6 +60,7 @@ export function createAcpStructuredSession(
     ? injectWslEnv(mergedCommand, input.projectLocation, mergedCommand.env)
     : mergedCommand;
   return AcpStructuredSession.create(command, input.projectLocation, input.threadId, {
+    ...(input.accountBinding?.accountId ? { usageAccountId: input.accountBinding.accountId } : {}),
     ...(input.loadSessionErrorRewriter
       ? { loadSessionErrorRewriter: input.loadSessionErrorRewriter }
       : {}),

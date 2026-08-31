@@ -289,6 +289,7 @@ describe("ThreadComposer", () => {
               {
                 kind: "codex",
                 label: "OpenAI",
+                presentationMode: "gui",
                 capabilities: {
                   models: [{ id: "gpt-5.6-sol", label: "5.6 Sol" }],
                   efforts: ["medium"],
@@ -334,6 +335,243 @@ describe("ThreadComposer", () => {
     expect(screen.queryByText("CLI")).not.toBeInTheDocument();
 
     expect(onPermissionChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps add and access controls on the left and the only quota ring before the model", () => {
+    const { container } = render(
+      <ThreadComposer
+        controlsDisplay="menu"
+        controls={[
+          {
+            kind: "toggle",
+            label: "Plan",
+            iconKind: "mode",
+            isSelected: false,
+            onChange: vi.fn<(selected: boolean) => void>(),
+          },
+          {
+            kind: "toggle",
+            label: "Supervised",
+            iconKind: "permission",
+            isSelected: false,
+            onChange: vi.fn<(selected: boolean) => void>(),
+          },
+          {
+            kind: "provider-model",
+            providers: [
+              {
+                kind: "codex",
+                label: "OpenAI",
+                presentationMode: "gui",
+                capabilities: {
+                  models: [{ id: "gpt-5.6-sol", label: "5.6 Sol" }],
+                  efforts: [],
+                  modelEfforts: {},
+                  modes: [],
+                  approvalPolicies: [],
+                  sandboxModes: [],
+                  supportsResume: true,
+                  supportsDirectInput: true,
+                  liveInputMode: "server",
+                  presentationMode: "gui",
+                  settingDefs: [],
+                },
+              },
+            ],
+            currentAgentKind: "codex",
+            currentModel: "gpt-5.6-sol",
+            presentationMode: "gui",
+            onChange:
+              vi.fn<
+                (next: {
+                  agentKind: string;
+                  model: string;
+                  presentationMode?: "terminal" | "gui";
+                  accountId?: string;
+                }) => void
+              >(),
+          },
+        ]}
+        leadingControls={
+          <button type="button" aria-label="添加数据和文件">
+            +
+          </button>
+        }
+        beforeEndControls={
+          <button type="button" aria-label="上下文与额度详情" data-testid="context-quota-ring" />
+        }
+        placeholder="Send a message..."
+        prompt=""
+        submitDisabled
+        submitLabel="Send message"
+        onPromptChange={vi.fn<(value: string) => void>()}
+        onSubmit={vi.fn<() => void>()}
+      />,
+    );
+
+    const toolbar = composerToolbar(container);
+    const add = screen.getByRole("button", { name: "添加数据和文件" });
+    const access = screen.getByRole("button", { name: "切换执行模式与权限" });
+    const ring = screen.getByRole("button", { name: "上下文与额度详情" });
+    const model = screen.getByRole("button", { name: /5.6 Sol/ });
+
+    expect(toolbar.querySelectorAll('[data-testid="context-quota-ring"]')).toHaveLength(1);
+    expect(add.compareDocumentPosition(access) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(access.compareDocumentPosition(ring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ring.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("switches to another enabled model from the parameter submenu", async () => {
+    const onModelChange =
+      vi.fn<
+        (next: { agentKind: string; model: string; presentationMode?: "terminal" | "gui" }) => void
+      >();
+
+    render(
+      <ThreadComposer
+        controlsDisplay="menu"
+        controls={[
+          {
+            kind: "provider-model",
+            providers: [
+              {
+                kind: "codex",
+                label: "OpenAI",
+                presentationMode: "gui",
+                capabilities: {
+                  models: [
+                    { id: "gpt-current", label: "Current Model" },
+                    { id: "gpt-enabled", label: "Enabled Model" },
+                  ],
+                  efforts: [],
+                  modelEfforts: {},
+                  modes: [],
+                  approvalPolicies: [],
+                  sandboxModes: [],
+                  supportsResume: true,
+                  supportsDirectInput: true,
+                  liveInputMode: "server",
+                  presentationMode: "gui",
+                  settingDefs: [],
+                },
+              },
+            ],
+            currentAgentKind: "codex",
+            currentModel: "gpt-current",
+            presentationMode: "gui",
+            onChange: onModelChange,
+          },
+        ]}
+        placeholder="Send a message..."
+        prompt=""
+        submitDisabled
+        submitLabel="Send message"
+        onPromptChange={vi.fn<(value: string) => void>()}
+        onSubmit={vi.fn<() => void>()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Current Model/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Enabled Model/ }));
+
+    expect(onModelChange).toHaveBeenCalledWith({
+      agentKind: "codex",
+      model: "gpt-enabled",
+      presentationMode: "gui",
+    });
+  });
+
+  it("does not show a reset-to-default action in the parameter menu", async () => {
+    render(
+      <ThreadComposer
+        controlsDisplay="menu"
+        controls={[
+          {
+            kind: "provider-model",
+            providers: [
+              {
+                kind: "codex",
+                label: "OpenAI",
+                capabilities: {
+                  models: [{ id: "gpt-current", label: "Current Model" }],
+                  efforts: [],
+                  modelEfforts: {},
+                  modes: [],
+                  approvalPolicies: [],
+                  sandboxModes: [],
+                  supportsResume: true,
+                  supportsDirectInput: true,
+                  liveInputMode: "server",
+                  presentationMode: "gui",
+                  settingDefs: [],
+                },
+              },
+            ],
+            currentAgentKind: "codex",
+            currentModel: "gpt-current",
+            presentationMode: "gui",
+            onChange:
+              vi.fn<
+                (next: {
+                  agentKind: string;
+                  model: string;
+                  presentationMode?: "terminal" | "gui";
+                }) => void
+              >(),
+          },
+        ]}
+        placeholder="Send a message..."
+        prompt=""
+        submitDisabled
+        submitLabel="Send message"
+        onPromptChange={vi.fn<(value: string) => void>()}
+        onSubmit={vi.fn<() => void>()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Current Model/ }));
+
+    expect(screen.queryByRole("menuitem", { name: "重置为默认设置" })).not.toBeInTheDocument();
+  });
+
+  it("uses the execution-mode dropdown as an action menu", async () => {
+    const onModeChange = vi.fn<(selected: boolean) => void>();
+    const onPermissionChange = vi.fn<(selected: boolean) => void>();
+
+    render(
+      <ThreadComposer
+        controlsDisplay="menu"
+        controls={[
+          {
+            kind: "toggle",
+            label: "Plan",
+            iconKind: "mode",
+            isSelected: true,
+            onChange: onModeChange,
+          },
+          {
+            kind: "toggle",
+            label: "Supervised",
+            iconKind: "permission",
+            isSelected: false,
+            onChange: onPermissionChange,
+          },
+        ]}
+        placeholder="Send a message..."
+        prompt=""
+        submitDisabled
+        submitLabel="Send message"
+        onPromptChange={vi.fn<(value: string) => void>()}
+        onSubmit={vi.fn<() => void>()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /完全访问权限/ }));
+
+    expect(onModeChange).toHaveBeenCalledWith(false);
+    expect(onPermissionChange).toHaveBeenCalledWith(true);
   });
 
   it("shows an attachment drop target for supported files", () => {

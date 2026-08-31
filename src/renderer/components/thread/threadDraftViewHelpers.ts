@@ -16,6 +16,36 @@ import {
 } from "@/shared/agentSelection";
 import { i18n } from "@/renderer/i18n/i18n";
 import type { ProviderModelPreference } from "@/shared/settings";
+import { parseContextSizeTokens } from "./customModelCatalog";
+
+/** 上下文窗口档位预设与默认档（选中时映射到模型真实档位）。 */
+export const CONTEXT_WINDOW_PRESETS = ["128K", "256K", "384K", "512K", "1M"] as const;
+export const DEFAULT_CONTEXT_PRESET = "256K";
+
+/**
+ * 把预设/自由填写的上下文大小映射到模型**真实**档位：取 ≤ 目标值的最大实际档；
+ * 目标低于全部实际档时取最小档（模型下限）。模型没有可解析的实际档时返回 undefined。
+ */
+export function resolveContextPresetValue(
+  capabilities: AgentCapability,
+  model: string,
+  preferred: string,
+): string | undefined {
+  const preferredTokens = parseContextSizeTokens(preferred);
+  if (preferredTokens === undefined) return undefined;
+  const realIds =
+    capabilities.modelContextSizes?.[model] ??
+    capabilities.contextSizes?.map((size) => size.id) ??
+    [];
+  const realWithTokens = realIds
+    .map((id) => ({ id, tokens: parseContextSizeTokens(id) }))
+    .filter((entry): entry is { id: string; tokens: number } => entry.tokens !== undefined)
+    .sort((a, b) => a.tokens - b.tokens);
+  if (realWithTokens.length === 0) return undefined;
+  const below = realWithTokens.filter((entry) => entry.tokens <= preferredTokens);
+  const nearest = below.at(-1) ?? realWithTokens[0];
+  return nearest?.id;
+}
 
 export function resolveProviderModelPreference(
   agentKind: AgentStatus["kind"],
@@ -108,6 +138,11 @@ export function resolveContextSizeValue(
   const allowed = agent.capabilities.modelContextSizes?.[model];
   if (!allowed?.length) return agent.capabilities.defaultContextSize;
   if (preferred && allowed.includes(preferred)) return preferred;
+  // 无用户偏好时默认 256K 档（映射到该模型真实档位，超出上限自动取模型最大档）。
+  if (!preferred) {
+    const mapped = resolveContextPresetValue(agent.capabilities, model, DEFAULT_CONTEXT_PRESET);
+    if (mapped) return mapped;
+  }
   return allowed[0];
 }
 

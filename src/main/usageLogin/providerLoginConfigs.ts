@@ -2,6 +2,7 @@ import {
   ALIBABA_TOKEN_PLAN_INTL_DASHBOARD_URL,
   allUsageProviderDescriptors,
 } from "@poracode/agents-usage";
+import { isCommandCodeLoginCookieLive } from "./commandCodeLoginProbe";
 import { isOpenCodeLoginCookieLive } from "./openCodeLoginProbe";
 
 /**
@@ -57,11 +58,16 @@ export interface ApiKeyLoginConfig {
   kind: "api-key";
 }
 
+export interface NativeOAuthLoginConfig {
+  kind: "native-oauth";
+}
+
 export type ProviderLoginConfig =
   | CookieLoginConfig
   | GitHubDeviceLoginConfig
   | LocalStorageLoginConfig
-  | ApiKeyLoginConfig;
+  | ApiKeyLoginConfig
+  | NativeOAuthLoginConfig;
 
 export const USAGE_PROVIDER_BY_ID = new Map(
   allUsageProviderDescriptors().map((descriptor) => [descriptor.id, descriptor]),
@@ -123,6 +129,16 @@ export const PROVIDER_CONFIGS: Record<string, ProviderLoginConfig> = {
     // user signs in, and stale values linger in the jar — so confirm the cookie
     // actually authenticates before prompting.
     validateSession: isOpenCodeLoginCookieLive,
+  },
+  commandcode: {
+    kind: "cookie",
+    loginUrl: "https://commandcode.ai/",
+    cookieUrl: "https://commandcode.ai/",
+    // better-auth session cookies are namespaced commandcode_prod_. in
+    // production (with the HTTPS-only __Secure-/__Host- prefixes); the bare
+    // library name is deliberately not accepted (token-monitor finding).
+    authCookiePattern: /^(?:__Secure-|__Host-)?commandcode_prod_\./i,
+    validateSession: isCommandCodeLoginCookieLive,
   },
   qwen: {
     kind: "cookie",

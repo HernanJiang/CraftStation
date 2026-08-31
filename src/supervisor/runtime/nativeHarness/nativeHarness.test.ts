@@ -7,11 +7,7 @@ import type {
   StructuredSessionListener,
 } from "@/supervisor/agents/base";
 import type { ProjectLocation, RuntimeEvent } from "@/shared/contracts";
-import {
-  CraftingError,
-  type CraftPlan,
-  type Entity,
-} from "@/shared/crafting";
+import { CraftingError, type CraftPlan, type Entity } from "@/shared/crafting";
 import {
   ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
@@ -63,10 +59,12 @@ function makePlan(
   };
 }
 
-function makeStructuredHandle(options: {
-  sessionId?: string;
-  startTurn?: StructuredSessionHandle["startTurn"];
-} = {}): StructuredSessionHandle & {
+function makeStructuredHandle(
+  options: {
+    sessionId?: string;
+    startTurn?: StructuredSessionHandle["startTurn"];
+  } = {},
+): StructuredSessionHandle & {
   listener?: StructuredSessionListener;
   openThread: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
@@ -141,9 +139,9 @@ describe("Native Harness runtime seam", () => {
     const turn = await session.startTurn({ prompt: "hello" });
     expect(turn.status).toBe("completed");
     expect(turn.response).toBe("native response");
-    expect(events.some((event) => event.nativeEnvelope?.providerSessionId === "grok-session-1")).toBe(
-      true,
-    );
+    expect(
+      events.some((event) => event.nativeEnvelope?.providerSessionId === "grok-session-1"),
+    ).toBe(true);
     expect(session.getSnapshot().nativeEvents?.[0]?.harnessKind).toBe("grok");
 
     const envelope = events.find((event) => event.nativeEnvelope)?.nativeEnvelope;

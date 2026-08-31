@@ -6,6 +6,10 @@ import { readCommandCodeApiKeyFromWsl, readCommandCodeAuthFromWsl } from "./wslC
 
 export const COMMAND_CODE_API_KEY_ENV = "COMMAND_CODE_API_KEY";
 
+export function commandCodeAuthFilePath(): string {
+  return join(homedir(), ".commandcode", "auth.json");
+}
+
 function cleaned(raw: string | undefined): string | undefined {
   let value = raw?.trim();
   if (!value) return undefined;
@@ -38,8 +42,13 @@ export function parseCommandCodeAuth(content: string): OAuthToken | undefined {
   const record = parsed as Record<string, unknown>;
   const accessToken = typeof record.apiKey === "string" ? record.apiKey.trim() : "";
   if (!accessToken) return undefined;
+  const email = typeof record.email === "string" ? record.email.trim() : "";
   const userName = typeof record.userName === "string" ? record.userName.trim() : "";
-  return userName ? { accessToken, raw: { userName } } : { accessToken };
+  return {
+    accessToken,
+    ...(email ? { email } : {}),
+    ...(userName ? { accountId: userName, raw: { userName } } : {}),
+  };
 }
 
 /** Resolve the same API key Command Code v1.4.1 uses, including WSL fallback. */
@@ -48,9 +57,7 @@ export async function resolveCommandCodeToken(): Promise<OAuthToken | undefined>
   if (envToken) return envToken;
 
   try {
-    const token = parseCommandCodeAuth(
-      await readFile(join(homedir(), ".commandcode", "auth.json"), "utf8"),
-    );
+    const token = parseCommandCodeAuth(await readFile(commandCodeAuthFilePath(), "utf8"));
     if (token) return token;
   } catch {
     // fall through to the WSL fallback

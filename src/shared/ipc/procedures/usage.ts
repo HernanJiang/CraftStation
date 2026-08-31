@@ -2,6 +2,9 @@ import { z } from "zod";
 import {
   providerUsagePayloadSchema,
   usageApiKeyPayloadSchema,
+  volcengineCredentialsPayloadSchema,
+  openAiCompatibleCredentialsPayloadSchema,
+  usageCookiePayloadSchema,
   usageLoginConfirmationPayloadSchema,
   usageLoginPayloadSchema,
   usageLoginStatePayloadSchema,
@@ -22,6 +25,10 @@ import {
   grokProfileCompletePayloadSchema,
   grokProfileCancelPayloadSchema,
   grokProfilePollPayloadSchema,
+  antigravityProfileImportPayloadSchema,
+  openAiCompatibleProfileQueryPayloadSchema,
+  openAiCompatibleProfileImportPayloadSchema,
+  channelModelsPayloadSchema,
   type AccountAddPayload,
   type AccountEnabledPayload,
   type AccountIdPayload,
@@ -36,6 +43,9 @@ import {
   type ProviderUsagePayload,
   type ProviderUsageResponse,
   type UsageApiKeyPayload,
+  type VolcengineCredentialsPayload,
+  type OpenAiCompatibleCredentialsPayload,
+  type UsageCookiePayload,
   type UsageLoginConfirmationPayload,
   type UsageLoginPayload,
   type UsageLoginResult,
@@ -57,6 +67,12 @@ import {
   type GrokProfileCancelPayload,
   type GrokProfilePollPayload,
   type GrokProfilePollResult,
+  type AntigravityProfileImportPayload,
+  type OpenAiCompatibleProfileQueryPayload,
+  type OpenAiCompatibleProfileConfig,
+  type OpenAiCompatibleProfileImportPayload,
+  type ChannelModelsPayload,
+  type ChannelModelsResponse,
 } from "../../contracts";
 import { definePayloadProcedure } from "../core";
 
@@ -81,6 +97,21 @@ export const usageProcedures = {
     "main-local",
     usageApiKeyPayloadSchema,
   ),
+  submitVolcengineCredentials: definePayloadProcedure<
+    VolcengineCredentialsPayload,
+    UsageLoginResult,
+    "main-local"
+  >("submitVolcengineCredentials", "main-local", volcengineCredentialsPayloadSchema),
+  submitOpenAiCompatibleCredentials: definePayloadProcedure<
+    OpenAiCompatibleCredentialsPayload,
+    UsageLoginResult,
+    "main-local"
+  >("submitOpenAiCompatibleCredentials", "main-local", openAiCompatibleCredentialsPayloadSchema),
+  submitUsageCookie: definePayloadProcedure<UsageCookiePayload, UsageLoginResult, "main-local">(
+    "submitUsageCookie",
+    "main-local",
+    usageCookiePayloadSchema,
+  ),
   resolveUsageLoginConfirmation: definePayloadProcedure<
     UsageLoginConfirmationPayload,
     void,
@@ -101,6 +132,38 @@ export const usageProcedures = {
     ProviderUsageResponse,
     "supervisor"
   >("refreshProviderUsage", "supervisor", providerUsagePayloadSchema),
+  // Sign-out / trash-delete: drop the provider's cached snapshot (memory +
+  // persisted cache) so a remembered identity can never resurrect it.
+  forgetProviderUsage: definePayloadProcedure<UsageLoginPayload, void, "supervisor">(
+    "forgetProviderUsage",
+    "supervisor",
+    usageLoginPayloadSchema,
+  ),
+  // Move the freshly signed-in host Antigravity OAuth tokens (legacy bucket)
+  // into a pool account: append a new row, or re-authorize an existing one.
+  importAntigravityProfile: definePayloadProcedure<
+    AntigravityProfileImportPayload,
+    AccountView,
+    "supervisor"
+  >("importAntigravityProfile", "supervisor", antigravityProfileImportPayloadSchema),
+  // OpenAI 兼容 API：表单验证通过后的暂存凭据导入为号池账号（追加或编辑）。
+  importOpenAiCompatibleProfile: definePayloadProcedure<
+    OpenAiCompatibleProfileImportPayload,
+    AccountView,
+    "supervisor"
+  >("importOpenAiCompatibleProfile", "supervisor", openAiCompatibleProfileImportPayloadSchema),
+  // 编辑表单回填：只返回非机密字段（API Key 永不回传）。
+  getOpenAiCompatibleProfile: definePayloadProcedure<
+    OpenAiCompatibleProfileQueryPayload,
+    OpenAiCompatibleProfileConfig,
+    "supervisor"
+  >("getOpenAiCompatibleProfile", "supervisor", openAiCompatibleProfileQueryPayloadSchema),
+  // 管理模型页：按渠道列出可用模型（openai-compatible/antigravity 动态，其余空）。
+  listChannelModels: definePayloadProcedure<
+    ChannelModelsPayload,
+    ChannelModelsResponse,
+    "supervisor"
+  >("listChannelModels", "supervisor", channelModelsPayloadSchema),
   listAccounts: definePayloadProcedure<AccountProviderPayload, AccountView[], "supervisor">(
     "listAccounts",
     "supervisor",

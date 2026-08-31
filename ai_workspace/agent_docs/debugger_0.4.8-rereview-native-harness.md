@@ -70,14 +70,14 @@ pnpm exec vitest run
 
 ## Spec Fidelity
 
-| 要求 | 结果 |
-|---|---|
-| 点 Grok 不再打开 grok.com | **关闭**（F08） |
-| pending GROK_HOME + identity 门控 | **关闭**（F12） |
-| Codex profile 回归 | **关闭**（F14） |
-| 宿主 API key / Router 不进 child | **关闭**（F13，本轮） |
-| pending 失败/取消删目录 | **关闭** |
-| 五 Harness 产品级 real response | **仍 BLOCKED（F04）** |
+| 要求                              | 结果                  |
+| --------------------------------- | --------------------- |
+| 点 Grok 不再打开 grok.com         | **关闭**（F08）       |
+| pending GROK_HOME + identity 门控 | **关闭**（F12）       |
+| Codex profile 回归                | **关闭**（F14）       |
+| 宿主 API key / Router 不进 child  | **关闭**（F13，本轮） |
+| pending 失败/取消删目录           | **关闭**              |
+| 五 Harness 产品级 real response   | **仍 BLOCKED（F04）** |
 
 ## Findings
 
@@ -93,13 +93,13 @@ pnpm exec vitest run
 
 没有新的五路官方 native response：
 
-| Harness | 状态 |
-|---|---|
-| Codex | v0.4.4 marker 证据，不升格为五 Harness PASS |
-| Grok | handshake + 曾 usage exhausted；等有余额的官方 CLI 身份走 managed 登录 |
-| Kimi | AUTH_REQUIRED |
-| Antigravity | unprobed |
-| DeepSeek/DSH | unavailable |
+| Harness      | 状态                                                                   |
+| ------------ | ---------------------------------------------------------------------- |
+| Codex        | v0.4.4 marker 证据，不升格为五 Harness PASS                            |
+| Grok         | handshake + 曾 usage exhausted；等有余额的官方 CLI 身份走 managed 登录 |
+| Kimi         | AUTH_REQUIRED                                                          |
+| Antigravity  | unprobed                                                               |
+| DeepSeek/DSH | unavailable                                                            |
 
 不要重复已知耗尽号的同一 ACP prompt。不要塞 Kimi key。不要伪造 Antigravity/DSH。
 

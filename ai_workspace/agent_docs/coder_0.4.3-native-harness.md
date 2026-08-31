@@ -26,13 +26,13 @@
 
 ## 生产状态与验收边界
 
-| Harness | 最新真实证据 | capability 结论 |
-|---|---|---|
-| Codex | server turn id 对齐；turn completed；agent message delta；marker 未观察到 | `implementation missing` / partial |
-| Grok Build | session 建立；官方 usage exhausted | `implementation missing` / error |
-| Kimi Code | session 建立；`AUTH_REQUIRED`；cancel error | `implementation missing` / partial |
-| Antigravity | 无安全 PTY probe | `unprobed` |
-| DeepSeek / DSH | 无官方 executable | `unavailable` |
+| Harness        | 最新真实证据                                                              | capability 结论                    |
+| -------------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| Codex          | server turn id 对齐；turn completed；agent message delta；marker 未观察到 | `implementation missing` / partial |
+| Grok Build     | session 建立；官方 usage exhausted                                        | `implementation missing` / error   |
+| Kimi Code      | session 建立；`AUTH_REQUIRED`；cancel error                               | `implementation missing` / partial |
+| Antigravity    | 无安全 PTY probe                                                          | `unprobed`                         |
+| DeepSeek / DSH | 无官方 executable                                                         | `unavailable`                      |
 
 没有完整且可审计的五 Harness `start → real response → interrupt/cleanup` 证据，因此没有修改 capability descriptor，没有把 handshake/session/new/usage exhausted/AUTH_REQUIRED 升格为 `supported+integrated`，也没有写 Feature PASS。
 

@@ -7,11 +7,13 @@
 ## Detailed Fixes & Architecture Alignment
 
 ### 1. F01: 产品 Craft 路径与 UI 会话生成
+
 - `src/renderer/components/thread/ThreadDraftView.tsx`: 完善 Craft Table 切换界面，在桌面端支持用户自由选择 OpenAI 模型和 Harness Slot。
 - `src/renderer/actions/threadLaunchActions.ts`: `startThreadFromCraft` 接收 `CraftResult`，通过 `AppStateProvenanceDriver` 将 Provenance 写入桌面主进程数据库 `appState`，并驱动应用创建对应的 Entity Session。
 - `src/renderer/components/crafting/CraftingGrid.tsx`: 结构化呈现 `remediation` 修复指引，处理不可执行状态与重试。
 
 ### 2. F02: CodexHarnessRuntimeAdapter 真实事件总线与严格状态机
+
 - `src/supervisor/runtime/codexRuntimeAdapter.ts`:
   - 移除了所有无订阅时返回空响应记成功的假实现。
   - `sendPrompt` 强制要求有效的事件总线订阅（`subscribeRuntimeEvents`），若无订阅则抛出 `CraftingError.runtimeUnavailable("codex")` 并记录失败日志。
@@ -19,6 +21,7 @@
   - 成功时返回完整响应文本及 canonical `RuntimeEvent` 数组，状态置为 `idle`。
 
 ### 3. F03: SQLite / AppState Provenance 持久化驱动
+
 - `src/shared/crafting/provenanceStore.ts`:
   - 实现 `AppStateProvenanceDriver`，桥接现有桌面数据库 `appState`（`dbGetState` / `dbSetState`），支持跨应用重启/多窗口还原 Provenance。
   - 引入内存缓存与异步加载机制 `loadProvenanceAsync`，支持格式损坏保护与降级安全。
@@ -26,6 +29,7 @@
   - 增加测试验证跨 Store 实例（模拟应用重启）通过 `AppStateProvenanceDriver` 重建 `CraftPlan` 并成功恢复 Session。
 
 ### 4. F05 & F06: 结构化错误与全生命周期日志
+
 - `src/shared/crafting/crafter.ts`:
   - 在 `resolve`、`validate`、`compile` 各阶段统一调用 `logCraftingEvent`。
   - 增加 `checkRuntimeAvailable` 可选校验，在运行时缺失时输出标准 `RUNTIME_UNAVAILABLE` 错误与建议。
@@ -33,6 +37,7 @@
   - 完善 `CraftingLogEvent` 类型定义（支持严格的可选属性），覆盖 `started`、`success`、`degraded`、`failed` 全状态。
 
 ### 5. F08 & F10: Feature 路径端到端真实验证与证据交付
+
 - `src/shared/crafting/featurePath.test.ts`:
   - 真实运行完整的 CraftStation Minecraft Composition Model 主链路：
     ```text

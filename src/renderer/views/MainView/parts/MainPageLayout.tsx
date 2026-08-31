@@ -18,17 +18,37 @@ import { useProjectIds } from "@/renderer/state/useThread";
 import { closeAllPanels, dismissRightOverlay } from "@/renderer/actions/panelActions";
 import { setMainPanelDropZoneElement, useIsMainPanelDropActive } from "@/renderer/dnd";
 import { DeferredFileEditorPanel } from "@/renderer/deferredFeatures";
+import { ModelUsageWorkspace } from "@/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace";
 
 export function MainPageLayout() {
   const channel = readBridge().channel;
   const isDev = import.meta.env.DEV;
   const auxiliaryPanelPlacement = usePanelStore((state) => state.auxiliaryPanelPlacement);
   const auxiliaryPanelOpen = auxiliaryPanelPlacement !== "hidden";
+  const modelUsageOpen = usePanelStore((state) => state.modelUsageDialogOpen);
   const conversationResetKey = useAppStore((state) => {
     const view = state.view;
     if (view.kind !== "thread") return view.kind;
     return `thread:${view.panes.join("|")}`;
   });
+
+  // F30: inline usage workspace replaces content + right panel. Sidebar stays.
+  if (modelUsageOpen) {
+    return (
+      <PageLayout
+        title={getAppName(channel, isDev)}
+        globalHeader={<MainTitlebar />}
+        hideSidebarHeaderTitle
+        hideContentHeader
+        onRequestClosePanels={closeAllPanels}
+        onDismissRightOverlay={dismissRightOverlay}
+        sidebar={<Sidebar />}
+        content={<ModelUsageWorkspace />}
+        rightPanel={null}
+        rightPanelOpen={false}
+      />
+    );
+  }
 
   return (
     <PageLayout
@@ -61,9 +81,6 @@ export function MainPageLayout() {
 
 function MainPanelDropZone(props: { children: ReactNode }) {
   const elementRef = useRef<HTMLDivElement>(null);
-  // The dnd-kit registration keeps the source from going into "no valid
-  // target" cancellation; pointer hit-testing is done by the dnd module via
-  // the element registered through `setMainPanelDropZoneElement` below.
   useDroppable({
     id: "main-panel-drop-zone",
     accept: "sidebar-panel",

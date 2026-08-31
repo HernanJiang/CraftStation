@@ -41,6 +41,7 @@ export type ModelPickerConfigPatch = {
 export type BuildModelPickerControlsInput = {
   providers: ProviderModelMenuProvider[];
   selectedAgentKind: string;
+  selectedAccountId?: string;
   model: string;
   effort?: string;
   contextSize?: string;
@@ -56,6 +57,7 @@ export type BuildModelPickerControlsInput = {
     agentKind: string;
     model: string;
     presentationMode?: ThreadPresentationMode;
+    accountId?: string;
   }) => void;
   onConfigPatch: (patch: ModelPickerConfigPatch) => void;
 };
@@ -203,6 +205,7 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
   const {
     providers,
     selectedAgentKind,
+    selectedAccountId,
     model,
     effort,
     contextSize,
@@ -237,6 +240,7 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
       kind: "provider-model",
       providers,
       currentAgentKind: selectedAgentKind,
+      ...(selectedAccountId ? { currentAccountId: selectedAccountId } : {}),
       currentModel: model,
       ...(lockedAgentKind ? { lockedAgentKind } : {}),
       ...(presentationMode ? { presentationMode } : {}),

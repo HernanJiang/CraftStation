@@ -1,4 +1,4 @@
-import { startTransition } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
-import { Dropdown, Label } from "@heroui/react";
+import { Dropdown, Label, toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
 import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
@@ -22,9 +22,167 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { toggleSidebar } from "@/renderer/state/sidebarOverlayStore";
 import { useUpdateStore } from "@/renderer/state/updateStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import {
+  currentWslDistros,
+  envLabelForStatus,
+  scopeEnvForStatus,
+  statusUpdateScope,
+} from "@/renderer/utils/acpRegistryAuth";
+import { extractAcpGenericInstanceId, type AgentStatus } from "@/shared/contracts";
+import { isNewerVersion } from "@/shared/agents/updateResolver";
 
 const buttonClass =
   "craftstation-titlebar-control inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs text-muted transition-all duration-150 hover:-translate-y-px hover:bg-[var(--row-hover)] hover:text-foreground active:translate-y-0";
+
+type CliUpdate = {
+  key: string;
+  status: AgentStatus;
+  latest: string;
+};
+
+export function CliUpdateMenu() {
+  const { t } = useLingui();
+  const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
+  const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
+  const [checking, setChecking] = useState(false);
+  const [updates, setUpdates] = useState<CliUpdate[]>([]);
+  const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+  const statuses = useMemo(() => {
+    const byKey = new Map<string, AgentStatus>();
+    for (const status of [...agentStatuses, ...wslAgentStatuses]) {
+      if (
+        !status.installed ||
+        !status.version ||
+        extractAcpGenericInstanceId(status.kind) ||
+        !status.update
+      ) {
+        continue;
+      }
+      const key = `${status.kind}:${status.envKind ?? "native"}:${status.envDistro ?? ""}`;
+      byKey.set(key, status);
+    }
+    return [...byKey.entries()].map(([key, status]) => ({ key, status }));
+  }, [agentStatuses, wslAgentStatuses]);
+
+  const check = useCallback(async () => {
+    setChecking(true);
+    try {
+      const resolved = await Promise.all(
+        statuses.map(async ({ key, status }) => {
+          try {
+            const result = await readBridge().getLatestAgentVersion({ agentKind: status.kind });
+            return result.version && isNewerVersion(result.version, status.version ?? "")
+              ? ({ key, status, latest: result.version } satisfies CliUpdate)
+              : undefined;
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+      setUpdates(resolved.filter((entry): entry is CliUpdate => entry !== undefined));
+    } finally {
+      setChecking(false);
+    }
+  }, [statuses]);
+
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  const updateOne = async (entry: CliUpdate) => {
+    if (updatingKey) return;
+    setUpdatingKey(entry.key);
+    try {
+      const scope = statusUpdateScope(entry.status);
+      const result = await readBridge().updateAgentBinary({
+        agentKind: entry.status.kind,
+        envKind: scope.envKind,
+        ...(scope.wslDistro ? { wslDistro: scope.wslDistro } : {}),
+      });
+      if (!result.ok) {
+        toast.danger(result.output?.trim() || `无法更新 ${entry.status.label}。`);
+        return;
+      }
+      toast.success(`${entry.status.label} 已更新到 v${entry.latest}。`);
+      await readBridge().refreshAgentStatuses(currentWslDistros(), {
+        agentKinds: [entry.status.kind],
+        envs: [scopeEnvForStatus(entry.status)],
+      });
+      await check();
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : `无法更新 ${entry.status.label}。`);
+    } finally {
+      setUpdatingKey(null);
+    }
+  };
+
+  return (
+    <Dropdown>
+      <ControlTooltip
+        label={updates.length > 0 ? `有 ${updates.length} 个 CLI 可更新` : t`Check for updates`}
+        detail={t`Check all installed agent CLIs`}
+      >
+        <Dropdown.Trigger
+          data-testid="titlebar-cli-update-button"
+          aria-label={t`Check for CLI updates`}
+          className={`${buttonClass} relative mr-1 px-1.5 ${
+            updates.length > 0 ? "text-amber-300" : ""
+          }`}
+          onPress={() => void check()}
+        >
+          {checking ? (
+            <RefreshCw className="size-3.5 animate-spin" />
+          ) : (
+            <Download className="size-3.5" />
+          )}
+          {updates.length > 0 ? (
+            <span className="absolute -top-0.5 -right-0.5 min-w-3 rounded-full bg-amber-400 px-0.5 text-center text-[8px] leading-3 font-bold text-black">
+              {updates.length}
+            </span>
+          ) : null}
+        </Dropdown.Trigger>
+      </ControlTooltip>
+      <Dropdown.Popover placement="bottom end" className="min-w-[280px] rounded-[14px]">
+        <Dropdown.Menu
+          aria-label={t`CLI updates`}
+          onAction={(key) => {
+            if (key === "check") void check();
+            const entry = updates.find((candidate) => candidate.key === String(key));
+            if (entry) void updateOne(entry);
+          }}
+        >
+          <Dropdown.Item id="check" textValue={t`Check for updates`}>
+            <RefreshCw className={checking ? "size-4 animate-spin" : "size-4"} />
+            <Label>{checking ? t`Checking…` : t`Check all CLIs`}</Label>
+          </Dropdown.Item>
+          {updates.map((entry) => (
+            <Dropdown.Item
+              key={entry.key}
+              id={entry.key}
+              textValue={`${entry.status.label} ${entry.latest}`}
+            >
+              <Download className="size-4 text-amber-300" />
+              <Label>
+                {entry.status.label}
+                {envLabelForStatus(entry.status)
+                  ? ` · ${envLabelForStatus(entry.status)}`
+                  : ""} · v
+                {entry.status.version} → v{entry.latest}
+                {updatingKey === entry.key ? ` · ${t`Updating…`}` : ""}
+              </Label>
+            </Dropdown.Item>
+          ))}
+          {updates.length === 0 ? (
+            <Dropdown.Item id="none" textValue={t`All CLIs are up to date`}>
+              <Label>{checking ? t`Checking installed CLIs…` : t`All CLIs are up to date`}</Label>
+            </Dropdown.Item>
+          ) : null}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
+  );
+}
 
 export function MainTitlebar() {
   const { t } = useLingui();
@@ -175,6 +333,7 @@ export function MainTitlebar() {
       </nav>
 
       <div className="craftstation-titlebar-drag min-w-8 flex-1 self-stretch" aria-hidden="true" />
+      <CliUpdateMenu />
       {updatePhase === "downloading" || updatePhase === "downloaded" ? (
         <button
           type="button"
@@ -195,7 +354,11 @@ export function MainTitlebar() {
         </button>
       ) : null}
       {/* Electron's native min/max/close buttons occupy the transparent overlay at the right. */}
-      <div className="w-[138px] shrink-0" aria-hidden="true" />
+      <div
+        data-testid="titlebar-window-controls-spacer"
+        className="w-[138px] shrink-0"
+        aria-hidden="true"
+      />
     </header>
   );
 }

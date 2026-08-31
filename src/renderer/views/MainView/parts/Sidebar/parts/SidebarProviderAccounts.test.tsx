@@ -1,10 +1,28 @@
+import type { ReactElement } from "react";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
+import { renderWithI18n } from "@/renderer/testUtils/i18n";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import { SidebarProviderAccounts } from "./SidebarProviderAccounts";
+import { ModelUsageWorkspace } from "./ModelUsageWorkspace";
+import "@/renderer/components/providers/bootstrap";
+
+function render(ui: ReactElement) {
+  return renderWithI18n(
+    <>
+      {ui}
+      <ModelUsageWorkspace />
+    </>,
+  );
+}
+
+function renderSidebarOnly() {
+  return renderWithI18n(<SidebarProviderAccounts />);
+}
 
 const actions = vi.hoisted(() => ({
   createAndRunCodexProfileLogin: vi.fn<() => Promise<boolean>>(),
@@ -22,8 +40,10 @@ const usageLogin = vi.hoisted(() => ({
 
 const bridge = vi.hoisted(() => ({
   listAccounts: vi.fn<() => Promise<unknown[]>>(),
-  refreshAccountQuota: vi.fn<() => Promise<void>>(),
+  refreshAccountQuota: vi.fn<() => Promise<unknown>>(),
+  refreshTokenUsage: vi.fn<() => Promise<unknown>>(),
   removeAccount: vi.fn<() => Promise<void>>(),
+  forgetProviderUsage: vi.fn<() => Promise<void>>(),
   reorderAccounts: vi.fn<() => Promise<void>>(),
   renameAccount: vi.fn<() => Promise<void>>(),
   selectAccount: vi.fn<() => Promise<void>>(),
@@ -50,24 +70,33 @@ const usageProvidersMock = vi.hoisted(() => ({
     { id: "codex", label: "ChatGPT" },
     { id: "claude", label: "Claude" },
     { id: "gemini", label: "Gemini" },
+    { id: "cursor", label: "Cursor" },
     { id: "grok", label: "Grok" },
+    { id: "kimi", label: "Kimi Code" },
+    { id: "antigravity", label: "Antigravity" },
+    { id: "commandcode", label: "Command Code" },
   ],
 }));
 
 vi.mock("@/renderer/components/providers/usageProviders", () => ({
   USAGE_PROVIDERS: usageProvidersMock.providers,
-  resolveDisplayedProviders: (providerOrder: readonly string[] = []) => {
+  resolveDisplayedProviders: (
+    providerOrder: readonly string[] = [],
+    disabledProviders: readonly string[] = [],
+  ) => {
     const ordered: typeof usageProvidersMock.providers = [];
     const seen = new Set<string>();
     for (const id of providerOrder) {
       const provider = usageProvidersMock.providers.find((candidate) => candidate.id === id);
-      if (provider && !seen.has(id)) {
+      if (provider && !disabledProviders.includes(id) && !seen.has(id)) {
         ordered.push(provider);
         seen.add(id);
       }
     }
     for (const provider of usageProvidersMock.providers) {
-      if (!seen.has(provider.id)) ordered.push(provider);
+      if (!disabledProviders.includes(provider.id) && !seen.has(provider.id)) {
+        ordered.push(provider);
+      }
     }
     return ordered;
   },
@@ -96,11 +125,22 @@ describe("SidebarProviderAccounts", () => {
       settingsOpen: false,
       settingsSection: "general",
     });
+    useSharedSettings.setState((state) => ({
+      customModels: [],
+      usage: {
+        ...state.usage,
+        disabledProviders: ["gemini", "cursor"],
+        providerOrder: [],
+      },
+    }));
     useProviderUsageStore.setState({ snapshots: {} });
+    useTokenUsageStore.getState().reset();
     useUsageAccountsStore.getState().reset();
     bridge.listAccounts.mockReset().mockResolvedValue([]);
     bridge.refreshAccountQuota.mockReset().mockResolvedValue(undefined);
+    bridge.refreshTokenUsage.mockReset().mockResolvedValue({ summaries: [], sources: [] });
     bridge.removeAccount.mockReset().mockResolvedValue(undefined);
+    bridge.forgetProviderUsage.mockReset().mockResolvedValue(undefined);
     bridge.reorderAccounts.mockReset().mockResolvedValue(undefined);
     bridge.renameAccount.mockReset().mockResolvedValue(undefined);
     bridge.selectAccount.mockReset().mockResolvedValue(undefined);
@@ -153,42 +193,45 @@ describe("SidebarProviderAccounts", () => {
     expect(screen.queryByTitle("Gemini")).not.toBeInTheDocument();
   });
 
-  it("opens the shared model usage dialog and settings separately", async () => {
+  it("opens the shared model usage workspace and settings separately", async () => {
     render(<SidebarProviderAccounts />);
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent("模型与用量");
-    expect(dialog).toHaveTextContent("ChatGPT");
-    expect(dialog).toHaveTextContent("Claude");
-    expect(dialog).toHaveTextContent("Gemini");
-    expect(dialog.querySelector('[data-provider-logo="openai-compatible"]')).toBeInTheDocument();
-    expect(dialog.querySelector('[data-provider-logo="codex"]')).toBeInTheDocument();
-    expect(dialog.querySelector('[data-provider-logo="claude"]')).toBeInTheDocument();
-    expect(dialog.querySelector('[data-provider-logo="gemini"]')).toBeInTheDocument();
-    expect(dialog).not.toHaveTextContent("🔑 模型与用量");
-    expect(dialog).not.toHaveTextContent("等待授权");
-    expect(within(dialog).getByTestId("provider-grid")).toHaveClass(
-      "grid-cols-[minmax(0,4fr)_minmax(190px,1fr)]",
-    );
-    expect(within(dialog).getByTestId("authorized-provider-grid")).toHaveClass("grid-cols-4");
-    expect(within(dialog).getByTestId("unauthorized-provider-grid")).toHaveClass("grid-cols-1");
-    expect(within(dialog).getByTestId("provider-card-codex")).toHaveAttribute(
-      "data-grid-span",
-      "1",
-    );
-    expect(within(dialog).queryByRole("button", { name: "导入账号" })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(workspace).toHaveTextContent("添加渠道与查看用量");
+    expect(workspace).toHaveTextContent("管理模型");
+    expect(workspace).toHaveTextContent("ChatGPT");
+    expect(workspace).toHaveTextContent("Claude");
+    expect(workspace).toHaveTextContent("Gemini");
+    expect(workspace).toHaveTextContent("Cursor");
+    expect(workspace.querySelector('[data-testid="provider-grid"]')).toBeInTheDocument();
+    expect(within(workspace).getByTestId("authorized-provider-grid")).toBeInTheDocument();
+    expect(within(workspace).getByTestId("unauthorized-provider-grid")).toBeInTheDocument();
+    // Unauthorised codex card stays single column (F26/F30); authorised pool is separate full-width section
+    expect(within(workspace).getByTestId("provider-card-codex")).toBeInTheDocument();
+    expect(within(workspace).queryByRole("button", { name: "导入账号" })).not.toBeInTheDocument();
+    expect(within(workspace).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "关闭模型与用量" }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("model-usage-workspace")).not.toBeInTheDocument(),
+    );
     expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
+  });
+
+  it("keeps the inline workspace out of the sidebar tree", () => {
+    usePanelStore.setState({ modelUsageDialogOpen: true });
+    renderSidebarOnly();
+
+    expect(screen.queryByTestId("model-usage-workspace")).not.toBeInTheDocument();
   });
 
   it("routes the ChatGPT card through isolated profile login without duplicate header actions", async () => {
     render(<SidebarProviderAccounts />);
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
+    const workspace = await screen.findByTestId("model-usage-workspace");
     const chatGptCard = screen
       .getByRole("heading", { name: "ChatGPT" })
       .closest('[data-testid="provider-card-codex"]');
@@ -199,7 +242,7 @@ describe("SidebarProviderAccounts", () => {
       expect(actions.createAndRunCodexProfileLogin).toHaveBeenCalledWith({ label: "New Codex" }),
     );
     expect(actions.runAgentLoginCommand).not.toHaveBeenCalled();
-    expect(within(dialog).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
+    expect(within(workspace).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
   });
 
   it("uses isolated profile creation for Add account on an authorised ChatGPT card", async () => {
@@ -220,10 +263,9 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
-    const accountPoolCard = within(dialog).getByTestId("provider-card-codex");
-    expect(accountPoolCard).toHaveAttribute("data-grid-span", "4");
-    expect(accountPoolCard).toHaveClass("col-span-4");
+    const workspace2 = await screen.findByTestId("model-usage-workspace");
+    const accountPoolCard = within(workspace2).getByTestId("provider-card-codex");
+    expect(accountPoolCard).toBeInTheDocument();
     fireEvent.click(within(accountPoolCard).getByRole("button", { name: "添加 ChatGPT 账号" }));
 
     await waitFor(() =>
@@ -233,26 +275,28 @@ describe("SidebarProviderAccounts", () => {
   });
 
   it("persists provider pool scheduling from the authorised pool header", async () => {
-    const grokAccount = {
-      accountId: "grok:scheduling",
+    // Scheduling lives in the multi-account pool header; one row renders as a
+    // compact card instead.
+    const grokAccounts = ["grok:scheduling-a", "grok:scheduling-b"].map((accountId, index) => ({
+      accountId,
       provider: "grok",
-      label: "Grok Account 1",
-      maskedIdentity: "her***g01@gmail.com",
+      label: `Grok Account ${index + 1}`,
+      maskedIdentity: `user${index}@gmail.com`,
       createdAt: 1,
       enabled: true,
-      selected: false,
-      order: 0,
+      selected: index === 0,
+      order: index,
       status: "available" as const,
-      credentialScopeRef: "managed:grok:scheduling",
-    };
-    bridge.listAccounts.mockResolvedValue([grokAccount]);
-    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+      credentialScopeRef: `managed:${accountId}`,
+    }));
+    bridge.listAccounts.mockResolvedValue(grokAccounts);
+    useUsageAccountsStore.getState().setAccounts(grokAccounts);
     bridge.getAccountPoolScheduling.mockResolvedValue({ scheduling: "priority" });
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
-    const scheduling = await within(dialog).findByTestId("account-scheduling-grok");
+    const workspace3 = await screen.findByTestId("model-usage-workspace");
+    const scheduling = await within(workspace3).findByTestId("account-scheduling-grok");
 
     fireEvent.change(scheduling, { target: { value: "round-robin" } });
 
@@ -264,7 +308,7 @@ describe("SidebarProviderAccounts", () => {
     );
   });
 
-  it("expands only an authorised provider card to two columns", async () => {
+  it("lays authorised provider cards out two per row", async () => {
     useProviderUsageStore.setState({
       snapshots: {
         claude: {
@@ -274,20 +318,25 @@ describe("SidebarProviderAccounts", () => {
           windows: [],
           fetchedAt: 1,
         },
+        gemini: {
+          providerId: "gemini",
+          status: "ok",
+          authenticatedAs: "gemini@example.com",
+          windows: [],
+          fetchedAt: 1,
+        },
       },
     });
     render(<SidebarProviderAccounts />);
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByTestId("provider-card-claude")).toHaveAttribute(
-      "data-grid-span",
-      "2",
-    );
-    expect(within(dialog).getByTestId("provider-card-gemini")).toHaveAttribute(
-      "data-grid-span",
-      "1",
-    );
+    const workspace4 = await screen.findByTestId("model-usage-workspace");
+    const grid = within(workspace4).getByTestId("authorized-provider-grid");
+    expect(grid).toHaveClass("grid-cols-2");
+    expect(grid).toHaveClass("auto-rows-max", "content-start");
+    expect(grid).toHaveAttribute("data-layout", "two-column");
+    expect(within(grid).getByTestId("provider-card-claude")).toHaveClass("col-span-1");
+    expect(within(grid).getByTestId("provider-card-gemini")).toHaveClass("col-span-1");
   });
 
   it("routes an existing unauthorised account through its managed profile login", async () => {
@@ -307,7 +356,7 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    await screen.findByRole("dialog");
+    await screen.findByTestId("model-usage-workspace");
     fireEvent.click(await screen.findByRole("button", { name: "Work profile 登录授权" }));
 
     await waitFor(() =>
@@ -323,7 +372,7 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    await screen.findByRole("dialog");
+    await screen.findByTestId("model-usage-workspace");
     const grokCard = screen
       .getByRole("heading", { name: "Grok" })
       .closest('[data-testid="provider-card-grok"]');
@@ -358,7 +407,9 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const grokCard = await screen.findByTestId("provider-card-grok");
-    fireEvent.click(within(grokCard).getByText("her", { selector: "p" }));
+    fireEvent.click(
+      within(grokCard).getByTestId("account-quota-card-grok:compact").closest("[data-account-id]")!,
+    );
 
     await waitFor(() =>
       expect(bridge.setAccountEnabled).toHaveBeenCalledWith({
@@ -391,7 +442,11 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const grokCard = await screen.findByTestId("provider-card-grok");
-    fireEvent.contextMenu(within(grokCard).getByText("her", { selector: "p" }));
+    fireEvent.contextMenu(
+      within(grokCard)
+        .getByTestId("account-quota-card-grok:compact-rename")
+        .closest("[data-account-id]")!,
+    );
 
     await waitFor(() =>
       expect(bridge.renameAccount).toHaveBeenCalledWith({
@@ -403,7 +458,7 @@ describe("SidebarProviderAccounts", () => {
     prompt.mockRestore();
   });
 
-  it("renders an imported Grok account in the model usage dialog", async () => {
+  it("renders an imported Grok account in the model usage workspace", async () => {
     const grokAccount = {
       accountId: "grok:existing",
       provider: "grok",
@@ -421,14 +476,62 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByTestId("model-usage-workspace");
 
     await waitFor(() =>
       expect(within(dialog).getByTestId("provider-card-grok")).toBeInTheDocument(),
     );
-    expect(within(dialog).getByText("Grok 账号池")).toBeInTheDocument();
+    // Single-account pool renders as a compact (half-width) card, matching the
+    // ChatGPT/Command Code card style — not the wide pool section.
+    expect(within(dialog).getByTestId("provider-card-grok")).toHaveClass(
+      "col-span-1",
+      "self-start",
+      "h-fit",
+    );
+    const accountRow = within(dialog)
+      .getByText("person***@example.com")
+      .closest('[data-account-id="grok:existing"]');
+    expect(accountRow).not.toBeNull();
+    expect(accountRow).toHaveClass("self-start", "h-fit");
+    expect(within(dialog).queryByText("Grok 账号池")).not.toBeInTheDocument();
+    expect(within(dialog).queryByTestId("account-grid-grok")).not.toBeInTheDocument();
     expect(within(dialog).getByText("person***@example.com")).toBeInTheDocument();
-    expect(within(dialog).getAllByText("available").length).toBeGreaterThan(0);
+    expect(within(dialog).queryByTestId("account-status-grok:existing")).not.toBeInTheDocument();
+  });
+
+  it("renders registered provider icons for the Grok account row and catalog cards", async () => {
+    const grokAccount = {
+      accountId: "grok:icon",
+      provider: "grok",
+      label: "her",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:icon",
+    };
+    bridge.listAccounts.mockResolvedValue([grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([grokAccount]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+
+    expect(within(workspace).getByTestId("account-provider-icon-grok:icon")).toBeInTheDocument();
+    expect(within(workspace).getByTestId("provider-badge-grok")).toBeInTheDocument();
+    expect(
+      within(workspace)
+        .getByTestId("provider-badge-openai-compatible")
+        .querySelector('[data-provider-logo="openai-compatible"]'),
+    ).toBeInTheDocument();
+    // Grok keeps the CraftStation glyph (brand has no colored asset).
+    expect(
+      within(workspace).getByTestId("provider-badge-grok").querySelector(".poracode-provider-icon"),
+    ).toBeInTheDocument();
+    expect(within(workspace).queryByText("Gr")).not.toBeInTheDocument();
+    expect(within(workspace).queryByText("Op")).not.toBeInTheDocument();
   });
 
   it("enables and selects a Grok row when the account row is clicked", async () => {
@@ -449,8 +552,10 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByText("per", { selector: "p" }));
+    const dialog = await screen.findByTestId("model-usage-workspace");
+    fireEvent.click(
+      within(dialog).getByTestId("account-quota-card-grok:disabled").closest("[data-account-id]")!,
+    );
 
     await waitFor(() =>
       expect(bridge.setAccountEnabled).toHaveBeenCalledWith({
@@ -482,8 +587,10 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.contextMenu(within(dialog).getByText("per", { selector: "p" }));
+    const dialog = await screen.findByTestId("model-usage-workspace");
+    fireEvent.contextMenu(
+      within(dialog).getByTestId("account-quota-card-grok:rename").closest("[data-account-id]")!,
+    );
 
     await waitFor(() =>
       expect(bridge.renameAccount).toHaveBeenCalledWith({
@@ -495,12 +602,13 @@ describe("SidebarProviderAccounts", () => {
     prompt.mockRestore();
   });
 
-  it("shows the real identity as primary text with the alias secondary (v0.5 T06)", async () => {
+  it("shows the real identity first and the subscription tier second (v0.5 T06)", async () => {
     const grokAccount = {
       accountId: "grok:identity",
       provider: "grok",
       label: "Grok Account 1",
       maskedIdentity: "her***g01@gmail.com",
+      plan: "SuperGrok",
       createdAt: 1,
       enabled: true,
       selected: false,
@@ -513,15 +621,127 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByTestId("model-usage-workspace");
 
     await waitFor(() =>
       expect(within(dialog).getByText("her***g01@gmail.com")).toBeInTheDocument(),
     );
-    expect(within(dialog).getByText("Grok Account 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("SuperGrok")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Grok Account 1")).not.toBeInTheDocument();
   });
 
-  it("renders the per-account 2x2 usage grid and shows — when no cache is available (v0.5 T06)", async () => {
+  it("keeps account actions on the same header row as the identity", async () => {
+    const account = {
+      accountId: "grok:header-actions",
+      provider: "grok",
+      label: "Grok Account 1",
+      providerAccountId: "full.account@example.com",
+      plan: "SuperGrok",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:header-actions",
+      quotaWindows: [{ id: "weekly", label: "Weekly", usedPercent: 18 }],
+    };
+    bridge.listAccounts.mockResolvedValue([account]);
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const row = within(workspace)
+      .getByTestId("account-identity-grok:header-actions")
+      .closest("[data-account-id]");
+    expect(row).not.toBeNull();
+    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("刷新账号配额"));
+    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("禁用账号"));
+    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("移除账号"));
+    expect(
+      within(row as HTMLElement).queryByTestId("account-status-grok:header-actions"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("deletes only the managed API account, its models, and its pending session binding", async () => {
+    const deleted = {
+      accountId: "openai-compatible:deleted",
+      provider: "openai-compatible",
+      label: "Deleted API",
+      providerAccountId: "Deleted-API",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:openai-compatible:deleted",
+    };
+    const retained = {
+      ...deleted,
+      accountId: "openai-compatible:retained",
+      label: "Retained API",
+      providerAccountId: "Retained-API",
+      selected: false,
+      order: 1,
+      credentialScopeRef: "managed:openai-compatible:retained",
+    };
+    bridge.listAccounts.mockResolvedValue([deleted, retained]);
+    useUsageAccountsStore.getState().setAccounts([deleted, retained]);
+    useUsageAccountsStore.getState().setNextSessionAccount(deleted.accountId);
+    useSharedSettings.setState({
+      customModels: [
+        {
+          id: "deleted-model",
+          provider: "openai-compatible",
+          accountId: deleted.accountId,
+          channelLabel: "Deleted-API",
+          modelId: "deleted-model",
+          displayName: "Deleted Model",
+          contextSize: "",
+        },
+        {
+          id: "retained-model",
+          provider: "openai-compatible",
+          accountId: retained.accountId,
+          channelLabel: "Retained-API",
+          modelId: "retained-model",
+          displayName: "Retained Model",
+          contextSize: "",
+        },
+      ],
+    });
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const deletedRow = within(workspace)
+      .getByTestId(`account-identity-${deleted.accountId}`)
+      .closest("[data-account-id]");
+    expect(deletedRow).not.toBeNull();
+
+    bridge.listAccounts.mockResolvedValue([retained]);
+    fireEvent.click(within(deletedRow as HTMLElement).getByLabelText("移除账号"));
+
+    await waitFor(() =>
+      expect(bridge.removeAccount).toHaveBeenCalledWith({ accountId: deleted.accountId }),
+    );
+    await waitFor(() => expect(useUsageAccountsStore.getState().accounts).toEqual([retained]));
+    expect(useUsageAccountsStore.getState().nextSessionAccountId).toBeNull();
+    expect(useSharedSettings.getState().customModels).toEqual([
+      expect.objectContaining({ accountId: retained.accountId, modelId: "retained-model" }),
+    ]);
+    expect(usageLogin.handleSignOut).not.toHaveBeenCalled();
+
+    fireEvent.click(within(workspace).getByRole("tab", { name: "管理模型" }));
+    await waitFor(() =>
+      expect(within(workspace).getAllByText("Retained-API").length).toBeGreaterThan(0),
+    );
+    expect(within(workspace).queryByText("Deleted-API")).not.toBeInTheDocument();
+    expect(within(workspace).getByText("Retained Model")).toBeInTheDocument();
+    expect(within(workspace).queryByText("Deleted Model")).not.toBeInTheDocument();
+  });
+
+  it("renders the per-account quota card with long bars and no cache grid as primary (F31)", async () => {
     const grokAccount = {
       accountId: "grok:grid",
       provider: "grok",
@@ -549,17 +769,29 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
+    const workspace = await screen.findByTestId("model-usage-workspace");
 
     await waitFor(() =>
-      expect(within(dialog).getByTestId("account-usage-grid-grok:grid")).toBeInTheDocument(),
+      expect(within(workspace).getByTestId("account-quota-card-grok:grid")).toBeInTheDocument(),
     );
-    const grid = within(dialog).getByTestId("account-usage-grid-grok:grid");
-    // Provider-wide usage must not be copied to every account row. Without an
-    // account-scoped quota window this row intentionally has no exact value.
-    expect(grid).not.toHaveTextContent("42%");
-    expect(grid).toHaveTextContent("—");
-    expect(grid).toHaveTextContent("available");
+    const card = within(workspace).getByTestId("account-quota-card-grok:grid");
+    // F31: long quota bars, not a 2x2 cache grid; an account with no quota
+    // data says so honestly instead of rendering two meaningless "--" bars.
+    expect(card).toHaveTextContent("暂无可用额度数据。");
+    expect(card).not.toHaveTextContent("5h 限额");
+    expect(within(workspace).queryByTestId("account-usage-grid-grok:grid")).not.toBeInTheDocument();
+    // Provider-wide usage must not be copied to every account row.
+    expect(card).not.toHaveTextContent("42%");
+    const accountRow = within(workspace)
+      .getByTestId("account-quota-card-grok:grid")
+      .closest("[data-account-id]");
+    expect(accountRow).not.toBeNull();
+    expect(
+      within(accountRow as HTMLElement).queryByTestId("account-status-grok:grid"),
+    ).not.toBeInTheDocument();
+    expect(within(workspace).getByTestId("account-meta-grok:grid")).not.toHaveTextContent(
+      "available",
+    );
   });
 
   it("renders quota only when the account carries an account-scoped window", async () => {
@@ -581,9 +813,294 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const dialog = await screen.findByRole("dialog");
-    const grid = await within(dialog).findByTestId("account-usage-grid-grok:scoped-quota");
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const card = await within(workspace).findByTestId("account-quota-card-grok:scoped-quota");
 
-    expect(grid).toHaveTextContent("42%");
+    await waitFor(() => expect(card).toHaveTextContent("42%"));
+  });
+
+  it("uses the same long-bar card for an authorised Kimi snapshot", async () => {
+    useProviderUsageStore.setState({
+      snapshots: {
+        kimi: {
+          providerId: "kimi",
+          status: "ok",
+          authenticatedAs: "kimi@example.com",
+          windows: [
+            { id: "session-5h", label: "Session", usedPercent: 18, resetsAt: 1 },
+            { id: "weekly", label: "Weekly", usedPercent: 36, resetsAt: 2 },
+          ],
+          tokens: { input: 1200, output: 3400 },
+          fetchedAt: 1,
+        } as never,
+      },
+    });
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const card = await within(workspace).findByTestId("provider-quota-card-kimi");
+    expect(within(workspace).getByTestId("authorized-provider-grid")).toHaveClass("items-start");
+    expect(within(workspace).getByTestId("provider-card-kimi")).toHaveClass("self-start", "h-fit");
+
+    // Windows render with the collector's own labels (Session / Weekly), not a
+    // forced "5h 限额 / 周/月限额" pair.
+    expect(card).toHaveTextContent("Session");
+    expect(card).toHaveTextContent("Weekly");
+    expect(card).toHaveTextContent("18%");
+    expect(card).toHaveTextContent("36%");
+    expect(card).toHaveTextContent("已用额度 18%");
+    expect(card).toHaveTextContent("已用额度 36%");
+    const bars = within(card).getAllByRole("progressbar");
+    expect(bars).toHaveLength(2);
+    expect(within(bars[0]!).getByText("已用额度 18%")).toBeInTheDocument();
+    expect(within(bars[1]!).getByText("已用额度 36%")).toBeInTheDocument();
+    expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("已用额度");
+    expect(card).toHaveTextContent("输入 1.2k");
+    expect(card).toHaveTextContent("输出 3.4k");
+    const kimiProviderCard = within(workspace).getByTestId("provider-card-kimi");
+    expect(within(kimiProviderCard).queryByTestId("provider-status-kimi")).not.toBeInTheDocument();
+    expect(within(kimiProviderCard).getByText("已用额度 36%")).toBeInTheDocument();
+    expect(
+      within(kimiProviderCard).queryByText("已用额度 36%", { selector: "span" }),
+    ).not.toBeNull();
+    expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("可用");
+    expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("ok");
+  });
+
+  it("keeps a verified Antigravity identity in the left card while the app is closed", async () => {
+    useProviderUsageStore.setState({
+      snapshots: {
+        antigravity: {
+          providerId: "antigravity",
+          status: "app-not-running",
+          authenticatedAs: "full.antigravity@example.com",
+          plan: "Google AI Pro",
+          windows: [],
+          fetchedAt: 1,
+        },
+      },
+    });
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const card = within(workspace).getByTestId("provider-card-antigravity");
+
+    expect(within(workspace).getByTestId("authorized-provider-grid")).toContainElement(card);
+    expect(within(workspace).getByTestId("unauthorized-provider-grid")).not.toContainElement(card);
+    expect(within(card).getByText("full.antigravity@example.com")).toBeInTheDocument();
+    expect(within(card).getByText("Google AI Pro")).toBeInTheDocument();
+    expect(within(card).queryByTestId("provider-status-antigravity")).not.toBeInTheDocument();
+  });
+
+  it("refreshes managed quota and exact token usage when the dialog opens", async () => {
+    const account = {
+      accountId: "grok:refresh-on-open",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:refresh-on-open",
+    };
+    const updatedAccount = {
+      ...account,
+      quotaWindows: [{ id: "session-5h", label: "5h", usedPercent: 42 }],
+    };
+    const tokenResponse = {
+      summaries: [
+        {
+          period: "today",
+          source: "runtime-ledger",
+          quality: "exact",
+          observedAt: 1,
+          coverage: { from: 1, to: 1, complete: true },
+          inputTokens: 100,
+          outputTokens: 234,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 334,
+          byTool: [],
+          byModel: [],
+          byProject: [],
+          bySession: [],
+          byAccount: [
+            {
+              key: account.accountId,
+              label: account.label,
+              inputTokens: 100,
+              outputTokens: 234,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              reasoningTokens: 0,
+              totalTokens: 1_234,
+            },
+          ],
+        },
+      ],
+      sources: [{ source: "runtime-ledger", quality: "exact", available: true }],
+    };
+    bridge.listAccounts
+      .mockReset()
+      .mockResolvedValueOnce([account])
+      .mockResolvedValueOnce([updatedAccount]);
+    bridge.refreshAccountQuota.mockResolvedValue(updatedAccount);
+    bridge.refreshTokenUsage.mockResolvedValue(tokenResponse);
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByTestId("model-usage-workspace");
+
+    await waitFor(() =>
+      expect(bridge.refreshAccountQuota).toHaveBeenCalledWith({
+        accountId: account.accountId,
+      }),
+    );
+    expect(bridge.refreshTokenUsage).toHaveBeenCalledWith({
+      periods: ["today", "month", "allTime"],
+    });
+    const card = await within(dialog).findByTestId("account-quota-card-grok:refresh-on-open");
+    await waitFor(() => {
+      expect(card).toHaveTextContent("42%");
+    });
+    await waitFor(() =>
+      expect(within(dialog).getByTestId("account-meta-grok:refresh-on-open")).toHaveTextContent(
+        "\u8F93\u5165",
+      ),
+    );
+  });
+
+  it("shows quota and token refresh failures in the account grid", async () => {
+    const account = {
+      accountId: "grok:refresh-failure",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:refresh-failure",
+    };
+    bridge.listAccounts.mockReset().mockResolvedValue([account]);
+    bridge.refreshAccountQuota.mockRejectedValue(new Error("quota network unavailable"));
+    bridge.refreshTokenUsage.mockRejectedValue(new Error("token ledger unavailable"));
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByTestId("model-usage-workspace");
+    const meta = await within(dialog).findByTestId("account-meta-grok:refresh-failure");
+
+    await waitFor(() => {
+      expect(meta).toHaveTextContent("quota network unavailable");
+      expect(meta).toHaveTextContent("暂无精确 Token 用量");
+    });
+  });
+
+  it("shows an unavailable quota response instead of a successful dash", async () => {
+    const account = {
+      accountId: "grok:unavailable-quota",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:unavailable-quota",
+    };
+    const unavailableAccount = {
+      ...account,
+      status: "unavailable" as const,
+      lastError: "Grok quota request timed out after 15000ms.",
+      quotaWindows: [],
+    };
+    bridge.listAccounts
+      .mockReset()
+      .mockResolvedValueOnce([account])
+      .mockResolvedValueOnce([unavailableAccount]);
+    bridge.refreshAccountQuota.mockResolvedValue(unavailableAccount);
+    bridge.refreshTokenUsage.mockResolvedValue({ summaries: [], sources: [] });
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByTestId("model-usage-workspace");
+    const meta2 = await within(dialog).findByTestId("account-meta-grok:unavailable-quota");
+
+    await waitFor(() => {
+      expect(meta2).toHaveTextContent("Grok quota request timed out");
+      expect(meta2).not.toHaveTextContent("—");
+    });
+  });
+
+  it("shows no exact token usage when the scanner has no account breakdown", async () => {
+    const account = {
+      accountId: "grok:no-exact-token",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:no-exact-token",
+    };
+    const tokenUnavailable = {
+      summaries: [
+        {
+          period: "today",
+          source: "runtime-ledger",
+          quality: "exact",
+          observedAt: 1,
+          coverage: { from: 1, to: 1, complete: false },
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 0,
+          byTool: [],
+          byModel: [],
+          byProject: [],
+          bySession: [],
+          byAccount: [],
+          unavailableReason: "Runtime ledger has no exact account usage.",
+        },
+      ],
+      sources: [
+        {
+          source: "runtime-ledger",
+          quality: "exact",
+          available: false,
+          unavailableReason: "Runtime ledger has no exact account usage.",
+        },
+      ],
+    };
+    bridge.listAccounts.mockReset().mockResolvedValue([account]);
+    bridge.refreshAccountQuota.mockResolvedValue(account);
+    bridge.refreshTokenUsage.mockResolvedValue(tokenUnavailable);
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByTestId("model-usage-workspace");
+    const meta3 = await within(dialog).findByTestId("account-meta-grok:no-exact-token");
+
+    await waitFor(() => {
+      expect(meta3).toHaveTextContent("暂无精确 Token 用量");
+      expect(meta3).not.toHaveTextContent("Runtime ledger");
+      expect(meta3).not.toHaveTextContent("—");
+    });
   });
 });

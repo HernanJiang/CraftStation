@@ -44,36 +44,36 @@
 
 ### 独立测试 / 工具
 
-| 检查 | 结果 |
-|---|---|
-| nativeHarness + crafting + nativeCodexBaselineGuard | 先前定向 **16 files / 71 passed** |
-| `CraftingGrid.test.tsx` + `HarnessPanel.test.tsx` + Codex baseline | **3 files / 12 passed** |
-| `runtime.test.ts -t routes` | **5 passed / 43 skipped**（Grok/Kimi/Agy 路由 + DeepSeek unavailable） |
-| `pnpm typecheck` | **PASS** |
-| `codegraph status` | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges |
-| 本轮 Debugger 未重跑交互式 login / 模型响应 | 以 Coder 探针文件为诚实记录，不升格 |
+| 检查                                                               | 结果                                                                   |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| nativeHarness + crafting + nativeCodexBaselineGuard                | 先前定向 **16 files / 71 passed**                                      |
+| `CraftingGrid.test.tsx` + `HarnessPanel.test.tsx` + Codex baseline | **3 files / 12 passed**                                                |
+| `runtime.test.ts -t routes`                                        | **5 passed / 43 skipped**（Grok/Kimi/Agy 路由 + DeepSeek unavailable） |
+| `pnpm typecheck`                                                   | **PASS**                                                               |
+| `codegraph status`                                                 | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges        |
+| 本轮 Debugger 未重跑交互式 login / 模型响应                        | 以 Coder 探针文件为诚实记录，不升格                                    |
 
 ### 真实探针（Coder 记录，Debugger 按诚实边界采信）
 
-| Harness | 结论 | capability 应保持 |
-|---|---|---|
-| Codex | initialize + `thread/start` 成功；prompt 未完成；interrupt `NATIVE_EXECUTION_FAILED` | `implementation missing` / partial |
-| Grok | initialize 成功；`session/new` `PROBE_TIMEOUT` | `implementation missing` / error |
-| Kimi | initialize + `session/new` + `session/close` 成功；prompt 未完成；cancel 失败 | `implementation missing` / partial |
-| Antigravity | 未跑 PTY | `unprobed` |
-| DeepSeek / DSH | 无官方 executable | `unavailable` |
+| Harness        | 结论                                                                                 | capability 应保持                  |
+| -------------- | ------------------------------------------------------------------------------------ | ---------------------------------- |
+| Codex          | initialize + `thread/start` 成功；prompt 未完成；interrupt `NATIVE_EXECUTION_FAILED` | `implementation missing` / partial |
+| Grok           | initialize 成功；`session/new` `PROBE_TIMEOUT`                                       | `implementation missing` / error   |
+| Kimi           | initialize + `session/new` + `session/close` 成功；prompt 未完成；cancel 失败        | `implementation missing` / partial |
+| Antigravity    | 未跑 PTY                                                                             | `unprobed`                         |
+| DeepSeek / DSH | 无官方 executable                                                                    | `unavailable`                      |
 
 Coder 未把上述结果写成 Feature PASS。Debugger 同意。
 
 ## Fix Cycle Disposition
 
-| Finding | 复检 | 说明 |
-|---|---|---|
-| F01 | **CLOSED** | 生产 descriptor 与 Codex baseline 测试锁定诚实状态 |
-| F02 | **CLOSED** | 四个非 Codex Recipe 测试断言 harnessKind / model 绑定 |
-| F03 | **CLOSED** | Renderer 消费 typed IPC；敏感字段脱敏测试仍在 |
-| F05 | **CLOSED** | 生产 factory 路由 + DSH 无 Entity |
-| F04 | **OPEN / BLOCKED** | 证据文件存在且诚实，但五个平级 Harness 仍没有完整 Entity→Session→real response。T08 不能关闭。 |
+| Finding | 复检               | 说明                                                                                           |
+| ------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| F01     | **CLOSED**         | 生产 descriptor 与 Codex baseline 测试锁定诚实状态                                             |
+| F02     | **CLOSED**         | 四个非 Codex Recipe 测试断言 harnessKind / model 绑定                                          |
+| F03     | **CLOSED**         | Renderer 消费 typed IPC；敏感字段脱敏测试仍在                                                  |
+| F05     | **CLOSED**         | 生产 factory 路由 + DSH 无 Entity                                                              |
+| F04     | **OPEN / BLOCKED** | 证据文件存在且诚实，但五个平级 Harness 仍没有完整 Entity→Session→real response。T08 不能关闭。 |
 
 ## Remaining Findings
 

@@ -104,8 +104,12 @@
         }
       }
       @keyframes craftstation-boot-spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
       }
     </style>
     <script>
@@ -116,7 +120,9 @@
     </script>
   </head>
   <body class="bg-background text-foreground">
-    <div id="craftstation-boot-splash" aria-hidden="true"><img class="craftstation-boot-mark" src="/icons/craftstation-logo.png" alt="" /></div>
+    <div id="craftstation-boot-splash" aria-hidden="true">
+      <img class="craftstation-boot-mark" src="/icons/craftstation-logo.png" alt="" />
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/renderer/main.tsx"></script>
   </body>

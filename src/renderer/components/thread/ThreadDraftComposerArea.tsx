@@ -78,11 +78,11 @@ import {
   usePluginMentionItems,
   useSkillSlashCommandState,
 } from "@/renderer/components/skills/useSkills";
-import { ThreadAgentUpdateDock } from "./ThreadAgentUpdateDock";
 import { RemoteHostUpdateDock } from "./RemoteHostUpdateDock";
 // auth is managed via the provider accounts modal in the sidebar
 import { ThreadDockHeader, ThreadDockIconButton, ThreadDockSection } from "./ThreadDockUI";
 import { ThreadComposer, type ComposerControl } from "./ThreadComposer";
+import { ContextQuotaRing } from "./ComposerStatusRow";
 import { supportsUsableFastMode } from "./threadDraftViewHelpers";
 import {
   bindLeadingSkillUnlessLocalAction,
@@ -315,7 +315,7 @@ export function ThreadDraftComposerArea(props: {
   // Locks the composer Send so the user can't fire a thread mid-upgrade — the
   // launched agent would race with the still-running install and could pick up
   // either binary, which is a confusing state to debug.
-  const [agentUpdating, setAgentUpdating] = useState(false);
+  const agentUpdating = false;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [experimentMode, setExperimentMode] = useState(false);
   const [experimentCandidates, setExperimentCandidates] = useState<ExperimentDraftCandidate[]>([]);
@@ -1087,11 +1087,6 @@ export function ThreadDraftComposerArea(props: {
             {/* Codex draft layout: auth is handled via the provider accounts modal in the sidebar, keeping the composer clean */}
             {!usesRemoteTransport ? (
               <>
-                <ThreadAgentUpdateDock
-                  agentStatus={props.selectedAgent}
-                  project={props.project}
-                  onUpdatingChange={setAgentUpdating}
-                />
                 <HookInstallProposal
                   project={props.project}
                   selectedAgent={props.selectedAgent}
@@ -1316,6 +1311,10 @@ export function ThreadDraftComposerArea(props: {
             mentionRef={mentionRef}
             voiceInputRef={voiceInputRef}
           />
+        }
+        beforeEndControls={
+          // 上下文/额度圆环：紧贴模型选择器左侧，悬浮展开详情。
+          <ContextQuotaRing quotaProviderId={props.selectedAgent.kind} />
         }
       />
       {props.gitBranch ? (

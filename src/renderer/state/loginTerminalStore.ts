@@ -17,6 +17,8 @@ export interface LoginTerminalSession {
   projectLocation: ProjectLocation;
   /** Drives the overlay header copy. Defaults to "login". */
   purpose?: "login" | "install" | "update";
+  /** Optional subtitle override for the overlay header (e.g. keepalive sessions). */
+  subtitle?: string;
   onForceClose?: () => void;
   /** Set when the command exits non-zero so the overlay can render a failed state. */
   failedExitCode?: number;

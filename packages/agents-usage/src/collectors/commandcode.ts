@@ -24,6 +24,22 @@ export const COMMANDCODE_BILLING_CREDITS_ENDPOINT = `${COMMANDCODE_BASE}/alpha/b
 export const COMMANDCODE_BILLING_SUBSCRIPTIONS_ENDPOINT = `${COMMANDCODE_BASE}/alpha/billing/subscriptions`;
 export const COMMANDCODE_USAGE_SUMMARY_ENDPOINT = `${COMMANDCODE_BASE}/alpha/usage/summary`;
 
+/**
+ * Web-session endpoints (browser Cookie auth) — the same billing service the
+ * commandcode.ai settings page calls. The /alpha/* surface authenticates the
+ * CLI API key; /internal/* authenticates the better-auth web session. Per
+ * token-monitor findings, production session cookies are namespaced
+ * commandcode_prod_. (better-auth), and the monthly pool + 5h/weekly caps come
+ * from the same credits/subscriptions bodies parsed below.
+ */
+export const COMMANDCODE_INTERNAL_CREDITS_ENDPOINT = `${COMMANDCODE_BASE}/internal/billing/credits`;
+export const COMMANDCODE_INTERNAL_SUBSCRIPTIONS_ENDPOINT = `${COMMANDCODE_BASE}/internal/billing/subscriptions`;
+/** Better Auth session endpoint used by commandcode.ai's own web client. */
+export const COMMANDCODE_AUTH_SESSION_ENDPOINT = `${COMMANDCODE_BASE}/auth/get-session`;
+const COMMANDCODE_WEB_ORIGIN = "https://commandcode.ai";
+const COMMANDCODE_BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 export const COMMANDCODE_PROVIDER_ID = "commandcode" as const;
 
 interface CommandCodeWhoamiBody {
@@ -40,41 +56,22 @@ interface CommandCodeWhoamiBody {
   } | null;
 }
 
+interface CommandCodeSessionBody {
+  user?: {
+    name?: string;
+    email?: string;
+    userName?: string;
+  } | null;
+  session?: {
+    user?: {
+      name?: string;
+      email?: string;
+      userName?: string;
+    } | null;
+  } | null;
+}
+
 /** Rolling 5h / weekly USD caps from GET /alpha/billing/credits (CLI ≥1.15). */
-interface CommandCodeWindowLimit {
-  used?: number | string;
-  cap?: number | string;
-  /** Epoch ms (or seconds) when the rolling window resets. */
-  resetAt?: number | string;
-}
-
-interface CommandCodeWindowLimits {
-  limited?: boolean;
-  fiveHour?: CommandCodeWindowLimit | null;
-  weekly?: CommandCodeWindowLimit | null;
-}
-
-interface CommandCodeCreditsFields {
-  monthlyCredits?: number | string;
-  purchasedCredits?: number | string;
-  freeCredits?: number | string;
-  /** Some responses nest windowLimits under the credits object. */
-  windowLimits?: CommandCodeWindowLimits;
-}
-
-interface CommandCodeCreditsBody {
-  credits?: CommandCodeCreditsFields;
-  /**
-   * Present on current APIs: plan has rolling rate limits. Sibling of the
-   * nested `credits` object — same shape the CLI's `projectUsageView` reads
-   * (`usageData.credits.windowLimits` where `credits` is the full HTTP body).
-   */
-  windowLimits?: CommandCodeWindowLimits;
-}
-
-interface CommandCodeUsageSummaryBody {
-  totalCost?: number | string;
-}
 
 interface CommandCodeSubscriptionsBody {
   data?: {
@@ -135,17 +132,18 @@ function nonNegative(value: number | string | undefined): number {
 function commandCodeRollingWindow(
   id: "session-5h" | "weekly",
   label: string,
-  limit: CommandCodeWindowLimit | null | undefined,
+  limit: any,
 ): UsageWindow | undefined {
   if (!limit || typeof limit !== "object") return undefined;
-  const used = numeric(limit.used);
-  const cap = numeric(limit.cap);
+  const used = numeric(limit.used ?? limit.consumed ?? limit.amount);
+  const cap = numeric(limit.cap ?? limit.limit ?? limit.total ?? limit.allowance);
   if (used === undefined && cap === undefined) return undefined;
   const usedValue = Math.max(0, used ?? 0);
   const capValue = cap !== undefined && cap > 0 ? cap : undefined;
   const usedPercent =
     capValue !== undefined ? Math.min(100, (usedValue / capValue) * 100) : usedValue > 0 ? 100 : 0;
-  const resetsAt = toEpochMs(limit.resetAt);
+  const rawReset = limit.resetAt ?? limit.reset_at ?? limit.resetsAt ?? limit.resets_at;
+  const resetsAt = toEpochMs(rawReset);
   return {
     id,
     label,
@@ -172,32 +170,37 @@ export function parseCommandCodeUsage(
   nowMs: number,
   whoamiBody?: unknown,
 ): UsageSnapshot {
-  const body = (creditsBody ?? {}) as CommandCodeCreditsBody;
-  // windowLimits is a sibling of the nested `credits` object on the HTTP body
-  // (CLI: `usageData.credits?.windowLimits`). Tolerate a nested copy too.
-  const credits = body.credits;
-  const windowLimits = body.windowLimits ?? credits?.windowLimits;
-  const summary = (summaryBody ?? {}) as CommandCodeUsageSummaryBody;
-  const subscription = ((subscriptionsBody ?? {}) as CommandCodeSubscriptionsBody).data;
-  const whoami = (whoamiBody ?? {}) as CommandCodeWhoamiBody;
+  const body = (creditsBody ?? {}) as any;
+  const credits = body.credits ?? body;
+  const windowLimits =
+    body.windowLimits ?? body.window_limits ?? credits?.windowLimits ?? credits?.window_limits;
+  const summary = (summaryBody ?? {}) as any;
+  const subData = ((subscriptionsBody ?? {}) as any).data ?? subscriptionsBody;
+  const whoami = (whoamiBody ?? {}) as any;
 
-  const monthlyRemaining = nonNegative(credits?.monthlyCredits);
-  const purchasedRemaining = nonNegative(credits?.purchasedCredits);
-  const freeRemaining = nonNegative(credits?.freeCredits);
+  const monthlyRemaining = nonNegative(credits?.monthlyCredits ?? credits?.monthly_credits);
+  const purchasedRemaining = nonNegative(credits?.purchasedCredits ?? credits?.purchased_credits);
+  const freeRemaining = nonNegative(credits?.freeCredits ?? credits?.free_credits);
   const totalRemaining = monthlyRemaining + purchasedRemaining + freeRemaining;
-  const totalSpent = nonNegative(summary.totalCost);
-  const knownPlan = commandCodePlan(subscription?.planId);
-  const activePlanAllocation =
-    subscription?.status === "active" ? knownPlan?.monthlyCredits : undefined;
+  const totalSpent = nonNegative(summary?.totalCost ?? summary?.total_cost ?? summary?.cost);
+  const planIdRaw = subData?.planId ?? subData?.plan_id ?? subData?.plan;
+  const knownPlan = commandCodePlan(planIdRaw);
+  const activePlanAllocation = subData?.status === "active" ? knownPlan?.monthlyCredits : undefined;
   const totalPool =
     activePlanAllocation !== undefined
       ? Math.max(activePlanAllocation, monthlyRemaining) + purchasedRemaining + freeRemaining
       : totalSpent + totalRemaining;
   const used = Math.max(0, totalPool - totalRemaining);
   const usedPercent = totalPool > 0 ? Math.min(100, (used / totalPool) * 100) : 0;
-  const resetsAt = toEpochMs(subscription?.currentPeriodEnd);
+  const rawPeriodEnd =
+    subData?.currentPeriodEnd ?? subData?.current_period_end ?? subData?.current_period_reset_at;
+  const resetsAt = toEpochMs(rawPeriodEnd);
 
-  const hasCreditData = credits !== undefined || summary.totalCost !== undefined;
+  const hasCreditData =
+    Boolean(
+      creditsBody && typeof creditsBody === "object" && Object.keys(creditsBody).length > 0,
+    ) ||
+    Boolean(summaryBody && typeof summaryBody === "object" && Object.keys(summaryBody).length > 0);
   const monthlyWindow: UsageWindow = {
     id: "monthly",
     label: "Monthly credits",
@@ -211,18 +214,18 @@ export function parseCommandCodeUsage(
 
   // Match CLI / Studio order: 5-hour, weekly, then monthly pool.
   const windows: UsageWindow[] = [];
-  const fiveHour = commandCodeRollingWindow("session-5h", "5-hour limit", windowLimits?.fiveHour);
+  const fiveHour = commandCodeRollingWindow(
+    "session-5h",
+    "5-hour limit",
+    windowLimits?.fiveHour ?? windowLimits?.five_hour,
+  );
   const weekly = commandCodeRollingWindow("weekly", "Weekly limit", windowLimits?.weekly);
   if (fiveHour) windows.push(fiveHour);
   if (weekly) windows.push(weekly);
   windows.push(monthlyWindow);
 
-  const plan = formatCommandCodePlanLabel(subscription?.planId);
-  const authenticatedAs =
-    whoami.user?.email?.trim() ||
-    whoami.user?.userName?.trim() ||
-    whoami.user?.name?.trim() ||
-    whoami.org?.name?.trim();
+  const plan = formatCommandCodePlanLabel(subData?.planId ?? subData?.plan_id);
+  const authenticatedAs = identityFromCommandCodeBody(whoami);
   return {
     providerId: COMMANDCODE_PROVIDER_ID,
     status: "ok",
@@ -263,6 +266,29 @@ function parseJson(res: HttpResponse): unknown {
   }
 }
 
+function identityFromCommandCodeBody(body: unknown): string | undefined {
+  const value = (body ?? {}) as CommandCodeSessionBody &
+    CommandCodeWhoamiBody & {
+      email?: string;
+      userName?: string;
+      name?: string;
+    };
+  const candidates = [
+    value.email,
+    value.userName,
+    value.name,
+    value.user?.email,
+    value.user?.userName,
+    value.user?.name,
+    value.session?.user?.email,
+    value.session?.user?.userName,
+    value.session?.user?.name,
+    value.org?.login,
+    value.org?.name,
+  ];
+  return candidates.find((candidate): candidate is string => Boolean(candidate?.trim()))?.trim();
+}
+
 function commandCodeSnapshot(
   status: UsageSnapshot["status"],
   now: number,
@@ -288,6 +314,116 @@ function responseFailure(responses: HttpResponse[], now: number): UsageSnapshot 
   return failed ? commandCodeSnapshot("error", now, `HTTP ${failed.status}`) : undefined;
 }
 
+function commandCodeCookieRequest(
+  http: HttpClient,
+  url: string,
+  cookieHeader: string,
+): Promise<HttpResponse> {
+  return http.request({
+    method: "GET",
+    url,
+    headers: {
+      Cookie: cookieHeader,
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "User-Agent": COMMANDCODE_BROWSER_UA,
+      Origin: COMMANDCODE_WEB_ORIGIN,
+      Referer: `${COMMANDCODE_WEB_ORIGIN}/`,
+    },
+    timeoutMs: 15_000,
+  });
+}
+
+/**
+ * True iff a captured commandcode.ai Cookie header authenticates as a live web
+ * session. Gates the browser-login prompt; fail-closed so a stale cookie keeps
+ * polling instead of falsely reporting a session.
+ */
+export async function isCommandCodeSessionLive(
+  http: HttpClient,
+  cookieHeader: string,
+): Promise<boolean> {
+  try {
+    const res = await commandCodeCookieRequest(
+      http,
+      COMMANDCODE_INTERNAL_CREDITS_ENDPOINT,
+      cookieHeader,
+    );
+    return res.status >= 200 && res.status < 300;
+  } catch {
+    return false;
+  }
+}
+
+/** Collect usage via the captured browser session (same bodies as /alpha/*). */
+async function collectCommandCodeWithCookie(
+  host: HostPort,
+  cookieHeader: string,
+  now: number,
+): Promise<UsageSnapshot> {
+  let creditsResponse: HttpResponse;
+  let subscriptionsResponse: HttpResponse;
+  let whoamiResponse: HttpResponse | undefined;
+  let sessionResponse: HttpResponse | undefined;
+  try {
+    const responses = await Promise.all([
+      commandCodeCookieRequest(host.http, COMMANDCODE_INTERNAL_CREDITS_ENDPOINT, cookieHeader),
+      commandCodeCookieRequest(
+        host.http,
+        COMMANDCODE_INTERNAL_SUBSCRIPTIONS_ENDPOINT,
+        cookieHeader,
+      ),
+      // The browser session is also accepted by the identity endpoint on
+      // current deployments. Keep this request cookie-scoped so the card can
+      // show the same full email for web-session accounts as it does for CLI
+      // API-key accounts.
+      commandCodeCookieRequest(host.http, COMMANDCODE_WHOAMI_ENDPOINT, cookieHeader),
+      commandCodeCookieRequest(host.http, COMMANDCODE_AUTH_SESSION_ENDPOINT, cookieHeader),
+    ]);
+    [creditsResponse, subscriptionsResponse, whoamiResponse, sessionResponse] = responses;
+  } catch {
+    // Identity is supplementary for the web session. A deployment that has
+    // not exposed the whoami route must not hide otherwise valid billing data.
+    try {
+      [creditsResponse, subscriptionsResponse] = await Promise.all([
+        commandCodeCookieRequest(host.http, COMMANDCODE_INTERNAL_CREDITS_ENDPOINT, cookieHeader),
+        commandCodeCookieRequest(
+          host.http,
+          COMMANDCODE_INTERNAL_SUBSCRIPTIONS_ENDPOINT,
+          cookieHeader,
+        ),
+      ]);
+    } catch {
+      return commandCodeSnapshot("error", now);
+    }
+  }
+  const failure = responseFailure([creditsResponse, subscriptionsResponse], now);
+  if (failure) return failure;
+  const credits = parseJson(creditsResponse);
+  const subscriptions = parseJson(subscriptionsResponse);
+  const whoami =
+    whoamiResponse && whoamiResponse.status >= 200 && whoamiResponse.status < 300
+      ? parseJson(whoamiResponse)
+      : undefined;
+  const session =
+    sessionResponse && sessionResponse.status >= 200 && sessionResponse.status < 300
+      ? parseJson(sessionResponse)
+      : undefined;
+  if (credits === undefined || subscriptions === undefined) {
+    return commandCodeSnapshot("error", now, "invalid JSON response");
+  }
+  // The web surface has no per-period usage summary; the plan-allowance path in
+  // parseCommandCodeUsage derives the monthly pool from the subscription alone.
+  const identity = identityFromCommandCodeBody(session) ?? identityFromCommandCodeBody(whoami);
+  return parseCommandCodeUsage(
+    credits,
+    undefined,
+    subscriptions,
+    now,
+    identity ? { user: { email: identity } } : whoami,
+  );
+}
+
 /** Collect usage with the same API-key and `/alpha/*` flow as the Command Code CLI. */
 export async function collectCommandCode(
   host: HostPort,
@@ -295,7 +431,12 @@ export async function collectCommandCode(
 ): Promise<UsageSnapshot> {
   const now = host.now();
   const token = await host.credentials.getOAuthToken(COMMANDCODE_PROVIDER_ID);
-  if (!token?.accessToken) return commandCodeSnapshot("auth-missing", now);
+  if (!token?.accessToken) {
+    // No CLI key — fall back to the captured commandcode.ai web session.
+    const cookie = (await host.credentials.getSecret(COMMANDCODE_PROVIDER_ID, "cookie"))?.trim();
+    if (cookie) return collectCommandCodeWithCookie(host, cookie, now);
+    return commandCodeSnapshot("auth-missing", now);
+  }
 
   let whoamiResponse: HttpResponse;
   try {
@@ -361,5 +502,17 @@ export async function collectCommandCode(
     return commandCodeSnapshot("error", now, "invalid JSON response");
   }
 
-  return parseCommandCodeUsage(credits, summary, subscriptions, now, whoami);
+  const tokenIdentity = [
+    token.email,
+    token.accountId,
+    typeof token.raw?.userName === "string" ? token.raw.userName : undefined,
+  ].find((value): value is string => typeof value === "string" && Boolean(value.trim()));
+  const identity = identityFromCommandCodeBody(whoami) ?? tokenIdentity?.trim();
+  return parseCommandCodeUsage(
+    credits,
+    summary,
+    subscriptions,
+    now,
+    identity ? { user: { email: identity } } : whoami,
+  );
 }

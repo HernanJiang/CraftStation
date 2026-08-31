@@ -54,39 +54,39 @@ sha256("NATIVE_PROBE_OK")[:12] = 4f624a202114
 
 ### 独立测试 / 工具
 
-| 检查 | 结果 |
-|---|---|
-| nativeHarness + crafting + Codex baseline + CraftingGrid + HarnessPanel | **16 files / 71 passed** |
-| `runtime.test.ts -t routes` | **5 passed** |
-| `node --check` 探针脚本 | **PASS** |
-| 生产 `descriptors.ts` | **0** 处 `supported+integrated` |
-| `codegraph status` | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges |
+| 检查                                                                    | 结果                                                            |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------- |
+| nativeHarness + crafting + Codex baseline + CraftingGrid + HarnessPanel | **16 files / 71 passed**                                        |
+| `runtime.test.ts -t routes`                                             | **5 passed**                                                    |
+| `node --check` 探针脚本                                                 | **PASS**                                                        |
+| 生产 `descriptors.ts`                                                   | **0** 处 `supported+integrated`                                 |
+| `codegraph status`                                                      | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges |
 
 未整包复跑 Coder 自称的 19 files / 131 tests；定向复跑足以证明接线未回退。本 Debugger 未重跑交互式 login，也未启用 `CRAFTSTATION_REAL_RUNTIME=1` 的产品 `craftAgent` 集成测试。
 
 ### 真实探针（Coder 记录 + Debugger hash 核验）
 
-| Harness | 本轮证据 | 质量门 |
-|---|---|---|
-| Codex | server turn id；`turn/completed`；marker true；len 15；hash `4f624a202114`；完成后无需 interrupt；进程清理 | **probe success**，生产 capability **仍** `implementation missing` |
-| Grok | session/new 成功；prompt usage exhausted；close 成功 | **error** |
-| Kimi | session/new 成功；prompt `AUTH_REQUIRED`；cancel 失败；close 成功 | **partial/error** |
-| Antigravity | 未跑 PTY | **unprobed** |
-| DeepSeek / DSH | 无官方 executable | **unavailable**，无 Entity |
+| Harness        | 本轮证据                                                                                                   | 质量门                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Codex          | server turn id；`turn/completed`；marker true；len 15；hash `4f624a202114`；完成后无需 interrupt；进程清理 | **probe success**，生产 capability **仍** `implementation missing` |
+| Grok           | session/new 成功；prompt usage exhausted；close 成功                                                       | **error**                                                          |
+| Kimi           | session/new 成功；prompt `AUTH_REQUIRED`；cancel 失败；close 成功                                          | **partial/error**                                                  |
+| Antigravity    | 未跑 PTY                                                                                                   | **unprobed**                                                       |
+| DeepSeek / DSH | 无官方 executable                                                                                          | **unavailable**，无 Entity                                         |
 
 Coder 没有升格 capability，也没有写 Feature PASS。Debugger 同意。
 
 ## Fix Cycle Disposition
 
-| Finding | v0.4.4 | 说明 |
-|---|---|---|
-| F01 | **仍关闭** | 生产矩阵未升格 |
-| F02 | **仍关闭** | Recipe 填充回归绿 |
-| F03 | **仍关闭** | Control Plane IPC 仍在 |
-| F05 | **仍关闭** | 生产路由 + DSH 无 Entity |
-| F06 | **仍关闭** | server turn id 保持 |
-| F07 | **关闭** | 全通道累计 + 独立 hash 核验 |
-| F04 | **仍 OPEN / BLOCKED** | 五平级 Harness 仍无完整产品级 real response |
+| Finding | v0.4.4                | 说明                                        |
+| ------- | --------------------- | ------------------------------------------- |
+| F01     | **仍关闭**            | 生产矩阵未升格                              |
+| F02     | **仍关闭**            | Recipe 填充回归绿                           |
+| F03     | **仍关闭**            | Control Plane IPC 仍在                      |
+| F05     | **仍关闭**            | 生产路由 + DSH 无 Entity                    |
+| F06     | **仍关闭**            | server turn id 保持                         |
+| F07     | **关闭**              | 全通道累计 + 独立 hash 核验                 |
+| F04     | **仍 OPEN / BLOCKED** | 五平级 Harness 仍无完整产品级 real response |
 
 ## Remaining Findings
 

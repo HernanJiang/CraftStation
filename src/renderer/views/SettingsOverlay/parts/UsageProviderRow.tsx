@@ -84,8 +84,12 @@ function UsageProviderControls(props: { id: string; label: string }) {
     signingOut,
     apiKey,
     setApiKey,
+    cookie,
+    setCookie,
+    externalLoginUrl,
     handleSignIn,
     handleSubmitApiKey,
+    handleSubmitCookie,
     handleSignOut,
   } = useUsageProviderLogin(id);
 
@@ -103,6 +107,11 @@ function UsageProviderControls(props: { id: string; label: string }) {
   const onSubmitApiKey = (event: FormEvent) => {
     event.preventDefault();
     void handleSubmitApiKey();
+  };
+
+  const onSubmitCookie = (event: FormEvent) => {
+    event.preventDefault();
+    void handleSubmitCookie();
   };
 
   // Sign-in is the widest thing in a row, so rather than squeezing the provider
@@ -149,10 +158,38 @@ function UsageProviderControls(props: { id: string; label: string }) {
     </form>
   ) : null;
 
+  const cookieSignIn = externalLoginUrl ? (
+    <form
+      onSubmit={onSubmitCookie}
+      className="order-last flex min-w-0 basis-full items-center gap-1.5"
+    >
+      <input
+        type="password"
+        value={cookie}
+        onChange={(e) => setCookie(e.target.value)}
+        placeholder={t`Paste ${label} session cookie`}
+        aria-label={t`${label} session cookie`}
+        autoComplete="off"
+        spellCheck={false}
+        className="min-w-0 flex-1 rounded-lg border border-[color:var(--separator)] bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:focus-ring @xl:max-w-[240px]"
+      />
+      <Button
+        size="sm"
+        variant="ghost"
+        type="submit"
+        className="shrink-0 text-foreground"
+        isDisabled={signingIn || cookie.trim().length === 0}
+      >
+        {signingIn ? <Trans>Signing in…</Trans> : <Trans>Sign in</Trans>}
+      </Button>
+    </form>
+  ) : null;
+
   return (
     <>
       {browserSignIn}
       {apiKeySignIn}
+      {cookieSignIn}
       {/* Pinned to the right of the first line; the sign-in block above wraps
           below them when the container is narrow. */}
       <span className="ml-auto flex shrink-0 items-center gap-1">

@@ -32,10 +32,7 @@ export {
   StructuredNativeHarnessRuntimeAdapter,
   UnavailableNativeHarnessRuntimeAdapter,
 };
-export type {
-  PtyNativeHarnessRuntimeAdapterOptions,
-  StructuredNativeHarnessRuntimeAdapterOptions,
-};
+export type { PtyNativeHarnessRuntimeAdapterOptions, StructuredNativeHarnessRuntimeAdapterOptions };
 
 export interface NativeHarnessAdapterFactoryOptions {
   projectLocation: ProjectLocation;
@@ -46,9 +43,7 @@ export interface NativeHarnessAdapterFactoryOptions {
   onPromptError?: (error: unknown) => void | Promise<void>;
 }
 
-type NativeHarnessFactory = (
-  options: NativeHarnessAdapterFactoryOptions,
-) => HarnessRuntimeAdapter;
+type NativeHarnessFactory = (options: NativeHarnessAdapterFactoryOptions) => HarnessRuntimeAdapter;
 
 const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
   grok: ({ projectLocation, accountBinding, profileRef, baseSpawnEnv, onPromptError }) =>

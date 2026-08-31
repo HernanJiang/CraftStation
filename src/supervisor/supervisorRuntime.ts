@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
   AgentKind,
@@ -64,7 +63,7 @@ import { crossagentRankingPreferences } from "@/shared/crossagentRanking";
 import type { CrossagentRoutingState } from "@/shared/crossagentRanking";
 import type { ConfirmCrossagentRoutingOverridePayload } from "@/shared/ipc/procedures/mcp";
 import { msg } from "@/shared/messages";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolvePoracodeBaseDir, resolvePoracodePaths } from "@/shared/poracodePaths";
 import { joinProjectPosixPath } from "@/shared/wsl";
 import { prefetchNativeNodeRuntime } from "./runtime/prefetchNativeNode";
 import {
@@ -157,6 +156,8 @@ import {
   managedGrokProcessEnvironment,
   grokAccountIdentityFromContainer,
 } from "./runtime/grokProfiles";
+import { AntigravityProfileService } from "./runtime/antigravityProfiles";
+import { OpenAiCompatibleProfileService } from "./runtime/openaiCompatibleProfiles";
 import { grokAuthContainer } from "./runtime/grokCredentials";
 import { NATIVE_HARNESS_DESCRIPTORS } from "./runtime/nativeHarness/descriptors";
 import { projectNativeHarnessControlPlane } from "./runtime/nativeHarness/controlPlane";
@@ -270,6 +271,8 @@ export class SupervisorRuntime {
   readonly tokenUsageAdapter: TokenUsageAdapter;
   readonly codexProfileService: CodexProfileService;
   readonly grokProfileService: GrokProfileService;
+  readonly antigravityProfileService: AntigravityProfileService;
+  readonly openAiCompatibleProfileService: OpenAiCompatibleProfileService;
   /**
    * Pending isolated Grok logins. A pending home is created WITHOUT an
    * AccountStore row; it is only promoted to an account by
@@ -335,7 +338,7 @@ export class SupervisorRuntime {
     const rawBaseDir = process.env.PORACODE_DATA_DIR?.trim();
     const envBaseDir =
       rawBaseDir && rawBaseDir !== "undefined" && isAbsolute(rawBaseDir) ? rawBaseDir : undefined;
-    const baseDir = envBaseDir ?? join(homedir(), ".poracode");
+    const baseDir = envBaseDir ?? resolvePoracodeBaseDir();
     this.baseDir = baseDir;
     this.mcpOAuthService = new McpOAuthService({ baseDir });
     this.mcpProbeService = new McpProbeService({
@@ -688,6 +691,14 @@ export class SupervisorRuntime {
     );
     this.codexProfileService = new CodexProfileService({ store: this.accountStore });
     this.grokProfileService = new GrokProfileService({ store: this.accountStore });
+    this.antigravityProfileService = new AntigravityProfileService({
+      store: this.accountStore,
+      cacheDir: paths.cacheDir,
+    });
+    this.openAiCompatibleProfileService = new OpenAiCompatibleProfileService({
+      store: this.accountStore,
+      cacheDir: paths.cacheDir,
+    });
     this.usageService = new UsageService({
       emit,
       cachePath: join(paths.cacheDir, "provider-usage.json"),
@@ -723,7 +734,9 @@ export class SupervisorRuntime {
 
   listAccounts(payload: AccountProviderPayload = {}): AccountView[] {
     const accounts = this.accountStore.list(payload.provider);
-    this.emit({ type: "usage-accounts", accounts });
+    // The renderer replaces its whole store from this event: always broadcast
+    // the authoritative FULL list even when the request was provider-scoped.
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return accounts;
   }
 
@@ -741,7 +754,7 @@ export class SupervisorRuntime {
         : {}),
       ...(payload.enabled !== undefined ? { enabled: payload.enabled } : {}),
     });
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(payload.provider) });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
   }
 
@@ -755,7 +768,15 @@ export class SupervisorRuntime {
         { accountId },
       );
     }
+    const removed = this.accountStore.getRecord(accountId);
     this.accountStore.remove(accountId);
+    if (removed?.provider === "antigravity") {
+      // The sealed OAuth bundle lives outside the managed credential dir.
+      this.antigravityProfileService.destroyCredentials(accountId);
+    }
+    if (removed?.provider === "openai-compatible") {
+      this.openAiCompatibleProfileService.destroyCredentials(accountId);
+    }
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
   }
 
@@ -775,25 +796,25 @@ export class SupervisorRuntime {
 
   selectAccount(accountId: string): AccountView {
     const account = this.accountStore.select(accountId);
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(account.provider) });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
   }
 
   setAccountEnabled(accountId: string, enabled: boolean): AccountView {
     const account = this.accountStore.setEnabled(accountId, enabled);
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(account.provider) });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
   }
 
   renameAccount(payload: AccountRenamePayload): AccountView {
     const account = this.accountStore.rename(payload.accountId, payload.label);
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(account.provider) });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
   }
 
   reorderAccounts(provider: string, orderedAccountIds: string[]): AccountView[] {
     const accounts = this.accountStore.reorder(provider, orderedAccountIds);
-    this.emit({ type: "usage-accounts", accounts });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return accounts;
   }
 
@@ -803,12 +824,17 @@ export class SupervisorRuntime {
 
   setAccountPoolScheduling(payload: AccountPoolConfigPayload): ProviderPoolConfig {
     const config = this.accountStore.setPoolSchedulingMode(payload.provider, payload.scheduling);
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list(payload.provider) });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return config;
   }
 
   getAccountPoolScheduling(payload: AccountProviderPayload): ProviderPoolConfig {
     return this.accountStore.poolConfig(payload.provider ?? "grok");
+  }
+
+  /** Sign-out / trash-delete: drop the provider's cached snapshot everywhere. */
+  forgetProviderUsage(providerId: string): void {
+    this.usageService.forgetProvider(providerId);
   }
 
   getTokenUsageCapabilities(): import("@/shared/contracts").TokenUsageCapabilities {
@@ -823,14 +849,52 @@ export class SupervisorRuntime {
 
   createCodexProfile(payload: CodexProfileCreatePayload): AccountView {
     const account = this.codexProfileService.createEmpty(payload.label);
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list("codex") });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
   }
 
   importCodexProfile(payload: CodexProfileImportPayload): AccountView {
     const account = this.codexProfileService.importAuthJson(payload);
-    this.emit({ type: "usage-accounts", accounts: this.accountStore.list("codex") });
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
+  }
+
+  /** Move the freshly signed-in Antigravity OAuth bundle into the pool. */
+  importAntigravityProfile(payload: { accountId?: string }): AccountView {
+    const account = this.antigravityProfileService.importHostLogin(payload.accountId);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  /** 把表单验证通过的 OpenAI 兼容配置导入为号池账号（追加或编辑）。 */
+  importOpenAiCompatibleProfile(payload: { accountId?: string }): AccountView {
+    const account = this.openAiCompatibleProfileService.importStaging(payload.accountId);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  getOpenAiCompatibleProfile(payload: {
+    accountId: string;
+  }): import("@/shared/contracts").OpenAiCompatibleProfileConfig {
+    return this.openAiCompatibleProfileService.getConfig(payload.accountId);
+  }
+
+  /** 按渠道列出可用模型（管理模型页）；无动态列表的渠道返回空。 */
+  async listChannelModels(payload: {
+    provider: string;
+    accountId?: string;
+  }): Promise<{ models: string[] }> {
+    if (payload.provider === "openai-compatible" && payload.accountId) {
+      return {
+        models: await this.openAiCompatibleProfileService
+          .listModels(payload.accountId)
+          .catch(() => []),
+      };
+    }
+    if (payload.provider === "antigravity") {
+      return { models: await this.antigravityProfileService.listModels().catch(() => []) };
+    }
+    return { models: [] };
   }
 
   async startCodexProfileLogin(
@@ -912,11 +976,21 @@ export class SupervisorRuntime {
               accountId,
               this.usageService.getHostForAccountAdapter(),
             )
-          : await this.codexProfileService.collectQuota(
-              accountId,
-              this.usageService.getHostForAccountAdapter(),
-            );
-      this.emit({ type: "usage-accounts", accounts: this.accountStore.list(provider) });
+          : provider === "antigravity"
+            ? await this.antigravityProfileService.collectQuota(
+                accountId,
+                this.usageService.getHostForAccountAdapter(),
+              )
+            : provider === "openai-compatible"
+              ? await this.openAiCompatibleProfileService.collectQuota(
+                  accountId,
+                  this.usageService.getHostForAccountAdapter(),
+                )
+              : await this.codexProfileService.collectQuota(
+                  accountId,
+                  this.usageService.getHostForAccountAdapter(),
+                );
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
       return account;
     })().finally(() => {
       this.accountRefreshLocks.delete(accountId);
@@ -1001,7 +1075,7 @@ export class SupervisorRuntime {
         label: pending.label,
         profileRoot: pending.home,
       });
-      this.emit({ type: "usage-accounts", accounts: this.accountStore.list("grok") });
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
       this.grokPendingLogins.delete(payload.pendingRef);
       return account;
     } catch (error) {
@@ -1250,13 +1324,18 @@ export class SupervisorRuntime {
     };
 
     let accountRoot: string | undefined;
+    let accountEnv: Record<string, string> | undefined;
     let accountBinding: AccountBinding | undefined;
+    const explicitRecord = accountId ? this.accountStore.getRecord(accountId) : undefined;
     const managedProvider =
-      plan.runtimeBinding.harnessKind === "codex"
-        ? "codex"
-        : plan.runtimeBinding.harnessKind === "grok"
-          ? "grok"
-          : undefined;
+      plan.runtimeBinding.harnessKind === "codex" &&
+      explicitRecord?.provider === "openai-compatible"
+        ? "openai-compatible"
+        : plan.runtimeBinding.harnessKind === "codex"
+          ? "codex"
+          : plan.runtimeBinding.harnessKind === "grok"
+            ? "grok"
+            : undefined;
     if (managedProvider && (accountId || this.accountStore.list(managedProvider).length > 0)) {
       // v0.5: provider-pool scheduling drives auto selection; the legacy
       // selectedAccountId marker no longer routes auto sessions. Explicit
@@ -1273,14 +1352,29 @@ export class SupervisorRuntime {
         reason: resolution.reason,
         boundAt: Date.now(),
       };
-      accountRoot = this.accountStore.credentialRoot(resolution.account.accountId);
+      if (managedProvider === "openai-compatible") {
+        const runtime = this.openAiCompatibleProfileService.prepareCodexRuntime(
+          resolution.account.accountId,
+        );
+        accountRoot = runtime.codexHome;
+        accountEnv = runtime.env;
+      } else {
+        accountRoot = this.accountStore.credentialRoot(resolution.account.accountId);
+      }
     }
 
     const adapter = this._customCraftingAdapter
       ? this._customCraftingAdapter(plan, projectLocation)
       : plan.runtimeBinding.harnessKind === "codex"
         ? new NativeCodexRuntimeAdapter({
-            ...(accountRoot ? { host: new AppServerProcessHost({ codexHome: accountRoot }) } : {}),
+            ...(accountRoot
+              ? {
+                  host: new AppServerProcessHost({
+                    codexHome: accountRoot,
+                    ...(accountEnv ? { env: accountEnv } : {}),
+                  }),
+                }
+              : {}),
             ...(accountBinding ? { accountBinding } : {}),
           })
         : createNativeHarnessRuntimeAdapter(plan.runtimeBinding.harnessKind, {
@@ -1366,7 +1460,7 @@ export class SupervisorRuntime {
         lastError: message,
         lastQuotaAt: Date.now(),
       });
-      this.emit({ type: "usage-accounts", accounts: this.accountStore.list("grok") });
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     } catch (statusError) {
       // The provider error remains authoritative for the current turn. A
       // metadata lock/corruption must not replace it with bookkeeping noise.

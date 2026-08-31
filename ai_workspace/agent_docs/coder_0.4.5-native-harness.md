@@ -29,13 +29,13 @@
 
 ## 当前验收矩阵
 
-| Harness | 真实 evidence | capability / quality gate |
-|---|---|---|
-| Codex | v0.4.4 server turn identity、matching completion、assistant marker、length/hash、cleanup | `implementation missing`；单次 probe 不关闭五 Harness F04 |
-| Grok Build | official ACP session；usage balance exhausted | `implementation missing` / `error` / BLOCKED |
-| Kimi Code | official ACP session；`AUTH_REQUIRED`；cancel error | `implementation missing` / `partial` / BLOCKED |
-| Antigravity | 无安全 PTY evidence | `unprobed` |
-| DeepSeek / DSH | 无官方 executable | `unavailable` / `RUNTIME_UNAVAILABLE` |
+| Harness        | 真实 evidence                                                                            | capability / quality gate                                 |
+| -------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Codex          | v0.4.4 server turn identity、matching completion、assistant marker、length/hash、cleanup | `implementation missing`；单次 probe 不关闭五 Harness F04 |
+| Grok Build     | official ACP session；usage balance exhausted                                            | `implementation missing` / `error` / BLOCKED              |
+| Kimi Code      | official ACP session；`AUTH_REQUIRED`；cancel error                                      | `implementation missing` / `partial` / BLOCKED            |
+| Antigravity    | 无安全 PTY evidence                                                                      | `unprobed`                                                |
+| DeepSeek / DSH | 无官方 executable                                                                        | `unavailable` / `RUNTIME_UNAVAILABLE`                     |
 
 F04 仍 BLOCKED：缺少五个平级 Harness 的完整产品级 `Crafting -> Runtime -> Entity -> Session -> real response`。本轮不写 Feature PASS。
 

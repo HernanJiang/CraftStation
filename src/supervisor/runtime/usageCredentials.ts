@@ -6,11 +6,14 @@ import { resolveCommandCodeToken } from "./commandCodeCredentials";
 import { resolveCopilotToken } from "./copilotCredentials";
 import { resolveCursorToken } from "./cursorCredentials";
 import { resolveFactoryCliToken } from "./factoryCredentials";
-import { resolveGeminiToken } from "./geminiCredentials";
 import { refreshRejectedGrokToken, resolveFreshGrokToken } from "./grokTokenRefresh";
 import { resolveKimiToken } from "./kimiCredentials";
 import { resolveQwenUsageToken } from "./qwenCredentials";
 import { resolveZaiToken } from "./zaiCredentials";
+import {
+  refreshStoredAntigravityToken,
+  resolveStoredAntigravityToken,
+} from "./antigravityCredentials";
 
 /**
  * Assembles the native (host) credential store consumed by the usage HostPort
@@ -39,7 +42,6 @@ function tokenResolvers(
     copilot: resolveCopilotToken,
     cursor: resolveCursorToken,
     grok: resolveFreshGrokToken,
-    gemini: resolveGeminiToken,
     // resolveFactoryCliToken is sync (returns the token directly, not a Promise);
     // wrap it so every entry shares the () => Promise<OAuthToken | undefined> shape.
     factory: async () => resolveFactoryCliToken(),
@@ -61,9 +63,13 @@ export function createNativeCredentialStore(
   settingsPath?: string,
 ): CredentialStore {
   const resolvers = tokenResolvers(settingsPath);
+  if (cacheDir) resolvers.antigravity = () => resolveStoredAntigravityToken(cacheDir);
   return {
     getOAuthToken: async (providerId) => resolvers[providerId]?.(),
-    refreshOAuthToken: async (providerId, token) => tokenRefreshers[providerId]?.(token),
+    refreshOAuthToken: async (providerId, token) =>
+      providerId === "antigravity" && cacheDir
+        ? refreshStoredAntigravityToken(cacheDir)
+        : tokenRefreshers[providerId]?.(token),
     // Captured session secrets (e.g. a browser-login cookie) live in the
     // safeStorage-sealed store written by main; decrypt and return on demand.
     // Never logged.

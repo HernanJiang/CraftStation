@@ -12,12 +12,12 @@
 
 ## 本次改动范围(Working Copy `craftstation/`,分支 `codex/v0.2.0`)
 
-| 文件 | 改动 |
-|---|---|
-| `src/renderer/components/common/BrandWordmark.tsx` | 品牌字标双色化:`Craft` 保持前景色,`Station` 使用 craft 琥珀主色,跨主题预设保持一致品牌识别 |
-| `src/renderer/components/thread/ThreadDraftChrome.tsx` | `ThreadDraftHero` 增加产品定位标语 `Agent Runtime Composition System` 与 Ingredients -> Result 合成示意符号;compact 模式保持精简 |
-| `src/renderer/components/crafting/CraftingGrid.tsx` | Craft Table 视觉重构:Minecraft 合成台式布局(两个 Ingredient Slot -> 箭头 -> Result Slot),消除硬编码 `neutral-*` 色值,全面接入主题 token(`--surface`、`--border`、`text-muted` 等),所有 `data-testid` 与文案保持不变 |
-| `src/renderer/components/thread/ThreadDraftView.tsx` | Craft Table 切换按钮去硬编码 `neutral-800` 色,接入主题 token |
+| 文件                                                   | 改动                                                                                                                                                                                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/renderer/components/common/BrandWordmark.tsx`     | 品牌字标双色化:`Craft` 保持前景色,`Station` 使用 craft 琥珀主色,跨主题预设保持一致品牌识别                                                                                                                          |
+| `src/renderer/components/thread/ThreadDraftChrome.tsx` | `ThreadDraftHero` 增加产品定位标语 `Agent Runtime Composition System` 与 Ingredients -> Result 合成示意符号;compact 模式保持精简                                                                                    |
+| `src/renderer/components/crafting/CraftingGrid.tsx`    | Craft Table 视觉重构:Minecraft 合成台式布局(两个 Ingredient Slot -> 箭头 -> Result Slot),消除硬编码 `neutral-*` 色值,全面接入主题 token(`--surface`、`--border`、`text-muted` 等),所有 `data-testid` 与文案保持不变 |
+| `src/renderer/components/thread/ThreadDraftView.tsx`   | Craft Table 切换按钮去硬编码 `neutral-800` 色,接入主题 token                                                                                                                                                        |
 
 ## 不变式(Invariants)
 
@@ -70,14 +70,14 @@
 
 ### 迭代日志
 
-| 版本 | 内容 | 状态 |
-|---|---|---|
-| 0.2.0 | 品牌字标双色化;Hero 标语 + 合成示意符号;CraftingGrid 合成台式重构(主题 token 化);Craft Table 切换按钮 token 化 | DONE |
-| 0.2.1 | 左侧栏新增 Workbench 导航区:Models / Harness Library / Recipes 三个可折叠小节,数据来自真实 crafting registry(只读陈列);Codex 式小节标签与计数徽标 | DONE |
-| 0.2.2 | 右侧 Inspector 新增 Harness 面板标签:Recipe 卡片 + Model/Harness Ingredient 组成树(Component 明细)+ Result Item 预览;数据来自真实 registry/crafter,只读 | DONE |
-| 0.2.3(计划) | Composer 改造为 Agent Command Console:项目/本地/分支上下文条 + Execute 语义 | 待做 |
-| 0.2.4(计划) | Home 中央区:问候语 + 建议卡片(探索/构建/审查/修复)Codex 式首屏 | 待做 |
-| 0.2.5(计划) | 顶部 Command Bar:项目选择 / 当前 Harness·Model·Runtime / 搜索·命令面板·设置 | 待做 |
+| 版本        | 内容                                                                                                                                                    | 状态 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 0.2.0       | 品牌字标双色化;Hero 标语 + 合成示意符号;CraftingGrid 合成台式重构(主题 token 化);Craft Table 切换按钮 token 化                                          | DONE |
+| 0.2.1       | 左侧栏新增 Workbench 导航区:Models / Harness Library / Recipes 三个可折叠小节,数据来自真实 crafting registry(只读陈列);Codex 式小节标签与计数徽标       | DONE |
+| 0.2.2       | 右侧 Inspector 新增 Harness 面板标签:Recipe 卡片 + Model/Harness Ingredient 组成树(Component 明细)+ Result Item 预览;数据来自真实 registry/crafter,只读 | DONE |
+| 0.2.3(计划) | Composer 改造为 Agent Command Console:项目/本地/分支上下文条 + Execute 语义                                                                             | 待做 |
+| 0.2.4(计划) | Home 中央区:问候语 + 建议卡片(探索/构建/审查/修复)Codex 式首屏                                                                                          | 待做 |
+| 0.2.5(计划) | 顶部 Command Bar:项目选择 / 当前 Harness·Model·Runtime / 搜索·命令面板·设置                                                                             | 待做 |
 
 ### 不变式
 
@@ -92,16 +92,16 @@
 
 ### 迭代日志(续)
 
-| 版本 | 内容 | 状态 |
-|---|---|---|
-| 0.2.3 | 新线程草稿页首屏 1:1 复刻 Codex Home:官方吉祥物循环动画(`DraftHomeHero`)+ 问候语 + 四张建议卡片(探索代码/构建功能/审查代码/修复问题,蓝/紫/绿/橙彩色图标);卡片点击聚焦输入框,无功能行为 | DONE |
-| 0.2.4 | 侧栏顶部 1:1 复刻 Codex:品牌行(CraftStation logo + 名称 + 下拉箭头 + 搜索/铃铛)+ 导航行(新对话[真实]/拉取请求[真实]/站点[占位]/已安排[真实]/插件[占位]);Codex 吉祥物替换为 CraftStation logo,中心 `>_` 眨眼 + 四周 28s 慢旋(纯 CSS 动画) | DONE |
-| 0.2.5(计划) | Composer 区 1:1:上下文条(项目/本地/分支)+ "随心输入"占位 + +/完全访问/模型选择/语音 底行 | 待做 |
+| 版本        | 内容                                                                                                                                                                                                                                     | 状态 |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 0.2.3       | 新线程草稿页首屏 1:1 复刻 Codex Home:官方吉祥物循环动画(`DraftHomeHero`)+ 问候语 + 四张建议卡片(探索代码/构建功能/审查代码/修复问题,蓝/紫/绿/橙彩色图标);卡片点击聚焦输入框,无功能行为                                                   | DONE |
+| 0.2.4       | 侧栏顶部 1:1 复刻 Codex:品牌行(CraftStation logo + 名称 + 下拉箭头 + 搜索/铃铛)+ 导航行(新对话[真实]/拉取请求[真实]/站点[占位]/已安排[真实]/插件[占位]);Codex 吉祥物替换为 CraftStation logo,中心 `>_` 眨眼 + 四周 28s 慢旋(纯 CSS 动画) | DONE |
+| 0.2.5(计划) | Composer 区 1:1:上下文条(项目/本地/分支)+ "随心输入"占位 + +/完全访问/模型选择/语音 底行                                                                                                                                                 | 待做 |
 
 | 0.2.5 | 修复吉祥物双重脸:程序化擦除 logo 中心烘焙 `>_`(亮度阈值,保留底纹),叠加层负责眨眼;Workbench 分组从侧栏移至右侧 Harness Inspector(改名 Registry);侧栏新增 Codex 式「项目」分区标签;footer 头部新增 Provider Accounts 厂商订阅登录入口(真实登录流);Composer 上方新增上下文条(项目/本地/分支) | DONE |
 
 | 0.2.6 | 吉祥物 `>_` 上移 7% + 改为 logo 同源金色(#FAB856)带微光;Provider Accounts 收成头像式入口(三个重叠厂商徽标 + 省略号),点击弹出 HeroUI Modal 认证列表(真实登录流);侧栏 footer 移除 Work/拉取请求/计划 快捷行(迁移到顶部 Codex 导航,新增 Work→GitHub Actions);Composer 上下文条改为 Codex 式圆角条(项目/本地/分支) | DONE |
-| 0.2.7 | Codex home 细节对齐：吉祥物 ` >_ ` 从 -7% 下移到 -5%；暗色 token 中性化对齐 Codex(surface #131316 / content #0e0e10 / sidebar #141417,去蓝色相)；zh-CN 补齐全部新字符串翻译(问候语/建议卡/厂商账户等)；侧栏品牌行改为 Dropdown 菜单(Settings/Remote Access 带状态点/Hide sidebar),footer 只留 Provider Accounts；厂商徽标换成官方 SVG glyph(codex 云/claude 星芒 #d97757/gemini 星标 #4e8fef)；Composer 沉底布局(spacer 锚定系统停用 enabled:false,hero 改为 flex 居中),测试改为断言无 spacer | DONE |
+| 0.2.7 | Codex home 细节对齐：吉祥物 `>_` 从 -7% 下移到 -5%；暗色 token 中性化对齐 Codex(surface #131316 / content #0e0e10 / sidebar #141417,去蓝色相)；zh-CN 补齐全部新字符串翻译(问候语/建议卡/厂商账户等)；侧栏品牌行改为 Dropdown 菜单(Settings/Remote Access 带状态点/Hide sidebar),footer 只留 Provider Accounts；厂商徽标换成官方 SVG glyph(codex 云/claude 星芒 #d97757/gemini 星标 #4e8fef)；Composer 沉底布局(spacer 锚定系统停用 enabled:false,hero 改为 flex 居中),测试改为断言无 spacer | DONE |
 | 0.2.8 | 输入框 1:1 复刻 Codex：清理内部提示 dock，登录逻辑归口至左下角账户中心；上下文条 DraftContextBar 改造为胶囊条并融合右侧 Craft Table 动作入口，移除冗余控制行；输入框大圆角 1.5rem + 细发丝边框对齐 Codex；完全访问权限切换高亮为标志性琥珀橙；模型药丸 pin 至右侧；测试与类型检查全部通过 | DONE |
 | 0.2.9 | Codex 顶栏与面板交互收敛：侧栏品牌改为静态 Logo/名称并移除无效下拉箭头；主内容顶栏左侧显示当前项目、右侧增加右栏/底栏布局开关；辅助栏目默认隐藏，点击后复用真实 Harness/Recipe/Model/文件/Git/终端/浏览器等面板，并按左右或上下接近 1:1 的初始尺寸展开；Composer 与上下文条进一步大圆角化，彻底移除聚焦白色发光边及其 DOM/CSS | DONE |
 | 0.2.10 | Codex 圆角与交互逻辑收敛：移除窗口左上及 Composer 上方两个无效 Home 入口；原 Craft Table/Chat Draft 切换改为「自动模式 / 高效模式 / 创造模式」，自动模式表示默认模型与原生 Harness、高效模式暂为极简 Harness UI 预览、创造模式进入现有真实 CraftingGrid；右/底辅助栏首次打开不再预选 Harness，而是显示「审查 / 终端 / 浏览器 / 文件 / 合成台」入口选择页，点击后再加载对应真实面板；隐藏不属于本轮入口集合的 Usage/Notes 标签；建议卡、侧栏行、面板按钮、Registry、Harness Inspector、CraftingGrid 等统一为 Codex 式圆角矩形 | DONE |
@@ -305,4 +305,3 @@
   - `ai_workspace/temp/window_0.2.16_home.png`
   - `ai_workspace/temp/window_0.2.16_model_usage.png`
   - `ai_workspace/temp/window_0.2.16_tools.png`
-

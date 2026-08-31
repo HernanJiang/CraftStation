@@ -108,10 +108,37 @@ function grokBillingHasData(billingBody: unknown): boolean {
  * `subscriptionTier` / `plan` were never observed on any response and are gone —
  * an absent plan is reported honestly instead of hunting for invented shapes.
  */
-function planFromSettings(settingsBody: unknown): string | undefined {
+export function planFromSettings(settingsBody: unknown): string | undefined {
   const value = (settingsBody as { subscription_tier_display?: unknown } | null | undefined)
     ?.subscription_tier_display;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+/** Best-effort account email/login from `/v1/settings` or the OAuth token bundle. */
+export function identityFromSettings(settingsBody: unknown): string | undefined {
+  const body = (settingsBody ?? {}) as Record<string, unknown>;
+  const user = (body.user ?? body.account ?? body.profile) as Record<string, unknown> | undefined;
+  return firstNonEmptyString(
+    body.email,
+    body.user_email,
+    body.login,
+    user?.email,
+    user?.user_email,
+    user?.login,
+  );
+}
+
+export function identityFromGrokToken(
+  token: { email?: string; accountId?: string } | undefined,
+): string | undefined {
+  return firstNonEmptyString(token?.email, token?.accountId);
 }
 
 /**
@@ -119,7 +146,7 @@ function planFromSettings(settingsBody: unknown): string | undefined {
  * session cookie is scoped to a different host, so callers skip this without a
  * CLI token. Never throws — usage stands on its own without a plan name.
  */
-async function fetchGrokSettings(host: HostPort, accessToken: string): Promise<unknown> {
+export async function fetchGrokSettings(host: HostPort, accessToken: string): Promise<unknown> {
   try {
     const res = await grokRequest(host, GROK_SETTINGS_ENDPOINT, accessToken);
     if (res.status < 200 || res.status >= 300) return undefined;
@@ -158,12 +185,14 @@ export function parseGrokUsage(
   };
 
   const plan = planFromSettings(settingsBody);
+  const authenticatedAs = identityFromSettings(settingsBody);
   return {
     providerId: "grok",
     status: "ok",
     windows: [window],
     fetchedAt: nowMs,
     ...(plan ? { plan } : {}),
+    ...(authenticatedAs ? { authenticatedAs } : {}),
   };
 }
 
@@ -375,7 +404,9 @@ export async function collectGrok(host: HostPort, _opts?: CollectOptions): Promi
   let viaToken: GrokAttempt = {};
   if (token?.accessToken) {
     viaToken = await collectGrokViaToken(host, token, now);
-    if (viaToken.snapshot?.status === "ok") return viaToken.snapshot;
+    if (viaToken.snapshot?.status === "ok") {
+      return withGrokIdentity(viaToken.snapshot, token);
+    }
   }
 
   if (!cookie) {
@@ -400,10 +431,21 @@ export async function collectGrok(host: HostPort, _opts?: CollectOptions): Promi
     // proxy — but not with a token the proxy just rejected, which would spend a
     // request per cycle to learn nothing. Without a usable token the card simply
     // shows usage with no plan chip.
+    const tokenIdentity = identityFromGrokToken(token);
+    const usageWithTokenIdentity = tokenIdentity
+      ? { ...usage, authenticatedAs: usage.authenticatedAs ?? tokenIdentity }
+      : usage;
     const tierToken = viaToken.snapshot?.status === "auth-missing" ? undefined : token?.accessToken;
-    if (!tierToken) return usage;
-    const plan = planFromSettings(await fetchGrokSettings(host, tierToken));
-    return plan ? { ...usage, plan } : usage;
+    if (!tierToken) return usageWithTokenIdentity;
+    const settingsBody = await fetchGrokSettings(host, tierToken);
+    const plan = planFromSettings(settingsBody);
+    const authenticatedAs =
+      identityFromSettings(settingsBody) ?? usageWithTokenIdentity.authenticatedAs ?? tokenIdentity;
+    return {
+      ...usageWithTokenIdentity,
+      ...(plan ? { plan } : {}),
+      ...(authenticatedAs ? { authenticatedAs } : {}),
+    };
   }
 
   // Neither path produced usage. A token verdict (auth-missing / rate-limited)
@@ -426,6 +468,15 @@ export async function collectGrok(host: HostPort, _opts?: CollectOptions): Promi
  * this to renew it — the `client_id` comes from `~/.grok/auth.json` rather than
  * being hardcoded, since xAI has not published one for third parties.
  */
+
+function withGrokIdentity(
+  snapshot: UsageSnapshot,
+  token?: { email?: string; accountId?: string },
+): UsageSnapshot {
+  if (snapshot.authenticatedAs?.trim()) return snapshot;
+  const authenticatedAs = identityFromGrokToken(token);
+  return authenticatedAs ? { ...snapshot, authenticatedAs } : snapshot;
+}
 export const GROK_OAUTH_TOKEN_ENDPOINT = "https://auth.x.ai/oauth2/token";
 
 export interface GrokRefreshedToken {

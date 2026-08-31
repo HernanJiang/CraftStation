@@ -20,6 +20,7 @@ const {
   useThreadHasBackgroundActivityMock,
   useThreadHasDraftMock,
   toggleStarThreadMock,
+  archiveThreadMock,
 } = vi.hoisted(() => ({
   sortableRefMock: vi.fn<(element: HTMLElement | null) => void>(),
   sortableHandleRefMock: vi.fn<(element: HTMLElement | null) => void>(),
@@ -30,6 +31,7 @@ const {
   useThreadHasBackgroundActivityMock: vi.fn<(threadId: string) => boolean>(),
   useThreadHasDraftMock: vi.fn<(threadId: string) => boolean>(),
   toggleStarThreadMock: vi.fn<(threadId: string) => void>(),
+  archiveThreadMock: vi.fn<(threadId: string) => void>(),
 }));
 
 vi.mock("@dnd-kit/react", () => ({
@@ -126,7 +128,7 @@ vi.mock("@/renderer/actions/panelActions", () => ({
 
 vi.mock("@/renderer/actions/threadActions", () => ({
   openThread: vi.fn<() => void>(),
-  archiveThread: vi.fn<() => void>(),
+  archiveThread: archiveThreadMock,
   requestDeleteThread: vi.fn<() => void>(),
   unloadThread: vi.fn<() => void>(),
   toggleMarkThreadDone: vi.fn<() => void>(),
@@ -186,6 +188,7 @@ describe("SortableThreadItem", () => {
     sortableOptionsMock.mockClear();
     contextMenuItemsMock.mockClear();
     toggleStarThreadMock.mockClear();
+    archiveThreadMock.mockClear();
     getStatusToneMock.mockReset();
     getStatusToneMock.mockReturnValue("default");
     useThreadHasBackgroundActivityMock.mockReset();
@@ -247,7 +250,7 @@ describe("SortableThreadItem", () => {
     expect(queryByLabelText("Has unsent draft")).not.toBeInTheDocument();
   });
 
-  it("keeps only pin and more as the row hover actions", () => {
+  it("keeps pin, more, and direct archive as the row hover actions", () => {
     const thread = makeThread();
 
     render(
@@ -265,8 +268,9 @@ describe("SortableThreadItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pin Thread 1" }));
     expect(toggleStarThreadMock).toHaveBeenCalledWith(thread.id);
     expect(screen.getByRole("button", { name: "More actions for Thread 1" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Archive Thread 1" }));
+    expect(archiveThreadMock).toHaveBeenCalledWith(thread.id);
     expect(screen.queryByRole("button", { name: "Rename Thread 1" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Archive Thread 1" })).not.toBeInTheDocument();
   });
 
   it("shows a green completion point and a working spinner without elapsed time or git chrome", () => {

@@ -40,24 +40,24 @@
 
 ### 真实账号库（修完代码后再次读取，脱敏）
 
-| label | masked | enabled | selected | status | lastQuotaAt |
-|---|---|---|---|---|---|
-| `her` | `her***g01@gmail.com` | false | false | disabled | 空 |
-| `poi` | `poi***son@gmail.com` | false | false | disabled | 空 |
-| `poi` | `poi***nan@gmail.com` | false | false | disabled | 空 |
-| `hao` | `hao***ise@gmail.com` | false | false | disabled | 空 |
-| `poi` | `poi***nan@gmail.com` | false | false | disabled | 空 |
-| `her` | `her***g01@gmail.com` | true | true | available | 空 |
+| label | masked                | enabled | selected | status    | lastQuotaAt |
+| ----- | --------------------- | ------- | -------- | --------- | ----------- |
+| `her` | `her***g01@gmail.com` | false   | false    | disabled  | 空          |
+| `poi` | `poi***son@gmail.com` | false   | false    | disabled  | 空          |
+| `poi` | `poi***nan@gmail.com` | false   | false    | disabled  | 空          |
+| `hao` | `hao***ise@gmail.com` | false   | false    | disabled  | 空          |
+| `poi` | `poi***nan@gmail.com` | false   | false    | disabled  | 空          |
+| `her` | `her***g01@gmail.com` | true    | true     | available | 空          |
 
 F23 迁移已生效（不再是 New Grok，掩码已是前3后3）。F21 落盘未发生，因为用户还没在新代码上发过 402。**F21 Auto 在现场仍不可用**：5 个 identity 账号保持 disabled，号池实际仍只有 selected 那一个（探针里的耗尽号）。
 
 ## Findings
 
-| ID | 结论 |
-|---|---|
-| F21 | **关闭（工程）**。duck-type + craftAgent catch 落盘 + resolver 跳过 disabled/exhausted。生产要等用户重开后发一轮 402 才能看到 `quota-exhausted`。 |
-| F22 | **未关闭**。Dialog 行已接线；侧栏紧凑卡仍不能选号。用户现场「指定有额度的号」走的就是紧凑卡。 |
-| F23 | **关闭**。掩码/默认名已写入真实 accounts.json；dialog 右键改名已接。 |
+| ID  | 结论                                                                                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F21 | **关闭（工程）**。duck-type + craftAgent catch 落盘 + resolver 跳过 disabled/exhausted。生产要等用户重开后发一轮 402 才能看到 `quota-exhausted`。                                                                       |
+| F22 | **未关闭**。Dialog 行已接线；侧栏紧凑卡仍不能选号。用户现场「指定有额度的号」走的就是紧凑卡。                                                                                                                           |
+| F23 | **关闭**。掩码/默认名已写入真实 accounts.json；dialog 右键改名已接。                                                                                                                                                    |
 | F24 | **新 P0**。已有官方 identity 的 Grok 账号被旧「首选=独占启用」留在 disabled。启动时必须把这类账号重新 `enabled=true`（status 从 disabled → available），不要改 selected，不要批量 disable。否则 Auto 永远没有下一个号。 |
 
 ## Verdict

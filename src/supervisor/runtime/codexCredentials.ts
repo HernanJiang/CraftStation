@@ -11,7 +11,28 @@ import { readCodexAuthFromWsl } from "./wslCredentials";
 
 interface CodexAuthBlob {
   OPENAI_API_KEY?: string | null;
-  tokens?: { access_token?: string; refresh_token?: string; account_id?: string };
+  tokens?: {
+    access_token?: string;
+    refresh_token?: string;
+    account_id?: string;
+    id_token?: string;
+  };
+}
+
+/** Decode the OpenAI id_token JWT payload and return the account email. */
+export function codexEmailFromIdToken(idToken: string | undefined): string | undefined {
+  if (!idToken) return undefined;
+  const payload = idToken.split(".")[1];
+  if (!payload) return undefined;
+  try {
+    const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(
+      "utf8",
+    );
+    const email = (JSON.parse(json) as { email?: unknown }).email;
+    return typeof email === "string" && email.includes("@") ? email : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Parse `~/.codex/auth.json` contents into an OAuth token bundle. */
@@ -24,10 +45,12 @@ export function parseCodexAuth(content: string): OAuthToken | undefined {
   }
   const accessToken = parsed?.tokens?.access_token;
   if (!accessToken) return undefined;
+  const email = codexEmailFromIdToken(parsed.tokens?.id_token);
   return {
     accessToken,
     ...(parsed.tokens?.refresh_token ? { refreshToken: parsed.tokens.refresh_token } : {}),
     ...(parsed.tokens?.account_id ? { accountId: parsed.tokens.account_id } : {}),
+    ...(email ? { email } : {}),
   };
 }
 

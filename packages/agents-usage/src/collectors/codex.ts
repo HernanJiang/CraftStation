@@ -318,7 +318,8 @@ export async function collectCodex(host: HostPort, _opts?: CollectOptions): Prom
     };
   }
 
-  return parseCodexUsage(parsed, res.headers, now);
+  const snapshot = parseCodexUsage(parsed, res.headers, now);
+  return token.email ? { ...snapshot, authenticatedAs: token.email } : snapshot;
 }
 
 export { SESSION_WINDOW_MINUTES, WEEKLY_WINDOW_MINUTES };

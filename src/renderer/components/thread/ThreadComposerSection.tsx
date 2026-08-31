@@ -58,8 +58,8 @@ import { ThreadChangesBubble } from "./ThreadChangesBubble";
 import { ThreadComposer, type ComposerControl } from "./ThreadComposer";
 import type { CraftMode } from "./CraftModeSwitch";
 import { UniversalDockedChatInput } from "./UniversalDockedChatInput";
+import { ContextQuotaRing } from "./ComposerStatusRow";
 import { supportsUsableFastMode } from "./threadDraftViewHelpers";
-import { ThreadContextIndicator } from "./ThreadContextIndicator";
 import { getApprovalDenyOption } from "./ThreadRuntimeRequestPanel/helpers";
 import { hasReportedContextUsage, resolveThreadContextUsageSummary } from "./threadContextUsage";
 import { buildControls } from "./buildModelPickerControls";
@@ -378,9 +378,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     thread.status !== "inactive" &&
     thread.status !== "launching";
   const hideInfoDocks = props.hideInfoDocks === true;
+  // GUI plans now live in the compact progress capsule inside DraftContextBar.
+  // Keep the legacy dock only for remote terminal surfaces, where that context
+  // bar is not the plan-progress interaction surface.
   const showTodoInComposer =
     !hideInfoDocks &&
-    canShowRuntimeChrome &&
+    usesTerminalPresentation &&
+    usesRemoteTransport &&
     todoDockState !== null &&
     todoDockPlacement === "composer";
   const showGoalInComposer = !hideInfoDocks && canShowRuntimeChrome && goalDockState !== null;
@@ -721,6 +725,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
             placement="conversation"
             craftMode={craftMode}
             onCraftModeChange={handleCraftModeChange}
+            threadId={thread.id}
             {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
           >
             <div
@@ -746,6 +751,18 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                     compact={isCliThread}
                     variant={isCliThread ? "active" : "draft"}
                     controlsDisplay={isCliThread ? "inline" : "menu"}
+                    {...(isCliThread
+                      ? {}
+                      : {
+                          // 上下文/额度圆环：紧贴模型选择器左侧，悬浮展开详情。
+                          beforeEndControls: (
+                            <ContextQuotaRing
+                              threadId={thread.id}
+                              contextSummary={contextSummary}
+                              quotaProviderId={thread.agentKind}
+                            />
+                          ),
+                        })}
                     toolbarLayoutKey={[
                       isCliThread ? "cli" : "chat",
                       showContextIndicator ? "ctx" : "no-ctx",
@@ -931,40 +948,31 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                     onStop={canInterruptStructuredTurn ? handleInterrupt : undefined}
                     {...(() => {
                       const renderExtras = () => (
-                        <>
-                          {showContextIndicator ? (
-                            <ThreadContextIndicator
-                              summary={contextSummary}
-                              isOpen={contextDockOpen}
-                              onToggle={() => setContextDockOpen((open) => !open)}
-                            />
-                          ) : null}
-                          <ComposerAddMenu
-                            mcpServers={mcpServers}
-                            customMcpServers={customMcpServers}
-                            readOnly
-                            computerUse={{
-                              enabled: effectiveMcpConfig?.computerUse === true,
-                              visible:
-                                effectiveMcpConfig?.computerUse === true &&
-                                readBridge()?.platform !== "linux" &&
-                                projectLocation?.kind !== "wsl",
-                              onToggle: () => {},
-                            }}
-                            showFileOption={!usesRemoteTransport || props.pickFiles !== undefined}
-                            onPickFiles={() => {
-                              void (
-                                props.pickFiles
-                                  ? props.pickFiles()
-                                  : readBridge().pickFiles({ attachmentThreadId: thread.id })
-                              )
-                                .then((paths) => {
-                                  if (paths) attachments.addFiles(paths);
-                                })
-                                .catch((error: unknown) => toast.danger(friendlyError(error)));
-                            }}
-                          />
-                        </>
+                        <ComposerAddMenu
+                          mcpServers={mcpServers}
+                          customMcpServers={customMcpServers}
+                          readOnly
+                          computerUse={{
+                            enabled: effectiveMcpConfig?.computerUse === true,
+                            visible:
+                              effectiveMcpConfig?.computerUse === true &&
+                              readBridge()?.platform !== "linux" &&
+                              projectLocation?.kind !== "wsl",
+                            onToggle: () => {},
+                          }}
+                          showFileOption={!usesRemoteTransport || props.pickFiles !== undefined}
+                          onPickFiles={() => {
+                            void (
+                              props.pickFiles
+                                ? props.pickFiles()
+                                : readBridge().pickFiles({ attachmentThreadId: thread.id })
+                            )
+                              .then((paths) => {
+                                if (paths) attachments.addFiles(paths);
+                              })
+                              .catch((error: unknown) => toast.danger(friendlyError(error)));
+                          }}
+                        />
                       );
                       const renderVoiceInput = () => (
                         <ComposerVoiceInput
@@ -979,7 +987,10 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                           voiceInputRef={voiceInputRef}
                         />
                       );
-                      return { leadingControls: renderExtras, afterControls: renderVoiceInput };
+                      return {
+                        leadingControls: renderExtras,
+                        afterControls: renderVoiceInput,
+                      };
                     })()}
                     onPromptChange={setPrompt}
                     {...(!usesRemoteTransport ? { onAttachFiles: attachments.addFiles } : {})}

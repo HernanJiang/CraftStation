@@ -119,6 +119,27 @@ describe("threadActions", () => {
     expect(useAppStore.getState().pendingThreadLaunches[thread.id]).toBeDefined();
   });
 
+  it("leaves the model usage workspace when a sidebar thread is opened", async () => {
+    const thread = makeThread({ id: "thread-from-usage" });
+    useAppStore.setState((state) => ({
+      ...state,
+      threads: [thread],
+      view: { kind: "home" },
+    }));
+    usePanelStore.setState({ modelUsageDialogOpen: true });
+    setThreadRuntimeReopenEnabled(false);
+
+    openThread(thread.id);
+
+    await waitFor(() => {
+      expect(useAppStore.getState().view).toEqual({
+        kind: "thread",
+        panes: [thread.id],
+      });
+    });
+    expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
+  });
+
   it("discards the replaced draft when starting a sidebar draft for another project", () => {
     const firstProject = useAppStore.getState().addProject({ kind: "posix", path: "/repo-a" });
     const secondProject = useAppStore.getState().addProject({ kind: "posix", path: "/repo-b" });

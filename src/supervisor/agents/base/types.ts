@@ -19,6 +19,7 @@ import type {
   ThreadGoalControl,
   McpTransportKind,
   ResolvedMcpServer,
+  AccountBinding,
 } from "@/shared/contracts";
 import type { OscNotification, OscShellEvent, OscTitle } from "@/shared/osc";
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
@@ -167,6 +168,8 @@ export interface CreateStructuredSessionInput {
   threadId: string;
   projectLocation: ProjectLocation;
   config: ThreadConfig;
+  /** Immutable managed account identity for exact usage ledger projection. */
+  accountBinding?: AccountBinding;
   agentSettings?: Record<string, boolean | string>;
   env?: Record<string, string>;
   /**

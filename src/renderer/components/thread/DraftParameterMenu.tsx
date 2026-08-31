@@ -1,13 +1,17 @@
+import { useState } from "react";
 import { Dropdown, Label } from "@heroui/react";
-import { ChevronDown, Cpu, Gauge, RotateCcw, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Cpu, Gauge, Sparkles } from "lucide-react";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 import type { ComposerControl } from "./ThreadComposer";
+import { CONTEXT_WINDOW_PRESETS, resolveContextPresetValue } from "./threadDraftViewHelpers";
 
 export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const modelControl = props.controls.find((control) => control.kind === "provider-model");
   const effortControl = props.controls.find((control) => control.kind === "effort-context");
   const selectedProvider = modelControl?.providers.find(
-    (provider) => provider.kind === modelControl.currentAgentKind,
+    (provider) =>
+      provider.kind === modelControl.currentAgentKind &&
+      provider.accountId === modelControl.currentAccountId,
   );
   const selectedModel = selectedProvider?.capabilities.models.find(
     (candidate) => candidate.id === modelControl?.currentModel,
@@ -15,6 +19,38 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const effortLabel = effortControl?.efforts.find(
     (candidate) => candidate.id === effortControl.effortValue,
   )?.label;
+  // 选中模型的真实能力表（上下文档位映射需要 modelContextSizes/contextSizes）。
+  const selectedCapabilities = selectedProvider?.capabilities;
+  const [customContextDraft, setCustomContextDraft] = useState("");
+
+  function applyContextValue(next: string | undefined) {
+    if (next) effortControl?.onContextChange?.(next);
+  }
+
+  function handleContextAction(key: string) {
+    if (!effortControl) return;
+    if (key.startsWith("preset:")) {
+      const preset = key.slice("preset:".length);
+      const mapped =
+        modelControl && selectedCapabilities
+          ? resolveContextPresetValue(selectedCapabilities, modelControl.currentModel, preset)
+          : undefined;
+      applyContextValue(mapped ?? preset);
+      return;
+    }
+    if (key.startsWith("real:")) applyContextValue(key.slice("real:".length));
+  }
+
+  function applyCustomContext() {
+    const raw = customContextDraft.trim();
+    if (!raw || !effortControl) return;
+    const mapped =
+      modelControl && selectedCapabilities
+        ? resolveContextPresetValue(selectedCapabilities, modelControl.currentModel, raw)
+        : undefined;
+    applyContextValue(mapped ?? raw);
+    setCustomContextDraft("");
+  }
   // Agent detection may temporarily expose an empty model id. Keep the Codex-style
   // parameter capsule useful instead of collapsing to a sparkles-only button.
   const currentModelLabel = modelControl?.currentModel.trim();
@@ -22,25 +58,9 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
     .filter(Boolean)
     .join(" · ");
 
-  function reset() {
-    const provider = modelControl?.providers[0];
-    const model = provider?.capabilities.models[0];
-    if (provider && model && modelControl) {
-      modelControl.onChange({
-        agentKind: provider.kind,
-        model: model.id,
-        ...(provider.presentationMode ? { presentationMode: provider.presentationMode } : {}),
-      });
-    }
-    if (effortControl?.efforts[0]) effortControl.onEffortChange?.(effortControl.efforts[0].id);
-    if (effortControl?.contextSizes[0]) {
-      effortControl.onContextChange?.(effortControl.contextSizes[0].id);
-    }
-  }
-
   return (
     <Dropdown>
-      <Dropdown.Trigger className="inline-flex h-9 max-w-[210px] shrink-0 items-center gap-1.5 rounded-xl bg-[var(--surface-secondary)] px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
+      <Dropdown.Trigger className="inline-flex h-9 max-w-[210px] shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
         {modelControl ? (
           <ProviderIcon
             kind={modelControl.currentAgentKind}
@@ -65,23 +85,47 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                 <span className="ml-auto text-[10px] text-muted">{effortControl.contextValue}</span>
                 <Dropdown.SubmenuIndicator />
               </Dropdown.Item>
-              <Dropdown.Popover className="min-w-[190px] rounded-[14px]">
-                <Dropdown.Menu
-                  aria-label="上下文窗口大小"
-                  onAction={(key) => effortControl.onContextChange?.(String(key))}
-                >
-                  {effortControl.contextSizes.map((context) => (
-                    <Dropdown.Item key={context.id} id={context.id} textValue={context.label}>
-                      <Label>{context.label}</Label>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
+              <Dropdown.Popover className="min-w-[210px] rounded-[14px]">
+                <div className="flex flex-col">
+                  <Dropdown.Menu
+                    aria-label="上下文窗口大小"
+                    onAction={(key) => handleContextAction(String(key))}
+                  >
+                    {CONTEXT_WINDOW_PRESETS.map((preset) => (
+                      <Dropdown.Item
+                        key={`preset:${preset}`}
+                        id={`preset:${preset}`}
+                        textValue={preset}
+                      >
+                        <Label>{preset}</Label>
+                        {preset === "256K" ? (
+                          <span className="ml-auto text-[10px] text-neutral-500">默认</span>
+                        ) : null}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                  <div className="border-t border-white/10 p-2">
+                    <input
+                      aria-label="自定义上下文窗口大小"
+                      value={customContextDraft}
+                      onChange={(event) => setCustomContextDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          applyCustomContext();
+                        }
+                      }}
+                      placeholder="自定义，如 200K / 500000，回车应用"
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25"
+                    />
+                  </div>
+                </div>
               </Dropdown.Popover>
             </Dropdown.SubmenuTrigger>
           ) : null}
 
           {modelControl ? (
-            <Dropdown.SubmenuTrigger>
+            <Dropdown.SubmenuTrigger delay={0}>
               <Dropdown.Item id="models" textValue="模型列表">
                 <Cpu className="size-4 text-muted" />
                 <Label>模型列表</Label>
@@ -91,42 +135,42 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                 <Dropdown.SubmenuIndicator />
               </Dropdown.Item>
               <Dropdown.Popover className="max-h-[420px] min-w-[250px] rounded-[14px]">
-                <Dropdown.Menu
-                  aria-label="模型列表"
-                  onAction={(key) => {
-                    const [agentKind, model] = String(key).split("::");
-                    const provider = modelControl.providers.find(
-                      (candidate) => candidate.kind === agentKind,
-                    );
-                    if (agentKind && model) {
-                      modelControl.onChange({
-                        agentKind,
-                        model,
-                        ...(provider?.presentationMode
-                          ? { presentationMode: provider.presentationMode }
-                          : {}),
-                      });
-                    }
-                  }}
-                >
-                  {modelControl.providers.flatMap((provider) =>
-                    provider.capabilities.models.map((model) => (
-                      <Dropdown.Item
-                        key={`${provider.kind}::${model.id}`}
-                        id={`${provider.kind}::${model.id}`}
-                        textValue={`${provider.label} ${model.label}`}
-                      >
-                        <ProviderIcon
-                          kind={provider.kind}
-                          {...(provider.icon ? { icon: provider.icon } : {})}
-                          fallbackLabel={provider.label}
-                          tone="active"
-                          className="size-4 shrink-0"
-                        />
-                        <Label>{model.label}</Label>
-                        <span className="ml-auto text-[10px] text-muted">{provider.label}</span>
-                      </Dropdown.Item>
-                    )),
+                <Dropdown.Menu aria-label="模型列表">
+                  {modelControl.providers.flatMap((provider, providerIndex) =>
+                    provider.capabilities.models.map((model) => {
+                      const isCurrent =
+                        provider.kind === modelControl.currentAgentKind &&
+                        provider.accountId === modelControl.currentAccountId &&
+                        model.id === modelControl.currentModel;
+                      return (
+                        <Dropdown.Item
+                          key={`${providerIndex}:${provider.kind}:${model.id}`}
+                          id={`${providerIndex}:${provider.kind}:${model.id}`}
+                          textValue={`${provider.label} ${model.label}`}
+                          onPress={() =>
+                            modelControl.onChange({
+                              agentKind: provider.kind,
+                              model: model.id,
+                              ...(provider.presentationMode
+                                ? { presentationMode: provider.presentationMode }
+                                : {}),
+                              ...(provider.accountId ? { accountId: provider.accountId } : {}),
+                            })
+                          }
+                        >
+                          <ProviderIcon
+                            kind={provider.kind}
+                            {...(provider.icon ? { icon: provider.icon } : {})}
+                            fallbackLabel={provider.label}
+                            tone="active"
+                            className="size-4 shrink-0"
+                          />
+                          <Label>{model.label}</Label>
+                          <span className="ml-auto text-[10px] text-muted">{provider.label}</span>
+                          {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
+                        </Dropdown.Item>
+                      );
+                    }),
                   )}
                 </Dropdown.Menu>
               </Dropdown.Popover>
@@ -155,11 +199,6 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
               </Dropdown.Popover>
             </Dropdown.SubmenuTrigger>
           ) : null}
-
-          <Dropdown.Item id="reset" textValue="重置为默认设置" onPress={reset}>
-            <RotateCcw className="size-4 text-muted" />
-            <Label>重置为默认设置</Label>
-          </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>

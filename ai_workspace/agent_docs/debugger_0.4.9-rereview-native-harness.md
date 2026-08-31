@@ -59,14 +59,14 @@ pnpm exec vitest run
 
 ## Spec Fidelity
 
-| 要求 | 结果 |
-|---|---|
-| 号池显示已导入 Grok | **关闭**（F15） |
-| overlay X 可点、可关 | **关闭**（F16；`top-16` 非 `env(titlebar-area-height)`，64px 应离开 32px caption） |
-| auth.json identity → complete + 关面板 | **关闭**（F17） |
-| 取消删 pending | **关闭**（沿用 removeGrokPendingHome） |
-| grok.com 改道 | **保持关闭** |
-| 五 Harness 真实回复 | **仍 BLOCKED（F04）** |
+| 要求                                   | 结果                                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------------- |
+| 号池显示已导入 Grok                    | **关闭**（F15）                                                                    |
+| overlay X 可点、可关                   | **关闭**（F16；`top-16` 非 `env(titlebar-area-height)`，64px 应离开 32px caption） |
+| auth.json identity → complete + 关面板 | **关闭**（F17）                                                                    |
+| 取消删 pending                         | **关闭**（沿用 removeGrokPendingHome）                                             |
+| grok.com 改道                          | **保持关闭**                                                                       |
+| 五 Harness 真实回复                    | **仍 BLOCKED（F04）**                                                              |
 
 ## Findings
 

@@ -1,9 +1,9 @@
 # Coder — v0.4.1 Native Multi-Harness Fix Cycle
 
 > 对应 Feature：`v0.4.0 — Native Multi-Harness Compatibility`
-> 
+>
 > Fix Cycle：`v0.4.1`
-> 
+>
 > 状态：Coder 已完成 Debugger Fix Plan 的实现、证据记录与回归自检；等待 Debugger 独立 Re-review。Feature 仍不可宣称 PASS。
 
 ## 本轮完成内容

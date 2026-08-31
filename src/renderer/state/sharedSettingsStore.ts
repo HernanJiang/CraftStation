@@ -84,6 +84,8 @@ interface SharedSettingsState extends SharedSettings {
   setAgentSecretSetting: (agentKind: string, key: string, value: string) => Promise<boolean>;
   setModelHidden: (agentKind: string, modelId: string, hidden: boolean) => void;
   setHiddenModels: (agentKind: string, hiddenIds: string[]) => void;
+  /** 「管理模型」页维护的自定义模型清单（含上下文档位）。 */
+  setCustomModels: (models: SharedSettings["customModels"]) => void;
   setAgentDisabled: (agentKind: string, disabled: boolean) => void;
   setCrossagentProviderPaused: (agentKind: string, paused: boolean) => void;
   setCrossagentHiddenModels: (agentKind: string, hiddenIds: string[]) => void;
@@ -442,6 +444,10 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
   setHiddenModels: (agentKind, hiddenIds) => {
     const current = get().hiddenModels;
     set({ hiddenModels: { ...current, [agentKind]: hiddenIds } });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setCustomModels: (models) => {
+    set({ customModels: models });
     persistSettings(selectSharedSettings(get()));
   },
   setAgentDisabled: (agentKind, disabled) => {
@@ -1007,6 +1013,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     wslConflictResolverPresentationMode: state.wslConflictResolverPresentationMode,
     agentSettings: state.agentSettings,
     hiddenModels: state.hiddenModels,
+    customModels: state.customModels,
     disabledAgents: state.disabledAgents,
     providerOrder: state.providerOrder,
     acpRegistryInstalledAgents: state.acpRegistryInstalledAgents,

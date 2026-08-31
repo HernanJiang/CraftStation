@@ -10,11 +10,11 @@
 
 ## 参考仓库（只读，禁止复制源码）
 
-| 项目 | 本地只读克隆 | 上游 | 许可 | 用法 |
-|---|---|---|---|---|
-| Cockpit Tools | `ai_workspace/temp/ref-cockpit-tools` | `jlcodes99/cockpit-tools` | **根目录无 LICENSE** | 只参考 architecture / behavior / file layout / state machine。**禁止复制 Rust/TS 源码**，尤其 `grok_account.rs` |
-| Token Monitor | `ai_workspace/temp/ref-token-monitor` | `Javis603/token-monitor` | 有 LICENSE | 参考 identity、atomic auth projection、Tokscale adapter 边界。v0.5 先不接 32+ parser，也不做多设备同步 |
-| Tokscale | 未作为本轮必接 runtime | Token Monitor 的 vendored dependency | 后续 Usage Plane | 本轮不要 `exec("tokscale")` 进生产 |
+| 项目          | 本地只读克隆                          | 上游                                 | 许可                 | 用法                                                                                                            |
+| ------------- | ------------------------------------- | ------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Cockpit Tools | `ai_workspace/temp/ref-cockpit-tools` | `jlcodes99/cockpit-tools`            | **根目录无 LICENSE** | 只参考 architecture / behavior / file layout / state machine。**禁止复制 Rust/TS 源码**，尤其 `grok_account.rs` |
+| Token Monitor | `ai_workspace/temp/ref-token-monitor` | `Javis603/token-monitor`             | 有 LICENSE           | 参考 identity、atomic auth projection、Tokscale adapter 边界。v0.5 先不接 32+ parser，也不做多设备同步          |
+| Tokscale      | 未作为本轮必接 runtime                | Token Monitor 的 vendored dependency | 后续 Usage Plane     | 本轮不要 `exec("tokscale")` 进生产                                                                              |
 
 两类参考不得揉成一个 Usage 方案：
 

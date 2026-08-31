@@ -17,19 +17,26 @@
 
 每个账号：`initialize` success、`session/new` success、`session/close` success。`GROK_HOME` 钉在 managed profile。未读 token。
 
-| order | selected | storeStatus | prompt | 分类 |
-|---|---|---|---|---|
-| 0 | yes | available | `NATIVE_PROBE_OK` | **有额度** |
-| 1 | no | available | `-32603 Internal error` + `data.message` 402 usage balance exhausted | **耗尽** |
-| 2 | no | available | `NATIVE_PROBE_OK` | **有额度** |
-| 3 | no | available | 同上 402 | **耗尽** |
-| 4 | no | available | `NATIVE_PROBE_OK` | **有额度** |
-| 5 | no | available | 同上 402 | **耗尽** |
+| order | selected | storeStatus | prompt                                                               | 分类       |
+| ----- | -------- | ----------- | -------------------------------------------------------------------- | ---------- |
+| 0     | yes      | available   | `NATIVE_PROBE_OK`                                                    | **有额度** |
+| 1     | no       | available   | `-32603 Internal error` + `data.message` 402 usage balance exhausted | **耗尽**   |
+| 2     | no       | available   | `NATIVE_PROBE_OK`                                                    | **有额度** |
+| 3     | no       | available   | 同上 402                                                             | **耗尽**   |
+| 4     | no       | available   | `NATIVE_PROBE_OK`                                                    | **有额度** |
+| 5     | no       | available   | 同上 402                                                             | **耗尽**   |
 
 Grok 的真实错误形状：
 
 ```json
-{"code":-32603,"message":"Internal error","data":{"message":"API error (status 402 Payment Required): Grok Build usage balance exhausted","http_status":402}}
+{
+  "code": -32603,
+  "message": "Internal error",
+  "data": {
+    "message": "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+    "http_status": 402
+  }
+}
 ```
 
 UI 只展示 `Internal error`，因为 `resolveAcpPromptRpcErrorMessage` 只读 `data.details` / `data.detail`，**不读** Grok 的 `data.message`。`error.message` 又是泛化的 Internal error。

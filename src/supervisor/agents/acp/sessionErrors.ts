@@ -6,6 +6,62 @@ import {
   usageFromTokenCounts,
 } from "../contextUsage";
 
+/**
+ * Resolve the token usage payload from an ACP prompt response.
+ *
+ * The ACP schema exposes `PromptResponse.usage`, but some native providers
+ * (including the official Grok ACP runtime) report the same cumulative
+ * counters in the response-level `_meta`. Only provider-reported numeric
+ * fields are copied; missing counters stay missing so an unavailable usage
+ * source cannot become synthetic telemetry.
+ */
+export function resolveAcpPromptResponseUsage(
+  result: unknown,
+): Record<string, unknown> | undefined {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return undefined;
+  const response = result as Record<string, unknown>;
+  const standardUsage = response.usage;
+  if (standardUsage && typeof standardUsage === "object" && !Array.isArray(standardUsage)) {
+    return standardUsage as Record<string, unknown>;
+  }
+
+  const meta = response._meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return undefined;
+  const providerMeta = meta as Record<string, unknown>;
+  const totalTokens = readNonNegativeInteger(providerMeta.totalTokens);
+  const inputTokens = readNonNegativeInteger(providerMeta.inputTokens);
+  const outputTokens = readNonNegativeInteger(providerMeta.outputTokens);
+  const thoughtTokens =
+    readNonNegativeInteger(providerMeta.thoughtTokens) ??
+    readNonNegativeInteger(providerMeta.reasoningTokens);
+  const cachedReadTokens =
+    readNonNegativeInteger(providerMeta.cachedReadTokens) ??
+    readNonNegativeInteger(providerMeta.cacheReadTokens);
+  const cachedWriteTokens =
+    readNonNegativeInteger(providerMeta.cachedWriteTokens) ??
+    readNonNegativeInteger(providerMeta.cacheWriteTokens);
+
+  if (
+    totalTokens === undefined &&
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    thoughtTokens === undefined &&
+    cachedReadTokens === undefined &&
+    cachedWriteTokens === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(thoughtTokens !== undefined ? { thoughtTokens } : {}),
+    ...(cachedReadTokens !== undefined ? { cachedReadTokens } : {}),
+    ...(cachedWriteTokens !== undefined ? { cachedWriteTokens } : {}),
+  };
+}
+
 export function createAcpPromptUsageEvent(
   threadId: string,
   usage: unknown,
@@ -37,7 +93,7 @@ export function createAcpPromptUsageEvent(
 export function createAcpPromptUsageSpentEvent(
   threadId: string,
   usage: unknown,
-  scope: { scopeId: string; epoch: number; fresh?: boolean },
+  scope: { scopeId: string; epoch: number; fresh?: boolean; accountId?: string },
 ): RuntimeEvent | undefined {
   if (!usage || typeof usage !== "object") return undefined;
   const totalTokens = readNonNegativeInteger((usage as Record<string, unknown>).totalTokens);
@@ -52,6 +108,7 @@ export function createAcpPromptUsageSpentEvent(
       epoch: scope.epoch,
       ...(scope.fresh ? { fresh: true } : {}),
       sampleId: `${scope.scopeId}:${scope.epoch}:${totalTokens}`,
+      ...(scope.accountId ? { accountId: scope.accountId } : {}),
     },
   };
 }
@@ -169,7 +226,7 @@ export function resolveAcpPromptRpcErrorMessage(error: unknown): string {
           ? data.detail.trim()
           : providerMessage.length > 0
             ? providerMessage
-          : undefined;
+            : undefined;
     const message = typeof candidate.message === "string" ? candidate.message.trim() : "";
     if (detail && isGenericAcpPromptRpcErrorMessage(message)) return detail;
     if (message.length > 0) return message;

@@ -17,6 +17,7 @@ import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import type { SaveClipboardImage } from "../composer/useAttachments";
 import { ThreadComposerSection } from "./ThreadComposerSection";
 import type { ThreadErrorDockState } from "./threadErrorState";
+import type { ThreadTodoDockState } from "./threadTodoState";
 
 const bridgeMock = vi.hoisted(() => ({
   isRemoteSession: vi.fn<() => boolean>(() => false),
@@ -105,6 +106,7 @@ vi.mock("./ThreadComposer", () => ({
     compact?: boolean;
     controlsDisplay?: "inline" | "menu";
     leadingControls?: ReactNode | (() => ReactNode);
+    beforeEndControls?: ReactNode;
     afterControls?: ReactNode | (() => ReactNode);
     onAttachFiles?: (paths: string[]) => void;
     onStop?: () => void;
@@ -124,6 +126,7 @@ vi.mock("./ThreadComposer", () => ({
       {typeof props.leadingControls === "function"
         ? props.leadingControls()
         : props.leadingControls}
+      {props.beforeEndControls}
       {typeof props.afterControls === "function" ? props.afterControls() : props.afterControls}
       <output data-testid="control-kinds">
         {props.controls?.map((control) => control.kind ?? control.label ?? "").join(",") ?? ""}
@@ -332,6 +335,7 @@ describe("ThreadComposerSection", () => {
     agentStatus?: AgentStatus;
     autoFocusComposer?: boolean;
     errorDockStates?: ThreadErrorDockState[];
+    todoDockState?: ThreadTodoDockState | null;
     onSubmitInput?: (prompt: string, segments?: unknown) => Promise<void>;
     onOpenProjectRelativePath?: (path: string, lineNumber?: number) => void;
     saveClipboardImage?: SaveClipboardImage;
@@ -348,7 +352,7 @@ describe("ThreadComposerSection", () => {
         terminalPaneRef={{ current: null }}
         todoDockCollapsed={false}
         todoDockPlacement="composer"
-        todoDockState={null}
+        todoDockState={opts?.todoDockState ?? null}
         goalDockState={null}
         errorDockStates={opts?.errorDockStates ?? []}
         onGoalDockDismiss={() => undefined}
@@ -372,6 +376,7 @@ describe("ThreadComposerSection", () => {
     agentStatus?: AgentStatus;
     autoFocusComposer?: boolean;
     errorDockStates?: ThreadErrorDockState[];
+    todoDockState?: ThreadTodoDockState | null;
     onSubmitInput?: ReturnType<typeof vi.fn<(prompt: string, segments?: unknown) => Promise<void>>>;
     onOpenProjectRelativePath?: (path: string, lineNumber?: number) => void;
     saveClipboardImage?: SaveClipboardImage;
@@ -394,7 +399,11 @@ describe("ThreadComposerSection", () => {
       container.querySelector('[data-universal-docked-chat-input][data-placement="conversation"]'),
     ).toBeInTheDocument();
     expect(container.querySelector("[data-draft-context-bar]")).toBeInTheDocument();
-    expect(container.querySelector("[data-session-metrics]")).toBeInTheDocument();
+    // 用量/额度不再常驻显示：旧指标行已移除，详情收敛进工具栏的悬浮圆环。
+    expect(container.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-testid="context-quota-ring"]')).toHaveLength(1);
+    expect(container.querySelector(".poracode-context-indicator__ring")).not.toBeInTheDocument();
+    expect(composerAddMenuSpy).toHaveBeenCalled();
   });
 
   it("hides provider controls for active terminal threads", () => {
@@ -1551,6 +1560,55 @@ describe("ThreadComposerSection", () => {
       "Patch mobile runtime chrome",
     );
     expect(screen.getByLabelText("Thread goal dock")).toHaveTextContent("No mobile dead ends");
+  });
+
+  it("shows a GUI plan only as a collapsed capsule in the context bar", () => {
+    const todoDockState: ThreadTodoDockState = {
+      sourceItemId: "plan-gui",
+      itemState: "updated",
+      steps: [
+        { text: "Inspect the composer", status: "completed" },
+        { text: "Move plan progress", status: "in_progress" },
+        { text: "Verify the result", status: "pending" },
+      ],
+      activeIndex: 1,
+      sourceKind: "steps",
+    };
+    useAppStore.setState({
+      runtimeItemIdsByThread: { [guiThread.id]: ["plan-gui"] },
+      runtimeItemsByIdByThread: {
+        [guiThread.id]: {
+          "plan-gui": {
+            id: "plan-gui",
+            type: "plan",
+            state: "updated",
+            payload: {
+              steps: [
+                { step: "Inspect the composer", status: "completed" },
+                { step: "Move plan progress", status: "in_progress" },
+                { step: "Verify the result", status: "pending" },
+              ],
+            },
+            streams: {},
+          },
+        },
+      },
+    });
+
+    const { container } = renderComposer({ todoDockState });
+
+    const contextBar = container.querySelector("[data-draft-context-bar]");
+    expect(contextBar).not.toBeNull();
+    expect(contextBar?.querySelector('[data-testid="plan-progress-badge"]')).not.toBeNull();
+    expect(screen.getByRole("button", { name: "计划进度 1/3" })).toHaveTextContent("进程1/3");
+    expect(screen.queryByLabelText("Thread todo dock")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "计划进度 1/3" }));
+
+    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent("Move plan progress");
+    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent(
+      "当前：Move plan progress",
+    );
   });
 
   it("captures a successful remote terminal interrupt", async () => {

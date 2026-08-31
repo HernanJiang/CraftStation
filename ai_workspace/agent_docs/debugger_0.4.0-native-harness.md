@@ -45,23 +45,23 @@
 
 ### 独立测试 / 工具
 
-| 检查 | 结果 |
-|---|---|
-| `pnpm exec vitest run --configLoader runner src/supervisor/runtime/nativeHarness src/shared/crafting src/supervisor/runtime/nativeCodex` | **16 files / 72 tests passed** |
-| `pnpm typecheck` | **PASS** |
-| `codegraph status`（`D:\Work\CraftStation\craftstation`） | Index is up to date；2,889 files / 40,313 nodes / 151,311 edges |
-| `CRAFTSTATION_REAL_RUNTIME=1` / 真实 ACP / PTY / app-server 会话 | **本轮未执行，不得记 PASS** |
-| 全量 `src/supervisor/runtime.test.ts` 独立复跑 | 启动过但未在本轮拿到完整输出；**不以 Coder 自称的 116 passed 作为门禁** |
+| 检查                                                                                                                                     | 结果                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm exec vitest run --configLoader runner src/supervisor/runtime/nativeHarness src/shared/crafting src/supervisor/runtime/nativeCodex` | **16 files / 72 tests passed**                                          |
+| `pnpm typecheck`                                                                                                                         | **PASS**                                                                |
+| `codegraph status`（`D:\Work\CraftStation\craftstation`）                                                                                | Index is up to date；2,889 files / 40,313 nodes / 151,311 edges         |
+| `CRAFTSTATION_REAL_RUNTIME=1` / 真实 ACP / PTY / app-server 会话                                                                         | **本轮未执行，不得记 PASS**                                             |
+| 全量 `src/supervisor/runtime.test.ts` 独立复跑                                                                                           | 启动过但未在本轮拿到完整输出；**不以 Coder 自称的 116 passed 作为门禁** |
 
 ### 本机 binary / 认证信号（仅 `--version` 与文件存在性）
 
-| Harness | binary | version | auth signal | 本轮真实 session |
-|---|---|---|---|---|
-| Codex | Local OpenAI Codex `codex.exe` | `codex-cli 0.150.0-alpha.8` | `~/.codex/auth.json` 存在 | **unprobed** |
-| Grok Build | `~/.grok/bin/grok.exe` | `1.0.5 (5115b46bc9)` | `~/.grok/auth.json` 存在 | **unprobed** |
-| Kimi Code | npm `kimi.ps1` | `0.36.1` | `~/.kimi-code/config.toml` 与 credentials 存在 | **unprobed** |
-| Antigravity | `agy.exe` | `1.1.21` | keyring 仍为 soft signal | **unprobed** |
-| DeepSeek / DSH | PATH 中无 `dsh` / `deepseek` | n/a | n/a | **honest unavailable** |
+| Harness        | binary                         | version                     | auth signal                                    | 本轮真实 session       |
+| -------------- | ------------------------------ | --------------------------- | ---------------------------------------------- | ---------------------- |
+| Codex          | Local OpenAI Codex `codex.exe` | `codex-cli 0.150.0-alpha.8` | `~/.codex/auth.json` 存在                      | **unprobed**           |
+| Grok Build     | `~/.grok/bin/grok.exe`         | `1.0.5 (5115b46bc9)`        | `~/.grok/auth.json` 存在                       | **unprobed**           |
+| Kimi Code      | npm `kimi.ps1`                 | `0.36.1`                    | `~/.kimi-code/config.toml` 与 credentials 存在 | **unprobed**           |
+| Antigravity    | `agy.exe`                      | `1.1.21`                    | keyring 仍为 soft signal                       | **unprobed**           |
+| DeepSeek / DSH | PATH 中无 `dsh` / `deepseek`   | n/a                         | n/a                                            | **honest unavailable** |
 
 未读取任何 token / cookie / auth 文件内容；未启动 `grok agent stdio`、`kimi acp`、`agy` 交互或 Codex app-server 本轮探针。
 

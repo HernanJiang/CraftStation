@@ -384,24 +384,24 @@ v0.5 不得 Feature PASS，除非至少两个真实 Grok 账号完成以下 offi
 
 ### Current Implementation Gap Matrix
 
-| Capability | 当前事实 | Verdict | 计划动作 |
-|---|---|---|---|
-| AccountStore 持久化、启用/禁用、重命名、排序、atomic write/backup | 已存在 | DONE | 保留并补回归 |
-| Grok/Codex managed profile 与基础 Session binding | 已存在；Grok 使用隔离 `GROK_HOME`，Codex 使用隔离 `CODEX_HOME` | DONE | 接入调度与 E2E 证据 |
-| selected/首选账号语义 | `selected`、`selectAccount`、`selectedAccountId` 和 UI 仍存在 | FIX | 删除产品层 preferred 语义，迁移为 pool mode + explicit override |
-| 新 Session 账号传递 | `craftAgent` 当前主要只传 `craftPlan/projectLocation/prompt` | FIX | 在新 Session seam 解析并持久绑定最终 account/profile |
-| Priority / Round-Robin / Random | resolver 只有 selected + priority fallback | MISSING | 新增 provider-scoped scheduling contract、cursor 与 resolver |
-| hard-error 与 quota-low 过滤 | 现有 `error` 会停止 fallback | FIX | usable filtering：quota-low 可用，hard-error 跳过并保留诊断 |
-| Provider Card display order | 未持久化，排序硬编码 | MISSING | presentation-only order store 与 DnD |
-| Account Row order | 有 reorder，但 Codex/Grok drop provider 参数接反 | FIX | 修复 scope，明确只影响 pool scheduling order |
-| Identity / alias | UI 主副文本反向；Grok 默认 alias 不合约 | FIX | identity 大字、alias 小字、`<Provider> Account N` 默认生成 |
-| Account Row 2×2 usage grid | 当前无固定 per-account grid | MISSING | 在现有 Modal/UsagePanel 增量接入 |
-| Account-scoped quota/reset/status | quota refresh 固定走 Codex collector，Grok 行会错 provider | FIX/MISSING | provider-aware collectors、独立 snapshot、reset recovery |
-| Token usage/cache hit | TokenUsage contract 存在，UI/account 聚合未完整接线 | FIX | account-scoped summary、quality/provenance、无数据显示 `—` |
-| Tokscale | sidecar 明确返回未 bundled | MISSING | 正式 adapter、binary/version/capabilities/schema normalization、打包验证 |
-| 删除/refresh 安全 | managed-scope 基础已有；active Session 防护和 Grok reauth 仍缺 | FIX | binding guard、per-account refresh lock、原账号 reauth |
-| Renderer secret isolation | Renderer-safe view 不含 credential secret | DONE | 维持并加负向测试 |
-| Real Grok multi-account E2E | 尚无至少两个账号的完整产品级证据 | MISSING | v0.5 blocking acceptance |
+| Capability                                                        | 当前事实                                                       | Verdict     | 计划动作                                                                 |
+| ----------------------------------------------------------------- | -------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| AccountStore 持久化、启用/禁用、重命名、排序、atomic write/backup | 已存在                                                         | DONE        | 保留并补回归                                                             |
+| Grok/Codex managed profile 与基础 Session binding                 | 已存在；Grok 使用隔离 `GROK_HOME`，Codex 使用隔离 `CODEX_HOME` | DONE        | 接入调度与 E2E 证据                                                      |
+| selected/首选账号语义                                             | `selected`、`selectAccount`、`selectedAccountId` 和 UI 仍存在  | FIX         | 删除产品层 preferred 语义，迁移为 pool mode + explicit override          |
+| 新 Session 账号传递                                               | `craftAgent` 当前主要只传 `craftPlan/projectLocation/prompt`   | FIX         | 在新 Session seam 解析并持久绑定最终 account/profile                     |
+| Priority / Round-Robin / Random                                   | resolver 只有 selected + priority fallback                     | MISSING     | 新增 provider-scoped scheduling contract、cursor 与 resolver             |
+| hard-error 与 quota-low 过滤                                      | 现有 `error` 会停止 fallback                                   | FIX         | usable filtering：quota-low 可用，hard-error 跳过并保留诊断              |
+| Provider Card display order                                       | 未持久化，排序硬编码                                           | MISSING     | presentation-only order store 与 DnD                                     |
+| Account Row order                                                 | 有 reorder，但 Codex/Grok drop provider 参数接反               | FIX         | 修复 scope，明确只影响 pool scheduling order                             |
+| Identity / alias                                                  | UI 主副文本反向；Grok 默认 alias 不合约                        | FIX         | identity 大字、alias 小字、`<Provider> Account N` 默认生成               |
+| Account Row 2×2 usage grid                                        | 当前无固定 per-account grid                                    | MISSING     | 在现有 Modal/UsagePanel 增量接入                                         |
+| Account-scoped quota/reset/status                                 | quota refresh 固定走 Codex collector，Grok 行会错 provider     | FIX/MISSING | provider-aware collectors、独立 snapshot、reset recovery                 |
+| Token usage/cache hit                                             | TokenUsage contract 存在，UI/account 聚合未完整接线            | FIX         | account-scoped summary、quality/provenance、无数据显示 `—`               |
+| Tokscale                                                          | sidecar 明确返回未 bundled                                     | MISSING     | 正式 adapter、binary/version/capabilities/schema normalization、打包验证 |
+| 删除/refresh 安全                                                 | managed-scope 基础已有；active Session 防护和 Grok reauth 仍缺 | FIX         | binding guard、per-account refresh lock、原账号 reauth                   |
+| Renderer secret isolation                                         | Renderer-safe view 不含 credential secret                      | DONE        | 维持并加负向测试                                                         |
+| Real Grok multi-account E2E                                       | 尚无至少两个账号的完整产品级证据                               | MISSING     | v0.5 blocking acceptance                                                 |
 
 ### Deep Module Seams
 
@@ -432,18 +432,18 @@ v0.5 不得 Feature PASS，除非至少两个真实 Grok 账号完成以下 offi
 
 以下 Tickets 是单 Coder 的 tracer-bullet 顺序；每项都要求跨 contract、IPC/service、UI（若涉及）与测试的完整可验证切片。
 
-| Ticket | 标题 | Blocked by | 交付与验收重点 |
-|---|---|---|---|
-| T01 | Audit baseline 与迁移契约 | None | 固化 Gap Matrix；定义 selected→mode/explicit 迁移、持久化版本和兼容回归；无 secret 进入投影。 |
-| T02 | Account Pool scheduling contract | T01 | provider-scoped mode、ordered accounts、usable filtering、稳定错误；默认 priority。 |
-| T03 | Priority tracer 与 Session sticky | T02 | 新 Session 真实绑定 profile；priority fallback、显式不可用报错、resume/restart sticky。 |
-| T04 | Round-Robin / Random | T02,T03 | RR cursor/顺序持久化策略、随机只取 usable、测试不依赖具体随机序列。 |
-| T05 | Provider presentation order 与 4/1 UI | T01 | Provider DnD 持久化且不影响 runtime；认证/未认证左右区域和响应式滚动。 |
-| T06 | Identity、alias 与 Account Row 2×2 | T02,T05 | 主副文字、默认 alias、编辑持久化、优先级文案和四格 usage view model。 |
-| T07 | Account-scoped quota/status/reset | T02,T03,T06 | provider-aware collector；A/B quota、reset、status 独立；刷新不串号。 |
-| T08 | Tokscale adapter 与 packaging | T01,T06,T07 | capability/version/binary resolution、profile scope、normalization/provenance、打包产物验证。 |
-| T09 | Security、删除与 refresh hardening | T03,T07,T08 | active binding guard、原账号 reauth、atomic/lock、managed-only 删除、日志脱敏。 |
-| T10 | Grok 双账号真实 E2E 与回归 | T03,T04,T07,T08,T09 | 至少两个真实 Grok 账号完成 Priority/RR/explicit/sticky/quota/profile/native runtime 全链路；形成独立证据。 |
+| Ticket | 标题                                  | Blocked by          | 交付与验收重点                                                                                             |
+| ------ | ------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| T01    | Audit baseline 与迁移契约             | None                | 固化 Gap Matrix；定义 selected→mode/explicit 迁移、持久化版本和兼容回归；无 secret 进入投影。              |
+| T02    | Account Pool scheduling contract      | T01                 | provider-scoped mode、ordered accounts、usable filtering、稳定错误；默认 priority。                        |
+| T03    | Priority tracer 与 Session sticky     | T02                 | 新 Session 真实绑定 profile；priority fallback、显式不可用报错、resume/restart sticky。                    |
+| T04    | Round-Robin / Random                  | T02,T03             | RR cursor/顺序持久化策略、随机只取 usable、测试不依赖具体随机序列。                                        |
+| T05    | Provider presentation order 与 4/1 UI | T01                 | Provider DnD 持久化且不影响 runtime；认证/未认证左右区域和响应式滚动。                                     |
+| T06    | Identity、alias 与 Account Row 2×2    | T02,T05             | 主副文字、默认 alias、编辑持久化、优先级文案和四格 usage view model。                                      |
+| T07    | Account-scoped quota/status/reset     | T02,T03,T06         | provider-aware collector；A/B quota、reset、status 独立；刷新不串号。                                      |
+| T08    | Tokscale adapter 与 packaging         | T01,T06,T07         | capability/version/binary resolution、profile scope、normalization/provenance、打包产物验证。              |
+| T09    | Security、删除与 refresh hardening    | T03,T07,T08         | active binding guard、原账号 reauth、atomic/lock、managed-only 删除、日志脱敏。                            |
+| T10    | Grok 双账号真实 E2E 与回归            | T03,T04,T07,T08,T09 | 至少两个真实 Grok 账号完成 Priority/RR/explicit/sticky/quota/profile/native runtime 全链路；形成独立证据。 |
 
 ### Detailed Acceptance Criteria
 

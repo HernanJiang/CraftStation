@@ -37,6 +37,20 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     refreshAgentStatuses: (payload) => registry.refreshAgentStatuses(payload),
     getProviderUsage: (payload) => usage.getProviderUsage(payload),
     refreshProviderUsage: (payload) => usage.refreshProviderUsage(payload),
+    forgetProviderUsage: (payload) => runtime.forgetProviderUsage(payload.providerId),
+    importAntigravityProfile: (payload) =>
+      runtime.importAntigravityProfile(payload.accountId ? { accountId: payload.accountId } : {}),
+    importOpenAiCompatibleProfile: (payload) =>
+      runtime.importOpenAiCompatibleProfile(
+        payload.accountId ? { accountId: payload.accountId } : {},
+      ),
+    getOpenAiCompatibleProfile: (payload) => runtime.getOpenAiCompatibleProfile(payload),
+    listChannelModels: (payload) =>
+      runtime.listChannelModels(
+        payload.accountId
+          ? { provider: payload.provider, accountId: payload.accountId }
+          : { provider: payload.provider },
+      ),
     listAccounts: (payload) => runtime.listAccounts(payload),
     addAccount: (payload) => runtime.addAccount(payload),
     removeAccount: (payload) => runtime.removeAccount(payload.accountId),

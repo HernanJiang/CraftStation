@@ -40,7 +40,9 @@ export function isCodexRouterOverlayHome(codexHome: string): boolean {
 /** Codex homes CraftStation may read. Host ~/.codex is skipped when Router owns it. */
 export function isolatedCodexHomeCandidates(): string[] {
   const homes = [nativePrivateCodexHome(), hostCodexHome()];
-  return homes.filter((home, index) => homes.indexOf(home) === index && !isCodexRouterOverlayHome(home));
+  return homes.filter(
+    (home, index) => homes.indexOf(home) === index && !isCodexRouterOverlayHome(home),
+  );
 }
 
 /**

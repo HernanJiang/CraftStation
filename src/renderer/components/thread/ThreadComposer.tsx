@@ -83,6 +83,7 @@ export type ComposerControl =
       providers: ProviderModelMenuProvider[];
       currentAgentKind: string;
       currentModel: string;
+      currentAccountId?: string;
       lockedAgentKind?: string;
       presentationMode?: ThreadPresentationMode;
       isDisabled?: boolean;
@@ -92,6 +93,7 @@ export type ComposerControl =
         agentKind: string;
         model: string;
         presentationMode?: ThreadPresentationMode;
+        accountId?: string;
       }) => void;
       /** Codex layout: pin this control to the right end of the toolbar.
           Wrap-collapse measurement still counts it via the probe tree. */
@@ -239,8 +241,7 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
       <Dropdown.Popover placement="top start" className="min-w-[210px] rounded-[14px]">
         <Dropdown.Menu
           aria-label="执行模式与权限"
-          selectionMode="single"
-          selectedKeys={[planMode ? "plan" : fullAccess ? "full" : "approve"]}
+          selectionMode="none"
           onAction={(key) => {
             const next = String(key);
             if (next === "plan") {
@@ -570,6 +571,7 @@ export function ThreadComposer(props: {
           providers={control.providers}
           currentAgentKind={control.currentAgentKind}
           currentModel={control.currentModel}
+          {...(control.currentAccountId ? { currentAccountId: control.currentAccountId } : {})}
           {...(control.lockedAgentKind ? { lockedAgentKind: control.lockedAgentKind } : {})}
           {...(control.presentationMode ? { presentationMode: control.presentationMode } : {})}
           {...(control.isDisabled !== undefined ? { isDisabled: control.isDisabled } : {})}

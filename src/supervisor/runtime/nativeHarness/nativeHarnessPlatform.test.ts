@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ProjectLocation } from "@/shared/contracts";
 import { buildAgentCommand } from "@/supervisor/agents/base";
-import { clearAgentBinaryPathCache, primeAgentBinaryPath } from "@/supervisor/agents/binaryResolver";
+import {
+  clearAgentBinaryPathCache,
+  primeAgentBinaryPath,
+} from "@/supervisor/agents/binaryResolver";
 
 afterEach(() => {
   clearAgentBinaryPathCache();
@@ -49,13 +52,9 @@ describe("Native Harness platform launch contract", () => {
     };
     primeAgentBinaryPath("Ubuntu", "agy", "/usr/local/bin/agy");
 
-    const spec = buildAgentCommand(
-      location,
-      "agy",
-      ["--interactive"],
-      "/usr/local/bin/agy",
-      { HARNESS_PROFILE: "profile:antigravity" },
-    );
+    const spec = buildAgentCommand(location, "agy", ["--interactive"], "/usr/local/bin/agy", {
+      HARNESS_PROFILE: "profile:antigravity",
+    });
     const script = spec.args.at(-1);
 
     expect(spec.command.toLowerCase()).toContain("wsl");

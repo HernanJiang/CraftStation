@@ -55,6 +55,33 @@ const QUOTA_SUMMARY = {
 };
 
 describe("antigravityQuotaSummaryWindows", () => {
+  it("reads nested remainingFraction from token-monitor-shaped buckets", () => {
+    const windows = antigravityQuotaSummaryWindows({
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            {
+              bucketId: "gemini-5h",
+              displayName: "Five Hour Limit",
+              remaining: { remainingFraction: 0.4 },
+            },
+            {
+              bucketId: "gemini-weekly",
+              displayName: "Weekly Limit",
+              remaining: { case: "remainingFraction", value: 0.75 },
+            },
+          ],
+        },
+      ],
+    });
+    expect(windows).toHaveLength(2);
+    expect(windows[0]?.id).toBe("antigravity:gemini:session-5h");
+    expect(windows[0]?.usedPercent).toBeCloseTo(60);
+    expect(windows[1]?.id).toBe("antigravity:gemini:weekly");
+    expect(windows[1]?.usedPercent).toBeCloseTo(25);
+  });
+
   it("builds four group×cadence windows ordered Gemini-first, 5h-before-weekly", () => {
     const windows = antigravityQuotaSummaryWindows(QUOTA_SUMMARY);
     expect(windows.map((w) => w.id)).toEqual([
@@ -109,6 +136,22 @@ describe("antigravityQuotaSummaryWindows", () => {
     expect(antigravityQuotaSummaryWindows(undefined)).toEqual([]);
     expect(antigravityQuotaSummaryWindows({ response: {} })).toEqual([]);
     expect(antigravityQuotaSummaryWindows({ anything: [1, 2] })).toEqual([]);
+  });
+
+  it("unwraps token-monitor summary envelopes so quota bars are not empty", () => {
+    const windows = antigravityQuotaSummaryWindows({
+      summary: {
+        groups: [
+          {
+            displayName: "Gemini Models",
+            buckets: [{ bucketId: "gemini-5h", remainingFraction: 0.25 }],
+          },
+        ],
+      },
+    });
+    expect(windows).toHaveLength(1);
+    expect(windows[0]?.id).toBe("antigravity:gemini:session-5h");
+    expect(windows[0]?.usedPercent).toBeCloseTo(75);
   });
 });
 

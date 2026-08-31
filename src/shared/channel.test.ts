@@ -24,8 +24,8 @@ describe("channel", () => {
   });
 
   it("returns the right user data dir names", () => {
-    expect(userDataDirNameFor("stable")).toBe(".poracode");
-    expect(userDataDirNameFor("nightly")).toBe(".poracode-nightly");
+    expect(userDataDirNameFor("stable")).toBe(".craftstation");
+    expect(userDataDirNameFor("nightly")).toBe(".craftstation-nightly");
   });
 
   it("only returns a published channel name for nightly", () => {

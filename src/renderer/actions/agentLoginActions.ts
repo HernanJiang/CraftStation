@@ -9,6 +9,8 @@ import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { useLoginTerminalStore } from "@/renderer/state/loginTerminalStore";
 import { watchRoutedTerminal } from "@/renderer/state/remoteTerminalFeed";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
+import { refreshAndMergeProviderUsage } from "@/renderer/components/providers/refreshProviderUsageSnapshot";
 import {
   disposeRoutedShellSession,
   startShellWithCurrentSettings,
@@ -50,6 +52,8 @@ export function runAgentLoginCommand(input: {
   label: string;
   command: string;
   env?: Record<string, string>;
+  /** Overlay subtitle override (e.g. keepalive sessions like Antigravity). */
+  subtitle?: string;
   onCommandComplete?: (exitCode: number) => void;
   project?: Project;
 }): boolean {
@@ -129,6 +133,7 @@ export function runAgentLoginCommand(input: {
     shellId,
     label: input.label,
     projectLocation: project.location,
+    ...(input.subtitle ? { subtitle: input.subtitle } : {}),
     onForceClose: () => {
       stopWatching();
       stopOpeningUrls?.();
@@ -222,6 +227,42 @@ export async function createAndRunCodexProfileLogin(input?: {
     return false;
   } finally {
     codexProfileLoginStartInFlight = false;
+  }
+}
+
+/** Antigravity add-account / re-auth: browser OAuth, then pool import. */
+export async function signInAndImportAntigravityAccount(input?: {
+  accountId?: string;
+}): Promise<boolean> {
+  try {
+    const outcome = await readBridge().startUsageLogin({ providerId: "antigravity" });
+    if (!outcome.ok) {
+      if (!outcome.cancelled) {
+        toast.danger(outcome.error ?? "Antigravity 登录失败，请重试。");
+      }
+      return false;
+    }
+    const account = await readBridge().importAntigravityProfile(
+      input?.accountId ? { accountId: input.accountId } : {},
+    );
+    useUsageLoginStateStore.getState().setStored("antigravity", true);
+    // Pull the new row's quota right away, or the pool shows
+    // 暂无可用额度数据 until the next refresh cycle.
+    await readBridge()
+      .refreshAccountQuota({ accountId: account.accountId })
+      .catch(() => undefined);
+    const accounts = await readBridge().listAccounts({});
+    useUsageAccountsStore.getState().setAccounts(accounts);
+    await refreshAndMergeProviderUsage("antigravity");
+    toast.success(
+      input?.accountId
+        ? `Antigravity 账号 ${account.label} 已更新授权。`
+        : "Antigravity 账号已加入号池。",
+    );
+    return true;
+  } catch (error) {
+    toast.danger(error instanceof Error ? error.message : "Antigravity 授权失败，请重试。");
+    return false;
   }
 }
 
@@ -473,11 +514,11 @@ async function runCodexProfileLoginInternal(input: {
         .accounts.find((account) => account.accountId === input.accountId);
       loginSucceeded = Boolean(
         authorized &&
-          (authorized.status === "available" ||
-            authorized.status === "quota-low" ||
-            authorized.status === "quota-exhausted" ||
-            authorized.maskedIdentity ||
-            authorized.providerAccountId),
+        (authorized.status === "available" ||
+          authorized.status === "quota-low" ||
+          authorized.status === "quota-exhausted" ||
+          authorized.maskedIdentity ||
+          authorized.providerAccountId),
       );
       window.setTimeout(() => {
         if (useLoginTerminalStore.getState().active?.shellId === shellId) {

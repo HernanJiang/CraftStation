@@ -26,7 +26,7 @@ import { useChatPaneActions } from "../../chatPaneActionsContext";
 import { normalizeChatProjectPath } from "../../chatPathUtils";
 import { openUserMessageActions } from "../../userMessageActions";
 import { CheckpointRevertButton, type CheckpointRevertRequest } from "../CheckpointRevertControls";
-import { chatPromptSurfaceClass } from "./chatMessageSurface";
+import { userMessageSurfaceClass } from "./chatMessageSurface";
 import { CopyTextButton } from "./CopyTextButton";
 import { InlineFilePathChip } from "./InlineFilePathChip";
 import { PluginIcon } from "@/renderer/components/plugins/PluginIcon";
@@ -223,7 +223,7 @@ export const UserMessage = memo(function UserMessage({
       : isCollapsible
         ? "max-h-[50vh] overflow-y-auto"
         : "";
-  const baseBodyClass = `min-w-0 leading-snug ${!isRemote && checkpointRevert ? "pr-12" : "pr-7"} ${collapseClass}`;
+  const baseBodyClass = `min-w-0 leading-snug ${collapseClass}`;
   const inlineBodyClass = `${baseBodyClass} poracode-user-message-inline-content whitespace-pre-wrap break-words text-[length:var(--lc-chat-font-size)] text-foreground`;
 
   let bodyContent: ReactNode = null;
@@ -252,61 +252,73 @@ export const UserMessage = memo(function UserMessage({
     bodyContent = <ItemMarkdown text={text} />;
   }
 
+  const sentAt = item.startedAt
+    ? new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(
+        item.startedAt,
+      )
+    : null;
+
   return (
-    <Surface
-      variant="tertiary"
-      className={chatPromptSurfaceClass}
-      data-user-message="true"
-      {...longPressHandlers}
-    >
-      <div className="min-w-0 space-y-1.5 leading-snug">
-        {attachments.length > 0 ? (
-          <div className="-mt-1">
-            <AttachmentBar
-              attachments={attachments}
-              layout="flush"
-              imagesAsPreview
-              {...(imageUrlForPath ? { imageUrlForPath } : {})}
-              onPreviewImage={(att) => {
-                const imageAttachments = attachments.filter((a) => a.isImage);
-                const idx = imageAttachments.findIndex((a) => a.id === att.id);
-                if (idx >= 0) openAttachmentLightbox(imageAttachments, idx, imageUrlForPath);
-              }}
-              onPreviewPdf={(att) => openPdfPreview(att.path)}
-            />
-          </div>
+    <div className="ml-auto flex w-fit max-w-[85%] flex-col items-end" data-user-message-row="true">
+      <Surface
+        variant="tertiary"
+        className={userMessageSurfaceClass}
+        data-user-message="true"
+        {...longPressHandlers}
+      >
+        <div className="min-w-0 space-y-1.5 leading-snug">
+          {attachments.length > 0 ? (
+            <div className="-mt-1">
+              <AttachmentBar
+                attachments={attachments}
+                layout="flush"
+                imagesAsPreview
+                {...(imageUrlForPath ? { imageUrlForPath } : {})}
+                onPreviewImage={(att) => {
+                  const imageAttachments = attachments.filter((a) => a.isImage);
+                  const idx = imageAttachments.findIndex((a) => a.id === att.id);
+                  if (idx >= 0) openAttachmentLightbox(imageAttachments, idx, imageUrlForPath);
+                }}
+                onPreviewPdf={(att) => openPdfPreview(att.path)}
+              />
+            </div>
+          ) : null}
+          {bodyContent !== null ? (
+            <div ref={bodyRef} data-user-message-content="true" className={bodyClass}>
+              {bodyContent}
+            </div>
+          ) : null}
+        </div>
+        {isCollapsible ? (
+          <>
+            <Tooltip delay={300}>
+              <Tooltip.Trigger
+                aria-expanded={isExpanded}
+                aria-label={tooltipLabel}
+                onClick={() => {
+                  // Chromium preserves an overflow container's scrollTop when it
+                  // becomes clamped. Reset it before collapsing so the first four
+                  // lines paint from the top instead of overlapping the scrolled
+                  // tail inside the shorter box.
+                  if (isExpanded && bodyRef.current) bodyRef.current.scrollTop = 0;
+                  setIsExpanded((prev) => !prev);
+                  actions?.onContentHeightChange();
+                }}
+                className="absolute bottom-1 right-2 flex size-5 items-center justify-center text-muted transition-colors hover:text-foreground"
+              >
+                <Icon className="size-3.5" />
+              </Tooltip.Trigger>
+              <Tooltip.Content placement="top">{tooltipLabel}</Tooltip.Content>
+            </Tooltip>
+          </>
         ) : null}
-        {bodyContent !== null ? (
-          <div ref={bodyRef} data-user-message-content="true" className={bodyClass}>
-            {bodyContent}
-          </div>
-        ) : null}
-      </div>
-      {isCollapsible ? (
-        <>
-          <Tooltip delay={300}>
-            <Tooltip.Trigger
-              aria-expanded={isExpanded}
-              aria-label={tooltipLabel}
-              onClick={() => {
-                // Chromium preserves an overflow container's scrollTop when it
-                // becomes clamped. Reset it before collapsing so the first four
-                // lines paint from the top instead of overlapping the scrolled
-                // tail inside the shorter box.
-                if (isExpanded && bodyRef.current) bodyRef.current.scrollTop = 0;
-                setIsExpanded((prev) => !prev);
-                actions?.onContentHeightChange();
-              }}
-              className="absolute bottom-1 right-2 flex size-5 items-center justify-center text-muted transition-colors hover:text-foreground"
-            >
-              <Icon className="size-3.5" />
-            </Tooltip.Trigger>
-            <Tooltip.Content placement="top">{tooltipLabel}</Tooltip.Content>
-          </Tooltip>
-        </>
-      ) : null}
+      </Surface>
       {!isRemote ? (
-        <div className="poracode-message-action-strip absolute right-2 top-2 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/checkpoint:opacity-100 focus-within:opacity-100">
+        <div
+          data-user-message-actions="true"
+          className="poracode-message-action-strip mt-1 flex min-h-5 items-center justify-end gap-1 pr-1 text-[10px] text-muted opacity-0 transition-opacity group-hover/checkpoint:opacity-100 focus-within:opacity-100"
+        >
+          {sentAt ? <time dateTime={new Date(item.startedAt!).toISOString()}>{sentAt}</time> : null}
           {checkpointRevert ? (
             <CheckpointRevertButton
               itemId={checkpointRevert.itemId}
@@ -316,7 +328,7 @@ export const UserMessage = memo(function UserMessage({
           <CopyTextButton text={rawText} label={t`Copy message`} />
         </div>
       ) : null}
-    </Surface>
+    </div>
   );
 });
 

@@ -25,6 +25,8 @@ const GROK_TOKEN_KEYS = [
 export const GROK_REFRESH_TOKEN_KEYS = ["refresh_token", "refreshToken"] as const;
 const GROK_CLIENT_ID_KEYS = ["oidc_client_id", "client_id", "clientId"] as const;
 export const GROK_EXPIRY_KEYS = ["expires_at", "expiresAt", "expiry", "expires"] as const;
+const GROK_EMAIL_KEYS = ["email", "user_email", "userEmail"] as const;
+const GROK_ACCOUNT_ID_KEYS = ["principal_id", "user_id", "account_id", "accountId"] as const;
 
 /** First non-empty string among `keys`, with the key that carried it. */
 export function pickGrokField(
@@ -104,6 +106,62 @@ export function grokAuthContainer(parsed: unknown): GrokAuthContainer | undefine
   return best?.entry;
 }
 
+const GROK_COOKIE_KEYS = ["cookie", "cookie_header", "session_cookie", "cookies"] as const;
+
+function normalizeGrokCookieValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized || undefined;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => {
+        if (typeof entry === "string") return entry.trim();
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return undefined;
+        const record = entry as Record<string, unknown>;
+        const name = typeof record.name === "string" ? record.name.trim() : "";
+        const cookieValue = typeof record.value === "string" ? record.value.trim() : "";
+        return name && cookieValue ? `${name}=${cookieValue}` : undefined;
+      })
+      .filter((entry): entry is string => Boolean(entry));
+    return parts.length > 0 ? parts.join("; ") : undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  const cookieValue = typeof record.value === "string" ? record.value.trim() : "";
+  if (name && cookieValue) return `${name}=${cookieValue}`;
+  const entries = Object.entries(record)
+    .filter(([, entry]) => typeof entry === "string" && entry.trim())
+    .map(([key, entry]) => `${key}=${String(entry).trim()}`);
+  return entries.length > 0 ? entries.join("; ") : undefined;
+}
+
+/**
+ * Read an optional session-cookie header from an official Grok auth file.
+ * This stays supervisor-side; renderer projections never contain the value.
+ */
+export function parseGrokCookie(content: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return undefined;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+  const root = parsed as Record<string, unknown>;
+  const containers = [grokAuthContainer(parsed)?.container, root].filter(
+    (entry): entry is Record<string, unknown> => Boolean(entry),
+  );
+  for (const container of containers) {
+    for (const key of GROK_COOKIE_KEYS) {
+      const cookie = normalizeGrokCookieValue(container[key]);
+      if (cookie) return cookie;
+    }
+  }
+  return undefined;
+}
+
 /** `"https://auth.x.ai::<client_id>"` → the client id, for files that omit the field. */
 function clientIdFromContainerName(name: string | undefined): string | undefined {
   if (!name?.includes("::")) return undefined;
@@ -136,10 +194,17 @@ export function parseGrokAuth(content: string): OAuthToken | undefined {
   const expiresAt = grokExpiryToMs(
     (pickGrokRaw(container, GROK_EXPIRY_KEYS) ?? pickGrokRaw(root, GROK_EXPIRY_KEYS))?.value,
   );
+  const email =
+    pickGrokField(container, GROK_EMAIL_KEYS)?.value ?? pickGrokField(root, GROK_EMAIL_KEYS)?.value;
+  const accountId =
+    pickGrokField(container, GROK_ACCOUNT_ID_KEYS)?.value ??
+    pickGrokField(root, GROK_ACCOUNT_ID_KEYS)?.value;
   return {
     accessToken,
     ...(refreshToken ? { refreshToken } : {}),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
+    ...(email ? { email } : {}),
+    ...(accountId ? { accountId } : {}),
     ...(clientId ? { raw: { clientId } } : {}),
   };
 }

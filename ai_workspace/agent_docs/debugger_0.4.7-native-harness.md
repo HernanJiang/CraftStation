@@ -45,13 +45,13 @@
 
 ### 独立测试（Debugger 复跑）
 
-| 套件 | 结果 |
-|---|---|
-| `grokProfiles.test.ts` + `accountStore` + `accountResolver` + `runtime.test.ts` Grok 控制面 | **通过**（黄金路径单测成立） |
-| Sidebar「routes the Grok card through the official CLI device login」 | **通过**（未出现在 FAIL 列表） |
-| agentLoginActions「never grok.com」 | **通过** |
-| `agentLoginActions.test.ts` 3 个 Codex profile 用例 | **FAIL**：timeout / `onForceClose` undefined / `closeThread` 未被调用 |
-| Sidebar「Work profile 登录授权」 | **FAIL**：找不到按钮名 `Work profile 登录授权` |
+| 套件                                                                                        | 结果                                                                  |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `grokProfiles.test.ts` + `accountStore` + `accountResolver` + `runtime.test.ts` Grok 控制面 | **通过**（黄金路径单测成立）                                          |
+| Sidebar「routes the Grok card through the official CLI device login」                       | **通过**（未出现在 FAIL 列表）                                        |
+| agentLoginActions「never grok.com」                                                         | **通过**                                                              |
+| `agentLoginActions.test.ts` 3 个 Codex profile 用例                                         | **FAIL**：timeout / `onForceClose` undefined / `closeThread` 未被调用 |
+| Sidebar「Work profile 登录授权」                                                            | **FAIL**：找不到按钮名 `Work profile 登录授权`                        |
 
 这 4 个失败都在 **本轮改过的文件**（`agentLoginActions.ts` +213 / `SidebarProviderAccounts.tsx` +473），**不能**记成并行 Agent 遗留。
 
@@ -65,15 +65,15 @@
 
 ## Spec Fidelity
 
-| 要求 | 结果 |
-|---|---|
-| 点 Grok 卡片不再打开 grok.com | **部分满足**（改走 CLI device-auth） |
-| 官方授权 URL | **部分满足**（`accounts.x.ai/oauth2/device`；不是 grok.com，也不是旧的 `auth.x.ai/oauth2/authorize`） |
-| 登录写入 managed GROK_HOME，成功后才插账号 | **不满足**（生产登录仍写默认 home，且无 import IPC） |
-| A/B 独立 GROK_HOME + Session sticky | **单测满足，生产登录未闭环** |
-| Renderer 零 secret | **满足**（AccountView） |
-| 禁止 Router/CLIProxy | **满足** |
-| Codex isolated profile 回归 | **FAIL** |
+| 要求                                       | 结果                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| 点 Grok 卡片不再打开 grok.com              | **部分满足**（改走 CLI device-auth）                                                                  |
+| 官方授权 URL                               | **部分满足**（`accounts.x.ai/oauth2/device`；不是 grok.com，也不是旧的 `auth.x.ai/oauth2/authorize`） |
+| 登录写入 managed GROK_HOME，成功后才插账号 | **不满足**（生产登录仍写默认 home，且无 import IPC）                                                  |
+| A/B 独立 GROK_HOME + Session sticky        | **单测满足，生产登录未闭环**                                                                          |
+| Renderer 零 secret                         | **满足**（AccountView）                                                                               |
+| 禁止 Router/CLIProxy                       | **满足**                                                                                              |
+| Codex isolated profile 回归                | **FAIL**                                                                                              |
 
 ## Findings
 

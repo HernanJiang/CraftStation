@@ -40,38 +40,38 @@
 
 ### 独立测试 / 工具
 
-| 检查 | 结果 |
-|---|---|
-| nativeHarness + crafting + Codex baseline | **16 files / 71 passed** |
-| `CraftingGrid` + `HarnessPanel` | **2 files / 10 passed** |
-| `runtime.test.ts -t routes` | **5 passed / 43 skipped** |
-| `pnpm typecheck` | **PASS** |
-| `pnpm lint` | **PASS** |
-| `codegraph status` | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges |
+| 检查                                      | 结果                                                            |
+| ----------------------------------------- | --------------------------------------------------------------- |
+| nativeHarness + crafting + Codex baseline | **16 files / 71 passed**                                        |
+| `CraftingGrid` + `HarnessPanel`           | **2 files / 10 passed**                                         |
+| `runtime.test.ts -t routes`               | **5 passed / 43 skipped**                                       |
+| `pnpm typecheck`                          | **PASS**                                                        |
+| `pnpm lint`                               | **PASS**                                                        |
+| `codegraph status`                        | Index is up to date；2,890 files / 40,323 nodes / 151,327 edges |
 
 Coder 自称 19 files / 131 tests 本轮未整包复跑；以上定向复跑足以证明 F01/F02/F03/F05 未回退。全量数字不作为本轮门禁。
 
 ### 真实探针（Coder 记录，Debugger 按诚实边界采信）
 
-| Harness | 本轮证据 | 质量门结论 |
-|---|---|---|
-| Codex | initialize + `thread/start` 成功；等待 `turn/completed` 超时 `PROBE_TIMEOUT`；interrupt `NATIVE_EXECUTION_FAILED` | **partial / error**，保持 `implementation missing` |
-| Grok | initialize + `session/new` 成功；prompt 官方 usage balance exhausted；`session/close` 成功 | **error**，保持 `implementation missing` |
-| Kimi | initialize + `session/new` + `session/close` 成功；prompt `AUTH_REQUIRED`；cancel `NATIVE_EXECUTION_FAILED` | **partial / error**，保持 `implementation missing` |
-| Antigravity | 未跑 PTY | **unprobed** |
-| DeepSeek / DSH | 无官方 executable | **unavailable**，无 Entity |
+| Harness        | 本轮证据                                                                                                          | 质量门结论                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Codex          | initialize + `thread/start` 成功；等待 `turn/completed` 超时 `PROBE_TIMEOUT`；interrupt `NATIVE_EXECUTION_FAILED` | **partial / error**，保持 `implementation missing` |
+| Grok           | initialize + `session/new` 成功；prompt 官方 usage balance exhausted；`session/close` 成功                        | **error**，保持 `implementation missing`           |
+| Kimi           | initialize + `session/new` + `session/close` 成功；prompt `AUTH_REQUIRED`；cancel `NATIVE_EXECUTION_FAILED`       | **partial / error**，保持 `implementation missing` |
+| Antigravity    | 未跑 PTY                                                                                                          | **unprobed**                                       |
+| DeepSeek / DSH | 无官方 executable                                                                                                 | **unavailable**，无 Entity                         |
 
 Coder **没有**把这些写成 Feature PASS，也没有升格 capability。Debugger 同意。
 
 ## Fix Cycle Disposition
 
-| Finding | v0.4.2 复检 | 说明 |
-|---|---|---|
-| F01 | **仍关闭** | 生产 descriptor 未升格 |
-| F02 | **仍关闭** | 四条非 Codex Recipe 测试仍绿 |
-| F03 | **仍关闭** | Renderer 仍消费 Control Plane IPC |
-| F05 | **仍关闭** | 生产路由 + DSH 无 Entity |
-| F04 | **仍 OPEN / BLOCKED** | 没有完整 `start → turn/response → interrupt/cleanup` |
+| Finding | v0.4.2 复检           | 说明                                                 |
+| ------- | --------------------- | ---------------------------------------------------- |
+| F01     | **仍关闭**            | 生产 descriptor 未升格                               |
+| F02     | **仍关闭**            | 四条非 Codex Recipe 测试仍绿                         |
+| F03     | **仍关闭**            | Renderer 仍消费 Control Plane IPC                    |
+| F05     | **仍关闭**            | 生产路由 + DSH 无 Entity                             |
+| F04     | **仍 OPEN / BLOCKED** | 没有完整 `start → turn/response → interrupt/cleanup` |
 
 ## Remaining Findings
 

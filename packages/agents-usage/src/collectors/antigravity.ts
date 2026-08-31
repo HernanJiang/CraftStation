@@ -64,12 +64,63 @@ const ANTIGRAVITY_GROUP_LABEL: Record<AntigravityGroupKey, string> = {
  * cadence so the bucket is skipped rather than mislabeled.
  */
 function antigravityCadence(bucket: Record<string, unknown>): AntigravityCadence | undefined {
-  const window = typeof bucket.window === "string" ? bucket.window.toLowerCase() : "";
-  if (window === "5h") return "session-5h";
-  if (window === "weekly") return "weekly";
-  const display = typeof bucket.displayName === "string" ? bucket.displayName.toLowerCase() : "";
-  if (display.includes("hour")) return "session-5h";
-  if (display.includes("week")) return "weekly";
+  const sessionAliases = new Set(["session", "5h", "5-hour", "five hour", "five-hour"]);
+  const candidates: string[] = [];
+  for (const value of [bucket.window, bucket.bucketId, bucket.displayName]) {
+    if (typeof value !== "string" || !value.trim()) continue;
+    const normalized = value.trim().toLowerCase().replaceAll("_", "-");
+    candidates.push(normalized);
+    if (normalized.endsWith(" limit"))
+      candidates.push(normalized.slice(0, -" limit".length).trim());
+  }
+  for (const candidate of candidates) {
+    if (candidate === "weekly" || candidate.endsWith("-weekly")) return "weekly";
+    if (
+      sessionAliases.has(candidate) ||
+      [...sessionAliases].some((alias) => candidate.endsWith(`-${alias}`))
+    ) {
+      return "session-5h";
+    }
+    if (candidate.includes("week")) return "weekly";
+    if (candidate.includes("hour") || candidate.includes("5h") || candidate.includes("session")) {
+      return "session-5h";
+    }
+  }
+  return undefined;
+}
+
+/** Remaining fraction (0-1) from a quota bucket. Antigravity LS may nest it. */
+export function antigravityRemainingFraction(
+  bucket: Record<string, unknown> | undefined,
+): number | undefined {
+  if (!bucket) return undefined;
+  const direct = bucket.remainingFraction;
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
+  // Some LS builds wrap the fraction itself in a protobuf oneof envelope.
+  if (direct && typeof direct === "object") {
+    const envelope = direct as Record<string, unknown>;
+    if (
+      envelope.case === "remainingFraction" &&
+      typeof envelope.value === "number" &&
+      Number.isFinite(envelope.value)
+    ) {
+      return envelope.value;
+    }
+  }
+  const remaining = bucket.remaining;
+  if (remaining && typeof remaining === "object") {
+    const nested = remaining as Record<string, unknown>;
+    const nestedFraction = nested.remainingFraction;
+    if (typeof nestedFraction === "number" && Number.isFinite(nestedFraction))
+      return nestedFraction;
+    if (
+      nested.case === "remainingFraction" &&
+      typeof nested.value === "number" &&
+      Number.isFinite(nested.value)
+    ) {
+      return nested.value;
+    }
+  }
   return undefined;
 }
 
@@ -86,14 +137,25 @@ function antigravityWindowOrder(group: AntigravityGroupKey, cadence: Antigravity
 /** Pull the `groups` array out of a RetrieveUserQuotaSummary body, tolerant of nesting. */
 function quotaSummaryGroups(body: unknown): Record<string, unknown>[] {
   if (!body || typeof body !== "object") return [];
-  const root = body as Record<string, unknown>;
-  const response =
-    root.response && typeof root.response === "object"
-      ? (root.response as Record<string, unknown>)
-      : root;
-  const groups = response.groups;
-  if (!Array.isArray(groups)) return [];
-  return groups.filter((g): g is Record<string, unknown> => !!g && typeof g === "object");
+  // The LS may wrap the payload one or more times — { response: … },
+  // { summary: … }, or { response: { summary: … } } — so unwrap repeatedly
+  // until a groups array shows up or nothing is left to unwrap.
+  let wrapped = body as Record<string, unknown>;
+  for (let depth = 0; depth < 4; depth += 1) {
+    const groups = wrapped.groups;
+    if (Array.isArray(groups)) {
+      return groups.filter((g): g is Record<string, unknown> => !!g && typeof g === "object");
+    }
+    const next =
+      wrapped.response && typeof wrapped.response === "object"
+        ? (wrapped.response as Record<string, unknown>)
+        : wrapped.summary && typeof wrapped.summary === "object"
+          ? (wrapped.summary as Record<string, unknown>)
+          : undefined;
+    if (!next || next === wrapped) break;
+    wrapped = next;
+  }
+  return [];
 }
 
 /**
@@ -114,8 +176,8 @@ export function antigravityQuotaSummaryWindows(body: unknown): UsageWindow[] {
     for (const raw of buckets) {
       if (!raw || typeof raw !== "object") continue;
       const bucket = raw as Record<string, unknown>;
-      const fraction = bucket.remainingFraction;
-      if (typeof fraction !== "number" || !Number.isFinite(fraction)) continue;
+      const fraction = antigravityRemainingFraction(bucket);
+      if (fraction === undefined) continue;
       const cadence = antigravityCadence(bucket);
       if (!cadence) continue;
       const id = antigravityWindowId(groupKey, cadence);
@@ -165,6 +227,53 @@ export interface AntigravityModelQuota {
   /** 0-1; lower = more used. */
   remainingFraction: number;
   resetsAt: number | undefined;
+}
+
+/**
+ * Parse the `cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels` body
+ * (the same upstream the Antigravity language server proxies, per CodexRouter's
+ * working OAuth-only reader): `models: { <id>: { displayName, quotaInfo:
+ * { remainingFraction 0-1, resetTime } } }`. Accepts both numeric and string
+ * fractions, tolerant of nesting via `response`/`data` wrappers.
+ */
+export function antigravityModelsFromFetchAvailableModels(body: unknown): AntigravityModelQuota[] {
+  if (!body || typeof body !== "object") return [];
+  let root = body as Record<string, unknown>;
+  for (const key of ["response", "data"] as const) {
+    const nested = root[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      root = nested as Record<string, unknown>;
+    }
+  }
+  const models = root.models;
+  if (!models || typeof models !== "object" || Array.isArray(models)) return [];
+  const entries: AntigravityModelQuota[] = [];
+  for (const [id, raw] of Object.entries(models as Record<string, unknown>)) {
+    if (!raw || typeof raw !== "object") continue;
+    const detail = raw as Record<string, unknown>;
+    const quota = detail.quotaInfo;
+    if (!quota || typeof quota !== "object") continue;
+    const bucket = quota as Record<string, unknown>;
+    const rawFraction = bucket.remainingFraction;
+    const fraction =
+      typeof rawFraction === "number"
+        ? rawFraction
+        : typeof rawFraction === "string" && rawFraction.trim()
+          ? Number(rawFraction.trim())
+          : undefined;
+    if (fraction === undefined || !Number.isFinite(fraction)) continue;
+    const resetTime = bucket.resetTime;
+    entries.push({
+      label:
+        typeof detail.displayName === "string" && detail.displayName.trim()
+          ? detail.displayName.trim()
+          : id,
+      remainingFraction: Math.min(1, Math.max(0, fraction)),
+      resetsAt:
+        typeof resetTime === "string" && resetTime.trim() ? toEpochMs(resetTime) : undefined,
+    });
+  }
+  return entries;
 }
 
 /**

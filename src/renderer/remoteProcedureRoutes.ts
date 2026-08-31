@@ -59,6 +59,8 @@ export const NON_ROUTER_PROJECT_PROCEDURES = {
   craftAgent: "crafting-is-local-supervisor-only",
   resumeCraftAgent: "crafting-is-local-supervisor-only",
   startThread: "explicit-remote-thread-launch",
+  startCodexProfileLogin: "device-owned-profile-login",
+  startGrokProfileLogin: "device-owned-profile-login",
   cloneRepo: "remote-projects-use-project-command",
   relocateProject: "explicit-remote-project-command",
   extractContext: "remote-control-hidden",

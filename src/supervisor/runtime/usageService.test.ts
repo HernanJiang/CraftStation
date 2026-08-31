@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -105,11 +105,12 @@ describe("UsageService", () => {
       "copilot",
       "cursor",
       "factory",
-      "gemini",
       "grok",
       "kimi",
+      "openai-compatible",
       "opencode",
       "qwen",
+      "volcengine",
       "zai",
     ]);
   });
@@ -581,6 +582,126 @@ describe("UsageService", () => {
       status: "auth-missing",
       windows: [],
     });
+  });
+
+  it("remembers Antigravity identity when its live app closes", async () => {
+    let running = true;
+    const service = new UsageService({
+      emit: () => {},
+      cachePath: tempCachePath(),
+      host: makeHost({}),
+      localCollectors: [
+        {
+          id: "antigravity",
+          collect: (nowMs): Promise<UsageSnapshot> =>
+            Promise.resolve(
+              running
+                ? {
+                    providerId: "antigravity",
+                    status: "ok",
+                    authenticatedAs: "full.antigravity@example.com",
+                    plan: "Google AI Pro",
+                    windows: [
+                      {
+                        id: "antigravity:gemini",
+                        label: "Gemini",
+                        usedPercent: 24,
+                      },
+                    ],
+                    fetchedAt: nowMs,
+                  }
+                : {
+                    providerId: "antigravity",
+                    status: "app-not-running",
+                    windows: [],
+                    fetchedAt: nowMs,
+                  },
+            ),
+        },
+      ],
+    });
+
+    await service.refreshProviderUsage({ providerIds: ["antigravity"] });
+    running = false;
+    const refreshed = await service.refreshProviderUsage({ providerIds: ["antigravity"] });
+
+    expect(refreshed.snapshots[0]).toMatchObject({
+      providerId: "antigravity",
+      status: "app-not-running",
+      authenticatedAs: "full.antigravity@example.com",
+      plan: "Google AI Pro",
+      windows: [],
+    });
+  });
+
+  it("forgetProvider drops the remembered identity so a deleted authorization cannot resurrect", async () => {
+    let running = true;
+    const events: SupervisorEvent[] = [];
+    const cachePath = tempCachePath();
+    const service = new UsageService({
+      emit: (event) => events.push(event),
+      cachePath,
+      host: makeHost({}),
+      localCollectors: [
+        {
+          id: "antigravity",
+          collect: (nowMs): Promise<UsageSnapshot> =>
+            Promise.resolve(
+              running
+                ? {
+                    providerId: "antigravity",
+                    status: "ok",
+                    authenticatedAs: "full.antigravity@example.com",
+                    plan: "Google AI Pro",
+                    windows: [],
+                    fetchedAt: nowMs,
+                  }
+                : {
+                    providerId: "antigravity",
+                    status: "app-not-running",
+                    windows: [],
+                    fetchedAt: nowMs,
+                  },
+            ),
+        },
+      ],
+    });
+
+    await service.refreshProviderUsage({ providerIds: ["antigravity"] });
+    running = false;
+
+    // User deletes the authorization: the cached snapshot must go everywhere
+    // (memory + on-disk cache), and the next refresh must stay anonymous.
+    service.forgetProvider("antigravity");
+    const refreshed = await service.refreshProviderUsage({ providerIds: ["antigravity"] });
+    expect(refreshed.snapshots[0]).toMatchObject({
+      providerId: "antigravity",
+      status: "app-not-running",
+    });
+    expect(refreshed.snapshots[0]).not.toHaveProperty("authenticatedAs");
+    expect(refreshed.snapshots[0]).not.toHaveProperty("plan");
+
+    // The post-delete refresh legitimately re-caches an anonymous
+    // app-not-running snapshot — the identity must stay gone, not the entry.
+    const persisted = JSON.parse(readFileSync(cachePath, "utf8")) as {
+      snapshots: Array<{ providerId: string; authenticatedAs?: string; plan?: string }>;
+    };
+    const persistedAntigravity = persisted.snapshots.find(
+      (snapshot) => snapshot.providerId === "antigravity",
+    );
+    expect(persistedAntigravity).toBeDefined();
+    expect(persistedAntigravity).not.toHaveProperty("authenticatedAs");
+    expect(persistedAntigravity).not.toHaveProperty("plan");
+
+    const terminal = events.filter((event) => event.type === "provider-usage-all") as Extract<
+      SupervisorEvent,
+      { type: "provider-usage-all" }
+    >[];
+    const lastTerminal = terminal[terminal.length - 1];
+    expect(lastTerminal).toBeDefined();
+    const emitted = lastTerminal?.snapshots.find((s) => s.providerId === "antigravity");
+    expect(emitted).not.toHaveProperty("authenticatedAs");
+    expect(emitted).not.toHaveProperty("plan");
   });
 
   it("applies the default cooldown when preserving a bare rate-limited snapshot", async () => {

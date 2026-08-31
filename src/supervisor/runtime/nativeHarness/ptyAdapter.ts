@@ -113,9 +113,7 @@ class PtyNativeCraftSession implements CraftSession {
   private readonly _events: RuntimeEvent[] = [];
   private readonly _nativeEvents: NativeEventEnvelope[] = [];
   private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
-  private readonly _listeners = new Set<
-    (event: RuntimeEvent, snapshot: SessionSnapshot) => void
-  >();
+  private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
   private readonly _dataDisposable: { dispose(): void };
   private readonly _exitDisposable: { dispose(): void };
 
@@ -132,9 +130,7 @@ class PtyNativeCraftSession implements CraftSession {
   ) {
     this._providerSessionId = providerSessionId;
     this._dataDisposable = pty.onData((data) => this.handleData(data));
-    this._exitDisposable = pty.onExit(({ exitCode, signal }) =>
-      this.handleExit(exitCode, signal),
-    );
+    this._exitDisposable = pty.onExit(({ exitCode, signal }) => this.handleExit(exitCode, signal));
   }
 
   get status(): CraftSessionStatus {
@@ -189,12 +185,7 @@ class PtyNativeCraftSession implements CraftSession {
   }
 
   private emit(event: RuntimeEvent): void {
-    const next = withEnvelope(
-      event,
-      this.descriptor,
-      this._providerSessionId,
-      this._sequence++,
-    );
+    const next = withEnvelope(event, this.descriptor, this._providerSessionId, this._sequence++);
     this._events.push(next);
     if (next.nativeEnvelope) this._nativeEvents.push(next.nativeEnvelope);
     const snapshot = this.getSnapshot();
@@ -303,10 +294,9 @@ class PtyNativeCraftSession implements CraftSession {
       throw CraftingError.executionFailed(`Cannot use disposed ${this.descriptor.label}.`);
     }
     if (this._turn) {
-      throw CraftingError.executionFailed(
-        `A turn is already active in ${this.descriptor.label}.`,
-        { sessionId: this.id },
-      );
+      throw CraftingError.executionFailed(`A turn is already active in ${this.descriptor.label}.`, {
+        sessionId: this.id,
+      });
     }
     const turnId = command.turnId ?? `turn:${randomUUID()}`;
     const eventsStart = this._events.length;
@@ -335,9 +325,10 @@ class PtyNativeCraftSession implements CraftSession {
       activeTurn.resolve = resolve;
       activeTurn.reject = reject;
     });
-    const input =
-      this.adapter.buildDirectInput?.(command.prompt, undefined, this.config) ??
-      [command.prompt, "\r"];
+    const input = this.adapter.buildDirectInput?.(command.prompt, undefined, this.config) ?? [
+      command.prompt,
+      "\r",
+    ];
     if (command.signal?.aborted) {
       await this.interrupt(turnId);
       return result;
@@ -349,9 +340,15 @@ class PtyNativeCraftSession implements CraftSession {
     if (this.turnTimeoutMs > 0) {
       activeTurn.settleTimer = setTimeout(() => {
         this._diagnostics.push(
-          makeDiagnostic(this.descriptor, "turn", "turn-timeout", new Error("Native PTY turn timed out"), {
-            turnId,
-          }),
+          makeDiagnostic(
+            this.descriptor,
+            "turn",
+            "turn-timeout",
+            new Error("Native PTY turn timed out"),
+            {
+              turnId,
+            },
+          ),
         );
         this.finishTurn("failed", new Error(`Turn timed out after ${this.turnTimeoutMs}ms.`));
       }, this.turnTimeoutMs);
@@ -389,7 +386,10 @@ class PtyNativeCraftSession implements CraftSession {
     this._listeners.clear();
   }
 
-  async sendPrompt(prompt: string, onEvent?: (event: RuntimeEvent) => void): Promise<{
+  async sendPrompt(
+    prompt: string,
+    onEvent?: (event: RuntimeEvent) => void,
+  ): Promise<{
     response: string;
     events: RuntimeEvent[];
     error?: string;
@@ -474,18 +474,11 @@ export class PtyNativeHarnessRuntimeAdapter implements HarnessRuntimeAdapter {
   private async openSession(entity: Entity, sessionRef?: string): Promise<CraftSession> {
     const config = configForPlan(entity.craftPlan);
     const argv: AgentArgvSpec = sessionRef
-      ? this.options.adapter.buildResumeArgv(
-          this.options.projectLocation,
-          config,
-          "",
-          { providerSessionId: sessionRef, discoveredAt: new Date().toISOString() },
-        )
-      : this.options.adapter.buildLaunchArgv(
-          this.options.projectLocation,
-          config,
-          "",
-          undefined,
-        );
+      ? this.options.adapter.buildResumeArgv(this.options.projectLocation, config, "", {
+          providerSessionId: sessionRef,
+          discoveredAt: new Date().toISOString(),
+        })
+      : this.options.adapter.buildLaunchArgv(this.options.projectLocation, config, "", undefined);
     const spec = resolveLaunchSpec(this.options.projectLocation, argv);
     try {
       const pty = this.options.spawnPty
@@ -504,7 +497,8 @@ export class PtyNativeHarnessRuntimeAdapter implements HarnessRuntimeAdapter {
 
       const providerSessionRef =
         argv.sessionRef?.providerSessionId ??
-        (await this.options.adapter.discoverSessionRef?.(this.options.projectLocation))?.providerSessionId;
+        (await this.options.adapter.discoverSessionRef?.(this.options.projectLocation))
+          ?.providerSessionId;
       entity.status = "running";
       return new PtyNativeCraftSession(
         `sess:${this.harnessKind}:${providerSessionRef ?? randomUUID()}`,

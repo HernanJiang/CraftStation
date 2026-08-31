@@ -142,7 +142,23 @@ describe("AccountStore", () => {
     expect(() => store.rename(second.accountId, "   ")).toThrow(/cannot be empty/i);
   });
 
-  it("migrates legacy Grok labels and masks when the store is reopened", () => {
+  it("clears a prior quota error when an account recovers", () => {
+    const store = createStore();
+    const account = store.add({ provider: "grok", label: "recovering" });
+
+    store.updateStatus(account.accountId, "error", {
+      lastError: "temporary network failure",
+      lastQuotaAt: 1,
+    });
+    expect(store.get(account.accountId)).toMatchObject({
+      status: "error",
+      lastError: "temporary network failure",
+    });
+
+    expect(store.updateStatus(account.accountId, "available")).not.toHaveProperty("lastError");
+  });
+
+  it("migrates legacy Grok labels and keeps the full email when the store is reopened", () => {
     const store = createStore();
     const account = store.add({
       provider: "grok",
@@ -161,7 +177,8 @@ describe("AccountStore", () => {
     const reopened = new AccountStore(store.managedRoot);
     expect(reopened.get(account.accountId)).toMatchObject({
       label: "her",
-      maskedIdentity: "her***ang@example.com",
+      // 邮箱全称 contract: Grok rows surface the unmasked email.
+      maskedIdentity: "hernanjiang@example.com",
     });
   });
 

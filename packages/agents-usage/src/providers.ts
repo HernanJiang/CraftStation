@@ -36,19 +36,14 @@ export const BUILT_IN_USAGE_PROVIDER_DESCRIPTORS = {
     needsLogin: false,
     windowIds: ["monthly"],
   },
-  gemini: {
-    id: "gemini",
-    label: "Gemini",
-    mechanism: "oauth-endpoint",
-    needsLogin: false,
-    // Dynamic: one `gemini:<modelId>` window per model the quota API returns.
-    windowIds: [],
-  },
   commandcode: {
     id: "commandcode",
     label: "Command Code",
-    mechanism: "oauth-endpoint",
-    needsLogin: false,
+    // Web session (commandcode.ai better-auth cookie) is the primary login; the
+    // CLI API key stays as the paste-in fallback (collector tries CLI first).
+    mechanism: "cookie",
+    needsLogin: true,
+    apiKeyFallback: true,
     // Monthly credit pool plus rolling 5h / weekly USD caps from windowLimits.
     windowIds: ["session-5h", "weekly", "monthly"],
   },
@@ -82,6 +77,20 @@ export const BUILT_IN_USAGE_PROVIDER_DESCRIPTORS = {
     apiKeyFallback: true,
     windowIds: ["session-5h", "weekly", "monthly"],
   },
+  volcengine: {
+    id: "volcengine",
+    label: "Volcengine Ark Token Plan",
+    mechanism: "api-key",
+    needsLogin: true,
+    windowIds: ["session-5h", "daily", "weekly", "monthly"],
+  },
+  "openai-compatible": {
+    id: "openai-compatible",
+    label: "OpenAI 兼容 API",
+    mechanism: "api-key",
+    needsLogin: true,
+    windowIds: [],
+  },
 } satisfies Record<string, UsageProviderDescriptor>;
 
 /** Descriptors for the built-in HTTP collectors, in registration order. */
@@ -107,7 +116,7 @@ export const LOCAL_USAGE_PROVIDER_DESCRIPTORS: readonly UsageProviderDescriptor[
     id: "antigravity",
     label: "Antigravity",
     mechanism: "cli-jsonrpc",
-    needsLogin: false,
+    needsLogin: true,
     windowIds: [],
   },
   {

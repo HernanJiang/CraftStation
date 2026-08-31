@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { computeRecentCycleTarget, type RecentCycleAnchor } from "./recentThreadCycle";
+import type { Thread } from "@/shared/contracts";
+import { useAppStore } from "@/renderer/state/appStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
+import {
+  computeRecentCycleTarget,
+  cycleRecentThread,
+  type RecentCycleAnchor,
+} from "./recentThreadCycle";
 
 describe("computeRecentCycleTarget", () => {
   it("has nothing to cycle to when there are no candidates", () => {
@@ -120,5 +127,22 @@ describe("computeRecentCycleTarget", () => {
       direction: 1,
     });
     expect(result.targetThreadId).toBe("a");
+  });
+});
+
+describe("cycleRecentThread", () => {
+  it("closes the model usage workspace when Back has no other thread to open", () => {
+    const thread = { id: "only-thread", archived: false } as Thread;
+    useAppStore.setState((state) => ({
+      ...state,
+      threads: [thread],
+      view: { kind: "thread", panes: [thread.id] },
+      lastViewedAtByThreadId: { [thread.id]: 1 },
+    }));
+    usePanelStore.setState({ modelUsageDialogOpen: true });
+
+    cycleRecentThread(-1);
+
+    expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
   });
 });

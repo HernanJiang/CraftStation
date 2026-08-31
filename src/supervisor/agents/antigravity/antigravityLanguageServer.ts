@@ -17,7 +17,7 @@ export const GET_COMMAND_MODEL_CONFIGS = `/${SERVICE}/GetCommandModelConfigs`;
 // only carries the 5-hour fraction.
 export const RETRIEVE_USER_QUOTA_SUMMARY = `/${SERVICE}/RetrieveUserQuotaSummary`;
 // The metadata the LS expects; the values are cosmetic but must be present.
-const REQUEST_BODY = JSON.stringify({
+const STATUS_REQUEST_BODY = JSON.stringify({
   metadata: {
     ideName: "antigravity",
     extensionName: "antigravity",
@@ -25,6 +25,8 @@ const REQUEST_BODY = JSON.stringify({
     locale: "en",
   },
 });
+
+const QUOTA_SUMMARY_REQUEST_BODY = JSON.stringify({ forceRefresh: true });
 
 /** POST to the LS on one port, trying https (self-signed) then http, with each CSRF candidate. */
 export async function queryLs(
@@ -36,7 +38,13 @@ export async function queryLs(
   const csrfCandidates = [undefined, ...csrfTokens];
   for (const scheme of ["https", "http"] as const) {
     for (const csrf of csrfCandidates) {
-      const body = await postJson(scheme, port, path, csrf);
+      const body = await postJson(
+        scheme,
+        port,
+        path,
+        csrf,
+        path === RETRIEVE_USER_QUOTA_SUMMARY ? QUOTA_SUMMARY_REQUEST_BODY : STATUS_REQUEST_BODY,
+      );
       if (body !== undefined) return body;
     }
   }
@@ -49,13 +57,15 @@ function postJson(
   port: number,
   path: string,
   csrf: string | undefined,
+  body: string,
 ): Promise<unknown | undefined> {
   return new Promise((resolve) => {
     const requester = scheme === "https" ? httpsRequest : httpRequest;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "Connect-Protocol-Version": "1",
-      "Content-Length": String(Buffer.byteLength(REQUEST_BODY)),
+      "Content-Length": String(Buffer.byteLength(body)),
+      "User-Agent": "CraftStation/Antigravity-Usage",
       ...(csrf ? { "x-codeium-csrf-token": csrf } : {}),
     };
     const req = requester(
@@ -95,7 +105,7 @@ function postJson(
       req.destroy();
       resolve(undefined);
     });
-    req.write(REQUEST_BODY);
+    req.write(body);
     req.end();
   });
 }

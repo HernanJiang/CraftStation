@@ -103,7 +103,7 @@ Domain 模块切分方向正确：crafting / registry / recipe 未 deep-import C
 
 ### F02 — 没有真实 Codex round-trip；`sendPrompt` 用空合成事件顶替响应
 
-- Evidence：`CodexCraftSession.sendPrompt` 调用 `sendThreadInput` 后立即推 `delta: ""` 的 `content.delta`，`accumulatedResponse` 恒为 `""`。测试只 mock TSM，无真实 Codex 证据。Manager：*「没有真实 round-trip 不得 PASS」*。
+- Evidence：`CodexCraftSession.sendPrompt` 调用 `sendThreadInput` 后立即推 `delta: ""` 的 `content.delta`，`accumulatedResponse` 恒为 `""`。测试只 mock TSM，无真实 Codex 证据。Manager：_「没有真实 round-trip 不得 PASS」_。
 - Impact：Feature 目标「prompt -> runtime events/streaming -> response」未发生；属于静默 fallback。
 - Root Cause：Adapter 没有订阅 TSM/session canonical runtime events，也没有等待 turn 完成。
 - Fix：通过 TSM 既有事件/状态接口收集真实 `RuntimeEvent` 与最终 response；禁止合成空 delta 作为成功。保留 TSM façade，不要新建第二套 process owner，也不要让 crafting/UI deep-import Codex protocol。
@@ -143,7 +143,7 @@ Domain 模块切分方向正确：crafting / registry / recipe 未 deep-import C
 
 ### F07 — CraftPlan identity 非确定
 
-- Evidence：T02：*「相同输入和 Registry 状态产生确定性结果」*。`plan.id = plan:${randomUUID()}`。Result item id 相对稳定，plan id 每次不同。
+- Evidence：T02：_「相同输入和 Registry 状态产生确定性结果」_。`plan.id = plan:${randomUUID()}`。Result item id 相对稳定，plan id 每次不同。
 - Impact：同一组合无法稳定追溯/去重，recovery 对不上同一 plan。
 - Fix：plan identity 由 recipe id + ingredient identities + runtime binding + workspace/sessionRef 派生；UUID 只用于 Entity/turn 这类运行实例。
 - Acceptance：相同 grid + registry + context 两次 compile 得到相同 `craftPlan.id` 与 `resultItemId`。

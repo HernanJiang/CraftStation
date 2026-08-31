@@ -255,7 +255,8 @@ function applyRuntimeEventToRuntimeState(
         id: event.itemId,
         type: event.itemType,
         state: "started",
-        ...(isDelegatedAgentTool(event.payload as ToolCallPayload | undefined)
+        ...(event.itemType === "user_message" ||
+        isDelegatedAgentTool(event.payload as ToolCallPayload | undefined)
           ? { startedAt: Date.now() }
           : {}),
         payload: event.payload,

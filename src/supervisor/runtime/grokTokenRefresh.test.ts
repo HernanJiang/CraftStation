@@ -54,6 +54,22 @@ function authFile(overrides: Record<string, unknown> = {}): string {
 }
 
 describe("parseGrokAuth", () => {
+  it("carries the signed-in email from an OIDC auth.json container", () => {
+    const token = parseGrokAuth(
+      JSON.stringify({
+        "https://auth.x.ai::test-client": {
+          key: "access-token",
+          refresh_token: "refresh-token",
+          email: "hernan.g01@gmail.com",
+          principal_id: "acct-1",
+        },
+      }),
+    );
+    expect(token?.accessToken).toBe("access-token");
+    expect(token?.email).toBe("hernan.g01@gmail.com");
+    expect(token?.accountId).toBe("acct-1");
+  });
+
   it("carries the refresh token, client id, and normalized expiry", () => {
     const token = parseGrokAuth(authFile());
     expect(token).toEqual({
@@ -109,6 +125,7 @@ describe("parseGrokAuth on the OIDC CLI layout", () => {
       accessToken: "stale",
       refreshToken: "r1",
       expiresAt: Date.parse("2026-07-25T06:27:55.445119Z"),
+      email: "user@example.com",
       raw: { clientId: "b1a00492-073a-47ea-816f-4c329264a828" },
     });
   });

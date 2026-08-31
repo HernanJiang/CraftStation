@@ -63,6 +63,7 @@ export { collectCursor, parseCursorUsage, CURSOR_USAGE_ENDPOINT } from "./collec
 export {
   collectCommandCode,
   formatCommandCodePlanLabel,
+  isCommandCodeSessionLive,
   parseCommandCodeUsage,
   COMMANDCODE_BILLING_CREDITS_ENDPOINT,
   COMMANDCODE_BILLING_SUBSCRIPTIONS_ENDPOINT,
@@ -84,8 +85,10 @@ export {
 export type { WorkOSRefreshResult } from "./collectors/factory";
 export {
   collectGrok,
+  fetchGrokSettings,
   parseGrokUsage,
   parseGrokRefreshResponse,
+  planFromSettings,
   refreshGrokOAuthToken,
   GROK_BILLING_ENDPOINT,
   GROK_SETTINGS_ENDPOINT,
@@ -125,6 +128,27 @@ export {
 } from "./collectors/qwen";
 export type { AlibabaCodingPlanRegion } from "./collectors/qwen";
 export {
+  collectVolcengine,
+  parseVolcengineCodingPlanUsage,
+  parseVolcengineAgentPlanUsage,
+  parseVolcengineArkRateLimit,
+  signVolcengineRequest,
+  validateVolcengineCredentials,
+  VOLCENGINE_PROVIDER_ID,
+  VOLCENGINE_CODING_PLAN_URL,
+  VOLCENGINE_AGENT_PLAN_URL,
+  VOLCENGINE_ARK_CHAT_COMPLETIONS_URL,
+  VOLCENGINE_ARK_MODELS_URL,
+  VOLCENGINE_ARK_PROBE_MODELS,
+} from "./collectors/volcengine";
+export {
+  collectOpenAiCompatible,
+  normalizeOpenAiCompatibleBaseUrl,
+  openAiCompatibleModelsUrl,
+  OPENAI_COMPATIBLE_PROVIDER_ID,
+} from "./collectors/openaiCompatible";
+export {
+  antigravityModelsFromFetchAvailableModels,
   antigravityPool,
   antigravityPoolWindows,
   antigravityQuotaSummaryWindows,

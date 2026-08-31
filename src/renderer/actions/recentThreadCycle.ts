@@ -1,5 +1,6 @@
 import type { AppStoreState } from "@/renderer/state/appStore";
 import { useAppStore } from "@/renderer/state/appStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
 import { openThread } from "./threadActions";
 
 /**
@@ -115,6 +116,10 @@ function resolveActiveThreadId(state: AppStoreState): string | null {
  * two most-recent chats.
  */
 export function cycleRecentThread(direction: 1 | -1): void {
+  // The titlebar Back/Forward controls are also navigation controls. The
+  // usage workspace replaces the conversation surface, so dismiss it even
+  // when cycling resolves to the already-focused (or only) thread.
+  usePanelStore.getState().closeModelUsageDialog();
   const state = useAppStore.getState();
   const activeThreadId = resolveActiveThreadId(state);
   const { targetThreadId, anchor } = computeRecentCycleTarget({

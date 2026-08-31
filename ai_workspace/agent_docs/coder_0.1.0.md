@@ -5,6 +5,7 @@
 根据 Manager v0.1.0 规划与 `.scratch/craftstation-0.1.0/issues/` 的 6 个 Tickets，以 `craftstation/` 为工作副本，基于 PoraCode 基线完成了 CraftStation Minecraft Composition Model 的首条 Native Recipe 核心链路实现与 deep-module 重构。
 
 完成的架构主链：
+
 ```text
 OpenAI Model Item + Codex Harness Item (or auto)
 -> Registry & Native Recipe -> Crafter (resolve/validate/compile)
@@ -17,11 +18,13 @@ OpenAI Model Item + Codex Harness Item (or auto)
 ## Implemented Tickets & Components
 
 ### 1. v0.1/T01: 建立 CraftStation Working Baseline 与 Regression Harness
+
 - 初始化依赖安装与 Electron native 依赖环境（better-sqlite3）。
 - 锁定全套工具链命令：`pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm build`。
 - 确认现有 Codex app-server、stdio、JSON-RPC、canonicalMapping 等 13 个测试套件（270 个用例）全部保持 100% 绿灯。
 
 ### 2. v0.1/T02: 实现 Crafting Domain、Registry 与 Crafter
+
 - **文件路径**:
   - `src/shared/crafting/types.ts`: 定义 Item、ItemMetadata、Component、ModelCapabilityComponent、HarnessRuntimeComponent、IngredientProvenance、CompositionProvenance、RuntimeBinding、CraftPlan、ResultItem、CraftingGrid、ResolvedGrid、Recipe、CraftingErrorDetail 等核心数据契约。
   - `src/shared/crafting/errors.ts`: 结构化 `CraftingError` 类，包含标准错误代码（`ITEM_NOT_FOUND`, `UNRESOLVED_SLOT`, `RECIPE_NOT_FOUND`, `INCOMPATIBLE_COMBINATION`, `RUNTIME_UNAVAILABLE`, `COMPILATION_ERROR`, `AUTH_REQUIRED`, `EXECUTION_FAILED`, `RECOVERY_FAILED`）及阶段（`resolve`, `validate`, `compile`, `runtime`, `recovery`）与 remediation 指引。
@@ -32,21 +35,25 @@ OpenAI Model Item + Codex Harness Item (or auto)
 - **单元测试**: `src/shared/crafting/crafting.test.ts`（12 个测试全过，包含 Fake Runtime Adapter 生命周期）。
 
 ### 3. v0.1/T03: 通过 Codex Runtime 运行 Entity Session
+
 - **文件路径**:
   - `src/supervisor/runtime/codexRuntimeAdapter.ts`: 实现 `CodexHarnessRuntimeAdapter` 与 `CodexCraftSession`，复用 Supervisor 的 `ThreadSessionManager`、`SpawnPipeline` 与 `CodexStructuredSession`，上层仅跨 `HarnessRuntimeAdapter` seam 提交 CraftPlan 并控制 Session 生命周期（`spawnEntity`, `createSession`, `resumeSession`, `sendPrompt`, `terminate`）。
 - **集成测试**: `src/supervisor/runtime/codexRuntimeAdapter.test.ts`（3 个测试全过）。
 
 ### 4. v0.1/T04: React Crafting Grid 到真实 Session
+
 - **文件路径**:
   - `src/renderer/components/crafting/CraftingGrid.tsx`: 实现 Agent Crafting Table React 组件，提供 Model Slot 选择、Harness Slot 选择（默认 `auto` 并展示确定性解析）、实时 Recipe / Result Preview、Slot 校验、Prompt 输入与 Craft Agent 动作派发。
 - **组件测试**: `src/renderer/components/crafting/CraftingGrid.test.tsx`（4 个测试全过，验证默认 auto、显式 Codex、更换模型、Craft 触发与参数传递）。
 
 ### 5. v0.1/T05: 持久化 Composition Provenance 与 Session Recovery
+
 - **文件路径**:
   - `src/shared/crafting/provenanceStore.ts`: 实现 `ProvenanceStore`，负责持久化存储/提取 `CompositionProvenance`、校验 provenance 完整性、重建 `CraftPlan`，并通过 `HarnessRuntimeAdapter` 恢复已有 Entity Session。
 - **单元测试**: `src/shared/crafting/provenanceStore.test.ts`（4 个测试全过，覆盖保存获取、重建、无效 Recipe 报错以及 SessionRef 恢复）。
 
 ### 6. v0.1/T06: Deep-Module 架构防线与全量回归
+
 - **文件路径**:
   - `src/shared/crafting/boundaryGuard.test.ts`: 架构防线测试，自动递归扫描 `src/shared/crafting` 与 `src/renderer/components/crafting`，断言没有任何底层 Codex transport、JSON-RPC、node-pty 或 child_process 的侵入导入。
 - **全量测试结果**:
@@ -57,14 +64,14 @@ OpenAI Model Item + Codex Harness Item (or auto)
 
 ## Ticket Status Table
 
-| Ticket ID | Name | Status |
-|---|---|---|
+| Ticket ID  | Name                                                     | Status      |
+| ---------- | -------------------------------------------------------- | ----------- |
 | `v0.1/T01` | 建立 CraftStation Working Baseline 与 Regression Harness | `COMPLETED` |
-| `v0.1/T02` | Craft OpenAI + Codex Native Recipe | `COMPLETED` |
-| `v0.1/T03` | 通过 Codex Runtime 运行 Entity Session | `COMPLETED` |
-| `v0.1/T04` | React Crafting Grid 到真实 Session | `COMPLETED` |
-| `v0.1/T05` | 持久化 Composition Provenance 与 Session Recovery | `COMPLETED` |
-| `v0.1/T06` | Deep Module Guards 与 Feature 交付 | `COMPLETED` |
+| `v0.1/T02` | Craft OpenAI + Codex Native Recipe                       | `COMPLETED` |
+| `v0.1/T03` | 通过 Codex Runtime 运行 Entity Session                   | `COMPLETED` |
+| `v0.1/T04` | React Crafting Grid 到真实 Session                       | `COMPLETED` |
+| `v0.1/T05` | 持久化 Composition Provenance 与 Session Recovery        | `COMPLETED` |
+| `v0.1/T06` | Deep Module Guards 与 Feature 交付                       | `COMPLETED` |
 
 ## Hand-off to Debugger
 

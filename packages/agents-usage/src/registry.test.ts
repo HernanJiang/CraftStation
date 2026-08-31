@@ -17,10 +17,12 @@ describe("createUsageCollectorRegistry", () => {
       "copilot",
       "cursor",
       "factory",
-      "gemini",
       "grok",
       "kimi",
+      // Registered alongside the OpenAI-compatible credential card.
+      "openai-compatible",
       "qwen",
+      "volcengine",
       "zai",
     ]);
     expect(reg.has("claude")).toBe(true);

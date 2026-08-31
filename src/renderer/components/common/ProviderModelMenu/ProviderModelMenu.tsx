@@ -62,6 +62,7 @@ export interface ProviderModelMenuProps {
   providers: ProviderModelMenuProvider[];
   currentAgentKind: string;
   currentModel: string;
+  currentAccountId?: string;
   /** When set, only this provider's rows are rendered. */
   lockedAgentKind?: string;
   presentationMode?: ThreadPresentationMode;
@@ -74,6 +75,7 @@ export interface ProviderModelMenuProps {
     agentKind: string;
     model: string;
     presentationMode?: ThreadPresentationMode;
+    accountId?: string;
   }) => void;
   onOpenChange?: (open: boolean) => void;
 }
@@ -256,6 +258,7 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
     providers,
     currentAgentKind,
     currentModel,
+    currentAccountId,
     lockedAgentKind,
     presentationMode,
     isDisabled,
@@ -294,6 +297,7 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
     providers.find(
       (p) =>
         p.kind === currentAgentKind &&
+        p.accountId === currentAccountId &&
         (presentationMode === undefined || p.presentationMode === presentationMode),
     ) ?? providers.find((p) => p.kind === currentAgentKind);
   const currentProviderKey = currentProvider ? providerMenuKey(currentProvider) : currentAgentKind;
@@ -356,6 +360,7 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
         ...(lockedAgentKind ? { lockedAgentKind } : {}),
         currentAgentKind: deferredAgentKind,
         currentModel: deferredModel,
+        ...(currentAccountId ? { currentAccountId } : {}),
         favorites: sectionFavorites,
         favoriteStateRefs: activeFavorites,
         recents: sectionRecents,
@@ -402,6 +407,7 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
       onChange({
         agentKind: selected.providerKind,
         model: selected.modelId,
+        ...(selected.accountId ? { accountId: selected.accountId } : {}),
         ...(selected.presentationMode ? { presentationMode: selected.presentationMode } : {}),
       });
     });

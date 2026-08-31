@@ -24,14 +24,14 @@
 
 独立读取 `craftstation-accounts/accounts.json`（脱敏）：
 
-| order | masked（当前实现） | enabled | selected | status | lastError / lastQuotaAt |
-|---|---|---|---|---|---|
-| 0 | `he***@gmail.com` | false | false | disabled | 空 |
-| 1 | `po***@gmail.com` | false | false | disabled | 空 |
-| 2 | `po***@gmail.com` | false | false | disabled | 空 |
-| 3 | `ha***@gmail.com` | false | false | disabled | 空 |
-| 4 | `po***@gmail.com` | false | false | disabled | 空 |
-| 5 | `he***@gmail.com` | true | true | **available** | 空 |
+| order | masked（当前实现） | enabled | selected | status        | lastError / lastQuotaAt |
+| ----- | ------------------ | ------- | -------- | ------------- | ----------------------- |
+| 0     | `he***@gmail.com`  | false   | false    | disabled      | 空                      |
+| 1     | `po***@gmail.com`  | false   | false    | disabled      | 空                      |
+| 2     | `po***@gmail.com`  | false   | false    | disabled      | 空                      |
+| 3     | `ha***@gmail.com`  | false   | false    | disabled      | 空                      |
+| 4     | `po***@gmail.com`  | false   | false    | disabled      | 空                      |
+| 5     | `he***@gmail.com`  | true    | true     | **available** | 空                      |
 
 - 6 个 label 全是 `New Grok`。
 - 没有任何一行是 `quota-exhausted`。F19 声称会把绑定账号写成耗尽并刷新列表，**生产落盘没有发生**。

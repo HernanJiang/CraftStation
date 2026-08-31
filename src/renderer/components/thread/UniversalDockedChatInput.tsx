@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import type { Project } from "@/shared/contracts";
 import { DraftContextBar } from "./DraftContextBar";
 import type { CraftMode } from "./CraftModeSwitch";
-import { SessionMetricsBar } from "./SessionMetricsBar";
 
 /**
  * The single outer shell for the Home and live-thread composer.
@@ -10,7 +9,9 @@ import { SessionMetricsBar } from "./SessionMetricsBar";
  * The composer implementation remains responsible for editing, attachments,
  * permissions and submission. This component owns only the pieces that must
  * never disappear when a draft becomes a real conversation: the context strip
- * above it and the usage row below it. `placement` changes docking only.
+ * above it (which hosts the plan-progress capsule). `placement` changes
+ * docking only. The context/quota ring lives in the toolbar (next to the model
+ * picker), not here.
  */
 export function UniversalDockedChatInput(props: {
   project?: Project;
@@ -21,6 +22,8 @@ export function UniversalDockedChatInput(props: {
   paneId?: string;
   worktreePath?: string;
   onProjectChange?: (projectId: string) => void;
+  /** 会话 id：有会话且存在计划时，上方标签栏左侧显示计划进度胶囊。 */
+  threadId?: string;
 }) {
   return (
     <div
@@ -28,7 +31,7 @@ export function UniversalDockedChatInput(props: {
       data-placement={props.placement}
       className={
         props.placement === "conversation"
-          ? "sticky bottom-0 z-10 flex flex-col bg-[var(--content-background)] pb-4 pt-1"
+          ? "sticky bottom-0 z-10 flex flex-col bg-[var(--content-background)] pb-2 pt-1"
           : "flex flex-col"
       }
     >
@@ -37,13 +40,13 @@ export function UniversalDockedChatInput(props: {
           project={props.project}
           craftMode={props.craftMode}
           onCraftModeChange={props.onCraftModeChange}
+          {...(props.threadId ? { threadId: props.threadId } : {})}
           {...(props.paneId ? { paneId: props.paneId } : {})}
           {...(props.worktreePath ? { worktreePath: props.worktreePath } : {})}
           {...(props.onProjectChange ? { onProjectChange: props.onProjectChange } : {})}
         />
       ) : null}
       {props.children}
-      <SessionMetricsBar />
     </div>
   );
 }

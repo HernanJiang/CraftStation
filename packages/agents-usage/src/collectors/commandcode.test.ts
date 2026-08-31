@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createFakeHost, FAKE_NOW_MS } from "../testHost";
 import {
   collectCommandCode,
+  COMMANDCODE_INTERNAL_CREDITS_ENDPOINT,
+  COMMANDCODE_INTERNAL_SUBSCRIPTIONS_ENDPOINT,
+  COMMANDCODE_AUTH_SESSION_ENDPOINT,
+  isCommandCodeSessionLive,
   COMMANDCODE_BILLING_CREDITS_ENDPOINT,
   COMMANDCODE_BILLING_SUBSCRIPTIONS_ENDPOINT,
   COMMANDCODE_USAGE_SUMMARY_ENDPOINT,
@@ -285,5 +289,64 @@ describe("collectCommandCode", () => {
       status: "error",
       error: "invalid JSON response",
     });
+  });
+});
+
+describe("collectCommandCode web session (cookie)", () => {
+  it("uses the internal billing endpoints with the captured cookie", async () => {
+    const seen: Array<{ url: string; cookie?: string }> = [];
+    const host = createFakeHost({
+      secrets: { commandcode: { cookie: "__Secure-commandcode_prod_.session_token=abc" } },
+      routes: {
+        [COMMANDCODE_INTERNAL_CREDITS_ENDPOINT]: { body: CREDITS_BODY },
+        [COMMANDCODE_INTERNAL_SUBSCRIPTIONS_ENDPOINT]: { body: SUBSCRIPTIONS_BODY },
+        [COMMANDCODE_AUTH_SESSION_ENDPOINT]: {
+          body: JSON.stringify({ user: { email: "full.commandcode@example.com" } }),
+        },
+      },
+      onRequest: (request) => {
+        const cookie = request.headers?.Cookie;
+        seen.push({ url: request.url, ...(cookie ? { cookie } : {}) });
+      },
+    });
+
+    const snap = await collectCommandCode(host);
+
+    expect(snap.status).toBe("ok");
+    expect(snap.plan).toBe("Go");
+    expect(snap.authenticatedAs).toBe("full.commandcode@example.com");
+    // Plan allowance derives the monthly pool even without a usage summary.
+    expect(snap.windows.find((window) => window.id === "monthly")!.limit).toBe(10);
+    expect(seen.map((entry) => entry.url)).toEqual(
+      expect.arrayContaining([
+        COMMANDCODE_INTERNAL_CREDITS_ENDPOINT,
+        COMMANDCODE_INTERNAL_SUBSCRIPTIONS_ENDPOINT,
+      ]),
+    );
+    expect(
+      seen.every((entry) => entry.cookie === "__Secure-commandcode_prod_.session_token=abc"),
+    ).toBe(true);
+  });
+
+  it("returns auth-missing when the web session is rejected", async () => {
+    const host = createFakeHost({
+      secrets: { commandcode: { cookie: "stale" } },
+      routes: {
+        [COMMANDCODE_INTERNAL_CREDITS_ENDPOINT]: { status: 401, body: "" },
+        [COMMANDCODE_INTERNAL_SUBSCRIPTIONS_ENDPOINT]: { status: 401, body: "" },
+      },
+    });
+    expect((await collectCommandCode(host)).status).toBe("auth-missing");
+  });
+
+  it("isCommandCodeSessionLive is true on 2xx and false on rejection or failure", async () => {
+    const live = createFakeHost({
+      routes: { [COMMANDCODE_INTERNAL_CREDITS_ENDPOINT]: { body: "{}" } },
+    });
+    await expect(isCommandCodeSessionLive(live.http, "cookie")).resolves.toBe(true);
+    const dead = createFakeHost({
+      routes: { [COMMANDCODE_INTERNAL_CREDITS_ENDPOINT]: { status: 403, body: "" } },
+    });
+    await expect(isCommandCodeSessionLive(dead.http, "cookie")).resolves.toBe(false);
   });
 });

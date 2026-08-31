@@ -119,6 +119,9 @@ export class BrowserHistoryStore {
  * Search-engine autocomplete is disabled in CraftStation.
  * The omnibox uses local history only.
  */
-export async function fetchSearchSuggestions(_query: string, _userAgent: string): Promise<string[]> {
+export async function fetchSearchSuggestions(
+  _query: string,
+  _userAgent: string,
+): Promise<string[]> {
   return [];
 }

@@ -1,9 +1,26 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AccountControlError, type AccountView } from "@/shared/contracts";
-import { collectGrok, type HostPort, type UsageSnapshot } from "@poracode/agents-usage";
+import {
+  collectGrok,
+  fetchGrokSettings,
+  planFromSettings,
+  type HostPort,
+  type HttpClient,
+  type HttpRequest,
+  type HttpResponse,
+  type UsageSnapshot,
+} from "@poracode/agents-usage";
 import { AccountStore } from "./accountStore";
-import { grokAuthContainer, parseGrokAuth } from "./grokCredentials";
+import { grokAuthContainer, parseGrokAuth, parseGrokCookie } from "./grokCredentials";
+import { refreshRejectedGrokToken } from "./grokTokenRefresh";
+import { UsageHttpError } from "./usageHttpClient";
+import {
+  NativeGrokQuotaRpcError,
+  nativeGrokQuotaProbeOptions,
+  probeNativeGrokBilling,
+} from "./grokQuotaNative";
+import { collectManagedGrokTokenQuota } from "./grokQuotaTokenFallback";
 
 /**
  * Managed Grok account control plane. Grok's official CLI honours `GROK_HOME`
@@ -35,20 +52,31 @@ export function defaultGrokAccountLabel(identity: string): string {
 export function grokAccountIdentityFromContainer(
   container: Record<string, unknown>,
 ): GrokAccountIdentity | undefined {
-  for (const key of GROK_IDENTITY_KEYS) {
+  const nestedCandidates: Record<string, unknown>[] = [container];
+  for (const key of ["user", "account", "profile", "identity"]) {
     const value = container[key];
-    if (typeof value === "string" && value.trim()) {
-      return {
-        maskedIdentity: value.trim(),
-        ...(key === "email"
-          ? { providerAccountId: value.trim() }
-          : {
-              providerAccountId:
-                typeof container.principal_id === "string" && container.principal_id.trim()
-                  ? container.principal_id.trim()
-                  : value.trim(),
-            }),
-      };
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      nestedCandidates.push(value as Record<string, unknown>);
+    }
+  }
+  // Nested user objects first: a container like { user: { email } } must yield
+  // the real email instead of "账号身份未知".
+  for (const candidate of [...nestedCandidates.slice(1), ...nestedCandidates]) {
+    for (const key of GROK_IDENTITY_KEYS) {
+      const value = candidate[key];
+      if (typeof value === "string" && value.trim()) {
+        return {
+          maskedIdentity: value.trim(),
+          ...(key === "email"
+            ? { providerAccountId: value.trim() }
+            : {
+                providerAccountId:
+                  typeof container.principal_id === "string" && container.principal_id.trim()
+                    ? container.principal_id.trim()
+                    : value.trim(),
+              }),
+        };
+      }
     }
   }
   return undefined;
@@ -79,12 +107,112 @@ export interface GrokProfileImportInput {
 
 export interface GrokProfileServiceOptions {
   store: AccountStore;
+  nativeQuotaProbe?: typeof probeNativeGrokBilling;
+  tokenQuotaProbe?: typeof collectManagedGrokTokenQuota;
+}
+
+type GrokQuotaTransportIssue =
+  | { kind: "timeout" | "abort" | "network" | "unsupported-method" }
+  | { kind: "http"; status: number };
+
+interface GrokQuotaTransportState {
+  issue?: GrokQuotaTransportIssue;
+}
+
+function classifyGrokQuotaTransportError(error: unknown): GrokQuotaTransportIssue {
+  const rawCode =
+    error && typeof error === "object"
+      ? ((error as { code?: unknown; rpcCode?: unknown }).rpcCode ??
+        (error as { code?: unknown }).code)
+      : undefined;
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  if (
+    (error instanceof NativeGrokQuotaRpcError || rawCode === -32601 || rawCode === "-32601") &&
+    (rawCode === -32601 ||
+      rawCode === "-32601" ||
+      /method\s+not\s+found|unsupported\s+method/iu.test(rawMessage))
+  ) {
+    return { kind: "unsupported-method" };
+  }
+  if (error instanceof UsageHttpError && error.kind === "timeout") {
+    return { kind: "timeout" };
+  }
+  const candidate =
+    error && typeof error === "object"
+      ? (error as { code?: unknown; name?: unknown; message?: unknown })
+      : undefined;
+  const code = typeof candidate?.code === "string" ? candidate.code.toLowerCase() : "";
+  const name = typeof candidate?.name === "string" ? candidate.name.toLowerCase() : "";
+  const message = typeof candidate?.message === "string" ? candidate.message : String(error);
+  if (
+    name === "timeouterror" ||
+    code === "etimedout" ||
+    /\b(?:timed?\s*out|timeout|deadline exceeded)\b/i.test(message)
+  ) {
+    return { kind: "timeout" };
+  }
+  if (name === "aborterror" || code === "abort_err" || /\babort(?:ed|ing)?\b/i.test(message)) {
+    return { kind: "abort" };
+  }
+  return { kind: "network" };
+}
+
+function observeGrokQuotaHttp(host: HostPort, state: GrokQuotaTransportState): HttpClient {
+  return {
+    request: async (request: HttpRequest): Promise<HttpResponse> => {
+      try {
+        const response = await host.http.request(request);
+        if (response.status < 200 || response.status >= 300) {
+          state.issue = { kind: "http", status: response.status };
+        }
+        return response;
+      } catch (error) {
+        state.issue = classifyGrokQuotaTransportError(error);
+        throw error;
+      }
+    },
+  };
+}
+
+function grokQuotaFailureMessage(
+  snapshot: UsageSnapshot,
+  issue: GrokQuotaTransportIssue | undefined,
+): string | undefined {
+  const original = snapshot.error?.trim();
+  let prefix: string | undefined;
+  if (snapshot.status === "auth-missing") {
+    prefix = "Grok authentication required";
+  } else if (issue?.kind === "timeout") {
+    prefix = "Grok quota request timed out";
+  } else if (issue?.kind === "abort") {
+    prefix = "Grok quota request aborted";
+  } else if (issue?.kind === "http") {
+    prefix = `Grok quota request failed (HTTP ${issue.status})`;
+  } else if (issue?.kind === "network") {
+    prefix = "Grok quota request failed (network)";
+  } else if (issue?.kind === "unsupported-method") {
+    prefix = "Grok billing RPC unsupported; token billing fallback failed";
+  }
+  if (!prefix) return original || undefined;
+  if (!original) return prefix;
+  if (
+    (issue?.kind === "http" && original.includes(`HTTP ${issue.status}`)) ||
+    original.toLowerCase().includes(prefix.toLowerCase())
+  ) {
+    return original;
+  }
+  return `${prefix}: ${original}`;
 }
 
 export class GrokProfileService {
   private readonly provider = "grok";
+  private readonly nativeQuotaProbe: typeof probeNativeGrokBilling;
+  private readonly tokenQuotaProbe: typeof collectManagedGrokTokenQuota;
 
-  constructor(private readonly options: GrokProfileServiceOptions) {}
+  constructor(private readonly options: GrokProfileServiceOptions) {
+    this.nativeQuotaProbe = options.nativeQuotaProbe ?? probeNativeGrokBilling;
+    this.tokenQuotaProbe = options.tokenQuotaProbe ?? collectManagedGrokTokenQuota;
+  }
 
   list(): AccountView[] {
     return this.options.store.list(this.provider);
@@ -157,28 +285,137 @@ export class GrokProfileService {
     const grokHome = this.managedGrokHome(accountId);
     const authPath = join(grokHome, "auth.json");
     let token: ReturnType<typeof parseGrokAuth> | undefined;
+    let cookie: string | undefined;
     if (existsSync(authPath)) {
-      token = parseGrokAuth(readFileSync(authPath, "utf8"));
+      const content = readFileSync(authPath, "utf8");
+      token = parseGrokAuth(content);
+      cookie = parseGrokCookie(content);
+    }
+    const transport: GrokQuotaTransportState = {};
+    let nativeIssue: GrokQuotaTransportIssue | undefined;
+    let tokenFallbackError: string | undefined;
+    const managedEnv = managedGrokProcessEnvironment(grokHome);
+    const persistPlan = async (existingPlan?: string): Promise<void> => {
+      if (existingPlan?.trim()) {
+        this.options.store.updateProviderMetadata(accountId, { plan: existingPlan });
+        return;
+      }
+      if (!token?.accessToken) return;
+      try {
+        const settings = await fetchGrokSettings(host, token.accessToken);
+        const plan = planFromSettings(settings);
+        if (plan) this.options.store.updateProviderMetadata(accountId, { plan });
+      } catch {
+        // Plan is supplementary; never turn a successful quota read into a
+        // failed account refresh when the settings endpoint is unavailable.
+      }
+    };
+    try {
+      const native = await this.nativeQuotaProbe(
+        nativeGrokQuotaProbeOptions(grokHome, grokHome, managedEnv),
+      );
+      const nativeStatus = native.windows.some((window) => window.usedPercent >= 90)
+        ? "quota-low"
+        : "available";
+      const updated = this.options.store.updateStatus(accountId, nativeStatus, {
+        lastQuotaAt: native.fetchedAt,
+      });
+      await persistPlan();
+      return this.options.store.updateQuota(accountId, native.windows) ?? updated;
+    } catch (nativeError) {
+      // The official runtime is authoritative when it returns a real window;
+      // a transient/unsupported native billing call falls back to the existing
+      // provider collector, which retains its honest transport diagnostics.
+      nativeIssue = classifyGrokQuotaTransportError(nativeError);
+      transport.issue = nativeIssue;
+    }
+    if (token?.accessToken && host.http) {
+      const tokenQuota = await this.tokenQuotaProbe({
+        http: host.http,
+        token,
+        now: host.now,
+        refreshToken: async (rejectedToken) =>
+          refreshRejectedGrokToken(rejectedToken, undefined, authPath),
+      });
+      if (tokenQuota.ok) {
+        const tokenStatus = tokenQuota.windows.some((window) => window.usedPercent >= 90)
+          ? "quota-low"
+          : "available";
+        const updated = this.options.store.updateStatus(accountId, tokenStatus, {
+          lastQuotaAt: tokenQuota.fetchedAt,
+        });
+        await persistPlan();
+        return this.options.store.updateQuota(accountId, tokenQuota.windows) ?? updated;
+      }
+      tokenFallbackError = `${tokenQuota.errorClass}: ${tokenQuota.error}`;
+    }
+    // A managed bearer is the complete token billing path. If it did not
+    // produce a window and the account has no actual Grok web cookie, do not
+    // invoke the legacy collector again: that would repeat the same bearer
+    // requests and turn the useful token-billing diagnosis into a generic
+    // network error. Cookie fallback is allowed only when a cookie was really
+    // found in this account's managed auth.json.
+    if (token?.accessToken && !cookie) {
+      const tokenErrorClass = tokenFallbackError?.split(":", 1)[0];
+      const tokenStatus = tokenErrorClass === "auth" ? "auth-expired" : "unavailable";
+      const lastError =
+        nativeIssue?.kind === "unsupported-method" && tokenFallbackError
+          ? `Grok billing RPC unsupported; token billing fallback failed: ${tokenFallbackError}`
+          : (tokenFallbackError ?? "Grok token billing returned no quota window.");
+      return this.options.store.updateStatus(accountId, tokenStatus, {
+        lastError,
+        lastQuotaAt: Date.now(),
+      });
     }
     const scopedHost: HostPort = {
       ...host,
+      http: observeGrokQuotaHttp(host, transport),
       credentials: {
-        ...host.credentials,
         getOAuthToken: async () =>
           token?.accessToken ? { accessToken: token.accessToken } : undefined,
-        getSecret: async () => undefined,
+        refreshOAuthToken: async (providerId, rejectedToken) =>
+          providerId === "grok"
+            ? refreshRejectedGrokToken(rejectedToken, undefined, authPath)
+            : undefined,
+        getSecret: async (providerId, key) =>
+          providerId === "grok" && key === "cookie" ? cookie : undefined,
       },
     };
     let snapshot: UsageSnapshot;
     try {
       snapshot = await collectGrok(scopedHost);
     } catch (error) {
-      const lastError = error instanceof Error ? error.message : String(error);
+      const baseError = error instanceof Error ? error.message : String(error);
+      const issue = transport.issue ?? classifyGrokQuotaTransportError(error);
+      const lastError = grokQuotaFailureMessage(
+        {
+          providerId: "grok",
+          status: "error",
+          windows: [],
+          fetchedAt: Date.now(),
+          error: baseError,
+        },
+        issue,
+      )!;
       return this.options.store.updateStatus(accountId, "error", {
         lastError,
         lastQuotaAt: Date.now(),
       });
     }
+    const snapshotError =
+      snapshot.status === "auth-missing"
+        ? grokQuotaFailureMessage(snapshot, transport.issue)
+        : nativeIssue?.kind === "unsupported-method"
+          ? tokenFallbackError
+            ? `Grok billing RPC unsupported; token billing fallback failed: ${tokenFallbackError}`
+            : `Grok billing RPC unsupported; legacy Grok fallback failed: ${
+                grokQuotaFailureMessage(snapshot, transport.issue) ??
+                snapshot.error ??
+                "no quota window was returned"
+              }`
+          : snapshot.status === "ok"
+            ? snapshot.error
+            : grokQuotaFailureMessage(snapshot, transport.issue);
     const status =
       snapshot.status === "ok"
         ? snapshot.windows.some((window) => window.usedPercent >= 90)
@@ -191,8 +428,12 @@ export class GrokProfileService {
             : snapshot.status === "rate-limited"
               ? "quota-low"
               : "unavailable";
+    const withMetadata = this.options.store.updateProviderMetadata(accountId, {
+      ...(snapshot.authenticatedAs ? { providerAccountId: snapshot.authenticatedAs } : {}),
+      ...(snapshot.plan ? { plan: snapshot.plan } : {}),
+    });
     const updated = this.options.store.updateStatus(accountId, status, {
-      ...(snapshot.error ? { lastError: snapshot.error } : {}),
+      ...(snapshotError ? { lastError: snapshotError } : {}),
       lastQuotaAt: snapshot.fetchedAt,
     });
     return (
@@ -204,7 +445,9 @@ export class GrokProfileService {
           usedPercent: window.usedPercent,
           ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
         })),
-      ) ?? updated
+      ) ??
+      withMetadata ??
+      updated
     );
   }
 

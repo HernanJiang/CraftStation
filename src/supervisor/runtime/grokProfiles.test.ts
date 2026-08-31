@@ -4,27 +4,19 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountControlError } from "@/shared/contracts";
 import { AccountStore } from "./accountStore";
-import { collectGrok } from "@poracode/agents-usage";
+import { collectGrok, type HostPort, type UsageSnapshot } from "@poracode/agents-usage";
+import { parseGrokCookie } from "./grokCredentials";
 
 vi.mock("@poracode/agents-usage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@poracode/agents-usage")>();
   return {
     ...actual,
-    collectGrok: vi
-      .fn<
-        () => Promise<{
-          providerId: string;
-          status: string;
-          windows: Array<{ id: string; usedPercent: number }>;
-          fetchedAt: number;
-        }>
-      >()
-      .mockResolvedValue({
-        providerId: "grok",
-        status: "ok",
-        windows: [{ id: "weekly", usedPercent: 95 }],
-        fetchedAt: 1234,
-      }),
+    collectGrok: vi.fn<(host: HostPort) => Promise<UsageSnapshot>>().mockResolvedValue({
+      providerId: "grok",
+      status: "ok",
+      windows: [{ id: "weekly", label: "Weekly", usedPercent: 95 }],
+      fetchedAt: 1234,
+    }),
   };
 });
 import {
@@ -34,8 +26,70 @@ import {
   managedGrokLoginCwd,
   managedGrokProcessEnvironment,
 } from "./grokProfiles";
+import {
+  NativeGrokQuotaRpcError,
+  nativeGrokQuotaRpcMethod,
+  parseNativeGrokBilling,
+  probeNativeGrokBilling,
+} from "./grokQuotaNative";
+import { collectManagedGrokTokenQuota, type GrokTokenQuotaResult } from "./grokQuotaTokenFallback";
+import { PassThrough } from "node:stream";
+import { EventEmitter } from "node:events";
 
 const roots: string[] = [];
+
+class FakeGrokProcess extends EventEmitter {
+  readonly stdin = new PassThrough();
+  readonly stdout = new PassThrough();
+  readonly stderr = new PassThrough();
+  killed = false;
+
+  constructor(
+    private readonly onRequest: (
+      request: Record<string, unknown>,
+      process: FakeGrokProcess,
+    ) => void,
+  ) {
+    super();
+    this.stdin.on("data", (chunk) => {
+      const request = JSON.parse(String(chunk)) as Record<string, unknown>;
+      this.onRequest(request, this);
+    });
+  }
+
+  kill(): boolean {
+    this.killed = true;
+    return true;
+  }
+}
+
+function fakeGrokSpawn(factory: () => FakeGrokProcess): typeof import("node:child_process").spawn {
+  return (() => factory()) as unknown as typeof import("node:child_process").spawn;
+}
+
+const rejectNativeQuotaProbe: typeof probeNativeGrokBilling = async () => {
+  throw new NativeGrokQuotaRpcError("Method not found", -32601);
+};
+
+const skipTokenQuotaProbe: typeof collectManagedGrokTokenQuota =
+  async (): Promise<GrokTokenQuotaResult> => ({
+    ok: false,
+    errorClass: "network",
+    error: "test fallback not provided",
+  });
+
+function removeManagedBearer(
+  service: GrokProfileService,
+  accountId: string,
+  identity: string,
+): void {
+  writeFileSync(
+    join(service.managedGrokHome(accountId), "auth.json"),
+    JSON.stringify({ "https://auth.x.ai::test-client": { email: identity } }),
+    "utf8",
+  );
+}
+
 function createRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "craftstation-grok-"));
   roots.push(root);
@@ -90,7 +144,8 @@ describe("GrokProfileService", () => {
     const account = service.importAuthJson({ label: "New Grok", profileRoot: pendingHome });
     expect(account.provider).toBe("grok");
     expect(account.status).toBe("available");
-    expect(account.maskedIdentity).toBe("per***son@example.com");
+    // 邮箱全称 contract: the full email stays visible on the Grok row.
+    expect(account.maskedIdentity).toBe("person@example.com");
     // v0.5 default alias contract: placeholder labels become "<Provider> Account N".
     expect(account.label).toBe("Grok 1");
     expect(account).not.toHaveProperty("credentialRoot");
@@ -176,6 +231,128 @@ describe("managedGrokProcessEnvironment", () => {
   });
 });
 
+describe("native Grok billing probe", () => {
+  it("maps official x.ai/billing windows without exposing credential material", () => {
+    const parsed = parseNativeGrokBilling(
+      {
+        windows: [
+          { id: "session-5h", label: "5h", usedPercent: 0.25, resetsAt: 1_800_000_000 },
+          { id: "weekly", label: "Weekly", used: 40, limit: 100 },
+        ],
+        accessToken: "must-not-be-projected",
+      },
+      1234,
+    );
+
+    expect(parsed).toEqual({
+      fetchedAt: 1234,
+      windows: [
+        { id: "session-5h", label: "5h", usedPercent: 25, resetsAt: 1_800_000_000_000 },
+        { id: "weekly", label: "Weekly", usedPercent: 40 },
+      ],
+    });
+    expect(JSON.stringify(parsed)).not.toContain("must-not-be-projected");
+  });
+
+  it("uses managed GROK_HOME and x.ai/billing over official grok agent stdio", async () => {
+    const requests: Record<string, unknown>[] = [];
+    const child = new FakeGrokProcess((request, process) => {
+      requests.push(request);
+      process.stdout.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          result:
+            request.method === "initialize"
+              ? { protocolVersion: 1 }
+              : { windows: [{ id: "session-5h", usedPercent: 17 }] },
+        }) + "\n",
+      );
+    });
+    const result = await probeNativeGrokBilling({
+      home: "C:\\managed\\grok-a",
+      cwd: "C:\\managed\\grok-a",
+      executable: "grok",
+      env: { GROK_HOME: "C:\\managed\\grok-a", GROK_API_KEY: "" },
+      spawnProcess: fakeGrokSpawn(() => child),
+      timeoutMs: 100,
+      attempts: 1,
+    });
+
+    expect(result.windows).toEqual([{ id: "session-5h", label: "session-5h", usedPercent: 17 }]);
+    expect(requests.map((request) => request.method)).toEqual([
+      "initialize",
+      nativeGrokQuotaRpcMethod,
+    ]);
+    expect(child.killed).toBe(true);
+  });
+
+  it("retries one transient native billing failure and does not retry permanent failures", async () => {
+    let spawnCount = 0;
+    const result = await probeNativeGrokBilling({
+      home: "C:\\managed\\grok-b",
+      cwd: "C:\\managed\\grok-b",
+      executable: "grok",
+      env: { GROK_HOME: "C:\\managed\\grok-b" },
+      spawnProcess: fakeGrokSpawn(() => {
+        spawnCount += 1;
+        return new FakeGrokProcess((request, process) => {
+          if (spawnCount === 1) {
+            process.emit("error", new Error("fetch failed while connecting to Grok"));
+            return;
+          }
+          process.stdout.write(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: request.id,
+              result:
+                request.method === "initialize"
+                  ? { protocolVersion: 1 }
+                  : { windows: [{ id: "weekly", usedPercent: 33 }] },
+            }) + "\n",
+          );
+        });
+      }),
+      timeoutMs: 100,
+      attempts: 2,
+    });
+
+    expect(spawnCount).toBe(2);
+    expect(result.windows[0]).toMatchObject({ id: "weekly", usedPercent: 33 });
+  });
+
+  it("does not retry an unsupported x.ai/billing method", async () => {
+    let spawnCount = 0;
+    await expect(
+      probeNativeGrokBilling({
+        home: "C:\\managed\\grok-unsupported",
+        cwd: "C:\\managed\\grok-unsupported",
+        executable: "grok",
+        env: { GROK_HOME: "C:\\managed\\grok-unsupported" },
+        spawnProcess: fakeGrokSpawn(() => {
+          spawnCount += 1;
+          return new FakeGrokProcess((request, process) => {
+            process.stdout.write(
+              JSON.stringify(
+                request.method === "initialize"
+                  ? { jsonrpc: "2.0", id: request.id, result: { protocolVersion: 1 } }
+                  : {
+                      jsonrpc: "2.0",
+                      id: request.id,
+                      error: { code: -32601, message: "Method not found" },
+                    },
+              ) + "\n",
+            );
+          });
+        }),
+        timeoutMs: 100,
+        attempts: 3,
+      }),
+    ).rejects.toMatchObject({ name: "NativeGrokQuotaRpcError", rpcCode: -32601 });
+    expect(spawnCount).toBe(1);
+  });
+});
+
 describe("buildGrokLoginScript", () => {
   it("runs the official device-auth flow inside the managed GROK_HOME", () => {
     const posix = buildGrokLoginScript("posix", "lc_grok_test");
@@ -199,7 +376,11 @@ describe("buildGrokLoginScript", () => {
   it("collects account-scoped Grok quota from the managed GROK_HOME only (v0.5 T07)", async () => {
     const root = createRoot();
     const store = new AccountStore(root);
-    const service = new GrokProfileService({ store });
+    const service = new GrokProfileService({
+      store,
+      nativeQuotaProbe: rejectNativeQuotaProbe,
+      tokenQuotaProbe: skipTokenQuotaProbe,
+    });
     const pendingHome = createRoot();
     writeFileSync(
       join(pendingHome, "auth.json"),
@@ -207,6 +388,7 @@ describe("buildGrokLoginScript", () => {
       "utf8",
     );
     const account = service.importAuthJson({ label: "Grok quota", profileRoot: pendingHome });
+    removeManagedBearer(service, account.accountId, "quota@example.com");
     vi.mocked(collectGrok).mockClear();
 
     const host = {
@@ -220,5 +402,292 @@ describe("buildGrokLoginScript", () => {
     expect(collectGrok).toHaveBeenCalledWith(
       expect.objectContaining({ credentials: expect.anything() }),
     );
+  });
+
+  it("provides managed cookie and refresh seams without exposing host credentials", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const service = new GrokProfileService({
+      store,
+      nativeQuotaProbe: rejectNativeQuotaProbe,
+      tokenQuotaProbe: skipTokenQuotaProbe,
+    });
+    const pendingHome = createRoot();
+    const authContent = officialAuthJson({
+      email: "scoped@example.com",
+      principal_id: "principal-scoped",
+      cookie: "sso=fake-cookie; session=fake-session",
+    });
+    writeFileSync(join(pendingHome, "auth.json"), authContent, "utf8");
+    const account = service.importAuthJson({ label: "Scoped", profileRoot: pendingHome });
+
+    vi.mocked(collectGrok).mockClear();
+    await service.collectQuota(account.accountId, {
+      now: () => 0,
+      credentials: {
+        getOAuthToken: async () => undefined,
+        getSecret: async () => "host-secret-must-not-leak",
+      },
+    } as unknown as HostPort);
+
+    const scopedHost = vi.mocked(collectGrok).mock.calls.at(-1)?.[0] as HostPort | undefined;
+    expect(scopedHost).toBeDefined();
+    expect(await scopedHost!.credentials.getSecret("grok", "cookie")).toBe(
+      "sso=fake-cookie; session=fake-session",
+    );
+    expect(await scopedHost!.credentials.getSecret("codex", "cookie")).toBeUndefined();
+    expect(scopedHost!.credentials.refreshOAuthToken).toEqual(expect.any(Function));
+    expect(parseGrokCookie(authContent)).toBe("sso=fake-cookie; session=fake-session");
+  });
+
+  it("writes a token-billing fallback window to only the managed account", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const tokenQuotaProbe = vi.fn<typeof collectManagedGrokTokenQuota>().mockResolvedValue({
+      ok: true,
+      source: "grpc-web",
+      fetchedAt: 4321,
+      windows: [{ id: "monthly", label: "Credits", usedPercent: 12.5 }],
+    });
+    const service = new GrokProfileService({
+      store,
+      nativeQuotaProbe: rejectNativeQuotaProbe,
+      tokenQuotaProbe,
+    });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "token-fallback@example.com" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Token fallback", profileRoot: pendingHome });
+    const other = store.add({ provider: "grok", label: "Other" });
+
+    const result = await service.collectQuota(account.accountId, {
+      http: { request: async () => ({ status: 500, headers: {}, body: "" }) },
+      now: () => 4321,
+      credentials: {
+        getOAuthToken: async () => undefined,
+        getSecret: async () => undefined,
+      },
+    });
+
+    expect(result).toMatchObject({
+      accountId: account.accountId,
+      status: "available",
+      quotaWindows: [{ id: "monthly", usedPercent: 12.5 }],
+      lastQuotaAt: 4321,
+    });
+    expect(tokenQuotaProbe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: expect.objectContaining({ accessToken: "access-token" }),
+      }),
+    );
+    expect(store.get(other.accountId)).not.toMatchObject({
+      quotaWindows: [{ id: "monthly", usedPercent: 12.5 }],
+    });
+  });
+
+  it("persists the real managed account subscription tier after quota refresh", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const tokenQuotaProbe = vi.fn<typeof collectManagedGrokTokenQuota>().mockResolvedValue({
+      ok: true,
+      source: "proxy",
+      fetchedAt: 4321,
+      windows: [{ id: "weekly", label: "Weekly credits", usedPercent: 12.5 }],
+    });
+    const service = new GrokProfileService({
+      store,
+      nativeQuotaProbe: rejectNativeQuotaProbe,
+      tokenQuotaProbe,
+    });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "plan@example.com" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Plan", profileRoot: pendingHome });
+
+    const settingsRequests: string[] = [];
+    const result = await service.collectQuota(account.accountId, {
+      http: {
+        request: async (request) => {
+          settingsRequests.push(request.url);
+          return {
+            status: 200,
+            headers: {},
+            body: JSON.stringify({ subscription_tier_display: "SuperGrok" }),
+          };
+        },
+      },
+      now: () => 4321,
+      credentials: {
+        getOAuthToken: async () => undefined,
+        getSecret: async () => undefined,
+      },
+    });
+
+    expect(result).toMatchObject({
+      accountId: account.accountId,
+      plan: "SuperGrok",
+      quotaWindows: [{ id: "weekly", usedPercent: 12.5 }],
+    });
+    expect(store.get(account.accountId)).toMatchObject({ plan: "SuperGrok" });
+    expect(settingsRequests).toEqual(["https://cli-chat-proxy.grok.com/v1/settings"]);
+  });
+
+  it("keeps native Method not found visible when token billing also fails", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const service = new GrokProfileService({
+      store,
+      nativeQuotaProbe: rejectNativeQuotaProbe,
+      tokenQuotaProbe: async () => ({
+        ok: false,
+        errorClass: "network",
+        error: "fetch failed",
+      }),
+    });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "unsupported-method@example.com" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Unsupported", profileRoot: pendingHome });
+
+    const result = await service.collectQuota(account.accountId, {
+      http: { request: async () => ({ status: 500, headers: {}, body: "" }) },
+      now: () => 4321,
+      credentials: {
+        getOAuthToken: async () => undefined,
+        getSecret: async () => undefined,
+      },
+    });
+
+    expect(result.status).toBe("unavailable");
+    expect(result.lastError).toContain("Grok billing RPC unsupported");
+    expect(result.lastError).toContain("network: fetch failed");
+    expect(result.lastError).not.toBe("Grok quota request failed (network)");
+  });
+
+  it("preserves and classifies a timeout from an empty Grok quota response", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const service = new GrokProfileService({ store, nativeQuotaProbe: rejectNativeQuotaProbe });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "timeout@example.com" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Timeout", profileRoot: pendingHome });
+    removeManagedBearer(service, account.accountId, "timeout@example.com");
+
+    vi.mocked(collectGrok).mockImplementationOnce(async (scopedHost) => {
+      await expect(
+        scopedHost.http.request({ url: "https://example.test/billing", timeoutMs: 1 }),
+      ).rejects.toThrow("timed out");
+      return {
+        providerId: "grok",
+        status: "error",
+        windows: [],
+        fetchedAt: 1234,
+        error: "grok billing check failed (network error)",
+      };
+    });
+    const timeout = new Error("The operation timed out");
+    timeout.name = "TimeoutError";
+    const result = await service.collectQuota(account.accountId, {
+      http: { request: async () => Promise.reject(timeout) },
+      now: () => 1234,
+      credentials: {
+        getOAuthToken: async () => undefined,
+        getSecret: async () => undefined,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "unavailable",
+      quotaWindows: [],
+      lastError: expect.stringContaining("timed out"),
+    });
+  });
+
+  it("preserves the HTTP status when Grok quota transport returns an error", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const service = new GrokProfileService({ store, nativeQuotaProbe: rejectNativeQuotaProbe });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "http@example.com" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "HTTP", profileRoot: pendingHome });
+    removeManagedBearer(service, account.accountId, "http@example.com");
+
+    vi.mocked(collectGrok).mockImplementationOnce(async (scopedHost) => {
+      await scopedHost.http.request({ url: "https://example.test/billing" });
+      return {
+        providerId: "grok",
+        status: "error",
+        windows: [],
+        fetchedAt: 1234,
+        error: "grok billing check failed (network error)",
+      };
+    });
+    const result = await service.collectQuota(account.accountId, {
+      http: {
+        request: async () => ({
+          status: 503,
+          headers: {},
+          body: "",
+        }),
+      },
+      now: () => 1234,
+      credentials: {
+        getOAuthToken: async () => undefined,
+        getSecret: async () => undefined,
+      },
+    });
+
+    expect(result.lastError).toContain("HTTP 503");
+  });
+
+  it("keeps auth-missing distinct from an unavailable transport", async () => {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const service = new GrokProfileService({ store, nativeQuotaProbe: rejectNativeQuotaProbe });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "auth@example.com" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Auth", profileRoot: pendingHome });
+    removeManagedBearer(service, account.accountId, "auth@example.com");
+
+    vi.mocked(collectGrok).mockResolvedValueOnce({
+      providerId: "grok",
+      status: "auth-missing",
+      windows: [],
+      fetchedAt: 1234,
+    });
+    const result = await service.collectQuota(account.accountId, {
+      http: { request: async () => ({ status: 401, headers: {}, body: "" }) },
+      now: () => 1234,
+      credentials: {
+        getOAuthToken: async () => undefined,
+        getSecret: async () => undefined,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "auth-expired",
+      lastError: "Grok authentication required",
+    });
   });
 });

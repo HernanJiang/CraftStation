@@ -149,7 +149,8 @@ export function LoginTerminalOverlay() {
                   ? t`Installing in this terminal. Closes when finished.`
                   : isUpdate
                     ? t`Updating in this terminal. Closes when finished.`
-                    : t`Complete the prompts in this terminal. Closes when finished.`}
+                    : (renderedSession.subtitle ??
+                      t`Complete the prompts in this terminal. Closes when finished.`)}
             </p>
           </div>
           <Button
