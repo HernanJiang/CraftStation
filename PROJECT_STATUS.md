@@ -1,5 +1,15 @@
 # PROJECT_STATUS.md
 
+## Dev Integration — v0.8.0
+
+- `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility` 已于 2026-08-31 合入本地 `dev`。
+- Feature commit：`20be0e1a28056a8103a4f49b65be61cece5ad797`。
+- Dev merge commit：`e74808cdc649fdf37b1e23aa9edc810f3467e8fb`。
+- 合并时有 2 个源码冲突，已保留现有 Codex/OpenAI-compatible 账号路由并加入 OpenCode provider 路由，同时补齐 OpenCode adapter imports。
+- 合并后回归：`19 files / 225 tests PASS`；`pnpm typecheck` PASS；44 个触及源码文件 oxlint/oxfmt PASS；diff check PASS。
+- 真实证据边界不变：只有 `kimi-for-coding/kimi-for-coding` 完成真实两轮 assistant response；OpenAI、xAI、Google、DeepSeek、OpenAI-compatible Kimi 仍为 unverified。
+- 生命周期：`MERGED TO DEV / USER ACCEPTANCE PENDING`。尚未将 v0.8 合入 `main`，未创建正式 tag，未 push。
+
 ## Active Feature — v0.6.0
 
 - `v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`：`DEBUGGER FAIL / BLOCKED`
@@ -96,15 +106,15 @@ Model Item + Harness Item
 
 ## Lifecycle Snapshot
 
-| Field             | Current Value                                                                                       |
-| ----------------- | --------------------------------------------------------------------------------------------------- |
-| Major Stage       | `v0`                                                                                                |
-| Lifecycle State   | `v0.6.0 / LOCAL MAIN ACCEPTED-CANDIDATE CHECKPOINT / FEATURE FAIL-BLOCKED`                          |
-| Active Feature    | `v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`                                  |
-| Active Ticket     | T10 independent acceptance evidence                                                                 |
-| Current Fix Cycle | `v0.6.0` evidence-only F35/F36（无凭据则保持 BLOCKED，不改已关闭工程项）                            |
-| Current Role      | Manager                                                                                             |
-| Review Status     | Local Main promotion completed; v0.6 F35/F36 and prior Grok/F29/v0.5/v0.4 gates remain FAIL/BLOCKED |
+| Field             | Current Value                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| Major Stage       | `v0`                                                                                                   |
+| Lifecycle State   | `v0.8.0 / MERGED TO DEV / USER ACCEPTANCE PENDING`                                                     |
+| Active Feature    | `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility`                                       |
+| Active Ticket     | User acceptance；其余 5 条 Provider assistant route 仍未验证                                           |
+| Current Fix Cycle | `v0.8.7`                                                                                               |
+| Current Role      | User                                                                                                   |
+| Review Status     | v0.8 merged to dev；仅 Kimi 两轮真实通过；v0.6 F35/F36 与既有 Grok/F29/v0.5/v0.4 门仍保持 FAIL/BLOCKED |
 
 ## Historical v0.3 Closeout
 
@@ -174,7 +184,7 @@ Model Item + Harness Item
 
 ## Next Step
 
-1. v0.6.0 Debugger 独立复检已完成：**FAIL / BLOCKED**。文档：`ai_workspace/agent_docs/debugger_0.6.0.md`。定向 11 files / 110 passed；未执行真实 Google OAuth / Ark 线上凭据。
-2. 工程项（OAuth broker、Gemini usage 移除、Ark parser、titlebar）无需 Coder 重做。F35/F36 仅在有真实 Google / Ark 凭据时补脱敏探针。
-3. Grok 真实额度、F29 exact Token、v0.5.0 与 v0.4 F04 必须保持 FAIL/BLOCKED，不得因 v0.6 工程测试通过而升格。
-4. 本地 accepted-candidate promotion 已完成；保持禁止 push 和正式 `v0.6.0` PASS tag。后续仅在真实凭据可用时补 F35/F36。
+1. 用户在本地 `dev` 验收 v0.8 OpenCode Native Harness；当前只有 Kimi native route 具备真实 assistant response 与后续 turn 证据。
+2. OpenAI、xAI、Google、DeepSeek、OpenAI-compatible Kimi 获得有效对应凭据后，再逐条补真实 assistant stream/后续 turn；未验证 route 继续 fail-closed。
+3. v0.6 F35/F36、Grok 真实额度、F29 exact Token、v0.5.0 与 v0.4 F04 继续保持 FAIL/BLOCKED。
+4. v0.8 尚未合入 main、未 tag、未 push；只有用户后续明确授权时才执行 Dev → Main promotion。

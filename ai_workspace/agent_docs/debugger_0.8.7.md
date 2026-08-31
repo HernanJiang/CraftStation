@@ -95,4 +95,18 @@ Feature 工程路径和 fail-closed compatibility gate 已满足当前开发质�
 DEV PASS / USER ACCEPTANCE PENDING
 ```
 
-未执行 commit、push、tag、Feature→Dev merge、Dev→Main merge 或 promotion。用户仍需决定后续验收与 Git 收口。
+## 7. Feature → Dev Integration（2026-08-31）
+
+- 用户明确要求将 v0.8 合入 `dev`。
+- Feature commit：`20be0e1a28056a8103a4f49b65be61cece5ad797`。
+- Dev merge commit：`e74808cdc649fdf37b1e23aa9edc810f3467e8fb`。
+- 合并冲突：2 个源码文件；已保留现有 Codex/OpenAI-compatible 账号路由并加入 OpenCode provider 路由，同时补齐 OpenCode adapter imports。
+- 合并后回归：`19 files / 225 tests PASS`；TypeScript PASS；44 个触及源码文件 oxlint/oxfmt PASS；diff check PASS。
+- `.scratch/`、`ai_workspace/validation/` 与凭据未进入提交。
+- 未执行 Dev→Main merge、正式 tag 或 push。
+
+最终状态：
+
+```text
+MERGED TO DEV / USER ACCEPTANCE PENDING
+```
