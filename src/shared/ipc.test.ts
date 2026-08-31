@@ -137,4 +137,27 @@ describe("ipcProcedureMap", () => {
       result,
     );
   });
+
+  it("routes request resolution through SupervisorRuntime for crafted and legacy thread dispatch", async () => {
+    const resolveThreadServerRequest = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const runtime = new Proxy(
+      { resolveThreadServerRequest },
+      {
+        get: (target, property) =>
+          property in target
+            ? target[property as keyof typeof target]
+            : vi.fn<(...args: never[]) => unknown>(),
+      },
+    ) as never;
+    const handlers = createSupervisorIpcHandlers(runtime);
+    const payload = {
+      threadId: "crafted-thread",
+      requestId: "request-1",
+      method: "requestPermission",
+      response: { optionId: "once" },
+    };
+
+    await handlers.resolveThreadServerRequest(payload);
+    expect(resolveThreadServerRequest).toHaveBeenCalledWith(payload);
+  });
 });

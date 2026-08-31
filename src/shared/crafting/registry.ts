@@ -99,9 +99,55 @@ export const BUILTIN_MODEL_ITEMS: Item[] = [
       },
     ],
   },
+  {
+    id: "openai:gpt-5.4",
+    kind: "model",
+    metadata: {
+      id: "openai:gpt-5.4",
+      name: "GPT-5.4",
+      version: "opencode-1.18.25-catalog",
+      vendor: "openai",
+      source: "builtin",
+      description: "OpenAI model listed by the official OpenCode 1.18.25 catalog.",
+      tags: ["general", "coding", "openai", "opencode"],
+      compatibilityStatus: "EXPERIMENTAL",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "openai",
+        modelId: "gpt-5.4",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
 ];
 
 export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
+  {
+    id: "moonshot-openai-compatible:kimi-k2.5",
+    kind: "model",
+    metadata: {
+      id: "moonshot-openai-compatible:kimi-k2.5",
+      name: "Kimi K2.5 (OpenAI-compatible)",
+      version: "audit-2026-08",
+      vendor: "moonshot-openai-compatible",
+      source: "builtin",
+      description: "Kimi model through OpenCode's separately configured OpenAI-compatible route.",
+      tags: ["coding", "kimi", "openai-compatible"],
+      compatibilityStatus: "EXPERIMENTAL",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "moonshot-openai-compatible",
+        modelId: "kimi-k2.5",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
   {
     id: "xai:grok-4.6",
     kind: "model",
@@ -172,12 +218,12 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
     ],
   },
   {
-    id: "deepseek:deepseek-chat",
+    id: "deepseek:deepseek-v4-flash",
     kind: "model",
     metadata: {
-      id: "deepseek:deepseek-chat",
-      name: "DeepSeek Chat",
-      version: "reserved-native",
+      id: "deepseek:deepseek-v4-flash",
+      name: "DeepSeek V4 Flash",
+      version: "opencode-1.18.25-catalog",
       vendor: "deepseek",
       source: "builtin",
       description: "Reserved model family for the official DeepSeek / DSH Harness.",
@@ -188,7 +234,7 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
       {
         kind: "model_capability",
         vendor: "deepseek",
-        modelId: "deepseek-chat",
+        modelId: "deepseek-v4-flash",
         supportsStreaming: true,
         supportsToolCalling: true,
       },
@@ -217,6 +263,36 @@ export const BUILTIN_CODEX_HARNESS_ITEM: Item = {
       kind: "harness_runtime",
       harnessKind: "codex",
       supportedVendors: ["openai", "codex"],
+      executionMode: "structured_session",
+    },
+  ],
+};
+
+export const BUILTIN_OPENCODE_HARNESS_ITEM: Item = {
+  id: "harness:opencode",
+  kind: "harness",
+  metadata: {
+    id: "harness:opencode",
+    name: "OpenCode Native Harness",
+    version: "0.8.0",
+    vendor: "opencode",
+    source: "builtin",
+    description: "Official OpenCode server runtime through HTTP/OpenAPI and server-wide SSE.",
+    tags: ["harness", "opencode", "official", "http", "sse"],
+    compatibilityStatus: "NATIVE",
+  },
+  components: [
+    {
+      kind: "harness_runtime",
+      harnessKind: "opencode",
+      supportedVendors: [
+        "openai",
+        "xai",
+        "google",
+        "deepseek",
+        "moonshot",
+        "moonshot-openai-compatible",
+      ],
       executionMode: "structured_session",
     },
   ],
@@ -296,6 +372,72 @@ export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
 
 export const NATIVE_HARNESS_RECIPES = [
   new NativeHarnessRecipe({
+    id: "recipe:openai-opencode-native",
+    name: "OpenAI OpenCode Native Recipe",
+    description: "OpenAI Model Item through the official OpenCode server Harness.",
+    harnessKind: "opencode",
+    harnessItemId: BUILTIN_OPENCODE_HARNESS_ITEM.id,
+    modelVendors: ["openai"],
+    harnessVendors: ["opencode"],
+    providerID: "openai",
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:xai-opencode-native",
+    name: "xAI OpenCode Native Recipe",
+    description: "xAI/Grok Model Item through OpenCode's provider/model adapter.",
+    harnessKind: "opencode",
+    harnessItemId: BUILTIN_OPENCODE_HARNESS_ITEM.id,
+    modelVendors: ["xai"],
+    harnessVendors: ["opencode"],
+    providerID: "xai",
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:google-opencode-native",
+    name: "Google Gemini OpenCode Native Recipe",
+    description: "Google/Gemini Model Item through OpenCode's provider/model adapter.",
+    harnessKind: "opencode",
+    harnessItemId: BUILTIN_OPENCODE_HARNESS_ITEM.id,
+    modelVendors: ["google"],
+    harnessVendors: ["opencode"],
+    providerID: "google",
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:deepseek-opencode-native",
+    name: "DeepSeek OpenCode Native Recipe",
+    description: "DeepSeek Model Item through OpenCode; this is not the DSH Harness.",
+    harnessKind: "opencode",
+    harnessItemId: BUILTIN_OPENCODE_HARNESS_ITEM.id,
+    modelVendors: ["deepseek"],
+    harnessVendors: ["opencode"],
+    providerID: "deepseek",
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:moonshot-kimi-opencode-native",
+    name: "Moonshot Kimi OpenCode Native Recipe",
+    description: "Kimi through the native Moonshot provider in OpenCode.",
+    harnessKind: "opencode",
+    harnessItemId: BUILTIN_OPENCODE_HARNESS_ITEM.id,
+    modelVendors: ["moonshot"],
+    harnessVendors: ["opencode"],
+    providerID: "kimi-for-coding",
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:kimi-openai-compatible-opencode",
+    name: "Kimi OpenAI-compatible OpenCode Recipe",
+    description: "Kimi through a separately configured OpenAI-compatible provider in OpenCode.",
+    harnessKind: "opencode",
+    harnessItemId: BUILTIN_OPENCODE_HARNESS_ITEM.id,
+    modelVendors: ["moonshot-openai-compatible"],
+    harnessVendors: ["opencode"],
+    providerID: "moonshot-openai-compatible",
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+  new NativeHarnessRecipe({
     id: "recipe:xai-grok-native",
     name: "xAI Grok Build Native Recipe",
     description: "Native xAI model composition through the official Grok Build Harness.",
@@ -332,6 +474,7 @@ export const NATIVE_HARNESS_RECIPES = [
 
 export const BUILTIN_HARNESS_ITEMS: Item[] = [
   BUILTIN_CODEX_HARNESS_ITEM,
+  BUILTIN_OPENCODE_HARNESS_ITEM,
   ...BUILTIN_NATIVE_HARNESS_ITEMS,
 ];
 
@@ -349,6 +492,7 @@ export class ItemRegistry {
     }
     for (const harness of BUILTIN_NATIVE_HARNESS_ITEMS) this.registerItem(harness);
     this.registerItem(BUILTIN_CODEX_HARNESS_ITEM);
+    this.registerItem(BUILTIN_OPENCODE_HARNESS_ITEM);
     this.registerRecipe(new OpenAICodexNativeRecipe());
     for (const recipe of NATIVE_HARNESS_RECIPES) this.registerRecipe(recipe);
   }

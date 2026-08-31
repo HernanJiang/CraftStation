@@ -47,7 +47,9 @@ describe("Native Harness registry", () => {
     for (const recipe of NATIVE_HARNESS_RECIPES) {
       const model = registry
         .listItems("model")
-        .find((item) => recipe.matches({ model: item, harness: registry.getItem(recipe.harnessItemId)! }));
+        .find((item) =>
+          recipe.matches({ model: item, harness: registry.getItem(recipe.harnessItemId)! }),
+        );
       const harness = registry.getItem(recipe.harnessItemId);
 
       expect(model, `${recipe.id} model`).toBeDefined();

@@ -73,6 +73,10 @@ export const runtimeBindingSchema = z.object({
   modelId: z.string().min(1),
   vendor: z.string().min(1),
   runtimeAdapterId: z.string().min(1),
+  /** Provider identity is explicit for provider-hosted runtimes such as OpenCode. */
+  providerID: z.string().min(1).optional(),
+  /** Supervisor-owned reference; this is never an API credential value. */
+  authRef: z.string().min(1).optional(),
   profileRef: z.string().min(1).optional(),
   environment: nativeHarnessEnvironmentSchema.optional(),
   options: z.record(z.string(), z.unknown()).optional(),
@@ -138,6 +142,7 @@ export const craftContextSchema = z.object({
   workspace: z.string().optional(),
   sessionRef: z.string().optional(),
   threadId: z.string().optional(),
+  authRef: z.string().min(1).optional(),
   profileRef: z.string().min(1).optional(),
   environment: nativeHarnessEnvironmentSchema.optional(),
   clientProperties: z.record(z.string(), z.unknown()).optional(),

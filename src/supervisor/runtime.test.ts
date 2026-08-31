@@ -3185,6 +3185,127 @@ describe("SupervisorRuntime craftAgent", () => {
     expect(startTurnSpy).not.toHaveBeenCalled();
   });
 
+  it("routes the existing request-resolution IPC seam to a crafted native Session", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const listeners = new Set<(event: RuntimeEvent) => void>();
+    const respondToRequest = vi
+      .fn<(requestId: string, resolution: unknown) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    runtime.setCustomCraftingAdapter(() => ({
+      id: "request-adapter",
+      harnessKind: "codex",
+      supports: () => true,
+      spawnEntity: async (plan) => ({
+        id: "entity-request",
+        resultItemId: plan.resultItemId,
+        craftPlan: plan,
+        status: "spawned",
+        createdAt: "",
+      }),
+      createSession: async (entity) => ({
+        id: "session-request",
+        threadId: "craft-request-thread",
+        entityId: entity.id,
+        status: "idle",
+        startTurn: async () => ({ turnId: "turn-request", status: "completed", events: [] }),
+        respondToRequest,
+        interrupt: async () => undefined,
+        terminate: async () => undefined,
+        getSnapshot: () => ({
+          sessionId: "session-request",
+          entityId: entity.id,
+          status: "idle",
+          events: [],
+        }),
+        subscribe: (listener) => {
+          listeners.add((event) => listener(event, {} as never));
+          return () => undefined;
+        },
+        sendPrompt: async () => ({ response: "", events: [] }),
+      }),
+      resumeSession: async () => {
+        throw new Error("not used");
+      },
+    }));
+
+    await runtime.craftAgent({
+      craftPlan: craftPlan("craft-request-thread"),
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "",
+    });
+    for (const listener of listeners) {
+      listener({
+        type: "request.opened",
+        threadId: "craft-request-thread",
+        requestId: "permission_1",
+        requestType: "tool_call_approval",
+        payload: { summary: "Allow?", options: [{ optionId: "once", label: "Allow once" }] },
+      });
+    }
+    await runtime.resolveThreadServerRequest({
+      threadId: "craft-request-thread",
+      requestId: "permission_1",
+      method: "requestPermission",
+      response: { optionId: "once" },
+    });
+    expect(respondToRequest).toHaveBeenCalledWith("permission_1", {
+      kind: "permission",
+      response: "once",
+    });
+
+    for (const listener of listeners) {
+      listener({
+        type: "request.opened",
+        threadId: "craft-request-thread",
+        requestId: "question_1",
+        requestType: "tool_user_input",
+        payload: {
+          summary: "Choose",
+          details: {
+            userInputForm: {
+              questions: [
+                {
+                  id: "q0",
+                  question: "Choose",
+                  options: [{ optionId: "q0.0", label: "TypeScript" }],
+                  multiSelect: false,
+                  custom: true,
+                },
+              ],
+            },
+          },
+        },
+      });
+    }
+    await runtime.resolveThreadServerRequest({
+      threadId: "craft-request-thread",
+      requestId: "question_1",
+      method: "requestPermission",
+      response: { answers: { q0: "q0.0" } },
+    });
+    expect(respondToRequest).toHaveBeenLastCalledWith("question_1", {
+      kind: "question",
+      action: "answer",
+      answers: [["TypeScript"]],
+    });
+  });
+
+  it("preserves the legacy ThreadSessionManager request-resolution path", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const legacyResolve = vi
+      .spyOn(runtime.threadSessionManager, "resolveThreadServerRequest")
+      .mockResolvedValue(undefined);
+    const payload = {
+      threadId: "legacy-thread",
+      requestId: "legacy-request",
+      method: "requestPermission",
+      response: { optionId: "allow" },
+    };
+
+    await runtime.resolveThreadServerRequest(payload);
+    expect(legacyResolve).toHaveBeenCalledWith(payload);
+  });
+
   it("maps adapter execution failure to a structured diagnostic", async () => {
     const runtime = makeRuntime(() => undefined);
     runtime.setCustomCraftingAdapter(() => ({

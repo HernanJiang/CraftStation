@@ -19,7 +19,46 @@ export interface NativeHarnessRecipeOptions {
   harnessItemId: string;
   modelVendors: readonly string[];
   harnessVendors?: readonly string[];
+  /** OpenCode provider identity, kept separate from the harness vendor. */
+  providerID?: string;
   compatibilityStatus?: CompatibilityStatus;
+}
+
+const SENSITIVE_RUNTIME_KEY =
+  /(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|token|cookie|password|secret|credential|authorization)/iu;
+
+/**
+ * Keep runtime configuration in the CraftPlan only when it is safe to persist.
+ * Authentication is represented by the separate opaque authRef/profileRef
+ * fields; a provider credential accidentally placed in options is dropped at
+ * the composition boundary instead of being copied into a plan or envelope.
+ */
+function sanitizeRuntimeValue(value: unknown, key = ""): unknown {
+  if (SENSITIVE_RUNTIME_KEY.test(key)) return undefined;
+  if (Array.isArray(value)) {
+    return value.slice(0, 64).map((entry) => sanitizeRuntimeValue(entry));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .slice(0, 128)
+        .flatMap(([name, entry]) => {
+          const safe = sanitizeRuntimeValue(entry, name);
+          return safe === undefined ? [] : [[name, safe]];
+        }),
+    );
+  }
+  if (typeof value === "string") return value.length > 1000 ? `${value.slice(0, 1000)}…` : value;
+  return value;
+}
+
+function sanitizeRuntimeRecord(
+  value: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const safe = sanitizeRuntimeValue(value);
+  return safe && typeof safe === "object" && !Array.isArray(safe)
+    ? (safe as Record<string, unknown>)
+    : undefined;
 }
 
 /**
@@ -39,6 +78,7 @@ export class NativeHarnessRecipe implements Recipe {
   readonly harnessItemId: string;
   readonly modelVendors: readonly string[];
   readonly harnessVendors: readonly string[];
+  readonly providerID: string | undefined;
   readonly requirements: Record<string, RecipeSlotRequirement>;
 
   constructor(options: NativeHarnessRecipeOptions) {
@@ -51,6 +91,7 @@ export class NativeHarnessRecipe implements Recipe {
     this.harnessItemId = options.harnessItemId;
     this.modelVendors = [...options.modelVendors];
     this.harnessVendors = [...(options.harnessVendors ?? options.modelVendors)];
+    this.providerID = options.providerID;
     this.requirements = {
       model: {
         slot: "model",
@@ -95,21 +136,34 @@ export class NativeHarnessRecipe implements Recipe {
     }
 
     const modelCapability = model.components.find(
-      (component): component is ModelCapabilityComponent =>
-        component.kind === "model_capability",
+      (component): component is ModelCapabilityComponent => component.kind === "model_capability",
     );
     const runtimeModelId =
       modelCapability?.modelId ??
       model.id.replace(new RegExp(`^${escapeRegExp(model.metadata.vendor)}:`), "");
+    const safeOptions = sanitizeRuntimeRecord(context.clientProperties);
+    const safeOverrides = context.overrides
+      ? {
+          ...context.overrides,
+          ...(context.overrides.customSettings
+            ? { customSettings: sanitizeRuntimeRecord(context.overrides.customSettings) ?? {} }
+            : {}),
+        }
+      : undefined;
     const contextFingerprint = JSON.stringify({
       workspace: context.workspace ?? null,
+      sessionRef: context.sessionRef ?? null,
       threadId: context.threadId ?? null,
+      authRef: context.authRef ?? null,
       profileRef: context.profileRef ?? null,
       environment: context.environment ?? null,
+      options: safeOptions ?? null,
+      overrides: safeOverrides ?? null,
     });
-    const hash = sha256Hex(
-      `${this.id}:${model.id}:${harness.id}:${contextFingerprint}`,
-    ).slice(0, 16);
+    const hash = sha256Hex(`${this.id}:${model.id}:${harness.id}:${contextFingerprint}`).slice(
+      0,
+      16,
+    );
 
     return {
       id: `plan:${this.id}:${hash}`,
@@ -136,15 +190,17 @@ export class NativeHarnessRecipe implements Recipe {
         modelId: runtimeModelId,
         vendor: model.metadata.vendor,
         runtimeAdapterId: `native-harness:${this.harnessKind}`,
+        ...(this.providerID ? { providerID: this.providerID } : {}),
+        ...(context.authRef ? { authRef: context.authRef } : {}),
         ...(context.profileRef ? { profileRef: context.profileRef } : {}),
         ...(context.environment ? { environment: context.environment } : {}),
-        ...(context.clientProperties ? { options: context.clientProperties } : {}),
+        ...(safeOptions ? { options: safeOptions } : {}),
       },
       ...(context.workspace ? { workspace: context.workspace } : {}),
       ...(context.sessionRef ? { sessionRef: context.sessionRef } : {}),
       ...(context.threadId ? { threadId: context.threadId } : {}),
       createdAt: new Date().toISOString(),
-      ...(context.overrides ? { overrides: context.overrides } : {}),
+      ...(safeOverrides ? { overrides: safeOverrides } : {}),
     };
   }
 }

@@ -11,6 +11,7 @@ import {
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
 } from "./descriptors";
 import { projectNativeHarnessControlPlane } from "./controlPlane";
 
@@ -101,9 +102,9 @@ describe("Native Harness control-plane projection", () => {
     expect(result.find((entry) => entry.descriptor.harnessKind === "grok")?.diagnostics).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: "AUTH_REQUIRED" })]),
     );
-    expect(result.find((entry) => entry.descriptor.harnessKind === "deepseek")?.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" })]),
-    );
+    expect(
+      result.find((entry) => entry.descriptor.harnessKind === "deepseek")?.diagnostics,
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" })]));
   });
 
   it("does not treat a pending empty account profile as an authenticated signal", () => {
@@ -183,5 +184,42 @@ describe("Native Harness control-plane projection", () => {
     });
 
     expect(result[0]?.status).toBe("error");
+  });
+
+  it("exposes OpenCode through the existing safe control-plane seam without claiming integration", () => {
+    const result = projectNativeHarnessControlPlane({
+      descriptors: [OPENCODE_NATIVE_HARNESS_DESCRIPTOR],
+      statuses: [],
+      profileConfigured: new Set(["opencode"]),
+      environmentKind: "windows",
+      diagnostics: new Map([
+        [
+          "opencode",
+          [
+            {
+              code: "RUNTIME_UNAVAILABLE",
+              harnessKind: "opencode",
+              phase: "discovery",
+              operation: "discover",
+              message: "opencode binary unavailable",
+              details: { token: "must-not-cross-ipc" },
+              occurredAt: new Date(0).toISOString(),
+            },
+          ],
+        ],
+      ]),
+    });
+
+    expect(result[0]).toMatchObject({
+      status: "unavailable",
+      profileConfigured: true,
+      descriptor: {
+        harnessKind: "opencode",
+        transport: "official-http-sse",
+        capabilities: { streaming: "implementation missing", compaction: "implementation missing" },
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("must-not-cross-ipc");
+    expect(JSON.stringify(result)).not.toContain("details");
   });
 });

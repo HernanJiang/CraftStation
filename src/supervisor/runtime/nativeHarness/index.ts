@@ -9,6 +9,7 @@ import {
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
 } from "./descriptors";
 import {
@@ -32,10 +33,12 @@ export {
   StructuredNativeHarnessRuntimeAdapter,
   UnavailableNativeHarnessRuntimeAdapter,
 };
-export type {
-  PtyNativeHarnessRuntimeAdapterOptions,
-  StructuredNativeHarnessRuntimeAdapterOptions,
-};
+export type { PtyNativeHarnessRuntimeAdapterOptions, StructuredNativeHarnessRuntimeAdapterOptions };
+
+import { OpenCodeNativeRuntimeAdapter } from "../openCodeNative/adapter";
+import type { OpenCodeExecutableReadinessProvider } from "@/shared/opencodeNative";
+import type { OpenCodeRuntimeBindingResolver } from "../openCodeNative/runtimeBinding";
+import type { OpenCodeNativeServerPool } from "../openCodeNative/serverPool";
 
 export interface NativeHarnessAdapterFactoryOptions {
   projectLocation: ProjectLocation;
@@ -44,11 +47,12 @@ export interface NativeHarnessAdapterFactoryOptions {
   /** Base process env for the spawned runtime (e.g. managed GROK_HOME). */
   baseSpawnEnv?: Record<string, string>;
   onPromptError?: (error: unknown) => void | Promise<void>;
+  openCodeReadinessProvider?: OpenCodeExecutableReadinessProvider;
+  openCodeRuntimeBindingResolver?: OpenCodeRuntimeBindingResolver;
+  openCodeServerPool?: OpenCodeNativeServerPool;
 }
 
-type NativeHarnessFactory = (
-  options: NativeHarnessAdapterFactoryOptions,
-) => HarnessRuntimeAdapter;
+type NativeHarnessFactory = (options: NativeHarnessAdapterFactoryOptions) => HarnessRuntimeAdapter;
 
 const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
   grok: ({ projectLocation, accountBinding, profileRef, baseSpawnEnv, onPromptError }) =>
@@ -81,6 +85,25 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
       DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
       "The official DeepSeek / DSH executable was not discovered during the v0.4 audit.",
     ),
+  opencode: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    openCodeReadinessProvider,
+    openCodeRuntimeBindingResolver,
+    openCodeServerPool,
+  }) =>
+    new OpenCodeNativeRuntimeAdapter({
+      projectLocation,
+      descriptor: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+      ...(accountBinding ? { accountBinding } : {}),
+      ...(profileRef ? { profileRef } : {}),
+      ...(openCodeReadinessProvider ? { readinessProvider: openCodeReadinessProvider } : {}),
+      ...(openCodeRuntimeBindingResolver
+        ? { runtimeBindingResolver: openCodeRuntimeBindingResolver }
+        : {}),
+      ...(openCodeServerPool ? { serverPool: openCodeServerPool } : {}),
+    }),
 };
 
 function withGrokBaseSpawnEnv<T extends { baseSpawnEnv?: Record<string, string> }>(

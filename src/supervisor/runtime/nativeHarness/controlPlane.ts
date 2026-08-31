@@ -43,6 +43,9 @@ function statusFor(
   diagnostics: readonly NativeHarnessDiagnostic[],
 ): NativeHarnessControlPlaneEntry["status"] {
   if (descriptor.transport === "unavailable") return "unavailable";
+  if (diagnostics.some((diagnostic) => diagnostic.code === "RUNTIME_UNAVAILABLE")) {
+    return "unavailable";
+  }
   if (
     diagnostics.some((diagnostic) =>
       [
@@ -63,7 +66,10 @@ function statusFor(
   return "not-configured";
 }
 
-function stableDiagnosticMessage(code: NativeHarnessPublicDiagnostic["code"], harnessKind: string): string {
+function stableDiagnosticMessage(
+  code: NativeHarnessPublicDiagnostic["code"],
+  harnessKind: string,
+): string {
   switch (code) {
     case "AUTH_REQUIRED":
       return `${harnessKind} requires authentication.`;
@@ -100,9 +106,7 @@ function stableRemediation(code: NativeHarnessPublicDiagnostic["code"]): string 
   }
 }
 
-function publicDiagnostic(
-  diagnostic: NativeHarnessDiagnostic,
-): NativeHarnessPublicDiagnostic {
+function publicDiagnostic(diagnostic: NativeHarnessDiagnostic): NativeHarnessPublicDiagnostic {
   const code = diagnostic.code;
   return {
     code,

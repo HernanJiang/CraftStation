@@ -1,4 +1,4 @@
-﻿import type { CraftPlan, RuntimeOverrides } from "./types";
+import type { CraftPlan, RuntimeOverrides } from "./types";
 import type { RuntimeEvent } from "../contracts/runtimeEvent";
 
 export type EntityStatus = "spawned" | "running" | "idle" | "terminated" | "error";
@@ -57,6 +57,23 @@ export interface TurnResult {
   readonly error?: string | undefined;
 }
 
+export type CraftRequestResolution =
+  | {
+      readonly kind: "permission";
+      readonly response: "once" | "always" | "reject";
+      readonly message?: string | undefined;
+    }
+  | {
+      readonly kind: "question";
+      readonly action: "answer";
+      /** One array of selected labels/custom values for each OpenCode question. */
+      readonly answers: readonly (readonly string[])[];
+    }
+  | {
+      readonly kind: "question";
+      readonly action: "reject";
+    };
+
 export type SessionEventListener = (event: RuntimeEvent, snapshot: SessionSnapshot) => void;
 
 export interface CraftSession {
@@ -72,6 +89,11 @@ export interface CraftSession {
    * Does NOT rely on a fixed 60-second completion timeout.
    */
   startTurn(command: StartTurnCommand): Promise<TurnResult>;
+
+  /**
+   * Respond to a permission request or user input question.
+   */
+  respondToRequest?(requestId: string, resolution: CraftRequestResolution): Promise<void>;
 
   /**
    * Interrupt the active turn if currently running.
@@ -99,6 +121,12 @@ export interface CraftSession {
    * extra diagnostic records.
    */
   getDiagnostics?(): readonly NativeHarnessDiagnostic[];
+
+  /** Delegate session summarization/compaction to the native runtime. */
+  summarize?(): Promise<void>;
+
+  /** Read provider-owned message history through the native runtime API. */
+  readMessages?(): Promise<readonly unknown[]>;
 
   /**
    * Subscribe to real-time runtime events emitted by this session.

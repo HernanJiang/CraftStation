@@ -120,8 +120,9 @@ describe("Crafting Registry", () => {
     const harnesses = registry.listItems("harness");
 
     expect(models.length).toBeGreaterThanOrEqual(4);
-    expect(harnesses.length).toBe(5);
+    expect(harnesses.length).toBe(6);
     expect(registry.getItem(BUILTIN_CODEX_HARNESS_ITEM.id)).toBeDefined();
+    expect(registry.getItem("harness:opencode")).toBeDefined();
     expect(registry.getItem("openai:gpt-5.3-codex")).toBeDefined();
   });
 

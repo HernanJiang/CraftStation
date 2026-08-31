@@ -42,14 +42,13 @@ export const nativeHarnessCapabilityStateSchema = z.enum([
   "unavailable",
   "error",
 ]);
-export type NativeHarnessCapabilityState = z.infer<
-  typeof nativeHarnessCapabilityStateSchema
->;
+export type NativeHarnessCapabilityState = z.infer<typeof nativeHarnessCapabilityStateSchema>;
 
 export const nativeHarnessTransportSchema = z.enum([
   "codex-app-server-json-rpc",
   "acp-stdio",
   "official-pty",
+  "official-http-sse",
   "unavailable",
 ]);
 export type NativeHarnessTransport = z.infer<typeof nativeHarnessTransportSchema>;
@@ -88,9 +87,7 @@ export const nativeHarnessDiagnosticCodeSchema = z.enum([
   "NATIVE_EXECUTION_FAILED",
   "CLEANUP_FAILED",
 ]);
-export type NativeHarnessDiagnosticCode = z.infer<
-  typeof nativeHarnessDiagnosticCodeSchema
->;
+export type NativeHarnessDiagnosticCode = z.infer<typeof nativeHarnessDiagnosticCodeSchema>;
 
 export const nativeHarnessDiagnosticSchema = z.object({
   code: nativeHarnessDiagnosticCodeSchema,
@@ -152,9 +149,7 @@ export const nativeHarnessControlPlaneStatusSchema = z.enum([
   "unavailable",
   "error",
 ]);
-export type NativeHarnessControlPlaneStatus = z.infer<
-  typeof nativeHarnessControlPlaneStatusSchema
->;
+export type NativeHarnessControlPlaneStatus = z.infer<typeof nativeHarnessControlPlaneStatusSchema>;
 
 export const nativeHarnessPublicDiagnosticSchema = z.object({
   code: nativeHarnessDiagnosticCodeSchema,
@@ -175,12 +170,13 @@ export const nativeHarnessControlPlaneEntrySchema = z.object({
   environmentKind: z.enum(["windows", "posix", "wsl"]),
   diagnostics: z.array(nativeHarnessPublicDiagnosticSchema),
 });
-export type NativeHarnessControlPlaneEntry = z.infer<
-  typeof nativeHarnessControlPlaneEntrySchema
->;
+export type NativeHarnessControlPlaneEntry = z.infer<typeof nativeHarnessControlPlaneEntrySchema>;
 
 export const nativeHarnessControlPlanePayloadSchema = z.object({
-  harnessKind: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/u).optional(),
+  harnessKind: z
+    .string()
+    .regex(/^[a-z][a-z0-9-]{0,63}$/u)
+    .optional(),
 });
 export type NativeHarnessControlPlanePayload = z.infer<
   typeof nativeHarnessControlPlanePayloadSchema
