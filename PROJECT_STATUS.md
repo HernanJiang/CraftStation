@@ -1,5 +1,12 @@
 # PROJECT_STATUS.md
 
+## v0.7.0 Main Integration Record — 2026-09-01
+
+- 用户已明确授权将 `dev/v0.7-native-harnesses`（Feature commit `4b92a43`）合入本地 `main`；本次为本地 merge，不执行 push、tag 或发布。
+- 合入范围包括 Native Harness composition、官方 Antigravity/DeepSeek carrier seam、DeepSeek API adapter、OpenCode 兼容保留、Crafting UI/IPC、Codex agentic/runtime 回归证据及治理文档。
+- 真实能力边界保持诚实：Antigravity、Grok、Kimi、Codex Native 的既有证据按各自 artifact 记录；官方 DSH 与 DeepSeek API/provider 结果仍受认证/外部 provider 限制；Command Code 或普通 API 证据不冒充官方 DSH。
+- 本次合并成功不等于 v0.7 Feature 全部外部模型/高级能力永久 PASS；未验证能力继续按 `implementation missing`、`AUTH_REQUIRED` 或 `RUNTIME_UNAVAILABLE` 表达。
+
 ## Dev Integration — v0.8.0
 
 - `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility` 已于 2026-08-31 合入本地 `dev`。

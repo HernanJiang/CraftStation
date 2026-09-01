@@ -1,4 +1,4 @@
-﻿import { randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type {
   CraftPlan,
   CraftSession,
@@ -18,12 +18,17 @@ import type {
 import { CODEX_NATIVE_HARNESS_DESCRIPTOR } from "../nativeHarness/descriptors";
 import { CraftingError } from "@/shared/crafting/errors";
 import { logCraftingEvent } from "@/shared/crafting/logging";
-import type { AccountBinding } from "@/shared/contracts";
+import type { AccountBinding, PromptSegment, ResolvedMcpServer } from "@/shared/contracts";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
+import { buildCodexMcp } from "@/supervisor/agents/userMcp";
 import { AppServerClient } from "./appServerClient";
 import { AppServerProcessHost } from "./appServerProcessHost";
 import { mapCodexNotificationToRuntimeEvents, type EventMappingContext } from "./eventMapping";
+import { NativeCodexSubAgentRouter } from "./subAgentMapping";
 import type { JsonRpcRequest } from "./types";
+
+const DEFAULT_COLLABORATION_INSTRUCTIONS =
+  "You are operating in default mode. You may use provider-native collaboration tools, including spawning and waiting for subagents, when the user explicitly requests delegation.";
 
 function codexDiagnostic(
   phase: NativeHarnessDiagnostic["phase"],
@@ -54,6 +59,11 @@ export interface NativeCodexAdapterOptions {
   approvalHandler?: ((request: JsonRpcRequest) => Promise<unknown>) | undefined;
   turnTimeoutMs?: number | undefined;
   accountBinding?: AccountBinding | undefined;
+  /** Supervisor-resolved MCP servers selected by the CraftPlan. */
+  mcpServers?: readonly ResolvedMcpServer[] | undefined;
+  codexHome?: string | undefined;
+  skillSegments?: readonly PromptSegment[] | undefined;
+  inlineSkillInstructions?: string | undefined;
 }
 
 export class NativeCodexCraftSession implements CraftSession {
@@ -68,6 +78,7 @@ export class NativeCodexCraftSession implements CraftSession {
   private _unsubscribeNotif?: (() => void) | undefined;
   private _unsubscribeClose?: (() => void) | undefined;
   private readonly _mappingContext: EventMappingContext;
+  private readonly _subAgentRouter: NativeCodexSubAgentRouter;
   private _sequence = 0;
 
   constructor(
@@ -80,6 +91,9 @@ export class NativeCodexCraftSession implements CraftSession {
     private readonly turnTimeoutMs = 120000,
     usageScopeFresh = true,
     accountId?: string,
+    private readonly runtimeModelId = "unknown",
+    private readonly skillSegments?: readonly PromptSegment[],
+    private readonly inlineSkillInstructions?: string,
   ) {
     this._effectiveOverrides = initialOverrides;
     this._mappingContext = {
@@ -88,14 +102,18 @@ export class NativeCodexCraftSession implements CraftSession {
       usageScopeFresh,
       ...(accountId ? { accountId } : {}),
     };
+    this._subAgentRouter = new NativeCodexSubAgentRouter(this.threadId);
 
     // Listen to official server notifications and map them to CraftStation RuntimeEvents
     this._unsubscribeNotif = this.client.onNotification((notif) => {
       const params = (notif.params ?? {}) as Record<string, any>;
-      // Filter events belonging to this thread if threadId is provided
-      if (params.threadId && params.threadId !== this.threadId) return;
-
-      const events = mapCodexNotificationToRuntimeEvents(notif, this._mappingContext);
+      const childEvents = this._subAgentRouter.routeChildNotification(notif.method, params);
+      const events =
+        childEvents ??
+        this._subAgentRouter.observeMainEvents(
+          mapCodexNotificationToRuntimeEvents(notif, this._mappingContext),
+          params,
+        );
       for (const event of events) {
         this.emitEvent(event, notif.method, "native");
       }
@@ -378,11 +396,29 @@ export class NativeCodexCraftSession implements CraftSession {
         .startTurn({
           threadId: this.threadId,
           turnId,
-          input: [{ type: "text", text: command.prompt }],
+          input: [
+            ...(this.skillSegments ?? []).flatMap((segment) =>
+              segment.kind === "skill" && segment.path
+                ? [{ type: "skill" as const, name: segment.name, path: segment.path }]
+                : [],
+            ),
+            { type: "text", text: command.prompt },
+            ...(this.inlineSkillInstructions
+              ? [{ type: "text" as const, text: this.inlineSkillInstructions }]
+              : []),
+          ],
           model: this._effectiveOverrides?.model,
           effort: this._effectiveOverrides?.reasoningEffort,
           serviceTier: this._effectiveOverrides?.serviceTier,
           approvalPolicy: this._effectiveOverrides?.approvalPolicy,
+          collaborationMode: {
+            mode: "default",
+            settings: {
+              model: this._effectiveOverrides?.model ?? this.runtimeModelId,
+              reasoning_effort: this._effectiveOverrides?.reasoningEffort ?? "medium",
+              developer_instructions: DEFAULT_COLLABORATION_INSTRUCTIONS,
+            },
+          },
         })
         .catch(fail);
     });
@@ -415,15 +451,23 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
 
   private _client?: AppServerClient | undefined;
   private _host?: AppServerProcessHost | undefined;
+  private readonly ownsHost: boolean;
   private readonly diagnostics: NativeHarnessDiagnostic[] = [];
 
   constructor(private readonly options?: NativeCodexAdapterOptions | undefined) {
     this.accountBinding = options?.accountBinding;
     this._client = options?.client;
     this._host = options?.host;
+    this.ownsHost = !options?.client && !options?.host;
     if (this._client && options?.approvalHandler) {
       this._client.setServerRequestHandler(options.approvalHandler);
     }
+  }
+
+  async dispose(): Promise<void> {
+    this._client = undefined;
+    if (this.ownsHost) await this._host?.stop();
+    this._host = undefined;
   }
 
   supports(craftPlan: CraftPlan): boolean {
@@ -442,7 +486,12 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
     if (this._client) return this._client;
 
     if (!this._host) {
-      this._host = new AppServerProcessHost();
+      const mcp = buildCodexMcp(this.options?.mcpServers ?? []);
+      this._host = new AppServerProcessHost({
+        ...(mcp.args.length > 0 ? { args: mcp.args } : {}),
+        ...(Object.keys(mcp.env).length > 0 ? { env: mcp.env } : {}),
+        ...(this.options?.codexHome ? { codexHome: this.options.codexHome } : {}),
+      });
     }
 
     const transport = await this._host.start();
@@ -546,6 +595,9 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         this.options?.turnTimeoutMs,
         true,
         this.accountBinding?.accountId,
+        overrides?.model ?? entity.craftPlan.runtimeBinding.modelId,
+        this.options?.skillSegments,
+        this.options?.inlineSkillInstructions,
       );
     } catch (error) {
       this.diagnostics.push(
@@ -584,6 +636,9 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         this.options?.turnTimeoutMs,
         false,
         this.accountBinding?.accountId,
+        entity.craftPlan.overrides?.model ?? entity.craftPlan.runtimeBinding.modelId,
+        this.options?.skillSegments,
+        this.options?.inlineSkillInstructions,
       );
     } catch (error) {
       this.diagnostics.push(

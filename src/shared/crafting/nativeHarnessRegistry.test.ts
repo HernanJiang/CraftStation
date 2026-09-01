@@ -15,7 +15,7 @@ const context: CraftContext = {
 };
 
 describe("Native Harness registry", () => {
-  it("registers five peer Harness Items and matching native model families", () => {
+  it("registers native Harness Items and matching native model families", () => {
     const registry = new ItemRegistry();
 
     expect(registry.listItems("harness").map((item) => item.id)).toEqual(
@@ -25,9 +25,10 @@ describe("Native Harness registry", () => {
         "harness:kimi",
         "harness:antigravity",
         "harness:deepseek",
+        "harness:deepseek-api",
       ]),
     );
-    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(4);
+    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(5);
     expect(BUILTIN_NATIVE_HARNESS_MODEL_ITEMS.map((item) => item.metadata.vendor)).toEqual(
       expect.arrayContaining(["xai", "moonshot", "google", "deepseek"]),
     );
@@ -37,6 +38,7 @@ describe("Native Harness registry", () => {
         "recipe:moonshot-kimi-native",
         "recipe:google-antigravity-native",
         "recipe:deepseek-native",
+        "recipe:deepseek-api",
       ]),
     );
   });
@@ -65,5 +67,21 @@ describe("Native Harness registry", () => {
       expect(plan.threadId).toBe("thread-native-recipe");
       expect(plan.id).toContain(`plan:${recipe.id}:`);
     }
+
+    const apiRecipe = NATIVE_HARNESS_RECIPES.find(
+      (recipe) => recipe.harnessKind === "deepseek-api",
+    )!;
+    expect(
+      apiRecipe.matches({
+        model: registry.getItem("deepseek:deepseek-chat")!,
+        harness: registry.getItem("harness:deepseek-api")!,
+      }),
+    ).toBe(false);
+    expect(
+      apiRecipe.matches({
+        model: registry.getItem("deepseek:deepseek-chat-api")!,
+        harness: registry.getItem("harness:deepseek-api")!,
+      }),
+    ).toBe(true);
   });
 });

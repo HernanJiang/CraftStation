@@ -1,4 +1,4 @@
-﻿import type { JsonRpcNotification } from "./types";
+import type { JsonRpcNotification } from "./types";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 interface UsageScope {
   scopeId: string;
@@ -52,13 +52,22 @@ export function mapCodexNotificationToRuntimeEvents(
       else if (itemType === "mcpToolCall") canonicalType = "mcp_tool_call";
       else if (itemType === "dynamicToolCall") canonicalType = "dynamic_tool_call";
       else if (itemType === "webSearch") canonicalType = "web_search";
+      else if (itemType === "collabAgentToolCall" || itemType === "subAgentActivity") {
+        canonicalType = "tool_call";
+      }
+
+      const canonicalPayload = buildNativeToolStartedPayload(item);
 
       events.push({
         type: "item.started",
         threadId,
         itemId,
         itemType: (canonicalType as any) || "assistant_message",
-        ...(item.payload || params.payload ? { payload: item.payload ?? params.payload } : {}),
+        ...(canonicalPayload !== undefined
+          ? { payload: canonicalPayload }
+          : item.payload || params.payload
+            ? { payload: item.payload ?? params.payload }
+            : {}),
       });
       break;
     }
@@ -122,11 +131,16 @@ export function mapCodexNotificationToRuntimeEvents(
       const item = params.item ?? {};
       const itemId = item.id || params.itemId || "";
       context.activeItemIds?.delete(itemId);
+      const canonicalPayload = buildNativeToolCompletedPayload(item);
       events.push({
         type: "item.completed",
         threadId,
         itemId,
-        ...(item.payload || params.payload ? { payload: item.payload ?? params.payload } : {}),
+        ...(canonicalPayload !== undefined
+          ? { payload: canonicalPayload }
+          : item.payload || params.payload
+            ? { payload: item.payload ?? params.payload }
+            : {}),
       });
       break;
     }
@@ -219,6 +233,80 @@ export function mapCodexNotificationToRuntimeEvents(
   }
 
   return events;
+}
+
+function buildNativeToolStartedPayload(
+  item: Record<string, any>,
+): Record<string, unknown> | undefined {
+  if (item.type !== "collabAgentToolCall") return undefined;
+  const tool = typeof item.tool === "string" ? item.tool : "collaboration";
+  const receiverThreadIds = readStringArray(item.receiverThreadIds ?? item.receiver_thread_ids);
+  const prompt = readNonEmptyString(item.prompt);
+  const model = readNonEmptyString(item.model);
+  const effort = readNonEmptyString(item.reasoningEffort ?? item.reasoning_effort);
+  const isSubAgent = normalizeToolName(tool) === "spawnagent";
+  return {
+    name: tool,
+    status: "running",
+    ...(isSubAgent ? { isSubAgent: true } : {}),
+    ...(prompt || receiverThreadIds.length > 0 || model || effort
+      ? {
+          args: {
+            ...(prompt ? { description: prompt, prompt } : {}),
+            ...(receiverThreadIds.length > 0 ? { receiverThreadIds } : {}),
+            ...(model ? { model } : {}),
+            ...(effort ? { reasoningEffort: effort } : {}),
+          },
+        }
+      : {}),
+    ...(isSubAgent
+      ? {
+          progress: {
+            ...(prompt ? { description: prompt } : {}),
+            ...(model ? { model } : {}),
+            ...(effort ? { effort } : {}),
+            stepCount: receiverThreadIds.length,
+          },
+        }
+      : {}),
+  };
+}
+
+function buildNativeToolCompletedPayload(
+  item: Record<string, any>,
+): Record<string, unknown> | undefined {
+  if (item.type !== "collabAgentToolCall") return undefined;
+  const result = readCollabResult(item.agentsStates ?? item.agents_states);
+  return {
+    status: item.status === "failed" || item.status === "error" ? "error" : "success",
+    ...(result ? { result } : {}),
+  };
+}
+
+function normalizeToolName(value: string): string {
+  return value.replace(/[._/\s-]+/gu, "").toLowerCase();
+}
+
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map(readNonEmptyString).filter((item): item is string => item !== undefined)
+    : [];
+}
+
+function readCollabResult(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const messages = Object.values(value as Record<string, unknown>)
+    .map((state) =>
+      state && typeof state === "object" && !Array.isArray(state)
+        ? readNonEmptyString((state as Record<string, unknown>).message)
+        : undefined,
+    )
+    .filter((message): message is string => message !== undefined);
+  return messages.length > 0 ? messages.join("\n\n") : undefined;
 }
 
 function readCumulativeTokenTotal(params: Record<string, unknown>): number | undefined {

@@ -1,0 +1,894 @@
+{
+  "timestamp": "2026-08-31T02:42:27.295Z",
+  "synthetic": false,
+  "feature": "v0.3.0 — Codex Native Runtime Parity & CraftStation Control Plane",
+  "executionPath": "SupervisorRuntime.craftAgent -> NativeCodexRuntimeAdapter -> AppServerProcessHost -> codex.exe app-server --stdio -> Entity -> Session",
+  "projectLocation": {
+    "kind": "windows",
+    "path": "D:\\Work\\CraftStation\\craftstation\\.worktrees\\v0.7"
+  },
+  "prompts": [
+    "Reply with exactly CRAFTSTATION_REAL_ROUNDTRIP_OK.",
+    "Reply with exactly CRAFTSTATION_SECONDTURN_OK."
+  ],
+  "binary": {
+    "path": "C:\\Users\\Haona\\AppData\\Local\\OpenAI\\Codex\\bin\\fac60c5e9a2ae3df\\codex.exe",
+    "source": "localappdata",
+    "version": "codex-cli 0.150.0-alpha.12.2"
+  },
+  "initializeResult": {
+    "userAgent": "Codex Desktop/0.150.0-alpha.12.2 (Windows 10.0.26200; x86_64) dumb (CraftStation; 0.3.0)",
+    "codexHome": "C:\\Users\\Haona\\.codex",
+    "platformFamily": "windows",
+    "platformOs": "windows"
+  },
+  "discoveredModelsCount": 14,
+  "discoveredModelIds": [
+    "gpt-5.6-terra",
+    "glm-latest",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "k3-256k",
+    "claude-opus-4.6-thinking",
+    "gemini-3.7-flash",
+    "grok-4.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-luna",
+    "z-ai/glm-5.3-flash",
+    "meta/muse-spark-1.2-contributor",
+    "kimi-k3",
+    "deepseek-v4-pro-0813"
+  ],
+  "verdict": "PASS",
+  "entityId": "entity:codex:3a60a865-46a6-45d1-8419-a9c2ade62f3f",
+  "sessionId": "sess:codex:01a055b2-5c7f-79e1-8c83-2185e127ac91",
+  "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+  "turn1Response": "CRAFTSTATION_REAL_ROUNDTRIP_OK",
+  "turn2Response": "CRAFTSTATION_SECONDTURN_OK",
+  "events": [
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:mcpServer/startupStatus/updated",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "name": "node_repl",
+        "status": "starting",
+        "error": null,
+        "failureReason": null
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "mcpServer/startupStatus/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 0,
+        "receivedAt": "2026-08-31T02:42:27.815Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:mcpServer/startupStatus/updated",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "name": "codex_apps",
+        "status": "starting",
+        "error": null,
+        "failureReason": null
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "mcpServer/startupStatus/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 1,
+        "receivedAt": "2026-08-31T02:42:27.816Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:mcpServer/startupStatus/updated",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "name": "node_repl",
+        "status": "ready",
+        "error": null,
+        "failureReason": null
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "mcpServer/startupStatus/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 2,
+        "receivedAt": "2026-08-31T02:42:27.857Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:thread/status/changed",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "thread/status/changed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 3,
+        "receivedAt": "2026-08-31T02:42:27.971Z"
+      }
+    },
+    {
+      "type": "turn.started",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "turnId": "01a055b2-5d68-7d52-96bd-54da1b7eb2d1",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "turn/started",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 4,
+        "receivedAt": "2026-08-31T02:42:27.971Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:mcpServer/startupStatus/updated",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "name": "openai-api-key-local-confirmation",
+        "status": "starting",
+        "error": null,
+        "failureReason": null
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "mcpServer/startupStatus/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 5,
+        "receivedAt": "2026-08-31T02:42:29.631Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:mcpServer/startupStatus/updated",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "name": "openai-api-key-local-confirmation",
+        "status": "ready",
+        "error": null,
+        "failureReason": null
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "mcpServer/startupStatus/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 6,
+        "receivedAt": "2026-08-31T02:42:29.693Z"
+      }
+    },
+    {
+      "type": "item.started",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "01a055b2-6636-79d3-8295-df301a0a56ba",
+      "itemType": "user_message",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/started",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 7,
+        "receivedAt": "2026-08-31T02:42:30.070Z"
+      }
+    },
+    {
+      "type": "item.completed",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "01a055b2-6636-79d3-8295-df301a0a56ba",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/completed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 8,
+        "receivedAt": "2026-08-31T02:42:30.073Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:mcpServer/startupStatus/updated",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "name": "node_repl",
+        "status": "ready",
+        "error": null,
+        "failureReason": null
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "mcpServer/startupStatus/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 9,
+        "receivedAt": "2026-08-31T02:42:31.723Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:mcpServer/startupStatus/updated",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "name": "codex_apps",
+        "status": "ready",
+        "error": null,
+        "failureReason": null
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "mcpServer/startupStatus/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 10,
+        "receivedAt": "2026-08-31T02:42:31.724Z"
+      }
+    },
+    {
+      "type": "item.started",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "rs_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "itemType": "reasoning",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/started",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 11,
+        "receivedAt": "2026-08-31T02:42:42.235Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:item/reasoning/summaryPartAdded",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "turnId": "01a055b2-5d68-7d52-96bd-54da1b7eb2d1",
+        "itemId": "rs_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+        "summaryIndex": 0
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/reasoning/summaryPartAdded",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 12,
+        "receivedAt": "2026-08-31T02:42:42.235Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:item/reasoning/summaryTextDelta",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "turnId": "01a055b2-5d68-7d52-96bd-54da1b7eb2d1",
+        "itemId": "rs_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+        "delta": "**Confirming exact string output without tools**",
+        "summaryIndex": 0
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/reasoning/summaryTextDelta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 13,
+        "receivedAt": "2026-08-31T02:42:42.235Z"
+      }
+    },
+    {
+      "type": "item.completed",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "rs_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/completed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 14,
+        "receivedAt": "2026-08-31T02:42:42.619Z"
+      }
+    },
+    {
+      "type": "item.started",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "itemType": "assistant_message",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/started",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 15,
+        "receivedAt": "2026-08-31T02:42:42.621Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "CRA",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 16,
+        "receivedAt": "2026-08-31T02:42:42.621Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "FT",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 17,
+        "receivedAt": "2026-08-31T02:42:42.621Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "ST",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 18,
+        "receivedAt": "2026-08-31T02:42:42.621Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "ATION",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 19,
+        "receivedAt": "2026-08-31T02:42:42.621Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "_REAL",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 20,
+        "receivedAt": "2026-08-31T02:42:42.729Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "_RO",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 21,
+        "receivedAt": "2026-08-31T02:42:42.776Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "UND",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 22,
+        "receivedAt": "2026-08-31T02:42:42.967Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "TR",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 23,
+        "receivedAt": "2026-08-31T02:42:42.967Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "IP",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 24,
+        "receivedAt": "2026-08-31T02:42:42.968Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "stream": "assistant_text",
+      "delta": "_OK",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 25,
+        "receivedAt": "2026-08-31T02:42:42.969Z"
+      }
+    },
+    {
+      "type": "item.completed",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_077ee6ef08805580016a94ea191db487d19a349171bea57a69_0",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/completed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 26,
+        "receivedAt": "2026-08-31T02:42:43.641Z"
+      }
+    },
+    {
+      "type": "usage.spent",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "usage": {
+        "counterKind": "cumulative",
+        "counter": 93125,
+        "scopeId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "epoch": 0,
+        "fresh": true,
+        "sampleId": "01a055b2-5c7f-79e1-8c83-2185e127ac91:0:93125",
+        "turnId": "01a055b2-5d68-7d52-96bd-54da1b7eb2d1",
+        "occurredAt": 1788144163743
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "thread/tokenUsage/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 27,
+        "receivedAt": "2026-08-31T02:42:43.743Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:account/rateLimits/updated",
+      "payload": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": null,
+          "secondary": null,
+          "credits": null,
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": null,
+          "rateLimitReachedType": null
+        }
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "account/rateLimits/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 28,
+        "receivedAt": "2026-08-31T02:42:43.744Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:thread/status/changed",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "status": {
+          "type": "idle"
+        }
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "thread/status/changed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 29,
+        "receivedAt": "2026-08-31T02:42:43.772Z"
+      }
+    },
+    {
+      "type": "turn.completed",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "turnId": "01a055b2-5d68-7d52-96bd-54da1b7eb2d1",
+      "state": "completed",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "turn/completed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 30,
+        "receivedAt": "2026-08-31T02:42:43.772Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:thread/status/changed",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "thread/status/changed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 31,
+        "receivedAt": "2026-08-31T02:42:43.900Z"
+      }
+    },
+    {
+      "type": "turn.started",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "turnId": "01a055b2-9bbe-7a90-b1de-82038b4ca568",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "turn/started",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 32,
+        "receivedAt": "2026-08-31T02:42:43.900Z"
+      }
+    },
+    {
+      "type": "item.started",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "01a055b2-9c8c-7192-aff2-ad27f9d919f4",
+      "itemType": "user_message",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/started",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 33,
+        "receivedAt": "2026-08-31T02:42:43.980Z"
+      }
+    },
+    {
+      "type": "item.completed",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "01a055b2-9c8c-7192-aff2-ad27f9d919f4",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/completed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 34,
+        "receivedAt": "2026-08-31T02:42:43.984Z"
+      }
+    },
+    {
+      "type": "item.started",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "itemType": "assistant_message",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/started",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 35,
+        "receivedAt": "2026-08-31T02:42:53.682Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "CRA",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 36,
+        "receivedAt": "2026-08-31T02:42:53.682Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "FT",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 37,
+        "receivedAt": "2026-08-31T02:42:53.682Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "ST",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 38,
+        "receivedAt": "2026-08-31T02:42:53.720Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "ATION",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 39,
+        "receivedAt": "2026-08-31T02:42:53.776Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "_SE",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 40,
+        "receivedAt": "2026-08-31T02:42:53.776Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "CON",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 41,
+        "receivedAt": "2026-08-31T02:42:53.777Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "DT",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 42,
+        "receivedAt": "2026-08-31T02:42:53.793Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "URN",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 43,
+        "receivedAt": "2026-08-31T02:42:53.815Z"
+      }
+    },
+    {
+      "type": "content.delta",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "stream": "assistant_text",
+      "delta": "_OK",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/agentMessage/delta",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 44,
+        "receivedAt": "2026-08-31T02:42:53.835Z"
+      }
+    },
+    {
+      "type": "item.completed",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "itemId": "msg_resp_07d0173186825c73016a94ea26f5b087d1a9f8abc0a2ff764b_0",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "item/completed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 45,
+        "receivedAt": "2026-08-31T02:42:54.509Z"
+      }
+    },
+    {
+      "type": "usage.spent",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "usage": {
+        "counterKind": "cumulative",
+        "counter": 194767,
+        "scopeId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "epoch": 0,
+        "sampleId": "01a055b2-5c7f-79e1-8c83-2185e127ac91:0:194767",
+        "turnId": "01a055b2-9bbe-7a90-b1de-82038b4ca568",
+        "occurredAt": 1788144174616
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "thread/tokenUsage/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 46,
+        "receivedAt": "2026-08-31T02:42:54.616Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:account/rateLimits/updated",
+      "payload": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": null,
+          "secondary": null,
+          "credits": null,
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": null,
+          "rateLimitReachedType": null
+        }
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "account/rateLimits/updated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 47,
+        "receivedAt": "2026-08-31T02:42:54.616Z"
+      }
+    },
+    {
+      "type": "custom",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "name": "codex:thread/status/changed",
+      "payload": {
+        "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "status": {
+          "type": "idle"
+        }
+      },
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "thread/status/changed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 48,
+        "receivedAt": "2026-08-31T02:42:54.636Z"
+      }
+    },
+    {
+      "type": "turn.completed",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "turnId": "01a055b2-9bbe-7a90-b1de-82038b4ca568",
+      "state": "completed",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "native",
+        "nativeType": "turn/completed",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 49,
+        "receivedAt": "2026-08-31T02:42:54.637Z"
+      }
+    },
+    {
+      "type": "session.exited",
+      "threadId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+      "reason": "normal",
+      "nativeEnvelope": {
+        "harnessKind": "codex",
+        "source": "canonical-adapter",
+        "nativeType": "session/terminated",
+        "providerSessionId": "01a055b2-5c7f-79e1-8c83-2185e127ac91",
+        "sequence": 50,
+        "receivedAt": "2026-08-31T02:42:54.637Z"
+      }
+    }
+  ],
+  "eventCount": 50,
+  "spawnArgs": ["app-server", "--stdio"],
+  "stderrTail": "{\"timestamp\":\"2026-08-31T02:42:27.637525Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/\"},\"target\":\"codex_skills::interface\"}\n{\"timestamp\":\"2026-08-31T02:42:27.637599Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/\"},\"target\":\"codex_skills::interface\"}\n{\"timestamp\":\"2026-08-31T02:42:27.697516Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"Failed to create shell snapshot for powershell: Shell snapshot not supported yet for PowerShell\"},\"target\":\"codex_core::shell_snapshot\"}\n{\"timestamp\":\"2026-08-31T02:42:29.624593Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/\"},\"target\":\"codex_skills::interface\"}\n{\"timestamp\":\"2026-08-31T02:42:29.624654Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/\"},\"target\":\"codex_skills::interface\"}\n",
+  "exitCode": null,
+  "exitSignal": "SIGTERM"
+}

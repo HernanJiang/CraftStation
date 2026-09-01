@@ -1,12 +1,56 @@
 ﻿import { PassThrough } from "node:stream";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Crafter, BUILTIN_MODEL_ITEMS } from "@/shared/crafting";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import { JsonRpcTransport } from "./jsonRpcTransport";
 import { AppServerClient } from "./appServerClient";
+import { AppServerProcessHost } from "./appServerProcessHost";
 import { NativeCodexRuntimeAdapter } from "./nativeCodexRuntimeAdapter";
 
 describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
+  it("projects Supervisor-resolved MCP configuration into the official app-server host", async () => {
+    const adapter = new NativeCodexRuntimeAdapter({
+      codexHome: "C:\\managed-codex-home",
+      mcpServers: [
+        {
+          id: "probe",
+          name: "probe",
+          timeoutMs: 30_000,
+          transport: {
+            type: "stdio",
+            command: "node",
+            args: ["probe.mjs"],
+            env: {},
+          },
+        },
+      ],
+    });
+
+    await expect(
+      adapter.spawnEntity(
+        new Crafter().compile(
+          { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+          { workspace: "D:\\test\\workspace" },
+        ).craftPlan!,
+      ),
+    ).resolves.toBeDefined();
+
+    const ensureClient = Reflect.get(adapter, "ensureClient") as () => Promise<AppServerClient>;
+    const start = vi
+      .spyOn(AppServerProcessHost.prototype, "start")
+      .mockRejectedValueOnce(new Error("stop after host construction"));
+    await expect(ensureClient.call(adapter)).rejects.toThrow("stop after host construction");
+    const host = adapter.host!;
+    expect(Reflect.get(host, "options")).toMatchObject({
+      codexHome: "C:\\managed-codex-home",
+      args: expect.arrayContaining([
+        "-c",
+        'mcp_servers.probe.command="node"',
+        'mcp_servers.probe.args=["probe.mjs"]',
+      ]),
+    });
+    start.mockRestore();
+  });
   function setupMockClientTransport(options: { turnStartError?: string } = {}) {
     const clientToHost = new PassThrough();
     const hostToClient = new PassThrough();
@@ -262,6 +306,93 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
     expect(snapshot.events.length).toBe(emittedEvents.length);
   });
 
+  it("forwards official child-thread activity with canonical subagent identity", async () => {
+    const { client, hostToClient } = setupMockClientTransport();
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { threadId: "thread-native-subagent" },
+    ).craftPlan!;
+    const entity = await adapter.spawnEntity(plan);
+    const session = await adapter.createSession(entity);
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    for (const notification of [
+      {
+        method: "item/started",
+        params: {
+          threadId: session.threadId,
+          item: {
+            id: "collab-native-1",
+            type: "collabAgentToolCall",
+            tool: "spawnAgent",
+            status: "inProgress",
+            receiverThreadIds: ["child-native-1"],
+            prompt: "Inspect one thing",
+          },
+        },
+      },
+      {
+        method: "item/started",
+        params: {
+          threadId: "child-native-1",
+          item: { id: "child-message-1", type: "agentMessage" },
+        },
+      },
+      {
+        method: "item/agentMessage/delta",
+        params: {
+          threadId: "child-native-1",
+          itemId: "child-message-1",
+          delta: "native child result",
+        },
+      },
+      {
+        method: "turn/completed",
+        params: {
+          threadId: "child-native-1",
+          turn: { id: "child-turn-1", status: "completed" },
+        },
+      },
+    ]) {
+      hostToClient.write(`${JSON.stringify({ jsonrpc: "2.0", ...notification })}\n`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const parentStarted = events.find(
+      (event): event is Extract<RuntimeEvent, { type: "item.started" }> =>
+        event.type === "item.started" && event.itemId === "collab-native-1",
+    );
+    expect(parentStarted).toMatchObject({
+      itemType: "tool_call",
+      payload: { name: "spawnAgent", isSubAgent: true, status: "running" },
+      nativeEnvelope: { source: "native", nativeType: "item/started" },
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "item.started",
+        itemId: "child-message-1",
+        itemType: "assistant_message",
+        parentItemId: "collab-native-1",
+      }),
+    );
+    const parentCompleted = events.find(
+      (event) => event.type === "item.completed" && event.itemId === "collab-native-1",
+    );
+    expect(parentCompleted).toMatchObject({
+      payload: expect.objectContaining({
+        isSubAgent: true,
+        status: "success",
+        result: "native child result",
+      }),
+      nativeEnvelope: expect.objectContaining({
+        source: "native",
+        nativeType: "turn/completed",
+      }),
+    });
+  });
+
   it("reports an app-server protocol failure as a stable native diagnostic", async () => {
     const { client } = setupMockClientTransport({
       turnStartError: "native protocol mismatch",
@@ -350,6 +481,13 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
     expect(turnRequests.length).toBe(2);
     expect(turnRequests[0]?.params?.input[0]?.text).toBe("First Turn");
     expect(turnRequests[1]?.params?.input[0]?.text).toBe("Second Turn");
+    expect(turnRequests[0]?.params?.collaborationMode).toMatchObject({
+      mode: "default",
+      settings: {
+        model: plan.runtimeBinding.modelId,
+        reasoning_effort: "medium",
+      },
+    });
   });
 
   it("supports steer and interrupt commands during an active turn", async () => {

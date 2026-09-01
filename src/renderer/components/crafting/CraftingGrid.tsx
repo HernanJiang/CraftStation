@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -24,6 +24,7 @@ import {
 
 export interface CraftingGridProps {
   workspace?: string | undefined;
+  models?: readonly Item[] | undefined;
   onCraft?: ((result: CraftResult, prompt: string) => void | Promise<void>) | undefined;
   disabled?: boolean | undefined;
 }
@@ -145,25 +146,30 @@ function IngredientSlotView(props: {
 
 export const CraftingGrid: React.FC<CraftingGridProps> = ({
   workspace,
+  models,
   onCraft,
   disabled = false,
 }) => {
-  const registry = useMemo(() => getDefaultRegistry(), []);
-  const crafter = useMemo(() => getDefaultCrafter(), []);
-  const availableModels = useMemo(() => registry.listItems("model"), [registry]);
-  const availableHarnesses = useMemo(() => registry.listItems("harness"), [registry]);
-  const recipes = useMemo(() => registry.listRecipes(), [registry]);
+  const registry = getDefaultRegistry();
+  const crafter = getDefaultCrafter();
+  const availableModels = models ?? registry.listItems("model");
+  const availableHarnesses = registry.listItems("harness");
+  const recipes = registry.listRecipes();
 
-  const [selectedModelId, setSelectedModelId] = useState(
-    availableModels[0]?.id ?? "openai:gpt-5.3-codex",
-  );
+  const [selectedModelId, setSelectedModelId] = useState(availableModels[0]?.id ?? "");
   const [harnessSelection, setHarnessSelection] = useState<"auto" | string>("auto");
   const [filter, setFilter] = useState<InventoryFilter>("all");
   const [prompt, setPrompt] = useState("");
   const [isCrafting, setIsCrafting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const selectedModel = registry.getItem(selectedModelId);
+  useEffect(() => {
+    if (!availableModels.some((item) => item.id === selectedModelId)) {
+      setSelectedModelId(availableModels[0]?.id ?? "");
+    }
+  }, [availableModels, selectedModelId]);
+
+  const selectedModel = availableModels.find((item) => item.id === selectedModelId);
   const selectedHarnessItem: SlotSelection =
     harnessSelection === "auto" ? "auto" : registry.getItem(harnessSelection);
   const resolvedHarness = registry.resolveSlot("harness", selectedHarnessItem);
@@ -185,7 +191,10 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
   }
 
   function dropInto(slot: IngredientSlot, id: string) {
-    const item = registry.getItem(id);
+    const item =
+      slot === "model"
+        ? availableModels.find((candidate) => candidate.id === id)
+        : registry.getItem(id);
     if (!item || item.kind !== slot) return;
     chooseItem(item);
   }

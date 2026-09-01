@@ -283,6 +283,43 @@ describe("startThreadFromDraft host transport", () => {
     );
   });
 
+  it("passes only the custom MCP servers explicitly selected by the CraftPlan", async () => {
+    const selectedServer = {
+      id: "craft-probe",
+      name: "craft-probe",
+      description: "selected",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["probe.mjs"], env: {} },
+    };
+    const unselectedServer = {
+      ...selectedServer,
+      id: "not-selected",
+      name: "not-selected",
+      description: "must not cross the Crafting IPC seam",
+    };
+    const project = { ...localProject, mcpServers: [selectedServer, unselectedServer] };
+    const craftResult = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+      {
+        workspace: "C:\\repo",
+        threadId: "craft-thread-mcp",
+        overrides: { mcpServerIds: [selectedServer.id] },
+      },
+    );
+
+    await startThreadFromCraft(project, craftResult, "call the selected MCP tool");
+
+    expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        craftPlan: expect.objectContaining({
+          overrides: expect.objectContaining({ mcpServerIds: [selectedServer.id] }),
+        }),
+        mcpServers: [selectedServer],
+      }),
+    );
+  });
+
   it("passes an account-row choice as an explicit one-shot launch override", async () => {
     useUsageAccountsStore.getState().setNextSessionAccount("grok:account-a");
     const craftResult = new Crafter().compile(

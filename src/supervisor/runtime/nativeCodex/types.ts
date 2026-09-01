@@ -38,6 +38,7 @@ export interface CodexInitializeParams {
   clientInfo: CodexClientInfo;
   capabilities?: {
     experimentalApi?: boolean;
+    requestAttestation?: boolean;
     optOutNotificationMethods?: string[];
     extensions?: Record<string, unknown>;
   };
@@ -123,6 +124,14 @@ export interface CodexTurnStartParams {
   serviceTier?: string | null | undefined;
   approvalPolicy?: string | null | Record<string, unknown> | undefined;
   cwd?: string | null | undefined;
+  collaborationMode?: {
+    mode: "default" | "plan";
+    settings: {
+      model: string;
+      reasoning_effort: string | null;
+      developer_instructions: string | null;
+    };
+  } | null;
 }
 
 export interface CodexTurnData {

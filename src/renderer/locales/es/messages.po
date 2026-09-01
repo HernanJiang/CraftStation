@@ -14262,3 +14262,43 @@ msgstr "Acercar"
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom out"
 msgstr "Alejar"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Model Ingredient"
+msgstr "Ingrediente de modelo"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Default selection"
+msgstr "Selección predeterminada"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Harness Ingredient"
+msgstr "Ingrediente de Harness"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "auto (Deterministic resolution)"
+msgstr "auto (resolución determinista)"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Authenticated signal"
+msgstr "Señal autenticada"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Native Harness status"
+msgstr "Estado del Native Harness"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Official runtime and safe diagnostics projection"
+msgstr "Proyección del runtime oficial y diagnósticos seguros"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Refreshing…"
+msgstr "Actualizando…"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Unable to read Native Harness status."
+msgstr "No se pudo leer el estado de Native Harness."
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Not configured"
+msgstr "No configurado"

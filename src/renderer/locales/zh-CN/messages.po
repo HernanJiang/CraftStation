@@ -14280,6 +14280,46 @@ msgstr "放大"
 msgid "Zoom out"
 msgstr "缩小"
 
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Model Ingredient"
+msgstr "模型材料"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Default selection"
+msgstr "默认选择"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Harness Ingredient"
+msgstr "Harness 材料"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "auto (Deterministic resolution)"
+msgstr "auto（确定性解析）"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Authenticated signal"
+msgstr "已认证信号"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Native Harness status"
+msgstr "Native Harness 状态"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Official runtime and safe diagnostics projection"
+msgstr "官方运行时与安全诊断投影"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Refreshing…"
+msgstr "刷新中…"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Unable to read Native Harness status."
+msgstr "无法读取 Native Harness 状态。"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Not configured"
+msgstr "未配置"
+
 msgid "Enter Chat"
 msgstr "进入对话"
 

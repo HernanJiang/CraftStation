@@ -14262,3 +14262,43 @@ msgstr "Yakınlaştır"
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom out"
 msgstr "Uzaklaştır"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Model Ingredient"
+msgstr "Model bileşeni"
+
+#: src/renderer/views/MainView\parts\RightPanel\parts\HarnessPanel\HarnessPanel.tsx
+msgid "Default selection"
+msgstr "Varsayılan seçim"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Harness Ingredient"
+msgstr "Harness bileşeni"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "auto (Deterministic resolution)"
+msgstr "auto (deterministik çözümleme)"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Authenticated signal"
+msgstr "Kimlik doğrulama sinyali"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Native Harness status"
+msgstr "Native Harness durumu"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Official runtime and safe diagnostics projection"
+msgstr "Resmi çalışma zamanı ve güvenli tanılama görünümü"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Refreshing…"
+msgstr "Yenileniyor…"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Unable to read Native Harness status."
+msgstr "Native Harness durumu okunamadı."
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+msgid "Not configured"
+msgstr "Yapılandırılmadı"

@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-08-31T06:21:02.624Z",
+  "synthetic": false,
+  "feature": "v0.7.0 — Native Antigravity CLI and DeepSeek Harness Adapters",
+  "executionPath": "SupervisorRuntime.craftAgent -> NativeProcessHarnessRuntimeAdapter -> agy.exe --input-format stream-json --output-format stream-json -> Entity -> Session",
+  "executablePath": "C:\\Users\\Haona\\AppData\\Local\\agy\\bin\\agy.exe",
+  "promptMarker": "Reply with exactly CRAFTSTATION_AGY_PRODUCT_PATH_OK.",
+  "verdict": "PASS",
+  "version": "1.1.22",
+  "entityId": "entity:antigravity:c134e65c-f841-481e-88bb-f2233d8d3a85",
+  "sessionId": "sess:antigravity:57b6408a-9aa4-4e23-9155-fe1a1af4ae2d",
+  "threadId": "craft-real-antigravity-1788157262753",
+  "responseLength": 33,
+  "responseMarkerObserved": true,
+  "eventTypes": [
+    "turn.started",
+    "session.started",
+    "content.delta",
+    "turn.completed",
+    "session.exited"
+  ],
+  "nativeTypes": ["init", "step_update", "result"],
+  "eventCount": 5,
+  "ipcEventTypes": [
+    "turn.started",
+    "session.started",
+    "content.delta",
+    "turn.completed",
+    "session.exited"
+  ],
+  "ipcEventCount": 5,
+  "cleanup": {
+    "operation": "SupervisorRuntime.closeThread",
+    "observedSessionExited": true
+  }
+}

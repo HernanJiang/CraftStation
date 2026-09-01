@@ -72,7 +72,11 @@ export class AppServerClient {
     const params: CodexInitializeParams = {
       clientInfo,
       capabilities: {
-        experimentalApi: false,
+        // Official collaboration/sub-agent items are emitted on the app-server's
+        // experimental notification surface. CraftStation consumes those native
+        // identities rather than synthesizing child agents.
+        experimentalApi: true,
+        requestAttestation: false,
       },
     };
 

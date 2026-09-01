@@ -28,7 +28,14 @@ function usableRecords(accounts: AccountRecord[]): AccountRecord[] {
 }
 
 export class AccountResolver {
-  constructor(private readonly store: AccountStore) {}
+  constructor(
+    private readonly store: AccountStore,
+    private readonly credentialAvailable: (account: AccountRecord) => boolean = () => true,
+  ) {}
+
+  private isUsable(account: AccountRecord): boolean {
+    return isUsable(account) && this.credentialAvailable(account);
+  }
 
   resolve(request: AccountResolutionRequest): AccountResolution {
     const accounts = this.store.records(request.provider).sort((a, b) => a.order - b.order);
@@ -45,7 +52,7 @@ export class AccountResolver {
     // fall through to the provider pool (compatible with old craftAgent calls).
     if (request.mode === "selected" && request.selectedAccountId) {
       const account = byId.get(request.selectedAccountId);
-      if (account && isUsable(account)) {
+      if (account && this.isUsable(account)) {
         candidates.push(candidate(account.accountId, account.status, true, "legacy selected"));
         return {
           account: this.store.get(account.accountId)!,
@@ -61,12 +68,12 @@ export class AccountResolver {
     }
 
     const mode = this.poolMode(request, accounts);
-    const usable = usableRecords(accounts);
+    const usable = usableRecords(accounts).filter((account) => this.credentialAvailable(account));
     for (const account of usable) {
       candidates.push(candidate(account.accountId, account.status, true, `${mode} eligible`));
     }
     for (const account of accounts) {
-      if (!isUsable(account)) {
+      if (!this.isUsable(account)) {
         candidates.push(candidate(account.accountId, account.status, false, `${mode} skipped`));
       }
     }
@@ -108,7 +115,7 @@ export class AccountResolver {
     accounts: AccountRecord[],
   ): AccountResolution {
     const account = request.explicitAccountId ? byId.get(request.explicitAccountId) : undefined;
-    const usable = account !== undefined && isUsable(account);
+    const usable = account !== undefined && this.isUsable(account);
     if (!usable) {
       if (account)
         candidates.push(
@@ -155,7 +162,7 @@ export class AccountResolver {
       // Walk forward from the cursor (excluding the cursor itself) wrapping around.
       for (let offset = 1; offset <= accounts.length; offset++) {
         const candidateAccount = accounts[(cursorIndex + offset) % accounts.length]!;
-        if (isUsable(candidateAccount)) {
+        if (this.isUsable(candidateAccount)) {
           picked = candidateAccount;
           break;
         }

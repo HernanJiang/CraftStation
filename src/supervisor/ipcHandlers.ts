@@ -1,4 +1,4 @@
-import { defineSupervisorIpcHandlers, type SupervisorIpcHandlerMap } from "@/shared/ipc";
+﻿import { defineSupervisorIpcHandlers, type SupervisorIpcHandlerMap } from "@/shared/ipc";
 import type { SupervisorRuntime } from "./supervisorRuntime";
 
 /**
@@ -75,6 +75,7 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     pollGrokProfileLogin: (payload) => runtime.pollGrokProfileLogin(payload),
     refreshAccountQuota: (payload) => runtime.refreshAccountQuota(payload.accountId),
     getNativeHarnessControlPlane: (payload) => runtime.getNativeHarnessControlPlane(payload),
+    getCraftingModelInventory: (payload) => runtime.getCraftingModelInventory(payload),
     getAgentHookPluginStatuses: (payload) => hookPlugins.getStatuses(payload),
     installAgentHookPlugin: (payload) => hookPlugins.installPlugin(payload),
     uninstallAgentHookPlugin: (payload) => hookPlugins.uninstallPlugin(payload),
@@ -94,8 +95,8 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     startThread: (payload) => threads.startThread(payload),
     craftAgent: (payload) => runtime.craftAgent(payload),
     resumeCraftAgent: (payload) => runtime.resumeCraftAgent(payload),
-    sendThreadInput: (payload) => threads.sendThreadInput(payload),
-    interruptThread: (payload) => threads.interruptThread(payload),
+    sendThreadInput: (payload) => runtime.sendThreadInput(payload),
+    interruptThread: (payload) => runtime.interruptThread(payload),
     controlThreadGoal: (payload) => threads.controlThreadGoal(payload),
     rollbackThreadConversation: (payload) => threads.rollbackThreadConversation(payload),
     setPendingSteer: (payload) => threads.setPendingSteer(payload),

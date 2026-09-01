@@ -113,6 +113,11 @@ export const runtimeOverridesSchema = z.object({
   approvalPolicy: approvalPolicySchema.optional(),
   permissionProfile: z.string().optional(),
   mcpServerIds: z.array(z.string()).optional(),
+  skills: z.array(z.string()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
+  compaction: z.record(z.string(), z.unknown()).optional(),
+  profileRef: z.string().optional(),
+  accountId: z.string().optional(),
   customSettings: z.record(z.string(), z.unknown()).optional(),
 });
 export type RuntimeOverrides = z.infer<typeof runtimeOverridesSchema>;
@@ -200,6 +205,7 @@ export const craftingErrorCodeSchema = z.enum([
   "RUNTIME_UNAVAILABLE",
   "COMPILATION_ERROR",
   "AUTH_REQUIRED",
+  "PROTOCOL_MISMATCH",
   "EXECUTION_FAILED",
   "RECOVERY_FAILED",
 ]);

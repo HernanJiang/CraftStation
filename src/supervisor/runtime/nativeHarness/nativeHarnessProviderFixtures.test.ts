@@ -149,6 +149,26 @@ describe("Grok Build native ACP fixture", () => {
     });
     await session.terminate();
   });
+
+  it("passes Supervisor-resolved MCP descriptors into the provider ACP session", async () => {
+    const inputs: CreateStructuredSessionInput[] = [];
+    const server = {
+      id: "craft-probe",
+      name: "craft-probe",
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["probe.mjs"], env: {} },
+    };
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: makeStructuredAgent("grok", inputs, "grok-mcp-session"),
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+      mcpServers: [server],
+    });
+
+    await adapter.createSession(await adapter.spawnEntity(makePlan("grok", "xai")));
+
+    expect(inputs[0]?.mcpServers).toEqual([server]);
+  });
 });
 
 describe("Kimi Code native ACP fixture", () => {
@@ -161,7 +181,7 @@ describe("Kimi Code native ACP fixture", () => {
       profileRef: "profile:kimi",
     });
 
-    expect(KIMI_NATIVE_HARNESS_DESCRIPTOR.capabilities.mcp).toBe("native unsupported");
+    expect(KIMI_NATIVE_HARNESS_DESCRIPTOR.capabilities.mcp).toBe("supported+integrated");
     const entity = await adapter.spawnEntity(makePlan("kimi", "moonshot"));
     const session = await adapter.resumeSession(entity, "kimi-saved-session");
 

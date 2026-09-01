@@ -1,12 +1,25 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CraftingGrid } from "./CraftingGrid";
-import { OPENAI_CODEX_RECIPE_ID, type CraftResult } from "@/shared/crafting";
+import { getDefaultRegistry, OPENAI_CODEX_RECIPE_ID, type CraftResult } from "@/shared/crafting";
+
+function officialModels() {
+  return getDefaultRegistry()
+    .listItems("model")
+    .filter((item) => item.metadata.vendor === "openai");
+}
 
 describe("CraftingGrid Component", () => {
+  beforeEach(() => {
+    getDefaultRegistry().refreshCodexModels([
+      { id: "gpt-official-live", displayName: "GPT Official Live" },
+      { id: "gpt-official-fast", displayName: "GPT Official Fast" },
+    ]);
+  });
+
   it("renders with default auto harness slot resolved to Codex", () => {
-    const { container } = render(<CraftingGrid />);
+    const { container } = render(<CraftingGrid models={officialModels()} />);
 
     expect(screen.getByTestId("crafting-grid")).toBeDefined();
     expect(screen.getByTestId("model-slot")).toBeDefined();
@@ -21,17 +34,17 @@ describe("CraftingGrid Component", () => {
   });
 
   it("allows selecting a different model item", async () => {
-    render(<CraftingGrid />);
+    render(<CraftingGrid models={officialModels()} />);
 
     const modelSelect = screen.getByTestId("model-select") as HTMLSelectElement;
-    fireEvent.change(modelSelect, { target: { value: "openai:gpt-4o" } });
+    fireEvent.change(modelSelect, { target: { value: "openai:gpt-official-fast" } });
 
-    expect(modelSelect.value).toBe("openai:gpt-4o");
-    expect(screen.getByText(/Produces: GPT-4o \+ Codex Harness/)).toBeDefined();
+    expect(modelSelect.value).toBe("openai:gpt-official-fast");
+    expect(screen.getByText(/Produces: GPT Official Fast \+ Codex Harness/)).toBeDefined();
   });
 
   it("allows selecting explicit Codex harness", async () => {
-    render(<CraftingGrid />);
+    render(<CraftingGrid models={officialModels()} />);
 
     const harnessSelect = screen.getByTestId("harness-select") as HTMLSelectElement;
     fireEvent.change(harnessSelect, { target: { value: "harness:codex" } });
@@ -45,7 +58,7 @@ describe("CraftingGrid Component", () => {
       .fn<(result: CraftResult, prompt: string) => Promise<void>>()
       .mockResolvedValue(undefined);
     const testWs = "/test/workspace";
-    render(<CraftingGrid workspace={testWs} onCraft={onCraftMock} />);
+    render(<CraftingGrid workspace={testWs} models={officialModels()} onCraft={onCraftMock} />);
 
     const promptInput = screen.getByTestId("craft-prompt-input");
     fireEvent.change(promptInput, { target: { value: "Implement feature X" } });
@@ -74,14 +87,16 @@ describe("CraftingGrid Component", () => {
       "harness:antigravity",
       "antigravity",
     ],
-    ["DeepSeek / DSH Native Recipe", "deepseek:deepseek-chat", "harness:deepseek", "deepseek"],
+    ["DeepSeek / DSH Native Recipe", "deepseek:deepseek-v4-flash", "harness:deepseek", "deepseek"],
   ] as const)(
     "quick-fills and compiles the %s",
     async (recipeName, modelId, harnessId, harnessKind) => {
       const onCraftMock = vi
         .fn<(result: CraftResult, prompt: string) => Promise<void>>()
         .mockResolvedValue(undefined);
-      render(<CraftingGrid onCraft={onCraftMock} />);
+      render(
+        <CraftingGrid models={getDefaultRegistry().listItems("model")} onCraft={onCraftMock} />,
+      );
 
       fireEvent.click(screen.getByRole("button", { name: "配方" }));
       fireEvent.click(screen.getByRole("button", { name: new RegExp(recipeName, "u") }));

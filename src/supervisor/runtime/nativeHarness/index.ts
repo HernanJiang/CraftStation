@@ -1,12 +1,12 @@
-import type { AccountBinding, ProjectLocation } from "@/shared/contracts";
+import type { AccountBinding, ProjectLocation, PromptSegment } from "@/shared/contracts";
 import type { HarnessRuntimeAdapter } from "@/shared/crafting";
-import { createAntigravityAdapter } from "@/supervisor/agents/antigravity";
 import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
 import {
   ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   CODEX_NATIVE_HARNESS_DESCRIPTOR,
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+  DEEPSEEK_API_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
@@ -21,24 +21,29 @@ import {
   type StructuredNativeHarnessRuntimeAdapterOptions,
 } from "./structuredAdapter";
 import { UnavailableNativeHarnessRuntimeAdapter } from "./unavailableAdapter";
+import { NativeProcessHarnessRuntimeAdapter } from "./nativeAdapter";
+import { DeepSeekApiRuntimeAdapter } from "./deepSeekApiAdapter";
+import { resolveExecutablePath } from "@/supervisor/agents/base";
+import { OpenCodeNativeRuntimeAdapter } from "../openCodeNative/adapter";
+import type { OpenCodeExecutableReadinessProvider } from "@/shared/opencodeNative";
+import type { OpenCodeRuntimeBindingResolver } from "../openCodeNative/runtimeBinding";
+import type { OpenCodeNativeServerPool } from "../openCodeNative/serverPool";
 
 export {
   ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   CODEX_NATIVE_HARNESS_DESCRIPTOR,
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+  DEEPSEEK_API_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
   PtyNativeHarnessRuntimeAdapter,
   StructuredNativeHarnessRuntimeAdapter,
   UnavailableNativeHarnessRuntimeAdapter,
+  NativeProcessHarnessRuntimeAdapter,
 };
 export type { PtyNativeHarnessRuntimeAdapterOptions, StructuredNativeHarnessRuntimeAdapterOptions };
-
-import { OpenCodeNativeRuntimeAdapter } from "../openCodeNative/adapter";
-import type { OpenCodeExecutableReadinessProvider } from "@/shared/opencodeNative";
-import type { OpenCodeRuntimeBindingResolver } from "../openCodeNative/runtimeBinding";
-import type { OpenCodeNativeServerPool } from "../openCodeNative/serverPool";
 
 export interface NativeHarnessAdapterFactoryOptions {
   projectLocation: ProjectLocation;
@@ -46,7 +51,18 @@ export interface NativeHarnessAdapterFactoryOptions {
   profileRef?: string;
   /** Base process env for the spawned runtime (e.g. managed GROK_HOME). */
   baseSpawnEnv?: Record<string, string>;
+  /** Supervisor-resolved MCP descriptors; provider adapters never resolve ids themselves. */
+  mcpServers?: readonly import("@/shared/contracts").ResolvedMcpServer[];
   onPromptError?: (error: unknown) => void | Promise<void>;
+  /** Optional injectable executable resolver for testing discovery/readiness boundaries. */
+  resolveExecutable?: (command: string) => string | undefined;
+  /** Optional custom spawn process for testing child process lifecycle boundaries. */
+  spawnProcess?: typeof import("node:child_process").spawn;
+  /** Plan-scoped non-secret API runtime options such as base URL and key env name. */
+  runtimeOptions?: Record<string, unknown>;
+  /** Supervisor-validated CraftPlan skills. */
+  skillSegments?: readonly PromptSegment[];
+  inlineSkillInstructions?: string;
   openCodeReadinessProvider?: OpenCodeExecutableReadinessProvider;
   openCodeRuntimeBindingResolver?: OpenCodeRuntimeBindingResolver;
   openCodeServerPool?: OpenCodeNativeServerPool;
@@ -54,37 +70,119 @@ export interface NativeHarnessAdapterFactoryOptions {
 
 type NativeHarnessFactory = (options: NativeHarnessAdapterFactoryOptions) => HarnessRuntimeAdapter;
 
+function withGrokBaseSpawnEnv<T extends { baseSpawnEnv?: Record<string, string> }>(
+  adapter: T,
+  baseSpawnEnv: Record<string, string> | undefined,
+): T {
+  return baseSpawnEnv
+    ? { ...adapter, baseSpawnEnv: { ...adapter.baseSpawnEnv, ...baseSpawnEnv } }
+    : adapter;
+}
+
 const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
-  grok: ({ projectLocation, accountBinding, profileRef, baseSpawnEnv, onPromptError }) =>
+  grok: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    baseSpawnEnv,
+    mcpServers,
+    onPromptError,
+    skillSegments,
+    inlineSkillInstructions,
+  }) =>
     new StructuredNativeHarnessRuntimeAdapter({
       adapter: withGrokBaseSpawnEnv(createGrokAdapter(), baseSpawnEnv),
       descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
       ...(accountBinding ? { accountBinding } : {}),
       ...(profileRef ? { profileRef } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
       ...(onPromptError ? { onPromptError } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
     } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
-  kimi: ({ projectLocation, accountBinding, profileRef }) =>
+  kimi: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    mcpServers,
+    skillSegments,
+    inlineSkillInstructions,
+  }) =>
     new StructuredNativeHarnessRuntimeAdapter({
       adapter: createKimiAdapter(),
       descriptor: KIMI_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
       ...(accountBinding ? { accountBinding } : {}),
       ...(profileRef ? { profileRef } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
     } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
-  antigravity: ({ projectLocation, accountBinding, profileRef }) =>
-    new PtyNativeHarnessRuntimeAdapter({
-      adapter: createAntigravityAdapter(),
+  antigravity: ({
+    projectLocation,
+    profileRef,
+    mcpServers,
+    resolveExecutable = resolveExecutablePath,
+    spawnProcess,
+    skillSegments,
+    inlineSkillInstructions,
+  }) => {
+    const executable = resolveExecutable("agy");
+    if (!executable) {
+      return new UnavailableNativeHarnessRuntimeAdapter(
+        ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
+        "The official Antigravity CLI ('agy') is not installed on this machine.",
+      );
+    }
+    return new NativeProcessHarnessRuntimeAdapter({
       descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
-      ...(accountBinding ? { accountBinding } : {}),
+      mode: "antigravity",
+      runtimeCommand: executable,
       ...(profileRef ? { profileRef } : {}),
-    } satisfies PtyNativeHarnessRuntimeAdapterOptions),
-  deepseek: () =>
-    new UnavailableNativeHarnessRuntimeAdapter(
-      DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
-      "The official DeepSeek / DSH executable was not discovered during the v0.4 audit.",
-    ),
+      ...(spawnProcess ? { spawnProcess } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    });
+  },
+  deepseek: ({
+    projectLocation,
+    profileRef,
+    resolveExecutable = resolveExecutablePath,
+    spawnProcess,
+    skillSegments,
+    inlineSkillInstructions,
+  }) => {
+    // Official DeepSeek Harness stdio JSON-RPC agent binary lookup.
+    // Supports official 'dsh-jsonrpc-agent' and 'dsh' machine carriers.
+    const executable = resolveExecutable("dsh-jsonrpc-agent") ?? resolveExecutable("dsh");
+    if (!executable) {
+      return new UnavailableNativeHarnessRuntimeAdapter(
+        DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+        "The official DeepSeek Harness SDK runtime ('dsh-jsonrpc-agent') is not installed on this machine.",
+      );
+    }
+    return new NativeProcessHarnessRuntimeAdapter({
+      descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation,
+      mode: "deepseek",
+      runtimeCommand: executable,
+      ...(profileRef ? { profileRef } : {}),
+      ...(spawnProcess ? { spawnProcess } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    });
+  },
+  "deepseek-api": ({ projectLocation, runtimeOptions, mcpServers, inlineSkillInstructions }) =>
+    new DeepSeekApiRuntimeAdapter({
+      descriptor: DEEPSEEK_API_HARNESS_DESCRIPTOR,
+      projectLocation,
+      ...(runtimeOptions ? { runtimeOptions } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    }),
   opencode: ({
     projectLocation,
     accountBinding,
@@ -106,24 +204,10 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     }),
 };
 
-function withGrokBaseSpawnEnv<T extends { baseSpawnEnv?: Record<string, string> }>(
-  adapter: T,
-  baseSpawnEnv: Record<string, string> | undefined,
-): T {
-  return baseSpawnEnv
-    ? { ...adapter, baseSpawnEnv: { ...adapter.baseSpawnEnv, ...baseSpawnEnv } }
-    : adapter;
-}
-
 export function createNativeHarnessRuntimeAdapter(
   harnessKind: string,
   options: NativeHarnessAdapterFactoryOptions,
 ): HarnessRuntimeAdapter | undefined {
-  return FACTORIES[harnessKind]?.(options);
+  const factory = FACTORIES[harnessKind];
+  return factory ? factory(options) : undefined;
 }
-
-export function getNativeHarnessDescriptor(harnessKind: string) {
-  return NATIVE_HARNESS_DESCRIPTORS[harnessKind as keyof typeof NATIVE_HARNESS_DESCRIPTORS];
-}
-
-export { CODEX_NATIVE_HARNESS_DESCRIPTOR as codexNativeHarnessDescriptor };

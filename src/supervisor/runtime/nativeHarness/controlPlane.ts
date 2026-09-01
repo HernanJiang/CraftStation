@@ -42,10 +42,12 @@ function statusFor(
   status: AgentStatus | undefined,
   diagnostics: readonly NativeHarnessDiagnostic[],
 ): NativeHarnessControlPlaneEntry["status"] {
-  if (descriptor.transport === "unavailable") return "unavailable";
-  if (diagnostics.some((diagnostic) => diagnostic.code === "RUNTIME_UNAVAILABLE")) {
+  if (
+    descriptor.transport === "unavailable" ||
+    diagnostics.some((diagnostic) => diagnostic.code === "RUNTIME_UNAVAILABLE") ||
+    (descriptor.harnessKind === "deepseek" && !status)
+  )
     return "unavailable";
-  }
   if (
     diagnostics.some((diagnostic) =>
       [
@@ -85,6 +87,8 @@ function stableDiagnosticMessage(
       return `${harnessKind} native session was not found.`;
     case "NATIVE_EXECUTION_FAILED":
       return `${harnessKind} native execution failed.`;
+    case "NATIVE_STDERR":
+      return `${harnessKind} native runtime emitted diagnostic output.`;
     case "CLEANUP_FAILED":
       return `${harnessKind} native cleanup failed.`;
   }

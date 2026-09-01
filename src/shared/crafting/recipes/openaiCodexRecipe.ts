@@ -40,6 +40,7 @@ export class OpenAICodexNativeRecipe implements Recipe {
     const harness = ingredients.harness;
     if (!model || !harness) return false;
     if (model.kind !== "model" || model.metadata.vendor !== "openai") return false;
+    if (model.metadata.tags?.includes("opencode")) return false;
     if (harness.kind !== "harness") return false;
     if (harness.metadata.vendor !== "openai" && harness.metadata.vendor !== "codex") return false;
     return true;

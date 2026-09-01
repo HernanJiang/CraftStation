@@ -37,6 +37,17 @@ describe("Native Harness control-plane projection", () => {
     );
   });
 
+  it("exposes official Crafting model discovery through a typed project-location payload", () => {
+    const procedure = ipcProcedureMap.getCraftingModelInventory;
+    expect(procedure.transport).toBe("supervisor");
+    expect(procedure.parseArgs({ projectLocation: { kind: "windows", path: "C:\\repo" } })).toEqual(
+      { projectLocation: { kind: "windows", path: "C:\\repo" } },
+    );
+    expect(() => procedure.parseArgs({ projectLocation: { kind: "windows", path: "" } })).toThrow(
+      "Too small",
+    );
+  });
+
   it("returns safe public descriptors and readiness without exposing paths or profile identity", () => {
     const result = projectNativeHarnessControlPlane({
       descriptors: [

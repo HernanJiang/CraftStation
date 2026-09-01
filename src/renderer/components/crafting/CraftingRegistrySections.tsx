@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronRight, Cpu, Layers, ScrollText } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { getDefaultRegistry, type Item, type Recipe } from "@/shared/crafting";
@@ -48,12 +48,12 @@ function RecipeRow(props: { recipe: Recipe }) {
   );
 }
 
-export function CraftingRegistrySections() {
+export function CraftingRegistrySections(props: { models?: readonly Item[] | undefined }) {
   const { t } = useLingui();
-  const registry = useMemo(() => getDefaultRegistry(), []);
-  const models = useMemo(() => registry.listItems("model"), [registry]);
-  const harnesses = useMemo(() => registry.listItems("harness"), [registry]);
-  const recipes = useMemo(() => registry.listRecipes(), [registry]);
+  const registry = getDefaultRegistry();
+  const models = props.models ?? registry.listItems("model");
+  const harnesses = registry.listItems("harness");
+  const recipes = registry.listRecipes();
 
   const [collapsed, setCollapsed] = useState<Record<SectionId, boolean>>({
     models: true,

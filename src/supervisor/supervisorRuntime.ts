@@ -43,17 +43,25 @@ import type {
   GrokProfileCancelPayload,
   GrokProfilePollPayload,
   GrokProfilePollResult,
+  McpServer,
+  PromptSegment,
   ProviderPoolConfig,
   ResolveThreadServerRequestPayload,
+  ResolvedMcpServer,
+  SendThreadInputPayload,
 } from "@/shared/contracts";
 import type {
   CraftRequestResolution,
   CraftSession,
+  CraftingDiscoveredModel,
+  CraftingModelInventory,
+  CraftingModelInventoryPayload,
   HarnessRuntimeAdapter,
   NativeHarnessDiagnostic,
   NativeHarnessControlPlaneEntry,
   NativeHarnessControlPlanePayload,
 } from "@/shared/crafting";
+import { nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
 import { AccountControlError } from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
 import type {
@@ -166,6 +174,7 @@ import { projectNativeHarnessControlPlane } from "./runtime/nativeHarness/contro
 import { AccountStoreOpenCodeRuntimeBindingResolver } from "./runtime/openCodeNative/runtimeBinding";
 import { OpenCodeNativeServerPool } from "./runtime/openCodeNative/serverPool";
 import { resolveCraftedRequest, type CraftedRequest } from "./runtime/craftedRequestResolution";
+import { probeCodexCapabilities } from "./agents/codex/probe";
 
 export { detectWslAgentStatuses, writeSubmittedPrompt };
 
@@ -216,6 +225,15 @@ export class SupervisorRuntime {
       | undefined,
   ): void {
     this._customCraftingAdapter = factory;
+  }
+  private _craftingModelDiscovery:
+    | ((location: ProjectLocation) => Promise<CraftingDiscoveredModel[] | undefined>)
+    | undefined;
+
+  setCraftingModelDiscovery(
+    discovery?: (location: ProjectLocation) => Promise<CraftingDiscoveredModel[] | undefined>,
+  ): void {
+    this._craftingModelDiscovery = discovery;
   }
   private readonly isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
   private readonly baseDir: string;
@@ -698,6 +716,9 @@ export class SupervisorRuntime {
       this.accountStore,
     );
     this.openCodeServerPool = new OpenCodeNativeServerPool();
+    this.accountResolver = new AccountResolver(this.accountStore, (account) =>
+      this.hasManagedCredential(account.provider, account.credentialRoot),
+    );
     this.tokenUsageAdapter = new TokenUsageAdapter(
       createRuntimeLedgerTokenUsageScanner(paths.dbPath),
     );
@@ -790,6 +811,26 @@ export class SupervisorRuntime {
       this.openAiCompatibleProfileService.destroyCredentials(accountId);
     }
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+  }
+
+  /** Interrupt either a crafted native session or a regular terminal/ACP thread. */
+  async interruptThread(payload: { threadId: string }): Promise<void> {
+    const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
+    if (craftedSession) {
+      await craftedSession.interrupt();
+      return;
+    }
+    await this.threadSessionManager.interruptThread(payload);
+  }
+
+  /** Send a follow-up turn to either a crafted native Session or a regular thread. */
+  async sendThreadInput(payload: SendThreadInputPayload): Promise<void> {
+    const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
+    if (craftedSession) {
+      await craftedSession.startTurn({ prompt: payload.prompt });
+      return;
+    }
+    await this.threadSessionManager.sendThreadInput(payload);
   }
 
   /** Close either a crafted native session or a regular terminal/ACP thread. */
@@ -1210,6 +1251,56 @@ export class SupervisorRuntime {
     });
   }
 
+  async getCraftingModelInventory(
+    payload: CraftingModelInventoryPayload,
+  ): Promise<CraftingModelInventory> {
+    const discover =
+      this._craftingModelDiscovery ??
+      (async (location: ProjectLocation) => {
+        const probe = await probeCodexCapabilities(location, {
+          timeoutMs: 12_000,
+          label: "crafting-model-inventory",
+        });
+        return probe?.models?.map((model) => ({
+          id: model.id,
+          displayName: model.label,
+        }));
+      });
+
+    try {
+      const models = await discover(payload.projectLocation);
+      if (!models?.length) {
+        return {
+          status: "unavailable",
+          source: "codex-app-server-model-list",
+          models: [],
+          diagnostic: {
+            code: "RUNTIME_UNAVAILABLE",
+            message: "Official Codex model inventory is unavailable.",
+            remediation:
+              "Verify the Codex app-server installation and authentication, then refresh.",
+          },
+        };
+      }
+      return {
+        status: "ready",
+        source: "codex-app-server-model-list",
+        models: models.map((model) => ({ ...model })),
+      };
+    } catch {
+      return {
+        status: "unavailable",
+        source: "codex-app-server-model-list",
+        models: [],
+        diagnostic: {
+          code: "PROTOCOL_MISMATCH",
+          message: "Official Codex model discovery failed.",
+          remediation: "Update the official Codex runtime and retry discovery.",
+        },
+      };
+    }
+  }
+
   async craftAgent(payload: CraftAgentPayload): Promise<CraftAgentResult> {
     let entityId: string | undefined;
     let sessionId: string | undefined;
@@ -1217,17 +1308,18 @@ export class SupervisorRuntime {
     let craftedThreadId: string | undefined;
     let craftedSession: CraftSession | undefined;
     try {
-      const created = this.createCraftingAdapter(
+      const created = await this.createCraftingAdapter(
         payload.craftPlan,
         payload.projectLocation,
+        payload.mcpServers,
         payload.accountId,
         payload.accountMode,
       );
       const { adapter, plan } = created;
       accountBinding = created.accountBinding;
       const entity = await adapter.spawnEntity(plan);
-      entityId = entity.id;
       const session = await adapter.createSession(entity);
+      entityId = entity.id;
       craftedSession = session;
       sessionId = session.id;
       craftedThreadId = session.threadId ?? plan.threadId;
@@ -1248,6 +1340,7 @@ export class SupervisorRuntime {
         threadId: session.threadId ?? plan.threadId ?? "",
         entityId: entity.id,
         sessionId: session.id,
+        ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
         response: response.response,
         ...(accountBinding ? { accountBinding } : {}),
       };
@@ -1283,16 +1376,17 @@ export class SupervisorRuntime {
     let craftedThreadId: string | undefined;
     let craftedSession: CraftSession | undefined;
     try {
-      const created = this.createCraftingAdapter(
+      const created = await this.createCraftingAdapter(
         payload.craftPlan,
         payload.projectLocation,
+        payload.mcpServers,
         payload.accountId,
       );
       const { adapter, plan } = created;
       accountBinding = created.accountBinding;
       const entity = await adapter.spawnEntity({ ...plan, sessionRef: payload.sessionRef });
-      entityId = entity.id;
       const session = await adapter.resumeSession(entity, payload.sessionRef);
+      entityId = entity.id;
       craftedSession = session;
       sessionId = session.id;
       craftedThreadId = session.threadId ?? plan.threadId;
@@ -1309,6 +1403,7 @@ export class SupervisorRuntime {
         threadId: session.threadId ?? plan.threadId ?? "",
         entityId: entity.id,
         sessionId: session.id,
+        ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
         response: response.response,
         ...(accountBinding ? { accountBinding } : {}),
       };
@@ -1332,16 +1427,17 @@ export class SupervisorRuntime {
     }
   }
 
-  private createCraftingAdapter(
+  private async createCraftingAdapter(
     craftPlan: CraftAgentPayload["craftPlan"],
     projectLocation: ProjectLocation,
+    candidateMcpServers: McpServer[] | undefined,
     accountId?: string,
     accountMode?: "explicit" | "selected" | "auto",
-  ): {
+  ): Promise<{
     adapter: import("@/shared/crafting").HarnessRuntimeAdapter;
     plan: CraftAgentPayload["craftPlan"];
     accountBinding?: AccountBinding;
-  } {
+  }> {
     const plan = {
       ...craftPlan,
       workspace: projectLocation.kind === "wsl" ? projectLocation.linuxPath : projectLocation.path,
@@ -1369,7 +1465,12 @@ export class SupervisorRuntime {
             : plan.runtimeBinding.harnessKind === "opencode"
               ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
               : undefined;
-    if (managedProvider && (accountId || this.accountStore.list(managedProvider).length > 0)) {
+    const hasCredentialedManagedAccount = managedProvider
+      ? this.accountStore
+          .records(managedProvider)
+          .some((account) => this.hasManagedCredential(account.provider, account.credentialRoot))
+      : false;
+    if (managedProvider && (accountId || hasCredentialedManagedAccount)) {
       // v0.5: provider-pool scheduling drives auto selection; the legacy
       // selectedAccountId marker no longer routes auto sessions. Explicit
       // per-session overrides still never fall back.
@@ -1396,6 +1497,12 @@ export class SupervisorRuntime {
       }
     }
 
+    const mcpServers = await this.resolveCraftingMcpServers(
+      plan,
+      projectLocation,
+      candidateMcpServers,
+    );
+    const skills = await this.resolveCraftingSkills(plan, projectLocation);
     const adapter = this._customCraftingAdapter
       ? this._customCraftingAdapter(plan, projectLocation)
       : plan.runtimeBinding.harnessKind === "codex"
@@ -1409,9 +1516,20 @@ export class SupervisorRuntime {
                 }
               : {}),
             ...(accountBinding ? { accountBinding } : {}),
+            ...(mcpServers !== undefined ? { mcpServers } : {}),
+            ...(skills.segments.length > 0 ? { skillSegments: skills.segments } : {}),
+            ...(skills.inlineInstructions
+              ? { inlineSkillInstructions: skills.inlineInstructions }
+              : {}),
           })
         : createNativeHarnessRuntimeAdapter(plan.runtimeBinding.harnessKind, {
             projectLocation,
+            ...(mcpServers !== undefined ? { mcpServers } : {}),
+            ...(skills.segments.length > 0 ? { skillSegments: skills.segments } : {}),
+            ...(skills.inlineInstructions
+              ? { inlineSkillInstructions: skills.inlineInstructions }
+              : {}),
+            ...(plan.runtimeBinding.options ? { runtimeOptions: plan.runtimeBinding.options } : {}),
             ...(plan.runtimeBinding.profileRef
               ? { profileRef: plan.runtimeBinding.profileRef }
               : {}),
@@ -1454,6 +1572,104 @@ export class SupervisorRuntime {
     return { adapter, plan, ...(accountBinding ? { accountBinding } : {}) };
   }
 
+  private hasManagedCredential(provider: string, credentialRoot: string): boolean {
+    if (provider === "grok" || provider === "codex") {
+      return existsSync(join(credentialRoot, "auth.json"));
+    }
+    return true;
+  }
+
+  private async resolveCraftingMcpServers(
+    plan: CraftAgentPayload["craftPlan"],
+    projectLocation: ProjectLocation,
+    candidates: McpServer[] | undefined,
+  ): Promise<ResolvedMcpServer[] | undefined> {
+    const selectedIds = nativeRuntimeExecutionConfigForPlan(plan).mcpServerIds ?? [];
+    if (selectedIds.length === 0) return undefined;
+
+    const enabledCandidates = (candidates ?? []).filter((server) => server.enabled);
+    const candidatesById = new Map(enabledCandidates.map((server) => [server.id, server]));
+    const missingIds = selectedIds.filter((id) => !candidatesById.has(id));
+    if (missingIds.length > 0) {
+      throw CraftingError.runtimeUnavailable(
+        plan.runtimeBinding.harnessKind,
+        `CraftPlan selected unavailable MCP server ids: ${missingIds.join(", ")}.`,
+      );
+    }
+
+    let selected = selectedIds.map((id) => candidatesById.get(id)!);
+    selected = await this.mcpOAuthService.applyAuthorization(selected);
+    selected = await prepareMcpToolFilters(selected, projectLocation);
+    return selected.map(({ description: _description, enabled: _enabled, ...server }) => server);
+  }
+
+  private async resolveCraftingSkills(
+    plan: CraftAgentPayload["craftPlan"],
+    projectLocation: ProjectLocation,
+  ): Promise<{ segments: PromptSegment[]; inlineInstructions?: string }> {
+    const requested = nativeRuntimeExecutionConfigForPlan(plan).skills ?? [];
+    if (requested.length === 0) return { segments: [] };
+
+    const harnessKind = plan.runtimeBinding.harnessKind;
+    const agentKind = this.adapters.has(harnessKind as AgentKind)
+      ? (harnessKind as AgentKind)
+      : undefined;
+    if (agentKind) await this.skillsService.prepareForLaunch(projectLocation, agentKind);
+    const scan = await this.skillsService.scan({
+      projectLocation,
+      ...(agentKind ? { agentKind } : {}),
+      presentationMode: "gui",
+    });
+    const eligibleIds = agentKind
+      ? new Set(scan.effectiveSkillIds)
+      : new Set(
+          scan.skills.filter((skill) => skill.enabled && skill.valid).map((skill) => skill.id),
+        );
+    const selected = requested.map((requestedSkill) => {
+      const matches = scan.skills.filter(
+        (skill) =>
+          eligibleIds.has(skill.id) &&
+          (skill.id === requestedSkill ||
+            skill.name.toLowerCase() === requestedSkill.toLowerCase()),
+      );
+      if (matches.length !== 1) {
+        throw CraftingError.runtimeUnavailable(
+          harnessKind,
+          matches.length === 0
+            ? `CraftPlan selected unavailable skill '${requestedSkill}'.`
+            : `CraftPlan skill '${requestedSkill}' is ambiguous; select its stable skill id.`,
+        );
+      }
+      return matches[0]!;
+    });
+    const invocationFor = (name: string): string => {
+      if (scan.invocation === "slash") return `/${name}`;
+      if (scan.invocation === "dollar") return `$${name}`;
+      return `Use the '${name}' skill for this request.`;
+    };
+    let segments: PromptSegment[] = selected.map((skill) => ({
+      kind: "skill",
+      name: skill.name,
+      path: skill.skillFilePath,
+      invocation: invocationFor(skill.name),
+      provider: skill.providerLabel,
+      scope: skill.scope,
+      ...(skill.pluginId ? { pluginId: skill.pluginId } : {}),
+      ...(skill.pluginName ? { pluginName: skill.pluginName } : {}),
+    }));
+    segments = await this.skillsService.filterPluginSkillSegments(segments, {
+      ...(agentKind ? { agentKind } : {}),
+      projectLocation,
+      presentationMode: "gui",
+    });
+    const inlineInstructions = await this.skillsService.buildTurnSkillInjection({
+      agentKind: agentKind ?? harnessKind,
+      projectLocation,
+      segments,
+    });
+    return { segments, ...(inlineInstructions ? { inlineInstructions } : {}) };
+  }
+
   private registerCraftedSession(
     threadId: string | undefined,
     harnessKind: string,
@@ -1478,8 +1694,13 @@ export class SupervisorRuntime {
         this.craftedRequestsByThread.get(threadId)?.delete(event.requestId);
       }
       if (event.type === "session.exited") this.releaseCraftedSession(threadId);
+      this.emit({ type: "thread-runtime-event", threadId, event });
     });
     this.craftedSessionUnsubscribers.set(threadId, unsubscribe);
+    // Crafted native sessions do not pass through ThreadSessionManager's
+    // RuntimeEventBuffer. Forward their canonical events through the same
+    // Supervisor IPC event seam so the existing renderer timeline receives
+    // live native output without learning provider-specific protocols.
   }
 
   private releaseCraftedBinding(binding: AccountBinding): void {
@@ -1963,6 +2184,10 @@ export class SupervisorRuntime {
         this.releaseCraftedSession(threadId);
       }),
     );
+    await Promise.allSettled(
+      [...this.nativeHarnessAdapters.values()].map((adapter) => adapter.dispose?.()),
+    );
+    this.nativeHarnessAdapters.clear();
     await this.threadSessionManager.dispose();
     this.crossagentMcpIngress.dispose();
     this.sharedSettingsCache.dispose();

@@ -168,6 +168,28 @@ describe("AccountResolver", () => {
     expect(error.code).toBe("ACCOUNT_POOL_EXHAUSTED");
   });
 
+  it("treats an account without its required credential as ineligible", () => {
+    const store = createStore();
+    const missing = store.add({ provider: "grok", label: "missing credential" });
+    const ready = store.add({ provider: "grok", label: "ready" });
+    store.updateStatus(missing.accountId, "available");
+    store.updateStatus(ready.accountId, "available");
+    const resolver = new AccountResolver(store, (account) => account.accountId === ready.accountId);
+
+    const resolution = resolver.resolve({ provider: "grok", mode: "auto" });
+    expect(resolution.account.accountId).toBe(ready.accountId);
+    expect(resolution.candidates).toContainEqual(
+      expect.objectContaining({ accountId: missing.accountId, eligible: false }),
+    );
+    expect(() =>
+      resolver.resolve({
+        provider: "grok",
+        mode: "explicit",
+        explicitAccountId: missing.accountId,
+      }),
+    ).toThrowError(expect.objectContaining({ code: "ACCOUNT_UNAVAILABLE" }));
+  });
+
   it("persists the provider scheduling mode and reuses it on the next resolve", () => {
     const store = createStore();
     seed(store, "grok", 2);

@@ -50,12 +50,12 @@ const FIVE_HARNESS_MATRIX = [
   },
   {
     harnessKind: "antigravity",
-    transport: "official-pty",
+    transport: "official-stream-json",
     fixtureEvidence: "nativeHarness.test.ts",
   },
   {
     harnessKind: "deepseek",
-    transport: "unavailable",
+    transport: "deepseek-json-rpc-stdio",
     fixtureEvidence: "nativeHarness.test.ts",
   },
 ] as const;
@@ -240,6 +240,42 @@ describe("Five-Harness lifecycle acceptance matrix", () => {
         "interrupt",
         "cleanup",
       ]),
+    );
+  });
+
+  it("promotes only product-path-proven Antigravity capabilities and keeps DeepSeek gated", () => {
+    const evidenceGatedCapabilities = [
+      "resume",
+      "multi_turn",
+      "tool_execution",
+      "permission",
+      "mcp",
+      "skills",
+      "subagents",
+      "context",
+      "compaction",
+    ] as const;
+
+    expect(
+      evidenceGatedCapabilities.map((capability) => [
+        capability,
+        DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR.capabilities[capability],
+      ]),
+    ).toEqual(
+      evidenceGatedCapabilities.map((capability) => [capability, "implementation missing"]),
+    );
+    expect(ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR.capabilities).toMatchObject({
+      resume: "supported+integrated",
+      multi_turn: "supported+integrated",
+      tool_execution: "supported+integrated",
+      permission: "implementation missing",
+      mcp: "supported+integrated",
+      skills: "supported+integrated",
+      subagents: "supported+integrated",
+      context: "supported+integrated",
+    });
+    expect(ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR.capabilities.compaction).toBe(
+      "native unsupported",
     );
   });
 

@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-08-30T12:45:46.645Z",
+  "synthetic": false,
+  "executionPath": "SupervisorRuntime.craftAgent -> NativeCodexRuntimeAdapter -> official codex app-server -> model",
+  "marker": "CRAFTSTATION_MODEL_TRAFFIC_OK",
+  "attempts": [
+    {
+      "itemId": "openai:deepseek-v4-pro-0813",
+      "modelId": "deepseek-v4-pro-0813",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "UNEXPECTED_RESPONSE",
+      "responseMarkerObserved": false,
+      "responseLength": 7
+    },
+    {
+      "itemId": "openai:kimi-k3",
+      "modelId": "kimi-k3",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    }
+  ],
+  "codexBinaryVersion": "codex-cli 0.150.0-alpha.12.2",
+  "discoveredModelIds": [
+    "gpt-5.6-terra",
+    "glm-latest",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "k3-256k",
+    "claude-opus-4.6-thinking",
+    "gemini-3.7-flash",
+    "grok-4.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-luna",
+    "z-ai/glm-5.3-flash",
+    "meta/muse-spark-1.2-contributor",
+    "kimi-k3",
+    "deepseek-v4-pro-0813"
+  ],
+  "attemptedModelCount": 2,
+  "responsePassCount": 1
+}

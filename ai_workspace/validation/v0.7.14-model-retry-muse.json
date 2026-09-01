@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-08-31T07:37:00.416Z",
+  "synthetic": false,
+  "executionPath": "SupervisorRuntime.craftAgent -> NativeCodexRuntimeAdapter -> official codex app-server -> model",
+  "marker": "CRAFTSTATION_MODEL_TRAFFIC_OK",
+  "attempts": [
+    {
+      "itemId": "openai:meta/muse-spark-1.2-contributor",
+      "modelId": "meta/muse-spark-1.2-contributor",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "FAILED",
+      "errorCode": "EXECUTION_FAILED",
+      "errorCategory": "PROVIDER_FAILURE"
+    }
+  ],
+  "codexBinaryVersion": "codex-cli 0.151.0-alpha.7.2",
+  "discoveredModelIds": [
+    "gpt-5.6-terra",
+    "glm-latest",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "k3-256k",
+    "claude-opus-4.6-thinking",
+    "gemini-3.7-flash",
+    "grok-4.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-luna",
+    "z-ai/glm-5.3-flash",
+    "meta/muse-spark-1.2-contributor",
+    "kimi-k3",
+    "deepseek-v4-pro-0813"
+  ],
+  "attemptedModelCount": 1,
+  "responsePassCount": 0
+}

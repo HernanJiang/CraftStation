@@ -1,0 +1,162 @@
+{
+  "timestamp": "2026-08-31T18:00:00+08:00",
+  "synthetic": false,
+  "feature": "v0.7.0 — Native Antigravity CLI and DeepSeek Harness Adapters",
+  "fixCycle": "v0.7.15",
+  "verdict": "FAIL / PARTIAL",
+  "engineeringVerdict": "PASS",
+  "hostDebugger": {
+    "nativeTool": {
+      "passed": true,
+      "evidence": "exec_command returned real filesystem, Git, process and test results"
+    },
+    "skillLoad": {
+      "passed": true,
+      "evidence": "my-workflow, debugger and code-review instructions were read"
+    },
+    "networkSearch": {
+      "passed": true,
+      "evidence": "GitHub API and repository page returned HTTP 200 for deepseek-ai/deepseek-harness"
+    },
+    "mcp": {
+      "passed": true,
+      "evidence": "Codex app thread MCP tools connected and returned structured results"
+    },
+    "agentsAutoRead": {
+      "passed": true,
+      "evidence": "D:\\Work\\CraftStation AGENTS.md instructions were automatically supplied to this task"
+    },
+    "contextCheckpointContinuation": {
+      "passed": true,
+      "evidence": "This task continued normally from a compacted checkpoint summary and accepted subsequent messages"
+    },
+    "backgroundSubagent": {
+      "passed": false,
+      "verdict": "PARTIAL / NOT_OBSERVABLE",
+      "evidence": "The latest child task completed with no task error, but no assistant marker/body was observable; earlier attempts failed on the default model route and CR-UP-0001 protocol mapping"
+    },
+    "crossThreadMessage": {
+      "passed": false,
+      "verdict": "PARTIAL / NOT_OBSERVABLE",
+      "evidence": "Dispatch and task completion were observable, but the requested assistant marker/body was not returned to the caller"
+    }
+  },
+  "harnesses": {
+    "antigravity": {
+      "carrier": "agy 1.1.22",
+      "verdict": "PASS",
+      "artifact": "v0.7.13-antigravity-agentic-product-path.json",
+      "proved": [
+        "real assistant response",
+        "native file tool",
+        "network search",
+        "selected MCP identity",
+        "selected Skill",
+        "provider-native subagent",
+        "AGENTS.md auto-read",
+        "same-runtime multi-turn",
+        "cross-runtime resume",
+        "session.exited cleanup"
+      ],
+      "excluded": ["compaction"]
+    },
+    "grok": {
+      "verdict": "PASS",
+      "artifact": "v0.7.13-structured-agentic-product-path.json",
+      "proved": [
+        "real response",
+        "selected MCP",
+        "selected Skill",
+        "provider-native subagent identity",
+        "resume",
+        "cleanup"
+      ]
+    },
+    "kimi": {
+      "verdict": "PASS",
+      "artifact": "v0.7.14-kimi-agentic-retry.json",
+      "proved": [
+        "real response",
+        "selected MCP",
+        "selected Skill",
+        "provider-native subagent identity and result",
+        "context event",
+        "resume",
+        "cleanup"
+      ]
+    },
+    "codex": {
+      "carrier": "official codex app-server",
+      "verdict": "PASS",
+      "artifact": "v0.7.15-codex-agentic-product-path.json",
+      "modelId": "gpt-5.6-sol",
+      "proved": [
+        "real assistant response",
+        "selected MCP identity and tool events",
+        "selected Skill",
+        "provider-native spawnAgent identity",
+        "provider child thread identity",
+        "provider wait completion result",
+        "parent item started exactly once",
+        "parent item completed exactly once",
+        "context usage",
+        "cross-runtime resume",
+        "session.exited cleanup"
+      ],
+      "subagentSyntheticIdentityUsed": false
+    },
+    "officialDsh": {
+      "carrier": "official dsh-jsonrpc-agent Windows npm carrier",
+      "verdict": "AUTH_REQUIRED",
+      "artifact": "v0.7.9-deepseek-product-path.json",
+      "realAssistantResponse": false,
+      "cleanup": true,
+      "advancedCapabilitiesProved": false,
+      "fallbackUsed": false
+    },
+    "deepseekApiOfficial": {
+      "verdict": "AUTH_REQUIRED",
+      "artifact": "v0.7.14-deepseek-api-agentic-product-path.json",
+      "implementationRegression": "PASS",
+      "realAgenticCapabilitiesProved": false,
+      "boundary": "Historical API text traffic does not replace a current successful Agentic product-path run"
+    },
+    "deepseekApiThirdParty": {
+      "verdict": "AUTH_REQUIRED",
+      "artifact": "v0.7.14-router-deepseek-api-probe.json",
+      "realAgenticCapabilitiesProved": false
+    }
+  },
+  "dynamicModelTraffic": {
+    "discovered": 14,
+    "latestFullMatrixStrictPass": 9,
+    "finalStrictPassAfterTargetedRetries": 11,
+    "recovered": ["deepseek-v4-flash", "deepseek-v4-pro-0813"],
+    "remainingFailed": [
+      { "model": "kimi-k3", "category": "TIMEOUT" },
+      { "model": "meta/muse-spark-1.2-contributor", "category": "PROVIDER_FAILURE" },
+      { "model": "z-ai/glm-5.3-flash", "category": "PROVIDER_FAILURE" }
+    ],
+    "boundary": "Codex app-server/Router text traffic only; not each model vendor's native Harness Agentic proof"
+  },
+  "regression": {
+    "codexFocused": "4 files / 22 tests passed",
+    "widerFeatureSet": "8 passed / 1 skipped files; 143 passed / 1 skipped tests",
+    "touchedTsTsx": 58,
+    "oxfmt": "PASS",
+    "oxlint": "PASS",
+    "typecheck": "PASS",
+    "diffCheck": "PASS",
+    "credentialLikeScanHits": 0,
+    "residualTargetProcesses": 0,
+    "packageManifestChanged": false,
+    "lockfileChanged": false
+  },
+  "remaining": [
+    "Official DSH still has no real assistant response or advanced Agentic proof.",
+    "A valid official DeepSeek API credential is required for a current successful API Agentic product-path run.",
+    "A valid third-party credential is required for the requested third-party DeepSeek API path.",
+    "Three dynamic Router models remain unavailable in the latest targeted retries.",
+    "Host background-subagent and cross-thread dispatch complete, but the requested returned assistant body remains unobservable."
+  ]
+}

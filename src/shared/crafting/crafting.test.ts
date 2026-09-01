@@ -114,16 +114,20 @@ class FakeCraftSession implements CraftSession {
 }
 
 describe("Crafting Registry", () => {
-  it("initializes with built-in OpenAI models and Codex harness", () => {
+  it("starts without legacy Codex OpenAI models until official discovery succeeds", () => {
     const registry = new ItemRegistry();
     const models = registry.listItems("model");
     const harnesses = registry.listItems("harness");
 
     expect(models.length).toBeGreaterThanOrEqual(4);
-    expect(harnesses.length).toBe(6);
+    expect(harnesses.length).toBe(7);
     expect(registry.getItem(BUILTIN_CODEX_HARNESS_ITEM.id)).toBeDefined();
     expect(registry.getItem("harness:opencode")).toBeDefined();
-    expect(registry.getItem("openai:gpt-5.3-codex")).toBeDefined();
+    expect(registry.getItem("openai:gpt-5.3-codex")).toBeUndefined();
+    expect(registry.getItem("openai:gpt-5.4")).toBeDefined();
+    expect(
+      models.filter((item) => item.metadata.vendor === "openai").map((item) => item.id),
+    ).toEqual(["openai:gpt-5.4"]);
   });
 
   it("does not register 'auto' as a standalone Item in registry", () => {
@@ -138,6 +142,36 @@ describe("Crafting Registry", () => {
     expect(resolved).toBeDefined();
     expect(resolved?.id).toBe("harness:codex");
     expect(resolved?.metadata.vendor).toBe("codex");
+  });
+
+  it("replaces stale OpenAI builtins with the official Codex model inventory", () => {
+    const registry = new ItemRegistry();
+
+    registry.refreshCodexModels([
+      {
+        id: "gpt-official-live",
+        displayName: "GPT Official Live",
+        contextWindow: 196_000,
+      },
+    ]);
+
+    const models = registry.listItems("model");
+    expect(models.filter((item) => item.metadata.vendor === "openai")).toEqual([
+      expect.objectContaining({
+        id: "openai:gpt-official-live",
+        metadata: expect.objectContaining({ source: "discovered" }),
+      }),
+      expect.objectContaining({
+        id: "openai:gpt-5.4",
+        metadata: expect.objectContaining({ source: "builtin" }),
+      }),
+    ]);
+    expect(registry.getItem("openai:gpt-4o")).toBeUndefined();
+    expect(registry.getItem("openai:gpt-5-hybrid")).toBeUndefined();
+    expect(registry.getItem("openai:gpt-5.3-codex")).toBeUndefined();
+    expect(registry.getItem("openai:o3-mini")).toBeUndefined();
+    expect(registry.getItem("xai:grok-4.6")).toBeDefined();
+    expect(registry.getItem("deepseek:deepseek-v4-flash")).toBeDefined();
   });
 });
 

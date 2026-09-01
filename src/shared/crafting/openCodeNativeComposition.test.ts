@@ -165,7 +165,7 @@ describe("OpenCode native composition contract", () => {
 
   it("requires an explicit readiness provider for OpenCode executable compilation", () => {
     const result = new Crafter(registry).compile(
-      { slots: { model: registry.getItem("openai:gpt-4o")!, harness: opencode } },
+      { slots: { model: registry.getItem("openai:gpt-5.4")!, harness: opencode } },
       { authRef: "auth:openai:opaque" },
     );
 

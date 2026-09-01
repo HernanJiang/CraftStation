@@ -1,0 +1,153 @@
+{
+  "timestamp": "2026-08-31T05:20:20.576Z",
+  "synthetic": false,
+  "executionPath": "SupervisorRuntime.craftAgent -> NativeCodexRuntimeAdapter -> official codex app-server -> model",
+  "marker": "CRAFTSTATION_MODEL_TRAFFIC_OK",
+  "attempts": [
+    {
+      "itemId": "openai:claude-opus-4.6-thinking",
+      "modelId": "claude-opus-4.6-thinking",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:deepseek-v4-flash",
+      "modelId": "deepseek-v4-flash",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:deepseek-v4-pro",
+      "modelId": "deepseek-v4-pro",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:deepseek-v4-pro-0813",
+      "modelId": "deepseek-v4-pro-0813",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "UNEXPECTED_RESPONSE",
+      "responseMarkerObserved": false,
+      "responseLength": 7
+    },
+    {
+      "itemId": "openai:gemini-3.7-flash",
+      "modelId": "gemini-3.7-flash",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:glm-latest",
+      "modelId": "glm-latest",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:gpt-5.6-luna",
+      "modelId": "gpt-5.6-luna",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:gpt-5.6-sol",
+      "modelId": "gpt-5.6-sol",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:gpt-5.6-terra",
+      "modelId": "gpt-5.6-terra",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:grok-4.6",
+      "modelId": "grok-4.6",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:k3-256k",
+      "modelId": "k3-256k",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:kimi-k3",
+      "modelId": "kimi-k3",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:meta/muse-spark-1.2-contributor",
+      "modelId": "meta/muse-spark-1.2-contributor",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    },
+    {
+      "itemId": "openai:z-ai/glm-5.3-flash",
+      "modelId": "z-ai/glm-5.3-flash",
+      "source": "app-server-discovered",
+      "attempted": true,
+      "verdict": "PASS",
+      "responseMarkerObserved": true,
+      "responseLength": 29
+    }
+  ],
+  "codexBinaryVersion": "codex-cli 0.150.0-alpha.12.2",
+  "discoveredModelIds": [
+    "gpt-5.6-terra",
+    "glm-latest",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "k3-256k",
+    "claude-opus-4.6-thinking",
+    "gemini-3.7-flash",
+    "grok-4.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-luna",
+    "z-ai/glm-5.3-flash",
+    "meta/muse-spark-1.2-contributor",
+    "kimi-k3",
+    "deepseek-v4-pro-0813"
+  ],
+  "attemptedModelCount": 14,
+  "responsePassCount": 13
+}

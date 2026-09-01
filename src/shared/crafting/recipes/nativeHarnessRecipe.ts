@@ -18,6 +18,8 @@ export interface NativeHarnessRecipeOptions {
   harnessKind: string;
   harnessItemId: string;
   modelVendors: readonly string[];
+  modelIds?: readonly string[];
+  modelItemIds?: readonly string[];
   harnessVendors?: readonly string[];
   /** OpenCode provider identity, kept separate from the harness vendor. */
   providerID?: string;
@@ -77,6 +79,8 @@ export class NativeHarnessRecipe implements Recipe {
   readonly harnessKind: string;
   readonly harnessItemId: string;
   readonly modelVendors: readonly string[];
+  readonly modelIds: readonly string[];
+  readonly modelItemIds: readonly string[];
   readonly harnessVendors: readonly string[];
   readonly providerID: string | undefined;
   readonly requirements: Record<string, RecipeSlotRequirement>;
@@ -90,6 +94,8 @@ export class NativeHarnessRecipe implements Recipe {
     this.harnessKind = options.harnessKind;
     this.harnessItemId = options.harnessItemId;
     this.modelVendors = [...options.modelVendors];
+    this.modelIds = [...(options.modelIds ?? [])];
+    this.modelItemIds = [...(options.modelItemIds ?? [])];
     this.harnessVendors = [...(options.harnessVendors ?? options.modelVendors)];
     this.providerID = options.providerID;
     this.requirements = {
@@ -113,6 +119,19 @@ export class NativeHarnessRecipe implements Recipe {
     const harness = ingredients.harness;
     if (!model || !harness) return false;
     if (model.kind !== "model" || !this.modelVendors.includes(model.metadata.vendor)) return false;
+    if (this.modelItemIds.length > 0 && !this.modelItemIds.includes(model.id)) return false;
+    if (this.modelIds.length > 0) {
+      const modelCapability = model.components.find(
+        (component) => component.kind === "model_capability",
+      );
+      if (
+        !modelCapability ||
+        typeof modelCapability.modelId !== "string" ||
+        !this.modelIds.includes(modelCapability.modelId)
+      ) {
+        return false;
+      }
+    }
     if (harness.kind !== "harness" || harness.id !== this.harnessItemId) return false;
     return this.harnessVendors.includes(harness.metadata.vendor);
   }

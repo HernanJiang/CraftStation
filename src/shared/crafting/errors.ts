@@ -126,6 +126,19 @@ export class CraftingError extends Error {
     });
   }
 
+  static protocolMismatch(
+    harnessKind: string,
+    message = `Native protocol for harness '${harnessKind}' is incompatible.`,
+  ): CraftingError {
+    return new CraftingError({
+      code: "PROTOCOL_MISMATCH",
+      phase: "runtime",
+      message,
+      details: { harnessKind },
+      remediation: `Update the official ${harnessKind} runtime and retry.`,
+    });
+  }
+
   static executionFailed(
     message: string,
     details?: Record<string, unknown>,

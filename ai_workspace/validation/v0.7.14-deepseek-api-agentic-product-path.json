@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-08-31T06:48:56.525Z",
+  "synthetic": false,
+  "scope": "DeepSeek OpenAI-compatible API adapter; separate from official DSH JSON-RPC Harness",
+  "executionPath": "SupervisorRuntime.craftAgent -> DeepSeekApiRuntimeAdapter -> real HTTPS streaming -> selected stdio MCP -> same-session follow-up -> interruptThread -> closeThread",
+  "unsupportedByThisAdapter": [
+    "provider-native subagent",
+    "cross-runtime resume",
+    "native file/shell tools",
+    "AGENTS.md auto-read",
+    "compaction"
+  ],
+  "attempts": [
+    {
+      "provider": "deepseek-official-api",
+      "model": "deepseek-chat",
+      "attempted": true,
+      "synthetic": false,
+      "verdict": "FAILED",
+      "error": {
+        "code": "AUTH_REQUIRED",
+        "message": "Authentication is required to run harness 'deepseek-api'."
+      }
+    },
+    {
+      "provider": "deepseek-ark-coding-api",
+      "model": "deepseek-v4-flash",
+      "attempted": false,
+      "verdict": "KEY_NOT_CONFIGURED"
+    }
+  ],
+  "summary": {
+    "configured": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 1
+  }
+}

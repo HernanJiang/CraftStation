@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-08-31T06:21:17.110Z",
+  "synthetic": false,
+  "feature": "v0.7.0 — Native Antigravity CLI and DeepSeek Harness Adapters",
+  "executionPath": "SupervisorRuntime.craftAgent -> NativeProcessHarnessRuntimeAdapter -> official dsh-jsonrpc-agent JSON-RPC 2.0 stdio -> Entity -> Session",
+  "executablePath": "C:\\Users\\Haona\\AppData\\Roaming\\npm\\dsh-jsonrpc-agent.cmd",
+  "configProvided": true,
+  "promptMarker": "CRAFTSTATION_DSH_PRODUCT_PATH_OK",
+  "carrierPackage": "@deepseek-ai/dsh-sdk-jsonrpc-demo",
+  "carrierVersion": "0.1.1-rc.2",
+  "verdict": "AUTH_REQUIRED",
+  "error": {
+    "code": "AUTH_REQUIRED",
+    "phase": "runtime",
+    "message": "Authentication is required to run harness 'deepseek'.",
+    "details": {
+      "harnessKind": "deepseek",
+      "recipeId": "recipe:deepseek-native",
+      "modelId": "deepseek-chat",
+      "threadId": "craft-real-deepseek-1788157277112",
+      "entityId": "entity:deepseek:96e1ffe2-1164-40d1-a41b-5755ba246ad0",
+      "sessionId": "sess:deepseek:f80e7dd5-2899-4989-b279-9e002c9d91e1"
+    },
+    "remediation": "Configure a valid DEEPSEEK_API_KEY for the official DeepSeek Harness runtime."
+  },
+  "eventTypes": [
+    "turn.started",
+    "warning",
+    "session.started",
+    "warning",
+    "warning",
+    "warning",
+    "warning",
+    "warning",
+    "warning",
+    "warning",
+    "error",
+    "turn.completed",
+    "session.exited"
+  ],
+  "nativeTypes": [
+    "agent/inbox/spliced",
+    "session.status",
+    "agent/inbox/spliced",
+    "step/start",
+    "user/message",
+    "session/title",
+    "request/header",
+    "request/context",
+    "step/end",
+    "turn/end",
+    "turn/end"
+  ],
+  "cleanup": {
+    "operation": "SupervisorRuntime first-turn failure cleanup",
+    "observedSessionExited": true
+  }
+}
