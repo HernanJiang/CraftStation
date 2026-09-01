@@ -281,7 +281,9 @@ describe("SkillsService", () => {
       ],
     });
 
-    expect(result.imported).toEqual([join(projectPath, ".craftstation", "skills", "project-private")]);
+    expect(result.imported).toEqual([
+      join(projectPath, ".craftstation", "skills", "project-private"),
+    ]);
   });
 
   it("reads folded YAML descriptions used by provider skills", async () => {
@@ -1653,7 +1655,9 @@ describe("SkillsService", () => {
     await service.prepareForLaunch(projectLocation);
 
     expect(await readFile(join(provider, "SKILL.md"), "utf8")).toContain("Provider version");
-    await expect(readFile(join(provider, ".craftstation-skill.json"), "utf8")).rejects.toMatchObject({
+    await expect(
+      readFile(join(provider, ".craftstation-skill.json"), "utf8"),
+    ).rejects.toMatchObject({
       code: "ENOENT",
     });
   });
@@ -1919,7 +1923,9 @@ describe("SkillsService", () => {
       availability: "craftstation",
       replace: false,
     });
-    expect(privateResult.installed).toBe(join(home, ".craftstation", "skills", "unique-managed-skill"));
+    expect(privateResult.installed).toBe(
+      join(home, ".craftstation", "skills", "unique-managed-skill"),
+    );
   });
 
   it("lists Skills Directory through its public registry", async () => {

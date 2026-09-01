@@ -45,10 +45,10 @@ export default function PrivacyPage() {
           <section>
             <h2 className="mb-3 text-xl font-semibold text-white">Overview</h2>
             <p>
-              CraftStation mobile is a companion for a CraftStation desktop app that you control. It does
-              not run product analytics or third-party crash reporting in mobile sessions, show ads,
-              or sell personal information. This policy also explains the limited services used by
-              the CraftStation website and optional push notifications.
+              CraftStation mobile is a companion for a CraftStation desktop app that you control. It
+              does not run product analytics or third-party crash reporting in mobile sessions, show
+              ads, or sell personal information. This policy also explains the limited services used
+              by the CraftStation website and optional push notifications.
             </p>
           </section>
 
@@ -66,8 +66,8 @@ export default function PrivacyPage() {
             <h2 className="mb-3 text-xl font-semibold text-white">Camera and QR scanning</h2>
             <p>
               Camera access is optional and is used only to scan a pairing QR code. Video frames are
-              decoded on your device. CraftStation does not record, store, or upload camera images or
-              video. You can pair by entering the endpoint and token instead.
+              decoded on your device. CraftStation does not record, store, or upload camera images
+              or video. You can pair by entering the endpoint and token instead.
             </p>
           </section>
 
@@ -96,13 +96,13 @@ export default function PrivacyPage() {
               If you enable notifications, the native app receives an Apple Push Notification
               service (APNs) or Firebase Cloud Messaging (FCM) token; an installed web app creates a
               browser Push API subscription. The app sends that registration to your paired desktop.
-              The desktop may send the registration and notification content through CraftStation&apos;s
-              hosted service at craftstation.com, which forwards the message to APNs, FCM, or the
-              browser push service. Notification content can include a project or thread name and
-              status needed to show the alert; desktop privacy settings can redact identifying
-              titles. Apple, Google, Mozilla, Microsoft, and CraftStation&apos;s hosting provider may
-              process delivery data under their own terms. You can disable notifications or remove
-              the paired desktop to unregister the device.
+              The desktop may send the registration and notification content through
+              CraftStation&apos;s hosted service at craftstation.com, which forwards the message to
+              APNs, FCM, or the browser push service. Notification content can include a project or
+              thread name and status needed to show the alert; desktop privacy settings can redact
+              identifying titles. Apple, Google, Mozilla, Microsoft, and CraftStation&apos;s hosting
+              provider may process delivery data under their own terms. You can disable
+              notifications or remove the paired desktop to unregister the device.
             </p>
           </section>
 
@@ -119,9 +119,10 @@ export default function PrivacyPage() {
             <h2 className="mb-3 text-xl font-semibold text-white">Sharing and retention</h2>
             <div className="space-y-3">
               <p>
-                CraftStation does not sell or rent mobile data or use it for advertising. Data is shared
-                only when needed to connect to services you choose through the paired desktop, to
-                deliver optional notifications, to operate the website, or when required by law.
+                CraftStation does not sell or rent mobile data or use it for advertising. Data is
+                shared only when needed to connect to services you choose through the paired
+                desktop, to deliver optional notifications, to operate the website, or when required
+                by law.
               </p>
               <p>
                 Pairing data and cached content remain on your device until you remove the desktop
@@ -130,8 +131,8 @@ export default function PrivacyPage() {
                 operational or security logs according to their policies.
               </p>
               <p>
-                If you email support or open a GitHub issue, CraftStation receives the information you
-                choose to provide and uses it to investigate the request and respond.
+                If you email support or open a GitHub issue, CraftStation receives the information
+                you choose to provide and uses it to investigate the request and respond.
               </p>
             </div>
           </section>
@@ -139,17 +140,17 @@ export default function PrivacyPage() {
           <section>
             <h2 className="mb-3 text-xl font-semibold text-white">Security and children</h2>
             <p>
-              CraftStation uses access tokens and platform security features to protect connections and
-              stored credentials, but no system is completely secure. CraftStation is a developer tool
-              and is not directed to children under 13.
+              CraftStation uses access tokens and platform security features to protect connections
+              and stored credentials, but no system is completely secure. CraftStation is a
+              developer tool and is not directed to children under 13.
             </p>
           </section>
 
           <section>
             <h2 className="mb-3 text-xl font-semibold text-white">Changes and contact</h2>
             <p>
-              We may update this policy as CraftStation changes and will publish the new effective date
-              here. Questions or privacy requests can be sent to{" "}
+              We may update this policy as CraftStation changes and will publish the new effective
+              date here. Questions or privacy requests can be sent to{" "}
               <a
                 href={`mailto:${contact.supportEmail}`}
                 className="text-white underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-white"

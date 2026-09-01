@@ -93,7 +93,9 @@ export interface ParsedCraftStationExtension {
  * A malformed block degrades to "no CraftStation extras" with a warning; it never
  * rejects the plugin, because the spec-defined components are still valid.
  */
-export function parseCraftStationExtension(manifest: AgentPluginManifest): ParsedCraftStationExtension {
+export function parseCraftStationExtension(
+  manifest: AgentPluginManifest,
+): ParsedCraftStationExtension {
   const raw = manifest.extensions?.[CRAFTSTATION_EXTENSION_NAMESPACE];
   if (raw === undefined) return { extension: EMPTY_CRAFTSTATION_EXTENSION, diagnostics: [] };
 

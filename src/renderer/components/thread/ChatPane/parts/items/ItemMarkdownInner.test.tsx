@@ -190,7 +190,9 @@ describe("ItemMarkdownInner", () => {
       </AppProvider>,
     );
 
-    expect(remoteLocalImageUrl).toHaveBeenCalledWith("craftstation-local://local/tmp/screenshot.png");
+    expect(remoteLocalImageUrl).toHaveBeenCalledWith(
+      "craftstation-local://local/tmp/screenshot.png",
+    );
     expect(screen.getByAltText("Screenshot")).toHaveAttribute(
       "src",
       "https://remote.test/api/files/image?path=screenshot.png",

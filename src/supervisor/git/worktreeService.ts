@@ -991,7 +991,10 @@ export class GitWorktreeService {
   ): Promise<void> {
     await execGit(location, ["config", `branch.${branch}.craftstationSource`, sourceBranch]).catch(
       (error) => {
-        console.warn(`[git] failed to write craftstationSource config for branch ${branch}:`, error);
+        console.warn(
+          `[git] failed to write craftstationSource config for branch ${branch}:`,
+          error,
+        );
       },
     );
   }

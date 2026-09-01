@@ -380,7 +380,11 @@ export class CrossagentMcpIngress {
         const disabled = this.disabledToolsByThread.get(threadId);
         const permissionAlias = TOOL_PERMISSION_ALIASES.get(name);
         if (disabled?.has(name) || (permissionAlias && disabled?.has(permissionAlias))) {
-          return { jsonrpc: "2.0", id, result: errorResult(`Tool disabled by CraftStation: ${name}`) };
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: errorResult(`Tool disabled by CraftStation: ${name}`),
+          };
         }
         if (!isKnownToolName(name)) {
           return { jsonrpc: "2.0", id, result: errorResult(`Unknown tool: ${name}`) };

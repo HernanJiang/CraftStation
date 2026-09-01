@@ -67,7 +67,8 @@ export const sidebarColumnLayoutClass = "flex h-full min-h-0 min-w-0 flex-col ga
  * transparent when it sits inside the sidebar column, so overlay sidebars get the same
  * glass treatment as the main app sidebar (see styles.css).
  */
-export const overlaySidebarSurfaceClass = "craftstation-overlay-surface bg-[var(--content-background)]";
+export const overlaySidebarSurfaceClass =
+  "craftstation-overlay-surface bg-[var(--content-background)]";
 
 /** File editor, git, settings overlays, etc.: layout + background. */
 export const overlaySidebarColumnClass = `${sidebarColumnLayoutClass} ${overlaySidebarSurfaceClass}`;

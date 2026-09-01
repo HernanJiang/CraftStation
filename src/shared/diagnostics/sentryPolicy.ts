@@ -122,7 +122,8 @@ export function classifyDiagnosticFailure(
     domain,
     operation,
     errorClass,
-    fingerprint: failureClass === "unknown" ? null : ["craftstation", domain, operation, errorClass],
+    fingerprint:
+      failureClass === "unknown" ? null : ["craftstation", domain, operation, errorClass],
   };
 }
 

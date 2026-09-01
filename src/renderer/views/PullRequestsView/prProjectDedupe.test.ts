@@ -56,7 +56,9 @@ describe("dedupePrProjects", () => {
   it("keeps the first project when neither or both are mirrored", () => {
     const second = project("second", { remoteServerId: "mac", remoteId: "remote-2" });
     expect(dedupePrProjects([mirrored, second], () => "sdsleon/craftstation")).toEqual([mirrored]);
-    expect(dedupePrProjects([local, project("other")], () => "sdsleon/craftstation")).toEqual([local]);
+    expect(dedupePrProjects([local, project("other")], () => "sdsleon/craftstation")).toEqual([
+      local,
+    ]);
   });
 
   it("keeps projects with different or unknown repo identities", () => {

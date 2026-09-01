@@ -629,7 +629,10 @@ export function ThreadComposer(props: {
         ? `craftstation-composer-label-hideable truncate${hideLabel ? " is-hidden" : ""}`
         : "truncate";
       const content = (
-        <div key={`${control.value}-${index}`} className="craftstation-composer-static min-w-0 px-2.5">
+        <div
+          key={`${control.value}-${index}`}
+          className="craftstation-composer-static min-w-0 px-2.5"
+        >
           {control.icon}
           {!control.iconOnly && (
             <span data-collapse-tier={collapseTier} className={labelClassName}>

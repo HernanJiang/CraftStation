@@ -99,7 +99,8 @@ const VALID_INTENTS = new Set([
   "session.turn_errored",
 ]);
 const EMPTY_GIT_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
-const CRAFTSTATION_CHECKPOINT_REF_RE = /^refs\/craftstation\/checkpoints\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/;
+const CRAFTSTATION_CHECKPOINT_REF_RE =
+  /^refs\/craftstation\/checkpoints\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/;
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 let cachedLoginShellEnv;
 

@@ -448,8 +448,8 @@ export function DesktopsView(props: DesktopsViewProps) {
     <div className="m-form">
       <p className="m-card__hint">
         <Trans>
-          Open Settings → Remote Access in CraftStation on your desktop, then scan the QR code from here
-          — or enter the endpoint and pairing token manually.
+          Open Settings → Remote Access in CraftStation on your desktop, then scan the QR code from
+          here — or enter the endpoint and pairing token manually.
         </Trans>
       </p>
       {showPairingHint ? (

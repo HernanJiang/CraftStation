@@ -184,7 +184,9 @@ describe("SidebarFlatThreadList", () => {
 
     render(<SidebarFlatThreadList sortMode="updated" />);
 
-    const remoteRow = screen.getByText(/thread:r1 in Mac CraftStation/).closest("[data-testid=row]");
+    const remoteRow = screen
+      .getByText(/thread:r1 in Mac CraftStation/)
+      .closest("[data-testid=row]");
     expect(remoteRow).toHaveTextContent("MacBook 16");
     const localRow = screen.getByText(/thread:p1 in CraftStation/).closest("[data-testid=row]");
     expect(localRow).not.toHaveTextContent("MacBook 16");

@@ -216,7 +216,9 @@ describe("SkillsManager", () => {
       "Codex",
       "OpenCode",
     ]);
-    const craftstationSection = screen.getByRole("heading", { name: "CraftStation" }).closest("section")!;
+    const craftstationSection = screen
+      .getByRole("heading", { name: "CraftStation" })
+      .closest("section")!;
     expect(within(craftstationSection).getByText("private-review")).toBeInTheDocument();
     expect(within(craftstationSection).getByText("create-skill")).toBeInTheDocument();
     const codexSection = screen.getByRole("heading", { name: "Codex" }).closest("section")!;

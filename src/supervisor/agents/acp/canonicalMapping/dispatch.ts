@@ -418,8 +418,8 @@ export function mapAcpSessionUpdate(
       }
       const isTerminal = toolCall.status === "completed" || toolCall.status === "failed";
       const hasTopLevelDetachedReply =
-        updateMeta?.[CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY] === toolCall.toolCallId &&
-        hasOpenContentItems(state);
+        updateMeta?.[CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY] ===
+          toolCall.toolCallId && hasOpenContentItems(state);
       const status =
         toolCall.status === "completed"
           ? "success"

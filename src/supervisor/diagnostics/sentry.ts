@@ -403,7 +403,10 @@ export function captureSupervisorIpcFailure(error: unknown, operation: string): 
   });
 }
 
-export function captureSupervisorException(error: unknown, tags?: CraftStationDiagnosticTags): void {
+export function captureSupervisorException(
+  error: unknown,
+  tags?: CraftStationDiagnosticTags,
+): void {
   const operation = tags?.["craftstation.feature_area"] ?? "unhandled";
   const provider = tags?.["craftstation.provider"] ?? structuredRuntimeProvider(error);
   captureSupervisorFailure(error, classifySupervisorFailure(error, operation), {

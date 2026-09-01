@@ -749,11 +749,13 @@ describe("ToolCallGroup", () => {
     // Rows with structured titles shimmer only the stable prefix (a <span>);
     // plain titles shimmer the whole <code>. The path segment must never be
     // part of the shimmer — mutating text under background-clip:text ghosts.
-    const animatedTitles = Array.from(view.container.querySelectorAll(".craftstation-thinking-text"));
-    expect(animatedTitles).toHaveLength(4);
-    expect(animatedTitles.map((title) => title.getAttribute("data-craftstation-shimmer-text"))).toEqual(
-      ["Read file", "Check · pnpm run test", "Edit · ", "CraftStation"],
+    const animatedTitles = Array.from(
+      view.container.querySelectorAll(".craftstation-thinking-text"),
     );
+    expect(animatedTitles).toHaveLength(4);
+    expect(
+      animatedTitles.map((title) => title.getAttribute("data-craftstation-shimmer-text")),
+    ).toEqual(["Read file", "Check · pnpm run test", "Edit · ", "CraftStation"]);
     expect(screen.queryByText("Working")).not.toBeInTheDocument();
     expect(view.container.querySelector(".craftstation-pixel-loader")).toBeNull();
   });

@@ -57,9 +57,9 @@ function createWatchHarness(subscriptionIdForCall: (callNumber: number) => strin
 
 describe("isIgnoredWorkTreeFile", () => {
   it("ignores project-relative managed worktrees and their dependency churn", () => {
-    expect(isIgnoredWorkTreeFile(".craftstation/worktrees/feature/node_modules/react/index.js")).toBe(
-      true,
-    );
+    expect(
+      isIgnoredWorkTreeFile(".craftstation/worktrees/feature/node_modules/react/index.js"),
+    ).toBe(true);
     expect(isIgnoredWorkTreeFile(".craftstation/worktrees/feature/src/app.ts")).toBe(true);
   });
 

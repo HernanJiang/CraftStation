@@ -101,7 +101,10 @@ export function MentionPopover(props: {
               {isPlugin ? (
                 <PluginIcon pluginId={entry.path} className="craftstation-mention-popover__icon" />
               ) : McpIcon ? (
-                <McpIcon className="craftstation-mention-popover__icon text-muted" aria-hidden="true" />
+                <McpIcon
+                  className="craftstation-mention-popover__icon text-muted"
+                  aria-hidden="true"
+                />
               ) : (
                 <img
                   className="craftstation-mention-popover__icon"

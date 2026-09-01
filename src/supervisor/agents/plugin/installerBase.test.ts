@@ -384,8 +384,9 @@ describe("buildNativeHookCommandHead", () => {
   });
 
   it("escapes embedded quotes for the active native shell", () => {
-    const commandHead = buildNativeHookCommandHead('C:\\Users\\a"b\\craftstation-hook.cmd', (name) =>
-      name === "pwsh.exe" ? "C:\\Program Files\\PowerShell\\7\\pwsh.exe" : undefined,
+    const commandHead = buildNativeHookCommandHead(
+      'C:\\Users\\a"b\\craftstation-hook.cmd',
+      (name) => (name === "pwsh.exe" ? "C:\\Program Files\\PowerShell\\7\\pwsh.exe" : undefined),
     );
     const expected =
       process.platform === "win32"

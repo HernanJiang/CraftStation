@@ -635,8 +635,8 @@ export const claudeProfileSupport: NativeAgentProfileSupport = {
   RowSubtitle: ClaudeProfileConfigDir,
   removalBody: (profileName) => (
     <Trans>
-      Removing {profileName} drops its CraftStation settings — env vars, models, and effort. Its config
-      directory and the Claude credentials inside it stay on disk.
+      Removing {profileName} drops its CraftStation settings — env vars, models, and effort. Its
+      config directory and the Claude credentials inside it stay on disk.
     </Trans>
   ),
   createPayload: ({ id, displayName, field }) => ({

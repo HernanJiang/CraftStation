@@ -708,7 +708,12 @@ describe("GitHubService", () => {
       >(async (_location, input) => {
         const args = input.args;
         if (input.command === "mktemp") {
-          return { ok: true, stdout: "/tmp/craftstation-pr-body-abc123\n", stderr: "", exitCode: 0 };
+          return {
+            ok: true,
+            stdout: "/tmp/craftstation-pr-body-abc123\n",
+            stderr: "",
+            exitCode: 0,
+          };
         }
         if (args[0] === "pr" && args[1] === "create") {
           return {

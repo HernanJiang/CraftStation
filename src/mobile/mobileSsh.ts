@@ -1,4 +1,8 @@
-import { SshBridge, type SshBridgeAuthentication, type SshBridgeError } from "@craftstation/ssh-bridge";
+import {
+  SshBridge,
+  type SshBridgeAuthentication,
+  type SshBridgeError,
+} from "@craftstation/ssh-bridge";
 import { arrayBufferToBase64 } from "@/shared/base64";
 import {
   bootstrapRemoteRuntime,

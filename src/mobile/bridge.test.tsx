@@ -32,9 +32,9 @@ describe("remote bridge", () => {
       },
     );
 
-    await expect(window.craftstation.pickFiles({ attachmentThreadId: "thread-1" })).resolves.toEqual([
-      "C:\\attachments\\notes.md",
-    ]);
+    await expect(
+      window.craftstation.pickFiles({ attachmentThreadId: "thread-1" }),
+    ).resolves.toEqual(["C:\\attachments\\notes.md"]);
     expect(uploadAttachment).toHaveBeenCalledWith({
       threadId: "thread-1",
       fileName: "notes.md",
@@ -54,9 +54,13 @@ describe("remote bridge", () => {
     expect(window.craftstation.homeDir).toBeUndefined();
     expect(window.craftstation.windowKind).toBe("main");
     expect(window.craftstation.onProjectStateChanged(() => undefined)).toBeTypeOf("function");
-    expect(window.craftstation.onRemoteAccessPairingChanged(() => undefined)).toBeTypeOf("function");
+    expect(window.craftstation.onRemoteAccessPairingChanged(() => undefined)).toBeTypeOf(
+      "function",
+    );
     expect(window.craftstation.onQuickComposerSubmit(() => undefined)).toBeTypeOf("function");
-    expect(window.craftstation.onQuickComposerDismissRequested(() => undefined)).toBeTypeOf("function");
+    expect(window.craftstation.onQuickComposerDismissRequested(() => undefined)).toBeTypeOf(
+      "function",
+    );
   });
 
   it("tracks the paired desktop platform after bridge installation", () => {
@@ -194,7 +198,9 @@ describe("remote bridge", () => {
       shellId: "shell-1",
       projectLocation: { kind: "posix", path: "/repo" },
     });
-    await expect(window.craftstation.closeThread({ threadId: "shell-1" })).rejects.toThrow("offline");
+    await expect(window.craftstation.closeThread({ threadId: "shell-1" })).rejects.toThrow(
+      "offline",
+    );
     await expect(window.craftstation.closeThread({ threadId: "shell-1" })).resolves.toBeUndefined();
 
     expect(closeShell).toHaveBeenCalledTimes(2);

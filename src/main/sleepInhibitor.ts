@@ -90,7 +90,13 @@ class SystemdInhibitor implements Inhibitor {
     try {
       child = this.spawnFn(
         "systemd-inhibit",
-        ["--what=sleep:idle", "--who=CraftStation", "--why=CraftStation is active", "--mode=block", "cat"],
+        [
+          "--what=sleep:idle",
+          "--who=CraftStation",
+          "--why=CraftStation is active",
+          "--mode=block",
+          "cat",
+        ],
         { stdio: ["pipe", "ignore", "ignore"], detached: false },
       );
     } catch (error) {

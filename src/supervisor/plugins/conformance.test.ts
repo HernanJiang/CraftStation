@@ -713,7 +713,9 @@ describe("shipped packages", () => {
 
     for (const [name, markers] of Object.entries(expectations)) {
       const plugin = loadPluginFromDirectory(join(shippedDir, name), "bundled").plugin!;
-      const coreSkill = plugin.skills.find((skill) => skill.folder === plugin.craftstation.coreSkill);
+      const coreSkill = plugin.skills.find(
+        (skill) => skill.folder === plugin.craftstation.coreSkill,
+      );
       expect(coreSkill, `${name} has no configured core skill`).toBeTruthy();
       expect(plugin.craftstation.examplePrompt, `${name} has no example prompt`).toBeTruthy();
       const contents = readFileSync(join(coreSkill!.path, "SKILL.md"), "utf8");

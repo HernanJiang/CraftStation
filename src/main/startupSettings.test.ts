@@ -9,9 +9,13 @@ import {
 
 describe("Windows startup settings", () => {
   it("recognizes only Windows login launches", () => {
-    expect(isWindowsStartupLaunch(["CraftStation.exe", WINDOWS_STARTUP_ARGUMENT], "win32")).toBe(true);
+    expect(isWindowsStartupLaunch(["CraftStation.exe", WINDOWS_STARTUP_ARGUMENT], "win32")).toBe(
+      true,
+    );
     expect(isWindowsStartupLaunch(["CraftStation.exe"], "win32")).toBe(false);
-    expect(isWindowsStartupLaunch(["CraftStation", WINDOWS_STARTUP_ARGUMENT], "darwin")).toBe(false);
+    expect(isWindowsStartupLaunch(["CraftStation", WINDOWS_STARTUP_ARGUMENT], "darwin")).toBe(
+      false,
+    );
   });
 
   it("starts hidden only for enabled automatic login launches", () => {

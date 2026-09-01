@@ -197,7 +197,9 @@ export function SkillMarketplaceModal(props: {
                 className="w-44"
                 options={availabilityOptions}
                 value={availability}
-                onChange={(value) => setAvailability(value === "craftstation" ? "craftstation" : "shared")}
+                onChange={(value) =>
+                  setAvailability(value === "craftstation" ? "craftstation" : "shared")
+                }
               />
               <p className="text-xs text-muted">
                 {marketplace === "skills-sh" ? (

@@ -402,7 +402,9 @@ describe("ThreadComposerSection", () => {
     // 用量/额度不再常驻显示：旧指标行已移除，详情收敛进工具栏的悬浮圆环。
     expect(container.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
     expect(container.querySelectorAll('[data-testid="context-quota-ring"]')).toHaveLength(1);
-    expect(container.querySelector(".craftstation-context-indicator__ring")).not.toBeInTheDocument();
+    expect(
+      container.querySelector(".craftstation-context-indicator__ring"),
+    ).not.toBeInTheDocument();
     expect(composerAddMenuSpy).toHaveBeenCalled();
   });
 

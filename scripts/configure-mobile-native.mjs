@@ -15,12 +15,16 @@ const requireIosLinks =
   readBoolEnv("CRAFTSTATION_MOBILE_REQUIRE_IOS_LINKS");
 
 if ((requireAndroidLinks || requireIosLinks) && !appHost) {
-  console.error("[configure-mobile-native] missing CRAFTSTATION_MOBILE_APP_HOST for native app links.");
+  console.error(
+    "[configure-mobile-native] missing CRAFTSTATION_MOBILE_APP_HOST for native app links.",
+  );
   process.exit(1);
 }
 
 if (!appHost) {
-  console.log("[configure-mobile-native] CRAFTSTATION_MOBILE_APP_HOST not set; skipping app links.");
+  console.log(
+    "[configure-mobile-native] CRAFTSTATION_MOBILE_APP_HOST not set; skipping app links.",
+  );
 } else {
   configureAndroid(appHost);
   configureIosAppLinks(appHost);

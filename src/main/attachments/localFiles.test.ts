@@ -76,9 +76,9 @@ describe("saveClipboardImageFile", () => {
     const bytes = Buffer.from([137, 80, 78, 71]);
     writeFileSync(filePath, bytes);
 
-    expect(readLocalImageFile(`craftstation-local://local${pathToFileURL(filePath).pathname}`)).toEqual(
-      bytes,
-    );
+    expect(
+      readLocalImageFile(`craftstation-local://local${pathToFileURL(filePath).pathname}`),
+    ).toEqual(bytes);
     expect(() => readLocalImageFile(`file://${filePath}`)).toThrow("Unsupported local image URL");
   });
 });

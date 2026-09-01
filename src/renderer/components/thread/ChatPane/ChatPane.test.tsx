@@ -1063,7 +1063,9 @@ describe("ChatPane", () => {
     await waitFor(() => expect(hydrateThreadRuntimeItems).toHaveBeenCalledWith(thread.id));
 
     expect(
-      view.container.querySelectorAll('[data-craftstation-shimmer-text="Agent · protocol specialist"]'),
+      view.container.querySelectorAll(
+        '[data-craftstation-shimmer-text="Agent · protocol specialist"]',
+      ),
     ).toHaveLength(1);
     expect(view.container.textContent).not.toContain("specialist·5 steps");
     expect(view.container.querySelector(".craftstation-pixel-loader")).toBeNull();

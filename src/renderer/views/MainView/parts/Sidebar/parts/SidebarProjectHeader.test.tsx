@@ -134,7 +134,9 @@ describe("SidebarProjectHeader", () => {
     );
 
     expect(screen.getByTitle("Offline")).toHaveClass("bg-default-400");
-    expect(container.querySelector(".craftstation-sidebar-project-nudge")).toHaveClass("opacity-50");
+    expect(container.querySelector(".craftstation-sidebar-project-nudge")).toHaveClass(
+      "opacity-50",
+    );
     expect(
       screen.queryByRole("button", { name: `Git status for ${project.name}` }),
     ).not.toBeInTheDocument();

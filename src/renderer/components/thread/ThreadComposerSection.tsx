@@ -711,7 +711,8 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       if (text) setPrompt((prev) => prev + text);
     }
     window.addEventListener("craftstation:paste-to-composer", handlePasteToComposer);
-    return () => window.removeEventListener("craftstation:paste-to-composer", handlePasteToComposer);
+    return () =>
+      window.removeEventListener("craftstation:paste-to-composer", handlePasteToComposer);
   }, []);
 
   // Publish the rendered presentation + collapsed state so the browser element

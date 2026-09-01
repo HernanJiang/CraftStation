@@ -85,7 +85,10 @@ if (isNightly) {
   }
   html = html
     .replaceAll("<title>CraftStation</title>", "<title>CraftStation Nightly</title>")
-    .replaceAll('web-app-title" content="CraftStation"', 'web-app-title" content="CraftStation Nightly"');
+    .replaceAll(
+      'web-app-title" content="CraftStation"',
+      'web-app-title" content="CraftStation Nightly"',
+    );
   writeFileSync(source, html, "utf8");
 }
 writeFileSync(target, html, "utf8");

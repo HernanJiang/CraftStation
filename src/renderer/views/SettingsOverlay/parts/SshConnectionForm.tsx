@@ -143,8 +143,8 @@ export function SshConnectionForm({
 
       <p className="text-xs leading-5 text-muted">
         <Trans>
-          CraftStation and your agents run on the remote machine. SSH is used only to start the remote
-          environment and secure its local tunnel.
+          CraftStation and your agents run on the remote machine. SSH is used only to start the
+          remote environment and secure its local tunnel.
         </Trans>
       </p>
       <div className="flex items-center gap-2">

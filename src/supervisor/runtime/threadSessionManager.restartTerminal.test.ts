@@ -238,7 +238,10 @@ describe("ThreadSessionManager terminal restart", () => {
     const adapter = createTerminalAdapter();
     const manager = createManager(adapter, {
       resolvePluginEnvForSpawn: async () => ({
-        env: { CRAFTSTATION_HOOK_URL: "http://127.0.0.1:9/hook", CRAFTSTATION_HOOK_SECRET: "s3cret" },
+        env: {
+          CRAFTSTATION_HOOK_URL: "http://127.0.0.1:9/hook",
+          CRAFTSTATION_HOOK_SECRET: "s3cret",
+        },
         extraArgs: ["--hook-flag"],
       }),
     });

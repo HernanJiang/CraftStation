@@ -361,7 +361,8 @@ vi.mock("@/renderer/components/thread/ThreadDraftView", () => ({
             agentKind: "codex",
             config: { model: "gpt-5.4" },
             prompt: "attach worktree",
-            existingWorktreePath: "C:\\Users\\demo\\.craftstation\\worktrees\\repo-12345678\\feature-x",
+            existingWorktreePath:
+              "C:\\Users\\demo\\.craftstation\\worktrees\\repo-12345678\\feature-x",
             worktreeBranch: "feature/x",
           })
         }

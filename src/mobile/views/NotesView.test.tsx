@@ -48,7 +48,9 @@ describe("NotesView", () => {
   it("locks the document viewport while a notes field has focus", async () => {
     viewportLock.release.mockReset();
     viewportLock.lock.mockReset().mockReturnValue(viewportLock.release);
-    render(<NotesView projectId="project-1" projectName="CraftStation" onClose={() => undefined} />);
+    render(
+      <NotesView projectId="project-1" projectName="CraftStation" onClose={() => undefined} />,
+    );
 
     await waitFor(() => {
       expect(document.querySelector(".m-notes-screen")).toHaveStyle({

@@ -150,7 +150,9 @@ describe("CloneProjectModal", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Clone" }));
 
     // The form is replaced by a loading view naming what's being cloned.
-    await waitFor(() => expect(screen.getByText(/Cloning craftstation\/craftstation/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/Cloning craftstation\/craftstation/)).toBeInTheDocument(),
+    );
     expect(screen.getByRole("button", { name: "Cloning…" })).toBeDisabled();
     expect(screen.queryByLabelText("Folder name")).not.toBeInTheDocument();
 

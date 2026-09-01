@@ -37,7 +37,8 @@ describe("installCommandCodePlugin (native staging)", () => {
     expect(existsSync(join(dir, "plugin.json"))).toBe(true);
     expect(existsSync(join(dir, "forward.mjs"))).toBe(true);
     expect(existsSync(join(dir, "craftstation-hook-runtime.mjs"))).toBe(true);
-    const wrapperName = process.platform === "win32" ? "craftstation-hook.cmd" : "craftstation-hook.sh";
+    const wrapperName =
+      process.platform === "win32" ? "craftstation-hook.cmd" : "craftstation-hook.sh";
     expect(existsSync(join(dir, wrapperName))).toBe(true);
 
     const doc = JSON.parse(readFileSync(join(ccDir, "settings.json"), "utf8")) as {

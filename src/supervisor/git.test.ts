@@ -257,7 +257,9 @@ describe("computeDefaultWorktreePath", () => {
         "feature/x",
       );
 
-      expect(path).toMatch(/^\/home\/demo\/.craftstation\/worktrees\/craftstation-[a-f0-9]{4}\/feature-x$/);
+      expect(path).toMatch(
+        /^\/home\/demo\/.craftstation\/worktrees\/craftstation-[a-f0-9]{4}\/feature-x$/,
+      );
       expect(home).toHaveBeenCalledWith(expect.objectContaining({ distro: "Ubuntu" }));
       expect(readWslCommandOutputAsync).not.toHaveBeenCalled();
     } finally {
@@ -383,10 +385,14 @@ describe("GitService.addWorktree", () => {
       (args) => args[0] === "worktree" && args[1] === "add",
     );
     expect(
-      commands.findIndex((args) => args.includes("branch.craftstation/brave-heron.craftstationOwner")),
+      commands.findIndex((args) =>
+        args.includes("branch.craftstation/brave-heron.craftstationOwner"),
+      ),
     ).toBeLessThan(worktreeAddIndex);
     expect(
-      commands.findIndex((args) => args.includes("branch.craftstation/brave-heron.craftstationSource")),
+      commands.findIndex((args) =>
+        args.includes("branch.craftstation/brave-heron.craftstationSource"),
+      ),
     ).toBeLessThan(worktreeAddIndex);
   });
 
@@ -442,7 +448,8 @@ describe("GitService.addWorktree", () => {
       if (args[0] === "rev-parse") {
         const ref = args[args.length - 1];
         // The bare name does not resolve; only the qualified remote ref does.
-        if (ref === "refs/remotes/origin/craftstation/silver-meadow-abcd") return { stdout: "sha\n" };
+        if (ref === "refs/remotes/origin/craftstation/silver-meadow-abcd")
+          return { stdout: "sha\n" };
         return { error: new Error("fatal: Needed a single revision") };
       }
       if (args[0] === "config") return { stdout: "" };
@@ -470,9 +477,9 @@ describe("GitService.addWorktree", () => {
       ),
     ).toBe(true);
 
-    expect(commands.some((c) => c.includes("branch --unset-upstream craftstation/brave-heron"))).toBe(
-      true,
-    );
+    expect(
+      commands.some((c) => c.includes("branch --unset-upstream craftstation/brave-heron")),
+    ).toBe(true);
 
     // The recorded source branch is the qualified ref, so diff bases line up.
     const configCall = execFileMock.mock.calls.find(
@@ -542,7 +549,8 @@ describe("GitService.addWorktree", () => {
     );
     expect(
       commands.some(
-        (c) => c.includes("worktree add --no-track -b craftstation/brave-heron") && c.endsWith("main"),
+        (c) =>
+          c.includes("worktree add --no-track -b craftstation/brave-heron") && c.endsWith("main"),
       ),
     ).toBe(true);
     // A resolvable start point short-circuits before any `git remote` lookup.
@@ -691,7 +699,8 @@ describe("GitService.addWorktree (transfer uncommitted changes)", () => {
     kind: "windows" as const,
     path: "C:\\Users\\demo\\work\\craftstation",
   };
-  const worktreePath = "C:\\Users\\demo\\.craftstation\\worktrees\\craftstation-12345678\\feature-x";
+  const worktreePath =
+    "C:\\Users\\demo\\.craftstation\\worktrees\\craftstation-12345678\\feature-x";
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -942,7 +951,8 @@ describe("GitService.addWorktree (transfer uncommitted changes)", () => {
         kind: "wsl",
         distro: "Ubuntu",
         linuxPath: wslWorktreePath,
-        uncPath: "\\\\wsl.localhost\\Ubuntu\\home\\demo\\.craftstation\\worktrees\\craftstation\\feature-x",
+        uncPath:
+          "\\\\wsl.localhost\\Ubuntu\\home\\demo\\.craftstation\\worktrees\\craftstation\\feature-x",
       });
       expect(applyCalls[0]?.[1]).toMatchObject({ cwd: wslWorktreePath });
     } finally {
@@ -1704,7 +1714,10 @@ describe("GitService.getStatus Windows path normalization", () => {
     ]);
     expect(result.staged).toEqual([]);
     expect(result.unstaged).toEqual([]);
-    expect(readFileMock).toHaveBeenCalledWith("C:/Users/demo/work/craftstation/.git/MERGE_MSG", "utf8");
+    expect(readFileMock).toHaveBeenCalledWith(
+      "C:/Users/demo/work/craftstation/.git/MERGE_MSG",
+      "utf8",
+    );
   });
 
   it("does not report mergeInProgress when no unmerged entries exist", async () => {
@@ -2609,7 +2622,10 @@ describe("GitService worktree metadata", () => {
       return { stdout: "" };
     });
 
-    const result = await new GitService().getWorktreeSourceBranch(location, "craftstation/brave-heron");
+    const result = await new GitService().getWorktreeSourceBranch(
+      location,
+      "craftstation/brave-heron",
+    );
 
     expect(result).toEqual({
       sourceBranch: "master",

@@ -121,7 +121,11 @@ function TranscriptLine(props: { entry: JudgeTranscriptEntry; isCurrent: boolean
       <span
         ref={shimmerRef}
         className={
-          shimmerActive ? "craftstation-thinking-text" : isCurrent ? "text-foreground" : "text-muted"
+          shimmerActive
+            ? "craftstation-thinking-text"
+            : isCurrent
+              ? "text-foreground"
+              : "text-muted"
         }
       >
         {entry.kind === "capturing" ? (

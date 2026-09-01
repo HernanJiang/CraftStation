@@ -142,7 +142,9 @@ export function AsideSlot(props: {
       {showHandle && (
         <div
           key="handle"
-          className={isHorizontal ? "craftstation-resize-handle-horizontal" : "craftstation-resize-handle"}
+          className={
+            isHorizontal ? "craftstation-resize-handle-horizontal" : "craftstation-resize-handle"
+          }
           data-craftstation-workspace-split-handle={isHorizontal ? undefined : ""}
           onMouseDown={onResizeStart}
           onKeyDown={onResizeKeyDown}

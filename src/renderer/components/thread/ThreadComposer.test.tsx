@@ -131,7 +131,9 @@ describe("ThreadComposer", () => {
 
   it("hides eligible labels when resize measurement requires a collapsed level", () => {
     const { container } = renderComposer();
-    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(
+      ".craftstation-composer-toolbar > .relative",
+    );
     expect(controls).not.toBeNull();
 
     setProbeMeasurements(container, [160, 100, 100, 100, 100, 100]);
@@ -147,7 +149,9 @@ describe("ThreadComposer", () => {
 
   it("does not expand collapsed labels again at the same measured width", () => {
     const { container } = renderComposer();
-    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(
+      ".craftstation-composer-toolbar > .relative",
+    );
     expect(controls).not.toBeNull();
 
     setProbeMeasurements(container, [101, 100, 100, 100, 100, 100]);
@@ -177,7 +181,9 @@ describe("ThreadComposer", () => {
 
   it("does not expand labels while the outer toolbar width is decreasing", () => {
     const { container } = renderComposer();
-    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(
+      ".craftstation-composer-toolbar > .relative",
+    );
     expect(controls).not.toBeNull();
 
     setToolbarWidth(container, 200);
@@ -235,7 +241,9 @@ describe("ThreadComposer", () => {
         onChange: vi.fn<(selected: boolean) => void>(),
       },
     ]);
-    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(
+      ".craftstation-composer-toolbar > .relative",
+    );
     expect(controls).not.toBeNull();
 
     setProbeMeasurements(container, [160, 160, 100, 100, 100, 100]);

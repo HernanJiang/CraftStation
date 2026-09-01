@@ -170,7 +170,9 @@ describe("installCursorPlugin", () => {
     const sessionStart = doc.hooks.sessionStart!;
     expect(sessionStart).toHaveLength(2);
     expect(sessionStart[0]).toEqual({ type: "command", command: "/usr/local/bin/audit.sh" });
-    expect(sessionStart[1]?.command).toMatch(/craftstation-hook\.(?:sh|cmd|ps1)['"]? sessionStart$/);
+    expect(sessionStart[1]?.command).toMatch(
+      /craftstation-hook\.(?:sh|cmd|ps1)['"]? sessionStart$/,
+    );
   });
 
   it("regenerates a zero-filled hooks.json", () => {

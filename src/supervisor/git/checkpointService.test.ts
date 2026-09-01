@@ -108,5 +108,4 @@ describe.skipIf(!hasGit())("GitCheckpointService", () => {
       }),
     ).rejects.toThrow("No file checkpoint exists for item user-1.");
   });
-
 });

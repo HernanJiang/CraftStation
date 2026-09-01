@@ -1088,7 +1088,10 @@ describe("GitReviewSidebar", () => {
     fireEvent.click(addButtons[addButtons.length - 1]!);
 
     await waitFor(() =>
-      expect(onAddRemote).toHaveBeenCalledWith("upstream", "git@github.com:example/craftstation.git"),
+      expect(onAddRemote).toHaveBeenCalledWith(
+        "upstream",
+        "git@github.com:example/craftstation.git",
+      ),
     );
     await waitFor(() => expect(screen.queryByLabelText("Remote URL")).not.toBeInTheDocument());
   });

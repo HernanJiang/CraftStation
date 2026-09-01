@@ -107,8 +107,8 @@ export function ThreadSettings() {
           title={t`Mark done when the pull request merges`}
           description={
             <Trans>
-              Worktree threads are marked done as soon as CraftStation sees their pull request merge.
-              Threads mid-turn wait until the turn finishes.
+              Worktree threads are marked done as soon as CraftStation sees their pull request
+              merge. Threads mid-turn wait until the turn finishes.
             </Trans>
           }
         >

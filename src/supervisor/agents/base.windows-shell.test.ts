@@ -99,9 +99,11 @@ describe.skipIf(process.platform !== "win32")("buildWindowsCommand", () => {
     writeFileSync(executablePath, "", "utf8");
     process.env.PATH = `${dir};${originalPath ?? ""}`;
 
-    const spec = buildAgentCommand({ kind: "windows", path: "C:\\repo" }, "craftstation-test-agent", [
-      "--version",
-    ]);
+    const spec = buildAgentCommand(
+      { kind: "windows", path: "C:\\repo" },
+      "craftstation-test-agent",
+      ["--version"],
+    );
 
     expect(spec.command).toBe(executablePath);
     expect(spec.args).toEqual(["--version"]);

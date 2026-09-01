@@ -378,7 +378,8 @@ function settingsJsonHasCraftStationEntry(settingsPath: string): boolean {
     for (const spec of COMMANDCODE_HOOK_SPECS) {
       const entries = doc.hooks[spec.event];
       if (!Array.isArray(entries)) continue;
-      if (entries.some((entry) => entryMatchesForwarder(entry, CRAFTSTATION_FORWARD_RE))) return true;
+      if (entries.some((entry) => entryMatchesForwarder(entry, CRAFTSTATION_FORWARD_RE)))
+        return true;
     }
     return false;
   } catch {

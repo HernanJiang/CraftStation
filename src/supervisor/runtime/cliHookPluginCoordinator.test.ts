@@ -830,7 +830,8 @@ describe("CliHookPluginCoordinator install cache", () => {
     const stub = makeStubAdapter("gemini", {
       pluginLaunchExtras: async () => ({
         env: {
-          GEMINI_CLI_SYSTEM_SETTINGS_PATH: "/home/u/.craftstation/agent-plugins/gemini/settings.json",
+          GEMINI_CLI_SYSTEM_SETTINGS_PATH:
+            "/home/u/.craftstation/agent-plugins/gemini/settings.json",
         },
       }),
     });

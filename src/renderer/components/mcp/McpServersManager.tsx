@@ -569,8 +569,8 @@ export function McpServersManager(props: {
             <SectionHeading title={t`Built-in MCP servers`} count={visibleBuiltIns.length} />
             <p className="mt-0.5 text-xs text-muted">
               <Trans>
-                Built-in servers are managed by CraftStation. They can be disabled globally but cannot
-                be edited or removed.
+                Built-in servers are managed by CraftStation. They can be disabled globally but
+                cannot be edited or removed.
               </Trans>
             </p>
           </div>

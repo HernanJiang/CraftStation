@@ -75,7 +75,9 @@ describe("push gateway client", () => {
 
     expect(onError).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn).toHaveBeenCalledWith("[craftstation] Remote push send warning: transient-response.");
+    expect(warn).toHaveBeenCalledWith(
+      "[craftstation] Remote push send warning: transient-response.",
+    );
     expect(JSON.stringify(warn.mock.calls)).not.toContain("private");
     expect(JSON.stringify(warn.mock.calls)).not.toContain("subscription");
     warn.mockRestore();

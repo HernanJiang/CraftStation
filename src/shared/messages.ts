@@ -283,7 +283,8 @@ const errorPatterns: Array<{
     test: /^CraftStation SSH runtime manifest is missing or invalid: .+$/i,
     key: "ssh.runtimeManifest.invalid",
     params: (raw) => ({
-      path: raw.match(/^CraftStation SSH runtime manifest is missing or invalid: (.+)$/i)?.[1] ?? "?",
+      path:
+        raw.match(/^CraftStation SSH runtime manifest is missing or invalid: (.+)$/i)?.[1] ?? "?",
     }),
   },
   {

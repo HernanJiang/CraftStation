@@ -1093,11 +1093,11 @@ describe("ThreadSlashCommands", () => {
               paneCount={1}
               gitBranch={undefined}
               worktreeMode={false}
-                  presentationMode="terminal"
+              presentationMode="terminal"
               onConfigChange={() => {}}
               onWorktreeModeChange={() => {}}
               onSwitchBranch={() => {}}
-                  onStart={() => {}}
+              onStart={() => {}}
             />
           </AppProvider>,
         );

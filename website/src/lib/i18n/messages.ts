@@ -2135,7 +2135,8 @@ const MESSAGES = {
     vi: "Duyệt, chỉnh sửa, xem xét, ghi chú và xuất bản — mọi bảng ở đây đều là một phần thật của CraftStation, được ghi lại trực tiếp.",
     ja: "閲覧、編集、レビュー、メモ、リリースまで——ここにあるパネルはすべて CraftStation の実画面を撮影したものです。",
     ko: "탐색하고, 편집하고, 검토하고, 메모하고, 배포까지 — 여기 모든 패널은 실제 CraftStation의 일부를 실시간으로 담은 것입니다.",
-    "zh-CN": "浏览、编辑、审查、记笔记、发布——这里的每个面板都是 CraftStation 的真实画面，实时捕捉。",
+    "zh-CN":
+      "浏览、编辑、审查、记笔记、发布——这里的每个面板都是 CraftStation 的真实画面，实时捕捉。",
   },
 
   // ---- ACP registry section ----

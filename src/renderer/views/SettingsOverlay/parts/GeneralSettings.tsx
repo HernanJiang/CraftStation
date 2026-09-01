@@ -108,7 +108,9 @@ export function GeneralSettings() {
         <SettingRow
           anchorId="general.launchAtStartup"
           title={t`Launch at startup`}
-          description={<Trans>Launch CraftStation automatically when you sign in to Windows.</Trans>}
+          description={
+            <Trans>Launch CraftStation automatically when you sign in to Windows.</Trans>
+          }
         >
           <ToggleSwitch
             aria-label={t`Launch at startup`}
@@ -126,7 +128,9 @@ export function GeneralSettings() {
         <SettingRow
           anchorId="general.startMinimized"
           title={t`Start minimized`}
-          description={<Trans>Keep CraftStation in the system tray when it launches at startup.</Trans>}
+          description={
+            <Trans>Keep CraftStation in the system tray when it launches at startup.</Trans>
+          }
         >
           <ToggleSwitch
             aria-label={t`Start minimized`}
@@ -197,8 +201,8 @@ export function GeneralSettings() {
           title={t`Close to tray`}
           description={
             <Trans>
-              When you close the window, keep CraftStation running in the system tray. Disable to quit
-              on close.
+              When you close the window, keep CraftStation running in the system tray. Disable to
+              quit on close.
             </Trans>
           }
         >

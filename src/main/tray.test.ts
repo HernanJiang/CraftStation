@@ -254,7 +254,9 @@ describe("resolveTrayIconPath", () => {
       template.find((item) => item.label === itemLabel("Fourth recent", "Tasks")),
     ).toBeDefined();
     expect(
-      template.find((item) => item.label === itemLabel("Third recent", "craftstation/quiet-meadow")),
+      template.find(
+        (item) => item.label === itemLabel("Third recent", "craftstation/quiet-meadow"),
+      ),
     ).toBeDefined();
     expect(
       template.find((item) => item.label === itemLabel("Second recent", "Tasks")),

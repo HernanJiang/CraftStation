@@ -1,5 +1,8 @@
 import type { SessionNotification } from "@agentclientprotocol/sdk";
-import { CRAFTSTATION_ACP_GOAL_META_KEY, type AcpCanonicalGoalUpdate } from "../acp/canonicalMapping";
+import {
+  CRAFTSTATION_ACP_GOAL_META_KEY,
+  type AcpCanonicalGoalUpdate,
+} from "../acp/canonicalMapping";
 import {
   buildCanonicalAcpSubagentInput,
   createAcpSubagentCoordinator,

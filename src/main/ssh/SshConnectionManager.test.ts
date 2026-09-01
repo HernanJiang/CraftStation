@@ -173,7 +173,9 @@ describe("SSH command construction", () => {
       "-i",
       "/keys/id_ed25519",
     ]);
-    expect(buildScpArgs(connection(), "/tmp/runtime.tar.gz", ".craftstation/upload.tar.gz")).toEqual([
+    expect(
+      buildScpArgs(connection(), "/tmp/runtime.tar.gz", ".craftstation/upload.tar.gz"),
+    ).toEqual([
       "-q",
       "-o",
       "BatchMode=yes",

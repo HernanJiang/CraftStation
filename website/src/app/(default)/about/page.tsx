@@ -93,8 +93,8 @@ export default function AboutPage() {
                 What CraftStation is
               </h2>
               <p>
-                CraftStation is an open-source developer tool for working with AI coding agents from a
-                single desktop workspace. It brings terminal-native agents and structured chat
+                CraftStation is an open-source developer tool for working with AI coding agents from
+                a single desktop workspace. It brings terminal-native agents and structured chat
                 workflows together with the files, Git changes, browser previews, worktrees, and
                 pull requests involved in a real coding session.
               </p>
@@ -117,9 +117,9 @@ export default function AboutPage() {
                 Open source and cross-platform
               </h2>
               <p>
-                CraftStation is developed in public and distributed under the Apache License 2.0. The
-                desktop app is available for macOS, Windows, and Linux, with a hosted companion at
-                app.craftstation.com for connecting to a CraftStation desktop that you control.
+                CraftStation is developed in public and distributed under the Apache License 2.0.
+                The desktop app is available for macOS, Windows, and Linux, with a hosted companion
+                at app.craftstation.com for connecting to a CraftStation desktop that you control.
               </p>
             </section>
 
@@ -129,8 +129,8 @@ export default function AboutPage() {
               </h2>
               <p>
                 CraftStation, Pora.code, and craftstation.com refer to this AI coding agent software
-                project. The canonical website is craftstation.com, and the canonical source repository
-                is SDSLeon/craftstation on GitHub.
+                project. The canonical website is craftstation.com, and the canonical source
+                repository is SDSLeon/craftstation on GitHub.
               </p>
             </section>
           </div>

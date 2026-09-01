@@ -369,8 +369,8 @@ export function SchedulesView() {
       title={t`Scheduled tasks`}
       description={
         <Trans>
-          Run standalone tasks on this device. Schedules run while the device is awake and CraftStation
-          is open.
+          Run standalone tasks on this device. Schedules run while the device is awake and
+          CraftStation is open.
         </Trans>
       }
       bodyClassName="space-y-5"

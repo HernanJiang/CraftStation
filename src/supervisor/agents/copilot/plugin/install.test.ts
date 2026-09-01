@@ -159,7 +159,8 @@ describe("isCopilotPluginInstalled", () => {
       writeFileSync(join(pluginDir, "craftstation-hook-runtime.mjs"), "// noop runtime");
     }
     if (parts.wrapper) {
-      const wrapperName = process.platform === "win32" ? "craftstation-hook.cmd" : "craftstation-hook.sh";
+      const wrapperName =
+        process.platform === "win32" ? "craftstation-hook.cmd" : "craftstation-hook.sh";
       writeFileSync(join(pluginDir, wrapperName), "#!/bin/sh\nexit 0\n");
     }
     if (parts.hookFile) {

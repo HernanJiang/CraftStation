@@ -171,7 +171,9 @@ function ensureElectronNativeDependencies() {
 
   let validation = validateElectronNativeDependencies();
   if (validation.status !== 0) {
-    console.log("[craftstation] Electron native dependency check failed; rebuilding better-sqlite3");
+    console.log(
+      "[craftstation] Electron native dependency check failed; rebuilding better-sqlite3",
+    );
     rebuildElectronNativeDependencies();
     validation = validateElectronNativeDependencies();
   }

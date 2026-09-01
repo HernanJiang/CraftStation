@@ -75,7 +75,9 @@ describe("rewriteMarkdownLocalImageUrls", () => {
   it("rewrites relative verification-shot paths when a project root is provided", () => {
     const out = rewriteMarkdownLocalImageUrls(
       "See ![After](verification-shots/01-collapsed-same-file-edits.png)",
-      { projectRoot: "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-brave-willow" },
+      {
+        projectRoot: "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-brave-willow",
+      },
     );
     expect(out).toContain("craftstation-local://local/E:");
     expect(out).toContain("verification-shots");
@@ -93,7 +95,8 @@ describe("rewriteMarkdownLocalImageUrls", () => {
   });
 
   it("round-trips the nightly Grok ACP verification markdown paths", () => {
-    const projectRoot = "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-brave-willow-b4fc6c26";
+    const projectRoot =
+      "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-brave-willow-b4fc6c26";
     const sessionAsset =
       "C:\\Users\\sdsle\\.grok\\sessions\\E%3A%5Cwork%5Ccraftstation%5C.craftstation%5Cworktrees%5Ccraftstation-brave-willow-b4fc6c26\\019f66fb-2716-7c00-ac5a-85ca2c4e8b58\\assets\\image-ea056148-aef3-4592-a6b7-1b3ec77fe7bd.png";
     const md = [
@@ -118,7 +121,8 @@ describe("rewriteMarkdownLocalImageUrls", () => {
     const out = rewriteMarkdownLocalImageUrls(
       "![Modal PDF preview](images/4.jpg)\n\n![Editor mockup](images/1.jpg)",
       {
-        projectRoot: "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-warm-yak-d27ed350",
+        projectRoot:
+          "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-warm-yak-d27ed350",
         extraRoots: [sessionDir],
       },
     );

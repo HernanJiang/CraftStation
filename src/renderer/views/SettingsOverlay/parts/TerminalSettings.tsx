@@ -153,7 +153,9 @@ export function TerminalSettings() {
               {t`Windows shells`}
             </CardTitle>
             <CardDescription className="text-xs">
-              <Trans>Choose shells for the Terminal panel and CraftStation's internal commands.</Trans>
+              <Trans>
+                Choose shells for the Terminal panel and CraftStation's internal commands.
+              </Trans>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 p-0">

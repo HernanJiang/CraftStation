@@ -1,6 +1,9 @@
 import { app } from "electron";
 import type { CraftStationChannel } from "@/shared/channel";
-import type { CraftStationDiagnosticTags, SentryEventLike } from "@/shared/diagnostics/sentryPrivacy";
+import type {
+  CraftStationDiagnosticTags,
+  SentryEventLike,
+} from "@/shared/diagnostics/sentryPrivacy";
 import {
   readBuildSentryDsn,
   readBuildSentryEnvironment,

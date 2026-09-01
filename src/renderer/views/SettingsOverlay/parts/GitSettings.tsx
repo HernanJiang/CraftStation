@@ -78,8 +78,8 @@ export function GitSettings() {
         title={t`Default PR automation`}
         description={
           <Trans>
-            Choose what CraftStation does for new pull requests: nothing, fix merge blockers, or fix and
-            merge.
+            Choose what CraftStation does for new pull requests: nothing, fix merge blockers, or fix
+            and merge.
           </Trans>
         }
       >

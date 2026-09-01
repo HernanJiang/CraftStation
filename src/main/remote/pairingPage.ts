@@ -1,4 +1,8 @@
-import { type CraftStationChannel, productNameFor, resolveCraftStationChannel } from "@/shared/channel";
+import {
+  type CraftStationChannel,
+  productNameFor,
+  resolveCraftStationChannel,
+} from "@/shared/channel";
 
 function jsonForScript(value: string): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");

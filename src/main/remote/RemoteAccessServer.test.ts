@@ -3650,7 +3650,9 @@ describe("RemoteAccessServer", () => {
     expect(callSupervisor).toHaveBeenCalledWith("closeThread", { threadId: "thread-1" });
     expect(dbDeleteProject).toHaveBeenCalledWith(project.id);
     const persisted = JSON.parse(
-      vi.mocked(dbSetState).mock.calls.findLast(([key]) => key === "craftstation-experiments-v1")![1],
+      vi
+        .mocked(dbSetState)
+        .mock.calls.findLast(([key]) => key === "craftstation-experiments-v1")![1],
     ) as { state: { experiments: Record<string, unknown> } };
     expect(persisted.state.experiments).toEqual({});
   });

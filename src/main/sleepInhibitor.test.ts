@@ -126,7 +126,13 @@ describe("createSleepInhibitor", () => {
     expect(spawnFn).toHaveBeenCalledTimes(1);
     expect(spawnFn).toHaveBeenCalledWith(
       "systemd-inhibit",
-      ["--what=sleep:idle", "--who=CraftStation", "--why=CraftStation is active", "--mode=block", "cat"],
+      [
+        "--what=sleep:idle",
+        "--who=CraftStation",
+        "--why=CraftStation is active",
+        "--mode=block",
+        "cat",
+      ],
       expect.objectContaining({ detached: false }),
     );
   });

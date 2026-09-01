@@ -182,7 +182,9 @@ describe("createAutoUpdaterController", () => {
       messageKey: "update.serviceUnavailable",
     });
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn).toHaveBeenCalledWith("[craftstation] updater check transient failure after retries.");
+    expect(warn).toHaveBeenCalledWith(
+      "[craftstation] updater check transient failure after retries.",
+    );
     warn.mockRestore();
   });
 

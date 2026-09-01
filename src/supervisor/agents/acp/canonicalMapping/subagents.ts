@@ -26,9 +26,11 @@ export const CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY = "craftstationParent
  */
 export const CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY = "craftstationTopLevelToolCall";
 export const CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY = "craftstationDetachedSubAgent";
-export const CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY = "craftstationDetachedSubAgentActivity";
+export const CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY =
+  "craftstationDetachedSubAgentActivity";
 export const CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY = "craftstationNewAssistantItem";
-export const CRAFTSTATION_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY = "craftstationSynthesizeSubAgentResult";
+export const CRAFTSTATION_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY =
+  "craftstationSynthesizeSubAgentResult";
 export const CRAFTSTATION_ACP_SUBAGENT_PROGRESS_META_KEY = "craftstationSubAgentProgress";
 export const CRAFTSTATION_ACP_SUBAGENT_STATUS_META_KEY = "craftstationSubAgentStatus";
 

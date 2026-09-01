@@ -30,7 +30,8 @@ const originalRevokeObjectUrl = URL.revokeObjectURL;
  * error handling against mocked bridge methods.
  */
 function installBridge(overrides: Record<string, unknown> = {}) {
-  const existing = (window as Window & { craftstation?: Record<string, unknown> }).craftstation ?? {};
+  const existing =
+    (window as Window & { craftstation?: Record<string, unknown> }).craftstation ?? {};
   Object.defineProperty(window, "craftstation", {
     value: {
       ...existing,

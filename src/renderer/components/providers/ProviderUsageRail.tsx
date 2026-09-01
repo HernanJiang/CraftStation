@@ -8,7 +8,10 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { MessageDescriptor } from "@lingui/core";
 import { Check } from "lucide-react";
-import { formatResetCountdown, usageWindowDisplayLabel } from "@craftstation/agents-usage/formatters";
+import {
+  formatResetCountdown,
+  usageWindowDisplayLabel,
+} from "@craftstation/agents-usage/formatters";
 import type { UsageSnapshot } from "@craftstation/agents-usage/types";
 import { openUsagePanel } from "@/renderer/actions/panelActions";
 import { readBridge } from "@/renderer/bridge";

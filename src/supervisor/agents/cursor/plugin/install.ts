@@ -121,7 +121,10 @@ function pruneCraftStationEntries(entries: unknown): unknown[] {
   });
 }
 
-function buildCraftStationEntry(spec: CursorHookSpec, commandHead: string): Record<string, unknown> {
+function buildCraftStationEntry(
+  spec: CursorHookSpec,
+  commandHead: string,
+): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     type: "command",
     command: `${commandHead} ${spec.event}`,

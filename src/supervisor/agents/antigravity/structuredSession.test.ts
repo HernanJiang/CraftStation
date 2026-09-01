@@ -162,7 +162,7 @@ describe("AntigravityStructuredSession", () => {
       mcpServers: [
         {
           id: "app-controls",
-          name: "craftstation", 
+          name: "craftstation",
           timeoutMs: 30_000,
           transport: {
             type: "http",

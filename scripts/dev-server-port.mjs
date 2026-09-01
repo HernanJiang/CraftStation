@@ -9,7 +9,9 @@ export function resolveDevServerPort() {
   if (!raw) return 3100;
   const port = Number.parseInt(raw, 10);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`CRAFTSTATION_DEV_SERVER_PORT must be a TCP port between 1 and 65535, got: ${raw}`);
+    throw new Error(
+      `CRAFTSTATION_DEV_SERVER_PORT must be a TCP port between 1 and 65535, got: ${raw}`,
+    );
   }
   return port;
 }

@@ -31,7 +31,11 @@ export function ThreadContextIndicator({
           data-tone={tone}
           onClick={onToggle}
         >
-          <svg className="craftstation-context-indicator__ring" viewBox="0 0 16 16" aria-hidden="true">
+          <svg
+            className="craftstation-context-indicator__ring"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
             <circle
               className="craftstation-context-indicator__ring-track"
               cx="8"

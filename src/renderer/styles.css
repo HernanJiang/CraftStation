@@ -1691,7 +1691,8 @@ html[data-sidebar-glass="on"]:not([data-native-material="on"])
 }
 /* In-app fallback overlay sidebar: opaque too — it floats over dimmed content,
    so the faux-glass tint/blur used for the docked fallback would read muddy. */
-html[data-sidebar-glass="on"]:not([data-native-material="on"]) .craftstation-sidebar-aside--overlay {
+html[data-sidebar-glass="on"]:not([data-native-material="on"])
+  .craftstation-sidebar-aside--overlay {
   background: var(--sidebar-background);
 }
 
@@ -1736,8 +1737,10 @@ html[data-native-material="on"]
   html[data-native-material="on"] .craftstation-shell {
     background: var(--content-background);
   }
-  html[data-sidebar-glass="on"] .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay),
-  html[data-native-material="on"] .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay) {
+  html[data-sidebar-glass="on"]
+    .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay),
+  html[data-native-material="on"]
+    .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay) {
     background: transparent;
     backdrop-filter: none;
     box-shadow: none;

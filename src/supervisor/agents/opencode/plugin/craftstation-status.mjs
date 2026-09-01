@@ -181,7 +181,9 @@ async function forwardIntent(eventType, intent, sessionId, extra) {
   const secret = process.env.CRAFTSTATION_HOOK_SECRET;
   const threadId = process.env.CRAFTSTATION_THREAD_ID;
   const agentKind = process.env.CRAFTSTATION_AGENT_KIND ?? "opencode";
-  const supervisorProtocol = Number(process.env.CRAFTSTATION_HOOK_PROTOCOL_VERSION ?? PROTOCOL_VERSION);
+  const supervisorProtocol = Number(
+    process.env.CRAFTSTATION_HOOK_PROTOCOL_VERSION ?? PROTOCOL_VERSION,
+  );
   const negotiatedProtocol = Math.min(PROTOCOL_VERSION, supervisorProtocol || PROTOCOL_VERSION);
 
   if (!url || !secret) {

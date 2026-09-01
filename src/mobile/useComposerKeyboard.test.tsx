@@ -321,7 +321,9 @@ describe("useComposerKeyboard", () => {
       expect(screen.getByLabelText("lift offset")).toHaveTextContent("0");
       expect(screen.getByLabelText("measuring keyboard")).toHaveTextContent("false");
       expect(window.localStorage.getItem("craftstation-mobile-keyboard-height")).toBe("480");
-      expect(window.localStorage.getItem("craftstation-mobile-keyboard-height:android")).toBe("336");
+      expect(window.localStorage.getItem("craftstation-mobile-keyboard-height:android")).toBe(
+        "336",
+      );
     } finally {
       restoreVisualViewport();
     }
