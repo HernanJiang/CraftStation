@@ -720,7 +720,11 @@ if (!hasSingleInstanceLock) {
       }
 
       initDatabase(paths.dbPath);
-      const secretStorageKey = readOrCreateSafeStorageSecretKey(paths.baseDir);
+      const secretStorageKey = readOrCreateSafeStorageSecretKey(
+        paths.baseDir,
+        process.platform,
+        app.getPath("userData"),
+      );
       // Configure the same key in main so it can seal captured secrets (e.g. usage
       // login cookies); the supervisor configures it from the env var it receives.
       configureSecretStorageKey(secretStorageKey);

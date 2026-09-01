@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -104,5 +104,77 @@ describe("readOrCreateSafeStorageSecretKey", () => {
       "Unable to encrypt the Poracode secret storage key.",
     );
     expect(() => readFileSync(join(dir, "secret-key.safe"))).toThrow(/ENOENT|no such file/i);
+  });
+
+  it("scopes the key file to the userData identity and migrates a legacy unscoped key", () => {
+    // Legacy file sealed by THIS identity (mock decrypt round-trips plaintext).
+    writeFileSync(
+      join(dir, "secret-key.safe"),
+      Buffer.from("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=").toString("base64"),
+    );
+    safeStorageMock.decryptString.mockImplementation((value) => value.toString());
+    safeStorageMock.encryptString.mockImplementation((value) => Buffer.from(value));
+
+    const key = readOrCreateSafeStorageSecretKey(
+      dir,
+      "win32",
+      "C:/Users/x/AppData/Roaming/CraftStation",
+    );
+
+    expect(key).toBe("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=");
+    const scoped = readdirSync(dir).filter((name) => /^secret-key\.[0-9a-f]{12}\.safe$/.test(name));
+    expect(scoped).toHaveLength(1);
+    expect(readFileSync(join(dir, scoped[0]!), "utf8")).toBe(
+      Buffer.from("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=").toString("base64"),
+    );
+    // The legacy file is left in place for any other identity that still owns it.
+    expect(readFileSync(join(dir, "secret-key.safe"), "utf8")).toBe(
+      Buffer.from("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=").toString("base64"),
+    );
+  });
+
+  it("does not rotate a legacy key sealed by a different userData identity", () => {
+    writeFileSync(
+      join(dir, "secret-key.safe"),
+      Buffer.from("other-identity-key").toString("base64"),
+    );
+    safeStorageMock.decryptString.mockImplementation(() => {
+      throw new Error("app-bound identity mismatch");
+    });
+    safeStorageMock.encryptString.mockImplementation((value) => Buffer.from(value));
+
+    const key = readOrCreateSafeStorageSecretKey(
+      dir,
+      "win32",
+      "C:/Users/x/AppData/Roaming/CraftStation",
+    );
+
+    // A fresh scoped key is created WITHOUT touching the other identity's file.
+    expect(Buffer.from(key, "base64")).toHaveLength(32);
+    expect(consoleWarn).not.toHaveBeenCalled();
+    expect(readFileSync(join(dir, "secret-key.safe"), "utf8")).toBe(
+      Buffer.from("other-identity-key").toString("base64"),
+    );
+    const scoped = readdirSync(dir).filter((name) => /^secret-key\.[0-9a-f]{12}\.safe$/.test(name));
+    expect(scoped).toHaveLength(1);
+  });
+
+  it("different userData identities resolve to different key files", () => {
+    safeStorageMock.encryptString.mockImplementation((value) => Buffer.from(value));
+
+    const first = readOrCreateSafeStorageSecretKey(
+      dir,
+      "win32",
+      "C:/Users/x/AppData/Roaming/CraftStation",
+    );
+    const second = readOrCreateSafeStorageSecretKey(
+      dir,
+      "win32",
+      "C:/Users/x/.craftstation/userData",
+    );
+
+    expect(first).not.toBe(second);
+    const scoped = readdirSync(dir).filter((name) => /^secret-key\.[0-9a-f]{12}\.safe$/.test(name));
+    expect(scoped).toHaveLength(2);
   });
 });
