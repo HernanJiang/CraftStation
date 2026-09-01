@@ -221,6 +221,7 @@ export function AppProvider(props: {
             const isObject = typeof content === "object" && content !== null;
             const rawTitle = isObject ? (content as any).title : content;
             const rawDescription = isObject ? (content as any).description : undefined;
+            const rawContext = isObject ? (content as any).context : undefined;
             const variant = isObject ? (content as any).variant : "default";
             const { title, description } = normalizeToastContent(variant, rawTitle, rawDescription);
             const onPress = isObject ? (content as any).onPress : undefined;
@@ -241,6 +242,14 @@ export function AppProvider(props: {
             const isToastPressable = hasOnPress && !actionProps;
             const actionLabel = getToastActionLabel(actionProps);
             const isCopyAction = actionLabel?.toLowerCase().startsWith("copy") ?? false;
+            const titleRow = title ? (
+              <>
+                <span className="min-w-0 flex-1 truncate">{title}</span>
+                {typeof rawContext === "string" && rawContext ? (
+                  <span className="shrink-0 text-[10px] font-normal text-muted">{rawContext}</span>
+                ) : null}
+              </>
+            ) : null;
 
             return (
               <SwipeDismissToast
@@ -264,8 +273,12 @@ export function AppProvider(props: {
                     <div className="flex min-w-0 flex-1 items-start gap-2">
                       <Toast.Indicator variant={variant} />
                       <Toast.Content className={`${toastContentClassName} pr-8`}>
-                        {title && (
-                          <Toast.Title className={toastTitleClassName}>{title}</Toast.Title>
+                        {titleRow && (
+                          <Toast.Title
+                            className={`${toastTitleClassName} flex min-w-0 items-center gap-2`}
+                          >
+                            {titleRow}
+                          </Toast.Title>
                         )}
                         {description && (
                           <Toast.Description className={toastDescriptionClassName}>
@@ -282,8 +295,12 @@ export function AppProvider(props: {
                       <Toast.Content
                         className={`${toastContentClassName} pr-8 ${isCopyAction ? "pb-8" : ""}`}
                       >
-                        {title && (
-                          <Toast.Title className={toastTitleClassName}>{title}</Toast.Title>
+                        {titleRow && (
+                          <Toast.Title
+                            className={`${toastTitleClassName} flex min-w-0 items-center gap-2`}
+                          >
+                            {titleRow}
+                          </Toast.Title>
                         )}
                         {description && (
                           <Toast.Description className={toastDescriptionClassName}>

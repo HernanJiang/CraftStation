@@ -1,9 +1,14 @@
-import { Bell, FolderPlus, MessageSquarePlus, Plus, Search, Sparkles } from "lucide-react";
+import { Bell, FolderPlus, MessageSquarePlus, Plus, Search, Trash2 } from "lucide-react";
 import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
-import { openNewThread } from "@/renderer/actions/threadActions";
+import { openThread, openNewThread } from "@/renderer/actions/threadActions";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import {
+  selectHasUnread,
+  useNotificationStore,
+  type NotificationItem,
+} from "@/renderer/state/notificationStore";
 import brandLogoUrl from "@/renderer/assets/craftstation-logo.png";
 
 /**
@@ -17,8 +22,27 @@ import brandLogoUrl from "@/renderer/assets/craftstation-logo.png";
  * Plugins are display-only placeholders for this UI iteration.
  */
 
+const TONE_DOT_CLASS: Record<NotificationItem["tone"], string> = {
+  success: "bg-emerald-400",
+  warning: "bg-amber-400",
+  danger: "bg-red-400",
+  info: "bg-sky-400",
+};
+
+function formatNotificationTime(createdAt: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(
+    createdAt,
+  );
+}
+
 export function SidebarCodexNav() {
   const { t } = useLingui();
+  const notifications = useNotificationStore((state) => state.items);
+  const hasUnread = useNotificationStore((state) => selectHasUnread(state.items));
+
+  const openNotificationThread = (threadId: string | undefined) => {
+    if (threadId) openThread(threadId, { focusComposer: true, switchWorkspace: true });
+  };
 
   return (
     <section aria-label="CraftStation" className="shrink-0 space-y-2 px-1 pb-1 pt-1">
@@ -51,22 +75,74 @@ export function SidebarCodexNav() {
             <Search className="size-4" />
           </button>
         </ControlTooltip>
-        <Dropdown>
+        <Dropdown onOpenChange={(open) => open && useNotificationStore.getState().markAllRead()}>
           <ControlTooltip label={t`Notifications`} placement="right">
             <Dropdown.Trigger
               aria-label={t`Notifications`}
-              className="rounded-xl p-1.5 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+              className="relative rounded-xl p-1.5 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
             >
               <Bell className="size-4" />
+              {hasUnread ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="notification-unread-dot"
+                  className="absolute top-1 right-1 size-1.5 rounded-full bg-amber-400"
+                />
+              ) : null}
             </Dropdown.Trigger>
           </ControlTooltip>
-          <Dropdown.Popover placement="bottom end" className="min-w-[260px] rounded-[14px]">
-            <Dropdown.Menu aria-label={t`Notifications`}>
-              <Dropdown.Item id="runtime" textValue={t`Runtime is ready`}>
-                <Sparkles className="size-4 text-amber-400" />
-                <Label>{t`Runtime is ready`}</Label>
-                <span className="text-[10px] text-muted">CraftStation</span>
-              </Dropdown.Item>
+          <Dropdown.Popover placement="bottom end" className="min-w-[280px] rounded-[14px]">
+            <Dropdown.Menu
+              aria-label={t`Notifications`}
+              onAction={(key) => {
+                if (key === "clear-notifications") {
+                  useNotificationStore.getState().clear();
+                  return;
+                }
+                const item = notifications.find((entry) => entry.id === key);
+                if (item) openNotificationThread(item.threadId);
+              }}
+            >
+              {notifications.length === 0 ? (
+                <Dropdown.Item id="empty" textValue={t`No notifications`}>
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
+                    {t`No notifications`}
+                  </span>
+                </Dropdown.Item>
+              ) : (
+                notifications.map((item) => (
+                  <Dropdown.Item key={item.id} id={item.id} textValue={item.title}>
+                    <span
+                      aria-hidden="true"
+                      className={`size-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[item.tone]}`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <Label>
+                        <span className="block min-w-0 truncate text-xs font-medium text-foreground">
+                          {item.title}
+                        </span>
+                      </Label>
+                      <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted">
+                        <span className="min-w-0 truncate">{item.status}</span>
+                        {item.project ? (
+                          <span className="shrink-0 truncate opacity-70">{item.project}</span>
+                        ) : null}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[10px] tabular-nums text-muted">
+                      {formatNotificationTime(item.createdAt)}
+                    </span>
+                  </Dropdown.Item>
+                ))
+              )}
+              {notifications.length > 0 ? (
+                <Dropdown.Item id="clear-notifications" textValue={t`Clear all`}>
+                  <Trash2 className="size-3.5 shrink-0 text-muted" />
+                  <Label>
+                    <span className="text-[11px] text-muted">{t`Clear all`}</span>
+                  </Label>
+                </Dropdown.Item>
+              ) : null}
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>

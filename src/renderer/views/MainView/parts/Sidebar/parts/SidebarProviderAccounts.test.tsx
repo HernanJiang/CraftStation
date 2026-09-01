@@ -75,6 +75,8 @@ const usageProvidersMock = vi.hoisted(() => ({
     { id: "kimi", label: "Kimi Code" },
     { id: "antigravity", label: "Antigravity" },
     { id: "commandcode", label: "Command Code" },
+    { id: "openai-compatible", label: "OpenAI 兼容 API" },
+    { id: "opencode", label: "OpenCode" },
   ],
 }));
 
@@ -437,7 +439,11 @@ describe("SidebarProviderAccounts", () => {
     };
     bridge.listAccounts.mockResolvedValue([grokAccount]);
     useUsageAccountsStore.getState().setAccounts([grokAccount]);
-    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Work");
+    // Electron renderers throw on window.prompt; the rename must use the
+    // in-app dialog only.
+    const prompt = vi.spyOn(window, "prompt").mockImplementation(() => {
+      throw new Error("prompt() is not supported.");
+    });
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
@@ -448,13 +454,17 @@ describe("SidebarProviderAccounts", () => {
         .closest("[data-account-id]")!,
     );
 
+    const dialog = await screen.findByRole("dialog", { name: "重命名账号" });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "Work" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+
     await waitFor(() =>
       expect(bridge.renameAccount).toHaveBeenCalledWith({
         accountId: grokAccount.accountId,
         label: "Work",
       }),
     );
-    expect(prompt).toHaveBeenCalledWith("重命名账号", "her");
+    expect(prompt).not.toHaveBeenCalled();
     prompt.mockRestore();
   });
 
@@ -528,7 +538,9 @@ describe("SidebarProviderAccounts", () => {
     ).toBeInTheDocument();
     // Grok keeps the CraftStation glyph (brand has no colored asset).
     expect(
-      within(workspace).getByTestId("provider-badge-grok").querySelector(".craftstation-provider-icon"),
+      within(workspace)
+        .getByTestId("provider-badge-grok")
+        .querySelector(".craftstation-provider-icon"),
     ).toBeInTheDocument();
     expect(within(workspace).queryByText("Gr")).not.toBeInTheDocument();
     expect(within(workspace).queryByText("Op")).not.toBeInTheDocument();
@@ -583,7 +595,9 @@ describe("SidebarProviderAccounts", () => {
     };
     bridge.listAccounts.mockResolvedValue([grokAccount]);
     useUsageAccountsStore.getState().setAccounts([grokAccount]);
-    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Renamed");
+    const prompt = vi.spyOn(window, "prompt").mockImplementation(() => {
+      throw new Error("prompt() is not supported.");
+    });
 
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
@@ -592,14 +606,104 @@ describe("SidebarProviderAccounts", () => {
       within(dialog).getByTestId("account-quota-card-grok:rename").closest("[data-account-id]")!,
     );
 
+    const renameDialog = await screen.findByRole("dialog", { name: "重命名账号" });
+    fireEvent.change(within(renameDialog).getByRole("textbox"), { target: { value: "Renamed" } });
+    fireEvent.click(within(renameDialog).getByRole("button", { name: "保存" }));
+
     await waitFor(() =>
       expect(bridge.renameAccount).toHaveBeenCalledWith({
         accountId: grokAccount.accountId,
         label: "Renamed",
       }),
     );
-    expect(prompt).toHaveBeenCalledWith("重命名账号", "per");
+    expect(prompt).not.toHaveBeenCalled();
     prompt.mockRestore();
+  });
+
+  it("renders a stale identity-less account as an inert, removable row", async () => {
+    // Legacy residue (seen on OpenCode): an account row that never resolved an
+    // identity can never select a working session and must not be clickable.
+    const stale = {
+      accountId: "opencode:stale",
+      provider: "opencode",
+      label: "OpenCode",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "unavailable" as const,
+      credentialScopeRef: "managed:opencode:stale",
+    };
+    bridge.listAccounts.mockResolvedValue([stale]);
+    useUsageAccountsStore.getState().setAccounts([stale]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const staleRow = await within(workspace).findByTestId(
+      "compact-account-row-stale-opencode:stale",
+    );
+    expect(within(staleRow).getByText("账号身份未知（已失效）")).toBeInTheDocument();
+
+    fireEvent.click(staleRow);
+    expect(bridge.setAccountEnabled).not.toHaveBeenCalled();
+    expect(useUsageAccountsStore.getState().nextSessionAccountId).toBeNull();
+
+    // Main-process removal succeeds: the next listing no longer returns it.
+    bridge.listAccounts.mockResolvedValue([]);
+    fireEvent.click(within(staleRow).getByRole("button", { name: "删除失效的 OpenCode 缓存" }));
+    await waitFor(() =>
+      expect(bridge.removeAccount).toHaveBeenCalledWith({ accountId: stale.accountId }),
+    );
+    await waitFor(() => expect(useUsageAccountsStore.getState().accounts).toEqual([]));
+  });
+
+  it("reorders channel cards by drag and persists the new provider order", async () => {
+    const codexAccount = {
+      accountId: "codex:drag",
+      provider: "codex",
+      label: "C",
+      maskedIdentity: "c***t@example.com",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:codex:drag",
+    };
+    const grokAccount = {
+      accountId: "grok:drag",
+      provider: "grok",
+      label: "G",
+      maskedIdentity: "g***k@example.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:drag",
+    };
+    bridge.listAccounts.mockResolvedValue([codexAccount, grokAccount]);
+    useUsageAccountsStore.getState().setAccounts([codexAccount, grokAccount]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const codexCard = await within(workspace).findByTestId("provider-card-codex");
+    const grokCard = within(workspace).getByTestId("provider-card-grok");
+
+    fireEvent.dragStart(codexCard, { dataTransfer: { setData: vi.fn<() => void>() } });
+    fireEvent.drop(grokCard, { dataTransfer: { setData: vi.fn<() => void>() } });
+
+    const order = useSharedSettings.getState().usage.providerOrder;
+    expect(order.indexOf("grok")).toBeLessThan(order.indexOf("codex"));
+    // The Grok pool card must now render above the ChatGPT pool card. Re-query:
+    // React replaces the DOM nodes on reorder, so the earlier reference is stale.
+    const grokAfter = within(workspace).getByTestId("provider-card-grok");
+    const codexAfter = within(workspace).getByTestId("provider-card-codex");
+    expect(
+      grokAfter.compareDocumentPosition(codexAfter) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("shows the real identity first and the subscription tier second (v0.5 T06)", async () => {

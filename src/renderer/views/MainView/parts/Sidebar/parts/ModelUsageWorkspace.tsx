@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "@heroui/react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Input, Label, Modal, TextField, toast } from "@heroui/react";
 import {
   GripVertical,
   Pencil,
@@ -66,6 +66,34 @@ function hasProviderIdentity(snapshot: UsageSnapshot | undefined): boolean {
 
 function accountIdentity(account: AccountView): string {
   return account.providerAccountId?.trim() || account.maskedIdentity?.trim() || "账号身份未知";
+}
+
+/**
+ * An account row without any resolvable identity is a stale cache left by an
+ * interrupted login (seen on OpenCode): it can never select a working session,
+ * so it must render as an inert, removable row instead of a normal entry.
+ * A row whose auth merely expired stays recoverable through its 登录授权
+ * action, so only rows where nothing ever resolved (no identity, never
+ * available, never probed) count as stale.
+ */
+function isStaleCachedAccount(account: AccountView): boolean {
+  return (
+    !account.providerAccountId?.trim() &&
+    !account.maskedIdentity?.trim() &&
+    account.status === "unavailable" &&
+    (account.quotaWindows === undefined || account.quotaWindows.length === 0)
+  );
+}
+
+/**
+ * One reorderable channel card in the authorized grid. Providers with managed
+ * pool accounts render as wide pool sections; the rest as compact cards. Both
+ * kinds share a single drag order driven by `usage.providerOrder`.
+ */
+interface AuthorizedChannel {
+  kind: "pool" | "card";
+  id: string;
+  label: string;
 }
 
 function accountPlan(account: AccountView): string {
@@ -324,6 +352,7 @@ function ProviderCard(props: {
   index?: number;
   onDragStartProvider?: (p: string) => void;
   onDropProvider?: (t: string) => void;
+  onRenameAccount?: (account: AccountView) => void;
 }) {
   const snapshot = useProviderUsage(props.id);
   const managedAccounts = useUsageAccountsStore(
@@ -526,23 +555,19 @@ function ProviderCard(props: {
     }
   };
 
-  const renameCompactAccount = async (account: AccountView) => {
-    const nextLabel = window.prompt("重命名账号", account.label);
-    if (nextLabel === null) return;
-    const normalizedLabel = nextLabel.trim();
-    if (!normalizedLabel) {
-      toast.danger("账号名称不能为空。");
-      return;
-    }
+  /** Purge a stale identity-less cache row from the pool and the renderer store. */
+  const removeCompactAccount = async (account: AccountView) => {
     setAccountActionInFlight(account.accountId);
     try {
       const bridge = readBridge() as unknown as {
-        renameAccount: (p: { accountId: string; label: string }) => Promise<void>;
+        removeAccount: (p: { accountId: string }) => Promise<void>;
       };
-      await bridge.renameAccount({ accountId: account.accountId, label: normalizedLabel });
+      await bridge.removeAccount({ accountId: account.accountId });
+      useUsageAccountsStore.getState().removeAccount(account.accountId);
+      await removeAccountBoundCustomModels({ accountIds: [account.accountId], provider: props.id });
       await refreshManagedAccounts();
     } catch (error) {
-      toast.danger(error instanceof Error ? error.message : "无法重命名账号。");
+      toast.danger(error instanceof Error ? error.message : "无法删除账号。");
     } finally {
       setAccountActionInFlight(null);
     }
@@ -606,61 +631,85 @@ function ProviderCard(props: {
 
       {managedAccounts.length > 0 ? (
         <div className="mt-2 space-y-1 rounded-lg border border-white/5 bg-black/10 p-1.5">
-          {managedAccounts.map((account) => (
-            <div
-              key={account.accountId}
-              data-testid={"compact-account-row-" + account.accountId}
-              role="button"
-              tabIndex={0}
-              aria-label={account.label + " " + label + "账号"}
-              onClick={() => void selectCompactAccount(account)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                void renameCompactAccount(account);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
+          {managedAccounts.map((account) =>
+            !isStaleCachedAccount(account) ? (
+              <div
+                key={account.accountId}
+                data-testid={"compact-account-row-" + account.accountId}
+                role="button"
+                tabIndex={0}
+                aria-label={account.label + " " + label + "账号"}
+                onClick={() => void selectCompactAccount(account)}
+                onContextMenu={(event) => {
                   event.preventDefault();
-                  void selectCompactAccount(account);
+                  props.onRenameAccount?.(account);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    void selectCompactAccount(account);
+                  }
+                }}
+                className={
+                  "flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-white/5 " +
+                  (accountActionInFlight === account.accountId ? "opacity-60" : "")
                 }
-              }}
-              className={
-                "flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-white/5 " +
-                (accountActionInFlight === account.accountId ? "opacity-60" : "")
-              }
-            >
-              <span
-                className="min-w-0 flex-1 break-all text-[9px] leading-4 text-neutral-400"
-                title={accountIdentity(account)}
               >
-                {accountIdentity(account)}
-              </span>
-              {account.status === "auth-expired" ||
-              account.status === "unavailable" ||
-              account.status === "error" ? (
+                <span
+                  className="min-w-0 flex-1 break-all text-[9px] leading-4 text-neutral-400"
+                  title={accountIdentity(account)}
+                >
+                  {accountIdentity(account)}
+                </span>
+                {account.status === "auth-expired" ||
+                account.status === "unavailable" ||
+                account.status === "error" ? (
+                  <button
+                    type="button"
+                    disabled={cliSigningIn || accountActionInFlight !== null || !account.enabled}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCliSigningIn(true);
+                      const login =
+                        props.id === "grok"
+                          ? createAndRunGrokProfileLogin({ label: account.label })
+                          : runCodexProfileLogin({
+                              accountId: account.accountId,
+                              label: account.label,
+                            });
+                      void (login as Promise<unknown>).finally(() => setCliSigningIn(false));
+                    }}
+                    className="shrink-0 rounded-md bg-white/5 px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+                    aria-label={account.label + " 登录授权"}
+                  >
+                    登录授权
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <div
+                key={account.accountId}
+                data-testid={"compact-account-row-stale-" + account.accountId}
+                className="flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 opacity-60"
+              >
+                <span
+                  className="min-w-0 flex-1 break-all text-[9px] leading-4 text-neutral-500"
+                  title="缓存残留：未解析到账号身份"
+                >
+                  账号身份未知（已失效）
+                </span>
                 <button
                   type="button"
-                  disabled={cliSigningIn || accountActionInFlight !== null || !account.enabled}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setCliSigningIn(true);
-                    const login =
-                      props.id === "grok"
-                        ? createAndRunGrokProfileLogin({ label: account.label })
-                        : runCodexProfileLogin({
-                            accountId: account.accountId,
-                            label: account.label,
-                          });
-                    void (login as Promise<unknown>).finally(() => setCliSigningIn(false));
-                  }}
+                  disabled={accountActionInFlight === account.accountId}
+                  onClick={() => void removeCompactAccount(account)}
                   className="shrink-0 rounded-md bg-white/5 px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
-                  aria-label={account.label + " 登录授权"}
+                  aria-label={"删除失效的 " + account.label + " 缓存"}
                 >
-                  登录授权
+                  删除
                 </button>
-              ) : null}
-            </div>
-          ))}
+              </div>
+            ),
+          )}
         </div>
       ) : null}
 
@@ -1119,6 +1168,10 @@ function ManagedAccountPool(props: {
   onRemove: (a: AccountView) => void;
   onDragStart: (id: string) => void;
   onDrop: (id: string) => void;
+  /** When set, the whole pool card participates in channel drag ordering. */
+  index?: number;
+  onDragStartProvider?: (p: string) => void;
+  onDropProvider?: (t: string) => void;
 }) {
   const { providerId, title, badgeLabel, addAriaLabel, accounts, busy, actionError } = props;
   // 单账号时渲染成和 ChatGPT/Command Code 一样的紧凑卡片（占半列）；
@@ -1178,6 +1231,26 @@ function ManagedAccountPool(props: {
     <section
       data-testid={"provider-card-" + providerId}
       data-grid-span={single ? "1" : "2"}
+      draggable={props.index != null}
+      onDragStart={
+        props.index != null && props.onDragStartProvider
+          ? (event) => {
+              event.dataTransfer.setData("text/plain", providerId);
+              props.onDragStartProvider?.(providerId);
+            }
+          : undefined
+      }
+      onDragOver={
+        props.index != null && props.onDropProvider ? (event) => event.preventDefault() : undefined
+      }
+      onDrop={
+        props.index != null && props.onDropProvider
+          ? (event) => {
+              event.preventDefault();
+              props.onDropProvider?.(providerId);
+            }
+          : undefined
+      }
       className={
         (single ? "col-span-1" : "col-span-2") +
         " self-start h-fit rounded-xl border border-white/5 bg-[#1c1d22] p-3"
@@ -1248,6 +1321,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<AccountView | null>(null);
+  const [renameLabel, setRenameLabel] = useState("");
   /** OpenAI 兼容表单：null 关闭；{accountId?} 新建/编辑。 */
   const [openAiCompatibleForm, setOpenAiCompatibleForm] = useState<{ accountId?: string } | null>(
     null,
@@ -1521,6 +1596,42 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     usageSnapshots,
     storedLogin,
   ]);
+  // The authorized grid renders exactly these channels, in `providerOrder`
+  // sequence, so dragging any card (pool or compact) reorders the whole board.
+  const authorizedChannels = useMemo<AuthorizedChannel[]>(() => {
+    const channels = new Map<string, AuthorizedChannel>();
+    if (signedInCodexAccounts.length > 0)
+      channels.set("codex", { kind: "pool", id: "codex", label: "ChatGPT" });
+    if (signedGrokAccounts.length > 0)
+      channels.set("grok", { kind: "pool", id: "grok", label: "Grok" });
+    if (signedAntigravityAccounts.length > 0)
+      channels.set("antigravity", { kind: "pool", id: "antigravity", label: "Antigravity" });
+    if (signedOpenAiCompatibleAccounts.length > 0)
+      channels.set("openai-compatible", {
+        kind: "pool",
+        id: "openai-compatible",
+        label: "OpenAI 兼容 API",
+      });
+    for (const provider of leftCardProviders) {
+      if (!channels.has(provider.id)) {
+        channels.set(provider.id, {
+          kind: "card",
+          id: provider.id,
+          label: provider.id === "codex" ? "ChatGPT" : provider.label,
+        });
+      }
+    }
+    return resolveDisplayedProviders(providerOrder, [])
+      .map((p) => channels.get(p.id))
+      .filter((channel): channel is AuthorizedChannel => channel !== undefined);
+  }, [
+    providerOrder,
+    leftCardProviders,
+    signedInCodexAccounts.length,
+    signedGrokAccounts.length,
+    signedAntigravityAccounts.length,
+    signedOpenAiCompatibleAccounts.length,
+  ]);
 
   const refreshAccountList = async () => {
     const bridge = readBridge() as unknown as {
@@ -1559,16 +1670,22 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
       }
     }
   };
-  const renameAccount = async (account: AccountView) => {
-    const nextLabel = window.prompt("重命名账号", account.label);
-    if (nextLabel === null) return;
-    const label = nextLabel.trim();
-    if (!label) throw new Error("账号名称不能为空。");
-    const bridge = readBridge() as unknown as {
-      renameAccount: (p: { accountId: string; label: string }) => Promise<void>;
-    };
-    await bridge.renameAccount({ accountId: account.accountId, label });
-    await refreshAccountList();
+  const openRenameAccount = (account: AccountView) => {
+    setRenameTarget(account);
+    setRenameLabel(account.label);
+  };
+  const renameAccount = async () => {
+    const account = renameTarget;
+    const label = renameLabel.trim();
+    if (!account || !label) return;
+    await accountActions(async () => {
+      const bridge = readBridge() as unknown as {
+        renameAccount: (p: { accountId: string; label: string }) => Promise<void>;
+      };
+      await bridge.renameAccount({ accountId: account.accountId, label });
+      await refreshAccountList();
+      setRenameTarget(null);
+    });
   };
   const chooseAccountForNextSession = async (account: AccountView) => {
     const bridge = readBridge() as unknown as {
@@ -1599,14 +1716,26 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   const handleProviderDrop = (targetId: string) => {
     if (!draggedProviderId || draggedProviderId === targetId) return;
     const displayed = resolveDisplayedProviders(providerOrder, []).map((p) => p.id);
-    const from = displayed.indexOf(draggedProviderId);
-    const to = displayed.indexOf(targetId);
+    // Only cards actually on screen participate in a drop; providers hidden in
+    // settings or rendered in the other column must not absorb a slot.
+    const visible = new Set<string>([
+      ...authorizedChannels.map((channel) => channel.id),
+      ...unauthenticatedOtherProviders.map((p) => p.id),
+    ]);
+    const ordered = displayed.filter((id) => visible.has(id));
+    const from = ordered.indexOf(draggedProviderId);
+    const to = ordered.indexOf(targetId);
     if (from < 0 || to < 0) return;
-    const [moved] = displayed.splice(from, 1);
-    displayed.splice(to, 0, moved!);
-    // Persist the complete new order (previously ids already present in
-    // providerOrder kept their old positions, so only the first drag stuck).
-    setUsageSetting("providerOrder", displayed);
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(to, 0, moved!);
+    const position = new Map(ordered.map((id, index) => [id, index]));
+    let cursor = 0;
+    // Persist the complete new order; ids already present in providerOrder but
+    // not on screen keep their old relative slots.
+    setUsageSetting(
+      "providerOrder",
+      displayed.map((id) => (position.has(id) ? ordered[cursor++]! : id)),
+    );
     setDraggedProviderId(null);
   };
   const reorder = (targetId: string, provider = "codex") => {
@@ -1635,6 +1764,109 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
       });
       await refreshAccountList();
     });
+  };
+
+  const renderManagedPool = (poolProviderId: string, index: number): ReactNode => {
+    const shared = {
+      queryStates: accountQueryStates,
+      busy,
+      actionError,
+      onSelect: (a: AccountView) => void accountActions(() => chooseAccountForNextSession(a)),
+      onRename: openRenameAccount,
+      onRefresh: (a: AccountView) =>
+        void accountActions(async () => {
+          const bridge = readBridge() as unknown as {
+            refreshAccountQuota: (p: { accountId: string }) => Promise<unknown>;
+          };
+          await bridge.refreshAccountQuota({ accountId: a.accountId });
+          await refreshAccountList();
+        }),
+      onToggleEnabled: (a: AccountView) =>
+        void accountActions(async () => {
+          const bridge = readBridge() as unknown as {
+            setAccountEnabled: (p: { accountId: string; enabled: boolean }) => Promise<void>;
+          };
+          await bridge.setAccountEnabled({ accountId: a.accountId, enabled: !a.enabled });
+          await refreshAccountList();
+        }),
+      onRemove: (a: AccountView) => void accountActions(() => removePoolAccountCompletely(a)),
+      onDragStart: (id: string) => setDraggedAccountId(id),
+      onDrop: (id: string) => reorder(id, poolProviderId),
+      index,
+      onDragStartProvider: (id: string) => setDraggedProviderId(id),
+      onDropProvider: (t: string) => handleProviderDrop(t),
+    };
+    switch (poolProviderId) {
+      case "codex":
+        return (
+          <ManagedAccountPool
+            {...shared}
+            providerId="codex"
+            title="ChatGPT 账号池"
+            badgeLabel="ChatGPT"
+            addAriaLabel="添加 ChatGPT 账号"
+            accounts={signedInCodexAccounts}
+            onAdd={() => void accountActions(createCodexProfile)}
+            onImport={() => void accountActions(importHostCodexLogin)}
+            importAriaLabel="导入本机 Codex 登录"
+            onReauth={(a) =>
+              void accountActions(async () => {
+                await runCodexProfileLogin({ accountId: a.accountId, label: a.label });
+              })
+            }
+          />
+        );
+      case "grok":
+        return (
+          <ManagedAccountPool
+            {...shared}
+            providerId="grok"
+            title="Grok 账号池"
+            badgeLabel="Grok"
+            addAriaLabel="添加 Grok 账号"
+            accounts={signedGrokAccounts}
+            onAdd={() => void accountActions(createGrokProfile)}
+            onReauth={(a) =>
+              void accountActions(async () => {
+                await createAndRunGrokProfileLogin({ label: a.label });
+              })
+            }
+          />
+        );
+      case "antigravity":
+        return (
+          <ManagedAccountPool
+            {...shared}
+            providerId="antigravity"
+            title="Antigravity 账号池"
+            badgeLabel="Antigravity"
+            addAriaLabel="添加 Antigravity 账号"
+            accounts={signedAntigravityAccounts}
+            onAdd={() => void accountActions(() => signInAndImportAntigravityAccount())}
+            onReauth={(a) =>
+              void accountActions(() =>
+                signInAndImportAntigravityAccount({ accountId: a.accountId }),
+              )
+            }
+          />
+        );
+      case "openai-compatible":
+        return (
+          <ManagedAccountPool
+            {...shared}
+            providerId="openai-compatible"
+            title="OpenAI 兼容 API 账号池"
+            badgeLabel="OpenAI 兼容 API"
+            addAriaLabel="添加 OpenAI 兼容 API 账号"
+            accounts={signedOpenAiCompatibleAccounts}
+            onAdd={() => setOpenAiCompatibleForm({})}
+            onEdit={(a) => setOpenAiCompatibleForm({ accountId: a.accountId })}
+            onReauth={(a) => setOpenAiCompatibleForm({ accountId: a.accountId })}
+          />
+        );
+      default:
+        return null;
+    }
   };
 
   if (!open) return null;
@@ -1711,191 +1943,21 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 onSaved={() => setOpenAiCompatibleForm(null)}
               />
             ) : null}
-            {signedInCodexAccounts.length > 0 ? (
-              <ManagedAccountPool
-                providerId="codex"
-                title="ChatGPT 账号池"
-                badgeLabel="ChatGPT"
-                addAriaLabel="添加 ChatGPT 账号"
-                accounts={signedInCodexAccounts}
-                queryStates={accountQueryStates}
-                busy={busy}
-                actionError={actionError}
-                onAdd={() => void accountActions(createCodexProfile)}
-                onImport={() => void accountActions(importHostCodexLogin)}
-                importAriaLabel="导入本机 Codex 登录"
-                onReauth={(a) =>
-                  void accountActions(async () => {
-                    await runCodexProfileLogin({ accountId: a.accountId, label: a.label });
-                  })
-                }
-                onSelect={(a) => void accountActions(() => chooseAccountForNextSession(a))}
-                onRename={(a) => void accountActions(() => renameAccount(a))}
-                onRefresh={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      refreshAccountQuota: (p: { accountId: string }) => Promise<unknown>;
-                    };
-                    await b.refreshAccountQuota({ accountId: a.accountId });
-                    await refreshAccountList();
-                  })
-                }
-                onToggleEnabled={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      setAccountEnabled: (p: {
-                        accountId: string;
-                        enabled: boolean;
-                      }) => Promise<void>;
-                    };
-                    await b.setAccountEnabled({ accountId: a.accountId, enabled: !a.enabled });
-                    await refreshAccountList();
-                  })
-                }
-                onRemove={(a) => void accountActions(() => removePoolAccountCompletely(a))}
-                onDragStart={(id) => setDraggedAccountId(id)}
-                onDrop={(id) => reorder(id, "codex")}
-              />
-            ) : null}
-            {signedGrokAccounts.length > 0 ? (
-              <ManagedAccountPool
-                providerId="grok"
-                title="Grok 账号池"
-                badgeLabel="Grok"
-                addAriaLabel="添加 Grok 账号"
-                accounts={signedGrokAccounts}
-                queryStates={accountQueryStates}
-                busy={busy}
-                actionError={actionError}
-                onAdd={() => void accountActions(createGrokProfile)}
-                onReauth={(a) =>
-                  void accountActions(async () => {
-                    await createAndRunGrokProfileLogin({ label: a.label });
-                  })
-                }
-                onSelect={(a) => void accountActions(() => chooseAccountForNextSession(a))}
-                onRename={(a) => void accountActions(() => renameAccount(a))}
-                onRefresh={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      refreshAccountQuota: (p: { accountId: string }) => Promise<unknown>;
-                    };
-                    await b.refreshAccountQuota({ accountId: a.accountId });
-                    await refreshAccountList();
-                  })
-                }
-                onToggleEnabled={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      setAccountEnabled: (p: {
-                        accountId: string;
-                        enabled: boolean;
-                      }) => Promise<void>;
-                    };
-                    await b.setAccountEnabled({ accountId: a.accountId, enabled: !a.enabled });
-                    await refreshAccountList();
-                  })
-                }
-                onRemove={(a) => void accountActions(() => removePoolAccountCompletely(a))}
-                onDragStart={(id) => setDraggedAccountId(id)}
-                onDrop={(id) => reorder(id, "grok")}
-              />
-            ) : null}
-            {signedAntigravityAccounts.length > 0 ? (
-              <ManagedAccountPool
-                providerId="antigravity"
-                title="Antigravity 账号池"
-                badgeLabel="Antigravity"
-                addAriaLabel="添加 Antigravity 账号"
-                accounts={signedAntigravityAccounts}
-                queryStates={accountQueryStates}
-                busy={busy}
-                actionError={actionError}
-                onAdd={() => void accountActions(() => signInAndImportAntigravityAccount())}
-                onReauth={(a) =>
-                  void accountActions(() =>
-                    signInAndImportAntigravityAccount({ accountId: a.accountId }),
-                  )
-                }
-                onSelect={(a) => void accountActions(() => chooseAccountForNextSession(a))}
-                onRename={(a) => void accountActions(() => renameAccount(a))}
-                onRefresh={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      refreshAccountQuota: (p: { accountId: string }) => Promise<unknown>;
-                    };
-                    await b.refreshAccountQuota({ accountId: a.accountId });
-                    await refreshAccountList();
-                  })
-                }
-                onToggleEnabled={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      setAccountEnabled: (p: {
-                        accountId: string;
-                        enabled: boolean;
-                      }) => Promise<void>;
-                    };
-                    await b.setAccountEnabled({ accountId: a.accountId, enabled: !a.enabled });
-                    await refreshAccountList();
-                  })
-                }
-                onRemove={(a) => void accountActions(() => removePoolAccountCompletely(a))}
-                onDragStart={(id) => setDraggedAccountId(id)}
-                onDrop={(id) => reorder(id, "antigravity")}
-              />
-            ) : null}
-            {signedOpenAiCompatibleAccounts.length > 0 ? (
-              <ManagedAccountPool
-                providerId="openai-compatible"
-                title="OpenAI 兼容 API 账号池"
-                badgeLabel="OpenAI 兼容 API"
-                addAriaLabel="添加 OpenAI 兼容 API 账号"
-                accounts={signedOpenAiCompatibleAccounts}
-                queryStates={accountQueryStates}
-                busy={busy}
-                actionError={actionError}
-                onAdd={() => setOpenAiCompatibleForm({})}
-                onEdit={(a) => setOpenAiCompatibleForm({ accountId: a.accountId })}
-                onReauth={(a) => setOpenAiCompatibleForm({ accountId: a.accountId })}
-                onSelect={(a) => void accountActions(() => chooseAccountForNextSession(a))}
-                onRename={(a) => void accountActions(() => renameAccount(a))}
-                onRefresh={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      refreshAccountQuota: (p: { accountId: string }) => Promise<unknown>;
-                    };
-                    await b.refreshAccountQuota({ accountId: a.accountId });
-                    await refreshAccountList();
-                  })
-                }
-                onToggleEnabled={(a) =>
-                  void accountActions(async () => {
-                    const b = readBridge() as unknown as {
-                      setAccountEnabled: (p: {
-                        accountId: string;
-                        enabled: boolean;
-                      }) => Promise<void>;
-                    };
-                    await b.setAccountEnabled({ accountId: a.accountId, enabled: !a.enabled });
-                    await refreshAccountList();
-                  })
-                }
-                onRemove={(a) => void accountActions(() => removePoolAccountCompletely(a))}
-                onDragStart={(id) => setDraggedAccountId(id)}
-                onDrop={(id) => reorder(id, "openai-compatible")}
-              />
-            ) : null}
-            {leftCardProviders.map((provider, index) => (
-              <ProviderCard
-                key={provider.id}
-                id={provider.id}
-                label={provider.id === "codex" ? "ChatGPT" : provider.label}
-                index={index}
-                onDragStartProvider={(id) => setDraggedProviderId(id)}
-                onDropProvider={(t) => handleProviderDrop(t)}
-              />
-            ))}
+            {authorizedChannels.map((channel, index) =>
+              channel.kind === "pool" ? (
+                renderManagedPool(channel.id, index)
+              ) : (
+                <ProviderCard
+                  key={"provider-card-" + channel.id}
+                  id={channel.id}
+                  label={channel.label}
+                  index={index}
+                  onRenameAccount={openRenameAccount}
+                  onDragStartProvider={(id) => setDraggedProviderId(id)}
+                  onDropProvider={(t) => handleProviderDrop(t)}
+                />
+              ),
+            )}
             {signedInCodexAccounts.length === 0 &&
             signedGrokAccounts.length === 0 &&
             signedAntigravityAccounts.length === 0 &&
@@ -1937,6 +1999,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 id={provider.id}
                 label={provider.label}
                 index={index}
+                onRenameAccount={openRenameAccount}
                 onDragStartProvider={(id) => setDraggedProviderId(id)}
                 onDropProvider={(t) => handleProviderDrop(t)}
               />
@@ -1945,6 +2008,50 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
         </div>
       )}
       <div data-testid="provider-grid" className="hidden" />
+      <Modal.Backdrop
+        isOpen={renameTarget !== null}
+        onOpenChange={(next) => !next && setRenameTarget(null)}
+      >
+        <Modal.Container>
+          <Modal.Dialog className="sm:max-w-[420px]">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>重命名账号</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="px-5 pb-5 pt-2">
+              <TextField
+                value={renameLabel}
+                onChange={setRenameLabel}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && renameLabel.trim().length > 0 && !busy) {
+                    void renameAccount();
+                  }
+                }}
+              >
+                <Label>账号名称</Label>
+                <Input />
+              </TextField>
+            </Modal.Body>
+            <Modal.Footer>
+              <button
+                type="button"
+                onClick={() => setRenameTarget(null)}
+                className="rounded-lg px-3 py-2 text-sm text-muted"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={renameLabel.trim().length === 0 || busy}
+                onClick={() => void renameAccount()}
+                className="rounded-lg bg-white/10 px-3 py-2 text-sm text-foreground disabled:opacity-50"
+              >
+                保存
+              </button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   );
 }

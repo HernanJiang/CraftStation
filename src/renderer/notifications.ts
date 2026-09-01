@@ -3,6 +3,7 @@ import { msg } from "@lingui/core/macro";
 import type { Thread, ThreadAttention, ThreadStatus } from "@/shared/contracts";
 import { openThread } from "@/renderer/actions/threadActions";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useNotificationStore } from "@/renderer/state/notificationStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useExperimentStore } from "@/renderer/state/experimentStore";
 import { i18n } from "@/renderer/i18n/i18n";
@@ -126,6 +127,13 @@ function trackTaskToast(toastId: Parameters<typeof toast.close>[0]): void {
   }
 }
 
+/** Collapse a multi-line body into one short context line for compact toasts. */
+function flattenContext(text: string, maxChars = 64): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= maxChars) return flat;
+  return `${flat.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
 function showToastNotification(
   threadId: string,
   projectName: string,
@@ -141,17 +149,21 @@ function showToastNotification(
     toast.close(toastId);
   };
 
-  const toastId = toast[variant](projectName, {
-    actionProps: {
-      children: i18n._(msg`Open`),
-      onPress: open,
-      variant: "secondary",
-    },
-    description: `${threadTitle}\n${detail}`,
+  // One compact row: task title with the completion state as trailing context.
+  // The whole row opens the thread; no separate action button.
+  const toastId = toast[variant](threadTitle, {
+    context: detail,
     onPress: open,
     timeout: 5000,
   } as any);
   trackTaskToast(toastId);
+  useNotificationStore.getState().push({
+    tone: variant,
+    title: threadTitle,
+    status: detail,
+    project: projectName,
+    threadId,
+  });
   playSound();
 }
 
@@ -161,26 +173,24 @@ export function showInAppUserNotification(input: {
   body: string;
 }): void {
   const hasThread = input.threadId.trim().length > 0;
+  const status = flattenContext(input.body);
   const open = () => {
     if (!hasThread) return;
     openNotificationThread(input.threadId);
     toast.close(toastId);
   };
   const toastId = toast.info(input.title, {
-    ...(hasThread
-      ? {
-          actionProps: {
-            children: i18n._(msg`Open`),
-            onPress: open,
-            variant: "secondary",
-          },
-          onPress: open,
-        }
-      : {}),
-    ...(input.body ? { description: input.body } : {}),
+    ...(hasThread ? { onPress: open } : {}),
+    ...(status ? { context: status } : {}),
     timeout: 5000,
   } as any);
   trackTaskToast(toastId);
+  useNotificationStore.getState().push({
+    tone: "info",
+    title: input.title,
+    status,
+    ...(hasThread ? { threadId: input.threadId } : {}),
+  });
   playSound();
 }
 

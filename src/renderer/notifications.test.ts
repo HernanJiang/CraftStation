@@ -53,6 +53,7 @@ vi.mock("@/renderer/state/sharedSettingsStore", () => ({
   },
 }));
 
+import { useNotificationStore } from "@/renderer/state/notificationStore";
 import {
   handleThreadStateNotification,
   shouldInspectThreadStateForNotification,
@@ -109,6 +110,7 @@ function installBrowserNotification(permission: NotificationPermission = "grante
 }
 
 beforeEach(() => {
+  useNotificationStore.getState().clear();
   bridgeMock.remote = false;
   bridgeMock.focusWindow.mockClear();
   bridgeMock.showNotification.mockClear();
@@ -137,15 +139,19 @@ describe("showInAppUserNotification", () => {
     });
 
     expect(toastMock.info).toHaveBeenCalledWith("Done", {
-      actionProps: {
-        children: "Open",
-        onPress: expect.any(Function),
-        variant: "secondary",
-      },
-      description: "Ready for review",
+      context: "Ready for review",
       onPress: expect.any(Function),
       timeout: 5000,
     });
+    expect(useNotificationStore.getState().items).toEqual([
+      expect.objectContaining({
+        tone: "info",
+        title: "Done",
+        status: "Ready for review",
+        threadId: "thread-1",
+        read: false,
+      }),
+    ]);
     expect(bridgeMock.showNotification).not.toHaveBeenCalled();
   });
 });
@@ -241,13 +247,8 @@ describe("handleThreadStateNotification", () => {
       { status: "finished", attention: "none" },
     );
 
-    expect(toastMock.success).toHaveBeenCalledWith("Unknown project", {
-      actionProps: {
-        children: "Open",
-        onPress: expect.any(Function),
-        variant: "secondary",
-      },
-      description: "Thread\nFinished · Waiting for your input",
+    expect(toastMock.success).toHaveBeenCalledWith("Thread", {
+      context: "Finished · Waiting for your input",
       onPress: expect.any(Function),
       timeout: 5000,
     });
@@ -282,13 +283,8 @@ describe("handleThreadStateNotification unfocused path", () => {
       { status: "finished", attention: "none" },
     );
 
-    expect(toastMock.success).toHaveBeenCalledWith("Unknown project", {
-      actionProps: {
-        children: "Open",
-        onPress: expect.any(Function),
-        variant: "secondary",
-      },
-      description: "Thread\nFinished · Waiting for your input",
+    expect(toastMock.success).toHaveBeenCalledWith("Thread", {
+      context: "Finished · Waiting for your input",
       onPress: expect.any(Function),
       timeout: 5000,
     });
@@ -371,13 +367,8 @@ describe("handleThreadStateNotification PWA path", () => {
 
     expect(bridgeMock.showNotification).not.toHaveBeenCalled();
     expect(notifications).toHaveLength(0);
-    expect(toastMock.success).toHaveBeenCalledWith("Unknown project", {
-      actionProps: {
-        children: "Open",
-        onPress: expect.any(Function),
-        variant: "secondary",
-      },
-      description: "Thread\nFinished · Waiting for your input",
+    expect(toastMock.success).toHaveBeenCalledWith("Thread", {
+      context: "Finished · Waiting for your input",
       onPress: expect.any(Function),
       timeout: 5000,
     });
