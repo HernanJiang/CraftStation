@@ -46,9 +46,9 @@ describe("database migration registry", () => {
       [34, "projects.icon"],
       [35, "threads.composition_provenance"],
       [36, "threads.account_binding and usage dimensions"],
-      [37, "thread collaboration ledger"],
+      [40, "thread collaboration ledger"],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(37);
+    expect(LATEST_SCHEMA_VERSION).toBe(40);
     expect(() => validateMigrationRegistry()).not.toThrow();
   });
 
@@ -95,9 +95,9 @@ try {
 }
 
 /**
- * Minimal pre-v2 base schema (the tables migrations 2..37 alter or reference).
+ * Minimal pre-v2 base schema (the tables migrations 2..40 alter or reference).
  * Mirrors the CREATE TABLE IF NOT EXISTS baseline in db/connection.ts so the
- * v37 migration body can be exercised in isolation against a legacy database.
+ * v40 migration body can be exercised in isolation against a legacy database.
  */
 function createLegacyBaseTables(sqlite: InstanceType<typeof Database>): void {
   sqlite.exec(`
@@ -133,20 +133,20 @@ function indexNames(sqlite: InstanceType<typeof Database>, table: string): Map<s
   return new Map(rows.map((row) => [row.name, row.unique === 1]));
 }
 
-describe.skipIf(!sqliteAvailable)("migration v37 thread collaboration ledger", () => {
+describe.skipIf(!sqliteAvailable)("migration v40 thread collaboration ledger", () => {
   let dir: string;
   let sqlite: InstanceType<typeof Database>;
 
   beforeEach(() => {
     if (nativeBindingEnv) process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
-    dir = mkdtempSync(join(tmpdir(), "craftstation-migrations-v37-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-migrations-v40-"));
     sqlite = new Database(
       join(dir, "state.sqlite"),
       nativeBindingEnv ? { nativeBinding: nativeBindingEnv } : undefined,
     );
     sqlite.pragma("foreign_keys = ON");
     createLegacyBaseTables(sqlite);
-    // Seed rows the way a real v36 profile would hold them; the v37 migration
+    // Seed rows the way a real v36 profile would hold them; the v40 migration
     // must upgrade in place without touching them.
     sqlite
       .prepare("INSERT INTO projects (id, name, created_at) VALUES ('project-1', 'Repo', ?)")
@@ -289,7 +289,7 @@ describe.skipIf(!sqliteAvailable)("migration v37 thread collaboration ledger", (
     });
     expect(
       sqlite.prepare("SELECT value FROM app_state WHERE key = 'schema_version'").get(),
-    ).toMatchObject({ value: "37" });
+    ).toMatchObject({ value: "40" });
 
     // Re-running the migration (as a retry after a partial failure would) is a
     // no-op that keeps the ledger usable and the data intact.
