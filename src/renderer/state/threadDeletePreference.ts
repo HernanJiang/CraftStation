@@ -1,6 +1,6 @@
 // Kept at the historical key so an existing opt-out survives the upgrade from
 // the three-way "thread only / thread + worktree" dialog to a single confirm.
-const PREF_KEY = "poracode-delete-worktree-pref";
+const PREF_KEY = "craftstation-delete-worktree-pref";
 
 export function shouldConfirmThreadDelete(): boolean {
   // That older UI also supported "thread-only", which cannot safely migrate to

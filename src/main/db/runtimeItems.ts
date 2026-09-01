@@ -723,12 +723,12 @@ export function dbGetLatestThreadRuntimeAnchorItemId(threadId: string): string |
       `SELECT item_id
        FROM thread_runtime_items
        WHERE thread_id = ?
-         AND type NOT IN ('user_message', 'plan', 'error')
-         AND type != ?
+         AND type = 'assistant_message'
+         AND state = 'completed'
        ORDER BY position DESC
        LIMIT 1`,
     )
-    .get(threadId, RUNTIME_REQUEST_ITEM_TYPE) as { item_id: string } | undefined;
+    .get(threadId) as { item_id: string } | undefined;
   return row?.item_id ?? null;
 }
 

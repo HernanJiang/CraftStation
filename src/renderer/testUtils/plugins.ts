@@ -1,5 +1,5 @@
 import type { LoadedPlugin } from "@/shared/contracts";
-import { parsePluginManifest, parsePoracodeExtension } from "@/shared/plugins/spec";
+import { parsePluginManifest, parseCraftStationExtension } from "@/shared/plugins/spec";
 import { usePlugins } from "@/renderer/state/pluginsStore";
 import browserTools from "../../../resources/plugins/browser-tools/plugin.json";
 import chromeTools from "../../../resources/plugins/chrome-tools/plugin.json";
@@ -27,14 +27,14 @@ function toLoadedPlugin(raw: unknown): LoadedPlugin {
     );
   }
   const manifest = parsed.manifest;
-  const { extension } = parsePoracodeExtension(manifest);
+  const { extension } = parseCraftStationExtension(manifest);
   const root = `/resources/plugins/${manifest.name}`;
   return {
     name: manifest.name,
     source: "bundled",
     root,
     manifest,
-    poracode: extension,
+    craftstation: extension,
     skills: Object.keys(extension.skills).map((folder) => ({
       folder,
       path: `${root}/skills/${folder}`,
@@ -52,7 +52,7 @@ export function seedBuiltInPlugins(): LoadedPlugin[] {
   const plugins = loadBuiltInPluginFixtures();
   usePlugins.setState({
     plugins,
-    userPluginsDir: "/home/test/.poracode/plugins",
+    userPluginsDir: "/home/test/.craftstation/plugins",
     loaded: true,
     loading: false,
     error: undefined,

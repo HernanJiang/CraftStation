@@ -23,7 +23,7 @@ import { SupervisorRuntime } from "@/supervisor/supervisorRuntime";
 // authenticated are skipped — the test fails only when an installed +
 // authenticated provider loses the initial message across close/resume.
 
-const PROMPT_TOKEN = `poracode-int-${randomUUID().slice(0, 8)}`;
+const PROMPT_TOKEN = `craftstation-int-${randomUUID().slice(0, 8)}`;
 const PROMPT = `Reply with the single word OK. (token: ${PROMPT_TOKEN})`;
 const SESSION_REF_TIMEOUT_MS = 120_000;
 const TURN_COMPLETE_TIMEOUT_MS = 180_000;
@@ -283,7 +283,7 @@ const ctx: SuiteContext = {
   events: [],
   cwd: "",
   dataDir: "",
-  prevDataDir: process.env.PORACODE_DATA_DIR,
+  prevDataDir: process.env.CRAFTSTATION_DATA_DIR,
   adapters: [],
 };
 
@@ -293,7 +293,7 @@ beforeAll(() => {
   // workspace prompt, etc.) don't block on a never-seen tmp path. The test
   // prompt is "reply OK" — providers do not write files for that — so using
   // the repo dir is non-destructive. Supervisor state stays isolated via
-  // PORACODE_DATA_DIR (set per test in beforeEach).
+  // CRAFTSTATION_DATA_DIR (set per test in beforeEach).
   ctx.cwd = process.cwd();
   ctx.adapters = createAgentRegistry();
 });
@@ -311,8 +311,8 @@ beforeEach((testCtx) => {
   // can poison later providers when the same runtime is reused. Isolating
   // each test costs ~1s of construction but eliminates order-dependent
   // flakiness in the full sweep.
-  ctx.dataDir = mkdtempSync(join(tmpdir(), "poracode-int-"));
-  process.env.PORACODE_DATA_DIR = ctx.dataDir;
+  ctx.dataDir = mkdtempSync(join(tmpdir(), "craftstation-int-"));
+  process.env.CRAFTSTATION_DATA_DIR = ctx.dataDir;
   const kind = testCtx.task.name;
   const disableHooks = !NEEDS_HOOKS_ENABLED.has(kind);
   writeFileSync(
@@ -332,11 +332,11 @@ afterEach(() => {
     // best-effort
   }
   if (ctx.prevDataDir === undefined) {
-    delete process.env.PORACODE_DATA_DIR;
+    delete process.env.CRAFTSTATION_DATA_DIR;
   } else {
-    process.env.PORACODE_DATA_DIR = ctx.prevDataDir;
+    process.env.CRAFTSTATION_DATA_DIR = ctx.prevDataDir;
   }
-  // Only remove the data dir — `ctx.cwd` is the poracode repo root and must
+  // Only remove the data dir — `ctx.cwd` is the craftstation repo root and must
   // never be deleted.
   if (ctx.dataDir) rmSync(ctx.dataDir, { recursive: true, force: true });
 });

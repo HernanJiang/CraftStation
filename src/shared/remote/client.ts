@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { remoteImageRefPath, type RemoteImageRefValue } from "./imageRef";
 import {
-  PORACODE_REMOTE_PROTOCOL_VERSION,
+  CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
   REMOTE_COMMAND_ID_HEADER,
   REMOTE_PROCEDURE_SPECS,
   REMOTE_STANDARD_SCOPES,
@@ -25,6 +25,9 @@ import {
   remoteProjectSettingsSchema,
   remoteRuntimeItemsPageSchema,
   remoteShellSnapshotSchema,
+  remoteThreadCollaborationTargetsResponseSchema,
+  remoteThreadCollaborationWaitResponseSchema,
+  remoteThreadExchangeSummarySchema,
   remoteThreadSnapshotSchema,
   remoteWebSocketServerMessageSchema,
   remoteWebSocketTicketResultSchema,
@@ -50,6 +53,7 @@ import {
   type RemoteSettingsPatch,
   type RemoteScheduleCommand,
   type RemoteShellSnapshot,
+  type RemoteThreadExchangeSummary,
   type RemoteThreadSnapshot,
   type RemoteWebSocketServerMessage,
 } from "@/shared/remote";
@@ -89,6 +93,7 @@ import {
   type ScheduledTask,
   type ScheduledTaskInput,
 } from "@/shared/contracts";
+import type { ThreadDialogueRequest, ThreadTargetSummary } from "@/shared/threadCollaboration";
 import { readBoundedResponseBody } from "@/shared/http";
 
 export class RemoteClientError extends Error {
@@ -163,7 +168,7 @@ function defaultClientMetadata(): RemoteClientMetadata {
   const userAgent = globalThis.navigator?.userAgent;
   const isMobile = userAgent ? /\bMobile\b/i.test(userAgent) : false;
   return {
-    label: isMobile ? "Poracode mobile web" : "Poracode web app",
+    label: isMobile ? "CraftStation mobile web" : "CraftStation web app",
     deviceType: isMobile ? "mobile" : "browser",
     ...(userAgent ? { os: userAgent } : {}),
   };
@@ -275,16 +280,16 @@ export class RemoteDesktopClient {
   async environment(): Promise<RemoteEnvironmentDescriptor> {
     let raw: unknown;
     try {
-      raw = await this.requestJson("/.well-known/poracode/environment");
+      raw = await this.requestJson("/.well-known/craftstation/environment");
     } catch (error) {
       if (!(error instanceof RemoteClientError) || error.status !== 404) throw error;
-      raw = await this.requestJson("/.well-known/lightcode/environment");
+      raw = await this.requestJson("/.well-known/craftstation/environment");
     }
     // Pre-parse the protocol version with a loose schema so a mismatch (the
     // literal in the strict schema would otherwise dump a JSON ZodError) yields
     // a readable, branchable error instead.
     const version = z.object({ protocolVersion: z.unknown() }).safeParse(raw).data?.protocolVersion;
-    if (version !== PORACODE_REMOTE_PROTOCOL_VERSION) {
+    if (version !== CRAFTSTATION_REMOTE_PROTOCOL_VERSION) {
       throw new RemoteClientError(
         "This app version is incompatible with that server. Update both to the same version.",
         409,
@@ -419,7 +424,7 @@ export class RemoteDesktopClient {
     readonly fileName: string;
     readonly data: Uint8Array;
   }): Promise<string> {
-    const url = new URL("/api/files/attachment", "http://poracode.invalid");
+    const url = new URL("/api/files/attachment", "http://craftstation.invalid");
     url.searchParams.set("threadId", input.threadId);
     url.searchParams.set("name", input.fileName);
     const result = parseResponse(
@@ -585,6 +590,84 @@ export class RemoteDesktopClient {
     });
     return remoteThreadSnapshotSchema.parse(
       await this.requestJson(`/api/threads/${encodeURIComponent(threadId)}/history?${search}`),
+    );
+  }
+
+  async listThreadCollaborationTargets(input: {
+    sourceThreadId: string;
+    query?: string;
+  }): Promise<ThreadTargetSummary[]> {
+    const search = new URLSearchParams({
+      sourceThreadId: input.sourceThreadId,
+      ...(input.query ? { query: input.query } : {}),
+    });
+    return remoteThreadCollaborationTargetsResponseSchema.parse(
+      await this.requestJson(`/api/thread-collaboration/targets?${search}`),
+    );
+  }
+
+  async requestThreadDialogue(
+    request: ThreadDialogueRequest,
+  ): Promise<RemoteThreadExchangeSummary> {
+    return remoteThreadExchangeSummarySchema.parse(
+      await this.requestJson("/api/thread-collaboration/request", {
+        method: "POST",
+        body: request,
+      }),
+    );
+  }
+
+  async listThreadExchanges(input: {
+    actorThreadId: string;
+    threadId: string;
+    limit: number;
+  }): Promise<RemoteThreadExchangeSummary[]> {
+    const search = new URLSearchParams({
+      actorThreadId: input.actorThreadId,
+      threadId: input.threadId,
+      limit: String(input.limit),
+    });
+    return remoteThreadExchangeSummarySchema
+      .array()
+      .parse(await this.requestJson(`/api/thread-collaboration/exchanges?${search}`));
+  }
+
+  async readThreadExchange(input: {
+    actorThreadId: string;
+    exchangeId: string;
+  }): Promise<RemoteThreadExchangeSummary> {
+    return remoteThreadExchangeSummarySchema.parse(
+      await this.requestJson("/api/thread-collaboration/read", {
+        method: "POST",
+        body: input,
+      }),
+    );
+  }
+
+  async waitForThreadExchange(input: {
+    actorThreadId: string;
+    exchangeId: string;
+    afterUpdatedAt?: string;
+    timeoutMs: number;
+  }): Promise<{ timedOut: boolean; exchange: RemoteThreadExchangeSummary }> {
+    return remoteThreadCollaborationWaitResponseSchema.parse(
+      await this.requestJson("/api/thread-collaboration/wait", {
+        method: "POST",
+        body: input,
+        timeoutMs: input.timeoutMs + 5_000,
+      }),
+    );
+  }
+
+  async cancelThreadExchange(input: {
+    actorThreadId: string;
+    exchangeId: string;
+  }): Promise<RemoteThreadExchangeSummary> {
+    return remoteThreadExchangeSummarySchema.parse(
+      await this.requestJson("/api/thread-collaboration/cancel", {
+        method: "POST",
+        body: input,
+      }),
     );
   }
 
@@ -912,7 +995,7 @@ export class RemoteDesktopClient {
   }
 
   /**
-   * Absolute URL of the authenticated image endpoint used for poracode-local
+   * Absolute URL of the authenticated image endpoint used for craftstation-local
    * sources. The access token rides in the query string because <img> tags
    * can't send Authorization headers. Returns "" without a token — callers
    * fall back to the original (unrenderable in a browser) URL then.

@@ -72,7 +72,7 @@ describe("web Push API registration", () => {
       },
       webAppBasePath: "/",
     });
-    expect(localStorage.getItem("poracode.webPushRegistrationActive")).toBe("1");
+    expect(localStorage.getItem("craftstation.webPushRegistrationActive")).toBe("1");
   });
 
   it("replaces a subscription created with an old VAPID key", async () => {
@@ -140,12 +140,12 @@ describe("web Push API registration", () => {
     const client = {
       unregisterPush: vi.fn<(deviceId: string) => Promise<void>>(async () => {}),
     } as unknown as RemoteDesktopClient;
-    localStorage.setItem("poracode.webPushRegistrationActive", "1");
+    localStorage.setItem("craftstation.webPushRegistrationActive", "1");
 
     await unregisterWebPush(client, "browser-1234");
 
     expect(client.unregisterPush).toHaveBeenCalledWith("browser-1234");
     expect(currentSubscription?.unsubscribe).toHaveBeenCalledOnce();
-    expect(localStorage.getItem("poracode.webPushRegistrationActive")).toBeNull();
+    expect(localStorage.getItem("craftstation.webPushRegistrationActive")).toBeNull();
   });
 });

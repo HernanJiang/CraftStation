@@ -23,11 +23,11 @@ function productNameFor(channel) {
 }
 
 function appIdFor(channel) {
-  return channel === "nightly" ? "com.lightcode.app.nightly" : "com.lightcode.app";
+  return channel === "nightly" ? "com.craftstation.app.nightly" : "com.craftstation.app";
 }
 
 function userDataDirNameFor(channel) {
-  return channel === "nightly" ? ".poracode-nightly" : ".poracode";
+  return channel === "nightly" ? ".craftstation-nightly" : ".craftstation";
 }
 
 function updaterChannelFor(channel) {
@@ -42,12 +42,12 @@ function artifactPrefixFor(channel) {
  * Squirrel.Mac cannot relaunch when an update changes the outer bundle and
  * executable name: it moves the old bundle away, then tries to spawn its
  * relaunch helper from the path it just removed. Keep updater ZIPs on the
- * pre-rebrand executable name so both Lightcode and already-migrated Poracode
- * installs update in place. DMGs remain fully Poracode-branded.
+ * pre-rebrand executable name so both CraftStation and already-migrated CraftStation
+ * installs update in place. DMGs remain fully CraftStation-branded.
  */
 function macExecutableNameFor(channel, artifactKind) {
   if (artifactKind === "updater") {
-    return channel === "nightly" ? "Lightcode Nightly" : "Lightcode";
+    return channel === "nightly" ? "CraftStation Nightly" : "CraftStation";
   }
   return productNameFor(channel);
 }

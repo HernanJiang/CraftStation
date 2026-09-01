@@ -308,7 +308,7 @@ describe("probeMcpServer", () => {
   });
 
   it("times out and terminates an unresponsive stdio server", async () => {
-    const directory = mkdtempSync(join(tmpdir(), "poracode-mcp-probe-"));
+    const directory = mkdtempSync(join(tmpdir(), "craftstation-mcp-probe-"));
     const pidFile = join(directory, "pid.txt");
     const script = String.raw`
       require("node:fs").writeFileSync(process.argv[1], String(process.pid));

@@ -23,7 +23,7 @@ OpenAI Model Item + Codex Harness Item
 -> Entity -> Session
 ```
 
-但当前 Codex 产品执行链仍把真正的 Harness Runtime 外包给 PoraCode：
+但当前 Codex 产品执行链仍把真正的 Harness Runtime 外包给 CraftStation：
 
 ```text
 Renderer startThreadFromCraft
@@ -31,15 +31,15 @@ Renderer startThreadFromCraft
 -> SupervisorRuntime
 -> CodexHarnessRuntimeAdapter
 -> ThreadSessionManager
--> PoraCode CodexStructuredSession / app-server integration
+-> CraftStation CodexStructuredSession / app-server integration
 ```
 
 这条路径证明了 CraftStation Composition 可以到达一个 Runtime Adapter，却没有证明 CraftStation 已经拥有独立的 Codex Harness Runtime Module。当前 Session 仍以 `sendPrompt() -> Promise<完整字符串>` 为中心，存在固定 60 秒 Turn 超时；CraftPlan 主要传递 model，UI、官方有效配置、原生事件、审批请求和 Session 生命周期尚未形成忠实闭环。
 
 #### Why Now
 
-- Codex 是 CraftStation 第一条已建立 Recipe 的 Harness，应先把它从 PoraCode-specific execution path 迁移为 CraftStation-owned Runtime。
-- 如果继续在旧 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter` 与 canonical event mapping 上扩展，CraftStation Domain 会进一步依赖 PoraCode 内部架构。
+- Codex 是 CraftStation 第一条已建立 Recipe 的 Harness，应先把它从 CraftStation-specific execution path 迁移为 CraftStation-owned Runtime。
+- 如果继续在旧 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter` 与 canonical event mapping 上扩展，CraftStation Domain 会进一步依赖 CraftStation 内部架构。
 - 官方 `codex app-server` 已提供 Thread、Turn、Item、streaming、approval、usage、compaction、MCP、Skills、review 与 Session lifecycle 的 programmatic interface，适合作为 CraftStation Codex Runtime 的唯一上游。
 - 先建立一个真实、稳定、可验收的 `harness-runtime` deep module，后续 DeepSeek Harness 与 Grok Build 才能复用同一 CraftStation seam，而不要求三种 Harness 重写成相同内部实现。
 
@@ -85,7 +85,7 @@ CraftStation 成为 Codex Harness 的 Composition、Control 与 Presentation Pla
 - Native Codex event envelope 与 CraftStation normalized UI projection 同时保留；未知事件不得静默丢弃。
 - approval、permission、request-user-input 与 MCP elicitation 等 server-initiated request 保留 request identity，并能把用户决定回传官方 Runtime。
 - Context、token usage 与 compaction 状态以官方事件为事实来源。
-- 最终 Codex 产品路径不依赖或 fallback 到旧 PoraCode Codex execution implementation。
+- 最终 Codex 产品路径不依赖或 fallback 到旧 CraftStation Codex execution implementation。
 
 #### Important Scenarios
 
@@ -117,8 +117,8 @@ CraftStation 成为 Codex Harness 的 Composition、Control 与 Presentation Pla
 #### Out of Scope
 
 - 重写 Codex Agent Loop、Codex Core、上下文选择、自动压缩、工具系统、MCP、Skills 或子 Agent。
-- 同时重写 DeepSeek Harness、Grok Build 或其他 PoraCode Agent integration。
-- 一次性移除 PoraCode Desktop、Electron、Workspace、IPC、数据库、Terminal、Git/Worktree 等通用基础设施。
+- 同时重写 DeepSeek Harness、Grok Build 或其他 CraftStation Agent integration。
+- 一次性移除 CraftStation Desktop、Electron、Workspace、IPC、数据库、Terminal、Git/Worktree 等通用基础设施。
 - Auto-Crafting、Interaction-Aware Search、Model Fingerprint、Learned Router 或 Phase 3/4 研究能力。
 - 把 Context、MCP、Skills、Permission 提前升级为新的一级 Item。
 - 为官方未提供或当前版本不支持的 experimental capability 自建不兼容替代实现。
@@ -154,7 +154,7 @@ CraftStation 成为 Codex Harness 的 Composition、Control 与 Presentation Pla
 
 - 当前 `craftstation/` 的 v0.2.16 UI-only 工作树包含大量未提交修改；v0.3 实现必须等待 v0.2 关闭，并保护现有改动。
 - 根治理仓库当前没有 tracking remote；Plan 前的 `git pull --ff-only` 无法完成，不能声称已与远端对齐。
-- 不得让新 Codex Module import 或 fallback 到 `ThreadSessionManager`、`SpawnPipeline`、PoraCode `AgentAdapter`、`CodexStructuredSession`、PoraCode canonical event mapping 或 Codex hook plugin。
+- 不得让新 Codex Module import 或 fallback 到 `ThreadSessionManager`、`SpawnPipeline`、CraftStation `AgentAdapter`、`CodexStructuredSession`、CraftStation canonical event mapping 或 Codex hook plugin。
 - 不得把官方 Runtime 的内部能力复制进 CraftStation。
 - 不记录 API key、Token、Cookie、完整敏感 Prompt 或 credential。
 - 未取得真实官方 Codex 双轮 Session 证据前，Feature 不得 PASS。
@@ -164,7 +164,7 @@ CraftStation 成为 Codex Harness 的 Composition、Control 与 Presentation Pla
 - [ ] `Model Item + Codex Harness Item -> Recipe -> Crafter -> CraftPlan` 进入 CraftStation-owned Codex Runtime。
 - [ ] 官方 app-server 完成 initialize、Thread、Turn、streaming 与真实 response。
 - [ ] 同一官方 Thread 完成至少两轮连续 Prompt。
-- [ ] 最终产品路径没有 PoraCode Codex execution dependency 或 fallback。
+- [ ] 最终产品路径没有 CraftStation Codex execution dependency 或 fallback。
 - [ ] UI 显式配置忠实传递，未选配置由 Codex 原生 resolution 决定。
 - [ ] Context、usage、compaction、approval、permission、MCP、Skills 和 lifecycle 在支持范围内由官方 Runtime 驱动。
 - [ ] 长 Turn 不因固定 60 秒超时失败。
@@ -222,7 +222,7 @@ Manager 自行修复的非阻塞小问题：
 
 ### Objective
 
-在不重写官方 Codex Harness 内部能力的前提下，把 v0.1 的 Codex execution critical path 从 PoraCode Runtime 迁移到一个由 CraftStation 拥有的深 `harness-runtime` Module，并以真实双轮 Session 证明：
+在不重写官方 Codex Harness 内部能力的前提下，把 v0.1 的 Codex execution critical path 从 CraftStation Runtime 迁移到一个由 CraftStation 拥有的深 `harness-runtime` Module，并以真实双轮 Session 证明：
 
 ```text
 Model Item + Codex Harness Item
@@ -237,7 +237,7 @@ Model Item + Codex Harness Item
 
 #### Problem Statement
 
-CraftStation 用户当前看到的是 Minecraft Composition UI，但 Prompt 进入 Codex 后仍由 PoraCode 的通用 Session/Agent 适配链负责执行。CraftPlan 没有忠实表达 UI 对 Runtime 的控制，Session 把一次 Turn 压缩成固定超时内返回的字符串，官方 Codex 原生事件、配置、审批与生命周期不是 CraftStation 的直接事实来源。
+CraftStation 用户当前看到的是 Minecraft Composition UI，但 Prompt 进入 Codex 后仍由 CraftStation 的通用 Session/Agent 适配链负责执行。CraftPlan 没有忠实表达 UI 对 Runtime 的控制，Session 把一次 Turn 压缩成固定超时内返回的字符串，官方 Codex 原生事件、配置、审批与生命周期不是 CraftStation 的直接事实来源。
 
 因此当前效果不能被称为“同一 UI 中的官方 Codex Harness parity”，也阻碍了后续把 DeepSeek Harness、Codex 和 Grok Build 作为独立 Runtime 放在同一个 CraftStation Composition Model 下。
 
@@ -274,7 +274,7 @@ CraftPlan 编译 UI 的显式选择，但省略未选择字段，让 Codex 原�
 23. 作为维护者，我希望 Codex process、transport、RPC、schema 与 request correlation 隐藏在一个深 Module 内，以便修复具有 locality。
 24. 作为维护者，我希望 native event envelope 与 normalized projection 并存，以便既能稳定渲染又不丢失新协议信息。
 25. 作为维护者，我希望 fake app-server 和真实 app-server 通过同一 Interface 验证，以便大多数行为可自动化、最终行为可真实验收。
-26. 作为维护者，我希望最终依赖检查能证明 Codex 产品路径不再引用 PoraCode Codex Runtime classes，以便独立性是可验证事实。
+26. 作为维护者，我希望最终依赖检查能证明 Codex 产品路径不再引用 CraftStation Codex Runtime classes，以便独立性是可验证事实。
 27. 作为未来 Harness 开发者，我希望 DeepSeek Harness 与 Grok Build 能实现同一高层语义而保留不同内部 architecture，以便 CraftStation 不重写各 Harness。
 
 #### Implementation Decisions
@@ -299,8 +299,8 @@ CraftPlan 编译 UI 的显式选择，但省略未选择字段，让 Codex 原�
 - Context usage 使用官方 `thread/tokenUsage/updated`；compaction 使用官方 item/Turn lifecycle；CraftStation 不自行推断真实 context window。
 - stable capability 是最低保证。experimental capability 必须在 initialize opt-in、schema/version 与 capability discovery 全部允许时才启用。
 - Provider/API concern 与 Harness process execution 分离。CLIProxyAPI 仅在明确 provider/auth Recipe 需要时接入，不进入本 Feature 默认 Codex 路径。
-- legacy PoraCode Codex execution implementation 在迁移期只可作为隔离对照，不可成为最终产品 fallback。
-- 最终增加依赖守卫，禁止新 Codex Module 和 Codex Native Recipe 产品路径导入 legacy PoraCode Codex execution classes。
+- legacy CraftStation Codex execution implementation 在迁移期只可作为隔离对照，不可成为最终产品 fallback。
+- 最终增加依赖守卫，禁止新 Codex Module 和 Codex Native Recipe 产品路径导入 legacy CraftStation Codex execution classes。
 - 关键错误至少区分 binary unavailable、initialize failed、auth required、protocol incompatible、capability unsupported、request timeout、process exited、turn failed、recovery failed 与 persistence incompatible。
 - 关键日志携带 phase、operation、status、craftPlan/entity/session/thread/turn/request/correlation identity，并保留原始异常上下文但不记录敏感凭据或完整 Prompt。
 
@@ -315,14 +315,14 @@ CraftPlan 编译 UI 的显式选择，但省略未选择字段，让 Codex 原�
 - approval tests 覆盖 command、file change、permission、request-user-input 和 MCP elicitation 的 accept/decline/cancel/session-scope。
 - capability tests 在 stable-only、experimental-enabled、unsupported-old-version 三种服务能力下验证 UI gate 与错误。
 - persistence tests 验证 official thread ref、protocol/runtime identity、CraftPlan provenance、重启恢复、损坏和版本不兼容。
-- architecture tests 阻止 Codex 产品路径依赖 legacy PoraCode execution implementation。
+- architecture tests 阻止 Codex 产品路径依赖 legacy CraftStation execution implementation。
 - 最终验收必须使用用户实际安装和认证的官方 Codex binary，完成真实 streaming 与同一 Session 双轮 response；fake/synthetic success 不能替代。
 - v0.2 关闭后的实现需要执行与实际影响匹配的 typecheck、lint、test、build 和桌面回归；本 Manager 规划轮不运行产品测试。
 
 #### Out of Scope
 
 - DeepSeek Harness、Grok Build 和非 Codex Harness 的 Runtime 重写。
-- PoraCode 通用 Desktop 基础设施替换。
+- CraftStation 通用 Desktop 基础设施替换。
 - Codex CLI/TUI 视觉和键盘交互复制。
 - 官方 Codex Core 或 Agent Loop fork。
 - 全量实现所有 experimental app-server RPC。
@@ -370,7 +370,7 @@ CraftPlan 编译 UI 的显式选择，但省略未选择字段，让 Codex 原�
   - [ ] 未启用 experimental API 时不会发送 gated method/field。
   - [ ] RPC request、response、notification 和 server request 可正确区分与关联。
   - [ ] app-server stderr/log 不污染 JSON-RPC transport，关闭后无遗留进程。
-  - [ ] 本 Ticket 不经过 `ThreadSessionManager` 或 PoraCode Codex session implementation。
+  - [ ] 本 Ticket 不经过 `ThreadSessionManager` 或 CraftStation Codex session implementation。
 
 #### v0.3/T03 — 打通首条真实 Native Thread/Turn 流式链
 
@@ -387,7 +387,7 @@ CraftPlan 编译 UI 的显式选择，但省略未选择字段，让 Codex 原�
   - [ ] Turn terminal state 与最终 assistant message 可从官方事件恢复。
   - [ ] `craftAgentResult` 不再把完整 `response: string` 作为实时 UI 的事实来源。
   - [ ] 未知通知不会静默丢弃，也不会导致 Session 崩溃。
-  - [ ] 产品调用链不经过 `ThreadSessionManager`、`SpawnPipeline` 或 PoraCode CodexStructuredSession。
+  - [ ] 产品调用链不经过 `ThreadSessionManager`、`SpawnPipeline` 或 CraftStation CodexStructuredSession。
 
 #### v0.3/T04 — 配置忠实传递与 Context/Usage/Compaction
 
@@ -482,7 +482,7 @@ CraftPlan 编译 UI 的显式选择，但省略未选择字段，让 Codex 原�
   - 完成 Coder 交接证据供 Debugger 独立 Review。
 - Depends on：T08。
 - Acceptance：
-  - [ ] Codex 产品路径不存在对 `ThreadSessionManager`、`SpawnPipeline`、PoraCode `AgentAdapter`、`CodexStructuredSession`、PoraCode canonical event mapping 或 Codex hook plugin 的依赖或 fallback。
+  - [ ] Codex 产品路径不存在对 `ThreadSessionManager`、`SpawnPipeline`、CraftStation `AgentAdapter`、`CodexStructuredSession`、CraftStation canonical event mapping 或 Codex hook plugin 的依赖或 fallback。
   - [ ] 依赖守卫能在重新引入 legacy import 时失败。
   - [ ] 真实 `Model -> Recipe -> CraftPlan -> official app-server -> Session -> streaming -> response -> second turn` 通过。
   - [ ] 配置、usage、compaction、approval、MCP、Skills、resume、interrupt、long turn 与 cleanup 的最低支持矩阵通过。
@@ -544,7 +544,7 @@ v0.2 Feature Close
 
 - [ ] Crafting、Crafter、Registry、React 和通用 IPC 不 deep-import Codex process/RPC/schema implementation。
 - [ ] Codex process、transport、protocol、event/request correlation 隐藏在一个深 `harness-runtime` Module 内。
-- [ ] 最终 Codex 产品路径不依赖或 fallback 到 PoraCode Codex execution chain。
+- [ ] 最终 Codex 产品路径不依赖或 fallback 到 CraftStation Codex execution chain。
 - [ ] provider/API concern 与 Harness process execution 分离。
 - [ ] 依赖守卫和测试跨同一外部 seam。
 
@@ -567,7 +567,7 @@ v0.2 Feature Close
 
 ### Key Decisions / Risks
 
-- 最大架构风险是把新 Module 做成 PoraCode TSM 的薄 façade。T02/T03 的验收明确要求直接 app-server 路径，T09 以 dependency guard 收口。
+- 最大架构风险是把新 Module 做成 CraftStation TSM 的薄 façade。T02/T03 的验收明确要求直接 app-server 路径，T09 以 dependency guard 收口。
 - 最大协议风险是 Codex app-server 持续演进。通过运行时 schema/version evidence、unknown-event preservation 和 capability gate 控制，而不是把 experimental RPC 固化为永久 contract。
 - 最大 UX 风险是 UI normalized event 丢失原生语义。采用 native envelope + normalized projection，并以官方 terminal item/turn state 为权威。
 - 最大生命周期风险是继续使用 request/response 心智模型。T01 先改变 Interface，T03 再迁移 UI，T05 才完整扩展 lifecycle。

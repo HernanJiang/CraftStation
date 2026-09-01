@@ -16,13 +16,13 @@ export const CLAUDE_SONNET_5_MODEL_ID = "claude-sonnet-5";
 
 const CLAUDE_SEMVER_RE = /(\d+)\.(\d+)\.(\d+)/;
 
-/** Effort choices Poracode exposes for Claude's current frontier models. */
+/** Effort choices CraftStation exposes for Claude's current frontier models. */
 export const CLAUDE_PREMIUM_EFFORT_TIERS: string[] = [...CLAUDE_EFFORT_TIERS];
 
 /**
  * Built-in catalog of explicit Claude Code model ids.
  *
- * Order is significant: the first model is Poracode's default for new Claude
+ * Order is significant: the first model is CraftStation's default for new Claude
  * threads and delegated runs.
  */
 export const CLAUDE_BUILTIN_MODELS: AgentCapability["models"] = [
@@ -116,14 +116,14 @@ export function claudeCapabilitiesFromCliVersion(
   return { models, modelEfforts, modelContextSizes, fastModels };
 }
 
-function poracodeEffortId(effort: string): string {
+function craftstationEffortId(effort: string): string {
   return effort === "xhigh" ? "xHigh" : effort;
 }
 
 /**
  * Overlay model-specific effort and Fast metadata reported by Claude Code.
  *
- * The CLI catalog intentionally shows only current aliases, while Poracode also
+ * The CLI catalog intentionally shows only current aliases, while CraftStation also
  * keeps explicit prior model versions selectable. Start from the built-in map
  * and update only entries the SDK actually reports so probing never erases the
  * historical catalog.
@@ -148,7 +148,7 @@ export function claudeCapabilitiesFromSdkModels(
     if (sdkModel.supportsEffort === false) {
       modelEfforts[modelId] = [];
     } else if (sdkModel.supportedEffortLevels?.length) {
-      const efforts = sdkModel.supportedEffortLevels.map(poracodeEffortId);
+      const efforts = sdkModel.supportedEffortLevels.map(craftstationEffortId);
       // Ultracode is Claude Code's xhigh + dynamic-workflow session preset.
       if (efforts.includes("xHigh")) efforts.push("ultracode");
       modelEfforts[modelId] = efforts;

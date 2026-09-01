@@ -38,7 +38,7 @@ describe("Cursor SDK worker integration", () => {
         apiKey: "worker-secret",
         createOptions: {
           model: { id: "composer-test" },
-          name: "Poracode test",
+          name: "CraftStation test",
           local: {
             cwd: harness.directory,
             settingSources: ["project", "user", "plugins"],
@@ -480,14 +480,14 @@ async function createHarness(): Promise<{
   entryPath: string;
   client: CursorSdkWorkerClient;
 }> {
-  const directory = mkdtempSync(join(tmpdir(), "poracode-cursor-sdk-worker-"));
+  const directory = mkdtempSync(join(tmpdir(), "craftstation-cursor-sdk-worker-"));
   tempDirectories.push(directory);
   const sdkRoot = join(directory, "fake-sdk");
   mkdirSync(sdkRoot, { recursive: true });
   const entryPath = join(sdkRoot, "index.mjs");
   writeFileSync(entryPath, FAKE_SDK_SOURCE, "utf8");
 
-  const configuredWorkerPath = process.env.PORACODE_CURSOR_SDK_WORKER_TEST_PATH;
+  const configuredWorkerPath = process.env.CRAFTSTATION_CURSOR_SDK_WORKER_TEST_PATH;
   const workerPath = configuredWorkerPath ?? join(directory, "cursor-sdk-worker.mjs");
   if (!configuredWorkerPath) {
     const workerSource = resolve(dirname(fileURLToPath(import.meta.url)), "sdkWorker.ts");

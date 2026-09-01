@@ -5,7 +5,7 @@ import { create } from "zustand";
  * welcome overlay. Owned here so the overlay and this background-work gate read
  * a single shared key.
  */
-export const WELCOME_SEEN_STORAGE_KEY = "poracode-welcome-seen-v16";
+export const WELCOME_SEEN_STORAGE_KEY = "craftstation-welcome-seen-v16";
 
 /**
  * Manual isolated test launches should reach the requested surface immediately,
@@ -15,7 +15,8 @@ export const WELCOME_SEEN_STORAGE_KEY = "poracode-welcome-seen-v16";
 export function isWelcomeSeen(): boolean {
   // Isolated tests can skip the launch screen. Ordinary launches always show it
   // so the window is useful while Electron/Vite finish loading in the background.
-  const skipForTesting = import.meta.env.DEV && import.meta.env.VITE_PORACODE_SKIP_WELCOME === "1";
+  const skipForTesting =
+    import.meta.env.DEV && import.meta.env.VITE_CRAFTSTATION_SKIP_WELCOME === "1";
   return skipForTesting;
 }
 

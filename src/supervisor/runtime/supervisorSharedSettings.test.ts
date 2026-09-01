@@ -24,7 +24,7 @@ function writeTheme(settingsPath: string, themeMode: "dark" | "light"): void {
 
 describe("SupervisorSharedSettingsCache", () => {
   it("re-arms its watcher after repeated atomic file replacements", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-supervisor-settings-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-supervisor-settings-"));
     tempDirs.push(dir);
     const settingsPath = join(dir, "settings.json");
     writeTheme(settingsPath, "dark");

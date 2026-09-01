@@ -50,7 +50,7 @@
   - X 在面板 header 右上角，和 Windows `titleBarOverlay` 关闭/拖拽区重叠
   - `closeSession` 依赖 `active`；header **没有** `app-region: no-drag`
 - [agentLoginActions.ts](file:///D:/Work/CraftStation/craftstation/src/renderer/actions/agentLoginActions.ts)
-  - overlay 自动关闭只在 `watchCommandCompletion` 收到 `poracode-login-complete` 且 `exitCode === 0`
+  - overlay 自动关闭只在 `watchCommandCompletion` 收到 `craftstation-login-complete` 且 `exitCode === 0`
   - grok CLI 停在 `Waiting for authorization...` 时 **不退出**，OSC 不发，X 又点不到 → 卡死
   - `onForceClose` 会 `cancelGrokProfileLogin`（第二次 pending 取消会删目录；第一次成功导入后 overlay 仍可能卡住）
 
@@ -96,7 +96,7 @@ F08 改道、F12 supervisor import、F13 空字符串覆盖 **保持关闭**。F
 
 ### Fix 2 — F16：overlay 必须能关
 
-1. 登录面板整体下移到 `env(titlebar-area-height)` / Windows caption 之下；header 与 X 设 `app-region: no-drag`（或等价 `poracode-overlay-header__controls`）。
+1. 登录面板整体下移到 `env(titlebar-area-height)` / Windows caption 之下；header 与 X 设 `app-region: no-drag`（或等价 `craftstation-overlay-header__controls`）。
 2. X、遮罩点击、失败态都必须调用 `closeSession`（杀 shell + `onForceClose` + store close），**不要** `if (!active) return` 把残留面板留住。
 3. 成功 import 后必须关掉 overlay，不要等 grok CLI 自己退出。
 4. 测试：点 Close 会 `onForceClose` + `closeThread` + store 清空。

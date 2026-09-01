@@ -123,7 +123,7 @@ export function FileEditorPane(props: {
     return () => window.removeEventListener("keydown", handleKeyDown);
   });
 
-  const monacoTheme = theme === "dark" ? "poracode-dark" : "poracode-light";
+  const monacoTheme = theme === "dark" ? "craftstation-dark" : "craftstation-light";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--content-background)]">
@@ -240,7 +240,7 @@ function TabStripHeader(props: {
         ))}
       </div>
 
-      <div className="poracode-content-over-drag-region flex items-center gap-1.5">
+      <div className="craftstation-content-over-drag-region flex items-center gap-1.5">
         <EditorToolbar
           isMarkdown={props.isMarkdown}
           showPreview={props.showPreview}

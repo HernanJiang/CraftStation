@@ -1,20 +1,20 @@
-# v0.10 PoraCode Cross-thread MCP Source Review
+# v0.10 CraftStation Cross-thread MCP Source Review
 
 - Reviewed：2026-08-31
 - CraftStation baseline：`dev@8bc45cfe408a6e603c777f04bce3c22627b76656`
-- PoraCode reference baseline：`a28b995c47987b09862d8d18cb1203ddfb4ba159`
+- CraftStation reference baseline：`a28b995c47987b09862d8d18cb1203ddfb4ba159`
 - Scope：只读核验长期 Thread orchestration 与 Crossagents 的真实边界，为 v0.10 Ideate/Plan 提供一手事实。
 
 ## Finding 1 — Long-lived cross-thread control lives in App Controls MCP
 
-PoraCode 的 always-on App Controls MCP 已提供 `get_current_thread`、`list_threads`、`get_thread`、`read_thread`、`create_thread`、`send_to_thread`、`interrupt_thread`、`stop_thread`、`wait_for_thread` 等长期 Thread 工具。它们操作的是用户在侧栏可见的一等 Thread，并可以携带 project、agent、model、presentation mode、worktree、status 和 attention。
+CraftStation 的 always-on App Controls MCP 已提供 `get_current_thread`、`list_threads`、`get_thread`、`read_thread`、`create_thread`、`send_to_thread`、`interrupt_thread`、`stop_thread`、`wait_for_thread` 等长期 Thread 工具。它们操作的是用户在侧栏可见的一等 Thread，并可以携带 project、agent、model、presentation mode、worktree、status 和 attention。
 
 Primary source：
 
-- `reference/poracode/src/main/app-controls/mcp/tools/threads.ts:108-223`
-- `reference/poracode/src/main/app-controls/mcp/tools/threads.ts:313-460`
+- `reference/craftstation/src/main/app-controls/mcp/tools/threads.ts:108-223`
+- `reference/craftstation/src/main/app-controls/mcp/tools/threads.ts:313-460`
 
-CraftStation 当前对应文件与 PoraCode reference 的 SHA-256 相同：
+CraftStation 当前对应文件与 CraftStation reference 的 SHA-256 相同：
 
 `41204294A8D1FAF55051687ED3CD2D20B62A4B7C547DA1BBDD31A93120A6C588`
 
@@ -26,8 +26,8 @@ Crossagents MCP 明确用于当前 Thread 内的轻量、临时 subagent run；�
 
 Primary source：
 
-- `reference/poracode/src/supervisor/crossagentMcp/toolRegistry.ts:55-72`
-- `reference/poracode/src/supervisor/crossagentMcp/toolRegistry.ts:319-321`
+- `reference/craftstation/src/supervisor/crossagentMcp/toolRegistry.ts:55-72`
+- `reference/craftstation/src/supervisor/crossagentMcp/toolRegistry.ts:319-321`
 
 所以 v0.10 不应把长期跨线程对话实现成 `spawn_agent`，但可复用 Crossagents 的结果回流、状态显示和防并发经验。
 
@@ -37,8 +37,8 @@ Primary source：
 
 Primary source：
 
-- `reference/poracode/src/main/app-controls/mcp/tools/threads.ts:364-460`
-- `reference/poracode/src/main/app-controls/mcp/toolRegistry.test.ts:617-681`
+- `reference/craftstation/src/main/app-controls/mcp/tools/threads.ts:364-460`
+- `reference/craftstation/src/main/app-controls/mcp/toolRegistry.test.ts:617-681`
 
 但现有 primitives 没有稳定的 exchange id、source/target reply correlation、目标 Turn anchor、自动把目标 reply 投影回源 Thread、跨 Harness provenance 或防对话循环。因此它们是 v0.10 的实现基础，不是 v0.10 已完成的证据。
 
@@ -59,7 +59,7 @@ App Controls MCP 直接调用 Supervisor `sendThreadInput`；当前 live target 
 
 Primary source：
 
-- `reference/poracode/src/main/app-controls/mcp/tools/threads.ts:410-434`
+- `reference/craftstation/src/main/app-controls/mcp/tools/threads.ts:410-434`
 - `craftstation-dev/src/supervisor/runtime/threadSessionManager.ts:523-695`
 
 ## Planning Consequence

@@ -66,7 +66,7 @@ export function createQoderAdapter(): AgentAdapter {
     spawnEnv: { wsl: { BROWSER: "/bin/true" } },
 
     // ── CLI hook plugin support ──────────────────────────────────────────
-    pluginId: "poracode-status@qoder",
+    pluginId: "craftstation-status@qoder",
     pluginVersion: QODER_PLUGIN_VERSION,
     minProtocolVersion: 1,
     async isPluginSupported(ctx) {

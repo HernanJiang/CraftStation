@@ -110,7 +110,7 @@ describe("WindowsJobObjectManager", () => {
       expect.arrayContaining(["-EncodedCommand"]),
       expect.objectContaining({
         env: expect.objectContaining({
-          PORACODE_PARENT_PID: String(process.pid),
+          CRAFTSTATION_PARENT_PID: String(process.pid),
         }),
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,

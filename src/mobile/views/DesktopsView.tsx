@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Input, Label, Tabs, TextArea, TextField, toast } from "@heroui/react";
-import type { SshBridgeAuthentication } from "@poracode/ssh-bridge";
+import type { SshBridgeAuthentication } from "@craftstation/ssh-bridge";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import {
   Check,
@@ -246,7 +246,7 @@ function SshPairingForm(props: {
     <div className="m-form">
       <p className="m-card__hint">
         <Trans>
-          Poracode will install or reuse its server on the SSH host and keep credentials in this
+          CraftStation will install or reuse its server on the SSH host and keep credentials in this
           device's secure storage.
         </Trans>
       </p>
@@ -448,8 +448,8 @@ export function DesktopsView(props: DesktopsViewProps) {
     <div className="m-form">
       <p className="m-card__hint">
         <Trans>
-          Open Settings → Remote Access in Poracode on your desktop, then scan the QR code from here
-          — or enter the endpoint and pairing token manually.
+          Open Settings → Remote Access in CraftStation on your desktop, then scan the QR code from
+          here — or enter the endpoint and pairing token manually.
         </Trans>
       </p>
       {showPairingHint ? (

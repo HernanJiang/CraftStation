@@ -4,7 +4,7 @@
   --font-sans: var(--font-geist-sans), "Inter", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Poracode brand palette — moonlight + ink + one cool accent.
+  /* CraftStation brand palette — moonlight + ink + one cool accent.
      See branding/BRAND.md §6. No orange, ever. */
   --color-night: #070709; /* page / canvas */
   --color-tile: #0e0e14; /* panels, raised surfaces */

@@ -60,7 +60,7 @@ describe("ACP registry installs", () => {
   });
 
   it("installs Factory Droid with direct ACP mode", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     const registry: AcpRegistryListResult = {
       version: "1.0.0",
@@ -94,7 +94,7 @@ describe("ACP registry installs", () => {
   });
 
   it("installs known ACP wrappers as generic ACP instances", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     const registry: AcpRegistryListResult = {
       version: "1.0.0",
@@ -165,7 +165,7 @@ describe("ACP registry installs", () => {
   it.runIf(process.platform === "win32")(
     "passes Windows binary archive paths to PowerShell through the child environment",
     async () => {
-      const dir = mkdtempSync(join(tmpdir(), "poracode acp registry-"));
+      const dir = mkdtempSync(join(tmpdir(), "craftstation acp registry-"));
       const settingsPath = join(dir, "settings.json");
       const registry: AcpRegistryListResult = {
         version: "1.0.0",
@@ -206,19 +206,19 @@ describe("ACP registry installs", () => {
           "-NoLogo",
           "-NoProfile",
           "-Command",
-          "Expand-Archive -LiteralPath $env:PORACODE_ACP_ARCHIVE_PATH -DestinationPath $env:PORACODE_ACP_INSTALL_DIR -Force",
+          "Expand-Archive -LiteralPath $env:CRAFTSTATION_ACP_ARCHIVE_PATH -DestinationPath $env:CRAFTSTATION_ACP_INSTALL_DIR -Force",
         ]);
         expect(options).toMatchObject({
           windowsHide: true,
           env: {
-            PORACODE_ACP_ARCHIVE_PATH: join(
+            CRAFTSTATION_ACP_ARCHIVE_PATH: join(
               dir,
               "acp-registry",
               "binary-agent",
               "1.0.0",
               "agent.zip",
             ),
-            PORACODE_ACP_INSTALL_DIR: join(dir, "acp-registry", "binary-agent", "1.0.0", "bin"),
+            CRAFTSTATION_ACP_INSTALL_DIR: join(dir, "acp-registry", "binary-agent", "1.0.0", "bin"),
           },
         });
       } finally {
@@ -228,7 +228,7 @@ describe("ACP registry installs", () => {
   );
 
   it("backfills registry icons into existing generic installs and caches them locally", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     const iconsDir = join(dir, "acp-icons");
     writeFileSync(
@@ -295,7 +295,7 @@ describe("ACP registry installs", () => {
 
       const installedIcon = settings.acpRegistryInstalledAgents["glm-acp-agent"]?.icon;
       const instanceIcon = settings.agentInstances["glm-acp-agent"]?.icon;
-      expect(installedIcon).toMatch(/^poracode-local:\/\//);
+      expect(installedIcon).toMatch(/^craftstation-local:\/\//);
       expect(installedIcon).toContain("glm-acp-agent.svg");
       expect(instanceIcon).toBe(installedIcon);
 
@@ -310,7 +310,7 @@ describe("ACP registry installs", () => {
   });
 
   it("localizes remote acp-generic icons at launch without a registry fetch", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     const iconsDir = join(dir, "acp-icons");
     const remoteIcon = "https://cdn.agentclientprotocol.com/registry/v1/latest/glm-acp-agent.svg";
@@ -364,7 +364,7 @@ describe("ACP registry installs", () => {
       };
       const installedIcon = settings.acpRegistryInstalledAgents["glm-acp-agent"]?.icon;
       const instanceIcon = settings.agentInstances["glm-acp-agent"]?.icon;
-      expect(installedIcon).toMatch(/^poracode-local:\/\//);
+      expect(installedIcon).toMatch(/^craftstation-local:\/\//);
       expect(installedIcon).toContain("glm-acp-agent.svg");
       expect(instanceIcon).toBe(installedIcon);
       // Only the icon SVG is fetched — never the registry JSON.
@@ -382,7 +382,7 @@ describe("ACP registry installs", () => {
   });
 
   it("stores ACP registry auth env vars on the installed generic instance", () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     writeFileSync(
       settingsPath,
@@ -436,7 +436,7 @@ describe("ACP registry installs", () => {
   });
 
   it("keeps registered adapters when one stored secret can no longer be decrypted", () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     writeFileSync(
       settingsPath,
@@ -459,7 +459,7 @@ describe("ACP registry installs", () => {
                 sensitive: true,
               },
             },
-            config: { configDir: "~/.poracode/claude-profiles/z-ai" },
+            config: { configDir: "~/.craftstation/claude-profiles/z-ai" },
           },
         },
       }),
@@ -481,7 +481,7 @@ describe("ACP registry installs", () => {
   });
 
   it("updates an installed ACP agent to a new registry version while preserving credentials", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     const initialRegistry: AcpRegistryListResult = {
       version: "1.0.0",
@@ -549,7 +549,7 @@ describe("ACP registry installs", () => {
   });
 
   it("rejects updates for agents that are not installed", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     await expect(
       updateAcpRegistryAgent({
@@ -562,7 +562,7 @@ describe("ACP registry installs", () => {
   });
 
   it("auto-updates installed agents whose registry version differs", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     writeFileSync(
       settingsPath,
@@ -626,7 +626,7 @@ describe("ACP registry installs", () => {
   });
 
   it("auto-update skips installs that are already current", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     writeFileSync(
       settingsPath,
@@ -683,7 +683,7 @@ describe("ACP registry installs", () => {
   });
 
   it("repairs an already-current Factory Droid daemon command", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-acp-registry-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-acp-registry-"));
     const settingsPath = join(dir, "settings.json");
     writeFileSync(
       settingsPath,

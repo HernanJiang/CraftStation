@@ -1,20 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type {
   AgentKind,
   Project,
   ProjectLocation,
   RemoteThreadCommand,
-  StartThreadPayload,
   Thread,
   ThreadRuntimeSnapshot,
   ThreadStatus,
 } from "@/shared/contracts";
-import {
-  agentKindSchema,
-  DEFAULT_TERMINAL_SIZE,
-  resolveMcpLaunchSnapshot,
-} from "@/shared/contracts";
-import { isUnknownThreadSessionError } from "@/shared/threadRelaunch";
+import { agentKindSchema } from "@/shared/contracts";
 import { buildWorktreeLocation, normalizeWorktreePathForComparison } from "@/shared/worktree";
 import { dbGetThreadRuntimeItemsPage } from "../../../db";
 import {
@@ -78,6 +73,28 @@ const sendArgsSchema = z.object({
   message: z.string().trim().min(1).max(50_000),
   interruptFirst: z.boolean().optional(),
 });
+const askThreadArgsSchema = z.object({
+  threadId: z.string().min(1),
+  request: z.string().trim().min(1).max(50_000),
+  deliveryMode: z.enum(["after-current-turn", "interrupt-and-send"]).default("after-current-turn"),
+  idempotencyKey: z.string().min(1).max(200).optional(),
+  context: z
+    .object({
+      selectedMessages: z.array(z.string()).max(20).optional(),
+      summary: z.string().optional(),
+      state: z.string().optional(),
+      recentCompletedTurns: z.array(z.string()).max(8).optional(),
+    })
+    .optional(),
+  causalParentExchangeId: z.string().min(1).optional(),
+  hopDepth: z.number().int().min(0).max(4).default(0),
+});
+const exchangeIdArgsSchema = z.object({ exchangeId: z.string().min(1) });
+const waitExchangeArgsSchema = z.object({
+  exchangeId: z.string().min(1),
+  afterUpdatedAt: z.string().min(1).optional(),
+  timeoutSeconds: z.number().int().min(0).max(120).default(30),
+});
 const waitArgsSchema = z.object({
   threadIds: z.array(z.string().min(1)).min(1).max(8),
   timeoutSeconds: z.number().int().min(1).max(WAIT_MAX_SECONDS).optional(),
@@ -110,7 +127,7 @@ export const threadTools: ToolDomain = {
     {
       name: "get_current_thread",
       description:
-        "Identify the Poracode thread making this MCP call. Returns its threadId, project, presentation mode, status, and worktreePath/branch when it uses a separate worktree; an absent worktreePath means the project's main checkout. Call this before work that depends on 'this thread' or 'this worktree'; do not ask the user to provide an id. Takes no arguments.",
+        "Identify the CraftStation thread making this MCP call. Returns its threadId, project, presentation mode, status, and worktreePath/branch when it uses a separate worktree; an absent worktreePath means the project's main checkout. Call this before work that depends on 'this thread' or 'this worktree'; do not ask the user to provide an id. Takes no arguments.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -182,7 +199,7 @@ export const threadTools: ToolDomain = {
     {
       name: "send_to_thread",
       description:
-        "Send a message to another thread. If the thread has no live session (it was stopped, unloaded, or the app restarted), it is resumed from its persisted config and session reference and the message is delivered as the first input of the resumed session. A thread with no resumable session cannot receive messages — use create_thread instead. Set interruptFirst to interrupt a working turn before sending (ignored when resuming, since nothing is running).",
+        "Compatibility send to another long-lived app thread through the durable collaboration queue. A busy target waits until its current turn finishes; it is never steered. Set interruptFirst only for an explicit interrupt-and-send handshake.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -191,6 +208,60 @@ export const threadTools: ToolDomain = {
           threadId: threadIdProp,
           message: { type: "string", minLength: 1, maxLength: 50000 },
           interruptFirst: { type: "boolean" },
+        },
+      },
+    },
+    {
+      name: "ask_thread",
+      description:
+        "Ask another same-project long-lived thread and receive a durable exchange id. Busy targets queue after their current turn by default. Context is empty unless explicitly supplied and is redacted/budgeted. Use read_thread_exchange or wait_for_thread_reply for the exact correlated reply.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["threadId", "request"],
+        properties: {
+          threadId: threadIdProp,
+          request: { type: "string", minLength: 1, maxLength: 50000 },
+          deliveryMode: { enum: ["after-current-turn", "interrupt-and-send"] },
+          idempotencyKey: { type: "string", minLength: 1, maxLength: 200 },
+          context: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              selectedMessages: { type: "array", maxItems: 20, items: { type: "string" } },
+              summary: { type: "string" },
+              state: { type: "string" },
+              recentCompletedTurns: { type: "array", maxItems: 8, items: { type: "string" } },
+            },
+          },
+          causalParentExchangeId: { type: "string", minLength: 1 },
+          hopDepth: { type: "integer", minimum: 0, maximum: 4 },
+        },
+      },
+    },
+    {
+      name: "read_thread_exchange",
+      description:
+        "Read one durable cross-thread exchange by id. Only either participant can read it. Reply content comes from the matching completed-turn anchor, never the target's latest message.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["exchangeId"],
+        properties: { exchangeId: { type: "string", minLength: 1 } },
+      },
+    },
+    {
+      name: "wait_for_thread_reply",
+      description:
+        "Wait for one exact exchange to change or reach replied/failed/cancelled. afterUpdatedAt suppresses an already-seen state. This never guesses from the target's latest message.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["exchangeId"],
+        properties: {
+          exchangeId: { type: "string", minLength: 1 },
+          afterUpdatedAt: { type: "string", minLength: 1 },
+          timeoutSeconds: { type: "integer", minimum: 0, maximum: 120 },
         },
       },
     },
@@ -241,7 +312,7 @@ export const threadTools: ToolDomain = {
     },
     {
       name: "open_thread",
-      description: "Open and focus a thread in the Poracode UI for the user.",
+      description: "Open and focus a thread in the CraftStation UI for the user.",
       inputSchema: threadIdJsonSchema(),
     },
     {
@@ -315,7 +386,7 @@ export const threadTools: ToolDomain = {
       if (!threadId) {
         return {
           threadId: null,
-          note: "This MCP request is not associated with a Poracode thread.",
+          note: "This MCP request is not associated with a CraftStation thread.",
         };
       }
       const thread = requireThread(ctx, threadId);
@@ -409,42 +480,77 @@ export const threadTools: ToolDomain = {
     },
     send_to_thread: async (args, ctx) => {
       const { threadId, message, interruptFirst } = sendArgsSchema.parse(args);
-      const thread = requireThread(ctx, threadId);
-      if (interruptFirst) assertNotSelf(ctx, threadId, "interrupt");
-      // Fast path: the thread has a live runtime session, so deliver directly.
-      // If the session is gone (stopped/unloaded/supervisor restart) the
-      // supervisor throws `Unknown thread session`; fall through to resume.
-      try {
-        if (interruptFirst) await ctx.supervisor.interruptThread({ threadId });
-        await ctx.supervisor.sendThreadInput({ threadId, prompt: message, config: thread.config });
-        return { threadId, delivered: true, interruptedFirst: interruptFirst === true };
-      } catch (error) {
-        if (!isUnknownThreadSessionError(error)) throw error;
-      }
-      // No live session — resume the thread the same way the app revives an
-      // inactive thread (startThread with the persisted config + sessionRef),
-      // delivering the message as the resumed session's first input.
-      if (!thread.sessionRef && !thread.canResumeWithConfig) {
-        throw new Error(
-          `Thread ${threadId} has no live or resumable session, so it cannot receive a message. ` +
-            "Use create_thread to start a new thread instead.",
-        );
-      }
-      await ctx.supervisor.startThread(buildResumeStartPayload(ctx, thread, message));
-      return { threadId, delivered: true, resumed: true, interruptedFirst: false };
+      const sourceThreadId = requireCallerThreadId(ctx);
+      const targetBeforeDelivery = ctx.threadControl.snapshot(threadId);
+      const exchange = await ctx.threadCollaboration.requestDialogue({
+        actorThreadId: sourceThreadId,
+        request: {
+          sourceThreadId,
+          targetThreadId: threadId,
+          request: message,
+          deliveryMode: interruptFirst ? "interrupt-and-send" : "after-current-turn",
+          idempotencyKey: `legacy-send-${randomUUID()}`,
+          hopDepth: 0,
+        },
+      });
+      return {
+        threadId,
+        exchangeId: exchange.id,
+        status: exchange.status,
+        delivered: ["delivered", "target_working", "needs_attention", "replied"].includes(
+          exchange.status,
+        ),
+        ...(exchange.deliveredAt && targetBeforeDelivery.status === "inactive"
+          ? { resumed: true }
+          : {}),
+        interruptedFirst: interruptFirst === true,
+      };
+    },
+    ask_thread: async (args, ctx) => {
+      const parsed = askThreadArgsSchema.parse(args);
+      const sourceThreadId = requireCallerThreadId(ctx);
+      const exchange = await ctx.threadCollaboration.requestDialogue({
+        actorThreadId: sourceThreadId,
+        request: {
+          sourceThreadId,
+          targetThreadId: parsed.threadId,
+          request: parsed.request,
+          deliveryMode: parsed.deliveryMode,
+          idempotencyKey: parsed.idempotencyKey ?? `ask-thread-${randomUUID()}`,
+          ...(parsed.context ? { context: parsed.context } : {}),
+          ...(parsed.causalParentExchangeId
+            ? { causalParentExchangeId: parsed.causalParentExchangeId }
+            : {}),
+          hopDepth: parsed.hopDepth,
+        },
+      });
+      return exchange;
+    },
+    read_thread_exchange: (args, ctx) => {
+      const { exchangeId } = exchangeIdArgsSchema.parse(args);
+      return ctx.threadCollaboration.readExchange(requireCallerThreadId(ctx), exchangeId);
+    },
+    wait_for_thread_reply: async (args, ctx) => {
+      const parsed = waitExchangeArgsSchema.parse(args);
+      return ctx.threadCollaboration.waitForExchange(
+        requireCallerThreadId(ctx),
+        parsed.exchangeId,
+        parsed.afterUpdatedAt,
+        parsed.timeoutSeconds * 1_000,
+      );
     },
     interrupt_thread: async (args, ctx) => {
       const { threadId } = threadIdArgsSchema.parse(args);
       requireThread(ctx, threadId);
       assertNotSelf(ctx, threadId, "interrupt");
-      await ctx.supervisor.interruptThread({ threadId });
+      await ctx.threadControl.interrupt(threadId);
       return { threadId, interrupted: true };
     },
     stop_thread: async (args, ctx) => {
       const { threadId } = threadIdArgsSchema.parse(args);
       requireThread(ctx, threadId);
       assertNotSelf(ctx, threadId, "stop");
-      await ctx.supervisor.closeThread({ threadId });
+      await ctx.threadControl.stop(threadId);
       return { threadId, stopped: true };
     },
     wait_for_thread: async (args, ctx) => {
@@ -531,7 +637,7 @@ export const threadTools: ToolDomain = {
       return {
         threadId: parsed.threadId,
         applied,
-        note: "No Poracode UI is connected; the update was applied directly to the stored thread row.",
+        note: "No CraftStation UI is connected; the update was applied directly to the stored thread row.",
       };
     },
     open_thread: (args, ctx) => {
@@ -541,7 +647,7 @@ export const threadTools: ToolDomain = {
       return {
         threadId,
         opened: false,
-        note: "No Poracode UI is connected, so the thread could not be opened.",
+        note: "No CraftStation UI is connected, so the thread could not be opened.",
       };
     },
     list_terminals: async (_args, ctx) => {
@@ -616,39 +722,12 @@ export const threadTools: ToolDomain = {
   },
 };
 
-/**
- * Build the `startThread` payload that resumes an inactive thread, mirroring the
- * app's own resume path (`performInitialThreadLaunch` / `createAppThread`): the
- * persisted config + sessionRef are reused and the message becomes the resumed
- * session's first prompt. The MCP launch snapshot is re-resolved from current
- * settings + the project's overrides, exactly like a fresh launch.
- */
-function buildResumeStartPayload(
-  ctx: AppControlsToolContext,
-  thread: Thread,
-  prompt: string,
-): StartThreadPayload {
-  const project = ctx.getProject(thread.projectId);
-  if (!project) {
-    throw new Error(
-      `Cannot resume thread ${thread.id}: its project ${thread.projectId} no longer exists.`,
-    );
+function requireCallerThreadId(ctx: AppControlsToolContext): string {
+  const threadId = ctx.identity.threadId;
+  if (!threadId) {
+    throw new Error("This MCP request is not associated with a CraftStation thread.");
   }
-  const projectLocation = thread.worktreePath
-    ? buildWorktreeLocation(project.location, thread.worktreePath)
-    : project.location;
-  return {
-    threadId: thread.id,
-    projectLocation,
-    agentKind: thread.agentKind,
-    ...(thread.agentInstanceId ? { agentInstanceId: thread.agentInstanceId } : {}),
-    config: thread.config,
-    prompt,
-    initialSize: DEFAULT_TERMINAL_SIZE,
-    ...(thread.sessionRef ? { sessionRef: thread.sessionRef } : {}),
-    ...(thread.presentationMode ? { presentationMode: thread.presentationMode } : {}),
-    ...resolveMcpLaunchSnapshot(ctx.settings.read(), project.mcpServers ?? []),
-  };
+  return threadId;
 }
 
 /** Fetch the live runtime snapshots and index them by thread id. */
@@ -796,7 +875,7 @@ function sameProjectLocation(left: ProjectLocation, right: ProjectLocation): boo
 function currentThread(ctx: AppControlsToolContext): Thread {
   const threadId = ctx.identity.threadId;
   if (!threadId) {
-    throw new Error("This MCP request is not associated with a Poracode thread.");
+    throw new Error("This MCP request is not associated with a CraftStation thread.");
   }
   return requireThread(ctx, threadId);
 }

@@ -67,7 +67,7 @@ describe("ProjectIcon", () => {
     const { container } = render(<ProjectIcon project={projectWith("file:public/favicon.png")} />);
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
-    expect(img!.getAttribute("src")).toContain("poracode-local://");
+    expect(img!.getAttribute("src")).toContain("craftstation-local://");
     expect(img!.getAttribute("src")).toContain("public/favicon.png");
   });
 

@@ -12,7 +12,7 @@ export function DevSettings() {
   return (
     <SettingsPage
       title={t`Dev`}
-      description={t`Development-only overrides. Only visible in the PORACODE DEV build.`}
+      description={t`Development-only overrides. Only visible in the CRAFTSTATION DEV build.`}
     >
       <SettingRow
         anchorId="dev.disableCliHookPlugin"

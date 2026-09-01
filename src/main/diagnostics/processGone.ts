@@ -44,6 +44,6 @@ export function classifyRendererProcessGone(
 
   return {
     bucket,
-    fingerprint: ["poracode-renderer-process-gone", platform, bucket],
+    fingerprint: ["craftstation-renderer-process-gone", platform, bucket],
   };
 }

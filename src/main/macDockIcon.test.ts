@@ -32,7 +32,7 @@ describeMac("refreshMacDockIcon", () => {
   });
 
   it("sets the packaged macOS Dock icon from app resources", () => {
-    refreshMacDockIcon("darwin", "/Applications/Poracode.app/Contents/Resources");
+    refreshMacDockIcon("darwin", "/Applications/CraftStation.app/Contents/Resources");
 
     expect(electronMock.createFromPath).toHaveBeenCalledWith(
       expect.stringMatching(/[\\/]app-icon\.png$/u),

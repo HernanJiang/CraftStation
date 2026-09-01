@@ -936,14 +936,14 @@ describe("ACP resource path helpers", () => {
 
 describe("ACP client protocol helpers", () => {
   beforeEach(() => {
-    delete process.env.PORACODE_BROWSER_MCP_URL;
-    delete process.env.PORACODE_BROWSER_MCP_TOKEN;
+    delete process.env.CRAFTSTATION_BROWSER_MCP_URL;
+    delete process.env.CRAFTSTATION_BROWSER_MCP_TOKEN;
   });
 
   const HOST_KIND: "windows" | "posix" = process.platform === "win32" ? "windows" : "posix";
 
   function makePosixProject() {
-    const root = mkdtempSync(join(tmpdir(), "poracode-acp-"));
+    const root = mkdtempSync(join(tmpdir(), "craftstation-acp-"));
     tempDirs.push(root);
     return root;
   }
@@ -1012,7 +1012,7 @@ describe("ACP client protocol helpers", () => {
 
   it("falls back to the user-global skill when the project copy is missing", async () => {
     const projectRoot = makePosixProject();
-    const folder = `poracode-acp-skill-fallback-${Date.now()}`;
+    const folder = `craftstation-acp-skill-fallback-${Date.now()}`;
     const globalDir = join(homedir(), ".agents", "skills", folder);
     mkdirSync(globalDir, { recursive: true });
     writeFileSync(join(globalDir, "SKILL.md"), "global-body", "utf8");
@@ -1047,7 +1047,7 @@ describe("ACP client protocol helpers", () => {
   it("withholds the fs text capabilities when the adapter opts out", async () => {
     // Providers that proxy their own internal state files through the client and
     // then mis-classify the JSON-RPC errors it returns opt out; they fall back
-    // to their local filesystem, which Poracode shares.
+    // to their local filesystem, which CraftStation shares.
     const { connection, session } = makeConfigSyncSession({ fsTextCapability: false });
     await (session as unknown as { activate(): Promise<void> }).activate();
     expect(connection.initialize.mock.calls[0]?.[0]).toMatchObject({
@@ -2305,7 +2305,7 @@ describe("ACP turn config sync", () => {
       update: {
         sessionUpdate: "agent_message_chunk",
         content: { type: "text", text: "The detached child completed." },
-        _meta: { poracodeParentToolCallId: "detached-agent" },
+        _meta: { craftstationParentToolCallId: "detached-agent" },
       },
     });
 
@@ -2334,7 +2334,7 @@ describe("ACP turn config sync", () => {
           description: "Inspect mapping",
           background: true,
         },
-        _meta: { poracodeDetachedSubAgentActivity: "detached-agent" },
+        _meta: { craftstationDetachedSubAgentActivity: "detached-agent" },
       },
     });
 
@@ -2388,7 +2388,7 @@ describe("ACP turn config sync", () => {
           toolCallId,
           status: "completed",
           rawInput: { _toolName: "task", subagent_type: "Explore", background: true },
-          _meta: { poracodeDetachedSubAgentActivity: toolCallId },
+          _meta: { craftstationDetachedSubAgentActivity: toolCallId },
         },
       });
     }
@@ -2429,8 +2429,8 @@ describe("ACP turn config sync", () => {
           sessionUpdate: "agent_message_chunk",
           content: { type: "text", text: `${toolCallId} reporting` },
           _meta: {
-            poracodeNewAssistantItem: true,
-            poracodeDetachedSubAgentActivity: toolCallId,
+            craftstationNewAssistantItem: true,
+            craftstationDetachedSubAgentActivity: toolCallId,
           },
         },
       });
@@ -2453,7 +2453,7 @@ describe("ACP turn config sync", () => {
         toolCallId: "detached-a",
         status: "completed",
         rawInput: { _toolName: "task", subagent_type: "Explore", background: true },
-        _meta: { poracodeDetachedSubAgentActivity: "detached-a" },
+        _meta: { craftstationDetachedSubAgentActivity: "detached-a" },
       },
     });
     expect(listener.onRuntimeEvent).not.toHaveBeenCalledWith(
@@ -2467,7 +2467,7 @@ describe("ACP turn config sync", () => {
         toolCallId: "detached-b",
         status: "completed",
         rawInput: { _toolName: "task", subagent_type: "Explore", background: true },
-        _meta: { poracodeDetachedSubAgentActivity: "detached-b" },
+        _meta: { craftstationDetachedSubAgentActivity: "detached-b" },
       },
     });
     expect(listener.onRuntimeEvent).toHaveBeenCalledWith(

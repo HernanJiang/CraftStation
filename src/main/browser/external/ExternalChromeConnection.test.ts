@@ -65,7 +65,7 @@ describe("ExternalChromeConnection", () => {
     const { conn, ws } = makeConn();
     const promise = conn.sendCdp("Runtime.evaluate", { expression: "1" });
 
-    // First frame opens a background Poracode-group tab (no focus steal).
+    // First frame opens a background CraftStation-group tab (no focus steal).
     const openReq = ws.last();
     expect(openReq.type).toBe("openTab");
     ws.inbound({

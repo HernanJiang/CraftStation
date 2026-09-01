@@ -198,7 +198,7 @@ export const gitCommitPayloadSchema = z.object({
   message: z.string().min(1),
   addAll: z.boolean().default(false),
   /**
-   * Poracode pull stash to re-apply (and drop) after the commit succeeds. Used
+   * CraftStation pull stash to re-apply (and drop) after the commit succeeds. Used
    * when the commit completes a conflicted pull-from-source merge.
    */
   reapplyStashCommit: fullCommitOidSchema.optional(),
@@ -588,7 +588,7 @@ export interface GitPullFromSourceResult {
 
 export const gitAbortMergePayloadSchema = z.object({
   worktreeLocation: projectLocationSchema,
-  /** Poracode pull stash to re-apply (and drop) after the merge is aborted. */
+  /** CraftStation pull stash to re-apply (and drop) after the merge is aborted. */
   reapplyStashCommit: fullCommitOidSchema.optional(),
 });
 export type GitAbortMergePayload = z.infer<typeof gitAbortMergePayloadSchema>;
@@ -602,7 +602,7 @@ export interface GitAbortMergeResult {
 
 export const gitFinishMergePayloadSchema = z.object({
   worktreeLocation: projectLocationSchema,
-  /** Poracode pull stash to re-apply (and drop) after the merge commit succeeds. */
+  /** CraftStation pull stash to re-apply (and drop) after the merge commit succeeds. */
   reapplyStashCommit: fullCommitOidSchema.optional(),
 });
 export type GitFinishMergePayload = z.infer<typeof gitFinishMergePayloadSchema>;

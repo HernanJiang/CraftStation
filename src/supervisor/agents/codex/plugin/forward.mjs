@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Codex CLI lifecycle hook forwarder for Poracode.
+ * Codex CLI lifecycle hook forwarder for CraftStation.
  *
  * Invoked by Codex with:
  *   argv[2] = hook event name (e.g. "SessionStart", "Stop")
@@ -8,10 +8,10 @@
  *
  * Stop: Codex requires JSON on stdout when exit code is 0 — always emit `{}`.
  *
- * Generic plumbing lives in the shared `poracode-hook-runtime.mjs` sibling.
+ * Generic plumbing lives in the shared `craftstation-hook-runtime.mjs` sibling.
  */
 
-import { readPluginVersionFromManifest, runForwarder } from "./poracode-hook-runtime.mjs";
+import { readPluginVersionFromManifest, runForwarder } from "./craftstation-hook-runtime.mjs";
 
 const PLUGIN_VERSION = readPluginVersionFromManifest(import.meta.url);
 

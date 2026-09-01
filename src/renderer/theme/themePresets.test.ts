@@ -81,11 +81,11 @@ describe("theme presets", () => {
   });
 
   it("maps the pre-rebrand legacy theme id to the current preset", () => {
-    expect(getThemePreset("lightcode-legacy").id).toBe("poracode-legacy");
+    expect(getThemePreset("craftstation-legacy").id).toBe("craftstation-legacy");
   });
 
   // Guards the core fix: muted secondary text and the foreground must stay
-  // readable in every theme/variant, matching the base Poracode contrast.
+  // readable in every theme/variant, matching the base CraftStation contrast.
   it("keeps muted and foreground text above the contrast floor", () => {
     const failures: string[] = [];
     for (const preset of APP_THEME_PRESETS) {
@@ -165,7 +165,7 @@ describe("theme presets", () => {
         // --content-background (where these controls render) toward black by a fixed
         // fraction — foreground-independent, so it lands at a uniform contrast across
         // presets instead of over-darkening themes with a dark foreground (the
-        // toward-fg approach made Poracode light read heavy). Measured against
+        // toward-fg approach made CraftStation light read heavy). Measured against
         // --content-background. In dark we keep HeroUI's stock --default fill: it
         // sits quieter on the panel (below UI_FILL_FLOOR for a couple of dark
         // presets) but reads as intended, so the floor is enforced light only.

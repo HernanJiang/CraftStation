@@ -41,8 +41,8 @@ export const ImageCard = memo(function ImageCard({
 
   return (
     <span
-      className={`poracode-image-card relative self-start ${isBlock ? "flex w-fit" : "inline-flex"} max-w-full overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[var(--composer-surface)]${className ? ` ${className}` : ""}`}
-      data-poracode-image-card="true"
+      className={`craftstation-image-card relative self-start ${isBlock ? "flex w-fit" : "inline-flex"} max-w-full overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[var(--composer-surface)]${className ? ` ${className}` : ""}`}
+      data-craftstation-image-card="true"
     >
       <button
         type="button"
@@ -74,7 +74,7 @@ export const ImageCard = memo(function ImageCard({
           className={`${chatInlineImageClass} relative${fadesIn ? ` transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}` : ""}${imageClassName ? ` ${imageClassName}` : ""}`}
         />
       </button>
-      <span className="poracode-image-action-toolbar absolute right-1.5 top-1.5 flex items-center gap-0.5 rounded-lg bg-black/50 p-0.5 backdrop-blur-sm transition-opacity duration-150">
+      <span className="craftstation-image-action-toolbar absolute right-1.5 top-1.5 flex items-center gap-0.5 rounded-lg bg-black/50 p-0.5 backdrop-blur-sm transition-opacity duration-150">
         <CopyImageButton source={source} />
         <DownloadImageButton src={source.src} fileName={source.fileName} />
         <IconButton label={t`Open preview`} onClick={openPreview}>
@@ -157,7 +157,7 @@ function IconButton({
 }
 
 async function fetchImageBytes(src: string): Promise<Uint8Array<ArrayBuffer>> {
-  if (/^(?:poracode|lightcode)-local:\/\//.test(src)) {
+  if (/^(?:craftstation|craftstation)-local:\/\//.test(src)) {
     return new Uint8Array(await readBridge().readLocalImageFile({ url: src }));
   }
   const response = await fetch(src);

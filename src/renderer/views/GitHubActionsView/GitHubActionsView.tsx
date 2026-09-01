@@ -265,7 +265,7 @@ export function GitHubActionsView(props: {
       <PageLayout
         title={t`GitHub Actions`}
         sidebarHeaderChildren={
-          <div className="poracode-overlay-header__controls flex items-center">
+          <div className="craftstation-overlay-header__controls flex items-center">
             <Tooltip delay={150}>
               <Tooltip.Trigger>
                 <Button

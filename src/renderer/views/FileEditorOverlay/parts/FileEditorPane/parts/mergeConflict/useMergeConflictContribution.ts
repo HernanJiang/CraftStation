@@ -7,9 +7,9 @@ import { applyConflictAction, type ConflictAction } from "./actions";
 import { registerMergeConflictCodeLens } from "./codeLensProvider";
 
 const COMMAND_IDS = {
-  acceptCurrent: "poracode.mergeConflict.acceptCurrent",
-  acceptIncoming: "poracode.mergeConflict.acceptIncoming",
-  acceptBoth: "poracode.mergeConflict.acceptBoth",
+  acceptCurrent: "craftstation.mergeConflict.acceptCurrent",
+  acceptIncoming: "craftstation.mergeConflict.acceptIncoming",
+  acceptBoth: "craftstation.mergeConflict.acceptBoth",
 } as const;
 
 // Module-level registries: Monaco's code-lens provider and registerCommand are global, so the

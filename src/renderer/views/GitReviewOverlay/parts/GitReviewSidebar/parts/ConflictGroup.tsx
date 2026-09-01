@@ -14,7 +14,7 @@ import { ConflictFileCard } from "./ConflictFileCard";
 import { reconcileStagingStatus } from "./reconcileStagingStatus";
 import { VirtualizedFileRows } from "./VirtualizedFileRows";
 
-const COMPOSER_FILE_DRAG_TYPE = "application/poracode-composer-file";
+const COMPOSER_FILE_DRAG_TYPE = "application/craftstation-composer-file";
 
 export function ConflictGroup(props: {
   files: GitFileChange[];

@@ -1,10 +1,10 @@
-# Poracode Mobile — review, competitive comparison & roadmap
+# CraftStation Mobile — review, competitive comparison & roadmap
 
-A review of the Poracode mobile PWA (`src/mobile/`), how it stacks up against
+A review of the CraftStation mobile PWA (`src/mobile/`), how it stacks up against
 the comparable mobile apps from Claude and Codex, the gaps that were closed on
 this branch, and a prioritized backlog for the rest.
 
-## What Poracode mobile is
+## What CraftStation mobile is
 
 A PWA that **pairs to a desktop** over an embedded HTTP + WebSocket server and
 acts as a remote control for the agents running there. It reuses the desktop
@@ -23,13 +23,13 @@ This is the **same product category** as:
   remote-control apps for the same desktop agents, via a cloud relay.
 
 So the right bar isn't "a chatbot app"; it's "a remote control for a desktop
-coding agent." Poracode already matches that shape and goes _further_ on some
+coding agent." CraftStation already matches that shape and goes _further_ on some
 axes (git/PR review, live browser mirroring, multi-desktop) while trailing on a
 few table-stakes mobile niceties.
 
 ## Feature comparison
 
-| Capability                                       | Poracode (before)        | Poracode (this branch)                           | Codex (ChatGPT) | Claude Code mobile |
+| Capability                                       | CraftStation (before)    | CraftStation (this branch)                       | Codex (ChatGPT) | Claude Code mobile |
 | ------------------------------------------------ | ------------------------ | ------------------------------------------------ | --------------- | ------------------ |
 | Pair / connect to desktop agent                  | ✅ QR + manual           | ✅ + **in-app camera scanner**                   | ✅ (account)    | ✅ (account)       |
 | Thread/task list                                 | ✅                       | ✅ + **loading skeletons**                       | ✅              | ✅                 |
@@ -85,7 +85,7 @@ Productionization:
 ## Top remaining gap: push notifications
 
 Both Codex and Claude Code mobile alert you when a turn **completes** or **needs
-input**. Poracode has none — you must keep the app foregrounded. This is the
+input**. CraftStation has none — you must keep the app foregrounded. This is the
 single highest-value next feature and the desktop already emits the needed
 signals.
 

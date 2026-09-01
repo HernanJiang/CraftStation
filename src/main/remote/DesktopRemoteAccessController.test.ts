@@ -220,8 +220,8 @@ function createController(
     appVersion: "9.9.9-test",
     channel,
     paths: {
-      baseDir: "/tmp/poracode-controller-test",
-      settingsPath: "/tmp/poracode-controller-test/settings.json",
+      baseDir: "/tmp/craftstation-controller-test",
+      settingsPath: "/tmp/craftstation-controller-test/settings.json",
     },
     ...(devServerUrl ? { devServerUrl } : {}),
     callSupervisor,
@@ -240,6 +240,7 @@ function createController(
     scheduleService: {} as never,
     prWatchService: {} as never,
     gitStateService: { refreshInterests: h.refreshGitInterests } as never,
+    getThreadCollaborationService: () => null,
     updates: {
       currentVersion: () => "9.9.9-test",
       status: () => null,
@@ -286,7 +287,7 @@ describe("DesktopRemoteAccessController", () => {
     h.disableTailscaleServe.mockResolvedValue();
     h.launchTailscaleApp.mockResolvedValue({ ok: true });
     h.resolveRemoteAccessPort.mockResolvedValue(38987);
-    delete process.env.PORACODE_REMOTE_ACCESS_ADVERTISED_HOST;
+    delete process.env.CRAFTSTATION_REMOTE_ACCESS_ADVERTISED_HOST;
     logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -296,17 +297,17 @@ describe("DesktopRemoteAccessController", () => {
     logSpy.mockRestore();
     warnSpy.mockRestore();
     errorSpy.mockRestore();
-    delete process.env.PORACODE_REMOTE_ACCESS_ADVERTISED_HOST;
+    delete process.env.CRAFTSTATION_REMOTE_ACCESS_ADVERTISED_HOST;
   });
 
   it("uses the hosted pairing app in production and the local mobile app in development", async () => {
     const production = createController();
     await production.setEnabled(true);
 
-    expect(h.servers[0]?.options.pairingAppUrl).toBe("https://poracode.com");
+    expect(h.servers[0]?.options.pairingAppUrl).toBe("https://craftstation.com");
     expect(h.servers[0]?.options.trustedCorsOrigins).toEqual([
-      "https://app.poracode.com",
-      "https://app-nightly.poracode.com",
+      "https://app.craftstation.com",
+      "https://app-nightly.craftstation.com",
     ]);
     expect(h.servers[0]?.options.devMobileAppUrl).toBeUndefined();
     expect(h.servers[0]?.options.isDev).toBe(false);
@@ -324,10 +325,10 @@ describe("DesktopRemoteAccessController", () => {
     const nightly = createController(undefined, "nightly");
     await nightly.setEnabled(true);
 
-    expect(h.servers[0]?.options.pairingAppUrl).toBe("https://app-nightly.poracode.com");
+    expect(h.servers[0]?.options.pairingAppUrl).toBe("https://app-nightly.craftstation.com");
     expect(h.servers[0]?.options.trustedCorsOrigins).toEqual([
-      "https://app.poracode.com",
-      "https://app-nightly.poracode.com",
+      "https://app.craftstation.com",
+      "https://app-nightly.craftstation.com",
     ]);
   });
 
@@ -517,9 +518,9 @@ describe("DesktopRemoteAccessController", () => {
       message: "Remote access server port remained unavailable after retries.",
     });
     expect(reportError.mock.calls[0]?.[1]).toEqual({
-      "poracode.feature_area": "remote-access",
-      "poracode.channel": "stable",
-      "poracode.platform": process.platform,
+      "craftstation.feature_area": "remote-access",
+      "craftstation.channel": "stable",
+      "craftstation.platform": process.platform,
       "event.origin": "remote-access.listen.port-conflict",
     });
     expect((reportError.mock.calls[0]![0] as Error).message).not.toContain("192.168");

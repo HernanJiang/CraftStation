@@ -40,7 +40,7 @@ interface WorktreeWatcherEntry {
 
 const IGNORED_PREFIXES = [
   "node_modules/",
-  ".poracode/worktrees/",
+  ".craftstation/worktrees/",
   ".next/",
   "dist/",
   "build/",

@@ -123,12 +123,12 @@ describe("buildLineUnifiedDiff", () => {
 
   it("normalizes absolute Windows paths for diff headers", () => {
     const diff = buildLineUnifiedDiff(
-      String.raw`C:\Users\me\work\poracode\src\foo.ts`,
+      String.raw`C:\Users\me\work\craftstation\src\foo.ts`,
       "a\n",
       "b\n",
     );
     expect(diff).not.toContain(String.raw`C:\Users`);
-    expect(diff).toContain("diff --git a/work/poracode/src/foo.ts");
+    expect(diff).toContain("diff --git a/work/craftstation/src/foo.ts");
   });
 });
 

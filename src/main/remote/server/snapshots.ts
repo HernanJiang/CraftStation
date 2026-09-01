@@ -1,5 +1,5 @@
 import {
-  PORACODE_REMOTE_PROTOCOL_VERSION,
+  CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
   REMOTE_STANDARD_SCOPES,
   remoteAgentStatusesSchema,
   remoteEnvironmentDescriptorSchema,
@@ -44,7 +44,7 @@ export function descriptor(ctx: RemoteServerContext): RemoteEnvironmentDescripto
       ? process.platform
       : undefined;
   return remoteEnvironmentDescriptorSchema.parse({
-    protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+    protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
     hostMode: ctx.options.hostMode ?? "desktop",
     desktopId: ctx.options.identity.desktopId,
     label: ctx.options.identity.label,
@@ -66,6 +66,9 @@ export function descriptor(ctx: RemoteServerContext): RemoteEnvironmentDescripto
 export function buildShellSnapshot(ctx: RemoteServerContext): RemoteShellSnapshot {
   const threads = dbGetThreads();
   const runtimeSummariesByThread: RemoteShellSnapshot["runtimeSummariesByThread"] = {};
+  const collaborationExchangesByThread: NonNullable<
+    RemoteShellSnapshot["collaborationExchangesByThread"]
+  > = {};
   const visibleThreads = threads.filter((thread) => !thread.archived);
   const runtimeSummaries = dbGetThreadRuntimeSummaries(visibleThreads.map((thread) => thread.id));
   for (const thread of visibleThreads) {
@@ -77,6 +80,11 @@ export function buildShellSnapshot(ctx: RemoteServerContext): RemoteShellSnapsho
       ...(summary.latestItemState ? { latestItemState: summary.latestItemState } : {}),
       ...(summary.contextUsage ? { contextUsage: summary.contextUsage } : {}),
     };
+    if (ctx.options.threadCollaboration) {
+      collaborationExchangesByThread[thread.id] = ctx.options.threadCollaboration
+        .list(thread.id, thread.id, 30)
+        .map(ctx.options.threadCollaboration.summarize);
+    }
   }
   return remoteShellSnapshotSchema.parse(
     withStableUpdatedAt("shell", {
@@ -84,6 +92,7 @@ export function buildShellSnapshot(ctx: RemoteServerContext): RemoteShellSnapsho
       projects: dbGetProjects(),
       threads,
       runtimeSummariesByThread,
+      ...(ctx.options.threadCollaboration ? { collaborationExchangesByThread } : {}),
       gitSummariesByThread: ctx.options.gitSummaries?.() ?? {},
       ...(ctx.options.gitState
         ? { gitState: projectGitStateSnapshotForRemote(ctx.options.gitState.getSnapshot()) }
@@ -148,6 +157,9 @@ export async function buildThreadSnapshot(
   const runtimePage = options.runtimePage
     ? dbGetThreadRuntimeItemsPage(threadId, undefined, 500, options.targetTimelineEntryCount ?? 40)
     : null;
+  const collaborationExchanges = ctx.options.threadCollaboration
+    ?.list(threadId, threadId, 100)
+    .map(ctx.options.threadCollaboration.summarize);
   return remoteThreadSnapshotSchema.parse(
     withStableUpdatedAt(`thread:${threadId}`, {
       snapshotSeq: ctx.seq,
@@ -161,6 +173,7 @@ export async function buildThreadSnapshot(
       ...(runtimePage ? { runtimeNextCursor: runtimePage.nextCursor } : {}),
       completedTurns: dbGetThreadCompletedTurns(threadId),
       contextUsage: dbGetThreadContextUsage(threadId),
+      ...(collaborationExchanges ? { collaborationExchanges } : {}),
       ...(terminalScrollback ? { terminalScrollback } : {}),
       ...(terminalSize ? { terminalSize } : {}),
     }),

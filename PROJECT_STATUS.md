@@ -1,5 +1,30 @@
 # PROJECT_STATUS.md
 
+## Active Feature — v0.10.0 Coder Handoff
+
+- Feature：`v0.10.0 — Cross-Thread Model × Harness Dialogue`
+- 当前角色：Coder；状态：`T01–T07 ENGINEERING CLOSEOUT COMPLETE / T08 READY FOR USER ACCEPTANCE / DEBUGGER NO VERDICT`（2026-09-01 收口轮，全部未提交）
+- 唯一 Feature worktree：`D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration`
+- 实际分支：`dev/v0.10-cross-thread-collaboration`
+- Plan baseline / 当前未提交实现的基线 HEAD：`0bbba5f66e5b7be782443206c02781ed6825ba77`
+- Manager Plan：`ai_workspace/agent_docs/manager_0.10.0.md`
+- Source Review：`ai_workspace/agent_docs/research_0.10.0-poracode-cross-thread.md`（handoff 文中 `research_0.10.0-craftstation-cross-thread.md` 为笔误）
+- Coder 交付：`ai_workspace/agent_docs/coder_0.10.0.md`
+- 用户验收清单：`ai_workspace/validation/v0.10-user-acceptance-runbook.md`
+- Ticket 状态：T01–T07 工程收口完成；T08 真实验收由用户亲自执行（真实 Codex source → Grok target → reply → follow-up、busy queue、interrupt、needs-attention、restart recovery、第二 Harness route），未完成前保持 BLOCKED，不得把 deterministic/mock 证据升格为真实验收。
+- 2026-09-01 收口轮新增：
+  - Target policy 冻结：same project + non-self + resolved Model×Harness 至少一项不同；完全相同 tuple fail closed（`THREAD_COLLABORATION_SAME_COMPOSITION`）；判定使用 `resolveThreadRuntimeProvenance`，service/MCP/remote/UI 共用同一 policy；UI 明确区分可选择/可恢复/运行就绪，不声称凭据就绪。
+  - `mcpServer` 对外契约补齐 3 个新工具（`ask_thread` / `read_thread_exchange` / `wait_for_thread_reply`）目录与保留名，契约测试 7/7。
+  - 直接测试证据补齐：MCP 新工具走真实 service（新 `threadCollaborationTools.test.ts` 7 tests）、v37 migration 深度验证（6 tests）、remote gateway + HTTP 层契约（5 + 3 tests）、`ThreadCollaborationDialog` 行为测试（8 tests）、service 组合矩阵（3 tests）；`ThreadCollaborationService.test.ts` 确认实际运行（16/16，非 skip）。
+  - 工具链恢复：`pnpm install --frozen-lockfile --ignore-scripts` 同步 workspace links（lockfile 未改）；`codex-protocol:gen` 生成 ignored `generated/`；`setup:native` 就绪。全仓 `pnpm typecheck` PASS；`build:renderer` / `build:electron` PASS。
+  - 改名迁移最小补齐（仅为可构建）：`src/shared/craftstationPaths.ts` + `.test.ts`（根仓库完成态镜像）、`src/main/craftstationData.ts`（本分支 `poracodeData.ts` 改名副本，保持 2 参签名）；`mcpServer.test.ts` 保留名断言镜像根仓库完成态（`CraftStation`）；`projectsThreads.test.ts` schema 断言改 `LATEST_SCHEMA_VERSION`。其余 rename-migration 现场全部保留未动。
+- 验证（收口轮）：collaboration 定向组 + MCP + migration + remote/headless + UI 合计 249 passed / 0 failed / 0 skipped（新增文件全绿）；完整 `pnpm test` 约 9847 passed，失败项均为既有 rename-migration/环境失败（`ThreadView` todo dock 经 HEAD stash 对照确认为分支既有、`RemoteAccessServer` 为已知全套件端口波动、单跑 85/85 通过），无 v0.10 Feature 回归。
+- 核心边界（不变）：长期 Thread dialogue 复用 always-on App Controls MCP primitives；Crossagents 仍是 ephemeral subagent lane；UI、IPC、remote 与 App Controls 共用 CraftStation-owned Thread Collaboration Module；busy 默认 durable queue，不 steer、不 interrupt；interrupt-and-send 必须显式确认并等待 settled；reply 只按 exchange/request/completed-turn anchors 关联。
+- 安全（不变）：默认 context capsule 为空；显式 context 才执行预算和 secret/hidden-reasoning redaction；same-project、participant、self-target、causal loop、same-composition 与 hop-limit policy 均在共享 Module 内 fail closed；remote/gateway projection 不输出 full request/context/idempotency/claim internals。
+- 遗留（记录不修，属全局改名迁移）：`debugCdpScripts` / `poracodeData.migrate` / `createHeadlessRemoteHost` 语义组 / `remote/client` 环境端点回退 / plugin install 组 / `dbStorage` rebrand 迁移等既有失败；`agentMcpSupported` 生产 resolver 仍 fail-closed，agent-facing MCP 真实门保持 blocked。
+- Debugger handoff：专属 Debugger `grok-4.6 / high` 路由此前 HTTP 422，状态仍为 `DEBUGGER INFRASTRUCTURE BLOCKED / NO VERDICT`；恢复后在同一任务、同一 worktree 验收，不创建第二个 Debugger。
+- 下一步：用户按 runbook 亲自验收 T08 真实链路；用户验收 + Debugger verdict 齐备后才进入候选收口。Coder 不 merge main、不 tag、不 push。
+
 ## Dev Integration — v0.8.0
 
 - `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility` 已于 2026-08-31 合入本地 `dev`。
@@ -51,9 +76,9 @@ CraftStation 的长期路线收敛为四个阶段。当前版本只推进当前�
 
 ### Phase 1 — Runtime Foundation
 
-基于 PoraCode 建立独立、可诊断、可恢复的 Harness Runtime 基础设施。
+基于 CraftStation 建立独立、可诊断、可恢复的 Harness Runtime 基础设施。
 
-- 保留 PoraCode 的 Desktop、Workspace、Session persistence、Terminal、Git/Worktree、MCP 和已有 Agent integration。
+- 保留 CraftStation 的 Desktop、Workspace、Session persistence、Terminal、Git/Worktree、MCP 和已有 Agent integration。
 - 建立 `crafting`、`registry`、`harness-runtime` 与 `provider/API` seam。
 - 分别接入 DeepSeek Harness、Codex Harness、Grok Build Harness；统一 CraftStation 所需语义，不统一各 Harness 内部 agent loop、transport 或 process architecture。
 - 依次证明 `Model -> Vendor Harness -> Entity -> Session -> real response`，并覆盖错误透传、resume、terminate、资源清理和 observability。
@@ -99,7 +124,7 @@ Model Item + Harness Item
 
 ### Cross-Phase Principles
 
-- PoraCode 是工程基础，不是 CraftStation 的最终 domain；DeepSeek Harness、Codex Harness、Grok Build Harness 是独立 Runtime。
+- CraftStation 是工程基础，不是 CraftStation 的最终 domain；DeepSeek Harness、Codex Harness、Grok Build Harness 是独立 Runtime。
 - 采用 Strangler Refactor 与 deep-module 原则，不做一次性全仓 rename 或统一重写各 Harness 内部实现。
 - Runtime / Programming Model 先于 Auto-Crafting / Agentic Algorithm；基础设施没有真实运行证据时，不扩大算法 scope。
 - 正式的一等 Domain 术语保持 `Item`、`Component`、`Ingredient`、`Slot`、`Recipe`、`Result`、`Crafter`、`Entity`、`Session`。
@@ -134,18 +159,18 @@ Model Item + Harness Item
 
 - Feature：`v0.10.0 — Cross-Thread Model × Harness Dialogue`
 - Manager Ideate + Plan：`ai_workspace/agent_docs/manager_0.10.0.md`
-- Source Review：`ai_workspace/agent_docs/research_0.10.0-poracode-cross-thread.md`
+- Source Review：`ai_workspace/agent_docs/research_0.10.0-craftstation-cross-thread.md`
 - Tickets：`.scratch/craftstation-0.10.0/issues/01-thread-control-adapter.md` 至 `08-real-cross-thread-acceptance.md`
-- 状态：`PLAN READY / READY FOR CODER`
-- Feature worktree：`D:\Work\CraftStation\craftstation-dev\.worktrees\v0.10-cross-thread-collaboration`
-- Feature branch：`feature/v0.10-cross-thread-collaboration`
-- Base：`dev@8bc45cfe408a6e603c777f04bce3c22627b76656`
+- 状态：`T01–T07 IMPLEMENTED / T08 BLOCKED / READY FOR DEBUGGER`
+- Feature worktree：`D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration`
+- Feature branch：`dev/v0.10-cross-thread-collaboration`
+- Plan baseline：`0bbba5f66e5b7be782443206c02781ed6825ba77`
 - 与 v0.9 的关系：两条独立并行 Feature。v0.9 解决同 Thread Runtime handoff；v0.10 解决长期 Thread 之间 request/reply。v0.10 不依赖未完成的 v0.9 implementation，只保留 optional integration seam。
-- PoraCode 事实：长期 Thread orchestration 已存在于 always-on App Controls MCP；Crossagents 是 ephemeral subagent lane，不作为 v0.10 主体。
+- CraftStation 事实：长期 Thread orchestration 已存在于 always-on App Controls MCP；Crossagents 是 ephemeral subagent lane，不作为 v0.10 主体。
 - 目标：同项目任意 Model × Harness Thread 可以通过 durable exchange 对话，目标回复保留在目标 Thread并带 provenance 回流源 Thread。
 - Gate Check：`OK`。复用App Controls MCP长期Thread lane；Crossagents保持ephemeral lane；新exchange/link ledger与optional provenance adapter隔离v0.9并行开发。
 - Execution：T01 Thread Adapter → T02 Idle Dialogue → T03 Busy Queue → T04 Interrupt/Failure → T05 Context/Provenance → T06 Agent MCP → T07 UI/Remote/Restart → T08 Real Acceptance。
-- 下一步：Manager创建项目绑定的`Coder-0.10-Cross-Thread Collaboration`。当前不merge/tag/push。
+- 下一步：已创建的项目绑定 `Debugger-0.10-Cross-Thread Collaboration`（`01a057e4-fb70-7e52-b8a5-f68691c4c33f`）等待 `grok-4.6` 路由恢复后独立复核工程实现和所有 BLOCKED 边界；当前没有 Debugger verdict，不 merge/tag/push。
 
 ## Historical v0.3 Closeout
 

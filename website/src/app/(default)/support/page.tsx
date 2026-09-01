@@ -6,12 +6,12 @@ import contact from "../../../../../branding/contact.json";
 import { createPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "Poracode Support",
-  description: "Get help pairing the Poracode mobile companion or report a problem.",
+  title: "CraftStation Support",
+  description: "Get help pairing the CraftStation mobile companion or report a problem.",
   path: "/support",
 });
 
-const ISSUES_URL = "https://github.com/SDSLeon/lightcode/issues";
+const ISSUES_URL = "https://github.com/SDSLeon/craftstation/issues";
 
 export default function SupportPage() {
   return (
@@ -36,9 +36,9 @@ export default function SupportPage() {
 
       <main className="relative z-10 mx-auto max-w-3xl px-8 py-12">
         <header className="mb-12">
-          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Poracode Support</h1>
+          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">CraftStation Support</h1>
           <p className="mt-3 text-lg leading-8 text-gray-400">
-            Help with pairing, connections, notifications, and the Poracode mobile companion.
+            Help with pairing, connections, notifications, and the CraftStation mobile companion.
           </p>
         </header>
 
@@ -67,7 +67,7 @@ export default function SupportPage() {
           <section>
             <h2 className="mb-3 text-xl font-semibold text-white">Pair a desktop</h2>
             <ol className="list-decimal space-y-2 pl-5 marker:text-gray-500">
-              <li>Open Settings → Remote Access in the Poracode desktop app.</li>
+              <li>Open Settings → Remote Access in the CraftStation desktop app.</li>
               <li>Make sure Remote Access is enabled and the desktop is running.</li>
               <li>
                 Scan its QR code in the mobile app, or enter the displayed endpoint and access token
@@ -111,7 +111,7 @@ export default function SupportPage() {
           <section>
             <h2 className="mb-3 text-xl font-semibold text-white">Send a useful report</h2>
             <p>
-              Include the Poracode desktop and mobile versions, phone model, operating system,
+              Include the CraftStation desktop and mobile versions, phone model, operating system,
               connection type, steps to reproduce, and the exact error. Attach relevant logs or
               screenshots, but remove access tokens, private source code, and other secrets first.
             </p>
@@ -127,7 +127,7 @@ export default function SupportPage() {
                 Privacy policy
               </Link>
               <a
-                href="https://github.com/SDSLeon/lightcode"
+                href="https://github.com/SDSLeon/craftstation"
                 target="_blank"
                 rel="noreferrer"
                 className="text-white underline underline-offset-4"

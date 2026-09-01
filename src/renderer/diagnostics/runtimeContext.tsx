@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { AppView, ProjectLocation, Thread, ThreadPresentationMode } from "@/shared/contracts";
-import type { PoracodeRuntimeDiagnosticContext } from "@/shared/diagnostics/sentryPrivacy";
+import type { CraftStationRuntimeDiagnosticContext } from "@/shared/diagnostics/sentryPrivacy";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useProjectAgentStatuses } from "@/renderer/hooks/uiSelectors";
 import { setRendererRuntimeDiagnosticContext } from "./sentry";
@@ -14,7 +14,7 @@ type RuntimeContextState = {
 export function resolveRendererRuntimeDiagnosticContext(
   state: RuntimeContextState,
   defaultPresentation?: ThreadPresentationMode,
-): PoracodeRuntimeDiagnosticContext | null {
+): CraftStationRuntimeDiagnosticContext | null {
   if (state.view.kind !== "thread") return null;
   const activePaneId =
     state.focusedPaneId && state.view.panes.includes(state.focusedPaneId)

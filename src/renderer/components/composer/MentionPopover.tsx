@@ -66,7 +66,7 @@ export function MentionPopover(props: {
 
   return createPortal(
     <div
-      className="poracode-mention-popover"
+      className="craftstation-mention-popover"
       style={{
         position: "fixed",
         left,
@@ -75,7 +75,7 @@ export function MentionPopover(props: {
         zIndex: 9999,
       }}
     >
-      <div ref={listRef} className="poracode-mention-popover__list" role="listbox">
+      <div ref={listRef} className="craftstation-mention-popover__list" role="listbox">
         {results.map((entry, index) => {
           const isActive = index === activeIndex;
           const isMcp = entry.type === "mcp";
@@ -91,7 +91,7 @@ export function MentionPopover(props: {
               // MentionInput keeps real DOM focus and drives selection via
               // arrow keys, so options never enter the tab order themselves.
               tabIndex={-1}
-              className={`poracode-mention-popover__item ${isActive ? "poracode-mention-popover__item--active" : ""}`}
+              className={`craftstation-mention-popover__item ${isActive ? "craftstation-mention-popover__item--active" : ""}`}
               onMouseEnter={() => onActiveIndexChange(index)}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -99,24 +99,27 @@ export function MentionPopover(props: {
               }}
             >
               {isPlugin ? (
-                <PluginIcon pluginId={entry.path} className="poracode-mention-popover__icon" />
+                <PluginIcon pluginId={entry.path} className="craftstation-mention-popover__icon" />
               ) : McpIcon ? (
-                <McpIcon className="poracode-mention-popover__icon text-muted" aria-hidden="true" />
+                <McpIcon
+                  className="craftstation-mention-popover__icon text-muted"
+                  aria-hidden="true"
+                />
               ) : (
                 <img
-                  className="poracode-mention-popover__icon"
+                  className="craftstation-mention-popover__icon"
                   src={getEntryIconUrl(entry.name, entry.type === "directory")}
                   alt=""
                   draggable={false}
                 />
               )}
-              <span className="poracode-mention-popover__label truncate">{entry.name}</span>
+              <span className="craftstation-mention-popover__label truncate">{entry.name}</span>
               {isMcp || isPlugin ? (
-                <span className="poracode-mention-popover__detail ml-auto shrink-0 text-xs text-[var(--muted)]">
+                <span className="craftstation-mention-popover__detail ml-auto shrink-0 text-xs text-[var(--muted)]">
                   {entry.detail}
                 </span>
               ) : dir ? (
-                <span className="poracode-mention-popover__detail ml-auto shrink-0 text-xs text-[var(--muted)]">
+                <span className="craftstation-mention-popover__detail ml-auto shrink-0 text-xs text-[var(--muted)]">
                   {dir}
                 </span>
               ) : null}

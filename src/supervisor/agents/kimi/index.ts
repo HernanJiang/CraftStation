@@ -214,7 +214,7 @@ export function createKimiAdapter(): AgentAdapter {
 
     buildDirectInput(prompt) {
       // Kimi's paste-burst guard suppresses Enter for 120ms after rapidly
-      // injected text. Stay beyond that window so Poracode submits the prompt
+      // injected text. Stay beyond that window so CraftStation submits the prompt
       // instead of inserting a newline into the composer.
       return [prompt, "@wait:200", "\r"];
     },

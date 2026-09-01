@@ -2,20 +2,20 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "browser-tools",
   "version": "1.1.0",
-  "description": "Browse, inspect, and test websites in Poracode's isolated in-app browser.",
+  "description": "Browse, inspect, and test websites in CraftStation's isolated in-app browser.",
   "author": {
-    "name": "Poracode",
-    "url": "https://poracode.com"
+    "name": "CraftStation",
+    "url": "https://craftstation.com"
   },
-  "homepage": "https://poracode.com",
+  "homepage": "https://craftstation.com",
   "license": "Apache-2.0",
   "keywords": ["browser", "testing", "automation"],
   "extensions": {
-    "com.poracode.client": {
+    "com.craftstation.client": {
       "title": "Browser Tools",
       "category": "developer-tools",
       "featured": true,
-      "examplePrompt": "Open my local app in Poracode's browser, test the requested flow, and report visual, console, and network evidence",
+      "examplePrompt": "Open my local app in CraftStation's browser, test the requested flow, and report visual, console, and network evidence",
       "coreSkill": "browser-control",
       "nativePluginNames": ["browser"],
       "nativeCoreSkill": "control-in-app-browser",

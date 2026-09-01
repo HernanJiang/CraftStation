@@ -103,7 +103,7 @@ describe("macOS Claude keychain helpers", () => {
   it("hashes non-default config dirs into the service name", () => {
     expect(
       claudeKeychainServiceNames({
-        CLAUDE_CONFIG_DIR: "/tmp/poracode-claude",
+        CLAUDE_CONFIG_DIR: "/tmp/craftstation-claude",
         CLAUDE_SECURESTORAGE_CONFIG_DIR: undefined,
         CLAUDE_CODE_CUSTOM_OAUTH_URL: "https://claude.example.test",
       }),

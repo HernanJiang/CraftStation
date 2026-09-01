@@ -1,4 +1,4 @@
-package com.poracode.sshbridge;
+package com.craftstation.sshbridge;
 
 import static org.junit.Assert.assertEquals;
 

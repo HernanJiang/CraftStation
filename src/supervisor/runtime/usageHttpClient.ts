@@ -1,4 +1,4 @@
-import type { HttpClient, HttpRequest, HttpResponse } from "@poracode/agents-usage";
+import type { HttpClient, HttpRequest, HttpResponse } from "@craftstation/agents-usage";
 import { EnvHttpProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 
 /**

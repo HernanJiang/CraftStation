@@ -14,7 +14,7 @@ import {
   dbUpsertThread,
   initDatabase,
 } from "@/main/db";
-import { preparePoracodeDataRoot } from "@/main/poracodeData";
+import { prepareCraftStationDataRoot } from "@/main/craftstationData";
 import {
   patchSharedSettingsFile,
   readSharedSettingsFile,
@@ -31,6 +31,7 @@ import {
   PushRegistrationStore,
 } from "@/main/remote/push";
 import { RemoteAccessServer, type RemoteAccessServerInfo } from "@/main/remote/RemoteAccessServer";
+import { createRemoteThreadCollaborationGateway } from "@/main/remote/threadCollaborationGateway";
 import {
   remoteAccessAdvertisedHost,
   remoteAccessHost,
@@ -40,7 +41,11 @@ import {
 import type { SupervisorEvent } from "@/shared/ipc";
 import { isThreadTurnActive, resolveMcpLaunchSnapshot } from "@/shared/contracts";
 import { buildRemoteGitTargetInterests } from "@/shared/gitStateInterestPolicy";
-import { pickRemoteSettings, remoteProjectCommandResultSchema } from "@/shared/remote";
+import {
+  pickRemoteSettings,
+  remoteProjectCommandResultSchema,
+  toRemoteThreadExchangeSummary,
+} from "@/shared/remote";
 import { configureSecretStorageKey } from "@/shared/secretStorage";
 import {
   createDeviceScheduleService,
@@ -85,7 +90,7 @@ export interface HeadlessRemoteHostOptions {
   readonly bundledPluginsDir?: string;
   /** base64 32-byte AES key shared with the supervisor for secret sealing. */
   readonly secretStorageKey: string;
-  /** Data dir; defaults to the standard Poracode base dir for the channel. */
+  /** Data dir; defaults to the standard CraftStation base dir for the channel. */
   readonly baseDir?: string;
   readonly host?: string;
   readonly port?: number;
@@ -152,7 +157,7 @@ export async function createHeadlessRemoteHost(
     host,
     ...(options.port !== undefined ? { port: options.port } : {}),
   });
-  const paths = preparePoracodeDataRoot(options.baseDir);
+  const paths = prepareCraftStationDataRoot(options.baseDir);
   initDatabase(paths.dbPath);
   // No agent session survived the restart; without a renderer to run
   // markThreadsInactiveOnLaunch, stale live statuses would be re-served to
@@ -203,19 +208,21 @@ export async function createHeadlessRemoteHost(
       const info = appControlsMcpIngress?.getInfo();
       return info
         ? {
-            PORACODE_APP_CONTROLS_MCP_URL: info.url,
-            PORACODE_APP_CONTROLS_MCP_TOKEN: info.token,
+            CRAFTSTATION_APP_CONTROLS_MCP_URL: info.url,
+            CRAFTSTATION_APP_CONTROLS_MCP_TOKEN: info.token,
           }
         : {};
     },
     ...(options.reportError ? { reportError: (error) => options.reportError?.(error) } : {}),
     onEvent: (event) => {
       options.onSupervisorEvent?.(event);
+      // The remote server owns headless runtime persistence; publish first so
+      // collaboration reply correlation always reads the post-event database.
+      serverRef?.publishSupervisorEvent(event);
       appControlsMcpIngress?.observeSupervisorEvent(event);
       prWatchService?.observeSupervisorEvent(event);
       gitStateService?.observeSupervisorEvent(event);
       scheduleRunCoordinator?.observeSupervisorEvent(event);
-      serverRef?.publishSupervisorEvent(event);
       pushCoordinator.handleSupervisorEvent(event);
     },
     onReset: () => {
@@ -338,13 +345,19 @@ export async function createHeadlessRemoteHost(
     // honest not-available result instead of silently succeeding.
     notifyUser: () => ({
       delivered: false,
-      note: "No Poracode desktop app is connected, so no OS notification could be shown.",
+      note: "No CraftStation desktop app is connected, so no OS notification could be shown.",
     }),
     checkForUpdate: async () => ({
       supported: false,
       currentVersion: options.appVersion,
       note: "Update checks are not available on the headless server; update the host from the desktop app.",
     }),
+    onExchangeChanged: (exchange) => {
+      serverRef?.publishSupervisorEvent({
+        type: "remote-thread-collaboration-changed",
+        exchanges: [toRemoteThreadExchangeSummary(exchange)],
+      });
+    },
   });
 
   // In dev, advertise loopback by default so the iOS simulator's WebView can
@@ -353,7 +366,7 @@ export async function createHeadlessRemoteHost(
   const advertisedHost =
     options.advertisedHost ??
     (isDev
-      ? process.env.PORACODE_REMOTE_ACCESS_ADVERTISED_HOST?.trim() || "127.0.0.1"
+      ? process.env.CRAFTSTATION_REMOTE_ACCESS_ADVERTISED_HOST?.trim() || "127.0.0.1"
       : remoteAccessAdvertisedHost({ bindHost: host }));
   const pairingAppUrl = options.pairingAppUrl ?? remoteAccessPairingAppUrl();
 
@@ -399,6 +412,9 @@ export async function createHeadlessRemoteHost(
     },
     portForward: portForwarding.gateway,
     portProxy: portForwarding.proxy,
+    threadCollaboration: createRemoteThreadCollaborationGateway(
+      () => appControlsMcpIngress?.getThreadCollaborationService() ?? null,
+    ),
   });
   serverRef = server;
 
@@ -410,6 +426,7 @@ export async function createHeadlessRemoteHost(
       if (!started) {
         await appControlsMcpIngress?.start();
         supervisorClient.start(paths.baseDir);
+        await appControlsMcpIngress?.recoverThreadCollaboration();
         scheduleService.start();
         prWatchService?.start();
         gitStateService?.start();

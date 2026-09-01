@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { FAST_MODE_CACHE_FILENAME } from "./fastModeCacheCore";
 
 /**
@@ -11,11 +11,11 @@ import { FAST_MODE_CACHE_FILENAME } from "./fastModeCacheCore";
  * `refreshAgentStatuses` clears it to re-check.
  *
  * Honors the injected data dir (matching the rest of the supervisor) so dev runs
- * (`~/.poracode-dev`) and prod don't read/write each other's cache.
+ * (`~/.craftstation-dev`) and prod don't read/write each other's cache.
  */
 export function resolveFastModeCachePath(): string {
   return join(
-    resolvePoracodePaths(process.env.PORACODE_DATA_DIR).cacheDir,
+    resolveCraftStationPaths(process.env.CRAFTSTATION_DATA_DIR).cacheDir,
     FAST_MODE_CACHE_FILENAME,
   );
 }

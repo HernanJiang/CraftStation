@@ -2,7 +2,7 @@ import type { Project, ProjectLocation } from "./contracts";
 
 // Persisted in project/thread rows; keep the legacy ID so upgraded databases
 // do not create a second Home project or orphan existing Home threads.
-export const HOME_PROJECT_ID = "__lightcode_home__";
+export const HOME_PROJECT_ID = "__craftstation_home__";
 export const HOME_PROJECT_NAME = "Home";
 
 export function isHomeProjectId(projectId: string | undefined): boolean {
@@ -14,7 +14,7 @@ export function isHomeProject(project: Pick<Project, "id"> | undefined): boolean
 }
 
 /**
- * True when the workspace *is* the user home directory (Poracode's Home
+ * True when the workspace *is* the user home directory (CraftStation's Home
  * scope). Home is a projectless OS-level session, so agents must not be
  * confined to that folder — every provider, not just ACP.
  */

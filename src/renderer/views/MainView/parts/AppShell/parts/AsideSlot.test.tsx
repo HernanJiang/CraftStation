@@ -32,7 +32,7 @@ describe("AsideSlot", () => {
   it("keeps the resize handle beside the panel when docked", () => {
     renderSlot({ overlay: false });
     const handle = screen.getByRole("separator", { name: "Resize terminal panel" });
-    expect(handle.className).toContain("poracode-resize-handle");
+    expect(handle.className).toContain("craftstation-resize-handle");
     expect(handle).toHaveAttribute("data-craftstation-workspace-split-handle");
     expect(handle.nextElementSibling?.tagName).toBe("ASIDE");
   });
@@ -40,7 +40,7 @@ describe("AsideSlot", () => {
   it("renders the resize handle inside the panel when floating as an overlay", () => {
     const { onResizeStart } = renderSlot({ overlay: true });
     const handle = screen.getByRole("separator", { name: "Resize terminal panel" });
-    expect(handle.className).toContain("poracode-resize-handle-overlay");
+    expect(handle.className).toContain("craftstation-resize-handle-overlay");
     expect(handle.closest("aside")).not.toBeNull();
 
     fireEvent.mouseDown(handle);

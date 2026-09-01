@@ -33,7 +33,7 @@ import type {
   TurnStartResponse,
   TurnSteerParams,
   TurnSteerResponse,
-} from "@poracode/codex-protocol";
+} from "@craftstation/codex-protocol";
 
 type InitializeRequestParams = Omit<InitializeParams, "clientInfo"> & {
   clientInfo: Omit<InitializeParams["clientInfo"], "title"> & {

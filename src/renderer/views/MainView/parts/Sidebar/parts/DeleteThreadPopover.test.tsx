@@ -27,7 +27,7 @@ describe("DeleteThreadPopover", () => {
 
     expect(onDelete).toHaveBeenCalledOnce();
     expect(shouldConfirmThreadDelete()).toBe(false);
-    expect(localStorage.getItem("poracode-delete-worktree-pref")).toBe("thread-and-worktree");
+    expect(localStorage.getItem("craftstation-delete-worktree-pref")).toBe("thread-and-worktree");
   });
 
   it("omits the worktree from the warning when none will be removed", () => {

@@ -28,7 +28,7 @@ export type {
 } from "./tools/types";
 
 export const APP_CONTROLS_MCP_INSTRUCTIONS =
-  "Poracode app controls. Read and control the running app: device schedules " +
+  "CraftStation app controls. Read and control the running app: device schedules " +
   "(list/create/update/run/delete), app threads (current/list/get/read/create/send/interrupt/stop/wait/" +
   "update/open), projects (list/get/create/update), app settings (get/update), provider usage " +
   "(get_usage), cross-app search (search), and app info (get_app_info). You can also read a " +
@@ -52,7 +52,7 @@ export const APP_CONTROLS_MCP_INSTRUCTIONS =
   "confirmation for destructive actions and pull-request merges. update_settings changes apply " +
   "immediately app-wide. " +
   "Secrets are never exposed: get_settings redacts profile credentials and update_settings " +
-  "refuses to touch them. Schedules run only while the device is awake and Poracode is open. " +
+  "refuses to touch them. Schedules run only while the device is awake and CraftStation is open. " +
   "You cannot stop, interrupt, or wait on your own thread. Treat @Terminal, or its localized " +
   "equivalent inserted by the composer, as a request to inspect the integrated Terminal panel " +
   "the user opened for the caller's current worktree. It does not mean the agent's own TUI, an " +

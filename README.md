@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="build/icon.png" width="128" height="128" alt="Poracode" />
+  <img src="build/icon.png" width="128" height="128" alt="CraftStation" />
 </p>
 
-<h1 align="center">Poracode</h1>
+<h1 align="center">CraftStation</h1>
 
 <p align="center">
   <strong>One window for all your AI coding agents.</strong><br />
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://poracode.com">Website</a> · <a href="https://github.com/SDSLeon/lightcode/releases">Download</a> · <a href="https://github.com/SDSLeon/lightcode/issues">Report a Bug</a> · <a href="https://github.com/SDSLeon/lightcode/issues">Request Feature</a>
+  <a href="https://craftstation.com">Website</a> · <a href="https://github.com/SDSLeon/craftstation/releases">Download</a> · <a href="https://github.com/SDSLeon/craftstation/issues">Report a Bug</a> · <a href="https://github.com/SDSLeon/craftstation/issues">Request Feature</a>
 </p>
 
 <p align="center">
@@ -20,16 +20,16 @@
 ---
 
 <p align="center">
-  <img src="website/public/hero-screenshot.png" alt="Poracode — AI agents running side-by-side" width="960" />
+  <img src="website/public/hero-screenshot.png" alt="CraftStation — AI agents running side-by-side" width="960" />
 </p>
 
 ## Supported Agents
 
 **Claude** · **Codex** · **OpenCode** · **Gemini** · **Grok** · **Kimi Code** · **Qwen Code** · **Pi** · **Qoder** · **Factory Droid** · **Antigravity** · **Cursor** · **Command Code** · **Copilot** and any agent from the [ACP registry](https://agentclientprotocol.com).
 
-## Why Poracode?
+## Why CraftStation?
 
-If you use more than one AI coding agent, you know the pain: separate terminals, separate apps, no shared context. Poracode puts them all in one place.
+If you use more than one AI coding agent, you know the pain: separate terminals, separate apps, no shared context. CraftStation puts them all in one place.
 
 ### Infinite Threads & Layouts
 
@@ -45,7 +45,7 @@ Let one agent delegate work to another across providers. Subagent output streams
 
 ### Built-in MCP & App Controls
 
-Poracode ships its own MCP servers. Point any agent at them to create and steer threads, organize projects, list and merge Git worktrees, commit and sync, open and merge pull requests, schedule runs, manage skills, and change settings — or add your own MCP servers over stdio, HTTP, or SSE.
+CraftStation ships its own MCP servers. Point any agent at them to create and steer threads, organize projects, list and merge Git worktrees, commit and sync, open and merge pull requests, schedule runs, manage skills, and change settings — or add your own MCP servers over stdio, HTTP, or SSE.
 
 ### Agent Experiments
 
@@ -53,7 +53,7 @@ Run one prompt across several agents in parallel worktrees, then let an AI judge
 
 ### Scheduled Runs
 
-Put recurring work on a schedule — nightly reviews, dependency sweeps, changelog drafts — and let Poracode start the thread for you.
+Put recurring work on a schedule — nightly reviews, dependency sweeps, changelog drafts — and let CraftStation start the thread for you.
 
 ### Skills & Marketplace
 
@@ -89,7 +89,7 @@ Optimized to stay fast and responsive, even when you have lots of agent sessions
 
 ### Session Persistence
 
-Sessions are saved automatically, so you can close Poracode and pick up right where you left off.
+Sessions are saved automatically, so you can close CraftStation and pick up right where you left off.
 
 ### Built-in Browser
 
@@ -97,11 +97,11 @@ Open web pages, attach browser context to agents, and keep research in the same 
 
 ### Remote Access
 
-Pair the Poracode web app with your desktop to follow live threads, read terminal output, send messages, and receive notifications from your phone or browser.
+Pair the CraftStation web app with your desktop to follow live threads, read terminal output, send messages, and receive notifications from your phone or browser.
 
 ### Remote Machines over SSH
 
-Connect a server from your SSH config and Poracode installs its runtime there, then runs agents on that machine — clone repos, open threads, and drive projects that never leave the box.
+Connect a server from your SSH config and CraftStation installs its runtime there, then runs agents on that machine — clone repos, open threads, and drive projects that never leave the box.
 
 ### In-App PRs
 
@@ -113,7 +113,7 @@ Monaco-based editor with LSP support for quick edits without switching to your I
 
 ### Cross-Platform Desktop
 
-Run Poracode on macOS, Windows, and Linux, with a polished interface that feels at home on both Mac and Windows.
+Run CraftStation on macOS, Windows, and Linux, with a polished interface that feels at home on both Mac and Windows.
 
 ### WSL Support
 
@@ -125,7 +125,7 @@ Install and run any agent from the [Agent Client Protocol](https://agentclientpr
 
 ## Install
 
-Download the latest release for your platform from the [releases page](https://github.com/SDSLeon/lightcode/releases) or visit [poracode.com](https://poracode.com).
+Download the latest release for your platform from the [releases page](https://github.com/SDSLeon/craftstation/releases) or visit [craftstation.com](https://craftstation.com).
 
 | Platform | Format                        |
 | -------- | ----------------------------- |
@@ -135,13 +135,13 @@ Download the latest release for your platform from the [releases page](https://g
 
 ### Getting Started
 
-1. Install Poracode for your platform.
+1. Install CraftStation for your platform.
 2. Install the AI agent CLIs you want to use (e.g., [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex](https://github.com/openai/codex)).
-3. Open Poracode, add your project, and start orchestrating.
+3. Open CraftStation, add your project, and start orchestrating.
 
 ## Contributing
 
-Contributions are welcome! Please open an [issue](https://github.com/SDSLeon/lightcode/issues) first to discuss what you'd like to change.
+Contributions are welcome! Please open an [issue](https://github.com/SDSLeon/craftstation/issues) first to discuss what you'd like to change.
 
 ## License
 

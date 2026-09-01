@@ -146,7 +146,7 @@ function claudeProfile(overrides: Partial<AgentInstanceConfig> = {}): AgentInsta
     id: "glm",
     driver: "claude",
     displayName: "GLM",
-    config: { configDir: "~/.poracode/claude-profiles/glm" },
+    config: { configDir: "~/.craftstation/claude-profiles/glm" },
     ...overrides,
   };
 }
@@ -211,7 +211,7 @@ describe("ClaudeProfileSettings", () => {
     expect(screen.getByLabelText("New profile name")).toHaveAttribute("placeholder", "e.g. Work");
     expect(screen.getByLabelText("New Claude profile config directory")).toHaveAttribute(
       "placeholder",
-      "~/.poracode/claude-profiles/profile",
+      "~/.craftstation/claude-profiles/profile",
     );
   });
 
@@ -229,7 +229,7 @@ describe("ClaudeProfileSettings", () => {
     expect(addButton).toBeEnabled();
     expect(screen.getByLabelText("New Claude profile config directory")).toHaveAttribute(
       "placeholder",
-      "~/.poracode/claude-profiles/work",
+      "~/.craftstation/claude-profiles/work",
     );
   });
 
@@ -248,7 +248,7 @@ describe("ClaudeProfileSettings", () => {
         driver: "claude",
         id: "work",
         displayName: "Work",
-        config: { configDir: "~/.poracode/claude-profiles/work" },
+        config: { configDir: "~/.craftstation/claude-profiles/work" },
       }),
     );
     // The form collapses back to the add button after a successful add.
@@ -384,7 +384,7 @@ describe("ClaudeProfileProviderSettings", () => {
       driver: "claude",
       displayName: "GLM",
       config: {
-        configDir: "~/.poracode/claude-profiles/glm",
+        configDir: "~/.craftstation/claude-profiles/glm",
         models: [
           { id: "deepseek-v4-pro-0813[1m]", label: "DeepSeek V4 Pro 0813" },
           { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash" },
@@ -440,7 +440,7 @@ describe("ClaudeProfileProviderSettings", () => {
       { id: "kimi-for-coding-highspeed", label: "Kimi K2.7 Code HighSpeed" },
     ]);
     expect(applied?.config).toMatchObject({
-      configDir: "~/.poracode/claude-profiles/glm",
+      configDir: "~/.craftstation/claude-profiles/glm",
       efforts: ["low", "high", "max", "ultracode"],
       defaultEffort: "high",
       modelEfforts: {
@@ -475,7 +475,7 @@ describe("ClaudeProfileProviderSettings", () => {
       "deepseek-v4-flash-0731",
     ]);
     expect(config).toMatchObject({
-      configDir: "~/.poracode/claude-profiles/glm",
+      configDir: "~/.craftstation/claude-profiles/glm",
       efforts: ["low", "medium", "high", "xHigh", "max"],
       defaultEffort: "xHigh",
       modelEfforts: {
@@ -535,7 +535,7 @@ describe("ClaudeProfileProviderSettings", () => {
     await waitFor(() => expect(settingsState.setAgentInstance).toHaveBeenCalled());
     const saved = settingsState.setAgentInstance.mock.calls.at(-1)?.[0];
     expect(saved?.config).toEqual({
-      configDir: "~/.poracode/claude-profiles/glm",
+      configDir: "~/.craftstation/claude-profiles/glm",
       models: [{ id: "glm-5.2" }],
       efforts: ["medium", "high", "xHigh", "max", "ultracode"],
     });
@@ -556,7 +556,7 @@ describe("ClaudeProfileProviderSettings", () => {
 
     await waitFor(() => expect(settingsState.setAgentInstance).toHaveBeenCalled());
     expect(settingsState.setAgentInstance.mock.calls.at(-1)?.[0]?.config).toEqual({
-      configDir: "~/.poracode/claude-profiles/glm",
+      configDir: "~/.craftstation/claude-profiles/glm",
       models: [{ id: "glm-5.2" }],
       modelEfforts: { "glm-5.2": ["high"] },
     });
@@ -566,7 +566,7 @@ describe("ClaudeProfileProviderSettings", () => {
     settingsState.agentInstances = {
       glm: claudeProfile({
         config: {
-          configDir: "~/.poracode/claude-profiles/glm",
+          configDir: "~/.craftstation/claude-profiles/glm",
           models: [{ id: "glm-5.2", label: "GLM 5.2" }],
           modelEfforts: { "glm-5.2": ["high"] },
         },
@@ -582,7 +582,7 @@ describe("ClaudeProfileProviderSettings", () => {
 
     await waitFor(() => expect(settingsState.setAgentInstance).toHaveBeenCalled());
     expect(settingsState.setAgentInstance.mock.calls.at(-1)?.[0]?.config).toEqual({
-      configDir: "~/.poracode/claude-profiles/glm",
+      configDir: "~/.craftstation/claude-profiles/glm",
       models: [{ id: "glm-5.2", label: "GLM 5.2" }],
     });
   });

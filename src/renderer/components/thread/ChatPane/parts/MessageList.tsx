@@ -118,7 +118,7 @@ const INLINE_IMAGE_ROW_CHROME_PX = 27;
 const INLINE_IMAGE_MAX_HEIGHT_REM = 18;
 const INLINE_IMAGE_MAX_VIEWPORT_HEIGHT = 0.4;
 const INLINE_IMAGE_HORIZONTAL_CHROME_PX = 26;
-const SKIP_REVERT_CONFIRM_PREF_KEY = "poracode-chat-checkpoint-revert-skip-confirm";
+const SKIP_REVERT_CONFIRM_PREF_KEY = "craftstation-chat-checkpoint-revert-skip-confirm";
 
 // Intentionally not wrapped in `React.memo`: pane swaps preserve this fiber
 // while moving the DOM, so the virtualizer must re-render to re-measure.
@@ -470,7 +470,7 @@ export function MessageList({
             "linear-gradient(to bottom, black calc(100% - 14px), rgb(0 0 0 / var(--lc-chat-bottom-mask-end-alpha, 0)))",
           transition: "--lc-chat-bottom-mask-end-alpha 150ms ease-out",
         }}
-        data-poracode-chat-scroller="true"
+        data-craftstation-chat-scroller="true"
         {...(onKeyDownCapture ? { onKeyDownCapture } : {})}
         onLoad={() => (onContentHeightChange ?? parentActions?.onContentHeightChange)?.()}
         {...(onPointerDownCapture ? { onPointerDownCapture } : {})}

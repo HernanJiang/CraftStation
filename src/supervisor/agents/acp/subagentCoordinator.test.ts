@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
-  PORACODE_ACP_NEW_ASSISTANT_ITEM_META_KEY,
-  PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
+  CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY,
+  CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY,
 } from "./canonicalMapping";
 import { createAcpSubagentCoordinator } from "./subagentCoordinator";
 
@@ -82,17 +82,17 @@ describe("createAcpSubagentCoordinator", () => {
     ]);
     expect(notifications[0]?.update).toMatchObject({
       content: { type: "text", text: "child result" },
-      _meta: { [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "tool-1" },
+      _meta: { [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "tool-1" },
     });
     expect(notifications[1]?.update).toMatchObject({
       content: { type: "text", text: "main-agent answer" },
       _meta: {
-        [PORACODE_ACP_NEW_ASSISTANT_ITEM_META_KEY]: true,
-        [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "tool-1",
+        [CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY]: true,
+        [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "tool-1",
       },
     });
     expect(notifications[1]?.update._meta).not.toHaveProperty(
-      PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY,
+      CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY,
     );
     expect(notifications[2]?.update).toMatchObject({
       toolCallId: "tool-1",
@@ -106,7 +106,7 @@ describe("createAcpSubagentCoordinator", () => {
       },
       _meta: {
         usage: { totalTokens: 42 },
-        [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "tool-1",
+        [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "tool-1",
       },
     });
     expect(coordinator.resolveBackgroundToolCallId("task-1")).toBeUndefined();

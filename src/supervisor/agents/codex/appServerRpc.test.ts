@@ -81,7 +81,7 @@ describe("CodexAppServerRpc", () => {
       );
       expect(writes).toEqual([
         {
-          id: "poracode-0",
+          id: "craftstation-0",
           method: "thread/read",
           params: { threadId: "provider-thread" },
         },
@@ -89,7 +89,7 @@ describe("CodexAppServerRpc", () => {
 
       listener().onMessage({
         jsonrpc: "2.0",
-        id: "poracode-0",
+        id: "craftstation-0",
         result: { late: true },
       });
     } finally {
@@ -101,20 +101,20 @@ describe("CodexAppServerRpc", () => {
     const { debugEvents, listener, rpc } = createRpcHarness();
     const pending = rpc.request("thread/read", { threadId: "provider-thread" });
 
-    const response = { jsonrpc: "2.0", id: "poracode-0", result: { ok: true } };
+    const response = { jsonrpc: "2.0", id: "craftstation-0", result: { ok: true } };
     listener().onMessage({ jsonrpc: "2.0", id: "unknown", result: { ignored: true } });
     listener().onMessage(response);
 
     await expect(pending).resolves.toEqual({ ok: true });
     expect(debugEvents).toContainEqual({
-      direction: "poracode->codex",
+      direction: "craftstation->codex",
       payload: {
-        id: "poracode-0",
+        id: "craftstation-0",
         method: "thread/read",
         params: { threadId: "provider-thread" },
       },
     });
-    expect(debugEvents).toContainEqual({ direction: "codex->poracode", payload: response });
+    expect(debugEvents).toContainEqual({ direction: "codex->craftstation", payload: response });
   });
 
   it("rejects error responses with the app-server message", async () => {
@@ -123,7 +123,7 @@ describe("CodexAppServerRpc", () => {
 
     listener().onMessage({
       jsonrpc: "2.0",
-      id: "poracode-0",
+      id: "craftstation-0",
       error: { code: -32000, message: "turn rejected" },
     });
 
@@ -154,7 +154,7 @@ describe("CodexAppServerRpc", () => {
       const pending = rpc.request("thread/read", { threadId: "provider-thread" });
 
       listener().onMessage({
-        id: "poracode-0",
+        id: "craftstation-0",
         error: { code: -32001, message: "Server overloaded; retry later." },
       });
       await Promise.resolve();
@@ -163,12 +163,12 @@ describe("CodexAppServerRpc", () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(writes).toHaveLength(2);
       expect(writes[1]).toMatchObject({
-        id: "poracode-1",
+        id: "craftstation-1",
         method: "thread/read",
         params: { threadId: "provider-thread" },
       });
 
-      listener().onMessage({ id: "poracode-1", result: { ok: true } });
+      listener().onMessage({ id: "craftstation-1", result: { ok: true } });
       await expect(pending).resolves.toEqual({ ok: true });
     } finally {
       random.mockRestore();
@@ -380,15 +380,15 @@ describe("CodexAppServerRpc", () => {
     second.setListener(listener(secondNotifications));
 
     const firstInitialize = first.request("initialize", {
-      clientInfo: { name: "poracode", version: "test" },
+      clientInfo: { name: "craftstation", version: "test" },
       capabilities: null,
     });
     const secondInitialize = second.request("initialize", {
-      clientInfo: { name: "poracode", version: "test" },
+      clientInfo: { name: "craftstation", version: "test" },
       capabilities: null,
     });
     expect(writes).toHaveLength(1);
-    transportListener!.onMessage({ id: "poracode-0", result: { userAgent: "codex/test" } });
+    transportListener!.onMessage({ id: "craftstation-0", result: { userAgent: "codex/test" } });
     await expect(Promise.all([firstInitialize, secondInitialize])).resolves.toHaveLength(2);
     first.notify("initialized");
     second.notify("initialized");
@@ -412,7 +412,7 @@ describe("CodexAppServerRpc", () => {
       includeTurns: false,
     });
     transportListener!.onMessage({
-      id: "poracode-1",
+      id: "craftstation-1",
       result: { thread: { id: "provider-second" } },
     });
     await expect(pending).resolves.toMatchObject({ thread: { id: "provider-second" } });
@@ -622,7 +622,7 @@ describe("CodexAppServerRpc", () => {
       id: "approval-first",
       error: {
         code: -32800,
-        message: "Request cancelled because the Poracode thread closed.",
+        message: "Request cancelled because the CraftStation thread closed.",
       },
     });
 
@@ -631,7 +631,7 @@ describe("CodexAppServerRpc", () => {
       includeTurns: false,
     });
     transportListener!.onMessage({
-      id: "poracode-0",
+      id: "craftstation-0",
       result: { thread: { id: "provider-second" } },
     });
     await expect(pending).resolves.toMatchObject({ thread: { id: "provider-second" } });
@@ -666,7 +666,7 @@ describe("CodexAppServerRpc", () => {
     };
     const connection = new CodexAppServerConnection(transport);
     // A force-stopped session is replaced while its own teardown still drains,
-    // so both sessions share the Poracode thread id.
+    // so both sessions share the CraftStation thread id.
     const forceStopped = new CodexAppServerRpc(connection, "local-thread");
     forceStopped.claimThread("provider-thread");
     const replacement = new CodexAppServerRpc(connection, "local-thread");

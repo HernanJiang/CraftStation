@@ -7,7 +7,7 @@ import { RemoteHttpError } from "../auth";
 const MAX_LOCAL_IMAGE_BYTES = 20 * 1024 * 1024;
 
 /**
- * The remote image endpoint trades the `poracode-local` scheme's renderer
+ * The remote image endpoint trades the `craftstation-local` scheme's renderer
  * sandbox for a token-gated image read, so it serves image-ish extensions only
  * — unlike the in-app protocol handler, it must never fall back to arbitrary
  * files. Content-Types are keyed by this same set.
@@ -26,7 +26,7 @@ const LOCAL_IMAGE_CONTENT_TYPES: Readonly<Record<string, string>> = {
 
 /**
  * Serves a local image file to a paired remote client (`GET /api/files/image`).
- * Mirrors the desktop `poracode-local` protocol handler's native-path
+ * Mirrors the desktop `craftstation-local` protocol handler's native-path
  * semantics (a plain absolute native path, no WSL handling — see
  * `attachments/localFiles.ts`).
  */

@@ -1,5 +1,5 @@
 /**
- * OpenCode plugin forwarder for Poracode thread status.
+ * OpenCode plugin forwarder for CraftStation thread status.
  *
  * OpenCode imports this plugin in-process and calls hook callbacks directly —
  * unlike Claude/Codex/Gemini which spawn `forward.mjs` per hook event. The
@@ -23,19 +23,19 @@
  * and registers each function as a separate plugin (silent duplicate). Do
  * not add additional named OR default exports beyond this single object.
  *
- * Filename note: deliberately `poracode-status.mjs` in the source tree.
- * The supervisor drops it as `poracode-status.js` into OpenCode's
+ * Filename note: deliberately `craftstation-status.mjs` in the source tree.
+ * The supervisor drops it as `craftstation-status.js` into OpenCode's
  * auto-discovery directory (`~/.config/opencode/plugins/`) — OpenCode's glob
  * is `{plugin,plugins}/*.{ts,js}` so `.mjs` would be silently ignored. Bun
  * (OpenCode's runtime) handles ESM syntax in `.js` natively. The displayed
  * plugin name in OpenCode's TUI status panel (`dialog-status.tsx`) is the
  * basename of the dropped file before the first dot, so naming the drop
- * `poracode-status.js` produces "poracode-status". The Windows panel
+ * `craftstation-status.js` produces "craftstation-status". The Windows panel
  * display is buggy upstream — OpenCode `split("/")`s a native `\`-path —
  * and cannot be fixed plugin-side. `id` is still set because newer OpenCode
  * builds will read it.
  *
- * Safe outside Poracode: when the env vars are missing the handlers no-op.
+ * Safe outside CraftStation: when the env vars are missing the handlers no-op.
  */
 
 import { readFileSync } from "node:fs";
@@ -47,11 +47,11 @@ import { setTimeout as sleep } from "node:timers/promises";
 //   1. Deployed in OpenCode's plugins/ dir → sibling `<basename>.plugin.json`
 //      (the installer drops both files together so `import.meta.url` reaches
 //      the manifest at runtime). OpenCode auto-loads `.{ts,js}` only, so the
-//      deployed plugin file is `poracode-status.js` and its manifest is
-//      `poracode-status.plugin.json`.
+//      deployed plugin file is `craftstation-status.js` and its manifest is
+//      `craftstation-status.plugin.json`.
 //   2. Staged in our agent-plugins/ dir → sibling `plugin.json` (matches
 //      `installerBase`'s canonical filename, used by tests / dev paths). The
-//      staged file is `poracode-status.mjs`.
+//      staged file is `craftstation-status.mjs`.
 function readPluginVersionFromManifest() {
   try {
     const filePath = fileURLToPath(import.meta.url);
@@ -76,10 +76,10 @@ function readPluginVersionFromManifest() {
 
 const PLUGIN_VERSION = readPluginVersionFromManifest();
 const PROTOCOL_VERSION = 1;
-const CROSSAGENT_SESSION_ID_ARG = "__poracode_provider_session_id";
+const CROSSAGENT_SESSION_ID_ARG = "__craftstation_provider_session_id";
 
 function injectCrossagentSessionId(input, output) {
-  if (process.env.PORACODE_OPENCODE_SESSION_ROUTING !== "1") return;
+  if (process.env.CRAFTSTATION_OPENCODE_SESSION_ROUTING !== "1") return;
   if (typeof input?.tool !== "string" || !input.tool.startsWith("crossagents_")) return;
   if (typeof input.sessionID !== "string" || input.sessionID.length === 0) return;
   if (!output?.args || typeof output.args !== "object" || Array.isArray(output.args)) return;
@@ -90,17 +90,17 @@ function injectCrossagentSessionId(input, output) {
 }
 
 function hookDebugEnabled() {
-  const v = process.env.PORACODE_HOOK_DEBUG;
+  const v = process.env.CRAFTSTATION_HOOK_DEBUG;
   return v === "1" || v === "true" || Boolean(v && v !== "0" && v !== "false");
 }
 
 function debugLog(message) {
   if (hookDebugEnabled()) {
-    process.stderr.write(`[poracode-opencode] ${message}\n`);
+    process.stderr.write(`[craftstation-opencode] ${message}\n`);
   }
 }
 
-// `event.type` → Poracode intent. `permission.updated` and the (per-docs but
+// `event.type` → CraftStation intent. `permission.updated` and the (per-docs but
 // untyped in the SDK) `permission.asked` both surface a request for approval,
 // so they share `session.needs_approval`. `tool.execute.after` /
 // `permission.replied` are intentionally unmapped — noisy and `session.idle`
@@ -177,15 +177,17 @@ async function postWithRetry(url, headers, body, attempts = 2) {
 }
 
 async function forwardIntent(eventType, intent, sessionId, extra) {
-  const url = process.env.PORACODE_HOOK_URL;
-  const secret = process.env.PORACODE_HOOK_SECRET;
-  const threadId = process.env.PORACODE_THREAD_ID;
-  const agentKind = process.env.PORACODE_AGENT_KIND ?? "opencode";
-  const supervisorProtocol = Number(process.env.PORACODE_HOOK_PROTOCOL_VERSION ?? PROTOCOL_VERSION);
+  const url = process.env.CRAFTSTATION_HOOK_URL;
+  const secret = process.env.CRAFTSTATION_HOOK_SECRET;
+  const threadId = process.env.CRAFTSTATION_THREAD_ID;
+  const agentKind = process.env.CRAFTSTATION_AGENT_KIND ?? "opencode";
+  const supervisorProtocol = Number(
+    process.env.CRAFTSTATION_HOOK_PROTOCOL_VERSION ?? PROTOCOL_VERSION,
+  );
   const negotiatedProtocol = Math.min(PROTOCOL_VERSION, supervisorProtocol || PROTOCOL_VERSION);
 
   if (!url || !secret) {
-    debugLog(`skip ${eventType}: missing PORACODE_HOOK_URL or PORACODE_HOOK_SECRET`);
+    debugLog(`skip ${eventType}: missing CRAFTSTATION_HOOK_URL or CRAFTSTATION_HOOK_SECRET`);
     return;
   }
 
@@ -213,7 +215,7 @@ async function forwardIntent(eventType, intent, sessionId, extra) {
 }
 
 export default {
-  id: "poracode-status",
+  id: "craftstation-status",
   server: async () => ({
     // Unified event dispatcher — see file header for why session/permission
     // lifecycle hooks must come through here, not as top-level keys.

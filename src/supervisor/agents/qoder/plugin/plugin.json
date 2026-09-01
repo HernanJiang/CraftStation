@@ -1,7 +1,7 @@
 {
-  "name": "poracode-status",
+  "name": "craftstation-status",
   "version": "1.0.0",
-  "description": "Forward Qoder CLI lifecycle events to Poracode for sidebar status detection.",
-  "author": "Poracode",
+  "description": "Forward Qoder CLI lifecycle events to CraftStation for sidebar status detection.",
+  "author": "CraftStation",
   "license": "Apache-2.0"
 }

@@ -2,15 +2,15 @@ import { nativeImage } from "electron";
 import type { BrowserPanelManager } from "../browser";
 import { dbGetProject, dbGetProjects, dbGetThreads } from "../db";
 import { patchSharedSettingsFile, readSharedSettingsFile } from "../sharedSettingsFile";
-import type { PoracodeDiagnosticTags } from "@/shared/diagnostics/sentryPrivacy";
+import type { CraftStationDiagnosticTags } from "@/shared/diagnostics/sentryPrivacy";
 import type {
   RemoteAccessTailscaleStatus,
   StartTailscaleResult,
   SupervisorEvent,
 } from "@/shared/ipc";
 import { toErrorMessage } from "@/shared/errorMessage";
-import { resolvePoracodePaths, type PoracodePaths } from "@/shared/poracodePaths";
-import type { PoracodeChannel } from "@/shared/channel";
+import { resolveCraftStationPaths, type CraftStationPaths } from "@/shared/craftstationPaths";
+import type { CraftStationChannel } from "@/shared/channel";
 import { saveUploadedAttachmentFile } from "../attachments/attachmentStorage";
 import {
   pickRemoteSettings,
@@ -21,6 +21,7 @@ import type { SharedSettings } from "@/shared/settings";
 import type { Project } from "@/shared/contracts";
 import { resolveMcpLaunchSnapshot } from "@/shared/contracts";
 import { buildRemoteGitTargetInterests } from "@/shared/gitStateInterestPolicy";
+import type { ThreadCollaborationService } from "../thread-collaboration";
 import type { ScheduleService } from "../schedules/ScheduleService";
 import type { PrWatchService } from "../prWatch";
 import type { GitStateService } from "../gitState";
@@ -47,6 +48,7 @@ import {
   type RemoteAccessServerOptions,
 } from "./RemoteAccessServer";
 import { RemoteBrowserGateway } from "./RemoteBrowserGateway";
+import { createRemoteThreadCollaborationGateway } from "./threadCollaborationGateway";
 import {
   buildTailscaleHttpsUrl,
   disableTailscaleServe,
@@ -56,20 +58,20 @@ import {
   type TailscaleStatus,
 } from "./tailscale";
 
-const PRODUCTION_PAIRING_APP_URL: Record<PoracodeChannel, string> = {
-  stable: "https://poracode.com",
-  nightly: "https://app-nightly.poracode.com",
+const PRODUCTION_PAIRING_APP_URL: Record<CraftStationChannel, string> = {
+  stable: "https://craftstation.com",
+  nightly: "https://app-nightly.craftstation.com",
 };
 
 const PRODUCTION_HOSTED_APP_URLS = [
-  "https://app.poracode.com",
-  "https://app-nightly.poracode.com",
+  "https://app.craftstation.com",
+  "https://app-nightly.craftstation.com",
 ] as const;
 
 export interface DesktopRemoteAccessControllerOptions {
   readonly appVersion: string;
-  readonly channel: PoracodeChannel;
-  readonly paths: Pick<PoracodePaths, "baseDir" | "settingsPath">;
+  readonly channel: CraftStationChannel;
+  readonly paths: Pick<CraftStationPaths, "baseDir" | "settingsPath">;
   readonly devServerUrl?: string;
   readonly callSupervisor: RemoteAccessServerOptions["callSupervisor"];
   readonly dispatchThreadCommand: NonNullable<RemoteAccessServerOptions["dispatchThreadCommand"]>;
@@ -77,11 +79,12 @@ export interface DesktopRemoteAccessControllerOptions {
   readonly notifySharedSettingsChanged: (settings: SharedSettings) => void;
   readonly notifyRemoteAccessPairingChanged: (info: RemoteAccessPairingInfo) => void;
   readonly notifyProjectStateChanged: (projects: readonly Project[]) => void;
-  readonly reportError: (error: unknown, tags?: PoracodeDiagnosticTags) => void;
+  readonly reportError: (error: unknown, tags?: CraftStationDiagnosticTags) => void;
   readonly scheduleService: ScheduleService;
   readonly prWatchService: PrWatchService;
   readonly gitStateService: GitStateService;
   readonly updates: NonNullable<RemoteAccessServerOptions["updates"]>;
+  readonly getThreadCollaborationService: () => ThreadCollaborationService | null;
 }
 
 export interface DesktopRemoteAccessController {
@@ -110,8 +113,8 @@ class RemoteAccessStartSupersededError extends Error {
 
 function remoteAccessStartupDiagnostic(
   error: unknown,
-  channel: PoracodeChannel,
-): { error: unknown; tags: PoracodeDiagnosticTags } {
+  channel: CraftStationChannel,
+): { error: unknown; tags: CraftStationDiagnosticTags } {
   const code =
     typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
       ? error.code
@@ -122,9 +125,9 @@ function remoteAccessStartupDiagnostic(
     return {
       error: diagnostic,
       tags: {
-        "poracode.feature_area": "remote-access",
-        "poracode.channel": channel,
-        "poracode.platform":
+        "craftstation.feature_area": "remote-access",
+        "craftstation.channel": channel,
+        "craftstation.platform":
           process.platform === "darwin" ||
           process.platform === "linux" ||
           process.platform === "win32"
@@ -134,7 +137,7 @@ function remoteAccessStartupDiagnostic(
       },
     };
   }
-  return { error, tags: { "poracode.feature_area": "remote-access" } };
+  return { error, tags: { "craftstation.feature_area": "remote-access" } };
 }
 
 interface RemoteAccessStartAttempt {
@@ -229,7 +232,7 @@ export function createDesktopRemoteAccessController(
   const resolveAdvertisedBaseUrl = async (
     port: number,
   ): Promise<{ advertisedBaseUrl?: string; tailscaleServeUrl?: string }> => {
-    const envAdvertisedHost = process.env.PORACODE_REMOTE_ACCESS_ADVERTISED_HOST?.trim();
+    const envAdvertisedHost = process.env.CRAFTSTATION_REMOTE_ACCESS_ADVERTISED_HOST?.trim();
     if (envAdvertisedHost) return {};
 
     const settings = readSharedSettingsFile(options.paths.settingsPath);
@@ -333,7 +336,7 @@ export function createDesktopRemoteAccessController(
       const pushStore = new PushRegistrationStore(options.paths.baseDir);
       const pushGatewayOptions = {
         onError: (error: unknown) =>
-          options.reportError(error, { "poracode.feature_area": "remote-push" }),
+          options.reportError(error, { "craftstation.feature_area": "remote-push" }),
       };
       const coordinator = new PushCoordinator({
         store: pushStore,
@@ -415,7 +418,7 @@ export function createDesktopRemoteAccessController(
         updates: options.updates,
         attachments: {
           save: (input) =>
-            saveUploadedAttachmentFile(resolvePoracodePaths(options.paths.baseDir), input),
+            saveUploadedAttachmentFile(resolveCraftStationPaths(options.paths.baseDir), input),
         },
         // `ScheduleService`'s public methods already match the gateway
         // interface, so pass it directly instead of re-wrapping each method.
@@ -430,6 +433,9 @@ export function createDesktopRemoteAccessController(
           options.notifyRemoteAccessPairingChanged(getRemoteAccessPairingInfo(server));
         },
         onProjectsChanged: options.notifyProjectStateChanged,
+        threadCollaboration: createRemoteThreadCollaborationGateway(
+          options.getThreadCollaborationService,
+        ),
       });
       attempt.server = server;
       remoteAccessServer = server;
@@ -437,8 +443,8 @@ export function createDesktopRemoteAccessController(
       attempt.serverStartPromise = serverStartPromise;
       const info = await serverStartPromise;
       if (!isCurrentStartAttempt(attempt)) throw new RemoteAccessStartSupersededError();
-      console.log("[poracode] remote access enabled at %s", info.httpBaseUrl);
-      console.log("[poracode] remote pairing URL: %s", info.pairingUrl);
+      console.log("[craftstation] remote access enabled at %s", info.httpBaseUrl);
+      console.log("[craftstation] remote pairing URL: %s", info.pairingUrl);
       return info;
     } catch (error) {
       await disposeAttemptServer(attempt).catch(() => {});
@@ -461,7 +467,7 @@ export function createDesktopRemoteAccessController(
 
       const superseded = !isCurrentStartAttempt(attempt);
       if (!superseded) {
-        console.error("[poracode] remote access failed to start:", toErrorMessage(error));
+        console.error("[craftstation] remote access failed to start:", toErrorMessage(error));
         const diagnostic = remoteAccessStartupDiagnostic(error, options.channel);
         options.reportError(diagnostic.error, diagnostic.tags);
       }
@@ -540,9 +546,9 @@ export function createDesktopRemoteAccessController(
     const serverDisposal =
       attempt?.server === server ? disposeAttemptServer(attempt) : server.dispose();
     void serverDisposal
-      .then(() => console.log("[poracode] remote access disabled"))
+      .then(() => console.log("[craftstation] remote access disabled"))
       .catch((error) =>
-        console.warn("[poracode] remote access failed to stop cleanly:", toErrorMessage(error)),
+        console.warn("[craftstation] remote access failed to stop cleanly:", toErrorMessage(error)),
       )
       .finally(() => {
         forwarding?.dispose();

@@ -53,9 +53,9 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
 
   beforeEach(() => {
     if (nativeBindingEnv) {
-      process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
+      process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
     }
-    dir = mkdtempSync(join(tmpdir(), "poracode-runtime-db-test-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-runtime-db-test-"));
     initDatabase(join(dir, "state.sqlite"));
     dbUpsertProject(
       {
@@ -72,7 +72,7 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
   afterEach(() => {
     closeDatabase();
     rmSync(dir, { recursive: true, force: true });
-    delete process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING;
+    delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
   });
 
   it("applies streamed item and context updates without replacing the transcript", () => {
@@ -296,6 +296,50 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
     ]);
 
     expect(dbGetLatestThreadRuntimeAnchorItemId("thread-1")).toBe("assistant-1");
+  });
+
+  it("does not use completed reasoning or tool items as a completed-turn anchor", () => {
+    dbReplaceThreadRuntimeItems("thread-1", [
+      {
+        id: "assistant-1",
+        type: "assistant_message",
+        state: "completed",
+        streams: { assistant_text: "Visible answer" },
+      },
+      {
+        id: "reasoning-1",
+        type: "reasoning",
+        state: "completed",
+        streams: { reasoning_text: "Internal reasoning" },
+      },
+      {
+        id: "tool-1",
+        type: "tool_call",
+        state: "completed",
+        streams: {},
+      },
+    ]);
+
+    expect(dbGetLatestThreadRuntimeAnchorItemId("thread-1")).toBe("assistant-1");
+  });
+
+  it("does not use an in-progress assistant item as a completed-turn anchor", () => {
+    dbReplaceThreadRuntimeItems("thread-1", [
+      {
+        id: "assistant-completed",
+        type: "assistant_message",
+        state: "completed",
+        streams: { assistant_text: "Completed answer" },
+      },
+      {
+        id: "assistant-streaming",
+        type: "assistant_message",
+        state: "started",
+        streams: { assistant_text: "Partial answer" },
+      },
+    ]);
+
+    expect(dbGetLatestThreadRuntimeAnchorItemId("thread-1")).toBe("assistant-completed");
   });
 
   it("retires a still-open request item when the turn completes", () => {

@@ -288,14 +288,14 @@ describe("createGrokAdapter buildLaunchArgv / buildResumeArgv session flags", ()
     });
 
     expect(existsSync(join(grokHome, "config.toml"))).toBe(false);
-    expect(existsSync(join(grokHome, ".poracode-managed-mcp.json"))).toBe(false);
+    expect(existsSync(join(grokHome, ".craftstation-managed-mcp.json"))).toBe(false);
   });
 });
 
 describe("createGrokAdapter L1 hook plugin support", () => {
-  it("declares poracode-status@grok with protocol version 1", () => {
+  it("declares craftstation-status@grok with protocol version 1", () => {
     const adapter = createGrokAdapter();
-    expect(adapter.pluginId).toBe("poracode-status@grok");
+    expect(adapter.pluginId).toBe("craftstation-status@grok");
     expect(adapter.minProtocolVersion).toBe(1);
     expect(typeof adapter.pluginVersion).toBe("string");
     expect(adapter.pluginVersion?.length ?? 0).toBeGreaterThan(0);

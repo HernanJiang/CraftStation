@@ -16,7 +16,7 @@ export function safeRm(path: string): void {
 /**
  * Sweep stale `node-v*` directories under a runtime root, keeping only
  * `keepDirName`. Used after a successful pinned-LTS install to keep
- * `~/.poracode/runtime/` (and its WSL UNC equivalent) from accumulating
+ * `~/.craftstation/runtime/` (and its WSL UNC equivalent) from accumulating
  * ~80 MB per pinned-version bump. Failures are swallowed.
  */
 export function pruneStaleRuntimeDirs(runtimeDir: string, keepDirName: string): void {

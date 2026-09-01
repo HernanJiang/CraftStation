@@ -11,7 +11,7 @@ export interface MarkdownLocalImageOptions {
 }
 
 /**
- * Rewrite local filesystem image targets to `poracode-local://` before markdown
+ * Rewrite local filesystem image targets to `craftstation-local://` before markdown
  * parse. Required because CommonMark treats `\.` as an escape (mangling Windows
  * paths like `C:\Users\me\.grok\…`), and relative image paths would otherwise
  * 404 against the app origin.
@@ -47,8 +47,8 @@ export function resolveMarkdownImageUrl(
   if (!trimmed) return null;
 
   if (
-    trimmed.startsWith("poracode-local://") ||
-    trimmed.startsWith("lightcode-local://") ||
+    trimmed.startsWith("craftstation-local://") ||
+    trimmed.startsWith("craftstation-local://") ||
     trimmed.startsWith("data:") ||
     trimmed.startsWith("blob:") ||
     /^https?:\/\//i.test(trimmed)

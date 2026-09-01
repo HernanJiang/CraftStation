@@ -39,7 +39,7 @@ const messages = {
   "git.pull.localChanges": "Local changes need to be stashed before pulling from {branch}",
   "git.pull.reapplyConflicts": "Re-applying local changes has conflicts",
   "git.pull.stashPreserved":
-    "Pull did not complete. Your local changes remain in a Poracode stash.",
+    "Pull did not complete. Your local changes remain in a CraftStation stash.",
   "git.pull.reapplyAfterMerge":
     "Your local changes were stashed and will be re-applied once the merge is resolved.",
   "git.pull.stashReapplied": "Your stashed local changes were re-applied.",
@@ -125,11 +125,11 @@ const messages = {
 
   // ── ACP ───────────────────────────────────────────────────
   "acp.authenticationUnverified":
-    "{agent} reported authentication success, but Poracode could not verify it. Configure {agent} directly, then try again.",
+    "{agent} reported authentication success, but CraftStation could not verify it. Configure {agent} directly, then try again.",
 
   // ── Kimi Code ─────────────────────────────────────────────
   "kimi.credentialsLocked":
-    "Kimi Code could not update its credentials because another process is using the credential file. Close other Poracode or Kimi Code processes, then retry.",
+    "Kimi Code could not update its credentials because another process is using the credential file. Close other CraftStation or Kimi Code processes, then retry.",
   "kimi.emptyResponse":
     "Kimi Code ended the turn without returning a response. Restart the thread and try again.",
 
@@ -140,13 +140,13 @@ const messages = {
   "update.devUnavailable": "Update checks are not available in development mode.",
 
   // ── Remote hosts ─────────────────────────────────────────
-  "remote.helper.invalidResponse": "Poracode Helper returned an invalid response.",
-  "remote.helper.wrongHost": "The SSH tunnel reached an incompatible Poracode server.",
-  "remote.helper.probeFailed": "Poracode Helper is not ready yet (HTTP {status}).",
-  "remote.helper.timeout": "Timed out waiting for Poracode Helper.",
+  "remote.helper.invalidResponse": "CraftStation Helper returned an invalid response.",
+  "remote.helper.wrongHost": "The SSH tunnel reached an incompatible CraftStation server.",
+  "remote.helper.probeFailed": "CraftStation Helper is not ready yet (HTTP {status}).",
+  "remote.helper.timeout": "Timed out waiting for CraftStation Helper.",
   "remote.helper.startFailed":
-    "Poracode Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine.",
-  "ssh.runtimeManifest.invalid": "Poracode SSH runtime manifest is missing or invalid: {path}",
+    "CraftStation Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine.",
+  "ssh.runtimeManifest.invalid": "CraftStation SSH runtime manifest is missing or invalid: {path}",
   "remote.project.invalidName": "Enter a valid project name.",
   "remote.project.invalidPath": "Enter a valid absolute project path.",
   "remote.project.invalidCloneUrl":
@@ -232,7 +232,7 @@ export function errorDetail(err: unknown): string {
 const pullDirtyWorktreePattern =
   /(?:\bgit\s+pull\b[\s\S]*(?:local changes|unstaged changes|would be overwritten)|cannot pull\b[\s\S]*(?:changes|stash)|local changes[\s\S]*(?:before|during)[\s\S]*(?:merge|pull)|please commit or stash[\s\S]*(?:merge|pull))/i;
 const acpAuthenticationUnverifiedPattern =
-  /^(.+) reported authentication success, but Poracode could not verify it\. Configure \1 directly, then try again\.$/;
+  /^(.+) reported authentication success, but CraftStation could not verify it\. Configure \1 directly, then try again\.$/;
 
 const errorPatterns: Array<{
   test: RegExp;
@@ -267,31 +267,32 @@ const errorPatterns: Array<{
     key: "git.merge.conflicts",
   },
   {
-    test: /remote Poracode command returned no JSON result|Poracode Helper returned (?:an invalid port|no pairing URL|an invalid environment descriptor)|remote Poracode pairing URL contained no credential/i,
+    test: /remote CraftStation command returned no JSON result|CraftStation Helper returned (?:an invalid port|no pairing URL|an invalid environment descriptor)|remote CraftStation pairing URL contained no credential/i,
     key: "remote.helper.invalidResponse",
   },
   {
-    test: /Expected a Poracode Helper, but the endpoint is hosted by/i,
+    test: /Expected a CraftStation Helper, but the endpoint is hosted by/i,
     key: "remote.helper.wrongHost",
   },
   {
-    test: /Poracode Helper probe returned HTTP \d+/i,
+    test: /CraftStation Helper probe returned HTTP \d+/i,
     key: "remote.helper.probeFailed",
     params: (raw) => ({ status: raw.match(/HTTP (\d+)/i)?.[1] ?? "?" }),
   },
   {
-    test: /^Poracode SSH runtime manifest is missing or invalid: .+$/i,
+    test: /^CraftStation SSH runtime manifest is missing or invalid: .+$/i,
     key: "ssh.runtimeManifest.invalid",
     params: (raw) => ({
-      path: raw.match(/^Poracode SSH runtime manifest is missing or invalid: (.+)$/i)?.[1] ?? "?",
+      path:
+        raw.match(/^CraftStation SSH runtime manifest is missing or invalid: (.+)$/i)?.[1] ?? "?",
     }),
   },
   {
-    test: /Timed out waiting for the SSH tunnel to reach Poracode Helper/i,
+    test: /Timed out waiting for the SSH tunnel to reach CraftStation Helper/i,
     key: "remote.helper.timeout",
   },
   {
-    test: /Poracode Helper failed to start|Poracode SSH requires (?:Node 24\.10 or newer|npm)|Uploaded Poracode runtime archive was not found|No remote loopback port is available for Poracode/i,
+    test: /CraftStation Helper failed to start|CraftStation SSH requires (?:Node 24\.10 or newer|npm)|Uploaded CraftStation runtime archive was not found|No remote loopback port is available for CraftStation/i,
     key: "remote.helper.startFailed",
   },
   {

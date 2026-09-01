@@ -1,5 +1,5 @@
 import { BrowserWindow, screen, type Rectangle, type RenderProcessGoneDetails } from "electron";
-import type { PoracodeChannel } from "@/shared/channel";
+import type { CraftStationChannel } from "@/shared/channel";
 import type { RendererProcessGoneIntent } from "@/main/diagnostics/processGone";
 import { installSessionPermissions } from "../browser/permissions";
 import { showAndFocusWindow } from "./showAndFocusWindow";
@@ -19,7 +19,7 @@ export const QUICK_COMPOSER_HEIGHT = 470;
 export interface CreateQuickComposerWindowOptions {
   title: string;
   isDev: boolean;
-  channel: PoracodeChannel;
+  channel: CraftStationChannel;
   preloadPath: string;
   rendererHtmlPath: string;
   appVersion: string;

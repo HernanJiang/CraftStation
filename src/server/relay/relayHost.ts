@@ -3,7 +3,7 @@ import { headersToRecord, readBoundedResponseBody } from "@/shared/http";
 import { toWebSocketUrl } from "@/shared/remote";
 import {
   DEFAULT_RELAY_MAX_BODY_BYTES,
-  PORACODE_RELAY_PROTOCOL_VERSION,
+  CRAFTSTATION_RELAY_PROTOCOL_VERSION,
   RELAY_FORWARD_SESSION_COOKIE_NAME,
   relayServerFrameSchema,
   relayWebSocketPayloadLimit,
@@ -421,7 +421,7 @@ export function startRelayHost(options: RelayHostOptions): RelayHostHandle {
       reconnectMs = minReconnect;
       send({
         t: "register",
-        protocolVersion: PORACODE_RELAY_PROTOCOL_VERSION,
+        protocolVersion: CRAFTSTATION_RELAY_PROTOCOL_VERSION,
         serverId: options.serverId,
         secret: options.secret,
         ...(options.label ? { label: options.label } : {}),

@@ -7,7 +7,7 @@ import {
   readDebugSession,
   resolveSessionFile,
   resolveSmokeRoot,
-} from "./poracode-debug-session.mjs";
+} from "./craftstation-debug-session.mjs";
 
 export async function launchDetachedSession({ flags, repoRoot, scriptDir }) {
   if (flags.new !== true) {
@@ -40,7 +40,7 @@ export async function launchDetachedSession({ flags, repoRoot, scriptDir }) {
     owner = spawn(
       process.execPath,
       [
-        join(scriptDir, "run-poracode-smoke.mjs"),
+        join(scriptDir, "run-craftstation-smoke.mjs"),
         "--launch-only",
         "--new",
         "--mode",

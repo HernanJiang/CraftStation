@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Tooltip } from "@heroui/react";
-import { ArrowRightLeft, Bug, CircleCheck, X } from "lucide-react";
+import { Button, Tooltip } from "@heroui/react";
+import { ArrowRightLeft, Bug, CircleCheck, MessagesSquare, X } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type {
   AgentStatus,
@@ -28,6 +28,8 @@ import type { SaveClipboardImage } from "../composer/useAttachments";
 import { ContinueInProviderDialog } from "./ContinueInProviderDialog";
 import { GuiThreadContent } from "./ThreadContent";
 import { TerminalThreadContent } from "./TerminalThreadContent";
+import { ThreadCollaborationActivity } from "./ThreadCollaborationActivity";
+import { ThreadCollaborationDialog } from "./ThreadCollaborationDialog";
 import { ThreadHeaderStatusButton } from "./ThreadHeaderStatus";
 
 /**
@@ -192,6 +194,8 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
   const terminalPaneRef = useRef<TerminalPaneHandle>(null);
   const [terminalSize, setTerminalSize] = useState<TerminalSize | null>(null);
   const [continueDialogOpen, setContinueDialogOpen] = useState(false);
+  const [collaborationDialogOpen, setCollaborationDialogOpen] = useState(false);
+  const [collaborationRefreshKey, setCollaborationRefreshKey] = useState(0);
   const [runtimeDebugOpen, setRuntimeDebugOpen] = useState(false);
   const launchRequestRef = useRef<string | null>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
@@ -208,6 +212,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
 
   useLayoutEffect(() => {
     setContinueDialogOpen(false);
+    setCollaborationDialogOpen(false);
     setRuntimeDebugOpen(false);
     setIsTitleTooltipOpen(false);
   }, [thread.id]);
@@ -285,7 +290,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
       }`}
     >
       <div
-        className={`${dragHandleRef ? "poracode-content-over-drag-region" : "poracode-content-over-drag-region--drag"} @container ${
+        className={`${dragHandleRef ? "craftstation-content-over-drag-region" : "craftstation-content-over-drag-region--drag"} @container ${
           threadHeaderIsPortaled ? "" : alignClass
         } flex w-full min-w-0 ${threadHeaderIsPortaled ? "max-w-none" : "max-w-[920px]"} items-center gap-2 ${
           threadHeaderIsPortaled ? "h-full" : "py-1"
@@ -335,6 +340,25 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               </span>
             ) : null}
             {isWsl ? <TuxIcon className="h-3 w-auto shrink-0 px-1 text-muted/60" /> : null}
+            {thread.sessionRef || thread.canResumeWithConfig ? (
+              <Tooltip delay={0}>
+                <Tooltip.Trigger>
+                  <Button
+                    isIconOnly
+                    aria-label={t`Ask another thread`}
+                    className="craftstation-overlay-header__controls min-w-0 shrink-0 rounded p-1 text-muted/60 hover:bg-[var(--row-hover)] hover:text-foreground"
+                    size="sm"
+                    variant="ghost"
+                    onPress={() => setCollaborationDialogOpen(true)}
+                  >
+                    <MessagesSquare className="size-3.5" />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <Trans>Ask another thread</Trans>
+                </Tooltip.Content>
+              </Tooltip>
+            ) : null}
             {onContinueInProvider &&
             installedAgents &&
             installedAgents.filter((a) => a.kind !== thread.agentKind).length > 0 &&
@@ -344,7 +368,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                   <button
                     type="button"
                     aria-label={t`Continue in another provider`}
-                    className="poracode-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+                    className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       setContinueDialogOpen(true);
@@ -367,7 +391,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                       runtimeDebugOpen ? t`Hide runtime debug panel` : t`Show runtime debug panel`
                     }
                     aria-pressed={runtimeDebugOpen}
-                    className={`poracode-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${runtimeDebugOpen ? "text-foreground" : "text-muted/60 hover:text-foreground"}`}
+                    className={`craftstation-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${runtimeDebugOpen ? "text-foreground" : "text-muted/60 hover:text-foreground"}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setRuntimeDebugOpen((o) => !o);
@@ -389,7 +413,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               <button
                 type="button"
                 aria-label={thread.done ? t`Unmark done` : t`Mark done`}
-                className={`poracode-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${thread.done ? "text-[oklch(0.78_0.1_180)]" : "text-muted/60 hover:text-foreground"}`}
+                className={`craftstation-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${thread.done ? "text-[oklch(0.78_0.1_180)]" : "text-muted/60 hover:text-foreground"}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onMarkDone();
@@ -402,7 +426,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               <button
                 type="button"
                 aria-label={t`Close pane`}
-                className="poracode-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+                className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation();
                   onClose?.();
@@ -421,7 +445,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     <>
       <div
         ref={droppableRef}
-        data-poracode-thread-pane=""
+        data-craftstation-thread-pane=""
         className={`group/pane relative flex h-full min-h-0 flex-col ${isDragging ? "opacity-50" : ""}`}
       >
         {dropIndicator === "replace" && (
@@ -462,6 +486,11 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
           : threadHeader}
 
         <div className={contentShellClass}>
+          <ThreadCollaborationActivity
+            threadId={thread.id}
+            refreshKey={collaborationRefreshKey}
+            onOpen={() => setCollaborationDialogOpen(true)}
+          />
           <div className={contentBodyClass}>
             {usesTerminalPresentation ? (
               <TerminalThreadContent
@@ -531,6 +560,14 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               ctx,
             );
           }}
+        />
+      ) : null}
+      {collaborationDialogOpen ? (
+        <ThreadCollaborationDialog
+          isOpen
+          sourceThreadId={thread.id}
+          onChanged={() => setCollaborationRefreshKey((current) => current + 1)}
+          onClose={() => setCollaborationDialogOpen(false)}
         />
       ) : null}
     </>

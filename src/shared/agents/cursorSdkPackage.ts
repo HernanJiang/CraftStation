@@ -1,7 +1,7 @@
 import { isVersionInWindow, type VersionWindow } from "./updateResolver";
 
 /**
- * Single source of truth for the `@cursor/sdk` release window Poracode's
+ * Single source of truth for the `@cursor/sdk` release window CraftStation's
  * structured Cursor runtime supports.
  *
  * Three consumers read it: the supervisor SDK loader (rejects an installed

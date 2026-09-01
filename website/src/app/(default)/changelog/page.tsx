@@ -5,8 +5,8 @@ import { createPageMetadata } from "@/lib/seo";
 import { ChangelogContent } from "@/app/changelog/changelog-content";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "Poracode Changelog",
-  description: "Everything new in Poracode — features, improvements, and fixes, newest first.",
+  title: "CraftStation Changelog",
+  description: "Everything new in CraftStation — features, improvements, and fixes, newest first.",
   path: "/changelog",
 });
 

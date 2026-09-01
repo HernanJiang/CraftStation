@@ -686,8 +686,9 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       const text = (e as CustomEvent<string>).detail;
       if (text) setPrompt((prev) => prev + text);
     }
-    window.addEventListener("poracode:paste-to-composer", handlePasteToComposer);
-    return () => window.removeEventListener("poracode:paste-to-composer", handlePasteToComposer);
+    window.addEventListener("craftstation:paste-to-composer", handlePasteToComposer);
+    return () =>
+      window.removeEventListener("craftstation:paste-to-composer", handlePasteToComposer);
   }, []);
 
   // Publish the rendered presentation + collapsed state so the browser element

@@ -67,8 +67,8 @@ function remoteMcp(
 }
 
 describe("acquireOpenCodeServer", () => {
-  const oldBrowserMcpUrl = process.env.PORACODE_BROWSER_MCP_URL;
-  const oldBrowserMcpToken = process.env.PORACODE_BROWSER_MCP_TOKEN;
+  const oldBrowserMcpUrl = process.env.CRAFTSTATION_BROWSER_MCP_URL;
+  const oldBrowserMcpToken = process.env.CRAFTSTATION_BROWSER_MCP_TOKEN;
 
   beforeEach(() => {
     mocks.buildOpenCodeServerCommand.mockReset().mockReturnValue({
@@ -84,8 +84,8 @@ describe("acquireOpenCodeServer", () => {
     mocks.spawnOpenCodeServer.mockReset();
     mocks.disposeSpawnedOpenCodeServerHandles.mockReset();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
-    process.env.PORACODE_BROWSER_MCP_URL = "http://127.0.0.1:9321";
-    process.env.PORACODE_BROWSER_MCP_TOKEN = "test-token";
+    process.env.CRAFTSTATION_BROWSER_MCP_URL = "http://127.0.0.1:9321";
+    process.env.CRAFTSTATION_BROWSER_MCP_TOKEN = "test-token";
   });
 
   it("installs the routing plugin before starting the shared native server", async () => {
@@ -128,14 +128,14 @@ describe("acquireOpenCodeServer", () => {
     shutdownSpawnedOpenCodeServers();
     vi.unstubAllGlobals();
     if (oldBrowserMcpUrl === undefined) {
-      delete process.env.PORACODE_BROWSER_MCP_URL;
+      delete process.env.CRAFTSTATION_BROWSER_MCP_URL;
     } else {
-      process.env.PORACODE_BROWSER_MCP_URL = oldBrowserMcpUrl;
+      process.env.CRAFTSTATION_BROWSER_MCP_URL = oldBrowserMcpUrl;
     }
     if (oldBrowserMcpToken === undefined) {
-      delete process.env.PORACODE_BROWSER_MCP_TOKEN;
+      delete process.env.CRAFTSTATION_BROWSER_MCP_TOKEN;
     } else {
-      process.env.PORACODE_BROWSER_MCP_TOKEN = oldBrowserMcpToken;
+      process.env.CRAFTSTATION_BROWSER_MCP_TOKEN = oldBrowserMcpToken;
     }
   });
 
@@ -260,7 +260,7 @@ describe("acquireOpenCodeServer", () => {
     >;
     expect(credentials.OPENCODE_SERVER_USERNAME).toBe("opencode");
     expect(credentials.OPENCODE_SERVER_PASSWORD).toEqual(expect.any(String));
-    expect(credentials.PORACODE_OPENCODE_SESSION_ROUTING).toBe("1");
+    expect(credentials.CRAFTSTATION_OPENCODE_SESSION_ROUTING).toBe("1");
     const authorization = `Basic ${Buffer.from(
       `opencode:${credentials.OPENCODE_SERVER_PASSWORD}`,
     ).toString("base64")}`;

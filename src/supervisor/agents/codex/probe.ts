@@ -182,7 +182,7 @@ export function mapCodexModels(
   );
 
   // Prefer high for Codex threads when the default model supports it.
-  // The CLI may report medium as its built-in default, but Poracode's
+  // The CLI may report medium as its built-in default, but CraftStation's
   // Codex UX should start at high unless the model can't use it.
   const defaultModel =
     visible.find((m) => m.id === PREFERRED_CODEX_DEFAULT_MODEL) ??
@@ -501,7 +501,7 @@ async function runWithCodexAppServer<T>(
       (async () => {
         client = new ProbeClient(transport);
         const initResult = await client.request("initialize", {
-          clientInfo: { name: "poracode-probe", version: "0.1.0" },
+          clientInfo: { name: "craftstation-probe", version: "0.1.0" },
           capabilities: { experimentalApi: true, requestAttestation: false },
         });
         client.notify("initialized");

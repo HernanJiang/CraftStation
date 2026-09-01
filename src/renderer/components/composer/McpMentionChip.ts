@@ -21,15 +21,15 @@ export function createMcpMentionChipElement(input: McpMentionChipInput): HTMLSpa
   chip.contentEditable = "false";
   chip.dataset.mcpId = input.id;
   chip.dataset.mcpName = input.name;
-  chip.className = "poracode-slash-chip";
+  chip.className = "craftstation-slash-chip";
 
   const glyph = document.createElement("span");
-  glyph.className = "poracode-slash-chip__slash";
+  glyph.className = "craftstation-slash-chip__slash";
   glyph.innerHTML = PLUG_ICON_SVG;
   chip.appendChild(glyph);
 
   const name = document.createElement("span");
-  name.className = "poracode-slash-chip__name";
+  name.className = "craftstation-slash-chip__name";
   name.textContent = input.name;
   chip.appendChild(name);
 

@@ -33,7 +33,7 @@ function makeThread(input: Partial<Thread> = {}): Thread {
 
 const threadA = makeThread({ id: "thread-a", projectId: "project-a" });
 const threadA2 = makeThread({ id: "thread-a2", projectId: "project-a" });
-const threadBWorktreePath = "/repo-b/.poracode/worktrees/feature";
+const threadBWorktreePath = "/repo-b/.craftstation/worktrees/feature";
 const threadB = makeThread({
   id: "thread-b",
   projectId: "project-b",

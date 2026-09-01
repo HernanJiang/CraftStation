@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { HostPort, HttpRequest, HttpResponse } from "@poracode/agents-usage";
+import type { HostPort, HttpRequest, HttpResponse } from "@craftstation/agents-usage";
 import { getUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import { AccountStore } from "./accountStore";
 import { AntigravityProfileService } from "./antigravityProfiles";

@@ -15,7 +15,7 @@ import {
   resolveSessionFile,
   resolveSmokeRoot,
   writeDebugSession,
-} from "./poracode-debug-session.mjs";
+} from "./craftstation-debug-session.mjs";
 
 const scriptDir = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = resolve(scriptDir, "../../../../");
@@ -36,13 +36,13 @@ const roamingAppDataDir = join(root, "roaming-app-data");
 const projectDir = join(root, "project");
 const integrationScript = join(
   repoRoot,
-  ".agents/skills/interactive-testing/scripts/poracode-integration-smoke.mjs",
+  ".agents/skills/interactive-testing/scripts/craftstation-integration-smoke.mjs",
 );
 const seedScript = join(
   repoRoot,
-  ".agents/skills/interactive-testing/scripts/seed-poracode-smoke-db.mjs",
+  ".agents/skills/interactive-testing/scripts/seed-craftstation-smoke-db.mjs",
 );
-const cdpScript = join(repoRoot, ".agents/skills/interactive-testing/scripts/poracode-cdp.mjs");
+const cdpScript = join(repoRoot, ".agents/skills/interactive-testing/scripts/craftstation-cdp.mjs");
 const sessionFile = resolveSessionFile(root);
 
 let appProcess;
@@ -111,7 +111,7 @@ try {
           console.log("Wait for READY in the owning terminal; do not attach or launch again.");
         } else {
           console.log(
-            `Drive it now: node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs info --session "${existing.sessionFile}"`,
+            `Drive it now: node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs info --session "${existing.sessionFile}"`,
           );
         }
         break sessionLaunch;
@@ -123,7 +123,7 @@ try {
     // multiple worktrees can run side by side. Explicit --port/--vitePort values
     // are honored (and verified free); everything else is allocated by the OS.
     const { cdpPort: port, vitePort } = await resolvePorts();
-    const appUrl = `http://127.0.0.1:${vitePort}/?poracodeDebugSession=${sessionToken}`;
+    const appUrl = `http://127.0.0.1:${vitePort}/?craftstationDebugSession=${sessionToken}`;
     await writePortsFile(port, vitePort, appUrl);
     sessionManifest = {
       id: basename(root),
@@ -157,12 +157,12 @@ try {
     // Mock mode sandboxes the OS identity (HOME/APPDATA + a mock keychain) so
     // nothing touches the real user profile. Real mode intentionally keeps the
     // real home so provider credentials that live under it (e.g. ~/.kimi-code)
-    // resolve — only Poracode's own state stays isolated via PORACODE_BASE_DIR.
+    // resolve — only CraftStation's own state stays isolated via CRAFTSTATION_BASE_DIR.
     const identityEnv =
       mode === "real"
         ? {}
         : {
-            ...(process.platform === "darwin" ? { PORACODE_USE_MOCK_KEYCHAIN: "1" } : {}),
+            ...(process.platform === "darwin" ? { CRAFTSTATION_USE_MOCK_KEYCHAIN: "1" } : {}),
             HOME: homeDir,
             USERPROFILE: homeDir,
             LOCALAPPDATA: localAppDataDir,
@@ -175,15 +175,15 @@ try {
       cwd: repoRoot,
       env: {
         ...process.env,
-        PORACODE_DEV_SERVER_PORT: String(vitePort),
-        PORACODE_DEV_APP_URL: appUrl,
-        PORACODE_CDP_PORT: String(port),
-        PORACODE_BASE_DIR: dataDir,
-        PORACODE_CDP_USER_DATA_DIR: join(dataDir, "userData"),
-        PORACODE_SMOKE_OUT_DIR: outDir,
-        PORACODE_DEV_SERVER_REQUIRE_FREE: "1",
-        PORACODE_DISABLE_DEVTOOLS: "1",
-        ...(launchOnly ? { VITE_PORACODE_SKIP_WELCOME: "1" } : {}),
+        CRAFTSTATION_DEV_SERVER_PORT: String(vitePort),
+        CRAFTSTATION_DEV_APP_URL: appUrl,
+        CRAFTSTATION_CDP_PORT: String(port),
+        CRAFTSTATION_BASE_DIR: dataDir,
+        CRAFTSTATION_CDP_USER_DATA_DIR: join(dataDir, "userData"),
+        CRAFTSTATION_SMOKE_OUT_DIR: outDir,
+        CRAFTSTATION_DEV_SERVER_REQUIRE_FREE: "1",
+        CRAFTSTATION_DISABLE_DEVTOOLS: "1",
+        ...(launchOnly ? { VITE_CRAFTSTATION_SKIP_WELCOME: "1" } : {}),
         ...identityEnv,
       },
       detached: process.platform !== "win32",
@@ -195,7 +195,7 @@ try {
     appProcess.on("exit", (code, signal) => {
       if (!stopping && code !== null && code !== 0 && process.exitCode === undefined) {
         console.error(
-          `Poracode dev process exited with code ${code}${signal ? ` (${signal})` : ""}`,
+          `CraftStation dev process exited with code ${code}${signal ? ` (${signal})` : ""}`,
         );
       }
     });
@@ -208,7 +208,7 @@ try {
     if (launchOnly) {
       console.log(`Debug session READY: ${sessionFile}`);
       console.log(
-        `Drive it without exporting ports: node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs info --session "${sessionFile}"`,
+        `Drive it without exporting ports: node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs info --session "${sessionFile}"`,
       );
       console.log("Keep this command running. Press Ctrl-C here to stop only this session.");
       await waitForManualStop(appProcess);
@@ -314,7 +314,7 @@ async function createFixture() {
   await mkdir(externalSkillDir, { recursive: true });
   await mkdir(globalManagedSkillDir, { recursive: true });
   await mkdir(globalExternalSkillDir, { recursive: true });
-  await writeFile(join(projectDir, "README.md"), "# Poracode smoke fixture\n");
+  await writeFile(join(projectDir, "README.md"), "# CraftStation smoke fixture\n");
   await writeFile(join(projectDir, "hello.txt"), "fixture data\n");
   await writeFile(
     join(projectDir, "smoke-mcp-server.mjs"),
@@ -334,7 +334,7 @@ process.stdin.on("data", (chunk) => {
       result = {
         protocolVersion: request.params?.protocolVersion ?? "2025-06-18",
         capabilities: { tools: {} },
-        serverInfo: { name: "poracode-smoke", version: "1.0.0" },
+        serverInfo: { name: "craftstation-smoke", version: "1.0.0" },
       };
     } else if (request.method === "tools/list") {
       result = {
@@ -396,9 +396,9 @@ process.stdin.on("data", (chunk) => {
     "git",
     [
       "-c",
-      "user.name=Poracode Smoke",
+      "user.name=CraftStation Smoke",
       "-c",
-      "user.email=smoke@poracode.local",
+      "user.email=smoke@craftstation.local",
       "commit",
       "-qm",
       "initial fixture",
@@ -476,7 +476,9 @@ async function writePortsFile(cdpPort, vitePort, appUrl) {
 
 async function waitForManagedApp(child) {
   if (child.exitCode !== null) {
-    throw new Error(`Poracode dev process exited before CDP became ready (exit ${child.exitCode})`);
+    throw new Error(
+      `CraftStation dev process exited before CDP became ready (exit ${child.exitCode})`,
+    );
   }
   const checker = spawn(
     process.execPath,
@@ -510,7 +512,7 @@ async function waitForManagedApp(child) {
         const detail = checkerError.trim().replace(/^ERROR:\s*/, "");
         reject(
           new Error(
-            `Poracode did not become CDP-ready (exit ${code ?? "unknown"})${detail ? `: ${detail}` : ""}`,
+            `CraftStation did not become CDP-ready (exit ${code ?? "unknown"})${detail ? `: ${detail}` : ""}`,
           ),
         );
       }
@@ -522,7 +524,7 @@ async function waitForManagedApp(child) {
       else
         reject(
           new Error(
-            `Poracode dev process exited before CDP became ready (exit ${code ?? "unknown"}${signal ? `, ${signal}` : ""})`,
+            `CraftStation dev process exited before CDP became ready (exit ${code ?? "unknown"}${signal ? `, ${signal}` : ""})`,
           ),
         );
     };
@@ -633,7 +635,9 @@ function waitForManualStop(child) {
       if (stopping || code === 0) done();
       else
         reject(
-          new Error(`Poracode dev process exited with code ${code}${signal ? ` (${signal})` : ""}`),
+          new Error(
+            `CraftStation dev process exited with code ${code}${signal ? ` (${signal})` : ""}`,
+          ),
         );
     };
     const cleanup = () => {

@@ -210,7 +210,7 @@
 - 定向测试：6 个测试文件，`102/102` — **PASS**。
 - oxlint：本轮核心 TS/TSX 文件使用 `--deny-warnings` — **PASS**。
 - Production build：`pnpm build` — **PASS**；仅存在 Vite/CSS pseudo-element、sourcemap 与 chunk size 既有警告。
-- 全量测试基线：809 个测试文件、9374 个测试通过；14 个测试文件、23 个测试失败。失败集中于 Windows macOS symlink 权限、旧 PoraCode 品牌断言、旧 1024 图标断言、ACP/PowerShell 包装命令漂移、USD 本地化、计时压力、旧 Dropdown Mock 与已删除 Composer 白色 glow 断言，不属于本轮 UI 接线范围。
+- 全量测试基线：809 个测试文件、9374 个测试通过；14 个测试文件、23 个测试失败。失败集中于 Windows macOS symlink 权限、旧 CraftStation 品牌断言、旧 1024 图标断言、ACP/PowerShell 包装命令漂移、USD 本地化、计时压力、旧 Dropdown Mock 与已删除 Composer 白色 glow 断言，不属于本轮 UI 接线范围。
 - `git diff --check` 仅报告既有 `src/main/browser/browserHistory.ts:126` EOF 空行，本轮未覆盖用户或其他角色修改。
 - 真实 Electron：`CraftStation (dev)` 已重启并保持运行，主进程 PID `37700`；截图为 `ai_workspace/temp/window_0.2.13_home.png`。
 

@@ -287,7 +287,7 @@ export const VoiceInputButton = forwardRef<VoiceInputHandle, VoiceInputButtonPro
         <Button
           isIconOnly
           aria-label={label}
-          className={`poracode-composer-menu min-w-9 px-2 ${isRecording ? "text-danger" : ""}`}
+          className={`craftstation-composer-menu min-w-9 px-2 ${isRecording ? "text-danger" : ""}`}
           isDisabled={pressDisabled}
           onPress={togglePress}
           size="sm"

@@ -35,7 +35,7 @@ describe("Crossagents MCP (live)", () => {
       : { kind: "posix", path: projectDir };
 
   beforeAll(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "poracode-subagent-int-"));
+    projectDir = mkdtempSync(join(tmpdir(), "craftstation-subagent-int-"));
     writeFileSync(join(projectDir, "README.md"), "# subagent dogfood fixture\n");
     writeFileSync(join(projectDir, "hello.txt"), "hello from the parent project\n");
 

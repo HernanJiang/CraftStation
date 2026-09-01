@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HttpClient, HttpResponse, OAuthToken } from "@poracode/agents-usage";
+import type { HttpClient, HttpResponse, OAuthToken } from "@craftstation/agents-usage";
 import {
   collectManagedGrokTokenQuota,
   GROK_PROXY_BILLING_ENDPOINT,

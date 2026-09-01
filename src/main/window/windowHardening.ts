@@ -1,6 +1,6 @@
 import type { BrowserWindow, RenderProcessGoneDetails } from "electron";
-import type { PoracodeChannel } from "@/shared/channel";
-import type { PoracodeWindowKind } from "@/shared/ipc";
+import type { CraftStationChannel } from "@/shared/channel";
+import type { CraftStationWindowKind } from "@/shared/ipc";
 import type { RendererProcessGoneIntent } from "@/main/diagnostics/processGone";
 
 interface AppNavigationGuardOptions {
@@ -13,7 +13,7 @@ interface AppNavigationGuardOptions {
 /**
  * Lock a privileged renderer to the app's own origin: deny `window.open`, and
  * block any top-level navigation/redirect to an off-app URL. The renderer holds
- * the full `poracode` preload bridge (DB, file pickers, openExternal, supervisor
+ * the full `craftstation` preload bridge (DB, file pickers, openExternal, supervisor
  * RPC); a navigation away from the app origin would let that page inherit it.
  * External links go through IPC/openExternal, so the renderer never legitimately
  * navigates itself away or opens new windows.
@@ -36,7 +36,7 @@ export function installAppNavigationGuards(
   };
   const blockOffAppNavigation = (event: Electron.Event, target: string): void => {
     if (!isAllowedAppUrl(target)) {
-      console.warn(`[poracode] blocked ${prefix}navigation to off-app URL: ${target}`);
+      console.warn(`[craftstation] blocked ${prefix}navigation to off-app URL: ${target}`);
       event.preventDefault();
     }
   };
@@ -144,14 +144,14 @@ export function installRendererReloadGuard(
     const intent = consumeRendererTerminationIntent(window);
     if (details.reason === "clean-exit" || window.isDestroyed()) return;
     console.error(
-      `[poracode] ${prefix}renderer gone: reason=${details.reason} exitCode=${details.exitCode}`,
+      `[craftstation] ${prefix}renderer gone: reason=${details.reason} exitCode=${details.exitCode}`,
     );
     options.onRendererProcessGone?.(details, intent);
     const now = Date.now();
     reloadCount = now - lastReloadAt < 5_000 ? reloadCount + 1 : 1;
     lastReloadAt = now;
     if (reloadCount > 3) {
-      console.error(`[poracode] ${prefix}renderer gone too many times in a row, not reloading`);
+      console.error(`[craftstation] ${prefix}renderer gone too many times in a row, not reloading`);
       return;
     }
     options.loadRenderer();
@@ -161,8 +161,8 @@ export function installRendererReloadGuard(
 interface RendererArgumentsOptions {
   appVersion: string;
   isDev: boolean;
-  windowKind: PoracodeWindowKind;
-  channel: PoracodeChannel;
+  windowKind: CraftStationWindowKind;
+  channel: CraftStationChannel;
   posthogEnableDev: boolean;
   posthogEnabled: boolean;
   posthogHost: string;

@@ -4,7 +4,7 @@ import { PrWatchService, type PrWatchServiceOptions, type PrWatchStore } from ".
 
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "posix", path: "/repo" },
   createdAt: "2026-07-25T00:00:00.000Z",
 };
@@ -13,7 +13,7 @@ const pr: PrData = {
   number: 42,
   state: "open",
   title: "Watch pull requests",
-  url: "https://github.com/example/poracode/pull/42",
+  url: "https://github.com/example/craftstation/pull/42",
   baseBranch: "main",
   isDraft: false,
   reviewDecision: "APPROVED",

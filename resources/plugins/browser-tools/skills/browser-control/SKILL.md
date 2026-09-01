@@ -1,11 +1,11 @@
 ---
 name: browser-control
-description: Open, inspect, interact with, and verify websites or local web apps in Poracode's isolated browser. Use for visible page state, navigation, screenshots, console or network evidence, and end-to-end UI testing; do not use it for semantic service operations when a purpose-built connector is available.
+description: Open, inspect, interact with, and verify websites or local web apps in CraftStation's isolated browser. Use for visible page state, navigation, screenshots, console or network evidence, and end-to-end UI testing; do not use it for semantic service operations when a purpose-built connector is available.
 ---
 
 # Browser Control
 
-Use Poracode's `browser` MCP when the task depends on a rendered page, visible interaction, or local web app. If the request is really about structured data or a service operation and a purpose-built connector is available, use that connector instead. An explicit request for Poracode's browser wins.
+Use CraftStation's `browser` MCP when the task depends on a rendered page, visible interaction, or local web app. If the request is really about structured data or a service operation and a purpose-built connector is available, use that connector instead. An explicit request for CraftStation's browser wins.
 
 ## Workflow
 

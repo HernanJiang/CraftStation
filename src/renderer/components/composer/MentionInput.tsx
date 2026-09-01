@@ -805,8 +805,8 @@ export const MentionInput = forwardRef<
   }
 
   const editorClassName = compact
-    ? "poracode-mention-input poracode-mention-input--compact"
-    : "poracode-mention-input";
+    ? "craftstation-mention-input craftstation-mention-input--compact"
+    : "craftstation-mention-input";
 
   const liveRange = mention ? detectTriggerRange("@") : null;
 

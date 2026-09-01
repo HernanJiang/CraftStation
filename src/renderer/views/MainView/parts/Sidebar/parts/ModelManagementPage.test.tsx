@@ -177,7 +177,7 @@ describe("ModelManagementPage bulk model visibility", () => {
       .fn<() => Promise<{ models: string[] }>>()
       .mockResolvedValue({ models: ["gpt-chiral"] });
     Object.assign(window, {
-      poracode: { ...(window.poracode ?? {}), listChannelModels },
+      craftstation: { ...(window.craftstation ?? {}), listChannelModels },
     });
     renderPage({
       accounts: [

@@ -52,7 +52,7 @@ describe("ExperimentDraftTargets", () => {
     expect(screen.getByText("Factory Droid · Chat")).toBeInTheDocument();
     expect(screen.queryByText(/claude-fable-5/)).not.toBeInTheDocument();
     expect(screen.queryByText(/glm-5\.2-fast/)).not.toBeInTheDocument();
-    expect(view.container.querySelectorAll(".poracode-subagent-dock-row")).toHaveLength(2);
+    expect(view.container.querySelectorAll(".craftstation-subagent-dock-row")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Add candidate" }));
     expect(onAdd).toHaveBeenCalledTimes(1);

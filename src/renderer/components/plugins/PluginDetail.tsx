@@ -37,7 +37,7 @@ export function PluginDetail(props: {
   const titleId = useId();
   const pluginToggleLabelId = useId();
   const author = plugin.manifest.author?.name;
-  const examplePrompt = plugin.poracode.examplePrompt;
+  const examplePrompt = plugin.craftstation.examplePrompt;
   const coreSkill = getPluginCoreSkill(plugin);
   const closeSettings = usePanelStore((panel) => panel.closeSettings);
   const oauth = usePluginOauth(plugin);
@@ -110,7 +110,7 @@ export function PluginDetail(props: {
           </div>
           <div className="mt-3 flex items-center gap-2 text-xs text-muted">
             <span>{author ?? plugin.name}</span>
-            {plugin.poracode.communityMaintained ? (
+            {plugin.craftstation.communityMaintained ? (
               <PluginTag>
                 <Trans>Community</Trans>
               </PluginTag>
@@ -165,7 +165,7 @@ export function PluginDetail(props: {
         </section>
       ) : null}
 
-      {plugin.poracode.communityMaintained ? (
+      {plugin.craftstation.communityMaintained ? (
         <p className="mt-5 rounded-xl border border-[var(--hairline)] px-3 py-2.5 text-xs text-muted">
           <Trans>
             The server this plugin launches is maintained by a third party, not by the service it
@@ -199,7 +199,7 @@ export function PluginDetail(props: {
           title={t`MCP servers`}
           {...(plugin.mcpServers.length > 0
             ? {
-                description: t`Servers this plugin declares in mcp.json. Poracode passes them to every supported agent.`,
+                description: t`Servers this plugin declares in mcp.json. CraftStation passes them to every supported agent.`,
               }
             : {})}
         >

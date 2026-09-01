@@ -24,11 +24,11 @@ function bindingWorks(path) {
     process.execPath,
     [
       "-e",
-      `const Database = require(${JSON.stringify(betterSqliteEntry)}); const db = new Database(":memory:", { nativeBinding: process.env.PORACODE_NATIVE_BINDING_PROBE }); db.close();`,
+      `const Database = require(${JSON.stringify(betterSqliteEntry)}); const db = new Database(":memory:", { nativeBinding: process.env.CRAFTSTATION_NATIVE_BINDING_PROBE }); db.close();`,
     ],
     {
       stdio: "ignore",
-      env: { ...process.env, PORACODE_NATIVE_BINDING_PROBE: path },
+      env: { ...process.env, CRAFTSTATION_NATIVE_BINDING_PROBE: path },
     },
   );
   return probe.status === 0;
@@ -49,7 +49,7 @@ function run(command, args, options = {}) {
 }
 
 if (bindingWorks(outputFile)) {
-  console.log(`[poracode-server] Node-ABI better-sqlite3 binding is current: ${outputFile}`);
+  console.log(`[craftstation-server] Node-ABI better-sqlite3 binding is current: ${outputFile}`);
   process.exit(0);
 }
 
@@ -80,5 +80,5 @@ if (!existsSync(builtBinding)) {
 
 mkdirSync(outputDir, { recursive: true });
 copyFileSync(builtBinding, outputFile);
-console.log(`[poracode-server] prepared Node-ABI better-sqlite3 binding: ${outputFile}`);
-console.log("[poracode-server] headless server will use it automatically from this repo.");
+console.log(`[craftstation-server] prepared Node-ABI better-sqlite3 binding: ${outputFile}`);
+console.log("[craftstation-server] headless server will use it automatically from this repo.");

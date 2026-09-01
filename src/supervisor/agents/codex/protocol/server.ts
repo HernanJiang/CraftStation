@@ -18,7 +18,7 @@ import type {
   McpServerElicitationRequestResponse,
   ToolRequestUserInputParams,
   ToolRequestUserInputResponse,
-} from "@poracode/codex-protocol";
+} from "@craftstation/codex-protocol";
 
 export type {
   ApplyPatchApprovalParams,

@@ -20,7 +20,7 @@ describe("renderer process-gone diagnostics", () => {
   ] as const)("normalizes %s into a stable %s bucket", (reason, bucket) => {
     expect(classifyRendererProcessGone({ reason }, "linux")).toEqual({
       bucket,
-      fingerprint: ["poracode-renderer-process-gone", "linux", bucket],
+      fingerprint: ["craftstation-renderer-process-gone", "linux", bucket],
     });
   });
 });

@@ -1,5 +1,5 @@
-/** Popup for Poracode Chrome Control — pure status. The connection to the
- *  Poracode app is fully automatic, so there is nothing to click. */
+/** Popup for CraftStation Chrome Control — pure status. The connection to the
+ *  CraftStation app is fully automatic, so there is nothing to click. */
 
 const pill = document.getElementById("pill");
 const statusText = document.getElementById("statusText");
@@ -14,16 +14,16 @@ function render(status) {
     statusText.textContent = "Connected";
     const tabs = status.attachedTabs && status.attachedTabs.length;
     desc.textContent = tabs
-      ? `Poracode is controlling ${tabs} tab(s) in this browser.`
-      : "Poracode is running and can control this browser.";
+      ? `CraftStation is controlling ${tabs} tab(s) in this browser.`
+      : "CraftStation is running and can control this browser.";
   } else if (status.connecting) {
     pill.classList.add("idle");
     statusText.textContent = "Connecting…";
-    desc.textContent = "Looking for Poracode on this machine.";
+    desc.textContent = "Looking for CraftStation on this machine.";
   } else {
     pill.classList.add("err");
     statusText.textContent = "Disconnected";
-    desc.textContent = "Waiting for Poracode to start — connects automatically.";
+    desc.textContent = "Waiting for CraftStation to start — connects automatically.";
   }
   version.textContent = status.version ? `Version ${status.version}` : "";
 }

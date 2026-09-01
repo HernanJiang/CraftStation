@@ -173,7 +173,7 @@ Fix Cycle：`v0.4.1`（Native Multi-Harness 轨道；不要覆盖历史 `coder_0
 - [ ] `auto` 仍可表示确定性 Codex，但不再覆盖其它 Recipe
 - [ ] Renderer 能展示五 Harness 的 ready / not-configured / unavailable / error，且无路径/token/`CODEX_HOME`
 - [ ] grok/kimi/antigravity/deepseek 的生产路由有测试；DSH spawn 仍 `RUNTIME_UNAVAILABLE` 且无 Entity
-- [ ] Codex 生产路径仍是官方 app-server，不回退 PoraCode TSM
+- [ ] Codex 生产路径仍是官方 app-server，不回退 CraftStation TSM
 - [ ] 真实 session：有证据则记录 validation 文件；无证据则保持 BLOCKED/unprobed，Coder 不得写 Feature PASS
 - [ ] 独立测试与 typecheck 由 Debugger 复跑后才能进入 Closeout
 

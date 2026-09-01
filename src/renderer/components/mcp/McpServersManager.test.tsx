@@ -13,7 +13,7 @@ import {
 } from "@/shared/contracts";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
-import type { PoracodeBridge } from "@/shared/ipc";
+import type { CraftStationBridge } from "@/shared/ipc";
 import { McpServersManager, type McpImportProjectTarget } from "./McpServersManager";
 
 const bridge = vi.hoisted(() => ({
@@ -24,15 +24,15 @@ const bridge = vi.hoisted(() => ({
       (payload: DiscoverExternalMcpServersPayload) => Promise<DiscoverExternalMcpServersResult>
     >(),
   probeMcpServer: vi.fn<(payload: McpProbePayload) => Promise<McpProbeResult>>(),
-  getMcpOauthStatus: vi.fn<PoracodeBridge["getMcpOauthStatus"]>(async () => ({
+  getMcpOauthStatus: vi.fn<CraftStationBridge["getMcpOauthStatus"]>(async () => ({
     authenticatedUrls: [],
   })),
   beginMcpServerOauth: vi.fn<(payload: McpOauthBeginPayload) => Promise<McpOauthBeginResult>>(),
-  openExternalNative: vi.fn<PoracodeBridge["openExternalNative"]>(async () => undefined),
-  waitMcpServerOauth: vi.fn<PoracodeBridge["waitMcpServerOauth"]>(async () => ({
+  openExternalNative: vi.fn<CraftStationBridge["openExternalNative"]>(async () => undefined),
+  waitMcpServerOauth: vi.fn<CraftStationBridge["waitMcpServerOauth"]>(async () => ({
     status: "authorized",
   })),
-  clearMcpServerOauth: vi.fn<PoracodeBridge["clearMcpServerOauth"]>(async () => undefined),
+  clearMcpServerOauth: vi.fn<CraftStationBridge["clearMcpServerOauth"]>(async () => undefined),
 }));
 
 vi.mock("@/renderer/bridge", () => ({
@@ -321,7 +321,7 @@ describe("McpServersManager", () => {
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent("Authentication required");
       expect(screen.getByRole("status")).toHaveTextContent(
-        "This server requires authentication before Poracode can check it.",
+        "This server requires authentication before CraftStation can check it.",
       );
     });
     expect(screen.queryByText("0 tools")).not.toBeInTheDocument();
@@ -498,7 +498,7 @@ describe("McpServersManager", () => {
 
   it("identifies a remote project by its host in the scope trigger and menu", async () => {
     useRemoteServersStore.setState({
-      servers: [{ desktopId: "d1", label: "Poracode on MacBook 16" }],
+      servers: [{ desktopId: "d1", label: "CraftStation on MacBook 16" }],
       runtime: { d1: { status: "online", projects: [], threads: [] } },
     } as never);
     render(

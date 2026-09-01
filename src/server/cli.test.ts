@@ -26,10 +26,10 @@ describe("acquireDataDirLock", () => {
     const first = acquireDataDirLock(baseDir);
     // Second acquire against a lock whose pid reports as alive must fail fast.
     expect(() => acquireDataDirLock(baseDir, () => true)).toThrow(
-      /is in use by another Poracode process/,
+      /is in use by another CraftStation process/,
     );
-    // The clear message names PORACODE_BASE_DIR as the escape hatch.
-    expect(() => acquireDataDirLock(baseDir, () => true)).toThrow(/PORACODE_BASE_DIR/);
+    // The clear message names CRAFTSTATION_BASE_DIR as the escape hatch.
+    expect(() => acquireDataDirLock(baseDir, () => true)).toThrow(/CRAFTSTATION_BASE_DIR/);
     first.release();
   });
 

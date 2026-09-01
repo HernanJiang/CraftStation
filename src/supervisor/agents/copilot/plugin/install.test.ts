@@ -75,13 +75,13 @@ describe("renderCopilotHookConfig", () => {
 
 describe("installCopilotPlugin (native, global hook write)", () => {
   function makeNativeCtx() {
-    const baseDir = mkdtempSync(join(tmpdir(), "poracode-copilot-stage-"));
-    const copilotDir = mkdtempSync(join(tmpdir(), "poracode-copilot-home-"));
+    const baseDir = mkdtempSync(join(tmpdir(), "craftstation-copilot-stage-"));
+    const copilotDir = mkdtempSync(join(tmpdir(), "craftstation-copilot-home-"));
     const envKind = process.platform === "win32" ? ("windows" as const) : ("posix" as const);
     return { baseDir, copilotDir, ctx: { envKind, baseDir } };
   }
 
-  it("writes ${COPILOT_HOME}/hooks/poracode-status.json at install time", () => {
+  it("writes ${COPILOT_HOME}/hooks/craftstation-status.json at install time", () => {
     const { copilotDir, ctx } = makeNativeCtx();
     const result = installCopilotPlugin(ctx, { globalCopilotDirOverride: copilotDir });
     expect(result.ok).toBe(true);
@@ -98,14 +98,14 @@ describe("installCopilotPlugin (native, global hook write)", () => {
     const powershellCommand = written.hooks.sessionStart?.[0]?.powershell;
     expect(
       process.platform === "win32"
-        ? /poracode-hook\.ps1' sessionStart$/.test(powershellCommand ?? "")
+        ? /craftstation-hook\.ps1' sessionStart$/.test(powershellCommand ?? "")
         : powershellCommand,
     ).toBe(process.platform === "win32" ? true : undefined);
   });
 
-  it("removes the legacy Lightcode global hook after install", () => {
+  it("removes the legacy CraftStation global hook after install", () => {
     const { copilotDir, ctx } = makeNativeCtx();
-    const legacyPath = join(copilotDir, GLOBAL_HOOK_DIR_NAME, "lightcode-status.json");
+    const legacyPath = join(copilotDir, GLOBAL_HOOK_DIR_NAME, "craftstation-status.json");
     mkdirSync(join(copilotDir, GLOBAL_HOOK_DIR_NAME), { recursive: true });
     writeFileSync(legacyPath, "{}\n");
 
@@ -130,7 +130,7 @@ describe("installCopilotPlugin (native, global hook write)", () => {
 
   it("does not touch any project-level paths", () => {
     const { copilotDir, ctx } = makeNativeCtx();
-    const projectDir = mkdtempSync(join(tmpdir(), "poracode-copilot-proj-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "craftstation-copilot-proj-"));
     mkdirSync(join(projectDir, ".github"), { recursive: true });
 
     const result = installCopilotPlugin(ctx, { globalCopilotDirOverride: copilotDir });
@@ -142,7 +142,7 @@ describe("installCopilotPlugin (native, global hook write)", () => {
 
 describe("getCopilotPluginPaths", () => {
   it("returns staging dir under provided baseDir for native ctx", () => {
-    const baseDir = mkdtempSync(join(tmpdir(), "poracode-copilot-paths-"));
+    const baseDir = mkdtempSync(join(tmpdir(), "craftstation-copilot-paths-"));
     const paths = getCopilotPluginPaths({ envKind: "posix", baseDir });
     expect(paths.pluginDir).toBe(join(baseDir, "agent-plugins", "copilot"));
   });
@@ -156,7 +156,7 @@ describe("isCopilotPluginInstalled", () => {
     wrapper?: boolean;
     hookFile?: boolean;
   }) {
-    const baseDir = mkdtempSync(join(tmpdir(), "poracode-copilot-verify-"));
+    const baseDir = mkdtempSync(join(tmpdir(), "craftstation-copilot-verify-"));
     const pluginDir = join(baseDir, "agent-plugins", "copilot");
     mkdirSync(pluginDir, { recursive: true });
     if (parts.manifest) {
@@ -166,10 +166,11 @@ describe("isCopilotPluginInstalled", () => {
       writeFileSync(join(pluginDir, "forward.mjs"), "// noop");
     }
     if (parts.runtime) {
-      writeFileSync(join(pluginDir, "poracode-hook-runtime.mjs"), "// noop runtime");
+      writeFileSync(join(pluginDir, "craftstation-hook-runtime.mjs"), "// noop runtime");
     }
     if (parts.wrapper) {
-      const wrapperName = process.platform === "win32" ? "poracode-hook.cmd" : "poracode-hook.sh";
+      const wrapperName =
+        process.platform === "win32" ? "craftstation-hook.cmd" : "craftstation-hook.sh";
       writeFileSync(join(pluginDir, wrapperName), "#!/bin/sh\nexit 0\n");
     }
     if (parts.hookFile) {

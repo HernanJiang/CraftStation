@@ -20,7 +20,7 @@
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_stat_poracode" />
+            android:resource="@drawable/ic_stat_craftstation" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_accent" />
@@ -43,8 +43,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="https" android:host="poracode.com" android:pathPrefix="/pair" />
-                <data android:scheme="https" android:host="poracode.com" android:pathPrefix="/app" />
+                <data android:scheme="https" android:host="craftstation.com" android:pathPrefix="/pair" />
+                <data android:scheme="https" android:host="craftstation.com" android:pathPrefix="/app" />
             </intent-filter>
 
         </activity>

@@ -27,7 +27,7 @@ describe("parseEnabledCodexPlugins", () => {
     ).toEqual([{ name: "github", root: "C:\\plugins\\github" }]);
   });
 
-  it("uses the Poracode fallback for invalid output", () => {
+  it("uses the CraftStation fallback for invalid output", () => {
     expect(parseEnabledCodexPlugins("not json")).toEqual([]);
     expect(parseEnabledCodexPlugins(JSON.stringify({ installed: null }))).toEqual([]);
   });

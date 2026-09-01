@@ -8,7 +8,7 @@ describe("remote bridge", () => {
   afterEach(() => {
     setRemoteBridgeClient(null);
     vi.restoreAllMocks();
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
       value: undefined,
@@ -18,7 +18,7 @@ describe("remote bridge", () => {
   it("uploads browser-selected files and returns paired-desktop paths", async () => {
     const uploadAttachment = vi.fn<() => Promise<string>>(async () => "C:\\attachments\\notes.md");
     setRemoteBridgeClient({ uploadAttachment } as unknown as RemoteDesktopClient, "win32");
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
       value: undefined,
@@ -32,9 +32,9 @@ describe("remote bridge", () => {
       },
     );
 
-    await expect(window.poracode.pickFiles({ attachmentThreadId: "thread-1" })).resolves.toEqual([
-      "C:\\attachments\\notes.md",
-    ]);
+    await expect(
+      window.craftstation.pickFiles({ attachmentThreadId: "thread-1" }),
+    ).resolves.toEqual(["C:\\attachments\\notes.md"]);
     expect(uploadAttachment).toHaveBeenCalledWith({
       threadId: "thread-1",
       fileName: "notes.md",
@@ -43,7 +43,7 @@ describe("remote bridge", () => {
   });
 
   it("leaves unavailable optional bridge metadata undefined", () => {
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
       value: undefined,
@@ -51,21 +51,25 @@ describe("remote bridge", () => {
 
     installRemoteBridge();
 
-    expect(window.poracode.homeDir).toBeUndefined();
-    expect(window.poracode.windowKind).toBe("main");
-    expect(window.poracode.onProjectStateChanged(() => undefined)).toBeTypeOf("function");
-    expect(window.poracode.onRemoteAccessPairingChanged(() => undefined)).toBeTypeOf("function");
-    expect(window.poracode.onQuickComposerSubmit(() => undefined)).toBeTypeOf("function");
-    expect(window.poracode.onQuickComposerDismissRequested(() => undefined)).toBeTypeOf("function");
+    expect(window.craftstation.homeDir).toBeUndefined();
+    expect(window.craftstation.windowKind).toBe("main");
+    expect(window.craftstation.onProjectStateChanged(() => undefined)).toBeTypeOf("function");
+    expect(window.craftstation.onRemoteAccessPairingChanged(() => undefined)).toBeTypeOf(
+      "function",
+    );
+    expect(window.craftstation.onQuickComposerSubmit(() => undefined)).toBeTypeOf("function");
+    expect(window.craftstation.onQuickComposerDismissRequested(() => undefined)).toBeTypeOf(
+      "function",
+    );
   });
 
   it("tracks the paired desktop platform after bridge installation", () => {
     setRemoteBridgeClient({} as RemoteDesktopClient, "darwin");
     installRemoteBridge();
-    expect(window.poracode.platform).toBe("darwin");
+    expect(window.craftstation.platform).toBe("darwin");
 
     setRemoteBridgeClient({} as RemoteDesktopClient, "win32");
-    expect(window.poracode.platform).toBe("win32");
+    expect(window.craftstation.platform).toBe("win32");
   });
 
   it("forwards project notes to the paired desktop", async () => {
@@ -85,8 +89,8 @@ describe("remote bridge", () => {
     );
     installRemoteBridge();
 
-    await expect(window.poracode.dbGetProjectNotes("project-1")).resolves.toEqual(notes);
-    await expect(window.poracode.dbSetProjectNotes(notes)).resolves.toBeUndefined();
+    await expect(window.craftstation.dbGetProjectNotes("project-1")).resolves.toEqual(notes);
+    await expect(window.craftstation.dbSetProjectNotes(notes)).resolves.toBeUndefined();
     expect(projectNotes).toHaveBeenCalledWith("project-1");
     expect(setProjectNotes).toHaveBeenCalledWith(notes);
   });
@@ -97,7 +101,7 @@ describe("remote bridge", () => {
     );
     setRemoteBridgeClient({ callRemoteProcedure } as unknown as RemoteDesktopClient, "linux");
     installRemoteBridge();
-    const bridge = window.poracode as unknown as Record<
+    const bridge = window.craftstation as unknown as Record<
       string,
       (payload: unknown) => Promise<unknown>
     >;
@@ -146,10 +150,10 @@ describe("remote bridge", () => {
       agentKind: "codex",
       config: { model: "gpt-5.6-sol" },
     };
-    await expect(window.poracode.getPrWatch(key)).resolves.toEqual(watch);
-    await expect(window.poracode.checkPrWatch(key)).resolves.toBeUndefined();
-    await expect(window.poracode.upsertPrWatch(input)).resolves.toEqual(watch);
-    await expect(window.poracode.deletePrWatch(key)).resolves.toBeUndefined();
+    await expect(window.craftstation.getPrWatch(key)).resolves.toEqual(watch);
+    await expect(window.craftstation.checkPrWatch(key)).resolves.toBeUndefined();
+    await expect(window.craftstation.upsertPrWatch(input)).resolves.toEqual(watch);
+    await expect(window.craftstation.deletePrWatch(key)).resolves.toBeUndefined();
     expect(getPrWatch).toHaveBeenCalledWith(key);
     expect(checkPrWatch).toHaveBeenCalledWith(key);
     expect(upsertPrWatch).toHaveBeenCalledWith(input);
@@ -166,12 +170,12 @@ describe("remote bridge", () => {
     );
     installRemoteBridge();
 
-    await window.poracode.startShell({
+    await window.craftstation.startShell({
       shellId: "shell-1",
       projectLocation: { kind: "posix", path: "/repo" },
     });
-    await window.poracode.closeThread({ threadId: "shell-1" });
-    await window.poracode.closeThread({ threadId: "thread-1" });
+    await window.craftstation.closeThread({ threadId: "shell-1" });
+    await window.craftstation.closeThread({ threadId: "thread-1" });
 
     expect(closeShell).toHaveBeenCalledWith({ threadId: "shell-1" });
     expect(closeThread).toHaveBeenCalledWith("thread-1");
@@ -190,12 +194,14 @@ describe("remote bridge", () => {
     );
     installRemoteBridge();
 
-    await window.poracode.startShell({
+    await window.craftstation.startShell({
       shellId: "shell-1",
       projectLocation: { kind: "posix", path: "/repo" },
     });
-    await expect(window.poracode.closeThread({ threadId: "shell-1" })).rejects.toThrow("offline");
-    await expect(window.poracode.closeThread({ threadId: "shell-1" })).resolves.toBeUndefined();
+    await expect(window.craftstation.closeThread({ threadId: "shell-1" })).rejects.toThrow(
+      "offline",
+    );
+    await expect(window.craftstation.closeThread({ threadId: "shell-1" })).resolves.toBeUndefined();
 
     expect(closeShell).toHaveBeenCalledTimes(2);
     expect(closeThread).not.toHaveBeenCalled();

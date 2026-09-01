@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 /**
- * Command Code lifecycle hook forwarder for Poracode.
+ * Command Code lifecycle hook forwarder for CraftStation.
  *
  * Command Code invokes each configured hook as a shell command, passing the
  * event name as argv[2] (rendered by the installer as `<wrapper> <Event>`) and
  * the JSON payload on stdin. The payload also carries `hook_event_name`, so we
  * prefer that and fall back to argv.
  *
- * Reads `PORACODE_HOOK_URL` / `PORACODE_HOOK_SECRET` / `PORACODE_THREAD_ID`
- * from env, maps the event to a universal Poracode intent, and POSTs the
+ * Reads `CRAFTSTATION_HOOK_URL` / `CRAFTSTATION_HOOK_SECRET` / `CRAFTSTATION_THREAD_ID`
+ * from env, maps the event to a universal CraftStation intent, and POSTs the
  * envelope. When those vars are unset (the user runs `command-code` outside
- * Poracode) the forwarder no-ops. Emits NOTHING on stdout — Command Code, like
+ * CraftStation) the forwarder no-ops. Emits NOTHING on stdout — Command Code, like
  * Claude Code, can relay hook stdout into the model's context.
  *
- * Generic plumbing lives in the shared `poracode-hook-runtime.mjs` sibling.
+ * Generic plumbing lives in the shared `craftstation-hook-runtime.mjs` sibling.
  * NOTE: the intent map below mirrors `intentMap.ts` — keep both in sync.
  */
 
@@ -21,7 +21,7 @@ import {
   copyStringExtra,
   readPluginVersionFromManifest,
   runForwarder,
-} from "./poracode-hook-runtime.mjs";
+} from "./craftstation-hook-runtime.mjs";
 
 const PLUGIN_VERSION = readPluginVersionFromManifest(import.meta.url);
 

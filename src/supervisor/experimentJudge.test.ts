@@ -141,7 +141,7 @@ describe("judgeExperiment", () => {
     });
     expect(input?.location.kind).toBe("windows");
     expect(input?.location.kind === "windows" ? input.location.path : "").toContain(
-      "poracode-judge-",
+      "craftstation-judge-",
     );
     expect(input?.prompt).toContain("UNTRUSTED_SOLUTION_1_DIFF");
     expect(input?.prompt).toContain("UNTRUSTED_SOLUTION_2_DIFF");

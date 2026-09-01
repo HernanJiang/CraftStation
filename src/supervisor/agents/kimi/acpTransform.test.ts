@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   createAcpMapperState,
   mapAcpSessionUpdate,
-  PORACODE_ACP_DETACHED_SUBAGENT_META_KEY,
-  PORACODE_ACP_NEW_ASSISTANT_ITEM_META_KEY,
-  PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY,
-  PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY,
+  CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY,
+  CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY,
+  CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
 } from "../acp/canonicalMapping";
 import { isAcpSubAgentToolCall } from "../acp/canonicalMapping/subagents";
 import {
@@ -137,8 +137,8 @@ describe("transformKimiAcpSessionUpdate", () => {
     const initialUpdate = asRecord(initial.update);
     const initialMeta = initialUpdate._meta as Record<string, unknown> | undefined;
     expect(initialUpdate.rawInput).toMatchObject({ subagent_type: "agent" });
-    expect(initialMeta?.[PORACODE_ACP_DETACHED_SUBAGENT_META_KEY]).toBeUndefined();
-    expect(initialMeta?.[PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY]).toBe(true);
+    expect(initialMeta?.[CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY]).toBeUndefined();
+    expect(initialMeta?.[CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY]).toBe(true);
     expect(initialUpdate).not.toHaveProperty("content");
 
     const streamed = transform(
@@ -206,7 +206,7 @@ describe("transformKimiAcpSessionUpdate", () => {
     expect(asRecord(receipt.update).status).toBe("in_progress");
     expect(
       (asRecord(receipt.update)._meta as Record<string, unknown> | undefined)?.[
-        PORACODE_ACP_DETACHED_SUBAGENT_META_KEY
+        CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY
       ],
     ).toBe(true);
     expect(receipt.update).not.toHaveProperty("rawOutput");
@@ -323,7 +323,7 @@ describe("transformKimiAcpSessionUpdate", () => {
     expect(createUpdate.rawInput).toMatchObject({ subagent_type: "agent" });
     expect(
       (createUpdate._meta as Record<string, unknown> | undefined)?.[
-        PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY
+        CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY
       ],
     ).toBe(true);
     expect(createUpdate).not.toHaveProperty("content");
@@ -387,7 +387,7 @@ describe("transformKimiAcpSessionUpdate", () => {
     });
     expect(
       (upgradeUpdate._meta as Record<string, unknown> | undefined)?.[
-        PORACODE_ACP_DETACHED_SUBAGENT_META_KEY
+        CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY
       ],
     ).toBe(true);
     expect(upgradeUpdate).not.toHaveProperty("content");
@@ -438,7 +438,7 @@ describe("transformKimiAcpSessionUpdate", () => {
     });
     expect(
       (createUpdate._meta as Record<string, unknown> | undefined)?.[
-        PORACODE_ACP_DETACHED_SUBAGENT_META_KEY
+        CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY
       ],
     ).toBeUndefined();
     expect(createUpdate).not.toHaveProperty("content");
@@ -484,7 +484,7 @@ describe("transformKimiAcpSessionUpdate", () => {
     expect(receiptUpdate.rawInput).toMatchObject({ background: true });
     expect(
       (receiptUpdate._meta as Record<string, unknown> | undefined)?.[
-        PORACODE_ACP_DETACHED_SUBAGENT_META_KEY
+        CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY
       ],
     ).toBe(true);
     expect(receiptUpdate).not.toHaveProperty("rawOutput");
@@ -580,7 +580,7 @@ describe("transformKimiAcpSessionUpdate", () => {
         update: {
           sessionUpdate: "agent_message_chunk",
           content: { type: "text", text: "child result" },
-          _meta: { [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "tc-agent" },
+          _meta: { [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "tc-agent" },
         },
       } as SessionNotification,
       state,
@@ -595,7 +595,7 @@ describe("transformKimiAcpSessionUpdate", () => {
         update: {
           sessionUpdate: "agent_message_chunk",
           content: { type: "text", text: "parent reply" },
-          _meta: { [PORACODE_ACP_NEW_ASSISTANT_ITEM_META_KEY]: true },
+          _meta: { [CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY]: true },
         },
       } as SessionNotification,
       state,

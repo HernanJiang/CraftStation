@@ -1,7 +1,7 @@
 import { fork, type ChildProcess } from "node:child_process";
 import type { Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
-import type { PoracodeDiagnosticTags } from "@/shared/diagnostics/sentryPrivacy";
+import type { CraftStationDiagnosticTags } from "@/shared/diagnostics/sentryPrivacy";
 import { terminateChildProcessTree } from "@/shared/processTree";
 import type { StartThreadPayload } from "@/shared/contracts";
 import type {
@@ -51,19 +51,19 @@ export interface SupervisorClientOptions {
   /**
    * Directory containing the in-WSL helpers shipped with the app
    * (`watcher.node`, `bridge.mjs`). Forwarded to the supervisor via
-   * `PORACODE_WSL_HELPERS_DIR` so the bridge server can stage assets
+   * `CRAFTSTATION_WSL_HELPERS_DIR` so the bridge server can stage assets
    * into running distros.
    */
   wslHelpersDir: string;
   /**
    * Directory containing the read-only skills shipped with the app
-   * (`skill-creator-poracode`, …). Forwarded to the supervisor via
-   * `PORACODE_BUNDLED_SKILLS_DIR` so the skills service can surface them.
+   * (`skill-creator-craftstation`, …). Forwarded to the supervisor via
+   * `CRAFTSTATION_BUNDLED_SKILLS_DIR` so the skills service can surface them.
    */
   bundledSkillsDir?: string;
   /**
    * Directory containing the Agent Plugins packages shipped with the app.
-   * Forwarded as `PORACODE_BUNDLED_PLUGINS_DIR` so the plugin registry can
+   * Forwarded as `CRAFTSTATION_BUNDLED_PLUGINS_DIR` so the plugin registry can
    * discover them.
    */
   bundledPluginsDir?: string;
@@ -71,13 +71,13 @@ export interface SupervisorClientOptions {
   /**
    * Optional resolver invoked at every supervisor spawn, returning extra env
    * vars to merge into the child env. Used by the in-app browser MCP wiring
-   * to inject `PORACODE_BROWSER_MCP_*` per-launch.
+   * to inject `CRAFTSTATION_BROWSER_MCP_*` per-launch.
    */
   resolveExtraEnv?: () => Record<string, string>;
   /** Apply main-process launch invariants before any start reaches the supervisor. */
   prepareStartThread?(payload: StartThreadPayload): StartThreadPayload;
   assignPid?(pid: number): Promise<void>;
-  reportError?(error: unknown, tags?: PoracodeDiagnosticTags): void;
+  reportError?(error: unknown, tags?: CraftStationDiagnosticTags): void;
   onEvent(event: SupervisorEvent): void;
   onReset(): void;
   /**
@@ -131,20 +131,20 @@ export class SupervisorClient {
       stdio: ["ignore", "pipe", "pipe", "ipc"],
       env: {
         ...process.env,
-        PORACODE_APP_VERSION: this.options.appVersion,
-        PORACODE_IS_DEV: this.options.isDev ? "1" : "0",
-        PORACODE_DATA_DIR: baseDir,
-        PORACODE_SECRET_STORAGE_KEY: this.options.secretStorageKey,
-        PORACODE_WSL_HELPERS_DIR: this.options.wslHelpersDir,
+        CRAFTSTATION_APP_VERSION: this.options.appVersion,
+        CRAFTSTATION_IS_DEV: this.options.isDev ? "1" : "0",
+        CRAFTSTATION_DATA_DIR: baseDir,
+        CRAFTSTATION_SECRET_STORAGE_KEY: this.options.secretStorageKey,
+        CRAFTSTATION_WSL_HELPERS_DIR: this.options.wslHelpersDir,
         // Back-compat for one release; older supervisor builds still read
         // the legacy var. Safe to drop once min supported supervisor knows
-        // about PORACODE_WSL_HELPERS_DIR.
-        PORACODE_WSL_WATCHER_DIR: this.options.wslHelpersDir,
+        // about CRAFTSTATION_WSL_HELPERS_DIR.
+        CRAFTSTATION_WSL_WATCHER_DIR: this.options.wslHelpersDir,
         ...(this.options.bundledSkillsDir
-          ? { PORACODE_BUNDLED_SKILLS_DIR: this.options.bundledSkillsDir }
+          ? { CRAFTSTATION_BUNDLED_SKILLS_DIR: this.options.bundledSkillsDir }
           : {}),
         ...(this.options.bundledPluginsDir
-          ? { PORACODE_BUNDLED_PLUGINS_DIR: this.options.bundledPluginsDir }
+          ? { CRAFTSTATION_BUNDLED_PLUGINS_DIR: this.options.bundledPluginsDir }
           : {}),
         ...extraEnv,
       },
@@ -156,10 +156,10 @@ export class SupervisorClient {
     if (typeof child.pid === "number") {
       void this.options.assignPid?.(child.pid).catch((error) => {
         console.error(
-          "[poracode] failed to assign supervisor to Windows Job Object:",
+          "[craftstation] failed to assign supervisor to Windows Job Object:",
           error instanceof Error ? error.message : String(error),
         );
-        this.options.reportError?.(error, { "poracode.feature_area": "supervisor" });
+        this.options.reportError?.(error, { "craftstation.feature_area": "supervisor" });
       });
     }
 
@@ -191,8 +191,8 @@ export class SupervisorClient {
       this.reset(new Error("Supervisor exited"));
       if (!this.disposed && code !== 0 && this.baseDir) {
         const error = new Error(`Supervisor exited with code ${code ?? "unknown"}`);
-        console.error(`[poracode] ${error.message}, restarting…`);
-        this.options.reportError?.(error, { "poracode.feature_area": "supervisor" });
+        console.error(`[craftstation] ${error.message}, restarting…`);
+        this.options.reportError?.(error, { "craftstation.feature_area": "supervisor" });
         setTimeout(() => {
           if (!this.child && this.baseDir) {
             this.start(this.baseDir);

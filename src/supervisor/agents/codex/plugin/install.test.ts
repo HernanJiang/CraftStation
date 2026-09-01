@@ -26,8 +26,8 @@ import {
 } from "./install";
 import { buildNativeHookCommandHead } from "../../plugin/installerBase";
 
-const forwardPath = "C:\\Users\\demo\\.poracode\\agent-plugins\\codex\\forward.mjs";
-const forwardPathUnix = "/home/demo/.poracode/agent-plugins/codex/forward.mjs";
+const forwardPath = "C:\\Users\\demo\\.craftstation\\agent-plugins\\codex\\forward.mjs";
+const forwardPathUnix = "/home/demo/.craftstation/agent-plugins/codex/forward.mjs";
 
 /**
  * Test helpers build a `commandHead` matching one of the two shapes
@@ -58,8 +58,8 @@ afterEach(() => {
 });
 
 describe("getCodexPluginPaths", () => {
-  it("places Codex hooks under Poracode's private CODEX_HOME", () => {
-    const baseDir = mkdtempSync(join(tmpdir(), "poracode-codex-paths-"));
+  it("places Codex hooks under CraftStation's private CODEX_HOME", () => {
+    const baseDir = mkdtempSync(join(tmpdir(), "craftstation-codex-paths-"));
     const paths = getCodexPluginPaths({ envKind: "posix", baseDir });
 
     expect(paths.pluginDir).toBe(join(baseDir, "agent-plugins", "codex"));
@@ -124,7 +124,7 @@ describe("parseCodexVersionLine + isCodexSemverSupportedForHooks", () => {
 });
 
 describe("mergeCodexHooksDocument", () => {
-  it("creates only Poracode entries when hooks.json was absent (WSL shape)", () => {
+  it("creates only CraftStation entries when hooks.json was absent (WSL shape)", () => {
     const head = wslCommandHead(forwardPath);
     const doc = mergeCodexHooksDocument(null, head);
     expect(Object.keys(doc.hooks)).toEqual([
@@ -141,7 +141,7 @@ describe("mergeCodexHooksDocument", () => {
     expect(stopHook?.command).toBe(commandFor(head, "Stop"));
   });
 
-  it("preserves user matcher groups and appends Poracode", () => {
+  it("preserves user matcher groups and appends CraftStation", () => {
     const head = wslCommandHead(forwardPath);
     const userGroup = {
       matcher: "*",
@@ -161,13 +161,13 @@ describe("mergeCodexHooksDocument", () => {
     expect(lc?.command).toBe(commandFor(head, "Stop"));
   });
 
-  it("prunes stale Poracode groups by forward.mjs path fingerprint and replaces", () => {
+  it("prunes stale CraftStation groups by forward.mjs path fingerprint and replaces", () => {
     const head = wslCommandHead(forwardPath);
     const stale = {
       hooks: [
         {
           type: "command",
-          command: `node "C:\\old\\.poracode\\agent-plugins\\codex\\forward.mjs" Stop`,
+          command: `node "C:\\old\\.craftstation\\agent-plugins\\codex\\forward.mjs" Stop`,
         },
       ],
     };
@@ -179,15 +179,15 @@ describe("mergeCodexHooksDocument", () => {
     expect(h?.command).toBe(commandFor(head, "Stop"));
   });
 
-  it("prunes legacy Lightcode groups by native wrapper fingerprint", () => {
+  it("prunes legacy CraftStation groups by native wrapper fingerprint", () => {
     const head = nativeCommandHead(
-      "C:\\Users\\demo\\.poracode\\agent-plugins\\codex\\poracode-hook.cmd",
+      "C:\\Users\\demo\\.craftstation\\agent-plugins\\codex\\craftstation-hook.cmd",
     );
     const stale = {
       hooks: [
         {
           type: "command",
-          command: `"C:\\old\\.poracode\\agent-plugins\\codex\\lightcode-hook.cmd" Stop`,
+          command: `"C:\\old\\.craftstation\\agent-plugins\\codex\\craftstation-hook.cmd" Stop`,
         },
       ],
     };

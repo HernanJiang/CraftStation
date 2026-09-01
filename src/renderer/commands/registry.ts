@@ -83,11 +83,11 @@ export function buildWhenContext(
   const editorFocus = isEditorFocusElement(element);
   const terminalFocus = isTerminalFocusElement(element);
   const composerFocus = Boolean(
-    element?.closest("[data-poracode-composer], .poracode-composer-shell"),
+    element?.closest("[data-craftstation-composer], .craftstation-composer-shell"),
   );
-  const panelFocus = Boolean(element?.closest("[data-poracode-panel], [data-overlay-surface]"));
-  const sidebarFocus = Boolean(element?.closest(".poracode-sidebar-aside"));
-  const browserFocus = Boolean(element?.closest("[data-poracode-browser]"));
+  const panelFocus = Boolean(element?.closest("[data-craftstation-panel], [data-overlay-surface]"));
+  const sidebarFocus = Boolean(element?.closest(".craftstation-sidebar-aside"));
+  const browserFocus = Boolean(element?.closest("[data-craftstation-browser]"));
 
   return {
     paletteOpen,
@@ -125,20 +125,20 @@ function baseCommands(): AppCommand[] {
     {
       id: "palette.open",
       title: msg`Open Command Palette`,
-      group: "Poracode",
+      group: "CraftStation",
       run: () => useCommandPaletteStore.getState().open(),
     },
     {
       id: "settings.open",
       title: msg`Open Settings`,
-      group: "Poracode",
+      group: "CraftStation",
       run: openSettings,
     },
     {
       id: "changelog.open",
       title: msg`What's New`,
       subtitle: msg`View the changelog`,
-      group: "Poracode",
+      group: "CraftStation",
       keywords: ["changelog", "release notes", "what's new", "updates"],
       run: openChangelogSettings,
     },
@@ -146,7 +146,7 @@ function baseCommands(): AppCommand[] {
       id: "find.open",
       title: msg`Find`,
       subtitle: msg`Search the current view`,
-      group: "Poracode",
+      group: "CraftStation",
       keywords: ["find", "search", "filter"],
       run: openFindForActiveSurface,
     },
@@ -154,13 +154,13 @@ function baseCommands(): AppCommand[] {
       id: "sidebar.toggle",
       title: msg`Toggle sidebar`,
       subtitle: msg`Show or hide the sidebar`,
-      group: "Poracode",
+      group: "CraftStation",
       run: toggleSidebar,
     },
     {
       id: "auxiliary.toggle",
       title: msg`Toggle auxiliary panel`,
-      group: "Poracode",
+      group: "CraftStation",
       run: () => usePanelStore.getState().toggleAuxiliaryPanel("right"),
     },
     {
@@ -389,7 +389,7 @@ function baseCommands(): AppCommand[] {
       id: "tab.next",
       title: msg`Next tab`,
       subtitle: msg`Switch to the next tab`,
-      group: "Poracode",
+      group: "CraftStation",
       // Context-aware tab switching: cycles whichever surface holds focus — the
       // editor tab strip or the terminal tab strip. thread.next/previous own the
       // same chords elsewhere but stand down inside the editor/terminal (see
@@ -401,7 +401,7 @@ function baseCommands(): AppCommand[] {
       id: "tab.previous",
       title: msg`Previous tab`,
       subtitle: msg`Switch to the previous tab`,
-      group: "Poracode",
+      group: "CraftStation",
       when: "editorFocus || terminalFocus",
       run: () => switchFocusedSurfaceTab("previous"),
     },
@@ -518,9 +518,9 @@ function focusBrowserAddressBar(): void {
   // to the first mounted instance.
   const active = document.activeElement;
   const container =
-    (active instanceof Element ? active.closest("[data-poracode-browser]") : null) ??
-    document.querySelector("[data-poracode-browser]");
-  const input = container?.querySelector<HTMLInputElement>("[data-poracode-browser-address]");
+    (active instanceof Element ? active.closest("[data-craftstation-browser]") : null) ??
+    document.querySelector("[data-craftstation-browser]");
+  const input = container?.querySelector<HTMLInputElement>("[data-craftstation-browser-address]");
   if (!input) return;
   input.focus();
   input.select();

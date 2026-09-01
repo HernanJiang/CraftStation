@@ -1,4 +1,4 @@
-export const DIAGNOSTIC_BREADCRUMB_CATEGORY = "poracode.diagnostic.transition";
+export const DIAGNOSTIC_BREADCRUMB_CATEGORY = "craftstation.diagnostic.transition";
 
 export type DiagnosticFailureClass =
   | "expected-operational"
@@ -122,7 +122,8 @@ export function classifyDiagnosticFailure(
     domain,
     operation,
     errorClass,
-    fingerprint: failureClass === "unknown" ? null : ["poracode", domain, operation, errorClass],
+    fingerprint:
+      failureClass === "unknown" ? null : ["craftstation", domain, operation, errorClass],
   };
 }
 

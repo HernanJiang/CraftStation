@@ -1,4 +1,4 @@
-import { type HostPort, type UsageSnapshot } from "@poracode/agents-usage";
+import { type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
 import { hasOpenCodeGoAuth } from "./openCodeGoDb";
 import { fetchOpenCodeWeb, type OpenCodeWebSession } from "./openCodeWebSession";
 

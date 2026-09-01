@@ -1,21 +1,21 @@
 /**
- * Poracode Chrome Control — background service worker.
+ * CraftStation Chrome Control — background service worker.
  *
- * Pairs with the Poracode desktop **app**, not any single thread. It stays in a
+ * Pairs with the CraftStation desktop **app**, not any single thread. It stays in a
  * connect loop against the app's localhost bridge: while the app is closed it
  * quietly retries; the moment the app launches it connects and the popup shows
  * "Connected". No buttons, no port, no pairing code — fully automatic.
  *
  * The channel is a WebSocket carrying this extension's `chrome-extension://`
  * origin (web pages can't forge that) on loopback. Actual control surfaces
- * Chrome's own "Poracode started debugging this browser" banner = consent.
+ * Chrome's own "CraftStation started debugging this browser" banner = consent.
  *
  * MV3 workers are evicted when idle, so we reconnect from a periodic alarm and
  * on startup, and scan/reconnect on socket close.
  */
 
 const DEBUGGER_PROTOCOL_VERSION = "1.3";
-const KEEPALIVE_ALARM = "poracode-keepalive";
+const KEEPALIVE_ALARM = "craftstation-keepalive";
 const SCAN_DELAY_MS = 250;
 const IDLE_RETRY_MS = 4000;
 
@@ -27,12 +27,12 @@ const DEFAULT_PORTS = [
   ...Array.from({ length: 13 }, (_, i) => 32120 + i),
 ];
 
-// Each Poracode thread works inside its OWN tab group, named after the thread's
+// Each CraftStation thread works inside its OWN tab group, named after the thread's
 // task (mirrors the internal browser). The default group (no thread) keeps the
-// legacy "Poracode" label. Chrome tab groups have no id we own, so we key groups
+// legacy "CraftStation" label. Chrome tab groups have no id we own, so we key groups
 // by thread and remember the chrome groupId in storage (survives worker eviction).
-const DEFAULT_GROUP_KEY = "poracode";
-const DEFAULT_GROUP_TITLE = "Poracode";
+const DEFAULT_GROUP_KEY = "craftstation";
+const DEFAULT_GROUP_TITLE = "CraftStation";
 const DEFAULT_GROUP_COLOR = "purple";
 
 let ws = null;
@@ -112,7 +112,7 @@ async function connect() {
   });
 
   socket.addEventListener("error", () => {
-    lastError = "Looking for Poracode…";
+    lastError = "Looking for CraftStation…";
   });
 }
 
@@ -293,7 +293,7 @@ async function resolveGroup(spec) {
   }
   // Title-match fallback ONLY for the shared default group. Thread groups are
   // identified solely by their remembered id — two threads can share a title
-  // (e.g. both fall back to "Poracode"), so matching by title would collide.
+  // (e.g. both fall back to "CraftStation"), so matching by title would collide.
   if (spec.key === DEFAULT_GROUP_KEY) {
     try {
       const groups = await chrome.tabGroups.query({ title: spec.title });
@@ -387,13 +387,13 @@ function sendCdp(tabId, method, params) {
   });
 }
 
-// Forward CDP events (from any attached tab) back to Poracode.
+// Forward CDP events (from any attached tab) back to CraftStation.
 chrome.debugger.onEvent.addListener((source, method, params) => {
   if (typeof source.tabId !== "number") return;
   send({ type: "cdpEvent", tabId: source.tabId, method, params });
 });
 
-// The user closed the tab or dismissed the "Poracode is debugging" banner.
+// The user closed the tab or dismissed the "CraftStation is debugging" banner.
 chrome.debugger.onDetach.addListener((source, reason) => {
   if (typeof source.tabId !== "number") return;
   attachedTabs.delete(source.tabId);

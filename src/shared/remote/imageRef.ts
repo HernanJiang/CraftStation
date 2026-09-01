@@ -25,7 +25,7 @@ import {
  * addressed value really is an inline image before serving any bytes.
  */
 
-export const REMOTE_IMAGE_REF_KEY = "__poracodeImageRef";
+export const REMOTE_IMAGE_REF_KEY = "__craftstationImageRef";
 
 export interface RemoteImageRefValue {
   readonly threadId: string;

@@ -17,8 +17,8 @@ beforeEach(() => {
   bridge.dbGetProjectNotes.mockReset().mockResolvedValue(null);
   bridge.dbSetProjectNotes.mockReset().mockResolvedValue(undefined);
   toast.danger.mockReset();
-  // hasBridge() in the store checks for dbSetProjectNotes on window.poracode.
-  window.poracode = bridge as unknown as typeof window.poracode;
+  // hasBridge() in the store checks for dbSetProjectNotes on window.craftstation.
+  window.craftstation = bridge as unknown as typeof window.craftstation;
 });
 
 afterEach(() => {

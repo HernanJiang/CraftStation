@@ -4,16 +4,16 @@ import { parseRemoteUrl, toForwardSlash } from "./exec";
 /**
  * True when git auto-wired a new worktree branch's upstream to its fork
  * start-point (`origin/master`) instead of a same-named remote branch.
- * `poracodeSource` is the recorded fork base; matching tracking with a
+ * `craftstationSource` is the recorded fork base; matching tracking with a
  * different short name is the inherited-upstream bug, not a real rename.
  */
 export function isInheritedStartPointUpstream(input: {
   branch: string;
   tracking: string;
-  poracodeSource: string | null;
+  craftstationSource: string | null;
 }): boolean {
-  const { branch, tracking, poracodeSource } = input;
-  if (!branch || !tracking || !poracodeSource || tracking !== poracodeSource) return false;
+  const { branch, tracking, craftstationSource } = input;
+  if (!branch || !tracking || !craftstationSource || tracking !== craftstationSource) return false;
   const slash = tracking.indexOf("/");
   if (slash <= 0) return false;
   return tracking.slice(slash + 1) !== branch;

@@ -94,7 +94,7 @@ export function SidebarProjectHeader(props: {
               ? `${projectLocation} · ${remote.serverName} · ${remoteStatusLabel}`
               : projectLocation
         }
-        className={`poracode-sidebar-project-nudge !pl-1${isDragging ? " opacity-60" : ""}${
+        className={`craftstation-sidebar-project-nudge !pl-1${isDragging ? " opacity-60" : ""}${
           isUnavailable ? " opacity-50" : ""
         }`}
         onPress={() => {

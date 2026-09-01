@@ -40,12 +40,12 @@ export const PlanProposal = memo(function PlanProposal({ item }: PlanProposalPro
       <div className="flex min-w-0 flex-col gap-1">
         <div className="inline-flex items-center gap-1.5 text-[length:var(--lc-chat-font-size-meta)] text-foreground-muted">
           <AnimatingPlanIcon
-            className={`size-3 shrink-0 ${isStreaming ? "poracode-plan-proposal-icon" : ""}`}
+            className={`size-3 shrink-0 ${isStreaming ? "craftstation-plan-proposal-icon" : ""}`}
           />
           <span
             ref={thinkingTextRef}
-            className={isStreaming ? "poracode-thinking-text" : ""}
-            {...(isStreaming ? { "data-poracode-shimmer-text": proposedPlanLabel } : {})}
+            className={isStreaming ? "craftstation-thinking-text" : ""}
+            {...(isStreaming ? { "data-craftstation-shimmer-text": proposedPlanLabel } : {})}
           >
             {proposedPlanLabel}
           </span>

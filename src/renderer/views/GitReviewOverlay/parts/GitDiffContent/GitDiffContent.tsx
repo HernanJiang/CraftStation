@@ -50,8 +50,8 @@ export function GitDiffContent(props: {
 
   return (
     <div
-      data-poracode-find-scope="git"
-      className="poracode-git-diff-content relative h-full min-h-0"
+      data-craftstation-find-scope="git"
+      className="craftstation-git-diff-content relative h-full min-h-0"
     >
       {selectedFile ? <GitFindBar containerRef={singleFileScrollRef} /> : null}
 

@@ -220,7 +220,7 @@ describe("wslHomeDir", () => {
 
 describe("cloneFolderNameFromRepo", () => {
   test("takes the bare repo name from owner/name", () => {
-    expect(cloneFolderNameFromRepo("poracode/poracode")).toBe("poracode");
+    expect(cloneFolderNameFromRepo("craftstation/craftstation")).toBe("craftstation");
   });
 
   test("strips a trailing .git", () => {

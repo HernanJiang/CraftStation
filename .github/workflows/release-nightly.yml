@@ -155,7 +155,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: release-draft-${{ github.run_id }}
-          name: Poracode Nightly ${{ needs.prepare.outputs.tag }}
+          name: CraftStation Nightly ${{ needs.prepare.outputs.tag }}
           prerelease: true
           draft: true
           make_latest: false

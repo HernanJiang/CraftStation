@@ -34,7 +34,7 @@ CraftStation/                  # 根 Git：治理文档、自有资源与长期�
 
 ## Runtime and Toolchain
 
-- Working Copy 基于 PoraCode 上游 `SDSLeon/lightcode` 渐进重构，采用 Strangler Refactor。
+- Working Copy 基于 CraftStation 上游 `SDSLeon/craftstation` 渐进重构，采用 Strangler Refactor。
 - 主语言与桌面应用：TypeScript、React、Electron、Node.js `>=24.10.0`。
 - 包管理器：`pnpm@11.19.0`；精确版本与依赖以 `craftstation/package.json` 和 lockfile 为准。
 - CLIProxyAPI 保持独立 Go implementation；TypeScript 层只通过公开 seam 使用它。
@@ -48,7 +48,7 @@ CraftStation/                  # 根 Git：治理文档、自有资源与长期�
 - DeepSeek Harness：`reference/deepseek-harness/`，上游 `deepseek-ai/deepseek-harness`；只读研究 plugin-first Runtime、Cordis composition 与 Agent/Session/Tool 链路。
 - Codex Harness：`reference/codex/`，固定指官方 `openai/codex`；研究 Codex CLI、app-server、JSON-RPC、工具、会话和执行协议。
 - Harnss：`reference/harnss/`，上游 `OpenSource03/harnss`；研究多 CLI Agent 桌面执行、ACP、MCP、权限和工作区体验。
-- PoraCode：`reference/poracode/`，上游仓库实际为 `SDSLeon/lightcode`；是 `craftstation/` 的代码基线与主要实现参考。
+- CraftStation：`reference/craftstation/`，上游仓库实际为 `SDSLeon/craftstation`；是 `craftstation/` 的代码基线与主要实现参考。
 - AionUI：`reference/aionui/`，上游 `iOfficeAI/AionUi`；研究 Cowork、多 Agent GUI、Team Mode、远程访问与自动化。
 - CLIProxyAPI：`reference/CLIProxyAPI/`，上游固定为官方 `router-for-me/CLIProxyAPI`；研究 Subscription/OAuth 到 OpenAI-compatible API 的 provider concern。当前为官方 GitHub zipball 建立的本地 Git 快照，不具备完整上游历史。
 
@@ -73,19 +73,19 @@ CraftStation/                  # 根 Git：治理文档、自有资源与长期�
 - v0.1.0 的原生链路为 `OpenAI Model Item + Codex Harness Item -> Recipe -> Crafter -> Result Item -> CraftPlan -> Entity -> Session`。
 - Model Vendor 与 Harness Vendor 保持独立；未验证组合不得进入可执行路径。
 - 兼容状态统一使用 `NATIVE`、`SUPPORTED`、`EXPERIMENTAL`、`INCOMPATIBLE`。
-- PoraCode 的 Desktop、IPC、workspace、terminal、git/worktree 与 persistence 等通用基础设施可以在 Strangler Refactor 期间继续复用；Harness-specific Runtime 只作为迁移参考，不预设为 CraftStation 的永久生产依赖。
+- CraftStation 的 Desktop、IPC、workspace、terminal、git/worktree 与 persistence 等通用基础设施可以在 Strangler Refactor 期间继续复用；Harness-specific Runtime 只作为迁移参考，不预设为 CraftStation 的永久生产依赖。
 - 保持 domain terminology 与 implementation terminology 分离；`adapter`、`transport`、`client`、`server`、`protocol`、`process` 在实现层可继续使用。
 
 当前 Feature 优先建立四个逻辑 Module：
 
 - `crafting`：小 Interface 暴露 `resolve -> validate -> compile`，隐藏 Recipe 匹配、校验和 CraftPlan 编译。
-- `registry`：管理 Item、Recipe 与 runtime binding；与 PoraCode 的 AgentAdapter registry 分离。
+- `registry`：管理 Item、Recipe 与 runtime binding；与 CraftStation 的 AgentAdapter registry 分离。
 - `harness-runtime`：最重要的 execution seam。上层只提交 CraftPlan、Workspace、可选 Session ref 与 Prompt，并接收 Entity/Session identity、runtime events 和 lifecycle operations。
 - `provider/API`：隔离 CLIProxyAPI 或原生 provider/auth concern，不与 Harness process execution 混为一体。
 
 Codex app-server、stdio、JSON-RPC、server pool 与 Codex-specific session 都属于 `harness-runtime` 内的 Codex Adapter。React UI、Crafting domain 和 Crafter 不得深度导入这些 implementation。
 
-从 v0.3.0 起，Codex 生产路径由 CraftStation-owned Codex Runtime Module 直接驱动官方 `codex app-server`。最终产品路径不得依赖或 fallback 到 PoraCode 的 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter`、`CodexStructuredSession`、canonical event mapping 或 Codex hook plugin；迁移期间可以保留隔离的 legacy implementation 作为对照，只有新路径取得真实验收证据后才移除。Codex 的 Agent Loop、上下文管理与压缩、工具执行、MCP、Skills、子 Agent 和原生 Session 语义继续由官方 Codex Runtime 拥有，CraftStation 不重写这些内部能力。
+从 v0.3.0 起，Codex 生产路径由 CraftStation-owned Codex Runtime Module 直接驱动官方 `codex app-server`。最终产品路径不得依赖或 fallback 到 CraftStation 的 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter`、`CodexStructuredSession`、canonical event mapping 或 Codex hook plugin；迁移期间可以保留隔离的 legacy implementation 作为对照，只有新路径取得真实验收证据后才移除。Codex 的 Agent Loop、上下文管理与压缩、工具执行、MCP、Skills、子 Agent 和原生 Session 语义继续由官方 Codex Runtime 拥有，CraftStation 不重写这些内部能力。
 
 CLIProxyAPI 在 v0.1.0 不预设为 Codex 必经路径，也不重写为 TypeScript；是否使用只由 provider/auth 需求决定。
 
@@ -143,7 +143,7 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 
 - Product Working Copy remote: `origin` = `https://github.com/HernanJiang/CraftStation.git`
 - Default branch: `main`
-- This file is the CraftStation governance overlay; PoraCode `AGENTS.md` in the same repo remains the implementation working rules.
+- This file is the CraftStation governance overlay; CraftStation `AGENTS.md` in the same repo remains the implementation working rules.
 
 ## Git Worktree Topology
 

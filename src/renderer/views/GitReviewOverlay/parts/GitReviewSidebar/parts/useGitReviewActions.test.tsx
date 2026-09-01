@@ -85,7 +85,7 @@ vi.mock("@/renderer/hooks/usePrWriteActions", () => ({
 const STORE_KEY = "pipeline-panel";
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
+  name: "CraftStation",
   createdAt: "2026-08-18T00:00:00.000Z",
   location: { kind: "windows", path: "C:\\repo" },
 };
@@ -95,10 +95,10 @@ const gitStatus: GitStatusResult = {
   tracking: "origin/feature/pipeline",
   hasRemote: true,
   remoteInfo: {
-    url: "https://github.com/example/poracode.git",
+    url: "https://github.com/example/craftstation.git",
     platform: "github",
     owner: "example",
-    repo: "poracode",
+    repo: "craftstation",
   },
   ahead: 1,
   behind: 0,
@@ -153,7 +153,7 @@ describe("useGitReviewActions action phase", () => {
       number: 7,
       state: "open",
       title: "Pipeline",
-      url: "https://github.com/example/poracode/pull/7",
+      url: "https://github.com/example/craftstation/pull/7",
       baseBranch: "master",
       isDraft: false,
       updatedAt: "2026-08-18T00:00:00.000Z",

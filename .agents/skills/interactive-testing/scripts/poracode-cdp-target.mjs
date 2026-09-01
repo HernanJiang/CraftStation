@@ -115,7 +115,7 @@ async function inspectTarget(target) {
               ` readyState: document.readyState,` +
               ` rootChildren: document.querySelector("#root")?.childElementCount ?? 0,` +
               ` bodyTextLength: document.body?.innerText?.trim().length ?? 0,` +
-              ` devBridge: typeof window.__poracodeDev === "object",` +
+              ` devBridge: typeof window.__craftstationDev === "object",` +
               ` loadEventEnd: performance.getEntriesByType("navigation")[0]?.loadEventEnd ?? 0,` +
               ` crashScreen: Boolean(document.querySelector("[data-renderer-crash-screen]")),` +
               ` viteError: document.querySelector("vite-error-overlay")?.shadowRoot?.textContent?.trim().slice(0, 2000) ?? null` +
@@ -159,6 +159,6 @@ export async function closeWebSocket(ws) {
 
 function notCdpError(message) {
   const error = new Error(message);
-  error.code = "PORACODE_NOT_CDP";
+  error.code = "CRAFTSTATION_NOT_CDP";
   return error;
 }

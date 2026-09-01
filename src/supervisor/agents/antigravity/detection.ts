@@ -16,7 +16,7 @@ export const ANTIGRAVITY_DEFAULT_MODEL_ID = "Gemini 3.5 Flash";
 // escapes the pseudoconsole its parent runs in and allocates a fresh Windows
 // console; when the user's default terminal application is Windows Terminal the
 // OS hands that console off, popping a stray terminal window mid-session.
-// Poracode owns agent updates (Settings update button -> `agy update`), so we
+// CraftStation owns agent updates (Settings update button -> `agy update`), so we
 // set `AGY_CLI_DISABLE_AUTO_UPDATE` on every `agy` spawn we make (detection
 // probes, account probe, PTY launches, one-shots). `agy update` runs without
 // this env (separate path), so explicit updates still work.

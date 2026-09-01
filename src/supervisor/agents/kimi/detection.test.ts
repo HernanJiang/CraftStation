@@ -138,7 +138,7 @@ describe("normalizeKimiProbeEfforts", () => {
   });
 
   // K2.7 offers thinking as a state, not a ladder. Keeping the single `on`
-  // (rather than reporting no levels) is what lets Poracode put the session back
+  // (rather than reporting no levels) is what lets CraftStation put the session back
   // into that state — Kimi otherwise keeps the previous model's tier across a
   // model switch. The composer draws no picker for a one-option list.
   it("keeps the untiered `on` as an untiered model's only level", () => {

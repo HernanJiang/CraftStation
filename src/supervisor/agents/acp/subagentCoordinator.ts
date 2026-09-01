@@ -9,13 +9,13 @@
 
 import type { SessionNotification } from "@agentclientprotocol/sdk";
 import {
-  PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
-  PORACODE_ACP_DETACHED_SUBAGENT_META_KEY,
-  PORACODE_ACP_NEW_ASSISTANT_ITEM_META_KEY,
-  PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY,
-  PORACODE_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY,
-  PORACODE_ACP_SUBAGENT_STATUS_META_KEY,
-  PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY,
+  CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY,
+  CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY,
+  CRAFTSTATION_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY,
+  CRAFTSTATION_ACP_SUBAGENT_STATUS_META_KEY,
+  CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
 } from "./canonicalMapping/subagents";
 
 export interface AcpSubagentDescriptorPatch {
@@ -223,7 +223,7 @@ export function normalizeAcpSubagentToolCall(
     ...(input.rawOutput !== undefined ? { rawOutput: input.rawOutput } : {}),
     ...(input.keepOpen ? { status: "in_progress" } : {}),
     ...(input.detached
-      ? { _meta: { ...meta, [PORACODE_ACP_DETACHED_SUBAGENT_META_KEY]: true } }
+      ? { _meta: { ...meta, [CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY]: true } }
       : Object.keys(meta).length > 0
         ? { _meta: meta }
         : {}),
@@ -234,18 +234,18 @@ export function withAcpSubagentParent(
   notification: SessionNotification,
   toolCallId: string,
 ): SessionNotification {
-  return withMeta(notification, PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY, toolCallId);
+  return withMeta(notification, CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY, toolCallId);
 }
 
 export function withAcpTopLevelToolCall(notification: SessionNotification): SessionNotification {
-  return withMeta(notification, PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY, true);
+  return withMeta(notification, CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY, true);
 }
 
 export function withAcpDetachedSubagentActivity(
   notification: SessionNotification,
   toolCallId: string,
 ): SessionNotification {
-  return withMeta(notification, PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY, toolCallId);
+  return withMeta(notification, CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY, toolCallId);
 }
 
 function createAcpSubagentCompletionNotifications(input: {
@@ -265,7 +265,7 @@ function createAcpSubagentCompletionNotifications(input: {
       sessionNotification(input.sessionId, {
         sessionUpdate: "agent_message_chunk",
         content: { type: "text", text: input.childOutput },
-        _meta: { [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: input.toolCallId },
+        _meta: { [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: input.toolCallId },
       }),
     );
   }
@@ -275,8 +275,8 @@ function createAcpSubagentCompletionNotifications(input: {
         sessionUpdate: "agent_message_chunk",
         content: { type: "text", text: input.parentReply },
         _meta: {
-          [PORACODE_ACP_NEW_ASSISTANT_ITEM_META_KEY]: true,
-          [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: input.toolCallId,
+          [CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY]: true,
+          [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: input.toolCallId,
         },
       }),
     );
@@ -290,10 +290,10 @@ function createAcpSubagentCompletionNotifications(input: {
       ...(input.result ? { rawOutput: input.result } : {}),
       _meta: {
         ...input.terminalMeta,
-        [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: input.toolCallId,
-        [PORACODE_ACP_SUBAGENT_STATUS_META_KEY]: input.status,
+        [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: input.toolCallId,
+        [CRAFTSTATION_ACP_SUBAGENT_STATUS_META_KEY]: input.status,
         ...(input.synthesizeResultProgress
-          ? { [PORACODE_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY]: true }
+          ? { [CRAFTSTATION_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY]: true }
           : {}),
       },
     }),

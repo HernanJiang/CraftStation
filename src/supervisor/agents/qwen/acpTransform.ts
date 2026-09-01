@@ -12,7 +12,10 @@
  */
 
 import type { SessionNotification } from "@agentclientprotocol/sdk";
-import { PORACODE_ACP_GOAL_META_KEY, type AcpCanonicalGoalUpdate } from "../acp/canonicalMapping";
+import {
+  CRAFTSTATION_ACP_GOAL_META_KEY,
+  type AcpCanonicalGoalUpdate,
+} from "../acp/canonicalMapping";
 import {
   createAcpSubagentCoordinator,
   normalizeAcpSubagentToolCall,
@@ -157,7 +160,7 @@ function createQwenAcpSessionUpdateController(
       }
       return withUpdate(notification, {
         ...update,
-        _meta: { ...meta, [PORACODE_ACP_GOAL_META_KEY]: goal },
+        _meta: { ...meta, [CRAFTSTATION_ACP_GOAL_META_KEY]: goal },
       });
     }
 
@@ -281,7 +284,7 @@ function withPausedGoalMeta(
     ...update,
     _meta: {
       ...plainRecord(update._meta),
-      ...(pausedGoal ? { [PORACODE_ACP_GOAL_META_KEY]: pausedGoal } : {}),
+      ...(pausedGoal ? { [CRAFTSTATION_ACP_GOAL_META_KEY]: pausedGoal } : {}),
     },
   });
 }

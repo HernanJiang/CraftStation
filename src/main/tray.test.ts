@@ -111,7 +111,7 @@ describe("resolveTrayIconPath", () => {
       existsSyncMock.mockReturnValue(true);
 
       const handle = createTray({
-        appName: "Poracode",
+        appName: "CraftStation",
         channel: "stable",
         onShow: vi.fn<() => void>(),
         onQuit: vi.fn<() => void>(),
@@ -137,7 +137,7 @@ describe("resolveTrayIconPath", () => {
     existsSyncMock.mockReturnValue(false);
 
     const handle = createTray({
-      appName: "Poracode",
+      appName: "CraftStation",
       channel: "stable",
       onShow: vi.fn<() => void>(),
       onQuit: vi.fn<() => void>(),
@@ -157,7 +157,7 @@ describe("resolveTrayIconPath", () => {
     const onQuit = vi.fn<() => void>();
 
     const handle = createTray({
-      appName: "Poracode",
+      appName: "CraftStation",
       channel: "stable",
       onShow,
       onQuickComposer,
@@ -173,7 +173,7 @@ describe("resolveTrayIconPath", () => {
     expect(template[0]?.label).toBe("New Task (CommandOrControl+Alt+Space)");
     template[0]?.click?.();
     expect(onQuickComposer).toHaveBeenCalledOnce();
-    template.find((item) => item.label === "Open Poracode")?.click?.();
+    template.find((item) => item.label === "Open CraftStation")?.click?.();
     expect(onShow).toHaveBeenCalledOnce();
     template.find((item) => item.label === "Exit")?.click?.();
     expect(onQuit).toHaveBeenCalledOnce();
@@ -218,7 +218,7 @@ describe("resolveTrayIconPath", () => {
       makeThread("recent-4", "Fourth recent", "2026-07-15T05:00:00.000Z"),
       {
         ...makeThread("recent-3", "Third recent", "2026-07-15T04:00:00.000Z"),
-        worktreeBranch: "poracode/quiet-meadow",
+        worktreeBranch: "craftstation/quiet-meadow",
       },
       makeThread("recent-2", "Second recent", "2026-07-15T03:00:00.000Z"),
       makeThread("recent-1", "First recent", "2026-07-15T02:00:00.000Z"),
@@ -228,7 +228,7 @@ describe("resolveTrayIconPath", () => {
 
     const getThreads = vi.fn<() => Thread[]>(() => threads);
     const handle = createTray({
-      appName: "Poracode",
+      appName: "CraftStation",
       channel: "stable",
       getProjects: () => projects,
       getThreads,
@@ -254,7 +254,9 @@ describe("resolveTrayIconPath", () => {
       template.find((item) => item.label === itemLabel("Fourth recent", "Tasks")),
     ).toBeDefined();
     expect(
-      template.find((item) => item.label === itemLabel("Third recent", "poracode/quiet-meadow")),
+      template.find(
+        (item) => item.label === itemLabel("Third recent", "craftstation/quiet-meadow"),
+      ),
     ).toBeDefined();
     expect(
       template.find((item) => item.label === itemLabel("Second recent", "Tasks")),
@@ -265,7 +267,7 @@ describe("resolveTrayIconPath", () => {
     const recentIndex = template.findIndex((item) => item.label === "Recent");
     expect(template.slice(recentIndex + 1, recentIndex + 4).map((item) => item.label)).toEqual([
       itemLabel("Fourth recent", "Tasks"),
-      itemLabel("Third recent", "poracode/quiet-meadow"),
+      itemLabel("Third recent", "craftstation/quiet-meadow"),
       itemLabel("Second recent", "Tasks"),
     ]);
     expect(template.find((item) => item.label === "More")?.submenu?.[0]?.label).toBe(
@@ -307,7 +309,7 @@ describe("resolveTrayIconPath", () => {
     expect(resolved).toMatch(/build[\\/]tray-icon-mac\.png$/u);
 
     const handle = createTray({
-      appName: "Poracode",
+      appName: "CraftStation",
       channel: "stable",
       onShow: vi.fn<() => void>(),
       onQuit: vi.fn<() => void>(),

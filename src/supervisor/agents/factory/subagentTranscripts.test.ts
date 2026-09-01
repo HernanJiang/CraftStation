@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionNotification } from "@agentclientprotocol/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY } from "../acp/canonicalMapping/subagents";
+import { CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY } from "../acp/canonicalMapping/subagents";
 import { createAcpMapperState, mapAcpSessionUpdate } from "../acp/canonicalMapping";
 import { mapFactoryTranscriptRecord } from "./subagentTranscriptMapping";
 import { FactorySubagentTranscriptBridge } from "./subagentTranscripts";
@@ -77,7 +77,7 @@ describe("Factory subagent transcripts", () => {
       title: "Read E:\\repo\\src\\feature.ts",
       kind: "read",
       status: "in_progress",
-      _meta: { [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "task-parent" },
+      _meta: { [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "task-parent" },
     });
     expect(result[0]?.update).toMatchObject({
       toolCallId: "child-read",
@@ -92,7 +92,7 @@ describe("Factory subagent transcripts", () => {
   });
 
   it("recovers the full child transcript correlated through Factory's task registry", async () => {
-    const factoryHome = mkdtempSync(join(tmpdir(), "poracode-factory-subagents-"));
+    const factoryHome = mkdtempSync(join(tmpdir(), "craftstation-factory-subagents-"));
     temporaryDirectories.push(factoryHome);
     const sessionsDir = join(factoryHome, "sessions", "project-key");
     mkdirSync(sessionsDir, { recursive: true });
@@ -224,7 +224,7 @@ describe("Factory subagent transcripts", () => {
     expect(recovered.at(-1)).toMatchObject({
       sessionId: "grandchild-session",
       update: {
-        _meta: { [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "nested-task" },
+        _meta: { [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "nested-task" },
       },
     });
 
@@ -243,7 +243,7 @@ describe("Factory subagent transcripts", () => {
       update: {
         sessionUpdate: "agent_message_chunk",
         content: { text: "Review complete." },
-        _meta: { [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "parent-task" },
+        _meta: { [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "parent-task" },
       },
     });
     const recoveredCount = recovered.length;
@@ -261,7 +261,7 @@ describe("Factory subagent transcripts", () => {
     expect(
       recovered.slice(0, -1).every(({ update }) => {
         const meta = update._meta as Record<string, unknown>;
-        return typeof meta[PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY] === "string";
+        return typeof meta[CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY] === "string";
       }),
     ).toBe(true);
     expect(runtimeEvents).toContainEqual(

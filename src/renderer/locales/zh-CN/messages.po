@@ -389,8 +389,8 @@ msgid "{0}mo ago"
 msgstr "{0}个月前"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "{agent} reported authentication success, but Poracode could not verify it. Configure {agent} directly, then try again."
-msgstr "{agent} 报告身份验证成功，但 Poracode 无法验证。请直接配置 {agent}，然后重试。"
+msgid "{agent} reported authentication success, but CraftStation could not verify it. Configure {agent} directly, then try again."
+msgstr "{agent} 报告身份验证成功，但 CraftStation 无法验证。请直接配置 {agent}，然后重试。"
 
 #: src/renderer/views/SettingsOverlay/parts/AcpRegistrySettings.tsx
 msgid "{agentLabel} install targets"
@@ -643,8 +643,8 @@ msgstr "@cursor/sdk 未安装。"
 #~ msgstr "/skill-creator 为 {destinationLabel} 创建一个新的托管技能。"
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "/skill-creator-poracode Create a new managed skill for {destinationLabel}."
-msgstr "/skill-creator-poracode 为 {destinationLabel} 创建一个新的托管技能。"
+msgid "/skill-creator-craftstation Create a new managed skill for {destinationLabel}."
+msgstr "/skill-creator-craftstation 为 {destinationLabel} 创建一个新的托管技能。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "© {currentYear} Serhii Vecherenko. All rights reserved."
@@ -727,8 +727,8 @@ msgid "A server could not be started and was skipped."
 msgstr "无法启动某个服务器，已跳过。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "A server has a name Poracode cannot use."
-msgstr "某个服务器的名称是 Poracode 无法使用的。"
+msgid "A server has a name CraftStation cannot use."
+msgstr "某个服务器的名称是 CraftStation 无法使用的。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "A server is not configured correctly and was skipped."
@@ -912,8 +912,8 @@ msgid "Add a project to use GitHub Actions."
 msgstr "添加项目以使用 GitHub Actions。"
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "Add a skill to .agents/skills or .poracode/skills, or import one from another provider."
-msgstr "将技能添加到 .agents/skills 或 .poracode/skills，或从其他提供商导入。"
+msgid "Add a skill to .agents/skills or .craftstation/skills, or import one from another provider."
+msgstr "将技能添加到 .agents/skills 或 .craftstation/skills，或从其他提供商导入。"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 #~ msgid "Add a skill to .agents/skills or import one from another provider."
@@ -1676,8 +1676,8 @@ msgid "Automation is paused: the configured helper agent is unavailable. Check t
 msgstr "自动化已暂停：配置的辅助代理不可用。请检查代理连接和辅助代理设置。"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrWatchControls.tsx
-msgid "Automation is paused: this PR's branch could not be checked out. Poracode keeps retrying automatically."
-msgstr "自动化已暂停：无法检出此 PR 的分支。Poracode 会自动持续重试。"
+msgid "Automation is paused: this PR's branch could not be checked out. CraftStation keeps retrying automatically."
+msgstr "自动化已暂停：无法检出此 PR 的分支。CraftStation 会自动持续重试。"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrWatchControls.tsx
 #~ msgid "Automation is paused: this PR's branch could not be checked out. Re-select a mode to retry."
@@ -1909,8 +1909,8 @@ msgid "Browse your GitHub repositories or paste a clone URL."
 msgstr "浏览您的 GitHub 存储库或粘贴克隆 URL。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Browse, inspect, and test websites in Poracode's isolated in-app browser."
-msgstr "在 Poracode 隔离的内置浏览器中浏览、检查并测试网站。"
+msgid "Browse, inspect, and test websites in CraftStation's isolated in-app browser."
+msgstr "在 CraftStation 隔离的内置浏览器中浏览、检查并测试网站。"
 
 #: src/mobile/chrome.ts
 #: src/mobile/NarrowShell.tsx
@@ -2009,16 +2009,16 @@ msgid "Built-in order"
 msgstr "内置顺序"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
-msgid "Built-in servers are managed by Poracode. They can be disabled globally but cannot be edited or removed."
-msgstr "内置服务器由 Poracode 管理。可以全局禁用，但不能编辑或删除。"
+msgid "Built-in servers are managed by CraftStation. They can be disabled globally but cannot be edited or removed."
+msgstr "内置服务器由 CraftStation 管理。可以全局禁用，但不能编辑或删除。"
 
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Built-in shortcut — can't be changed"
 msgstr "内置快捷键 — 无法更改"
 
 #: src/renderer/components/plugins/PluginMarketplace.tsx
-msgid "Bundles of skills and MCP servers that work across every supported agent. Poracode loads any package built for the Agent Plugins specification."
-msgstr "适用于所有受支持代理的技能与 MCP 服务器组合包。Poracode 可加载任何按 Agent Plugins 规范构建的软件包。"
+msgid "Bundles of skills and MCP servers that work across every supported agent. CraftStation loads any package built for the Agent Plugins specification."
+msgstr "适用于所有受支持代理的技能与 MCP 服务器组合包。CraftStation 可加载任何按 Agent Plugins 规范构建的软件包。"
 
 #: src/renderer/utils/projectIcons.ts
 msgid "Business & finance"
@@ -2360,8 +2360,8 @@ msgstr "请选择至少两个候选项并输入提示。"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose how Poracode performs manual merges and automatic PR merges."
-msgstr "选择 Poracode 执行手动合并和 PR 自动合并的方式。"
+msgid "Choose how CraftStation performs manual merges and automatic PR merges."
+msgstr "选择 CraftStation 执行手动合并和 PR 自动合并的方式。"
 
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
 msgid "Choose how to sign in for {env}."
@@ -2376,8 +2376,8 @@ msgid "Choose import destination"
 msgstr "选择导入目标"
 
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
-msgid "Choose shells for the Terminal panel and Poracode's internal commands."
-msgstr "选择终端面板和 Poracode 内部命令所使用的 shell。"
+msgid "Choose shells for the Terminal panel and CraftStation's internal commands."
+msgstr "选择终端面板和 CraftStation 内部命令所使用的 shell。"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "Choose SSH identity file"
@@ -2385,8 +2385,8 @@ msgstr "选择 SSH 身份文件"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose the display language for Poracode's interface."
-msgstr "选择 Poracode 界面的显示语言。"
+msgid "Choose the display language for CraftStation's interface."
+msgstr "选择 CraftStation 界面的显示语言。"
 
 #: src/renderer/views/SettingsOverlay/parts/CursorProviderSettings.tsx
 #~ msgid "Choose the runtime for new Cursor GUI chats. SDK becomes available after its package is detected and its API key is authenticated."
@@ -2402,8 +2402,8 @@ msgstr "选择要附加到的线程"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose what Poracode does for new pull requests: nothing, fix merge blockers, or fix and merge."
-msgstr "选择 Poracode 对新拉取请求执行的操作：不执行任何操作、修复合并阻碍，或修复后合并。"
+msgid "Choose what CraftStation does for new pull requests: nothing, fix merge blockers, or fix and merge."
+msgstr "选择 CraftStation 对新拉取请求执行的操作：不执行任何操作、修复合并阻碍，或修复后合并。"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -2412,8 +2412,8 @@ msgstr "选择这台机器保持唤醒的时机。"
 
 #: src/renderer/views/SettingsOverlay/parts/BrowserSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose whether links from Poracode and browser popups stay in Poracode or open externally."
-msgstr "选择来自 Poracode 和浏览器弹出窗口的链接是保留在 Poracode 中还是在外部打开。"
+msgid "Choose whether links from CraftStation and browser popups stay in CraftStation or open externally."
+msgstr "选择来自 CraftStation 和浏览器弹出窗口的链接是保留在 CraftStation 中还是在外部打开。"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -3047,8 +3047,8 @@ msgid "Config directory"
 msgstr "配置目录"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
-msgid "Configure the server Poracode will add when supported agents start."
-msgstr "配置 Poracode 在受支持的代理启动时添加的服务器。"
+msgid "Configure the server CraftStation will add when supported agents start."
+msgstr "配置 CraftStation 在受支持的代理启动时添加的服务器。"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
@@ -3103,24 +3103,24 @@ msgid "Connect desktop"
 msgstr "连接桌面端"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
-msgid "Connect directly, through a relay, or over SSH. Every transport uses the same Poracode remote protocol, projects, threads, and agent runtimes."
-msgstr "可直接、通过中继或通过 SSH 连接。所有传输方式都使用相同的 Poracode 远程协议、项目、线程和代理运行时。"
+msgid "Connect directly, through a relay, or over SSH. Every transport uses the same CraftStation remote protocol, projects, threads, and agent runtimes."
+msgstr "可直接、通过中继或通过 SSH 连接。所有传输方式都使用相同的 CraftStation 远程协议、项目、线程和代理运行时。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
 msgid "Connect over SSH"
 msgstr "通过 SSH 连接"
 
 #: src/mobile/setupEmptyState.tsx
-msgid "Connect Poracode on your desktop before starting a thread."
-msgstr "开始线程前，请先连接桌面端的 Poracode。"
+msgid "Connect CraftStation on your desktop before starting a thread."
+msgstr "开始线程前，请先连接桌面端的 CraftStation。"
 
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Connect the AI providers OpenCode can use and sign out of them here."
 msgstr "在此连接 OpenCode 可使用的 AI 提供商，并退出登录。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
-#~ msgid "Connect to another Poracode desktop or a headless server to browse and manage its projects from here. Get its endpoint and pairing token from Settings → Remote Access on that machine."
-#~ msgstr "连接到另一台 Poracode 桌面端或无界面服务器，即可在此浏览和管理其项目。请在对方设备的“设置 → 远程访问”中获取其端点和配对令牌。"
+#~ msgid "Connect to another CraftStation desktop or a headless server to browse and manage its projects from here. Get its endpoint and pairing token from Settings → Remote Access on that machine."
+#~ msgstr "连接到另一台 CraftStation 桌面端或无界面服务器，即可在此浏览和管理其项目。请在对方设备的“设置 → 远程访问”中获取其端点和配对令牌。"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
@@ -3295,8 +3295,8 @@ msgid "Copy {0} device code {1}"
 msgstr "复制{0}设备代码{1}"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Copy all Lightcode data into Poracode. Poracode restarts and keeps a complete backup of its current data."
-msgstr "将所有 Lightcode 数据复制到 Poracode。Poracode 将重新启动，并保留当前数据的完整备份。"
+msgid "Copy all CraftStation data into CraftStation. CraftStation restarts and keeps a complete backup of its current data."
+msgstr "将所有 CraftStation 数据复制到 CraftStation。CraftStation 将重新启动，并保留当前数据的完整备份。"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Copy code"
@@ -3499,8 +3499,8 @@ msgid "Couldn't scan MCP server configurations."
 msgstr "无法扫描 MCP 服务器配置。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Couldn't schedule the Lightcode data import."
-msgstr "无法安排 Lightcode 数据导入。"
+msgid "Couldn't schedule the CraftStation data import."
+msgstr "无法安排 CraftStation 数据导入。"
 
 #: src/mobile/QrScanner.tsx
 msgid "Couldn't start the camera"
@@ -4224,8 +4224,8 @@ msgid "Development"
 msgstr "开发"
 
 #: src/renderer/views/SettingsOverlay/parts/DevSettings.tsx
-msgid "Development-only overrides. Only visible in the PORACODE DEV build."
-msgstr "仅开发覆盖。仅在 PORACODE DEV 版本中可见。"
+msgid "Development-only overrides. Only visible in the CRAFTSTATION DEV build."
+msgstr "仅开发覆盖。仅在 CRAFTSTATION DEV 版本中可见。"
 
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4311,8 +4311,8 @@ msgid "Disabled globally"
 msgstr "已全局禁用"
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "Disabling a skill moves it out of active skill folders and removes Poracode-managed provider copies. Its files are preserved so you can enable it again."
-msgstr "禁用技能会将其移出活动技能文件夹，并删除由 Poracode 管理的提供商副本。技能文件会保留，以便你稍后重新启用。"
+msgid "Disabling a skill moves it out of active skill folders and removes CraftStation-managed provider copies. Its files are preserved so you can enable it again."
+msgstr "禁用技能会将其移出活动技能文件夹，并删除由 CraftStation 管理的提供商副本。技能文件会保留，以便你稍后重新启用。"
 
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Discard"
@@ -5245,68 +5245,68 @@ msgid "Finished · Waiting for your input"
 msgstr "已完成·等待您的输入"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Antigravity CLI integration using Poracode's native runtime."
-msgstr "使用 Poracode 的本机运行时实现一流的 Antigravity CLI 集成。"
+msgid "First-class Antigravity CLI integration using CraftStation's native runtime."
+msgstr "使用 CraftStation 的本机运行时实现一流的 Antigravity CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Claude Code integration using Poracode's native SDK runtime."
-msgstr "使用 Poracode 的本机 SDK 运行时进行一流的 Claude Code 集成。"
+msgid "First-class Claude Code integration using CraftStation's native SDK runtime."
+msgstr "使用 CraftStation 的本机 SDK 运行时进行一流的 Claude Code 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Codex CLI integration using Poracode's native app-server runtime."
-msgstr "使用 Poracode 的本机应用程序服务器运行时进行一流的 Codex CLI 集成。"
+msgid "First-class Codex CLI integration using CraftStation's native app-server runtime."
+msgstr "使用 CraftStation 的本机应用程序服务器运行时进行一流的 Codex CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Command Code CLI integration using Poracode's native runtime."
-msgstr "使用 Poracode 的本机运行时实现一流的 Command Code CLI 集成。"
+msgid "First-class Command Code CLI integration using CraftStation's native runtime."
+msgstr "使用 CraftStation 的本机运行时实现一流的 Command Code CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-#~ msgid "First-class Cursor Agent integration using Poracode's native runtime."
-#~ msgstr "使用 Poracode 原生运行时的一流 Cursor Agent 集成。"
+#~ msgid "First-class Cursor Agent integration using CraftStation's native runtime."
+#~ msgstr "使用 CraftStation 原生运行时的一流 Cursor Agent 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Cursor integration using ACP or the public SDK runtime."
 msgstr "使用 ACP 或公共 SDK 运行时的一流 Cursor 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Factory Droid integration using Poracode's ACP runtime."
-msgstr "使用 Poracode ACP 运行时的一流 Factory Droid 集成。"
+msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
+msgstr "使用 CraftStation ACP 运行时的一流 Factory Droid 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Gemini CLI integration using Poracode's native runtime."
-msgstr "使用 Poracode 原生运行时的一流 Gemini CLI 集成。"
+msgid "First-class Gemini CLI integration using CraftStation's native runtime."
+msgstr "使用 CraftStation 原生运行时的一流 Gemini CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class GitHub Copilot CLI integration using Poracode's native runtime."
-msgstr "使用 Poracode 原生运行时的一流 GitHub Copilot CLI 集成。"
+msgid "First-class GitHub Copilot CLI integration using CraftStation's native runtime."
+msgstr "使用 CraftStation 原生运行时的一流 GitHub Copilot CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Grok Build CLI integration using Poracode's native runtime."
-msgstr "使用 Poracode 的本机运行时进行一流的 Grok Build CLI 集成。"
+msgid "First-class Grok Build CLI integration using CraftStation's native runtime."
+msgstr "使用 CraftStation 的本机运行时进行一流的 Grok Build CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Kimi Code CLI integration using Poracode's native runtime."
-msgstr "使用 Poracode 的本机运行时进行一流的 Kimi Code CLI 集成。"
+msgid "First-class Kimi Code CLI integration using CraftStation's native runtime."
+msgstr "使用 CraftStation 的本机运行时进行一流的 Kimi Code CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Muse Code CLI integration using Poracode's native terminal runtime."
-msgstr "使用 Poracode 的本机终端运行时进行一流的 Muse Code CLI 集成。"
+msgid "First-class Muse Code CLI integration using CraftStation's native terminal runtime."
+msgstr "使用 CraftStation 的本机终端运行时进行一流的 Muse Code CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class OpenCode integration using Poracode's native SDK runtime."
-msgstr "使用 Poracode 的本机 SDK 运行时进行一流的 OpenCode 集成。"
+msgid "First-class OpenCode integration using CraftStation's native SDK runtime."
+msgstr "使用 CraftStation 的本机 SDK 运行时进行一流的 OpenCode 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Pi integration using a real terminal and Pi's native SDK runtime."
 msgstr "使用真实终端和 Pi 原生 SDK 运行时的完整 Pi 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Qoder CLI integration using Poracode's native terminal and ACP runtimes."
-msgstr "使用 Poracode 原生终端和 ACP 运行时的一流 Qoder CLI 集成。"
+msgid "First-class Qoder CLI integration using CraftStation's native terminal and ACP runtimes."
+msgstr "使用 CraftStation 原生终端和 ACP 运行时的一流 Qoder CLI 集成。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Qwen Code integration using Poracode's native terminal and ACP runtimes."
-msgstr "使用 Poracode 原生终端和 ACP 运行时的一流 Qwen Code 集成。"
+msgid "First-class Qwen Code integration using CraftStation's native terminal and ACP runtimes."
+msgstr "使用 CraftStation 原生终端和 ACP 运行时的一流 Qwen Code 集成。"
 
 #: src/renderer/components/pdf/PdfViewer.tsx
 #~ msgid "Fit width"
@@ -5774,8 +5774,8 @@ msgid "Headers"
 msgstr "请求头"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
-msgid "Help me create a schedule. Ask for any missing details, then use the Poracode schedule controls to create it for me."
-msgstr "帮助我创建计划。询问缺失的详细信息，然后使用 Poracode 计划控件为我创建。"
+msgid "Help me create a schedule. Ask for any missing details, then use the CraftStation schedule controls to create it for me."
+msgstr "帮助我创建计划。询问缺失的详细信息，然后使用 CraftStation 计划控件为我创建。"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "Hex color"
@@ -5991,12 +5991,12 @@ msgid "Import external skills"
 msgstr "导入外部技能"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Import Lightcode data"
-msgstr "导入 Lightcode 数据"
+msgid "Import CraftStation data"
+msgstr "导入 CraftStation 数据"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Import Lightcode data again?"
-msgstr "再次导入 Lightcode 数据？"
+msgid "Import CraftStation data again?"
+msgstr "再次导入 CraftStation 数据？"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Import MCP servers"
@@ -6335,8 +6335,8 @@ msgstr "让我保持正轨"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Keep Poracode in the system tray when it launches at startup."
-msgstr "开机启动时将 Poracode 保持在系统托盘中。"
+msgid "Keep CraftStation in the system tray when it launches at startup."
+msgstr "开机启动时将 CraftStation 保持在系统托盘中。"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -6370,8 +6370,8 @@ msgid "Kimi Code"
 msgstr "Kimi Code"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Kimi Code could not update its credentials because another process is using the credential file. Close other Poracode or Kimi Code processes, then retry."
-msgstr "由于另一个进程正在使用凭据文件，Kimi Code 无法更新凭据。请关闭其他 Poracode 或 Kimi Code 进程，然后重试。"
+msgid "Kimi Code could not update its credentials because another process is using the credential file. Close other CraftStation or Kimi Code processes, then retry."
+msgstr "由于另一个进程正在使用凭据文件，Kimi Code 无法更新凭据。请关闭其他 CraftStation 或 Kimi Code 进程，然后重试。"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code ended the turn without returning a response. Restart the thread and try again."
@@ -6408,8 +6408,8 @@ msgstr "开机时启动"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Launch Poracode automatically when you sign in to Windows."
-msgstr "登录 Windows 时自动启动 Poracode。"
+msgid "Launch CraftStation automatically when you sign in to Windows."
+msgstr "登录 Windows 时自动启动 CraftStation。"
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Launch thread"
@@ -6472,8 +6472,8 @@ msgid "Light"
 msgstr "浅色"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Lightcode data import is unavailable with a custom data folder."
-msgstr "使用自定义数据文件夹时无法导入 Lightcode 数据。"
+msgid "CraftStation data import is unavailable with a custom data folder."
+msgstr "使用自定义数据文件夹时无法导入 CraftStation 数据。"
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "Link to source"
@@ -6758,12 +6758,12 @@ msgstr "管理全局和项目范围内的共享技能。"
 
 #: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Manage the MCP server configurations Poracode adds when starting supported agents. Workspace servers can be configured in each project's settings."
-msgstr "管理 Poracode 在启动受支持的代理时添加的 MCP 服务器配置。工作区服务器可在各项目的设置中配置。"
+msgid "Manage the MCP server configurations CraftStation adds when starting supported agents. Workspace servers can be configured in each project's settings."
+msgstr "管理 CraftStation 在启动受支持的代理时添加的 MCP 服务器配置。工作区服务器可在各项目的设置中配置。"
 
 #: src/renderer/views/SettingsOverlay/parts/SkillsSettings.tsx
-#~ msgid "Manage the skills Poracode makes available to supported agents. Project skills can be managed in each project's settings."
-#~ msgstr "管理 Poracode 向受支持智能体提供的技能。可以在每个项目的设置中管理项目技能。"
+#~ msgid "Manage the skills CraftStation makes available to supported agents. Project skills can be managed in each project's settings."
+#~ msgstr "管理 CraftStation 向受支持智能体提供的技能。可以在每个项目的设置中管理项目技能。"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorkspaceSwitcher.tsx
 #~ msgid "Manage workspaces"
@@ -6783,8 +6783,8 @@ msgid "Managed by {pluginName}"
 msgstr "由 {pluginName} 管理"
 
 #: src/renderer/components/mcp/McpExternalImportModal.tsx
-msgid "Managed by Poracode"
-msgstr "由 Poracode 管理"
+msgid "Managed by CraftStation"
+msgstr "由 CraftStation 管理"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Managed by provider"
@@ -7884,8 +7884,8 @@ msgid "No learned selections yet."
 msgstr "尚无已学习的选择。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "No Lightcode data was found."
-msgstr "未找到 Lightcode 数据。"
+msgid "No CraftStation data was found."
+msgstr "未找到 CraftStation 数据。"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "No marketplace skills match these filters."
@@ -8528,12 +8528,12 @@ msgid "Open Settings"
 msgstr "打开设置"
 
 #: src/mobile/views/DesktopsView.tsx
-#~ msgid "Open Settings → Remote Access in Poracode on this computer, then paste its pairing token here."
-#~ msgstr "在此计算机上的 Poracode 中打开“设置”→“远程访问”，然后将配对令牌粘贴到此处。"
+#~ msgid "Open Settings → Remote Access in CraftStation on this computer, then paste its pairing token here."
+#~ msgstr "在此计算机上的 CraftStation 中打开“设置”→“远程访问”，然后将配对令牌粘贴到此处。"
 
 #: src/mobile/views/DesktopsView.tsx
-msgid "Open Settings → Remote Access in Poracode on your desktop, then scan the QR code from here — or enter the endpoint and pairing token manually."
-msgstr "在桌面端的 Poracode 中打开“设置 → 远程访问”，然后从这里扫描二维码——或手动输入端点和配对令牌。"
+msgid "Open Settings → Remote Access in CraftStation on your desktop, then scan the QR code from here — or enter the endpoint and pairing token manually."
+msgstr "在桌面端的 CraftStation 中打开“设置 → 远程访问”，然后从这里扫描二维码——或手动输入端点和配对令牌。"
 
 #. placeholder {0}: display.title
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
@@ -8586,8 +8586,8 @@ msgid "OpenSSH private key"
 msgstr "OpenSSH 私钥"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Operate desktop apps through Poracode's desktop-control tools."
-msgstr "通过 Poracode 的桌面控制工具操作桌面应用。"
+msgid "Operate desktop apps through CraftStation's desktop-control tools."
+msgstr "通过 CraftStation 的桌面控制工具操作桌面应用。"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Optional"
@@ -8702,8 +8702,8 @@ msgid "Pair again"
 msgstr "重新配对"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
-msgid "Pair with Poracode"
-msgstr "与 Poracode 配对"
+msgid "Pair with CraftStation"
+msgstr "与 CraftStation 配对"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Paired devices"
@@ -9003,62 +9003,62 @@ msgstr "将此配置指向非Anthropic服务商（z.ai，…），并自定义�
 
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Popular editor themes adapted to Poracode. Each follows the light or dark mode above."
-msgstr "流行的编辑器主题适应 Poracode。每个都遵循上面的浅色或深色模式。"
+msgid "Popular editor themes adapted to CraftStation. Each follows the light or dark mode above."
+msgstr "流行的编辑器主题适应 CraftStation。每个都遵循上面的浅色或深色模式。"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
-msgid "Poracode and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
-msgstr "Poracode 和代理在远程计算机上运行。SSH 仅用于启动远程环境并保护其本地隧道。"
+msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
+msgstr "CraftStation 和代理在远程计算机上运行。SSH 仅用于启动远程环境并保护其本地隧道。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Poracode could not create this plugin's data folder."
-msgstr "Poracode 无法创建此插件的数据文件夹。"
+msgid "CraftStation could not create this plugin's data folder."
+msgstr "CraftStation 无法创建此插件的数据文件夹。"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
-#~ msgid "Poracode does not store marketplace credentials in plain settings. Open the catalog to browse its security-scanned skills."
-#~ msgstr "Poracode 不会以明文形式在设置中存储市场凭据。打开目录即可浏览经过安全扫描的技能。"
+#~ msgid "CraftStation does not store marketplace credentials in plain settings. Open the catalog to browse its security-scanned skills."
+#~ msgstr "CraftStation 不会以明文形式在设置中存储市场凭据。打开目录即可浏览经过安全扫描的技能。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine."
-msgstr "Poracode Helper 启动失败。请检查远程计算机上是否已安装 Node 24.10 或更高版本以及 npm。"
+msgid "CraftStation Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine."
+msgstr "CraftStation Helper 启动失败。请检查远程计算机上是否已安装 Node 24.10 或更高版本以及 npm。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode Helper is not ready yet (HTTP {status})."
-msgstr "Poracode Helper 尚未就绪（HTTP {status}）。"
+msgid "CraftStation Helper is not ready yet (HTTP {status})."
+msgstr "CraftStation Helper 尚未就绪（HTTP {status}）。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode Helper returned an invalid response."
-msgstr "Poracode Helper 返回了无效响应。"
+msgid "CraftStation Helper returned an invalid response."
+msgstr "CraftStation Helper 返回了无效响应。"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
-msgid "Poracode may be waiting on saved data or a background service. You can keep waiting, restart, or install an available update."
-msgstr "Poracode 可能正在等待已保存的数据或后台服务。你可以继续等待、重新启动，或安装可用的更新。"
+msgid "CraftStation may be waiting on saved data or a background service. You can keep waiting, restart, or install an available update."
+msgstr "CraftStation 可能正在等待已保存的数据或后台服务。你可以继续等待、重新启动，或安装可用的更新。"
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "Poracode only"
-msgstr "仅限 Poracode"
+msgid "CraftStation only"
+msgstr "仅限 CraftStation"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode SSH runtime manifest is missing or invalid: {path}"
-msgstr "Poracode SSH 运行时清单缺失或无效：{path}"
+msgid "CraftStation SSH runtime manifest is missing or invalid: {path}"
+msgstr "CraftStation SSH 运行时清单缺失或无效：{path}"
 
 #: src/mobile/views/DesktopsView.tsx
-msgid "Poracode will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
-msgstr "Poracode 将在 SSH 主机上安装或复用其服务器，并将凭据保存在此设备的安全存储中。"
+msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
+msgstr "CraftStation 将在 SSH 主机上安装或复用其服务器，并将凭据保存在此设备的安全存储中。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Poracode will restart, back up its current data, and replace it with a complete copy of your Lightcode data."
-msgstr "Poracode 将重新启动，备份当前数据，并用 Lightcode 数据的完整副本替换当前数据。"
+msgid "CraftStation will restart, back up its current data, and replace it with a complete copy of your CraftStation data."
+msgstr "CraftStation 将重新启动，备份当前数据，并用 CraftStation 数据的完整副本替换当前数据。"
 
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
-msgid "Poracode's built-in browser tools."
-msgstr "Poracode 内置的浏览器工具。"
+msgid "CraftStation's built-in browser tools."
+msgstr "CraftStation 内置的浏览器工具。"
 
 #: src/renderer/components/thread/MoveThreadToWorktreeDialog.tsx
-#~ msgid "poracode/my-branch"
-#~ msgstr "poracode/my-branch"
+#~ msgid "craftstation/my-branch"
+#~ msgstr "craftstation/my-branch"
 
 #: src/mobile/views/DesktopsView.tsx
 #: src/mobile/views/PortsView.tsx
@@ -9380,8 +9380,8 @@ msgid "Proposed plan"
 msgstr "拟议计划"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
-msgid "Provided and managed by Poracode for supported agents."
-msgstr "由 Poracode 为受支持的代理提供和管理。"
+msgid "Provided and managed by CraftStation for supported agents."
+msgstr "由 CraftStation 为受支持的代理提供和管理。"
 
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/authHelpers.ts
 msgid "provider"
@@ -9459,8 +9459,8 @@ msgid "Pull ↓{behind}"
 msgstr "拉 ↓{behind}"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Pull did not complete. Your local changes remain in a Poracode stash."
-msgstr "拉取未完成。您的本地更改仍保留在 Poracode 贮藏区中。"
+msgid "Pull did not complete. Your local changes remain in a CraftStation stash."
+msgstr "拉取未完成。您的本地更改仍保留在 CraftStation 贮藏区中。"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Pull failed: {detail}"
@@ -10034,8 +10034,8 @@ msgid "Removing {profileName} deletes its saved API key. Threads that use this p
 msgstr "移除 {profileName} 会删除其保存的 API 密钥。使用该配置文件的线程将再也找不到其代理。"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
-msgid "Removing {profileName} drops its Poracode settings — env vars, models, and effort. Its config directory and the Claude credentials inside it stay on disk."
-msgstr "移除 {profileName} 会丢弃其 Poracode 设置——环境变量、模型和 effort。其配置目录以及目录中的 Claude 凭据仍保留在磁盘上。"
+msgid "Removing {profileName} drops its CraftStation settings — env vars, models, and effort. Its config directory and the Claude credentials inside it stay on disk."
+msgstr "移除 {profileName} 会丢弃其 CraftStation 设置——环境变量、模型和 effort。其配置目录以及目录中的 Claude 凭据仍保留在磁盘上。"
 
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/TodoActionsSheet.tsx
@@ -10240,8 +10240,8 @@ msgid "Resolves merge conflicts during rebase or merge."
 msgstr "解决变基或合并期间的合并冲突。"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
-msgid "Restart Poracode"
-msgstr "重新启动 Poracode"
+msgid "Restart CraftStation"
+msgstr "重新启动 CraftStation"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
@@ -10530,8 +10530,8 @@ msgstr "让多个智能体运行同一个提示，然后比较它们的成果。
 #~ msgstr "在此设备上运行不依赖项目的独立任务。"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
-msgid "Run standalone tasks on this device. Schedules run while the device is awake and Poracode is open."
-msgstr "在此设备上运行独立任务。设备唤醒且 Poracode 打开时，计划会运行。"
+msgid "Run standalone tasks on this device. Schedules run while the device is awake and CraftStation is open."
+msgstr "在此设备上运行独立任务。设备唤醒且 CraftStation 打开时，计划会运行。"
 
 #: src/renderer/commands/registry.ts
 msgid "Run Terminal Command"
@@ -10718,8 +10718,8 @@ msgid "Scheduled tasks on this desktop"
 msgstr "此桌面上的计划任务"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
-#~ msgid "Scheduled tasks run only while this device is awake and Poracode is open."
-#~ msgstr "计划任务仅在此设备处于唤醒状态且 Poracode 已打开时运行。"
+#~ msgid "Scheduled tasks run only while this device is awake and CraftStation is open."
+#~ msgstr "计划任务仅在此设备处于唤醒状态且 CraftStation 已打开时运行。"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarShortcuts.tsx
@@ -11070,8 +11070,8 @@ msgid "Server {target} could not be started and was skipped."
 msgstr "无法启动服务器 {target}，已跳过。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Server {target} has a name Poracode cannot use."
-msgstr "服务器 {target} 的名称是 Poracode 无法使用的。"
+msgid "Server {target} has a name CraftStation cannot use."
+msgstr "服务器 {target} 的名称是 CraftStation 无法使用的。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "Server {target} is not configured correctly and was skipped."
@@ -11082,8 +11082,8 @@ msgid "Server {target} runs on this computer and is unavailable for WSL projects
 msgstr "服务器 {target} 在本机运行，WSL 项目无法使用。"
 
 #: src/renderer/components/plugins/PluginDetail.tsx
-msgid "Servers this plugin declares in mcp.json. Poracode passes them to every supported agent."
-msgstr "此插件在 mcp.json 中声明的服务器。Poracode 会将它们传递给所有受支持的代理。"
+msgid "Servers this plugin declares in mcp.json. CraftStation passes them to every supported agent."
+msgstr "此插件在 mcp.json 中声明的服务器。CraftStation 会将它们传递给所有受支持的代理。"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Set group color"
@@ -12143,8 +12143,8 @@ msgstr "点击 + 在桌面端添加文件夹或克隆存储库。"
 #~ msgstr "点按 + 直接配对或通过 SSH 连接到远程计算机。"
 
 #: src/mobile/views/DesktopsView.tsx
-#~ msgid "Tap + to pair with Poracode on your desktop."
-#~ msgstr "点击 + 与桌面端的 Poracode 配对。"
+#~ msgid "Tap + to pair with CraftStation on your desktop."
+#~ msgstr "点击 + 与桌面端的 CraftStation 配对。"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/CreatePrModal.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrSection.tsx
@@ -12265,8 +12265,8 @@ msgid "That pairing code is no longer valid. Open Settings → Remote Access on 
 msgstr "该配对代码已失效。请在桌面上打开“设置 → 远程访问”，点击“新代码”后重新配对。"
 
 #: src/mobile/routeComponents.tsx
-msgid "That QR code isn't a Poracode pairing link."
-msgstr "该二维码不是 Poracode 的配对链接。"
+msgid "That QR code isn't a CraftStation pairing link."
+msgstr "该二维码不是 CraftStation 的配对链接。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "That remote session was already gone."
@@ -12364,8 +12364,8 @@ msgid "The normal app shell could not render. The diagnostics below are shown be
 msgstr "正常的应用程序外壳无法呈现。以下诊断信息在重新加载之前显示，以便可以调查故障。"
 
 #: src/mobile/useRemoteDesktop.ts
-msgid "The remote Poracode server returned no pairing credential."
-msgstr "远程 Poracode 服务器未返回配对凭据。"
+msgid "The remote CraftStation server returned no pairing credential."
+msgstr "远程 CraftStation 服务器未返回配对凭据。"
 
 #: src/renderer/state/remoteServersStore.ts
 msgid "The remote server returned no pairing credential."
@@ -12436,8 +12436,8 @@ msgid "The skills marketplace couldn't be loaded."
 msgstr "无法加载技能市场。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "The SSH tunnel reached an incompatible Poracode server."
-msgstr "SSH 隧道连接到了不兼容的 Poracode 服务器。"
+msgid "The SSH tunnel reached an incompatible CraftStation server."
+msgstr "SSH 隧道连接到了不兼容的 CraftStation 服务器。"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "the target provider"
@@ -12547,8 +12547,8 @@ msgstr "此 HTTPS 页面无法连接使用纯 HTTP 的桌面。请允许该站�
 #~ msgstr "此密钥供该配置文件的 Cursor CLI、ACP 和 SDK 使用。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
-#~ msgid "This link opens the app Poracode serves on your network. The hosted app is served over HTTPS, which browsers block from reaching a plain-HTTP desktop."
-#~ msgstr "此链接会打开 Poracode 在你网络中提供的应用。托管版应用通过 HTTPS 提供，浏览器会因此阻止它连接使用纯 HTTP 的桌面。"
+#~ msgid "This link opens the app CraftStation serves on your network. The hosted app is served over HTTPS, which browsers block from reaching a plain-HTTP desktop."
+#~ msgstr "此链接会打开 CraftStation 在你网络中提供的应用。托管版应用通过 HTTPS 提供，浏览器会因此阻止它连接使用纯 HTTP 的桌面。"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "This name is reserved by a built-in MCP server."
@@ -12582,8 +12582,8 @@ msgid "This plugin's folder could not be read."
 msgstr "无法读取此插件的文件夹。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "This plugin's Poracode settings were ignored because they are not valid."
-msgstr "此插件的 Poracode 设置无效，已被忽略。"
+msgid "This plugin's CraftStation settings were ignored because they are not valid."
+msgstr "此插件的 CraftStation 设置无效，已被忽略。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "This plugin's skills could not be read."
@@ -12622,8 +12622,8 @@ msgid "This removes the worktree on \"{0}\", then deletes the branch."
 msgstr "这将删除“{0}”上的工作树，然后删除分支。"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
-msgid "This server requires authentication before Poracode can check it."
-msgstr "此服务器需要先进行身份验证，Poracode 才能检查它。"
+msgid "This server requires authentication before CraftStation can check it."
+msgstr "此服务器需要先进行身份验证，CraftStation 才能检查它。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "This server runs on this computer and is unavailable for WSL projects."
@@ -12657,8 +12657,8 @@ msgstr "此工作流无法手动启动。"
 
 #. placeholder {0}: activeDialog.sourceBranch
 #: src/renderer/views/MainView/parts/PullFromSourceDialog.tsx
-msgid "This worktree has local changes. Poracode can temporarily stash them, pull from {0}, then re-apply your changes."
-msgstr "该工作树有本地更改。Poracode 可以暂时贮藏（stash）它们，从 {0} 拉取，然后重新应用您的更改。"
+msgid "This worktree has local changes. CraftStation can temporarily stash them, pull from {0}, then re-apply your changes."
+msgstr "该工作树有本地更改。CraftStation 可以暂时贮藏（stash）它们，从 {0} 拉取，然后重新应用您的更改。"
 
 #: src/renderer/components/thread/ChatPane/parts/items/Reasoning.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/ReasoningInline.tsx
@@ -12751,8 +12751,8 @@ msgid "Timed out"
 msgstr "已超时"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Timed out waiting for Poracode Helper."
-msgstr "等待 Poracode Helper 超时。"
+msgid "Timed out waiting for CraftStation Helper."
+msgstr "等待 CraftStation Helper 超时。"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Timeout (ms)"
@@ -12940,8 +12940,8 @@ msgstr "立即试用"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-#~ msgid "Turn on Auto-merge automatically for pull requests you create in Poracode."
-#~ msgstr "为你在 Poracode 中创建的拉取请求自动开启自动合并。"
+#~ msgid "Turn on Auto-merge automatically for pull requests you create in CraftStation."
+#~ msgstr "为你在 CraftStation 中创建的拉取请求自动开启自动合并。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Turn on remote access to show a pairing code."
@@ -12949,8 +12949,8 @@ msgstr "开启远程访问以显示配对码。"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-#~ msgid "Turn on Watch PR automatically for pull requests you create in Poracode."
-#~ msgstr "为你在 Poracode 中创建的拉取请求自动开启监视 PR。"
+#~ msgid "Turn on Watch PR automatically for pull requests you create in CraftStation."
+#~ msgstr "为你在 CraftStation 中创建的拉取请求自动开启监视 PR。"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Turn tracking on or off per provider. Disabled providers are skipped by the auto-refresh."
@@ -13441,8 +13441,8 @@ msgid "Update method"
 msgstr "更新方法"
 
 #: src/mobile/views/PortsView.tsx
-msgid "Update Poracode on your desktop to use port forwarding."
-msgstr "请在桌面端更新 Poracode 以使用端口转发。"
+msgid "Update CraftStation on your desktop to use port forwarding."
+msgstr "请在桌面端更新 CraftStation 以使用端口转发。"
 
 #: src/renderer/views/SettingsOverlay/parts/cursorRuntimeInstall.ts
 msgid "Update SDK"
@@ -13578,8 +13578,8 @@ msgstr "请使用字母、数字、点、连字符或下划线，且不要包含
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
-msgid "Use one global folder, or nest worktrees inside each project at .poracode/worktrees."
-msgstr "使用一个全局文件夹，或将工作树嵌套在每个项目的 .poracode/worktrees 内。"
+msgid "Use one global folder, or nest worktrees inside each project at .craftstation/worktrees."
+msgstr "使用一个全局文件夹，或将工作树嵌套在每个项目的 .craftstation/worktrees 内。"
 
 #: src/renderer/views/MainView/parts/AppOverlays.tsx
 msgid "Use Session"
@@ -13621,8 +13621,8 @@ msgstr "已被{conflict}使用"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
-msgid "Used for agents, authentication, installs, and Poracode's internal commands."
-msgstr "用于代理、身份验证、安装和 Poracode 内部命令。"
+msgid "Used for agents, authentication, installs, and CraftStation's internal commands."
+msgstr "用于代理、身份验证、安装和 CraftStation 内部命令。"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
@@ -13937,8 +13937,8 @@ msgid "What's New"
 msgstr "新功能"
 
 #: src/renderer/views/SettingsOverlay/parts/ChangelogSettings.tsx
-msgid "What's new in Poracode, newest first."
-msgstr "Poracode 的新功能，最新优先。"
+msgid "What's new in CraftStation, newest first."
+msgstr "CraftStation 的新功能，最新优先。"
 
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
@@ -13946,8 +13946,8 @@ msgstr "启用后，搜索会考虑 <0>.gitignore</0> 条目。"
 
 #: src/renderer/views/SettingsOverlay/parts/BrowserSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "When links open in a Poracode browser tab, choose where the browser is revealed."
-msgstr "当链接在 Poracode 浏览器选项卡中打开时，选择浏览器的显示位置。"
+msgid "When links open in a CraftStation browser tab, choose where the browser is revealed."
+msgstr "当链接在 CraftStation 浏览器选项卡中打开时，选择浏览器的显示位置。"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 msgid "When off, suppress notifications from terminal threads whose status comes from the OSC fallback (no CLI hook plugin)."
@@ -13960,8 +13960,8 @@ msgstr "何时显示可见线程的应用内 Toast。"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "When you close the window, keep Poracode running in the system tray. Disable to quit on close."
-msgstr "当您关闭窗口时，请保持 Poracode 在系统托盘中运行。禁用关闭时退出。"
+msgid "When you close the window, keep CraftStation running in the system tray. Disable to quit on close."
+msgstr "当您关闭窗口时，请保持 CraftStation 在系统托盘中运行。禁用关闭时退出。"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
@@ -13973,8 +13973,8 @@ msgid "Where do you want to begin?"
 msgstr "您想从哪里开始？"
 
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
-msgid "Where Poracode creates git worktrees for new branches. Changes apply to worktrees created from now on; existing worktrees stay where they are."
-msgstr "Poracode 为新分支创建 git 工作树的位置。更改适用于从现在起创建的工作树；现有工作树保持原位不变。"
+msgid "Where CraftStation creates git worktrees for new branches. Changes apply to worktrees created from now on; existing worktrees stay where they are."
+msgstr "CraftStation 为新分支创建 git 工作树的位置。更改适用于从现在起创建的工作树；现有工作树保持原位不变。"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Where the run's conversation is created."
@@ -14182,8 +14182,8 @@ msgstr "工作树存储位置"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
-msgid "Worktree threads are marked done as soon as Poracode sees their pull request merge. Threads mid-turn wait until the turn finishes."
-msgstr "一旦 Poracode 检测到拉取请求已合并，工作树线程就会标记为完成。处于对话轮次中的线程会等到该轮次结束。"
+msgid "Worktree threads are marked done as soon as CraftStation sees their pull request merge. Threads mid-turn wait until the turn finishes."
+msgstr "一旦 CraftStation 检测到拉取请求已合并，工作树线程就会标记为完成。处于对话轮次中的线程会等到该轮次结束。"
 
 #. placeholder {0}: props.projectName
 #. placeholder {0}: props.worktreeBranch

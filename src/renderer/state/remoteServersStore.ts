@@ -30,6 +30,7 @@ import { applyThreadSnapshot, dispatchRemoteSupervisorEvent } from "@/renderer/s
 import { useAppStore } from "@/renderer/state/appStore";
 import { seedOlderThreadRuntimeItemsCursor } from "@/renderer/state/chatRuntimePersister";
 import {
+  projectRemoteCollaborationMap,
   projectRemoteProject,
   projectRemoteThread,
   projectRemoteThreadEvent,
@@ -82,7 +83,7 @@ import type {
 } from "@/renderer/state/remoteServers/types";
 
 /**
- * Desktop-as-client. Lets the Electron desktop connect to *other* Poracode
+ * Desktop-as-client. Lets the Electron desktop connect to *other* CraftStation
  * servers (another desktop's remote access, or a headless `pnpm run server`)
  * and surface their projects in the sidebar — the mirror image of the PWA,
  * which connects to a single desktop. See docs/REMOTE_ARCHITECTURE.md, Phase 4.
@@ -538,6 +539,11 @@ export const useRemoteServersStore = create<RemoteServersState>()(
                   projects: current.projects,
                   threads: current.threads,
                   ...(current.agentStatuses ? { agentStatuses: current.agentStatuses } : {}),
+                  ...(current.collaborationExchangesByThread
+                    ? {
+                        collaborationExchangesByThread: current.collaborationExchangesByThread,
+                      }
+                    : {}),
                 },
               },
             };
@@ -971,7 +977,7 @@ export const useRemoteServersStore = create<RemoteServersState>()(
         const tokenResult = await factory(normalized).exchangePairingCredential({
           credential: input.token,
           scopes: REMOTE_STANDARD_SCOPES,
-          client: { label: "Poracode Desktop", deviceType: "desktop" },
+          client: { label: "CraftStation Desktop", deviceType: "desktop" },
         });
         const client = factory(normalized, tokenResult.accessToken);
         const [environment, snapshot, agentStatuses] = await Promise.all([
@@ -1007,6 +1013,14 @@ export const useRemoteServersStore = create<RemoteServersState>()(
               status: "online",
               projects: snapshot.projects,
               threads: snapshot.threads,
+              ...(snapshot.collaborationExchangesByThread
+                ? {
+                    collaborationExchangesByThread: projectRemoteCollaborationMap(
+                      record.desktopId,
+                      snapshot.collaborationExchangesByThread,
+                    ),
+                  }
+                : {}),
               agentStatuses,
             },
           },
@@ -1302,17 +1316,33 @@ export const useRemoteServersStore = create<RemoteServersState>()(
                     JSON.stringify(current.agentStatuses.wsl) === JSON.stringify(agentStatuses.wsl)
                   ? current.agentStatuses
                   : agentStatuses;
+            const projectedCollaborationExchanges = snapshot.collaborationExchangesByThread
+              ? projectRemoteCollaborationMap(desktopId, snapshot.collaborationExchangesByThread)
+              : undefined;
+            const nextCollaborationExchanges =
+              current?.collaborationExchangesByThread &&
+              projectedCollaborationExchanges &&
+              JSON.stringify(current.collaborationExchangesByThread) ===
+                JSON.stringify(projectedCollaborationExchanges)
+                ? current.collaborationExchangesByThread
+                : projectedCollaborationExchanges;
             const nextRuntime: RemoteServerRuntime =
               current?.status === "online" &&
               current.message === undefined &&
               projects === current.projects &&
               threads === current.threads &&
-              nextAgentStatuses === current.agentStatuses
+              nextAgentStatuses === current.agentStatuses &&
+              nextCollaborationExchanges === current.collaborationExchangesByThread
                 ? current
                 : {
                     status: "online",
                     projects,
                     threads,
+                    ...(nextCollaborationExchanges
+                      ? {
+                          collaborationExchangesByThread: nextCollaborationExchanges,
+                        }
+                      : {}),
                     ...(nextAgentStatuses ? { agentStatuses: nextAgentStatuses } : {}),
                   };
             set((state) => {
@@ -1540,7 +1570,7 @@ export const useRemoteServersStore = create<RemoteServersState>()(
       };
     },
     {
-      name: "poracode-remote-servers",
+      name: "craftstation-remote-servers",
       storage: createJSONStorage(() => localStorage),
       // Persist durable connection identity (incl. the bearer accessToken) and
       // last-known projects so offline servers keep their sidebar rows. Live

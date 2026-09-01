@@ -181,7 +181,7 @@ async function runOneShotPromptWithFallbackImpl(
     // utility one-shots to the OS temp root for session-cache isolation.
     const baseCommand =
       options.readOnlyWorkspace && cmd.isolateCwd ? { ...cmd, isolateCwd: false } : cmd;
-    // Every Poracode-made spawn of this CLI carries the provider's base env
+    // Every CraftStation-made spawn of this CLI carries the provider's base env
     // (updater/telemetry opt-outs); a command-specific `env` wins on conflict.
     const effectiveCommand = withCommandBaseSpawnEnv(baseCommand, options.adapter.baseSpawnEnv);
     const { spec: spawnSpec, spawn } = prepareOneShot(options.location, effectiveCommand);

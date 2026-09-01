@@ -3,7 +3,7 @@ import { startGoalItemEvents, updateGoalItemEvents } from "../../goalRuntime";
 import type { AcpMapperState } from "./state";
 import { newItemId } from "./state";
 
-export const ACP_CANONICAL_GOAL_INPUT_KEY = "_poracodeCanonicalGoal";
+export const ACP_CANONICAL_GOAL_INPUT_KEY = "_craftstationCanonicalGoal";
 
 export interface AcpCanonicalGoalUpdate {
   action: "updated";

@@ -105,7 +105,7 @@ describe("UnifiedRightPanel", () => {
     expect(reviewSelection).toHaveClass("rounded-lg");
     expect(reviewSelection).toContainElement(screen.getByRole("button", { name: "Close Review" }));
     expect(reviewTab.className).not.toContain("border-b-2");
-    expect(reviewTab).toHaveClass("poracode-overlay-header__controls");
+    expect(reviewTab).toHaveClass("craftstation-overlay-header__controls");
 
     const tabRow = container.querySelector("[data-tool-tab-row]");
     const addToolAnchor = container.querySelector("[data-add-tool-anchor]");

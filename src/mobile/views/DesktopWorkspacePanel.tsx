@@ -43,7 +43,7 @@ import { useGitSummariesStore } from "../gitSummaries";
 import { watchTerminal } from "../terminalFeed";
 import { PortsView } from "./PortsView";
 
-const PANEL_WIDTH_KEY = "poracode-mobile.workspace-panel-width";
+const PANEL_WIDTH_KEY = "craftstation-mobile.workspace-panel-width";
 const PANEL_DEFAULT_WIDTH = 420;
 const PANEL_MIN_WIDTH = 320;
 const PANEL_MAX_WIDTH = 720;

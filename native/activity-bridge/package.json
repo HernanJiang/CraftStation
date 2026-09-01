@@ -1,14 +1,14 @@
 {
-  "name": "@poracode/activity-bridge",
+  "name": "@craftstation/activity-bridge",
   "version": "1.0.0",
-  "description": "Capacitor bridge from the Poracode mobile web layer to iOS ActivityKit (Live Activities / Dynamic Island). No-op on Android and web.",
+  "description": "Capacitor bridge from the CraftStation mobile web layer to iOS ActivityKit (Live Activities / Dynamic Island). No-op on Android and web.",
   "license": "Apache-2.0",
   "author": "SDSLeon",
   "files": [
     "src",
     "ios/Sources",
     "Package.swift",
-    "PoracodeActivityBridge.podspec",
+    "CraftStationActivityBridge.podspec",
     "README.md"
   ],
   "type": "module",

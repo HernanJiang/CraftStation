@@ -65,18 +65,18 @@ export function useResizablePanels(
   options?: { getResizeLimits?: (target: ResizeTarget) => ResizeLimits | null },
 ) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const stored = readStoredNumber("poracode-sidebar-width", SIDEBAR_DEFAULT_WIDTH);
-    // Legacy Poracode widths truncate the CraftStation wordmark in the title row.
+    const stored = readStoredNumber("craftstation-sidebar-width", SIDEBAR_DEFAULT_WIDTH);
+    // Legacy CraftStation widths truncate the CraftStation wordmark in the title row.
     return stored < SIDEBAR_DEFAULT_WIDTH ? SIDEBAR_DEFAULT_WIDTH : stored;
   });
   const [panelWidth, setPanelWidth] = useState(() =>
-    readStoredNumber("poracode-panel-width", PANEL_DEFAULT_WIDTH),
+    readStoredNumber("craftstation-panel-width", PANEL_DEFAULT_WIDTH),
   );
   const [panelHeight, setPanelHeight] = useState(() =>
-    readStoredNumber("poracode-panel-height", PANEL_BOTTOM_DEFAULT_HEIGHT),
+    readStoredNumber("craftstation-panel-height", PANEL_BOTTOM_DEFAULT_HEIGHT),
   );
   const [gitPanelWidth, setGitPanelWidth] = useState(() =>
-    readStoredNumber("poracode-git-panel-width", GIT_PANEL_DEFAULT_WIDTH),
+    readStoredNumber("craftstation-git-panel-width", GIT_PANEL_DEFAULT_WIDTH),
   );
   const sizeRef = useRef({
     sidebarWidth,
@@ -157,19 +157,19 @@ export function useResizablePanels(
   );
 
   useEffect(() => {
-    localStorage.setItem("poracode-sidebar-width", String(sidebarWidth));
+    localStorage.setItem("craftstation-sidebar-width", String(sidebarWidth));
   }, [sidebarWidth]);
 
   useEffect(() => {
-    localStorage.setItem("poracode-panel-width", String(panelWidth));
+    localStorage.setItem("craftstation-panel-width", String(panelWidth));
   }, [panelWidth]);
 
   useEffect(() => {
-    localStorage.setItem("poracode-panel-height", String(panelHeight));
+    localStorage.setItem("craftstation-panel-height", String(panelHeight));
   }, [panelHeight]);
 
   useEffect(() => {
-    localStorage.setItem("poracode-git-panel-width", String(gitPanelWidth));
+    localStorage.setItem("craftstation-git-panel-width", String(gitPanelWidth));
   }, [gitPanelWidth]);
 
   // Ends an in-flight resize (teardown + persist final size). Called on unmount

@@ -1,8 +1,8 @@
 /**
- * Poracode brand marks for the marketing site.
+ * CraftStation brand marks for the marketing site.
  *
  * - `PoraGlyph`   — the bare "P + Pora dot" letterform (inherits currentColor;
- *                    the dot stays indigo). Master: branding/assets/poracode-glyph.svg.
+ *                    the dot stays indigo). Master: branding/assets/craftstation-glyph.svg.
  * - `PoraIconTile`— the glyph on the dark brand tile (the app-icon lockup).
  * - `BrandWordmark` — the `Pora.code` logotype. The dot is a TRUE round circle
  *                    drawn as its own element, never the font period (Geist
@@ -46,7 +46,7 @@ export function BrandWordmark({
     <span
       role="img"
       className={`inline-flex items-baseline ${className ?? ""}`}
-      aria-label="Poracode"
+      aria-label="CraftStation"
     >
       <span className="font-bold tracking-[-0.02em] text-moon" aria-hidden="true">
         Pora

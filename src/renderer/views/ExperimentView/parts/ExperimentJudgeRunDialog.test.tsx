@@ -80,6 +80,6 @@ describe("ExperimentJudgeRunDialog", () => {
     expect(body).toHaveClass("overflow-y-auto");
     expect(body).not.toHaveClass("overflow-hidden");
     expect(screen.getByText("A".repeat(320))).toBeInTheDocument();
-    expect(container.querySelector('[class*="poracode-winner-"]')).toBeNull();
+    expect(container.querySelector('[class*="craftstation-winner-"]')).toBeNull();
   });
 });

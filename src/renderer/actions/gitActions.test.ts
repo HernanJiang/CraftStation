@@ -4,7 +4,7 @@ import type { GitPullFromSourceResult, Project } from "@/shared/contracts";
 const project = vi.hoisted(
   (): Project => ({
     id: "project-1",
-    name: "Poracode",
+    name: "CraftStation",
     createdAt: "2026-07-21T00:00:00.000Z",
     location: { kind: "posix", path: "/repo" },
   }),

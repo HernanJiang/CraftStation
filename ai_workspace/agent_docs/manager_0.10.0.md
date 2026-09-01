@@ -15,7 +15,7 @@
 
 #### Problem
 
-CraftStation 的每条 Thread 都可以拥有不同 Model、Harness、Recipe、CraftPlan、Entity 和 native Session，但这些长期 Thread 当前仍是彼此孤立的。PoraCode 已提供 `list/read/create/send/wait/interrupt/stop thread` 等 App Controls MCP primitives，能够向另一条 Thread 投递消息；但它没有 CraftStation 所需的跨 Model × Harness reply correlation、对话 provenance、目标忙时统一语义、回复回流、持久化 exchange 或 UI 产品体验。
+CraftStation 的每条 Thread 都可以拥有不同 Model、Harness、Recipe、CraftPlan、Entity 和 native Session，但这些长期 Thread 当前仍是彼此孤立的。CraftStation 已提供 `list/read/create/send/wait/interrupt/stop thread` 等 App Controls MCP primitives，能够向另一条 Thread 投递消息；但它没有 CraftStation 所需的跨 Model × Harness reply correlation、对话 provenance、目标忙时统一语义、回复回流、持久化 exchange 或 UI 产品体验。
 
 因此，“Codex + ChatGPT Thread 问 Grok Build + Grok 4.6 Thread 一个问题，再看到 Grok 的真实回复并继续追问”目前只能靠 Agent 手工串联多个 MCP tool call，无法作为可靠、可恢复、可审计的 CraftStation 功能。
 
@@ -86,7 +86,7 @@ Source Thread A (Codex + ChatGPT)
 #### In Scope
 
 - CraftStation-owned Thread Collaboration Module 与 durable link/exchange ledger。
-- 对现有 PoraCode App Controls MCP thread primitives 的适配和深化。
+- 对现有 CraftStation App Controls MCP thread primitives 的适配和深化。
 - 同项目、不同 Model/Harness/Recipe 的长期 Thread directory、request、queue、wait、reply correlation 和 restart recovery。
 - 所有 Runtime 可使用的 UI 发起路径；支持 MCP 注入的 Harness 可使用 agent-initiated path。
 - Target busy 默认排队、显式 interrupt、needs-attention、failure/cancel/timeout semantics。
@@ -114,7 +114,7 @@ Source Thread A (Codex + ChatGPT)
 
 ### Trade-offs
 
-- 复用 PoraCode primitives 能快速获得 thread discovery/lifecycle，但必须在 CraftStation seam 后面消除 legacy `agentKind + model` 假设。
+- 复用 CraftStation primitives 能快速获得 thread discovery/lifecycle，但必须在 CraftStation seam 后面消除 legacy `agentKind + model` 假设。
 - 自动 reply projection 提升连续性，但必须用 request/turn anchors 防止读到旧回复。
 - 同项目限制牺牲跨项目协作，换取明确的隐私、权限和 workspace 语义。
 - 默认不复制历史降低泄露与上下文成本；需要更多背景时由用户显式附加 capsule。
@@ -143,7 +143,7 @@ Source Thread A (Codex + ChatGPT)
 - [ ] agent-facing `ask_thread` 在真正支持 MCP 的两个不同 Harness Thread 间工作；不支持者 UI path 仍可用且 capability 显示准确。
 - [ ] context capsule 受预算/redaction，默认不传全量历史，无 credentials/hidden reasoning。
 - [ ] 真实 Codex→Grok→reply→follow-up tracer 通过；第二 route 取得真实证据或保持明确 BLOCKED。
-- [ ] 既有 PoraCode thread MCP primitives、Crossagents、normal composer、remote/restart 回归不被破坏。
+- [ ] 既有 CraftStation thread MCP primitives、Crossagents、normal composer、remote/restart 回归不被破坏。
 
 ### Open Questions
 
@@ -162,12 +162,12 @@ Source Thread A (Codex + ChatGPT)
 
 - Ready for Plan：Yes
 - Plan Status：Complete / Ready for Coder
-- Research：`ai_workspace/agent_docs/research_0.10.0-poracode-cross-thread.md`
+- Research：`ai_workspace/agent_docs/research_0.10.0-craftstation-cross-thread.md`
 - Notes：用户明确授权自行写 Ideate、Plan并启动 Coder。Part I 已冻结，下一步执行 Gate Check 与 Part II；不需要再次向用户确认产品问题。
 
 ## Ideate → Plan Gate Check
 
-> 2026-08-31 基于 CraftStation `dev@8bc45cf`、PoraCode reference `a28b995`、App Controls MCP thread tools、Crossagents MCP、Thread schema、Supervisor session lifecycle 和 runtime item persistence 完成。
+> 2026-08-31 基于 CraftStation `dev@8bc45cf`、CraftStation reference `a28b995`、App Controls MCP thread tools、Crossagents MCP、Thread schema、Supervisor session lifecycle 和 runtime item persistence 完成。
 
 - Feasibility：**OK**。`list/read/create/send/wait/interrupt/stop` primitives、runtime items、live status 与 resumable Thread 路径均已存在；只需在其上建立 exchange transaction、reply correlation 和 CraftStation provenance。
 - Practicality：**OK**。限定同项目、一对一、显式请求、有限 context capsule，不做群聊/广播/跨 host，可在一个 Feature 内形成真实闭环。
@@ -176,7 +176,7 @@ Source Thread A (Codex + ChatGPT)
 
 Manager 自行修复的小问题：
 
-1. 把 PoraCode App Controls MCP 与 Crossagents 明确分成 long-lived Thread lane 和 ephemeral subagent lane，v0.10 只以前者为主体。
+1. 把 CraftStation App Controls MCP 与 Crossagents 明确分成 long-lived Thread lane 和 ephemeral subagent lane，v0.10 只以前者为主体。
 2. 用新 `ConversationLink`/`ThreadExchange` ledger 与 optional provenance resolver 隔离 v0.9 Segment schema，避免两条并行 Feature 编译依赖。
 3. 将 `send_to_thread` 的 Runtime-specific busy 行为统一为 Module-owned `after-current-turn` 默认合同，显式 interrupt 才允许中断。
 4. 以 request anchor + target completed-turn anchor 捕获回复，不用“读取目标最后一条消息”的脆弱启发式。
@@ -192,12 +192,12 @@ Manager 自行修复的小问题：
 - Planning Base：`dev@8bc45cfe408a6e603c777f04bce3c22627b76656`
 - Feature Branch：`feature/v0.10-cross-thread-collaboration`
 - Feature Worktree：`D:\Work\CraftStation\craftstation-dev\.worktrees\v0.10-cross-thread-collaboration`
-- Research：`ai_workspace/agent_docs/research_0.10.0-poracode-cross-thread.md`
+- Research：`ai_workspace/agent_docs/research_0.10.0-craftstation-cross-thread.md`
 - Tickets：`.scratch/craftstation-0.10.0/issues/01-thread-control-adapter.md` 至 `08-real-cross-thread-acceptance.md`
 
 ### Objective
 
-把 PoraCode 的长期 Thread control primitives 深化为 CraftStation-owned 跨线程对话能力：同项目中两条不同 Model × Harness Thread 可以通过 durable exchange 异步发问、排队、获得目标真实 Runtime 回复、继续追问并在两边 timeline 保留可审计 provenance；MCP、UI、remote 共用同一 Module。
+把 CraftStation 的长期 Thread control primitives 深化为 CraftStation-owned 跨线程对话能力：同项目中两条不同 Model × Harness Thread 可以通过 durable exchange 异步发问、排队、获得目标真实 Runtime 回复、继续追问并在两边 timeline 保留可审计 provenance；MCP、UI、remote 共用同一 Module。
 
 ### Solution
 
@@ -314,7 +314,7 @@ any pre-reply stage -> failed | timed_out
 
 ### Acceptance Criteria
 
-- [ ] 现有 PoraCode thread MCP tools通过新的 Adapter后contract不退化。
+- [ ] 现有 CraftStation thread MCP tools通过新的 Adapter后contract不退化。
 - [ ] UI列出同项目不同Model/Harness targets并准确展示composition/worktree/status。
 - [ ] idle target完成同Thread-id保持的真实request→native response→source reply projection。
 - [ ] working target默认queue且不steer/interrupt；settled后只投递一次。
@@ -333,7 +333,7 @@ any pre-reply stage -> failed | timed_out
 
 #### T01 — Encapsulate Existing Thread Controls
 
-- Goal：把PoraCode thread primitives收进可替换的`ThreadControlAdapter`，保持全部现有MCP contract。
+- Goal：把CraftStation thread primitives收进可替换的`ThreadControlAdapter`，保持全部现有MCP contract。
 - Scope：list/read/create/send/wait/interrupt/stop、live/persisted snapshot、resumable dead session、stable errors和contract tests。
 - Depends On：None。
 - Acceptance：现有工具输入输出兼容；MCP不直接操作Supervisor/DB；live、resume、non-resumable、self-target测试通过。
@@ -405,16 +405,16 @@ T03 + T04 + T05
 
 ### Key Risks and Controls
 
-| Risk | Control |
-| --- | --- |
-| target回复误关联 | request item + completed-turn causation anchors，不读last message |
-| crash重复投递 | durable outbox、idempotency key、claim epoch |
-| busy target被意外steer | Module-owned queue；显式interrupt mode分离 |
-| 无限Agent ping-pong | 不自动触发outbound、hop depth、same-link concurrency guard |
-| context/credential泄露 | default empty capsule、allowlist projection、redaction和artifact scan |
-| v0.9/v0.10 merge冲突 | 新表/新Module/optional adapter；不依赖Segment具体类型 |
-| legacy PoraCode MCP退化 | T01 contract tests + T08 full regression |
-| UI声称所有Harness支持Agent MCP | 区分UI control-plane SUPPORTED与agent MCP capability |
+| Risk                           | Control                                                               |
+| ------------------------------ | --------------------------------------------------------------------- |
+| target回复误关联               | request item + completed-turn causation anchors，不读last message     |
+| crash重复投递                  | durable outbox、idempotency key、claim epoch                          |
+| busy target被意外steer         | Module-owned queue；显式interrupt mode分离                            |
+| 无限Agent ping-pong            | 不自动触发outbound、hop depth、same-link concurrency guard            |
+| context/credential泄露         | default empty capsule、allowlist projection、redaction和artifact scan |
+| v0.9/v0.10 merge冲突           | 新表/新Module/optional adapter；不依赖Segment具体类型                 |
+| legacy CraftStation MCP退化    | T01 contract tests + T08 full regression                              |
+| UI声称所有Harness支持Agent MCP | 区分UI control-plane SUPPORTED与agent MCP capability                  |
 
 ### Coder Start Contract
 

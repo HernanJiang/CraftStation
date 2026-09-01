@@ -1,4 +1,4 @@
-/* Poracode brand type — Geist (Vercel, SIL OFL), bundled for offline use. */
+/* CraftStation brand type — Geist (Vercel, SIL OFL), bundled for offline use. */
 @font-face {
   font-family: "Geist";
   src: url("../renderer/fonts/Geist-Variable.woff2") format("woff2");
@@ -15,12 +15,12 @@
 }
 
 :root {
-  --poracode-modal-radius: 0.7rem;
+  --craftstation-modal-radius: 0.7rem;
 }
 
 .modal__dialog:not(.modal__dialog--cover):not(.modal__dialog--full),
 .alert-dialog__dialog:not(.alert-dialog__dialog--cover) {
-  border-radius: var(--poracode-modal-radius);
+  border-radius: var(--craftstation-modal-radius);
 }
 
 /* Icon + title on the same row for every Modal/AlertDialog header that leads
@@ -83,7 +83,7 @@
   inherits: false;
 }
 
-@keyframes poracode-welcome-reveal {
+@keyframes craftstation-welcome-reveal {
   from {
     opacity: 0;
     transform: translate3d(0, 18px, 0) scale(0.95);
@@ -94,7 +94,7 @@
   }
 }
 
-@keyframes poracode-ring-spin-1 {
+@keyframes craftstation-ring-spin-1 {
   from {
     --ring-angle-1: 0deg;
   }
@@ -103,7 +103,7 @@
   }
 }
 
-@keyframes poracode-ring-spin-2 {
+@keyframes craftstation-ring-spin-2 {
   from {
     --ring-angle-2: 360deg;
   }
@@ -112,7 +112,7 @@
   }
 }
 
-@keyframes poracode-lightning-glow {
+@keyframes craftstation-lightning-glow {
   0%,
   100% {
     box-shadow:
@@ -135,7 +135,7 @@
   }
 }
 
-@keyframes poracode-welcome-orbit {
+@keyframes craftstation-welcome-orbit {
   0% {
     opacity: 0;
     transform: rotateX(50deg) rotateY(-30deg) rotateZ(-360deg) scale(18);
@@ -158,7 +158,7 @@
   }
 }
 
-@keyframes poracode-welcome-splash {
+@keyframes craftstation-welcome-splash {
   0%,
   85% {
     opacity: 0;
@@ -174,7 +174,7 @@
   }
 }
 
-@keyframes poracode-welcome-light {
+@keyframes craftstation-welcome-light {
   0%,
   85% {
     opacity: 0;
@@ -190,7 +190,7 @@
   }
 }
 
-.poracode-welcome-page {
+.craftstation-welcome-page {
   background:
     linear-gradient(
       180deg,
@@ -200,11 +200,11 @@
     var(--background);
 }
 
-.poracode-welcome-stage {
+.craftstation-welcome-stage {
   transform: translate3d(0, -1.5vh, 0);
 }
 
-@keyframes poracode-welcome-icon-spin {
+@keyframes craftstation-welcome-icon-spin {
   from {
     transform: rotate(0deg);
   }
@@ -213,7 +213,7 @@
   }
 }
 
-@keyframes poracode-welcome-ellipsis {
+@keyframes craftstation-welcome-ellipsis {
   0% {
     content: "";
   }
@@ -229,51 +229,51 @@
   }
 }
 
-.poracode-welcome-icon-wrap,
-.poracode-welcome-logo-spin {
+.craftstation-welcome-icon-wrap,
+.craftstation-welcome-logo-spin {
   transform: rotate(0deg);
 }
 
-.poracode-welcome-logo-spin {
+.craftstation-welcome-logo-spin {
   transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.poracode-welcome-icon-spinning {
-  animation: poracode-welcome-icon-spin 8s linear infinite;
+.craftstation-welcome-icon-spinning {
+  animation: craftstation-welcome-icon-spin 8s linear infinite;
   transition: none;
 }
 
-.poracode-welcome-loading-label::after {
+.craftstation-welcome-loading-label::after {
   content: "";
-  animation: poracode-welcome-ellipsis 1.2s steps(4, end) infinite;
+  animation: craftstation-welcome-ellipsis 1.2s steps(4, end) infinite;
 }
 
-.poracode-welcome-reveal {
-  animation: poracode-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+.craftstation-welcome-reveal {
+  animation: craftstation-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   animation-delay: 0s;
 }
 
-.poracode-welcome-reveal-1 {
+.craftstation-welcome-reveal-1 {
   animation-delay: 0.12s;
 }
 
-.poracode-welcome-reveal-2 {
+.craftstation-welcome-reveal-2 {
   animation-delay: 0s;
 }
 
-.poracode-welcome-ring {
+.craftstation-welcome-ring {
   box-shadow:
     0 0 0 1px color-mix(in oklab, #d4a017 38%, transparent),
     0 0 18px color-mix(in oklab, #d4a017 22%, transparent);
   animation:
-    poracode-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both,
-    poracode-lightning-glow 4s ease-in-out infinite;
+    craftstation-welcome-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    craftstation-lightning-glow 4s ease-in-out infinite;
   animation-delay: 0s, 0.6s;
   transform: translateZ(0);
 }
 
-.poracode-welcome-ring::before,
-.poracode-welcome-ring::after {
+.craftstation-welcome-ring::before,
+.craftstation-welcome-ring::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -291,7 +291,7 @@
   pointer-events: none;
 }
 
-.poracode-welcome-ring::before {
+.craftstation-welcome-ring::before {
   background: conic-gradient(
     from var(--ring-angle-1) at center,
     transparent 0deg,
@@ -304,11 +304,11 @@
     transparent 360deg
   );
   filter: blur(0.5px);
-  animation: poracode-ring-spin-1 6s linear infinite;
+  animation: craftstation-ring-spin-1 6s linear infinite;
   will-change: transform;
 }
 
-.poracode-welcome-ring::after {
+.craftstation-welcome-ring::after {
   background: conic-gradient(
     from var(--ring-angle-2) at center,
     transparent 0deg,
@@ -321,29 +321,29 @@
     transparent 360deg
   );
   filter: blur(0.6px);
-  animation: poracode-ring-spin-2 4s linear infinite;
+  animation: craftstation-ring-spin-2 4s linear infinite;
   will-change: transform;
 }
 
-.poracode-welcome-light {
+.craftstation-welcome-light {
   background: radial-gradient(
     circle,
     rgba(255, 255, 255, 0.4) 0%,
     rgba(255, 255, 255, 0.1) 40%,
     transparent 70%
   );
-  animation: poracode-welcome-light 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: craftstation-welcome-light 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transform-origin: center;
   filter: blur(8px);
 }
 
-.poracode-welcome-orbit {
-  animation: poracode-welcome-orbit 2.2s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+.craftstation-welcome-orbit {
+  animation: craftstation-welcome-orbit 2.2s cubic-bezier(0.2, 0.7, 0.3, 1) both;
   transform-origin: center;
   transform-style: preserve-3d;
 }
 
-.poracode-welcome-comet {
+.craftstation-welcome-comet {
   background: rgba(255, 255, 255, 1);
   box-shadow:
     0 0 6px 3px rgba(255, 255, 255, 1),
@@ -353,8 +353,8 @@
   filter: blur(1px);
 }
 
-.poracode-welcome-comet::before,
-.poracode-welcome-comet::after {
+.craftstation-welcome-comet::before,
+.craftstation-welcome-comet::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -368,17 +368,17 @@
   );
 }
 
-.poracode-welcome-comet::before {
+.craftstation-welcome-comet::before {
   width: 56px;
   height: 2px;
 }
 
-.poracode-welcome-comet::after {
+.craftstation-welcome-comet::after {
   width: 2px;
   height: 56px;
 }
 
-.poracode-welcome-splash {
+.craftstation-welcome-splash {
   border: 1px solid color-mix(in oklab, #d4a017 45%, #3b82f6 35%);
   background: radial-gradient(
     circle,
@@ -386,18 +386,18 @@
     color-mix(in oklab, #3b82f6 28%, transparent) 42%,
     transparent 72%
   );
-  animation: poracode-welcome-splash 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: craftstation-welcome-splash 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   filter: blur(4px);
 }
 
-.poracode-welcome-icon-glass {
+.craftstation-welcome-icon-glass {
   background: color-mix(in oklab, var(--surface-secondary) 80%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 22px 80px color-mix(in oklab, var(--accent) 18%, transparent);
 }
 
-.poracode-welcome-button {
+.craftstation-welcome-button {
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -408,22 +408,22 @@
   border-radius: 0.75rem;
 }
 
-.poracode-welcome-button:hover,
-.poracode-welcome-button[data-hovered="true"] {
+.craftstation-welcome-button:hover,
+.craftstation-welcome-button[data-hovered="true"] {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
   transform: scale(1.02);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
-.poracode-welcome-button:active,
-.poracode-welcome-button[data-pressed="true"] {
+.craftstation-welcome-button:active,
+.craftstation-welcome-button[data-pressed="true"] {
   background: rgba(255, 255, 255, 0.02);
   transform: scale(0.98);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
-.poracode-welcome-bg-glow {
+.craftstation-welcome-bg-glow {
   /* Isolate this full-viewport gradient's repaint so it can't invalidate the
      sibling code wall or the z-10 stage content. */
   contain: paint;
@@ -440,7 +440,7 @@
     );
 }
 
-.poracode-welcome-code-wall {
+.craftstation-welcome-code-wall {
   /* Scope the masked glyph layer's repaint to itself (paint-only containment,
      so the multi-column flow is unaffected). */
   contain: paint;
@@ -487,32 +487,32 @@
    elements stay visible (their steady state is opacity 1), and the JS glow
    sampler already bails out under reduced motion. */
 @media (prefers-reduced-motion: reduce) {
-  .poracode-welcome-orbit,
-  .poracode-welcome-light,
-  .poracode-welcome-splash,
-  .poracode-welcome-icon-spinning {
+  .craftstation-welcome-orbit,
+  .craftstation-welcome-light,
+  .craftstation-welcome-splash,
+  .craftstation-welcome-icon-spinning {
     animation: none;
     opacity: 0;
   }
-  .poracode-welcome-icon-spinning {
+  .craftstation-welcome-icon-spinning {
     opacity: 1;
   }
-  .poracode-welcome-loading-label::after {
+  .craftstation-welcome-loading-label::after {
     animation: none;
     content: "...";
   }
-  /* The infinite conic spins (poracode-ring-spin-1/2) live on the ring
+  /* The infinite conic spins (craftstation-ring-spin-1/2) live on the ring
      PSEUDO-elements; `animation: none` on the base element does NOT reach
      them. The base selector also stops the ring's infinite lightning-glow
      box-shadow pulse. */
-  .poracode-welcome-ring,
-  .poracode-welcome-ring::before,
-  .poracode-welcome-ring::after {
+  .craftstation-welcome-ring,
+  .craftstation-welcome-ring::before,
+  .craftstation-welcome-ring::after {
     animation: none;
   }
   /* Show the wordmark/CTAs immediately: the reveal's `both` fill otherwise
      holds them hidden through its ~2s delay. */
-  .poracode-welcome-reveal {
+  .craftstation-welcome-reveal {
     animation: none;
   }
 }
@@ -529,7 +529,7 @@
    parent's `filter: drop-shadow()`, which would re-rasterize every frame).
    Both pseudos are layer-promoted so the work stays out of ancestor
    paint layers. */
-@keyframes poracode-goal-shine-spin {
+@keyframes craftstation-goal-shine-spin {
   from {
     transform: translate3d(0, 0, 0) rotate(0deg);
   }
@@ -538,7 +538,7 @@
   }
 }
 
-@keyframes poracode-goal-active-pulse {
+@keyframes craftstation-goal-active-pulse {
   0%,
   100% {
     opacity: 0.45;
@@ -548,7 +548,7 @@
   }
 }
 
-.poracode-goal-active-icon {
+.craftstation-goal-active-icon {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -564,7 +564,7 @@
   transform: translateZ(0);
 }
 
-.poracode-goal-active-icon__ring {
+.craftstation-goal-active-icon__ring {
   position: absolute;
   inset: -3px;
   border-radius: 50%;
@@ -578,7 +578,7 @@
   overflow: hidden;
 }
 
-.poracode-goal-active-icon__ring::before {
+.craftstation-goal-active-icon__ring::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -591,7 +591,7 @@
     transparent 140deg,
     transparent 360deg
   );
-  animation: poracode-goal-shine-spin 1.6s linear infinite;
+  animation: craftstation-goal-shine-spin 1.6s linear infinite;
   will-change: transform;
   transform: translate3d(0, 0, 0);
 }
@@ -599,7 +599,7 @@
 /* Outer halo pulse. Replaces the parent's animated `filter: drop-shadow()`
    with an opacity-animated radial-gradient sphere — same soft glow, but
    only `opacity` changes (compositor-friendly, no per-frame paint). */
-.poracode-goal-active-icon::after {
+.craftstation-goal-active-icon::after {
   content: "";
   position: absolute;
   inset: -6px;
@@ -611,7 +611,7 @@
     transparent 80%
   );
   z-index: -1;
-  animation: poracode-goal-active-pulse 2.4s ease-in-out infinite;
+  animation: craftstation-goal-active-pulse 2.4s ease-in-out infinite;
   will-change: opacity;
   pointer-events: none;
 }
@@ -773,7 +773,7 @@
    the panel. Derived by darkening --content-background (the surface these controls
    render on) a fixed fraction toward black, NOT by mixing toward --foreground:
    a toward-fg step darkens by a fraction of the gap to fg, so themes with a dark
-   foreground (e.g. Poracode light, fg ~L0.21) over-darken and read heavy. Scaling
+   foreground (e.g. CraftStation light, fg ~L0.21) over-darken and read heavy. Scaling
    the panel's own luminance toward black is foreground-independent, so the fill
    lands at a uniform ~1.28:1 across every light preset. Dark keeps HeroUI's stock
    fill, so this is light-only. */
@@ -836,7 +836,7 @@
 }
 
 /* ── Compact list-box menu ──────────────────────────
-   App-wide override applied by adding `poracode-menu`
+   App-wide override applied by adding `craftstation-menu`
    to a ListBox (or any container with `.list-box-item`
    descendants). Tightens HeroUI defaults (which target
    touch UI) for the dense desktop dropdown rows used by
@@ -844,14 +844,14 @@
    etc. Keeps the indicator-aware right padding so the
    absolute-positioned checkmark never overlaps an
    `ms-auto` hint on the same row. */
-.poracode-menu.list-box,
-.poracode-menu .list-box {
+.craftstation-menu.list-box,
+.craftstation-menu .list-box {
   padding: 0;
   margin: 0;
   gap: 0;
 }
 
-.poracode-menu .list-box-item {
+.craftstation-menu .list-box-item {
   min-height: 1.75rem;
   padding: 0.125rem 0.5rem;
   gap: 0.5rem;
@@ -860,8 +860,8 @@
 }
 
 /* HeroUI's .label hardcodes text-sm (14px); make it inherit so
-   the poracode-menu item font-size actually wins. */
-.poracode-menu .list-box-item [data-slot="label"] {
+   the craftstation-menu item font-size actually wins. */
+.craftstation-menu .list-box-item [data-slot="label"] {
   font-size: inherit;
 }
 
@@ -871,7 +871,7 @@
    `<div role="option">` rows pick up the same sizing and hover
    colors as HeroUI's listbox items. Mark the keyboard-active row
    with `data-active="true"` for the focused background. */
-.poracode-menu-item {
+.craftstation-menu-item {
   min-height: 1.75rem;
   padding: 0.125rem 0.5rem;
   gap: 0.5rem;
@@ -880,31 +880,31 @@
 }
 
 @media (hover: hover) {
-  .poracode-menu-item:hover {
+  .craftstation-menu-item:hover {
     background-color: var(--default);
   }
 }
 
-.poracode-menu-item[data-active="true"] {
+.craftstation-menu-item[data-active="true"] {
   background-color: var(--default);
 }
 
 /* Custom virtualized model rows do not inherit HeroUI's press state. Give
    touch and pointer presses a stronger fill before the selected model closes
    the responsive menu. */
-.poracode-model-menu-listbox .poracode-menu-item:active {
+.craftstation-model-menu-listbox .craftstation-menu-item:active {
   background-color: var(--row-active);
 }
 
-.poracode-menu .list-box-item:has(.list-box-item__indicator) {
+.craftstation-menu .list-box-item:has(.list-box-item__indicator) {
   padding-right: 1.75rem;
 }
 
-/* Inner padding for popover dialogs that host a poracode-menu.
+/* Inner padding for popover dialogs that host a craftstation-menu.
    HeroUI's default `p-4` (16px) is too generous for dense menus;
    menus that need flush content (search bar over list) opt out by
    setting their own `!p-0`, which beats this non-important rule. */
-.popover__dialog:has(.poracode-menu) {
+.popover__dialog:has(.craftstation-menu) {
   padding: 0.375rem;
 }
 
@@ -915,19 +915,19 @@
   border-radius: 0.875rem;
 }
 
-.poracode-menu .list-box-item,
-.poracode-menu-item,
+.craftstation-menu .list-box-item,
+.craftstation-menu-item,
 .list-box-item,
 .menu-item {
   border-radius: 0.625rem;
 }
 
-/* Section header (HeroUI <Header>) preceding a poracode-menu
+/* Section header (HeroUI <Header>) preceding a craftstation-menu
    listbox gains a 4px gap so the first row doesn't sit flush
    against the header's bottom border. Uses `~` (general sibling)
    because React Aria injects focus-scope `<span>` and `<template>`
    nodes between the Header and the listbox. */
-[data-slot="header"]:has(~ .poracode-menu) {
+[data-slot="header"]:has(~ .craftstation-menu) {
   margin-bottom: 0.25rem;
   padding-left: 0.5rem;
 }
@@ -989,7 +989,7 @@
 }
 
 /* Switches and sliders are continuous controls, so their geometry stays pill-
-   shaped even though Poracode intentionally uses a sharp global --radius for
+   shaped even though CraftStation intentionally uses a sharp global --radius for
    fields, menus, and cards. HeroUI derives rounded-xl/rounded-lg from that
    global token; component-scoped radii preserve the pre-refactor controls
    without softening the rest of the interface. */
@@ -1112,10 +1112,10 @@
   .dark,
   [data-theme="dark"] {
     color-scheme: dark;
-    /* Poracode "moonlight" — dark/cool surfaces, indigo accent. */
+    /* CraftStation "moonlight" — dark/cool surfaces, indigo accent. */
     --background: #121214;
     /* Primary text is a neutral off-white (no blue/violet chroma) so active
-       rows and chat prose read clean and "clear" like the Poracode Legacy
+       rows and chat prose read clean and "clear" like the CraftStation Legacy
        theme. The moonlight coolness lives in the surfaces/accent, not the
        text — a tinted foreground made active text look violet. */
     --foreground: #fafafa;
@@ -1214,7 +1214,7 @@
   [data-focus-visible="true"],
   [class*="focus-ring"],
   [class*="focus-field-ring"],
-  [class*="poracode-mention-input"],
+  [class*="craftstation-mention-input"],
   [class*="lc-notes-prose"]
 ) {
   @apply focus-ring;
@@ -1376,13 +1376,13 @@ html[data-window-kind="quickComposer"] #root {
   padding: 8px;
 }
 
-.quick-composer-root .quick-composer-frame .poracode-composer-shell {
+.quick-composer-root .quick-composer-frame .craftstation-composer-shell {
   border-radius: 1.4rem;
   background: var(--composer-surface);
   box-shadow: 0 3px 12px -8px rgb(0 0 0 / 0.72) !important;
 }
 
-.quick-composer-root--sending .quick-composer-frame .poracode-composer-shell {
+.quick-composer-root--sending .quick-composer-frame .craftstation-composer-shell {
   border-color: color-mix(in oklab, var(--accent) 52%, transparent);
   box-shadow:
     0 8px 22px -12px rgb(0 0 0 / 0.72),
@@ -1416,7 +1416,7 @@ html[data-window-kind="quickComposer"] #root {
   width: 100%;
 }
 
-.poracode-shell {
+.craftstation-shell {
   position: relative;
   box-sizing: border-box;
   padding-top: env(titlebar-area-height, 0px);
@@ -1425,7 +1425,7 @@ html[data-window-kind="quickComposer"] #root {
 
 /* v0.2.13: the React shell owns the complete 38px title row, so the native
    titleBarOverlay height must not be reserved a second time. */
-html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
+html[data-window-kind="main"] .craftstation-shell:has(.craftstation-titlebar) {
   padding-top: 0;
   /* Keep the titlebar dark and legible, but let a little more of the native
      material bleed through instead of painting an almost opaque slab. */
@@ -1463,8 +1463,8 @@ html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
   border-left-color: rgba(255, 255, 255, 0.05);
 }
 
-.poracode-shell:has(.craftstation-titlebar)
-  .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay) {
+.craftstation-shell:has(.craftstation-titlebar)
+  .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay) {
   /* The workspace frame below owns the single visible seam. Do not paint a
      second separator on the sidebar edge. Keep the border box itself stable
      so resizing does not move the chat column by one pixel. */
@@ -1475,12 +1475,12 @@ html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
   box-shadow: none;
 }
 
-.poracode-shell:has(.craftstation-titlebar) .poracode-sidebar-body,
-.poracode-shell:has(.craftstation-titlebar) .poracode-overlay-header {
+.craftstation-shell:has(.craftstation-titlebar) .craftstation-sidebar-body,
+.craftstation-shell:has(.craftstation-titlebar) .craftstation-overlay-header {
   background: transparent;
 }
 
-.poracode-shell:has(.craftstation-titlebar) .poracode-sidebar-body {
+.craftstation-shell:has(.craftstation-titlebar) .craftstation-sidebar-body {
   border-right-color: transparent !important;
 }
 
@@ -1516,12 +1516,12 @@ html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
 
 /* macOS: add padding for traffic lights when titlebar-area-height is not available */
 @supports not (env: titlebar-area-height) {
-  .poracode-shell {
+  .craftstation-shell {
     padding-top: 0;
   }
 }
 
-.poracode-drag-region {
+.craftstation-drag-region {
   position: absolute;
   top: env(titlebar-area-y, 0px);
   left: env(titlebar-area-x, 0px);
@@ -1533,7 +1533,7 @@ html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
   z-index: 10;
 }
 
-.poracode-content-drag-region {
+.craftstation-content-drag-region {
   position: absolute;
   top: 0;
   left: 0;
@@ -1545,7 +1545,7 @@ html[data-window-kind="main"] .poracode-shell:has(.craftstation-titlebar) {
   z-index: 10;
 }
 
-.poracode-content-over-drag-region {
+.craftstation-content-over-drag-region {
   position: relative;
   -webkit-app-region: no-drag;
   app-region: no-drag;
@@ -1579,39 +1579,39 @@ html[data-native-material="on"] {
   background: transparent !important;
 }
 html[data-native-material="on"] body,
-html[data-native-material="on"] .poracode-shell {
+html[data-native-material="on"] .craftstation-shell {
   background: transparent;
 }
-html[data-native-material="on"] .poracode-shell main {
+html[data-native-material="on"] .craftstation-shell main {
   background: var(--content-background);
 }
 html[data-sidebar-glass="on"][data-theme="dark"]
-  .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay) {
+  .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay) {
   /* The regular dark-theme active wash is intentionally strong on opaque
      lists. On glass it reads as a bright solid slab, so let more of the
      sidebar material show through while retaining separation from hover. */
   --row-active: color-mix(in oklab, var(--foreground) 12%, transparent);
 }
 /* Faint tint so sidebar text/icons stay legible over the live OS blur. The
-   sidebar header (shared .poracode-overlay-header class) is forced transparent
+   sidebar header (shared .craftstation-overlay-header class) is forced transparent
    so the aside's single tint layer shows through instead of stacking. */
-html[data-native-material="on"] .poracode-sidebar-aside {
+html[data-native-material="on"] .craftstation-sidebar-aside {
   background: var(--sidebar-glass-tint);
 }
-html[data-native-material="on"] .poracode-sidebar-aside .poracode-overlay-header {
+html[data-native-material="on"] .craftstation-sidebar-aside .craftstation-overlay-header {
   background: transparent;
 }
 /* The floating overlay sidebar sits over dimmed content, where a translucent
    tint reads muddy and hurts legibility — paint it fully opaque (the glass tint
    at 100%). Docked sidebars keep the translucent tint set above. */
-html[data-native-material="on"] .poracode-sidebar-aside--overlay {
+html[data-native-material="on"] .craftstation-sidebar-aside--overlay {
   background: var(--content-background);
 }
 /* While the overlay sidebar slides out and snaps to the collapsed rail, the
    spacer that reserves the rail's slot is briefly uncovered. Give it the same
    glass tint as the docked collapsed rail so the strip never flashes raw
    acrylic before the rail paints in. */
-html[data-native-material="on"] .poracode-sidebar-spacer {
+html[data-native-material="on"] .craftstation-sidebar-spacer {
   background: var(--sidebar-glass-tint);
 }
 /* Windows-only frosting bump. DWM acrylic blurs whatever sits behind the window,
@@ -1659,22 +1659,22 @@ html[data-platform="win32"][data-theme="dark"] {
   --floating-chrome-surface: color-mix(in oklab, var(--sidebar-background) 30%, transparent);
   --floating-chrome-backdrop: blur(10px) saturate(130%);
 }
-html:is([data-platform="darwin"], [data-platform="win32"]) .poracode-floating-chrome {
+html:is([data-platform="darwin"], [data-platform="win32"]) .craftstation-floating-chrome {
   border-color: color-mix(in oklab, var(--foreground) 8%, transparent);
   background-image: none;
   backdrop-filter: var(--floating-chrome-backdrop);
   -webkit-backdrop-filter: var(--floating-chrome-backdrop);
   box-shadow: 0 2px 10px rgb(0 0 0 / 0.18);
 }
-.poracode-floating-chrome--active {
+.craftstation-floating-chrome--active {
   background-color: var(--floating-chrome-active-surface);
 }
-html:is([data-platform="darwin"], [data-platform="win32"]) .poracode-floating-chrome--active {
+html:is([data-platform="darwin"], [data-platform="win32"]) .craftstation-floating-chrome--active {
   border-color: color-mix(in oklab, var(--foreground) 12%, transparent);
 }
 
 /* 2. In-app fallback: opaque window, faux-translucent gradient sidebar. */
-html[data-sidebar-glass="on"]:not([data-native-material="on"]) .poracode-sidebar-aside {
+html[data-sidebar-glass="on"]:not([data-native-material="on"]) .craftstation-sidebar-aside {
   background: linear-gradient(
     180deg,
     color-mix(in oklab, var(--sidebar-background) 80%, transparent) 0%,
@@ -1685,13 +1685,14 @@ html[data-sidebar-glass="on"]:not([data-native-material="on"]) .poracode-sidebar
     inset 0 1px 0 color-mix(in oklab, var(--foreground) 9%, transparent);
 }
 html[data-sidebar-glass="on"]:not([data-native-material="on"])
-  .poracode-sidebar-aside
-  .poracode-overlay-header {
+  .craftstation-sidebar-aside
+  .craftstation-overlay-header {
   background: transparent;
 }
 /* In-app fallback overlay sidebar: opaque too — it floats over dimmed content,
    so the faux-glass tint/blur used for the docked fallback would read muddy. */
-html[data-sidebar-glass="on"]:not([data-native-material="on"]) .poracode-sidebar-aside--overlay {
+html[data-sidebar-glass="on"]:not([data-native-material="on"])
+  .craftstation-sidebar-aside--overlay {
   background: var(--sidebar-background);
 }
 
@@ -1700,14 +1701,14 @@ html[data-sidebar-glass="on"]:not([data-native-material="on"]) .poracode-sidebar
    opaque surface (`overlaySidebarSurfaceClass`); clear it inside the sidebar
    column so the aside's single glass tint shows through and the header (already
    transparent) matches — no seam. Docked tool panels use the same surface class
-   but live outside `.poracode-sidebar-aside`, so they stay opaque. */
-html[data-sidebar-glass="on"] .poracode-sidebar-aside .poracode-overlay-surface {
+   but live outside `.craftstation-sidebar-aside`, so they stay opaque. */
+html[data-sidebar-glass="on"] .craftstation-sidebar-aside .craftstation-overlay-surface {
   background: transparent;
 }
 /* For overlays that actually have a glass sidebar, let the OverlayShell cover
    pass the native blur through (its opaque <main> still covers the content).
    Plain dialogs without a sidebar keep their opaque backdrop. */
-html[data-native-material="on"] [data-overlay-surface]:has(.poracode-sidebar-aside) {
+html[data-native-material="on"] [data-overlay-surface]:has(.craftstation-sidebar-aside) {
   background: transparent;
 }
 /* …and hide the base app behind such an overlay so the overlay's translucent
@@ -1718,14 +1719,14 @@ html[data-native-material="on"] [data-overlay-surface]:has(.poracode-sidebar-asi
    the overlay is fully shown) so on open/close the base app fades in/out with
    the overlay instead of flashing bare desktop underneath. */
 html[data-native-material="on"]
-  #root:has([data-overlay-surface][data-overlay-visible] .poracode-sidebar-aside)
-  .poracode-shell {
+  #root:has([data-overlay-surface][data-overlay-visible] .craftstation-sidebar-aside)
+  .craftstation-shell {
   visibility: hidden;
 }
 html[data-native-material="on"]
-  #root:has([data-overlay-surface][data-overlay-visible] .poracode-sidebar-aside)
+  #root:has([data-overlay-surface][data-overlay-visible] .craftstation-sidebar-aside)
   [data-overlay-surface]
-  .poracode-shell {
+  .craftstation-shell {
   visibility: visible;
 }
 
@@ -1733,11 +1734,13 @@ html[data-native-material="on"]
    The renderer also gates this in JS, so this is a first-paint safety net. */
 @media (prefers-reduced-transparency: reduce) {
   html[data-native-material="on"] body,
-  html[data-native-material="on"] .poracode-shell {
+  html[data-native-material="on"] .craftstation-shell {
     background: var(--content-background);
   }
-  html[data-sidebar-glass="on"] .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay),
-  html[data-native-material="on"] .poracode-sidebar-aside:not(.poracode-sidebar-aside--overlay) {
+  html[data-sidebar-glass="on"]
+    .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay),
+  html[data-native-material="on"]
+    .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay) {
     background: transparent;
     backdrop-filter: none;
     box-shadow: none;
@@ -1745,7 +1748,7 @@ html[data-native-material="on"]
   /* Floating chrome leans hard on backdrop blur, so paint the pills solid when
      reduced transparency is requested. Set this on the element rather than the
      token so it wins over the platform-specific dark-theme overrides above. */
-  .poracode-floating-chrome {
+  .craftstation-floating-chrome {
     background: var(--sidebar-background);
     background-image: none;
     backdrop-filter: none;
@@ -1753,44 +1756,44 @@ html[data-native-material="on"]
   }
 }
 
-/* Counterpart to .poracode-content-over-drag-region: used on pane headers
+/* Counterpart to .craftstation-content-over-drag-region: used on pane headers
    when the pane can't be reordered (single-pane layouts), so the header
    acts as the window drag region instead of a dnd handle. macOS-only —
    Windows/Linux use the OS-provided titleBarOverlay for window dragging.
-   Interactive children opt out via .poracode-overlay-header__controls. */
-.poracode-content-over-drag-region--drag {
+   Interactive children opt out via .craftstation-overlay-header__controls. */
+.craftstation-content-over-drag-region--drag {
   position: relative;
   user-select: none;
   z-index: 20;
 }
-html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
+html[data-platform="darwin"] .craftstation-content-over-drag-region--drag {
   -webkit-app-region: drag;
   app-region: drag;
 }
 /* Defeat the drag region whenever the header lives inside an overlay surface
    (rendered above main content via OverlayShell). The single-pane drag
    handle is a main-content-only affordance. */
-[data-overlay-surface] .poracode-content-over-drag-region--drag {
+[data-overlay-surface] .craftstation-content-over-drag-region--drag {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
 
-.poracode-git-diff-content {
+.craftstation-git-diff-content {
   contain: layout paint;
 }
 
-.poracode-git-diff-body {
+.craftstation-git-diff-body {
   content-visibility: auto;
   contain-intrinsic-size: auto 260px;
 }
 
-.poracode-window-header {
+.craftstation-window-header {
   background: var(--window-header-background);
 }
 
 /* Hairline = panel border (full height/width). The handle is only a wide hit target with no
    visible affordance; hover accent is the long shared border (see rules below). */
-.poracode-resize-handle {
+.craftstation-resize-handle {
   /* 2× default hit area; negative margins keep layout close to 1px hairline. */
   width: 12px;
   margin-left: -8px;
@@ -1801,7 +1804,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   flex-shrink: 0;
 }
 
-.poracode-resize-handle-horizontal {
+.craftstation-resize-handle-horizontal {
   height: 12px;
   margin-top: -8px;
   margin-bottom: -4px;
@@ -1815,7 +1818,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
    fixed aside (which clips its children), so it cannot straddle the shared
    border with negative margins. Keep the hit area inside the panel's left
    gutter and draw the hover accent over the border itself. */
-.poracode-resize-handle-overlay {
+.craftstation-resize-handle-overlay {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -1824,7 +1827,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   z-index: 20;
 }
 
-.poracode-resize-handle-overlay::after {
+.craftstation-resize-handle-overlay::after {
   content: "";
   position: absolute;
   top: 0;
@@ -1835,22 +1838,22 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   transition: background 0.15s;
 }
 
-.poracode-resize-handle-overlay:hover::after,
-.poracode-resize-handle-overlay:focus-visible::after {
+.craftstation-resize-handle-overlay:hover::after,
+.craftstation-resize-handle-overlay:focus-visible::after {
   background: var(--accent);
 }
 
 /* Right / git / bottom terminal: [handle][aside] or [horizontal handle][aside] */
-.poracode-resize-handle[aria-label="Resize terminal panel"]:hover + aside,
-.poracode-resize-handle[aria-label="Resize git panel"]:hover + aside {
+.craftstation-resize-handle[aria-label="Resize terminal panel"]:hover + aside,
+.craftstation-resize-handle[aria-label="Resize git panel"]:hover + aside {
   border-left-color: var(--accent);
 }
 
-.poracode-resize-handle-horizontal[aria-label="Resize terminal panel"]:hover + aside {
+.craftstation-resize-handle-horizontal[aria-label="Resize terminal panel"]:hover + aside {
   border-top-color: var(--accent);
 }
 
-.poracode-pane-divider {
+.craftstation-pane-divider {
   width: 8px;
   cursor: col-resize;
   position: relative;
@@ -1858,7 +1861,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   flex-shrink: 0;
 }
 
-.poracode-pane-divider::after {
+.craftstation-pane-divider::after {
   content: "";
   position: absolute;
   top: 0;
@@ -1872,18 +1875,18 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
     width 0.15s;
 }
 
-.poracode-pane-divider:hover::after,
-.poracode-pane-divider.is-highlighted::after {
+.craftstation-pane-divider:hover::after,
+.craftstation-pane-divider.is-highlighted::after {
   width: 2px;
   background: var(--accent);
 }
 
-.poracode-pane-divider-drop-zone {
+.craftstation-pane-divider-drop-zone {
   position: absolute;
   inset: 0;
 }
 
-.poracode-pane-divider-drop-zone--vertical.is-highlighted::after {
+.craftstation-pane-divider-drop-zone--vertical.is-highlighted::after {
   content: "";
   position: absolute;
   top: 0;
@@ -1894,14 +1897,14 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   background: var(--accent);
 }
 
-.poracode-pane-divider-horizontal {
+.craftstation-pane-divider-horizontal {
   height: 8px;
   cursor: row-resize;
   position: relative;
   z-index: 5;
 }
 
-.poracode-pane-divider-horizontal::after {
+.craftstation-pane-divider-horizontal::after {
   content: "";
   position: absolute;
   left: 0;
@@ -1915,13 +1918,13 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
     height 0.15s;
 }
 
-.poracode-pane-divider-horizontal:hover::after,
-.poracode-pane-divider-horizontal.is-highlighted::after {
+.craftstation-pane-divider-horizontal:hover::after,
+.craftstation-pane-divider-horizontal.is-highlighted::after {
   height: 2px;
   background: var(--accent);
 }
 
-.poracode-pane-divider-drop-zone--horizontal.is-highlighted::after {
+.craftstation-pane-divider-drop-zone--horizontal.is-highlighted::after {
   content: "";
   position: absolute;
   right: 0;
@@ -1933,7 +1936,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
 }
 
 /* --- Unified provider icon styles --- */
-.poracode-provider-icon {
+.craftstation-provider-icon {
   display: inline-flex;
   position: relative;
   align-items: center;
@@ -1946,17 +1949,17 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   isolation: isolate;
 }
 
-.poracode-provider-icon__svg {
+.craftstation-provider-icon__svg {
   width: 100%;
   height: 100%;
   overflow: visible;
 }
 
-.poracode-provider-icon__fill {
+.craftstation-provider-icon__fill {
   fill: currentColor;
 }
 
-.poracode-provider-icon__mask {
+.craftstation-provider-icon__mask {
   width: 100%;
   height: 100%;
   background: currentColor;
@@ -1968,7 +1971,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   -webkit-mask-size: contain;
 }
 
-.poracode-provider-icon--external .poracode-provider-icon__mask {
+.craftstation-provider-icon--external .craftstation-provider-icon__mask {
   width: 88%;
   height: 88%;
 }
@@ -1977,7 +1980,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
    `mask-image` (set inline from the provider's path data or icon URL). An
    inner `__mask-scan-band` carries the gradient and animates `transform`, so
    the shine runs entirely on the compositor — no paint per frame. */
-.poracode-provider-icon__mask-scan {
+.craftstation-provider-icon__mask-scan {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -1993,7 +1996,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   transform: translate3d(0, 0, 0);
 }
 
-.poracode-provider-icon__mask-scan::before {
+.craftstation-provider-icon__mask-scan::before {
   content: "";
   position: absolute;
   top: 0;
@@ -2016,17 +2019,17 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
      actually changes, so a 120Hz ProMotion panel draws ~20 frames/s here instead
      of ~120 — a ~6x cut in GPU compositing for a sweep this subtle and slow.
      32 steps / 1.6s = 20fps. Raise the step count for a smoother sweep. */
-  animation: poracode-provider-icon-mask-scan 1.6s steps(32, jump-end) infinite;
+  animation: craftstation-provider-icon-mask-scan 1.6s steps(32, jump-end) infinite;
   will-change: transform;
 }
 
-.poracode-provider-icon--external .poracode-provider-icon__mask-scan {
+.craftstation-provider-icon--external .craftstation-provider-icon__mask-scan {
   inset: 6%;
   width: auto;
   height: auto;
 }
 
-.poracode-provider-icon__generic {
+.craftstation-provider-icon__generic {
   display: flex;
   /* Match the 88% footprint of external mask icons so the bordered letter
      doesn't read bigger than the brand icons it sits beside in list rows. */
@@ -2041,7 +2044,7 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
   line-height: 1;
 }
 
-@keyframes poracode-provider-icon-mask-scan {
+@keyframes craftstation-provider-icon-mask-scan {
   from {
     transform: translate3d(-33.333%, 0, 0);
   }
@@ -2054,15 +2057,15 @@ html[data-platform="darwin"] .poracode-content-over-drag-region--drag {
    unfocused (attributes toggled by uiAnimationActivity.ts). This preserves the
    working signal in a visible background window without paying the foreground
    compositor cost. */
-html[data-app-hidden] .poracode-provider-icon__mask-scan::before,
-html[data-app-unfocused] .poracode-provider-icon__mask-scan::before {
+html[data-app-hidden] .craftstation-provider-icon__mask-scan::before,
+html[data-app-unfocused] .craftstation-provider-icon__mask-scan::before {
   animation-timing-function: steps(8, jump-end);
 }
 
-html[data-app-hidden] .poracode-provider-icon--attention,
-html[data-app-unfocused] .poracode-provider-icon--attention,
-html[data-app-hidden] .poracode-provider-icon--finished,
-html[data-app-unfocused] .poracode-provider-icon--finished {
+html[data-app-hidden] .craftstation-provider-icon--attention,
+html[data-app-unfocused] .craftstation-provider-icon--attention,
+html[data-app-hidden] .craftstation-provider-icon--finished,
+html[data-app-unfocused] .craftstation-provider-icon--finished {
   animation-timing-function: steps(9, jump-end);
 }
 
@@ -2071,39 +2074,39 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
    are JS-driven via thinkingAnimator.ts, which checks prefers-reduced-motion
    itself and paints a single static frame.) */
 @media (prefers-reduced-motion: reduce) {
-  .poracode-provider-icon__mask-scan::before,
-  .poracode-provider-icon--attention,
-  .poracode-provider-icon--finished {
+  .craftstation-provider-icon__mask-scan::before,
+  .craftstation-provider-icon--attention,
+  .craftstation-provider-icon--finished {
     animation: none;
   }
 }
 
-.poracode-provider-icon__shell {
+.craftstation-provider-icon__shell {
   fill: currentColor;
   opacity: 0.32;
 }
 
-.poracode-provider-icon__scan {
+.craftstation-provider-icon__scan {
   opacity: 0.95;
 }
 
-.poracode-provider-icon--inactive {
+.craftstation-provider-icon--inactive {
   color: color-mix(in oklab, var(--muted) 94%, var(--foreground));
   opacity: 0.78;
 }
 
-.poracode-provider-icon--active {
+.craftstation-provider-icon--active {
   color: var(--foreground);
   filter: drop-shadow(0 0 0.35rem color-mix(in oklab, var(--foreground) 18%, transparent));
 }
 
-.poracode-provider-icon--working {
+.craftstation-provider-icon--working {
   color: color-mix(in oklab, var(--working-tone) 92%, var(--white));
 }
 
-.poracode-provider-icon--working .poracode-provider-icon__svg,
-.poracode-provider-icon--working
-  .poracode-provider-icon__mask:not(.poracode-provider-icon__mask-scan) {
+.craftstation-provider-icon--working .craftstation-provider-icon__svg,
+.craftstation-provider-icon--working
+  .craftstation-provider-icon__mask:not(.craftstation-provider-icon__mask-scan) {
   filter: drop-shadow(0 0 0.25rem color-mix(in oklab, var(--working-tone) 45%, transparent))
     drop-shadow(0 0 0.5rem color-mix(in oklab, var(--working-tone) 22%, transparent));
   /* Promote to a compositor layer ONLY while working — the glow drop-shadow and
@@ -2114,23 +2117,23 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   transform: translate3d(0, 0, 0);
 }
 
-.poracode-provider-icon--error {
+.craftstation-provider-icon--error {
   color: var(--danger);
   filter: drop-shadow(0 0 0.45rem color-mix(in oklab, var(--danger) 35%, transparent));
 }
 
-.poracode-provider-icon--attention {
+.craftstation-provider-icon--attention {
   color: var(--warning);
-  animation: poracode-attention-pulse 1.8s ease-in-out infinite;
+  animation: craftstation-attention-pulse 1.8s ease-in-out infinite;
   will-change: opacity, transform;
   transform: translate3d(0, 0, 0);
 }
 
-.poracode-provider-icon--attention svg {
+.craftstation-provider-icon--attention svg {
   filter: drop-shadow(0 0 0.35rem color-mix(in oklab, var(--warning) 55%, transparent));
 }
 
-@keyframes poracode-attention-pulse {
+@keyframes craftstation-attention-pulse {
   0%,
   100% {
     opacity: 0.55;
@@ -2140,19 +2143,19 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   }
 }
 
-.poracode-provider-icon--finished {
+.craftstation-provider-icon--finished {
   color: oklch(0.82 0.12 260);
-  animation: poracode-finished-pulse 1.8s ease-in-out infinite;
+  animation: craftstation-finished-pulse 1.8s ease-in-out infinite;
   will-change: opacity, transform;
   transform: translate3d(0, 0, 0);
 }
 
-.poracode-provider-icon--finished svg {
+.craftstation-provider-icon--finished svg {
   filter: drop-shadow(0 0 0.35rem oklch(0.82 0.12 260 / 0.55))
     drop-shadow(0 0 0.7rem oklch(0.82 0.12 260 / 0.25));
 }
 
-@keyframes poracode-finished-pulse {
+@keyframes craftstation-finished-pulse {
   0%,
   100% {
     opacity: 0.55;
@@ -2166,14 +2169,14 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
    Net-zero layout: the symmetric negative margin / padding keeps content in
    place while the tinted band gets a little breathing room. Removed on
    animationend so re-triggering the same setting flashes again. */
-.poracode-setting-highlight {
-  animation: poracode-setting-highlight 1.4s ease-out;
+.craftstation-setting-highlight {
+  animation: craftstation-setting-highlight 1.4s ease-out;
   margin-inline: -0.5rem;
   padding-inline: 0.5rem;
   border-radius: 0.5rem;
 }
 
-@keyframes poracode-setting-highlight {
+@keyframes craftstation-setting-highlight {
   0% {
     background-color: color-mix(in oklab, var(--accent) 22%, transparent);
   }
@@ -2182,11 +2185,11 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   }
 }
 
-.poracode-provider-icon--done {
+.craftstation-provider-icon--done {
   color: var(--muted);
 }
 
-.poracode-provider-icon__done-check {
+.craftstation-provider-icon__done-check {
   position: absolute;
   top: 15%;
   left: 15%;
@@ -2195,7 +2198,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   pointer-events: none;
 }
 
-.poracode-brain-thinking {
+.craftstation-brain-thinking {
   filter: drop-shadow(0 0 0.1rem color-mix(in oklab, currentColor 32%, transparent));
 }
 
@@ -2204,7 +2207,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
    animation on SVG paths can't composite, so it would force a main-thread style
    recalc + frame on every display refresh (~120fps). 0.55 is the static
    fallback shown before the timer first paints. */
-.poracode-brain-thinking path {
+.craftstation-brain-thinking path {
   opacity: 0.55;
 }
 
@@ -2227,7 +2230,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
    ("Edit · "), never the path. `will-change` additionally isolates the label
    on its own composited layer, fully re-rastered each tick, so a stray text
    change still cannot strand stale glyphs in the parent layer's tiles. */
-.poracode-thinking-text {
+.craftstation-thinking-text {
   position: relative;
   display: inline-block;
   contain: paint;
@@ -2249,7 +2252,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   -webkit-text-fill-color: transparent;
 }
 
-@keyframes poracode-plan-check-1-anim {
+@keyframes craftstation-plan-check-1-anim {
   0%,
   15% {
     opacity: 0;
@@ -2264,7 +2267,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   }
 }
 
-@keyframes poracode-plan-check-2-anim {
+@keyframes craftstation-plan-check-2-anim {
   0%,
   45% {
     opacity: 0;
@@ -2279,17 +2282,17 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   }
 }
 
-.poracode-plan-proposal-icon {
+.craftstation-plan-proposal-icon {
   color: var(--foreground);
 }
 
-.poracode-plan-proposal-icon .poracode-plan-check-1 {
-  animation: poracode-plan-check-1-anim 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.craftstation-plan-proposal-icon .craftstation-plan-check-1 {
+  animation: craftstation-plan-check-1-anim 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   will-change: opacity;
 }
 
-.poracode-plan-proposal-icon .poracode-plan-check-2 {
-  animation: poracode-plan-check-2-anim 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.craftstation-plan-proposal-icon .craftstation-plan-check-2 {
+  animation: craftstation-plan-check-2-anim 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   will-change: opacity;
 }
 
@@ -2345,31 +2348,31 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   margin-left: 2px;
 }
 
-.poracode-terminal-shell {
+.craftstation-terminal-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--poracode-terminal-scrollbar-width);
-  width: calc(100% + var(--poracode-terminal-scrollbar-width));
+  grid-template-columns: minmax(0, 1fr) var(--craftstation-terminal-scrollbar-width);
+  width: calc(100% + var(--craftstation-terminal-scrollbar-width));
   background: var(--content-background);
 }
 
-.poracode-terminal-shell > .poracode-terminal-pane {
+.craftstation-terminal-shell > .craftstation-terminal-pane {
   grid-column: 1;
   width: 100% !important;
 }
 
-.poracode-terminal-pane,
-.poracode-terminal-pane .xterm,
-.poracode-terminal-pane .xterm-viewport,
-.poracode-terminal-pane .xterm-screen,
-.poracode-terminal-pane .xterm-scroll-area {
+.craftstation-terminal-pane,
+.craftstation-terminal-pane .xterm,
+.craftstation-terminal-pane .xterm-viewport,
+.craftstation-terminal-pane .xterm-screen,
+.craftstation-terminal-pane .xterm-scroll-area {
   background: var(--content-background) !important;
 }
 
-.poracode-terminal-pane .xterm .xterm-cursor-layer {
+.craftstation-terminal-pane .xterm .xterm-cursor-layer {
   display: none !important;
 }
 
-.poracode-composer-shell {
+.craftstation-composer-shell {
   position: relative;
   border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
   border-radius: 1rem;
@@ -2378,20 +2381,20 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
 }
 
 /* Draft-focus glow remains a cheap compositor-only affordance. */
-.poracode-composer-border-glow::before {
+.craftstation-composer-border-glow::before {
   content: "";
   display: block;
 }
 
-.poracode-composer-shell--draft:focus-within .poracode-composer-border-glow::before {
-  animation: poracode-composer-border-spin 1.2s ease-out 1 both;
+.craftstation-composer-shell--draft:focus-within .craftstation-composer-border-glow::before {
+  animation: craftstation-composer-border-spin 1.2s ease-out 1 both;
 }
 
-[data-draft-context-bar] + [data-poracode-composer] .poracode-composer-shell--draft {
+[data-draft-context-bar] + [data-craftstation-composer] .craftstation-composer-shell--draft {
   background: #2b2b2b;
 }
 
-.poracode-composer-drop-overlay {
+.craftstation-composer-drop-overlay {
   position: absolute;
   inset: 0;
   z-index: 20;
@@ -2407,40 +2410,40 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   pointer-events: none;
 }
 
-.poracode-composer-label-hideable.is-hidden {
+.craftstation-composer-label-hideable.is-hidden {
   display: none;
 }
 
-.poracode-composer-toolbar[data-wrap-level="1"]
-  .poracode-composer-label-hideable[data-collapse-tier="1"],
-.poracode-composer-toolbar[data-wrap-level="2"]
-  .poracode-composer-label-hideable[data-collapse-tier="1"],
-.poracode-composer-toolbar[data-wrap-level="2"]
-  .poracode-composer-label-hideable[data-collapse-tier="2"],
-.poracode-composer-toolbar[data-wrap-level="3"]
-  .poracode-composer-label-hideable[data-collapse-tier="1"],
-.poracode-composer-toolbar[data-wrap-level="3"]
-  .poracode-composer-label-hideable[data-collapse-tier="2"],
-.poracode-composer-toolbar[data-wrap-level="3"]
-  .poracode-composer-label-hideable[data-collapse-tier="3"],
-.poracode-composer-toolbar[data-wrap-level="4"]
-  .poracode-composer-label-hideable[data-collapse-tier="1"],
-.poracode-composer-toolbar[data-wrap-level="4"]
-  .poracode-composer-label-hideable[data-collapse-tier="2"],
-.poracode-composer-toolbar[data-wrap-level="4"]
-  .poracode-composer-label-hideable[data-collapse-tier="3"],
-.poracode-composer-toolbar[data-wrap-level="4"]
-  .poracode-composer-label-hideable[data-collapse-tier="4"],
-.poracode-composer-toolbar[data-wrap-level="5"]
-  .poracode-composer-label-hideable[data-collapse-tier="1"],
-.poracode-composer-toolbar[data-wrap-level="5"]
-  .poracode-composer-label-hideable[data-collapse-tier="2"],
-.poracode-composer-toolbar[data-wrap-level="5"]
-  .poracode-composer-label-hideable[data-collapse-tier="3"],
-.poracode-composer-toolbar[data-wrap-level="5"]
-  .poracode-composer-label-hideable[data-collapse-tier="4"],
-.poracode-composer-toolbar[data-wrap-level="5"]
-  .poracode-composer-label-hideable[data-collapse-tier="5"] {
+.craftstation-composer-toolbar[data-wrap-level="1"]
+  .craftstation-composer-label-hideable[data-collapse-tier="1"],
+.craftstation-composer-toolbar[data-wrap-level="2"]
+  .craftstation-composer-label-hideable[data-collapse-tier="1"],
+.craftstation-composer-toolbar[data-wrap-level="2"]
+  .craftstation-composer-label-hideable[data-collapse-tier="2"],
+.craftstation-composer-toolbar[data-wrap-level="3"]
+  .craftstation-composer-label-hideable[data-collapse-tier="1"],
+.craftstation-composer-toolbar[data-wrap-level="3"]
+  .craftstation-composer-label-hideable[data-collapse-tier="2"],
+.craftstation-composer-toolbar[data-wrap-level="3"]
+  .craftstation-composer-label-hideable[data-collapse-tier="3"],
+.craftstation-composer-toolbar[data-wrap-level="4"]
+  .craftstation-composer-label-hideable[data-collapse-tier="1"],
+.craftstation-composer-toolbar[data-wrap-level="4"]
+  .craftstation-composer-label-hideable[data-collapse-tier="2"],
+.craftstation-composer-toolbar[data-wrap-level="4"]
+  .craftstation-composer-label-hideable[data-collapse-tier="3"],
+.craftstation-composer-toolbar[data-wrap-level="4"]
+  .craftstation-composer-label-hideable[data-collapse-tier="4"],
+.craftstation-composer-toolbar[data-wrap-level="5"]
+  .craftstation-composer-label-hideable[data-collapse-tier="1"],
+.craftstation-composer-toolbar[data-wrap-level="5"]
+  .craftstation-composer-label-hideable[data-collapse-tier="2"],
+.craftstation-composer-toolbar[data-wrap-level="5"]
+  .craftstation-composer-label-hideable[data-collapse-tier="3"],
+.craftstation-composer-toolbar[data-wrap-level="5"]
+  .craftstation-composer-label-hideable[data-collapse-tier="4"],
+.craftstation-composer-toolbar[data-wrap-level="5"]
+  .craftstation-composer-label-hideable[data-collapse-tier="5"] {
   display: none;
 }
 
@@ -2448,11 +2451,11 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
    popovers render at z-index 100000, so the backdrop joins that layer: it comes
    later in the portal order than the surface below it, and the menu it belongs
    to is portaled later still, so the paint order is surface → backdrop → menu. */
-.poracode-menu-backdrop {
+.craftstation-menu-backdrop {
   z-index: 100000;
 }
 
-.poracode-composer-shell:focus-within {
+.craftstation-composer-shell:focus-within {
   border-color: color-mix(in oklab, var(--foreground) 6%, transparent);
   outline: none !important;
   box-shadow: none !important;
@@ -2461,22 +2464,22 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   transition: background-color 0.12s ease;
 }
 
-.poracode-composer-shell--draft:focus-within {
+.craftstation-composer-shell--draft:focus-within {
   border-color: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
 
-.poracode-model-menu-listbox:focus-visible,
-.poracode-model-menu-listbox[data-focus-visible="true"] {
+.craftstation-model-menu-listbox:focus-visible,
+.craftstation-model-menu-listbox[data-focus-visible="true"] {
   outline: none !important;
   box-shadow: none !important;
   --tw-ring-shadow: 0 0 #0000 !important;
   --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
 
-.poracode-composer-editor.textarea,
-.poracode-composer-editor.input-group,
-.poracode-composer-editor .textarea,
-.poracode-composer-editor .input-group {
+.craftstation-composer-editor.textarea,
+.craftstation-composer-editor.input-group,
+.craftstation-composer-editor .textarea,
+.craftstation-composer-editor .input-group {
   min-height: 72px;
   resize: none;
   border: 0;
@@ -2486,56 +2489,56 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   padding: 0.875rem 1rem 0.5rem;
 }
 
-.poracode-composer-custom-input {
+.craftstation-composer-custom-input {
   min-height: calc(0.95rem + 0.35rem + 0.875rem * 1.5);
   background: transparent;
 }
 
-.poracode-composer-editor--compact,
-.poracode-composer-editor--compact.textarea,
-.poracode-composer-editor--compact.input-group,
-.poracode-composer-editor--compact .textarea,
-.poracode-composer-editor--compact .input-group {
+.craftstation-composer-editor--compact,
+.craftstation-composer-editor--compact.textarea,
+.craftstation-composer-editor--compact.input-group,
+.craftstation-composer-editor--compact .textarea,
+.craftstation-composer-editor--compact .input-group {
   min-height: calc(0.75rem + 0.1rem + 0.875rem * 1.35) !important;
   padding: 0.75rem 0.5rem 0.1rem 0.75rem !important;
 }
 
-.poracode-composer-custom-input--compact {
+.craftstation-composer-custom-input--compact {
   min-height: calc(0.75rem + 0.1rem + 0.875rem * 1.35) !important;
 }
 
-.poracode-composer-editor.textarea__input,
-.poracode-composer-editor .textarea__input {
+.craftstation-composer-editor.textarea__input,
+.craftstation-composer-editor .textarea__input {
   min-height: 28px;
   resize: none;
   font-size: 0.875rem;
   line-height: 1.5;
 }
 
-.poracode-composer-editor--compact.textarea__input,
-.poracode-composer-editor--compact .textarea__input {
+.craftstation-composer-editor--compact.textarea__input,
+.craftstation-composer-editor--compact .textarea__input {
   min-height: calc(0.875rem * 1.35) !important;
   line-height: 1.35;
 }
 
-.poracode-composer-editor.textarea:focus,
-.poracode-composer-editor.textarea:focus-visible,
-.poracode-composer-editor.textarea[data-focused="true"],
-.poracode-composer-editor.textarea[data-focus-visible="true"],
-.poracode-composer-editor.input-group:focus,
-.poracode-composer-editor.input-group:focus-within,
-.poracode-composer-editor.input-group[data-focused="true"],
-.poracode-composer-editor.input-group[data-focus-within="true"],
-.poracode-composer-editor .textarea:focus,
-.poracode-composer-editor .textarea:focus-visible,
-.poracode-composer-editor .textarea[data-focused="true"],
-.poracode-composer-editor .textarea[data-focus-visible="true"],
-.poracode-composer-editor .input-group:focus,
-.poracode-composer-editor .input-group:focus-within,
-.poracode-composer-editor .input-group[data-focused="true"],
-.poracode-composer-editor .input-group[data-focus-within="true"],
-.poracode-composer-editor.textarea__input:focus,
-.poracode-composer-editor .textarea__input:focus {
+.craftstation-composer-editor.textarea:focus,
+.craftstation-composer-editor.textarea:focus-visible,
+.craftstation-composer-editor.textarea[data-focused="true"],
+.craftstation-composer-editor.textarea[data-focus-visible="true"],
+.craftstation-composer-editor.input-group:focus,
+.craftstation-composer-editor.input-group:focus-within,
+.craftstation-composer-editor.input-group[data-focused="true"],
+.craftstation-composer-editor.input-group[data-focus-within="true"],
+.craftstation-composer-editor .textarea:focus,
+.craftstation-composer-editor .textarea:focus-visible,
+.craftstation-composer-editor .textarea[data-focused="true"],
+.craftstation-composer-editor .textarea[data-focus-visible="true"],
+.craftstation-composer-editor .input-group:focus,
+.craftstation-composer-editor .input-group:focus-within,
+.craftstation-composer-editor .input-group[data-focused="true"],
+.craftstation-composer-editor .input-group[data-focus-within="true"],
+.craftstation-composer-editor.textarea__input:focus,
+.craftstation-composer-editor .textarea__input:focus {
   outline: none !important;
   box-shadow: none !important;
   border-color: transparent !important;
@@ -2545,37 +2548,37 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   --tw-shadow: 0 0 #0000 !important;
 }
 
-.poracode-composer-toolbar {
+.craftstation-composer-toolbar {
   padding: 0.25rem 0.85rem 0.85rem;
 }
 
-.poracode-composer-toolbar--compact {
+.craftstation-composer-toolbar--compact {
   padding: 0.1rem 0.6rem 0.6rem;
 }
 
-.poracode-composer-editor.textarea,
-.poracode-composer-editor.input-group,
-.poracode-composer-editor.textarea__input,
-.poracode-composer-editor .textarea,
-.poracode-composer-editor .input-group,
-.poracode-composer-editor .textarea__input {
+.craftstation-composer-editor.textarea,
+.craftstation-composer-editor.input-group,
+.craftstation-composer-editor.textarea__input,
+.craftstation-composer-editor .textarea,
+.craftstation-composer-editor .input-group,
+.craftstation-composer-editor .textarea__input {
   background: transparent;
 }
 
-.poracode-composer-menu {
+.craftstation-composer-menu {
   height: 2.25rem;
   color: var(--foreground);
   gap: 0.35rem;
 }
 
 /* Compact variant for secondary control rows (e.g. the worktree row under the composer). */
-.poracode-composer-menu--compact {
+.craftstation-composer-menu--compact {
   height: 1.625rem;
   gap: 0.25rem;
   font-size: 0.75rem;
 }
 
-.poracode-composer-static {
+.craftstation-composer-static {
   display: inline-flex;
   height: 2.25rem;
   min-width: 0;
@@ -2587,7 +2590,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   white-space: nowrap;
 }
 
-.poracode-context-indicator {
+.craftstation-context-indicator {
   display: inline-flex;
   height: 2.25rem;
   align-items: center;
@@ -2599,12 +2602,12 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   transition: color 0.15s ease;
 }
 
-.poracode-context-indicator:hover,
-.poracode-context-indicator--open {
+.craftstation-context-indicator:hover,
+.craftstation-context-indicator--open {
   color: var(--foreground);
 }
 
-.poracode-context-indicator__ring {
+.craftstation-context-indicator__ring {
   --lc-context-ring: color-mix(in oklab, var(--foreground) 65%, transparent);
 
   width: 1rem;
@@ -2612,52 +2615,52 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   flex-shrink: 0;
 }
 
-.poracode-context-indicator__ring-track {
+.craftstation-context-indicator__ring-track {
   stroke: color-mix(in oklab, var(--muted) 40%, transparent);
 }
 
-.poracode-context-indicator__ring-progress {
+.craftstation-context-indicator__ring-progress {
   stroke: var(--lc-context-ring);
   transition:
     stroke 0.15s ease,
     stroke-dasharray 0.2s ease;
 }
 
-.poracode-context-indicator[data-tone="unknown"] .poracode-context-indicator__ring {
+.craftstation-context-indicator[data-tone="unknown"] .craftstation-context-indicator__ring {
   --lc-context-ring: color-mix(in oklab, var(--muted) 50%, transparent);
 }
 
-.poracode-context-indicator[data-tone="warning"] .poracode-context-indicator__ring {
+.craftstation-context-indicator[data-tone="warning"] .craftstation-context-indicator__ring {
   --lc-context-ring: oklch(0.86 0.16 86);
 }
 
-.poracode-context-indicator[data-tone="danger"] .poracode-context-indicator__ring {
+.craftstation-context-indicator[data-tone="danger"] .craftstation-context-indicator__ring {
   --lc-context-ring: oklch(0.62 0.22 28);
 }
 
-.poracode-context-dock__bar {
+.craftstation-context-dock__bar {
   height: 0.45rem;
   overflow: hidden;
   border-radius: 999px;
   background: color-mix(in oklab, var(--muted) 24%, transparent);
 }
 
-.poracode-context-dock__bar-fill {
+.craftstation-context-dock__bar-fill {
   height: 100%;
   width: var(--lc-context-progress);
   border-radius: inherit;
   background: var(--foreground);
 }
 
-.poracode-context-dock__bar-fill--warning {
+.craftstation-context-dock__bar-fill--warning {
   background: var(--warning);
 }
 
-.poracode-context-dock__bar-fill--danger {
+.craftstation-context-dock__bar-fill--danger {
   background: var(--danger);
 }
 
-.poracode-composer-toggle {
+.craftstation-composer-toggle {
   --toggle-button-bg-selected: transparent;
   --toggle-button-bg-selected-hover: var(--toggle-button-bg-hover);
   --toggle-button-bg-selected-pressed: var(--toggle-button-bg-pressed);
@@ -2668,23 +2671,23 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   padding-inline: 0.75rem;
 }
 
-.poracode-composer-toggle[data-selected="true"] {
+.craftstation-composer-toggle[data-selected="true"] {
   color: var(--foreground);
 }
 
-.poracode-composer-toggle--current {
+.craftstation-composer-toggle--current {
   color: var(--foreground);
 }
 
-.poracode-composer-toggle--fill-icon-selected[data-selected="true"] svg {
+.craftstation-composer-toggle--fill-icon-selected[data-selected="true"] svg {
   fill: currentColor;
 }
 
-.poracode-composer-toggle[data-selected="true"] svg {
+.craftstation-composer-toggle[data-selected="true"] svg {
   filter: drop-shadow(0 0 0.45rem color-mix(in oklab, currentColor 35%, transparent));
 }
 
-.poracode-composer-utility {
+.craftstation-composer-utility {
   display: inline-flex;
   height: 2.25rem;
   width: 2.25rem;
@@ -2696,42 +2699,42 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   color: var(--muted);
 }
 
-.poracode-composer-send {
+.craftstation-composer-send {
   height: 2.25rem;
   width: 2.25rem;
   background: color-mix(in oklab, var(--accent) 18%, var(--surface));
   color: var(--foreground);
 }
 
-.poracode-composer-send:hover,
-.poracode-composer-send[data-hovered="true"] {
+.craftstation-composer-send:hover,
+.craftstation-composer-send[data-hovered="true"] {
   background: color-mix(in oklab, var(--accent) 28%, var(--surface));
 }
 
-.poracode-composer-send[aria-disabled="true"] {
+.craftstation-composer-send[aria-disabled="true"] {
   background: color-mix(in oklab, var(--surface) 88%, transparent);
 }
 
-.poracode-composer-shell--preserve-disabled-controls
-  .poracode-composer-menu:is(:disabled, [aria-disabled="true"], [data-disabled="true"]),
-.poracode-composer-shell--preserve-disabled-controls
-  .poracode-composer-toggle:is(:disabled, [aria-disabled="true"], [data-disabled="true"]) {
+.craftstation-composer-shell--preserve-disabled-controls
+  .craftstation-composer-menu:is(:disabled, [aria-disabled="true"], [data-disabled="true"]),
+.craftstation-composer-shell--preserve-disabled-controls
+  .craftstation-composer-toggle:is(:disabled, [aria-disabled="true"], [data-disabled="true"]) {
   opacity: 1;
 }
 
-.poracode-inline-control {
+.craftstation-inline-control {
   height: 2.25rem;
   min-width: 0;
 }
 
-.poracode-inline-action {
+.craftstation-inline-action {
   height: 2.25rem;
   width: 2.25rem;
 }
 
 /* ── Mention Input (contentEditable) ──────────────────────── */
 
-.poracode-mention-input {
+.craftstation-mention-input {
   min-height: calc(0.95rem + 0.35rem + 1lh);
   max-height: 320px;
   overflow-y: auto;
@@ -2745,15 +2748,15 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   cursor: text;
 }
 
-.poracode-mention-input--compact {
+.craftstation-mention-input--compact {
   min-height: calc(1lh + 0.75rem + 0.25rem);
   max-height: calc(6lh + 0.75rem + 0.25rem);
   padding: 0.75rem 0.75rem 0.25rem;
   line-height: 1.35;
 }
 
-.poracode-mention-input:focus,
-.poracode-mention-input:focus-visible {
+.craftstation-mention-input:focus,
+.craftstation-mention-input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
   --tw-ring-shadow: 0 0 #0000 !important;
@@ -2761,7 +2764,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   --tw-shadow: 0 0 #0000 !important;
 }
 
-.poracode-mention-input:empty::before {
+.craftstation-mention-input:empty::before {
   content: attr(data-placeholder);
   color: var(--muted);
   pointer-events: none;
@@ -2769,7 +2772,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
 
 /* ── Mention Chip (inline in contentEditable) ────────────── */
 
-.poracode-mention-chip {
+.craftstation-mention-chip {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -2786,19 +2789,19 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   cursor: default;
 }
 
-.poracode-mention-chip__icon {
+.craftstation-mention-chip__icon {
   width: 1.1em;
   height: 1.1em;
   vertical-align: middle;
 }
 
-.poracode-mention-chip__name {
+.craftstation-mention-chip__name {
   font-weight: 400;
   position: relative;
   top: -1.5px;
 }
 
-.poracode-mention-chip__delete {
+.craftstation-mention-chip__delete {
   display: none;
   position: absolute;
   right: -0.3rem;
@@ -2814,18 +2817,18 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   cursor: var(--interactive-cursor);
 }
 
-.poracode-mention-chip__delete:hover {
+.craftstation-mention-chip__delete:hover {
   color: var(--foreground);
   background: color-mix(in oklab, var(--accent) 20%, var(--surface));
 }
 
-.poracode-mention-chip:hover .poracode-mention-chip__delete {
+.craftstation-mention-chip:hover .craftstation-mention-chip__delete {
   display: inline-flex;
 }
 
 /* ── Slash Command Chip (composer + chat user message) ──────── */
 
-.poracode-slash-chip {
+.craftstation-slash-chip {
   display: inline-flex;
   align-items: center;
   gap: 0;
@@ -2843,12 +2846,12 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   cursor: default;
 }
 
-.poracode-slash-chip[data-skill-name],
-.poracode-slash-chip[data-mcp-name] {
+.craftstation-slash-chip[data-skill-name],
+.craftstation-slash-chip[data-mcp-name] {
   gap: 0.25em;
 }
 
-.poracode-slash-chip__slash {
+.craftstation-slash-chip__slash {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2859,23 +2862,23 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   flex-shrink: 0;
 }
 
-.poracode-slash-chip__slash svg {
+.craftstation-slash-chip__slash svg {
   width: 0.85em;
   height: 0.85em;
 }
 
-.poracode-slash-chip__name {
+.craftstation-slash-chip__name {
   display: inline-flex;
   align-items: center;
   font-weight: 400;
   white-space: nowrap;
 }
 
-.poracode-diff-comment-chip {
+.craftstation-diff-comment-chip {
   gap: 0.25em;
 }
 
-.poracode-diff-comment-chip__delete {
+.craftstation-diff-comment-chip__delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2890,31 +2893,31 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   cursor: var(--interactive-cursor, pointer);
 }
 
-.poracode-diff-comment-chip:hover .poracode-diff-comment-chip__delete {
+.craftstation-diff-comment-chip:hover .craftstation-diff-comment-chip__delete {
   width: 1em;
   opacity: 1;
 }
 
-.poracode-diff-comment-chip__delete svg {
+.craftstation-diff-comment-chip__delete svg {
   width: 0.8em;
   height: 0.8em;
 }
 
-.poracode-user-message-inline-content .poracode-inline-path-chip {
+.craftstation-user-message-inline-content .craftstation-inline-path-chip {
   background: var(--surface-secondary);
 }
 
-.poracode-user-message-inline-content .poracode-inline-path-chip:hover {
+.craftstation-user-message-inline-content .craftstation-inline-path-chip:hover {
   background: color-mix(in oklab, var(--surface-secondary) 86%, var(--foreground) 14%);
 }
 
-.poracode-user-message-inline-content .poracode-inline-path-chip--inert:hover {
+.craftstation-user-message-inline-content .craftstation-inline-path-chip--inert:hover {
   background: var(--surface-secondary);
 }
 
 /* ── Inline File Path Chip (clickable, in chat markdown) ────── */
 
-.poracode-inline-path-chip {
+.craftstation-inline-path-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
@@ -2932,38 +2935,38 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   transition: background 120ms ease;
 }
 
-.poracode-inline-path-chip:hover {
+.craftstation-inline-path-chip:hover {
   background: color-mix(in oklab, var(--accent) 22%, var(--surface));
 }
 
-.poracode-inline-path-chip--inert {
+.craftstation-inline-path-chip--inert {
   cursor: default;
   opacity: 0.7;
 }
 
-.poracode-inline-path-chip--inert:hover {
+.craftstation-inline-path-chip--inert:hover {
   background: color-mix(in oklab, var(--accent) 12%, var(--surface));
 }
 
-.poracode-inline-path-chip__icon {
+.craftstation-inline-path-chip__icon {
   width: 1em;
   height: 1em;
   flex-shrink: 0;
 }
 
-.poracode-inline-path-chip__name {
+.craftstation-inline-path-chip__name {
   font-weight: 400;
   white-space: nowrap;
 }
 
-.poracode-inline-path-chip__line {
+.craftstation-inline-path-chip__line {
   color: var(--muted);
   white-space: nowrap;
 }
 
 /* ── Attachment Bar (file/image chips above editor) ────────── */
 
-.poracode-attachment-bar {
+.craftstation-attachment-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -2972,12 +2975,12 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   overflow-y: auto;
 }
 
-.poracode-attachment-bar--inset {
+.craftstation-attachment-bar--inset {
   padding-left: 0.85rem;
   padding-right: 0.85rem;
 }
 
-.poracode-attachment-chip {
+.craftstation-attachment-chip {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -2993,7 +2996,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   max-width: 12rem;
 }
 
-.poracode-browser-chip {
+.craftstation-browser-chip {
   padding: 0.25em 0.45em;
   height: 1.35rem;
   gap: 0.3rem;
@@ -3002,11 +3005,11 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   line-height: 1.25;
 }
 
-.poracode-attachment-chip[role="button"] {
+.craftstation-attachment-chip[role="button"] {
   cursor: var(--interactive-cursor);
 }
 
-.poracode-attachment-chip__thumb {
+.craftstation-attachment-chip__thumb {
   width: 1.6em;
   height: 1.6em;
   border-radius: 0.2rem;
@@ -3014,27 +3017,27 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   flex-shrink: 0;
 }
 
-.poracode-attachment-chip__icon {
+.craftstation-attachment-chip__icon {
   width: 1.1em;
   height: 1.1em;
   flex-shrink: 0;
 }
 
-.poracode-attachment-chip__name {
+.craftstation-attachment-chip__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 400;
 }
 
-.poracode-attachment-chip__selector {
+.craftstation-attachment-chip__selector {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85em;
   color: color-mix(in oklab, var(--accent) 65%, var(--foreground));
   max-width: 22rem;
 }
 
-.poracode-attachment-chip__delete {
+.craftstation-attachment-chip__delete {
   display: none;
   position: absolute;
   right: -0.3rem;
@@ -3051,25 +3054,25 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   cursor: var(--interactive-cursor);
 }
 
-.poracode-browser-chip .poracode-attachment-chip__delete {
+.craftstation-browser-chip .craftstation-attachment-chip__delete {
   right: -0.25rem;
   top: -0.25rem;
   width: 0.85rem;
   height: 0.85rem;
 }
 
-.poracode-attachment-chip__delete:hover {
+.craftstation-attachment-chip__delete:hover {
   color: var(--foreground);
   background: color-mix(in oklab, var(--accent) 20%, var(--surface));
 }
 
-.poracode-attachment-chip:hover .poracode-attachment-chip__delete {
+.craftstation-attachment-chip:hover .craftstation-attachment-chip__delete {
   display: inline-flex;
 }
 
 /* ── Attachment bar image preview (no chip wrapper) ───────── */
 
-.poracode-attachment-image-preview {
+.craftstation-attachment-image-preview {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3086,7 +3089,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   contain: layout paint;
 }
 
-.poracode-attachment-image-preview img {
+.craftstation-attachment-image-preview img {
   display: block;
   width: 100%;
   height: 100%;
@@ -3094,24 +3097,24 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   user-select: none;
 }
 
-.poracode-image-card {
+.craftstation-image-card {
   contain: layout paint;
 }
 
-.poracode-image-action-toolbar {
+.craftstation-image-action-toolbar {
   pointer-events: none;
   opacity: 0;
 }
 
-.poracode-image-card:hover > .poracode-image-action-toolbar,
-.poracode-image-card:focus-within > .poracode-image-action-toolbar {
+.craftstation-image-card:hover > .craftstation-image-action-toolbar,
+.craftstation-image-card:focus-within > .craftstation-image-action-toolbar {
   pointer-events: auto;
   opacity: 1;
 }
 
 /* ── Image Lightbox ──────────────────────────────────────── */
 
-.poracode-image-lightbox {
+.craftstation-image-lightbox {
   position: fixed;
   inset: 0;
   z-index: 9999;
@@ -3120,11 +3123,11 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   justify-content: center;
   background: rgba(0, 0, 0, 0.82);
   cursor: var(--interactive-cursor);
-  animation: poracode-lightbox-fade-in 150ms ease-out;
+  animation: craftstation-lightbox-fade-in 150ms ease-out;
   overflow: hidden;
 }
 
-@keyframes poracode-lightbox-fade-in {
+@keyframes craftstation-lightbox-fade-in {
   from {
     opacity: 0;
   }
@@ -3137,7 +3140,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
    opaque (so the OS blur never shows through); only this content layer fades.
    Keyframes, not a transition, because the layer is clipped to zero by the
    aside's collapsing size and a transition's start value is unreliable there. */
-@keyframes poracode-panel-content-in {
+@keyframes craftstation-panel-content-in {
   from {
     opacity: 0;
   }
@@ -3145,7 +3148,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
     opacity: 1;
   }
 }
-@keyframes poracode-panel-content-out {
+@keyframes craftstation-panel-content-out {
   from {
     opacity: 1;
   }
@@ -3154,7 +3157,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   }
 }
 
-.poracode-image-lightbox__stage {
+.craftstation-image-lightbox__stage {
   position: absolute;
   inset: 3rem 3rem 4.5rem;
   display: flex;
@@ -3164,7 +3167,7 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   touch-action: none;
 }
 
-.poracode-image-lightbox__image {
+.craftstation-image-lightbox__image {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -3177,16 +3180,16 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   will-change: transform;
 }
 
-.poracode-image-lightbox__image--zoomed {
+.craftstation-image-lightbox__image--zoomed {
   cursor: grab;
 }
 
-.poracode-image-lightbox__image--zoomed:active {
+.craftstation-image-lightbox__image--zoomed:active {
   cursor: grabbing;
   transition: none;
 }
 
-.poracode-image-lightbox__close {
+.craftstation-image-lightbox__close {
   position: absolute;
   top: calc(env(titlebar-area-height, 32px) + 1rem);
   right: max(
@@ -3207,11 +3210,11 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   z-index: 2;
 }
 
-.poracode-image-lightbox__close:hover {
+.craftstation-image-lightbox__close:hover {
   background: rgba(255, 255, 255, 0.22);
 }
 
-.poracode-image-lightbox__nav {
+.craftstation-image-lightbox__nav {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -3229,19 +3232,19 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   z-index: 2;
 }
 
-.poracode-image-lightbox__nav:hover {
+.craftstation-image-lightbox__nav:hover {
   background: rgba(255, 255, 255, 0.22);
 }
 
-.poracode-image-lightbox__nav--prev {
+.craftstation-image-lightbox__nav--prev {
   left: 1.5rem;
 }
 
-.poracode-image-lightbox__nav--next {
+.craftstation-image-lightbox__nav--next {
   right: 1.5rem;
 }
 
-.poracode-image-lightbox__footer {
+.craftstation-image-lightbox__footer {
   position: absolute;
   bottom: 1.5rem;
   left: 50%;
@@ -3252,8 +3255,8 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   z-index: 2;
 }
 
-.poracode-image-lightbox__zoom,
-.poracode-image-lightbox__counter {
+.craftstation-image-lightbox__zoom,
+.craftstation-image-lightbox__counter {
   display: flex;
   align-items: center;
   padding: 0.3rem 0.75rem;
@@ -3264,12 +3267,12 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   user-select: none;
 }
 
-.poracode-image-lightbox__zoom {
+.craftstation-image-lightbox__zoom {
   gap: 0.25rem;
   padding: 0.2rem 0.35rem;
 }
 
-.poracode-image-lightbox__zoom-button {
+.craftstation-image-lightbox__zoom-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3282,23 +3285,23 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   transition: background 150ms;
 }
 
-.poracode-image-lightbox__zoom-button:hover:not(:disabled) {
+.craftstation-image-lightbox__zoom-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.16);
 }
 
-.poracode-image-lightbox__zoom-button:disabled {
+.craftstation-image-lightbox__zoom-button:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
-.poracode-image-lightbox__zoom-value {
+.craftstation-image-lightbox__zoom-value {
   min-width: 2.75rem;
   text-align: center;
 }
 
 /* ── Mention Popover (file search dropdown) ──────────────── */
 
-.poracode-mention-popover {
+.craftstation-mention-popover {
   width: 30rem;
   max-height: 20rem;
   border: 1px solid var(--border);
@@ -3308,19 +3311,19 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   overflow: hidden;
 }
 
-.poracode-mention-popover__list {
+.craftstation-mention-popover__list {
   overflow-y: auto;
   max-height: 20rem;
   padding: 0.25rem;
 }
 
-.poracode-mention-popover__icon {
+.craftstation-mention-popover__icon {
   width: 1.125rem;
   height: 1.125rem;
   flex-shrink: 0;
 }
 
-.poracode-mention-popover__item {
+.craftstation-mention-popover__item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -3332,20 +3335,20 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
   color: var(--foreground);
 }
 
-.poracode-mention-popover__label,
-.poracode-mention-popover__detail {
+.craftstation-mention-popover__label,
+.craftstation-mention-popover__detail {
   display: flex;
   align-items: center;
   min-height: 1.125rem;
   transform: translateY(-1px);
 }
 
-.poracode-mention-popover__item--active {
+.craftstation-mention-popover__item--active {
   background: color-mix(in oklab, var(--accent) 12%, var(--surface));
 }
 
-.poracode-overlay-header {
-  /* Above .poracode-resize-handle (z-20) so title rows are not covered by
+.craftstation-overlay-header {
+  /* Above .craftstation-resize-handle (z-20) so title rows are not covered by
      main / right / git panels on macOS when subpixel or titlebar env() causes overlap. */
   position: relative;
   -webkit-app-region: drag;
@@ -3358,18 +3361,18 @@ html[data-app-unfocused] .poracode-provider-icon--finished {
 }
 
 /* macOS only — Windows unchanged. Y alignment via translateY only (no padding/height/line changes). */
-html[data-platform="darwin"] .poracode-overlay-header .poracode-overlay-header__controls,
-html[data-platform="darwin"] .poracode-overlay-header > p.text-xs,
-html[data-platform="darwin"] .poracode-sidebar-project-nudge {
+html[data-platform="darwin"] .craftstation-overlay-header .craftstation-overlay-header__controls,
+html[data-platform="darwin"] .craftstation-overlay-header > p.text-xs,
+html[data-platform="darwin"] .craftstation-sidebar-project-nudge {
   transform: translateY(2px);
 }
 
-.poracode-overlay-header__controls {
+.craftstation-overlay-header__controls {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
 
-.poracode-overlay-header--no-drag {
+.craftstation-overlay-header--no-drag {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
@@ -3379,22 +3382,22 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
    extra 28px of left padding so they clear the controls. The data-attribute
    gate means non-Mac and expanded states match nothing — no descendant
    subscribes to sidebar state for this. */
-[data-mac-collapsed] .poracode-mac-traffic-light-pad {
+[data-mac-collapsed] .craftstation-mac-traffic-light-pad {
   padding-left: calc(0.5rem + 28px);
 }
 
-.poracode-terminal-pane .xterm .xterm-scrollable-element > .scrollbar.vertical {
+.craftstation-terminal-pane .xterm .xterm-scrollable-element > .scrollbar.vertical {
   display: none !important;
 }
 
-.poracode-terminal-scrollbar {
+.craftstation-terminal-scrollbar {
   grid-column: 2;
-  width: var(--poracode-terminal-scrollbar-width);
+  width: var(--craftstation-terminal-scrollbar-width);
   cursor: default;
   transition: opacity 150ms ease-out;
 }
 
-.poracode-terminal-scrollbar__thumb {
+.craftstation-terminal-scrollbar__thumb {
   position: absolute;
   width: 4px !important;
   left: 2px !important;
@@ -3526,52 +3529,52 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
 
 /* ── Markdown Preview ─────────────────────────────────────── */
 
-.poracode-markdown-preview {
+.craftstation-markdown-preview {
   font-size: 0.875rem;
   line-height: 1.7;
   color: var(--foreground);
 }
 
-.poracode-markdown-preview h1,
-.poracode-markdown-preview h2,
-.poracode-markdown-preview h3,
-.poracode-markdown-preview h4,
-.poracode-markdown-preview h5,
-.poracode-markdown-preview h6 {
+.craftstation-markdown-preview h1,
+.craftstation-markdown-preview h2,
+.craftstation-markdown-preview h3,
+.craftstation-markdown-preview h4,
+.craftstation-markdown-preview h5,
+.craftstation-markdown-preview h6 {
   font-weight: 600;
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   line-height: 1.3;
 }
 
-.poracode-markdown-preview h1 {
+.craftstation-markdown-preview h1 {
   font-size: 1.5rem;
   border-bottom: 1px solid var(--separator);
   padding-bottom: 0.3em;
 }
-.poracode-markdown-preview h2 {
+.craftstation-markdown-preview h2 {
   font-size: 1.25rem;
   border-bottom: 1px solid var(--separator);
   padding-bottom: 0.2em;
 }
-.poracode-markdown-preview h3 {
+.craftstation-markdown-preview h3 {
   font-size: 1.1rem;
 }
-.poracode-markdown-preview h4 {
+.craftstation-markdown-preview h4 {
   font-size: 1rem;
 }
 
-.poracode-markdown-preview p {
+.craftstation-markdown-preview p {
   margin: 0.75em 0;
 }
 
-.poracode-markdown-preview a {
+.craftstation-markdown-preview a {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.poracode-markdown-preview code {
+.craftstation-markdown-preview code {
   font-family: "Cascadia Code", "Consolas", monospace;
   font-size: 0.85em;
   padding: 0.15em 0.35em;
@@ -3579,7 +3582,7 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
   background: var(--surface-secondary);
 }
 
-.poracode-markdown-preview pre {
+.craftstation-markdown-preview pre {
   margin: 1em 0;
   padding: 0.85em 1em;
   border-radius: 0.5rem;
@@ -3587,103 +3590,103 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
   overflow-x: auto;
 }
 
-.poracode-markdown-preview pre code {
+.craftstation-markdown-preview pre code {
   padding: 0;
   background: transparent;
   font-size: 0.8125rem;
   line-height: 1.55;
 }
 
-.poracode-markdown-preview ul,
-.poracode-markdown-preview ol {
+.craftstation-markdown-preview ul,
+.craftstation-markdown-preview ol {
   margin: 0.5em 0;
   padding-left: 1.5em;
 }
 
-.poracode-markdown-preview li {
+.craftstation-markdown-preview li {
   margin: 0.25em 0;
 }
-.poracode-markdown-preview li::marker {
+.craftstation-markdown-preview li::marker {
   color: var(--muted);
 }
 
-.poracode-markdown-preview blockquote {
+.craftstation-markdown-preview blockquote {
   margin: 0.75em 0;
   padding: 0.25em 1em;
   border-left: 3px solid var(--accent);
   color: var(--muted);
 }
 
-.poracode-markdown-preview table {
+.craftstation-markdown-preview table {
   width: 100%;
   border-collapse: collapse;
   margin: 1em 0;
   font-size: 0.8125rem;
 }
 
-.poracode-markdown-preview th,
-.poracode-markdown-preview td {
+.craftstation-markdown-preview th,
+.craftstation-markdown-preview td {
   padding: 0.4em 0.75em;
   border: 1px solid var(--border);
   text-align: left;
 }
 
-.poracode-markdown-preview th {
+.craftstation-markdown-preview th {
   font-weight: 600;
   background: var(--surface-secondary);
 }
 
-.poracode-markdown-preview hr {
+.craftstation-markdown-preview hr {
   border: none;
   border-top: 1px solid var(--separator);
   margin: 1.5em 0;
 }
 
-.poracode-markdown-preview img {
+.craftstation-markdown-preview img {
   max-width: 100%;
   border-radius: 0.5rem;
 }
 
-.poracode-markdown-preview input[type="checkbox"] {
+.craftstation-markdown-preview input[type="checkbox"] {
   margin-right: 0.4em;
   vertical-align: middle;
 }
 
-.poracode-markdown-preview--compact {
+.craftstation-markdown-preview--compact {
   font-size: 0.8125rem;
   line-height: 1.55;
 }
 
-.poracode-markdown-preview--compact h1,
-.poracode-markdown-preview--compact h2,
-.poracode-markdown-preview--compact h3,
-.poracode-markdown-preview--compact h4,
-.poracode-markdown-preview--compact h5,
-.poracode-markdown-preview--compact h6 {
+.craftstation-markdown-preview--compact h1,
+.craftstation-markdown-preview--compact h2,
+.craftstation-markdown-preview--compact h3,
+.craftstation-markdown-preview--compact h4,
+.craftstation-markdown-preview--compact h5,
+.craftstation-markdown-preview--compact h6 {
   margin-top: 1em;
   margin-bottom: 0.35em;
 }
 
-.poracode-markdown-preview--compact h1 {
+.craftstation-markdown-preview--compact h1 {
   font-size: 1.125rem;
 }
-.poracode-markdown-preview--compact h2 {
+.craftstation-markdown-preview--compact h2 {
   font-size: 1rem;
 }
-.poracode-markdown-preview--compact h3 {
+.craftstation-markdown-preview--compact h3 {
   font-size: 0.925rem;
 }
-.poracode-markdown-preview--compact h4,
-.poracode-markdown-preview--compact h5,
-.poracode-markdown-preview--compact h6 {
+.craftstation-markdown-preview--compact h4,
+.craftstation-markdown-preview--compact h5,
+.craftstation-markdown-preview--compact h6 {
   font-size: 0.875rem;
 }
 
-.poracode-markdown-preview--compact p {
+.craftstation-markdown-preview--compact p {
   margin: 0.5em 0;
 }
 
-.poracode-markdown-preview--compact hr {
+.craftstation-markdown-preview--compact hr {
   margin: 0.75em 0;
 }
 
@@ -3790,10 +3793,10 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
 .agent-discovery-item[data-found="true"] .agent-discovery-item__icon {
   filter: none;
   opacity: 1;
-  animation: poracode-agent-icon-pop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: craftstation-agent-icon-pop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-@keyframes poracode-agent-icon-pop {
+@keyframes craftstation-agent-icon-pop {
   0% {
     transform: scale(0.82);
     opacity: 0;
@@ -3807,7 +3810,7 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
   }
 }
 
-@keyframes poracode-tool-call-enter {
+@keyframes craftstation-tool-call-enter {
   from {
     opacity: 0;
     transform: translateY(8px) scale(0.98);
@@ -3819,10 +3822,10 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
 }
 
 .animate-tool-call-enter {
-  animation: poracode-tool-call-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: craftstation-tool-call-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes poracode-compacting-squeeze {
+@keyframes craftstation-compacting-squeeze {
   0%,
   100% {
     transform: scaleY(0.9) translateY(0);
@@ -3838,20 +3841,20 @@ html[data-platform="darwin"] .poracode-sidebar-project-nudge {
   }
 }
 
-.poracode-compacting-icon {
+.craftstation-compacting-icon {
   transform-origin: center;
   will-change: transform, opacity;
-  animation: poracode-compacting-squeeze 1.6s ease-in-out infinite;
+  animation: craftstation-compacting-squeeze 1.6s ease-in-out infinite;
 }
 
-.poracode-compacted-icon {
+.craftstation-compacted-icon {
   transform: scaleY(0.7);
   transform-origin: center;
 }
 
 /* Take chat scrollers out of dnd-kit's AutoScroller ancestor scan while a
    drag is active. */
-html[data-poracode-drag-active="true"] [data-poracode-chat-scroller="true"] {
+html[data-craftstation-drag-active="true"] [data-craftstation-chat-scroller="true"] {
   overflow: hidden !important;
 }
 
@@ -3860,40 +3863,40 @@ html[data-poracode-drag-active="true"] [data-poracode-chat-scroller="true"] {
    2. Opacity is animated purely on the GPU compositor lanes via keyframes.
    3. Visual identity is fully restored using native SVG viewBox scaling and a
       volumetric double-blur filter that scales proportionally. */
-.poracode-pixel-loader {
+.craftstation-pixel-loader {
   aspect-ratio: 1 / 1;
   transform: translate3d(0, 0, 0);
   will-change: transform;
 }
 
-.poracode-pixel-loader.size-3 {
+.craftstation-pixel-loader.size-3 {
   width: 0.75rem;
   height: 0.75rem;
 }
-.poracode-pixel-loader.size-3\.5 {
+.craftstation-pixel-loader.size-3\.5 {
   width: 0.875rem;
   height: 0.875rem;
 }
-.poracode-pixel-loader.size-4 {
+.craftstation-pixel-loader.size-4 {
   width: 1rem;
   height: 1rem;
 }
-.poracode-pixel-loader.size-6 {
+.craftstation-pixel-loader.size-6 {
   width: 1.5rem;
   height: 1.5rem;
 }
-.poracode-pixel-loader.size-8 {
+.craftstation-pixel-loader.size-8 {
   width: 2rem;
   height: 2rem;
 }
 
-.poracode-pixel-loader__cell {
+.craftstation-pixel-loader__cell {
   opacity: 0;
   fill: var(--pixel-loader-color, currentColor);
   transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.poracode-pixel-loader--animated .poracode-pixel-loader__cell {
+.craftstation-pixel-loader--animated .craftstation-pixel-loader__cell {
   /* Prevent keyframe animation from thrashing with the CSS transition */
   transition: none !important;
 }
@@ -4038,11 +4041,11 @@ html[data-poracode-drag-active="true"] [data-poracode-chat-scroller="true"] {
 }
 
 /* Codex style: highlight Full Access / Auto Approve in warm amber */
-.poracode-composer-toggle[data-permission-full="true"],
-.poracode-composer-toggle[data-selected="true"]:has(.poracode-composer-permission-icon) {
+.craftstation-composer-toggle[data-permission-full="true"],
+.craftstation-composer-toggle[data-selected="true"]:has(.craftstation-composer-permission-icon) {
   color: #ea8e3b !important;
 }
-.poracode-composer-toggle[data-permission-full="true"] svg,
-.poracode-composer-toggle[data-selected="true"] .poracode-composer-permission-icon {
+.craftstation-composer-toggle[data-permission-full="true"] svg,
+.craftstation-composer-toggle[data-selected="true"] .craftstation-composer-permission-icon {
   color: #ea8e3b !important;
 }

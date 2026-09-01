@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// @vitest-environment-options {"url":"https://app.poracode.com/"}
+// @vitest-environment-options {"url":"https://app.craftstation.com/"}
 import { useEffect, type ReactNode } from "react";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { toast } from "@heroui/react";
@@ -97,7 +97,7 @@ const fixtures = vi.hoisted(() => {
       connection: "online",
       activeDesktop: {
         desktopId: "desktop-1",
-        label: "Poracode on Mac",
+        label: "CraftStation on Mac",
         scopes: ["projects:manage"],
       } as { desktopId: string; label: string; scopes: string[] } | null,
       desktops: [],
@@ -320,7 +320,7 @@ describe("mobile route components", () => {
     fixtures.remote.projects = [fixtures.project];
     fixtures.remote.activeDesktop = {
       desktopId: "desktop-1",
-      label: "Poracode on Mac",
+      label: "CraftStation on Mac",
       scopes: ["projects:manage"],
     };
     fixtures.remote.desktops = [];
@@ -381,18 +381,18 @@ describe("mobile route components", () => {
     act(() => {
       mobileViews.threadsProps?.onNewThreadInWorktree({
         projectId: "project-1",
-        worktreePath: "/repo/.poracode/worktrees/calm-viper",
-        worktreeBranch: "poracode/calm-viper",
+        worktreePath: "/repo/.craftstation/worktrees/calm-viper",
+        worktreeBranch: "craftstation/calm-viper",
       });
     });
 
     expect(fixtures.navigate).not.toHaveBeenCalledWith({ to: "/new" });
     expect(mobileViews.quickComposeProps?.expanded).toBe(true);
     expect(useAppStore.getState().pendingDraftWorktreeSelections["project-1"]).toEqual({
-      branch: "poracode/calm-viper",
-      baseBranch: "poracode/calm-viper",
+      branch: "craftstation/calm-viper",
+      baseBranch: "craftstation/calm-viper",
       isWorktree: true,
-      worktreePath: "/repo/.poracode/worktrees/calm-viper",
+      worktreePath: "/repo/.craftstation/worktrees/calm-viper",
     });
 
     act(() => mobileViews.quickComposeProps?.onExpandedChange(false));
@@ -403,10 +403,10 @@ describe("mobile route components", () => {
 
   it("reveals the inline composer for a worktree target queued from another phone route", async () => {
     useAppStore.getState().setPendingDraftWorktreeSelection("project-1", {
-      branch: "poracode/calm-viper",
-      baseBranch: "poracode/calm-viper",
+      branch: "craftstation/calm-viper",
+      baseBranch: "craftstation/calm-viper",
       isWorktree: true,
-      worktreePath: "/repo/.poracode/worktrees/calm-viper",
+      worktreePath: "/repo/.craftstation/worktrees/calm-viper",
     });
 
     render(<ThreadsRoute />);
@@ -573,7 +573,7 @@ describe("mobile route components", () => {
 
     fixtures.remote.activeDesktop = {
       desktopId: "desktop-1",
-      label: "Poracode on Mac",
+      label: "CraftStation on Mac",
       scopes: ["projects:manage"],
     };
     rerender(<ThreadRoute />);

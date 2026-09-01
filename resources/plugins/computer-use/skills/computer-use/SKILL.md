@@ -1,11 +1,11 @@
 ---
 name: computer-use
-description: Inspect and operate native Windows or macOS applications through Poracode's desktop-control tools. Use for visual workflows that require real windows; prefer Browser for web pages and a purpose-built connector or API when one can complete the task directly.
+description: Inspect and operate native Windows or macOS applications through CraftStation's desktop-control tools. Use for visual workflows that require real windows; prefer Browser for web pages and a purpose-built connector or API when one can complete the task directly.
 ---
 
 # Computer Use
 
-Use Poracode's `computer_use` MCP for tasks that require interacting with desktop applications or native windows. Do not use it for a web page when Browser or Chrome is the intended surface, or for a semantic operation that a safer purpose-built connector can perform.
+Use CraftStation's `computer_use` MCP for tasks that require interacting with desktop applications or native windows. Do not use it for a web page when Browser or Chrome is the intended surface, or for a semantic operation that a safer purpose-built connector can perform.
 
 ## Workflow
 

@@ -15,7 +15,7 @@ export function isGitHubRepositorySource(source: string): boolean {
 export const skillScopeSchema = z.enum(["global", "project"]);
 export type SkillScope = z.infer<typeof skillScopeSchema>;
 
-export const skillAvailabilitySchema = z.enum(["shared", "poracode"]);
+export const skillAvailabilitySchema = z.enum(["shared", "craftstation"]);
 export type SkillAvailability = z.infer<typeof skillAvailabilitySchema>;
 
 export const skillOriginSchema = z.enum(["managed", "external", "built-in", "plugin"]);

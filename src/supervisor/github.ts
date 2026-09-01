@@ -870,7 +870,7 @@ export class GitHubService {
     body: string,
     isDraft: boolean,
   ): Promise<PrData> {
-    const tempFile = await createGhBodyFile(location, "poracode-pr-body", body, this.wslClient);
+    const tempFile = await createGhBodyFile(location, "craftstation-pr-body", body, this.wslClient);
     try {
       const createArgs = [
         "pr",
@@ -1216,7 +1216,7 @@ export class GitHubService {
     }
     const tempFile = await createGhBodyFile(
       location,
-      "poracode-pr-comment",
+      "craftstation-pr-comment",
       trimmed,
       this.wslClient,
     );
@@ -1273,7 +1273,7 @@ export class GitHubService {
 
     const tempFile = await createGhBodyFile(
       location,
-      "poracode-pr-review",
+      "craftstation-pr-review",
       trimmed,
       this.wslClient,
     );

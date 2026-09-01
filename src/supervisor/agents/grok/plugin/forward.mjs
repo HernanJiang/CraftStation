@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Grok CLI lifecycle hook forwarder for Poracode.
+ * Grok CLI lifecycle hook forwarder for CraftStation.
  *
  * The Grok TUI auto-loads global hooks from `~/.grok/hooks/*.json` on every
  * session start (always trusted, no per-project prompt). The user-global
- * `poracode-status.json` written at install time points each event's command
- * at this script via the staged `poracode-hook.{sh,cmd,ps1}` wrapper (native)
+ * `craftstation-status.json` written at install time points each event's command
+ * at this script via the staged `craftstation-hook.{sh,cmd,ps1}` wrapper (native)
  * or an absolute node path (WSL).
  *
  * Hook stdin carries the Grok event envelope: `{ hookEventName, sessionId,
@@ -13,7 +13,7 @@
  * — passive instrumentation only.
  *
  * Generic plumbing (manifest read, env-var POST, retry, debug) lives in the
- * shared `poracode-hook-runtime.mjs` sibling. NOTE: the intent map below
+ * shared `craftstation-hook-runtime.mjs` sibling. NOTE: the intent map below
  * mirrors `intentMap.ts` — keep both in sync.
  */
 
@@ -21,7 +21,7 @@ import {
   copyStringExtra,
   readPluginVersionFromManifest,
   runForwarder,
-} from "./poracode-hook-runtime.mjs";
+} from "./craftstation-hook-runtime.mjs";
 
 const PLUGIN_VERSION = readPluginVersionFromManifest(import.meta.url);
 

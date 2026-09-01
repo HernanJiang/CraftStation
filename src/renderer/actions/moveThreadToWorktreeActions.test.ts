@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@heroui/react", () => ({ toast: mocks.toast }));
 vi.mock("@/shared/worktreeBranch", () => ({
-  generateWorktreeBranch: () => "poracode/test-branch",
+  generateWorktreeBranch: () => "craftstation/test-branch",
 }));
 vi.mock("@/renderer/i18n/i18n", () => ({ i18n: { _: () => "message" } }));
 vi.mock("@/renderer/state/appStore", () => ({
@@ -103,7 +103,7 @@ describe("moveThreadToWorktree", () => {
     expect(mocks.setThreadWorktree).toHaveBeenCalledWith(
       "thread-1",
       "C:\\worktrees\\test",
-      "poracode/test-branch",
+      "craftstation/test-branch",
       { isNewWorktree: true },
     );
     expect(mocks.reopenStoredThread).toHaveBeenCalledWith("thread-1");
@@ -120,7 +120,7 @@ describe("moveThreadToWorktree", () => {
     expect(mocks.setThreadWorktree).toHaveBeenCalledWith(
       "thread-1",
       "C:\\worktrees\\test",
-      "poracode/test-branch",
+      "craftstation/test-branch",
       { isNewWorktree: true },
     );
   });
@@ -135,14 +135,14 @@ describe("moveThreadToWorktree", () => {
         remoteId: "remote-thread",
       }),
     ];
-    mocks.createWorktree.mockResolvedValue({ path: "/repo/.poracode/worktrees/feature" });
+    mocks.createWorktree.mockResolvedValue({ path: "/repo/.craftstation/worktrees/feature" });
 
     await moveThreadToWorktree("remote:d1:thread:remote-thread", true);
 
     expect(mocks.setThreadWorktree).toHaveBeenCalledWith(
       "remote:d1:thread:remote-thread",
-      "/repo/.poracode/worktrees/feature",
-      "poracode/test-branch",
+      "/repo/.craftstation/worktrees/feature",
+      "craftstation/test-branch",
       { isNewWorktree: true },
     );
     expect(mocks.reopenStoredThread).toHaveBeenCalledWith("remote:d1:thread:remote-thread");

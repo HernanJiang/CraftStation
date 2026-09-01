@@ -13,8 +13,8 @@ import {
   manualGates,
   productionRoots,
 } from "./smoke-scenarios.mjs";
-import { inspectCdpWindowTargets } from "./poracode-cdp-target.mjs";
-import { resolveDebugConnection } from "./poracode-debug-session.mjs";
+import { inspectCdpWindowTargets } from "./craftstation-cdp-target.mjs";
+import { resolveDebugConnection } from "./craftstation-debug-session.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../../../");
@@ -29,8 +29,8 @@ const timeoutMs = Number(args.timeoutMs ?? 12_000);
 const outDir = resolve(
   String(
     args.outDir ??
-      process.env.PORACODE_SMOKE_OUT_DIR ??
-      join(homedir(), ".poracode-smoke", `integration-${Date.now()}`),
+      process.env.CRAFTSTATION_SMOKE_OUT_DIR ??
+      join(homedir(), ".craftstation-smoke", `integration-${Date.now()}`),
   ),
 );
 
@@ -41,9 +41,9 @@ try {
     printPlan(buildPlan(scope));
   } else if (command === "run") {
     const connection = await resolveDebugConnection({
-      session: args.session ?? process.env.PORACODE_DEBUG_SESSION,
-      port: args.port ?? process.env.PORACODE_CDP_PORT,
-      appUrl: args.appUrl ?? process.env.PORACODE_APP_URL,
+      session: args.session ?? process.env.CRAFTSTATION_DEBUG_SESSION,
+      port: args.port ?? process.env.CRAFTSTATION_CDP_PORT,
+      appUrl: args.appUrl ?? process.env.CRAFTSTATION_APP_URL,
       repoRoot,
       allowedPurposes: ["debug", "smoke"],
     });
@@ -67,11 +67,11 @@ try {
 
 function usage() {
   console.error(`Usage:
-  node poracode-integration-smoke.mjs audit
-  node poracode-integration-smoke.mjs plan [--scope changed|full]
-  node poracode-integration-smoke.mjs run [--scope changed|full] [--mode mock|real] [--session <session.json>] [--port <cdp port> --appUrl <dev server url>] [--outDir <dir>] [--ack-manual gate,gate]
+  node craftstation-integration-smoke.mjs audit
+  node craftstation-integration-smoke.mjs plan [--scope changed|full]
+  node craftstation-integration-smoke.mjs run [--scope changed|full] [--mode mock|real] [--session <session.json>] [--port <cdp port> --appUrl <dev server url>] [--outDir <dir>] [--ack-manual gate,gate]
 
-Run resolves --session / $PORACODE_DEBUG_SESSION, one active managed debug session for this repo, or a complete explicit port + URL pair. It never guesses ports.`);
+Run resolves --session / $CRAFTSTATION_DEBUG_SESSION, one active managed debug session for this repo, or a complete explicit port + URL pair. It never guesses ports.`);
 }
 
 function trackedFiles() {
@@ -141,7 +141,7 @@ function buildPlan(selectedScope) {
 }
 
 function printPlan(plan) {
-  console.log(`Poracode smoke plan (${plan.scope})`);
+  console.log(`CraftStation smoke plan (${plan.scope})`);
   console.log(`Execution mode: ${mode}`);
   if (plan.files.length > 0) {
     console.log(`Changed production files: ${plan.files.length}`);
@@ -212,7 +212,7 @@ async function runSmoke(plan) {
       await runScenario(report, "browser", () => browserScenario(client));
       await evaluate(
         client,
-        "window.__poracodeDev.closeSettings(); new Promise((resolve) => setTimeout(resolve, 300))",
+        "window.__craftstationDev.closeSettings(); new Promise((resolve) => setTimeout(resolve, 300))",
         true,
       ).catch(() => undefined);
     }
@@ -276,10 +276,10 @@ async function baselineScenario(client) {
           title: document.title,
           bodyText: document.body?.innerText ?? "",
           rootChildren: document.querySelector("#root")?.childElementCount ?? 0,
-          poracodeBridge: typeof window.poracode,
-          devBridge: typeof window.__poracodeDev,
+          craftstationBridge: typeof window.craftstation,
+          devBridge: typeof window.__craftstationDev,
           crash: /renderer crash|rendered more hooks/i.test(document.body?.innerText ?? ""),
-          welcomeVisible: Boolean(document.querySelector(".poracode-welcome-page")),
+          welcomeVisible: Boolean(document.querySelector(".craftstation-welcome-page")),
           draftComposer: Boolean(document.querySelector('textarea[placeholder], [contenteditable="true"], [data-composer-input-anchor]')),
           modelPicker: Boolean(document.querySelector('[aria-label="Select model"], [aria-label="Models"]')),
         }))()`,
@@ -287,13 +287,13 @@ async function baselineScenario(client) {
     (candidate) =>
       candidate.rootChildren > 0 &&
       candidate.bodyText.trim().length > 0 &&
-      candidate.poracodeBridge === "object" &&
+      candidate.craftstationBridge === "object" &&
       candidate.devBridge === "object",
     "renderer initialization",
   );
   assert(state.url === appUrl, `expected ${appUrl}, got ${state.url}`);
   assert(state.rootChildren > 0 && state.bodyText.trim().length > 0, "renderer root is blank");
-  assert(state.poracodeBridge === "object", "typed preload bridge is missing");
+  assert(state.craftstationBridge === "object", "typed preload bridge is missing");
   assert(state.devBridge === "object", "DEV testing bridge is missing");
   assert(!state.crash, "renderer crash screen or hook-order failure detected");
   assert(!state.welcomeVisible, "welcome screen still blocks the smoke test surface");
@@ -308,10 +308,10 @@ async function welcomeDismissalScenario(client) {
       evaluate(
         client,
         `(() => ({
-          devBridge: typeof window.__poracodeDev,
+          devBridge: typeof window.__craftstationDev,
           rootChildren: document.querySelector("#root")?.childElementCount ?? 0,
           bodyTextLength: document.body?.innerText.length ?? 0,
-          welcomeVisible: Boolean(document.querySelector(".poracode-welcome-page")),
+          welcomeVisible: Boolean(document.querySelector(".craftstation-welcome-page")),
         }))()`,
       ),
     (state) => state.devBridge === "object" && state.rootChildren > 0 && state.bodyTextLength > 0,
@@ -324,10 +324,10 @@ async function welcomeDismissalScenario(client) {
   const clicked = await evaluate(
     client,
     `(() => {
-      const button = document.querySelector(".poracode-welcome-page button");
+      const button = document.querySelector(".craftstation-welcome-page button");
       if (!(button instanceof HTMLButtonElement)) return false;
       button.click();
-      localStorage.setItem("poracode-welcome-seen-v16", "true");
+      localStorage.setItem("craftstation-welcome-seen-v16", "true");
       return true;
     })()`,
   );
@@ -338,10 +338,10 @@ async function welcomeDismissalScenario(client) {
         client,
         `(() => ({
           ready: document.readyState === "complete",
-          devBridge: typeof window.__poracodeDev,
+          devBridge: typeof window.__craftstationDev,
           rootChildren: document.querySelector("#root")?.childElementCount ?? 0,
           bodyTextLength: document.body?.innerText.length ?? 0,
-          welcomeVisible: Boolean(document.querySelector(".poracode-welcome-page")),
+          welcomeVisible: Boolean(document.querySelector(".craftstation-welcome-page")),
         }))()`,
       ),
     (state) =>
@@ -355,14 +355,14 @@ async function welcomeDismissalScenario(client) {
   await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
   const stable = await evaluate(
     client,
-    `({ welcomeVisible: Boolean(document.querySelector(".poracode-welcome-page")) })`,
+    `({ welcomeVisible: Boolean(document.querySelector(".craftstation-welcome-page")) })`,
   );
   assert(!final.welcomeVisible, "welcome screen remained visible after dismissal");
   assert(!stable.welcomeVisible, "welcome screen returned after dismissal verification");
   await evaluate(
     client,
     `(() => {
-      const app = window.__poracodeDev.stores.app.getState();
+      const app = window.__craftstationDev.stores.app.getState();
       const project = app.projects.find((candidate) => candidate.id === "smoke-project");
       if (project) app.openDraft(project.id);
     })()`,
@@ -392,7 +392,7 @@ async function settingsScenario(client) {
   ];
   await evaluate(
     client,
-    `window.__poracodeDev.stores.sharedSettings.getState().setMcpServers(${JSON.stringify(configuredMcpServers)})`,
+    `window.__craftstationDev.stores.sharedSettings.getState().setMcpServers(${JSON.stringify(configuredMcpServers)})`,
   );
   const sections = [
     "profile",
@@ -431,7 +431,7 @@ async function settingsScenario(client) {
   for (const section of sections) {
     await evaluate(
       client,
-      `window.__poracodeDev.openSettings(${JSON.stringify(section)}); new Promise((resolve) => setTimeout(resolve, 200))`,
+      `window.__craftstationDev.openSettings(${JSON.stringify(section)}); new Promise((resolve) => setTimeout(resolve, 200))`,
       true,
     );
     const state = await waitForValue(
@@ -485,8 +485,11 @@ async function settingsScenario(client) {
   }
   const screenshotPath = join(outDir, "smoke-02-settings.png");
   await screenshot(client, screenshotPath);
-  await evaluate(client, "window.__poracodeDev.closeSettings()");
-  await evaluate(client, "window.__poracodeDev.stores.sharedSettings.getState().setMcpServers([])");
+  await evaluate(client, "window.__craftstationDev.closeSettings()");
+  await evaluate(
+    client,
+    "window.__craftstationDev.stores.sharedSettings.getState().setMcpServers([])",
+  );
   await mcpFixture.close();
   return {
     sections,
@@ -516,7 +519,7 @@ async function pluginsSectionDeepDive(client) {
             visible: Boolean(search && !search.closest("[hidden]")),
             pluginCount: document.querySelectorAll("[data-plugin-id]").length,
             action: action?.textContent?.trim(),
-            initialInstalled: window.__poracodeDev.stores.sharedSettings.getState().installedPlugins["browser-tools"] !== undefined,
+            initialInstalled: window.__craftstationDev.stores.sharedSettings.getState().installedPlugins["browser-tools"] !== undefined,
           };
         })()`,
       ),
@@ -557,7 +560,7 @@ async function pluginsSectionDeepDive(client) {
                 .join(" "),
             );
             return {
-              installed: window.__poracodeDev.stores.sharedSettings.getState().installedPlugins["browser-tools"] !== undefined,
+              installed: window.__craftstationDev.stores.sharedSettings.getState().installedPlugins["browser-tools"] !== undefined,
               back: buttonText.includes("Back to plugins"),
               uninstall: buttonText.includes("Uninstall"),
               mcpServers: headings.includes("MCP servers") && document.body.innerText.includes("Browser"),
@@ -606,7 +609,7 @@ async function pluginsSectionDeepDive(client) {
         () =>
           evaluate(
             client,
-            `window.__poracodeDev.stores.sharedSettings.getState().installedPlugins["browser-tools"] === undefined`,
+            `window.__craftstationDev.stores.sharedSettings.getState().installedPlugins["browser-tools"] === undefined`,
           ),
         Boolean,
         "Browser Tools install-state restoration",
@@ -615,7 +618,7 @@ async function pluginsSectionDeepDive(client) {
 
     const restored = await evaluate(
       client,
-      `window.__poracodeDev.stores.sharedSettings.getState().installedPlugins[${JSON.stringify(pluginId)}] !== undefined`,
+      `window.__craftstationDev.stores.sharedSettings.getState().installedPlugins[${JSON.stringify(pluginId)}] !== undefined`,
     );
     assert(
       restored === marketplaceState.initialInstalled,
@@ -626,8 +629,8 @@ async function pluginsSectionDeepDive(client) {
     await evaluate(
       client,
       `(() => {
-        const store = window.__poracodeDev.stores.sharedSettings.getState();
-        const plugin = window.__poracodeDev.stores.plugins
+        const store = window.__craftstationDev.stores.sharedSettings.getState();
+        const plugin = window.__craftstationDev.stores.plugins
           .getState()
           .plugins.find((candidate) => candidate.name === ${JSON.stringify(pluginId)});
         if (!plugin) return;
@@ -890,7 +893,7 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
     () =>
       evaluate(
         client,
-        `window.__poracodeDev.stores.sharedSettings.getState().disabledBuiltInMcpServers.browser === true`,
+        `window.__craftstationDev.stores.sharedSettings.getState().disabledBuiltInMcpServers.browser === true`,
       ),
     Boolean,
     "MCP built-in disable persistence",
@@ -903,7 +906,7 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
     () =>
       evaluate(
         client,
-        `window.__poracodeDev.stores.sharedSettings.getState().disabledBuiltInMcpServers.browser !== true`,
+        `window.__craftstationDev.stores.sharedSettings.getState().disabledBuiltInMcpServers.browser !== true`,
       ),
     Boolean,
     "MCP built-in re-enable persistence",
@@ -1102,7 +1105,7 @@ async function startMcpProbeFixture() {
         result = {
           protocolVersion: "2025-11-25",
           capabilities: { tools: {} },
-          serverInfo: { name: "poracode-smoke-mcp", version: "1.0.0" },
+          serverInfo: { name: "craftstation-smoke-mcp", version: "1.0.0" },
         };
       } else if (message.method === "tools/list") {
         result = {
@@ -1181,8 +1184,8 @@ async function schedulesScenario(client) {
           client,
           `(() => ({
             text: document.body.innerText,
-            viewKind: window.__poracodeDev.stores.app.getState().view.kind,
-            settingsOpen: window.__poracodeDev.stores.panel.getState().settingsOpen,
+            viewKind: window.__craftstationDev.stores.app.getState().view.kind,
+            settingsOpen: window.__craftstationDev.stores.panel.getState().settingsOpen,
             runNow: Boolean(document.querySelector('[aria-label="Run now"]')),
             pause: Boolean(document.querySelector('[aria-label="Pause"]')),
           }))()`,
@@ -1219,7 +1222,7 @@ async function schedulesScenario(client) {
 async function githubActionsScenario(client) {
   await evaluate(
     client,
-    `window.__poracodeDev.openSettings("general"); new Promise((resolve) => setTimeout(resolve, 250))`,
+    `window.__craftstationDev.openSettings("general"); new Promise((resolve) => setTimeout(resolve, 250))`,
     true,
   );
   const settingsState = await waitForValue(
@@ -1227,7 +1230,7 @@ async function githubActionsScenario(client) {
       evaluate(
         client,
         `(() => {
-          const settings = window.__poracodeDev.stores.sharedSettings.getState();
+          const settings = window.__craftstationDev.stores.sharedSettings.getState();
           const toggle = [...document.querySelectorAll('[role="option"]')].find(
             (element) => element.textContent?.includes("GitHub Actions"),
           );
@@ -1249,8 +1252,8 @@ async function githubActionsScenario(client) {
   const opened = await evaluate(
     client,
     `(() => {
-      window.__poracodeDev.closeSettings();
-      const app = window.__poracodeDev.stores.app.getState();
+      window.__craftstationDev.closeSettings();
+      const app = window.__craftstationDev.stores.app.getState();
       const project = app.projects.find((candidate) => !candidate.disabled);
       if (!project) return false;
       app.openGitHubActions(project.id);
@@ -1265,7 +1268,7 @@ async function githubActionsScenario(client) {
         client,
         `(() => ({
           overlayOpen:
-            window.__poracodeDev.stores.panel.getState().githubActionsContext !== null,
+            window.__craftstationDev.stores.panel.getState().githubActionsContext !== null,
           heading: [...document.querySelectorAll("[data-overlay-surface]")].some(
             (element) => element.textContent?.includes("GitHub Actions"),
           ),
@@ -1285,7 +1288,7 @@ async function githubActionsScenario(client) {
 async function controlGeometryScenario(client) {
   await evaluate(
     client,
-    `window.__poracodeDev.openSettings("general"); new Promise((resolve) => setTimeout(resolve, 250))`,
+    `window.__craftstationDev.openSettings("general"); new Promise((resolve) => setTimeout(resolve, 250))`,
     true,
   );
   const switchGeometry = await waitForValue(
@@ -1316,7 +1319,7 @@ async function controlGeometryScenario(client) {
 
   await evaluate(
     client,
-    `window.__poracodeDev.openSettings("appearance"); new Promise((resolve) => setTimeout(resolve, 250))`,
+    `window.__craftstationDev.openSettings("appearance"); new Promise((resolve) => setTimeout(resolve, 250))`,
     true,
   );
   const sliderGeometry = await evaluate(
@@ -1349,7 +1352,7 @@ async function controlGeometryScenario(client) {
   }
   const screenshotPath = join(outDir, "smoke-02-control-geometry.png");
   await screenshot(client, screenshotPath);
-  await evaluate(client, "window.__poracodeDev.closeSettings()");
+  await evaluate(client, "window.__craftstationDev.closeSettings()");
   return {
     switchGeometry,
     sliderGeometry,
@@ -1365,7 +1368,7 @@ function isPillGeometry(geometry) {
 async function threadSearchScenario(client) {
   await evaluate(
     client,
-    `window.__poracodeDev.stores.panel.setState({ threadSearchOpen: true }); new Promise((resolve) => setTimeout(resolve, 80))`,
+    `window.__craftstationDev.stores.panel.setState({ threadSearchOpen: true }); new Promise((resolve) => setTimeout(resolve, 80))`,
     true,
   );
   const state = await waitForValue(
@@ -1385,7 +1388,10 @@ async function threadSearchScenario(client) {
   assert(!state.crash, "thread search rendered a crash screen");
   const screenshotPath = join(outDir, "smoke-03-thread-search.png");
   await screenshot(client, screenshotPath);
-  await evaluate(client, "window.__poracodeDev.stores.panel.setState({ threadSearchOpen: false })");
+  await evaluate(
+    client,
+    "window.__craftstationDev.stores.panel.setState({ threadSearchOpen: false })",
+  );
   return { ...state, screenshotPath };
 }
 
@@ -1394,7 +1400,7 @@ async function browserScenario(client) {
   const result = spawnSync(
     process.execPath,
     [
-      join(scriptDir, "poracode-browser-smoke.mjs"),
+      join(scriptDir, "craftstation-browser-smoke.mjs"),
       ...(sessionFile ? ["--session", sessionFile] : ["--port", String(port), "--appUrl", appUrl]),
       "--outDir",
       join(outDir, "browser"),
@@ -1424,7 +1430,7 @@ async function runMockIntegrations(report, client, gates) {
   const fixture = await evaluate(
     client,
     `(() => {
-      const state = window.__poracodeDev.stores.app.getState();
+      const state = window.__craftstationDev.stores.app.getState();
       const project =
         state.projects.find((candidate) => candidate.id === "smoke-project") ??
         state.projects.find((candidate) => !candidate.disabled);
@@ -1432,7 +1438,7 @@ async function runMockIntegrations(report, client, gates) {
         project,
         threadCount: state.threads.length,
         runtimeRequests: state.runtimeRequestsByThread,
-        bridgeKeys: Object.keys(window.poracode),
+        bridgeKeys: Object.keys(window.craftstation),
         bodyText: document.body.innerText,
       };
     })()`,
@@ -1635,9 +1641,9 @@ async function runMockGate(client, gate, fixture) {
     case "native-auth-update": {
       await evaluate(
         client,
-        `window.__poracodeDev.setUpdate({ phase: "downloaded", version: "mock-smoke" })`,
+        `window.__craftstationDev.setUpdate({ phase: "downloaded", version: "mock-smoke" })`,
       );
-      const update = await evaluate(client, "window.__poracodeDev.stores.update.getState()");
+      const update = await evaluate(client, "window.__craftstationDev.stores.update.getState()");
       const usageState = await bridgeInvoke(client, "getUsageLoginState", {});
       assert(
         update.phase === "downloaded" && update.version === "mock-smoke",
@@ -1681,11 +1687,11 @@ async function runMockGate(client, gate, fixture) {
               settingDefs: [],
             },
           };
-          window.__poracodeDev.stores.agentStatuses.getState().hydrateFromCache({
+          window.__craftstationDev.stores.agentStatuses.getState().hydrateFromCache({
             windows: [candidate],
             wsl: [],
           });
-          window.__poracodeDev.stores.app.getState().openDraft(${JSON.stringify(fixture.project.id)});
+          window.__craftstationDev.stores.app.getState().openDraft(${JSON.stringify(fixture.project.id)});
           return { hydrated: true, kind: candidate.kind };
         })()`,
       );
@@ -1752,11 +1758,11 @@ async function runMockGate(client, gate, fixture) {
 
 async function bridgeInvoke(client, method, payload) {
   const payloadText = payload === undefined ? "" : JSON.stringify(payload);
-  return evaluate(client, `window.poracode[${JSON.stringify(method)}](${payloadText})`, true);
+  return evaluate(client, `window.craftstation[${JSON.stringify(method)}](${payloadText})`, true);
 }
 
 async function resetDrivenState(client) {
-  await evaluate(client, "window.__poracodeDev?.reset()");
+  await evaluate(client, "window.__craftstationDev?.reset()");
 }
 
 async function installWindowErrorCollector(client) {
@@ -1797,12 +1803,12 @@ async function waitForTarget() {
   }
   if (cdpRespondedWithPages) {
     throw new Error(
-      `no Poracode CDP target matching ${appUrl} on port ${port}. ` +
+      `no CraftStation CDP target matching ${appUrl} on port ${port}. ` +
         `Available page targets: ${lastPageUrls.join(", ")}. ` +
-        `Check PORACODE_APP_URL / port allocation.`,
+        `Check CRAFTSTATION_APP_URL / port allocation.`,
     );
   }
-  throw new Error(`no Poracode CDP target at ${appUrl} on port ${port}`);
+  throw new Error(`no CraftStation CDP target at ${appUrl} on port ${port}`);
 }
 
 async function connectTarget(target) {
@@ -1887,7 +1893,7 @@ function assert(condition, message) {
 }
 
 function printReport(report, reportPath) {
-  console.log("\nPoracode integration smoke report");
+  console.log("\nCraftStation integration smoke report");
   for (const result of report.automated) {
     console.log(`${result.status.toUpperCase()}: ${result.id}`);
   }

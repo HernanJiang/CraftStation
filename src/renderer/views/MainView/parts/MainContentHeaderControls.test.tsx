@@ -60,7 +60,7 @@ describe("MainContentHeaderControls", () => {
     render(<MainContentHeaderControls />);
 
     const toggle = screen.getByRole("button", { name: "Toggle tools panel" });
-    expect(toggle).toHaveClass("pointer-events-auto", "poracode-overlay-header__controls");
+    expect(toggle).toHaveClass("pointer-events-auto", "craftstation-overlay-header__controls");
     expect(toggle.parentElement).toHaveClass("z-[60]", "pointer-events-auto");
 
     fireEvent.pointerDown(toggle);

@@ -20,7 +20,7 @@ describe("mobile subagent page styles", () => {
     expect(css).toMatch(
       /\.m-shell\[data-chrome="subagent"\][^{]*\.m-subagent-page\s+\[data-chat-virtual-size-box="true"\]\s*\{[^}]*padding-bottom:\s*calc\(var\(--m-browser-list-tail\) \+ var\(--m-browser-toolbar-safe-area\)\);/s,
     );
-    expect(css).not.toContain(".poracode-subagent-overlay");
+    expect(css).not.toContain(".craftstation-subagent-overlay");
   });
 
   it("uses translucent routed chrome while preserving the covered thread layer", () => {

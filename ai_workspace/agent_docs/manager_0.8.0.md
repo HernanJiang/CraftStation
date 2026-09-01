@@ -112,7 +112,7 @@ v0.7 tree:        D:\Work\CraftStation\craftstation\.worktrees\v0.7（保持原�
 
 **Global Gate**
 
-- 无 CLIProxyAPI；无 PoraCode Harness-specific deep import 作为 OpenCode runtime 依赖。
+- 无 CLIProxyAPI；无 CraftStation Harness-specific deep import 作为 OpenCode runtime 依赖。
 - Debugger 在 v0.8 Feature worktree 独立验收；PASS 只代表 DEV PASS/USER ACCEPTANCE PENDING，不自动 merge 或打正式 tag。
 
 ### Handoff

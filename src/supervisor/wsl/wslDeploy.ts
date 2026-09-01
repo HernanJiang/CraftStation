@@ -13,7 +13,7 @@ import { getCachedWslHomeDirectory, resolveWslHomeDirectory } from "../agents/ba
 export interface WslHomeDeployResult {
   /** Linux path of the user's home directory inside the distro. */
   home: string;
-  /** Linux path of the deploy base (`<home>/.poracode`). */
+  /** Linux path of the deploy base (`<home>/.craftstation`). */
   linuxBaseDir: string;
 }
 
@@ -21,8 +21,8 @@ export interface WslDeployFile {
   /** Absolute Windows source path. */
   src: string;
   /**
-   * POSIX-style path relative to `<home>/.poracode/` inside the distro.
-   * Example: `"watcher/watcher.node"` → `~/.poracode/watcher/watcher.node`.
+   * POSIX-style path relative to `<home>/.craftstation/` inside the distro.
+   * Example: `"watcher/watcher.node"` → `~/.craftstation/watcher/watcher.node`.
    */
   relDest: string;
 }
@@ -35,16 +35,16 @@ export interface WslBaseDeployResult {
 /**
  * Resolve the directory containing WSL helper assets shipped with the app
  * (watcher.node, bridge.mjs, …). The main process exports
- * `PORACODE_WSL_HELPERS_DIR`; we keep a back-compat fallback to the legacy
- * `PORACODE_WSL_WATCHER_DIR` for one release while installs roll over.
+ * `CRAFTSTATION_WSL_HELPERS_DIR`; we keep a back-compat fallback to the legacy
+ * `CRAFTSTATION_WSL_WATCHER_DIR` for one release while installs roll over.
  */
 export function resolveWslHelpersDir(): string | undefined {
-  return process.env.PORACODE_WSL_HELPERS_DIR ?? process.env.PORACODE_WSL_WATCHER_DIR;
+  return process.env.CRAFTSTATION_WSL_HELPERS_DIR ?? process.env.CRAFTSTATION_WSL_WATCHER_DIR;
 }
 
 /**
  * Idempotently stage a set of files into a WSL distro's
- * `<home>/.poracode/<relDest>`. Returns the resolved home + linuxBaseDir on
+ * `<home>/.craftstation/<relDest>`. Returns the resolved home + linuxBaseDir on
  * success, or `null` when:
  *   - `$HOME` cannot be resolved through the bootstrap WSL path
  *   - any source file is missing
@@ -66,12 +66,12 @@ export function deployFilesToWslHome(
   }
 
   const uncHome = `\\\\wsl.localhost\\${distro}${home.replaceAll("/", "\\")}`;
-  const linuxBaseDir = `${home}/.poracode`;
+  const linuxBaseDir = `${home}/.craftstation`;
 
   try {
     for (const file of files) {
       const segments = file.relDest.split("/").filter((segment) => segment.length > 0);
-      const winDest = [uncHome, ".poracode", ...segments].join("\\");
+      const winDest = [uncHome, ".craftstation", ...segments].join("\\");
       mkdirSync(dirname(winDest), { recursive: true });
       if (isFresh(file.src, winDest)) continue;
       copyFileSync(file.src, winDest);

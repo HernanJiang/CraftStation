@@ -29,7 +29,7 @@ import {
   removeAcpRegistryInstallDir,
 } from "./acpRegistryInstallDir";
 
-const baseDir = join("/data", "poracode");
+const baseDir = join("/data", "craftstation");
 const installDir = acpRegistryAgentInstallDir(baseDir, "goose");
 
 beforeEach(() => {

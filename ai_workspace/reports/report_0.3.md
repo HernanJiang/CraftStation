@@ -2,7 +2,7 @@
 
 ## Goal
 
-把 Codex 生产路径从 PoraCode TSM Adapter 切到 CraftStation-owned Native Runtime，直接驱动官方 `codex app-server`：
+把 Codex 生产路径从 CraftStation TSM Adapter 切到 CraftStation-owned Native Runtime，直接驱动官方 `codex app-server`：
 
 ```text
 CraftPlan -> NativeCodexRuntimeAdapter -> official app-server --stdio
@@ -42,5 +42,5 @@ CraftPlan -> NativeCodexRuntimeAdapter -> official app-server --stdio
 ## Notes for Future Features
 
 - 远程项目 Craft 仍 local-only
-- 用户数据目录/部分 IPC 名仍可能带 poracode 痕迹
+- 用户数据目录/部分 IPC 名仍可能带 craftstation 痕迹
 - 全仓 test 未作为本轮关闭证据

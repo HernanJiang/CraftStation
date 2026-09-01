@@ -14,7 +14,7 @@ const COMPOSER_OVERLAY_SELECTOR = [
   '[data-slot$="-popover"]',
   '[role="menu"]',
   '[role="listbox"]',
-  ".poracode-mention-popover",
+  ".craftstation-mention-popover",
 ].join(",");
 
 function resetCompactComposerScroll(root: HTMLElement | null): void {

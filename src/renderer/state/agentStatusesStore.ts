@@ -262,7 +262,7 @@ export const useAgentStatusesStore = create<AgentStatusesStore>()(
         }),
     }),
     {
-      name: "poracode-agent-statuses-v1",
+      name: "craftstation-agent-statuses-v1",
       version: 12,
       // v12 mirrors the supervisor STATUS_CACHE_VERSION=15 bump: ACP-derived
       // thinking toggles and normalized per-model capability maps now need a

@@ -3,23 +3,23 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import { inspectCdpWindowTargets } from "./poracode-cdp-target.mjs";
-import { resolveDebugConnection } from "./poracode-debug-session.mjs";
+import { inspectCdpWindowTargets } from "./craftstation-cdp-target.mjs";
+import { resolveDebugConnection } from "./craftstation-debug-session.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolvePath(scriptDir, "../../../../");
 const connection = await resolveDebugConnection({
-  session: args.session ?? process.env.PORACODE_DEBUG_SESSION,
-  port: args.port ?? process.env.PORACODE_CDP_PORT,
-  appUrl: args.appUrl ?? process.env.PORACODE_APP_URL,
+  session: args.session ?? process.env.CRAFTSTATION_DEBUG_SESSION,
+  port: args.port ?? process.env.CRAFTSTATION_CDP_PORT,
+  appUrl: args.appUrl ?? process.env.CRAFTSTATION_APP_URL,
   repoRoot,
   allowedPurposes: ["debug", "smoke"],
 });
 const port = connection.port;
 const appUrl = connection.appUrl;
-const defaultOutDir = `${homedir()}\\.poracode-smoke\\artifacts\\browser-${Date.now()}`;
-const outDir = resolvePath(args.outDir ?? process.env.PORACODE_SMOKE_OUT_DIR ?? defaultOutDir);
+const defaultOutDir = `${homedir()}\\.craftstation-smoke\\artifacts\\browser-${Date.now()}`;
+const outDir = resolvePath(args.outDir ?? process.env.CRAFTSTATION_SMOKE_OUT_DIR ?? defaultOutDir);
 const waitMs = Number(args.waitMs ?? 10000);
 const commandTimeoutMs = Number(args.commandTimeoutMs ?? 8000);
 
@@ -33,7 +33,7 @@ const app = await connectTarget(appTarget);
 let browserUi = app;
 
 try {
-  step("connected to Poracode renderer");
+  step("connected to CraftStation renderer");
   await send(app, "Page.enable");
   await send(app, "Runtime.enable");
   await installConsoleCollector();
@@ -60,8 +60,8 @@ try {
 
   step("creating Browser tab");
   const runId = Date.now();
-  const firstTitle = `Poracode Browser Smoke ${runId}`;
-  const secondTitle = `Poracode Browser Smoke ${runId} 2`;
+  const firstTitle = `CraftStation Browser Smoke ${runId}`;
+  const secondTitle = `CraftStation Browser Smoke ${runId} 2`;
   const firstUrl = smokeDataUrl(firstTitle, "first page");
   const secondUrl = smokeDataUrl(secondTitle, "second page");
 
@@ -213,7 +213,7 @@ async function waitForAppTarget() {
       );
     }
     return inspection.ready[0];
-  }, `Poracode page target at ${appUrl}`);
+  }, `CraftStation page target at ${appUrl}`);
 }
 
 async function connectBrowserUiTarget() {
@@ -449,7 +449,7 @@ async function waitForBrowserSettingsPage(options = {}) {
 
 async function browserState() {
   const json = await evaluate(
-    `(async () => JSON.stringify(await window.poracode.browserGetState()))()`,
+    `(async () => JSON.stringify(await window.craftstation.browserGetState()))()`,
     { awaitPromise: true },
   );
   return JSON.parse(json);
@@ -470,7 +470,7 @@ async function callBridge(method, payload) {
   const result = await evaluate(
     `(() => {
       window.__smokeBridgeErrors ??= [];
-      return window.poracode[${JSON.stringify(method)}](${JSON.stringify(payload)}).then(
+      return window.craftstation[${JSON.stringify(method)}](${JSON.stringify(payload)}).then(
         () => ({ ok: true }),
         (error) => {
           window.__smokeBridgeErrors.push(String(error));
@@ -605,7 +605,7 @@ function assert(condition, label, detail) {
 }
 
 function printReport(errors) {
-  console.log("Poracode Browser Panel Smoke");
+  console.log("CraftStation Browser Panel Smoke");
   for (const result of results) {
     console.log(`${result.status}: ${result.label} - ${result.detail}`);
   }

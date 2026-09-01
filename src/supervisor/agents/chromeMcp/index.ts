@@ -16,8 +16,8 @@ import type { BrowserMcpLocation } from "@/supervisor/agents/browserMcp";
 
 export type ChromeMcpLocation = BrowserMcpLocation;
 
-export const CHROME_MCP_URL_ENV = "PORACODE_CHROME_MCP_URL";
-export const CHROME_MCP_TOKEN_ENV = "PORACODE_CHROME_MCP_TOKEN";
+export const CHROME_MCP_URL_ENV = "CRAFTSTATION_CHROME_MCP_URL";
+export const CHROME_MCP_TOKEN_ENV = "CRAFTSTATION_CHROME_MCP_TOKEN";
 
 export interface ChromeMcpHttpConfig {
   url: string;

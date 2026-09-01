@@ -87,7 +87,7 @@ export const useThreadTodoDockStore = create<ThreadTodoDockStore>()(
         }),
     }),
     {
-      name: "poracode-thread-todo-dock-v1",
+      name: "craftstation-thread-todo-dock-v1",
       version: 2,
       storage: createDbStorage(),
       migrate: (persistedState, version) => {

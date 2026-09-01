@@ -27,9 +27,15 @@ import {
   isRemoteOmittedField,
   pickRemoteSettings,
   readRemoteImageRef,
+  toRemoteThreadExchangeSummary,
   type RemoteHostUpdateStatus,
   type RemoteSettings,
 } from "@/shared/remote";
+import type {
+  ThreadDialogueRequest,
+  ThreadExchange,
+  ThreadTargetSummary,
+} from "@/shared/threadCollaboration";
 import { defaultSharedSettings } from "@/shared/settings";
 import { emptyGitStateSnapshot } from "@/shared/gitState";
 import type { BrowserPanelManager } from "../browser";
@@ -122,7 +128,7 @@ const tempDirs: string[] = [];
 
 /** Creates a real temp dir for the local-image endpoint tests. */
 function createTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-remote-image-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-remote-image-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -169,7 +175,7 @@ afterEach(async () => {
   vi.mocked(dbReplaceThreadRuntimeSnapshot).mockReset();
   vi.mocked(dbUpsertProject).mockReset();
   vi.mocked(dbUpsertThread).mockReset();
-  dbSetState("poracode-experiments-v1", "");
+  dbSetState("craftstation-experiments-v1", "");
   vi.mocked(dbSetState).mockClear();
   vi.mocked(dbSetProjectNotes).mockReset();
   vi.mocked(dbTruncateThreadRuntimeAfter).mockReset();
@@ -218,7 +224,7 @@ function persistTestExperiment(overrides: Partial<Experiment> = {}): Experiment 
         threadId: "thread-1",
         agentKind: "codex",
         worktreePath: "/repo/one",
-        worktreeBranch: "poracode/experiment-one",
+        worktreeBranch: "craftstation/experiment-one",
         worktreeOwnerToken: "experiment-1:thread-1",
         worktreeState: "owned",
       },
@@ -226,7 +232,7 @@ function persistTestExperiment(overrides: Partial<Experiment> = {}): Experiment 
         threadId: "thread-2",
         agentKind: "claude",
         worktreePath: "/repo/two",
-        worktreeBranch: "poracode/experiment-two",
+        worktreeBranch: "craftstation/experiment-two",
         worktreeOwnerToken: "experiment-1:thread-2",
         worktreeState: "owned",
       },
@@ -237,7 +243,7 @@ function persistTestExperiment(overrides: Partial<Experiment> = {}): Experiment 
     ...overrides,
   };
   dbSetState(
-    "poracode-experiments-v1",
+    "craftstation-experiments-v1",
     JSON.stringify({ state: { experiments: { [experiment.id]: experiment } }, version: 1 }),
   );
   return experiment;
@@ -820,7 +826,7 @@ describe("RemoteAccessServer", () => {
     expect(pairingUrl.pathname).toBe("/pair");
 
     const descriptorResponse = await fetch(
-      new URL("/.well-known/poracode/environment", info.httpBaseUrl),
+      new URL("/.well-known/craftstation/environment", info.httpBaseUrl),
     );
     expect(descriptorResponse.status).toBe(200);
     await expect(descriptorResponse.json()).resolves.toMatchObject({
@@ -837,7 +843,7 @@ describe("RemoteAccessServer", () => {
     });
 
     const legacyDescriptorResponse = await fetch(
-      new URL("/.well-known/lightcode/environment", info.httpBaseUrl),
+      new URL("/.well-known/craftstation/environment", info.httpBaseUrl),
     );
     expect(legacyDescriptorResponse.status).toBe(200);
     await expect(legacyDescriptorResponse.json()).resolves.toMatchObject({
@@ -847,16 +853,16 @@ describe("RemoteAccessServer", () => {
     const pairingPageResponse = await fetch(info.pairingUrl);
     expect(pairingPageResponse.status).toBe(200);
     const pairingHtml = await pairingPageResponse.text();
-    expect(pairingHtml).toContain("Poracode");
+    expect(pairingHtml).toContain("CraftStation");
     expect(pairingHtml).toContain('rel="manifest"');
 
     const appResponse = await fetch(new URL("/app", info.httpBaseUrl));
     expect(appResponse.status).toBe(200);
-    await expect(appResponse.text()).resolves.toContain("Poracode");
+    await expect(appResponse.text()).resolves.toContain("CraftStation");
 
     const appRouteResponse = await fetch(new URL("/app/settings/appearance", info.httpBaseUrl));
     expect(appRouteResponse.status).toBe(200);
-    await expect(appRouteResponse.text()).resolves.toContain("Poracode");
+    await expect(appRouteResponse.text()).resolves.toContain("CraftStation");
 
     const manifestResponse = await fetch(new URL("/manifest.webmanifest", info.httpBaseUrl));
     expect(manifestResponse.status).toBe(200);
@@ -869,7 +875,7 @@ describe("RemoteAccessServer", () => {
     const serviceWorkerResponse = await fetch(new URL("/service-worker.js", info.httpBaseUrl));
     expect(serviceWorkerResponse.status).toBe(200);
     const serviceWorker = await serviceWorkerResponse.text();
-    expect(serviceWorker).toContain("poracode-remote-local-1.0.0");
+    expect(serviceWorker).toContain("craftstation-remote-local-1.0.0");
     expect(serviceWorker).toContain("caches.delete(LEGACY_CACHE_NAME)");
     expect(serviceWorker).toContain('self.addEventListener("push"');
     expect(serviceWorker).toContain("showNotification");
@@ -1865,19 +1871,19 @@ describe("RemoteAccessServer", () => {
       identity: { desktopId: "desktop-test", label: "Test Desktop" },
       host: "127.0.0.1",
       port: 0,
-      pairingAppUrl: "https://mobile.poracode.test/app",
+      pairingAppUrl: "https://mobile.craftstation.test/app",
       callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
     });
     servers.push(server);
     const info = await server.start();
-    const descriptorUrl = new URL("/.well-known/poracode/environment", info.httpBaseUrl);
+    const descriptorUrl = new URL("/.well-known/craftstation/environment", info.httpBaseUrl);
 
     const hostedResponse = await fetch(descriptorUrl, {
-      headers: { origin: "https://mobile.poracode.test" },
+      headers: { origin: "https://mobile.craftstation.test" },
     });
     expect(hostedResponse.status).toBe(200);
     expect(hostedResponse.headers.get("access-control-allow-origin")).toBe(
-      "https://mobile.poracode.test",
+      "https://mobile.craftstation.test",
     );
 
     const nativeResponse = await fetch(descriptorUrl, {
@@ -1908,7 +1914,7 @@ describe("RemoteAccessServer", () => {
     });
     servers.push(devServer);
     const devInfo = await devServer.start();
-    const devDescriptorUrl = new URL("/.well-known/poracode/environment", devInfo.httpBaseUrl);
+    const devDescriptorUrl = new URL("/.well-known/craftstation/environment", devInfo.httpBaseUrl);
     const devResponse = await fetch(devDescriptorUrl, {
       headers: { origin: "http://localhost:3100" },
     });
@@ -1927,7 +1933,7 @@ describe("RemoteAccessServer", () => {
     servers.push(prodServer);
     const prodInfo = await prodServer.start();
     const prodResponse = await fetch(
-      new URL("/.well-known/poracode/environment", prodInfo.httpBaseUrl),
+      new URL("/.well-known/craftstation/environment", prodInfo.httpBaseUrl),
       { headers: { origin: "http://127.0.0.1:3100" } },
     );
     expect(prodResponse.status).toBe(200);
@@ -1980,7 +1986,7 @@ describe("RemoteAccessServer", () => {
     });
     servers.push(server);
     await server.start();
-    const localUrl = new URL("/.well-known/poracode/environment", `http://127.0.0.1:${port}/`);
+    const localUrl = new URL("/.well-known/craftstation/environment", `http://127.0.0.1:${port}/`);
 
     const allowed = await fetch(localUrl, { headers: { origin: advertised } });
     expect(allowed.status).toBe(200);
@@ -1997,7 +2003,7 @@ describe("RemoteAccessServer", () => {
       identity: { desktopId: "desktop-test", label: "Test Desktop" },
       host: "127.0.0.1",
       port: 0,
-      pairingAppUrl: "https://mobile.poracode.test/app",
+      pairingAppUrl: "https://mobile.craftstation.test/app",
       callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
     });
     servers.push(server);
@@ -2063,20 +2069,20 @@ describe("RemoteAccessServer", () => {
     expect(settingsPairing.searchParams.get("host")).toBe(info.httpBaseUrl);
   });
 
-  it("points production pairing links at the hosted Poracode app", async () => {
+  it("points production pairing links at the hosted CraftStation app", async () => {
     const server = new RemoteAccessServer({
       appVersion: "1.0.0",
       identity: { desktopId: "desktop-test", label: "Test Desktop" },
       host: "127.0.0.1",
       port: 0,
-      pairingAppUrl: "https://poracode.com",
+      pairingAppUrl: "https://craftstation.com",
       callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
     });
     servers.push(server);
     const info = await server.start();
 
     const startupPairing = new URL(info.pairingUrl);
-    expect(startupPairing.origin).toBe("https://poracode.com");
+    expect(startupPairing.origin).toBe("https://craftstation.com");
     expect(startupPairing.pathname).toBe("/pair");
     expect(startupPairing.searchParams.get("host")).toBe(info.httpBaseUrl);
     expect(new URLSearchParams(startupPairing.hash.slice(1)).get("token")).toMatch(/^lc_pair_/);
@@ -2461,8 +2467,8 @@ describe("RemoteAccessServer", () => {
       body: JSON.stringify({
         procedure: "workflowGetRun",
         payload: {
-          manifestPath: "/tmp/poracode/workflows/wf_1.json",
-          transcriptDir: "/tmp/poracode/subagents/workflows/wf_1",
+          manifestPath: "/tmp/craftstation/workflows/wf_1.json",
+          transcriptDir: "/tmp/craftstation/subagents/workflows/wf_1",
           includeAgentChats: true,
           location: { kind: "posix", path: "/tmp/example" },
         },
@@ -2472,8 +2478,8 @@ describe("RemoteAccessServer", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ result: { run: null } });
     expect(callSupervisor).toHaveBeenCalledWith("workflowGetRun", {
-      manifestPath: "/tmp/poracode/workflows/wf_1.json",
-      transcriptDir: "/tmp/poracode/subagents/workflows/wf_1",
+      manifestPath: "/tmp/craftstation/workflows/wf_1.json",
+      transcriptDir: "/tmp/craftstation/subagents/workflows/wf_1",
       includeAgentChats: true,
       location: { kind: "posix", path: "/tmp/example" },
     });
@@ -3067,7 +3073,7 @@ describe("RemoteAccessServer", () => {
     const headers = {
       authorization: `Bearer ${token}`,
       "content-type": "application/json",
-      "x-poracode-command-id": "prompt-item-1",
+      "x-craftstation-command-id": "prompt-item-1",
     };
     const body = JSON.stringify({
       threadId: "thread-1",
@@ -3266,7 +3272,7 @@ describe("RemoteAccessServer", () => {
   it("rejects destructive remote commands for experiment candidates before persistence", async () => {
     const candidate = createTestThread({
       worktreePath: "/repo/one",
-      worktreeBranch: "poracode/experiment-one",
+      worktreeBranch: "craftstation/experiment-one",
     });
     const db = mockThreadDb([candidate]);
     persistTestExperiment();
@@ -3356,7 +3362,7 @@ describe("RemoteAccessServer", () => {
       error: { code: "experiment_owned" },
     });
 
-    dbSetState("poracode-experiments-v1", "{");
+    dbSetState("craftstation-experiments-v1", "{");
     const unreadableResponse = await fetch(
       new URL("/api/threads/thread-1/command", info.httpBaseUrl),
       { method: "POST", headers, body: JSON.stringify({ kind: "archive" }) },
@@ -3611,8 +3617,8 @@ describe("RemoteAccessServer", () => {
         (name === "removeExperimentWorktrees"
           ? {
               candidates: [
-                { threadId: "thread-1", branch: "poracode/experiment-one" },
-                { threadId: "thread-2", branch: "poracode/experiment-two" },
+                { threadId: "thread-1", branch: "craftstation/experiment-one" },
+                { threadId: "thread-2", branch: "craftstation/experiment-two" },
               ],
             }
           : undefined) as never,
@@ -3648,7 +3654,9 @@ describe("RemoteAccessServer", () => {
     expect(callSupervisor).toHaveBeenCalledWith("closeThread", { threadId: "thread-1" });
     expect(dbDeleteProject).toHaveBeenCalledWith(project.id);
     const persisted = JSON.parse(
-      vi.mocked(dbSetState).mock.calls.findLast(([key]) => key === "poracode-experiments-v1")![1],
+      vi
+        .mocked(dbSetState)
+        .mock.calls.findLast(([key]) => key === "craftstation-experiments-v1")![1],
     ) as { state: { experiments: Record<string, unknown> } };
     expect(persisted.state.experiments).toEqual({});
   });
@@ -4969,7 +4977,7 @@ describe("RemoteAccessServer", () => {
       },
       {
         procedure: "gitDeleteBranch",
-        payload: { projectLocation, branch: "poracode/experiment-one" },
+        payload: { projectLocation, branch: "craftstation/experiment-one" },
       },
       {
         procedure: "gitRemoveWorktree",
@@ -4988,7 +4996,7 @@ describe("RemoteAccessServer", () => {
         payload: {
           projectLocation,
           worktreeLocation,
-          worktreeBranch: "poracode/experiment-one",
+          worktreeBranch: "craftstation/experiment-one",
           sourceBranch: "main",
         },
       },
@@ -5038,7 +5046,7 @@ describe("RemoteAccessServer", () => {
     const experiment = persistTestExperiment();
     delete experiment.candidates[0]!.worktreePath;
     dbSetState(
-      "poracode-experiments-v1",
+      "craftstation-experiments-v1",
       JSON.stringify({ state: { experiments: { [experiment.id]: experiment } }, version: 1 }),
     );
     vi.mocked(dbGetProjects).mockReturnValue([createTestProject()]);
@@ -5250,6 +5258,263 @@ describe("RemoteAccessServer", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       error: { code: "push_unavailable" },
+    });
+  });
+});
+
+describe("RemoteAccessServer thread collaboration endpoints", () => {
+  const cannedExchange: ThreadExchange = {
+    id: "exchange-1",
+    linkId: "link-1",
+    projectId: "project-1",
+    sourceThreadId: "source",
+    targetThreadId: "target",
+    sequence: 1,
+    deliveryMode: "after-current-turn",
+    status: "delivered",
+    request: "SECRET-SOURCE-REQUEST-TEXT",
+    contextCapsule: {
+      kind: "portable-context",
+      text: "SECRET-CONTEXT-TEXT",
+      sourceKinds: ["summary"],
+      redacted: false,
+      originalChars: 18,
+    },
+    sourceProvenance: {
+      threadId: "source",
+      projectId: "project-1",
+      title: "Source",
+      modelId: "gpt-5.6",
+      harnessId: "codex",
+      agentMcpSupported: true,
+    },
+    targetProvenance: {
+      threadId: "target",
+      projectId: "project-1",
+      title: "Target",
+      modelId: "grok-4.6",
+      harnessId: "grok",
+      agentMcpSupported: true,
+    },
+    idempotencyKey: "SECRET-IDEMPOTENCY-KEY",
+    requestItemId: "request-1",
+    deliveryBaselineTurnIndex: 0,
+    deliveryAnchorItemId: "request-1",
+    replyTurnIndex: null,
+    replyAnchorItemId: null,
+    replyExcerpt: null,
+    causalParentExchangeId: null,
+    hopDepth: 0,
+    error: null,
+    claimToken: "SECRET-CLAIM-TOKEN",
+    claimExpiresAt: "2026-01-01T00:01:00.000Z",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    deliveredAt: "2026-01-01T00:00:00.000Z",
+    repliedAt: null,
+  };
+
+  const cannedTarget: ThreadTargetSummary = {
+    threadId: "target",
+    projectId: "project-1",
+    title: "Target",
+    status: "idle",
+    attention: "none",
+    provenance: cannedExchange.targetProvenance,
+    sameWorktree: true,
+    available: true,
+    sameComposition: false,
+  };
+
+  function collaborationGateway() {
+    return {
+      listTargets: vi.fn<() => ThreadTargetSummary[]>(() => [cannedTarget]),
+      request: vi.fn<(actor: string, request: ThreadDialogueRequest) => Promise<ThreadExchange>>(
+        async (_actor, request) => ({
+          ...cannedExchange,
+          idempotencyKey: request.idempotencyKey,
+          targetThreadId: request.targetThreadId,
+        }),
+      ),
+      list: vi.fn<() => ThreadExchange[]>(() => [cannedExchange]),
+      read: vi.fn<() => ThreadExchange>(() => cannedExchange),
+      wait: vi.fn<() => Promise<{ timedOut: boolean; exchange: ThreadExchange }>>(async () => ({
+        timedOut: false,
+        exchange: cannedExchange,
+      })),
+      cancel: vi.fn<() => ThreadExchange>(() => cannedExchange),
+      summarize: toRemoteThreadExchangeSummary,
+    };
+  }
+
+  it("serves targets, request, read, wait and cancel through the host gateway without leaking internals", async () => {
+    const gateway = collaborationGateway();
+    const server = new RemoteAccessServer({
+      appVersion: "1.0.0",
+      identity: { desktopId: "desktop-test", label: "Test Desktop" },
+      host: "127.0.0.1",
+      port: 0,
+      callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
+      threadCollaboration: gateway,
+    });
+    servers.push(server);
+    const info = await server.start();
+    const token = await issueAccessToken(info, ["session:read", "session:operate"]);
+    const headers = { authorization: `Bearer ${token}` };
+    const post = (path: string, body: unknown) =>
+      fetch(new URL(path, info.httpBaseUrl), {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    // The targets route returns the host summary list verbatim.
+    const targets = await fetch(
+      new URL(
+        "/api/thread-collaboration/targets?sourceThreadId=source&query=grok",
+        info.httpBaseUrl,
+      ),
+      { headers },
+    );
+    expect(targets.status).toBe(200);
+    await expect(targets.json()).resolves.toEqual([cannedTarget]);
+    expect(gateway.listTargets).toHaveBeenCalledWith("source", "grok");
+
+    // The request route summarizes the durable exchange: no request/context
+    // text, idempotency key or claim credentials ever reach the wire.
+    const requested = await post("/api/thread-collaboration/request", {
+      sourceThreadId: "source",
+      targetThreadId: "target",
+      request: "hello over remote",
+      deliveryMode: "after-current-turn",
+      idempotencyKey: "remote-key-1",
+      hopDepth: 0,
+    });
+    expect(requested.status).toBe(200);
+    const summary = (await requested.json()) as Record<string, unknown>;
+    expect(summary.id).toBe(cannedExchange.id);
+    const serialized = JSON.stringify(summary);
+    for (const secret of [
+      "SECRET-SOURCE-REQUEST-TEXT",
+      "SECRET-CONTEXT-TEXT",
+      "SECRET-IDEMPOTENCY-KEY",
+      "SECRET-CLAIM-TOKEN",
+      '"contextCapsule"',
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+    expect(gateway.request).toHaveBeenCalledWith(
+      "source",
+      expect.objectContaining({ targetThreadId: "target", idempotencyKey: "remote-key-1" }),
+    );
+
+    // List/read/wait routes hit the same gateway and summarize their results.
+    const list = await fetch(
+      new URL(
+        "/api/thread-collaboration/exchanges?actorThreadId=source&threadId=source&limit=5",
+        info.httpBaseUrl,
+      ),
+      { headers },
+    );
+    expect(list.status).toBe(200);
+    await expect(list.json()).resolves.toEqual([summary]);
+
+    const read = await post("/api/thread-collaboration/read", {
+      actorThreadId: "source",
+      exchangeId: "exchange-1",
+    });
+    expect(read.status).toBe(200);
+    expect(((await read.json()) as Record<string, unknown>).id).toBe("exchange-1");
+
+    const wait = await post("/api/thread-collaboration/wait", {
+      actorThreadId: "source",
+      exchangeId: "exchange-1",
+      timeoutMs: 0,
+    });
+    expect(wait.status).toBe(200);
+    await expect(wait.json()).resolves.toMatchObject({
+      timedOut: false,
+      exchange: { id: "exchange-1" },
+    });
+
+    const cancel = await post("/api/thread-collaboration/cancel", {
+      actorThreadId: "source",
+      exchangeId: "exchange-1",
+    });
+    expect(cancel.status).toBe(200);
+    expect(gateway.cancel).toHaveBeenCalledWith("source", "exchange-1");
+    expect(((await cancel.json()) as Record<string, unknown>).id).toBe("exchange-1");
+
+    // Service-level actor/participant rejections are masked as internal errors:
+    // no durable detail and no policy error text reaches the remote peer.
+    gateway.read.mockImplementation(() => {
+      throw Object.assign(
+        new Error("Only exchange participants may read this collaboration record."),
+        { code: "THREAD_COLLABORATION_EXCHANGE_UNAUTHORIZED" },
+      );
+    });
+    const rejected = await post("/api/thread-collaboration/read", {
+      actorThreadId: "bystander",
+      exchangeId: "exchange-1",
+    });
+    expect(rejected.status).toBe(500);
+    const rejectedBody = await rejected.text();
+    expect(JSON.parse(rejectedBody)).toMatchObject({
+      error: { code: "internal_error" },
+    });
+    expect(rejectedBody).not.toContain("THREAD_COLLABORATION_EXCHANGE_UNAUTHORIZED");
+  });
+
+  it("rejects a read-scoped token from the operate-only request route", async () => {
+    const server = new RemoteAccessServer({
+      appVersion: "1.0.0",
+      identity: { desktopId: "desktop-test", label: "Test Desktop" },
+      host: "127.0.0.1",
+      port: 0,
+      callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
+      threadCollaboration: collaborationGateway(),
+    });
+    servers.push(server);
+    const info = await server.start();
+    const readToken = await issueAccessToken(info, ["session:read"]);
+
+    const response = await fetch(new URL("/api/thread-collaboration/request", info.httpBaseUrl), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${readToken}`,
+      },
+      body: JSON.stringify({
+        sourceThreadId: "source",
+        targetThreadId: "target",
+        request: "hello",
+        deliveryMode: "after-current-turn",
+        idempotencyKey: "remote-key-2",
+        hopDepth: 0,
+      }),
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it("reports thread collaboration as unavailable when the host module is absent", async () => {
+    const server = new RemoteAccessServer({
+      appVersion: "1.0.0",
+      identity: { desktopId: "desktop-test", label: "Test Desktop" },
+      host: "127.0.0.1",
+      port: 0,
+      callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
+    });
+    servers.push(server);
+    const info = await server.start();
+    const token = await issueAccessToken(info, ["session:read", "session:operate"]);
+
+    const response = await fetch(
+      new URL("/api/thread-collaboration/targets?sourceThreadId=source", info.httpBaseUrl),
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "thread_collaboration_unavailable" },
     });
   });
 });

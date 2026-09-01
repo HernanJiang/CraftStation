@@ -82,13 +82,15 @@ import {
   retagCrossagentSelectionUsageEntry,
 } from "@/shared/crossagentRanking";
 import { headersToRecord, readBoundedResponseBody } from "@/shared/http";
-import type { PoracodePaths } from "@/shared/poracodePaths";
+import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import { UsageLoginManager } from "../usageLogin/UsageLoginManager";
 import type { SshConnectionManager } from "../ssh/SshConnectionManager";
 import type { ScheduleService } from "../schedules/ScheduleService";
 import type { PrWatchService } from "../prWatch";
+import type { ThreadCollaborationService } from "../thread-collaboration";
+import { toThreadExchangeView } from "@/shared/threadCollaboration";
 import { homeScopeLocation } from "../schedules";
-import { resolvePoracodeChannel } from "@/shared/channel";
+import { resolveCraftStationChannel } from "@/shared/channel";
 import {
   requestLegacyDataMigration,
   resolveLegacyElectronUserDataDir,
@@ -104,7 +106,7 @@ interface CreateLocalIpcHandlersOptions {
   startTailscale(): Promise<StartTailscaleResult>;
   setRemoteAccessAdvertisedUrl(url: string): Promise<RemoteAccessPairingInfo>;
   sshConnectionManager: SshConnectionManager;
-  requirePoracodePaths(): PoracodePaths;
+  requireCraftStationPaths(): CraftStationPaths;
   legacyElectronUserDataDir?: string;
   legacyBaseDir?: string;
   updatePowerSaveBlocker(): void;
@@ -121,6 +123,8 @@ interface CreateLocalIpcHandlersOptions {
   requestRelaunch(): void;
   scheduleService: ScheduleService;
   prWatchService: PrWatchService;
+  /** Shared instance owned by App Controls; null only during early startup/tests. */
+  getThreadCollaborationService?(): ThreadCollaborationService | null;
 }
 
 function requireBrowserPanel(getter: () => BrowserPanelManager | null): BrowserPanelManager {
@@ -133,7 +137,7 @@ function requireBrowserPanel(getter: () => BrowserPanelManager | null): BrowserP
 
 let usageLoginManager: UsageLoginManager | null = null;
 function getUsageLoginManager(
-  requirePaths: () => PoracodePaths,
+  requirePaths: () => CraftStationPaths,
   getBrowserPanel: () => BrowserPanelManager | null,
 ): UsageLoginManager {
   usageLoginManager ??= new UsageLoginManager(requirePaths(), getBrowserPanel);
@@ -184,6 +188,11 @@ export async function showAddFilesDialog(
 export function createLocalIpcHandlers(
   options: CreateLocalIpcHandlersOptions,
 ): MainLocalIpcHandlerMap {
+  const requireCollaboration = (): ThreadCollaborationService => {
+    const service = options.getThreadCollaborationService?.();
+    if (!service) throw new Error("Thread collaboration is not initialized.");
+    return service;
+  };
   const publishProjectsChanged = (projects = dbGetProjects()): void => {
     const server = options.getRemoteAccessServer();
     if (!server) return;
@@ -208,13 +217,39 @@ export function createLocalIpcHandlers(
   const applyToSharedSettingsFile = <T>(
     apply: (settings: SharedSettings, baseDir: string) => { settings: SharedSettings; result: T },
   ): T => {
-    const settingsPath = options.requirePoracodePaths().settingsPath;
+    const settingsPath = options.requireCraftStationPaths().settingsPath;
     const applied = apply(readSharedSettingsFile(settingsPath), dirname(settingsPath));
     writeSharedSettingsFile(settingsPath, applied.settings);
     options.onSharedSettingsChanged?.(applied.settings);
     return applied.result;
   };
   return defineMainLocalIpcHandlers({
+    listThreadCollaborationTargets: ({ sourceThreadId, query }) =>
+      requireCollaboration().listTargets(sourceThreadId, query),
+    requestThreadDialogue: async (request) =>
+      toThreadExchangeView(
+        await requireCollaboration().requestDialogue({
+          actorThreadId: request.sourceThreadId,
+          request,
+        }),
+      ),
+    listThreadExchanges: ({ actorThreadId, threadId, limit }) =>
+      requireCollaboration()
+        .listExchanges(actorThreadId, threadId, limit)
+        .map(toThreadExchangeView),
+    readThreadExchange: ({ actorThreadId, exchangeId }) =>
+      toThreadExchangeView(requireCollaboration().readExchange(actorThreadId, exchangeId)),
+    waitForThreadExchange: async ({ actorThreadId, exchangeId, afterUpdatedAt, timeoutMs }) => {
+      const result = await requireCollaboration().waitForExchange(
+        actorThreadId,
+        exchangeId,
+        afterUpdatedAt,
+        timeoutMs,
+      );
+      return { timedOut: result.timedOut, exchange: toThreadExchangeView(result.exchange) };
+    },
+    cancelThreadExchange: ({ actorThreadId, exchangeId }) =>
+      toThreadExchangeView(requireCollaboration().cancelExchange(actorThreadId, exchangeId)),
     pickFolder: async (defaultPath) => {
       const result = await dialog.showOpenDialog(options.getMainWindow()!, {
         properties: ["openDirectory"],
@@ -232,9 +267,9 @@ export function createLocalIpcHandlers(
     detectProjectIcon: ({ projectLocation }) => detectProjectIconFile(projectLocation),
     listProjectIconFiles: ({ projectLocation }) => listProjectIconFiles(projectLocation),
     saveClipboardImage: (payload) =>
-      saveClipboardImageFile(options.requirePoracodePaths(), payload),
+      saveClipboardImageFile(options.requireCraftStationPaths(), payload),
     saveHandoffContext: (payload) =>
-      saveHandoffContextFile(options.requirePoracodePaths(), payload),
+      saveHandoffContextFile(options.requireCraftStationPaths(), payload),
     saveImageFile: async ({ data, suggestedName }) => {
       const win = options.getMainWindow();
       const result = await dialog.showSaveDialog(win!, {
@@ -259,7 +294,7 @@ export function createLocalIpcHandlers(
     },
     readLocalImageFile: ({ url }) => readLocalImageFile(url),
     createProjectDirectory: (payload) => createProjectDirectory(payload),
-    // Desktop-as-client: proxy a remote Poracode server request through the
+    // Desktop-as-client: proxy a remote CraftStation server request through the
     // main process (no browser CORS). Restricted to http(s) and a bounded
     // response so a hostile/buggy peer can't exfiltrate via odd schemes or
     // exhaust memory. (The remote is one the user explicitly paired with.)
@@ -319,8 +354,8 @@ export function createLocalIpcHandlers(
     },
     showNotification: (payload) => showOsNotification(payload, options.getMainWindow),
     requestLegacyDataMigration: () => {
-      const baseDir = options.requirePoracodePaths().baseDir;
-      const channel = resolvePoracodeChannel();
+      const baseDir = options.requireCraftStationPaths().baseDir;
+      const channel = resolveCraftStationChannel();
       const electronUserDataDir = app.getPath("userData");
       return requestLegacyDataMigration({
         baseDir,
@@ -337,9 +372,9 @@ export function createLocalIpcHandlers(
       options.requestRelaunch();
     },
     getHomeScopeLocation: () => homeScopeLocation(),
-    getKeybindings: () => readKeybindingsFile(options.requirePoracodePaths().keybindingsPath),
+    getKeybindings: () => readKeybindingsFile(options.requireCraftStationPaths().keybindingsPath),
     setKeybindings: (file) => {
-      const path = options.requirePoracodePaths().keybindingsPath;
+      const path = options.requireCraftStationPaths().keybindingsPath;
       options.setGlobalShortcutsSuspended?.(false);
       options.onKeybindingsChanged?.(file);
       try {
@@ -350,7 +385,7 @@ export function createLocalIpcHandlers(
           // previous bindings — re-apply them to roll the shortcuts back.
           options.onKeybindingsChanged?.(readKeybindingsFile(path).file);
         } catch (restoreError) {
-          console.error("[poracode] failed to restore global shortcuts:", restoreError);
+          console.error("[craftstation] failed to restore global shortcuts:", restoreError);
         }
         throw error;
       }
@@ -385,16 +420,17 @@ export function createLocalIpcHandlers(
     openPluginsFolder: async () => {
       // Created on demand so the folder is always there to drop a package into,
       // even on a fresh install that has never loaded a user plugin.
-      const pluginsDir = options.requirePoracodePaths().pluginsDir;
+      const pluginsDir = options.requireCraftStationPaths().pluginsDir;
       await mkdir(pluginsDir, { recursive: true });
       await shell.openPath(pluginsDir);
     },
     publishRemoteGitSummaries: (payload) => {
       options.onRemoteGitSummaries?.(payload.summaries);
     },
-    getSharedSettings: () => readSharedSettingsFile(options.requirePoracodePaths().settingsPath),
+    getSharedSettings: () =>
+      readSharedSettingsFile(options.requireCraftStationPaths().settingsPath),
     setSharedSettings: (settings) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       // Preserve supervisor-managed fields and encrypted provider-profile
       // environments so the renderer's persist cycle doesn't clobber writes
       // made out-of-band by the supervisor. (Shared with the app-controls MCP
@@ -410,7 +446,7 @@ export function createLocalIpcHandlers(
         return { settings: next, result: { storedValue } };
       }),
     removeCrossagentRoutingOverride: ({ tags }) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
       const overrides = removeCrossagentRoutingOverride(current.crossagentRoutingOverrides, tags);
       const settings = { ...current, crossagentRoutingOverrides: overrides };
@@ -419,7 +455,7 @@ export function createLocalIpcHandlers(
       return overrides;
     },
     removeCrossagentMemoryEntry: ({ entry }) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
       const usage = removeCrossagentSelectionUsageEntry(current.crossagentSelectionUsage, entry);
       const settings = { ...current, crossagentSelectionUsage: usage };
@@ -428,7 +464,7 @@ export function createLocalIpcHandlers(
       return usage;
     },
     updateCrossagentMemoryEntryTags: ({ entry, tags }) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
       const usage = retagCrossagentSelectionUsageEntry(
         current.crossagentSelectionUsage,
@@ -492,7 +528,7 @@ export function createLocalIpcHandlers(
     },
     dbDeleteThread: ({ threadId }) => {
       dbDeleteThread(threadId);
-      deleteThreadAttachments(options.requirePoracodePaths(), threadId);
+      deleteThreadAttachments(options.requireCraftStationPaths(), threadId);
       publishThreadsChanged([threadId]);
     },
     dbDeleteProject: ({ projectId }) => {
@@ -519,7 +555,7 @@ export function createLocalIpcHandlers(
         ...payload.upsertThreads.map(({ thread }) => thread.id),
         ...payload.deletedThreadIds,
       ]);
-      const paths = options.requirePoracodePaths();
+      const paths = options.requireCraftStationPaths();
       await Promise.all(
         payload.deletedThreadIds.map((threadId) => deleteThreadAttachmentsAsync(paths, threadId)),
       );
@@ -646,32 +682,34 @@ export function createLocalIpcHandlers(
       options.injectBrowserToMain();
     },
     startUsageLogin: (payload) =>
-      getUsageLoginManager(options.requirePoracodePaths, options.getBrowserPanelManager).startLogin(
-        payload.providerId,
-      ),
+      getUsageLoginManager(
+        options.requireCraftStationPaths,
+        options.getBrowserPanelManager,
+      ).startLogin(payload.providerId),
     cancelUsageLogin: (payload) => {
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).cancelLogin(payload.providerId);
     },
     clearUsageLogin: (payload) =>
-      getUsageLoginManager(options.requirePoracodePaths, options.getBrowserPanelManager).clearLogin(
-        payload.providerId,
-      ),
+      getUsageLoginManager(
+        options.requireCraftStationPaths,
+        options.getBrowserPanelManager,
+      ).clearLogin(payload.providerId),
     submitUsageApiKey: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitApiKey(payload.providerId, payload.apiKey),
     submitVolcengineCredentials: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitVolcengineCredentials(payload),
     submitOpenAiCompatibleCredentials: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitOpenAiCompatibleCredentials({
         baseUrl: payload.baseUrl,
@@ -682,7 +720,7 @@ export function createLocalIpcHandlers(
       }),
     submitUsageCookie: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitCookie(payload.providerId, payload.cookie),
     resolveUsageLoginConfirmation: (payload) => {
@@ -690,7 +728,7 @@ export function createLocalIpcHandlers(
     },
     getUsageLoginState: () =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).getLoginState(),
     getProfileCoreStats: (req) => getProfileCoreStats(req),

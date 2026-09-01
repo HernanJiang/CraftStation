@@ -9,7 +9,7 @@ export { isEncryptedSecret };
  * Symmetric secret sealing shared by the main and supervisor processes. The key
  * is derived once in main from Electron `safeStorage` (see
  * `src/main/secretStorageKey.ts`) and handed to the supervisor over the
- * `PORACODE_SECRET_STORAGE_KEY` env var. Both processes call
+ * `CRAFTSTATION_SECRET_STORAGE_KEY` env var. Both processes call
  * `configureSecretStorageKey` at boot, then seal/unseal with the same AES-256-GCM
  * scheme — so a value encrypted in one process decrypts in the other without any
  * plaintext crossing the IPC channel. Pure `node:crypto`; no Electron import, so
@@ -23,7 +23,7 @@ export function configureSecretStorageKey(rawKey: string | undefined): void {
   if (!rawKey) return;
   const key = Buffer.from(rawKey, "base64");
   if (key.length !== 32) {
-    throw new Error("Invalid Poracode secret key.");
+    throw new Error("Invalid CraftStation secret key.");
   }
   configuredSecretKey = key;
 }
@@ -34,7 +34,7 @@ function readSecretKey(): Buffer {
     testFallbackSecretKey ??= randomBytes(32);
     return testFallbackSecretKey;
   }
-  throw new Error("Poracode secret storage key is not initialized.");
+  throw new Error("CraftStation secret storage key is not initialized.");
 }
 
 export function encryptSecret(_baseDir: string, value: string): string {

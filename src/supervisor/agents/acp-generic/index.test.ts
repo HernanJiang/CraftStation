@@ -205,7 +205,7 @@ describe("createAcpGenericAdapter", () => {
   });
 
   it("uses ACP env-var auth methods to report missing auth", async () => {
-    const key = "__PORACODE_ACP_GENERIC_AUTH_METHOD_TEST__";
+    const key = "__CRAFTSTATION_ACP_GENERIC_AUTH_METHOD_TEST__";
     delete process.env[key];
     vi.mocked(probeAcpCapabilities).mockResolvedValue({
       authMethods: [
@@ -427,7 +427,7 @@ describe("createAcpGenericAdapter", () => {
   });
 
   it("envVar auth resolves authState from process.env at detection time", async () => {
-    const key = "__PORACODE_ACP_GENERIC_TEST__";
+    const key = "__CRAFTSTATION_ACP_GENERIC_TEST__";
     delete process.env[key];
     const adapterMissing = createAcpGenericAdapter({
       ...baseInstance,

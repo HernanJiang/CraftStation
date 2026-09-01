@@ -12,7 +12,7 @@ const PREWARM_FONT_SIZE = 12;
 
 /** Representative glyphs so the WebGL char atlas builds common shapes early. */
 const PREWARM_TEXT = [
-  "Poracode terminal prewarm",
+  "CraftStation terminal prewarm",
   "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ",
   "0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
   "┌─┬─┐│ ││└─┴─┘ █▓▒░●○◆▄▀→←↑↓",

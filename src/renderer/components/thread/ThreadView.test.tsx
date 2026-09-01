@@ -476,7 +476,7 @@ describe("ThreadView", () => {
   it("strips Electron IPC framing from launch errors before surfacing them", async () => {
     bridge.startThread.mockRejectedValueOnce(
       new Error(
-        "Error invoking remote method 'poracode:start-thread': Error: This conversation can't be resumed.",
+        "Error invoking remote method 'craftstation:start-thread': Error: This conversation can't be resumed.",
       ),
     );
     const onLaunchFailed = vi.fn<(message: string) => void>();
@@ -1841,7 +1841,7 @@ describe("ThreadView", () => {
       status: "launching",
       attention: "none",
       canResumeWithConfig: false,
-      worktreeBranch: "poracode/feature",
+      worktreeBranch: "craftstation/feature",
       archived: false,
       done: false,
       starred: false,

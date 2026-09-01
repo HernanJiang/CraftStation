@@ -1,5 +1,8 @@
 import type { SessionNotification } from "@agentclientprotocol/sdk";
-import { PORACODE_ACP_GOAL_META_KEY, type AcpCanonicalGoalUpdate } from "../acp/canonicalMapping";
+import {
+  CRAFTSTATION_ACP_GOAL_META_KEY,
+  type AcpCanonicalGoalUpdate,
+} from "../acp/canonicalMapping";
 import {
   buildCanonicalAcpSubagentInput,
   createAcpSubagentCoordinator,
@@ -297,7 +300,7 @@ function withGoalMeta(
   const update = plainRecord(notification.update);
   return withUpdate(notification, {
     ...update,
-    _meta: { ...plainRecord(update._meta), [PORACODE_ACP_GOAL_META_KEY]: goal },
+    _meta: { ...plainRecord(update._meta), [CRAFTSTATION_ACP_GOAL_META_KEY]: goal },
   });
 }
 

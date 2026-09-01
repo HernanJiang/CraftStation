@@ -167,7 +167,7 @@ export function AppProvider(props: {
       document.documentElement.dataset.nativeMaterial = "off";
       return;
     }
-    if (!syncWindowChrome || typeof window === "undefined" || !("poracode" in window)) {
+    if (!syncWindowChrome || typeof window === "undefined" || !("craftstation" in window)) {
       return;
     }
 

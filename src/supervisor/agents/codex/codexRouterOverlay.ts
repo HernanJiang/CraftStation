@@ -1,11 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 
 /** Codex home that CraftStation owns; never the host ~/.codex Router overlay. */
 export function nativePrivateCodexHome(): string {
-  return join(resolvePoracodePaths(process.env.PORACODE_DATA_DIR).agentPluginsDir, "codex", "home");
+  return join(
+    resolveCraftStationPaths(process.env.CRAFTSTATION_DATA_DIR).agentPluginsDir,
+    "codex",
+    "home",
+  );
 }
 
 export function hostCodexHome(): string {

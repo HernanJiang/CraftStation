@@ -43,7 +43,7 @@ describe("computeProfileTokenStats (real sqlite)", () => {
 
   beforeEach(() => {
     if (nativeBindingEnv) {
-      process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
+      process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
     }
     dir = mkdtempSync(join(tmpdir(), "lc-tokenstats-test-"));
     initDatabase(join(dir, "state.sqlite"));

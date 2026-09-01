@@ -23,7 +23,7 @@ function renderLayout(options: { showActionTab?: boolean } = {}) {
     <BottomTerminalLayout
       tabs={projectTabs}
       projectTabs={projectTabs}
-      activeScopeLabel="Poracode / feature"
+      activeScopeLabel="CraftStation / feature"
       selectedTabId={options.showActionTab ? actionTab.id : "__add__"}
       activeTab={options.showActionTab ? actionTab : undefined}
       focusRequestId={0}
@@ -49,7 +49,7 @@ describe("BottomTerminalLayout", () => {
   it("shows the project and worktree scope in the header", () => {
     renderLayout();
 
-    expect(screen.getByText("Poracode / feature")).toBeInTheDocument();
+    expect(screen.getByText("CraftStation / feature")).toBeInTheDocument();
   });
 
   it("resizes and persists the terminal sidebar with the keyboard", () => {
@@ -61,7 +61,7 @@ describe("BottomTerminalLayout", () => {
     fireEvent.keyDown(separator, { key: "ArrowRight" });
 
     expect(sidebar).toHaveStyle({ width: "164px" });
-    expect(localStorage.getItem("poracode-bottom-terminal-sidebar-width")).toBe("164");
+    expect(localStorage.getItem("craftstation-bottom-terminal-sidebar-width")).toBe("164");
   });
 
   it("resizes and persists the terminal sidebar by dragging", () => {
@@ -74,7 +74,7 @@ describe("BottomTerminalLayout", () => {
     fireEvent.pointerUp(window);
 
     expect(sidebar).toHaveStyle({ width: "210px" });
-    expect(localStorage.getItem("poracode-bottom-terminal-sidebar-width")).toBe("210");
+    expect(localStorage.getItem("craftstation-bottom-terminal-sidebar-width")).toBe("210");
   });
 
   it("announces whether an action-owned tab is idle or running", () => {

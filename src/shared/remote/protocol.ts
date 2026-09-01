@@ -14,12 +14,26 @@ import {
 import { persistedCompletedTurnSchema, persistedRuntimeItemSchema } from "../ipc/schemas";
 import { gitStateInterestSchema, gitStatePatchSchema, gitStateSnapshotSchema } from "../gitState";
 import { sharedSettingsSchema } from "../settings";
+import type { ThreadExchange } from "../threadCollaboration";
+import {
+  cancelThreadExchangePayloadSchema,
+  listThreadCollaborationTargetsPayloadSchema,
+  listThreadExchangesPayloadSchema,
+  readThreadExchangePayloadSchema,
+  threadCollaborationErrorSchema,
+  threadDeliveryModeSchema,
+  threadDialogueRequestSchema,
+  threadExchangeStatusSchema,
+  threadRuntimeProvenanceSchema,
+  threadTargetSummarySchema,
+  waitForThreadExchangePayloadSchema,
+} from "../threadCollaboration";
 
-// v4 carries project icon metadata and project-icon update patches, plus
-// per-project GitHub account selection through remote Actions calls and project
-// updates, so older hosts cannot silently discard either scope.
-export const PORACODE_REMOTE_PROTOCOL_VERSION = 4;
-export const REMOTE_COMMAND_ID_HEADER = "x-poracode-command-id";
+// v5 adds bounded Thread Collaboration summaries and host-owned collaboration
+// gateway routes. Older clients must not silently treat a raw thread send as a
+// collaboration exchange or discard its deterministic anchors.
+export const CRAFTSTATION_REMOTE_PROTOCOL_VERSION = 5;
+export const REMOTE_COMMAND_ID_HEADER = "x-craftstation-command-id";
 
 export const remoteAccessScopeSchema = z.enum([
   "session:read",
@@ -110,7 +124,7 @@ export const remoteClientMetadataSchema = z.object({
 export type RemoteClientMetadata = z.infer<typeof remoteClientMetadataSchema>;
 
 export const remoteEnvironmentDescriptorSchema = z.object({
-  protocolVersion: z.literal(PORACODE_REMOTE_PROTOCOL_VERSION),
+  protocolVersion: z.literal(CRAFTSTATION_REMOTE_PROTOCOL_VERSION),
   /**
    * Process hosting the shared remote-access server. Optional on the wire for
    * protocol-v1 servers released before standalone helpers advertised it.
@@ -557,6 +571,99 @@ export const remoteLiveActivityContentStateSchema = z.object({
 });
 export type RemoteLiveActivityContentState = z.infer<typeof remoteLiveActivityContentStateSchema>;
 
+/**
+ * Remote-safe exchange projection. Deliberately excludes request/context text,
+ * idempotency keys and delivery claim credentials.
+ */
+export const remoteThreadExchangeSummarySchema = z.object({
+  id: z.string().min(1),
+  linkId: z.string().min(1),
+  projectId: z.string().min(1),
+  sourceThreadId: z.string().min(1),
+  targetThreadId: z.string().min(1),
+  sequence: z.number().int().positive(),
+  deliveryMode: threadDeliveryModeSchema,
+  status: threadExchangeStatusSchema,
+  sourceProvenance: threadRuntimeProvenanceSchema,
+  targetProvenance: threadRuntimeProvenanceSchema,
+  requestItemId: z.string().min(1),
+  deliveryBaselineTurnIndex: z.number().int().nonnegative().nullable(),
+  deliveryAnchorItemId: z.string().nullable(),
+  replyTurnIndex: z.number().int().nonnegative().nullable(),
+  replyAnchorItemId: z.string().nullable(),
+  replyExcerpt: z.string().nullable(),
+  causalParentExchangeId: z.string().nullable(),
+  hopDepth: z.number().int().nonnegative(),
+  error: threadCollaborationErrorSchema.nullable(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  deliveredAt: z.string().nullable(),
+  repliedAt: z.string().nullable(),
+});
+export type RemoteThreadExchangeSummary = z.infer<typeof remoteThreadExchangeSummarySchema>;
+
+/** Project a durable exchange onto the bounded, non-sensitive remote wire shape. */
+export function toRemoteThreadExchangeSummary(
+  exchange: ThreadExchange,
+): RemoteThreadExchangeSummary {
+  return remoteThreadExchangeSummarySchema.parse({
+    id: exchange.id,
+    linkId: exchange.linkId,
+    projectId: exchange.projectId,
+    sourceThreadId: exchange.sourceThreadId,
+    targetThreadId: exchange.targetThreadId,
+    sequence: exchange.sequence,
+    deliveryMode: exchange.deliveryMode,
+    status: exchange.status,
+    sourceProvenance: exchange.sourceProvenance,
+    targetProvenance: exchange.targetProvenance,
+    requestItemId: exchange.requestItemId,
+    deliveryBaselineTurnIndex: exchange.deliveryBaselineTurnIndex,
+    deliveryAnchorItemId: exchange.deliveryAnchorItemId,
+    replyTurnIndex: exchange.replyTurnIndex,
+    replyAnchorItemId: exchange.replyAnchorItemId,
+    replyExcerpt: exchange.replyExcerpt,
+    causalParentExchangeId: exchange.causalParentExchangeId,
+    hopDepth: exchange.hopDepth,
+    error: exchange.error,
+    createdAt: exchange.createdAt,
+    updatedAt: exchange.updatedAt,
+    deliveredAt: exchange.deliveredAt,
+    repliedAt: exchange.repliedAt,
+  });
+}
+
+export const remoteThreadCollaborationTargetsRequestSchema =
+  listThreadCollaborationTargetsPayloadSchema;
+export const remoteThreadCollaborationTargetsResponseSchema = z.array(threadTargetSummarySchema);
+export const remoteThreadCollaborationRequestSchema = threadDialogueRequestSchema;
+export const remoteThreadCollaborationListRequestSchema = listThreadExchangesPayloadSchema.extend({
+  actorThreadId: z.string().min(1),
+});
+export const remoteThreadCollaborationReadRequestSchema = readThreadExchangePayloadSchema.extend({
+  actorThreadId: z.string().min(1),
+});
+export const remoteThreadCollaborationWaitRequestSchema = waitForThreadExchangePayloadSchema.extend(
+  {
+    actorThreadId: z.string().min(1),
+  },
+);
+export const remoteThreadCollaborationCancelRequestSchema =
+  cancelThreadExchangePayloadSchema.extend({
+    actorThreadId: z.string().min(1),
+  });
+export const remoteThreadCollaborationWaitResponseSchema = z.object({
+  timedOut: z.boolean(),
+  exchange: remoteThreadExchangeSummarySchema,
+});
+export const remoteThreadCollaborationChangedEventSchema = z.object({
+  type: z.literal("remote-thread-collaboration-changed"),
+  exchanges: z.array(remoteThreadExchangeSummarySchema),
+});
+export type RemoteThreadCollaborationChangedEvent = z.infer<
+  typeof remoteThreadCollaborationChangedEventSchema
+>;
+
 export const remoteShellSnapshotSchema = z.object({
   snapshotSeq: z.number().int().nonnegative(),
   projects: z.array(remoteProjectSchema),
@@ -566,6 +673,9 @@ export const remoteShellSnapshotSchema = z.object({
   gitSummariesByThread: remoteGitSummariesSchema.optional(),
   /** Normalized host-owned Git/PR state. Absent on legacy hosts. */
   gitState: gitStateSnapshotSchema.optional(),
+  collaborationExchangesByThread: z
+    .record(z.string(), z.array(remoteThreadExchangeSummarySchema))
+    .optional(),
   updatedAt: z.string().min(1),
 });
 export type RemoteShellSnapshot = z.infer<typeof remoteShellSnapshotSchema>;
@@ -585,6 +695,7 @@ export const remoteThreadSnapshotSchema = z.object({
   runtimeNextCursor: z.number().int().nonnegative().nullable().optional(),
   completedTurns: z.array(persistedCompletedTurnSchema),
   contextUsage: threadContextUsageSchema.nullable(),
+  collaborationExchanges: z.array(remoteThreadExchangeSummarySchema).optional(),
   terminalScrollback: z.string().optional(),
   terminalSize: terminalSizeSchema.optional(),
   updatedAt: z.string().min(1),

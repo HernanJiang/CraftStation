@@ -2,7 +2,7 @@ import { threadGroupColor } from "@/shared/browserMcpThread";
 import { browserTabGroupSchema, type BrowserTabGroupInfo } from "@/shared/ipc";
 
 const AGENT_GROUP_ID = "group-agent";
-const AGENT_GROUP_TITLE = "Poracode";
+const AGENT_GROUP_TITLE = "CraftStation";
 const AGENT_GROUP_COLOR = "purple" as const;
 
 interface GroupableTab {
@@ -149,7 +149,7 @@ export class BrowserTabGroups {
     return this.pruneEmptyGroups() || changed;
   }
 
-  /** Find/create the agent ("Poracode") group and return its id. */
+  /** Find/create the agent ("CraftStation") group and return its id. */
   private ensureAgentGroup(): string {
     if (!this.groups.some((g) => g.id === AGENT_GROUP_ID)) {
       this.groups.push({
@@ -166,7 +166,7 @@ export class BrowserTabGroups {
    * Find/create the tab group owned by `threadId`, named after the thread's
    * task. The renderer resolves the live thread title for display, so `title`
    * here is only the initial/fallback label. Falls back to the shared
-   * "Poracode" group when the thread id is missing.
+   * "CraftStation" group when the thread id is missing.
    */
   private ensureThreadGroup(threadId: string | undefined, title: string | undefined): string {
     if (!threadId) return this.ensureAgentGroup();

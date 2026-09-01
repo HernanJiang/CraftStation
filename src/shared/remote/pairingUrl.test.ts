@@ -6,11 +6,11 @@ describe("retargetPairingUrl", () => {
     const original = buildPairingUrl({
       httpBaseUrl: "https://desktop.tailnet.ts.net",
       credential: "lc_pair_test",
-      pairingAppUrl: "https://poracode.com",
+      pairingAppUrl: "https://craftstation.com",
     });
     const retargeted = new URL(retargetPairingUrl(original, "http://192.168.1.20:49152"));
 
-    expect(retargeted.origin).toBe("https://poracode.com");
+    expect(retargeted.origin).toBe("https://craftstation.com");
     expect(retargeted.searchParams.get("host")).toBe("http://192.168.1.20:49152");
     expect(new URLSearchParams(retargeted.hash.slice(1)).get("token")).toBe("lc_pair_test");
   });

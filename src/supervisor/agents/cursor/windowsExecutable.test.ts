@@ -23,7 +23,7 @@ describe.skipIf(process.platform !== "win32")("Cursor Windows executable resolut
     node: string;
     script: string;
   } {
-    const root = mkdtempSync(join(tmpdir(), "poracode-cursor-launch-"));
+    const root = mkdtempSync(join(tmpdir(), "craftstation-cursor-launch-"));
     tempDirs.push(root);
     const shim = join(root, "cursor-agent.cmd");
     writeFileSync(shim, "@echo off\r\n");
@@ -64,7 +64,7 @@ describe.skipIf(process.platform !== "win32")("Cursor Windows executable resolut
   });
 
   it("falls back when the installer has no complete runnable version", () => {
-    const root = mkdtempSync(join(tmpdir(), "poracode-cursor-launch-"));
+    const root = mkdtempSync(join(tmpdir(), "craftstation-cursor-launch-"));
     tempDirs.push(root);
     const shim = join(root, "cursor-agent.cmd");
     writeFileSync(shim, "@echo off\r\n");

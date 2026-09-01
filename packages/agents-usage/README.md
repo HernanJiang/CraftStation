@@ -1,11 +1,11 @@
-# @poracode/agents-usage
+# @craftstation/agents-usage
 
 Cross-platform usage & quota collection for AI coding agents — a runtime-agnostic
 core that fetches session/weekly/monthly utilization, reset timers, plan tier,
 and (optionally) estimated cost for providers like **Claude**, **Codex**, and
 **GitHub Copilot**.
 
-This package powers Poracode's in-app usage tracking and is designed to be a
+This package powers CraftStation's in-app usage tracking and is designed to be a
 Windows-first, cross-platform alternative to mac-only tools like
 [codexbar](https://github.com/steipete/codexbar) and
 [openusage](https://github.com/robinebers/openusage).
@@ -20,7 +20,7 @@ Credential Manager, an env var, or a WSL distro over UNC); each collector only
 knows the provider's API and how to parse its response.
 
 ```ts
-import { createUsageCollectorRegistry } from "@poracode/agents-usage";
+import { createUsageCollectorRegistry } from "@craftstation/agents-usage";
 
 const registry = createUsageCollectorRegistry();
 const snapshots = await registry.collectAll(["claude", "codex", "copilot"], host);

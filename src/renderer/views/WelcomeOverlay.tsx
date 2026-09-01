@@ -23,8 +23,8 @@ import appIconUrl from "../../../build/icon.png";
 const ORBIT_DURATION_MS = 2400;
 
 // `--comet-x/y` are the centers of a full-viewport background gradient
-// (`.poracode-welcome-bg-glow`) AND a mask over the glyph-heavy code wall
-// (`.poracode-welcome-code-wall`). Neither `background-position` nor
+// (`.craftstation-welcome-bg-glow`) AND a mask over the glyph-heavy code wall
+// (`.craftstation-welcome-code-wall`). Neither `background-position` nor
 // `mask-image` is compositor-animatable, so each write re-rasterizes the
 // viewport on the main thread. Writing them on every display refresh
 // (~120fps on high-refresh panels) is what drops frames — the diffuse glow
@@ -182,7 +182,7 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
   return (
     <div
       ref={containerRef}
-      className={`poracode-welcome-page fixed inset-0 z-50 flex flex-col bg-background transition-opacity ${
+      className={`craftstation-welcome-page fixed inset-0 z-50 flex flex-col bg-background transition-opacity ${
         visible ? "opacity-100 duration-150" : "opacity-0 duration-500"
       }`}
       data-welcome-loading={loading ? "true" : "false"}
@@ -214,48 +214,48 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
         }
       }}
     >
-      <div className="poracode-welcome-bg-glow absolute inset-0 z-0 pointer-events-none" />
+      <div className="craftstation-welcome-bg-glow absolute inset-0 z-0 pointer-events-none" />
       <pre
-        className="poracode-welcome-code-wall absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-50 p-8 m-0"
+        className="craftstation-welcome-code-wall absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-50 p-8 m-0"
         aria-hidden="true"
       >
         {WELCOME_BACKGROUND_CODE}
       </pre>
 
       <div
-        className="poracode-overlay-header relative z-10 flex shrink-0 items-center px-2"
+        className="craftstation-overlay-header relative z-10 flex shrink-0 items-center px-2"
         style={{ height: "env(titlebar-area-height, 32px)" }}
       />
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-6">
-        <div className="poracode-welcome-stage flex w-full max-w-[680px] flex-col items-center gap-8 text-center">
-          <div className="poracode-welcome-icon-wrap relative flex size-24 items-center justify-center">
-            <span className="poracode-welcome-light absolute inset-[-18px] rounded-none" />
-            <span className="poracode-welcome-splash absolute inset-[-26px] rounded-none" />
-            <span className="poracode-welcome-orbit absolute inset-[-12px] rounded-none">
+        <div className="craftstation-welcome-stage flex w-full max-w-[680px] flex-col items-center gap-8 text-center">
+          <div className="craftstation-welcome-icon-wrap relative flex size-24 items-center justify-center">
+            <span className="craftstation-welcome-light absolute inset-[-18px] rounded-none" />
+            <span className="craftstation-welcome-splash absolute inset-[-26px] rounded-none" />
+            <span className="craftstation-welcome-orbit absolute inset-[-12px] rounded-none">
               <span
                 ref={cometRef}
-                className="poracode-welcome-comet absolute left-1/2 top-0 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                className="craftstation-welcome-comet absolute left-1/2 top-0 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
               />
             </span>
             <div
-              className={`poracode-welcome-logo-spin absolute inset-0 flex items-center justify-center${
-                spinning ? " poracode-welcome-icon-spinning" : ""
+              className={`craftstation-welcome-logo-spin absolute inset-0 flex items-center justify-center${
+                spinning ? " craftstation-welcome-icon-spinning" : ""
               }`}
             >
-              <span className="poracode-welcome-ring absolute inset-[5px] rounded-none" />
-              <span className="poracode-welcome-reveal poracode-welcome-icon-glass absolute inset-2 rounded-none" />
+              <span className="craftstation-welcome-ring absolute inset-[5px] rounded-none" />
+              <span className="craftstation-welcome-reveal craftstation-welcome-icon-glass absolute inset-2 rounded-none" />
               <img
                 src={appIconUrl}
                 alt=""
                 draggable={false}
-                className="poracode-welcome-reveal relative size-20 rounded-none"
+                className="craftstation-welcome-reveal relative size-20 rounded-none"
               />
             </div>
           </div>
 
           <div
-            className={`poracode-welcome-reveal poracode-welcome-reveal-1 flex flex-col items-center gap-3 transition-all duration-700 ${
+            className={`craftstation-welcome-reveal craftstation-welcome-reveal-1 flex flex-col items-center gap-3 transition-all duration-700 ${
               visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
             }`}
           >
@@ -275,7 +275,7 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
                 fullWidth
                 size="lg"
                 variant="tertiary"
-                className="poracode-welcome-button h-12 justify-center gap-2 !text-white"
+                className="craftstation-welcome-button h-12 justify-center gap-2 !text-white"
                 onPress={handleAskQuestion}
               >
                 <MessageSquareText className="size-4" />
@@ -286,7 +286,7 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
                   fullWidth
                   size="lg"
                   variant="tertiary"
-                  className="poracode-welcome-button h-12 justify-center gap-2 !text-white"
+                  className="craftstation-welcome-button h-12 justify-center gap-2 !text-white"
                 >
                   <FolderPlus className="size-4" />
                   <Trans>Enter Project</Trans>
@@ -295,7 +295,7 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
             </div>
           ) : (
             <p
-              className="poracode-welcome-loading-label text-sm text-muted"
+              className="craftstation-welcome-loading-label text-sm text-muted"
               data-testid="welcome-loading-status"
             >
               <Trans>Starting up</Trans>

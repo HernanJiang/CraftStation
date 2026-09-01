@@ -43,6 +43,8 @@ export interface RemoteServerRuntime {
   readonly message?: string;
   readonly projects: RemoteShellSnapshot["projects"];
   readonly threads: RemoteShellSnapshot["threads"];
+  /** Renderer-projected collaboration summaries keyed by projected Thread id. */
+  readonly collaborationExchangesByThread?: RemoteShellSnapshot["collaborationExchangesByThread"];
   readonly agentStatuses?: RemoteAgentStatuses;
 }
 

@@ -49,7 +49,7 @@ let appRendered = false;
 function renderCrashScreen(report: RendererCrashReport): void {
   if (renderingCrashScreen) return;
   renderingCrashScreen = true;
-  console.error(`[poracode][mobile:${report.kind}]`, report);
+  console.error(`[craftstation][mobile:${report.kind}]`, report);
   try {
     reactRoot?.render(<RendererCrashScreen report={report} />);
   } finally {
@@ -73,7 +73,7 @@ function showCrash(kind: RendererCrashKind, error: unknown, source?: string): vo
 // returns index.html (text/html) for the missing .js chunk, and the browser
 // rejects it as a module script. Detect this and recover by clearing all
 // caches and reloading so the next navigation fetches fresh HTML.
-const STALE_ASSET_RECOVERY_KEY = "poracode-stale-asset-recovery";
+const STALE_ASSET_RECOVERY_KEY = "craftstation-stale-asset-recovery";
 
 async function recoverFromStaleAssets(): Promise<boolean> {
   const attempts = Number(sessionStorage.getItem(STALE_ASSET_RECOVERY_KEY) ?? "0");
@@ -101,7 +101,7 @@ window.addEventListener("error", (event) => {
     return;
   }
   if (appRendered) {
-    console.error("[poracode][mobile:uncaught]", event.error ?? event.message);
+    console.error("[craftstation][mobile:uncaught]", event.error ?? event.message);
     return;
   }
   showCrash("uncaught", event.error ?? event.message, buildSource(event));
@@ -113,7 +113,7 @@ window.addEventListener("unhandledrejection", (event) => {
     return;
   }
   if (appRendered) {
-    console.error("[poracode][mobile:unhandled-rejection]", event.reason);
+    console.error("[craftstation][mobile:unhandled-rejection]", event.reason);
     return;
   }
   showCrash("unhandled-rejection", event.reason);

@@ -21,8 +21,8 @@ vi.mock("@/renderer/bridge", () => ({
 function makeProject(): Project {
   return {
     id: "project-1",
-    name: "poracode",
-    location: { kind: "posix", path: "/repo/poracode" },
+    name: "craftstation",
+    location: { kind: "posix", path: "/repo/craftstation" },
     createdAt: "2024-01-01T00:00:00.000Z",
   };
 }
@@ -181,7 +181,7 @@ describe("useGitSummaryHydration", () => {
 
   it("refreshes a streamed worktree PR into the full git cache and its mobile badge", async () => {
     const project = makeProject();
-    const worktreePath = "/repo/.poracode/worktrees/mobile";
+    const worktreePath = "/repo/.craftstation/worktrees/mobile";
     const thread = makeThread({
       worktreePath,
       worktreeBranch: "feature/mobile",
@@ -221,7 +221,7 @@ describe("useGitSummaryHydration", () => {
 
   it("does not duplicate PR hydration when the host read model is available", async () => {
     const project = makeProject();
-    const worktreePath = "/repo/.poracode/worktrees/mobile";
+    const worktreePath = "/repo/.craftstation/worktrees/mobile";
     const thread = makeThread({
       worktreePath,
       worktreeBranch: "feature/mobile",
@@ -253,7 +253,7 @@ describe("useGitSummaryHydration", () => {
 
   it("refreshes the full PR cache when a streamed same-branch PR changes", async () => {
     const project = makeProject();
-    const worktreePath = "/repo/.poracode/worktrees/mobile";
+    const worktreePath = "/repo/.craftstation/worktrees/mobile";
     const thread = makeThread({
       worktreePath,
       worktreeBranch: "feature/mobile",

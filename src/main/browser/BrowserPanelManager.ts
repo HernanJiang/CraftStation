@@ -9,7 +9,7 @@ import {
   type BrowserTabInfo,
 } from "@/shared/ipc";
 import type { UsageLoginConfirmationAction, UsageLoginDeviceCode } from "@/shared/contracts";
-import type { PoracodePaths } from "@/shared/poracodePaths";
+import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import type { BrowserLinkOpenTarget, BrowserLinkPresentationMode } from "@/shared/settings";
 import { dbGetState, dbSetState } from "../db";
 import { readSharedSettingsFile } from "../sharedSettingsFile";
@@ -86,7 +86,7 @@ export class BrowserPanelManager {
   });
 
   constructor(
-    private readonly paths: PoracodePaths,
+    private readonly paths: CraftStationPaths,
     private readonly browserUserAgent: string,
     private readonly options: BrowserPanelManagerOptions = {},
   ) {
@@ -520,7 +520,7 @@ export class BrowserPanelManager {
     // Agent-created tabs auto-join a group (parity with the external extension)
     // so they're visually distinct from the user's tabs. Tabs carrying a thread
     // get that thread's own group (named after its task); the rest fall back to
-    // the shared "Poracode" group.
+    // the shared "CraftStation" group.
     if (opts.agent) {
       this.tabGroups.assignAgentTab(this.tabs, tabId, opts.threadId, opts.threadTitle);
     }
@@ -768,7 +768,7 @@ export class BrowserPanelManager {
     if (active && active.isAttached()) {
       active.webContents
         .executeJavaScript(
-          `(() => { window.dispatchEvent(new CustomEvent("__poracode_picker_cancel")); })()`,
+          `(() => { window.dispatchEvent(new CustomEvent("__craftstation_picker_cancel")); })()`,
           false,
         )
         .catch(() => {});

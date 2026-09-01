@@ -10,24 +10,24 @@ import type { Project, Thread, AppView } from "@/shared/contracts";
  * it as committed. Reporting is the minimum so the loss is observable.
  */
 function reportPersistError(operation: string, error: unknown): void {
-  console.error(`[poracode] failed to persist ${operation}:`, error);
+  console.error(`[craftstation] failed to persist ${operation}:`, error);
   captureRendererException(error, { featureArea: "app-state-persistence" });
 }
 
 /**
  * Raw string-level storage backend backed by SQLite via IPC.
  *
- * For the main app store ("poracode-app-v2"), it maps the Zustand persist
+ * For the main app store ("craftstation-app-v2"), it maps the Zustand persist
  * format to/from individual SQLite rows (projects, threads, view).
  * For other stores, it uses the generic key-value `app_state` table.
  */
 function hasBridge(): boolean {
-  return typeof window !== "undefined" && window.poracode !== undefined;
+  return typeof window !== "undefined" && window.craftstation !== undefined;
 }
 
-const APP_STORE_NAME = "poracode-app-v2";
-const CURRENT_STORAGE_PREFIX = "poracode";
-const LEGACY_STORAGE_PREFIX = "lightcode";
+const APP_STORE_NAME = "craftstation-app-v2";
+const CURRENT_STORAGE_PREFIX = "craftstation";
+const LEGACY_STORAGE_PREFIX = "craftstation";
 const lastStorageValues = new Map<string, StorageValue<unknown>>();
 const lastStorageJson = new Map<string, string>();
 

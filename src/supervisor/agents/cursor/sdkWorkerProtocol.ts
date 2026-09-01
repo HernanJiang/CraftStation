@@ -85,7 +85,7 @@ export interface CursorSdkWorkerLocalOptions {
  * Serializable subset of Cursor's public AgentOptions.
  *
  * `local.customTools` is deliberately absent because it contains executable
- * callbacks and cannot cross a process boundary. Poracode exposes external
+ * callbacks and cannot cross a process boundary. CraftStation exposes external
  * tools through serializable MCP server definitions instead.
  */
 export interface CursorSdkWorkerAgentOptions {

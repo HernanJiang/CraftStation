@@ -33,7 +33,7 @@ import {
 import { pruneStaleRuntimeDirs, safeRm } from "../../runtime/cleanup";
 import { downloadToFile, verifySha256 } from "../../runtime/download";
 import {
-  PORACODE_PINNED_NODE_VERSION,
+  CRAFTSTATION_PINNED_NODE_VERSION,
   MIN_ACCEPTED_NODE_MAJOR,
   NODE_TARBALL_CHECKSUMS,
   nodeArchiveDirName,
@@ -44,7 +44,7 @@ import {
 } from "../../runtime/pinnedNode";
 import { spawnAndAwaitExit } from "../../runtime/spawn";
 
-export { PORACODE_PINNED_NODE_VERSION, MIN_ACCEPTED_NODE_MAJOR, NODE_TARBALL_CHECKSUMS };
+export { CRAFTSTATION_PINNED_NODE_VERSION, MIN_ACCEPTED_NODE_MAJOR, NODE_TARBALL_CHECKSUMS };
 
 export type LinuxArch = "x64" | "arm64";
 /**
@@ -63,7 +63,7 @@ export interface ResolvedNode {
   /** Version string, e.g. "22.11.0". */
   nodeVersion: string;
   /** Whether we found the user's node or installed our own. */
-  source: "user-installed" | "poracode-managed";
+  source: "user-installed" | "craftstation-managed";
 }
 
 /**
@@ -93,7 +93,7 @@ export type RuntimeProgressListener = (event: RuntimeProgressEvent) => void;
 export interface ResolveNodeOptions {
   /**
    * Optional full semver floor for consumers with a stricter requirement
-   * than Poracode's general Node-major gate.
+   * than CraftStation's general Node-major gate.
    */
   minimumVersion?: string;
   onProgress?: RuntimeProgressListener;
@@ -148,8 +148,8 @@ export async function resolveNodeForDistro(
   const installed = await installRuntimeIntoDistro(distro, options);
   const resolved: ResolvedNode = {
     nodePath: installed.nodePath,
-    nodeVersion: PORACODE_PINNED_NODE_VERSION,
-    source: "poracode-managed",
+    nodeVersion: CRAFTSTATION_PINNED_NODE_VERSION,
+    source: "craftstation-managed",
   };
   distroNodeCache.set(distro, resolved);
   options?.onProgress?.({ kind: "ready", nodePath: installed.nodePath });
@@ -203,7 +203,7 @@ async function batchWslCommandsForBootstrap(
   distro: string,
   commands: string[],
 ): Promise<{ ok: boolean; stdout: string }[]> {
-  const sep = "---PORACODE_BOOTSTRAP_BATCH_SEP---";
+  const sep = "---CRAFTSTATION_BOOTSTRAP_BATCH_SEP---";
   const script = commands.map((cmd) => `(${cmd}) 2>/dev/null; printf '\\n${sep}\\n'`).join("\n");
   try {
     const { stdout } = await execFileAsync(
@@ -265,7 +265,7 @@ export async function installRuntimeIntoDistro(
   const checksum = NODE_TARBALL_CHECKSUMS[target];
   if (!checksum) {
     throw new Error(
-      `poracode is missing the SHA256 checksum for Node ${PORACODE_PINNED_NODE_VERSION} ${target}; rerun scripts/refresh-node-checksums.mjs`,
+      `craftstation is missing the SHA256 checksum for Node ${CRAFTSTATION_PINNED_NODE_VERSION} ${target}; rerun scripts/refresh-node-checksums.mjs`,
     );
   }
 
@@ -276,7 +276,7 @@ export async function installRuntimeIntoDistro(
     throw new Error(`could not resolve $HOME inside WSL distro "${distro}"`);
   }
 
-  const linuxRuntimeDir = `${home}/.poracode/runtime`;
+  const linuxRuntimeDir = `${home}/.craftstation/runtime`;
   const versionedDirName = nodeArchiveDirName(target);
   const linuxNodePath = `${linuxRuntimeDir}/${versionedDirName}/bin/node`;
   const uncNodePath = toWslUncPath(distro, linuxNodePath);
@@ -289,7 +289,7 @@ export async function installRuntimeIntoDistro(
   const url = nodeArchiveUrl(target);
 
   options?.onProgress?.({ kind: "download-start", url, target });
-  const tmpTarball = join(tmpdir(), `poracode-node-${Date.now()}-${tarballName}`);
+  const tmpTarball = join(tmpdir(), `craftstation-node-${Date.now()}-${tarballName}`);
   try {
     await downloadToFile(url, tmpTarball, {
       ...(options?.onProgress
@@ -387,9 +387,9 @@ function assertManagedNodeSatisfiesMinimum(
   minimumVersion: ParsedNodeVersion | undefined,
 ): void {
   if (!minimumVersion) return;
-  const managedVersion = parseNodeVersion(PORACODE_PINNED_NODE_VERSION);
+  const managedVersion = parseNodeVersion(CRAFTSTATION_PINNED_NODE_VERSION);
   if (managedVersion && compareNodeVersions(managedVersion, minimumVersion) >= 0) return;
   throw new Error(
-    `Poracode-managed Node ${PORACODE_PINNED_NODE_VERSION} does not satisfy the requested minimum ${requestedMinimum}.`,
+    `CraftStation-managed Node ${CRAFTSTATION_PINNED_NODE_VERSION} does not satisfy the requested minimum ${requestedMinimum}.`,
   );
 }

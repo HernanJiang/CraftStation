@@ -1,5 +1,5 @@
 /*
- * Poracode mobile shell styles.
+ * CraftStation mobile shell styles.
  *
  * The PWA reuses the desktop renderer's components and stylesheet
  * (imported before this file), so everything here is limited to the mobile
@@ -117,7 +117,7 @@ html[data-mobile-platform="ios"][data-mobile-standalone="true"] #root {
 
 /* iOS Safari 26 floats its bottom toolbar over the in-flow document. Size the
    browser-mode shell to the large viewport so its bottom-edge paint supplies
-   Safari's covered band. Floating Poracode controls stay aligned to the
+   Safari's covered band. Floating CraftStation controls stay aligned to the
    visible toolbar edge; installed/native shells keep their existing geometry
    because their display mode is not `browser`. */
 @media (display-mode: browser) {
@@ -169,7 +169,7 @@ html[data-mobile-platform="ios"][data-mobile-standalone="true"] #root {
   html[data-mobile-platform="ios"][data-mobile-browser-chrome="true"]
     .m-shell
     > .m-sheet-backdrop
-    > .m-sheet:has(.poracode-model-menu-listbox) {
+    > .m-sheet:has(.craftstation-model-menu-listbox) {
     overflow: hidden;
     height: auto;
     max-height: calc(65svh + var(--m-browser-band-paint));
@@ -180,7 +180,7 @@ html[data-mobile-platform="ios"][data-mobile-standalone="true"] #root {
     .m-shell
     > .m-sheet-backdrop
     > .m-sheet
-    .poracode-model-menu-listbox {
+    .craftstation-model-menu-listbox {
     height: auto !important;
     min-height: 0;
     max-height: none !important;
@@ -191,7 +191,7 @@ html[data-mobile-platform="ios"][data-mobile-standalone="true"] #root {
   html[data-mobile-platform="ios"][data-mobile-browser-chrome="true"]
     .m-shell
     > .m-sheet-backdrop
-    > .m-sheet[data-expanded]:has(.poracode-model-menu-listbox) {
+    > .m-sheet[data-expanded]:has(.craftstation-model-menu-listbox) {
     height: calc(
       100dvh - env(safe-area-inset-top) - var(--m-browser-edge-gap) + var(--m-browser-band-paint)
     );
@@ -622,7 +622,7 @@ html[data-theme="dark"][data-theme-preset="default"] .m-shell:not(.m-shell--wide
 .m-shell[data-chrome="thread"]
   .m-thread:not(.m-thread--terminal)
   .m-thread-content
-  [data-poracode-chat-scroller] {
+  [data-craftstation-chat-scroller] {
   padding-top: calc(var(--m-thread-chrome-clearance) + 0.375rem);
   scroll-padding-top: var(--m-thread-chrome-clearance);
 }
@@ -651,7 +651,7 @@ html[data-theme="dark"][data-theme-preset="default"] .m-shell:not(.m-shell--wide
   background: transparent;
 }
 
-.m-shell[data-chrome="subagent"] .m-subagent-page [data-poracode-chat-scroller] {
+.m-shell[data-chrome="subagent"] .m-subagent-page [data-craftstation-chat-scroller] {
   padding-top: calc(var(--m-subagent-chrome-clearance) + 0.375rem);
   scroll-padding-top: var(--m-subagent-chrome-clearance);
 }
@@ -1984,7 +1984,7 @@ html[data-mobile-platform="ios"]
    keyboard rise masks the extra work. */
 html:not([data-touch-device]) .m-compose-bubble .m-draft,
 html:not([data-touch-device]) .m-compose-bubble [data-draft-body],
-html:not([data-touch-device]) .m-compose-bubble .poracode-mention-input,
+html:not([data-touch-device]) .m-compose-bubble .craftstation-mention-input,
 html:not([data-touch-device]) .m-compose-bubble [data-composer-input-anchor] {
   transition: none;
 }
@@ -2016,7 +2016,7 @@ html:not([data-touch-device]) .m-compose-bubble [data-composer-input-anchor] {
 
 /* The bubble supplies the surface; flatten the composer's own card chrome so
    it doesn't read as a box-in-a-box. */
-.m-compose-bubble .poracode-composer-shell {
+.m-compose-bubble .craftstation-composer-shell {
   border: none;
   background: transparent;
   box-shadow: none;
@@ -2048,19 +2048,19 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
   touch-action: manipulation;
 }
 
-.m-compose-bubble .poracode-mention-input {
+.m-compose-bubble .craftstation-mention-input {
   transition: padding 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.m-compose-dock[data-expanded] .m-compose-bubble .poracode-mention-input,
-.m-thread-compose-dock[data-expanded] .m-compose-bubble .poracode-mention-input {
+.m-compose-dock[data-expanded] .m-compose-bubble .craftstation-mention-input,
+.m-thread-compose-dock[data-expanded] .m-compose-bubble .craftstation-mention-input {
   max-height: calc(3lh + 1.3rem);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.m-compose-dock[data-expanded] .m-compose-bubble .poracode-mention-input--compact,
-.m-thread-compose-dock[data-expanded] .m-compose-bubble .poracode-mention-input--compact {
+.m-compose-dock[data-expanded] .m-compose-bubble .craftstation-mention-input--compact,
+.m-thread-compose-dock[data-expanded] .m-compose-bubble .craftstation-mention-input--compact {
   max-height: calc(3lh + 1rem);
 }
 
@@ -2072,13 +2072,13 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 .m-compose-dock:not([data-expanded]) .m-compose-bubble .m-draft [data-draft-worktree-row],
 .m-compose-dock:not([data-expanded]) .m-compose-bubble .m-draft [data-draft-compact-header],
 .m-compose-dock:not([data-expanded]) .m-compose-bubble .m-draft [data-draft-hero],
-.m-compose-dock:not([data-expanded]) .m-compose-bubble .poracode-composer-toolbar,
-.m-compose-dock:not([data-expanded]) .m-compose-bubble .poracode-composer-drop-overlay,
-.m-compose-dock:not([data-expanded]) .m-compose-bubble .poracode-composer-border-glow,
+.m-compose-dock:not([data-expanded]) .m-compose-bubble .craftstation-composer-toolbar,
+.m-compose-dock:not([data-expanded]) .m-compose-bubble .craftstation-composer-drop-overlay,
+.m-compose-dock:not([data-expanded]) .m-compose-bubble .craftstation-composer-border-glow,
 .m-compose-dock:not([data-expanded])
   .m-compose-bubble
-  .poracode-composer-shell
-  > :not([data-composer-input-anchor]):not(.poracode-composer-toolbar) {
+  .craftstation-composer-shell
+  > :not([data-composer-input-anchor]):not(.craftstation-composer-toolbar) {
   display: none;
 }
 
@@ -2101,15 +2101,15 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
    below transitions the size/radius, so the button morphs into the circle
    with the collapse tween instead of snapping at pin release. */
 /* Extra .m-compose-bubble hop outranks the toolbar-chip transition rule
-   (`.poracode-composer-toolbar > .flex.shrink-0 > *`), which would otherwise
+   (`.craftstation-composer-toolbar > .flex.shrink-0 > *`), which would otherwise
    replace this shorthand and leave the size/radius snapping. Keep its
    max-width/opacity legs so the chip behaviors stay intact. */
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock
   .m-compose-bubble
-  .poracode-composer-shell
-  .poracode-composer-send {
+  .craftstation-composer-shell
+  .craftstation-composer-send {
   transition:
     max-width 0.28s cubic-bezier(0.32, 0.72, 0, 1),
     opacity 0.2s ease,
@@ -2121,8 +2121,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell
-  .poracode-composer-send {
+  .craftstation-composer-shell
+  .craftstation-composer-send {
   width: var(--m-floating-control-inner-size);
   height: var(--m-floating-control-inner-size);
   min-width: var(--m-floating-control-inner-size);
@@ -2138,7 +2138,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
   overflow: hidden;
 }
 
-.m-compose-dock:not([data-expanded]) .m-compose-bubble .poracode-mention-input {
+.m-compose-dock:not([data-expanded]) .m-compose-bubble .craftstation-mention-input {
   box-sizing: border-box;
   height: var(--m-floating-control-line-height);
   min-height: var(--m-floating-control-line-height);
@@ -2152,7 +2152,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
   line-height: var(--m-floating-control-line-height);
 }
 
-.m-compose-dock:not([data-expanded]) .m-compose-bubble .poracode-composer-shell {
+.m-compose-dock:not([data-expanded]) .m-compose-bubble .craftstation-composer-shell {
   position: relative;
 }
 
@@ -2323,38 +2323,38 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
    inline-block shrink-wrap), so it's a descendant, not a direct child —
    target it by descendant. Scoped to the mobile stylesheet, so the compact
    desktop hover UI is untouched. */
-.poracode-message-action-strip {
+.craftstation-message-action-strip {
   gap: 0.25rem;
   opacity: 1;
 }
 
-.poracode-message-action-strip button {
+.craftstation-message-action-strip button {
   position: relative;
   width: 1.5rem;
   height: 1.5rem;
 }
 
-.poracode-message-action-strip button::after {
+.craftstation-message-action-strip button::after {
   content: "";
   position: absolute;
   inset: calc((1.5rem - var(--m-tap-min)) / 2);
 }
 
-.poracode-message-action-strip button > svg {
+.craftstation-message-action-strip button > svg {
   width: 1rem;
   height: 1rem;
 }
 
-.poracode-image-action-toolbar {
+.craftstation-image-action-toolbar {
   pointer-events: auto;
   opacity: 1;
 }
 
-.poracode-subagent-dock-row {
+.craftstation-subagent-dock-row {
   padding-right: 2rem;
 }
 
-.poracode-subagent-dismiss {
+.craftstation-subagent-dismiss {
   opacity: 1;
 }
 
@@ -2546,7 +2546,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
   padding-bottom: 0;
 }
 
-.m-thread .m-thread-content [data-poracode-chat-scroller] {
+.m-thread .m-thread-content [data-craftstation-chat-scroller] {
   padding-bottom: 0;
 }
 
@@ -3270,7 +3270,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
  * expand / out on collapse. Focusing the input grows the bubble and reveals
  * the full toolbar row. */
 
-:is(.m-main, .m-detail) .m-thread .poracode-composer-shell [data-composer-input-anchor] {
+:is(.m-main, .m-detail) .m-thread .craftstation-composer-shell [data-composer-input-anchor] {
   overflow: hidden;
   max-height: var(--m-floating-control-line-height);
   transition: max-height 0.2s cubic-bezier(0.32, 0.72, 0, 1);
@@ -3283,7 +3283,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]:not([data-collapsing])
-  .poracode-composer-shell
+  .craftstation-composer-shell
   [data-composer-input-anchor] {
   max-height: 12rem;
 }
@@ -3291,8 +3291,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 /* Toolbar chips get width/opacity transitions so the desktop wrap system's
    label reveals animate; the compact pill itself hides the whole toolbar
    (see the opacity rules below). */
-:is(.m-main, .m-detail) .m-thread .poracode-composer-toolbar > .relative > div > *,
-:is(.m-main, .m-detail) .m-thread .poracode-composer-toolbar > .flex.shrink-0 > * {
+:is(.m-main, .m-detail) .m-thread .craftstation-composer-toolbar > .relative > div > *,
+:is(.m-main, .m-detail) .m-thread .craftstation-composer-toolbar > .flex.shrink-0 > * {
   transition:
     max-width 0.28s cubic-bezier(0.32, 0.72, 0, 1),
     opacity 0.2s ease;
@@ -3307,14 +3307,14 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:not([data-expanded])
-  .poracode-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
-  .poracode-composer-send:is([disabled], [data-disabled], [aria-disabled="true"]) {
+  .craftstation-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
+  .craftstation-composer-send:is([disabled], [data-disabled], [aria-disabled="true"]) {
   display: none;
 }
 
 /* One composer language across screens: compact matches the home bubble's
    pill (hairline, radius, translucent surface, shadow)… */
-:is(.m-main, .m-detail) .m-thread .poracode-composer-shell {
+:is(.m-main, .m-detail) .m-thread .craftstation-composer-shell {
   border-color: var(--hairline, var(--border));
   transition:
     border-radius 0.2s cubic-bezier(0.32, 0.72, 0, 1),
@@ -3331,7 +3331,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell {
+  .craftstation-composer-shell {
   border-radius: var(--m-floating-control-radius);
   background: var(--m-glass-surface);
   backdrop-filter: blur(12px);
@@ -3345,13 +3345,13 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]:not([data-collapsing])
-  .poracode-composer-shell {
+  .craftstation-composer-shell {
   border-radius: 1rem;
   border-color: transparent;
   background: var(--composer-surface, var(--sidebar-background, var(--background)));
 }
 
-:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .poracode-composer-border-glow {
+:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .craftstation-composer-border-glow {
   transition: opacity 0.3s ease;
 }
 
@@ -3360,7 +3360,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-collapsing]
-  .poracode-composer-border-glow {
+  .craftstation-composer-border-glow {
   opacity: 0;
   transition: none;
 }
@@ -3368,16 +3368,16 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]:not([data-collapsing])
-  .poracode-composer-shell
-  .poracode-composer-border-glow {
+  .craftstation-composer-shell
+  .craftstation-composer-border-glow {
   opacity: 0.7;
 }
 
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]
-  .poracode-composer-shell
-  .poracode-composer-border-glow::before {
+  .craftstation-composer-shell
+  .craftstation-composer-border-glow::before {
   animation-play-state: running;
 }
 
@@ -3390,7 +3390,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
+  .craftstation-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
   [data-composer-input-anchor] {
   margin-right: var(--m-floating-control-height);
 }
@@ -3398,8 +3398,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
-  .poracode-composer-toolbar {
+  .craftstation-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
+  .craftstation-composer-toolbar {
   position: absolute;
   right: 0.25rem;
   bottom: 0.25rem;
@@ -3416,18 +3416,18 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
-  .poracode-composer-toolbar
-  > :not(:has(.poracode-composer-send)) {
+  .craftstation-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
+  .craftstation-composer-toolbar
+  > :not(:has(.craftstation-composer-send)) {
   display: none;
 }
 
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
-  .poracode-composer-toolbar
-  > :has(.poracode-composer-send) {
+  .craftstation-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
+  .craftstation-composer-toolbar
+  > :has(.craftstation-composer-send) {
   display: flex;
   margin-left: 0;
 }
@@ -3435,25 +3435,25 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
-  .poracode-composer-toolbar
-  > :has(.poracode-composer-send)
-  > :not(.poracode-composer-send) {
+  .craftstation-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
+  .craftstation-composer-toolbar
+  > :has(.craftstation-composer-send)
+  > :not(.craftstation-composer-send) {
   display: none;
 }
 
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
-  .poracode-composer-send {
+  .craftstation-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
+  .craftstation-composer-send {
   pointer-events: auto;
 }
 
 /* Compact + empty: the toolbar is invisible chrome. It sits absolute so it
    can't stretch the one-line pill, and fades in on expand / out on collapse.
    (Typed prompts keep the pinned send — see the :has() rules above.) */
-:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .poracode-composer-toolbar {
+:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .craftstation-composer-toolbar {
   transition: opacity 0.2s ease;
 }
 
@@ -3476,16 +3476,16 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-collapsing]
-  .poracode-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
-  .poracode-composer-toolbar {
+  .craftstation-composer-shell:has([data-composer-input-anchor] [contenteditable]:not(:empty))
+  .craftstation-composer-toolbar {
   animation: m-thread-send-settle 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:not([data-expanded])
-  .poracode-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
-  .poracode-composer-toolbar {
+  .craftstation-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
+  .craftstation-composer-toolbar {
   position: absolute;
   inset-inline: 0;
   bottom: 0;
@@ -3501,8 +3501,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-collapsing]
-  .poracode-composer-shell
-  :is([data-composer-input-anchor], .poracode-mention-input) {
+  .craftstation-composer-shell
+  :is([data-composer-input-anchor], .craftstation-mention-input) {
   transition-delay: 0.1s;
 }
 
@@ -3515,8 +3515,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-collapsing]
-  .poracode-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
-  .poracode-composer-toolbar {
+  .craftstation-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
+  .craftstation-composer-toolbar {
   opacity: 0;
   pointer-events: none;
   /* Faster than the 0.2s height tween: the toolbar must be gone before the
@@ -3532,14 +3532,14 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell
-  .poracode-attachment-bar {
+  .craftstation-composer-shell
+  .craftstation-attachment-bar {
   display: none;
 }
 
 /* Shared compact line metrics with the home bubble: one compact control line,
    text vertically centered (the desktop editor's padding is top-heavy). */
-:is(.m-main, .m-detail) .m-thread .poracode-composer-shell .poracode-mention-input {
+:is(.m-main, .m-detail) .m-thread .craftstation-composer-shell .craftstation-mention-input {
   /* Explicit length instead of the desktop's unitless 1.5 (same computed value
      at 0.875rem): unitless line-height can't animate, so without this the
      placeholder jumps between the compact full-height line box and the
@@ -3553,8 +3553,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell
-  .poracode-mention-input {
+  .craftstation-composer-shell
+  .craftstation-mention-input {
   box-sizing: border-box;
   height: var(--m-floating-control-line-height);
   min-height: var(--m-floating-control-line-height);
@@ -3636,8 +3636,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock:is(:not([data-expanded]), [data-collapsing])
-  .poracode-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
-  .poracode-mention-input {
+  .craftstation-composer-shell:not(:has([data-composer-input-anchor] [contenteditable]:not(:empty)))
+  .craftstation-mention-input {
   padding-right: calc(1.5rem + var(--m-compose-summary-width, 0px));
 }
 
@@ -3661,8 +3661,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]
-  .poracode-composer-shell
-  .poracode-composer-toolbar {
+  .craftstation-composer-shell
+  .craftstation-composer-toolbar {
   animation: m-thread-toolbar-enter 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
@@ -3672,7 +3672,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]
-  .poracode-composer-toolbar
+  .craftstation-composer-toolbar
   [data-slot="button"] {
   min-height: 2.25rem;
 }
@@ -3680,7 +3680,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]
-  .poracode-composer-toolbar
+  .craftstation-composer-toolbar
   [data-slot="button"].button--icon-only {
   min-width: 2.25rem;
 }
@@ -3692,35 +3692,35 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]
-  .poracode-composer-model-control
-  > .poracode-composer-label-hideable {
+  .craftstation-composer-model-control
+  > .craftstation-composer-label-hideable {
   display: flex;
 }
 
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]
-  .poracode-composer-effort-control
-  > .poracode-composer-label-hideable {
+  .craftstation-composer-effort-control
+  > .craftstation-composer-label-hideable {
   display: inline;
 }
 
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock[data-expanded]
-  .poracode-composer-effort-control
-  > .poracode-composer-effort-icon {
+  .craftstation-composer-effort-control
+  > .craftstation-composer-effort-icon {
   display: none;
 }
 
 /* Inside the floating thread bubble, the bubble owns the card chrome just like
    the home composer. Keep the reused desktop composer as content only. */
-:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .poracode-composer-shell,
+:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .craftstation-composer-shell,
 :is(.m-main, .m-detail)
   .m-thread
   .m-thread-compose-dock
-  .poracode-composer-shell:not(:focus-within),
-:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .poracode-composer-shell:focus-within {
+  .craftstation-composer-shell:not(:focus-within),
+:is(.m-main, .m-detail) .m-thread .m-thread-compose-dock .craftstation-composer-shell:focus-within {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -4042,12 +4042,12 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
   position: absolute;
 }
 
-.m-desktop-workspace__panel [data-poracode-panel],
-.m-desktop-workspace__panel .poracode-overlay-surface {
+.m-desktop-workspace__panel [data-craftstation-panel],
+.m-desktop-workspace__panel .craftstation-overlay-surface {
   background: transparent;
 }
 
-.m-desktop-workspace__panel .poracode-overlay-header {
+.m-desktop-workspace__panel .craftstation-overlay-header {
   height: 2.5rem;
   gap: 0.375rem;
   background: transparent;
@@ -4055,13 +4055,13 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
   padding-left: 0.5rem;
 }
 
-.m-desktop-workspace__panel .poracode-overlay-header button {
+.m-desktop-workspace__panel .craftstation-overlay-header button {
   width: 1.75rem;
   height: 1.75rem;
   flex: none;
 }
 
-.m-desktop-workspace__panel .poracode-overlay-header button svg {
+.m-desktop-workspace__panel .craftstation-overlay-header button svg {
   display: block;
   width: 1.125rem;
   height: 1.125rem;
@@ -4112,7 +4112,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
    the surface fill and reserve the bottom safe area on the column here (desktop
    rendering of GitReviewSidebar is untouched). Selected/active row states keep
    their own `--row-hover` fills. */
-.m-workspace .poracode-overlay-surface {
+.m-workspace .craftstation-overlay-surface {
   background: transparent;
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -4243,19 +4243,19 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
     max-height 0.22s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.m-shell > .m-sheet-backdrop > .m-sheet:has(.poracode-model-menu-listbox) {
+.m-shell > .m-sheet-backdrop > .m-sheet:has(.craftstation-model-menu-listbox) {
   overflow: hidden;
   height: auto;
   max-height: 65dvh;
   padding-bottom: 0;
 }
 
-.m-shell > .m-sheet-backdrop > .m-sheet[data-expanded]:has(.poracode-model-menu-listbox) {
+.m-shell > .m-sheet-backdrop > .m-sheet[data-expanded]:has(.craftstation-model-menu-listbox) {
   height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
   max-height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
 }
 
-.m-shell > .m-sheet-backdrop > .m-sheet .poracode-model-menu-listbox {
+.m-shell > .m-sheet-backdrop > .m-sheet .craftstation-model-menu-listbox {
   height: auto !important;
   min-height: 0;
   max-height: none !important;
@@ -4265,8 +4265,8 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 .m-shell
   > .m-sheet-backdrop
   > .m-sheet
-  .poracode-model-menu-listbox
-  .poracode-model-menu-bottom-spacer {
+  .craftstation-model-menu-listbox
+  .craftstation-model-menu-bottom-spacer {
   box-sizing: content-box;
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -4649,7 +4649,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
    win over this and are enlarged in JS instead, so they aren't desynced. Scoped
    to `.m-sheet`, so the desktop popover is untouched. */
 .m-sheet .list-box-item,
-.m-sheet .poracode-menu-item {
+.m-sheet .craftstation-menu-item {
   min-height: var(--m-tap-min);
 }
 
@@ -4661,7 +4661,7 @@ html[data-touch-device] .m-compose-bubble [data-composer-input-anchor]:not(:focu
 /* The model picker's search row and the list's sticky header each draw a
    hairline. In the drawer, keeping the search border transparent still reserves
    a 1px strip above the sticky header, so remove that border entirely. */
-.m-sheet .poracode-model-menu-search {
+.m-sheet .craftstation-model-menu-search {
   border-bottom-width: 0;
 }
 

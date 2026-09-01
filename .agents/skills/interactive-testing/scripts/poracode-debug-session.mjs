@@ -6,12 +6,12 @@ import {
   inspectCdpWindowTargets,
   normalizeCdpAppUrl,
   parseCdpPort,
-} from "./poracode-cdp-target.mjs";
+} from "./craftstation-cdp-target.mjs";
 
 export const DEBUG_SESSION_SCHEMA_VERSION = 1;
 
 export function resolveSmokeRoot() {
-  return resolve(process.env.PORACODE_SMOKE_ROOT ?? join(homedir(), ".poracode-smoke"));
+  return resolve(process.env.CRAFTSTATION_SMOKE_ROOT ?? join(homedir(), ".craftstation-smoke"));
 }
 
 export function resolveSessionFile(value) {
@@ -101,7 +101,7 @@ export async function acquireDebugLaunchLock(repoRoot) {
     .update(normalizeForCompare(repoRoot))
     .digest("hex")
     .slice(0, 20);
-  const locksRoot = join(tmpdir(), "poracode-debug-launch-locks");
+  const locksRoot = join(tmpdir(), "craftstation-debug-launch-locks");
   const lockDir = join(locksRoot, lockKey);
   const ownerFile = join(lockDir, "owner.json");
   const token = randomUUID();
@@ -188,7 +188,7 @@ export async function resolveDebugConnection({
   if (hasPort || hasAppUrl) {
     if (!hasPort || !hasAppUrl) {
       throw new Error(
-        "explicit CDP attachment requires both PORACODE_CDP_PORT and PORACODE_APP_URL (or --port and --appUrl); refusing to guess the missing half",
+        "explicit CDP attachment requires both CRAFTSTATION_CDP_PORT and CRAFTSTATION_APP_URL (or --port and --appUrl); refusing to guess the missing half",
       );
     }
     return {
@@ -206,7 +206,7 @@ export async function resolveDebugConnection({
   );
   if (sessions.length === 0) {
     throw new Error(
-      `no active managed Poracode debug session for ${repoRoot}. Start one with: node .agents/skills/interactive-testing/scripts/run-poracode-smoke.mjs --launch-only --mode mock`,
+      `no active managed CraftStation debug session for ${repoRoot}. Start one with: node .agents/skills/interactive-testing/scripts/run-craftstation-smoke.mjs --launch-only --mode mock`,
     );
   }
   if (sessions.length > 1) {
@@ -217,7 +217,7 @@ export async function resolveDebugConnection({
       )
       .join("; ");
     throw new Error(
-      `multiple active Poracode debug sessions match this repository; pass --session <session.json>. Choices: ${choices}`,
+      `multiple active CraftStation debug sessions match this repository; pass --session <session.json>. Choices: ${choices}`,
     );
   }
   return connectionFromSession(sessions[0]);

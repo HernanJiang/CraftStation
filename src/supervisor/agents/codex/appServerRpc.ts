@@ -6,7 +6,7 @@ import { buildCodexQuestionAnswerEvents } from "./acpQuestionAnswer";
 import type { CodexClientRequestMap } from "./protocol";
 import type { CodexStdioTransport } from "./stdioTransport";
 
-export type CodexRpcDebugDirection = "codex->poracode" | "poracode->codex" | "transport";
+export type CodexRpcDebugDirection = "codex->craftstation" | "craftstation->codex" | "transport";
 
 export type CodexAppServerRpcTransport = Pick<
   CodexStdioTransport,
@@ -117,7 +117,7 @@ function shouldBufferUntilThreadClaim(method: string): boolean {
   );
 }
 
-/** Owns one app-server transport and multiplexes it across Poracode thread sessions. */
+/** Owns one app-server transport and multiplexes it across CraftStation thread sessions. */
 export class CodexAppServerConnection {
   private requestSequence = 0;
   private readonly channels = new Map<string, RpcChannel>();
@@ -256,7 +256,7 @@ export class CodexAppServerConnection {
             id: inbound.id,
             error: {
               code: REQUEST_CANCELLED_ERROR_CODE,
-              message: "Request cancelled because the Poracode thread closed.",
+              message: "Request cancelled because the CraftStation thread closed.",
             },
           });
         } catch {
@@ -307,7 +307,7 @@ export class CodexAppServerConnection {
     params: unknown,
     timeoutMs: number,
   ): Promise<unknown> {
-    const id = `poracode-${this.requestSequence++}`;
+    const id = `craftstation-${this.requestSequence++}`;
     const pending = new Promise<unknown>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id);
@@ -335,7 +335,7 @@ export class CodexAppServerConnection {
     if (message.kind === "response") {
       const pending = this.pendingRequests.get(message.id);
       if (!pending) return;
-      this.debugChannel(pending.channelId, "codex->poracode", payload);
+      this.debugChannel(pending.channelId, "codex->craftstation", payload);
       this.pendingRequests.delete(message.id);
       clearTimeout(pending.timeout);
       if (message.error !== undefined) {
@@ -389,7 +389,7 @@ export class CodexAppServerConnection {
       ? mapCodexServerRequest(channel.localThreadId, String(id), method, params)
       : undefined;
     if (channelId && channel && canonical) {
-      this.debugChannel(channelId, "codex->poracode", { id, method, params });
+      this.debugChannel(channelId, "codex->craftstation", { id, method, params });
       this.inboundRequests.set(String(id), { channelId, id, method, params });
       channel.listener?.onRuntimeEvents([canonical]);
       return;
@@ -415,7 +415,7 @@ export class CodexAppServerConnection {
     const threadId = readMessageThreadId(params);
     if (!threadId) {
       for (const channel of this.channels.values()) {
-        channel.listener?.onDebug?.("codex->poracode", payload);
+        channel.listener?.onDebug?.("codex->craftstation", payload);
         channel.listener?.onNotification(method, params);
       }
       return;
@@ -435,14 +435,14 @@ export class CodexAppServerConnection {
 
     if (channelId) {
       const channel = this.channels.get(channelId);
-      channel?.listener?.onDebug?.("codex->poracode", payload);
+      channel?.listener?.onDebug?.("codex->craftstation", payload);
       channel?.listener?.onNotification(method, params);
       return;
     }
 
     if (this.channels.size === 1) {
       const channel = this.channels.values().next().value;
-      channel?.listener?.onDebug?.("codex->poracode", payload);
+      channel?.listener?.onDebug?.("codex->craftstation", payload);
       channel?.listener?.onNotification(method, params);
       return;
     }
@@ -456,7 +456,7 @@ export class CodexAppServerConnection {
     }
     for (const channel of this.channels.values()) {
       if (channel.remoteThreadIds.size === 0) continue;
-      channel.listener?.onDebug?.("codex->poracode", payload);
+      channel.listener?.onDebug?.("codex->craftstation", payload);
       channel.listener?.onNotification(method, params);
     }
   }
@@ -489,7 +489,7 @@ export class CodexAppServerConnection {
   }
 
   private write(channelId: string, message: Record<string, unknown>): void {
-    this.debugChannel(channelId, "poracode->codex", message);
+    this.debugChannel(channelId, "craftstation->codex", message);
     this.transport.write(message);
   }
 
@@ -515,7 +515,7 @@ export class CodexAppServerRpc {
   private readonly connection: CodexAppServerConnection;
   private readonly ownsConnection: boolean;
   /**
-   * Channel identity is per *session instance*, not per Poracode thread: a
+   * Channel identity is per *session instance*, not per CraftStation thread: a
    * force-stopped session is replaced by a new session for the same thread id
    * while its own `dispose()` is still draining. Keying channels by thread id
    * would let that late teardown unregister the replacement's channel and

@@ -12,6 +12,7 @@ export type RemoteRouteHandler =
   | "passthrough"
   | "noop"
   | "adapter"
+  | "thread-collaboration"
   | "thread-clipboard-image"
   | "thread-handoff-context"
   | "shell-start"
@@ -52,6 +53,12 @@ export const REMOTE_PROCEDURE_ROUTES = {
   saveHandoffContext: { owner: "thread", handler: "thread-handoff-context" },
   startShell: { owner: "projectLocation", handler: "shell-start" },
   closeThread: { owner: "terminal", handler: "shell-close" },
+  listThreadCollaborationTargets: { owner: "none", handler: "thread-collaboration" },
+  requestThreadDialogue: { owner: "none", handler: "thread-collaboration" },
+  listThreadExchanges: { owner: "none", handler: "thread-collaboration" },
+  readThreadExchange: { owner: "none", handler: "thread-collaboration" },
+  waitForThreadExchange: { owner: "none", handler: "thread-collaboration" },
+  cancelThreadExchange: { owner: "none", handler: "thread-collaboration" },
 } as const satisfies Partial<Record<IpcProcedureName, RemoteProcedureRouteSpec>>;
 
 /** Project-aware procedures intentionally dispatched or disabled outside the bridge router. */

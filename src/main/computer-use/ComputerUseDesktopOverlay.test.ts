@@ -110,7 +110,7 @@ describe("ComputerUseDesktopOverlay", () => {
       const overlayHtml = decodeURIComponent(window.loadURL.mock.calls[0]![0].split(",", 2)[1]!);
       expect(overlayHtml).toContain("inset 0 0 0 2px rgba(92, 167, 255, 0.6)");
       expect(overlayHtml).toContain("inset 0 0 48px rgba(92, 167, 255, 0.08)");
-      expect(overlayHtml).toContain("Poracode using your computer | Esc to Exit");
+      expect(overlayHtml).toContain("CraftStation using your computer | Esc to Exit");
       expect(overlayHtml).not.toContain("<button");
     }
     expect(electronMock.globalShortcut.register).toHaveBeenCalledWith(

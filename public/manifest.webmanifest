@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Poracode",
-  "short_name": "Poracode",
-  "description": "Follow and steer your Poracode AI agents from your phone — threads, git review, and live browser, paired to your desktop.",
+  "name": "CraftStation",
+  "short_name": "CraftStation",
+  "description": "Follow and steer your CraftStation AI agents from your phone — threads, git review, and live browser, paired to your desktop.",
   "start_url": "/threads",
   "scope": "/",
   "display": "standalone",

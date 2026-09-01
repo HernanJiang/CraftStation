@@ -57,14 +57,14 @@ function createWatchHarness(subscriptionIdForCall: (callNumber: number) => strin
 
 describe("isIgnoredWorkTreeFile", () => {
   it("ignores project-relative managed worktrees and their dependency churn", () => {
-    expect(isIgnoredWorkTreeFile(".poracode/worktrees/feature/node_modules/react/index.js")).toBe(
-      true,
-    );
-    expect(isIgnoredWorkTreeFile(".poracode/worktrees/feature/src/app.ts")).toBe(true);
+    expect(
+      isIgnoredWorkTreeFile(".craftstation/worktrees/feature/node_modules/react/index.js"),
+    ).toBe(true);
+    expect(isIgnoredWorkTreeFile(".craftstation/worktrees/feature/src/app.ts")).toBe(true);
   });
 
   it("does not hide unrelated project files", () => {
-    expect(isIgnoredWorkTreeFile(".poracode/settings.json")).toBe(false);
+    expect(isIgnoredWorkTreeFile(".craftstation/settings.json")).toBe(false);
     expect(isIgnoredWorkTreeFile("src/worktrees/create.ts")).toBe(false);
   });
 });
@@ -100,7 +100,7 @@ describe("ProjectWatcher WSL worktrees", () => {
     watcher.setWslClient(client);
 
     watcher.watch("project-1", makeLocation("/home/demo/work/repo"));
-    watcher.watchWorktrees("project-1", ["/home/demo/.poracode/worktrees/repo/feature"]);
+    watcher.watchWorktrees("project-1", ["/home/demo/.craftstation/worktrees/repo/feature"]);
 
     await waitForSubscription(2);
     expect(watch).toHaveBeenCalledTimes(2);
@@ -108,7 +108,7 @@ describe("ProjectWatcher WSL worktrees", () => {
     const worktreeWatchOptions = worktreeWatchCall[1];
     expect(worktreeWatchOptions).toEqual(
       expect.objectContaining({
-        paths: [{ path: "/home/demo/.poracode/worktrees/repo/feature", scope: "worktree" }],
+        paths: [{ path: "/home/demo/.craftstation/worktrees/repo/feature", scope: "worktree" }],
       }),
     );
 
@@ -172,7 +172,7 @@ describe("ProjectWatcher WSL worktrees", () => {
     onEvent({
       subscriptionId: "sub",
       scope: "worktree",
-      paths: [".poracode/worktrees/feature/node_modules/react/index.js"],
+      paths: [".craftstation/worktrees/feature/node_modules/react/index.js"],
     });
     await vi.advanceTimersByTimeAsync(300);
 
@@ -236,7 +236,7 @@ describe("ProjectWatcher WSL worktrees", () => {
       onTreeChanged,
     });
     watcher.setWslClient(client);
-    const worktreePath = "/home/demo/.poracode/worktrees/repo/feature";
+    const worktreePath = "/home/demo/.craftstation/worktrees/repo/feature";
 
     watcher.watch("project-1", makeLocation("/home/demo/old"));
     watcher.watchWorktrees("project-1", [worktreePath]);
@@ -345,7 +345,7 @@ describe("ProjectWatcher.hasWslProjects", () => {
 
     // Native projects don't count. The path doesn't exist — both fs.watch
     // calls fail into their try/catch, but the entry still registers.
-    watcher.watch("native", { kind: "windows", path: "C:\\poracode-test-does-not-exist" });
+    watcher.watch("native", { kind: "windows", path: "C:\\craftstation-test-does-not-exist" });
     expect(watcher.hasWslProjects()).toBe(false);
     expect(watcher.getWslDistros()).toEqual([]);
 

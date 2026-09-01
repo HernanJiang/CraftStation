@@ -362,7 +362,7 @@ export type ThreadContextUsage = z.infer<typeof threadContextUsageSchema>;
  * - `counterKind: "per-call"` — `counter` is one API call's total
  *   (e.g. Claude assistant-message usage). The ledger sums these; `sampleId`
  *   gives exact-once dedup across replays.
- * `scopeId` is the PROVIDER-side scope (session/thread id), not the Poracode
+ * `scopeId` is the PROVIDER-side scope (session/thread id), not the CraftStation
  * thread id, so resume/fork semantics stay explicit. `fresh: true` marks a
  * scope the adapter knows was just created (baseline 0); otherwise the first
  * sample in a scope+epoch establishes the baseline and counts nothing.

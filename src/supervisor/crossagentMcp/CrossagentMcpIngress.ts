@@ -16,7 +16,7 @@ export interface CrossagentMcpIngressDeps {
   runManager: SubagentRunManager;
   /** Catalog of installed + authenticated agents the caller may spawn. */
   getSpawnableAgents: (tags?: readonly string[]) => Promise<SpawnableAgent[]>;
-  /** Resolve a trusted provider-native session id to its live Poracode parent. */
+  /** Resolve a trusted provider-native session id to its live CraftStation parent. */
   resolveProviderSessionThreadId?: (sessionId: string) => string | undefined;
   /** Optional user-provided routing guide appended to the MCP instructions (phase 3). */
   getRoutingGuide?: () => string | undefined;
@@ -30,7 +30,7 @@ export interface CrossagentMcpIngressDeps {
 
 const MAX_BODY = 1024 * 1024;
 const MCP_PROTOCOL_VERSION = "2025-03-26";
-export const CROSSAGENT_PROVIDER_SESSION_ID_ARG = "__poracode_provider_session_id";
+export const CROSSAGENT_PROVIDER_SESSION_ID_ARG = "__craftstation_provider_session_id";
 const TOOL_PERMISSION_ALIASES = new Map([
   ["spawn_agents", "spawn_agent"],
   ["wait_for_agents", "wait_for_agent"],
@@ -141,7 +141,7 @@ export class CrossagentMcpIngress {
 
   /**
    * Register a thread whose provider runtime shares one MCP connection.
-   * Authentication proves the caller is the Poracode-launched provider
+   * Authentication proves the caller is the CraftStation-launched provider
    * process; the trusted provider session id on each tools/call selects the
    * parent thread. The token is memory-only and shared by every such thread.
    */
@@ -188,7 +188,7 @@ export class CrossagentMcpIngress {
     if (auth && auth.startsWith("Bearer ")) {
       token = auth.slice(7).trim();
     } else {
-      const xToken = req.headers["x-poracode-token"];
+      const xToken = req.headers["x-craftstation-token"];
       if (typeof xToken === "string") token = xToken;
     }
     if (!token) return null;
@@ -380,7 +380,11 @@ export class CrossagentMcpIngress {
         const disabled = this.disabledToolsByThread.get(threadId);
         const permissionAlias = TOOL_PERMISSION_ALIASES.get(name);
         if (disabled?.has(name) || (permissionAlias && disabled?.has(permissionAlias))) {
-          return { jsonrpc: "2.0", id, result: errorResult(`Tool disabled by Poracode: ${name}`) };
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: errorResult(`Tool disabled by CraftStation: ${name}`),
+          };
         }
         if (!isKnownToolName(name)) {
           return { jsonrpc: "2.0", id, result: errorResult(`Unknown tool: ${name}`) };

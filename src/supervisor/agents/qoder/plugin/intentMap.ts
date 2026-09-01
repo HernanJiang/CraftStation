@@ -2,7 +2,7 @@ import type { AgentEventIntent } from "@/shared/contracts";
 
 /**
  * Translate a Qoder CLI hook event name + raw payload into the universal
- * Poracode `intent` vocabulary. Any event we don't care about returns
+ * CraftStation `intent` vocabulary. Any event we don't care about returns
  * `undefined` and the forwarder simply exits 0 without POSTing.
  *
  * This file is the only Qoder-specific surface in the plugin pipeline:

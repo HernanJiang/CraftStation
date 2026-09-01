@@ -7,7 +7,7 @@ describe("resolveGrokSessionDir", () => {
       resolveGrokSessionDir({
         projectLocation: {
           kind: "windows",
-          path: "E:\\work\\lightcode\\.poracode\\worktrees\\poracode-warm-yak-d27ed350",
+          path: "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-warm-yak-d27ed350",
         },
         sessionId: "019f6789-4fd1-7740-a828-9a42918d42e8",
         homeDir: "C:\\Users\\sdsle",
@@ -17,7 +17,7 @@ describe("resolveGrokSessionDir", () => {
         "C:\\Users\\sdsle",
         ".grok",
         "sessions",
-        "E%3A%5Cwork%5Clightcode%5C.poracode%5Cworktrees%5Cporacode-warm-yak-d27ed350",
+        "E%3A%5Cwork%5Ccraftstation%5C.craftstation%5Cworktrees%5Ccraftstation-warm-yak-d27ed350",
         "019f6789-4fd1-7740-a828-9a42918d42e8",
       ].join("\\"),
     );

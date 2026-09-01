@@ -2,7 +2,7 @@
 
 ## Summary
 
-根据 Manager v0.1.0 规划与 `.scratch/craftstation-0.1.0/issues/` 的 6 个 Tickets，以 `craftstation/` 为工作副本，基于 PoraCode 基线完成了 CraftStation Minecraft Composition Model 的首条 Native Recipe 核心链路实现与 deep-module 重构。
+根据 Manager v0.1.0 规划与 `.scratch/craftstation-0.1.0/issues/` 的 6 个 Tickets，以 `craftstation/` 为工作副本，基于 CraftStation 基线完成了 CraftStation Minecraft Composition Model 的首条 Native Recipe 核心链路实现与 deep-module 重构。
 
 完成的架构主链：
 

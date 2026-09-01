@@ -3,17 +3,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentStatus } from "@/shared/contracts";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import type { AgentAdapter } from "../agents/base";
 import { detectWslAgentStatuses, SupervisorRuntime } from "../supervisorRuntime";
 import { STATUS_CACHE_VERSION } from "./agentStatusService";
 
 const tempDirs: string[] = [];
 const runtimesToDispose: SupervisorRuntime[] = [];
-const poracodeDataDirBeforeTests = process.env.PORACODE_DATA_DIR;
+const craftstationDataDirBeforeTests = process.env.CRAFTSTATION_DATA_DIR;
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-runtime-status-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-runtime-status-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -28,10 +28,10 @@ afterEach(() => {
   for (const runtime of runtimesToDispose.splice(0)) {
     runtime.dispose();
   }
-  if (poracodeDataDirBeforeTests === undefined) {
-    delete process.env.PORACODE_DATA_DIR;
+  if (craftstationDataDirBeforeTests === undefined) {
+    delete process.env.CRAFTSTATION_DATA_DIR;
   } else {
-    process.env.PORACODE_DATA_DIR = poracodeDataDirBeforeTests;
+    process.env.CRAFTSTATION_DATA_DIR = craftstationDataDirBeforeTests;
   }
   vi.useRealTimers();
   for (const dir of tempDirs.splice(0)) {
@@ -42,9 +42,9 @@ afterEach(() => {
 describe("agent status cache", () => {
   it("invalidates v11 caches produced before successful ACP sessions established auth", () => {
     const dataDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = dataDir;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
 
-    const { cacheDir, statusCachePath } = resolvePoracodePaths(dataDir);
+    const { cacheDir, statusCachePath } = resolveCraftStationPaths(dataDir);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
       statusCachePath,
@@ -79,9 +79,9 @@ describe("agent status cache", () => {
 
   it("invalidates v9 caches produced without the Grok login-shell environment", () => {
     const dataDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = dataDir;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
 
-    const { cacheDir, statusCachePath } = resolvePoracodePaths(dataDir);
+    const { cacheDir, statusCachePath } = resolveCraftStationPaths(dataDir);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
       statusCachePath,
@@ -120,9 +120,9 @@ describe("agent status cache", () => {
     // command without the opt-out — the stray-updater window the v14
     // derivation exists to prevent.
     const dataDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = dataDir;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
 
-    const { cacheDir, statusCachePath } = resolvePoracodePaths(dataDir);
+    const { cacheDir, statusCachePath } = resolveCraftStationPaths(dataDir);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
       statusCachePath,
@@ -157,9 +157,9 @@ describe("agent status cache", () => {
 
   it("invalidates v14 caches produced before ACP thinking capabilities", () => {
     const dataDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = dataDir;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
 
-    const { cacheDir, statusCachePath } = resolvePoracodePaths(dataDir);
+    const { cacheDir, statusCachePath } = resolveCraftStationPaths(dataDir);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
       statusCachePath,
@@ -193,9 +193,9 @@ describe("agent status cache", () => {
 
   it("migrates stale cached settingDefs to current schema", () => {
     const dataDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = dataDir;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
 
-    const { cacheDir, statusCachePath } = resolvePoracodePaths(dataDir);
+    const { cacheDir, statusCachePath } = resolveCraftStationPaths(dataDir);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
       statusCachePath,
@@ -322,9 +322,9 @@ describe("agent status cache", () => {
 
   it("adds adapter default slash commands to stale cached statuses", () => {
     const dataDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = dataDir;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
 
-    const { cacheDir, statusCachePath } = resolvePoracodePaths(dataDir);
+    const { cacheDir, statusCachePath } = resolveCraftStationPaths(dataDir);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
       statusCachePath,
@@ -373,9 +373,9 @@ describe("agent status cache", () => {
 
   it("round-trips runtime variants and session routing through the disk cache schema", () => {
     const dataDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = dataDir;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
 
-    const { cacheDir, statusCachePath } = resolvePoracodePaths(dataDir);
+    const { cacheDir, statusCachePath } = resolveCraftStationPaths(dataDir);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
       statusCachePath,

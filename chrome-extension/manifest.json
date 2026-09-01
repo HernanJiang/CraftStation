@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Poracode",
+  "name": "CraftStation",
   "version": "0.1.0",
-  "description": "Lets Poracode agents control this browser — tabs, navigation, and the DOM — over a local connection using the Chrome DevTools Protocol.",
+  "description": "Lets CraftStation agents control this browser — tabs, navigation, and the DOM — over a local connection using the Chrome DevTools Protocol.",
   "permissions": ["debugger", "tabs", "tabGroups", "storage", "alarms"],
   "background": {
     "service_worker": "background.js"
@@ -15,7 +15,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Poracode",
+    "default_title": "CraftStation",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",

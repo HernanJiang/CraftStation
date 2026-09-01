@@ -44,7 +44,7 @@ import {
 } from "@/shared/plugins/catalog";
 import { incrementAgentSelectionUsage } from "@/shared/crossagentRanking";
 
-const STORAGE_KEY = "poracode-shared-settings";
+const STORAGE_KEY = "craftstation-shared-settings";
 
 interface SharedSettingsState extends SharedSettings {
   sharedSettingsHydrated: boolean;
@@ -208,7 +208,7 @@ interface SharedSettingsState extends SharedSettings {
 
 const RECENT_MODELS_LIMIT = 16;
 function hasBridge(): boolean {
-  return typeof window !== "undefined" && window.poracode !== undefined;
+  return typeof window !== "undefined" && window.craftstation !== undefined;
 }
 
 function loadFallbackSettings(): SharedSettings {

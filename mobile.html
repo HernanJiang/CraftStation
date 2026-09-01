@@ -41,9 +41,9 @@
     </script>
     <meta name="robots" content="noindex, nofollow" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Poracode" />
+    <meta name="apple-mobile-web-app-title" content="CraftStation" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Poracode</title>
+    <title>CraftStation</title>
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <link rel="icon" href="%BASE_URL%app-icon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png" />
@@ -114,8 +114,8 @@
         try {
           for (var i = 0; i < localStorage.length; i++) {
             var legacyKey = localStorage.key(i);
-            if (!legacyKey || !legacyKey.startsWith("lightcode")) continue;
-            var currentKey = "poracode" + legacyKey.slice("lightcode".length);
+            if (!legacyKey || !legacyKey.startsWith("craftstation")) continue;
+            var currentKey = "craftstation" + legacyKey.slice("craftstation".length);
             if (localStorage.getItem(currentKey) !== null) continue;
             var value = localStorage.getItem(legacyKey);
             if (value !== null) localStorage.setItem(currentKey, value);
@@ -169,7 +169,7 @@
   </head>
   <body class="bg-background text-foreground">
     <div id="root">
-      <div class="mobile-boot-screen" aria-label="Loading Poracode">
+      <div class="mobile-boot-screen" aria-label="Loading CraftStation">
         <div class="mobile-boot-screen__wordmark" aria-hidden="true">
           <span class="mobile-boot-screen__wordmark-strong">Pora</span>
           <svg class="mobile-boot-screen__wordmark-dot" viewBox="0 0 24 100" focusable="false">

@@ -70,7 +70,7 @@ describe("PrChecksTab", () => {
     expect(screen.getByText("Windows build").closest("li")).toHaveTextContent("2m 06s · Running");
   });
 
-  it("opens GitHub Actions checks inside Poracode", () => {
+  it("opens GitHub Actions checks inside CraftStation", () => {
     useGitStore.setState({
       prDetails: {
         [cacheKey]: {

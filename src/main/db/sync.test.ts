@@ -67,9 +67,9 @@ describe.skipIf(!sqliteAvailable)("dbSyncAll thread ownership", () => {
 
   beforeEach(() => {
     if (nativeBindingEnv) {
-      process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
+      process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
     }
-    dir = mkdtempSync(join(tmpdir(), "poracode-sync-db-test-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-sync-db-test-"));
     initDatabase(join(dir, "state.sqlite"));
     dbUpsertProject(project, 0);
   });
@@ -77,7 +77,7 @@ describe.skipIf(!sqliteAvailable)("dbSyncAll thread ownership", () => {
   afterEach(() => {
     closeDatabase();
     rmSync(dir, { recursive: true, force: true });
-    delete process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING;
+    delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
   });
 
   it("keeps a main-created thread (and its launch transcript) that the renderer has not mirrored yet", () => {

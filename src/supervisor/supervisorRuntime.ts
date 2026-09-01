@@ -65,7 +65,7 @@ import { crossagentRankingPreferences } from "@/shared/crossagentRanking";
 import type { CrossagentRoutingState } from "@/shared/crossagentRanking";
 import type { ConfirmCrossagentRoutingOverridePayload } from "@/shared/ipc/procedures/mcp";
 import { msg } from "@/shared/messages";
-import { resolvePoracodeBaseDir, resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationBaseDir, resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { joinProjectPosixPath } from "@/shared/wsl";
 import { prefetchNativeNodeRuntime } from "./runtime/prefetchNativeNode";
 import {
@@ -116,7 +116,7 @@ import {
   listCrossagentEligibleProviders,
 } from "./crossagentMcp/routingSnapshot";
 import { dispatchAgentEvent } from "./runtime/agentEventDispatcher";
-import { hookDebugEnvelope, isPoracodeHookDebug } from "./runtime/hookDebug";
+import { hookDebugEnvelope, isCraftStationHookDebug } from "./runtime/hookDebug";
 import { SupervisorSharedSettingsCache } from "./runtime/supervisorSharedSettings";
 import { WslBridgeServer } from "./wsl/bridge";
 import { WslBridgeClient } from "./wsl/bridge/client";
@@ -343,16 +343,16 @@ export class SupervisorRuntime {
     // `./undefined/settings.json` in cwd. Also reject bare relative paths —
     // the supervisor must always operate out of an absolute baseDir so
     // writes land somewhere predictable regardless of cwd at spawn time.
-    const rawBaseDir = process.env.PORACODE_DATA_DIR?.trim();
+    const rawBaseDir = process.env.CRAFTSTATION_DATA_DIR?.trim();
     const envBaseDir =
       rawBaseDir && rawBaseDir !== "undefined" && isAbsolute(rawBaseDir) ? rawBaseDir : undefined;
-    const baseDir = envBaseDir ?? resolvePoracodeBaseDir();
+    const baseDir = envBaseDir ?? resolveCraftStationBaseDir();
     this.baseDir = baseDir;
     this.mcpOAuthService = new McpOAuthService({ baseDir });
     this.mcpProbeService = new McpProbeService({
       applyAuthorization: (server) => this.mcpOAuthService.applyAuthorizationToServer(server),
     });
-    const paths = resolvePoracodePaths(baseDir);
+    const paths = resolveCraftStationPaths(baseDir);
     this.logsDir = paths.terminalLogsDir;
     this.settingsPath = paths.settingsPath;
     this.acpIconsDir = paths.acpIconsDir;
@@ -399,7 +399,7 @@ export class SupervisorRuntime {
       emit,
     });
     this.pluginRegistry = new PluginRegistry({
-      bundledPluginsDir: () => process.env.PORACODE_BUNDLED_PLUGINS_DIR?.trim() || undefined,
+      bundledPluginsDir: () => process.env.CRAFTSTATION_BUNDLED_PLUGINS_DIR?.trim() || undefined,
       userPluginsDir: () => paths.pluginsDir,
     });
     this.pluginDataDir = paths.pluginDataDir;
@@ -425,7 +425,7 @@ export class SupervisorRuntime {
       // `preferredNotifChannel: "iterm2"` all stay in place so L2 keeps
       // flowing; we just ignore the L1 signal here.
       if (this.sharedSettingsCache.read().disableCliHookPlugin) {
-        if (isPoracodeHookDebug()) {
+        if (isCraftStationHookDebug()) {
           console.log(`[supervisor] hook-debug: L1 envelope dropped (dev toggle) ← ${source}`, {
             threadId: envelope.threadId,
             sessionId: envelope.sessionId,
@@ -443,7 +443,7 @@ export class SupervisorRuntime {
         onRoutedEvent: (session, env) =>
           this.threadSessionManager.noteCliHookPluginActivity(session, env),
         onUnroutable: (env) => {
-          if (isPoracodeHookDebug()) {
+          if (isCraftStationHookDebug()) {
             console.warn(
               `[supervisor] hook-debug: envelope NOT ROUTED (no live thread) ← ${source}`,
               {
@@ -465,8 +465,8 @@ export class SupervisorRuntime {
         adapters: this.adapters,
         settingsPath: this.settingsPath,
         baseDir,
-        ...(process.env.PORACODE_HOOK_PORT
-          ? { preferredPort: Number(process.env.PORACODE_HOOK_PORT) }
+        ...(process.env.CRAFTSTATION_HOOK_PORT
+          ? { preferredPort: Number(process.env.CRAFTSTATION_HOOK_PORT) }
           : {}),
       },
       dispatchEnvelope,
@@ -483,7 +483,7 @@ export class SupervisorRuntime {
         onEvent: (envelope) => runHookDispatch(envelope, "wsl-bridge"),
         onBridgeExit: (distro) => this._projectWatcher?.handleWslBridgeExit(distro),
         onError: (message, error) => {
-          if (isPoracodeHookDebug()) {
+          if (isCraftStationHookDebug()) {
             console.warn(`[supervisor] hook-debug: ${message}`, error);
           }
         },
@@ -1792,7 +1792,7 @@ export class SupervisorRuntime {
   }
 
   /**
-   * The worktree roots Poracode considers "managed" for prune: the built-in
+   * The worktree roots CraftStation considers "managed" for prune: the built-in
    * default, the resolved global root (custom base or project-relative), and the
    * project-relative root. Per-project custom bases are excluded on purpose so we
    * never auto-delete a user-chosen directory.

@@ -1,9 +1,9 @@
 import type { AgentEventIntent } from "@/shared/contracts";
 
 /**
- * Map a Command Code hook event name to a Poracode universal intent.
+ * Map a Command Code hook event name to a CraftStation universal intent.
  *
- * Command Code exposes a Claude-Code-compatible hook system. Poracode uses
+ * Command Code exposes a Claude-Code-compatible hook system. CraftStation uses
  * `PreToolUse`, `PostToolUse`, and `Stop`; v1 also exposes session-level events,
  * but still has no turn-start (`UserPromptSubmit`) or `Notification` event, so:
  *

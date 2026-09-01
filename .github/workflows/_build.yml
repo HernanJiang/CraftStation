@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       channel:
-        description: "Poracode release channel (stable | nightly)"
+        description: "CraftStation release channel (stable | nightly)"
         required: true
         type: string
       sentry_environment:
@@ -114,7 +114,7 @@ jobs:
         run: pnpm run build
         shell: bash
         env:
-          PORACODE_CHANNEL: ${{ inputs.channel }}
+          CRAFTSTATION_CHANNEL: ${{ inputs.channel }}
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           SENTRY_ENVIRONMENT: ${{ inputs.sentry_environment }}
           POSTHOG_ENABLED: ${{ vars.POSTHOG_ENABLED || '1' }}
@@ -159,7 +159,7 @@ jobs:
           node scripts/build-desktop-artifact.mjs --platform "${{ matrix.platform }}" --skip-build
         shell: bash
         env:
-          PORACODE_CHANNEL: ${{ inputs.channel }}
+          CRAFTSTATION_CHANNEL: ${{ inputs.channel }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -170,7 +170,7 @@ jobs:
           node scripts/build-desktop-artifact.mjs --platform mac --skip-build
         shell: bash
         env:
-          PORACODE_CHANNEL: ${{ inputs.channel }}
+          CRAFTSTATION_CHANNEL: ${{ inputs.channel }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS Developer ID signing (base64-encoded .p12 + password).
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -185,7 +185,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          apps=(release/mac*/Poracode*.app)
+          apps=(release/mac*/CraftStation*.app)
           if [ "${#apps[@]}" -eq 0 ]; then
             echo "::error::No packaged macOS app bundles found under release/mac*."
             exit 1
@@ -211,11 +211,11 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: |
-            release/Poracode-*.exe
-            release/Poracode-*.dmg
-            release/Poracode-*.zip
-            release/Poracode-*.AppImage
-            release/Poracode-*.deb
+            release/CraftStation-*.exe
+            release/CraftStation-*.dmg
+            release/CraftStation-*.zip
+            release/CraftStation-*.AppImage
+            release/CraftStation-*.deb
             release/latest*.yml
             release/nightly*.yml
             release/*.blockmap

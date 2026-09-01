@@ -1,4 +1,4 @@
-package com.poracode.sshbridge;
+package com.craftstation.sshbridge;
 
 import android.util.Base64;
 import com.getcapacitor.JSArray;
@@ -231,7 +231,7 @@ public class SshBridgePlugin extends Plugin {
                     } catch (IOException error) {
                         if (!socket.isClosed()) android.util.Log.w("SshBridge", "SSH forwarder stopped", error);
                     }
-                }, "poracode-ssh-forward-" + connectionId);
+                }, "craftstation-ssh-forward-" + connectionId);
                 thread.setDaemon(true);
                 state.forwardSocket = socket;
                 state.forwardThread = thread;

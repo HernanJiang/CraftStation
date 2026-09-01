@@ -208,7 +208,7 @@ export function ModelVisibilityPopover(props: {
               aria-label={props.listAriaLabel}
               selectionMode="none"
               onAction={activateItem}
-              className="poracode-menu no-scrollbar min-h-0 overflow-y-auto py-1.5"
+              className="craftstation-menu no-scrollbar min-h-0 overflow-y-auto py-1.5"
             >
               {items.map((item) => (
                 <ModelVisibilityRow
@@ -294,7 +294,7 @@ function ModelVisibilityRow(props: {
         textValue={item.label}
         isDisabled={isProviderUnchecked === true}
         {...checkAria(state)}
-        className={`poracode-menu-item group mx-1.5 mb-1 flex h-7 cursor-default items-center border-b border-border/40 bg-overlay px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80${uncheckedClass}`}
+        className={`craftstation-menu-item group mx-1.5 mb-1 flex h-7 cursor-default items-center border-b border-border/40 bg-overlay px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80${uncheckedClass}`}
       >
         {checkGlyph(state)}
         <span className="ml-1 min-w-0 truncate">{item.label}</span>
@@ -320,7 +320,7 @@ function ModelVisibilityRow(props: {
         id={item.id}
         textValue={item.label}
         {...(providerState ? checkAria(providerState) : { isDisabled: true })}
-        className={`mx-1.5 mb-1 flex h-7 items-center gap-1.5 border-b border-border/40 bg-overlay px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80 data-[disabled=true]:opacity-100 ${providerState ? "poracode-menu-item group cursor-default" : ""}`}
+        className={`mx-1.5 mb-1 flex h-7 items-center gap-1.5 border-b border-border/40 bg-overlay px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80 data-[disabled=true]:opacity-100 ${providerState ? "craftstation-menu-item group cursor-default" : ""}`}
       >
         {providerState ? checkGlyph(providerState) : null}
         <ProviderIcon
@@ -346,7 +346,7 @@ function ModelVisibilityRow(props: {
       textValue={item.label}
       isDisabled={isProviderUnchecked === true}
       aria-selected={isVisible}
-      className={`poracode-menu-item group mx-1.5 flex h-7 cursor-default items-center text-foreground${uncheckedClass}`}
+      className={`craftstation-menu-item group mx-1.5 flex h-7 cursor-default items-center text-foreground${uncheckedClass}`}
     >
       <Check
         className={`size-3 shrink-0 transition-opacity ${isVisible ? "opacity-100" : "opacity-0"}`}

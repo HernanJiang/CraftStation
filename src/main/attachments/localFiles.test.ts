@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { saveUploadedAttachmentFile } from "./attachmentStorage";
 import { readLocalImageFile, saveClipboardImageFile } from "./localFiles";
 
@@ -20,8 +20,8 @@ describe("saveClipboardImageFile", () => {
 
   it("sanitizes draft ids in both directory and filename", () => {
     vi.spyOn(Date, "now").mockReturnValue(1777618781449);
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-attachments-"));
-    const paths = resolvePoracodePaths(tempDir);
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-attachments-"));
+    const paths = resolveCraftStationPaths(tempDir);
     const data = new Uint8Array([1, 2, 3, 4]);
 
     const filePath = saveClipboardImageFile(paths, {
@@ -37,8 +37,8 @@ describe("saveClipboardImageFile", () => {
   });
 
   it("preserves a safe display name and avoids overwriting duplicates", () => {
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-attachments-"));
-    const paths = resolvePoracodePaths(tempDir);
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-attachments-"));
+    const paths = resolveCraftStationPaths(tempDir);
 
     const first = saveUploadedAttachmentFile(paths, {
       threadId: "thread-1",
@@ -58,8 +58,8 @@ describe("saveClipboardImageFile", () => {
   });
 
   it("keeps untrusted thread ids inside the attachment root", () => {
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-attachments-"));
-    const paths = resolvePoracodePaths(tempDir);
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-attachments-"));
+    const paths = resolveCraftStationPaths(tempDir);
 
     const filePath = saveUploadedAttachmentFile(paths, {
       threadId: "..",
@@ -71,14 +71,14 @@ describe("saveClipboardImageFile", () => {
   });
 
   it("reads bytes from a local image protocol URL", () => {
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-local-image-"));
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-local-image-"));
     const filePath = join(tempDir, "image.png");
     const bytes = Buffer.from([137, 80, 78, 71]);
     writeFileSync(filePath, bytes);
 
-    expect(readLocalImageFile(`poracode-local://local${pathToFileURL(filePath).pathname}`)).toEqual(
-      bytes,
-    );
+    expect(
+      readLocalImageFile(`craftstation-local://local${pathToFileURL(filePath).pathname}`),
+    ).toEqual(bytes);
     expect(() => readLocalImageFile(`file://${filePath}`)).toThrow("Unsupported local image URL");
   });
 });

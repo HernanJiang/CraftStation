@@ -114,7 +114,7 @@ describe("sentryPolicy", () => {
     ).toMatchObject({
       domain: "unknown",
       errorClass: "unknown-error",
-      fingerprint: ["poracode", "unknown", "run-command", "unknown-error"],
+      fingerprint: ["craftstation", "unknown", "run-command", "unknown-error"],
     });
   });
 
@@ -128,7 +128,7 @@ describe("sentryPolicy", () => {
         level: "warning",
       }),
     ).toEqual({
-      category: "poracode.diagnostic.transition",
+      category: "craftstation.diagnostic.transition",
       type: "info",
       level: "warning",
       data: {

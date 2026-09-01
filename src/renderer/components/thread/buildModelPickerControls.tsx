@@ -271,7 +271,7 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
       icon:
         selectableEfforts.length > 0 ? (
           <EffortIcon
-            className="poracode-composer-effort-icon size-4 text-foreground"
+            className="craftstation-composer-effort-icon size-4 text-foreground"
             effort={effort ?? ""}
             efforts={selectableEfforts.map((entry) => entry.id)}
           />

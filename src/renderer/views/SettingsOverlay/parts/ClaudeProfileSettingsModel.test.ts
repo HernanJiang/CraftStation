@@ -79,7 +79,7 @@ describe("ClaudeProfileSettingsModel", () => {
     const instance: AgentInstanceConfig = {
       id: "work",
       driver: "claude",
-      config: { configDir: "~/.poracode/claude-profiles/work" },
+      config: { configDir: "~/.craftstation/claude-profiles/work" },
     };
 
     expect(profileUsesExternalProvider(instance, { configDir: "x", efforts: [] })).toBe(false);

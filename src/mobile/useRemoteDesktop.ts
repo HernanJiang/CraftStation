@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { SshBridgeAuthentication } from "@poracode/ssh-bridge";
+import type { SshBridgeAuthentication } from "@craftstation/ssh-bridge";
 import { msg } from "@lingui/core/macro";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -508,7 +508,7 @@ export function useRemoteDesktop() {
     const result = await connectMobileSsh(sshConnection, authentication, true);
     if (!result.pairingCredential) {
       await disconnectMobileSsh(sshConnection.id);
-      throw new Error(i18n._(msg`The remote Poracode server returned no pairing credential.`));
+      throw new Error(i18n._(msg`The remote CraftStation server returned no pairing credential.`));
     }
     try {
       await setSshCredential(sshConnection.id, authentication);

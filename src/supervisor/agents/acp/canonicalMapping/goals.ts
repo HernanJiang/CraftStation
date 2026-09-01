@@ -13,7 +13,7 @@ import { startGoalItemEvents, updateGoalItemEvents } from "../../goalRuntime";
 import type { AcpMapperState } from "./state";
 import { newItemId } from "./state";
 
-export const PORACODE_ACP_GOAL_META_KEY = "poracodeGoal";
+export const CRAFTSTATION_ACP_GOAL_META_KEY = "craftstationGoal";
 
 export type AcpCanonicalGoalUpdate = GoalItemPayload;
 
@@ -39,7 +39,7 @@ export function mapAcpCanonicalGoalUpdate(update: unknown, state: AcpMapperState
 function readAcpCanonicalGoalUpdate(update: unknown): AcpCanonicalGoalUpdate | undefined {
   const updateRecord = plainRecord(update);
   const meta = plainRecord(updateRecord._meta);
-  const raw = plainRecord(meta[PORACODE_ACP_GOAL_META_KEY]);
+  const raw = plainRecord(meta[CRAFTSTATION_ACP_GOAL_META_KEY]);
   if (Object.keys(raw).length === 0) return undefined;
 
   const action = readEnum(raw.action, ["set", "updated", "cleared", "viewed"] as const);

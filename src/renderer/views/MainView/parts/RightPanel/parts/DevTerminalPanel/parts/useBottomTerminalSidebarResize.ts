@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { readStoredNumber, writeStoredNumber } from "@/renderer/utils/localStorage";
 
-const WIDTH_STORAGE_KEY = "poracode-bottom-terminal-sidebar-width";
+const WIDTH_STORAGE_KEY = "craftstation-bottom-terminal-sidebar-width";
 export const BOTTOM_TERMINAL_SIDEBAR_MIN_WIDTH = 100;
 export const BOTTOM_TERMINAL_SIDEBAR_MAX_WIDTH = 360;
 const BOTTOM_TERMINAL_SIDEBAR_DEFAULT_WIDTH = 140;

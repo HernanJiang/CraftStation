@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Seeds the Poracode app DB with a believable multi-agent transcript so the
+// Seeds the CraftStation app DB with a believable multi-agent transcript so the
 // REAL renderer (real ChatPane components) can be screenshot for marketing.
 // Run AFTER one normal app boot has created + migrated the schema, then boot
 // again to render. Usage:
-//   node --no-warnings branding/mocks/seed-poracode-marketing.mjs --baseDir <dir> --projectPath <dir>
+//   node --no-warnings branding/mocks/seed-craftstation-marketing.mjs --baseDir <dir> --projectPath <dir>
 import { createRequire } from "node:module";
 import path from "node:path";
 
@@ -26,7 +26,7 @@ const readArg = (n) => {
   const i = args.indexOf(`--${n}`);
   return i === -1 ? undefined : args[i + 1];
 };
-const baseDir = readArg("baseDir") ?? process.env.PORACODE_BASE_DIR;
+const baseDir = readArg("baseDir") ?? process.env.CRAFTSTATION_BASE_DIR;
 const projectPath = readArg("projectPath") ?? "/Users/dev/work/acme-web";
 if (!baseDir) throw new Error("--baseDir required");
 const dbPath = path.join(path.resolve(baseDir), "state.sqlite");
@@ -36,7 +36,7 @@ const later = "2026-06-28T10:06:00.000Z";
 const PROJECT = { id: "p-acme", name: "acme-web" };
 
 // A git worktree shared by two threads → renders a worktree group in the sidebar.
-const WT_PATH = "/Users/dev/work/acme-web/.poracode/worktrees/feat-billing";
+const WT_PATH = "/Users/dev/work/acme-web/.craftstation/worktrees/feat-billing";
 const WT_BRANCH = "feat/billing-portal";
 
 // presentation_mode MUST be "gui" — terminal panes need a live PTY.
@@ -169,7 +169,7 @@ const NOTES_DOC = {
               content: [
                 {
                   type: "text",
-                  text: "Worktrees live under .poracode/worktrees — one branch per worktree.",
+                  text: "Worktrees live under .craftstation/worktrees — one branch per worktree.",
                 },
               ],
             },

@@ -29,11 +29,11 @@ afterEach(async () => {
 });
 
 function makeRepo(): { dir: string; location: ProjectLocation } {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-checkpoints-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-checkpoints-"));
   tempDirs.push(dir);
   git(dir, "init");
   git(dir, "config", "user.email", "test@example.com");
-  git(dir, "config", "user.name", "Poracode Test");
+  git(dir, "config", "user.name", "CraftStation Test");
   git(dir, "config", "core.autocrlf", "false");
   writeFileSync(join(dir, "README.md"), "before\n");
   git(dir, "add", "README.md");
@@ -117,7 +117,7 @@ describe.skipIf(!hasGit())("GitCheckpointService", () => {
       checkpointItemId: "user-1",
       projectLocation: location,
     });
-    const legacyRef = checkpoint.ref.replace("refs/poracode/", "refs/lightcode/");
+    const legacyRef = checkpoint.ref.replace("refs/craftstation/", "refs/craftstation/");
     git(dir, "update-ref", legacyRef, checkpoint.commit);
     git(dir, "update-ref", "-d", checkpoint.ref);
 

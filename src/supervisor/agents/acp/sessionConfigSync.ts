@@ -23,7 +23,7 @@ type ConfigOptionUpdateWaiter = {
 };
 
 /**
- * Synchronizes Poracode thread configuration with one live ACP session.
+ * Synchronizes CraftStation thread configuration with one live ACP session.
  *
  * This object owns only the ACP-advertised configuration metadata needed to
  * translate subsequent updates. Session lifecycle and the committed
@@ -101,7 +101,7 @@ export class AcpSessionConfigSync {
     );
   }
 
-  /** The Poracode mode id for plan mode as this agent names it. */
+  /** The CraftStation mode id for plan mode as this agent names it. */
   resolvePlanModeId(): string {
     return resolveAcpMode({ model: "", mode: "plan" }, this._availableModeIds) ?? "plan";
   }

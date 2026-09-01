@@ -1,4 +1,11 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),
@@ -175,5 +182,89 @@ export const threadCompletedTurns = sqliteTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.threadId, table.idx] }),
+  }),
+);
+
+/** Durable one-to-one dialogue identity between two long-lived app threads. */
+export const threadConversationLinks = sqliteTable(
+  "thread_conversation_links",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    participantAThreadId: text("participant_a_thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    participantBThreadId: text("participant_b_thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    participants: uniqueIndex("idx_thread_conversation_links_participants").on(
+      table.projectId,
+      table.participantAThreadId,
+      table.participantBThreadId,
+    ),
+  }),
+);
+
+/** Durable request/reply transaction and outbox claim for cross-thread dialogue. */
+export const threadExchanges = sqliteTable(
+  "thread_exchanges",
+  {
+    id: text("id").primaryKey(),
+    linkId: text("link_id")
+      .notNull()
+      .references(() => threadConversationLinks.id, { onDelete: "cascade" }),
+    projectId: text("project_id").notNull(),
+    sourceThreadId: text("source_thread_id").notNull(),
+    targetThreadId: text("target_thread_id").notNull(),
+    sequence: integer("sequence").notNull(),
+    deliveryMode: text("delivery_mode").notNull(),
+    status: text("status").notNull(),
+    request: text("request").notNull(),
+    contextCapsule: text("context_capsule"),
+    sourceProvenance: text("source_provenance").notNull(),
+    targetProvenance: text("target_provenance").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestItemId: text("request_item_id").notNull(),
+    deliveryBaselineTurnIndex: integer("delivery_baseline_turn_index"),
+    deliveryAnchorItemId: text("delivery_anchor_item_id"),
+    replyTurnIndex: integer("reply_turn_index"),
+    replyAnchorItemId: text("reply_anchor_item_id"),
+    replyExcerpt: text("reply_excerpt"),
+    causalParentExchangeId: text("causal_parent_exchange_id"),
+    hopDepth: integer("hop_depth").notNull(),
+    error: text("error"),
+    claimToken: text("claim_token"),
+    claimExpiresAt: text("claim_expires_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    deliveredAt: text("delivered_at"),
+    repliedAt: text("replied_at"),
+  },
+  (table) => ({
+    sourceIdempotency: uniqueIndex("idx_thread_exchanges_source_idempotency").on(
+      table.sourceThreadId,
+      table.idempotencyKey,
+    ),
+    linkSequenceUnique: uniqueIndex("idx_thread_exchanges_link_sequence_unique").on(
+      table.linkId,
+      table.sequence,
+    ),
+    targetStatusSequence: index("idx_thread_exchanges_target_status_sequence").on(
+      table.targetThreadId,
+      table.status,
+      table.sequence,
+    ),
+    sourceUpdated: index("idx_thread_exchanges_source_updated").on(
+      table.sourceThreadId,
+      table.updatedAt,
+    ),
+    linkSequence: index("idx_thread_exchanges_link_sequence").on(table.linkId, table.sequence),
   }),
 );

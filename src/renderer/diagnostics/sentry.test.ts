@@ -52,18 +52,18 @@ describe("renderer Sentry diagnostics", () => {
     );
   });
 
-  it("captures the scrubbed component tree through the allowed poracode context", () => {
+  it("captures the scrubbed component tree through the allowed craftstation context", () => {
     captureRendererException(
       new Error("render failed"),
       { featureArea: "react" },
       "at SettingsPanel (/Users/alice/work/repo/SettingsPanel.tsx:1:2)\nat App",
     );
 
-    expect(sentry.scope.setContext).toHaveBeenCalledWith("poracode", {
+    expect(sentry.scope.setContext).toHaveBeenCalledWith("craftstation", {
       react_components: ["SettingsPanel", "App"],
     });
     expect(sentry.scope.setContext).not.toHaveBeenCalledWith(
-      "poracode",
+      "craftstation",
       expect.objectContaining({ path: expect.anything() }),
     );
   });
@@ -72,10 +72,10 @@ describe("renderer Sentry diagnostics", () => {
     setRendererRuntimeDiagnosticContext(null);
 
     expect(sentry.scope.setTag.mock.calls).toEqual([
-      ["poracode.provider", undefined],
-      ["poracode.presentation", undefined],
-      ["poracode.runtime_kind", undefined],
-      ["poracode.feature_area", undefined],
+      ["craftstation.provider", undefined],
+      ["craftstation.presentation", undefined],
+      ["craftstation.runtime_kind", undefined],
+      ["craftstation.feature_area", undefined],
     ]);
   });
 
@@ -115,7 +115,7 @@ describe("renderer Sentry diagnostics", () => {
 
   it("drops a handled stale-file outcome from the file editor", () => {
     const event = {
-      tags: { "poracode.feature_area": "file-editor" },
+      tags: { "craftstation.feature_area": "file-editor" },
       exception: {
         values: [
           {
@@ -131,7 +131,7 @@ describe("renderer Sentry diagnostics", () => {
 
   it.each([
     {
-      tags: { "poracode.feature_area": "git" },
+      tags: { "craftstation.feature_area": "git" },
       exception: {
         values: [
           {
@@ -142,7 +142,7 @@ describe("renderer Sentry diagnostics", () => {
       },
     },
     {
-      tags: { "poracode.feature_area": "file-editor" },
+      tags: { "craftstation.feature_area": "file-editor" },
       exception: {
         values: [
           {
@@ -153,7 +153,7 @@ describe("renderer Sentry diagnostics", () => {
       },
     },
     {
-      tags: { "poracode.feature_area": "file-editor" },
+      tags: { "craftstation.feature_area": "file-editor" },
       exception: {
         values: [
           {
@@ -164,7 +164,7 @@ describe("renderer Sentry diagnostics", () => {
       },
     },
     {
-      tags: { "poracode.feature_area": "file-editor" },
+      tags: { "craftstation.feature_area": "file-editor" },
       exception: {
         values: [
           {

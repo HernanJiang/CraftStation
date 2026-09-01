@@ -13,7 +13,7 @@ export const appTools: ToolDomain = {
     {
       name: "get_app_info",
       description:
-        "Read-only overview of the running Poracode app: version, platform, UI locale setting, project/thread counts, whether a desktop renderer window is connected (vs headless server), and this MCP server's name/version.",
+        "Read-only overview of the running CraftStation app: version, platform, UI locale setting, project/thread counts, whether a desktop renderer window is connected (vs headless server), and this MCP server's name/version.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {

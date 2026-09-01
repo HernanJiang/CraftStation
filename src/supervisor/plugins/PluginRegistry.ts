@@ -5,7 +5,7 @@ import { formatPluginDiagnostic, type PluginDiagnostic } from "@/shared/plugins/
 import { loadPluginFromDirectory, PLUGIN_MANIFEST_FILE, PLUGIN_MCP_FILE } from "./PluginLoader";
 
 /**
- * Discovers Agent Plugins packages from the roots Poracode scans.
+ * Discovers Agent Plugins packages from the roots CraftStation scans.
  *
  * Bundled packages ship with the app; user packages are whatever the user drops
  * into the plugin directory. Bundled wins on a name collision, so a third-party

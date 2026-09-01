@@ -31,6 +31,8 @@ import type {
 } from "@/shared/contracts";
 import type { RemoteProjectCommand, RemoteProjectCommandResult } from "@/shared/remote";
 import { defaultSharedSettings, type SharedSettings } from "@/shared/settings";
+import type { ThreadExchange } from "@/shared/threadCollaboration";
+import { ThreadControlAdapter } from "../../thread-collaboration";
 import type { ScheduleService } from "../../schedules/ScheduleService";
 import type {
   CreateAppThreadRequest,
@@ -108,6 +110,17 @@ function context(
     probeResult?: McpProbeResult;
     authenticatedUrls?: string[];
     skillScan?: SkillScanResult;
+    requestDialogue?: (input: {
+      actorThreadId: string;
+      request: {
+        sourceThreadId: string;
+        targetThreadId: string;
+        request: string;
+        deliveryMode: "after-current-turn" | "interrupt-and-send";
+        idempotencyKey: string;
+        hopDepth: number;
+      };
+    }) => Promise<ThreadExchange>;
   } = {},
 ) {
   const tasks = options.tasks ?? [];
@@ -341,10 +354,78 @@ function context(
   const updateProject = vi.fn<(project: Project) => void>();
   const settingsWrite = vi.fn<(next: SharedSettings) => void>();
   const settingsValue = options.settings ?? defaultSharedSettings;
+  const threadStates = new ThreadStateBroker();
+  for (const snapshot of options.snapshots ?? []) {
+    threadStates.observe({
+      type: "thread-state",
+      threadId: snapshot.threadId,
+      status: snapshot.status,
+      attention: snapshot.attention,
+      canResumeWithConfig: snapshot.canResumeWithConfig,
+    });
+  }
+  const threadControl = new ThreadControlAdapter({
+    getThread: (id) =>
+      threads.find((entry) => entry.id === id) ?? (id === thread.id ? thread : null),
+    getThreads: () => threads,
+    getProject: (id) => options.projects?.find((project) => project.id === id) ?? null,
+    settings: () => settingsValue,
+    runtime: supervisor,
+    states: threadStates,
+  });
+  const requestDialogue = vi.fn<NonNullable<typeof options.requestDialogue>>(
+    options.requestDialogue ??
+      (async (input) =>
+        ({
+          id: "exchange-1",
+          linkId: "link-1",
+          projectId: "project-1",
+          sourceThreadId: input.request.sourceThreadId,
+          targetThreadId: input.request.targetThreadId,
+          sequence: 1,
+          deliveryMode: input.request.deliveryMode,
+          status: "delivered",
+          request: input.request.request,
+          contextCapsule: null,
+          sourceProvenance: {
+            threadId: input.request.sourceThreadId,
+            projectId: "project-1",
+            title: "Source",
+            modelId: "gpt-5.6",
+            harnessId: "codex",
+            agentMcpSupported: true,
+          },
+          targetProvenance: {
+            threadId: input.request.targetThreadId,
+            projectId: "project-1",
+            title: "Target",
+            modelId: "gpt-5.6",
+            harnessId: "codex",
+            agentMcpSupported: true,
+          },
+          idempotencyKey: input.request.idempotencyKey,
+          requestItemId: "request-1",
+          deliveryBaselineTurnIndex: 0,
+          deliveryAnchorItemId: "request-1",
+          replyTurnIndex: null,
+          replyAnchorItemId: null,
+          replyExcerpt: null,
+          causalParentExchangeId: null,
+          hopDepth: 0,
+          error: null,
+          claimToken: null,
+          claimExpiresAt: null,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          deliveredAt: "2026-01-01T00:00:00.000Z",
+          repliedAt: null,
+        }) satisfies ThreadExchange),
+  );
   const ctx: AppControlsToolContext = {
     identity: { threadId: thread.id, title: "Schedule this" },
     scheduleService: service,
-    getThread: (id) => threads.find((entry) => entry.id === id) ?? null,
+    getThread: (id) =>
+      threads.find((entry) => entry.id === id) ?? (id === thread.id ? thread : null),
     getThreads: () => threads,
     getProjects: () => options.projects ?? [],
     getProject: (id) => options.projects?.find((project) => project.id === id) ?? null,
@@ -362,7 +443,11 @@ function context(
     openThreadInUi,
     notifyUser,
     checkForUpdate,
-    threadStates: new ThreadStateBroker(),
+    threadStates,
+    threadControl,
+    threadCollaboration: {
+      requestDialogue,
+    } as unknown as AppControlsToolContext["threadCollaboration"],
   };
   return {
     ctx,
@@ -378,10 +463,11 @@ function context(
     applyProjectCommand,
     updateProject,
     settingsWrite,
+    requestDialogue,
   };
 }
 
-describe("Poracode app control tools — schedules", () => {
+describe("CraftStation app control tools — schedules", () => {
   it("creates a schedule with the calling thread's agent defaults", async () => {
     const { ctx, service } = context();
     await dispatchTool(
@@ -432,12 +518,12 @@ describe("Poracode app control tools — schedules", () => {
   });
 });
 
-describe("Poracode app control tools — threads", () => {
+describe("CraftStation app control tools — threads", () => {
   it("returns the calling thread with its project and worktree", async () => {
     const current = makeThread({
       id: thread.id,
       projectId: "project-1",
-      worktreePath: "/work/alpha/.poracode/worktrees/current",
+      worktreePath: "/work/alpha/.craftstation/worktrees/current",
       worktreeBranch: "feature/current",
     });
     const projects = [{ id: "project-1", name: "Alpha" } as Project];
@@ -452,7 +538,7 @@ describe("Poracode app control tools — threads", () => {
     expect(result).toMatchObject({
       threadId: thread.id,
       projectName: "Alpha",
-      worktreePath: "/work/alpha/.poracode/worktrees/current",
+      worktreePath: "/work/alpha/.craftstation/worktrees/current",
     });
   });
 
@@ -496,7 +582,7 @@ describe("Poracode app control tools — threads", () => {
   });
 
   it("filters threads to the calling thread's exact worktree", async () => {
-    const worktreePath = "/work/alpha/.poracode/worktrees/current";
+    const worktreePath = "/work/alpha/.craftstation/worktrees/current";
     const threads = [
       makeThread({ id: thread.id, projectId: "project-1", worktreePath }),
       makeThread({ id: "same", projectId: "project-1", worktreePath }),
@@ -554,7 +640,7 @@ describe("Poracode app control tools — threads", () => {
       makeThread({
         id: "separate-worktree",
         projectId: "project-1",
-        worktreePath: "/work/alpha/.poracode/worktrees/feature",
+        worktreePath: "/work/alpha/.craftstation/worktrees/feature",
       }),
       makeThread({ id: "other-project", projectId: "project-2" }),
     ];
@@ -616,68 +702,30 @@ describe("Poracode app control tools — threads", () => {
 
   it("send_to_thread interrupts first when requested then sends", async () => {
     const threads = [makeThread({ id: "a" })];
-    const { ctx, supervisor } = context({ threads });
-    await dispatchTool(
+    const { ctx, requestDialogue, supervisor } = context({ threads });
+    const result = await dispatchTool(
       "send_to_thread",
       { threadId: "a", message: "hello", interruptFirst: true },
       ctx,
     );
-    expect(supervisor.interruptThread).toHaveBeenCalledWith({ threadId: "a" });
-    expect(supervisor.sendThreadInput).toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: "a", prompt: "hello" }),
-    );
-    expect(supervisor.startThread).not.toHaveBeenCalled();
-  });
-
-  it("send_to_thread resumes a thread whose live session is gone, delivering the message as the first input", async () => {
-    const threads = [
-      makeThread({
-        id: "a",
-        projectId: "p1",
-        agentKind: "codex",
-        presentationMode: "gui",
-        sessionRef: { providerSessionId: "sess-1", discoveredAt: "2026-01-01T00:00:00.000Z" },
-        worktreePath: "/work/alpha/.poracode/worktrees/wt",
+    expect(result).toMatchObject({
+      threadId: "a",
+      exchangeId: "exchange-1",
+      status: "delivered",
+      delivered: true,
+      interruptedFirst: true,
+    });
+    expect(requestDialogue).toHaveBeenCalledWith({
+      actorThreadId: "thread-1",
+      request: expect.objectContaining({
+        sourceThreadId: "thread-1",
+        targetThreadId: "a",
+        request: "hello",
+        deliveryMode: "interrupt-and-send",
       }),
-    ];
-    const projects = [
-      { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
-    ];
-    const { ctx, supervisor } = context({ threads, projects });
-    // The supervisor no longer has a live session for this thread.
-    supervisor.sendThreadInput.mockRejectedValueOnce(new Error("Unknown thread session: a"));
-
-    const result = (await dispatchTool(
-      "send_to_thread",
-      { threadId: "a", message: "resume please" },
-      ctx,
-    )) as { delivered: boolean; resumed?: boolean };
-
-    expect(result.delivered).toBe(true);
-    expect(result.resumed).toBe(true);
-    expect(supervisor.startThread).toHaveBeenCalledWith(
-      expect.objectContaining({
-        threadId: "a",
-        prompt: "resume please",
-        agentKind: "codex",
-        presentationMode: "gui",
-        sessionRef: { providerSessionId: "sess-1", discoveredAt: "2026-01-01T00:00:00.000Z" },
-        projectLocation: expect.objectContaining({ kind: "posix" }),
-      }),
-    );
-  });
-
-  it("send_to_thread refuses a non-resumable dead thread and points to create_thread", async () => {
-    const threads = [makeThread({ id: "a", projectId: "p1", canResumeWithConfig: false })];
-    const projects = [
-      { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
-    ];
-    const { ctx, supervisor } = context({ threads, projects });
-    supervisor.sendThreadInput.mockRejectedValueOnce(new Error("Unknown thread session: a"));
-
-    await expect(
-      dispatchTool("send_to_thread", { threadId: "a", message: "hi" }, ctx),
-    ).rejects.toThrow(/create_thread/);
+    });
+    expect(supervisor.interruptThread).not.toHaveBeenCalled();
+    expect(supervisor.sendThreadInput).not.toHaveBeenCalled();
     expect(supervisor.startThread).not.toHaveBeenCalled();
   });
 
@@ -694,7 +742,7 @@ describe("Poracode app control tools — threads", () => {
     )) as { applied: string[]; note?: string };
 
     expect(result.applied).toEqual(["rename", "done", "acknowledge"]);
-    expect(result.note).toMatch(/No Poracode UI is connected/);
+    expect(result.note).toMatch(/No CraftStation UI is connected/);
     // Commands are still emitted (attempted), but no renderer received them.
     expect(emitRemoteThreadCommand).toHaveBeenCalled();
     expect(updateThreadRow).toHaveBeenCalledWith("a", expect.any(Function));
@@ -729,7 +777,7 @@ describe("Poracode app control tools — threads", () => {
       note?: string;
     };
     expect(result.opened).toBe(false);
-    expect(result.note).toMatch(/No Poracode UI is connected/);
+    expect(result.note).toMatch(/No CraftStation UI is connected/);
   });
 
   it("rejects unknown thread ids with a clear error", async () => {
@@ -773,7 +821,7 @@ describe("Poracode app control tools — threads", () => {
   });
 });
 
-describe("Poracode app control tools — projects", () => {
+describe("CraftStation app control tools — projects", () => {
   const projects = [
     { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
     { id: "p2", name: "Beta", location: { kind: "posix", path: "/work/beta" } } as Project,
@@ -834,7 +882,7 @@ describe("Poracode app control tools — projects", () => {
   });
 });
 
-describe("Poracode app control tools — settings", () => {
+describe("CraftStation app control tools — settings", () => {
   function settingsWithSecret(): SharedSettings {
     return {
       ...defaultSharedSettings,
@@ -1020,7 +1068,7 @@ describe("Poracode app control tools — settings", () => {
   });
 });
 
-describe("Poracode app control tools — usage", () => {
+describe("CraftStation app control tools — usage", () => {
   it("passes providerId through and honors refresh", async () => {
     const usageResponse = { snapshots: [{ providerId: "claude" } as never], fromCache: false };
     const { ctx, supervisor } = context({ usageResponse });
@@ -1043,7 +1091,7 @@ describe("Poracode app control tools — usage", () => {
   });
 });
 
-describe("Poracode app control tools — search", () => {
+describe("CraftStation app control tools — search", () => {
   const projects = [
     { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
   ];
@@ -1093,7 +1141,7 @@ describe("Poracode app control tools — search", () => {
   });
 });
 
-describe("Poracode app control tools — app", () => {
+describe("CraftStation app control tools — app", () => {
   it("reports read-only app facts without secrets", async () => {
     const projects = [
       { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
@@ -1117,7 +1165,7 @@ describe("Poracode app control tools — app", () => {
     expect(result.renderer).toBe("headless");
     expect(result.projectCount).toBe(1);
     expect(result.threadCount).toBe(1);
-    expect(result.mcpServer.name).toBe("poracode");
+    expect(result.mcpServer.name).toBe("craftstation");
   });
 
   it("notify_user reports non-delivery when no display is connected", async () => {
@@ -1143,7 +1191,7 @@ describe("Poracode app control tools — app", () => {
   });
 });
 
-describe("Poracode app control tools — terminal / steer / rollback", () => {
+describe("CraftStation app control tools — terminal / steer / rollback", () => {
   it("explains the optimized @Terminal workflow to agents", () => {
     expect(APP_CONTROLS_MCP_INSTRUCTIONS).toContain("Treat @Terminal, or its localized equivalent");
     expect(APP_CONTROLS_MCP_INSTRUCTIONS).toContain("Call list_terminals directly");
@@ -1196,16 +1244,16 @@ describe("Poracode app control tools — terminal / steer / rollback", () => {
       } as Project,
     ];
     const threads = [
-      makeThread({ id: thread.id, worktreePath: "C:\\Work\\Alpha\\.poracode\\worktrees\\fix" }),
+      makeThread({ id: thread.id, worktreePath: "C:\\Work\\Alpha\\.craftstation\\worktrees\\fix" }),
     ];
     const terminals: TerminalShellSnapshot[] = [
       {
         terminalId: "shell:match",
         projectLocation: {
           kind: "windows",
-          path: "c:/work/alpha/.poracode/worktrees/fix/",
+          path: "c:/work/alpha/.craftstation/worktrees/fix/",
         },
-        worktreePath: "C:\\Work\\Alpha\\.poracode\\worktrees\\fix",
+        worktreePath: "C:\\Work\\Alpha\\.craftstation\\worktrees\\fix",
         outputLength: 42,
       },
       {
@@ -1217,9 +1265,9 @@ describe("Poracode app control tools — terminal / steer / rollback", () => {
         terminalId: "login:hidden",
         projectLocation: {
           kind: "windows",
-          path: "C:\\Work\\Alpha\\.poracode\\worktrees\\fix",
+          path: "C:\\Work\\Alpha\\.craftstation\\worktrees\\fix",
         },
-        worktreePath: "C:\\Work\\Alpha\\.poracode\\worktrees\\fix",
+        worktreePath: "C:\\Work\\Alpha\\.craftstation\\worktrees\\fix",
         outputLength: 5,
       },
     ];
@@ -1374,7 +1422,7 @@ describe("Poracode app control tools — terminal / steer / rollback", () => {
   });
 });
 
-describe("Poracode app control tools — agents", () => {
+describe("CraftStation app control tools — agents", () => {
   it("list_installed_agents projects native + WSL inventory and passes project distros", async () => {
     const projects = [
       { id: "p1", name: "Alpha", location: { kind: "wsl", distro: "Ubuntu" } } as Project,
@@ -1412,7 +1460,7 @@ describe("Poracode app control tools — agents", () => {
   });
 });
 
-describe("Poracode app control tools — files", () => {
+describe("CraftStation app control tools — files", () => {
   const projects = [
     { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
   ];
@@ -1475,7 +1523,7 @@ describe("Poracode app control tools — files", () => {
     };
     const worktrees: GitWorktreeInfo[] = [
       {
-        path: "/work/alpha/.poracode/worktrees/wt",
+        path: "/work/alpha/.craftstation/worktrees/wt",
         branch: "feature/x",
         commit: "a".repeat(40),
         isMain: false,
@@ -1484,11 +1532,11 @@ describe("Poracode app control tools — files", () => {
     const { ctx, supervisor } = context({ projects, readFile, worktrees });
     await dispatchTool(
       "read_project_file",
-      { projectId: "p1", path: "a.ts", worktreePath: "/work/alpha/.poracode/worktrees/wt" },
+      { projectId: "p1", path: "a.ts", worktreePath: "/work/alpha/.craftstation/worktrees/wt" },
       ctx,
     );
     expect(supervisor.readProjectFile).toHaveBeenCalledWith({
-      projectLocation: { kind: "posix", path: "/work/alpha/.poracode/worktrees/wt" },
+      projectLocation: { kind: "posix", path: "/work/alpha/.craftstation/worktrees/wt" },
       path: "a.ts",
     });
   });
@@ -1528,7 +1576,7 @@ describe("Poracode app control tools — files", () => {
   });
 });
 
-describe("Poracode app control tools — git", () => {
+describe("CraftStation app control tools — git", () => {
   const projects = [
     { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
   ];
@@ -1579,7 +1627,7 @@ describe("Poracode app control tools — git", () => {
   it("git_status resolves a worktree location when worktreePath is given", async () => {
     const worktrees: GitWorktreeInfo[] = [
       {
-        path: "/work/alpha/.poracode/worktrees/wt",
+        path: "/work/alpha/.craftstation/worktrees/wt",
         branch: "feature/x",
         commit: "a".repeat(40),
         isMain: false,
@@ -1588,11 +1636,11 @@ describe("Poracode app control tools — git", () => {
     const { ctx, supervisor } = context({ projects, worktrees });
     await dispatchTool(
       "git_status",
-      { projectId: "p1", worktreePath: "/work/alpha/.poracode/worktrees/wt" },
+      { projectId: "p1", worktreePath: "/work/alpha/.craftstation/worktrees/wt" },
       ctx,
     );
     expect(supervisor.gitProjectSnapshot).toHaveBeenCalledWith({
-      projectLocation: { kind: "posix", path: "/work/alpha/.poracode/worktrees/wt" },
+      projectLocation: { kind: "posix", path: "/work/alpha/.craftstation/worktrees/wt" },
       includeGhCheck: false,
     });
   });
@@ -1610,7 +1658,7 @@ describe("Poracode app control tools — git", () => {
   });
 
   it("remove_worktree refuses while an open thread references it, listing the blockers", async () => {
-    const worktreePath = "/work/alpha/.poracode/worktrees/wt";
+    const worktreePath = "/work/alpha/.craftstation/worktrees/wt";
     const threads = [makeThread({ id: "blk", worktreePath, archived: false })];
     const { ctx, supervisor } = context({ projects, threads });
     await expect(
@@ -1620,7 +1668,7 @@ describe("Poracode app control tools — git", () => {
   });
 
   it("remove_worktree proceeds when only archived threads reference it", async () => {
-    const worktreePath = "/work/alpha/.poracode/worktrees/wt";
+    const worktreePath = "/work/alpha/.craftstation/worktrees/wt";
     const threads = [makeThread({ id: "old", worktreePath, archived: true })];
     const { ctx, supervisor } = context({ projects, threads });
     await dispatchTool("remove_worktree", { projectId: "p1", worktreePath }, ctx);
@@ -1633,7 +1681,7 @@ describe("Poracode app control tools — git", () => {
   });
 
   it("merge_worktree resolves the worktree branch, source branch, and expected commit", async () => {
-    const worktreePath = "/work/alpha/.poracode/worktrees/wt";
+    const worktreePath = "/work/alpha/.craftstation/worktrees/wt";
     const worktrees: GitWorktreeInfo[] = [
       { path: worktreePath, branch: "feature/x", commit: "a".repeat(40), isMain: false },
     ];
@@ -1653,7 +1701,7 @@ describe("Poracode app control tools — git", () => {
   });
 
   it("merge_worktree abort skips source-branch resolution", async () => {
-    const worktreePath = "/work/alpha/.poracode/worktrees/wt";
+    const worktreePath = "/work/alpha/.craftstation/worktrees/wt";
     const { ctx, supervisor } = context({ projects });
     await dispatchTool("merge_worktree", { projectId: "p1", worktreePath, action: "abort" }, ctx);
     expect(supervisor.gitAbortMerge).toHaveBeenCalledWith({
@@ -1663,7 +1711,7 @@ describe("Poracode app control tools — git", () => {
   });
 });
 
-describe("Poracode app control tools — github", () => {
+describe("CraftStation app control tools — github", () => {
   const projects = [
     { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
   ];
@@ -1712,7 +1760,7 @@ describe("Poracode app control tools — github", () => {
   it("gh_create_pr can run from a worktree checkout", async () => {
     const worktrees: GitWorktreeInfo[] = [
       {
-        path: "/work/alpha/.poracode/worktrees/wt",
+        path: "/work/alpha/.craftstation/worktrees/wt",
         branch: "feature/x",
         commit: "a".repeat(40),
         isMain: false,
@@ -1741,7 +1789,7 @@ describe("Poracode app control tools — github", () => {
       "gh_create_pr",
       {
         projectId: "p1",
-        worktreePath: "/work/alpha/.poracode/worktrees/wt",
+        worktreePath: "/work/alpha/.craftstation/worktrees/wt",
         branch: "feature/x",
         title: "New",
         body: "Body",
@@ -1750,7 +1798,7 @@ describe("Poracode app control tools — github", () => {
     );
     expect(supervisor.ghCreatePr).toHaveBeenCalledWith(
       expect.objectContaining({
-        projectLocation: { kind: "posix", path: "/work/alpha/.poracode/worktrees/wt" },
+        projectLocation: { kind: "posix", path: "/work/alpha/.craftstation/worktrees/wt" },
         branch: "feature/x",
         baseBranch: "master",
       }),
@@ -1797,7 +1845,7 @@ describe("Poracode app control tools — github", () => {
   });
 });
 
-describe("Poracode app control tools — mcp servers", () => {
+describe("CraftStation app control tools — mcp servers", () => {
   function settingsWithMcpSecret(): SharedSettings {
     return {
       ...defaultSharedSettings,
@@ -1919,7 +1967,7 @@ describe("Poracode app control tools — mcp servers", () => {
         "add_mcp_server",
         {
           server: {
-            name: "poracode",
+            name: "craftstation",
             transport: { type: "stdio", command: "run", args: [], env: {} },
           },
         },
@@ -1993,7 +2041,7 @@ describe("Poracode app control tools — mcp servers", () => {
   });
 });
 
-describe("Poracode app control tools — skills", () => {
+describe("CraftStation app control tools — skills", () => {
   const projects = [
     { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
   ];

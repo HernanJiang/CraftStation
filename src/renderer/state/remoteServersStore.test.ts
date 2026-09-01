@@ -3,8 +3,9 @@ import type { GitStatusResult, Project, Thread } from "@/shared/contracts";
 import type { IpcProcedureName, IpcProcedurePayload, IpcProcedureResult } from "@/shared/ipc";
 import type { GitStatePatch, GitStateSnapshot } from "@/shared/gitState";
 import { HOME_PROJECT_ID } from "@/shared/homeScope";
-import { PORACODE_REMOTE_PROTOCOL_VERSION, type RemoteGitSummaries } from "@/shared/remote";
+import { CRAFTSTATION_REMOTE_PROTOCOL_VERSION, type RemoteGitSummaries } from "@/shared/remote";
 import { RemoteClientError, RemoteDesktopClient } from "@/shared/remote/client";
+import type { ThreadExchangeView } from "@/shared/threadCollaboration";
 import {
   __resetRemoteServersStoreForTest,
   installRemoteProjectWorkspaceSync,
@@ -227,7 +228,7 @@ function makeClient(opts?: {
     environment:
       opts?.environment ??
       (async () => ({
-        protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+        protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
         ...(opts?.hostMode ? { hostMode: opts.hostMode } : {}),
         desktopId: "d1",
         label: "Server One",
@@ -296,7 +297,7 @@ function makeEnvironment(
   appVersion = "1.0",
 ): Awaited<ReturnType<RemoteDesktopClient["environment"]>> {
   return {
-    protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+    protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
     hostMode: "desktop",
     desktopId: "d1",
     label: "Server One",
@@ -990,7 +991,7 @@ describe("useRemoteServersStore", () => {
     });
     bridge.remoteHttpRequest.mockRejectedValueOnce(
       new Error(
-        "Error invoking remote method 'poracode:remote-http-request': TypeError: fetch failed",
+        "Error invoking remote method 'craftstation:remote-http-request': TypeError: fetch failed",
       ),
     );
 
@@ -1109,7 +1110,7 @@ describe("useRemoteServersStore", () => {
     expect(useRemoteServersStore.getState().servers[0]?.label).toBe("Mac Studio");
     expect(useRemoteServersStore.getState().servers[0]?.remoteLabel).toBe("Server One");
     expect(
-      JSON.parse(localStorage.getItem("poracode-remote-servers")!).state.servers[0].label,
+      JSON.parse(localStorage.getItem("craftstation-remote-servers")!).state.servers[0].label,
     ).toBe("Mac Studio");
   });
 
@@ -1128,7 +1129,7 @@ describe("useRemoteServersStore", () => {
       projectWorkspaceIds: { d1: { p1: "workspace-1" } },
       projectNameOverrides: { d1: { p1: "Pinned Remote App" } },
     });
-    const persisted = localStorage.getItem("poracode-remote-servers")!;
+    const persisted = localStorage.getItem("craftstation-remote-servers")!;
 
     __resetRemoteServersStoreForTest();
     useAppStore.setState((state) => ({
@@ -1136,7 +1137,7 @@ describe("useRemoteServersStore", () => {
       threads: state.threads.filter((thread) => thread.remoteServerId !== "d1"),
     }));
     useRemoteServersStore.setState({ servers: [], runtime: {}, lastKnownProjects: {} });
-    localStorage.setItem("poracode-remote-servers", persisted);
+    localStorage.setItem("craftstation-remote-servers", persisted);
     await useRemoteServersStore.persist.rehydrate();
     const snapshot = vi.fn<RemoteDesktopClient["snapshot"]>(async () => {
       throw new Error("offline");
@@ -1174,7 +1175,7 @@ describe("useRemoteServersStore", () => {
 
   it("keeps pre-v1 remote workspace overrides when rehydrating", async () => {
     localStorage.setItem(
-      "poracode-remote-servers",
+      "craftstation-remote-servers",
       JSON.stringify({
         state: {
           servers: [],
@@ -1216,7 +1217,7 @@ describe("useRemoteServersStore", () => {
     expect(useRemoteServersStore.getState().projectWorkspaceIds.d1?.p1).toBe("local-workspace");
     expect(useRemoteServersStore.getState().projectNameOverrides.d1?.p1).toBe("Local Project");
     expect(projectCommand).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem("poracode-remote-servers")!).state).toEqual(
+    expect(JSON.parse(localStorage.getItem("craftstation-remote-servers")!).state).toEqual(
       expect.objectContaining({
         projectWorkspaceIds: { d1: { p1: "local-workspace" } },
         projectNameOverrides: { d1: { p1: "Local Project" } },
@@ -3215,6 +3216,87 @@ describe("useRemoteServersStore", () => {
 
     expect(after).toBe(before);
     expect(after.projects).toBe(before.projects);
+  });
+
+  it("refreshes runtime identity when only collaboration exchanges change", async () => {
+    const exchange = {
+      id: "exchange-1",
+      linkId: "link-1",
+      projectId: "p1",
+      sourceThreadId: "rt-source",
+      targetThreadId: "rt-target",
+      sequence: 1,
+      deliveryMode: "after-current-turn",
+      status: "queued",
+      sourceProvenance: {
+        threadId: "rt-source",
+        projectId: "p1",
+        title: "Source",
+        modelId: "gpt-5.6-sol",
+        harnessId: "codex",
+        agentMcpSupported: true,
+      },
+      targetProvenance: {
+        threadId: "rt-target",
+        projectId: "p1",
+        title: "Target",
+        modelId: "grok-4.6",
+        harnessId: "grok",
+        agentMcpSupported: true,
+      },
+      requestItemId: "request-1",
+      deliveryBaselineTurnIndex: null,
+      deliveryAnchorItemId: null,
+      replyTurnIndex: null,
+      replyAnchorItemId: null,
+      replyExcerpt: null,
+      causalParentExchangeId: null,
+      hopDepth: 0,
+      error: null,
+      createdAt: "2026-08-31T09:00:00.000Z",
+      updatedAt: "2026-08-31T09:00:00.000Z",
+      deliveredAt: null,
+      repliedAt: null,
+    } satisfies ThreadExchangeView;
+    let currentExchange: ThreadExchangeView = exchange;
+    const snapshot = vi.fn<RemoteDesktopClient["snapshot"]>(async () => ({
+      snapshotSeq: 2,
+      projects: [{ ...proj, location: { ...proj.location } }],
+      threads: [],
+      runtimeSummariesByThread: {},
+      collaborationExchangesByThread: { "rt-source": [currentExchange] },
+      updatedAt: currentExchange.updatedAt,
+    }));
+    useRemoteServersStore.getState().setClientFactory(factoryFor(makeClient({ snapshot })));
+    await pairIsolated(() => makeSocket());
+    const before = useRemoteServersStore.getState().runtime.d1!;
+
+    currentExchange = {
+      ...exchange,
+      status: "replied",
+      replyTurnIndex: 2,
+      replyAnchorItemId: "reply-1",
+      replyExcerpt: "Completed reply",
+      updatedAt: "2026-08-31T09:01:00.000Z",
+      repliedAt: "2026-08-31T09:01:00.000Z",
+    };
+    await useRemoteServersStore.getState().refreshServer("d1");
+    const after = useRemoteServersStore.getState().runtime.d1!;
+
+    expect(after).not.toBe(before);
+    expect(after.projects).toBe(before.projects);
+    expect(after.threads).toBe(before.threads);
+    expect(
+      after.collaborationExchangesByThread?.[remoteThreadId("d1", "rt-source")]?.[0],
+    ).toMatchObject({
+      id: "remote:d1:exchange:exchange-1",
+      status: "replied",
+      replyAnchorItemId: "reply-1",
+    });
+
+    const stable = after;
+    await useRemoteServersStore.getState().refreshServer("d1");
+    expect(useRemoteServersStore.getState().runtime.d1).toBe(stable);
   });
 
   // ── Finding #3: pairing during in-flight connectAll ─────────────────

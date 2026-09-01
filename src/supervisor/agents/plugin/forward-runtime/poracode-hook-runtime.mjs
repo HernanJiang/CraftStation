@@ -11,8 +11,8 @@
  * etc) without a bundler. Cross-platform — no shell, no native deps.
  *
  * Shipped via `prepare-agent-plugins.mjs` into each provider's plugin dir at
- * staging time, so `import "./poracode-hook-runtime.mjs"` resolves as a
- * sibling of `forward.mjs` inside `~/.poracode/agent-plugins/<kind>/`.
+ * staging time, so `import "./craftstation-hook-runtime.mjs"` resolves as a
+ * sibling of `forward.mjs` inside `~/.craftstation/agent-plugins/<kind>/`.
  */
 
 import { readFileSync } from "node:fs";
@@ -41,7 +41,7 @@ export function readPluginVersionFromManifest(importMetaUrl) {
 }
 
 export function hookDebugEnabled() {
-  const v = process.env.PORACODE_HOOK_DEBUG;
+  const v = process.env.CRAFTSTATION_HOOK_DEBUG;
   return v === "1" || v === "true" || Boolean(v && v !== "0" && v !== "false");
 }
 
@@ -136,7 +136,7 @@ export async function postWithRetry(url, headers, body, attempts = 2) {
     if (i + 1 < attempts) await sleep(50);
   }
   if (lastError && hookDebugEnabled()) {
-    process.stderr.write(`[poracode-status] forward failed: ${String(lastError)}\n`);
+    process.stderr.write(`[craftstation-status] forward failed: ${String(lastError)}\n`);
   }
 }
 
@@ -150,14 +150,14 @@ export function copyStringExtra(extra, payload, sourceKey, targetKey, max = 500)
 /**
  * Run a provider forwarder. Reads argv[2] as the event name, JSON stdin as
  * payload, builds the universal envelope, and POSTs it. Returns silently when
- * the env vars are absent (i.e. the agent is running outside Poracode) or
+ * the env vars are absent (i.e. the agent is running outside CraftStation) or
  * when the provider can't map the event to an intent.
  *
  * Options:
  *   - `agentKind`           default for the `agentKind` envelope field, used
- *                           when `PORACODE_AGENT_KIND` env var is unset.
+ *                           when `CRAFTSTATION_AGENT_KIND` env var is unset.
  *   - `pluginVersion`       provider's plugin.json version (string).
- *   - `intentFor(name, payload, ctx)` map a native event to a Poracode
+ *   - `intentFor(name, payload, ctx)` map a native event to a CraftStation
  *                           intent. `ctx.debug` available for per-event debug
  *                           tweaks (see codex). Return `undefined` to skip.
  *   - `buildExtra(name, payload)` provider-specific `extra` object.
@@ -167,7 +167,7 @@ export function copyStringExtra(extra, payload, sourceKey, targetKey, max = 500)
  *                           errors. Used by codex (Stop="{}") and gemini
  *                           ('{"suppressOutput":true}\n'); cursor passes a
  *                           variant that always returns a value.
- *   - `debugLabel`          tag for `[poracode-hook] <label>` debug lines.
+ *   - `debugLabel`          tag for `[craftstation-hook] <label>` debug lines.
  *                           Defaults to `agentKind`.
  */
 export async function runForwarder(options) {
@@ -187,16 +187,16 @@ export async function runForwarder(options) {
     if (!eventName) return;
 
     const debug = hookDebugEnabled();
-    const url = process.env.PORACODE_HOOK_URL;
+    const url = process.env.CRAFTSTATION_HOOK_URL;
     // Some agent CLIs (e.g. command-code) strip env vars whose NAME matches a
     // secret denylist (/SECRET/, /TOKEN/, /AUTH/, …) before invoking the hook,
-    // which drops PORACODE_HOOK_SECRET. The supervisor also injects the same
-    // value under the denylist-safe name PORACODE_HOOK_NONCE; fall back to it.
-    const secret = process.env.PORACODE_HOOK_SECRET ?? process.env.PORACODE_HOOK_NONCE;
-    const threadId = process.env.PORACODE_THREAD_ID;
-    const agentKind = process.env.PORACODE_AGENT_KIND ?? defaultAgentKind;
+    // which drops CRAFTSTATION_HOOK_SECRET. The supervisor also injects the same
+    // value under the denylist-safe name CRAFTSTATION_HOOK_NONCE; fall back to it.
+    const secret = process.env.CRAFTSTATION_HOOK_SECRET ?? process.env.CRAFTSTATION_HOOK_NONCE;
+    const threadId = process.env.CRAFTSTATION_THREAD_ID;
+    const agentKind = process.env.CRAFTSTATION_AGENT_KIND ?? defaultAgentKind;
     const supervisorProtocol = Number(
-      process.env.PORACODE_HOOK_PROTOCOL_VERSION ?? PROTOCOL_VERSION,
+      process.env.CRAFTSTATION_HOOK_PROTOCOL_VERSION ?? PROTOCOL_VERSION,
     );
     const negotiatedProtocol = Math.min(PROTOCOL_VERSION, supervisorProtocol || PROTOCOL_VERSION);
 
@@ -207,17 +207,17 @@ export async function runForwarder(options) {
 
     if (debug) {
       process.stderr.write(
-        `[poracode-hook] ${label} ${eventName} threadId=${threadId ?? "-"} sessionId=${
+        `[craftstation-hook] ${label} ${eventName} threadId=${threadId ?? "-"} sessionId=${
           sessionId ?? "-"
         } mappedIntent=${intent ?? "-"}\n`,
       );
-      process.stderr.write(`[poracode-hook] payload ${summarizePayload(payload)}\n`);
+      process.stderr.write(`[craftstation-hook] payload ${summarizePayload(payload)}\n`);
     }
 
     if (!url || !secret) {
       if (debug) {
         process.stderr.write(
-          "[poracode-hook] skip POST: missing PORACODE_HOOK_URL or PORACODE_HOOK_SECRET\n",
+          "[craftstation-hook] skip POST: missing CRAFTSTATION_HOOK_URL or CRAFTSTATION_HOOK_SECRET\n",
         );
       }
       return;
@@ -225,7 +225,7 @@ export async function runForwarder(options) {
     if (!intent) {
       if (debug) {
         process.stderr.write(
-          `[poracode-hook] skip POST: no mapped Poracode intent for ${eventName}\n`,
+          `[craftstation-hook] skip POST: no mapped CraftStation intent for ${eventName}\n`,
         );
       }
       return;
@@ -252,11 +252,11 @@ export async function runForwarder(options) {
     );
 
     if (debug) {
-      process.stderr.write(`[poracode-hook] posted intent=${intent} for ${eventName}\n`);
+      process.stderr.write(`[craftstation-hook] posted intent=${intent} for ${eventName}\n`);
     }
   } catch (error) {
     if (hookDebugEnabled()) {
-      process.stderr.write(`[poracode-status] uncaught: ${String(error)}\n`);
+      process.stderr.write(`[craftstation-status] uncaught: ${String(error)}\n`);
     }
   } finally {
     if (stdoutResponseFor) {

@@ -8,7 +8,12 @@ import {
   type RemoteIpcAdapterProcedureName,
   type RemoteProcedureOwner,
 } from "@/shared/remote";
-import { isProjectedRemoteEntityId } from "@/renderer/state/remoteProjection";
+import {
+  isProjectedRemoteEntityId,
+  projectRemoteThreadExchange,
+  projectRemoteThreadTargetSummary,
+  unprojectRemoteScopedId,
+} from "@/renderer/state/remoteProjection";
 import {
   isRemoteRoutableProcedure,
   REMOTE_PROCEDURE_ROUTES,
@@ -100,7 +105,10 @@ export function routeRemoteProcedure<Name extends IpcProcedureName>(
   const spec = REMOTE_PROCEDURE_ROUTES[procedure] as RemoteProcedureRouteSpec;
   let route: ResolvedRemoteRoute | undefined;
   try {
-    route = resolveRemoteRoute(spec.owner, payload, host);
+    route =
+      spec.handler === "thread-collaboration"
+        ? resolveThreadCollaborationRoute(procedure, payload, host)
+        : resolveRemoteRoute(spec.owner, payload, host);
   } catch (error) {
     return {
       kind: "remote",
@@ -143,6 +151,8 @@ async function invokeRemoteProcedure(
         procedure as RemoteIpcAdapterProcedureName,
         route.payload,
       );
+    case "thread-collaboration":
+      return invokeRemoteThreadCollaborationProcedure(procedure, client, route);
     case "thread-clipboard-image": {
       const input = route.payload as IpcProcedurePayload<"saveClipboardImage">;
       return client.uploadAttachment({
@@ -173,6 +183,71 @@ async function invokeRemoteProcedure(
         client.closeShell({ threadId: terminalId }),
       );
       return closed.routed ? closed.result : undefined;
+  }
+}
+
+async function invokeRemoteThreadCollaborationProcedure(
+  procedure: RemoteRoutableProcedureName,
+  client: RemoteDesktopClient,
+  route: ResolvedRemoteRoute,
+): Promise<unknown> {
+  switch (procedure) {
+    case "listThreadCollaborationTargets":
+      return (
+        await client.listThreadCollaborationTargets(
+          (() => {
+            const payload = route.payload as IpcProcedurePayload<"listThreadCollaborationTargets">;
+            return {
+              sourceThreadId: payload.sourceThreadId,
+              ...(payload.query ? { query: payload.query } : {}),
+            };
+          })(),
+        )
+      ).map((target) => projectRemoteThreadTargetSummary(route.desktopId, target));
+    case "requestThreadDialogue":
+      return projectRemoteThreadExchange(
+        route.desktopId,
+        await client.requestThreadDialogue(
+          route.payload as IpcProcedurePayload<"requestThreadDialogue">,
+        ),
+      );
+    case "listThreadExchanges":
+      return (
+        await client.listThreadExchanges(
+          route.payload as IpcProcedurePayload<"listThreadExchanges">,
+        )
+      ).map((exchange) => projectRemoteThreadExchange(route.desktopId, exchange));
+    case "readThreadExchange":
+      return projectRemoteThreadExchange(
+        route.desktopId,
+        await client.readThreadExchange(route.payload as IpcProcedurePayload<"readThreadExchange">),
+      );
+    case "waitForThreadExchange": {
+      const result = await client.waitForThreadExchange(
+        (() => {
+          const payload = route.payload as IpcProcedurePayload<"waitForThreadExchange">;
+          return {
+            actorThreadId: payload.actorThreadId,
+            exchangeId: payload.exchangeId,
+            timeoutMs: payload.timeoutMs,
+            ...(payload.afterUpdatedAt ? { afterUpdatedAt: payload.afterUpdatedAt } : {}),
+          };
+        })(),
+      );
+      return {
+        timedOut: result.timedOut,
+        exchange: projectRemoteThreadExchange(route.desktopId, result.exchange),
+      };
+    }
+    case "cancelThreadExchange":
+      return projectRemoteThreadExchange(
+        route.desktopId,
+        await client.cancelThreadExchange(
+          route.payload as IpcProcedurePayload<"cancelThreadExchange">,
+        ),
+      );
+    default:
+      throw new Error(msg("remote.server.unreachable"));
   }
 }
 
@@ -213,6 +288,86 @@ function resolveRemoteRoute(
     desktopId: location.remoteServerId,
     payload: unprojectRemotePayload(input) as Record<string, unknown>,
   };
+}
+
+const COLLABORATION_THREAD_KEYS = [
+  "sourceThreadId",
+  "targetThreadId",
+  "actorThreadId",
+  "threadId",
+] as const;
+
+function resolveThreadCollaborationRoute(
+  procedure: RemoteRoutableProcedureName,
+  payload: unknown,
+  remoteHost: RemoteProcedureHost | undefined,
+): ResolvedRemoteRoute | undefined {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
+  const input = payload as Record<string, unknown>;
+  const presentThreadIds = COLLABORATION_THREAD_KEYS.flatMap((key) =>
+    typeof input[key] === "string" ? [{ key, value: input[key] }] : [],
+  );
+  if (presentThreadIds.length === 0) return undefined;
+
+  const projectedThreadPresent = presentThreadIds.some(({ value }) =>
+    isProjectedRemoteEntityId(value, "thread"),
+  );
+  if (!remoteHost) {
+    if (projectedThreadPresent) throw new Error(msg("remote.server.unreachable"));
+    return undefined;
+  }
+
+  const owners = presentThreadIds.map(({ key, value }) => ({
+    key,
+    value,
+    owner: remoteHost.resolveThreadOwner(value),
+  }));
+  const remoteOwners = owners.filter(
+    (entry): entry is typeof entry & { owner: NonNullable<typeof entry.owner> } =>
+      entry.owner !== undefined,
+  );
+  if (remoteOwners.length === 0) {
+    if (projectedThreadPresent) throw new Error(msg("remote.server.unreachable"));
+    return undefined;
+  }
+  if (remoteOwners.length !== owners.length) {
+    throw new Error(msg("remote.server.unreachable"));
+  }
+  const desktopId = remoteOwners[0]!.owner.desktopId;
+  if (remoteOwners.some((entry) => entry.owner.desktopId !== desktopId)) {
+    throw new Error(msg("remote.server.unreachable"));
+  }
+
+  const remotePayload = { ...input };
+  for (const entry of remoteOwners) remotePayload[entry.key] = entry.owner.remoteId;
+  unprojectCollaborationIdentity(remotePayload, "exchangeId", desktopId, "exchange");
+  unprojectCollaborationIdentity(remotePayload, "causalParentExchangeId", desktopId, "exchange");
+  unprojectCollaborationIdentity(remotePayload, "conversationLinkId", desktopId, "link");
+
+  if (
+    procedure === "readThreadExchange" ||
+    procedure === "waitForThreadExchange" ||
+    procedure === "cancelThreadExchange"
+  ) {
+    const exchangeId = remotePayload.exchangeId;
+    if (typeof exchangeId !== "string" || exchangeId.length === 0) {
+      throw new Error(msg("remote.server.unreachable"));
+    }
+  }
+  return { desktopId, payload: remotePayload };
+}
+
+function unprojectCollaborationIdentity(
+  payload: Record<string, unknown>,
+  key: "exchangeId" | "causalParentExchangeId" | "conversationLinkId",
+  desktopId: string,
+  kind: "exchange" | "link",
+): void {
+  const value = payload[key];
+  if (typeof value !== "string") return;
+  const remoteId = unprojectRemoteScopedId(value, desktopId, kind);
+  if (!remoteId) throw new Error(msg("remote.server.unreachable"));
+  payload[key] = remoteId;
 }
 
 function resolveThreadRoute(

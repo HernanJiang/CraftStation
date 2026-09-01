@@ -4,46 +4,46 @@
  *
  * Everything runs through `node` (always on PATH) using raw CDP over the
  * built-in WebSocket — no `agent-browser` PATH/shell quirks, no fish/zsh
- * word-splitting traps. Pairs with the DEV bridge (`window.__poracodeDev`,
+ * word-splitting traps. Pairs with the DEV bridge (`window.__craftstationDev`,
  * see src/renderer/devBridge.ts) for instant state/navigation.
  *
- * Connection settings come from --session / $PORACODE_DEBUG_SESSION, a single
+ * Connection settings come from --session / $CRAFTSTATION_DEBUG_SESSION, a single
  * active managed debug session for this repository, or an explicit complete
- * PORACODE_CDP_PORT + PORACODE_APP_URL pair. Missing values are never guessed.
+ * CRAFTSTATION_CDP_PORT + CRAFTSTATION_APP_URL pair. Missing values are never guessed.
  *
- *   node poracode-cdp.mjs wait [--timeout 90]        # block until the app CDP target is up
- *   node poracode-cdp.mjs launch --new [--root path] # detached isolated app; prints READY manifest
- *   node poracode-cdp.mjs info                       # print the exact resolved session + target
- *   node poracode-cdp.mjs sessions                   # list managed sessions for this checkout
- *   node poracode-cdp.mjs stop                       # request verified teardown of the managed session
- *   node poracode-cdp.mjs eval '<js>|-' [--await]    # Runtime.evaluate; - reads JS from stdin
- *   node poracode-cdp.mjs shot <selector|-> <out>    # element (CSS selector) or full-viewport (-) PNG
- *   node poracode-cdp.mjs click <selector>            # click an element through CDP input
- *   node poracode-cdp.mjs type <selector> <text>      # focus and insert text
+ *   node craftstation-cdp.mjs wait [--timeout 90]        # block until the app CDP target is up
+ *   node craftstation-cdp.mjs launch --new [--root path] # detached isolated app; prints READY manifest
+ *   node craftstation-cdp.mjs info                       # print the exact resolved session + target
+ *   node craftstation-cdp.mjs sessions                   # list managed sessions for this checkout
+ *   node craftstation-cdp.mjs stop                       # request verified teardown of the managed session
+ *   node craftstation-cdp.mjs eval '<js>|-' [--await]    # Runtime.evaluate; - reads JS from stdin
+ *   node craftstation-cdp.mjs shot <selector|-> <out>    # element (CSS selector) or full-viewport (-) PNG
+ *   node craftstation-cdp.mjs click <selector>            # click an element through CDP input
+ *   node craftstation-cdp.mjs type <selector> <text>      # focus and insert text
  *   --windowKind <main|quickComposer|browserExtract>  # select a renderer surface
- *   node poracode-cdp.mjs nav <section>              # open Settings deep-linked (e.g. about, usage) [needs bridge]
- *   node poracode-cdp.mjs back                       # close Settings overlay [needs bridge]
- *   node poracode-cdp.mjs update '<json>'            # patch the app-update store [needs bridge]
- *   node poracode-cdp.mjs reset                      # reset driven state to baseline [needs bridge]
+ *   node craftstation-cdp.mjs nav <section>              # open Settings deep-linked (e.g. about, usage) [needs bridge]
+ *   node craftstation-cdp.mjs back                       # close Settings overlay [needs bridge]
+ *   node craftstation-cdp.mjs update '<json>'            # patch the app-update store [needs bridge]
+ *   node craftstation-cdp.mjs reset                      # reset driven state to baseline [needs bridge]
  *
  * Examples:
- *   node poracode-cdp.mjs wait
- *   node poracode-cdp.mjs nav about
- *   node poracode-cdp.mjs update '{"phase":"downloading","version":"1.2.3","downloadPercent":42,"downloadTransferred":30618419,"downloadTotal":113554636}'
- *   node poracode-cdp.mjs shot "#shot-about" ~/.poracode-smoke/shots/about.png
- *   node poracode-cdp.mjs reset
+ *   node craftstation-cdp.mjs wait
+ *   node craftstation-cdp.mjs nav about
+ *   node craftstation-cdp.mjs update '{"phase":"downloading","version":"1.2.3","downloadPercent":42,"downloadTransferred":30618419,"downloadTotal":113554636}'
+ *   node craftstation-cdp.mjs shot "#shot-about" ~/.craftstation-smoke/shots/about.png
+ *   node craftstation-cdp.mjs reset
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import { closeWebSocket, inspectCdpWindowTargets } from "./poracode-cdp-target.mjs";
-import { launchDetachedSession } from "./poracode-cdp-launch.mjs";
+import { closeWebSocket, inspectCdpWindowTargets } from "./craftstation-cdp-target.mjs";
+import { launchDetachedSession } from "./craftstation-cdp-launch.mjs";
 import {
   listDebugSessions,
   readDebugSession,
   resolveDebugConnection,
-} from "./poracode-debug-session.mjs";
+} from "./craftstation-debug-session.mjs";
 
 const { flags, pos } = parse(process.argv.slice(2));
 const cmd = pos[0];
@@ -58,9 +58,9 @@ let appUrl;
 try {
   if (cmd !== "sessions" && cmd !== "launch") {
     connection = await resolveDebugConnection({
-      session: flags.session ?? process.env.PORACODE_DEBUG_SESSION,
-      port: flags.port ?? process.env.PORACODE_CDP_PORT,
-      appUrl: flags.appUrl ?? process.env.PORACODE_APP_URL,
+      session: flags.session ?? process.env.CRAFTSTATION_DEBUG_SESSION,
+      port: flags.port ?? process.env.CRAFTSTATION_CDP_PORT,
+      appUrl: flags.appUrl ?? process.env.CRAFTSTATION_APP_URL,
       repoRoot,
       ...(cmd === "wait" ? { allowedPurposes: ["debug", "smoke"] } : {}),
     });
@@ -230,19 +230,19 @@ async function main() {
     }
     case "nav": {
       const section = required(pos[1], "nav needs a <section> id (e.g. about)");
-      await bridgeCall(`window.__poracodeDev.openSettings(${JSON.stringify(section)})`);
+      await bridgeCall(`window.__craftstationDev.openSettings(${JSON.stringify(section)})`);
       console.log(`nav:${section}`);
       return;
     }
     case "back": {
-      await bridgeCall(`window.__poracodeDev.closeSettings()`);
+      await bridgeCall(`window.__craftstationDev.closeSettings()`);
       console.log("back");
       return;
     }
     case "update": {
       const json = required(pos[1], "update needs a '<json>' patch");
       const patch = JSON.parse(json); // validate before injecting
-      await bridgeCall(`window.__poracodeDev.setUpdate(${JSON.stringify(patch)})`);
+      await bridgeCall(`window.__craftstationDev.setUpdate(${JSON.stringify(patch)})`);
       console.log("update:ok");
       return;
     }
@@ -251,13 +251,13 @@ async function main() {
       let remaining;
       try {
         await assertDevBridge(client);
-        await evaluate(client, `(window.__poracodeDev.reset(), "ok")`);
+        await evaluate(client, `(window.__craftstationDev.reset(), "ok")`);
         await new Promise((done) => setTimeout(done, 50));
         await clearComposer(client);
         await new Promise((done) => setTimeout(done, 50));
         remaining = await evaluate(
           client,
-          `(() => { const panel = window.__poracodeDev.stores.panel.getState();` +
+          `(() => { const panel = window.__craftstationDev.stores.panel.getState();` +
             ` return {` +
             ` composerText: [...document.querySelectorAll('[data-composer-input-anchor] [contenteditable="true"]')].map((el) => el.textContent ?? "").join("").trim(),` +
             ` panelsOpen: Boolean(panel.settingsOpen || panel.projectSettingsId || panel.gitReviewContext || panel.gitOverlayOpen || panel.prReviewContext || panel.filesPanelContext || panel.subAgentPanelOpen || panel.browserPanelOpen || panel.usagePanelOpen || panel.notesPanelOpen || panel.browserOverlayOpen || panel.threadSearchOpen || panel.createProjectModalOpen || panel.cloneProjectModalOpen)` +
@@ -274,7 +274,7 @@ async function main() {
     }
     default:
       console.error(
-        "Usage: node poracode-cdp.mjs <launch|sessions|wait|info|stop|eval|shot|click|type|nav|back|update|reset> ...\n" +
+        "Usage: node craftstation-cdp.mjs <launch|sessions|wait|info|stop|eval|shot|click|type|nav|back|update|reset> ...\n" +
           "See the header of this file for examples.",
       );
       process.exitCode = 2;
@@ -313,10 +313,10 @@ async function bridgeCall(expr) {
 }
 
 async function assertDevBridge(client) {
-  const present = await evaluate(client, "typeof window.__poracodeDev");
+  const present = await evaluate(client, "typeof window.__craftstationDev");
   if (present !== "object") {
     throw new Error(
-      "window.__poracodeDev is missing — is the app a DEV build with installDevBridge() wired in main.tsx?",
+      "window.__craftstationDev is missing — is the app a DEV build with installDevBridge() wired in main.tsx?",
     );
   }
 }
@@ -469,7 +469,7 @@ async function waitForTarget(timeoutMs) {
     try {
       inspection = await inspectCdpWindowTargets({ port, appUrl, windowKind });
     } catch (error) {
-      if (error?.code === "PORACODE_NOT_CDP") throw error;
+      if (error?.code === "CRAFTSTATION_NOT_CDP") throw error;
       lastConnectionError = error;
       await new Promise((done) => setTimeout(done, 250));
       continue;
@@ -551,7 +551,7 @@ function targetMismatchError(pageTargets) {
       `Available page targets: ${pageTargets.map((target) => `${target.id}:${target.url}`).join(", ")}. ` +
       "Use the session.json from the launch output; do not substitute a Vite or stale CDP port.",
   );
-  error.code = "PORACODE_TARGET_MISMATCH";
+  error.code = "CRAFTSTATION_TARGET_MISMATCH";
   return error;
 }
 
