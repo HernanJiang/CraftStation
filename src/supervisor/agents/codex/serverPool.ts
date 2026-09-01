@@ -81,11 +81,13 @@ export function codexAppServerPoolKey(
   mcpServers: readonly ResolvedMcpServer[],
   wslExecPath?: string,
   wslNodePath?: string,
+  accountScopeKey?: string,
 ): string {
   return [
     executionRuntimeKey(location),
     wslExecPath ?? "",
     wslNodePath ?? "",
+    accountScopeKey ?? "",
     poolFingerprint(location, mcpServers),
   ].join("|");
 }
@@ -115,6 +117,7 @@ async function spawnAndWire(
       ...(wslExecPath !== undefined ? { wslExecPath } : {}),
       ...(wslNodePath !== undefined ? { wslNodePath } : {}),
       ...(input.mcpServers !== undefined ? { mcpServers: input.mcpServers } : {}),
+      ...(input.baseSpawnEnv ? { env: input.baseSpawnEnv } : {}),
       includeMcpConfig: false,
     }),
   );
@@ -151,7 +154,16 @@ export async function acquireCodexAppServer(
       ? (await resolveNodeForDistro(input.projectLocation.distro)).nodePath
       : undefined;
   const mcpServers = input.mcpServers ?? [];
-  const key = codexAppServerPoolKey(input.projectLocation, mcpServers, wslExecPath, wslNodePath);
+  // Sessions bound to different pool accounts must not share an app-server:
+  // the account scope is part of the pool key (CODEX_HOME redirection env).
+  const accountScopeKey = input.baseSpawnEnv?.CODEX_HOME;
+  const key = codexAppServerPoolKey(
+    input.projectLocation,
+    mcpServers,
+    wslExecPath,
+    wslNodePath,
+    accountScopeKey,
+  );
   let entry = pool.get(key);
   if (!entry) {
     const ready = spawnAndWire(input, wslExecPath, wslNodePath, (appServer, connection) => {

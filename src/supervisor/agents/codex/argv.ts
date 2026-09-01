@@ -174,6 +174,11 @@ export function buildCodexAppServerCommand(
     wslNodePath?: string;
     mcpServers?: readonly ResolvedMcpServer[];
     includeMcpConfig?: boolean;
+    /**
+     * Extra process environment for the app-server (e.g. a pool account's
+     * `CODEX_HOME`). Never carries secret values, only scope redirections.
+     */
+    env?: Record<string, string>;
   },
 ): CommandSpec {
   const wslExecPath = options?.wslExecPath;
@@ -183,7 +188,8 @@ export function buildCodexAppServerCommand(
   const includeMcpConfig = options?.includeMcpConfig ?? true;
   const mcpSkillConflictArgs = buildCodexMcpSkillConflictArgs(location, mcpServers);
   const mcpEnv = mcp.env;
-  const hasMcpEnv = Object.keys(mcpEnv).length > 0;
+  const spawnEnv = { ...options?.env, ...mcpEnv };
+  const hasSpawnEnv = Object.keys(spawnEnv).length > 0;
   const args = [
     ...(isCodexGoalsSupported(location, wslExecPath) ? ["--enable", CODEX_GOALS_FEATURE_FLAG] : []),
     ...mcpSkillConflictArgs,
@@ -206,7 +212,7 @@ export function buildCodexAppServerCommand(
         "--",
         "/usr/bin/env",
         `PATH=${pathSegments.join(":")}`,
-        ...(hasMcpEnv ? Object.entries(mcpEnv).map(([name, value]) => `${name}=${value}`) : []),
+        ...(hasSpawnEnv ? Object.entries(spawnEnv).map(([name, value]) => `${name}=${value}`) : []),
         wslExecPath ?? "codex",
         ...args,
       ],
@@ -217,7 +223,7 @@ export function buildCodexAppServerCommand(
     "codex",
     args,
     resolveCodexWindowsLaunchBinary(location) ?? wslExecPath,
-    hasMcpEnv ? mcpEnv : undefined,
+    hasSpawnEnv ? spawnEnv : undefined,
   );
 }
 

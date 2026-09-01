@@ -27,6 +27,7 @@ import {
   resolveComposerMcpScope,
   resolveEnabledMcpServers,
   supportsMcpAtProjectLocation,
+  baseAgentKind,
 } from "@/shared/contracts";
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
 import { resolveAgentPresentationMode } from "@/shared/agentStatus";
@@ -1363,12 +1364,28 @@ export class SpawnPipeline {
       return undefined;
     }
     try {
+      // Pool-first authorization: when the provider has a managed account pool,
+      // the session must use the pool credential (env-scope redirection), never
+      // the ambient host CLI login. A resolution failure throws and fails the
+      // start — it must not degrade to the ambient account.
+      const accountEnv = this.ctx.options.resolveAccountSessionEnv?.({
+        provider: baseAgentKind(agentKind),
+        threadId,
+      });
+      const baseSpawnEnv = accountEnv
+        ? { ...adapter.baseSpawnEnv, ...accountEnv.env }
+        : adapter.baseSpawnEnv;
+      if (accountEnv) {
+        console.log(
+          `[account] structured session bound to pool account: provider=${baseAgentKind(agentKind)} thread=${threadId} account=${accountEnv.accountId} reason=${accountEnv.reason}`,
+        );
+      }
       return await adapter.createStructuredSession({
         threadId,
         projectLocation,
         config,
         agentSettings: this.ctx.resolveAgentSettings(adapter),
-        ...(adapter.baseSpawnEnv ? { baseSpawnEnv: adapter.baseSpawnEnv } : {}),
+        ...(baseSpawnEnv ? { baseSpawnEnv } : {}),
         ...(mcpIdentity ? { mcpIdentity } : {}),
         ...(mcpServers.length > 0 || adapter.capabilities.mcpConfigSource === "agentSettings"
           ? { mcpServers }

@@ -4425,6 +4425,100 @@ describe("SupervisorRuntime craftAgent", () => {
   });
 });
 
+describe("SupervisorRuntime chat session pool-first authorization", () => {
+  beforeEach(() => {
+    process.env.CRAFTSTATION_DATA_DIR = makeTempDir();
+  });
+
+  function addPoolAccount(
+    runtime: SupervisorRuntime,
+    provider: "codex" | "grok",
+    label: string,
+    withCredential = true,
+  ) {
+    const account = runtime.addAccount({
+      provider,
+      label,
+      maskedIdentity: `${label}@example.com`,
+    });
+    if (withCredential) {
+      writeFileSync(
+        join(runtime.accountStore.credentialRoot(account.accountId), "auth.json"),
+        JSON.stringify({ testCredential: true }),
+        "utf8",
+      );
+    }
+    runtime.accountStore.updateStatus(account.accountId, "available");
+    return account;
+  }
+
+  it("falls back to ambient only when the provider has no credentialed pool accounts", () => {
+    const runtime = makeRuntime(() => undefined);
+    // Metadata-only row: the pool exists but holds no usable credential.
+    addPoolAccount(runtime, "codex", "stale", false);
+    expect(
+      (
+        runtime as unknown as {
+          resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => unknown;
+        }
+      ).resolveAccountSessionEnv({ provider: "codex", threadId: "thread-1" }),
+    ).toBeUndefined();
+    // Providers without a chat pool seam always use their ambient login.
+    expect(
+      (
+        runtime as unknown as {
+          resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => unknown;
+        }
+      ).resolveAccountSessionEnv({ provider: "claude", threadId: "thread-1" }),
+    ).toBeUndefined();
+  });
+
+  it("binds codex chat sessions to the pool account via CODEX_HOME", () => {
+    const runtime = makeRuntime(() => undefined);
+    const account = addPoolAccount(runtime, "codex", "Pool A");
+    const resolved = (
+      runtime as unknown as {
+        resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => {
+          accountId: string;
+          reason: string;
+          env: Record<string, string>;
+        };
+      }
+    ).resolveAccountSessionEnv({ provider: "codex", threadId: "thread-2" });
+    expect(resolved.accountId).toBe(account.accountId);
+    expect(resolved.env.CODEX_HOME).toBe(runtime.accountStore.credentialRoot(account.accountId));
+    expect(JSON.stringify(resolved.env)).not.toContain("testCredential");
+  });
+
+  it("binds grok chat sessions to the pool account via a pinned GROK_HOME", () => {
+    const runtime = makeRuntime(() => undefined);
+    const account = addPoolAccount(runtime, "grok", "Pool G");
+    const resolved = (
+      runtime as unknown as {
+        resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => {
+          accountId: string;
+          env: Record<string, string>;
+        };
+      }
+    ).resolveAccountSessionEnv({ provider: "grok", threadId: "thread-3" });
+    expect(resolved.accountId).toBe(account.accountId);
+    expect(resolved.env.GROK_HOME).toBe(runtime.accountStore.credentialRoot(account.accountId));
+  });
+
+  it("throws when the pool exists but every account is unusable (no silent ambient fallback)", () => {
+    const runtime = makeRuntime(() => undefined);
+    const account = addPoolAccount(runtime, "grok", "Only", true);
+    runtime.accountStore.updateStatus(account.accountId, "quota-exhausted");
+    expect(() =>
+      (
+        runtime as unknown as {
+          resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => unknown;
+        }
+      ).resolveAccountSessionEnv({ provider: "grok", threadId: "thread-4" }),
+    ).toThrowError(/No usable grok account/);
+  });
+});
+
 describe("SupervisorRuntime account refresh lock (v0.5 T09)", () => {
   it("coalesces concurrent per-account quota refreshes into one collector call", async () => {
     const runtime = makeRuntime(() => undefined);

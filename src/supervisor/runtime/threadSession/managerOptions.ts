@@ -124,4 +124,18 @@ export interface ThreadSessionManagerOptions {
     segments: PromptSegment[];
     nativePlugins?: readonly AgentNativePlugin[];
   }): Promise<PromptSegment[]>;
+  /**
+   * Pool-first account authorization for structured sessions. Given the base
+   * provider kind, returns the managed pool account's process environment
+   * (e.g. `CODEX_HOME` / pinned `GROK_HOME`) so the session uses the pool
+   * credential instead of the ambient host CLI login. Return `undefined` only
+   * when the provider has no managed pool (ambient fallback). Throw when a
+   * pool exists but no account is usable — that must surface as a start
+   * failure, never a silent ambient fallback. The returned env must not
+   * contain secret values, only scope redirections.
+   */
+  resolveAccountSessionEnv?(input: {
+    provider: string;
+    threadId: string;
+  }): { accountId: string; reason: string; env: Record<string, string> } | undefined;
 }

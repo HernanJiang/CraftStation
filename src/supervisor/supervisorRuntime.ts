@@ -613,6 +613,7 @@ export class SupervisorRuntime {
       readDisableCliHookPlugin: () => this.sharedSettingsCache.read().disableCliHookPlugin,
       adapters: this.adapters,
       resolveWindowsShell: (runtime) => this.resolveWindowsShell(runtime),
+      resolveAccountSessionEnv: (input) => this.resolveAccountSessionEnv(input),
       ...(this.wslHookBridge ? { wslBridge: this.wslHookBridge } : {}),
       resolvePluginEnvForSpawn: (input) =>
         this.cliHookPluginCoordinator.resolvePluginEnvForSpawn(input),
@@ -1578,6 +1579,35 @@ export class SupervisorRuntime {
       return existsSync(join(credentialRoot, "auth.json"));
     }
     return true;
+  }
+
+  /**
+   * Pool-first chat-session authorization (see ThreadSessionManagerOptions).
+   * Providers with a managed account pool must never fall back to the ambient
+   * host CLI login: a resolvable pool returns the account's scope env, an
+   * unusable pool throws, and only a provider with NO credentialed pool
+   * accounts returns undefined (ambient fallback).
+   */
+  private resolveAccountSessionEnv(input: {
+    provider: string;
+    threadId: string;
+  }): { accountId: string; reason: string; env: Record<string, string> } | undefined {
+    const provider =
+      input.provider === "codex" || input.provider === "grok" ? input.provider : undefined;
+    if (!provider) return undefined;
+    const hasCredentialedManagedAccount = this.accountStore
+      .records(provider)
+      .some((account) => this.hasManagedCredential(provider, account.credentialRoot));
+    if (!hasCredentialedManagedAccount) return undefined;
+    // Throws ACCOUNT_POOL_EXHAUSTED when every account is unusable — that is
+    // the explicit all-failed error, not a silent ambient fallback.
+    const resolution = this.accountResolver.resolve({ provider, mode: "auto" });
+    const root = this.accountStore.credentialRoot(resolution.account.accountId);
+    const env = provider === "grok" ? managedGrokProcessEnvironment(root) : { CODEX_HOME: root };
+    console.log(
+      `[account] pool account selected: provider=${provider} thread=${input.threadId} account=${resolution.account.accountId} reason=${resolution.reason}`,
+    );
+    return { accountId: resolution.account.accountId, reason: resolution.reason, env };
   }
 
   private async resolveCraftingMcpServers(
