@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-08-30T15:37:13.0785593Z",
+  "synthetic": false,
+  "cli": "Command Code",
+  "version": "1.38.2",
+  "model": "deepseek/deepseek-v4-flash",
+  "effort": "high",
+  "tty": true,
+  "context": {
+    "usedTokens": 12500,
+    "windowTokens": 1000000,
+    "usedPercent": 1.3,
+    "remainingTokens": 987500,
+    "displayObserved": true
+  },
+  "compaction": {
+    "command": "/compact",
+    "status": "already_compact",
+    "messages": [
+      "Compacting conversation...",
+      "Conversation is already compact."
+    ],
+    "continuedMessage": "COMPACTION_CONTINUED_OK",
+    "continued": true
+  },
+  "notes": [
+    "Evidence was observed in a real interactive TTY; no synthetic transport was used.",
+    "The headless agent toolset did not expose a native run_command slash-command tool; the slash command was therefore executed in the actual CLI TTY."
+  ]
+}

@@ -18,6 +18,8 @@ export interface NativeHarnessRecipeOptions {
   harnessKind: string;
   harnessItemId: string;
   modelVendors: readonly string[];
+  modelIds?: readonly string[];
+  modelItemIds?: readonly string[];
   harnessVendors?: readonly string[];
   compatibilityStatus?: CompatibilityStatus;
 }
@@ -38,6 +40,8 @@ export class NativeHarnessRecipe implements Recipe {
   readonly harnessKind: string;
   readonly harnessItemId: string;
   readonly modelVendors: readonly string[];
+  readonly modelIds: readonly string[];
+  readonly modelItemIds: readonly string[];
   readonly harnessVendors: readonly string[];
   readonly requirements: Record<string, RecipeSlotRequirement>;
 
@@ -50,6 +54,8 @@ export class NativeHarnessRecipe implements Recipe {
     this.harnessKind = options.harnessKind;
     this.harnessItemId = options.harnessItemId;
     this.modelVendors = [...options.modelVendors];
+    this.modelIds = [...(options.modelIds ?? [])];
+    this.modelItemIds = [...(options.modelItemIds ?? [])];
     this.harnessVendors = [...(options.harnessVendors ?? options.modelVendors)];
     this.requirements = {
       model: {
@@ -72,6 +78,19 @@ export class NativeHarnessRecipe implements Recipe {
     const harness = ingredients.harness;
     if (!model || !harness) return false;
     if (model.kind !== "model" || !this.modelVendors.includes(model.metadata.vendor)) return false;
+    if (this.modelItemIds.length > 0 && !this.modelItemIds.includes(model.id)) return false;
+    if (this.modelIds.length > 0) {
+      const modelCapability = model.components.find(
+        (component) => component.kind === "model_capability",
+      );
+      if (
+        !modelCapability ||
+        typeof modelCapability.modelId !== "string" ||
+        !this.modelIds.includes(modelCapability.modelId)
+      ) {
+        return false;
+      }
+    }
     if (harness.kind !== "harness" || harness.id !== this.harnessItemId) return false;
     return this.harnessVendors.includes(harness.metadata.vendor);
   }
@@ -95,8 +114,7 @@ export class NativeHarnessRecipe implements Recipe {
     }
 
     const modelCapability = model.components.find(
-      (component): component is ModelCapabilityComponent =>
-        component.kind === "model_capability",
+      (component): component is ModelCapabilityComponent => component.kind === "model_capability",
     );
     const runtimeModelId =
       modelCapability?.modelId ??
@@ -107,9 +125,10 @@ export class NativeHarnessRecipe implements Recipe {
       profileRef: context.profileRef ?? null,
       environment: context.environment ?? null,
     });
-    const hash = sha256Hex(
-      `${this.id}:${model.id}:${harness.id}:${contextFingerprint}`,
-    ).slice(0, 16);
+    const hash = sha256Hex(`${this.id}:${model.id}:${harness.id}:${contextFingerprint}`).slice(
+      0,
+      16,
+    );
 
     return {
       id: `plan:${this.id}:${hash}`,

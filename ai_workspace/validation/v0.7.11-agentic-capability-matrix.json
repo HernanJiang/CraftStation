@@ -1,0 +1,169 @@
+{
+  "timestamp": "2026-08-30T15:45:16.2213722Z",
+  "synthetic": false,
+  "feature": "v0.7.0 — Native Antigravity CLI and DeepSeek Harness Adapters",
+  "fixCycle": "v0.7.10",
+  "verdict": "FAIL / PARTIAL",
+  "engineeringVerdict": "PASS",
+  "capabilities": {
+    "hostDebugger": {
+      "nativeTool": {
+        "passed": true,
+        "evidence": "exec_command returned PowerShell/Git/filesystem results"
+      },
+      "skill": {
+        "passed": true,
+        "evidence": "my-workflow SKILL.md loaded"
+      },
+      "networkSearch": {
+        "passed": true,
+        "evidence": "GitHub repository search returned deepseek-ai/deepseek-harness"
+      },
+      "mcp": {
+        "passed": true,
+        "evidence": "Codex app thread MCP tools connected"
+      },
+      "crossThread": {
+        "passed": true,
+        "evidence": "CROSS_THREAD_MESSAGE_OK_V0711 returned from Debugger-0.8-OpenCode Native"
+      },
+      "agentsAutoRead": {
+        "passed": true,
+        "evidence": "v0.7 AGENTS.md instructions were present in task context"
+      },
+      "contextCompaction": {
+        "passed": true,
+        "evidence": "current task resumed after checkpoint compaction"
+      }
+    },
+    "antigravity": {
+      "cli": "agy 1.1.22",
+      "realAssistantResponse": {
+        "passed": true,
+        "evidence": "v0.7.0-antigravity-product-path.json: synthetic=false, PASS, responseLength=33, cleanup=true"
+      },
+      "nativeTool": {
+        "passed": true,
+        "evidence": "find_by_name/run_command/view_file/list_dir observed"
+      },
+      "subagent": {
+        "passed": true,
+        "evidence": "invoke_subagent returned AGY_SUBAGENT_OK"
+      },
+      "skill": {
+        "passed": true,
+        "evidence": "understand-explain expanded command and AGY_SKILL_LOADED_OK"
+      },
+      "networkSearch": {
+        "passed": true,
+        "evidence": "search_web returned official DeepSeek Harness GitHub URL"
+      },
+      "mcp": {
+        "passed": true,
+        "evidence": "call_mcp_tool listed directory and read marker"
+      },
+      "agentsAutoRead": {
+        "passed": true,
+        "evidence": "AGENTS_AUTO_READ_OK"
+      },
+      "multiTurnResume": {
+        "passed": true,
+        "evidence": "conversation 11f8a40a-6ea0-4e45-a904-e8f87e327092, num_turns=2"
+      },
+      "compaction": {
+        "passed": false,
+        "evidence": "agy 1.1.22 exposes no /compact command; print-mode /compact was treated as a normal prompt"
+      }
+    },
+    "commandCodeDeepSeek": {
+      "cli": "Command Code 1.38.2",
+      "model": "deepseek/deepseek-v4-flash",
+      "effort": "high",
+      "realTraffic": {
+        "passed": true,
+        "evidence": "model_request_start/model_request_end and non-empty final response"
+      },
+      "nativeTool": {
+        "passed": true,
+        "evidence": "read_file/read_directory returned marker and skill directory"
+      },
+      "subagent": {
+        "passed": true,
+        "evidence": "background agent completed with SUBAGENT_NATIVE_OK"
+      },
+      "skill": {
+        "passed": true,
+        "evidence": "agentic-smoke SKILL.md read and SKILL_LOADED_OK emitted"
+      },
+      "networkSearch": {
+        "passed": true,
+        "evidence": "web_search returned official DeepSeek Harness GitHub URL"
+      },
+      "mcp": {
+        "passed": true,
+        "evidence": "mcp__craftstation-agentic-fs__read_file returned marker and MCP_CONNECTED_OK"
+      },
+      "agentsAutoRead": {
+        "passed": true,
+        "evidence": "AGENTS_AUTO_READ_OK"
+      },
+      "multiTurnResume": {
+        "passed": true,
+        "evidence": "session adc6d105-459a-4525-bc39-3da8ba6027b5 returned MULTITURN_RESUME_OK"
+      },
+      "context": {
+        "passed": true,
+        "evidence": "/context displayed 12.5k/1M used, 1.3%, 987.5k remaining"
+      },
+      "compaction": {
+        "passed": true,
+        "evidence": "real TTY /compact reported already compact; same TTY then returned COMPACTION_CONTINUED_OK"
+      }
+    },
+    "officialDsh": {
+      "carrier": "@deepseek-ai/dsh-sdk-jsonrpc-demo 0.1.1-rc.2 / dsh-jsonrpc-agent.cmd",
+      "realAssistantResponse": {
+        "passed": false,
+        "evidence": "v0.7.9-deepseek-product-path.json verdict=UNAVAILABLE, providerCode=TRANSPORT, no assistant response, cleanup=true"
+      },
+      "advancedAgenticIntegration": {
+        "passed": false,
+        "evidence": "tool/MCP/Skills/subagents/resume/multi-turn/context/compaction not proven through official DSH CraftStation product path"
+      },
+      "fallbackUsed": false
+    }
+  },
+  "regression": {
+    "focused": "11 passed / 2 skipped files; 156 passed / 7 skipped tests",
+    "touchedTsTsx": 31,
+    "oxfmt": "PASS",
+    "oxlint": "PASS",
+    "typecheck": "PASS",
+    "diffCheck": "PASS"
+  },
+  "modelTraffic": {
+    "artifact": "v0.7.11-codex-discovered-model-real-traffic.json",
+    "discovered": 14,
+    "attempted": 14,
+    "nonEmptyResponses": 13,
+    "strictMarkerPass": 12,
+    "failedModels": [
+      "claude-opus-4.6-thinking"
+    ],
+    "nonMarkerResponseModels": [],
+    "retryArtifact": "v0.7.11-claude-retry-real-traffic.json",
+    "retryVerdict": "Claude FAILED / PROVIDER_FAILURE; DeepSeek Pro 0813 PASS / exact marker",
+    "finalRetryArtifact": "v0.7.11-final-provider-retry-real-traffic.json",
+    "finallyStrictPassingModels": 13,
+    "finalRemainingFailedModels": [
+      "claude-opus-4.6-thinking"
+    ]
+  },
+  "remaining": [
+    "Official DSH product path has no real assistant response.",
+    "Official DSH advanced Agentic capabilities remain unverified.",
+    "Antigravity has no supported /compact command.",
+    "The credential pasted into chat must be rotated; it was not persisted in artifacts or reports.",
+    "Current production model traffic has one remaining Claude provider failure; DeepSeek Pro 0813 passed the final exact-marker retry."
+  ]
+}

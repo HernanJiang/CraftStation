@@ -9,6 +9,7 @@ import type {
   NativeEventEnvelope,
   NativeHarnessDescriptor,
   NativeHarnessDiagnostic,
+  NativeRuntimeExecutionConfig,
 } from "./nativeHarness";
 
 export interface Entity {
@@ -38,6 +39,8 @@ export interface SessionSnapshot {
   readonly nativeSessionRef?: string | undefined;
   readonly nativeEvents?: readonly NativeEventEnvelope[] | undefined;
   readonly diagnostics?: readonly NativeHarnessDiagnostic[] | undefined;
+  /** Secret-free projection of the CraftPlan settings used by this session. */
+  readonly runtimeConfig?: NativeRuntimeExecutionConfig | undefined;
   readonly effectiveOverrides?: RuntimeOverrides | undefined;
   readonly metadata?: Record<string, unknown> | undefined;
 }
@@ -124,4 +127,6 @@ export interface HarnessRuntimeAdapter {
   createSession(entity: Entity): Promise<CraftSession>;
   resumeSession(entity: Entity, sessionRef: string): Promise<CraftSession>;
   getDiagnostics?(): readonly NativeHarnessDiagnostic[];
+  /** Release adapter-owned transports or provider processes after its Session is gone. */
+  dispose?(): Promise<void>;
 }

@@ -42,7 +42,12 @@ function statusFor(
   status: AgentStatus | undefined,
   diagnostics: readonly NativeHarnessDiagnostic[],
 ): NativeHarnessControlPlaneEntry["status"] {
-  if (descriptor.transport === "unavailable") return "unavailable";
+  if (
+    descriptor.transport === "unavailable" ||
+    diagnostics.some((diagnostic) => diagnostic.code === "RUNTIME_UNAVAILABLE") ||
+    (descriptor.harnessKind === "deepseek" && !status)
+  )
+    return "unavailable";
   if (
     diagnostics.some((diagnostic) =>
       [
@@ -63,7 +68,10 @@ function statusFor(
   return "not-configured";
 }
 
-function stableDiagnosticMessage(code: NativeHarnessPublicDiagnostic["code"], harnessKind: string): string {
+function stableDiagnosticMessage(
+  code: NativeHarnessPublicDiagnostic["code"],
+  harnessKind: string,
+): string {
   switch (code) {
     case "AUTH_REQUIRED":
       return `${harnessKind} requires authentication.`;
@@ -79,6 +87,8 @@ function stableDiagnosticMessage(code: NativeHarnessPublicDiagnostic["code"], ha
       return `${harnessKind} native session was not found.`;
     case "NATIVE_EXECUTION_FAILED":
       return `${harnessKind} native execution failed.`;
+    case "NATIVE_STDERR":
+      return `${harnessKind} native runtime emitted diagnostic output.`;
     case "CLEANUP_FAILED":
       return `${harnessKind} native cleanup failed.`;
   }
@@ -100,9 +110,7 @@ function stableRemediation(code: NativeHarnessPublicDiagnostic["code"]): string 
   }
 }
 
-function publicDiagnostic(
-  diagnostic: NativeHarnessDiagnostic,
-): NativeHarnessPublicDiagnostic {
+function publicDiagnostic(diagnostic: NativeHarnessDiagnostic): NativeHarnessPublicDiagnostic {
   const code = diagnostic.code;
   return {
     code,

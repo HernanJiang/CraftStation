@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-08-31T06:31:41.399Z",
+  "synthetic": false,
+  "scope": "DeepSeek API provider paths; separate from official DSH JSON-RPC Harness",
+  "executionPath": "SupervisorRuntime.craftAgent -> DeepSeekApiRuntimeAdapter -> OpenAI-compatible HTTPS -> Entity -> Session",
+  "cases": [
+    {
+      "provider": "deepseek-official-api",
+      "model": "deepseek-chat",
+      "endpoint": "https://api.deepseek.com/v1",
+      "synthetic": false,
+      "attempted": true,
+      "verdict": "FAILED",
+      "errorCode": "AUTH_REQUIRED",
+      "errorMessage": "Authentication is required to run harness 'deepseek-api'.",
+      "errorDetails": {
+        "harnessKind": "deepseek-api",
+        "recipeId": "recipe:deepseek-api",
+        "modelId": "deepseek-chat",
+        "threadId": "craft-deepseek-api-0-1788157901401",
+        "entityId": "entity:deepseek-api:498380d5-8c0d-45ea-8619-574dba176c0d",
+        "sessionId": "sess:deepseek-api:bbd776d5-590f-492b-b49e-ca993c36813a"
+      },
+      "eventTypes": [
+        "turn.started",
+        "error",
+        "turn.completed",
+        "session.exited"
+      ],
+      "cleanup": {
+        "observedSessionExited": true
+      }
+    },
+    {
+      "provider": "deepseek-official-reasoner-api",
+      "model": "deepseek-reasoner",
+      "endpoint": "https://api.deepseek.com/v1",
+      "synthetic": false,
+      "attempted": true,
+      "verdict": "FAILED",
+      "errorCode": "AUTH_REQUIRED",
+      "errorMessage": "Authentication is required to run harness 'deepseek-api'.",
+      "errorDetails": {
+        "harnessKind": "deepseek-api",
+        "recipeId": "recipe:deepseek-api",
+        "modelId": "deepseek-reasoner",
+        "threadId": "craft-deepseek-api-1-1788157901682",
+        "entityId": "entity:deepseek-api:b4da50fb-a864-4cbe-a841-2d9d514228f3",
+        "sessionId": "sess:deepseek-api:a1b31899-ee4f-4ef5-99a0-6610bcf9d4dd"
+      },
+      "eventTypes": [
+        "turn.started",
+        "error",
+        "turn.completed",
+        "session.exited"
+      ],
+      "cleanup": {
+        "observedSessionExited": true
+      }
+    },
+    {
+      "provider": "deepseek-ark-coding-api",
+      "model": "deepseek-v4-flash",
+      "endpoint": "https://ark.cn-beijing.volces.com/api/coding/v3",
+      "synthetic": false,
+      "attempted": false,
+      "verdict": "KEY_NOT_CONFIGURED"
+    },
+    {
+      "provider": "deepseek-ark-coding-pro-api",
+      "model": "deepseek-v4-pro",
+      "endpoint": "https://ark.cn-beijing.volces.com/api/coding/v3",
+      "synthetic": false,
+      "attempted": false,
+      "verdict": "KEY_NOT_CONFIGURED"
+    }
+  ],
+  "summary": {
+    "configured": 2,
+    "attempted": 2,
+    "passed": 0,
+    "skipped": 2,
+    "failed": 2,
+    "cleanupPassed": 2
+  }
+}

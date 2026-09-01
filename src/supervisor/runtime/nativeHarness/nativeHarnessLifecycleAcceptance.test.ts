@@ -50,12 +50,12 @@ const FIVE_HARNESS_MATRIX = [
   },
   {
     harnessKind: "antigravity",
-    transport: "official-pty",
+    transport: "official-stream-json",
     fixtureEvidence: "nativeHarness.test.ts",
   },
   {
     harnessKind: "deepseek",
-    transport: "unavailable",
+    transport: "deepseek-json-rpc-stdio",
     fixtureEvidence: "nativeHarness.test.ts",
   },
 ] as const;
@@ -101,7 +101,9 @@ function makeStructuredHandle(
   let listener: StructuredSessionListener | undefined;
   const handle: StructuredSessionHandle = {
     launchOptions: {},
-    openThread: vi.fn(async (_config, sessionRef) => sessionRef?.providerSessionId ?? providerSessionId),
+    openThread: vi.fn(
+      async (_config, sessionRef) => sessionRef?.providerSessionId ?? providerSessionId,
+    ),
     startTurn: vi.fn(async (prompt) => {
       const turnId = `turn:${providerSessionId}:${prompt}`;
       const events: RuntimeEvent[] = [
@@ -144,7 +146,8 @@ function makeStructuredAdapter(
 
   return new StructuredNativeHarnessRuntimeAdapter({
     adapter: agent,
-    descriptor: harnessKind === "grok" ? GROK_NATIVE_HARNESS_DESCRIPTOR : KIMI_NATIVE_HARNESS_DESCRIPTOR,
+    descriptor:
+      harnessKind === "grok" ? GROK_NATIVE_HARNESS_DESCRIPTOR : KIMI_NATIVE_HARNESS_DESCRIPTOR,
     projectLocation: windowsProject,
     profileRef: `profile:${harnessKind}`,
   });
@@ -180,7 +183,8 @@ function makePtyFixture(): PtyFixture {
     writes,
     kill,
     emitData: (data) => onData?.(data),
-    emitExit: (exitCode, signal) => onExit?.({ exitCode, ...(signal !== undefined ? { signal } : {}) }),
+    emitExit: (exitCode, signal) =>
+      onExit?.({ exitCode, ...(signal !== undefined ? { signal } : {}) }),
   };
 }
 
@@ -189,7 +193,10 @@ function makeAntigravityAgent(): AgentAdapter {
     binary: "agy",
     args: ["--resume"],
   });
-  const buildDirectInput: NonNullable<AgentAdapter["buildDirectInput"]> = (prompt) => [prompt, "\r"];
+  const buildDirectInput: NonNullable<AgentAdapter["buildDirectInput"]> = (prompt) => [
+    prompt,
+    "\r",
+  ];
   const detectTerminalStatus: NonNullable<AgentAdapter["detectTerminalStatus"]> = (text) =>
     text === "WORKING"
       ? { status: "working", attention: "working" }
@@ -224,39 +231,89 @@ describe("Five-Harness lifecycle acceptance matrix", () => {
       DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR.transport,
     ]);
     expect(ACCEPTANCE_DIMENSIONS).toEqual(
-      expect.arrayContaining(["discovery", "start", "resume", "multi_turn", "streaming", "interrupt", "cleanup"]),
+      expect.arrayContaining([
+        "discovery",
+        "start",
+        "resume",
+        "multi_turn",
+        "streaming",
+        "interrupt",
+        "cleanup",
+      ]),
+    );
+  });
+
+  it("promotes only product-path-proven Antigravity capabilities and keeps DeepSeek gated", () => {
+    const evidenceGatedCapabilities = [
+      "resume",
+      "multi_turn",
+      "tool_execution",
+      "permission",
+      "mcp",
+      "skills",
+      "subagents",
+      "context",
+      "compaction",
+    ] as const;
+
+    expect(
+      evidenceGatedCapabilities.map((capability) => [
+        capability,
+        DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR.capabilities[capability],
+      ]),
+    ).toEqual(
+      evidenceGatedCapabilities.map((capability) => [capability, "implementation missing"]),
+    );
+    expect(ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR.capabilities).toMatchObject({
+      resume: "supported+integrated",
+      multi_turn: "supported+integrated",
+      tool_execution: "supported+integrated",
+      permission: "implementation missing",
+      mcp: "supported+integrated",
+      skills: "supported+integrated",
+      subagents: "supported+integrated",
+      context: "supported+integrated",
+    });
+    expect(ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR.capabilities.compaction).toBe(
+      "native unsupported",
     );
   });
 
   it.each([
     ["grok", "xai"],
     ["kimi", "moonshot"],
-  ] as const)("runs start/resume/multi-turn/stream/cleanup for %s through the ACP seam", async (kind, vendor) => {
-    const adapter = makeStructuredAdapter(kind, vendor, `${kind}-matrix-session`);
-    const plan = structuredPlan(kind, vendor);
-    const entity = await adapter.spawnEntity(plan);
-    const session = await adapter.createSession(entity);
-    const events: RuntimeEvent[] = [];
-    session.subscribe((event) => events.push(event));
+  ] as const)(
+    "runs start/resume/multi-turn/stream/cleanup for %s through the ACP seam",
+    async (kind, vendor) => {
+      const adapter = makeStructuredAdapter(kind, vendor, `${kind}-matrix-session`);
+      const plan = structuredPlan(kind, vendor);
+      const entity = await adapter.spawnEntity(plan);
+      const session = await adapter.createSession(entity);
+      const events: RuntimeEvent[] = [];
+      session.subscribe((event) => events.push(event));
 
-    await expect(session.startTurn({ prompt: "first" })).resolves.toMatchObject({
-      status: "completed",
-      response: `${kind}-matrix-session:first`,
-    });
-    await expect(session.startTurn({ prompt: "second" })).resolves.toMatchObject({
-      status: "completed",
-      response: `${kind}-matrix-session:second`,
-    });
-    expect(events.filter((event) => event.type === "content.delta")).toHaveLength(2);
-    expect(events.every((event) => event.nativeEnvelope?.harnessKind === kind)).toBe(true);
+      await expect(session.startTurn({ prompt: "first" })).resolves.toMatchObject({
+        status: "completed",
+        response: `${kind}-matrix-session:first`,
+      });
+      await expect(session.startTurn({ prompt: "second" })).resolves.toMatchObject({
+        status: "completed",
+        response: `${kind}-matrix-session:second`,
+      });
+      expect(events.filter((event) => event.type === "content.delta")).toHaveLength(2);
+      expect(events.every((event) => event.nativeEnvelope?.harnessKind === kind)).toBe(true);
 
-    const resumed = await adapter.resumeSession(await adapter.spawnEntity(plan), `${kind}-saved-session`);
-    expect(resumed.nativeSessionRef).toBe(`${kind}-saved-session`);
-    await session.terminate();
-    await resumed.terminate();
-    expect(session.status).toBe("terminated");
-    expect(resumed.status).toBe("terminated");
-  });
+      const resumed = await adapter.resumeSession(
+        await adapter.spawnEntity(plan),
+        `${kind}-saved-session`,
+      );
+      expect(resumed.nativeSessionRef).toBe(`${kind}-saved-session`);
+      await session.terminate();
+      await resumed.terminate();
+      expect(session.status).toBe("terminated");
+      expect(resumed.status).toBe("terminated");
+    },
+  );
 
   it("runs Antigravity PTY stream, interrupt, crash and cleanup paths", async () => {
     const streamFixture = makePtyFixture();
@@ -280,8 +337,16 @@ describe("Five-Harness lifecycle acceptance matrix", () => {
       },
       ingredients: {
         ...structuredPlan("grok", "xai").ingredients,
-        model: { ...structuredPlan("grok", "xai").ingredients.model!, vendor: "google", itemId: "google:model" },
-        harness: { ...structuredPlan("grok", "xai").ingredients.harness!, vendor: "google", itemId: "harness:antigravity" },
+        model: {
+          ...structuredPlan("grok", "xai").ingredients.model!,
+          vendor: "google",
+          itemId: "google:model",
+        },
+        harness: {
+          ...structuredPlan("grok", "xai").ingredients.harness!,
+          vendor: "google",
+          itemId: "harness:antigravity",
+        },
       },
       threadId: "thread:antigravity:acceptance",
     };
@@ -291,7 +356,10 @@ describe("Five-Harness lifecycle acceptance matrix", () => {
     streamFixture.emitData("WORKING");
     streamFixture.emitData("native stream");
     streamFixture.emitData("IDLE");
-    await expect(turn).resolves.toMatchObject({ status: "completed", response: expect.stringContaining("native stream") });
+    await expect(turn).resolves.toMatchObject({
+      status: "completed",
+      response: expect.stringContaining("native stream"),
+    });
     await session.terminate();
     expect(streamFixture.kill).toHaveBeenCalledOnce();
 

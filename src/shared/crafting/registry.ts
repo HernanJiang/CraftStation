@@ -165,7 +165,7 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
       {
         kind: "model_capability",
         vendor: "google",
-        modelId: "antigravity-default",
+        modelId: "Gemini 3.5 Flash",
         supportsStreaming: true,
         supportsToolCalling: true,
       },
@@ -189,6 +189,98 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
         kind: "model_capability",
         vendor: "deepseek",
         modelId: "deepseek-chat",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "deepseek:deepseek-chat-api",
+    kind: "model",
+    metadata: {
+      id: "deepseek:deepseek-chat-api",
+      name: "DeepSeek Chat API",
+      version: "api-2026-08",
+      vendor: "deepseek",
+      source: "builtin",
+      description: "DeepSeek Chat through an explicitly configured OpenAI-compatible API.",
+      tags: ["coding", "deepseek", "api"],
+      compatibilityStatus: "SUPPORTED",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "deepseek",
+        modelId: "deepseek-chat",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "deepseek:deepseek-reasoner-api",
+    kind: "model",
+    metadata: {
+      id: "deepseek:deepseek-reasoner-api",
+      name: "DeepSeek Reasoner API",
+      version: "api-2026-08",
+      vendor: "deepseek",
+      source: "builtin",
+      description: "DeepSeek Reasoner through an explicitly configured OpenAI-compatible API.",
+      tags: ["reasoning", "deepseek", "api"],
+      compatibilityStatus: "SUPPORTED",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "deepseek",
+        modelId: "deepseek-reasoner",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "deepseek:deepseek-v4-flash-api",
+    kind: "model",
+    metadata: {
+      id: "deepseek:deepseek-v4-flash-api",
+      name: "DeepSeek V4 Flash API",
+      version: "api-2026-08",
+      vendor: "deepseek",
+      source: "builtin",
+      description: "DeepSeek V4 Flash through an explicitly configured OpenAI-compatible API.",
+      tags: ["coding", "deepseek", "api"],
+      compatibilityStatus: "SUPPORTED",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "deepseek",
+        modelId: "deepseek-v4-flash",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "deepseek:deepseek-v4-pro-api",
+    kind: "model",
+    metadata: {
+      id: "deepseek:deepseek-v4-pro-api",
+      name: "DeepSeek V4 Pro API",
+      version: "api-2026-08",
+      vendor: "deepseek",
+      source: "builtin",
+      description: "DeepSeek V4 Pro through an explicitly configured OpenAI-compatible API.",
+      tags: ["coding", "deepseek", "api"],
+      compatibilityStatus: "SUPPORTED",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "deepseek",
+        modelId: "deepseek-v4-pro",
         supportsStreaming: true,
         supportsToolCalling: true,
       },
@@ -274,8 +366,8 @@ export const BUILTIN_ANTIGRAVITY_HARNESS_ITEM = createNativeHarnessItem({
   id: "harness:antigravity",
   name: "Antigravity Harness",
   vendor: "google",
-  description: "Official Antigravity agent runtime through its interactive PTY.",
-  executionMode: "terminal_pty",
+  description: "Official Antigravity agent runtime through its stream-json machine boundary.",
+  executionMode: "structured_session",
 });
 
 export const BUILTIN_DEEPSEEK_HARNESS_ITEM = createNativeHarnessItem({
@@ -287,11 +379,20 @@ export const BUILTIN_DEEPSEEK_HARNESS_ITEM = createNativeHarnessItem({
   executionMode: "structured_session",
 });
 
+export const BUILTIN_DEEPSEEK_API_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:deepseek-api",
+  name: "DeepSeek API Runtime",
+  vendor: "deepseek",
+  description: "OpenAI-compatible DeepSeek API runtime; independent from the DSH Harness.",
+  executionMode: "structured_session",
+});
+
 export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_GROK_HARNESS_ITEM,
   BUILTIN_KIMI_HARNESS_ITEM,
   BUILTIN_ANTIGRAVITY_HARNESS_ITEM,
   BUILTIN_DEEPSEEK_HARNESS_ITEM,
+  BUILTIN_DEEPSEEK_API_HARNESS_ITEM,
 ];
 
 export const NATIVE_HARNESS_RECIPES = [
@@ -328,6 +429,22 @@ export const NATIVE_HARNESS_RECIPES = [
     modelVendors: ["deepseek"],
     compatibilityStatus: "EXPERIMENTAL",
   }),
+  new NativeHarnessRecipe({
+    id: "recipe:deepseek-api",
+    name: "DeepSeek API Recipe",
+    description: "DeepSeek Model through an explicitly configured OpenAI-compatible API.",
+    harnessKind: "deepseek-api",
+    harnessItemId: BUILTIN_DEEPSEEK_API_HARNESS_ITEM.id,
+    modelVendors: ["deepseek"],
+    modelIds: ["deepseek-chat", "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro"],
+    modelItemIds: [
+      "deepseek:deepseek-chat-api",
+      "deepseek:deepseek-reasoner-api",
+      "deepseek:deepseek-v4-flash-api",
+      "deepseek:deepseek-v4-pro-api",
+    ],
+    compatibilityStatus: "SUPPORTED",
+  }),
 ] as const;
 
 export const BUILTIN_HARNESS_ITEMS: Item[] = [
@@ -344,7 +461,11 @@ export class ItemRegistry {
   }
 
   private registerBuiltins(): void {
-    for (const model of BUILTIN_MODEL_ITEMS) {
+    // OpenAI model availability is owned by the official Codex app-server
+    // `model/list` response. Keep the historical constants for fixtures and
+    // persisted-plan compatibility, but never expose them as selectable
+    // production inventory before discovery has succeeded.
+    for (const model of BUILTIN_MODEL_ITEMS.filter((item) => item.metadata.vendor !== "openai")) {
       this.registerItem(model);
     }
     for (const harness of BUILTIN_NATIVE_HARNESS_ITEMS) this.registerItem(harness);
@@ -396,12 +517,19 @@ export class ItemRegistry {
   refreshCodexModels(
     models: Array<{
       id: string;
-      displayName?: string;
-      contextWindow?: number;
-      supportsStreaming?: boolean;
-      supportsToolCalling?: boolean;
+      displayName?: string | undefined;
+      contextWindow?: number | undefined;
+      supportsStreaming?: boolean | undefined;
+      supportsToolCalling?: boolean | undefined;
     }>,
   ): void {
+    // `model/list` is an authoritative snapshot. Rebuild the item map with
+    // discovered OpenAI models first (the default Codex composition), while
+    // retaining every non-OpenAI Native Item in its original order.
+    const retainedItems = [...this.items.values()].filter(
+      (item) => item.kind !== "model" || item.metadata.vendor !== "openai",
+    );
+    const discoveredItems: Item[] = [];
     for (const m of models) {
       const itemId = `openai:${m.id}`;
       const item: Item = {
@@ -428,8 +556,10 @@ export class ItemRegistry {
           },
         ],
       };
-      this.registerItem(item);
+      discoveredItems.push(item);
     }
+    this.items.clear();
+    for (const item of [...discoveredItems, ...retainedItems]) this.registerItem(item);
   }
 
   resolveSlot(slotName: string, selection: SlotSelection): Item | undefined {

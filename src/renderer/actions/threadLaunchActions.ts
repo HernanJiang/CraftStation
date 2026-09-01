@@ -559,7 +559,27 @@ function appendOptimisticInitialUserMessage(
   return itemId;
 }
 
-import { type CraftResult, getDefaultProvenanceStore, provenanceStateKey } from "@/shared/crafting";
+import {
+  type CraftPlan,
+  type CraftResult,
+  getDefaultProvenanceStore,
+  nativeRuntimeExecutionConfigForPlan,
+  provenanceStateKey,
+} from "@/shared/crafting";
+
+function selectedCraftingMcpServers(
+  plan: CraftPlan,
+  projectMcpServers: readonly import("@/shared/contracts").McpServer[] = [],
+) {
+  const selectedIds = nativeRuntimeExecutionConfigForPlan(plan).mcpServerIds ?? [];
+  if (selectedIds.length === 0) return [];
+  const snapshot = resolveMcpLaunchSnapshot(useSharedSettings.getState(), projectMcpServers);
+  const byId = new Map(snapshot.mcpServers.map((server) => [server.id, server]));
+  return selectedIds.flatMap((id) => {
+    const server = byId.get(id);
+    return server ? [server] : [];
+  });
+}
 
 export async function startThreadFromCraft(
   project: Project,
@@ -637,6 +657,9 @@ export async function startThreadFromCraft(
       projectLocation,
       prompt,
       accountMode,
+      ...(nativeRuntimeExecutionConfigForPlan(plan).mcpServerIds?.length
+        ? { mcpServers: selectedCraftingMcpServers(plan, project.mcpServers) }
+        : {}),
       ...(accountMode === "explicit" && accountId ? { accountId } : {}),
     });
     if (craftAgentResult.accountBinding) {
@@ -680,10 +703,16 @@ async function resumeCraftedThread(input: {
     workspace,
     sessionRef: providerSessionId,
   });
+  const projectMcpServers = useAppStore
+    .getState()
+    .projects.find((project) => project.id === input.thread.projectId)?.mcpServers;
   const result = await bridge.resumeCraftAgent({
     craftPlan: recovered.craftPlan,
     projectLocation: input.projectLocation,
     sessionRef: providerSessionId,
+    ...(nativeRuntimeExecutionConfigForPlan(recovered.craftPlan).mcpServerIds?.length
+      ? { mcpServers: selectedCraftingMcpServers(recovered.craftPlan, projectMcpServers) }
+      : {}),
     ...(input.thread.accountBinding?.accountId
       ? { accountId: input.thread.accountBinding.accountId }
       : {}),

@@ -1,4 +1,8 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR } from "./runtime/nativeHarness/descriptors";
+import { NativeProcessHarnessRuntimeAdapter } from "./runtime/nativeHarness/nativeAdapter";
+import { PassThrough, Writable } from "node:stream";
+import { EventEmitter } from "node:events";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { IPty } from "node-pty";
@@ -100,20 +104,14 @@ function makeRuntime(emit: ConstructorParameters<typeof SupervisorRuntime>[0]): 
   return runtime;
 }
 
-afterEach(() => {
+afterEach(async () => {
   // Dispose any runtimes the test created so their owned services (LSP
   // manager, project watcher, session manager, hook coordinator) stop
   // scheduling async work. Without this, lingering operations can log to
   // console after the test file completes — vitest's worker IPC then
   // rejects the queued `onUserConsoleLog` forward as it tears down,
   // surfacing as an unhandled rejection that fails the CI run.
-  for (const runtime of runtimesToDispose.splice(0)) {
-    try {
-      runtime.dispose();
-    } catch {
-      // best-effort cleanup
-    }
-  }
+  await Promise.allSettled(runtimesToDispose.splice(0).map((runtime) => runtime.disposeAsync()));
   // Restoring an env var to `undefined` coerces it to the literal string
   // "undefined" (Node stringifies anything assigned to `process.env.X`).
   // That bug used to cause the supervisor to resolve its baseDir as the
@@ -126,6 +124,7 @@ afterEach(() => {
     process.env.PORACODE_DATA_DIR = poracodeDataDirBeforeTests;
   }
   taskkillSpawnSyncMock.mockReset();
+  taskkillSpawnSyncMock.mockReturnValue({ error: undefined, status: 0 });
   ptySpawnMock.mockReset();
   appendFileMock.mockReset();
   nativeHarnessFactoryOverrides.clear();
@@ -2919,7 +2918,6 @@ describe("SupervisorRuntime Grok profile login", () => {
     const { emitted, runtime } = makeGrokRuntime();
     const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
     const pendingHome = [...runtime.grokPendingLogins.values()][0]!.home;
-    const { writeFileSync } = await import("node:fs");
     writeFileSync(
       `${pendingHome}\\auth.json`,
       officialAuth({ email: "person@example.com", principal_id: "principal-1" }),
@@ -2945,7 +2943,6 @@ describe("SupervisorRuntime Grok profile login", () => {
     const { runtime } = makeGrokRuntime();
     const pending = runtime.createGrokProfileLogin({ label: "Grok A" });
     const pendingHome = [...runtime.grokPendingLogins.values()][0]!.home;
-    const { writeFileSync } = await import("node:fs");
     writeFileSync(`${pendingHome}\\auth.json`, officialAuth({}), "utf8");
 
     expect(() => runtime.completeGrokProfileLogin({ pendingRef: pending.pendingRef })).toThrow(
@@ -2967,7 +2964,6 @@ describe("SupervisorRuntime Grok profile login", () => {
     });
     expect(runtime.accountStore.list("grok")).toEqual([]);
 
-    const { writeFileSync } = await import("node:fs");
     writeFileSync(
       `${pendingHome}\\auth.json`,
       officialAuth({ email: "person@example.com", user_id: "user-1" }),
@@ -2992,6 +2988,21 @@ describe("SupervisorRuntime Grok profile login", () => {
 });
 
 describe("SupervisorRuntime craftAgent", () => {
+  function craftedLifecycleCounts(runtime: SupervisorRuntime) {
+    const lifecycle = runtime as unknown as {
+      craftedSessionsByThread: Map<string, unknown>;
+      craftedSessionBindings: Map<string, unknown>;
+      craftedSessionUnsubscribers: Map<string, unknown>;
+      nativeHarnessSessions: Map<string, unknown>;
+    };
+    return {
+      craftedSessions: lifecycle.craftedSessionsByThread.size,
+      craftedBindings: lifecycle.craftedSessionBindings.size,
+      craftedUnsubscribers: lifecycle.craftedSessionUnsubscribers.size,
+      nativeHarnessSessions: lifecycle.nativeHarnessSessions.size,
+    };
+  }
+
   function craftPlan(threadId = "craft-runtime-thread") {
     const result = new Crafter().compile(
       { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
@@ -3100,27 +3111,572 @@ describe("SupervisorRuntime craftAgent", () => {
     },
   );
 
-  it("routes DeepSeek through the unavailable native adapter without creating an Entity", async () => {
+  it("resolves only the CraftPlan-selected MCP server before constructing a native adapter", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const adapter = routedAdapter("grok");
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+    nativeHarnessFactoryOverrides.set("grok", factory);
+    const selectedServer = {
+      id: "craft-probe",
+      name: "craft-probe",
+      description: "selected",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["probe.mjs"], env: {} },
+    };
+    const unselectedServer = {
+      ...selectedServer,
+      id: "not-selected",
+      name: "not-selected",
+    };
+    const basePlan = nativeCraftPlan("grok", "xai", "craft-grok-mcp");
+
+    await runtime.craftAgent({
+      craftPlan: {
+        ...basePlan,
+        overrides: { ...basePlan.overrides, mcpServerIds: [selectedServer.id] },
+      },
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      mcpServers: [selectedServer, unselectedServer],
+      prompt: "native MCP route",
+    });
+
+    expect(factory).toHaveBeenCalledWith(
+      "grok",
+      expect.objectContaining({
+        mcpServers: [
+          {
+            id: selectedServer.id,
+            name: selectedServer.name,
+            timeoutMs: selectedServer.timeoutMs,
+            transport: selectedServer.transport,
+          },
+        ],
+      }),
+    );
+  });
+
+  it("rejects a missing or disabled CraftPlan MCP id before constructing an Entity", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>();
+    nativeHarnessFactoryOverrides.set("grok", factory);
+    const basePlan = nativeCraftPlan("grok", "xai", "craft-grok-mcp-missing");
+
+    const rejection = runtime.craftAgent({
+      craftPlan: {
+        ...basePlan,
+        overrides: { ...basePlan.overrides, mcpServerIds: ["disabled-probe"] },
+      },
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      mcpServers: [
+        {
+          id: "disabled-probe",
+          name: "disabled-probe",
+          description: "disabled",
+          enabled: false,
+          timeoutMs: 30_000,
+          transport: { type: "stdio", command: "node", args: ["probe.mjs"], env: {} },
+        },
+      ],
+      prompt: "must not spawn",
+    });
+
+    await expect(rejection).rejects.toThrow(/RUNTIME_UNAVAILABLE/);
+    await expect(rejection).rejects.toThrow(/disabled-probe/);
+    expect(factory).not.toHaveBeenCalled();
+    expect(craftedLifecycleCounts(runtime)).toEqual({
+      craftedSessions: 0,
+      craftedBindings: 0,
+      craftedUnsubscribers: 0,
+      nativeHarnessSessions: 0,
+    });
+  });
+
+  it("resolves a CraftPlan-selected skill through SkillsService before constructing the adapter", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const adapter = routedAdapter("grok");
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+    nativeHarnessFactoryOverrides.set("grok", factory);
+    const skillFilePath = "C:\\repo\\.agents\\skills\\agentic-probe\\SKILL.md";
+    vi.spyOn(runtime.skillsService, "prepareForLaunch").mockResolvedValue(undefined);
+    vi.spyOn(runtime.skillsService, "scan").mockResolvedValue({
+      skills: [
+        {
+          id: "agents:project:agentic-probe",
+          name: "agentic-probe",
+          description: "Probe skill",
+          folderName: "agentic-probe",
+          absolutePath: "C:\\repo\\.agents\\skills\\agentic-probe",
+          skillFilePath,
+          rootPath: "C:\\repo\\.agents\\skills",
+          providerId: "agents",
+          providerLabel: "Shared agent skills",
+          scope: "project",
+          scopeLabel: "Project",
+          origin: "external",
+          enabled: true,
+          mutable: false,
+          valid: true,
+          linked: false,
+        },
+      ],
+      effectiveSkillIds: ["agents:project:agentic-probe"],
+      invocation: "slash",
+      issues: [],
+      canLinkToGlobal: true,
+    });
+    vi.spyOn(runtime.skillsService, "filterPluginSkillSegments").mockImplementation(
+      async (segments) => [...segments],
+    );
+    vi.spyOn(runtime.skillsService, "buildTurnSkillInjection").mockResolvedValue(
+      "INLINE_SKILL_INSTRUCTIONS",
+    );
+    const basePlan = nativeCraftPlan("grok", "xai", "craft-grok-skill");
+
+    await runtime.craftAgent({
+      craftPlan: {
+        ...basePlan,
+        overrides: { ...basePlan.overrides, skills: ["agents:project:agentic-probe"] },
+      },
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "native skill route",
+    });
+
+    expect(runtime.skillsService.prepareForLaunch).toHaveBeenCalledWith(
+      { kind: "windows", path: "C:\\repo" },
+      "grok",
+    );
+    expect(factory).toHaveBeenCalledWith(
+      "grok",
+      expect.objectContaining({
+        skillSegments: [
+          expect.objectContaining({
+            kind: "skill",
+            name: "agentic-probe",
+            path: skillFilePath,
+            invocation: "/agentic-probe",
+          }),
+        ],
+        inlineSkillInstructions: "INLINE_SKILL_INSTRUCTIONS",
+      }),
+    );
+  });
+
+  it("rejects an unavailable CraftPlan skill before constructing an Entity", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>();
+    nativeHarnessFactoryOverrides.set("grok", factory);
+    vi.spyOn(runtime.skillsService, "prepareForLaunch").mockResolvedValue(undefined);
+    vi.spyOn(runtime.skillsService, "scan").mockResolvedValue({
+      skills: [],
+      effectiveSkillIds: [],
+      invocation: "slash",
+      issues: [],
+      canLinkToGlobal: true,
+    });
+    const basePlan = nativeCraftPlan("grok", "xai", "craft-grok-skill-missing");
+
+    const rejection = runtime.craftAgent({
+      craftPlan: {
+        ...basePlan,
+        overrides: { ...basePlan.overrides, skills: ["missing-skill"] },
+      },
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "must fail closed",
+    });
+
+    await expect(rejection).rejects.toThrow(/RUNTIME_UNAVAILABLE/);
+    await expect(rejection).rejects.toThrow(/missing-skill/);
+    expect(factory).not.toHaveBeenCalled();
+    expect(craftedLifecycleCounts(runtime)).toEqual({
+      craftedSessions: 0,
+      craftedBindings: 0,
+      craftedUnsubscribers: 0,
+      nativeHarnessSessions: 0,
+    });
+  });
+
+  it("routes DeepSeek through the native adapter and rejects with RUNTIME_UNAVAILABLE without creating an Entity when unconfigured", async () => {
     const runtime = makeRuntime(() => undefined);
     const plan = nativeCraftPlan("deepseek", "deepseek");
+    const previousConfig = process.env.DSH_CORDIS_CONFIG;
+    delete process.env.DSH_CORDIS_CONFIG;
+    try {
+      const rejection = runtime.craftAgent({
+        craftPlan: plan,
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "must not spawn",
+      });
+      await expect(rejection).rejects.toThrow(/RUNTIME_UNAVAILABLE/);
+      await expect(rejection).rejects.toThrow(/no synthetic Entity created/);
+
+      const error = (await rejection.catch((err: unknown) => err)) as Error;
+      const parsed = JSON.parse(error.message);
+      expect(parsed.details.entityId).toBeUndefined();
+      expect(parsed.details.sessionId).toBeUndefined();
+
+      const diagnostics = await runtime.getNativeHarnessControlPlane({ harnessKind: "deepseek" });
+      expect(diagnostics[0]).toMatchObject({
+        status: "unavailable",
+        descriptor: { harnessKind: "deepseek" },
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" }),
+        ]),
+      });
+      expect(JSON.stringify(diagnostics)).not.toContain("CODEX_HOME");
+    } finally {
+      if (previousConfig === undefined) delete process.env.DSH_CORDIS_CONFIG;
+      else process.env.DSH_CORDIS_CONFIG = previousConfig;
+    }
+  });
+
+  it("omits entityId and sessionId from error detail when DeepSeek process crashes during initialization", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const plan = {
+      ...nativeCraftPlan("deepseek", "deepseek"),
+      runtimeBinding: {
+        ...nativeCraftPlan("deepseek", "deepseek").runtimeBinding,
+        options: { configPath: "C:\\repo\\cordis.yml" },
+      },
+    };
+
+    const errorFixture = new EventEmitter() as EventEmitter & {
+      readonly stdout: PassThrough;
+      readonly stderr: PassThrough;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn<() => boolean>>;
+    } & { stdin: Writable };
+    Object.assign(errorFixture, {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      killed: false,
+      kill: vi.fn<() => boolean>(() => {
+        errorFixture.killed = true;
+        return true;
+      }),
+    });
+    (errorFixture as { stdin: Writable }).stdin = new Writable({
+      write: (_chunk, _encoding, callback) => {
+        process.nextTick(() => {
+          errorFixture.emit("exit", 1, null);
+        });
+        callback();
+      },
+    });
+
+    nativeHarnessFactoryOverrides.set("deepseek", (_kind, options) => {
+      const opt = options as any;
+      return new NativeProcessHarnessRuntimeAdapter({
+        descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+        projectLocation: opt.projectLocation,
+        mode: "deepseek",
+        runtimeCommand: "C:\\bin\\dsh-jsonrpc-agent.exe",
+        spawnProcess: () => errorFixture as never,
+      });
+    });
 
     const rejection = runtime.craftAgent({
       craftPlan: plan,
       projectLocation: { kind: "windows", path: "C:\\repo" },
-      prompt: "must not spawn",
+      prompt: "test crashing start",
     });
     await expect(rejection).rejects.toThrow(/RUNTIME_UNAVAILABLE/);
-    await expect(rejection).rejects.toThrow(/no synthetic Entity/);
 
-    const diagnostics = await runtime.getNativeHarnessControlPlane({ harnessKind: "deepseek" });
-    expect(diagnostics[0]).toMatchObject({
-      status: "unavailable",
-      descriptor: { harnessKind: "deepseek" },
-      diagnostics: expect.arrayContaining([
-        expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" }),
-      ]),
+    const error = (await rejection.catch((err: unknown) => err)) as Error;
+    const parsed = JSON.parse(error.message);
+    expect(parsed.details.entityId).toBeUndefined();
+    expect(parsed.details.sessionId).toBeUndefined();
+  });
+
+  it("omits entityId and sessionId from error detail when DeepSeek encounters protocol mismatch", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const plan = {
+      ...nativeCraftPlan("deepseek", "deepseek"),
+      runtimeBinding: {
+        ...nativeCraftPlan("deepseek", "deepseek").runtimeBinding,
+        options: { configPath: "C:\\repo\\cordis.yml" },
+      },
+    };
+
+    const malformedFixture = new EventEmitter() as EventEmitter & {
+      readonly stdout: PassThrough;
+      readonly stderr: PassThrough;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn<() => boolean>>;
+    } & { stdin: Writable };
+    Object.assign(malformedFixture, {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      killed: false,
+      kill: vi.fn<() => boolean>(() => {
+        malformedFixture.killed = true;
+        return true;
+      }),
     });
-    expect(JSON.stringify(diagnostics)).not.toContain("CODEX_HOME");
+    (malformedFixture as { stdin: Writable }).stdin = new Writable({
+      write: (_chunk, _encoding, callback) => {
+        malformedFixture.stdout.write("MALFORMED NON-JSON OUTPUT\n");
+        process.nextTick(() => {
+          malformedFixture.emit("exit", 0, null);
+        });
+        callback();
+      },
+    });
+
+    nativeHarnessFactoryOverrides.set("deepseek", (_kind, options) => {
+      const opt = options as any;
+      return new NativeProcessHarnessRuntimeAdapter({
+        descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+        projectLocation: opt.projectLocation,
+        mode: "deepseek",
+        runtimeCommand: "C:\\bin\\dsh-jsonrpc-agent.exe",
+        spawnProcess: () => malformedFixture as never,
+      });
+    });
+
+    const rejection = runtime.craftAgent({
+      craftPlan: plan,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "test protocol mismatch",
+    });
+    await expect(rejection).rejects.toThrow(/PROTOCOL_MISMATCH/);
+
+    const error = (await rejection.catch((err: unknown) => err)) as Error;
+    const parsed = JSON.parse(error.message);
+    expect(parsed.details.entityId).toBeUndefined();
+    expect(parsed.details.sessionId).toBeUndefined();
+  });
+
+  it("omits entityId and sessionId from error detail and terminates process on DeepSeek long-lived non-serving timeout", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const plan = {
+      ...nativeCraftPlan("deepseek", "deepseek"),
+      runtimeBinding: {
+        ...nativeCraftPlan("deepseek", "deepseek").runtimeBinding,
+        options: {
+          configPath: "C:\\repo\\cordis.yml",
+          readinessTimeoutMs: 50,
+        },
+      },
+    };
+
+    const longLivedFixture = new EventEmitter() as EventEmitter & {
+      readonly stdout: PassThrough;
+      readonly stderr: PassThrough;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn<() => boolean>>;
+    } & { stdin: Writable };
+    Object.assign(longLivedFixture, {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      killed: false,
+      kill: vi.fn<() => boolean>(() => {
+        longLivedFixture.killed = true;
+        return true;
+      }),
+    });
+    (longLivedFixture as { stdin: Writable }).stdin = new Writable({
+      write: (_chunk, _encoding, callback) => {
+        // Keep alive indefinitely without replying to initialize
+        callback();
+      },
+    });
+
+    let adapter: NativeProcessHarnessRuntimeAdapter | undefined;
+    nativeHarnessFactoryOverrides.set("deepseek", (_kind, options) => {
+      const opt = options as any;
+      adapter = new NativeProcessHarnessRuntimeAdapter({
+        descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+        projectLocation: opt.projectLocation,
+        mode: "deepseek",
+        runtimeCommand: "C:\\bin\\dsh-jsonrpc-agent.exe",
+        spawnProcess: () => longLivedFixture as never,
+      });
+      return adapter;
+    });
+
+    const rejection = runtime.craftAgent({
+      craftPlan: plan,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "test timeout",
+    });
+    await expect(rejection).rejects.toThrow(/timed out/i);
+
+    const error = (await rejection.catch((err: unknown) => err)) as Error;
+    const parsed = JSON.parse(error.message);
+    expect(parsed.details.entityId).toBeUndefined();
+    expect(parsed.details.sessionId).toBeUndefined();
+    expect(longLivedFixture.killed).toBe(true);
+    expect(adapter?.getLifecycleSnapshot()).toEqual({
+      activeSessions: 0,
+      activeTransports: 0,
+      runningProcesses: 0,
+      pendingRequests: 0,
+    });
+    expect(craftedLifecycleCounts(runtime)).toEqual({
+      craftedSessions: 0,
+      craftedBindings: 0,
+      craftedUnsubscribers: 0,
+      nativeHarnessSessions: 0,
+    });
+  });
+
+  it("keeps resumeCraftAgent identities provisional and clears lifecycle state on readiness timeout", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const plan = {
+      ...nativeCraftPlan("deepseek", "deepseek", "craft-deepseek-resume-timeout"),
+      runtimeBinding: {
+        ...nativeCraftPlan("deepseek", "deepseek").runtimeBinding,
+        options: {
+          configPath: "C:\\repo\\cordis.yml",
+          readinessTimeoutMs: 30,
+        },
+      },
+    };
+    const fixture = new EventEmitter() as EventEmitter & {
+      readonly stdout: PassThrough;
+      readonly stderr: PassThrough;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn<() => boolean>>;
+    } & { stdin: Writable };
+    Object.assign(fixture, {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      killed: false,
+      kill: vi.fn<() => boolean>(() => {
+        fixture.killed = true;
+        return true;
+      }),
+    });
+    (fixture as { stdin: Writable }).stdin = new Writable({
+      write: (_chunk, _encoding, callback) => callback(),
+    });
+    let adapter: NativeProcessHarnessRuntimeAdapter | undefined;
+    nativeHarnessFactoryOverrides.set("deepseek", (_kind, options) => {
+      const opt = options as any;
+      adapter = new NativeProcessHarnessRuntimeAdapter({
+        descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+        projectLocation: opt.projectLocation,
+        mode: "deepseek",
+        runtimeCommand: "C:\\bin\\dsh-jsonrpc-agent.exe",
+        spawnProcess: () => fixture as never,
+      });
+      return adapter;
+    });
+
+    const rejection = runtime.resumeCraftAgent({
+      craftPlan: plan,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      sessionRef: "official-session-ref",
+      prompt: "resume only after readiness",
+    });
+    await expect(rejection).rejects.toThrow(/timed out/i);
+
+    const error = (await rejection.catch((err: unknown) => err)) as Error;
+    const parsed = JSON.parse(error.message);
+    expect(parsed.details.entityId).toBeUndefined();
+    expect(parsed.details.sessionId).toBeUndefined();
+    expect(fixture.killed).toBe(true);
+    expect(adapter?.getLifecycleSnapshot()).toEqual({
+      activeSessions: 0,
+      activeTransports: 0,
+      runningProcesses: 0,
+      pendingRequests: 0,
+    });
+    expect(craftedLifecycleCounts(runtime)).toEqual({
+      craftedSessions: 0,
+      craftedBindings: 0,
+      craftedUnsubscribers: 0,
+      nativeHarnessSessions: 0,
+    });
+  });
+
+  it("forwards one session.exited event and clears every cache when a ready native carrier exits", async () => {
+    const emitted: Array<Record<string, unknown>> = [];
+    const runtime = makeRuntime((event) =>
+      emitted.push(event as unknown as Record<string, unknown>),
+    );
+    const plan = {
+      ...nativeCraftPlan("deepseek", "deepseek", "craft-deepseek-process-exit"),
+      runtimeBinding: {
+        ...nativeCraftPlan("deepseek", "deepseek").runtimeBinding,
+        options: { configPath: "C:\\repo\\cordis.yml" },
+      },
+    };
+    const fixture = new EventEmitter() as EventEmitter & {
+      readonly stdout: PassThrough;
+      readonly stderr: PassThrough;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn<() => boolean>>;
+    } & { stdin: Writable };
+    Object.assign(fixture, {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      killed: false,
+      kill: vi.fn<() => boolean>(() => {
+        fixture.killed = true;
+        return true;
+      }),
+    });
+    let promptSentResolve: (() => void) | undefined;
+    const promptSent = new Promise<void>((resolve) => {
+      promptSentResolve = resolve;
+    });
+    (fixture as { stdin: Writable }).stdin = new Writable({
+      write: (chunk, _encoding, callback) => {
+        const request = JSON.parse(String(chunk)) as { id: string; method: string };
+        if (request.method === "initialize") {
+          fixture.stdout.write(
+            JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { sessionId: "main" } }) +
+              "\n",
+          );
+        } else if (request.method === "session/prompt") {
+          promptSentResolve?.();
+        }
+        callback();
+      },
+    });
+    let adapter: NativeProcessHarnessRuntimeAdapter | undefined;
+    nativeHarnessFactoryOverrides.set("deepseek", (_kind, options) => {
+      const opt = options as any;
+      adapter = new NativeProcessHarnessRuntimeAdapter({
+        descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+        projectLocation: opt.projectLocation,
+        mode: "deepseek",
+        runtimeCommand: "C:\\bin\\dsh-jsonrpc-agent.exe",
+        spawnProcess: () => fixture as never,
+      });
+      return adapter;
+    });
+
+    const crafting = runtime.craftAgent({
+      craftPlan: plan,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "carrier exits after readiness",
+    });
+    await promptSent;
+    fixture.emit("exit", 9, null);
+
+    await expect(crafting).rejects.toThrow(/EXECUTION_FAILED/);
+    expect(
+      emitted.filter(
+        (record) =>
+          record.type === "thread-runtime-event" &&
+          (record.event as { type?: string } | undefined)?.type === "session.exited",
+      ),
+    ).toHaveLength(1);
+    expect(adapter?.getLifecycleSnapshot()).toEqual({
+      activeSessions: 0,
+      activeTransports: 0,
+      runningProcesses: 0,
+      pendingRequests: 0,
+    });
+    expect(craftedLifecycleCounts(runtime)).toEqual({
+      craftedSessions: 0,
+      craftedBindings: 0,
+      craftedUnsubscribers: 0,
+      nativeHarnessSessions: 0,
+    });
   });
 
   it("runs spawn/create/send through Native Codex adapter and returns composition identities", async () => {
@@ -3240,15 +3796,63 @@ describe("SupervisorRuntime craftAgent", () => {
       runtime: SupervisorRuntime,
       label: string,
       status: "available" | "quota-exhausted" = "available",
+      withCredential = true,
     ) {
       const account = runtime.addAccount({
         provider: "grok",
         label,
         maskedIdentity: `${label}@example.com`,
       });
+      if (withCredential) {
+        writeFileSync(
+          join(runtime.accountStore.credentialRoot(account.accountId), "auth.json"),
+          JSON.stringify({ testCredential: true }),
+          "utf8",
+        );
+      }
       runtime.accountStore.updateStatus(account.accountId, status);
       return account;
     }
+
+    it("ignores metadata-only managed Grok accounts and preserves the official host login path", async () => {
+      const runtime = makeRuntime(() => undefined);
+      addGrokAccount(runtime, "stale", "available", false);
+      const adapter = routedAdapter("grok");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      const result = await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-host-login-fallback"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "use official host login",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as {
+        accountBinding?: unknown;
+        baseSpawnEnv?: Record<string, string>;
+      };
+      expect(result.accountBinding).toBeUndefined();
+      expect(options.accountBinding).toBeUndefined();
+      expect(options.baseSpawnEnv?.GROK_HOME).toBeUndefined();
+    });
+
+    it("rejects an explicit metadata-only Grok account without falling back to host login", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const stale = addGrokAccount(runtime, "stale", "available", false);
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>();
+      nativeHarnessFactoryOverrides.set("grok", factory);
+
+      await expect(
+        runtime.craftAgent({
+          craftPlan: nativeCraftPlan("grok", "xai", "grok-explicit-missing-credential"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          accountId: stale.accountId,
+          accountMode: "explicit",
+          prompt: "must fail closed",
+        }),
+      ).rejects.toMatchObject({ code: "ACCOUNT_UNAVAILABLE" });
+      expect(factory).not.toHaveBeenCalled();
+    });
 
     it("binds a new Session to the first usable Grok account and injects its managed GROK_HOME", async () => {
       const runtime = makeRuntime(() => undefined);
@@ -3495,6 +4099,123 @@ describe("SupervisorRuntime craftAgent", () => {
       expect(runtime.accountStore.get(account.accountId)).toBeDefined();
     });
 
+    it("routes interruptThread to the crafted session and releases registration on session exit", async () => {
+      const emitted: Array<{ threadId: string; event: unknown }> = [];
+      const runtime = makeRuntime((event) => {
+        if (event.type === "thread-runtime-event") {
+          emitted.push({ threadId: event.threadId, event: event.event });
+        }
+      });
+      const adapter = routedAdapter("grok");
+      const session = await adapter.createSession({
+        id: "entity:grok:test",
+        resultItemId: "result:grok",
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-interrupt-thread"),
+        status: "spawned",
+        createdAt: new Date().toISOString(),
+      });
+      let sessionListener: ((event: unknown) => void) | undefined;
+      session.subscribe = vi.fn<(listener: (event: unknown) => void) => () => void>(
+        (listener: (event: unknown) => void) => {
+          sessionListener = listener;
+          return () => undefined;
+        },
+      );
+      session.interrupt = vi.fn<() => Promise<void>>().mockImplementation(async () => {
+        sessionListener?.({
+          type: "turn.completed",
+          threadId: "grok-interrupt-thread",
+          turnId: "turn-1",
+          state: "interrupted",
+        });
+        sessionListener?.({
+          type: "session.exited",
+          threadId: "grok-interrupt-thread",
+          reason: "interrupted",
+        });
+      });
+      adapter.createSession = vi
+        .fn<(entity: unknown) => Promise<typeof session>>()
+        .mockResolvedValue(session);
+      nativeHarnessFactoryOverrides.set(
+        "grok",
+        vi.fn(() => adapter),
+      );
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-interrupt-thread"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "bind",
+      });
+
+      await expect(
+        runtime.interruptThread({ threadId: "grok-interrupt-thread" }),
+      ).resolves.toBeUndefined();
+      expect(session.interrupt).toHaveBeenCalledTimes(1);
+
+      // F44: Verify runtime events forwarding
+      expect(emitted).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            threadId: "grok-interrupt-thread",
+            event: expect.objectContaining({ type: "turn.completed", state: "interrupted" }),
+          }),
+          expect.objectContaining({
+            threadId: "grok-interrupt-thread",
+            event: expect.objectContaining({ type: "session.exited", reason: "interrupted" }),
+          }),
+        ]),
+      );
+
+      // F44: Verify auto-release of craftedSessionsByThread when session.exited occurs
+      session.interrupt = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      // Next interruptThread will no longer route to craftedSession (falls back to threadSessionManager)
+      await expect(
+        runtime.interruptThread({ threadId: "grok-interrupt-thread" }),
+      ).resolves.toBeUndefined();
+      expect(session.interrupt).not.toHaveBeenCalled();
+    });
+
+    it("routes public sendThreadInput follow-ups to the same live crafted session", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const adapter = routedAdapter("grok");
+      const session = await adapter.createSession({
+        id: "entity:grok:multi-turn",
+        resultItemId: "result:grok",
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-crafted-multi-turn"),
+        status: "spawned",
+        createdAt: new Date().toISOString(),
+      });
+      session.startTurn = vi.fn<typeof session.startTurn>(async (command) => ({
+        turnId: command.turnId ?? "turn:follow-up",
+        status: "completed" as const,
+        events: [],
+        response: "FOLLOW_UP_OK",
+      }));
+      adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
+      nativeHarnessFactoryOverrides.set(
+        "grok",
+        vi.fn(() => adapter),
+      );
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-crafted-multi-turn"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "first turn",
+      });
+      await expect(
+        runtime.sendThreadInput({
+          threadId: "grok-crafted-multi-turn",
+          prompt: "second turn",
+          config: { model: "grok-model" },
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(session.startTurn).toHaveBeenCalledWith({ prompt: "second turn" });
+      expect(craftedLifecycleCounts(runtime).craftedSessions).toBe(1);
+      await runtime.closeThread({ threadId: "grok-crafted-multi-turn" });
+    });
+
     it("releases a crafted account binding when the public closeThread seam terminates it", async () => {
       const runtime = makeRuntime(() => undefined);
       const account = addGrokAccount(runtime, "A");
@@ -3550,4 +4271,77 @@ describe("SupervisorRuntime account refresh lock (v0.5 T09)", () => {
     expect(first.accountId).toBe(account.accountId);
     expect(second.accountId).toBe(account.accountId);
   });
+});
+
+describe("SupervisorRuntime official Crafting model inventory", () => {
+  it("projects only models returned by the official Codex app-server discovery seam", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const discovery = vi.fn<
+      () => Promise<
+        Array<{
+          id: string;
+          displayName: string;
+          contextWindow: number;
+          supportsStreaming: boolean;
+          supportsToolCalling: boolean;
+        }>
+      >
+    >(async () => [
+      {
+        id: "gpt-official-live",
+        displayName: "GPT Official Live",
+        contextWindow: 196_000,
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ]);
+    runtime.setCraftingModelDiscovery(discovery);
+
+    await expect(
+      runtime.getCraftingModelInventory({
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+      }),
+    ).resolves.toEqual({
+      status: "ready",
+      source: "codex-app-server-model-list",
+      models: [
+        {
+          id: "gpt-official-live",
+          displayName: "GPT Official Live",
+          contextWindow: 196_000,
+          supportsStreaming: true,
+          supportsToolCalling: true,
+        },
+      ],
+    });
+    expect(discovery).toHaveBeenCalledWith({ kind: "windows", path: "C:\\repo" });
+  });
+
+  it.each([
+    ["empty official inventory", async (): Promise<undefined> => undefined, "RUNTIME_UNAVAILABLE"],
+    [
+      "protocol failure",
+      async (): Promise<undefined> => Promise.reject(new Error("private path")),
+      "PROTOCOL_MISMATCH",
+    ],
+  ] as const)(
+    "fails closed for %s without static OpenAI fallback",
+    async (_name, discovery, code) => {
+      const runtime = makeRuntime(() => undefined);
+      runtime.setCraftingModelDiscovery(discovery);
+
+      const result = await runtime.getCraftingModelInventory({
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+      });
+
+      expect(result).toMatchObject({
+        status: "unavailable",
+        source: "codex-app-server-model-list",
+        models: [],
+        diagnostic: { code },
+      });
+      expect(JSON.stringify(result)).not.toMatch(/gpt-4o|gpt-5-hybrid|gpt-5\.3-codex|o3-mini/u);
+      expect(JSON.stringify(result)).not.toContain("private path");
+    },
+  );
 });

@@ -1,0 +1,74 @@
+
+ RUN  v4.1.10 D:/Work/CraftStation/craftstation/.worktrees/v0.7
+
+··stdout | src/supervisor/runtime/nativeHarness/nativeHarnessProviderFixtures.test.ts > Grok Build native ACP fixture > keeps ACP session identity and profile/environment binding behind the shared seam
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:15.553Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:grok:5a55ddc2-7c88-4799-8f1f-13bd3c561ef9","recipeId":"recipe:grok","modelId":"grok-model","harnessKind":"grok"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarnessProviderFixtures.test.ts > Kimi Code native ACP fixture > resumes the provider session without expanding the shared seam with Kimi protocol details
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:15.560Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:kimi:874ebd17-6240-4c00-86a6-e9e8ba8d8036","recipeId":"recipe:kimi","modelId":"kimi-model","harnessKind":"kimi"}
+
+··stdout | src/supervisor/runtime/nativeHarness/nativeHarness.test.ts > Native Harness runtime seam > binds CraftPlan profile/environment, preserves native session identity, envelopes events, and resumes
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.048Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:grok:7d5481ce-ee57-49e4-a744-b05212bdcaf6","recipeId":"recipe:grok","modelId":"grok-model","harnessKind":"grok"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarness.test.ts > Native Harness runtime seam > binds CraftPlan profile/environment, preserves native session identity, envelopes events, and resumes
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.052Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:grok:cc88ce91-e442-40a5-817b-4b22aff706bf","recipeId":"recipe:grok","modelId":"grok-model","harnessKind":"grok"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarness.test.ts > Native Harness runtime seam > reports structured turn failures through a stable CraftingError and failed turn event
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.054Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:grok:0218bd9d-16fc-4ea9-9162-4806c29504a4","recipeId":"recipe:grok","modelId":"grok-model","harnessKind":"grok"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarness.test.ts > Native Harness runtime seam > forwards the native prompt error observer into the provider structured-session seam
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.056Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:grok:17681c1a-2776-4447-8ea8-078ae12ac7ef","recipeId":"recipe:grok","modelId":"grok-model","harnessKind":"grok"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarnessLifecycleAcceptance.test.ts > Five-Harness lifecycle acceptance matrix > runs start/resume/multi-turn/stream/cleanup for grok through the ACP seam
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.062Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:grok:8346b5e9-46b5-4c0a-87fb-0ce1738a833f","recipeId":"recipe:grok","modelId":"grok-model","harnessKind":"grok"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarnessLifecycleAcceptance.test.ts > Five-Harness lifecycle acceptance matrix > runs start/resume/multi-turn/stream/cleanup for grok through the ACP seam
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.069Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:grok:fc2c3da6-b497-4e12-95e4-e117eaefcb3d","recipeId":"recipe:grok","modelId":"grok-model","harnessKind":"grok"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarnessLifecycleAcceptance.test.ts > Five-Harness lifecycle acceptance matrix > runs start/resume/multi-turn/stream/cleanup for kimi through the ACP seam
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.070Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:kimi:2a7340ce-5efe-43a4-8f88-445b20d2707d","recipeId":"recipe:kimi","modelId":"kimi-model","harnessKind":"kimi"}
+
+stdout | src/supervisor/runtime/nativeHarness/nativeHarnessLifecycleAcceptance.test.ts > Five-Harness lifecycle acceptance matrix > runs start/resume/multi-turn/stream/cleanup for kimi through the ACP seam
+[crafting:runtime:spawnEntity] status=success {"timestamp":"2026-08-29T09:35:16.072Z","phase":"runtime","operation":"spawnEntity","status":"success","entityId":"entity:kimi:fc351152-ecd8-4fc2-8034-c39ad579e417","recipeId":"recipe:kimi","modelId":"kimi-model","harnessKind":"kimi"}
+
+······················stdout | src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.test.tsx > HarnessPanel native control-plane surface > loads all five safe status rows through the typed IPC procedure
+[crafting:resolve:resolveGrid] status=started {"timestamp":"2026-08-29T09:35:18.516Z","phase":"resolve","operation":"resolveGrid","status":"started","details":{"slots":["model","harness"]}}
+[crafting:resolve:resolveGrid] status=success {"timestamp":"2026-08-29T09:35:18.517Z","phase":"resolve","operation":"resolveGrid","status":"success","details":{"resolvedCount":2,"unresolvedSlots":[]}}
+[crafting:validate:validateGrid] status=started {"timestamp":"2026-08-29T09:35:18.517Z","phase":"validate","operation":"validateGrid","status":"started"}
+[crafting:validate:validateGrid] status=success {"timestamp":"2026-08-29T09:35:18.517Z","phase":"validate","operation":"validateGrid","status":"success","recipeId":"recipe:openai-codex-native"}
+
+stdout | src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.test.tsx > HarnessPanel native control-plane surface > refreshes after supervisor agent status events without exposing private runtime fields
+[crafting:resolve:resolveGrid] status=started {"timestamp":"2026-08-29T09:35:18.554Z","phase":"resolve","operation":"resolveGrid","status":"started","details":{"slots":["model","harness"]}}
+[crafting:resolve:resolveGrid] status=success {"timestamp":"2026-08-29T09:35:18.554Z","phase":"resolve","operation":"resolveGrid","status":"success","details":{"resolvedCount":2,"unresolvedSlots":[]}}
+[crafting:validate:validateGrid] status=started {"timestamp":"2026-08-29T09:35:18.554Z","phase":"validate","operation":"validateGrid","status":"started"}
+[crafting:validate:validateGrid] status=success {"timestamp":"2026-08-29T09:35:18.554Z","phase":"validate","operation":"validateGrid","status":"success","recipeId":"recipe:openai-codex-native"}
+
+stderr | src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.test.tsx > HarnessPanel native control-plane surface > refreshes after supervisor agent status events without exposing private runtime fields
+An update to HarnessPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to HarnessPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+··-
+
+ Test Files  7 passed | 1 skipped (8)
+      Tests  28 passed | 1 skipped (29)
+   Start at  17:35:14
+   Duration  6.15s (transform 6.90s, setup 520ms, import 10.57s, tests 668ms, environment 1.80s)
+

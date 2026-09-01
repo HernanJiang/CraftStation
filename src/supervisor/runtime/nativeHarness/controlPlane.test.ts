@@ -36,6 +36,17 @@ describe("Native Harness control-plane projection", () => {
     );
   });
 
+  it("exposes official Crafting model discovery through a typed project-location payload", () => {
+    const procedure = ipcProcedureMap.getCraftingModelInventory;
+    expect(procedure.transport).toBe("supervisor");
+    expect(procedure.parseArgs({ projectLocation: { kind: "windows", path: "C:\\repo" } })).toEqual(
+      { projectLocation: { kind: "windows", path: "C:\\repo" } },
+    );
+    expect(() => procedure.parseArgs({ projectLocation: { kind: "windows", path: "" } })).toThrow(
+      "Too small",
+    );
+  });
+
   it("returns safe public descriptors and readiness without exposing paths or profile identity", () => {
     const result = projectNativeHarnessControlPlane({
       descriptors: [
@@ -101,9 +112,9 @@ describe("Native Harness control-plane projection", () => {
     expect(result.find((entry) => entry.descriptor.harnessKind === "grok")?.diagnostics).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: "AUTH_REQUIRED" })]),
     );
-    expect(result.find((entry) => entry.descriptor.harnessKind === "deepseek")?.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" })]),
-    );
+    expect(
+      result.find((entry) => entry.descriptor.harnessKind === "deepseek")?.diagnostics,
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" })]));
   });
 
   it("does not treat a pending empty account profile as an authenticated signal", () => {

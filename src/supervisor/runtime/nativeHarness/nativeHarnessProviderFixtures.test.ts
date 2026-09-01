@@ -9,10 +9,7 @@ import type {
 import type { ProjectLocation, RuntimeEvent } from "@/shared/contracts";
 import type { AccountBinding } from "@/shared/contracts/accountBinding";
 import type { CraftPlan } from "@/shared/crafting";
-import {
-  GROK_NATIVE_HARNESS_DESCRIPTOR,
-  KIMI_NATIVE_HARNESS_DESCRIPTOR,
-} from "./descriptors";
+import { GROK_NATIVE_HARNESS_DESCRIPTOR, KIMI_NATIVE_HARNESS_DESCRIPTOR } from "./descriptors";
 import { StructuredNativeHarnessRuntimeAdapter } from "./structuredAdapter";
 
 const windowsProject: ProjectLocation = { kind: "windows", path: "C:\\repo" };
@@ -57,7 +54,9 @@ function makeHandle(providerSessionId: string): StructuredSessionHandle {
   const handle: StructuredSessionHandle = {
     launchOptions: {},
     activate: vi.fn(async () => undefined),
-    openThread: vi.fn(async (_config, sessionRef) => sessionRef?.providerSessionId ?? providerSessionId),
+    openThread: vi.fn(
+      async (_config, sessionRef) => sessionRef?.providerSessionId ?? providerSessionId,
+    ),
     startTurn: vi.fn(async (prompt) => {
       const turnId = `turn:${providerSessionId}`;
       const events: RuntimeEvent[] = [
@@ -69,7 +68,12 @@ function makeHandle(providerSessionId: string): StructuredSessionHandle {
           stream: "assistant_text",
           delta: `${providerSessionId}: ${prompt}`,
         },
-        { type: "turn.completed", threadId: `thread:${providerSessionId}`, turnId, state: "completed" },
+        {
+          type: "turn.completed",
+          threadId: `thread:${providerSessionId}`,
+          turnId,
+          state: "completed",
+        },
       ];
       for (const event of events) listener?.onRuntimeEvent?.(event);
     }),
@@ -145,6 +149,26 @@ describe("Grok Build native ACP fixture", () => {
     });
     await session.terminate();
   });
+
+  it("passes Supervisor-resolved MCP descriptors into the provider ACP session", async () => {
+    const inputs: CreateStructuredSessionInput[] = [];
+    const server = {
+      id: "craft-probe",
+      name: "craft-probe",
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["probe.mjs"], env: {} },
+    };
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: makeStructuredAgent("grok", inputs, "grok-mcp-session"),
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+      mcpServers: [server],
+    });
+
+    await adapter.createSession(await adapter.spawnEntity(makePlan("grok", "xai")));
+
+    expect(inputs[0]?.mcpServers).toEqual([server]);
+  });
 });
 
 describe("Kimi Code native ACP fixture", () => {
@@ -157,7 +181,7 @@ describe("Kimi Code native ACP fixture", () => {
       profileRef: "profile:kimi",
     });
 
-    expect(KIMI_NATIVE_HARNESS_DESCRIPTOR.capabilities.mcp).toBe("native unsupported");
+    expect(KIMI_NATIVE_HARNESS_DESCRIPTOR.capabilities.mcp).toBe("supported+integrated");
     const entity = await adapter.spawnEntity(makePlan("kimi", "moonshot"));
     const session = await adapter.resumeSession(entity, "kimi-saved-session");
 

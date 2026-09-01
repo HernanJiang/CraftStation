@@ -13,8 +13,15 @@ import type {
   TurnResult,
   TurnStatus,
 } from "@/shared/crafting";
+import { nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
-import type { AccountBinding, ProjectLocation, ThreadConfig } from "@/shared/contracts";
+import type {
+  AccountBinding,
+  PromptSegment,
+  ProjectLocation,
+  ResolvedMcpServer,
+  ThreadConfig,
+} from "@/shared/contracts";
 import { CraftingError } from "@/shared/crafting/errors";
 import { logCraftingEvent } from "@/shared/crafting/logging";
 import type {
@@ -114,6 +121,12 @@ export interface StructuredNativeHarnessRuntimeAdapterOptions {
   projectLocation: ProjectLocation;
   accountBinding?: AccountBinding;
   profileRef?: string;
+  /** Supervisor-resolved, authorized and tool-filtered MCP descriptors for this plan. */
+  mcpServers?: readonly ResolvedMcpServer[];
+  /** Supervisor-validated CraftPlan skill invocations. */
+  skillSegments?: readonly PromptSegment[];
+  /** Portable SKILL.md fallback for roots this provider cannot load natively. */
+  inlineSkillInstructions?: string;
   onPromptError?: (error: unknown) => void | Promise<void>;
 }
 
@@ -127,9 +140,7 @@ class StructuredNativeCraftSession implements CraftSession {
   private readonly _events: RuntimeEvent[] = [];
   private readonly _nativeEvents: NativeEventEnvelope[] = [];
   private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
-  private readonly _listeners = new Set<
-    (event: RuntimeEvent, snapshot: SessionSnapshot) => void
-  >();
+  private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
 
   constructor(
     readonly id: string,
@@ -139,6 +150,8 @@ class StructuredNativeCraftSession implements CraftSession {
     private readonly config: ThreadConfig,
     readonly threadId: string,
     providerSessionId: string | undefined,
+    private readonly skillSegments: readonly PromptSegment[] | undefined,
+    private readonly inlineSkillInstructions: string | undefined,
   ) {
     this._providerSessionId = providerSessionId;
     const listener: StructuredSessionListener = {
@@ -203,7 +216,13 @@ class StructuredNativeCraftSession implements CraftSession {
           ? { reasoningEffort: this.config.effort as "low" | "medium" | "high" }
           : {}),
         ...(this.config.approvalPolicy
-          ? { approvalPolicy: this.config.approvalPolicy as "always" | "auto" | "never" | "on-demand" }
+          ? {
+              approvalPolicy: this.config.approvalPolicy as
+                | "always"
+                | "auto"
+                | "never"
+                | "on-demand",
+            }
           : {}),
       },
     };
@@ -257,7 +276,14 @@ class StructuredNativeCraftSession implements CraftSession {
     };
     command.signal?.addEventListener("abort", onAbort, { once: true });
     try {
-      await this.handle.startTurn(command.prompt, this.config);
+      await this.handle.startTurn(
+        command.prompt,
+        this.config,
+        this.skillSegments ? [...this.skillSegments] : undefined,
+        this.inlineSkillInstructions
+          ? { inlineInstructions: this.inlineSkillInstructions }
+          : undefined,
+      );
     } catch (error) {
       this._status = "error";
       this._activeTurnStatus = "failed";
@@ -278,17 +304,19 @@ class StructuredNativeCraftSession implements CraftSession {
       });
       throw error instanceof CraftingError
         ? error
-        : CraftingError.executionFailed(
-            error instanceof Error ? error.message : String(error),
-            { sessionId: this.id, harnessKind: this.descriptor.harnessKind },
-          );
+        : CraftingError.executionFailed(error instanceof Error ? error.message : String(error), {
+            sessionId: this.id,
+            harnessKind: this.descriptor.harnessKind,
+          });
     } finally {
       command.signal?.removeEventListener("abort", onAbort);
     }
 
     const events = this._events.slice(turnStart);
     const completed = [...events].reverse().find((event) => event.type === "turn.completed");
-    const turnStatus = statusFromTurnState(completed?.type === "turn.completed" ? completed.state : undefined);
+    const turnStatus = statusFromTurnState(
+      completed?.type === "turn.completed" ? completed.state : undefined,
+    );
     this._activeTurnStatus = turnStatus;
     this._status = "idle";
     const response = events
@@ -303,9 +331,10 @@ class StructuredNativeCraftSession implements CraftSession {
         type: "turn.completed",
         threadId: this.threadId,
         turnId,
-        state: turnStatus === "failed" || turnStatus === "interrupted" || turnStatus === "cancelled"
-          ? turnStatus
-          : "completed",
+        state:
+          turnStatus === "failed" || turnStatus === "interrupted" || turnStatus === "cancelled"
+            ? turnStatus
+            : "completed",
       });
     }
     return {
@@ -362,7 +391,10 @@ class StructuredNativeCraftSession implements CraftSession {
     }
   }
 
-  async sendPrompt(prompt: string, onEvent?: (event: RuntimeEvent) => void): Promise<{
+  async sendPrompt(
+    prompt: string,
+    onEvent?: (event: RuntimeEvent) => void,
+  ): Promise<{
     response: string;
     events: RuntimeEvent[];
     error?: string;
@@ -386,6 +418,7 @@ export class StructuredNativeHarnessRuntimeAdapter implements HarnessRuntimeAdap
   readonly harnessKind: string;
   readonly descriptor: NativeHarnessDescriptor;
   private readonly diagnostics: NativeHarnessDiagnostic[] = [];
+  private readonly sessions = new Set<StructuredNativeCraftSession>();
 
   constructor(private readonly options: StructuredNativeHarnessRuntimeAdapterOptions) {
     this.id = options.descriptor.id;
@@ -451,7 +484,9 @@ export class StructuredNativeHarnessRuntimeAdapter implements HarnessRuntimeAdap
         this.harnessKind,
         `${this.descriptor.label} has no structured native session factory.`,
       );
-      this.diagnostics.push(diagnostic(this.descriptor, "readiness", "createStructuredSession", error));
+      this.diagnostics.push(
+        diagnostic(this.descriptor, "readiness", "createStructuredSession", error),
+      );
       throw error;
     }
 
@@ -463,13 +498,14 @@ export class StructuredNativeHarnessRuntimeAdapter implements HarnessRuntimeAdap
         threadId,
         projectLocation: this.options.projectLocation,
         config,
+        runtimeConfig: nativeRuntimeExecutionConfigForPlan(entity.craftPlan),
         presentationMode: "gui",
+        ...(this.options.mcpServers !== undefined ? { mcpServers: this.options.mcpServers } : {}),
         ...(this.options.onPromptError ? { onPromptError: this.options.onPromptError } : {}),
         ...(this.options.profileRef || entity.craftPlan.runtimeBinding.profileRef
           ? {
               agentSettings: {
-                profileRef:
-                  this.options.profileRef ?? entity.craftPlan.runtimeBinding.profileRef!,
+                profileRef: this.options.profileRef ?? entity.craftPlan.runtimeBinding.profileRef!,
               },
             }
           : {}),
@@ -491,7 +527,7 @@ export class StructuredNativeHarnessRuntimeAdapter implements HarnessRuntimeAdap
           : undefined,
       );
       entity.status = "running";
-      return new StructuredNativeCraftSession(
+      const session = new StructuredNativeCraftSession(
         `sess:${this.harnessKind}:${providerSessionId ?? randomUUID()}`,
         entity.id,
         this.descriptor,
@@ -499,7 +535,14 @@ export class StructuredNativeHarnessRuntimeAdapter implements HarnessRuntimeAdap
         config,
         threadId,
         providerSessionId,
+        this.options.skillSegments,
+        this.options.inlineSkillInstructions,
       );
+      this.sessions.add(session);
+      session.subscribe((event) => {
+        if (event.type === "session.exited") this.sessions.delete(session);
+      });
+      return session;
     } catch (error) {
       this.diagnostics.push(
         diagnostic(this.descriptor, sessionRef ? "resume" : "start", "openSession", error, {
@@ -509,10 +552,15 @@ export class StructuredNativeHarnessRuntimeAdapter implements HarnessRuntimeAdap
       await handle?.dispose().catch(() => undefined);
       throw error instanceof CraftingError
         ? error
-        : CraftingError.executionFailed(
-            error instanceof Error ? error.message : String(error),
-            { harnessKind: this.harnessKind, entityId: entity.id },
-          );
+        : CraftingError.executionFailed(error instanceof Error ? error.message : String(error), {
+            harnessKind: this.harnessKind,
+            entityId: entity.id,
+          });
     }
+  }
+
+  async dispose(): Promise<void> {
+    await Promise.allSettled([...this.sessions].map((session) => session.terminate()));
+    this.sessions.clear();
   }
 }

@@ -3,6 +3,7 @@ import type { RuntimeEvent, WorkflowRun } from "../contracts";
 import {
   agentKindSchema,
   experimentSchema,
+  mcpServerListSchema,
   promptSegmentSchema,
   projectLocationSchema,
   projectNotesSchema,
@@ -97,6 +98,8 @@ export const craftAgentPayloadSchema = z.object({
   craftPlan: craftPlanSchema,
   projectLocation: projectLocationSchema,
   prompt: z.string(),
+  /** Candidate custom MCP servers selected by the CraftPlan; Supervisor revalidates ids. */
+  mcpServers: mcpServerListSchema.optional(),
   accountId: z.string().min(1).optional(),
   accountMode: z.enum(["explicit", "selected", "auto"]).optional(),
 });
@@ -106,6 +109,8 @@ export const craftAgentResultSchema = z.object({
   threadId: z.string().min(1),
   entityId: z.string().min(1),
   sessionId: z.string().min(1),
+  /** Provider-native identity required to resume the same Session in a new runtime. */
+  sessionRef: z.string().min(1).optional(),
   response: z.string(),
   accountBinding: z
     .object({
@@ -124,6 +129,8 @@ export const resumeCraftAgentPayloadSchema = z.object({
   projectLocation: projectLocationSchema,
   sessionRef: z.string().min(1),
   prompt: z.string().optional(),
+  /** Candidate custom MCP servers selected by the reconstructed CraftPlan. */
+  mcpServers: mcpServerListSchema.optional(),
   accountId: z.string().min(1).optional(),
 });
 export type ResumeCraftAgentPayload = z.infer<typeof resumeCraftAgentPayloadSchema>;

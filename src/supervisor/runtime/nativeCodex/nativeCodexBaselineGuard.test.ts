@@ -15,29 +15,26 @@ describe("Codex native baseline guard", () => {
     expect(supervisorSource).not.toMatch(/CLIProxyAPI|cliproxyapi/iu);
   });
 
-  it("declares the official app-server stdio transport without claiming unprobed capabilities", () => {
+  it("declares only product-path-proven app-server capabilities", () => {
     expect(CODEX_NATIVE_HARNESS_DESCRIPTOR).toMatchObject({
       official: true,
       transport: "codex-app-server-json-rpc",
       machineFacingBoundary: "codex app-server --stdio",
     });
     expect(CODEX_NATIVE_HARNESS_DESCRIPTOR.capabilities).toMatchObject({
-      start: "implementation missing",
-      resume: "implementation missing",
-      multi_turn: "implementation missing",
-      streaming: "implementation missing",
-      tool_execution: "implementation missing",
+      start: "supported+integrated",
+      resume: "supported+integrated",
+      multi_turn: "supported+integrated",
+      streaming: "supported+integrated",
+      tool_execution: "supported+integrated",
       permission: "implementation missing",
-      mcp: "implementation missing",
-      skills: "implementation missing",
-      subagents: "implementation missing",
-      context: "implementation missing",
+      mcp: "supported+integrated",
+      skills: "supported+integrated",
+      subagents: "supported+integrated",
+      context: "supported+integrated",
       compaction: "implementation missing",
       interrupt: "implementation missing",
-      cleanup: "implementation missing",
+      cleanup: "supported+integrated",
     });
-    expect(Object.values(CODEX_NATIVE_HARNESS_DESCRIPTOR.capabilities)).not.toContain(
-      "supported+integrated",
-    );
   });
 });

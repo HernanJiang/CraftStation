@@ -1,19 +1,20 @@
-import type {
+﻿import type {
   NativeHarnessCapability,
   NativeHarnessCapabilityState,
   NativeHarnessDescriptor,
 } from "@/shared/crafting";
 
 function capabilityMap(
-  implemented: readonly NativeHarnessCapability[],
+  declared: readonly NativeHarnessCapability[],
   unsupported: readonly NativeHarnessCapability[] = [],
+  integrated: readonly NativeHarnessCapability[] = [],
 ): Record<string, NativeHarnessCapabilityState> {
   const result: Record<string, NativeHarnessCapabilityState> = {};
-  // The adapter seam and fixture tests prove wiring only. A capability may be
-  // advertised as integrated after a real provider-native handshake/session
-  // has been captured; until then keep the production matrix honest.
-  for (const capability of implemented) result[capability] = "implementation missing";
+  for (const capability of declared) result[capability] = "implementation missing";
   for (const capability of unsupported) result[capability] = "native unsupported";
+  // Only provider-native product-path evidence may move a capability out of
+  // the conservative default above. Fixture/unit evidence alone is excluded.
+  for (const capability of integrated) result[capability] = "supported+integrated";
   return result;
 }
 
@@ -44,13 +45,26 @@ export const CODEX_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   official: true,
   transport: "codex-app-server-json-rpc",
   machineFacingBoundary: "codex app-server --stdio",
-  capabilities: capabilityMap([
-    ...COMMON_STRUCTURED_CAPABILITIES,
-    "mcp",
-    "subagents",
-    "context",
-    "compaction",
-  ]),
+  capabilities: capabilityMap(
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents", "context", "compaction"],
+    [],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "mcp",
+      "subagents",
+      "skills",
+      "context",
+      "cleanup",
+      "diagnostics",
+    ],
+  ),
 };
 
 export const GROK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
@@ -61,10 +75,25 @@ export const GROK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   official: true,
   transport: "acp-stdio",
   machineFacingBoundary: "grok agent stdio (ACP)",
-  capabilities: capabilityMap([...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents"], [
-    "context",
-    "compaction",
-  ]),
+  capabilities: capabilityMap(
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents", "context", "compaction"],
+    [],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "mcp",
+      "skills",
+      "subagents",
+      "cleanup",
+      "diagnostics",
+    ],
+  ),
 };
 
 export const KIMI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
@@ -76,8 +105,24 @@ export const KIMI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   transport: "acp-stdio",
   machineFacingBoundary: "kimi acp",
   capabilities: capabilityMap(
-    [...COMMON_STRUCTURED_CAPABILITIES, "subagents"],
-    ["mcp", "context", "compaction"],
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents", "context", "compaction"],
+    [],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "mcp",
+      "skills",
+      "subagents",
+      "context",
+      "cleanup",
+      "diagnostics",
+    ],
   ),
 };
 
@@ -87,8 +132,8 @@ export const ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   label: "Antigravity Native Harness",
   vendor: "google",
   official: true,
-  transport: "official-pty",
-  machineFacingBoundary: "agy interactive PTY",
+  transport: "official-stream-json",
+  machineFacingBoundary: "agy --input-format stream-json --output-format stream-json",
   capabilities: capabilityMap(
     [
       "discovery",
@@ -104,11 +149,31 @@ export const ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
       "shell_execution",
       "permission",
       "skills",
+      "mcp",
+      "subagents",
+      "context",
       "interrupt",
       "cleanup",
       "diagnostics",
     ],
-    ["mcp", "subagents", "context", "compaction"],
+    ["compaction"],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "file_access",
+      "skills",
+      "mcp",
+      "subagents",
+      "context",
+      "cleanup",
+      "diagnostics",
+    ],
   ),
 };
 
@@ -118,9 +183,9 @@ export const DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   label: "DeepSeek / DSH Native Harness",
   vendor: "deepseek",
   official: true,
-  transport: "unavailable",
-  machineFacingBoundary: "dsh native runtime (not installed)",
-  capabilities: Object.fromEntries(
+  transport: "deepseek-json-rpc-stdio",
+  machineFacingBoundary: "official dsh CLI (via JSON-RPC stdio)",
+  capabilities: capabilityMap(
     [
       "discovery",
       "auth",
@@ -142,8 +207,43 @@ export const DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
       "interrupt",
       "cleanup",
       "diagnostics",
-    ].map((capability) => [capability, "unavailable"]),
+    ],
+    [],
+    ["discovery", "auth", "start", "events", "cleanup", "diagnostics"],
   ),
+};
+
+const DEEPSEEK_API_CAPABILITIES: Record<string, NativeHarnessCapabilityState> = {
+  discovery: "supported+integrated",
+  auth: "supported+integrated",
+  start: "supported+integrated",
+  multi_turn: "implementation missing",
+  streaming: "supported+integrated",
+  events: "supported+integrated",
+  cleanup: "supported+integrated",
+  diagnostics: "supported+integrated",
+  resume: "implementation missing",
+  tool_execution: "implementation missing",
+  file_access: "implementation missing",
+  shell_execution: "implementation missing",
+  permission: "implementation missing",
+  mcp: "implementation missing",
+  skills: "implementation missing",
+  subagents: "implementation missing",
+  context: "implementation missing",
+  compaction: "implementation missing",
+  interrupt: "implementation missing",
+};
+
+export const DEEPSEEK_API_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:deepseek-api",
+  harnessKind: "deepseek-api",
+  label: "DeepSeek API Runtime",
+  vendor: "deepseek",
+  official: false,
+  transport: "openai-compatible-http",
+  machineFacingBoundary: "OpenAI-compatible HTTPS chat/completions",
+  capabilities: DEEPSEEK_API_CAPABILITIES,
 };
 
 export const NATIVE_HARNESS_DESCRIPTORS = {
@@ -152,4 +252,5 @@ export const NATIVE_HARNESS_DESCRIPTORS = {
   kimi: KIMI_NATIVE_HARNESS_DESCRIPTOR,
   antigravity: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   deepseek: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+  "deepseek-api": DEEPSEEK_API_HARNESS_DESCRIPTOR,
 } as const;

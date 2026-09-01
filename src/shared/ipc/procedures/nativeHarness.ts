@@ -3,6 +3,11 @@ import {
   type NativeHarnessControlPlaneEntry,
   type NativeHarnessControlPlanePayload,
 } from "../../crafting/nativeHarness";
+import {
+  craftingModelInventoryPayloadSchema,
+  type CraftingModelInventory,
+  type CraftingModelInventoryPayload,
+} from "../../crafting/modelInventory";
 import { definePayloadProcedure } from "../core";
 
 export const nativeHarnessProcedures = {
@@ -11,9 +16,11 @@ export const nativeHarnessProcedures = {
     NativeHarnessControlPlanePayload,
     NativeHarnessControlPlaneEntry[],
     "supervisor"
-  >(
-    "getNativeHarnessControlPlane",
-    "supervisor",
-    nativeHarnessControlPlanePayloadSchema,
-  ),
+  >("getNativeHarnessControlPlane", "supervisor", nativeHarnessControlPlanePayloadSchema),
+  /** Official Codex app-server model/list projection for Crafting inventory. */
+  getCraftingModelInventory: definePayloadProcedure<
+    CraftingModelInventoryPayload,
+    CraftingModelInventory,
+    "supervisor"
+  >("getCraftingModelInventory", "supervisor", craftingModelInventoryPayloadSchema),
 } as const;

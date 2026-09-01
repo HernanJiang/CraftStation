@@ -14,6 +14,7 @@ describe("v0.3/T02: Codex App-Server JSON-RPC Transport & Official V2 Schema", (
 
     let clientInitializedNotified = false;
     let receivedClientName: string | undefined;
+    let receivedCapabilities: Record<string, unknown> | undefined;
 
     // Host handles initialize request
     clientToHost.on("data", (chunk: Buffer) => {
@@ -21,6 +22,7 @@ describe("v0.3/T02: Codex App-Server JSON-RPC Transport & Official V2 Schema", (
       const msg = JSON.parse(line);
       if (msg.method === "initialize") {
         receivedClientName = msg.params?.clientInfo?.name;
+        receivedCapabilities = msg.params?.capabilities;
         const response = {
           jsonrpc: "2.0",
           id: msg.id,
@@ -38,6 +40,10 @@ describe("v0.3/T02: Codex App-Server JSON-RPC Transport & Official V2 Schema", (
 
     const initResult = await client.initialize();
     expect(receivedClientName).toBe("CraftStation");
+    expect(receivedCapabilities).toEqual({
+      experimentalApi: true,
+      requestAttestation: false,
+    });
     expect(initResult.serverInfo?.name).toBe("codex-app-server");
     expect(initResult.capabilities?.streaming).toBe(true);
     expect(client.isInitialized).toBe(true);

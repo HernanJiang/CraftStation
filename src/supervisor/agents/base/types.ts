@@ -22,6 +22,7 @@ import type {
 } from "@/shared/contracts";
 import type { OscNotification, OscShellEvent, OscTitle } from "@/shared/osc";
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
+import type { NativeRuntimeExecutionConfig } from "@/shared/crafting/nativeHarness";
 
 export interface CommandSpec {
   command: string;
@@ -175,6 +176,8 @@ export interface CreateStructuredSessionInput {
    * put it on its own launch argv.
    */
   baseSpawnEnv?: Record<string, string>;
+  /** Secret-free CraftPlan runtime projection; provider credentials stay native. */
+  runtimeConfig?: NativeRuntimeExecutionConfig;
   mcpIdentity?: McpThreadIdentity;
   mcpServers?: readonly ResolvedMcpServer[];
   sessionRef?: SessionRef;

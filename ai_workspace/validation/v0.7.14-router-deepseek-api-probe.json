@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-08-31T15:39:00+08:00",
+  "synthetic": false,
+  "scope": "Third-party OpenAI-compatible DeepSeek API probe; separate from official DSH and Codex app-server model traffic",
+  "endpoint": "http://127.0.0.1:28082/v1/chat/completions",
+  "model": "deepseek-v4-flash",
+  "attempted": true,
+  "verdict": "AUTH_REQUIRED",
+  "httpStatus": 401,
+  "credentialPersisted": false
+}
