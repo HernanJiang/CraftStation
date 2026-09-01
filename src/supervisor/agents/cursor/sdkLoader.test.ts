@@ -54,7 +54,7 @@ afterEach(async () => {
 });
 
 async function makeFakePackage(options: FakePackageOptions = {}): Promise<FakePackage> {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "poracode-cursor-sdk-loader-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "craftstation-cursor-sdk-loader-")));
   createdDirectories.push(root);
   const nodeModulesRoot = join(root, "node_modules");
   const packageRoot = join(nodeModulesRoot, "@cursor", "sdk");
@@ -163,7 +163,7 @@ describe("loadCursorSdk discovery", () => {
   it("discovers NODE_PATH and explicit global installations", async () => {
     const fromNodePath = await makeFakePackage();
     const fromExplicitRoot = await makeFakePackage();
-    const emptyProject = await mkdtemp(join(tmpdir(), "poracode-cursor-empty-project-"));
+    const emptyProject = await mkdtemp(join(tmpdir(), "craftstation-cursor-empty-project-"));
     createdDirectories.push(emptyProject);
 
     const nodePathLoaded = expectSuccess(
@@ -194,7 +194,7 @@ describe("loadCursorSdk discovery", () => {
 
   it("uses npm/pnpm global roots returned by the safe host probe", async () => {
     const fake = await makeFakePackage();
-    const emptyProject = await mkdtemp(join(tmpdir(), "poracode-cursor-empty-project-"));
+    const emptyProject = await mkdtemp(join(tmpdir(), "craftstation-cursor-empty-project-"));
     createdDirectories.push(emptyProject);
 
     const loaded = expectSuccess(
@@ -237,7 +237,7 @@ describe("loadCursorSdk discovery", () => {
   });
 
   it("reports all checked locations when the package is missing", async () => {
-    const emptyProject = await mkdtemp(join(tmpdir(), "poracode-cursor-empty-project-"));
+    const emptyProject = await mkdtemp(join(tmpdir(), "craftstation-cursor-empty-project-"));
     createdDirectories.push(emptyProject);
 
     const result = await loadCursorSdk(baseOptions({ projectCwd: emptyProject }));

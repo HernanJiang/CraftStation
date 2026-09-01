@@ -100,7 +100,7 @@ function setProbeMeasurements(
 }
 
 function composerToolbar(container: HTMLElement): HTMLElement {
-  const toolbar = container.querySelector<HTMLElement>(".poracode-composer-toolbar");
+  const toolbar = container.querySelector<HTMLElement>(".craftstation-composer-toolbar");
   expect(toolbar).not.toBeNull();
   return toolbar!;
 }
@@ -131,7 +131,7 @@ describe("ThreadComposer", () => {
 
   it("hides eligible labels when resize measurement requires a collapsed level", () => {
     const { container } = renderComposer();
-    const controls = container.querySelector<HTMLElement>(".poracode-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
     expect(controls).not.toBeNull();
 
     setProbeMeasurements(container, [160, 100, 100, 100, 100, 100]);
@@ -147,7 +147,7 @@ describe("ThreadComposer", () => {
 
   it("does not expand collapsed labels again at the same measured width", () => {
     const { container } = renderComposer();
-    const controls = container.querySelector<HTMLElement>(".poracode-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
     expect(controls).not.toBeNull();
 
     setProbeMeasurements(container, [101, 100, 100, 100, 100, 100]);
@@ -177,7 +177,7 @@ describe("ThreadComposer", () => {
 
   it("does not expand labels while the outer toolbar width is decreasing", () => {
     const { container } = renderComposer();
-    const controls = container.querySelector<HTMLElement>(".poracode-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
     expect(controls).not.toBeNull();
 
     setToolbarWidth(container, 200);
@@ -235,7 +235,7 @@ describe("ThreadComposer", () => {
         onChange: vi.fn<(selected: boolean) => void>(),
       },
     ]);
-    const controls = container.querySelector<HTMLElement>(".poracode-composer-toolbar > .relative");
+    const controls = container.querySelector<HTMLElement>(".craftstation-composer-toolbar > .relative");
     expect(controls).not.toBeNull();
 
     setProbeMeasurements(container, [160, 160, 100, 100, 100, 100]);
@@ -576,7 +576,7 @@ describe("ThreadComposer", () => {
 
   it("shows an attachment drop target for supported files", () => {
     const { container } = renderComposerWithAttach(vi.fn());
-    const shell = container.querySelector<HTMLElement>(".poracode-composer-shell");
+    const shell = container.querySelector<HTMLElement>(".craftstation-composer-shell");
     expect(shell).not.toBeNull();
 
     fireEvent.dragEnter(shell!, {
@@ -589,15 +589,15 @@ describe("ThreadComposer", () => {
   it("attaches files dragged from the project tree", () => {
     const onAttachFiles = vi.fn<(paths: string[]) => void>();
     const { container } = renderComposerWithAttach(onAttachFiles);
-    const shell = container.querySelector<HTMLElement>(".poracode-composer-shell");
+    const shell = container.querySelector<HTMLElement>(".craftstation-composer-shell");
     expect(shell).not.toBeNull();
 
     fireEvent.drop(shell!, {
       dataTransfer: {
-        types: ["application/poracode-composer-file"],
+        types: ["application/craftstation-composer-file"],
         files: [],
         getData: (type: string) =>
-          type === "application/poracode-composer-file"
+          type === "application/craftstation-composer-file"
             ? JSON.stringify({ path: "src/App.tsx", type: "file" })
             : "",
       },

@@ -91,7 +91,7 @@ function createManager(
   adapter: AgentAdapter,
   extraOptions: Partial<ThreadSessionManagerOptions> = {},
 ): ThreadSessionManager {
-  const tempDir = mkdtempSync(join(tmpdir(), "poracode-restart-term-"));
+  const tempDir = mkdtempSync(join(tmpdir(), "craftstation-restart-term-"));
   tempDirs.push(tempDir);
   const manager = new ThreadSessionManager({
     emit: vi.fn<() => void>(),
@@ -238,7 +238,7 @@ describe("ThreadSessionManager terminal restart", () => {
     const adapter = createTerminalAdapter();
     const manager = createManager(adapter, {
       resolvePluginEnvForSpawn: async () => ({
-        env: { PORACODE_HOOK_URL: "http://127.0.0.1:9/hook", PORACODE_HOOK_SECRET: "s3cret" },
+        env: { CRAFTSTATION_HOOK_URL: "http://127.0.0.1:9/hook", CRAFTSTATION_HOOK_SECRET: "s3cret" },
         extraArgs: ["--hook-flag"],
       }),
     });
@@ -253,8 +253,8 @@ describe("ThreadSessionManager terminal restart", () => {
     const commandLine = spawnArgs.join(" ");
     expect(commandLine).toContain("resume");
     expect(commandLine).toContain("--hook-flag");
-    expect(spawnOptions.env.PORACODE_HOOK_URL).toBe("http://127.0.0.1:9/hook");
-    expect(spawnOptions.env.PORACODE_HOOK_SECRET).toBe("s3cret");
+    expect(spawnOptions.env.CRAFTSTATION_HOOK_URL).toBe("http://127.0.0.1:9/hook");
+    expect(spawnOptions.env.CRAFTSTATION_HOOK_SECRET).toBe("s3cret");
     expect(manager.sessions.get(THREAD_ID)?.cliHookEnvInjected).toBe(true);
   });
 

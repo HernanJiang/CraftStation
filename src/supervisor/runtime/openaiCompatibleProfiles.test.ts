@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { HostPort, HttpRequest, HttpResponse } from "@poracode/agents-usage";
+import type { HostPort, HttpRequest, HttpResponse } from "@craftstation/agents-usage";
 import { clearUsageSecret, getUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import { AccountStore } from "./accountStore";
 import { OpenAiCompatibleProfileService } from "./openaiCompatibleProfiles";

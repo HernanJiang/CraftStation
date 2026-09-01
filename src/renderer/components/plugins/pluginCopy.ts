@@ -5,7 +5,7 @@ import { usePlugins } from "@/renderer/state/pluginsStore";
 /**
  * Display copy for loaded Agent Plugins packages.
  *
- * Poracode's own packages ship English text in `plugin.json`, so their names and
+ * CraftStation's own packages ship English text in `plugin.json`, so their names and
  * descriptions are overridden here with translated strings. Third-party packages
  * carry author-written metadata that cannot live in our catalogs, so their
  * manifest text is shown as authored — that is the correct behavior for a
@@ -37,13 +37,13 @@ export function useLocalizedPluginCatalog(): LocalizedPlugin[] {
   const plugins = usePlugins((state) => state.plugins);
 
   return plugins.map((plugin): LocalizedPlugin => {
-    const fallbackName = plugin.poracode.title ?? plugin.name;
+    const fallbackName = plugin.craftstation.title ?? plugin.name;
     let name: string;
     let description: string;
     switch (plugin.name) {
       case "browser-tools":
         name = t`Browser Tools`;
-        description = t`Browse, inspect, and test websites in Poracode's isolated in-app browser.`;
+        description = t`Browse, inspect, and test websites in CraftStation's isolated in-app browser.`;
         break;
       case "chrome-tools":
         name = t`Chrome Tools`;
@@ -71,7 +71,7 @@ export function useLocalizedPluginCatalog(): LocalizedPlugin[] {
     }
 
     const skills = plugin.skills.map((skill): LocalizedPluginContribution => {
-      const policy = plugin.poracode.skills[skill.folder];
+      const policy = plugin.craftstation.skills[skill.folder];
       switch (`${plugin.name}:${skill.folder}`) {
         case "browser-tools:browser-control":
           return {
@@ -89,7 +89,7 @@ export function useLocalizedPluginCatalog(): LocalizedPlugin[] {
           return {
             id: skill.folder,
             name: t`Computer Use`,
-            description: t`Operate desktop apps through Poracode's desktop-control tools.`,
+            description: t`Operate desktop apps through CraftStation's desktop-control tools.`,
           };
         case "subagent-delegation:subagent-delegation":
           return {
@@ -108,7 +108,7 @@ export function useLocalizedPluginCatalog(): LocalizedPlugin[] {
 
     // Server transport detail is author-supplied and identifies the endpoint, so
     // it is shown verbatim rather than translated.
-    const builtInMcpServers = plugin.poracode.builtInMcpServerIds.map(
+    const builtInMcpServers = plugin.craftstation.builtInMcpServerIds.map(
       (id): LocalizedPluginContribution => ({
         id,
         name:
@@ -134,11 +134,11 @@ export function useLocalizedPluginCatalog(): LocalizedPlugin[] {
     const mcpServers = [...builtInMcpServers, ...declaredMcpServers];
 
     const category =
-      plugin.poracode.category === "developer-tools"
+      plugin.craftstation.category === "developer-tools"
         ? t`Developer tools`
-        : plugin.poracode.category === "automation"
+        : plugin.craftstation.category === "automation"
           ? t`Automation`
-          : plugin.poracode.category === "communication"
+          : plugin.craftstation.category === "communication"
             ? t`Communication`
             : t`Productivity`;
 
@@ -191,7 +191,7 @@ export function useLocalizedPluginDiagnostic(): (diagnostic: PluginDiagnostic) =
         return t`Ignored an unrecognized field in plugin.json.`;
       case "manifest-extensions-not-object":
       case "extension-invalid":
-        return t`This plugin's Poracode settings were ignored because they are not valid.`;
+        return t`This plugin's CraftStation settings were ignored because they are not valid.`;
       case "extension-unknown-skill":
         return t`This plugin describes a skill it does not actually ship.`;
       case "path-escapes-root":
@@ -223,10 +223,10 @@ export function useLocalizedPluginDiagnostic(): (diagnostic: PluginDiagnostic) =
           : t`This server runs on this computer and is unavailable for WSL projects.`;
       case "mcp-name-unusable":
         return target
-          ? t`Server ${target} has a name Poracode cannot use.`
-          : t`A server has a name Poracode cannot use.`;
+          ? t`Server ${target} has a name CraftStation cannot use.`
+          : t`A server has a name CraftStation cannot use.`;
       case "plugin-data-unavailable":
-        return t`Poracode could not create this plugin's data folder.`;
+        return t`CraftStation could not create this plugin's data folder.`;
       default:
         return diagnostic.message;
     }

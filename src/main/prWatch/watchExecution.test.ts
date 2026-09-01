@@ -5,7 +5,7 @@ import { buildPrWatchExecutionDeps } from "./watchExecution";
 
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "posix", path: "/repo" },
   createdAt: "2026-07-25T00:00:00.000Z",
 };
@@ -260,7 +260,7 @@ describe("ensureWorkContext", () => {
     const { deps, call } = setup({
       gitListWorktrees: () => ({ worktrees: [] }),
       gitFetch: () => undefined,
-      gitAddWorktree: () => ({ path: "/repo/.poracode/worktrees/pr-watch" }),
+      gitAddWorktree: () => ({ path: "/repo/.craftstation/worktrees/pr-watch" }),
     });
 
     await deps.ensureWorkContext(watch, {
@@ -269,7 +269,7 @@ describe("ensureWorkContext", () => {
     });
 
     expect(call.mock.calls.find(([name]) => name === "gitAddWorktree")?.[1]).toMatchObject({
-      worktreeRoot: "/repo/.poracode/worktrees",
+      worktreeRoot: "/repo/.craftstation/worktrees",
       worktreeOmitRepoDir: true,
     });
   });

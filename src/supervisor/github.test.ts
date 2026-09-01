@@ -708,7 +708,7 @@ describe("GitHubService", () => {
       >(async (_location, input) => {
         const args = input.args;
         if (input.command === "mktemp") {
-          return { ok: true, stdout: "/tmp/poracode-pr-body-abc123\n", stderr: "", exitCode: 0 };
+          return { ok: true, stdout: "/tmp/craftstation-pr-body-abc123\n", stderr: "", exitCode: 0 };
         }
         if (args[0] === "pr" && args[1] === "create") {
           return {
@@ -769,7 +769,7 @@ describe("GitHubService", () => {
 
       expect(writeNewFile).toHaveBeenCalledWith(
         { ...wslLocation, linuxPath: "/tmp" },
-        "/tmp/poracode-pr-body-abc123/body.md",
+        "/tmp/craftstation-pr-body-abc123/body.md",
         Buffer.from("Some description", "utf8"),
       );
       const createCall = processExec.mock.calls.find(([, input]) => {
@@ -778,11 +778,11 @@ describe("GitHubService", () => {
       });
       const createArgs = createCall![1].args;
       expect(createArgs).toContain("--body-file");
-      expect(createArgs).toContain("/tmp/poracode-pr-body-abc123/body.md");
+      expect(createArgs).toContain("/tmp/craftstation-pr-body-abc123/body.md");
       expect(createArgs).not.toContain("--body");
       expect(rm).toHaveBeenCalledWith(
         { ...wslLocation, linuxPath: "/tmp" },
-        "/tmp/poracode-pr-body-abc123",
+        "/tmp/craftstation-pr-body-abc123",
         { recursive: true, force: true },
       );
     });
@@ -1624,8 +1624,8 @@ on:
       { id: 11, name: "CI", path: ".github/workflows/ci.yml", state: "active" },
     ]);
     const REMOTES =
-      "origin\thttps://github.com/SDSLeon/lightcode.git (fetch)\n" +
-      "origin\thttps://github.com/SDSLeon/lightcode.git (push)\n";
+      "origin\thttps://github.com/SDSLeon/craftstation.git (fetch)\n" +
+      "origin\thttps://github.com/SDSLeon/craftstation.git (push)\n";
     const ym = { host: "github.com", login: "ym-svecherenko" };
     const argsOf = (call: unknown[]): string[] => call[1] as string[];
     const envOf = (call: unknown[]): NodeJS.ProcessEnv | undefined =>
@@ -1649,7 +1649,7 @@ on:
         isGh(argsOf(call), "workflow", "list"),
       );
       expect(envOf(listCall!)?.GH_TOKEN).toBe("gho_override");
-      expect(envOf(listCall!)?.GH_REPO).toBe("github.com/SDSLeon/lightcode");
+      expect(envOf(listCall!)?.GH_REPO).toBe("github.com/SDSLeon/craftstation");
     });
 
     it("throws when the override account token is unavailable, without detecting", async () => {
@@ -1854,7 +1854,7 @@ on:
       );
       expect(dispatchCall?.[0]).toBe("gh");
       expect(envOf(dispatchCall!)?.GH_TOKEN).toBe("gho_override");
-      expect(envOf(dispatchCall!)?.GH_REPO).toBe("github.com/SDSLeon/lightcode");
+      expect(envOf(dispatchCall!)?.GH_REPO).toBe("github.com/SDSLeon/craftstation");
     });
 
     it("surfaces the 404 without probing when a single account is signed in", async () => {

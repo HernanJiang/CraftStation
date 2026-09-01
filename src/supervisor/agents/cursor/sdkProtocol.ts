@@ -1,7 +1,7 @@
 /**
  * Structural public-protocol types for `@cursor/sdk` 1.0.24.
  *
- * Poracode deliberately does not import the optional SDK package from its
+ * CraftStation deliberately does not import the optional SDK package from its
  * provider boundary. Keeping the small, stable event envelopes here lets the
  * runtime load a user-installed SDK dynamically while this mapper remains
  * type-safe and independently testable.

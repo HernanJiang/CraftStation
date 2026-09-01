@@ -83,10 +83,10 @@ Tests       16 failed | 9626 passed | 48 skipped (9690)
 16 项均为稳定既有基线：
 
 - `remoteProcedureRouter.test.ts`：1；
-- `poracodeData.migrate.test.ts`：8；
+- `craftstationData.migrate.test.ts`：8；
 - `channel.config-parity.test.ts`：2；
 - `channel.test.ts`：1；
-- `poracodePaths.test.ts`：2；
+- `craftstationPaths.test.ts`：2；
 - `probeCwd.test.ts`：2。
 
 没有命中 v0.7 native harness 触及模块，但全仓 test 不能写 PASS。

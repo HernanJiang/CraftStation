@@ -1,10 +1,15 @@
 import { msg } from "@lingui/core/macro";
 import type { MessageDescriptor } from "@lingui/core";
 import { AppWindow, Globe, Users, type LucideIcon } from "lucide-react";
-import { resolveComposerMcpScope } from "@/shared/contracts";
+import {
+  resolveComposerMcpScope,
+  supportsHeaderBearingHttpMcp,
+  supportsMcpAtProjectLocation,
+} from "@/shared/contracts";
 import type {
   AgentCapability,
   ComposerMcpScope,
+  McpRuntimeSupport,
   ProjectLocation,
   ThreadConfig,
   ThreadPresentationMode,
@@ -53,6 +58,10 @@ export function providerMcpSettingEnabled(
   return (settings?.[key] ?? capabilities.agentSettingsDefaults?.[key]) === true;
 }
 
+type ComposerMcpCapabilities = {
+  mcpScope?: AgentCapability["mcpScope"] | undefined;
+} & McpRuntimeSupport;
+
 export interface ComposerMcpServerDescriptor {
   id: "browser" | "crossagents" | "chrome";
   configKey: ComposerMcpConfigKey;
@@ -63,12 +72,25 @@ export interface ComposerMcpServerDescriptor {
   enabledTitle: MessageDescriptor;
   /** aria-label for the chip's remove button. */
   disableLabel: MessageDescriptor;
+  /** Whether this built-in needs HTTP request headers (normally a bearer token). */
+  requiresHttpHeaders?: boolean;
   isAvailable: (projectLocation?: ProjectLocation) => boolean;
   getScope: (
-    capabilities: AgentCapability,
+    capabilities: ComposerMcpCapabilities,
     presentationMode: ThreadPresentationMode,
     projectLocation?: ProjectLocation,
   ) => ComposerMcpScope;
+}
+
+function headerHttpMcpScope(
+  capabilities: ComposerMcpCapabilities,
+  presentationMode: ThreadPresentationMode,
+  projectLocation?: ProjectLocation,
+): ComposerMcpScope {
+  return supportsHeaderBearingHttpMcp(capabilities) &&
+    supportsMcpAtProjectLocation(capabilities, projectLocation)
+    ? resolveMcpScope(capabilities.mcpScope, presentationMode)
+    : "none";
 }
 
 export const browserMcpServer: ComposerMcpServerDescriptor = {
@@ -78,9 +100,9 @@ export const browserMcpServer: ComposerMcpServerDescriptor = {
   label: msg`Browser`,
   enabledTitle: msg`Browser MCP enabled for this thread`,
   disableLabel: msg`Disable Browser MCP`,
+  requiresHttpHeaders: true,
   isAvailable: () => true,
-  getScope: (capabilities, presentationMode) =>
-    resolveMcpScope(capabilities.mcpScope, presentationMode),
+  getScope: headerHttpMcpScope,
 };
 
 export const crossagentMcpServer: ComposerMcpServerDescriptor = {
@@ -90,9 +112,9 @@ export const crossagentMcpServer: ComposerMcpServerDescriptor = {
   label: msg`Crossagents`,
   enabledTitle: msg`Crossagents enabled for this thread`,
   disableLabel: msg`Disable Crossagents`,
+  requiresHttpHeaders: true,
   isAvailable: () => true,
-  getScope: (capabilities, presentationMode) =>
-    resolveMcpScope(capabilities.mcpScope, presentationMode),
+  getScope: headerHttpMcpScope,
 };
 
 export const chromeMcpServer: ComposerMcpServerDescriptor = {
@@ -102,11 +124,12 @@ export const chromeMcpServer: ComposerMcpServerDescriptor = {
   label: msg`Chrome`,
   enabledTitle: msg`Chrome MCP enabled for this thread`,
   disableLabel: msg`Disable Chrome MCP`,
+  requiresHttpHeaders: true,
   isAvailable: (projectLocation) => projectLocation?.kind !== "wsl",
   getScope: (capabilities, presentationMode, projectLocation) =>
     !chromeMcpServer.isAvailable(projectLocation)
       ? "none"
-      : resolveMcpScope(capabilities.mcpScope, presentationMode),
+      : headerHttpMcpScope(capabilities, presentationMode),
 };
 
 export const composerMcpServers: readonly ComposerMcpServerDescriptor[] = [

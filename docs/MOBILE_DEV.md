@@ -22,8 +22,8 @@ helper:
 | `dev:ios:app` / `dev:android:app` | target-resolving `cap run <platform> --live-reload`      | —       |
 | `android-reverse-server-port.mjs` | Android only: keeps `adb reverse tcp:49152` applied      | —       |
 
-`dev:mobile:server` sets `PORACODE_IS_DEV=1` and pins
-`PORACODE_REMOTE_ACCESS_PORT=49152` for the simulator forwarding helpers. Dev
+`dev:mobile:server` sets `CRAFTSTATION_IS_DEV=1` and pins
+`CRAFTSTATION_REMOTE_ACCESS_PORT=49152` for the simulator forwarding helpers. Dev
 mode turns on two conveniences in the server (see
 [Why dev mode matters](#why-dev-mode-matters)): loopback advertising + loopback
 CORS. **No manual env vars are needed** — pairing works against
@@ -31,8 +31,8 @@ CORS. **No manual env vars are needed** — pairing works against
 
 The iOS and Android launch wrappers pass an explicit native target so Capacitor
 does not stop at an interactive device picker under `concurrently`. Override the
-automatic choice with `PORACODE_IOS_TARGET=<simulator-udid>` or
-`PORACODE_ANDROID_TARGET=<device-or-avd-id>`.
+automatic choice with `CRAFTSTATION_IOS_TARGET=<simulator-udid>` or
+`CRAFTSTATION_ANDROID_TARGET=<device-or-avd-id>`.
 
 The endpoint is the **same on both platforms**: the iOS simulator shares the
 Mac's loopback natively, and on Android the reverse-port helper maps the
@@ -41,7 +41,7 @@ emulators and USB devices; it re-applies automatically when a device boots or
 restarts). Capacitor itself forwards only the Vite port (`--forwardPorts` takes
 a single pair), which is why the server port has its own helper.
 
-The server's data dir is `~/.poracode`. Override with `PORACODE_BASE_DIR` to run
+The server's data dir is `~/.craftstation`. Override with `CRAFTSTATION_BASE_DIR` to run
 an isolated instance (avoids the single-instance lock clash with a running
 desktop app or a second server).
 
@@ -49,7 +49,7 @@ desktop app or a second server).
 
 1. Grab the pairing token — the server prints it at startup:
    ```
-   [poracode-server] pair a device:   http://127.0.0.1:49152/pair#token=lc_pair_…
+   [craftstation-server] pair a device:   http://127.0.0.1:49152/pair#token=lc_pair_…
    ```
    Need a fresh one (10-min TTL, in-memory only)? Send `SIGUSR2`:
    ```bash
@@ -67,7 +67,7 @@ up/down arrows move focus between the two fields reliably.
 
 ## Why dev mode matters
 
-Two things break dev pairing on a stock (non-dev) server; `PORACODE_IS_DEV=1`
+Two things break dev pairing on a stock (non-dev) server; `CRAFTSTATION_IS_DEV=1`
 fixes both:
 
 - **iOS ATS** (`ios/App/App/Info.plist` → `NSAllowsLocalNetworking`) permits
@@ -84,10 +84,10 @@ fixes both:
 
 ## Deep linking (Universal Links)
 
-Goal: one `https://poracode.com/pair` pairing link that opens the **installed
+Goal: one `https://craftstation.com/pair` pairing link that opens the **installed
 app** if present, else redirects browser users to the hosted PWA at
-`https://app.poracode.com/pair`. The stable and nightly PWAs use separate
-origins (`app.poracode.com` and `app-nightly.poracode.com`) so their permissions,
+`https://app.craftstation.com/pair`. The stable and nightly PWAs use separate
+origins (`app.craftstation.com` and `app-nightly.craftstation.com`) so their permissions,
 storage, caches, and service workers cannot affect the marketing site or each
 other.
 
@@ -98,49 +98,49 @@ other.
   `App.getLaunchUrl()`, warm via the `appUrlOpen` event — parses it with
   `parsePairingUrl`, and calls `pairDesktop`. Inert on the hosted PWA (there,
   boot-time launch params are handled by `capturePairingLaunch()`).
-- Native association host defaults to `poracode.com`
-  (`scripts/configure-mobile-native.mjs`), which writes `applinks:poracode.com`
+- Native association host defaults to `craftstation.com`
+  (`scripts/configure-mobile-native.mjs`), which writes `applinks:craftstation.com`
   into the iOS entitlement + the Android intent-filter on `cap:sync`/`cap:configure`.
 
 **To make links actually route into the app (ops — needs secrets + hosting):**
 
-1. **Apple Team ID** — set `PORACODE_MOBILE_APPLE_TEAM_ID` (+ Android
-   `PORACODE_MOBILE_ANDROID_SHA256_CERT_FINGERPRINTS`) so
+1. **Apple Team ID** — set `CRAFTSTATION_MOBILE_APPLE_TEAM_ID` (+ Android
+   `CRAFTSTATION_MOBILE_ANDROID_SHA256_CERT_FINGERPRINTS`) so
    `scripts/finalize-mobile-build.mjs` emits a **non-empty** AASA/assetlinks into
-   `dist/mobile/.well-known/` (AASA `appIDs = <team>.com.lightcodeapp.mobile`,
+   `dist/mobile/.well-known/` (AASA `appIDs = <team>.com.craftstationapp.mobile`,
    components match `/pair*` and `/app*`).
 2. **Host** `/pair` and `/.well-known/apple-app-site-association` on
-   **poracode.com**. The marketing deployment redirects browser requests for
-   `/pair` and legacy `/app*` and `/pwa*` URLs to **app.poracode.com**; legacy
-   `/app-nightly*` URLs redirect to **app-nightly.poracode.com**. Both PWA
+   **craftstation.com**. The marketing deployment redirects browser requests for
+   `/pair` and legacy `/app*` and `/pwa*` URLs to **app.craftstation.com**; legacy
+   `/app-nightly*` URLs redirect to **app-nightly.craftstation.com**. Both PWA
    domains point at the separate mobile Vercel project (`vercel.json` →
    `dist/mobile`) and serve their channel at `/`.
-3. **Desktop** — packaged builds default to `https://poracode.com`, so minted
-   QR/links are `https://poracode.com/pair?host=…#token=…`. Set
-   `PORACODE_REMOTE_ACCESS_PAIRING_APP_URL` only to override that host.
+3. **Desktop** — packaged builds default to `https://craftstation.com`, so minted
+   QR/links are `https://craftstation.com/pair?host=…#token=…`. Set
+   `CRAFTSTATION_REMOTE_ACCESS_PAIRING_APP_URL` only to override that host.
 4. Rebuild the app (`cap sync` + `pnpm run dev:ios`) so the entitlement + plugin
    ship. Universal-link routing **cannot be exercised in the simulator** until
    the app is built with the entitlement _and_ the AASA is served over https.
 
-**Gotcha — preserve the poracode.com pairing entry.** `buildPairingUrl`
+**Gotcha — preserve the craftstation.com pairing entry.** `buildPairingUrl`
 (`src/shared/remote/pairingUrl.ts`) intentionally mints
-`https://poracode.com/pair`. Existing native installs claim that universal link
+`https://craftstation.com/pair`. Existing native installs claim that universal link
 before the browser sees the redirect; browser users are redirected to
-`https://app.poracode.com/pair`.
+`https://app.craftstation.com/pair`.
 
 ## Troubleshooting
 
 - **"Load failed" on Pair** → almost always ATS or CORS (see [Why dev mode
   matters](#why-dev-mode-matters)). Confirm the server advertised loopback
   (`grep "listening at" server log` → `http://127.0.0.1:49152/`) and that you
-  ran with `PORACODE_IS_DEV=1`. Sanity-check CORS:
+  ran with `CRAFTSTATION_IS_DEV=1`. Sanity-check CORS:
   ```bash
   curl -s -D - -o /dev/null -H "Origin: http://localhost:3100" \
-    http://127.0.0.1:49152/.well-known/poracode/environment | grep -i access-control
+    http://127.0.0.1:49152/.well-known/craftstation/environment | grep -i access-control
   ```
-- **"data dir … is in use by another Poracode process (pid N)"** → a desktop
+- **"data dir … is in use by another CraftStation process (pid N)"** → a desktop
   app or a prior server holds the lock. Kill it (`kill N`) or run with a separate
-  `PORACODE_BASE_DIR`.
+  `CRAFTSTATION_BASE_DIR`.
 - **Invalid pairing token** → tokens are single-use and expire in 10 min; mint a
   fresh one with `SIGUSR2` (above).
 - **`@capacitor/app` not found at runtime in the sim** → the plugin is native;

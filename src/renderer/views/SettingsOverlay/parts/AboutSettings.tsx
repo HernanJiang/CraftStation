@@ -1,19 +1,18 @@
-import { useState } from "react";
-import { Button, toast } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { Download, ExternalLink, RefreshCw } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { isRemoteSession, readBridge } from "@/renderer/bridge";
-import { ConfirmDialog, PixelLoader } from "@/renderer/components/common";
+import { readBridge } from "@/renderer/bridge";
+import { PixelLoader } from "@/renderer/components/common";
 import { useUpdateStore } from "@/renderer/state/updateStore";
 import { BrandWordmark } from "@/renderer/components/common/BrandWordmark";
 import { productNameFor } from "@/shared/channel";
 import { formatBytes } from "@/shared/formatBytes";
-import { SettingRow, SettingsPage } from "./SettingsForm";
+import { SettingsPage } from "./SettingsForm";
 import appIconStableUrl from "../../../../../build/icon.png";
 import appIconNightlyUrl from "../../../../../build/icon-nightly.png";
 
-const GITHUB_REPO = "https://github.com/SDSLeon/lightcode";
-const WEBSITE_URL = "https://poracode.com/";
+const GITHUB_REPO = "https://github.com/SDSLeon/craftstation";
+const WEBSITE_URL = "https://craftstation.com/";
 
 function AboutLink(props: { href: string; children: React.ReactNode }) {
   return (
@@ -100,7 +99,7 @@ function UpdateButton() {
             // Updater failures already surface via onUpdateStatus (toast). This
             // catch only keeps an IPC transport rejection from bubbling to the
             // window as an unhandled rejection, which renders the crash screen.
-            console.error("[poracode][updates] check-for-update failed", error);
+            console.error("[craftstation][updates] check-for-update failed", error);
           })
       }
     >
@@ -112,34 +111,9 @@ function UpdateButton() {
 export function AboutSettings() {
   const { t } = useLingui();
   const bridge = readBridge();
-  const [showMigrationConfirm, setShowMigrationConfirm] = useState(false);
-  const [migrationPending, setMigrationPending] = useState(false);
   const productName = productNameFor(bridge.channel);
   const appIconUrl = bridge.channel === "nightly" ? appIconNightlyUrl : appIconStableUrl;
   const currentYear = new Date().getFullYear();
-
-  const importLegacyData = async () => {
-    setShowMigrationConfirm(false);
-    setMigrationPending(true);
-    try {
-      const result = await bridge.requestLegacyDataMigration();
-      if (result.status === "no-legacy-data") {
-        toast.warning(t`No Lightcode data was found.`);
-        return;
-      }
-      if (result.status === "unavailable") {
-        toast.warning(t`Lightcode data import is unavailable with a custom data folder.`);
-        return;
-      }
-      await bridge.relaunchApp();
-    } catch (error) {
-      toast.danger(
-        error instanceof Error ? error.message : t`Couldn't schedule the Lightcode data import.`,
-      );
-    } finally {
-      setMigrationPending(false);
-    }
-  };
 
   return (
     <>
@@ -193,29 +167,6 @@ export function AboutSettings() {
           </div>
         </div>
 
-        {!isRemoteSession() && !bridge.isDev ? (
-          <div className="mt-8 border-t border-[var(--hairline)] pt-6">
-            <SettingRow
-              title={t`Import Lightcode data`}
-              description={
-                <Trans>
-                  Copy all Lightcode data into Poracode. Poracode restarts and keeps a complete
-                  backup of its current data.
-                </Trans>
-              }
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                isPending={migrationPending}
-                onPress={() => setShowMigrationConfirm(true)}
-              >
-                <Trans>Import again</Trans>
-              </Button>
-            </SettingRow>
-          </div>
-        ) : null}
-
         <div className="mt-8 space-y-3 border-t border-[var(--hairline)] pt-6">
           <AboutLink href={WEBSITE_URL}>
             <Trans comment="External link to the product website">Website</Trans>
@@ -242,21 +193,6 @@ export function AboutSettings() {
           <Trans>&copy; {currentYear} Serhii Vecherenko. All rights reserved.</Trans>
         </p>
       </SettingsPage>
-      <ConfirmDialog
-        isOpen={showMigrationConfirm}
-        title={t`Import Lightcode data again?`}
-        body={
-          <Trans>
-            Poracode will restart, back up its current data, and replace it with a complete copy of
-            your Lightcode data.
-          </Trans>
-        }
-        confirmLabel={t`Import and restart`}
-        confirmVariant="primary"
-        status="warning"
-        onConfirm={() => void importLegacyData()}
-        onClose={() => setShowMigrationConfirm(false)}
-      />
     </>
   );
 }

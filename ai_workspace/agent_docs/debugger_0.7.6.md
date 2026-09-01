@@ -82,10 +82,10 @@ Tests       18 failed | 9616 passed | 48 skipped (9682)
 其中 16 项属于稳定既有基线：
 
 - `remoteProcedureRouter.test.ts`：1 项；
-- `poracodeData.migrate.test.ts`：8 项；
+- `craftstationData.migrate.test.ts`：8 项；
 - `channel.config-parity.test.ts`：2 项；
 - `channel.test.ts`：1 项；
-- `poracodePaths.test.ts`：2 项；
+- `craftstationPaths.test.ts`：2 项；
 - `probeCwd.test.ts`：2 项。
 
 另外两项来自：

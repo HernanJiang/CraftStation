@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// Poracode no longer bundles the Pi SDK; terminal + RPC modes drive the user's
+// CraftStation no longer bundles the Pi SDK; terminal + RPC modes drive the user's
 // installed `pi`. These CLI-process checks run against that binary and skip when
 // it is not present.
 function resolveSystemPi(): string | undefined {
@@ -86,7 +86,7 @@ describe.runIf(process.platform === "darwin" && SYSTEM_PI !== undefined)("Pi CLI
   let requestBodies: string[];
 
   beforeEach(async () => {
-    root = mkdtempSync(join(tmpdir(), "poracode-pi-cli-"));
+    root = mkdtempSync(join(tmpdir(), "craftstation-pi-cli-"));
     agentDir = join(root, "agent");
     projectDir = join(root, "project");
     executable = SYSTEM_PI as string;

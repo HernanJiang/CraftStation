@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { parsePairingLaunch, parsePairingUrl, setPairingLaunch } from "./pairing";
 
 /**
- * Universal Links: a pairing link (`https://poracode.com/pair?host=…#token=…`)
+ * Universal Links: a pairing link (`https://craftstation.com/pair?host=…#token=…`)
  * opens the installed app through the associated-domains entitlement instead of
  * the hosted PWA. Capacitor's App plugin delivers the tapped URL — on a cold
  * start via `getLaunchUrl()`, and while the app is already running via the

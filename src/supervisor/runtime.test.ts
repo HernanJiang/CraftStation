@@ -17,7 +17,7 @@ import {
   type HarnessRuntimeAdapter,
 } from "@/shared/crafting";
 import { TranscriptBuffer } from "@/shared/transcriptBuffer";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { setUsageSecret } from "@/shared/usageSecretStore";
 import type { SessionRuntime } from "./runtime/sessionTypes";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
@@ -93,10 +93,10 @@ import { SupervisorRuntime } from "./supervisorRuntime";
 
 const tempDirs: string[] = [];
 const runtimesToDispose: SupervisorRuntime[] = [];
-const poracodeDataDirBeforeTests = process.env.PORACODE_DATA_DIR;
+const craftstationDataDirBeforeTests = process.env.CRAFTSTATION_DATA_DIR;
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-runtime-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-runtime-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -121,10 +121,10 @@ afterEach(async () => {
   // string "undefined" and create `./undefined/settings.json` in cwd on
   // the next `SupervisorRuntime` construction. Use `delete` when the
   // original value was absent; assign otherwise.
-  if (poracodeDataDirBeforeTests === undefined) {
-    delete process.env.PORACODE_DATA_DIR;
+  if (craftstationDataDirBeforeTests === undefined) {
+    delete process.env.CRAFTSTATION_DATA_DIR;
   } else {
-    process.env.PORACODE_DATA_DIR = poracodeDataDirBeforeTests;
+    process.env.CRAFTSTATION_DATA_DIR = craftstationDataDirBeforeTests;
   }
   taskkillSpawnSyncMock.mockReset();
   taskkillSpawnSyncMock.mockReturnValue({ error: undefined, status: 0 });
@@ -1187,7 +1187,7 @@ describe("SupervisorRuntime thread input", () => {
     vi.useFakeTimers();
     process.env.VITE_DEV_SERVER_URL = "http://localhost:5173";
     const tempDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = tempDir;
+    process.env.CRAFTSTATION_DATA_DIR = tempDir;
     const runtime = makeRuntime(() => undefined);
     const session = createRuntimeSession({ prevChunk: "" });
 
@@ -2423,7 +2423,7 @@ describe("SupervisorRuntime thread input", () => {
     ).cliHookPluginCoordinator.resolvePluginEnvForSpawn = vi.fn<
       (input: unknown) => Promise<{ env: Record<string, string>; extraArgs: string[] }>
     >(async () => ({
-      env: { PORACODE_HOOK_URL: "http://127.0.0.1:43123/v1/agent-event" },
+      env: { CRAFTSTATION_HOOK_URL: "http://127.0.0.1:43123/v1/agent-event" },
       extraArgs: ["--enable", "hooks"],
     }));
 
@@ -2500,7 +2500,7 @@ describe("SupervisorRuntime thread input", () => {
     ).cliHookPluginCoordinator.resolvePluginEnvForSpawn = vi.fn<
       (input: unknown) => Promise<{ env: Record<string, string>; extraArgs: string[] }>
     >(async () => ({
-      env: { PORACODE_HOOK_URL: "http://127.0.0.1:43123/v1/agent-event" },
+      env: { CRAFTSTATION_HOOK_URL: "http://127.0.0.1:43123/v1/agent-event" },
       extraArgs: ["--enable", "hooks"],
     }));
 
@@ -2724,7 +2724,7 @@ describe("SupervisorRuntime Codex profile login", () => {
   async function startLoginForHost(platform: NodeJS.Platform) {
     return withPlatform(platform, async () => {
       const tempDir = makeTempDir();
-      process.env.PORACODE_DATA_DIR = tempDir;
+      process.env.CRAFTSTATION_DATA_DIR = tempDir;
       const emitted: unknown[] = [];
       const runtime = makeRuntime((event) => emitted.push(event));
       const account = runtime.createCodexProfile({ label: `${platform} profile` });
@@ -2761,7 +2761,7 @@ describe("SupervisorRuntime Codex profile login", () => {
       "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
     );
     expect(script).not.toContain("model_catalog_json");
-    expect(script).toContain("poracode-login-complete=lc_supervisor_test");
+    expect(script).toContain("craftstation-login-complete=lc_supervisor_test");
     expect(script).not.toContain(managedHome);
     expect(JSON.stringify(result)).not.toContain(managedHome);
     expect(emitted).toContainEqual({ type: "thread-reset", threadId: "login:win32" });
@@ -2783,14 +2783,14 @@ describe("SupervisorRuntime Codex profile login", () => {
       "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
     );
     expect(script).not.toContain("model_catalog_json");
-    expect(script).toContain("poracode-login-complete=lc_supervisor_test");
+    expect(script).toContain("craftstation-login-complete=lc_supervisor_test");
     expect(script).not.toContain(managedHome);
   });
 
   it("rejects WSL projection instead of passing a Windows managed home into another host", async () => {
     await withPlatform("win32", async () => {
       const tempDir = makeTempDir();
-      process.env.PORACODE_DATA_DIR = tempDir;
+      process.env.CRAFTSTATION_DATA_DIR = tempDir;
       const runtime = makeRuntime(() => undefined);
       const account = runtime.createCodexProfile({ label: "WSL blocked" });
 
@@ -2813,7 +2813,7 @@ describe("SupervisorRuntime Codex profile login", () => {
   ] as const)("rejects %s account login before spawning a shell", async (kind, label, code) => {
     await withPlatform("win32", async () => {
       const tempDir = makeTempDir();
-      process.env.PORACODE_DATA_DIR = tempDir;
+      process.env.CRAFTSTATION_DATA_DIR = tempDir;
       const runtime = makeRuntime(() => undefined);
       const account =
         kind === "unknown"
@@ -2842,7 +2842,7 @@ describe("SupervisorRuntime Grok profile login", () => {
 
   function makeGrokRuntime() {
     const tempDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = tempDir;
+    process.env.CRAFTSTATION_DATA_DIR = tempDir;
     const emitted: unknown[] = [];
     const runtime = makeRuntime((event) => emitted.push(event));
     return { emitted, runtime };
@@ -3708,8 +3708,8 @@ describe("SupervisorRuntime craftAgent", () => {
 
   it("binds an explicit OpenAI-compatible account to an isolated Native Codex host", async () => {
     const baseDir = makeTempDir();
-    process.env.PORACODE_DATA_DIR = baseDir;
-    const cacheDir = resolvePoracodePaths(baseDir).cacheDir;
+    process.env.CRAFTSTATION_DATA_DIR = baseDir;
+    const cacheDir = resolveCraftStationPaths(baseDir).cacheDir;
     const stagingBucket = "openai-compatible:pending";
     setUsageSecret(cacheDir, stagingBucket, "baseUrl", "https://relay.example.com/v1");
     setUsageSecret(cacheDir, stagingBucket, "apiKey", "sk-runtime-test");
@@ -3965,7 +3965,7 @@ describe("SupervisorRuntime craftAgent", () => {
 
   describe("Grok account control plane", () => {
     beforeEach(() => {
-      process.env.PORACODE_DATA_DIR = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = makeTempDir();
     });
 
     function addGrokAccount(

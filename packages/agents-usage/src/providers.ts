@@ -99,7 +99,7 @@ export function builtInUsageProviderDescriptors(): UsageProviderDescriptor[] {
 }
 
 /**
- * The canonical catalog of every usage provider Poracode supports, the single
+ * The canonical catalog of every usage provider CraftStation supports, the single
  * source of truth for the renderer's provider list and the supervisor's default
  * collection set so the two never drift.
  *

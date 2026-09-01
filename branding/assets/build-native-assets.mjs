@@ -1,4 +1,4 @@
-// Renders the Poracode SVG masters into the committed Capacitor native
+// Renders the CraftStation SVG masters into the committed Capacitor native
 // projects (ios/, android/): app icons, adaptive-icon layers, and splash
 // screens. Companion to build-icons.mjs (desktop/website/PWA assets).
 // Idempotent — overwrites in place; skips a platform whose native project is
@@ -13,17 +13,17 @@ import { fileURLToPath } from "node:url";
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(HERE, "../..");
 
-// Tile color baked into poracode-icon.svg.
+// Tile color baked into craftstation-icon.svg.
 const TILE_BG = "#0E0E14";
 // App/window background (matches capacitor.config.ts backgroundColor).
 const SPLASH_BG = "#070709";
-// Glyph fill used by poracode-icon.svg for the "P".
+// Glyph fill used by craftstation-icon.svg for the "P".
 const GLYPH_COLOR = "#EAF0FB";
 
-const iconSvg = await readFile(`${HERE}poracode-icon.svg`);
-// poracode-glyph.svg uses currentColor (renders black outside a DOM) — pin it.
+const iconSvg = await readFile(`${HERE}craftstation-icon.svg`);
+// craftstation-glyph.svg uses currentColor (renders black outside a DOM) — pin it.
 const glyphSvg = Buffer.from(
-  (await readFile(`${HERE}poracode-glyph.svg`, "utf8")).replaceAll("currentColor", GLYPH_COLOR),
+  (await readFile(`${HERE}craftstation-glyph.svg`, "utf8")).replaceAll("currentColor", GLYPH_COLOR),
 );
 // Legacy round launcher: same glyph on a full-bleed disc.
 const roundIconSvg = Buffer.from(

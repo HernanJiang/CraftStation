@@ -33,6 +33,7 @@ export class StructuredTurnQueue {
     // Reuse the renderer-supplied id when present, but still emit the canonical
     // events. The originating renderer dedupes them by id, while other paired
     // renderers need this broadcast to see the submitted user message.
+    const turnId = turn.turnId ?? `turn-${randomUUID()}`;
     const optimisticItemId =
       session.presentationMode === "gui" && turn.prompt.length > 0
         ? this.emitOptimisticUserMessage(
@@ -40,9 +41,11 @@ export class StructuredTurnQueue {
             turn.prompt,
             turn.segments,
             turn.userMessageItemId,
+            turnId,
           )
         : undefined;
     const startOptions = {
+      ...(session.agentKind === "opencode" ? { turnId } : {}),
       ...(optimisticItemId ? { userMessageItemId: optimisticItemId } : {}),
       ...(turn.inlineInstructions ? { inlineInstructions: turn.inlineInstructions } : {}),
     };
@@ -68,7 +71,12 @@ export class StructuredTurnQueue {
     this.ctx.beginFailureEpisode(session);
     const prompt = session.pendingLaunchPrompt;
     session.pendingLaunchPrompt = undefined;
-    void session.structuredSession.startTurn(prompt, session.config).catch((error) => {
+    const options =
+      session.agentKind === "opencode" ? { turnId: `turn-${randomUUID()}` } : undefined;
+    const startTurn = options
+      ? session.structuredSession.startTurn(prompt, session.config, undefined, options)
+      : session.structuredSession.startTurn(prompt, session.config);
+    void startTurn.catch((error) => {
       if (this.ctx.sessions.get(session.threadId)?.instanceId !== session.instanceId) {
         return;
       }
@@ -89,8 +97,9 @@ export class StructuredTurnQueue {
     prompt: string,
     segments?: PromptSegment[],
     requestedItemId?: string,
+    requestedTurnId?: string,
   ): string {
-    const turnId = `turn-${randomUUID()}`;
+    const turnId = requestedTurnId ?? `turn-${randomUUID()}`;
     const itemId = requestedItemId ?? `user-${randomUUID()}`;
     this.ctx.emit({
       type: "thread-runtime-event",

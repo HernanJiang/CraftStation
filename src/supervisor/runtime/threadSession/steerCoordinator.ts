@@ -106,8 +106,8 @@ export class SteerCoordinator {
       }
       console.error("[supervisor] failed to interrupt structured turn:", error);
       captureSupervisorException(error, {
-        "poracode.feature_area": "supervisor-runtime",
-        "poracode.provider": session.agentKind,
+        "craftstation.feature_area": "supervisor-runtime",
+        "craftstation.provider": session.agentKind,
       });
     });
   }
@@ -138,8 +138,8 @@ export class SteerCoordinator {
         // the user's replacement prompt if the provider rejects the control.
         console.error("[supervisor] failed to prepare structured steer interrupt:", error);
         captureSupervisorException(error, {
-          "poracode.feature_area": "supervisor-runtime",
-          "poracode.provider": session.agentKind,
+          "craftstation.feature_area": "supervisor-runtime",
+          "craftstation.provider": session.agentKind,
         });
       }
     }
@@ -174,6 +174,7 @@ export class SteerCoordinator {
       prompt: slot.prompt,
       config: slot.config,
       ...(slot.segments ? { segments: slot.segments } : {}),
+      ...(slot.turnId ? { turnId: slot.turnId } : {}),
       ...(slot.userMessageItemId ? { userMessageItemId: slot.userMessageItemId } : {}),
       ...(slot.inlineInstructions ? { inlineInstructions: slot.inlineInstructions } : {}),
     };

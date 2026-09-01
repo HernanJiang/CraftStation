@@ -11,8 +11,7 @@ import type { WslBridgeClient } from "../wsl/bridge/client";
 import { execGit, removeWslPathViaBridge } from "./exec";
 
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
-const REF_ROOT = "refs/poracode/checkpoints";
-const LEGACY_REF_ROOT = "refs/lightcode/checkpoints";
+const REF_ROOT = "refs/craftstation/checkpoints";
 
 type CheckpointMetadata = FileCheckpointRecord | FileCheckpointTurn;
 
@@ -23,7 +22,7 @@ export function buildCheckpointCommitInput(
 ): { args: string[]; input: string } {
   return {
     args: ["commit-tree", tree, ...(head ? ["-p", head] : []), "-F", "-"],
-    input: `Poracode checkpoint\n\n${JSON.stringify(metadata)}\n`,
+    input: `CraftStation checkpoint\n\n${JSON.stringify(metadata)}\n`,
   };
 }
 
@@ -89,9 +88,7 @@ export class GitCheckpointService {
     threadId: string;
     projectLocation: ProjectLocation;
   }): Promise<{ checkpoints: FileCheckpointRecord[]; turns: FileCheckpointTurn[] }> {
-    const prefixes = [REF_ROOT, LEGACY_REF_ROOT].map(
-      (root) => `${root}/${refSegment(input.threadId)}/`,
-    );
+    const prefixes = [`${REF_ROOT}/${refSegment(input.threadId)}/`];
     const output = await execGit(input.projectLocation, [
       "for-each-ref",
       "--format=%(refname)",
@@ -132,11 +129,9 @@ export class GitCheckpointService {
     projectLocation: ProjectLocation,
     input: { threadId: string; checkpointItemId: string },
   ): Promise<FileCheckpointRecord> {
-    for (const root of [REF_ROOT, LEGACY_REF_ROOT]) {
-      const ref = checkpointRef(input.threadId, input.checkpointItemId, root);
-      const metadata = await this.readCheckpointMetadata(projectLocation, ref);
-      if (metadata) return metadata;
-    }
+    const ref = checkpointRef(input.threadId, input.checkpointItemId);
+    const metadata = await this.readCheckpointMetadata(projectLocation, ref);
+    if (metadata) return metadata;
     throw new Error(`No file checkpoint exists for item ${input.checkpointItemId}.`);
   }
 
@@ -236,7 +231,7 @@ async function createTempIndexPath(projectLocation: ProjectLocation): Promise<st
   const indexPath = (
     await execGit(projectLocation, ["rev-parse", "--path-format=absolute", "--git-path", "index"])
   ).trim();
-  return `${indexPath}.poracode-${randomUUID()}`;
+  return `${indexPath}.craftstation-${randomUUID()}`;
 }
 
 async function removeTempIndex(projectLocation: ProjectLocation, tempIndex: string): Promise<void> {

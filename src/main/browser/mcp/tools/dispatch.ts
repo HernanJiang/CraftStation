@@ -63,15 +63,15 @@ export async function dispatchTool(
       return {
         server: "browser",
         description:
-          "Controls the Poracode in-app browser panel through tabs, navigation, inspection, input, screenshots, console, network, dialogs, cookies, and storage.",
+          "Controls the CraftStation in-app browser panel through tabs, navigation, inspection, input, screenshots, console, network, dialogs, cookies, and storage.",
         guidance: [
-          "Prefer this MCP server over shell-driven browser automation when a page is visible in Poracode.",
+          "Prefer this MCP server over shell-driven browser automation when a page is visible in CraftStation.",
           "Call enable before a browsing session and disable before pausing for user input or finishing.",
           "Start with snapshot or find to identify @e refs before click, fill, type, hover, get, is, or scroll.",
           "Use fill for form fields when replacing text; use type only when appending text to the current value.",
           "Use wait after navigation or mutations instead of fixed sleeps unless a plain ms delay is intentional.",
           "Use requests and console after actions to verify web app behavior and diagnose failures.",
-          "Use eval, cookies, and storage only when the corresponding Poracode setting allows it.",
+          "Use eval, cookies, and storage only when the corresponding CraftStation setting allows it.",
         ],
         workflows: {
           inspect: ["list_tabs", "snapshot", "find", "get", "is"],
@@ -270,7 +270,7 @@ export async function dispatchTool(
     }
     case "eval": {
       if (!ctx.allowEval) {
-        return { error: "eval is disabled in Poracode settings" };
+        return { error: "eval is disabled in CraftStation settings" };
       }
       const { tab } = await requireTab(ctx, payload);
       const expression = String(payload.js ?? "");
@@ -489,7 +489,7 @@ export async function dispatchTool(
       if (!ctx.allowDataAccess) {
         return {
           error:
-            "cookies is disabled. Enable 'Allow agents to read/write cookies and storage' in Poracode settings.",
+            "cookies is disabled. Enable 'Allow agents to read/write cookies and storage' in CraftStation settings.",
         };
       }
       const { tab } = await requireTab(ctx, payload);
@@ -520,7 +520,7 @@ export async function dispatchTool(
       if (!ctx.allowDataAccess) {
         return {
           error:
-            "storage is disabled. Enable 'Allow agents to read/write cookies and storage' in Poracode settings.",
+            "storage is disabled. Enable 'Allow agents to read/write cookies and storage' in CraftStation settings.",
         };
       }
       const { tab } = await requireTab(ctx, payload);

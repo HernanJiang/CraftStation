@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useLingui } from "@lingui/react/macro";
 import { Check, Hourglass, ListChecks } from "lucide-react";
 import { PixelLoader } from "@/renderer/components/common/PixelLoader";
 import { useAppStore } from "@/renderer/state/appStore";
@@ -60,6 +61,7 @@ function StepStatusIcon({ status }: { status: ThreadTodoStepStatus }) {
  * 默认缩成小胶囊；点击在原地向上展开大卡片，列出每一步的详细状态。
  */
 export function PlanProgressCapsule(props: { threadId: string; todo: ThreadTodoDockState }) {
+  const { t } = useLingui();
   const { threadId, todo } = props;
   const triggerRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
@@ -88,7 +90,7 @@ export function PlanProgressCapsule(props: { threadId: string; todo: ThreadTodoD
     >
       <button
         type="button"
-        aria-label={`计划进度 ${completed}/${total}`}
+        aria-label={t`Plan progress ${completed}/${total}`}
         aria-expanded={pos !== null}
         onClick={toggle}
         className={`flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium transition-colors ${
@@ -96,7 +98,7 @@ export function PlanProgressCapsule(props: { threadId: string; todo: ThreadTodoD
         }`}
       >
         <ListChecks className="size-3.5 shrink-0 text-muted" aria-hidden="true" />
-        <span>进程</span>
+        <span>{t`Progress`}</span>
         <span className="tabular-nums">
           {completed}/{total}
         </span>
@@ -109,7 +111,7 @@ export function PlanProgressCapsule(props: { threadId: string; todo: ThreadTodoD
               data-testid="plan-progress-popover"
             >
               <div className="flex items-center justify-between text-[11px]">
-                <span className="font-semibold text-foreground">计划进度</span>
+                <span className="font-semibold text-foreground">{t`Plan progress`}</span>
                 <span className="tabular-nums text-neutral-400">
                   {completed}/{total}
                 </span>
@@ -135,7 +137,7 @@ export function PlanProgressCapsule(props: { threadId: string; todo: ThreadTodoD
               </ul>
               {activeStep && todo.steps[activeIndex]?.status !== "completed" ? (
                 <p className="mt-1.5 truncate text-[10px] text-neutral-500">
-                  当前：{activeStep.text}
+                  {t`Current: ${activeStep.text}`}
                 </p>
               ) : null}
             </div>,

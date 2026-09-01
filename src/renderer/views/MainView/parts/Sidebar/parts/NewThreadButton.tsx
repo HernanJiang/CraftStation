@@ -25,7 +25,7 @@ export function NewThreadButton(props: {
   /**
    * Docked into the flat list's head row next to the project filter instead
    * of taking a full-width row. Renders both a labelled button and an
-   * icon-only button; the `.poracode-flat-list-head` container query keeps
+   * icon-only button; the `.craftstation-flat-list-head` container query keeps
    * exactly one visible — label when the row is wide, icon (tooltip carries
    * the name) when it is tight.
    */
@@ -88,7 +88,7 @@ export function NewThreadButton(props: {
         <div ref={newThreadRef} className="flex shrink-0 items-center">
           <button
             type="button"
-            className={`poracode-flat-new-thread-full flex h-8 shrink-0 cursor-grab items-center gap-1.5 rounded-3xl px-2 text-xs outline-none transition-colors active:cursor-grabbing focus-visible:focus-ring ${stateClass}`}
+            className={`craftstation-flat-new-thread-full flex h-8 shrink-0 cursor-grab items-center gap-1.5 rounded-3xl px-2 text-xs outline-none transition-colors active:cursor-grabbing focus-visible:focus-ring ${stateClass}`}
             onClick={props.onPress}
           >
             <Plus className="size-3.5" />
@@ -97,7 +97,7 @@ export function NewThreadButton(props: {
           </button>
           <SidebarButton
             iconOnly
-            className="poracode-flat-new-thread-icon cursor-grab active:cursor-grabbing"
+            className="craftstation-flat-new-thread-icon cursor-grab active:cursor-grabbing"
             icon={<Plus className="size-4" />}
             label={t`New thread`}
             isActive={props.isActive}

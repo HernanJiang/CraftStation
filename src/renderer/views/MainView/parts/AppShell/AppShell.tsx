@@ -214,7 +214,7 @@ function ShellSidebarSpacer(props: { hasHeaders: boolean; forceSidebarExpanded: 
   if (!isOverlay) return null;
   return (
     <div
-      className={`poracode-sidebar-spacer shrink-0 ${!props.hasHeaders ? "-mt-5 h-[calc(100%+0.75rem)]" : ""}`}
+      className={`craftstation-sidebar-spacer shrink-0 ${!props.hasHeaders ? "-mt-5 h-[calc(100%+0.75rem)]" : ""}`}
       style={{ width: SIDEBAR_COLLAPSED_WIDTH, minWidth: SIDEBAR_COLLAPSED_WIDTH }}
     />
   );
@@ -244,9 +244,9 @@ function ShellSidebarAside(props: {
   return (
     <aside
       ref={sidebarRef}
-      className={`poracode-sidebar-aside flex min-h-0 flex-col overflow-hidden transition-[border-color] duration-200 ${
+      className={`craftstation-sidebar-aside flex min-h-0 flex-col overflow-hidden transition-[border-color] duration-200 ${
         effectiveIsOverlay
-          ? `poracode-sidebar-aside--overlay fixed inset-y-0 left-0 z-[60] border-r border-[color:var(--border)] bg-background shadow-2xl transition-transform duration-200 ${
+          ? `craftstation-sidebar-aside--overlay fixed inset-y-0 left-0 z-[60] border-r border-[color:var(--border)] bg-background shadow-2xl transition-transform duration-200 ${
               effectiveClosingOverlay || !overlayReady ? "-translate-x-full" : "translate-x-0"
             }`
           : `relative ${!hasHeaders ? "-mt-5 h-[calc(100%+0.75rem)]" : ""}`
@@ -257,11 +257,11 @@ function ShellSidebarAside(props: {
           keeps it so the rail clears the hidden-inset traffic-light controls. */}
       {sidebarHeader && (isMac() || !effectiveIsCollapsed || effectiveIsOverlay) && (
         <div
-          className={`poracode-overlay-header flex shrink-0 items-center gap-3 ${
+          className={`craftstation-overlay-header flex shrink-0 items-center gap-3 ${
             isMac() ? "pl-3 pr-2 pt-0.5" : "px-2"
           } ${
             effectiveIsOverlay
-              ? "poracode-overlay-header--no-drag bg-background"
+              ? "craftstation-overlay-header--no-drag bg-background"
               : "bg-[var(--content-background)]"
           }`}
           style={{
@@ -274,7 +274,7 @@ function ShellSidebarAside(props: {
           {sidebarHeader}
         </div>
       )}
-      <div className="poracode-sidebar-body min-h-0 flex-1 overflow-hidden">{sidebar}</div>
+      <div className="craftstation-sidebar-body min-h-0 flex-1 overflow-hidden">{sidebar}</div>
     </aside>
   );
 }
@@ -299,7 +299,7 @@ function ShellSidebarResizeHandle(props: {
   if (effectiveIsCollapsed || effectiveIsOverlay) return null;
   return (
     <div
-      className={`poracode-resize-handle ${!props.hasHeaders ? "-mt-5 h-[calc(100%+0.75rem)]" : ""}`}
+      className={`craftstation-resize-handle ${!props.hasHeaders ? "-mt-5 h-[calc(100%+0.75rem)]" : ""}`}
       style={
         props.hasHeaders
           ? {
@@ -587,7 +587,7 @@ export function AppShell(props: {
   const workspaceContentHeader = contentHeader ? (
     <div
       data-craftstation-chat-header=""
-      className={`poracode-overlay-header ${macosTrafficLightPadClass} flex h-[38px] shrink-0 items-center gap-3 bg-[var(--content-background)] px-2`}
+      className={`craftstation-overlay-header ${macosTrafficLightPadClass} flex h-[38px] shrink-0 items-center gap-3 bg-[var(--content-background)] px-2`}
       style={{
         // A dedicated global titlebar already owns the native Windows controls
         // above this row. Other PageLayout consumers still use the native
@@ -608,7 +608,7 @@ export function AppShell(props: {
   const workspaceMain = (
     <main ref={mainRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
       {isMac() && !contentHeader && (
-        <div aria-hidden="true" className="poracode-content-drag-region" />
+        <div aria-hidden="true" className="craftstation-content-drag-region" />
       )}
       <div className="relative h-full min-h-0">{content}</div>
     </main>
@@ -655,7 +655,7 @@ export function AppShell(props: {
   return (
     <div
       ref={shellRef}
-      className="poracode-shell flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground"
+      className="craftstation-shell flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground"
       style={hasHeaders ? { paddingTop: 0 } : undefined}
     >
       <MacCollapsedTracker shellRef={shellRef} forceSidebarExpanded={forceSidebarExpanded} />
@@ -663,7 +663,7 @@ export function AppShell(props: {
       {globalHeader ? <div className="shrink-0">{globalHeader}</div> : null}
 
       <div className="craftstation-shell-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        {!hasHeaders && <div aria-hidden="true" className="poracode-drag-region" />}
+        {!hasHeaders && <div aria-hidden="true" className="craftstation-drag-region" />}
 
         <ShellSidebarBackdrop forceSidebarExpanded={forceSidebarExpanded} />
         <ShellSidebarSpacer hasHeaders={hasHeaders} forceSidebarExpanded={forceSidebarExpanded} />

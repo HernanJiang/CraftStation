@@ -56,12 +56,11 @@ export const opencodeDefaultCapabilities: AgentCapability = {
   supportsResume: true,
   supportsOneShot: true,
   supportsDirectInput: true,
-  liveInputMode: "terminal",
-  presentationMode: "terminal",
-  // GUI presentation routes through `OpencodeSdkSession` (long-lived
-  // `opencode serve` + SDK SSE stream); terminal stays the default and uses
-  // the same SDK helper for one-shot session-id allocation.
-  presentationModes: ["terminal", "gui"],
+  liveInputMode: "server",
+  presentationMode: "gui",
+  // The official `opencode serve` + SDK/SSE session is the product surface.
+  // The TUI remains an implementation/debugging tool, not a CraftStation UI.
+  presentationModes: ["gui"],
   defaultApprovalPolicy: "yolo",
   bypassPermissions: { approvalPolicy: "yolo" },
   // MCP is provider-level for OpenCode: the composer shows the effective set

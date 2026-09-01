@@ -4,17 +4,17 @@ import { pluginDiagnostic, type PluginDiagnostic } from "./diagnostics";
 import type { AgentPluginManifest } from "./manifest";
 
 /**
- * Poracode's client extension namespace.
+ * CraftStation's client extension namespace.
  *
  * The specification defines exactly two component types — skills and `mcp.json`
  * servers — and reserves `extensions` with reverse-domain keys for anything a
- * client needs on top. Poracode keeps that surface deliberately small: display
+ * client needs on top. CraftStation keeps that surface deliberately small: display
  * metadata and host/project support, nothing that duplicates a component type.
  *
  * @see https://agent-plugins.org/specification
  */
 
-export const PORACODE_EXTENSION_NAMESPACE = "com.poracode.client";
+export const CRAFTSTATION_EXTENSION_NAMESPACE = "com.craftstation.client";
 
 export const pluginCategorySchema = z.enum([
   "automation",
@@ -43,7 +43,7 @@ export const pluginSkillPolicySchema = z
   .strict();
 export type PluginSkillPolicyEntry = z.infer<typeof pluginSkillPolicySchema>;
 
-export const poracodePluginExtensionSchema = z
+export const craftstationPluginExtensionSchema = z
   .object({
     /** Display title. The spec's `name` is an identifier, not a label. */
     title: z.string().min(1).optional(),
@@ -65,15 +65,15 @@ export const poracodePluginExtensionSchema = z
     nativePluginNames: z.array(z.string().min(1)).default([]),
     /** Core skill folder inside the provider-native replacement package. */
     nativeCoreSkill: z.string().min(1).optional(),
-    /** Poracode-owned MCP servers supplied as part of this plugin bundle. */
+    /** CraftStation-owned MCP servers supplied as part of this plugin bundle. */
     builtInMcpServerIds: z.array(z.enum(BUILT_IN_MCP_SERVER_IDS)).default([]),
     /** Keyed by skill folder name under `skills/`. */
     skills: z.record(z.string().min(1), pluginSkillPolicySchema).default({}),
   })
   .strict();
-export type PoracodePluginExtension = z.infer<typeof poracodePluginExtensionSchema>;
+export type CraftStationPluginExtension = z.infer<typeof craftstationPluginExtensionSchema>;
 
-export const EMPTY_PORACODE_EXTENSION: PoracodePluginExtension = {
+export const EMPTY_CRAFTSTATION_EXTENSION: CraftStationPluginExtension = {
   category: "developer-tools",
   featured: false,
   communityMaintained: false,
@@ -82,32 +82,32 @@ export const EMPTY_PORACODE_EXTENSION: PoracodePluginExtension = {
   skills: {},
 };
 
-export interface ParsedPoracodeExtension {
-  extension: PoracodePluginExtension;
+export interface ParsedCraftStationExtension {
+  extension: CraftStationPluginExtension;
   diagnostics: PluginDiagnostic[];
 }
 
 /**
- * Reads Poracode's namespace out of a validated manifest.
+ * Reads CraftStation's namespace out of a validated manifest.
  *
- * A malformed block degrades to "no Poracode extras" with a warning; it never
+ * A malformed block degrades to "no CraftStation extras" with a warning; it never
  * rejects the plugin, because the spec-defined components are still valid.
  */
-export function parsePoracodeExtension(manifest: AgentPluginManifest): ParsedPoracodeExtension {
-  const raw = manifest.extensions?.[PORACODE_EXTENSION_NAMESPACE];
-  if (raw === undefined) return { extension: EMPTY_PORACODE_EXTENSION, diagnostics: [] };
+export function parseCraftStationExtension(manifest: AgentPluginManifest): ParsedCraftStationExtension {
+  const raw = manifest.extensions?.[CRAFTSTATION_EXTENSION_NAMESPACE];
+  if (raw === undefined) return { extension: EMPTY_CRAFTSTATION_EXTENSION, diagnostics: [] };
 
-  const parsed = poracodePluginExtensionSchema.safeParse(raw);
+  const parsed = craftstationPluginExtensionSchema.safeParse(raw);
   if (!parsed.success) {
     return {
-      extension: EMPTY_PORACODE_EXTENSION,
+      extension: EMPTY_CRAFTSTATION_EXTENSION,
       diagnostics: [
         pluginDiagnostic(
           "warning",
           "plugin",
           "extension-invalid",
-          `Ignoring '${PORACODE_EXTENSION_NAMESPACE}' extension: ${parsed.error.issues[0]?.message ?? "invalid"}`,
-          PORACODE_EXTENSION_NAMESPACE,
+          `Ignoring '${CRAFTSTATION_EXTENSION_NAMESPACE}' extension: ${parsed.error.issues[0]?.message ?? "invalid"}`,
+          CRAFTSTATION_EXTENSION_NAMESPACE,
         ),
       ],
     };

@@ -53,7 +53,7 @@
 - 触及文件 `oxfmt --check`：17 files 通过。
 - `git diff --check`（触及源码）：通过。
 - 本机真实 CLI：`where opencode / opencode.exe / opencode.cmd` 均未发现，独立复现 **OPENCODE_BINARY_UNAVAILABLE**。
-- 基线失败抽样：`src/shared/poracodePaths.test.ts` 2 failed。期望 `.poracode`，实际 `.craftstation`。与 OpenCode 改动无关，属于既有品牌路径测试未更新。
+- 基线失败抽样：`src/shared/craftstationPaths.test.ts` 2 failed。期望 `.craftstation`，实际 `.craftstation`。与 OpenCode 改动无关，属于既有品牌路径测试未更新。
 
 ### Coder artifact（独立阅读，不升格）
 
@@ -114,7 +114,7 @@ Manager T05/T08 明确要求五类模型真实最小验证或可复现阻塞证�
 ### 观察项（不进入 Fix Execution Order）
 
 - Google OpenCode 组合目前 compile 的是 `google:antigravity-default`，矩阵写 `gemini-2.5-pro`。有真实 CLI 后再决定是否补独立 Gemini Model Item；现在不要求 Coder 为了目录美观改 recipe。
-- 全仓 16 个既有失败（migrate / remote procedure / channel / poracodePaths / probeCwd）与 v0.8 diff 无关。不要为全绿去改这些测试。
+- 全仓 16 个既有失败（migrate / remote procedure / channel / craftstationPaths / probeCwd）与 v0.8 diff 无关。不要为全绿去改这些测试。
 - 全仓 lint 仍可能被既有 `codexRouterOverlay.test.ts:52` 阻断；OpenCode 触及文件 lint 已通过。
 
 既有质量门不得升格：Grok 真实额度、F29、v0.5.0、v0.4 F04、v0.6 F35/F36 继续 FAIL/BLOCKED。

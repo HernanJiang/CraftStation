@@ -338,7 +338,7 @@ async function main() {
   }
 
   // 2. Create the stage in tmp (outside the pnpm workspace).
-  const stageRoot = mkdtempSync(join(tmpdir(), "poracode-stage-"));
+  const stageRoot = mkdtempSync(join(tmpdir(), "craftstation-stage-"));
   console.log(`[stage] root: ${stageRoot}`);
 
   try {
@@ -462,7 +462,7 @@ async function main() {
 
     if (platform === "mac" && !target) {
       // Build updater ZIPs first with the legacy technical executable name so
-      // Lightcode -> Poracode does not trigger Squirrel's broken outer-bundle
+      // CraftStation -> CraftStation does not trigger Squirrel's broken outer-bundle
       // rename. Then build branded DMGs for fresh/manual installs. The second
       // pass overwrites the channel manifest with DMG metadata, so preserve the
       // updater ZIP manifest around it and restore that as the published feed.
@@ -491,7 +491,7 @@ async function main() {
 }
 
 // macOS ZIP updates ship under the legacy executable name as a Squirrel.Mac
-// migration bridge; DMGs and every other platform stay fully Poracode-branded.
+// migration bridge; DMGs and every other platform stay fully CraftStation-branded.
 function macArtifactKindFor(platform, target) {
   return platform === "mac" && target === "zip" ? "updater" : "branded";
 }
@@ -503,7 +503,7 @@ function buildElectronBuilderConfig(macArtifactKind = "branded") {
   // renderer-only transitive peers along.
   //
   // Channel-keyed values come from scripts/electron-builder.shared.cjs.
-  const channel = channelTable.normalizeChannel(process.env.PORACODE_CHANNEL);
+  const channel = channelTable.normalizeChannel(process.env.CRAFTSTATION_CHANNEL);
   const appId = channelTable.appIdFor(channel);
   const productName = channelTable.productNameFor(channel);
   const updaterChannel = channelTable.updaterChannelFor(channel);
@@ -520,7 +520,7 @@ function buildElectronBuilderConfig(macArtifactKind = "branded") {
 
   return `appId: ${appId}
 productName: ${productName}
-copyright: Copyright (C) 2026 Poracode
+copyright: Copyright (C) 2026 CraftStation
 
 directories:
   output: release
@@ -582,7 +582,7 @@ afterPack: build/after-pack.cjs
 publish:
   provider: github
   owner: SDSLeon
-  repo: lightcode${publishChannelLine}
+  repo: craftstation${publishChannelLine}
 
 win:
   target:
@@ -632,7 +632,7 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   extendInfo:
-    NSMicrophoneUsageDescription: Poracode uses the microphone for local voice input in the composer.
+    NSMicrophoneUsageDescription: CraftStation uses the microphone for local voice input in the composer.
   entitlements: ${macEntitlements}
   entitlementsInherit: ${macEntitlementsInherit}
   notarize: true

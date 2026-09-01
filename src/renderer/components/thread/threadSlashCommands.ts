@@ -90,7 +90,7 @@ function dedupeBaseCommands(
  * The one exception: when *both* entries carry complete skill metadata and only
  * the later one knows the skill's SKILL.md path, the path-bearing entry wins.
  * A provider reporting a skill it also loads from disk (Claude's SDK lists the
- * skills Poracode projected into `.claude/skills`) would otherwise erase the
+ * skills CraftStation projected into `.claude/skills`) would otherwise erase the
  * plugin identity and the on-disk path the supervisor's plugin policy and
  * portable-skill fallback depend on. Position follows first sighting.
  */

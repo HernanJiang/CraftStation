@@ -1,5 +1,5 @@
 /**
- * Shared helper for injecting the Poracode in-app browser MCP server into
+ * Shared helper for injecting the CraftStation in-app browser MCP server into
  * agent CLIs. The main process hosts a single Streamable-HTTP MCP endpoint
  * (BrowserMcpIngress); each agent receives a URL + bearer token at launch.
  * No per-thread Node child process.
@@ -26,8 +26,8 @@ export interface BrowserMcpEnv {
 }
 
 export function readBrowserMcpEnv(): BrowserMcpEnv | null {
-  const url = process.env.PORACODE_BROWSER_MCP_URL;
-  const token = process.env.PORACODE_BROWSER_MCP_TOKEN;
+  const url = process.env.CRAFTSTATION_BROWSER_MCP_URL;
+  const token = process.env.CRAFTSTATION_BROWSER_MCP_TOKEN;
   if (!url || !token) return null;
   return { url, token };
 }

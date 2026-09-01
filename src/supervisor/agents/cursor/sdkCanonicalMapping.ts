@@ -36,7 +36,7 @@ export { createCursorSdkMapperState, type CursorSdkMapperState } from "./sdkCano
 export { classifyCursorSdkTool } from "./sdkCanonicalToolMapping";
 
 /**
- * Establish a Poracode user turn before `agent.send()`.
+ * Establish a CraftStation user turn before `agent.send()`.
  *
  * The session owns the optimistic user bubble. Supplying its id tells the
  * mapper that raw/normalized Cursor echoes are acknowledgements, not new chat

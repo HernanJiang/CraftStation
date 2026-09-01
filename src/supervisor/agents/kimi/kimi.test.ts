@@ -63,8 +63,10 @@ describe("createKimiAdapter shape", () => {
     });
   });
 
-  it("declares terminal + GUI presentation and a structured session factory", () => {
-    expect(adapter.capabilities.presentationModes).toEqual(["terminal", "gui"]);
+  it("declares the CraftStation GUI as its only product presentation", () => {
+    expect(adapter.capabilities.presentationModes).toEqual(["gui"]);
+    expect(adapter.capabilities.presentationMode).toBe("gui");
+    expect(adapter.capabilities.liveInputMode).toBe("server");
     expect(typeof adapter.createStructuredSession).toBe("function");
   });
 

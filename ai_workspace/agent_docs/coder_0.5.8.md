@@ -57,7 +57,7 @@ pnpm exec vitest run --configLoader runner src/supervisor/runtime/grokQuotaRealP
 
 ## 环境注意事项（交接给后续角色）
 
-- dev app 运行期间执行 `pnpm install` 会在 `@poracode/codex-protocol` 的 postinstall `generate.mjs` 处 EPERM（`generated.tmp → generated` rename 被 watcher 占用）。本轮已用 copy 恢复 `generated/` 并用 `--ignore-scripts` 完成安装；后续正常 install 前建议先关闭 dev app。
+- dev app 运行期间执行 `pnpm install` 会在 `@craftstation/codex-protocol` 的 postinstall `generate.mjs` 处 EPERM（`generated.tmp → generated` rename 被 watcher 占用）。本轮已用 copy 恢复 `generated/` 并用 `--ignore-scripts` 完成安装；后续正常 install 前建议先关闭 dev app。
 - 运行中的 dev app 仍是旧代码；要在 UI 上看到 Grok 额度数字，需要重启 dev app 后点左下角「模型与用量」。
 
 ## Findings 状态

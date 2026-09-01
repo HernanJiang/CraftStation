@@ -52,8 +52,8 @@ import { resetGitHubActionsCaches } from "./useGitHubActionsViewModel";
 
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
-  location: { kind: "windows", path: "E:\\work\\poracode" },
+  name: "CraftStation",
+  location: { kind: "windows", path: "E:\\work\\craftstation" },
   createdAt: "2026-07-25T10:00:00.000Z",
 };
 
@@ -224,7 +224,7 @@ describe("GitHubActionsView", () => {
       location: { ...project.location, remoteServerId: "desktop-1" },
     };
     useRemoteServersStore.setState({
-      servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+      servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
       runtime: { "desktop-1": { status: "online", projects: [], threads: [] } },
     } as never);
     useAppStore.setState({ projects: [project, mirrored] });
@@ -232,7 +232,7 @@ describe("GitHubActionsView", () => {
     render(<GitHubActionsView projectId={mirrored.id} onClose={() => {}} />);
 
     const trigger = await screen.findByRole("button", { name: "Project" });
-    expect(trigger).toHaveTextContent("PoracodeMacBook 16");
+    expect(trigger).toHaveTextContent("CraftStationMacBook 16");
     expect(trigger.querySelector(".lucide-server")).not.toBeNull();
     expect(trigger.parentElement).not.toHaveClass("px-2");
 
@@ -252,7 +252,7 @@ describe("GitHubActionsView", () => {
       location: { ...project.location, remoteServerId: "desktop-1" },
     };
     useRemoteServersStore.setState({
-      servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+      servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
       runtime: { "desktop-1": { status: "offline", projects: [], threads: [] } },
     } as never);
     useAppStore.setState({ projects: [project, mirrored] });
@@ -262,7 +262,7 @@ describe("GitHubActionsView", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Project" }));
     const remoteRow = await screen.findByRole("menuitemradio", { name: /MacBook 16/ });
     expect(remoteRow).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("menuitemradio", { name: "Poracode" })).not.toHaveAttribute(
+    expect(screen.getByRole("menuitemradio", { name: "CraftStation" })).not.toHaveAttribute(
       "aria-disabled",
       "true",
     );

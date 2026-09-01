@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { ChildProcess } from "node:child_process";
 import { terminateChildProcessTree } from "@/shared/processTree";
 import { type AgentEventEnvelope, agentEventEnvelopeSchema } from "@/shared/contracts/agentEvent";
-import { isPoracodeHookDebug } from "../../runtime/hookDebug";
+import { isCraftStationHookDebug } from "../../runtime/hookDebug";
 import {
   deployFilesToWslTempBase,
   readBundledHelperVersion,
@@ -88,7 +88,7 @@ export interface WatchEvent {
 
 /**
  * Owns one in-WSL bridge per distro. The bridge is `node bridge.mjs`
- * staged under `~/.poracode/bridge/bridge.mjs` and spawned via `wsl.exe`.
+ * staged under `~/.craftstation/bridge/bridge.mjs` and spawned via `wsl.exe`.
  * Its stdout JSONL stream is parsed here:
  *
  *   {"type":"boot","port":<n>,...}        → resolves the per-distro `ready`
@@ -150,7 +150,7 @@ export class WslBridgeServer {
         ? readBundledHelperVersion("bridge.mjs", "BRIDGE_VERSION", helpersDir)
         : undefined;
       if (expectedVersion && existing.version && existing.version !== expectedVersion) {
-        if (isPoracodeHookDebug()) {
+        if (isCraftStationHookDebug()) {
           console.log("[supervisor] hook-debug: WSL bridge cached version mismatch, restarting", {
             distro,
             expected: expectedVersion,
@@ -165,7 +165,7 @@ export class WslBridgeServer {
           // best effort
         }
       } else {
-        if (isPoracodeHookDebug()) {
+        if (isCraftStationHookDebug()) {
           console.log("[supervisor] hook-debug: WSL bridge (cached)", {
             distro,
             baseUrl: existing.handle.baseUrl,
@@ -205,7 +205,7 @@ export class WslBridgeServer {
     }
   }
 
-  /** Stop Poracode's bridge process without terminating the WSL distro itself. */
+  /** Stop CraftStation's bridge process without terminating the WSL distro itself. */
   releaseBridge(distro: string): void {
     this.unregisterWatchListenersForDistro(distro);
     const releaseStartedBridge = (): void => {
@@ -235,17 +235,17 @@ export class WslBridgeServer {
   private async startBridge(distro: string, attempt = 0): Promise<BridgeHandle | undefined> {
     const helpersDir = this.options.helpersDir ?? resolveWslHelpersDir();
     if (!helpersDir) {
-      if (isPoracodeHookDebug()) {
+      if (isCraftStationHookDebug()) {
         console.log("[supervisor] hook-debug: WSL bridge not started", {
           distro,
-          reason: "no helpers dir (bundle PORACODE_WSL_HELPERS_DIR / resources)",
+          reason: "no helpers dir (bundle CRAFTSTATION_WSL_HELPERS_DIR / resources)",
         });
       }
       return undefined;
     }
     const bridgeSrc = join(helpersDir, "bridge.mjs");
     if (!existsSync(bridgeSrc)) {
-      if (isPoracodeHookDebug()) {
+      if (isCraftStationHookDebug()) {
         console.log("[supervisor] hook-debug: WSL bridge not started", {
           distro,
           reason: `missing ${bridgeSrc}`,
@@ -256,7 +256,7 @@ export class WslBridgeServer {
 
     const resolveNode = this.options.resolveNode ?? defaultResolveNode;
     const resolved = await resolveNode(distro).catch((error) => {
-      if (isPoracodeHookDebug()) {
+      if (isCraftStationHookDebug()) {
         console.log("[supervisor] hook-debug: WSL node resolve failed", {
           distro,
           error: error instanceof Error ? error.message : String(error),
@@ -265,7 +265,7 @@ export class WslBridgeServer {
       return null;
     });
     if (!resolved) {
-      if (isPoracodeHookDebug()) {
+      if (isCraftStationHookDebug()) {
         console.log("[supervisor] hook-debug: WSL bridge not started", {
           distro,
           reason: "no usable node in distro and runtime install failed",
@@ -277,7 +277,7 @@ export class WslBridgeServer {
     const deploy =
       this.options.deploy ??
       ((targetDistro, files) =>
-        deployFilesToWslTempBase(targetDistro, `poracode-bridge-${process.pid}`, files));
+        deployFilesToWslTempBase(targetDistro, `craftstation-bridge-${process.pid}`, files));
     const watcherBinding = join(helpersDir, "watcher.node");
     const deployedFiles: { src: string; relDest: string }[] = [
       { src: bridgeSrc, relDest: "bridge/bridge.mjs" },
@@ -287,7 +287,7 @@ export class WslBridgeServer {
     }
     const result = deploy(distro, deployedFiles);
     if (!result) {
-      if (isPoracodeHookDebug()) {
+      if (isCraftStationHookDebug()) {
         console.log("[supervisor] hook-debug: WSL bridge not started", {
           distro,
           reason: "deployFilesToWslTempBase failed (UNC path / permissions)",
@@ -323,7 +323,7 @@ export class WslBridgeServer {
           reportedVersion = message.version;
         }
         const baseUrl = `http://127.0.0.1:${message.port}`;
-        if (isPoracodeHookDebug()) {
+        if (isCraftStationHookDebug()) {
           console.log("[supervisor] hook-debug: WSL bridge booted in distro", {
             distro,
             port: message.port,
@@ -385,13 +385,13 @@ export class WslBridgeServer {
       distro,
       argv: [resolved.nodePath, linuxScriptPath],
       env: {
-        PORACODE_HOOK_SECRET: this.options.secret,
-        PORACODE_HOOK_PROTOCOL_VERSION: String(this.options.protocolVersion),
-        ...(process.env.PORACODE_BROWSER_MCP_URL
-          ? { PORACODE_BROWSER_MCP_URL: process.env.PORACODE_BROWSER_MCP_URL }
+        CRAFTSTATION_HOOK_SECRET: this.options.secret,
+        CRAFTSTATION_HOOK_PROTOCOL_VERSION: String(this.options.protocolVersion),
+        ...(process.env.CRAFTSTATION_BROWSER_MCP_URL
+          ? { CRAFTSTATION_BROWSER_MCP_URL: process.env.CRAFTSTATION_BROWSER_MCP_URL }
           : {}),
-        ...(process.env.PORACODE_BROWSER_MCP_TOKEN
-          ? { PORACODE_BROWSER_MCP_TOKEN: process.env.PORACODE_BROWSER_MCP_TOKEN }
+        ...(process.env.CRAFTSTATION_BROWSER_MCP_TOKEN
+          ? { CRAFTSTATION_BROWSER_MCP_TOKEN: process.env.CRAFTSTATION_BROWSER_MCP_TOKEN }
           : {}),
       },
       stderr: "ignore",
@@ -423,7 +423,7 @@ export class WslBridgeServer {
         this.bridges.delete(distro);
       }
       this.unregisterWatchListenersForDistro(distro);
-      if (booted && isPoracodeHookDebug()) {
+      if (booted && isCraftStationHookDebug()) {
         console.log(
           "[supervisor] hook-debug: WSL bridge child exited (will respawn on next ensure)",
           {
@@ -475,7 +475,7 @@ export class WslBridgeServer {
       reportedVersion !== expectedVersion &&
       attempt === 0
     ) {
-      if (isPoracodeHookDebug()) {
+      if (isCraftStationHookDebug()) {
         console.log("[supervisor] hook-debug: WSL bridge version mismatch, restarting", {
           distro,
           expected: expectedVersion,
@@ -495,7 +495,7 @@ export class WslBridgeServer {
       reportedVersion &&
       reportedVersion !== expectedVersion &&
       attempt > 0 &&
-      isPoracodeHookDebug()
+      isCraftStationHookDebug()
     ) {
       // We already restaged + respawned once; accept what the distro
       // reports and surface the divergence so it's visible in logs.

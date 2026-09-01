@@ -88,8 +88,8 @@ Tests       16 failed | 9615 passed | 48 skipped (9679)
 全仓测试失败归属为：
 
 - `remoteProcedureRouter.test.ts`：2 个 profile login procedures 未分类；
-- `poracodeData.migrate.test.ts`：迁移、marker、backup、lock、rollback 基线；
-- `channel.config-parity.test.ts`、`channel.test.ts`、`poracodePaths.test.ts`、`probeCwd.test.ts`：`.poracode` / `.craftstation` 品牌路径基线不一致。
+- `craftstationData.migrate.test.ts`：迁移、marker、backup、lock、rollback 基线；
+- `channel.config-parity.test.ts`、`channel.test.ts`、`craftstationPaths.test.ts`、`probeCwd.test.ts`：`.craftstation` / `.craftstation` 品牌路径基线不一致。
 
 这些失败没有命中 F40~F46 触及模块，但全仓不能写成 PASS。
 

@@ -20,7 +20,7 @@ vi.mock("../pwaInstall", () => ({
 
 const desktop: StoredDesktop = {
   desktopId: "d1",
-  label: "Poracode on H1FCM6T4GX",
+  label: "CraftStation on H1FCM6T4GX",
   endpoint: "http://10.0.2.2:38999/",
   appVersion: "1.0.0",
   accessToken: "tok",
@@ -138,7 +138,7 @@ describe("DesktopsView", () => {
       fireEvent.change(screen.getByLabelText(fieldLabel), {
         target: {
           value:
-            "https://poracode.com/pair?host=https%3A%2F%2Fdesktop.example.test%2F#token=lc_pair_test",
+            "https://craftstation.com/pair?host=https%3A%2F%2Fdesktop.example.test%2F#token=lc_pair_test",
         },
       });
 

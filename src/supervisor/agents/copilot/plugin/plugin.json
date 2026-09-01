@@ -1,7 +1,7 @@
 {
-  "name": "poracode-status-copilot",
+  "name": "craftstation-status-copilot",
   "version": "1.0.3",
-  "description": "GitHub Copilot CLI lifecycle hook forwarder for Poracode thread status",
-  "author": "Poracode",
+  "description": "GitHub Copilot CLI lifecycle hook forwarder for CraftStation thread status",
+  "author": "CraftStation",
   "license": "Apache-2.0"
 }

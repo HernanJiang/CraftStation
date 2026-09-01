@@ -57,7 +57,7 @@ export class ChromeBridgeServer {
     this.writePairingFile(this.info);
     // eslint-disable-next-line no-console
     console.log(
-      `[poracode] Chrome bridge listening on ws://127.0.0.1:${port} — pairing file: ${this.options.pairingFilePath}`,
+      `[craftstation] Chrome bridge listening on ws://127.0.0.1:${port} — pairing file: ${this.options.pairingFilePath}`,
     );
     return this.info;
   }
@@ -193,7 +193,7 @@ export class ChromeBridgeServer {
       );
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("[poracode] failed to write Chrome bridge pairing file:", err);
+      console.error("[craftstation] failed to write Chrome bridge pairing file:", err);
     }
   }
 }

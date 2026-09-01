@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { McpRuntimeSupport } from "@/shared/contracts";
 import { getComputerUseScope } from "./computerUseScope";
+import { browserMcpServer, crossagentMcpServer } from "./composerMcpServers";
 
 // Adapter-declared scope shapes (see src/supervisor/agents/*/detection.ts):
 // most providers declare nothing and inherit the generic gui="launch" /
@@ -50,6 +52,22 @@ describe("getComputerUseScope", () => {
     expect(
       getComputerUseScope(codexLike, "terminal", { kind: "posix", path: "/tmp" }, "darwin"),
     ).toBe("launch");
+  });
+
+  it("hides bearer-auth built-ins when the runtime cannot project HTTP headers", () => {
+    const antigravityLike: McpRuntimeSupport & {
+      mcpScope: { terminal: "none"; gui: "launch" };
+    } = {
+      mcpScope: { terminal: "none", gui: "launch" },
+      supportedMcpTransports: ["stdio", "http"],
+      supportsMcpHttpHeaders: false,
+      supportsMcpInWsl: false,
+    };
+    const windowsProject = { kind: "windows", path: "C:\\repo" } as const;
+
+    expect(browserMcpServer.getScope(antigravityLike, "gui", windowsProject)).toBe("none");
+    expect(crossagentMcpServer.getScope(antigravityLike, "gui", windowsProject)).toBe("none");
+    expect(getComputerUseScope(antigravityLike, "gui", windowsProject, "win32")).toBe("none");
   });
 });
 // @vitest-environment node

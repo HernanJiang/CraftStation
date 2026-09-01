@@ -122,7 +122,7 @@ CraftStation 需要在同一个 UI 和 Minecraft composition 链路中接入两�
 
 - 两个 Model Item 与 Harness Item 均能通过 Native Recipe 形成 CraftPlan，并生成 Entity/Session。
 - `CraftPlan` 的 runtime 配置、workspace、MCP/Skills、权限和 profile binding 到达 Adapter。
-- 事件顺序、correlation id、诊断和资源清理可复现；无旧 PoraCode-specific adapter deep import。
+- 事件顺序、correlation id、诊断和资源清理可复现；无旧 CraftStation-specific adapter deep import。
 
 **Global Gate**
 

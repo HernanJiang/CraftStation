@@ -43,9 +43,9 @@ export interface ChromeToolContext {
 }
 
 export const CHROME_MCP_INSTRUCTIONS = [
-  "These tools control the USER'S OWN Chrome browser through the Poracode companion extension —",
+  "These tools control the USER'S OWN Chrome browser through the CraftStation companion extension —",
   "real tabs, real cookies, real logged-in sessions. Treat every action as if the user performed it themselves.",
-  "By default you work in a BACKGROUND 'Poracode' tab group that does NOT steal the user's foreground tab:",
+  "By default you work in a BACKGROUND 'CraftStation' tab group that does NOT steal the user's foreground tab:",
   "chrome_open reuses your single background workspace tab (navigating it in place) and navigate/click/etc. run",
   "there; tabs are never auto-closed. Pass newTab:true only when you truly need a second tab. Use chrome_attach",
   "(with a tabId from chrome_list_tabs) only when the user asks you to act on a specific tab they already have open.",
@@ -62,7 +62,7 @@ function pageExecutor(cdp: CdpSession): { executeJavaScript: (code: string) => P
 }
 
 /** Per-thread tab-group options for the extension's `openTab`, derived from the
- *  calling thread. Absent when no thread is on the URL (falls back to Poracode). */
+ *  calling thread. Absent when no thread is on the URL (falls back to CraftStation). */
 function threadGroupOpts(ctx: ChromeToolContext): {
   groupKey?: string;
   groupTitle?: string;
@@ -112,7 +112,7 @@ export async function dispatchChromeTool(
     if (!conn) {
       return {
         connected: false,
-        hint: "The Poracode Chrome extension is not connected. Ask the user to install/enable it — it auto-connects when Poracode is running — and confirm its popup shows Connected.",
+        hint: "The CraftStation Chrome extension is not connected. Ask the user to install/enable it — it auto-connects when CraftStation is running — and confirm its popup shows Connected.",
       };
     }
     return conn.status();
@@ -130,7 +130,7 @@ export async function dispatchChromeTool(
   if (!conn) {
     return {
       error:
-        "The Poracode Chrome extension is not connected. Ask the user to install/enable it (it auto-connects), then retry chrome_status.",
+        "The CraftStation Chrome extension is not connected. Ask the user to install/enable it (it auto-connects), then retry chrome_status.",
     };
   }
 
@@ -275,7 +275,7 @@ export async function dispatchChromeTool(
     }
     case "chrome_eval": {
       if (!ctx.allowEval) {
-        return { error: "chrome_eval is disabled. Enable it in Poracode browser settings." };
+        return { error: "chrome_eval is disabled. Enable it in CraftStation browser settings." };
       }
       const expression = String(payload.js ?? "");
       if (!expression) throw new Error("js required");
@@ -289,7 +289,7 @@ export async function dispatchChromeTool(
       if (!ctx.allowDataAccess) {
         return {
           error:
-            "chrome_cookies is disabled. Enable 'Allow agents to read/write cookies and storage' in Poracode settings.",
+            "chrome_cookies is disabled. Enable 'Allow agents to read/write cookies and storage' in CraftStation settings.",
         };
       }
       const urls = Array.isArray(payload.urls) ? (payload.urls as string[]) : undefined;
@@ -372,7 +372,7 @@ const RAW_CHROME_TOOLS: ToolSpec[] = [
   {
     name: "chrome_open",
     description:
-      "Open the BACKGROUND workspace in the 'Poracode' tab group (does not steal the user's foreground). Reuses your existing workspace tab by default (navigating it); tabs are never auto-closed. Pass newTab:true to open an additional tab instead.",
+      "Open the BACKGROUND workspace in the 'CraftStation' tab group (does not steal the user's foreground). Reuses your existing workspace tab by default (navigating it); tabs are never auto-closed. Pass newTab:true to open an additional tab instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -387,7 +387,7 @@ const RAW_CHROME_TOOLS: ToolSpec[] = [
   {
     name: "chrome_attach",
     description:
-      "Attach to one of the user's EXISTING tabs (shows a 'Poracode started debugging' banner). Use only when asked to act on a tab the user already has open; pass a tabId from chrome_list_tabs (omit for the active tab).",
+      "Attach to one of the user's EXISTING tabs (shows a 'CraftStation started debugging' banner). Use only when asked to act on a tab the user already has open; pass a tabId from chrome_list_tabs (omit for the active tab).",
     inputSchema: {
       type: "object",
       properties: { tabId: { type: "number", description: "Chrome tab id from chrome_list_tabs" } },

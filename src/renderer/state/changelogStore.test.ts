@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hasUnseenChangelog } from "@/shared/changelog";
 
 function setAppVersion(version: string): void {
-  Object.defineProperty(window, "poracode", {
+  Object.defineProperty(window, "craftstation", {
     configurable: true,
     value: { appVersion: version },
   });
@@ -27,12 +27,12 @@ describe("changelogStore upgrade behavior", () => {
     });
   });
 
-  it("migrates Lightcode changelog state and surfaces What's New in the sidebar", async () => {
-    localStorage.setItem("lightcode-changelog-seen-version", "1.4.3");
-    localStorage.setItem("lightcode-changelog-ack-version", "1.4.3");
-    localStorage.setItem("lightcode-whatsnew-hidden", "true");
+  it("migrates CraftStation changelog state and surfaces What's New in the sidebar", async () => {
+    localStorage.setItem("craftstation-changelog-seen-version", "1.4.3");
+    localStorage.setItem("craftstation-changelog-ack-version", "1.4.3");
+    localStorage.setItem("craftstation-whatsnew-hidden", "true");
     localStorage.setItem(
-      "lightcode-changelog-cache",
+      "craftstation-changelog-cache",
       JSON.stringify({
         releases: [
           { version: "1.4.3", date: "2026-07-01", title: "Old", summary: "Old", changes: [] },
@@ -43,9 +43,9 @@ describe("changelogStore upgrade behavior", () => {
     const { useChangelogStore } = await import("./changelogStore");
     useChangelogStore.getState().bootstrapSeenState();
 
-    expect(localStorage.getItem("poracode-changelog-seen-version")).toBe("1.4.3");
-    expect(localStorage.getItem("poracode-changelog-ack-version")).toBe("1.4.3");
-    expect(localStorage.getItem("poracode-whatsnew-hidden")).toBe("true");
+    expect(localStorage.getItem("craftstation-changelog-seen-version")).toBe("1.4.3");
+    expect(localStorage.getItem("craftstation-changelog-ack-version")).toBe("1.4.3");
+    expect(localStorage.getItem("craftstation-whatsnew-hidden")).toBe("true");
     const state = useChangelogStore.getState();
     expect(state.whatsNewOpen).toBe(false);
     expect(state.whatsNewHidden).toBe(true);
@@ -55,8 +55,8 @@ describe("changelogStore upgrade behavior", () => {
   });
 
   it("surfaces What's New in the sidebar without opening it on later version bumps", async () => {
-    localStorage.setItem("poracode-changelog-seen-version", "1.5.0");
-    localStorage.setItem("poracode-changelog-ack-version", "1.5.0");
+    localStorage.setItem("craftstation-changelog-seen-version", "1.5.0");
+    localStorage.setItem("craftstation-changelog-ack-version", "1.5.0");
 
     const { useChangelogStore } = await import("./changelogStore");
     useChangelogStore.getState().bootstrapSeenState();
@@ -69,8 +69,8 @@ describe("changelogStore upgrade behavior", () => {
   });
 
   it("does not reopen What's New after the running version was acknowledged", async () => {
-    localStorage.setItem("poracode-changelog-seen-version", "1.5.1");
-    localStorage.setItem("poracode-changelog-ack-version", "1.5.1");
+    localStorage.setItem("craftstation-changelog-seen-version", "1.5.1");
+    localStorage.setItem("craftstation-changelog-ack-version", "1.5.1");
 
     const { useChangelogStore } = await import("./changelogStore");
     useChangelogStore.getState().bootstrapSeenState();

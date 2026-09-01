@@ -74,6 +74,12 @@ export function persistThreadStateEvent(event: ThreadStateEvent): void {
       ...(event.threadStatusSource !== undefined
         ? { threadStatusSource: event.threadStatusSource }
         : {}),
+      ...(event.presentationMode !== undefined
+        ? {
+            presentationMode: event.presentationMode,
+            ...(event.presentationMode === "gui" ? { threadStatusSource: "server" as const } : {}),
+          }
+        : {}),
       ...(event.errorMessage !== undefined ? { errorMessage: event.errorMessage } : {}),
       ...(event.slashCommands !== undefined ? { slashCommands: event.slashCommands } : {}),
       ...(event.status === "working" && thread.status !== "working" ? { updatedAt: nowIso } : {}),

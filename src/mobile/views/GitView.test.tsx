@@ -185,7 +185,7 @@ describe("GitView", () => {
 
   it("loads the current worktree PR on open and on manual refresh", async () => {
     const project = makeProject();
-    const worktreePath = "/repo/.poracode/worktrees/mobile";
+    const worktreePath = "/repo/.craftstation/worktrees/mobile";
     const status = { ...makeStatus(), branch: "feature/mobile" };
     const latestPr = makePr();
     bridge.getGitStatus.mockResolvedValue(status);

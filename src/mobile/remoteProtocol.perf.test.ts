@@ -8,7 +8,7 @@ import { RemoteDesktopClient } from "@/shared/remote/client";
 const THREAD_COUNT = 6;
 
 function deltasPerThread(): number {
-  const scale = Math.max(1, Math.min(10, Number(process.env.PORACODE_PERF_SCALE ?? "1") || 1));
+  const scale = Math.max(1, Math.min(10, Number(process.env.CRAFTSTATION_PERF_SCALE ?? "1") || 1));
   return 1000 * scale;
 }
 
@@ -94,7 +94,7 @@ describe("remote PWA protocol data flow", () => {
     }
     expect(wallMs).toBeLessThan(Math.max(5000, frames.length));
 
-    if (process.env.PORACODE_PERF_LOG) {
+    if (process.env.CRAFTSTATION_PERF_LOG) {
       console.log(
         `[perf/remote-pwa] threads=${THREAD_COUNT} frames=${frames.length} wallMs=${wallMs.toFixed(1)} avgMs=${(wallMs / frames.length).toFixed(4)}`,
       );

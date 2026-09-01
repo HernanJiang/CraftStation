@@ -5,7 +5,7 @@ import { parseCodexAuth, resolveCodexToken } from "./codexCredentials";
 import { AccountStore } from "./accountStore";
 import type { AccountView } from "@/shared/contracts";
 import { AccountControlError } from "@/shared/contracts";
-import { collectCodex, type HostPort, type UsageSnapshot } from "@poracode/agents-usage";
+import { collectCodex, type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
 
 const CODEX_ROUTER_ENV_KEYS = [
   "CODEX_HOME",
@@ -102,7 +102,7 @@ export function buildCodexLoginScript(
       "Write-Host ('CraftStation login cwd=' + (Get-Location).Path)",
       loginCommand,
       "$lcExit = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }",
-      `Write-Host "$([char]27)]777;poracode-login-complete=${completionToken}:$lcExit$([char]7)" -NoNewline`,
+      `Write-Host "$([char]27)]777;craftstation-login-complete=${completionToken}:$lcExit$([char]7)" -NoNewline`,
     ].join("; ");
   }
   const bashCommand = [
@@ -113,7 +113,7 @@ export function buildCodexLoginScript(
     'echo "CraftStation login cwd=$(pwd)"',
     loginCommand,
     "__lc_exit=$?",
-    `printf '\\033]777;poracode-login-complete=${completionToken}:%s\\007' "$__lc_exit"`,
+    `printf '\\033]777;craftstation-login-complete=${completionToken}:%s\\007' "$__lc_exit"`,
   ].join("; ");
   return `command bash -lc '${bashCommand.replaceAll("'", "'\\''")}'`;
 }

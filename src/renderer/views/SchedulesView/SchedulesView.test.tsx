@@ -341,7 +341,7 @@ describe("SchedulesView", () => {
     await waitFor(() => expect(agentCreation.openDraft).toHaveBeenCalledWith("home"));
     expect(agentCreation.setComposerSeed).toHaveBeenCalledWith(
       "home",
-      expect.stringContaining("Poracode schedule controls"),
+      expect.stringContaining("CraftStation schedule controls"),
     );
   });
 

@@ -1,17 +1,17 @@
-import { parseIpcProcedureArgs, type PoracodeBridge } from "@/shared/ipc";
+import { parseIpcProcedureArgs, type CraftStationBridge } from "@/shared/ipc";
 import { routeRemoteProcedure } from "@/renderer/remoteProcedureRouter";
 import { isRemoteRoutableProcedure } from "@/renderer/remoteProcedureRoutes";
 
-let cachedBridge: PoracodeBridge | undefined;
-let cachedSource: PoracodeBridge | undefined;
+let cachedBridge: CraftStationBridge | undefined;
+let cachedSource: CraftStationBridge | undefined;
 
-export function readBridge(): PoracodeBridge {
-  const source = window.poracode;
-  if (!source) return source as PoracodeBridge;
+export function readBridge(): CraftStationBridge {
+  const source = window.craftstation;
+  if (!source) return source as CraftStationBridge;
   if (cachedBridge && cachedSource === source) return cachedBridge;
   cachedSource = source;
   const functionCache = new Map<PropertyKey, { value: Function; wrapper: Function }>();
-  cachedBridge = new Proxy({} as PoracodeBridge, {
+  cachedBridge = new Proxy({} as CraftStationBridge, {
     get(_target, property) {
       const value = Reflect.get(source, property, source) as unknown;
       if (typeof value !== "function") return value;
@@ -57,5 +57,5 @@ export function isQuickComposerWindow(): boolean {
  * hidden in that case — the shim swallows or rejects their bridge calls.
  */
 export function isRemoteSession(): boolean {
-  return typeof window !== "undefined" && window.poracode?.appVersion === "remote";
+  return typeof window !== "undefined" && window.craftstation?.appVersion === "remote";
 }

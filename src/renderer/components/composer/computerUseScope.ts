@@ -1,4 +1,9 @@
-import type { AgentCapability, ProjectLocation, ThreadPresentationMode } from "@/shared/contracts";
+import {
+  supportsHeaderBearingHttpMcp,
+  type McpRuntimeSupport,
+  type ProjectLocation,
+  type ThreadPresentationMode,
+} from "@/shared/contracts";
 import { resolveMcpScope } from "./composerMcpServers";
 
 export type ComputerUseScope = "none" | "launch";
@@ -20,13 +25,16 @@ export type ComputerUseScope = "none" | "launch";
  * UA); see the mobile bridge's `setRemoteBridgeClient(..., platform)`.
  */
 export function getComputerUseScope(
-  capabilities: Pick<AgentCapability, "mcpScope">,
+  capabilities: McpRuntimeSupport & {
+    mcpScope?: import("@/shared/contracts").ComposerMcpScopes | undefined;
+  },
   presentationMode: ThreadPresentationMode,
   projectLocation?: ProjectLocation,
   hostPlatform?: NodeJS.Platform,
 ): ComputerUseScope {
   if (hostPlatform === "linux") return "none";
   if (projectLocation?.kind === "wsl") return "none";
+  if (!supportsHeaderBearingHttpMcp(capabilities)) return "none";
   // The composer toggle only distinguishes "available" from "hidden", so the
   // mid-thread-toggleable "always" scope collapses to "launch".
   return resolveMcpScope(capabilities.mcpScope, presentationMode) === "none" ? "none" : "launch";

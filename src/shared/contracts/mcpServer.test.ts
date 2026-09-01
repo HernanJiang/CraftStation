@@ -4,6 +4,7 @@ import {
   BUILT_IN_MCP_SERVER_TOOL_NAMES,
   builtInMcpServerDisabledSchema,
   discoverExternalMcpServersPayloadSchema,
+  isMcpServerSupportedByRuntime,
   isReservedMcpServerName,
   isValidMcpServerName,
   mcpExternalServerCandidateSchema,
@@ -48,7 +49,7 @@ describe("mcpServerSchema", () => {
   });
 
   it("protects all provider-visible built-in names case-insensitively", () => {
-    expect(isReservedMcpServerName("PoRaCoDe")).toBe(true);
+    expect(isReservedMcpServerName("CraftStation")).toBe(true);
     expect(isReservedMcpServerName("computer_use")).toBe(true);
     expect(isValidMcpServerName("browser")).toBe(false);
     expect(isValidMcpServerName("custom.server")).toBe(true);
@@ -130,6 +131,47 @@ describe("external MCP discovery contracts", () => {
 });
 
 describe("MCP resolution", () => {
+  it("filters transport and credential fields a runtime cannot project safely", () => {
+    const antigravitySupport = {
+      supportedMcpTransports: ["stdio", "http"] as const,
+      supportsMcpHttpHeaders: false,
+      requiresSecretFreeMcpConfig: true,
+    };
+    expect(isMcpServerSupportedByRuntime(server("stdio", "stdio"), antigravitySupport)).toBe(true);
+    expect(
+      isMcpServerSupportedByRuntime(
+        {
+          transport: {
+            type: "http",
+            url: "https://example.test/mcp",
+            headers: { Authorization: "Bearer secret" },
+          },
+        },
+        antigravitySupport,
+      ),
+    ).toBe(false);
+    expect(
+      isMcpServerSupportedByRuntime(
+        {
+          transport: {
+            type: "http",
+            url: "https://example.test/mcp?api_key=secret",
+            headers: {},
+          },
+        },
+        antigravitySupport,
+      ),
+    ).toBe(false);
+    expect(
+      isMcpServerSupportedByRuntime(
+        {
+          transport: { type: "sse", url: "https://example.test/sse", headers: {} },
+        },
+        antigravitySupport,
+      ),
+    ).toBe(false);
+  });
+
   it("lets a project entry override a global entry case-insensitively", () => {
     const merged = mergeMcpServers(
       [server("global", "Memory"), server("other", "docs")],

@@ -56,7 +56,7 @@ describe("renderer termination intent wiring", () => {
       null,
       {
         bucket: "unexpected-kill",
-        fingerprint: ["poracode-renderer-process-gone", "darwin", "unexpected-kill"],
+        fingerprint: ["craftstation-renderer-process-gone", "darwin", "unexpected-kill"],
       },
     ]);
   });

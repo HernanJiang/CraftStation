@@ -101,7 +101,7 @@ describe("SkillMarketplaceModal", () => {
     });
     expect(screen.queryByText("review-code")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Skill availability"));
-    fireEvent.click(await screen.findByRole("option", { name: "Poracode only" }));
+    fireEvent.click(await screen.findByRole("option", { name: "CraftStation only" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Install" }));
     await waitFor(() =>
@@ -109,7 +109,7 @@ describe("SkillMarketplaceModal", () => {
         marketplace: "skills-sh",
         marketplaceSkillId: "vercel-labs/skills/find-skills",
         destinationScope: "global",
-        availability: "poracode",
+        availability: "craftstation",
         replace: false,
         wslDistro: "Ubuntu",
       }),

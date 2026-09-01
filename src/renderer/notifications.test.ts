@@ -11,7 +11,9 @@ const { sharedSettingsState, toastMock, bridgeMock, openThreadMock } = vi.hoiste
     },
   },
   toastMock: {
+    close: vi.fn<(key: string) => void>(),
     danger: vi.fn<(title: string, options: unknown) => void>(),
+    info: vi.fn<(title: string, options: unknown) => void>(),
     success: vi.fn<(title: string, options: unknown) => void>(),
     warning: vi.fn<(title: string, options: unknown) => void>(),
   },
@@ -54,6 +56,7 @@ vi.mock("@/renderer/state/sharedSettingsStore", () => ({
 import {
   handleThreadStateNotification,
   shouldInspectThreadStateForNotification,
+  showInAppUserNotification,
 } from "./notifications";
 
 function thread(overrides: Partial<Thread> = {}): Thread {
@@ -108,8 +111,43 @@ function installBrowserNotification(permission: NotificationPermission = "grante
 beforeEach(() => {
   bridgeMock.remote = false;
   bridgeMock.focusWindow.mockClear();
+  bridgeMock.showNotification.mockClear();
   openThreadMock.mockClear();
+  toastMock.danger.mockClear();
+  toastMock.info.mockClear();
+  toastMock.success.mockClear();
+  toastMock.warning.mockClear();
   vi.unstubAllGlobals();
+});
+
+describe("showInAppUserNotification", () => {
+  it("shows an Agent-requested notification as a compact in-app toast", () => {
+    sharedSettingsState.current = {
+      notificationsEnabled: true,
+      notificationSound: false,
+      notificationFilter: "unfocused",
+      notificationStatuses: { done: true, needsAttention: true, error: true },
+    };
+    toastMock.info.mockImplementationOnce(() => "toast-user" as never);
+
+    showInAppUserNotification({
+      threadId: "thread-1",
+      title: "Done",
+      body: "Ready for review",
+    });
+
+    expect(toastMock.info).toHaveBeenCalledWith("Done", {
+      actionProps: {
+        children: "Open",
+        onPress: expect.any(Function),
+        variant: "secondary",
+      },
+      description: "Ready for review",
+      onPress: expect.any(Function),
+      timeout: 5000,
+    });
+    expect(bridgeMock.showNotification).not.toHaveBeenCalled();
+  });
 });
 
 describe("shouldInspectThreadStateForNotification", () => {
@@ -122,6 +160,7 @@ describe("shouldInspectThreadStateForNotification", () => {
     };
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
     toastMock.danger.mockClear();
+    toastMock.close.mockClear();
     toastMock.success.mockClear();
     toastMock.warning.mockClear();
   });
@@ -210,12 +249,12 @@ describe("handleThreadStateNotification", () => {
       },
       description: "Thread\nFinished · Waiting for your input",
       onPress: expect.any(Function),
-      timeout: 6000,
+      timeout: 5000,
     });
   });
 });
 
-describe("handleThreadStateNotification native path", () => {
+describe("handleThreadStateNotification unfocused path", () => {
   beforeEach(() => {
     sharedSettingsState.current = {
       notificationsEnabled: true,
@@ -229,7 +268,7 @@ describe("handleThreadStateNotification native path", () => {
     bridgeMock.showNotification.mockResolvedValue(true);
   });
 
-  it("shows a native OS notification through the bridge when the window is unfocused", () => {
+  it("shows a compact in-app toast without calling the OS notification bridge", () => {
     const oldThread = thread({ status: "working", attention: "working" });
 
     handleThreadStateNotification(
@@ -243,15 +282,20 @@ describe("handleThreadStateNotification native path", () => {
       { status: "finished", attention: "none" },
     );
 
-    expect(bridgeMock.showNotification).toHaveBeenCalledWith({
-      title: "Unknown project",
-      body: "Thread\nFinished · Waiting for your input",
-      threadId: "thread-1",
+    expect(toastMock.success).toHaveBeenCalledWith("Unknown project", {
+      actionProps: {
+        children: "Open",
+        onPress: expect.any(Function),
+        variant: "secondary",
+      },
+      description: "Thread\nFinished · Waiting for your input",
+      onPress: expect.any(Function),
+      timeout: 5000,
     });
+    expect(bridgeMock.showNotification).not.toHaveBeenCalled();
   });
 
-  it("swallows native notification IPC failures", async () => {
-    bridgeMock.showNotification.mockRejectedValueOnce(new Error("boom"));
+  it("does not depend on native notification IPC", () => {
     const oldThread = thread({ status: "working", attention: "working" });
 
     handleThreadStateNotification(
@@ -265,9 +309,35 @@ describe("handleThreadStateNotification native path", () => {
       { status: "finished", attention: "none" },
     );
 
-    await Promise.resolve();
+    expect(toastMock.success).toHaveBeenCalledOnce();
+    expect(bridgeMock.showNotification).not.toHaveBeenCalled();
+  });
 
-    expect(bridgeMock.showNotification).toHaveBeenCalledOnce();
+  it("closes the oldest task notification when a fourth one arrives", () => {
+    toastMock.success.mockImplementationOnce(() => "toast-1" as never);
+    toastMock.success.mockImplementationOnce(() => "toast-2" as never);
+    toastMock.success.mockImplementationOnce(() => "toast-3" as never);
+    toastMock.success.mockImplementationOnce(() => "toast-4" as never);
+
+    for (let index = 0; index < 4; index += 1) {
+      const oldThread = thread({
+        id: `thread-${index}`,
+        status: "working",
+        attention: "working",
+      });
+      handleThreadStateNotification(
+        {
+          type: "thread-state",
+          threadId: oldThread.id,
+          status: "finished",
+          attention: "none",
+        },
+        oldThread,
+        { status: "finished", attention: "none" },
+      );
+    }
+
+    expect(toastMock.close).toHaveBeenCalledWith("toast-1");
   });
 });
 
@@ -284,7 +354,7 @@ describe("handleThreadStateNotification PWA path", () => {
     bridgeMock.showNotification.mockClear();
   });
 
-  it("shows a browser notification instead of calling desktop notification IPC", () => {
+  it("uses the same in-app toast instead of a browser or desktop notification", () => {
     const { notifications } = installBrowserNotification();
     const oldThread = thread({ status: "working", attention: "working" });
 
@@ -300,23 +370,17 @@ describe("handleThreadStateNotification PWA path", () => {
     );
 
     expect(bridgeMock.showNotification).not.toHaveBeenCalled();
-    expect(notifications).toHaveLength(1);
-    expect(notifications[0]).toMatchObject({
-      title: "Unknown project",
-      options: {
-        body: "Thread\nFinished · Waiting for your input",
-        silent: true,
+    expect(notifications).toHaveLength(0);
+    expect(toastMock.success).toHaveBeenCalledWith("Unknown project", {
+      actionProps: {
+        children: "Open",
+        onPress: expect.any(Function),
+        variant: "secondary",
       },
+      description: "Thread\nFinished · Waiting for your input",
+      onPress: expect.any(Function),
+      timeout: 5000,
     });
-
-    notifications[0]!.onclick?.();
-
-    expect(bridgeMock.focusWindow).toHaveBeenCalledOnce();
-    expect(openThreadMock).toHaveBeenCalledWith("thread-1", {
-      focusComposer: true,
-      switchWorkspace: true,
-    });
-    expect(notifications[0]!.close).toHaveBeenCalledOnce();
   });
 
   it("does not notify when a desktop stop or steer force-closes the active turn", () => {
@@ -339,7 +403,7 @@ describe("handleThreadStateNotification PWA path", () => {
     expect(bridgeMock.showNotification).not.toHaveBeenCalled();
   });
 
-  it("requests browser notification permission before showing the notification", async () => {
+  it("does not request browser notification permission", () => {
     const { BrowserNotification, notifications } = installBrowserNotification("default");
     const oldThread = thread({ status: "working", attention: "working" });
 
@@ -354,11 +418,8 @@ describe("handleThreadStateNotification PWA path", () => {
       { status: "finished", attention: "none" },
     );
 
-    expect(BrowserNotification.requestPermission).toHaveBeenCalledOnce();
+    expect(BrowserNotification.requestPermission).not.toHaveBeenCalled();
     expect(notifications).toHaveLength(0);
-
-    await Promise.resolve();
-
-    expect(notifications).toHaveLength(1);
+    expect(toastMock.success).toHaveBeenCalledOnce();
   });
 });

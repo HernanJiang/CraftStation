@@ -52,10 +52,10 @@ export interface AgentEnvContext {
    */
   agentSettings?: Record<string, boolean | string>;
   /**
-   * Poracode data base dir for native (non-WSL) plugin staging. Populated by
-   * the supervisor so dev runs (`~/.poracode-dev`) stage plugins separately
-   * from prod (`~/.poracode`). WSL plugin installs ignore this and stage
-   * into the distro's `$HOME/.poracode/` via `resolveWslHomeDirectoryAsync`.
+   * CraftStation data base dir for native (non-WSL) plugin staging. Populated by
+   * the supervisor so dev runs (`~/.craftstation-dev`) stage plugins separately
+   * from prod (`~/.craftstation`). WSL plugin installs ignore this and stage
+   * into the distro's `$HOME/.craftstation/` via `resolveWslHomeDirectoryAsync`.
    */
   baseDir?: string;
   mcpServers?: readonly ResolvedMcpServer[];
@@ -86,6 +86,8 @@ export interface StructuredSessionListener {
 
 export interface StartTurnOptions {
   userMessageItemId?: string;
+  /** Canonical id allocated before provider admission for this prompt turn. */
+  turnId?: string;
   /**
    * Portable-skills fallback: inline SKILL.md instructions for invoked skills
    * the provider cannot load natively. Appended to the outgoing provider
@@ -111,7 +113,7 @@ export interface StructuredSessionHandle {
   /** Whether a provider-native root or child session belongs to this thread. */
   ownsProviderSession?(providerSessionId: string): boolean;
   activate?(): Promise<void>;
-  openThread?(config: ThreadConfig, sessionRef?: SessionRef): Promise<string>;
+  openThread?(config: ThreadConfig, sessionRef?: SessionRef): Promise<string | undefined>;
   ensureResumeArtifacts?(): Promise<void>;
   waitForRolloutFile?(timeoutMs?: number): Promise<void>;
   startTurn?(
@@ -239,7 +241,7 @@ export interface CreateStructuredSessionInput {
    * text IO — including their own internal state files — through the client
    * and then mis-handle the JSON-RPC errors that come back: a client can only
    * answer a read for a missing file with an error, and an agent that expects
-   * an errno-shaped `ENOENT` there treats it as a hard failure. Poracode holds
+   * an errno-shaped `ENOENT` there treats it as a hard failure. CraftStation holds
    * no unsaved editor buffers, so the on-disk content the agent reads locally
    * is the same content the bridge would have served.
    */
@@ -370,7 +372,7 @@ export interface DetectionSpec {
    */
   probeEnv?: Record<string, string>;
   /**
-   * Env applied to EVERY spawn of this CLI that Poracode makes, in every lane:
+   * Env applied to EVERY spawn of this CLI that CraftStation makes, in every lane:
    * detection probes, terminal login, PTY thread launches, launch/resume argv,
    * one-shot generation, context extraction, and subagent children. Shared
    * runtime merges it at each launch point, so a provider declares its
@@ -723,7 +725,7 @@ export interface AgentSkillRootSpec {
 export interface AgentSkillSupport {
   /** Provider-owned roots discovered by the Skills manager. `.agents/skills` is canonical. */
   readonly roots: readonly AgentSkillRootSpec[];
-  /** Provider roots that need a Poracode-owned copy of canonical skills. */
+  /** Provider roots that need a CraftStation-owned copy of canonical skills. */
   readonly projectionRoots?: readonly AgentSkillRootSpec[];
   /** How the provider invokes a named skill from its composer. */
   readonly invocation: "slash" | "dollar" | "prompt" | "skill";

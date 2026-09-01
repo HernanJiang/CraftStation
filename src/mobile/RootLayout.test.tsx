@@ -28,8 +28,8 @@ const remoteMock = vi.hoisted(() => ({
     booted: true,
     connection: "online",
     message: null,
-    desktops: [{ id: "desktop-1", label: "Poracode on Mac" }],
-    activeDesktop: { id: "desktop-1", label: "Poracode on Mac" } as {
+    desktops: [{ id: "desktop-1", label: "CraftStation on Mac" }],
+    activeDesktop: { id: "desktop-1", label: "CraftStation on Mac" } as {
       id: string;
       label: string;
     } | null,
@@ -204,7 +204,7 @@ vi.mock("./views/ThreadsView", () => ({
 describe("mobile RootLayout", () => {
   beforeEach(() => {
     closeImageLightbox();
-    localStorage.removeItem("poracode-mobile.sidebar-width");
+    localStorage.removeItem("craftstation-mobile.sidebar-width");
     routerMock.navigate.mockReset();
     routerMock.pathname = "/threads";
     routerMock.pendingPathname = null;
@@ -214,8 +214,8 @@ describe("mobile RootLayout", () => {
     mediaMock.rightPanel = false;
     threadDetailMock.mounts = 0;
     remoteMock.session.connection = "online";
-    remoteMock.session.desktops = [{ id: "desktop-1", label: "Poracode on Mac" }];
-    remoteMock.session.activeDesktop = { id: "desktop-1", label: "Poracode on Mac" };
+    remoteMock.session.desktops = [{ id: "desktop-1", label: "CraftStation on Mac" }];
+    remoteMock.session.activeDesktop = { id: "desktop-1", label: "CraftStation on Mac" };
     remoteMock.session.selectedThread = null;
     usePanelStore.setState({
       gitReviewContext: null,
@@ -359,7 +359,7 @@ describe("mobile RootLayout", () => {
 
     expect(screen.getByTestId("connection-pill")).toHaveAttribute("data-state", "online");
     expect(screen.getByTestId("connection-pill")).toHaveTextContent("Mac");
-    expect(screen.queryByText("Poracode on Mac")).not.toBeInTheDocument();
+    expect(screen.queryByText("CraftStation on Mac")).not.toBeInTheDocument();
   });
 
   it("hosts shared image previews opened from user messages", () => {
@@ -385,7 +385,7 @@ describe("mobile RootLayout", () => {
 
   it("resizes and persists the wide-shell sidebar", () => {
     mediaMock.isWide = true;
-    localStorage.setItem("poracode-mobile.sidebar-width", "360");
+    localStorage.setItem("craftstation-mobile.sidebar-width", "360");
 
     const { container } = render(<RootLayout />);
     const shell = container.querySelector<HTMLElement>(".m-shell--wide");
@@ -394,13 +394,13 @@ describe("mobile RootLayout", () => {
 
     fireEvent.keyDown(resizeHandle, { key: "ArrowRight" });
     expect(shell?.style.getPropertyValue("--m-sidebar-width")).toBe("384px");
-    expect(localStorage.getItem("poracode-mobile.sidebar-width")).toBe("384");
+    expect(localStorage.getItem("craftstation-mobile.sidebar-width")).toBe("384");
 
     fireEvent.mouseDown(resizeHandle, { button: 0, clientX: 384 });
     fireEvent.mouseMove(document, { clientX: 424 });
     fireEvent.mouseUp(document, { clientX: 424 });
     expect(shell?.style.getPropertyValue("--m-sidebar-width")).toBe("424px");
-    expect(localStorage.getItem("poracode-mobile.sidebar-width")).toBe("424");
+    expect(localStorage.getItem("craftstation-mobile.sidebar-width")).toBe("424");
   });
 
   it("hosts the shared file editor in the desktop PWA content pane", () => {

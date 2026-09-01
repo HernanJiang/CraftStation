@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import type { UsageSnapshot } from "@poracode/agents-usage";
+import type { UsageSnapshot } from "@craftstation/agents-usage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";

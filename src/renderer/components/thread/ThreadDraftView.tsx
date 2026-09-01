@@ -16,11 +16,11 @@ import { HOME_PROJECT_NAME, isHomeProjectId } from "@/shared/homeScope";
 import { readBridge } from "@/renderer/bridge";
 import { getComputerUseScope } from "@/renderer/components/composer/computerUseScope";
 import {
+  browserMcpServer,
   chromeMcpServer,
   COMPUTER_USE_MCP_ID,
-  resolveMcpScope,
+  crossagentMcpServer,
 } from "@/renderer/components/composer/composerMcpServers";
-import { getConfigNormalizer } from "@/renderer/components/providers/providerComposer";
 import { useGitStore } from "@/renderer/state/gitStore";
 import { PixelLoader } from "@/renderer/components/common/PixelLoader";
 import { modelVisibilityKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
@@ -29,7 +29,7 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
-import { capabilitiesForPresentation, filterHiddenModels } from "@/shared/agentSelection";
+import { filterHiddenModels } from "@/shared/agentSelection";
 import type { ProviderModelPreference } from "@/shared/settings";
 import { mergeCustomModelsIntoCapabilities } from "./customModelCatalog";
 import {
@@ -274,32 +274,13 @@ export function ThreadDraftView(props: {
   const effectiveWorktreeMode = isHomeScope ? false : worktreeMode;
   const lastAppliedAgentKindRef = useRef<AgentStatus["kind"] | undefined>(undefined);
 
-  // Presentation-mode picker — only meaningful for adapters that advertise
-  // multiple modes. The render fork in ThreadView consumes `presentationMode`
-  // off the Thread row, but we resolve it here so the user's last choice for
-  // this provider is remembered across new-thread drafts.
+  // Presentation remains part of the launch contract, but the composer no
+  // longer exposes a separate Chat/CLI surface selector. Each provider's
+  // capabilities resolve the only valid surface for the new thread.
   const lastPresentationModeByAgent = useSharedSettings((s) => s.lastPresentationModeByAgent);
-  const setLastPresentationMode = useSharedSettings((s) => s.setLastPresentationMode);
-  // Persistent composer MCP enablement (standing default across new threads).
+  // Persistent composer MCP enablement (standing defaults across new threads).
   const enabledMcpServers = useSharedSettings((s) => s.enabledMcpServers);
   const disabledBuiltInMcpServers = useSharedSettings((s) => s.disabledBuiltInMcpServers);
-  const supportedPresentationModes = selectedAgent
-    ? (selectedAgent.capabilities.presentationModes ?? [
-        selectedAgent.capabilities.presentationMode,
-      ])
-    : [];
-  // CLI/Chat reachability is aggregated across all installed providers — the
-  // picker stays enabled whenever some provider can serve the mode, even if
-  // the currently-selected one can't. Clicking an unreachable-for-this-agent
-  // tab swaps to a fallback provider rather than being blocked.
-  const anyAgentSupports = (presentation: ThreadPresentationMode): boolean =>
-    installedAgents.some((agent) => {
-      const modes = agent.capabilities.presentationModes ?? [agent.capabilities.presentationMode];
-      return modes.includes(presentation);
-    });
-  const supportsTerminalMode = anyAgentSupports("terminal");
-  const supportsGuiMode = anyAgentSupports("gui");
-  const supportsModePicker = supportsTerminalMode && supportsGuiMode;
   const [presentationMode, setPresentationMode] = useState<ThreadPresentationMode>(() =>
     resolveInitialPresentationMode(selectedAgent, lastPresentationModeByAgent),
   );
@@ -345,12 +326,6 @@ export function ThreadDraftView(props: {
   //     intentionally read the *latest* value at provider-switch time but
   //     don't want intra-session writes to retrigger this effect (the user
   //     hasn't changed providers, so their current selection wins).
-  //   - `supportedPresentationModes` and `presentationMode` are derived from
-  //     `selectedAgent` and `effectiveAgentKind`; including them would either
-  //     duplicate the trigger or fire mid-edit on unrelated state.
-  // Provider picks can switch CLI/Chat explicitly when the chosen provider
-  // only supports the other surface; provider-change re-resolution handles the
-  // same fallback for status/default changes.
   useEffect(() => {
     const previousAgentKind = previousPresentationAgentKindRef.current;
     previousPresentationAgentKindRef.current = selectedAgent?.kind;
@@ -361,7 +336,10 @@ export function ThreadDraftView(props: {
       );
       return;
     }
-    if (supportedPresentationModes.includes(presentationMode)) return;
+    const supported = selectedAgent.capabilities.presentationModes ?? [
+      selectedAgent.capabilities.presentationMode,
+    ];
+    if (supported.includes(presentationMode)) return;
     setPresentationMode(resolveInitialPresentationMode(selectedAgent, lastPresentationModeByAgent));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run on provider change
   }, [effectiveAgentKind]);
@@ -1286,43 +1264,6 @@ export function ThreadDraftView(props: {
     panel.setRightPanelTab("harness");
   };
 
-  const handlePresentationChange = (next: ThreadPresentationMode) => {
-    // If the active provider can't serve this surface, swap to another
-    // installed provider that can — the provider-switch effect will then
-    // reload the per-provider config snapshot.
-    if (!supportedPresentationModes.includes(next)) {
-      const fallback = installedAgents.find((agent) => {
-        const modes = agent.capabilities.presentationModes ?? [agent.capabilities.presentationMode];
-        return modes.includes(next);
-      });
-      if (!fallback) return;
-      setPresentationMode(next);
-      setAgentKind(fallback.kind);
-      return;
-    }
-    setPresentationMode(next);
-    // Drop config values that the new presentation surface doesn't
-    // support (e.g. Codex plan mode is ACP-only).
-    const normalizer = effectiveAgentKind ? getConfigNormalizer(effectiveAgentKind) : undefined;
-    if (!normalizer) return;
-    const patch = normalizer({
-      capabilities: capabilitiesForPresentation(selectedAgent.capabilities, next),
-      config: {
-        model,
-        effort,
-        ...(contextSize ? { contextSize } : {}),
-        ...(fast ? { fast } : {}),
-        ...(thinking ? { thinking } : {}),
-        mode,
-        approvalPolicy,
-        approvalsReviewer,
-        sandboxMode,
-      },
-      presentationMode: next,
-    });
-    if (Object.keys(patch).length > 0) onConfigPatch(patch);
-  };
-
   // Effective launch flag for each composer MCP: a per-draft `@`-mention OR a
   // persistent standing default whose scope the current provider/presentation
   // actually supports. A persistent enable with a "none" scope must NOT set the
@@ -1330,14 +1271,18 @@ export function ThreadDraftView(props: {
   // scope-reset effect there would fight it.
   const hostPlatform = readBridge()?.platform;
   const effectiveMcp = (id: BuiltInMcpServerId, mention: boolean, scope: string) =>
+    scope !== "none" &&
     disabledBuiltInMcpServers[id] !== true &&
-    (mention || (enabledMcpServers[id] === true && scope !== "none"));
-  const selectedMcpScope = resolveMcpScope(selectedAgent.capabilities.mcpScope, presentationMode);
-  const effectiveBrowserMcp = effectiveMcp("browser", browserMcpMention, selectedMcpScope);
+    (mention || enabledMcpServers[id] === true);
+  const effectiveBrowserMcp = effectiveMcp(
+    "browser",
+    browserMcpMention,
+    browserMcpServer.getScope(selectedAgent.capabilities, presentationMode, project.location),
+  );
   const effectiveCrossagentMcp = effectiveMcp(
     "crossagents",
     crossagentMcpMention,
-    selectedMcpScope,
+    crossagentMcpServer.getScope(selectedAgent.capabilities, presentationMode, project.location),
   );
   const effectiveChromeMcp = effectiveMcp(
     "chrome",
@@ -1437,9 +1382,6 @@ export function ThreadDraftView(props: {
               paneCount={props.paneCount}
               gitBranch={gitBranch}
               worktreeMode={effectiveWorktreeMode}
-              supportsModePicker={supportsModePicker}
-              supportsTerminalMode={supportsTerminalMode}
-              supportsGuiMode={supportsGuiMode}
               presentationMode={presentationMode}
               {...(props.composerPlaceholder ? { placeholder: props.composerPlaceholder } : {})}
               {...(props.submitOnEnter !== undefined ? { submitOnEnter: props.submitOnEnter } : {})}
@@ -1450,10 +1392,6 @@ export function ThreadDraftView(props: {
               onConfigChange={onConfigPatch}
               onWorktreeModeChange={setWorktreeMode}
               onSwitchBranch={handleSwitchBranch}
-              onRememberPresentationMode={() => {
-                setLastPresentationMode(selectedAgent.kind, presentationMode);
-              }}
-              onPresentationModeChange={handlePresentationChange}
               onStart={onStart}
             />
           ) : (
@@ -1496,9 +1434,6 @@ export function ThreadDraftView(props: {
                 paneCount={props.paneCount}
                 gitBranch={gitBranch}
                 worktreeMode={effectiveWorktreeMode}
-                supportsModePicker={supportsModePicker}
-                supportsTerminalMode={supportsTerminalMode}
-                supportsGuiMode={supportsGuiMode}
                 presentationMode={presentationMode}
                 {...(props.composerPlaceholder ? { placeholder: props.composerPlaceholder } : {})}
                 {...(props.submitOnEnter !== undefined
@@ -1511,10 +1446,6 @@ export function ThreadDraftView(props: {
                 onConfigChange={onConfigPatch}
                 onWorktreeModeChange={setWorktreeMode}
                 onSwitchBranch={handleSwitchBranch}
-                onRememberPresentationMode={() => {
-                  setLastPresentationMode(selectedAgent.kind, presentationMode);
-                }}
-                onPresentationModeChange={handlePresentationChange}
                 onStart={onStart}
               />
             </UniversalDockedChatInput>

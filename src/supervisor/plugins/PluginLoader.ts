@@ -5,7 +5,7 @@ import {
   agentPluginsSchemaVersion,
   parsePluginManifest,
   parsePluginMcpConfig,
-  parsePoracodeExtension,
+  parseCraftStationExtension,
   pluginDiagnostic,
   type PluginDiagnostic,
 } from "@/shared/plugins/spec";
@@ -120,7 +120,7 @@ export function loadPluginFromDirectory(directory: string, source: PluginSource)
   const manifest = parsedManifest.manifest;
   if (!manifest) return { diagnostics };
 
-  const extension = parsePoracodeExtension(manifest);
+  const extension = parseCraftStationExtension(manifest);
   diagnostics.push(...extension.diagnostics);
 
   const skills = discoverSkills(root, diagnostics);
@@ -147,7 +147,7 @@ export function loadPluginFromDirectory(directory: string, source: PluginSource)
       source,
       root,
       manifest,
-      poracode: extension.extension,
+      craftstation: extension.extension,
       skills,
       mcpServers,
       diagnostics,

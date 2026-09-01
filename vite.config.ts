@@ -12,8 +12,7 @@ const CLIENT_SOURCE_RE = /[\\/]src[\\/](?:renderer|mobile)[\\/].*\.[tj]sx?(?:$|\
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 const MATERIAL_ICON_DIR = resolve(__dirname, "node_modules/material-icon-theme/icons");
 const MATERIAL_ICON_ASSET_PREFIX = "/assets/material-icons/";
-const MANAGED_WORKTREES_GLOB = `${normalizePath(resolve(__dirname, ".poracode/worktrees"))}/**`;
-const LEGACY_MANAGED_WORKTREES_GLOB = `${normalizePath(resolve(__dirname, ".lightcode/worktrees"))}/**`;
+const MANAGED_WORKTREES_GLOB = `${normalizePath(resolve(__dirname, ".craftstation/worktrees"))}/**`;
 const ELECTRON_OUTPUT_GLOB = `${normalizePath(resolve(__dirname, "dist/main"))}/**`;
 const TEMP_OUTPUT_GLOBS = ["tmp", ".tmp"].map(
   (directory) => `${normalizePath(resolve(__dirname, directory))}/**`,
@@ -76,8 +75,8 @@ const CLIENT_OPTIMIZED_DEPS = [
   "@capacitor/core",
   "@capacitor/push-notifications",
   "@chenglou/pretext",
-  "@poracode/activity-bridge",
-  "@poracode/ssh-bridge",
+  "@craftstation/activity-bridge",
+  "@craftstation/ssh-bridge",
   "@tanstack/react-router",
   "dexie",
   "jsqr",
@@ -105,20 +104,20 @@ function buildPostHogEnvDefines(mode: string): Record<string, string> {
 // Inline ternary instead of importing src/shared/channel.normalizeChannel —
 // keeps config loading uniform with tsdown.config.ts. Parity is pinned by
 // src/shared/channel.config-parity.test.ts.
-const poracodeChannel = process.env.PORACODE_CHANNEL === "nightly" ? "nightly" : "stable";
+const craftstationChannel = process.env.CRAFTSTATION_CHANNEL === "nightly" ? "nightly" : "stable";
 
 // Keep in sync with scripts/dev-server-port.mjs: smoke runs and parallel
 // worktrees override the dev-server port so isolated apps can run side by side.
-const devServerPort = Number.parseInt(process.env.PORACODE_DEV_SERVER_PORT ?? "", 10) || 3100;
+const devServerPort = Number.parseInt(process.env.CRAFTSTATION_DEV_SERVER_PORT ?? "", 10) || 3100;
 
-// Mobile-only build target (PORACODE_BUILD_TARGET=mobile) produces a
+// Mobile-only build target (CRAFTSTATION_BUILD_TARGET=mobile) produces a
 // self-contained PWA bundle in dist/mobile for standalone hosting (Vercel),
 // omitting the desktop renderer entry. The default build emits both entries to
 // dist/renderer for the Electron app and its embedded remote-access server.
-const mobileOnly = process.env.PORACODE_BUILD_TARGET === "mobile";
+const mobileOnly = process.env.CRAFTSTATION_BUILD_TARGET === "mobile";
 const vercelAnalyticsEnabled =
   mobileOnly && ["preview", "production"].includes(process.env.VERCEL_ENV ?? "");
-const mobileBasePath = process.env.PORACODE_MOBILE_BASE_PATH?.trim() || "./";
+const mobileBasePath = process.env.CRAFTSTATION_MOBILE_BASE_PATH?.trim() || "./";
 const mobileOutputPath =
   mobileBasePath === "./"
     ? "dist/mobile"
@@ -132,15 +131,15 @@ const mobileOutputPath =
 // `react-devtools` app (run via `pnpm devtools`), which serves a backend on
 // :8097 that the page connects to. The hook must be installed *before* React
 // loads, so we inject a classic <script> at the top of <head>; the deferred
-// `main.tsx` module script runs after it. Opt-in via PORACODE_REACT_DEVTOOLS=1
+// `main.tsx` module script runs after it. Opt-in via CRAFTSTATION_REACT_DEVTOOLS=1
 // (set by the `dev:devtools` script) so a normal `pnpm dev` stays noise-free
 // when the standalone app isn't running.
 function reactDevtoolsStandalone(): Plugin {
   return {
-    name: "poracode:react-devtools-standalone",
+    name: "craftstation:react-devtools-standalone",
     apply: "serve",
     transformIndexHtml() {
-      if (process.env.PORACODE_REACT_DEVTOOLS !== "1") {
+      if (process.env.CRAFTSTATION_REACT_DEVTOOLS !== "1") {
         return;
       }
       return [
@@ -156,7 +155,7 @@ function reactDevtoolsStandalone(): Plugin {
 
 function resizeObserverLoopErrorFilter(): Plugin {
   return {
-    name: "poracode:resize-observer-loop-error-filter",
+    name: "craftstation:resize-observer-loop-error-filter",
     apply: "serve",
     transformIndexHtml() {
       return [
@@ -199,7 +198,7 @@ function rendererBootstrapTiming(): Plugin {
   ]);
 
   return {
-    name: "poracode:renderer-bootstrap-timing",
+    name: "craftstation:renderer-bootstrap-timing",
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
@@ -217,7 +216,7 @@ function rendererBootstrapTiming(): Plugin {
 
 function mobileDevIndex(): Plugin {
   return {
-    name: "poracode:mobile-dev-index",
+    name: "craftstation:mobile-dev-index",
     apply: "serve",
     configureServer(server) {
       if (!mobileOnly) return;
@@ -242,7 +241,7 @@ function mobileDevIndex(): Plugin {
 
 function mobileSshRuntime(): Plugin {
   return {
-    name: "poracode:mobile-ssh-runtime",
+    name: "craftstation:mobile-ssh-runtime",
     apply: "serve",
     configureServer(server) {
       if (!mobileOnly) return;
@@ -250,7 +249,7 @@ function mobileSshRuntime(): Plugin {
       server.middlewares.use((req, res, next) => {
         const pathname = (req.url ?? "").split("?", 1)[0];
         const name = pathname?.match(
-          /^\/poracode-ssh-runtime\/(manifest\.json|runtime\.bin)$/,
+          /^\/craftstation-ssh-runtime\/(manifest\.json|runtime\.bin)$/,
         )?.[1];
         if (!name) return next();
         const path = resolve(root, name);
@@ -268,7 +267,7 @@ function mobileSshRuntime(): Plugin {
 function materialIconAssets(): Plugin[] {
   return [
     {
-      name: "poracode:material-icon-assets-dev",
+      name: "craftstation:material-icon-assets-dev",
       apply: "serve",
       configureServer(server) {
         server.middlewares.use(MATERIAL_ICON_ASSET_PREFIX, (req, res, next) => {
@@ -306,7 +305,7 @@ function materialIconAssets(): Plugin[] {
       },
     },
     {
-      name: "poracode:material-icon-assets-build",
+      name: "craftstation:material-icon-assets-build",
       apply: "build",
       buildStart() {
         for (const entry of readdirSync(MATERIAL_ICON_DIR, { withFileTypes: true })) {
@@ -348,8 +347,10 @@ export default defineConfig(({ mode }) => ({
   base: mobileOnly ? mobileBasePath : "./",
   define: {
     ...buildPostHogEnvDefines(mode),
-    __PORACODE_CHANNEL__: JSON.stringify(poracodeChannel),
-    "import.meta.env.VITE_PORACODE_BUILD_TARGET": JSON.stringify(mobileOnly ? "mobile" : "desktop"),
+    __CRAFTSTATION_CHANNEL__: JSON.stringify(craftstationChannel),
+    "import.meta.env.VITE_CRAFTSTATION_BUILD_TARGET": JSON.stringify(
+      mobileOnly ? "mobile" : "desktop",
+    ),
     "import.meta.env.VITE_VERCEL_ANALYTICS_ENABLED": JSON.stringify(vercelAnalyticsEnabled),
   },
   resolve: {
@@ -462,7 +463,6 @@ export default defineConfig(({ mode }) => ({
     watch: {
       ignored: [
         MANAGED_WORKTREES_GLOB,
-        LEGACY_MANAGED_WORKTREES_GLOB,
         ELECTRON_OUTPUT_GLOB,
         ...TEMP_OUTPUT_GLOBS,
         "**/ios/App/App/public/**",

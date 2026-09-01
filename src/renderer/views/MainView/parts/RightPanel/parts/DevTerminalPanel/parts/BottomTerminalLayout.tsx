@@ -174,7 +174,7 @@ export function BottomTerminalLayout(props: {
       </div>
 
       <div
-        className="poracode-pane-divider"
+        className="craftstation-pane-divider"
         onPointerDown={handleResizeStart}
         onKeyDown={handleResizeKeyDown}
         role="separator"

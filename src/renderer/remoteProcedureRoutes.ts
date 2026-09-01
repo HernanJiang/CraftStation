@@ -57,6 +57,7 @@ export const REMOTE_PROCEDURE_ROUTES = {
 /** Project-aware procedures intentionally dispatched or disabled outside the bridge router. */
 export const NON_ROUTER_PROJECT_PROCEDURES = {
   craftAgent: "crafting-is-local-supervisor-only",
+  getCraftingModelInventory: "crafting-is-local-supervisor-only",
   resumeCraftAgent: "crafting-is-local-supervisor-only",
   startThread: "explicit-remote-thread-launch",
   startCodexProfileLogin: "device-owned-profile-login",

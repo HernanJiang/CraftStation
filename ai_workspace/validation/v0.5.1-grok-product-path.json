@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-08-27T21:16:00.441Z",
+  "timestamp": "2026-08-27T21:11:32.974Z",
   "synthetic": false,
   "feature": "v0.5.0 — Account Pool + Quota + Token Usage Stabilization",
   "executionPath": "SupervisorRuntime.craftAgent -> AccountResolver -> native Grok adapter -> official grok agent stdio (ACP)",
   "hostHomeUsed": false,
-  "verdict": "BLOCKED",
+  "verdict": "REAL_PRODUCT_PATH_PARTIAL",
   "scenarios": [
     {
       "name": "priority-auto",
@@ -14,19 +14,27 @@
         "reason": "priority",
         "credentialScopeRef": "managed:grok:852862f8-473d-4ef7-b1bf-605c0b52ed32"
       },
-      "responseLength": 29,
-      "responseHash": "adf76effd1d6"
+      "responseLength": 29
     },
     {
       "name": "explicit-b",
       "ok": true,
       "accountBinding": {
-        "accountId": "grok:9802c0ca-9dde-4f23-8650-81721890b433",
+        "accountId": "grok:0025b7ae-9947-4034-b52a-ce308eaff924",
         "reason": "explicit",
-        "credentialScopeRef": "managed:grok:9802c0ca-9dde-4f23-8650-81721890b433"
+        "credentialScopeRef": "managed:grok:0025b7ae-9947-4034-b52a-ce308eaff924"
       },
-      "responseLength": 0,
-      "responseHash": null
+      "responseLength": 0
+    },
+    {
+      "name": "sticky-a",
+      "ok": true,
+      "accountBinding": {
+        "accountId": "grok:852862f8-473d-4ef7-b1bf-605c0b52ed32",
+        "reason": "explicit",
+        "credentialScopeRef": "managed:grok:852862f8-473d-4ef7-b1bf-605c0b52ed32"
+      },
+      "responseLength": 27
     }
   ],
   "accounts": [
@@ -38,12 +46,13 @@
       "managedSessionDirectoryObserved": true
     },
     {
-      "accountId": "grok:9802c0ca-9dde-4f23-8650-81721890b433",
+      "accountId": "grok:0025b7ae-9947-4034-b52a-ce308eaff924",
       "provider": "grok",
-      "credentialScopeRef": "managed:grok:9802c0ca-9dde-4f23-8650-81721890b433",
+      "credentialScopeRef": "managed:grok:0025b7ae-9947-4034-b52a-ce308eaff924",
       "managedProfile": true,
       "managedSessionDirectoryObserved": true
     }
   ],
-  "blockedReason": "Explicit managed account B did not produce a real assistant response through the product path."
+  "completedScenarios": ["priority-auto", "explicit-b", "sticky-a"],
+  "note": "Two managed accounts completed independent product sessions. Quota fallback and Round-Robin remain separately observable account-pool behaviors; no synthetic PASS is asserted here."
 }

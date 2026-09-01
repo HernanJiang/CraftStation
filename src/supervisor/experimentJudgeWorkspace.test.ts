@@ -36,8 +36,8 @@ describe("createExperimentJudgeWorkspace", () => {
     expect(workspace.location).toMatchObject({
       kind: "wsl",
       distro: "Ubuntu",
-      linuxPath: expect.stringMatching(/^\/tmp\/poracode-judge-[0-9a-f-]+$/u),
-      uncPath: expect.stringContaining("poracode-judge-"),
+      linuxPath: expect.stringMatching(/^\/tmp\/craftstation-judge-[0-9a-f-]+$/u),
+      uncPath: expect.stringContaining("craftstation-judge-"),
     });
     expect(mkdir).toHaveBeenCalledOnce();
     expect(writeNewFile).toHaveBeenCalledTimes(4);
@@ -57,7 +57,7 @@ describe("createExperimentJudgeWorkspace", () => {
     await workspace.cleanup();
     expect(rm).toHaveBeenCalledWith(
       expect.objectContaining({ distro: "Ubuntu", linuxPath: "/tmp" }),
-      expect.stringMatching(/^\/tmp\/poracode-judge-[0-9a-f-]+$/u),
+      expect.stringMatching(/^\/tmp\/craftstation-judge-[0-9a-f-]+$/u),
       { recursive: true, force: true },
     );
   });

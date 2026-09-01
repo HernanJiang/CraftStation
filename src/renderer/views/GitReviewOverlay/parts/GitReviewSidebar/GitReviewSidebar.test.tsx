@@ -279,7 +279,7 @@ describe("GitReviewSidebar", () => {
       number: 581,
       state: "open",
       title: "feature/worktree",
-      url: "https://github.com/example/poracode/pull/581",
+      url: "https://github.com/example/craftstation/pull/581",
       baseBranch: "master",
       isDraft: false,
       updatedAt: "2026-08-18T00:00:00.000Z",
@@ -305,7 +305,7 @@ describe("GitReviewSidebar", () => {
   it("renders worktree changes from the provided git status", () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };
@@ -357,7 +357,7 @@ describe("GitReviewSidebar", () => {
       id: "remote:desktop-1:project:project-1",
       remoteServerId: "desktop-1",
       remoteId: "project-1",
-      name: "Remote Poracode",
+      name: "Remote CraftStation",
       createdAt: new Date().toISOString(),
       location: {
         kind: "windows",
@@ -371,10 +371,10 @@ describe("GitReviewSidebar", () => {
       tracking: "",
       hasRemote: true,
       remoteInfo: {
-        url: "https://github.com/example/poracode.git",
+        url: "https://github.com/example/craftstation.git",
         platform: "github",
         owner: "example",
-        repo: "poracode",
+        repo: "craftstation",
       },
       ahead: 0,
       behind: 0,
@@ -454,7 +454,7 @@ describe("GitReviewSidebar", () => {
     try {
       const project: Project = {
         id: "project-1",
-        name: "Poracode",
+        name: "CraftStation",
         createdAt: new Date().toISOString(),
         location: { kind: "windows", path: "C:\\repo" },
       };
@@ -523,7 +523,7 @@ describe("GitReviewSidebar", () => {
   it("mounts panel row actions only while the row is hovered or focused", () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -577,7 +577,7 @@ describe("GitReviewSidebar", () => {
   it("uses Git's merge message as an editable commit template", async () => {
     const project: Project = {
       id: "merge-project",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };
@@ -681,7 +681,7 @@ describe("GitReviewSidebar", () => {
     });
     const project: Project = {
       id: "typed-project",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -731,7 +731,7 @@ describe("GitReviewSidebar", () => {
   it("reports failed file staging before refreshing the git state", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -784,7 +784,7 @@ describe("GitReviewSidebar", () => {
   it("shows an init action when the location is not a git repository", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -835,7 +835,7 @@ describe("GitReviewSidebar", () => {
   it("shows the pixel loader while init is pending", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -876,7 +876,7 @@ describe("GitReviewSidebar", () => {
   it("shows a clean working tree state after the repo has no changes", () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -917,7 +917,7 @@ describe("GitReviewSidebar", () => {
   it("routes conflict file actions through the touch menu when provided", () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -980,7 +980,7 @@ describe("GitReviewSidebar", () => {
   it("uses the conflict resolver launch override when provided", () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -1044,7 +1044,7 @@ describe("GitReviewSidebar", () => {
   it("adds a remote from the clean working tree state", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo" },
     };
@@ -1082,13 +1082,13 @@ describe("GitReviewSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Remote" }));
     fireEvent.change(screen.getByLabelText("Remote name"), { target: { value: " upstream " } });
     fireEvent.change(screen.getByLabelText("Remote URL"), {
-      target: { value: " git@github.com:example/poracode.git " },
+      target: { value: " git@github.com:example/craftstation.git " },
     });
     const addButtons = screen.getAllByRole("button", { name: "Add Remote" });
     fireEvent.click(addButtons[addButtons.length - 1]!);
 
     await waitFor(() =>
-      expect(onAddRemote).toHaveBeenCalledWith("upstream", "git@github.com:example/poracode.git"),
+      expect(onAddRemote).toHaveBeenCalledWith("upstream", "git@github.com:example/craftstation.git"),
     );
     await waitFor(() => expect(screen.queryByLabelText("Remote URL")).not.toBeInTheDocument());
   });
@@ -1096,7 +1096,7 @@ describe("GitReviewSidebar", () => {
   it("moves worktree merge actions into the create PR dropdown", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };
@@ -1107,10 +1107,10 @@ describe("GitReviewSidebar", () => {
       tracking: "origin/feature/worktree",
       hasRemote: true,
       remoteInfo: {
-        url: "https://github.com/example/poracode.git",
+        url: "https://github.com/example/craftstation.git",
         platform: "github",
         owner: "example",
-        repo: "poracode",
+        repo: "craftstation",
       },
       ahead: 0,
       behind: 0,
@@ -1158,7 +1158,7 @@ describe("GitReviewSidebar", () => {
   it("uses the branch name instead of the remote ref as the PR base", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };
@@ -1168,10 +1168,10 @@ describe("GitReviewSidebar", () => {
       tracking: "origin/feature/worktree",
       hasRemote: true,
       remoteInfo: {
-        url: "https://github.com/example/poracode.git",
+        url: "https://github.com/example/craftstation.git",
         platform: "github",
         owner: "example",
-        repo: "poracode",
+        repo: "craftstation",
       },
       ahead: 0,
       behind: 0,
@@ -1286,7 +1286,7 @@ describe("GitReviewSidebar", () => {
   it("hides Create PR when the branch still points at the latest merged PR commit", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };
@@ -1297,10 +1297,10 @@ describe("GitReviewSidebar", () => {
       tracking: "origin/feature/worktree",
       hasRemote: true,
       remoteInfo: {
-        url: "https://github.com/example/poracode.git",
+        url: "https://github.com/example/craftstation.git",
         platform: "github",
         owner: "example",
-        repo: "poracode",
+        repo: "craftstation",
       },
       ahead: 0,
       behind: 0,
@@ -1314,7 +1314,7 @@ describe("GitReviewSidebar", () => {
       state: "merged",
       headSha: "merged-head",
       title: "Add GitHub Actions workflow management view",
-      url: "https://github.com/example/poracode/pull/429",
+      url: "https://github.com/example/craftstation/pull/429",
       baseBranch: "master",
       isDraft: false,
       updatedAt: "2026-07-30T00:00:00.000Z",
@@ -1377,7 +1377,7 @@ describe("GitReviewSidebar", () => {
   it("does not show the removed merge section while worktree source info is still loading", () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };
@@ -1420,7 +1420,7 @@ describe("GitReviewSidebar", () => {
   it("hides pull from source when the worktree is already up to date with its source branch", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };
@@ -1482,7 +1482,7 @@ describe("GitReviewSidebar", () => {
   it("shows pull from source when the source branch is ahead", async () => {
     const project: Project = {
       id: "project-1",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: { kind: "windows", path: "C:\\repo-worktree" },
     };

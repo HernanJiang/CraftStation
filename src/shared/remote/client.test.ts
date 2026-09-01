@@ -5,7 +5,7 @@ import {
   RemoteClientError,
   RemoteDesktopClient,
 } from "./client";
-import { PORACODE_REMOTE_PROTOCOL_VERSION } from "./protocol";
+import { CRAFTSTATION_REMOTE_PROTOCOL_VERSION } from "./protocol";
 
 describe("remote error classification", () => {
   it("separates transport failures from reachable application errors", () => {
@@ -79,7 +79,7 @@ describe("RemoteDesktopClient", () => {
     ).resolves.toMatchObject({ accessToken: "lc_access_test" });
     expect(body).toMatchObject({
       client: {
-        label: "Poracode web app",
+        label: "CraftStation web app",
         deviceType: "browser",
       },
     });
@@ -437,7 +437,7 @@ describe("RemoteDesktopClient", () => {
       "http://127.0.0.1:38987/",
       "lc_access_test",
       async (_url, init) => {
-        commandId = init?.headers?.["x-poracode-command-id"] ?? "";
+        commandId = init?.headers?.["x-craftstation-command-id"] ?? "";
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -655,33 +655,9 @@ describe("RemoteDesktopClient", () => {
     });
   });
 
-  it("falls back to the legacy environment endpoint when the Poracode endpoint is unavailable", async () => {
-    const requestedPaths: string[] = [];
-    const client = new RemoteDesktopClient("http://127.0.0.1:38987/", undefined, async (url) => {
-      const pathname = new URL(url).pathname;
-      requestedPaths.push(pathname);
-      if (pathname === "/.well-known/poracode/environment") {
-        return new Response(
-          JSON.stringify({ error: { code: "not_found", message: "Not found." } }),
-          {
-            status: 404,
-            headers: { "content-type": "application/json" },
-          },
-        );
-      }
-      return descriptorResponse(PORACODE_REMOTE_PROTOCOL_VERSION, ["session:read"]);
-    });
-
-    await expect(client.environment()).resolves.toMatchObject({ desktopId: "desktop-1" });
-    expect(requestedPaths).toEqual([
-      "/.well-known/poracode/environment",
-      "/.well-known/lightcode/environment",
-    ]);
-  });
-
   it("drops server-advertised scopes this build does not know instead of failing to parse", async () => {
     const client = new RemoteDesktopClient("http://127.0.0.1:38987/", undefined, async () =>
-      descriptorResponse(PORACODE_REMOTE_PROTOCOL_VERSION, [
+      descriptorResponse(CRAFTSTATION_REMOTE_PROTOCOL_VERSION, [
         "session:read",
         "session:operate",
         "future:capability",

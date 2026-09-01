@@ -1,5 +1,5 @@
 import type { SessionNotification } from "@agentclientprotocol/sdk";
-import { PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY } from "../acp/canonicalMapping/subagents";
+import { CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY } from "../acp/canonicalMapping/subagents";
 
 export function mapFactoryTranscriptRecord(
   childSessionId: string,
@@ -100,7 +100,7 @@ function factoryNotification(
     sessionId,
     update: {
       ...update,
-      _meta: { [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: parentToolCallId },
+      _meta: { [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: parentToolCallId },
     },
   } as unknown as SessionNotification;
 }

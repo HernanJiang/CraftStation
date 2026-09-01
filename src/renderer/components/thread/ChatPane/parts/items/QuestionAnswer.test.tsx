@@ -37,7 +37,7 @@ describe("QuestionAnswer", () => {
     expect(container).toHaveTextContent("Use README.md instead.");
     const revertButton = screen.getByRole("button", { name: "Revert to this checkpoint" });
     expect(revertButton).toBeInTheDocument();
-    expect(revertButton.closest(".poracode-message-action-strip")).not.toBeNull();
+    expect(revertButton.closest(".craftstation-message-action-strip")).not.toBeNull();
   });
 
   it("renders the question only once when the header repeats it (Kimi ACP shape)", () => {

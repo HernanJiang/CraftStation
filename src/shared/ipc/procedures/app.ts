@@ -84,12 +84,8 @@ export interface StartTailscaleResult {
   readonly message?: string;
 }
 
-export interface LegacyDataMigrationRequestResult {
-  readonly status: "scheduled" | "no-legacy-data" | "unavailable";
-}
-
 /**
- * Desktop-as-client HTTP proxy. The renderer can't fetch a remote Poracode
+ * Desktop-as-client HTTP proxy. The renderer can't fetch a remote CraftStation
  * server directly — the server's CORS allowlist doesn't include the desktop's
  * origin — so remote requests run in the main process, which isn't subject to
  * CORS. See docs/REMOTE_ARCHITECTURE.md, Phase 4.
@@ -191,10 +187,6 @@ export const appProcedures = {
     boolean,
     "main-local"
   >("showNotification", "main-local", showNotificationPayloadSchema),
-  requestLegacyDataMigration: defineNoArgProcedure<LegacyDataMigrationRequestResult, "main-local">(
-    "requestLegacyDataMigration",
-    "main-local",
-  ),
   relaunchApp: defineNoArgProcedure<void, "main-local">("relaunchApp", "main-local"),
   getHomeScopeLocation: defineNoArgProcedure<ProjectLocation, "main-local">(
     "getHomeScopeLocation",

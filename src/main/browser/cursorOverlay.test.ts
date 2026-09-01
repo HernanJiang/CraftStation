@@ -36,8 +36,8 @@ describe("withCursorOverlayHidden", () => {
     ).resolves.toBe("image");
 
     expect(events).toEqual(["hide", "capture", "restore"]);
-    expect(expressions[0]).toContain("#__poracode_cursor__");
-    expect(expressions[0]).toContain("[data-poracode-cursor-ripple]");
+    expect(expressions[0]).toContain("#__craftstation_cursor__");
+    expect(expressions[0]).toContain("[data-craftstation-cursor-ripple]");
   });
 
   it("restores presence visuals when capture fails", async () => {
@@ -115,9 +115,9 @@ describe("setCursorOverlayVisible", () => {
     await setCursorOverlayVisible(cdp, false);
     await setCursorOverlayVisible(cdp, true);
 
-    expect(expressions[0]).toContain("__poracode_session_overlay_hide__");
+    expect(expressions[0]).toContain("__craftstation_session_overlay_hide__");
     expect(expressions[0]).toContain("visibility:hidden");
-    expect(expressions[1]).toContain("__poracode_session_overlay_hide__");
+    expect(expressions[1]).toContain("__craftstation_session_overlay_hide__");
     expect(expressions[1]).toContain("?.remove()");
   });
 });

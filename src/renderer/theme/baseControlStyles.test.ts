@@ -26,13 +26,13 @@ describe("base control styles", () => {
       /html\[data-platform="darwin"\]\.dark,[^{]*html\[data-platform="darwin"\]\[data-theme="dark"\]\s*\{[^}]*--floating-chrome-surface:\s*color-mix\(in oklab, var\(--sidebar-background\) 24%, transparent\);[^}]*--floating-chrome-backdrop:\s*blur\(10px\) saturate\(135%\);/s,
     );
     expect(styles).toMatch(
-      /html:is\(\[data-platform="darwin"\], \[data-platform="win32"\]\) \.poracode-floating-chrome\s*\{[^}]*border-color:\s*color-mix\(in oklab, var\(--foreground\) 8%, transparent\);[^}]*background-image:\s*none;[^}]*backdrop-filter:\s*var\(--floating-chrome-backdrop\);[^}]*box-shadow:\s*0 2px 10px rgb\(0 0 0 \/ 0\.18\);/s,
+      /html:is\(\[data-platform="darwin"\], \[data-platform="win32"\]\) \.craftstation-floating-chrome\s*\{[^}]*border-color:\s*color-mix\(in oklab, var\(--foreground\) 8%, transparent\);[^}]*background-image:\s*none;[^}]*backdrop-filter:\s*var\(--floating-chrome-backdrop\);[^}]*box-shadow:\s*0 2px 10px rgb\(0 0 0 \/ 0\.18\);/s,
     );
     expect(styles).toMatch(
       /--floating-chrome-active-surface:\s*color-mix\(\s*in oklab,\s*var\(--floating-chrome-surface\) 84%,\s*var\(--sidebar-background\) 16%\s*\);/s,
     );
     expect(styles).toMatch(
-      /\.poracode-floating-chrome--active\s*\{\s*background-color:\s*var\(--floating-chrome-active-surface\);/s,
+      /\.craftstation-floating-chrome--active\s*\{\s*background-color:\s*var\(--floating-chrome-active-surface\);/s,
     );
   });
 
@@ -46,11 +46,11 @@ describe("base control styles", () => {
   });
 
   it("lets the auto-focused draft composer become GPU-idle", () => {
-    expect(styles).toMatch(/\.poracode-composer-border-glow::before\s*\{/);
+    expect(styles).toMatch(/\.craftstation-composer-border-glow::before\s*\{/);
     expect(
       ruleFor(
-        ".poracode-composer-shell--draft:focus-within .poracode-composer-border-glow::before",
+        ".craftstation-composer-shell--draft:focus-within .craftstation-composer-border-glow::before",
       ),
-    ).toContain("animation: poracode-composer-border-spin 1.2s ease-out 1 both");
+    ).toContain("animation: craftstation-composer-border-spin 1.2s ease-out 1 both");
   });
 });

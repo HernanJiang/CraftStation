@@ -72,17 +72,17 @@ interface LocatedFile {
 type ReadTextFile = (path: string) => string | undefined;
 
 const LEGACY_APP_MANAGED_OPENCODE_NAMES = new Set([
-  "poracode_browser",
-  "poracode_subagent",
-  "poracode_subagents",
-  "poracode_computer_use",
-  "poracode_chrome",
-  "poracode",
-  "poracode_browser",
-  "poracode_subagent",
-  "poracode_subagents",
-  "poracode_computer_use",
-  "poracode_chrome",
+  "craftstation_browser",
+  "craftstation_subagent",
+  "craftstation_subagents",
+  "craftstation_computer_use",
+  "craftstation_chrome",
+  "craftstation",
+  "craftstation_browser",
+  "craftstation_subagent",
+  "craftstation_subagents",
+  "craftstation_computer_use",
+  "craftstation_chrome",
 ]);
 
 export interface ExternalMcpDiscoveryServiceOptions {
@@ -790,7 +790,7 @@ export class ExternalMcpDiscoveryService {
     const file = jsoncText === undefined ? json : jsonc;
     const text = jsoncText ?? this.readTextFile(json.fsPath);
     if (!text) return;
-    const managedFile = joinRoot(root, ".poracode-managed-mcp.json");
+    const managedFile = joinRoot(root, ".craftstation-managed-mcp.json");
     const managed = managedOpenCodeNames(this.readTextFile(managedFile.fsPath));
     this.addGroup(
       groups,

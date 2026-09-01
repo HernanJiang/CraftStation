@@ -43,7 +43,7 @@ export function preferredKimiThoughtTier(
 }
 
 /**
- * Reduce a probed thought-level list to the levels Poracode should offer.
+ * Reduce a probed thought-level list to the levels CraftStation should offer.
  *
  * Two or more real tiers → the tier ladder, with `on` dropped. Kimi itself
  * removes `on` from the list as soon as a tier is selected (`thinking=max` on
@@ -51,7 +51,7 @@ export function preferredKimiThoughtTier(
  * placeholder rather than a level.
  *
  * Otherwise → just `on`. Keeping the single level, instead of reporting no
- * levels at all, is what lets Poracode put an untiered model back into its only
+ * levels at all, is what lets CraftStation put an untiered model back into its only
  * state: Kimi carries the previous model's tier across a model switch, so after
  * K3 `max` → K2.7 the session stays on `max` (and even lists it as a K2.7
  * option) until `thinking=on` is sent explicitly.

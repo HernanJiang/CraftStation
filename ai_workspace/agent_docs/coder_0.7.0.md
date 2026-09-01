@@ -52,7 +52,7 @@
 - `pnpm run typecheck`：通过。
 - 修改文件目标 lint：通过；`git diff --check`：通过。
 - `pnpm run build`：此前已通过，产出 renderer 与 Electron bundle；仅有既有 Vite `__dirname`、CSS `::highlight`、sourcemap 和 chunk size 警告。
-- 全量 `pnpm run test`：`854 passed, 10 skipped, 17 failed`，另有 1 个 unhandled error。失败集中在基线/环境问题：Poracode→CraftStation `.poracode/.craftstation` 重命名与迁移断言、MCP/外部网络相关测试、renderer remote procedure route 基线断言、测试清理/进程树权限问题；未命中本轮新增 Native 测试。Unhandled error 来自既有 `terminateProcessTree` 在测试清理期间读取 undefined process 结果，同样未命中本轮 Native 测试。
+- 全量 `pnpm run test`：`854 passed, 10 skipped, 17 failed`，另有 1 个 unhandled error。失败集中在基线/环境问题：CraftStation→CraftStation `.craftstation/.craftstation` 重命名与迁移断言、MCP/外部网络相关测试、renderer remote procedure route 基线断言、测试清理/进程树权限问题；未命中本轮新增 Native 测试。Unhandled error 来自既有 `terminateProcessTree` 在测试清理期间读取 undefined process 结果，同样未命中本轮 Native 测试。
 - 全量 `pnpm run lint`：唯一失败为未修改基线文件 `src/supervisor/agents/codex/codexRouterOverlay.test.ts:52` 的 `vitest(no-conditional-expect)`；本轮新增文件和改动路径 lint 已通过，因此没有修改无关基线测试。
 
 ## Remaining

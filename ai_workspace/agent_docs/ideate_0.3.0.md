@@ -8,7 +8,7 @@
 
 ## 1. Feature Intent
 
-v0.3.0 的目标是把 Codex 从“CraftStation Composition 外包给 PoraCode Runtime 执行”迁移为：
+v0.3.0 的目标是把 Codex 从“CraftStation Composition 外包给 CraftStation Runtime 执行”迁移为：
 
 ```text
 OpenAI Model Item
@@ -75,9 +75,9 @@ Runtime parity 不表示：
 - Codex Thread/Turn persistence、resume 与 fork 语义。
 - Sandbox、permission profile 与 approval execution semantics。
 
-## 4. Scope of the PoraCode Refactor
+## 4. Scope of the CraftStation Refactor
 
-本 Feature 重构的是 PoraCode 的整条 Codex Harness 适配链，不是为每一个 OpenAI/Codex 模型分别编写 Adapter，也不是重写其他 Harness。
+本 Feature 重构的是 CraftStation 的整条 Codex Harness 适配链，不是为每一个 OpenAI/Codex 模型分别编写 Adapter，也不是重写其他 Harness。
 
 所有官方 Codex-compatible Model Items 共享同一个：
 
@@ -92,13 +92,13 @@ v0.3.0 最终 Codex 产品路径不得依赖或 fallback 到：
 ```text
 ThreadSessionManager
 SpawnPipeline
-PoraCode AgentAdapter
-PoraCode CodexStructuredSession
-PoraCode canonical event mapping
-PoraCode Codex hook plugin
+CraftStation AgentAdapter
+CraftStation CodexStructuredSession
+CraftStation canonical event mapping
+CraftStation Codex hook plugin
 ```
 
-PoraCode 的 Desktop、Electron、Workspace、IPC、数据库、Terminal、Git/Worktree 与其他尚未迁移的通用基础设施可以继续保留。这里要求的是 Codex execution critical path 独立，不是本 Feature 一次性重写整个 PoraCode-based Desktop。
+CraftStation 的 Desktop、Electron、Workspace、IPC、数据库、Terminal、Git/Worktree 与其他尚未迁移的通用基础设施可以继续保留。这里要求的是 Codex execution critical path 独立，不是本 Feature 一次性重写整个 CraftStation-based Desktop。
 
 ## 5. Proposed Architecture
 
@@ -265,7 +265,7 @@ CraftStation normalized UI projection
 2. 通过官方 generated schema、fake app-server 与真实 app-server 分层验证。
 3. 让 Codex Native Recipe 只使用新 Module。
 4. 迁移 UI events、approvals、usage、resume 与 lifecycle。
-5. 使用 dependency guard 阻止新 Codex Module 导入旧 PoraCode Runtime。
+5. 使用 dependency guard 阻止新 Codex Module 导入旧 CraftStation Runtime。
 6. 取得完整真实验收证据。
 7. 移除产品 fallback 和旧 Codex execution path。
 8. 确认无生产引用后再删除遗留 Codex adapter implementation。
@@ -315,7 +315,7 @@ Model Item
 
 并验证：
 
-- Codex 产品路径不依赖旧 PoraCode Codex Runtime classes。
+- Codex 产品路径不依赖旧 CraftStation Codex Runtime classes。
 - 产品没有 legacy Codex fallback。
 - UI 显式配置与官方 effective settings 一致。
 - UI context/usage 来自官方 Runtime。
@@ -326,8 +326,8 @@ Model Item
 ## 14. Out of Scope
 
 - 重写 Codex Agent Loop 或 Codex Core。
-- 同时重写 DeepSeek Harness、Grok Build 或所有 PoraCode Agent integration。
-- 一次性移除全部 PoraCode Desktop 基础设施。
+- 同时重写 DeepSeek Harness、Grok Build 或所有 CraftStation Agent integration。
+- 一次性移除全部 CraftStation Desktop 基础设施。
 - Auto-Crafting、Interaction-Aware Search、Model Fingerprint 与 Learned Router。
 - 将 Context、MCP、Skills、Permission 全部提前升级为一级 Item。
 - 要求不同运行产生逐字相同的模型输出。
@@ -339,7 +339,7 @@ Model Item
 - 当前 `v0.2.16` 继续保持 UI-only，关闭后再启动 v0.3.0。
 - Codex 集成入口使用官方 `codex app-server`，不通过 PTY 模拟 CLI。
 - Codex 系列 Model Items 共享同一个 Codex Harness Runtime Adapter。
-- 最终产品路径不依赖或 fallback 到旧 PoraCode Codex Adapter。
+- 最终产品路径不依赖或 fallback 到旧 CraftStation Codex Adapter。
 - 默认继承用户现有 Codex 环境，只有 UI 显式选择才覆盖。
 - 官方 Runtime 拥有 Agent Loop、Context、Compaction、Tools、MCP、Skills 与 Subagents。
 - CraftStation 拥有 Composition、Control、Presentation、provenance 和事件投影。

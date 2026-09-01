@@ -8,8 +8,8 @@ interface Position {
 }
 
 /**
- * Shared "flying lightball" indicator used by tab pills (PresentationModeTabs,
- * PrTabsPill, etc.). Tracks an `activeSelector` element inside a container and
+ * Shared "flying lightball" indicator used by tab pills (PrTabsPill,
+ * etc.). Tracks an `activeSelector` element inside a container and
  * animates a radial-gradient glow over it as the active item changes. The glow
  * is fully transparent at rest — the consumer's active-tab text color does the
  * heavy lifting; the lightball only flares during the transition.

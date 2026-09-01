@@ -3,13 +3,13 @@ import { rm } from "node:fs/promises";
 import { join, normalize, resolve } from "node:path";
 import { net, protocol } from "electron";
 import type { ProjectLocation } from "@/shared/contracts";
-import type { PoracodePaths } from "@/shared/poracodePaths";
+import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import { resolveLocalFileUrlPath } from "@/shared/promptContent";
 import { getProjectFsPath } from "@/shared/wsl";
 import { getThreadAttachmentDir, sanitizeAttachmentPathPart } from "./attachmentStorage";
 
 export function saveClipboardImageFile(
-  paths: PoracodePaths,
+  paths: CraftStationPaths,
   payload: { threadId: string; data: Uint8Array; extension: string },
 ): string {
   const threadDir = getThreadAttachmentDir(paths, payload.threadId);
@@ -28,7 +28,7 @@ export function writeImageFile(filePath: string, data: Uint8Array): void {
 
 /** Read image bytes addressed by the desktop-only local-file protocol. */
 export function readLocalImageFile(url: string): Uint8Array {
-  if (!/^(?:poracode|lightcode)-local:\/\//.test(url)) {
+  if (!/^(?:craftstation|craftstation)-local:\/\//.test(url)) {
     throw new Error("Unsupported local image URL");
   }
   const filePath = resolveLocalFileUrlPath(url);
@@ -39,7 +39,7 @@ export function readLocalImageFile(url: string): Uint8Array {
 }
 
 export function saveHandoffContextFile(
-  paths: PoracodePaths,
+  paths: CraftStationPaths,
   payload: { threadId: string; content: string },
 ): string {
   const threadDir = getThreadAttachmentDir(paths, payload.threadId);
@@ -49,12 +49,12 @@ export function saveHandoffContextFile(
   return filePath;
 }
 
-export function deleteThreadAttachments(paths: PoracodePaths, threadId: string): void {
+export function deleteThreadAttachments(paths: CraftStationPaths, threadId: string): void {
   rmSync(getThreadAttachmentDir(paths, threadId), { recursive: true, force: true });
 }
 
 export async function deleteThreadAttachmentsAsync(
-  paths: PoracodePaths,
+  paths: CraftStationPaths,
   threadId: string,
 ): Promise<void> {
   await rm(getThreadAttachmentDir(paths, threadId), { recursive: true, force: true });
@@ -78,7 +78,7 @@ export function resolveProjectFsPath(payload: {
   return resolved;
 }
 
-const LOCAL_FILE_PROTOCOL_SCHEMES = ["poracode-local", "lightcode-local"] as const;
+const LOCAL_FILE_PROTOCOL_SCHEMES = ["craftstation-local"] as const;
 
 export function registerLocalFileProtocolScheme(): void {
   protocol.registerSchemesAsPrivileged(

@@ -32,72 +32,60 @@ import {
  * document so the agent CLI invokes the forwarder via shell command — OpenCode
  * loads plugin files in-process. So "install" here means:
  *
- *   1. Stage `plugin.json` + `poracode-status.mjs` to
- *      `~/.poracode/agent-plugins/opencode/` (the canonical poracode-managed
+ *   1. Stage `plugin.json` + `craftstation-status.mjs` to
+ *      `~/.craftstation/agent-plugins/opencode/` (the canonical craftstation-managed
  *      location used for version bookkeeping and the manifest the supervisor
  *      reads at boot).
  *   2. Copy the staged plugin into OpenCode's auto-discovery directory at
- *      `~/.config/opencode/plugins/poracode-status.js`. OpenCode globs
+ *      `~/.config/opencode/plugins/craftstation-status.js`. OpenCode globs
  *      `{plugin,plugins}/*.{ts,js}` (no `.mjs`!) so the deployed file uses
  *      `.js`. Bun (OpenCode's runtime) treats ESM syntax in `.js` natively.
  *
  * Why drop into `plugins/` instead of registering a `file://` spec in
  * `~/.config/opencode/opencode.json`: empirically, an opencode.json reference
- * to a file under `~/.poracode/` did not load reliably in OpenCode 1.14.31
+ * to a file under `~/.craftstation/` did not load reliably in OpenCode 1.14.31
  * across Windows/WSL — auto-discovery from `plugins/` is the well-trodden
  * path every other ecosystem plugin (Warp, sample plugins) uses, and the
  * displayed name in OpenCode's TUI status panel comes from the basename of
- * the dropped file, so naming the drop `poracode-status.js` gives the right
+ * the dropped file, so naming the drop `craftstation-status.js` gives the right
  * label without further plumbing.
  *
- * Older poracode builds added a `file://` plugin entry to opencode.json that
+ * Older craftstation builds added a `file://` plugin entry to opencode.json that
  * would now be a dead reference; install removes it on every run so users
  * upgrading from those builds aren't left with a ghost entry.
  *
- * The plugin reads `PORACODE_HOOK_URL` / `PORACODE_HOOK_SECRET` /
- * `PORACODE_THREAD_ID` etc. from `process.env` at hook time. When those
- * vars are unset (i.e. the user runs `opencode` outside Poracode) the
+ * The plugin reads `CRAFTSTATION_HOOK_URL` / `CRAFTSTATION_HOOK_SECRET` /
+ * `CRAFTSTATION_THREAD_ID` etc. from `process.env` at hook time. When those
+ * vars are unset (i.e. the user runs `opencode` outside CraftStation) the
  * handlers no-op.
  */
 
-/** Files staged into `~/.poracode/agent-plugins/opencode/`. */
-const OPENCODE_PLUGIN_ASSET_FILES = ["plugin.json", "poracode-status.mjs"] as const;
+/** Files staged into `~/.craftstation/agent-plugins/opencode/`. */
+const OPENCODE_PLUGIN_ASSET_FILES = ["plugin.json", "craftstation-status.mjs"] as const;
 
 /**
  * Filename OpenCode auto-discovers in its plugins/ directory. Must use a `.js`
  * (or `.ts`) extension — OpenCode's loader scans `{plugin,plugins}/*.{ts,js}`
  * and silently ignores any other extension.
  */
-const OPENCODE_PLUGIN_DROP_FILE_NAME = "poracode-status.js";
+const OPENCODE_PLUGIN_DROP_FILE_NAME = "craftstation-status.js";
 
 /**
  * Filename of the manifest we drop next to the plugin file. Lets the plugin
  * read its version at runtime from `import.meta.url`'s directory.
  */
-const OPENCODE_PLUGIN_DROP_MANIFEST_NAME = "poracode-status.plugin.json";
-
-/**
- * Older Poracode versions dropped a `.mjs` here, which OpenCode never loaded
- * (auto-discovery is `*.{ts,js}` only). Cleaned up at install/uninstall time
- * so users upgrading don't end up with two stale siblings.
- */
-const OPENCODE_LEGACY_DROP_FILES = [
-  "poracode-status.mjs",
-  "lightcode-status.js",
-  "lightcode-status.mjs",
-  "lightcode-status.plugin.json",
-] as const;
+const OPENCODE_PLUGIN_DROP_MANIFEST_NAME = "craftstation-status.plugin.json";
 
 /**
  * Substring identifying our entry in the user's `opencode.json` `"plugin"`
- * array. Older poracode versions registered a `file://` URL here pointing
- * at the staged plugin under `~/.poracode/`. We no longer write such an
+ * array. Older craftstation versions registered a `file://` URL here pointing
+ * at the staged plugin under `~/.craftstation/`. We no longer write such an
  * entry but still scrub any prior one out on every install / uninstall.
  */
-const PORACODE_PLUGIN_SPEC_MARKER = "agent-plugins/opencode/";
+const CRAFTSTATION_PLUGIN_SPEC_MARKER = "agent-plugins/opencode/";
 
 const OPENCODE_CONFIG_FILE_NAME = "opencode.json";
-const LEGACY_MANAGED_MCP_FILE_NAME = ".poracode-managed-mcp.json";
+const LEGACY_MANAGED_MCP_FILE_NAME = ".craftstation-managed-mcp.json";
 
 export interface OpenCodePluginPaths {
   pluginDir: string;
@@ -113,7 +101,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "opencode",
-  sourceEnvVar: "PORACODE_OPENCODE_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_OPENCODE_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -224,13 +212,12 @@ export function installOpenCodePlugin(
   const opencodeManifestFile = join(opencodePluginsDir, OPENCODE_PLUGIN_DROP_MANIFEST_NAME);
   try {
     mkdirSync(opencodePluginsDir, { recursive: true });
-    copyFileSync(join(pluginDir, "poracode-status.mjs"), opencodePluginFile);
+    copyFileSync(join(pluginDir, "craftstation-status.mjs"), opencodePluginFile);
     copyFileSync(join(pluginDir, "plugin.json"), opencodeManifestFile);
-    cleanupLegacyDrops(opencodePluginsDir);
   } catch (error) {
     return {
       ok: false,
-      reason: `failed to copy poracode-status plugin into ${opencodePluginsDir}: ${
+      reason: `failed to copy craftstation-status plugin into ${opencodePluginsDir}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     };
@@ -278,19 +265,18 @@ function installOpenCodePluginWsl(
   const opencodePluginFile = `${opencodeDir.linuxDir}/${OPENCODE_PLUGIN_DROP_FILE_NAME}`;
   const opencodePluginUnc = `${opencodeDir.uncDir}\\${OPENCODE_PLUGIN_DROP_FILE_NAME}`;
   const opencodeManifestUnc = `${opencodeDir.uncDir}\\${OPENCODE_PLUGIN_DROP_MANIFEST_NAME}`;
-  const stagedPluginUnc = toWslUncPath(distro, `${linuxPluginDir}/poracode-status.mjs`);
+  const stagedPluginUnc = toWslUncPath(distro, `${linuxPluginDir}/craftstation-status.mjs`);
   const stagedManifestUnc = toWslUncPath(distro, `${linuxPluginDir}/plugin.json`);
 
   try {
     mkdirSync(opencodeDir.uncDir, { recursive: true });
     copyFileSync(stagedPluginUnc, opencodePluginUnc);
     copyFileSync(stagedManifestUnc, opencodeManifestUnc);
-    cleanupLegacyDrops(opencodeDir.uncDir, "wsl");
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      reason: `failed to copy poracode-status plugin into ${opencodeDir.linuxDir} (distro ${distro}): ${detail}`,
+      reason: `failed to copy craftstation-status plugin into ${opencodeDir.linuxDir} (distro ${distro}): ${detail}`,
     };
   }
 
@@ -361,7 +347,7 @@ function verifyOpenCodeInstallAt(
   // Byte-for-byte equality so a hand-edited drop is treated as not-installed
   // and the next install call restages.
   try {
-    const stagedPlugin = readFileSync(join(readableStagingDir, "poracode-status.mjs"));
+    const stagedPlugin = readFileSync(join(readableStagingDir, "craftstation-status.mjs"));
     const droppedBuf = readFileSync(droppedPlugin);
     if (stagedPlugin.length !== droppedBuf.length) return { installed: false };
     if (!stagedPlugin.equals(droppedBuf)) return { installed: false };
@@ -373,13 +359,6 @@ function verifyOpenCodeInstallAt(
     return { installed: false };
   }
   return { installed: true, version };
-}
-
-function cleanupLegacyDrops(pluginsDir: string, target: "native" | "wsl" = "native"): void {
-  for (const name of OPENCODE_LEGACY_DROP_FILES) {
-    const path = target === "wsl" ? `${pluginsDir}\\${name}` : join(pluginsDir, name);
-    removeIfPresent(path);
-  }
 }
 
 interface ReadJsonOk {
@@ -414,7 +393,7 @@ function readJsonFileOrEmpty(path: string): ReadJsonOk | ReadJsonErr {
 
 interface OpenCodeMcpConfigUpdate {
   /**
-   * Poracode-managed `mcp` server keys to strip before (re)adding. Callers
+   * CraftStation-managed `mcp` server keys to strip before (re)adding. Callers
    * pass only the keys they own so unrelated MCP servers (and each other's
    * entries — browser vs Crossagents) are preserved across independent syncs.
    */
@@ -424,9 +403,9 @@ interface OpenCodeMcpConfigUpdate {
 }
 
 /**
- * Update `opencode.json` in a single read+write: scrub any poracode-managed
- * `file://` plugin entry (left behind by older poracode builds) and merge the
- * requested poracode-managed MCP server entries under `mcp`. Only the keys in
+ * Update `opencode.json` in a single read+write: scrub any craftstation-managed
+ * `file://` plugin entry (left behind by older craftstation builds) and merge the
+ * requested craftstation-managed MCP server entries under `mcp`. Only the keys in
  * `update.remove` are touched, so browser and Crossagents syncs can run
  * independently without clobbering one another. Writes only when the resulting
  * JSON actually differs from what's on disk. Best-effort: missing files /
@@ -445,7 +424,7 @@ function updateOpenCodeConfigFile(configPath: string, update: OpenCodeMcpConfigU
   if (Array.isArray(existingPlugin)) {
     const filtered = existingPlugin.filter((entry) => {
       if (typeof entry !== "string") return true;
-      return !entry.includes(PORACODE_PLUGIN_SPEC_MARKER);
+      return !entry.includes(CRAFTSTATION_PLUGIN_SPEC_MARKER);
     });
     if (filtered.length === 0) {
       delete config.plugin;
@@ -521,8 +500,8 @@ function scrubLegacyOpenCodeMcpProjection(configPath: string, managedNamesPath: 
 
 /**
  * Removes the dropped plugin file from OpenCode's plugins/ directory and any
- * legacy drops, plus scrubs the poracode entry from opencode.json. Staging
- * dir under `~/.poracode/` stays so version diagnostics survive.
+ * legacy drops, plus scrubs the craftstation entry from opencode.json. Staging
+ * dir under `~/.craftstation/` stays so version diagnostics survive.
  * Best-effort: missing files / unreachable distros are swallowed.
  */
 export function uninstallOpenCodePlugin(ctx?: AgentEnvContext): void {
@@ -531,7 +510,6 @@ export function uninstallOpenCodePlugin(ctx?: AgentEnvContext): void {
     if (opencodeDir) {
       removeIfPresent(`${opencodeDir.uncDir}\\${OPENCODE_PLUGIN_DROP_FILE_NAME}`);
       removeIfPresent(`${opencodeDir.uncDir}\\${OPENCODE_PLUGIN_DROP_MANIFEST_NAME}`);
-      cleanupLegacyDrops(opencodeDir.uncDir, "wsl");
     }
     const cfgDir = resolveOpenCodeWslConfigDir(ctx.wslDistro);
     if (cfgDir) {
@@ -548,7 +526,6 @@ export function uninstallOpenCodePlugin(ctx?: AgentEnvContext): void {
   const pluginsDir = resolveOpenCodeNativePluginsDir();
   removeIfPresent(join(pluginsDir, OPENCODE_PLUGIN_DROP_FILE_NAME));
   removeIfPresent(join(pluginsDir, OPENCODE_PLUGIN_DROP_MANIFEST_NAME));
-  cleanupLegacyDrops(pluginsDir);
   const configDir = resolveOpenCodeNativeConfigDir();
   const configPath = join(configDir, OPENCODE_CONFIG_FILE_NAME);
   scrubLegacyOpenCodeMcpProjection(configPath, join(configDir, LEGACY_MANAGED_MCP_FILE_NAME));

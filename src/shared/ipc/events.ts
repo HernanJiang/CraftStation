@@ -10,6 +10,7 @@ import type {
   RuntimeEvent,
   ThreadAttention,
   ThreadConfig,
+  ThreadPresentationMode,
   ThreadStatus,
   ThreadStatusSource,
   UsageLoginConfirmationRequest,
@@ -100,6 +101,7 @@ export type SupervisorEvent =
       slashCommands?: AgentSlashCommand[];
       forceCloseActiveTurn?: boolean;
       threadStatusSource?: ThreadStatusSource;
+      presentationMode?: ThreadPresentationMode;
     }
   | {
       type: "thread-pending-steer";
@@ -109,6 +111,12 @@ export type SupervisorEvent =
   | { type: "thread-exited"; threadId: string; exitCode: number | null }
   | {
       type: "thread-osc-notification";
+      threadId: string;
+      title: string;
+      body: string;
+    }
+  | {
+      type: "thread-user-notification";
       threadId: string;
       title: string;
       body: string;

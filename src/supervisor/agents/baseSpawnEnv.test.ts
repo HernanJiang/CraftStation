@@ -14,7 +14,7 @@ import { createAgentRegistry } from "./registry";
 
 /**
  * `baseSpawnEnv` is the single declaration point for env that must ride EVERY
- * Poracode-made spawn of a CLI — in practice, opt-outs for CLIs that otherwise
+ * CraftStation-made spawn of a CLI — in practice, opt-outs for CLIs that otherwise
  * fire a detached background self-updater. On Windows such an updater escapes
  * its parent's pseudoconsole, allocates a fresh console, and (with Windows
  * Terminal as the default terminal app) pops a stray window mid-session.

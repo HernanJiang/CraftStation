@@ -1,8 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/renderer/components/providers/bootstrap";
 import type { Thread } from "@/shared/contracts";
-import { closeAllPanels } from "@/renderer/actions/panelActions";
 import { AppProvider } from "@/renderer/components/ui/provider";
 import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -277,6 +276,7 @@ describe("ThreadView", () => {
         mcpServers: [],
         disabledBuiltInMcpServerIds: [],
         disabledBuiltInMcpTools: {},
+        presentationMode: "terminal",
         initialSize: {
           cols: 120,
           rows: 40,
@@ -476,7 +476,7 @@ describe("ThreadView", () => {
   it("strips Electron IPC framing from launch errors before surfacing them", async () => {
     bridge.startThread.mockRejectedValueOnce(
       new Error(
-        "Error invoking remote method 'poracode:start-thread': Error: This conversation can't be resumed.",
+        "Error invoking remote method 'craftstation:start-thread': Error: This conversation can't be resumed.",
       ),
     );
     const onLaunchFailed = vi.fn<(message: string) => void>();
@@ -1233,8 +1233,15 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(screen.getByLabelText("Thread todo dock")).toHaveAttribute("data-placement", "composer");
-    expect(screen.getAllByText("Build ACP todo dock")).toHaveLength(1);
+    const progressButton = screen.getByRole("button", { name: "Plan progress 0/2" });
+    expect(progressButton).toBeInTheDocument();
+    expect(screen.queryByLabelText("Thread todo dock")).not.toBeInTheDocument();
+    expect(screen.queryByText("Build ACP todo dock")).not.toBeInTheDocument();
+    fireEvent.click(progressButton);
+    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent("Build ACP todo dock");
+    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent(
+      "Current: Build ACP todo dock",
+    );
     expect(screen.queryByText("Old inline todo")).not.toBeInTheDocument();
     expect(screen.queryByText("No messages yet")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/^Working for 1m/)).toBeInTheDocument());
@@ -1395,240 +1402,6 @@ describe("ThreadView", () => {
     expect(screen.getByLabelText("Thread goal dock")).toHaveAttribute("data-placement", "composer");
     expect(screen.getByText("Ship completed GUI goal dock")).toBeInTheDocument();
     expect(screen.getByText("Complete · 120 tokens")).toBeInTheDocument();
-  });
-
-  it("moves the pinned todo dock into the unified right panel", () => {
-    useAppStore.setState({
-      view: { kind: "thread", panes: ["thread-gui-plan"] },
-      runtimeItemIdsByThread: {
-        "thread-gui-plan": ["plan-1"],
-      },
-      runtimeItemsByIdByThread: {
-        "thread-gui-plan": {
-          "plan-1": {
-            id: "plan-1",
-            type: "plan",
-            state: "updated",
-            payload: {
-              steps: [
-                { step: "Build ACP todo dock", status: "in_progress" },
-                { step: "Wire ACP todo placement", status: "pending" },
-              ],
-            },
-            streams: {},
-          },
-        },
-      },
-    });
-
-    renderThreadView({
-      thread: {
-        id: "thread-gui-plan",
-        projectId: "project-1",
-        title: "GUI Codex thread",
-        agentKind: "codex",
-        config: {
-          model: "gpt-5.4",
-        },
-        status: "idle",
-        attention: "none",
-        canResumeWithConfig: true,
-        archived: false,
-        done: false,
-        starred: false,
-        presentationMode: "gui",
-        sessionRef: {
-          providerSessionId: "session-gui-plan",
-          discoveredAt: new Date().toISOString(),
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      agentStatus: {
-        kind: "codex",
-        label: "Codex",
-        installed: true,
-        authState: "authenticated",
-        capabilities: {
-          models: [{ id: "gpt-5.4", label: "5.4" }],
-          efforts: ["low"],
-          modelEfforts: {},
-          modes: ["agent"],
-          approvalPolicies: [{ id: "on-request", label: "On Request" }],
-          sandboxModes: [{ id: "read-only", label: "Read Only" }],
-          supportsResume: true,
-          supportsDirectInput: true,
-          liveInputMode: "server",
-          presentationMode: "gui",
-          settingDefs: [],
-        },
-      },
-      projectLocation: {
-        kind: "windows",
-        path: "C:\\repo",
-      },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Move todo dock to right panel" }));
-    expect(screen.queryByLabelText("Thread todo dock")).not.toBeInTheDocument();
-    expect(useThreadTodoDockStore.getState().byThreadId["thread-gui-plan"]?.placement).toBe(
-      "right",
-    );
-    expect(usePanelStore.getState().rightPanelTab).toBe("plan");
-
-    act(() => closeAllPanels());
-    expect(screen.getByLabelText("Thread todo dock")).toHaveAttribute("data-placement", "composer");
-  });
-
-  it("keeps todo dock placement and collapse scoped to each thread", () => {
-    useAppStore.setState({
-      runtimeItemIdsByThread: {
-        "thread-gui-plan-a": ["plan-a"],
-        "thread-gui-plan-b": ["plan-b"],
-      },
-      runtimeItemsByIdByThread: {
-        "thread-gui-plan-a": {
-          "plan-a": {
-            id: "plan-a",
-            type: "plan",
-            state: "updated",
-            payload: {
-              steps: [
-                { step: "Plan A active step", status: "in_progress" },
-                { step: "Plan A pending step", status: "pending" },
-              ],
-            },
-            streams: {},
-          },
-        },
-        "thread-gui-plan-b": {
-          "plan-b": {
-            id: "plan-b",
-            type: "plan",
-            state: "updated",
-            payload: {
-              steps: [
-                { step: "Plan B active step", status: "in_progress" },
-                { step: "Plan B pending step", status: "pending" },
-              ],
-            },
-            streams: {},
-          },
-        },
-      },
-    });
-
-    const { rerender } = renderThreadView({
-      thread: {
-        id: "thread-gui-plan-a",
-        projectId: "project-1",
-        title: "GUI Codex thread A",
-        agentKind: "codex",
-        config: {
-          model: "gpt-5.4",
-        },
-        status: "idle",
-        attention: "none",
-        canResumeWithConfig: true,
-        archived: false,
-        done: false,
-        starred: false,
-        presentationMode: "gui",
-        sessionRef: {
-          providerSessionId: "session-gui-plan-a",
-          discoveredAt: new Date().toISOString(),
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      agentStatus: {
-        kind: "codex",
-        label: "Codex",
-        installed: true,
-        authState: "authenticated",
-        capabilities: {
-          models: [{ id: "gpt-5.4", label: "5.4" }],
-          efforts: ["low"],
-          modelEfforts: {},
-          modes: ["agent"],
-          approvalPolicies: [{ id: "on-request", label: "On Request" }],
-          sandboxModes: [{ id: "read-only", label: "Read Only" }],
-          supportsResume: true,
-          supportsDirectInput: true,
-          liveInputMode: "server",
-          presentationMode: "gui",
-          settingDefs: [],
-        },
-      },
-      projectLocation: {
-        kind: "windows",
-        path: "C:\\repo",
-      },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Move todo dock to right panel" }));
-    useThreadTodoDockStore.getState().setCollapsed("thread-gui-plan-a", true);
-
-    expect(useThreadTodoDockStore.getState().byThreadId["thread-gui-plan-a"]).toMatchObject({
-      placement: "right",
-      collapsed: true,
-    });
-
-    rerender(
-      <AppProvider>
-        <ThreadView
-          thread={{
-            id: "thread-gui-plan-b",
-            projectId: "project-1",
-            title: "GUI Codex thread B",
-            agentKind: "codex",
-            config: {
-              model: "gpt-5.4",
-            },
-            status: "idle",
-            attention: "none",
-            canResumeWithConfig: true,
-            archived: false,
-            done: false,
-            starred: false,
-            presentationMode: "gui",
-            sessionRef: {
-              providerSessionId: "session-gui-plan-b",
-              discoveredAt: new Date().toISOString(),
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }}
-          agentStatus={{
-            kind: "codex",
-            label: "Codex",
-            installed: true,
-            authState: "authenticated",
-            capabilities: {
-              models: [{ id: "gpt-5.4", label: "5.4" }],
-              efforts: ["low"],
-              modelEfforts: {},
-              modes: ["agent"],
-              approvalPolicies: [{ id: "on-request", label: "On Request" }],
-              sandboxModes: [{ id: "read-only", label: "Read Only" }],
-              supportsResume: true,
-              supportsDirectInput: true,
-              liveInputMode: "server",
-              presentationMode: "gui",
-              settingDefs: [],
-            },
-          }}
-          projectLocation={{
-            kind: "windows",
-            path: "C:\\repo",
-          }}
-        />
-      </AppProvider>,
-    );
-
-    expect(screen.getByLabelText("Thread todo dock")).toHaveAttribute("data-placement", "composer");
-    expect(screen.getByLabelText("Thread todo dock")).toHaveAttribute("data-collapsed", "false");
-    expect(screen.getByText("Plan B pending step")).toBeInTheDocument();
   });
 
   it("shows the runtime debug inspector toggle for GUI ACP threads in production builds", () => {
@@ -1841,7 +1614,7 @@ describe("ThreadView", () => {
       status: "launching",
       attention: "none",
       canResumeWithConfig: false,
-      worktreeBranch: "poracode/feature",
+      worktreeBranch: "craftstation/feature",
       archived: false,
       done: false,
       starred: false,

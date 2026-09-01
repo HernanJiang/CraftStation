@@ -2,32 +2,10 @@
 
 ## v0.7.0 Main Integration Record — 2026-09-01
 
-- 用户已明确授权将 `dev/v0.7-native-harnesses`（Feature commit `4b92a43`）合入本地 `main`；本次为本地 merge，不执行 push、tag 或发布。
+- 用户已明确授权将 `dev/v0.7-native-harnesses`（Feature commit `4b92a43`）合入本地 `main`；本地 merge commit 为 `f570b178b3b8b2eb6a33398b45fd95780039bf75`，未 push、未 tag、未发布。
 - 合入范围包括 Native Harness composition、官方 Antigravity/DeepSeek carrier seam、DeepSeek API adapter、OpenCode 兼容保留、Crafting UI/IPC、Codex agentic/runtime 回归证据及治理文档。
 - 真实能力边界保持诚实：Antigravity、Grok、Kimi、Codex Native 的既有证据按各自 artifact 记录；官方 DSH 与 DeepSeek API/provider 结果仍受认证/外部 provider 限制；Command Code 或普通 API 证据不冒充官方 DSH。
 - 本次合并成功不等于 v0.7 Feature 全部外部模型/高级能力永久 PASS；未验证能力继续按 `implementation missing`、`AUTH_REQUIRED` 或 `RUNTIME_UNAVAILABLE` 表达。
-
-## Dev Integration — v0.8.0
-
-- `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility` 已于 2026-08-31 合入本地 `dev`。
-- Feature commit：`20be0e1a28056a8103a4f49b65be61cece5ad797`。
-- Dev merge commit：`e74808cdc649fdf37b1e23aa9edc810f3467e8fb`。
-- 合并时有 2 个源码冲突，已保留现有 Codex/OpenAI-compatible 账号路由并加入 OpenCode provider 路由，同时补齐 OpenCode adapter imports。
-- 合并后回归：`19 files / 225 tests PASS`；`pnpm typecheck` PASS；44 个触及源码文件 oxlint/oxfmt PASS；diff check PASS。
-- 真实证据边界不变：只有 `kimi-for-coding/kimi-for-coding` 完成真实两轮 assistant response；OpenAI、xAI、Google、DeepSeek、OpenAI-compatible Kimi 仍为 unverified。
-- 生命周期：`MERGED TO DEV / USER ACCEPTANCE PENDING`。尚未将 v0.8 合入 `main`，未创建正式 tag，未 push。
-
-## Active Feature — v0.6.0
-
-- `v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`：`DEBUGGER FAIL / BLOCKED`
-- Release Lifecycle：`LOCAL MAIN PROMOTED / USER ACCEPTED RUNNABLE CANDIDATE CHECKPOINT`
-- Manager Plan：`ai_workspace/agent_docs/manager_0.6.0.md`
-- 允许工作树：本 `dev` worktree；用户已于 2026-08-29 明确授权切换并开始执行。
-- 范围：Antigravity 系统浏览器 Google OAuth + loopback/main-process exchange/安全存储/刷新；移除独立 Gemini usage surface 但保留 Gemini CLI agent/runtime 与 Antigravity Gemini quota group；新增官方事实核验驱动的 Volcengine Ark Token Plan。
-- Coder 交付：`ai_workspace/agent_docs/coder_0.6.0.md`
-- Debugger 复检：`ai_workspace/agent_docs/debugger_0.6.0.md`（2026-08-29 18:00 独立复检：定向 11 files / 110 passed；工程项可关闭；F35 真实 Google OAuth E2E 与 F36 真实 Ark 线上凭据仍 BLOCKED；Feature 不能 PASS）
-- 用户已于 2026-08-31 完成当前原生 Electron 候选的手动验收并明确授权本地 `dev -> main` 收口。该授权是对当前可运行候选的接受，不会把 F35/F36、F33、F29、v0.5.0 或 v0.4 F04 升格为 PASS。
-- 本地 `dev -> main` fast-forward 已于 2026-08-31 完成；本轮只创建 accepted-candidate checkpoint tag，不允许 push，不创建正式 `v0.6.0` PASS tag。
 
 > CraftStation 当前动态状态的唯一来源。长期规则见 `AGENTS.md`，外部仓库精确基线见 `reference/BASELINES.md`。
 
@@ -38,18 +16,21 @@
 1. 本文件 —— 当前 Feature、Verdict、Git 检查点、Next Step
 2. `AGENTS.md` / 产品仓 `CRAFTSTATION.md` —— 硬规则与仓库边界
 3. `IDEA_GUIDE.md` —— Ideate Mode 提示词
-4. `ai_workspace/agent_docs/manager_0.6.0.md` —— 当前 Feature 的 Ideate + Plan
+4. `ai_workspace/agent_docs/manager_0.5.0.md` —— 当前 Feature 的 Ideate + Plan
 
 当前冻结点：
 
-- 当前 Feature：`v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`
-- Debugger 独立复检：**FAIL / BLOCKED**（`ai_workspace/agent_docs/debugger_0.6.0.md`）；OAuth broker / Gemini usage 移除 / Ark parser / titlebar 工程项可关闭；F35 真实 Google OAuth E2E 与 F36 真实 Ark 线上凭据仍 BLOCKED；Feature 不能 PASS
-- Release Lifecycle：用户于 2026-08-31 接受当前可运行候选；本地 Main promotion 已完成。这是 accepted-candidate checkpoint，不是 Feature PASS
-- Coder 交付：`ai_workspace/agent_docs/coder_0.6.0.md`
-- 关闭项：v0.6 工程契约与定向测试；未关闭：F35 / F36，以及既有 F29 / F33 / v0.5.0 / v0.4 F04
-- v0.5.0 继续 **FAIL / BLOCKED**（`ai_workspace/agent_docs/debugger_0.5.7.md`；真实探针 `ai_workspace/validation/v0.5.7-grok-quota-probe.json`）
-- 上一 Feature `v0.4.0` 保持 **NOT PASS**，Fix Cycle 停在 `v0.4.12`；Debugger 检查点：`ai_workspace/agent_docs/debugger_0.4.12-checkpoint.md`
-- 下一步：从 Main 完成回归并启动原生 Electron 供用户复核；有真实 Google / Ark 凭据时再补 F35/F36 证据。保持不 push、不创建正式 PASS tag
+- 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。
+- v0.9 Manager Plan：`.worktrees/v0.9-cross-harness-handoff/ai_workspace/agent_docs/manager_0.9.0.md`；Plan commit `7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`。
+- v0.10 Manager Plan：`.worktrees/v0.10-cross-thread-collaboration/ai_workspace/agent_docs/manager_0.10.0.md`；Plan commit `0bbba5f66e5b7be782443206c02781ed6825ba77`。
+- Coder 协调状态：两个 Coder 的源码与未提交测试均已无损迁移到新 Feature worktree，并已按新路径恢复原有 Coder 线程继续执行。此前的平台协调异常不是 Feature FAIL，也不是代码损坏。
+- Git 拓扑迁移已完成：`D:\Work\CraftStation` 直接承载 Product Git `main`；并行版本开发工作树直接位于 `.worktrees\<version-feature>`，分别检出 `dev/<version-feature>`。本项目已取消共享 `dev` 分支和共享 Dev 工作树。
+- 当前历史阻塞 Feature：`v0.6.0 — Native Provider Authentication & Ark Token Plan Surface`。
+- Debugger 独立复检：**FAIL / BLOCKED**（`ai_workspace/agent_docs/debugger_0.6.0.md`）；OAuth broker / Gemini usage 移除 / Ark parser / titlebar 工程项可关闭；F35 真实 Google OAuth E2E 与 F36 真实 Ark 线上凭据仍 BLOCKED；Feature 不能 PASS。
+- Coder 交付：`ai_workspace/agent_docs/coder_0.6.0.md`。
+- v0.5.0 继续 **FAIL / BLOCKED**；F33 真实 Grok billing 与 F29 exact Token 未关闭。
+- v0.4.0 仍 **没有 PASS**，检查点 `checkpoint-v0.4.12` / `b1af0e2`
+- 下一步：v0.9 与 v0.10 在各自版本开发工作树继续执行；有真实 Google / Ark 凭据时才补 v0.6 F35/F36 脱敏证据。未经用户授权不得 merge main、创建正式 tag 或 push。远端 `origin/dev` 保留为迁移前历史，不再是默认集成线。
 - 产品源码与治理文档推送到 `https://github.com/HernanJiang/CraftStation.git`
 
 ## Roadmap
@@ -58,9 +39,9 @@ CraftStation 的长期路线收敛为四个阶段。当前版本只推进当前�
 
 ### Phase 1 — Runtime Foundation
 
-基于 PoraCode 建立独立、可诊断、可恢复的 Harness Runtime 基础设施。
+基于 CraftStation 建立独立、可诊断、可恢复的 Harness Runtime 基础设施。
 
-- 保留 PoraCode 的 Desktop、Workspace、Session persistence、Terminal、Git/Worktree、MCP 和已有 Agent integration。
+- 保留 CraftStation 的 Desktop、Workspace、Session persistence、Terminal、Git/Worktree、MCP 和已有 Agent integration。
 - 建立 `crafting`、`registry`、`harness-runtime` 与 `provider/API` seam。
 - 分别接入 DeepSeek Harness、Codex Harness、Grok Build Harness；统一 CraftStation 所需语义，不统一各 Harness 内部 agent loop、transport 或 process architecture。
 - 依次证明 `Model -> Vendor Harness -> Entity -> Session -> real response`，并覆盖错误透传、resume、terminate、资源清理和 observability。
@@ -106,36 +87,44 @@ Model Item + Harness Item
 
 ### Cross-Phase Principles
 
-- PoraCode 是工程基础，不是 CraftStation 的最终 domain；DeepSeek Harness、Codex Harness、Grok Build Harness 是独立 Runtime。
+- CraftStation 是工程基础，不是 CraftStation 的最终 domain；DeepSeek Harness、Codex Harness、Grok Build Harness 是独立 Runtime。
 - 采用 Strangler Refactor 与 deep-module 原则，不做一次性全仓 rename 或统一重写各 Harness 内部实现。
 - Runtime / Programming Model 先于 Auto-Crafting / Agentic Algorithm；基础设施没有真实运行证据时，不扩大算法 scope。
 - 正式的一等 Domain 术语保持 `Item`、`Component`、`Ingredient`、`Slot`、`Recipe`、`Result`、`Crafter`、`Entity`、`Session`。
 
+## Planned Next Feature (Planning Only)
+
+- Feature：`v0.6.0 — Native Provider Authentication & Ark Token Plan Surface` 已进入 Debugger 复检，**FAIL / BLOCKED**
+- Manager Plan：`ai_workspace/agent_docs/manager_0.6.0.md`
+- Debugger：`ai_workspace/agent_docs/debugger_0.6.0.md`
+- Tickets：`.scratch/craftstation-0.6.0/issues/`
+- 状态：`DEBUGGER FAIL / BLOCKED`（F35/F36 缺真实凭据）
+- 历史共享 Dev 已归档；后续 Feature 只允许使用 `D:\\Work\\CraftStation\\.worktrees\\<version-feature>` 与 `dev/<version-feature>`。
+- 当前不执行：commit、push、任一版本开发分支 → `main` promotion 或正式 tag；v0.5 与 v0.4 F04 状态保持 FAIL/BLOCKED。
+
+## Future Feature — v1.0.0 (Ideate Only)
+
+- Feature：`v1.0.0 — Efficient Model × Harness Composition`
+- Manager Ideate：`ai_workspace/agent_docs/manager_1.0.0.md`
+- 状态：`IDEATE COMMITTED / NOT EXECUTING / NOT READY FOR PLAN`
+- 目标：完善高效/兼容模式，让用户显式选择 Model Item 与 Harness Item，通过统一 Compatibility Layer 解析整个 Model × Harness matrix，并生成可审计的 Recipe / CraftPlan。
+- 工作台：高效/兼容模式采用四格；自动模式采用九格。高效模式右下角显示 `Recipe 配置名称 · 模型名称`。
+- 模型适配层暂定为 implementation-level Adapter/Binding，不提升为一级 Item；Provider/Auth 通过 opaque profile/auth reference 投影到官方 Harness。
+- 高效模式四格配置是组合入口；每次 Model × Harness × Profile 配置变化都必须生成并展示当前组合的 `CapabilityResolution`（能力来源、状态、差异和诊断），用户明确 Craft 后才进入 Recipe/CraftPlan。
+- 当前待拍板：四格第三/第四槽位、九格自动模式是否只读、全矩阵“可尝试但不保证可执行”的状态语义、Adapter 持久化和首条真实 tracer bullet。
+- 执行门：未进入 Plan；不创建 Coder/Debugger，不修改当前 v0.6、v0.7、v0.8 的执行状态，不执行 commit/push/merge/tag。
+
 ## Lifecycle Snapshot
 
-| Field             | Current Value                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------ |
-| Major Stage       | `v0`                                                                                                   |
-| Lifecycle State   | `v0.8.0 / MERGED TO DEV / USER ACCEPTANCE PENDING`                                                     |
-| Active Feature    | `v0.8.0 — OpenCode Native Harness and Multi-Model Compatibility`                                       |
-| Active Ticket     | User acceptance；其余 5 条 Provider assistant route 仍未验证                                           |
-| Current Fix Cycle | `v0.8.7`                                                                                               |
-| Current Role      | User                                                                                                   |
-| Review Status     | v0.8 merged to dev；仅 Kimi 两轮真实通过；v0.6 F35/F36 与既有 Grok/F29/v0.5/v0.4 门仍保持 FAIL/BLOCKED |
-
-## Future Feature — v0.9.0 (Ideate Ready)
-
-- Feature：`v0.9.0 — Cross-Harness Session Handoff`
-- Manager Ideate：`ai_workspace/agent_docs/manager_0.9.0.md`
-- 状态：`IDEATE COMMITTED / READY FOR PLAN / NOT EXECUTING`
-- 目标：在同一 CraftStation 用户可见 Thread 和同一工作区中，让后续 Turn 在不同 Model × Harness Runtime Segment 之间安全接力；不伪造跨厂商 native Session resume。
-- 已确认产品语义：
-  1. 默认在当前 Turn 完成后自动切换，同时提供“终止当前 Turn 并切换”；
-  2. 默认 checkpoint 使用“任务摘要 + 当前状态 + 重要结果 + 最近若干轮”，不全量历史重放；
-  3. 切回曾使用的 Harness 时，只要中间产生新内容，就创建新的 continuation Segment。
-- 实现边界：`ConversationCheckpoint` 与 `Runtime Segment` 均为 implementation-level 术语，不提升为一级 Item；每次切换保留不可变 Recipe/CraftPlan provenance，并创建新的 Entity/native Session。
-- 验收主线：真实 `Codex -> Grok Build -> Codex continuation`、目标启动失败回滚、事件 epoch 隔离、应用重启恢复和凭据安全。
-- 当前不执行：Manager Plan、Feature worktree、Coder/Debugger、源码修改、merge、tag 或 push。进入 Plan 前以最新 Dev 基线执行 Gate Check。
+| Field             | Current Value                                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| Major Stage       | `v0`                                                                                                       |
+| Lifecycle State   | `v0.9.0 + v0.10.0 / CODER IN PROGRESS`                                                                     |
+| Active Feature    | `v0.9.0 — Cross-Harness Session Handoff`；`v0.10.0 — Cross-Thread Collaboration`                           |
+| Active Ticket     | 两个 Coder 分别继续各自 Manager Plan 的剩余 Tickets                                                        |
+| Current Fix Cycle | 尚未进入 Debugger Fix Cycle                                                                                |
+| Current Role      | Coder（并行）／Manager（拓扑治理）                                                                         |
+| Review Status     | v0.9/v0.10 尚未验收；v0.6 F35/F36、v0.5 F29/F33、v0.4 F04 保持 FAIL/BLOCKED；Main Promotion NOT AUTHORIZED |
 
 ## Historical v0.3 Closeout
 
@@ -152,7 +141,7 @@ Model Item + Harness Item
 - Report：`ai_workspace/reports/report_0.1.md`
 - 产品路径：Craft Table -> `craftAgent` -> `CodexHarnessRuntimeAdapter` -> TSM
 - 本机真实 Codex response 未取得；关闭证据为非 synthetic 的 `RUNTIME_UNAVAILABLE` 诊断
-- Working Copy 实现仍在 `craftstation/` 分支 `codex/v0.1.0` 未提交
+- 历史 v0.1 Working Copy 记录已被后续 main/dev 生命周期取代；不得再使用旧 `craftstation/` 路径作为开发入口。
 
 ## Historical v0.2 Goal
 
@@ -176,36 +165,21 @@ Model Item + Harness Item
 
 ## Repository State
 
-- Product Git Root：`craftstation/`（独立产品仓）。
-- Main Worktree：`D:\Work\CraftStation\craftstation`，`main`，稳定产品线；用于运行 main 版 CraftStation 开发其它项目（dogfooding）。
-- Dev Worktree：`D:\Work\CraftStation\craftstation-dev`，`dev`，当前 Feature 唯一开发线。
-- Active Development Branch：`dev`（本文件与当前 Manager 文档均以 dev 为准）。
+- Product Git Root：`D:\Work\CraftStation`，分支 `main`，HEAD `3ff2b9917909cdd8f95bc9316a6ac7f43e2ba96f`。
+- 版本开发工作树：统一位于 `D:\Work\CraftStation\.worktrees\<version-feature>`；每个工作树直接检出对应 `dev/<version-feature>` 分支，不存在共享 Dev 集成线。
+- 当前登记：v0.7 `dev/v0.7-native-harnesses` @ `7ae6506e`；v0.8 `dev/v0.8-opencode-native` @ `20be0e1a`；v0.9 `dev/v0.9-cross-harness-handoff` @ `7d1e2485`；v0.10 `dev/v0.10-cross-thread-collaboration` @ `0bbba5f6`。
+- 旧共享本地 `dev` 分支已保留为归档分支 `archive/dev-before-flat-worktrees-20260831` @ `adf7cde4`；远端 `origin/dev` 未修改，后续不得作为默认开发或集成入口。
+- 旧 `D:\Work\CraftStation\dev` 已从 Git worktree 注册表移除并完整移出产品仓，归档到 `D:\Work\CraftStation-MigrationBackup\root-worktrees-migration-20260831`；迁移中遇到的失效 pnpm/workspace junction 已单独保留在同一备份根目录。
+- 旧 `D:\Work\CraftStation\craftstation-dev`（含旧 detached v0.9/v0.10）已在逐字节校验后移动到 `D:\Work\CraftStation-MigrationBackup\legacy-craftstation-dev`，并从 Git worktree 注册表清除。
+- 旧 `D:\Work\CraftStation\craftstation\release-portable` 被当前运行的 `CraftStation-Portable-0.6.0-x64.exe` 占用，暂作可恢复迁移残留；应用关闭后可整体归档，不得作为源码或工作树使用。
 - GitHub origin：`https://github.com/HernanJiang/CraftStation.git`（产品仓 `main`）。
-- `main` tracking `origin/main`，HEAD `b1af0e2`。`dev` tracking `origin/dev`，closeout 前 HEAD `be8d8c2`；Debugger PASS closeout 后以 `origin/dev` SHA 为准。不得 merge main。
-- 根仓库 `D:\Work\CraftStation` 是无 remote 的治理仓，不承载产品源码提交。
+- 根仓库没有 tracking remote；云端 Manager 以 GitHub 产品仓治理文档为准。
 - 产品仓检查点 tag：`checkpoint-v0.4.12`（不是 PASS tag，也不是 `v0.4.0`）。
 - 旧 `deepseek-harness/`：`NOT PASSED / SUPERSEDED / DO NOT USE`。
 
-## Active v0.5 Feature
-
-`v0.5.0 — Account Pool + Quota + Token Usage Stabilization`
-
-- Manager：`ai_workspace/agent_docs/manager_0.5.0.md`
-- Tickets：`.scratch/craftstation-0.5.0/issues/01-audit-baseline.md` 至 `10-grok-e2e.md`
-- Coder 交付：`ai_workspace/agent_docs/coder_0.5.7.md`
-- Debugger Review：`ai_workspace/agent_docs/debugger_0.5.7.md` — F32/F34 保持关闭；F33 token billing fallback 已接线，但真实 managed probe 仍无 usedPercent，Feature 仍 FAIL/BLOCKED
-- Prior review：`ai_workspace/agent_docs/debugger_0.5.0.md` / `ai_workspace/agent_docs/debugger_0.5.1.md`
-- Report：`ai_workspace/reports/report_0.5.md`
-- Real probe：`ai_workspace/validation/v0.5.2-grok-product-path.json`
-- Lifecycle: FAIL / BLOCKED；F32/F34 关闭；F33 真实 billing 与 F29 exact Token 未关闭
-- Main Promotion：`COMPLETED AS ACCEPTED-CANDIDATE CHECKPOINT / NOT FEATURE PASS`
-- F10 / F11 / F12 / F13 / F14 / F15 / F25 / F26 / F28 / F30 / F31 工程项已完成；F29 真实 Token 证据与 Grok billing 仍 BLOCKED。用户 Smoke 通过前不得 merge main、不得打正式 `v0.5.0` tag。
-- v0.4 F04 五 Harness 仍 FAIL/BLOCKED，不得升格。
-- Out of scope：CLIProxyAPI、第二套 Usage 系统、Account/Quota/Usage 进入 Item/Recipe/Crafter、智能路由和 Auto-Crafting。
-
 ## Next Step
 
-1. 用户在本地 `dev` 验收 v0.8 OpenCode Native Harness；当前只有 Kimi native route 具备真实 assistant response 与后续 turn 证据。
-2. OpenAI、xAI、Google、DeepSeek、OpenAI-compatible Kimi 获得有效对应凭据后，再逐条补真实 assistant stream/后续 turn；未验证 route 继续 fail-closed。
-3. v0.6 F35/F36、Grok 真实额度、F29 exact Token、v0.5.0 与 v0.4 F04 继续保持 FAIL/BLOCKED。
-4. v0.8 尚未合入 main、未 tag、未 push；只有用户后续明确授权时才执行 Dev → Main promotion。
+1. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
+2. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
+3. 两个 Coder 完成后分别创建一对一 `grok-4.6 / high` Debugger；Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
+4. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。

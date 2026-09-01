@@ -1328,7 +1328,7 @@ describe("Cursor SDK canonical mapping — auxiliary updates and usage", () => {
     expect(result.filter((event) => event.type === "usage.spent")).toEqual([]);
   });
 
-  it("resets result-usage fallback accounting for each Poracode turn", () => {
+  it("resets result-usage fallback accounting for each CraftStation turn", () => {
     const state = createCursorSdkMapperState("thread-1");
     startCursorSdkTurn(state, "turn-1");
     const first = mapCursorSdkRunResult(

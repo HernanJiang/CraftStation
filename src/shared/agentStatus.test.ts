@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStatus, ProjectLocation } from "./contracts";
-import { getProjectAgentStatuses, getSettingsInstalledAgents } from "./agentStatus";
+import {
+  getProjectAgentStatuses,
+  getSettingsInstalledAgents,
+  resolveAgentPresentationMode,
+} from "./agentStatus";
 
 const capabilities = {
   models: [],
@@ -26,6 +30,26 @@ function makeStatus(kind: AgentStatus["kind"], input: Partial<AgentStatus> = {})
     ...input,
   };
 }
+
+describe("resolveAgentPresentationMode", () => {
+  it("replaces a stale terminal request for a GUI-only provider", () => {
+    expect(
+      resolveAgentPresentationMode(
+        { presentationMode: "gui", presentationModes: ["gui"] },
+        "terminal",
+      ),
+    ).toBe("gui");
+  });
+
+  it("preserves terminal when the provider still supports both surfaces", () => {
+    expect(
+      resolveAgentPresentationMode(
+        { presentationMode: "gui", presentationModes: ["gui", "terminal"] },
+        "terminal",
+      ),
+    ).toBe("terminal");
+  });
+});
 
 describe("getProjectAgentStatuses", () => {
   it("returns windows statuses for windows projects", () => {

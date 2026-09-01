@@ -11,5 +11,5 @@ project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/app/
 include ':capacitor-push-notifications'
 project(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')
 
-include ':poracode-ssh-bridge'
-project(':poracode-ssh-bridge').projectDir = new File('../node_modules/@poracode/ssh-bridge/android')
+include ':craftstation-ssh-bridge'
+project(':craftstation-ssh-bridge').projectDir = new File('../node_modules/@craftstation/ssh-bridge/android')

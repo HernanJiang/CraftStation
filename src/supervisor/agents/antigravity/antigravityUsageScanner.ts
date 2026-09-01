@@ -5,7 +5,7 @@ import {
   type HostPort,
   type UsageWindow,
   type UsageSnapshot,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import {
   GET_COMMAND_MODEL_CONFIGS,
   GET_USER_STATUS,

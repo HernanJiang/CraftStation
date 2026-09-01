@@ -61,13 +61,13 @@ describe("Deep Module Boundary Guards", () => {
     }
   });
 
-  it("ensures nativeCodex runtime has no dependencies on legacy PoraCode ThreadSessionManager or SpawnPipeline", () => {
+  it("ensures nativeCodex runtime has no dependencies on the shared session manager or spawn pipeline", () => {
     const nativeCodexDir = path.resolve(__dirname, "../../supervisor/runtime/nativeCodex");
     const files = getFilesRecursively(nativeCodexDir);
 
     expect(files.length).toBeGreaterThan(0);
 
-    const legacyPoraCodePatterns = [
+    const forbiddenRuntimePatterns = [
       "threadSessionManager",
       "spawnPipeline",
       "ThreadSessionManager",
@@ -78,7 +78,7 @@ describe("Deep Module Boundary Guards", () => {
 
     for (const file of files) {
       const content = fs.readFileSync(file, "utf8");
-      for (const pattern of legacyPoraCodePatterns) {
+      for (const pattern of forbiddenRuntimePatterns) {
         expect(
           content.includes(pattern),
           `Native Codex file '${file}' violates isolation by referencing legacy pattern '${pattern}'`,

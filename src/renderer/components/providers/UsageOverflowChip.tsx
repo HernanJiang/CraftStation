@@ -1,6 +1,6 @@
 import { Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { UsageWindow } from "@poracode/agents-usage/types";
+import type { UsageWindow } from "@craftstation/agents-usage/types";
 import { openUsagePanel } from "@/renderer/actions/panelActions";
 import { useProviderUsage } from "@/renderer/state/providerUsageStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";

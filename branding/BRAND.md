@@ -1,14 +1,14 @@
-# Poracode — Brand Guide
+# CraftStation — Brand Guide
 
-> Status: **finalized v1** · Reviewed from scratch, 2026-06-28 · Supersedes "Lightcode".
-> Working artifacts: `branding/poracode-concepts.html` (system), `branding/assets/preview.html` (rendered), `branding/assets/` (masters + build script).
+> Status: **finalized v1** · Reviewed from scratch, 2026-06-28 · Supersedes "CraftStation".
+> Working artifacts: `branding/craftstation-concepts.html` (system), `branding/assets/preview.html` (rendered), `branding/assets/` (masters + build script).
 
 ---
 
 ## 1. At a glance
 
 - **Brand / spoken name:** **Pora** — from Ukrainian/Russian _пора_, "it's time". Evokes a moment, a turning point, dawn.
-- **Flagship product:** **Poracode** — the universal AI coding-agent orchestrator (Claude, Codex, Gemini in one place).
+- **Flagship product:** **CraftStation** — the universal AI coding-agent orchestrator (Claude, Codex, Gemini in one place).
 - **The idea that ties it together — the "Pora dot":** a single accent dot that is, at once, the **code cursor**, the **dot in the logotype**, and the **moment** (_it's time_). It recurs in the icon, the logotype, and the in-app cursor. Repetition is what makes it ownable.
 - **Tagline:** **"It's time to code."**
 - **One-liner:** _The universal AI coding-agent orchestrator — run Claude, Codex & Gemini side by side._
@@ -19,25 +19,25 @@
 
 The legal entity, the brand, and the product names are three layers and intentionally differ.
 
-| Layer                               | Name               | Notes                                                                                                      |
-| ----------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Brand / umbrella (spoken, the mark) | **Pora**           | Never registered/marketed as bare "**Pora AI**" — too close to the unrelated _PORA AI_ skincare mark.      |
-| Legal company                       | **Poracode, Inc.** | Suffix per jurisdiction (Inc. / OÜ / Ltd). Matches the strongest asset (poracode.com + the PORACODE mark). |
-| Product — app                       | **Poracode**       | Open-source desktop orchestrator.                                                                          |
-| Product — CLI                       | **Poracode CLI**   | Command-line tool.                                                                                         |
-| Product — hosted tier               | **Poracode Cloud** | **Not** "Pora Cloud."                                                                                      |
+| Layer                               | Name                   | Notes                                                                                                              |
+| ----------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Brand / umbrella (spoken, the mark) | **Pora**               | Never registered/marketed as bare "**Pora AI**" — too close to the unrelated _PORA AI_ skincare mark.              |
+| Legal company                       | **CraftStation, Inc.** | Suffix per jurisdiction (Inc. / OÜ / Ltd). Matches the strongest asset (craftstation.com + the CRAFTSTATION mark). |
+| Product — app                       | **CraftStation**       | Open-source desktop orchestrator.                                                                                  |
+| Product — CLI                       | **CraftStation CLI**   | Command-line tool.                                                                                                 |
+| Product — hosted tier               | **CraftStation Cloud** | **Not** "Pora Cloud."                                                                                              |
 
-### Why **Poracode Cloud**, not "Pora Cloud"
+### Why **CraftStation Cloud**, not "Pora Cloud"
 
-1. **Consistency** — every product shares one root: _Poracode_ · _Poracode CLI_ · _Poracode Cloud_. "Pora Cloud" splits the family across two names.
-2. **Clarity** — "Poracode Cloud" unambiguously reads as _the hosted version of Poracode_. "Pora Cloud" sounds like a separate product.
-3. **Trademark safety** — keeps every product on the distinctive **PORACODE** mark and away from _PORA AI_.
+1. **Consistency** — every product shares one root: _CraftStation_ · _CraftStation CLI_ · _CraftStation Cloud_. "Pora Cloud" splits the family across two names.
+2. **Clarity** — "CraftStation Cloud" unambiguously reads as _the hosted version of CraftStation_. "Pora Cloud" sounds like a separate product.
+3. **Trademark safety** — keeps every product on the distinctive **CRAFTSTATION** mark and away from _PORA AI_.
 
-_"Pora" stays the friendly spoken brand and the icon; the products are all "Poracode \_\_\_". You can still hold `pora.cloud` as a redirect to `poracode.com/cloud`._
+_"Pora" stays the friendly spoken brand and the icon; the products are all "CraftStation \_\_\_". You can still hold `pora.cloud` as a redirect to `craftstation.com/cloud`._
 
 ### Provider guardrail (firm)
 
-Never put **Claude / Codex / Gemini** in a product name — they're other companies' trademarks and the app is provider-agnostic by design. They are **integrations you list**: _"Poracode — run Claude, Codex & Gemini in one place."_ Inside the UI they appear only as selectable agents.
+Never put **Claude / Codex / Gemini** in a product name — they're other companies' trademarks and the app is provider-agnostic by design. They are **integrations you list**: _"CraftStation — run Claude, Codex & Gemini in one place."_ Inside the UI they appear only as selectable agents.
 
 ---
 
@@ -47,18 +47,18 @@ Never put **Claude / Codex / Gemini** in a product name — they're other compan
 
 A bold geometric **"P"** + the **Pora dot** at the baseline-right (reads as `P.` — a cursor / period at rest).
 
-- **Construction:** stem + bowl as a single filled letterform (`fill-rule: evenodd` counter); the dot is a separate circle, baseline-aligned to the stem foot, offset right. Master: `branding/assets/poracode-icon.svg`.
+- **Construction:** stem + bowl as a single filled letterform (`fill-rule: evenodd` counter); the dot is a separate circle, baseline-aligned to the stem foot, offset right. Master: `branding/assets/craftstation-icon.svg`.
 - **Clearspace:** keep padding ≥ the height of the dot on all sides of the glyph.
 - **Min sizes:** glyph works to **16px** (favicon verified). Below 20px, prefer the glyph-only version (no rounded tile).
 
 ### Variants
 
-| Variant             | File                        | Use                                                                                 |
-| ------------------- | --------------------------- | ----------------------------------------------------------------------------------- |
-| Primary (dark tile) | `poracode-icon.svg`         | App icon, default everywhere                                                        |
-| Light tile          | `poracode-icon-light.svg`   | On dark photography / when a light chip is needed                                   |
-| Glyph (no tile)     | `poracode-glyph.svg`        | In-app header, monochrome contexts (inherits `currentColor`; dot stays indigo)      |
-| Nightly channel     | `poracode-icon-nightly.svg` | Nightly build — deep-indigo tile `#131228` + **ice** dot to distinguish from stable |
+| Variant             | File                            | Use                                                                                 |
+| ------------------- | ------------------------------- | ----------------------------------------------------------------------------------- |
+| Primary (dark tile) | `craftstation-icon.svg`         | App icon, default everywhere                                                        |
+| Light tile          | `craftstation-icon-light.svg`   | On dark photography / when a light chip is needed                                   |
+| Glyph (no tile)     | `craftstation-glyph.svg`        | In-app header, monochrome contexts (inherits `currentColor`; dot stays indigo)      |
+| Nightly channel     | `craftstation-icon-nightly.svg` | Nightly build — deep-indigo tile `#131228` + **ice** dot to distinguish from stable |
 
 ### Misuse (don't)
 
@@ -80,11 +80,11 @@ A bold geometric **"P"** + the **Pora dot** at the baseline-right (reads as `P.`
 ## 5. Logotype (wordmark)
 
 - **Logotype:** **`Pora.code`** — set in Geist Sans; "Pora" in 700, "code" in 600; the dot is the indigo **baseline** dot. ⚠️ The dot must be a **true round circle** (the Pora dot), drawn as its own element — **never the font's period glyph**, because Geist renders periods as a _square_. Place it low/at the baseline, not centered.
-- **Written product name (prose, stores, legal):** **Poracode** — one word, no dot.
+- **Written product name (prose, stores, legal):** **CraftStation** — one word, no dot.
 - **CLI / technical lockup:** `pora.code` lowercase in Geist Mono.
-- **Tier lockup:** glyph + **Poracode Cloud** (Cloud in `--dim`).
+- **Tier lockup:** glyph + **CraftStation Cloud** (Cloud in `--dim`).
 
-> Logo ≠ name: the logo is `Pora.code` (with the dot device); the name you type is `Poracode`.
+> Logo ≠ name: the logo is `Pora.code` (with the dot device); the name you type is `CraftStation`.
 
 ---
 
@@ -138,13 +138,13 @@ Letter-spacing: `-0.02em` on display/H1 wordmark; default elsewhere.
 
 - **Tagline:** _It's time to code._
 - **Descriptor:** _The universal AI coding-agent orchestrator — run Claude, Codex & Gemini side by side._
-- **Tone:** precise, calm, builder-to-builder. Not hypey. Lowercase-friendly in technical contexts (`pora.code`), title-case for the brand (Poracode).
+- **Tone:** precise, calm, builder-to-builder. Not hypey. Lowercase-friendly in technical contexts (`pora.code`), title-case for the brand (CraftStation).
 
 ---
 
 ## 9. Assets & regeneration
 
-Masters (vector, source of truth): `branding/assets/poracode-icon.svg`, `-light.svg`, `-nightly.svg`, `-glyph.svg`.
+Masters (vector, source of truth): `branding/assets/craftstation-icon.svg`, `-light.svg`, `-nightly.svg`, `-glyph.svg`.
 
 Regenerate all raster + platform assets (uses the repo's `sharp` + macOS `iconutil`):
 
@@ -168,17 +168,17 @@ node branding/assets/build-native-assets.mjs
 
 ## 10. Domains, handles, trademark
 
-- **Primary:** `poracode.com` ✅ free · npm `poracode` ✅ · GitHub user+org `poracode` ✅
-- **Tier:** `poracode.com/cloud` (hold `pora.cloud` ✅ as redirect)
+- **Primary:** `craftstation.com` ✅ free · npm `craftstation` ✅ · GitHub user+org `craftstation` ✅
+- **Tier:** `craftstation.com/cloud` (hold `pora.cloud` ✅ as redirect)
 - **Umbrella short links:** `pora.sh` ✅ / `trypora.com` ✅
-- **Trademark to file:** **PORACODE** (word mark), Nice classes **9** (software) + **42** (SaaS). Clear against _PORA AI_ (skincare, different field → coexistence likely) before the paid tier. This is the one mark to clear.
+- **Trademark to file:** **CRAFTSTATION** (word mark), Nice classes **9** (software) + **42** (SaaS). Clear against _PORA AI_ (skincare, different field → coexistence likely) before the paid tier. This is the one mark to clear.
 
 ---
 
 ## 11. Code rename
 
-The Lightcode → Poracode codebase rename is complete.
+The CraftStation → CraftStation codebase rename is complete.
 
-- On first launch, all data from `~/.lightcode` (or the legacy `LIGHTCODE_BASE_DIR`) and the separate Electron user-data directory are copied into Poracode. The source is retained as a rollback backup, and Settings can schedule the complete import again.
-- The desktop app IDs (`com.lightcode.app` / `com.lightcode.app.nightly`) and mobile app ID (`com.lightcodeapp.mobile`) remain stable technical upgrade identities. Product names, UI, packages, and namespaces use Poracode.
+- On first launch, all data from `~/.craftstation` (or the legacy `CRAFTSTATION_BASE_DIR`) and the separate Electron user-data directory are copied into CraftStation. The source is retained as a rollback backup, and Settings can schedule the complete import again.
+- The desktop app IDs (`com.craftstation.app` / `com.craftstation.app.nightly`) and mobile app ID (`com.craftstationapp.mobile`) remain stable technical upgrade identities. Product names, UI, packages, and namespaces use CraftStation.
 - Legacy names remain only at explicit compatibility boundaries for existing data, cached URLs, paired clients, hook cleanup, and Git checkpoints.

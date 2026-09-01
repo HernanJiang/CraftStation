@@ -1,5 +1,5 @@
 {
-  "name": "@poracode/codex-protocol",
+  "name": "@craftstation/codex-protocol",
   "version": "0.1.0",
   "private": true,
   "description": "Install-time-generated TypeScript definitions for the Codex app-server protocol.",

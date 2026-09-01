@@ -24,32 +24,32 @@ describe("mobileServiceWorkerScope", () => {
 
 describe("legacyBrowserRouteUrl", () => {
   it("keeps the internal Connections landing at the hosted PWA root", () => {
-    expect(legacyBrowserRouteUrl("https://poracode.com/pwa#/desktops", "/pwa/")).toBe(
-      "https://poracode.com/pwa",
+    expect(legacyBrowserRouteUrl("https://craftstation.com/pwa#/desktops", "/pwa/")).toBe(
+      "https://craftstation.com/pwa",
     );
   });
 
   it("converts real screens to clean browser paths", () => {
     expect(
-      legacyBrowserRouteUrl("https://poracode.com/pwa#/more/settings/appearance", "/pwa/"),
-    ).toBe("https://poracode.com/pwa/settings/appearance");
-    expect(legacyBrowserRouteUrl("https://poracode.com/pwa#/more", "/pwa/")).toBe(
-      "https://poracode.com/pwa/settings",
+      legacyBrowserRouteUrl("https://craftstation.com/pwa#/more/settings/appearance", "/pwa/"),
+    ).toBe("https://craftstation.com/pwa/settings/appearance");
+    expect(legacyBrowserRouteUrl("https://craftstation.com/pwa#/more", "/pwa/")).toBe(
+      "https://craftstation.com/pwa/settings",
     );
-    expect(legacyBrowserRouteUrl("https://poracode.com/pwa#/more/usage", "/pwa/")).toBe(
-      "https://poracode.com/pwa/usage",
+    expect(legacyBrowserRouteUrl("https://craftstation.com/pwa#/more/usage", "/pwa/")).toBe(
+      "https://craftstation.com/pwa/usage",
     );
-    expect(legacyBrowserRouteUrl("https://poracode.com/pwa#/more/projects", "/pwa/")).toBe(
-      "https://poracode.com/pwa/projects",
+    expect(legacyBrowserRouteUrl("https://craftstation.com/pwa#/more/projects", "/pwa/")).toBe(
+      "https://craftstation.com/pwa/projects",
     );
-    expect(legacyBrowserRouteUrl("https://poracode.com/pwa#/more/browser", "/pwa/")).toBe(
-      "https://poracode.com/pwa/browser",
+    expect(legacyBrowserRouteUrl("https://craftstation.com/pwa#/more/browser", "/pwa/")).toBe(
+      "https://craftstation.com/pwa/browser",
     );
-    expect(legacyBrowserRouteUrl("https://poracode.com/pwa#/more/ports", "/pwa/")).toBe(
-      "https://poracode.com/pwa/ports",
+    expect(legacyBrowserRouteUrl("https://craftstation.com/pwa#/more/ports", "/pwa/")).toBe(
+      "https://craftstation.com/pwa/ports",
     );
-    expect(legacyBrowserRouteUrl("https://poracode.com/pwa#/more/settings", "/pwa/")).toBe(
-      "https://poracode.com/pwa/settings/desktop",
+    expect(legacyBrowserRouteUrl("https://craftstation.com/pwa#/more/settings", "/pwa/")).toBe(
+      "https://craftstation.com/pwa/settings/desktop",
     );
   });
 

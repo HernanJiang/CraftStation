@@ -41,10 +41,10 @@ describe("mobile navigation transition styles", () => {
     expect(css).toMatch(/\.m-desktop-workspace__panel\s*\{[^}]*background:\s*transparent;/s);
     expect(css).toMatch(/\.m-desktop-workspace__panel-inner\s*\{[^}]*background:\s*transparent;/s);
     expect(css).toMatch(
-      /\.m-desktop-workspace__panel \[data-poracode-panel\],[^{]*\.m-desktop-workspace__panel \.poracode-overlay-surface\s*\{\s*background:\s*transparent;/s,
+      /\.m-desktop-workspace__panel \[data-craftstation-panel\],[^{]*\.m-desktop-workspace__panel \.craftstation-overlay-surface\s*\{\s*background:\s*transparent;/s,
     );
     expect(css).toMatch(
-      /\.m-desktop-workspace__panel \.poracode-overlay-header\s*\{[^}]*background:\s*transparent;/s,
+      /\.m-desktop-workspace__panel \.craftstation-overlay-header\s*\{[^}]*background:\s*transparent;/s,
     );
     expect(css).toMatch(
       /\.m-desktop-workspace__panel \.m-subscreen\s*\{[^}]*background:\s*transparent;/s,

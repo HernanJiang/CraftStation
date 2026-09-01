@@ -22,7 +22,7 @@
  * something was withheld.
  */
 
-export const REMOTE_OMITTED_FIELD_KEY = "__poracodeOmitted";
+export const REMOTE_OMITTED_FIELD_KEY = "__craftstationOmitted";
 
 export interface RemoteOmittedField {
   readonly [REMOTE_OMITTED_FIELD_KEY]: {

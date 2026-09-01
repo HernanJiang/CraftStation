@@ -32,7 +32,7 @@ let dirs: string[] = [];
 let stops: (() => void)[] = [];
 
 function harness(jar: Cookie[]): Harness {
-  const cacheDir = mkdtempSync(join(tmpdir(), "poracode-cookie-mirror-"));
+  const cacheDir = mkdtempSync(join(tmpdir(), "craftstation-cookie-mirror-"));
   dirs.push(cacheDir);
   const requestedUrls: string[] = [];
   let listener: ((...args: unknown[]) => void) | undefined;

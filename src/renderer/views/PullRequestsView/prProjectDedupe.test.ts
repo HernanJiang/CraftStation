@@ -13,22 +13,22 @@ function project(id: string, overrides: Partial<Project> = {}): Project {
 }
 
 const httpsRemote: GitRemoteInfo = {
-  url: "https://github.com/SDSLeon/lightcode.git",
+  url: "https://github.com/SDSLeon/craftstation.git",
   platform: "github",
   owner: "SDSLeon",
-  repo: "lightcode",
+  repo: "craftstation",
 };
 
 const sshAliasRemote: GitRemoteInfo = {
-  url: "gh-personal:sdsleon/Lightcode.git",
+  url: "gh-personal:sdsleon/CraftStation.git",
   platform: "unknown",
   owner: "sdsleon",
-  repo: "Lightcode",
+  repo: "CraftStation",
 };
 
 describe("repoIdentityKey", () => {
   it("matches the same repo across https and SSH-alias remotes", () => {
-    expect(repoIdentityKey(httpsRemote)).toBe("sdsleon/lightcode");
+    expect(repoIdentityKey(httpsRemote)).toBe("sdsleon/craftstation");
     expect(repoIdentityKey(sshAliasRemote)).toBe(repoIdentityKey(httpsRemote));
   });
 
@@ -44,7 +44,7 @@ describe("dedupePrProjects", () => {
   const mirrored = project("mirrored", { remoteServerId: "mac", remoteId: "remote-1" });
 
   it("keeps the local checkout when a mirrored project shares its origin", () => {
-    const keys = { local: "sdsleon/lightcode", mirrored: "sdsleon/lightcode" };
+    const keys = { local: "sdsleon/craftstation", mirrored: "sdsleon/craftstation" };
     expect(dedupePrProjects([local, mirrored], (p) => keys[p.id as keyof typeof keys])).toEqual([
       local,
     ]);
@@ -55,8 +55,8 @@ describe("dedupePrProjects", () => {
 
   it("keeps the first project when neither or both are mirrored", () => {
     const second = project("second", { remoteServerId: "mac", remoteId: "remote-2" });
-    expect(dedupePrProjects([mirrored, second], () => "sdsleon/lightcode")).toEqual([mirrored]);
-    expect(dedupePrProjects([local, project("other")], () => "sdsleon/lightcode")).toEqual([local]);
+    expect(dedupePrProjects([mirrored, second], () => "sdsleon/craftstation")).toEqual([mirrored]);
+    expect(dedupePrProjects([local, project("other")], () => "sdsleon/craftstation")).toEqual([local]);
   });
 
   it("keeps projects with different or unknown repo identities", () => {
@@ -64,7 +64,7 @@ describe("dedupePrProjects", () => {
     const unknownA = project("unknown-a");
     const unknownB = project("unknown-b");
     const keys: Record<string, string | null> = {
-      local: "sdsleon/lightcode",
+      local: "sdsleon/craftstation",
       other: "sdsleon/other",
       "unknown-a": null,
       "unknown-b": null,

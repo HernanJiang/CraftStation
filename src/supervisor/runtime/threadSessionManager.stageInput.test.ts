@@ -69,7 +69,7 @@ function createAdapter(
 }
 
 function createManager(adapter: AgentAdapter): ThreadSessionManager {
-  const tempDir = mkdtempSync(join(tmpdir(), "poracode-stage-input-"));
+  const tempDir = mkdtempSync(join(tmpdir(), "craftstation-stage-input-"));
   tempDirs.push(tempDir);
   const manager = new ThreadSessionManager({
     emit: (_event: SupervisorEvent) => {},
@@ -166,9 +166,9 @@ describe("ThreadSessionManager.stageThreadInput", () => {
   });
 
   it("copies out-of-workspace attachments into the project for sandboxed agents", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "poracode-stage-project-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "craftstation-stage-project-"));
     tempDirs.push(projectDir);
-    const outsideDir = mkdtempSync(join(tmpdir(), "poracode-stage-outside-"));
+    const outsideDir = mkdtempSync(join(tmpdir(), "craftstation-stage-outside-"));
     tempDirs.push(outsideDir);
     const shot = join(outsideDir, "shot.png");
     writeFileSync(shot, "png");
@@ -186,7 +186,7 @@ describe("ThreadSessionManager.stageThreadInput", () => {
       segments: [{ kind: "attachment", path: shot, mimeType: "image/png" }],
     });
 
-    expect(existsSync(join(projectDir, ".poracode", "attachments", "shot.png"))).toBe(true);
+    expect(existsSync(join(projectDir, ".craftstation", "attachments", "shot.png"))).toBe(true);
     const written = write.mock.calls[0]![0];
     expect(written).toContain("shot.png");
     // The pick references the in-project copy, not the original outside path.

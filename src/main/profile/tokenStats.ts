@@ -18,7 +18,7 @@ import { recordCurrentDevice, resolveProfileDevice } from "./identity";
 import { accountLabel, modelKey, modelLabel, providerLabel } from "./labels";
 
 /**
- * Token usage from Poracode's own activity, read from the durable `usage_events`
+ * Token usage from CraftStation's own activity, read from the durable `usage_events`
  * log. Two row kinds feed the sums: kind="tokens_v2" (exact spend counted by the
  * main-process usage ledger from provider-reported counters) and kind="tokens"
  * (legacy per-turn deltas captured at the canonical-event layer — approximate

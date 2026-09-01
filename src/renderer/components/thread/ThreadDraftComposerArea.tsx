@@ -11,7 +11,12 @@ import type {
   ThreadConfig,
   ThreadPresentationMode,
 } from "@/shared/contracts";
-import { MAX_EXPERIMENT_CANDIDATES } from "@/shared/contracts";
+import {
+  isMcpServerSupportedByRuntime,
+  MAX_EXPERIMENT_CANDIDATES,
+  supportsHeaderBearingHttpMcp,
+  supportsMcpAtProjectLocation,
+} from "@/shared/contracts";
 import { hasSelectableReasoning } from "@/shared/agentSelection";
 import { hookEnvForProject, hookEnvKey } from "@/shared/agentHookPluginEnv";
 import { mergeMcpServers } from "@/shared/contracts/mcpServer";
@@ -139,7 +144,7 @@ function HookInstallProposal(props: {
       props.presentationMode !== "terminal" ||
       dismissed ||
       typeof window === "undefined" ||
-      !window.poracode?.getAgentHookPluginStatuses
+      !window.craftstation?.getAgentHookPluginStatuses
     ) {
       setStatus(undefined);
       return;
@@ -290,9 +295,6 @@ export function ThreadDraftComposerArea(props: {
   paneCount: number | undefined;
   gitBranch: string | undefined;
   worktreeMode: boolean;
-  supportsModePicker: boolean;
-  supportsTerminalMode?: boolean;
-  supportsGuiMode?: boolean;
   presentationMode: ThreadPresentationMode;
   placeholder?: string;
   /** Restores the selection replaced by a one-shot worktree target when this token changes. */
@@ -304,8 +306,6 @@ export function ThreadDraftComposerArea(props: {
   onConfigChange: (patch: Partial<ThreadConfig>) => void;
   onWorktreeModeChange: (worktreeMode: boolean) => void;
   onSwitchBranch: (branch: string, createNew: boolean) => void;
-  onRememberPresentationMode: () => void;
-  onPresentationModeChange?: (next: ThreadPresentationMode) => void;
   onStart: (input: DraftStartInput) => void | Promise<void>;
 }) {
   const { t } = useLingui();
@@ -322,7 +322,7 @@ export function ThreadDraftComposerArea(props: {
   const [experimentBaseBranch, setExperimentBaseBranch] = useState<string | null>(null);
   const isRemoteSurface = isRemoteSession();
   const usesRemoteTransport = props.isRemote === true || isRemoteSurface;
-  const isQuickComposer = window.poracode ? isQuickComposerWindow() : false;
+  const isQuickComposer = window.craftstation ? isQuickComposerWindow() : false;
   const showVoiceInputButton =
     useSharedSettings((s) => s.audio.showVoiceInputButton) && !isRemoteSurface;
   // Persistent (standing-default) composer MCP enablement, keyed by MCP id.
@@ -484,11 +484,19 @@ export function ThreadDraftComposerArea(props: {
   const projectCustomMcpServers = props.project.mcpServers ?? [];
   const projectCustomMcpIds = new Set(projectCustomMcpServers.map((server) => server.id));
   const mergedCustomMcpServers = mergeMcpServers(userCustomMcpServers, projectCustomMcpServers);
+  const compatibleCustomMcpServers = supportsMcpAtProjectLocation(
+    props.selectedAgent.capabilities,
+    props.project.location,
+  )
+    ? mergedCustomMcpServers.filter((server) =>
+        isMcpServerSupportedByRuntime(server, props.selectedAgent.capabilities),
+      )
+    : [];
   const visibleCustomMcpServers = providerOwnsMcp
     ? providerOwnsMcpForComposer
-      ? mergedCustomMcpServers.filter((server) => server.enabled)
+      ? compatibleCustomMcpServers.filter((server) => server.enabled)
       : []
-    : mergedCustomMcpServers;
+    : compatibleCustomMcpServers;
   const customMcpServers: ComposerCustomMcpItem[] = visibleCustomMcpServers.map((server) => {
     const isProject = projectCustomMcpIds.has(server.id);
     const scopedServers = isProject ? projectCustomMcpServers : userCustomMcpServers;
@@ -643,7 +651,10 @@ export function ThreadDraftComposerArea(props: {
   // draft; already-effective servers remain available and insert a textual
   // mention that directs the agent to use them for this turn.
   const mcpMentions: McpMentionItem[] = [
-    ...(disabledBuiltInMcpServers["app-controls"] !== true && !providerOwnsMcp
+    ...(disabledBuiltInMcpServers["app-controls"] !== true &&
+    !providerOwnsMcp &&
+    supportsHeaderBearingHttpMcp(props.selectedAgent.capabilities) &&
+    supportsMcpAtProjectLocation(props.selectedAgent.capabilities, props.project.location)
       ? [
           {
             id: "app-controls",
@@ -816,9 +827,6 @@ export function ThreadDraftComposerArea(props: {
     submittedRef.current = true;
     setIsSubmitting(true);
     const useWorktree = branchSelection?.isWorktree ?? props.worktreeMode;
-    if (props.supportsModePicker) {
-      props.onRememberPresentationMode();
-    }
     const startResult = props.onStart({
       agentKind: props.selectedAgent.kind,
       config: props.config,

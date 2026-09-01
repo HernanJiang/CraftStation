@@ -72,7 +72,7 @@ describe("SidebarProjectFilter", () => {
       remoteId: "rp-1",
     } as Project;
     useRemoteServersStore.setState({
-      servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+      servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
       runtime: { "desktop-1": { status: "online", projects: [], threads: [] } },
     } as never);
 
@@ -287,7 +287,7 @@ describe("SidebarProjectFilter", () => {
         remoteId: "remote-b",
       } as Project;
       useRemoteServersStore.setState({
-        servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+        servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
         runtime: { "desktop-1": { status: "offline", projects: [], threads: [] } },
       } as never);
       useAppStore.setState({ projects: [mirrored], threads: [] });
@@ -325,7 +325,7 @@ describe("SidebarProjectFilter", () => {
         remoteId: "remote-b",
       } as Project;
       useRemoteServersStore.setState({
-        servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+        servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
         runtime: { "desktop-1": { status: "offline", projects: [], threads: [] } },
       } as never);
       useAppStore.setState({ projects: [projects[0]!, mirrored], threads: [] });
@@ -467,14 +467,14 @@ describe("SidebarProjectFilter", () => {
       fireEvent.click(screen.getByRole("button", { name: "Project actions for Beta" }));
       expect(await screen.findByRole("menuitem", { name: "Project Settings" })).toBeInTheDocument();
 
-      const backdrop = document.querySelector("[data-poracode-menu-backdrop]");
+      const backdrop = document.querySelector("[data-craftstation-menu-backdrop]");
       expect(backdrop).not.toBeNull();
       fireEvent.pointerDown(backdrop!);
 
       // Only the menu on top goes; the filter it stacked over stays open and
       // unchanged, because the backdrop absorbed the press.
       expect(screen.queryByRole("menuitem", { name: "Project Settings" })).not.toBeInTheDocument();
-      expect(document.querySelector("[data-poracode-menu-backdrop]")).toBeNull();
+      expect(document.querySelector("[data-craftstation-menu-backdrop]")).toBeNull();
       expect(screen.getByRole("menuitemcheckbox", { name: /Beta/ })).toBeInTheDocument();
       expect(onChange).not.toHaveBeenCalled();
     });

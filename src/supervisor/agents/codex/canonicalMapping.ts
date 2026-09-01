@@ -1,7 +1,7 @@
 /**
  * Codex app-server → canonical RuntimeEvent mapper (public barrel).
  *
- * Codex app-server JSON-RPC notifications mapped to Poracode's canonical
+ * Codex app-server JSON-RPC notifications mapped to CraftStation's canonical
  * runtime-event vocabulary. The shape we emit is intentionally small, based on
  * our `CanonicalItemType` / `RuntimeContentStreamKind` unions.
  *

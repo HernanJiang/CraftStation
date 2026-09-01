@@ -3,7 +3,7 @@ import type { AgentCapability, LabeledOption } from "@/shared/contracts";
 /** Agent-settings key storing the user's Codex context-window list as JSON. */
 export const CODEX_CONTEXT_WINDOWS_SETTING_KEY = "contextWindows";
 
-/** Poracode's default Codex context window. Codex's own CLI default is 272k. */
+/** CraftStation's default Codex context window. Codex's own CLI default is 272k. */
 export const DEFAULT_CODEX_CONTEXT_SIZE = "400k";
 
 const MIN_CONTEXT_WINDOW_TOKENS = 1_000;

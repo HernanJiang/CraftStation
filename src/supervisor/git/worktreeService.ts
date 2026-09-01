@@ -33,7 +33,7 @@ import {
 import { copyIgnoredFilesIntoWorktree } from "./copyIgnoredFiles";
 import { parseStatusPorcelainV2 } from "./statusParsing";
 
-const WORKTREE_OWNER_REFLOG_PREFIX = "poracode experiment owner ";
+const WORKTREE_OWNER_REFLOG_PREFIX = "craftstation experiment owner ";
 const EXPERIMENT_WORKTREE_CREATE_CONCURRENCY = 2;
 
 export function isValidGitBranchName(branch: string): boolean {
@@ -230,7 +230,7 @@ export class GitWorktreeService {
   ): Promise<void> {
     const stashCommit = await this.pushTransferStash(
       location,
-      `Poracode: before pull from ${remote}`,
+      `CraftStation: before pull from ${remote}`,
     );
 
     try {
@@ -582,7 +582,7 @@ export class GitWorktreeService {
     const stashSha = carryChanges
       ? await this.pushTransferStash(
           location,
-          `Poracode: ${keepChangesInSource ? "copy" : "move"} changes to ${branch ?? resolvedPath}`,
+          `CraftStation: ${keepChangesInSource ? "copy" : "move"} changes to ${branch ?? resolvedPath}`,
         )
       : undefined;
 
@@ -591,9 +591,9 @@ export class GitWorktreeService {
       // `--no-track` is required when the start-point is a remote-tracking
       // ref (`origin/master`). Without it git's default autoSetupMerge wires
       // the new branch's upstream to that start-point, so the worktree
-      // `poracode/clever-falcon-…` reports as tracking origin/master and
+      // `craftstation/clever-falcon-…` reports as tracking origin/master and
       // shows "behind" whenever master moves. The fork base is recorded
-      // separately in `branch.<name>.poracodeSource`.
+      // separately in `branch.<name>.craftstationSource`.
       args.push(
         "--no-track",
         "-b",
@@ -989,9 +989,9 @@ export class GitWorktreeService {
     branch: string,
     sourceBranch: string,
   ): Promise<void> {
-    await execGit(location, ["config", `branch.${branch}.poracodeSource`, sourceBranch]).catch(
+    await execGit(location, ["config", `branch.${branch}.craftstationSource`, sourceBranch]).catch(
       (error) => {
-        console.warn(`[git] failed to write poracodeSource config for branch ${branch}:`, error);
+        console.warn(`[git] failed to write craftstationSource config for branch ${branch}:`, error);
       },
     );
   }
@@ -1001,7 +1001,7 @@ export class GitWorktreeService {
     branch: string,
     sourceBranch: string,
   ): Promise<void> {
-    await execGit(location, ["config", `branch.${branch}.poracodeSource`, sourceBranch]);
+    await execGit(location, ["config", `branch.${branch}.craftstationSource`, sourceBranch]);
   }
 
   private async writeWorktreeOwnerStrict(
@@ -1009,7 +1009,7 @@ export class GitWorktreeService {
     branch: string,
     ownerToken: string,
   ): Promise<void> {
-    await execGit(location, ["config", `branch.${branch}.poracodeOwner`, ownerToken]);
+    await execGit(location, ["config", `branch.${branch}.craftstationOwner`, ownerToken]);
   }
 
   private async prepareOwnedBranch(
@@ -1079,7 +1079,7 @@ export class GitWorktreeService {
   }
 
   /**
-   * Remove orphaned Poracode-managed worktrees (registered but not in the
+   * Remove orphaned CraftStation-managed worktrees (registered but not in the
    * active set). A worktree counts as managed only when it lives under one of
    * `managedRoots` — the resolved global root, the project-relative root, and the
    * legacy default. Per-project *custom* bases are intentionally excluded so we
@@ -1145,7 +1145,7 @@ export class GitWorktreeService {
       const result = await execGit(location, [
         "config",
         "--get",
-        `branch.${branch}.poracodeSource`,
+        `branch.${branch}.craftstationSource`,
       ]);
       const sourceBranch = result.trim() || null;
       if (sourceBranch) {
@@ -1164,7 +1164,7 @@ export class GitWorktreeService {
     if (!isValidGitBranchName(branch)) return null;
     const configuredOwner = await execGit(
       location,
-      ["config", "--get", `branch.${branch}.poracodeOwner`],
+      ["config", "--get", `branch.${branch}.craftstationOwner`],
       { acceptedExitCodes: [1] },
     );
     if (configuredOwner.trim()) return configuredOwner.trim();

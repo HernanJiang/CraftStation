@@ -1,4 +1,18 @@
-import type { AgentStatus, ProjectLocation } from "./contracts";
+import type { AgentStatus, ProjectLocation, ThreadPresentationMode } from "./contracts";
+
+export function resolveAgentPresentationMode(
+  capabilities: {
+    presentationMode?: ThreadPresentationMode | undefined;
+    presentationModes?: readonly ThreadPresentationMode[] | undefined;
+  },
+  requested: ThreadPresentationMode | undefined,
+): ThreadPresentationMode {
+  const fallback = capabilities.presentationMode ?? "gui";
+  const supported = capabilities.presentationModes ?? [fallback];
+  if (requested && supported.includes(requested)) return requested;
+  if (supported.includes(fallback)) return fallback;
+  return supported[0] ?? "gui";
+}
 
 export function getProjectAgentStatuses(
   location: ProjectLocation,

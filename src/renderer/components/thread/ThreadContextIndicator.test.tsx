@@ -33,10 +33,10 @@ describe("ThreadContextIndicator", () => {
 
     expect(trigger).toHaveAttribute("data-tone", "normal");
     expect(
-      container.querySelector(".poracode-context-indicator__ring-progress"),
+      container.querySelector(".craftstation-context-indicator__ring-progress"),
     ).toBeInTheDocument();
-    expect(container.querySelector(".poracode-context-indicator svg text")).not.toBeInTheDocument();
-    expect(container.querySelector(".poracode-context-indicator__percent")).not.toBeInTheDocument();
+    expect(container.querySelector(".craftstation-context-indicator svg text")).not.toBeInTheDocument();
+    expect(container.querySelector(".craftstation-context-indicator__percent")).not.toBeInTheDocument();
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 

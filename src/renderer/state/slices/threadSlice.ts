@@ -94,6 +94,10 @@ export interface ThreadSlice {
     options?: { preserveProvisioning?: boolean },
   ) => void;
   updateThreadConfig: (threadId: string, config: ThreadConfig) => void;
+  updateThreadPresentationMode: (
+    threadId: string,
+    presentationMode: ThreadPresentationMode,
+  ) => void;
   updateThreadRuntime: (
     threadId: string,
     input: {
@@ -106,6 +110,7 @@ export interface ThreadSlice {
       slashCommands?: Thread["slashCommands"];
       canResumeWithConfig: boolean;
       threadStatusSource?: ThreadStatusSource;
+      presentationMode?: ThreadPresentationMode;
       forceCloseActiveTurn?: boolean;
       errorMessage?: string;
     },
@@ -361,6 +366,20 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
       });
       return changed ? { threads } : {};
     }),
+  updateThreadPresentationMode: (threadId, presentationMode) =>
+    set((state) => {
+      let changed = false;
+      const threads: Thread[] = state.threads.map((thread): Thread => {
+        if (thread.id !== threadId || thread.presentationMode === presentationMode) return thread;
+        changed = true;
+        if (presentationMode === "terminal") {
+          const { threadStatusSource: _threadStatusSource, ...withoutStatusSource } = thread;
+          return { ...withoutStatusSource, presentationMode };
+        }
+        return { ...thread, presentationMode, threadStatusSource: "server" };
+      });
+      return changed ? { threads } : {};
+    }),
   updateThreadRuntime: (threadId, input) =>
     set((state) => {
       let changed = false;
@@ -414,8 +433,12 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
           thread.threadStatusSource === input.threadStatusSource;
 
         const configFromRuntime = runtimeConfigChanged ? input.config : undefined;
+        const nextPresentationMode = input.presentationMode ?? thread.presentationMode;
+        const presentationModeChanged =
+          input.presentationMode !== undefined &&
+          input.presentationMode !== thread.presentationMode;
         const nextConfig =
-          thread.presentationMode === "gui"
+          nextPresentationMode === "gui"
             ? (configFromRuntime ?? thread.config)
             : stripPlanMode(configFromRuntime ?? thread.config);
         const nextTurnTiming = deriveTurnTiming(thread, effectiveStatus, {
@@ -436,6 +459,7 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
           isThreadConfigEqual(thread.config, nextConfig) &&
           thread.canResumeWithConfig === input.canResumeWithConfig &&
           statusSourceMatch &&
+          !presentationModeChanged &&
           !slashCommandsChanged &&
           !sessionRefChanged &&
           thread.activeTurnStartedAt === nextTurnTiming.activeTurnStartedAt &&
@@ -460,6 +484,9 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
           attention: effectiveAttention,
           config: nextConfig,
           canResumeWithConfig: input.canResumeWithConfig,
+          ...(input.presentationMode !== undefined
+            ? { presentationMode: input.presentationMode }
+            : {}),
           ...(input.threadStatusSource !== undefined
             ? { threadStatusSource: input.threadStatusSource }
             : {}),

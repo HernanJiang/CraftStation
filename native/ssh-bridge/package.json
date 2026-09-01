@@ -1,7 +1,7 @@
 {
-  "name": "@poracode/ssh-bridge",
+  "name": "@craftstation/ssh-bridge",
   "version": "1.0.0",
-  "description": "Capacitor bridge exposing authenticated SSH commands, uploads, and loopback forwarding to Poracode mobile.",
+  "description": "Capacitor bridge exposing authenticated SSH commands, uploads, and loopback forwarding to CraftStation mobile.",
   "license": "Apache-2.0",
   "author": "SDSLeon",
   "files": [
@@ -10,7 +10,7 @@
     "ios/Sources",
     "ios/Tests",
     "Package.swift",
-    "PoracodeSshBridge.podspec"
+    "CraftStationSshBridge.podspec"
   ],
   "type": "module",
   "main": "src/index.ts",

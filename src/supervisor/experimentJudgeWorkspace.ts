@@ -12,7 +12,7 @@ import { countUnifiedDiffStats, type UnifiedDiffStats } from "@/shared/lineUnifi
 import { splitDiffSections } from "./diffPromptContext";
 import type { WslBridgeClient, WslLocation } from "./wsl/bridge/client";
 
-const WORKSPACE_PREFIX = "poracode-judge-";
+const WORKSPACE_PREFIX = "craftstation-judge-";
 
 export interface ExperimentJudgeWorkspace {
   location: ProjectLocation;

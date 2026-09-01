@@ -60,7 +60,7 @@ describe("last project per workspace", () => {
     // Regression for the released v1 shape: `lastProjectIdByWorkspace` is
     // additive, so the stored active workspace must survive rather than reset.
     localStorage.setItem(
-      "poracode-active-workspace",
+      "craftstation-active-workspace",
       JSON.stringify({ state: { activeWorkspaceId: "w2" }, version: 1 }),
     );
 

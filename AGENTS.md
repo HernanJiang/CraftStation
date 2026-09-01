@@ -1,139 +1,144 @@
-# Poracode
+# AGENTS.md
 
-## CraftStation Overlay
+本文件只保存 CraftStation 项目长期有效的事实、边界和约定。当前 Feature、Ticket、工作区状态与阻塞见 `PROJECT_STATUS.md`；外部仓库精确基线见 `reference/BASELINES.md`。
 
-This working copy is CraftStation, based on PoraCode/lightcode.
+## Project Identity
 
-- Project identity and long-lived rules: `CRAFTSTATION.md`
-- Current Feature status: `PROJECT_STATUS.md`
-- Feature docs: i_workspace/agent_docs/ (current Manager: manager_0.4.0.md; checkpoint: debugger_0.4.12-checkpoint.md)
-- Cloud Manager Ideate prompt: `IDEA_GUIDE.md`
-- GitHub origin: `https://github.com/HernanJiang/CraftStation.git` (private)
+- 项目名称：CraftStation。
+- 产品定位：Agent Runtime Composition System，以 Minecraft Crafting System 作为组合语义，不是多模型 GUI、Harness 启动器、单纯 Router 或任一 Harness 的换皮。
+- 长期目标：给定 Task、Model、Environment、Budget 与 Available Items，选择 Items、形成 Ingredients、匹配或生成 Recipe、得到 Result Item，并 spawn 为运行中的 Entity。
+- V0 先证明可执行、可复现、可诊断的 Composition 基础链路；研究性能力必须由后续 Feature 明确立项。
 
-## CraftStation Git Worktree Topology
+## Repository Boundaries
 
-- 稳定 Main Worktree：`D:\Work\CraftStation\craftstation`（`main`）。用户用 main 版产品开发其它项目，形成长期 dogfooding。
-- 活跃 Dev Worktree：`D:\Work\CraftStation\craftstation-dev`（`dev`）。当前 Feature 的 Manager Plan、Coder 实现和 Debugger 验收全部在此进行。
-- Product remote：`origin = https://github.com/HernanJiang/CraftStation.git`；禁止通过切换分支把 Main Worktree 临时改作 dev。
-- 每个 Feature 是 dev 上的版本级逻辑单元；默认不额外创建 feature 分支或第三个 worktree。
-- 只有用户完成 dev candidate 验收并明确要求进入下一 Feature，Manager 才执行 dev 到 main 的 fast-forward promotion、正式 tag/push 和 dev 同步。
-
-Universal AI agent orchestrator — Electron desktop app managing Claude, Codex, and Gemini via real PTY sessions (terminal-native) and structured runtimes (native chat).
-
-## Quick Reference
-
-- **Package manager:** `pnpm` (11.2.2, pinned in `package.json#packageManager`)
-- **Node:** >= 24.10.0
-- **Typecheck:** `pnpm run typecheck` (tsc, TypeScript 7 native)
-- **Lint:** `pnpm run lint` (oxlint)
-- **Format:** `pnpm run fmt` (oxfmt) / `pnpm run fmt:check`
-- **Test:** `pnpm run test` (vitest)
-- **Dev:** `pnpm run dev`
-- **Build:** `pnpm run build` then `pnpm run dist`
-
-## Critical Rules
-
-- Terminal-presentation threads must be backed by a real PTY process; GUI-presentation threads must be backed by the provider structured runtime process. The active presentation surface is the source of truth.
-- The renderer must never spawn agent processes — the supervisor runtime owns all agent processes.
-- React Compiler is the default memoization strategy. Do not add `useMemo`, `useCallback`, or `React.memo` unless escaping the compiler. Keep `babel-plugin-react-compiler` pinned to an exact version.
-- Use HeroUI v3 for all non-terminal UI. When working with HeroUI components, always load the `heroui-react` skill first (`/skill heroui-react`).
-- **Every user-facing string you add or change in `src/renderer` must be localized.** Wrap it in a Lingui macro, run `pnpm i18n:extract`, then fill the new `msgstr` in all 12 non-English catalogs — never ship empty translations (that leaves a half-English UI). See [Internationalization (i18n)](#internationalization-i18n).
-- The codebase is provider-agnostic. Providers are self-contained plugins — both supervisor adapters and renderer UI. No provider-specific if/else in shared runtime, UI, or layout code. Adding a new provider should require zero changes to existing shared files.
-- Windows projects use native Windows cwd. WSL agent commands run through `wsl.exe -d <distro> --cd <linuxPath> --exec <agent command>`.
-- **Version every compatibility boundary intentionally.** Before finishing a change to persisted state, a cache or derived index, a serialized manifest, a wire/IPC protocol, or a deployed helper/plugin, audit the version at that boundary and every mirrored copy. If an older app artifact can remain present but is no longer valid, add a migration or invalidate it with a version bump and a pre-upgrade regression test. See [Versioned State & Protocols](.agents/docs/versioning.md) for the required checklist and repository inventory.
-
-## Working Rules
-
-- Feature 协作采用 Coder 主动交接的一对一配对：Coder 完成全部 Ticket 与 Feature-level self-check 后，自动创建对应 Debugger 任务并交接；Manager 不预先创建 Debugger。Debugger 固定使用 `grok-4.6`、推理强度 `high`，只验收绑定 Coder 的同一 Feature worktree。Coder 默认使用 `gpt-5.6-sol`、推理强度 `high`。
-
-- For UI changes, follow existing app patterns first. Prefer shared variants and local component conventions over raw library defaults or new visual treatments.
-- For absolutely positioned HeroUI tooltips, put positioning on an out-of-flow wrapper and keep `Tooltip.Trigger` normally positioned inside it. `Tooltip.Trigger` renders an `inline-block`; wrapping an absolute child directly can add layout space and anchor the tooltip to the wrong box.
-- Keep visual scope tight. Do not add layout stabilizers, decorative styling, or state treatments unless they are part of the request.
-- For runtime/chat bugs, trace the real state path before changing the display layer. Timer, notification, resume, and launch symptoms usually come from thread runtime state.
-- For performance complaints, investigate render invalidation, measurement loops, and sync I/O before applying cosmetic workarounds.
-- For provider work, normalize provider-native payloads at the provider boundary. Shared UI/runtime code should consume provider-agnostic shapes only.
-- When changing Codex/OpenCode behavior, verify current provider payloads or protocol behavior and check cross-provider parity when applicable.
-- For focused fixes, prefer nearby tests plus touched-file lint/format checks. If asked to fix all checks, run and make green: `pnpm run typecheck`, `pnpm run lint`, and `pnpm run test`.
-- **Prevent God Files:** Do not allow files to grow indefinitely. If a file becomes complex or violates single-responsibility principles during your work, refactor it by extracting related logic into new modules or sub-components. Splitting files is preferred over extending existing ones.
-- Use `pnpm exec vitest run ...` for targeted Vitest runs; do not use Jest-only flags like `--runInBand`.
-- With `exactOptionalPropertyTypes`, avoid passing explicit `undefined` for optional props; use conditional spreads when needed.
-- Put investigation dumps, screenshots, and other temporary files under `tmp/` or `.tmp/` (both gitignored). Never write scratch artifacts into the repo root or tracked paths like `verification-shots/`.
-
-## Internationalization (i18n)
-
-Any time you add or edit a menu, button, dialog, label, placeholder, tooltip, toast, `aria-label`, or any other text the user can read, you must localize it in the same change. The renderer is localized with Lingui (`@lingui/*` v6). Source locale is `en`; there are **12 non-English catalogs** (`es`, `ru`, `uk`, `zh-CN`, `ja`, `pt-BR`, `de`, `fr`, `ko`, `pl`, `vi`, `tr`) at `src/renderer/locales/{locale}/messages.po`. Lingui scans **only `src/renderer`** — see the per-locale terminology table, gotchas, and "add a language" steps in [Internationalization (i18n)](.agents/docs/i18n.md).
-
-### Step 1 — Wrap the string in the right macro for its context
-
-**Inside a React component** — import the macros and pull `t` from the hook:
-
-```tsx
-import { Trans, useLingui } from "@lingui/react/macro";
-
-function MyPanel() {
-  const { t } = useLingui();
-  return (
-    <SettingsPage title={t`General`}>
-      {/* JSX body text → <Trans>; it handles interpolation and nested markup */}
-      <SettingRow description={<Trans>Choose the display language.</Trans>}>
-        {/* attribute / string values → t`…` */}
-        <Button aria-label={t`Save`}>{t`Save`}</Button>
-      </SettingRow>
-    </SettingsPage>
-  );
-}
+```text
+D:\Work\CraftStation\              # Product Git Root；main 源码、测试、配置与治理文档
+├── .worktrees\
+│   └── <version-feature>\          # 独立版本开发工作树；分支 dev/<version-feature>
+├── reference\                      # 只读上游参考；每项为独立 Git 仓库/快照
+├── 学习材料\                       # 旧资料，只读追溯
+├── figures\                        # CraftStation 品牌源资源
+└── ai_workspace\                   # 治理、报告与临时验证材料
 ```
 
-- JSX text content → `<Trans>…</Trans>`. Attributes, `aria-label`, `title`, `placeholder`, and any plain string → `` t`…` ``.
-- Interpolate with the value inline: `` t`Discard changes in ${path}?` `` or `<Trans>Removing {count} files</Trans>`.
+- 产品源码、测试、配置与 `main` 分支直接位于 `D:\Work\CraftStation`，不再增加 `craftstation/` 包装层。
+- Git 拓扑：`D:\Work\CraftStation` = Product Git Root / `main`；所有并行版本开发工作树直接位于 `D:\Work\CraftStation\.worktrees\<version-feature>`，对应分支统一为 `dev/<version-feature>`。本项目不维护共享 `dev` 分支或共享 Dev 工作树；该结构与 `my-workflow` 的默认拓扑一致。
+- 一个版本 Feature 对应一个 `dev/<version-feature>` 分支与一个 `.worktrees/<version-feature>` 工作树。该版本的 Manager Plan、Coder 实现、Fix Cycle、Debugger 验收和用户候选试用均在同一工作树完成；不同版本可以并行，禁止跨工作树写入。
+- Debugger PASS 后在当前版本开发分支完成候选收口并通知 Manager，不再执行 Feature → 共享 Dev 合并。只有用户完成验收并明确授权后，Manager 才把该 `dev/<version-feature>` 分支收口到 `main`；Coder / Debugger 不得 merge main、打正式 tag 或 push `origin/main`。
+- 旧 `D:\Work\CraftStation\dev`、`craftstation-dev` 与其中的工作树均为迁移残留，统一归档到仓库外备份；旧 `D:\Work\CraftStation\craftstation` 仅允许暂存被既有运行中产物占用的迁移残留。新开发不得使用这些旧路径。
+- `reference/` 与 `学习材料/` 不进入产品构建、测试或 Product Git 的上游源码历史。
+- 根目录旧 `deepseek-harness/` 路线已 `NOT PASSED / SUPERSEDED`，不得作为 Working Copy、测试目标、启动目标或架构事实来源；若本地遗留目录仍存在，直接忽略。
+- `reference/` 只用于读取、搜索、比较和引用，不进入 CraftStation 可执行路径。
+- `ai_workspace/` 不承载正式源码、正式测试、产品配置或长期启动脚本。
 
-**Module-level lists (option/menu definitions outside a component)** — `t` only exists at render time, so define labels lazily with `msg` and resolve them where they render:
+## Runtime and Toolchain
 
-```ts
-import { msg } from "@lingui/core/macro";
+- Working Copy 基于 CraftStation 上游 `SDSLeon/craftstation` 渐进重构，采用 Strangler Refactor。
+- 主语言与桌面应用：TypeScript、React、Electron、Node.js `>=24.10.0`。
+- 包管理器：`pnpm@11.19.0`；精确版本与依赖以 Product Git Root 的 `package.json` 和 lockfile 为准。
+- CLIProxyAPI 保持独立 Go implementation；TypeScript 层只通过公开 seam 使用它。
+- 测试、类型检查、lint 与构建命令以 Product Git Root 的 `package.json` 为准。
+- CodeGraph 只索引 `D:\Work\CraftStation` 产品源码；跨模块关系或影响分析前检查 `codegraph status`，不得误用旧路径索引。
 
-export const themeOptions = [
-  { id: "system", label: msg`System` },
-  { id: "dark", label: msg`Dark` },
-] as const;
-// resolve at render: const { t } = useLingui(); ...options.map(o => ({ ...o, label: t(o.label) }))
-// reuse the existing useLocalizedOptions() helper in views/SettingsOverlay/parts/settingsOptions.ts
+## Reference Projects
+
+参考项目只提供源码事实、能力对照和产品边界，不表示 CraftStation 已支持其能力。
+
+- DeepSeek Harness：`reference/deepseek-harness/`，上游 `deepseek-ai/deepseek-harness`；只读研究 plugin-first Runtime、Cordis composition 与 Agent/Session/Tool 链路。
+- Codex Harness：`reference/codex/`，固定指官方 `openai/codex`；研究 Codex CLI、app-server、JSON-RPC、工具、会话和执行协议。
+- Harnss：`reference/harnss/`，上游 `OpenSource03/harnss`；研究多 CLI Agent 桌面执行、ACP、MCP、权限和工作区体验。
+- CraftStation：`reference/craftstation/`，上游仓库实际为 `SDSLeon/craftstation`；是 CraftStation Product Git Root 的代码基线与主要实现参考。
+- AionUI：`reference/aionui/`，上游 `iOfficeAI/AionUi`；研究 Cowork、多 Agent GUI、Team Mode、远程访问与自动化。
+- CLIProxyAPI：`reference/CLIProxyAPI/`，上游固定为官方 `router-for-me/CLIProxyAPI`；研究 Subscription/OAuth 到 OpenAI-compatible API 的 provider concern。当前为官方 GitHub zipball 建立的本地 Git 快照，不具备完整上游历史。
+- Token Monitor：`reference/token-monitor/`，上游 `Javis603/token-monitor`；研究认证登录、token / Coding Plan 监控与各家额度探测路径。只读对照，不进入 CraftStation 可执行路径。
+
+更新规则与固定 commit 见 `reference/BASELINES.md`。更新前确认工作区干净，只允许 fast-forward；网络异常时保留已验证基线并记录获取方式，不推断更新成功。
+
+## Domain Model
+
+正式术语优先沿用：`Item`、`Metadata`、`Component`、`Ingredient`、`Slot`、`Crafting Grid`、`Recipe`、`Result`、`Crafter`、`Entity`、`Session`。
+
+- `Item` 是可独立选择、替换、组合并作为 Recipe 输入或输出的最小决策单位；内部可包含多个 Components。
+- `Metadata` 负责 identity、display、version、vendor、source、description 与 registry 信息，不承载 Runtime 执行逻辑。
+- `Component` 描述 Item 的属性、能力、行为和实现；底层 Plugin/Adapter 可以实现 Component，但不等同于 Item 或 Ingredient。
+- `Ingredient` 是 Item 在特定 Recipe 中承担的输入角色，不是 Item 的子类。
+- `Recipe` 描述 Ingredients 如何组合并产生 Result；`Result` 仍是 Item，可继续参与后续 Recipe。
+- `Crafter` 是 deterministic resolver、validator 与 compiler，输出 `CraftPlan`；不操作进程、transport、RPC 或 UI。
+- `Entity` 是 Result Item 被 instantiate、spawn、start 后的运行实例。
+- `Session` 是 Agent Entity 的连续工作过程，不等同于单条消息或单次模型请求。
+- `auto` 是 Slot 的 deterministic resolution mode，不是 Item 或 Router。
+
+## Product and Architecture Boundaries
+
+- v0.1.0 的原生链路为 `OpenAI Model Item + Codex Harness Item -> Recipe -> Crafter -> Result Item -> CraftPlan -> Entity -> Session`。
+- Model Vendor 与 Harness Vendor 保持独立；未验证组合不得进入可执行路径。
+- 兼容状态统一使用 `NATIVE`、`SUPPORTED`、`EXPERIMENTAL`、`INCOMPATIBLE`。
+- CraftStation 的 Desktop、IPC、workspace、terminal、git/worktree 与 persistence 等通用基础设施可以在 Strangler Refactor 期间继续复用；Harness-specific Runtime 只作为迁移参考，不预设为 CraftStation 的永久生产依赖。
+- 保持 domain terminology 与 implementation terminology 分离；`adapter`、`transport`、`client`、`server`、`protocol`、`process` 在实现层可继续使用。
+
+当前 Feature 优先建立四个逻辑 Module：
+
+- `crafting`：小 Interface 暴露 `resolve -> validate -> compile`，隐藏 Recipe 匹配、校验和 CraftPlan 编译。
+- `registry`：管理 Item、Recipe 与 runtime binding；与 CraftStation 的 AgentAdapter registry 分离。
+- `harness-runtime`：最重要的 execution seam。上层只提交 CraftPlan、Workspace、可选 Session ref 与 Prompt，并接收 Entity/Session identity、runtime events 和 lifecycle operations。
+- `provider/API`：隔离 CLIProxyAPI 或原生 provider/auth concern，不与 Harness process execution 混为一体。
+
+Codex app-server、stdio、JSON-RPC、server pool 与 Codex-specific session 都属于 `harness-runtime` 内的 Codex Adapter。React UI、Crafting domain 和 Crafter 不得深度导入这些 implementation。
+
+从 v0.3.0 起，Codex 生产路径由 CraftStation-owned Codex Runtime Module 直接驱动官方 `codex app-server`。最终产品路径不得依赖或 fallback 到 CraftStation 的 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter`、`CodexStructuredSession`、canonical event mapping 或 Codex hook plugin；迁移期间可以保留隔离的 legacy implementation 作为对照，只有新路径取得真实验收证据后才移除。Codex 的 Agent Loop、上下文管理与压缩、工具执行、MCP、Skills、子 Agent 和原生 Session 语义继续由官方 Codex Runtime 拥有，CraftStation 不重写这些内部能力。
+
+CLIProxyAPI 在 v0.1.0 不预设为 Codex 必经路径，也不重写为 TypeScript；是否使用只由 provider/auth 需求决定。
+
+Auto-Crafting、Model Fingerprint、Active Probing、Compatibility Prediction、复杂 Context Strategy、Tool Policy Composition、Learned Routing、Recipe Search 与完整 Recipe Graph persistence 仅在对应 Feature 立项后实现。
+
+## Engineering and Observability
+
+- 修改前检查目标仓库 Git 状态；保留用户与其他角色已有修改。根仓库、Working Copy 与各参考仓库分别执行 Git 命令。
+- 优先通过小而稳定的 Interface 获得 deep implementation；调用者与测试跨同一 seam，避免 accidental deep imports。
+- 新功能先定义错误语义和关键日志事件，再实现业务路径。
+- 关键路径至少表达 `phase`、`operation`、`status`、相关对象 ID、稳定错误 `code`、原因与排查方向。
+- 跨组件流程携带 correlation/request id；错误保留原始异常上下文。
+- 日志覆盖成功、跳过、降级与失败，不记录 API key、Token、Cookie、完整敏感 Prompt 或其他凭据。
+
+## Workflow
+
+仅当用户明确调用 `$my-workflow` 或指定其 `Architect`、`Manager`、`Coder`、`Debugger`、`Assistant` 角色时启用大型项目工作流。
+
+- 生命周期：`Architect Brief -> Manager Feature Spec/Tickets -> Coder -> Debugger`。
+- 配对规则：每个 Feature 的 Coder 必须在完成全部 Ticket 与 Feature-level self-check 后，自动创建并交接一个对应的 Debugger 任务；Manager 不预先创建 Debugger。Debugger 使用 `grok-4.6`、推理强度 `high`，且只验收其绑定 Coder 的同一 Feature worktree。Coder 默认使用 `gpt-5.6-sol`、推理强度 `high`。
+- Manager：每项目唯一，标题固定 `Manager`，不绑 Feature 版本；负责与用户讨论并下发计划，跨 Feature 复用同一会话。
+- Coder / Debugger / Assistant 会话命名：`{Role}-{Version}-{ShortDesc}`，例如 `Coder-0.7-OpenCode Native`、`Debugger-0.6-Provider Auth`。`Version` 用 Feature `X.Y`，不要加 `v`。
+- 新建角色会话必须绑定本项目（`projectId` `16cc8579-4db8-4ce6-89c3-a12a48187705` / `D:\\Work\\CraftStation`），禁止 projectless 会话。同一角色多个 Feature 会话时按版本匹配，不得复用其他版本的 Debugger，也不得新建第二个 Manager。
+- Debugger `PASS` 后在当前 `dev/<version-feature>` 分支完成候选收口，通知 Manager，并打开该版本工作树产物给用户看；不再合入共享 Dev。`FAIL` 后在同一工作树进入 Fix Cycle。用户验收并明确授权后，版本开发分支 → `main` 由 Manager 执行；发生冲突时保留现场并向用户说明，不强制覆盖。
+- 版本：`vX` Major Stage、`vX.Y` Feature Version、`vX.Y/Tnn` Ticket、`vX.Y.Z` Fix Cycle。
+- 动态状态只维护在 `PROJECT_STATUS.md`。
+- 角色文档写入 `ai_workspace/agent_docs/{role}_X.Y.Z.md`。
+- Feature 最终 PASS 后，Debugger 生成 `ai_workspace/reports/report_X.Y.md`。
+
+## Common Commands
+
+在 Product Git Root 内执行：
+
+```powershell
+cd D:\Work\CraftStation
+pnpm install
+pnpm dev
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
 ```
 
-**Non-React files (actions, command handlers, toasts)** — there is no hook, so translate eagerly through the singleton:
+GitHub CLI 仓库检索使用 `fullName`：
 
-```ts
-import { msg } from "@lingui/core/macro";
-import { i18n } from "@/renderer/i18n/i18n";
-
-// verbatim from actions/agentLoginActions.ts and actions/projectActions.ts:
-toast.warning(i18n._(msg`Add a project before signing in.`));
-toast.danger(i18n._(msg`Stop the project's running threads before changing its folder.`));
-// interpolate inline, just like in a component:
-toast.warning(i18n._(msg`Unable to install ${label}.`));
+```powershell
+gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt,pushedAt,stargazersCount,isFork,visibility
 ```
 
-**Text that originates outside the renderer (supervisor / main process)** — those processes carry no catalogs and must stay macro-free. Add a stable key to `src/shared/messages.ts`, add the matching `msg(...)` descriptor in `src/renderer/i18n/sharedMessages.ts`, and emit it with `msg("my.key", { param })`. `{param}` placeholders are interpolated by the resolver.
+## Assistant Knowledge Capture
 
-### Step 2 — Extract, then translate every locale
+仅在用户指定 Assistant 角色并要求知识沉淀时应用：
 
-1. Run `pnpm i18n:extract`. This registers the new msgids across all 13 catalogs. Forgetting this is the most common mistake — the new IDs never reach the catalogs and the strings silently stay English.
-2. **The catalogs are fully translated, not English-fallback.** Open each of the 12 non-English `messages.po` files and fill the new `msgstr ""` entries with a real translation. Leaving them empty ships a half-English UI. (`en` is the source locale and needs no `msgstr`.) Match the per-language terminology already used in the catalog — grep an existing entry first; keep product nouns like `Poracode`, `WSL`, `.poracode/worktrees` literal. The terminology cheat-sheet is in [i18n.md](.agents/docs/i18n.md).
-3. Re-run `pnpm i18n:extract` to normalize `.po` formatting, and confirm the printed stats table shows **0 missing** for every locale.
-
-### Checklist before you finish
-
-- [ ] No raw user-facing string literals left in `src/renderer` JSX/attributes/toasts.
-- [ ] `pnpm i18n:extract` run; stats table shows 0 missing in all locales.
-- [ ] Every new `msgstr` filled in all 12 non-English catalogs (not just `en`).
-- [ ] `pnpm run typecheck` and `pnpm run lint` pass on touched files.
-
-## Guidelines
-
-- [Architecture & Code Organization](.agents/docs/architecture.md)
-- [Agent Adapter Rules](.agents/docs/agent-adapters.md)
-- [UI Patterns & Component Reuse](.agents/docs/ui-patterns.md)
-- [Editing & React Patterns](.agents/docs/editing-rules.md)
-- [Internationalization (i18n)](.agents/docs/i18n.md)
-- [Versioned State & Protocols](.agents/docs/versioning.md)
-- [Mobile Dev & Remote Pairing](docs/MOBILE_DEV.md) — `pnpm run dev:ios`, simulator pairing, deep linking
+- 通用知识写入 `D:\Apps\Obsidian\Hernan\知识库\` 下对应领域文档。
+- CraftStation 架构、实现、Bug、配置和决策写入 `D:\Apps\Obsidian\Hernan\科研和项目\CraftStation\`。
+- 对应分类或项目文档不存在时，先提醒用户确认，再协助创建。

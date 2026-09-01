@@ -35,7 +35,7 @@ export interface CursorPluginPaths {
    * Cursor's hooks.json file. Cursor only reads from `~/.cursor/hooks.json`
    * (or `<project>/.cursor/hooks.json`); `CURSOR_CONFIG_DIR` does NOT redirect
    * hook discovery, so we merge our managed entries into the user's global
-   * file (Poracode-managed entries are tagged by the staged command path and
+   * file (CraftStation-managed entries are tagged by the staged command path and
    * pruned/replaced on every reinstall).
    */
   globalHooksPath: string;
@@ -58,14 +58,14 @@ const CURSOR_HOOK_SPECS: ReadonlyArray<CursorHookSpec> = [
 const CURSOR_HOOK_TIMEOUT_SECONDS = 5;
 
 /**
- * Match any Poracode-staged Cursor hook command in hooks.json. Covers both
+ * Match any CraftStation-staged Cursor hook command in hooks.json. Covers both
  * the WSL shape (`forward.mjs` invoked via absolute node path) and native
- * (`poracode-hook.{sh,cmd,ps1}` wrapper).
+ * (`craftstation-hook.{sh,cmd,ps1}` wrapper).
  */
-const PORACODE_FORWARD_RE =
-  /agent-plugins(?:[/\\]+)cursor(?:[/\\]+)(?:forward\.mjs|poracode-hook\.(?:sh|cmd|ps1))/;
+const CRAFTSTATION_FORWARD_RE =
+  /agent-plugins(?:[/\\]+)cursor(?:[/\\]+)(?:forward\.mjs|craftstation-hook\.(?:sh|cmd|ps1))/;
 const MANAGED_FORWARD_RE =
-  /agent-plugins(?:[/\\]+)cursor(?:[/\\]+)(?:forward\.mjs|(?:poracode|lightcode)-hook\.(?:sh|cmd|ps1))/;
+  /agent-plugins(?:[/\\]+)cursor(?:[/\\]+)(?:forward\.mjs|(?:craftstation|craftstation)-hook\.(?:sh|cmd|ps1))/;
 
 const callerDir =
   typeof __dirname !== "undefined"
@@ -74,7 +74,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "cursor",
-  sourceEnvVar: "PORACODE_CURSOR_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_CURSOR_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -112,7 +112,7 @@ export function getCursorPluginPaths(ctx?: AgentEnvContext): CursorPluginPaths {
   return cursorPluginPathsMemo.call(ctx);
 }
 
-function prunePoracodeEntries(entries: unknown): unknown[] {
+function pruneCraftStationEntries(entries: unknown): unknown[] {
   if (!Array.isArray(entries)) return [];
   return entries.filter((entry) => {
     if (!entry || typeof entry !== "object") return true;
@@ -121,7 +121,7 @@ function prunePoracodeEntries(entries: unknown): unknown[] {
   });
 }
 
-function buildPoracodeEntry(spec: CursorHookSpec, commandHead: string): Record<string, unknown> {
+function buildCraftStationEntry(spec: CursorHookSpec, commandHead: string): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     type: "command",
     command: `${commandHead} ${spec.event}`,
@@ -132,8 +132,8 @@ function buildPoracodeEntry(spec: CursorHookSpec, commandHead: string): Record<s
 }
 
 /**
- * Merge Poracode Cursor hook entries into a parsed `hooks.json` document.
- * Preserves any non-Poracode entries the user has authored. `commandHead` is
+ * Merge CraftStation Cursor hook entries into a parsed `hooks.json` document.
+ * Preserves any non-CraftStation entries the user has authored. `commandHead` is
  * the entire pre-event portion of each hook command — for WSL it's
  * `'<absolute-node-path>' '<forward.mjs-path>'`, for native it's just
  * `"<wrapper-path>"`. Exported for unit tests.
@@ -155,8 +155,8 @@ export function mergeCursorHooksDocument(
 
   for (const spec of CURSOR_HOOK_SPECS) {
     const prev = hooksRoot[spec.event];
-    const pruned = prunePoracodeEntries(prev);
-    pruned.push(buildPoracodeEntry(spec, commandHead));
+    const pruned = pruneCraftStationEntries(prev);
+    pruned.push(buildCraftStationEntry(spec, commandHead));
     hooksRoot[spec.event] = pruned;
   }
 
@@ -179,7 +179,7 @@ function removeCursorHooksDocument(existingParsed: unknown): {
   }
 
   for (const spec of CURSOR_HOOK_SPECS) {
-    const pruned = prunePoracodeEntries(hooksRoot[spec.event]);
+    const pruned = pruneCraftStationEntries(hooksRoot[spec.event]);
     if (pruned.length > 0) hooksRoot[spec.event] = pruned;
     else delete hooksRoot[spec.event];
   }
@@ -357,7 +357,7 @@ export function uninstallCursorPlugin(ctx?: AgentEnvContext): void {
   removeStagedPluginDir("cursor", ctx);
 }
 
-function hooksJsonHasPoracodeEntry(hooksPath: string): boolean {
+function hooksJsonHasCraftStationEntry(hooksPath: string): boolean {
   if (!existsSync(hooksPath)) return false;
   try {
     const doc = JSON.parse(readFileSync(hooksPath, "utf8")) as { hooks?: Record<string, unknown> };
@@ -368,7 +368,7 @@ function hooksJsonHasPoracodeEntry(hooksPath: string): boolean {
       for (const entry of entries) {
         if (!entry || typeof entry !== "object") continue;
         const cmd = (entry as { command?: string }).command;
-        if (typeof cmd === "string" && PORACODE_FORWARD_RE.test(cmd)) return true;
+        if (typeof cmd === "string" && CRAFTSTATION_FORWARD_RE.test(cmd)) return true;
       }
     }
     return false;
@@ -386,6 +386,6 @@ function verifyCursorInstallAt(
 ): { installed: boolean; version?: string } {
   return verifyStagedPluginAt(readableDir, target, {
     assets: CURSOR_VERIFY_ASSETS,
-    extraCheck: () => hooksJsonHasPoracodeEntry(hooksPath),
+    extraCheck: () => hooksJsonHasCraftStationEntry(hooksPath),
   });
 }

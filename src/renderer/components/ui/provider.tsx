@@ -167,7 +167,7 @@ export function AppProvider(props: {
       document.documentElement.dataset.nativeMaterial = "off";
       return;
     }
-    if (!syncWindowChrome || typeof window === "undefined" || !("poracode" in window)) {
+    if (!syncWindowChrome || typeof window === "undefined" || !("craftstation" in window)) {
       return;
     }
 
@@ -212,9 +212,9 @@ export function AppProvider(props: {
       <AppearanceContext.Provider value={appearance}>
         <Toast.Provider
           className="lc-toast-region"
-          placement="bottom end"
-          maxVisibleToasts={5}
-          width="min(32rem, calc(100vw - 2rem))"
+          placement="top start"
+          maxVisibleToasts={3}
+          width="min(20rem, calc(100vw - 1rem))"
         >
           {({ toast: toastItem }) => {
             const content = toastItem.content;
@@ -250,7 +250,7 @@ export function AppProvider(props: {
               >
                 {isToastPressable ? (
                   <div
-                    className="flex w-full items-start gap-3 p-3"
+                    className="flex w-full items-start gap-2 px-2.5 py-2"
                     onClick={onPress}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -261,7 +261,7 @@ export function AppProvider(props: {
                     role="button"
                     tabIndex={0}
                   >
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <div className="flex min-w-0 flex-1 items-start gap-2">
                       <Toast.Indicator variant={variant} />
                       <Toast.Content className={`${toastContentClassName} pr-8`}>
                         {title && (
@@ -276,8 +276,8 @@ export function AppProvider(props: {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex w-full flex-col gap-3 p-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div className="flex w-full flex-col gap-2 px-2.5 py-2">
+                    <div className="flex min-w-0 flex-1 items-start gap-2">
                       <Toast.Indicator variant={variant} />
                       <Toast.Content
                         className={`${toastContentClassName} pr-8 ${isCopyAction ? "pb-8" : ""}`}
@@ -299,7 +299,7 @@ export function AppProvider(props: {
                     />
                   </div>
                 )}
-                <Toast.CloseButton className="absolute top-3 right-3" />
+                <Toast.CloseButton className="absolute top-2 right-2" />
               </SwipeDismissToast>
             );
           }}

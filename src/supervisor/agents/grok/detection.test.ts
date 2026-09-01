@@ -90,6 +90,14 @@ beforeEach(() => {
 });
 
 describe("Grok capability detection", () => {
+  it("defaults new threads to the CraftStation GUI structured session", () => {
+    expect(grokDetectionSpec.capabilities).toMatchObject({
+      liveInputMode: "server",
+      presentationMode: "gui",
+      presentationModes: ["gui"],
+    });
+  });
+
   it("preserves ACP thinking model capabilities", async () => {
     probeAcpCapabilitiesMock.mockResolvedValue({
       models: [{ id: "grok-4.6", label: "Grok 4.6" }],

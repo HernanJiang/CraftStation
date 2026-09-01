@@ -114,11 +114,11 @@ export function BottomPanelDockContainer(props: {
   const rightSized = hasRightSlot && effectiveFlexibleDock !== "right";
 
   // Key names carry the meaning of the stored number: the width of the docked
-  // panel on that side. Renamed from `poracode-bottom-row-*`, which briefly
+  // panel on that side. Renamed from `craftstation-bottom-row-*`, which briefly
   // stored the empty slot's width instead — a stale value under the old name
   // would be read as a dock width and place the panel wrong.
   const leftSplit = useSplitPercent({
-    storageKey: "poracode-bottom-slot-left-percent",
+    storageKey: "craftstation-bottom-slot-left-percent",
     orientation: "row",
     containerRef,
     paneRef: leftSized ? leftPaneRef : { current: null },
@@ -126,7 +126,7 @@ export function BottomPanelDockContainer(props: {
     minPercent: 15,
   });
   const rightSplit = useSplitPercent({
-    storageKey: "poracode-bottom-slot-right-percent",
+    storageKey: "craftstation-bottom-slot-right-percent",
     orientation: "row",
     containerRef,
     paneRef: rightSized ? rightPaneRef : { current: null },
@@ -176,7 +176,7 @@ export function BottomPanelDockContainer(props: {
     return (
       <div
         key={key}
-        className="poracode-pane-divider"
+        className="craftstation-pane-divider"
         onPointerDown={split.handleResizeStart}
         onKeyDown={split.handleResizeKeyDown}
         role="separator"

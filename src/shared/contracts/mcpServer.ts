@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { agentKindSchema, projectLocationSchema } from "./common";
+import { agentKindSchema, projectLocationSchema, type ProjectLocation } from "./common";
 
 export const DEFAULT_MCP_SERVER_TIMEOUT_MS = 30_000;
 
@@ -11,7 +11,7 @@ export interface McpToolAnnotations {
   openWorldHint?: boolean;
 }
 
-/** Stable ids for the MCP servers provided by Poracode itself. */
+/** Stable ids for the MCP servers provided by CraftStation itself. */
 export const BUILT_IN_MCP_SERVER_IDS = [
   "browser",
   "crossagents",
@@ -27,10 +27,10 @@ export const BUILT_IN_MCP_SERVER_NAMES: Record<BuiltInMcpServerId, string> = {
   crossagents: "crossagents",
   chrome: "chrome",
   "computer-use": "computer_use",
-  "app-controls": "poracode",
+  "app-controls": "craftstation",
 };
 
-/** Tool catalogs advertised by each Poracode-owned MCP server. */
+/** Tool catalogs advertised by each CraftStation-owned MCP server. */
 export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
   browser: [
     "api",
@@ -312,7 +312,7 @@ export type DiscoverExternalMcpServersResult = z.infer<
   typeof discoverExternalMcpServersResultSchema
 >;
 
-/** Canonical provider-agnostic custom MCP server managed by Poracode. */
+/** Canonical provider-agnostic custom MCP server managed by CraftStation. */
 export const mcpServerSchema = z
   .object({
     id: z.string().min(1),
@@ -337,6 +337,78 @@ export type McpServer = z.infer<typeof mcpServerSchema>;
 export type ResolvedMcpServer = Omit<McpServer, "description" | "enabled"> & {
   approvalMode?: "approve";
 };
+
+export interface McpRuntimeSupport {
+  supportedMcpTransports?: readonly McpTransportKind[] | undefined;
+  supportsMcpHttpHeaders?: boolean | undefined;
+  requiresSecretFreeMcpConfig?: boolean | undefined;
+  supportsMcpInWsl?: boolean | undefined;
+}
+
+const MCP_SECRET_KEY_NAME = /token|cookie|secret|password|authorization|api[_-]?key|credential/iu;
+const MCP_SECRET_ARGUMENT =
+  /(?:bearer\s+|(?:api[_-]?key|token|secret|password|authorization|cookie)\s*[:=])/iu;
+
+export function hasCredentialLikeMcpLaunchFields(server: Pick<McpServer, "transport">): boolean {
+  const transport = server.transport;
+  if (transport.type === "stdio") {
+    return [transport.command, ...transport.args].some((value) => MCP_SECRET_ARGUMENT.test(value));
+  }
+  let url: URL;
+  try {
+    url = new URL(transport.url);
+  } catch {
+    return true;
+  }
+  return Boolean(
+    Object.keys(transport.headers).length > 0 ||
+    url.username ||
+    url.password ||
+    [...url.searchParams.keys()].some((key) => MCP_SECRET_KEY_NAME.test(key)),
+  );
+}
+
+/**
+ * Provider-neutral launch compatibility check shared by renderer affordances
+ * and the supervisor's final resolved-server filter. This intentionally checks
+ * only declared transport/header support; provider-specific validation remains
+ * at the adapter boundary.
+ */
+export function isMcpServerSupportedByRuntime(
+  server: Pick<McpServer, "transport">,
+  support: McpRuntimeSupport,
+): boolean {
+  const transport = server.transport;
+  if (support.supportedMcpTransports && !support.supportedMcpTransports.includes(transport.type)) {
+    return false;
+  }
+  if (
+    support.supportsMcpHttpHeaders === false &&
+    transport.type !== "stdio" &&
+    Object.keys(transport.headers).length > 0
+  ) {
+    return false;
+  }
+  if (support.requiresSecretFreeMcpConfig && hasCredentialLikeMcpLaunchFields(server)) {
+    return false;
+  }
+  return true;
+}
+
+export function supportsMcpAtProjectLocation(
+  support: McpRuntimeSupport,
+  location: ProjectLocation | undefined,
+): boolean {
+  return location?.kind !== "wsl" || support.supportsMcpInWsl !== false;
+}
+
+/** Whether a runtime can receive CraftStation-owned bearer-auth HTTP MCPs. */
+export function supportsHeaderBearingHttpMcp(support: McpRuntimeSupport): boolean {
+  return (
+    (!support.supportedMcpTransports || support.supportedMcpTransports.includes("http")) &&
+    support.supportsMcpHttpHeaders !== false
+  );
+}
 
 export const mcpServerListSchema = z.array(mcpServerSchema).default([]);
 

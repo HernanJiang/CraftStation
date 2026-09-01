@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { mergeCommandCodeSettings, removeCommandCodeHooks } from "./install";
 
-// A command head that matches PORACODE_FORWARD_RE (staged wrapper path).
-const HEAD = "'/home/u/.poracode/agent-plugins/commandcode/poracode-hook.sh'";
+// A command head that matches CRAFTSTATION_FORWARD_RE (staged wrapper path).
+const HEAD = "'/home/u/.craftstation/agent-plugins/commandcode/craftstation-hook.sh'";
 const EVENTS = ["PreToolUse", "PostToolUse", "Stop"] as const;
 
 function commandsFor(doc: Record<string, unknown>, event: string): string[] {
@@ -22,7 +22,7 @@ function commandsFor(doc: Record<string, unknown>, event: string): string[] {
 }
 
 describe("mergeCommandCodeSettings", () => {
-  it("adds a Poracode hook for all three events", () => {
+  it("adds a CraftStation hook for all three events", () => {
     const doc = mergeCommandCodeSettings({}, HEAD);
     for (const ev of EVENTS) {
       expect(commandsFor(doc, ev)).toEqual([`${HEAD} ${ev}`]);
@@ -35,7 +35,7 @@ describe("mergeCommandCodeSettings", () => {
     expect(doc.tasteOnboarding).toBe(true);
   });
 
-  it("preserves the user's own non-Poracode hooks", () => {
+  it("preserves the user's own non-CraftStation hooks", () => {
     const existing = {
       hooks: { Stop: [{ hooks: [{ type: "command", command: "my-own-hook.sh" }] }] },
     };
@@ -45,15 +45,15 @@ describe("mergeCommandCodeSettings", () => {
     expect(cmds).toHaveLength(2);
   });
 
-  it("is idempotent — reinstall replaces, never duplicates, the Poracode entry", () => {
+  it("is idempotent — reinstall replaces, never duplicates, the CraftStation entry", () => {
     const twice = mergeCommandCodeSettings(mergeCommandCodeSettings({}, HEAD), HEAD);
     for (const ev of EVENTS) {
       expect(commandsFor(twice, ev)).toEqual([`${HEAD} ${ev}`]);
     }
   });
 
-  it("replaces legacy Lightcode wrapper entries", () => {
-    const legacyHead = "'/home/u/.poracode/agent-plugins/commandcode/lightcode-hook.sh'";
+  it("replaces legacy CraftStation wrapper entries", () => {
+    const legacyHead = "'/home/u/.craftstation/agent-plugins/commandcode/craftstation-hook.sh'";
     const migrated = mergeCommandCodeSettings(mergeCommandCodeSettings({}, legacyHead), HEAD);
     for (const ev of EVENTS) {
       expect(commandsFor(migrated, ev)).toEqual([`${HEAD} ${ev}`]);
@@ -62,7 +62,7 @@ describe("mergeCommandCodeSettings", () => {
 });
 
 describe("removeCommandCodeHooks", () => {
-  it("removes only Poracode entries, preserving user hooks and other keys", () => {
+  it("removes only CraftStation entries, preserving user hooks and other keys", () => {
     const installed = mergeCommandCodeSettings(
       {
         model: "kimi",

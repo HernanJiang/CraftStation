@@ -3,8 +3,8 @@ import { readBridge } from "@/renderer/bridge";
 import {
   buildRuntimeDiagnosticTags,
   sanitizeSentryEvent,
-  type PoracodeDiagnosticTags,
-  type PoracodeRuntimeDiagnosticContext,
+  type CraftStationDiagnosticTags,
+  type CraftStationRuntimeDiagnosticContext,
   type SentryEventLike,
 } from "@/shared/diagnostics/sentryPrivacy";
 
@@ -17,10 +17,10 @@ const DISABLED_INTEGRATIONS = new Set([
 ]);
 
 const RUNTIME_TAG_KEYS = [
-  "poracode.provider",
-  "poracode.presentation",
-  "poracode.runtime_kind",
-  "poracode.feature_area",
+  "craftstation.provider",
+  "craftstation.presentation",
+  "craftstation.runtime_kind",
+  "craftstation.feature_area",
 ] as const;
 
 const MAX_REACT_COMPONENTS = 32;
@@ -48,7 +48,7 @@ function isUnfocusedClipboardWriteRace(event: SentryEventLike): boolean {
 }
 
 function isHandledStaleFileEditorEvent(event: SentryEventLike): boolean {
-  if (event.tags?.["poracode.feature_area"] !== "file-editor") return false;
+  if (event.tags?.["craftstation.feature_area"] !== "file-editor") return false;
   return (
     event.exception?.values?.some((value) => {
       const exception = value as RendererExceptionValue;
@@ -80,14 +80,14 @@ export function extractSafeReactComponentTree(componentStack: string): string[] 
   return components;
 }
 
-function buildBaseTags(): PoracodeDiagnosticTags {
+function buildBaseTags(): CraftStationDiagnosticTags {
   const bridge = readBridge();
   return {
-    "poracode.app_version": bridge.appVersion,
-    "poracode.channel": bridge.channel,
-    "poracode.electron": bridge.electronVersion,
-    "poracode.platform": bridge.platform,
-    "poracode.process": "renderer",
+    "craftstation.app_version": bridge.appVersion,
+    "craftstation.channel": bridge.channel,
+    "craftstation.electron": bridge.electronVersion,
+    "craftstation.platform": bridge.platform,
+    "craftstation.process": "renderer",
   };
 }
 
@@ -120,7 +120,7 @@ export function initializeRendererSentry(): boolean {
     },
   });
 
-  Sentry.setContext("poracode", {
+  Sentry.setContext("craftstation", {
     appVersion: bridge.appVersion,
     channel: bridge.channel,
     isDev: bridge.isDev,
@@ -131,7 +131,7 @@ export function initializeRendererSentry(): boolean {
 }
 
 export function setRendererRuntimeDiagnosticContext(
-  context: PoracodeRuntimeDiagnosticContext | null,
+  context: CraftStationRuntimeDiagnosticContext | null,
 ): void {
   if (!Sentry.isEnabled()) return;
   const scope = Sentry.getCurrentScope();
@@ -143,7 +143,7 @@ export function setRendererRuntimeDiagnosticContext(
 
 export function captureRendererException(
   error: unknown,
-  context?: PoracodeRuntimeDiagnosticContext,
+  context?: CraftStationRuntimeDiagnosticContext,
   componentStack?: string,
 ): void {
   if (!Sentry.isEnabled()) return;
@@ -154,7 +154,7 @@ export function captureRendererException(
     if (componentStack) {
       const reactComponents = extractSafeReactComponentTree(componentStack);
       if (reactComponents.length > 0) {
-        scope.setContext("poracode", { react_components: reactComponents });
+        scope.setContext("craftstation", { react_components: reactComponents });
       }
     }
     Sentry.captureException(error);

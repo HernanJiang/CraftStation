@@ -101,7 +101,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "gemini",
-  sourceEnvVar: "PORACODE_GEMINI_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_GEMINI_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -150,7 +150,7 @@ function resolveSettingsWritePath(ctx: AgentEnvContext | undefined, settingsPath
 }
 
 /**
- * Ensure Gemini has a Poracode-owned system settings file for MCP projection,
+ * Ensure Gemini has a CraftStation-owned system settings file for MCP projection,
  * even when the optional status-hook plugin could not be installed. Existing
  * hook settings are preserved; a missing file is created only when requested.
  */
@@ -181,7 +181,7 @@ export function createGeminiThreadSettingsFile(
   const sourcePath = resolveSettingsWritePath(ctx, paths.settingsPath);
   if (!existsSync(sourcePath)) return undefined;
 
-  const fileName = `.poracode-thread-${randomUUID()}.json`;
+  const fileName = `.craftstation-thread-${randomUUID()}.json`;
   const settingsPath = isWslPluginContext(ctx)
     ? `${paths.pluginDir.replace(/\/$/u, "")}/${fileName}`
     : join(paths.pluginDir, fileName);
@@ -395,10 +395,10 @@ function verifyGeminiInstallAt(
 
 /**
  * Match either the WSL command shape (`forward.mjs` invoked via absolute
- * node path) or the native shape (`poracode-hook.{sh,cmd,ps1}` wrapper).
+ * node path) or the native shape (`craftstation-hook.{sh,cmd,ps1}` wrapper).
  */
-const PORACODE_GEMINI_HOOK_RE =
-  /agent-plugins(?:[/\\]+)gemini(?:[/\\]+)(?:forward\.mjs|poracode-hook\.(?:sh|cmd|ps1))/;
+const CRAFTSTATION_GEMINI_HOOK_RE =
+  /agent-plugins(?:[/\\]+)gemini(?:[/\\]+)(?:forward\.mjs|craftstation-hook\.(?:sh|cmd|ps1))/;
 
 function hasGeminiHooks(hooks: Record<string, unknown> | undefined): boolean {
   if (!hooks) return false;
@@ -412,7 +412,7 @@ function hasGeminiHooks(hooks: Record<string, unknown> | undefined): boolean {
       return hookEntries.some((hook) => {
         if (!hook || typeof hook !== "object") return false;
         const command = (hook as { command?: unknown }).command;
-        return typeof command === "string" && PORACODE_GEMINI_HOOK_RE.test(command);
+        return typeof command === "string" && CRAFTSTATION_GEMINI_HOOK_RE.test(command);
       });
     });
     if (!found) return false;
@@ -431,7 +431,7 @@ export function renderGeminiSettings(opts: RenderGeminiSettingsOptions): GeminiS
     const entry: GeminiHookEntry = {
       hooks: [
         {
-          name: `poracode-status-${spec.event}`,
+          name: `craftstation-status-${spec.event}`,
           type: "command",
           command: `${opts.headExpression} ${spec.event}`,
           timeout: 5000,

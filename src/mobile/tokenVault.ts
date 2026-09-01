@@ -15,9 +15,9 @@ import { isNativeApp } from "./pwaInstall";
  * usable via `crypto.subtle`); non-extractable `CryptoKey` objects still
  * survive a structured clone, so the key is generated once and persisted
  * alongside the per-desktop ciphertext in its own tiny Dexie database
- * (`lightcode-mobile-vault`, retained as a legacy storage identity). That
+ * (`craftstation-mobile-vault`, retained as a legacy storage identity). That
  * database is intentionally separate from {@link import("./storage")}'s
- * `lightcode-mobile` database: storage.ts
+ * `craftstation-mobile` database: storage.ts
  * already imports this module, so importing storage.ts back here would be a
  * cycle. Each encryption uses a fresh random 12-byte IV.
  *
@@ -102,7 +102,7 @@ class TokenVaultDatabase extends DexieDatabase {
 
   constructor() {
     // Stable pre-rebrand IndexedDB identity; changing it would orphan tokens.
-    super("lightcode-mobile-vault");
+    super("craftstation-mobile-vault");
     this.version(1).stores({
       entries: "key",
     });

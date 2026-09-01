@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   appIdFor,
   artifactPrefixFor,
-  PORACODE_CHANNELS,
+  CRAFTSTATION_CHANNELS,
   productNameFor,
   updaterChannelFor,
   userDataDirNameFor,
@@ -23,10 +23,10 @@ const cjs = requireFromHere("../../scripts/electron-builder.shared.cjs") as {
 
 describe("electron-builder.shared.cjs mirrors src/shared/channel.ts", () => {
   it("exposes the same channel list", () => {
-    expect([...cjs.CHANNELS]).toEqual([...PORACODE_CHANNELS]);
+    expect([...cjs.CHANNELS]).toEqual([...CRAFTSTATION_CHANNELS]);
   });
 
-  for (const channel of PORACODE_CHANNELS) {
+  for (const channel of CRAFTSTATION_CHANNELS) {
     it(`agrees on every value for "${channel}"`, () => {
       expect(cjs.productNameFor(channel)).toBe(productNameFor(channel));
       expect(cjs.appIdFor(channel)).toBe(appIdFor(channel));
@@ -44,8 +44,8 @@ describe("electron-builder.shared.cjs mirrors src/shared/channel.ts", () => {
   });
 
   it("keeps macOS updater ZIPs on the legacy technical executable name", () => {
-    expect(cjs.macExecutableNameFor("stable", "updater")).toBe("Lightcode");
-    expect(cjs.macExecutableNameFor("nightly", "updater")).toBe("Lightcode Nightly");
+    expect(cjs.macExecutableNameFor("stable", "updater")).toBe("CraftStation");
+    expect(cjs.macExecutableNameFor("nightly", "updater")).toBe("CraftStation Nightly");
     expect(cjs.macExecutableNameFor("stable", "branded")).toBe("CraftStation");
     expect(cjs.macExecutableNameFor("nightly", "branded")).toBe("CraftStation Nightly");
   });

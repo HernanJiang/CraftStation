@@ -1,4 +1,4 @@
-# Poracode Chrome Extension release
+# CraftStation Chrome Extension release
 
 The Chrome extension ships independently from the desktop app. Its release
 source of truth is:
@@ -15,7 +15,7 @@ before automation has an extension ID to update.
 
 1. Update `chrome-extension/manifest.json` and `chrome-extension/CHANGELOG.md`.
 2. Run `Actions -> Release Chrome Extension` with `dry_run` enabled.
-3. Download the `poracode-chrome-extension-vX.Y.Z` artifact from the workflow run.
+3. Download the `craftstation-chrome-extension-vX.Y.Z` artifact from the workflow run.
 4. Upload the ZIP in the Chrome Web Store Developer Dashboard.
 5. Complete the listing, privacy, distribution, and test-instructions tabs.
 6. Submit the item for review from the dashboard.

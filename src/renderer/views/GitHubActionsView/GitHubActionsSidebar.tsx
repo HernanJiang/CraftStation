@@ -134,7 +134,7 @@ export function GitHubActionsSidebar(props: {
                 <Dropdown.Popover placement="bottom start" className="min-w-[--trigger-width]">
                   <Dropdown.Menu
                     aria-label={t`Project`}
-                    className="poracode-menu"
+                    className="craftstation-menu"
                     selectionMode="single"
                     selectedKeys={[selectedProject.id]}
                     onAction={(key) => props.onSelectProject(String(key))}

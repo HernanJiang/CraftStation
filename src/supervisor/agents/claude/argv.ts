@@ -4,7 +4,7 @@ import { prepareClaudeMergedSettingsFile } from "./mergedSettings";
 
 /**
  * Re-attach the `[<size>]` suffix Claude's CLI uses to pick a context-window
- * variant. For built-in Claude models the suffix is Poracode's own (derived
+ * variant. For built-in Claude models the suffix is CraftStation's own (derived
  * from `contextSize`), so any pre-existing suffix is stripped first to let the
  * chosen `contextSize` win over a stale value baked into a legacy `model` id.
  *

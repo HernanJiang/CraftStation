@@ -1,6 +1,6 @@
-import { formatResetCountdown, projectWindowUsage } from "@poracode/agents-usage/formatters";
-import type { UsageProjection } from "@poracode/agents-usage/formatters";
-import type { UsageCredits, UsageSnapshot, UsageWindow } from "@poracode/agents-usage/types";
+import { formatResetCountdown, projectWindowUsage } from "@craftstation/agents-usage/formatters";
+import type { UsageProjection } from "@craftstation/agents-usage/formatters";
+import type { UsageCredits, UsageSnapshot, UsageWindow } from "@craftstation/agents-usage/types";
 import { msg } from "@lingui/core/macro";
 import { i18n } from "@/renderer/i18n/i18n";
 import { usageToneColor } from "./usageTone";

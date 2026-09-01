@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 /**
- * Qoder CLI lifecycle hook forwarder for Poracode.
+ * Qoder CLI lifecycle hook forwarder for CraftStation.
  *
  * Invoked by Qoder on each subscribed hook event with:
  *   argv[2] = hook event name (e.g. "UserPromptSubmit")
  *   stdin   = JSON payload from Qoder
  *
- * Reads `PORACODE_HOOK_URL`, `PORACODE_HOOK_SECRET`, etc. from env, builds
- * the universal Poracode envelope, and POSTs it. Emits NOTHING on stdout —
+ * Reads `CRAFTSTATION_HOOK_URL`, `CRAFTSTATION_HOOK_SECRET`, etc. from env, builds
+ * the universal CraftStation envelope, and POSTs it. Emits NOTHING on stdout —
  * Qoder relays hook stdout into the model's context for some events.
  *
- * Generic plumbing lives in the shared `poracode-hook-runtime.mjs` sibling.
+ * Generic plumbing lives in the shared `craftstation-hook-runtime.mjs` sibling.
  */
 
 import {
   copyStringExtra,
   readPluginVersionFromManifest,
   runForwarder,
-} from "./poracode-hook-runtime.mjs";
+} from "./craftstation-hook-runtime.mjs";
 
 const PLUGIN_VERSION = readPluginVersionFromManifest(import.meta.url);
 

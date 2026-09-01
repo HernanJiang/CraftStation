@@ -11,6 +11,7 @@ import {
 import { stripAnsiPreservingLayout } from "@/shared/ansi";
 import { resolveProjectLocation } from "@/shared/worktree";
 import { friendlyError } from "@/shared/messages";
+import { resolveAgentPresentationMode } from "@/shared/agentStatus";
 import { readBridge } from "@/renderer/bridge";
 import type { XTermSurfaceHandle } from "@/renderer/components/terminal/XTermSurface";
 import { SubAgentOpenController } from "@/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay";
@@ -170,6 +171,21 @@ export function ThreadView(props: ThreadViewProps) {
     }
   }, [thread?.id, submitOnEnter]);
 
+  const preAgentStatus = thread
+    ? projectAgentStatuses.find((status) => status.kind === thread.agentKind)
+    : undefined;
+  const resolvedPresentationMode = thread
+    ? preAgentStatus
+      ? resolveAgentPresentationMode(preAgentStatus.capabilities, thread.presentationMode)
+      : (thread.presentationMode ?? "terminal")
+    : "terminal";
+
+  useEffect(() => {
+    if (thread && resolvedPresentationMode !== thread.presentationMode) {
+      useAppStore.getState().updateThreadPresentationMode(thread.id, resolvedPresentationMode);
+    }
+  }, [resolvedPresentationMode, thread]);
+
   if (!thread) {
     return (
       <section className="m-thread">
@@ -182,7 +198,7 @@ export function ThreadView(props: ThreadViewProps) {
     );
   }
 
-  const agentStatus = projectAgentStatuses.find((status) => status.kind === thread.agentKind);
+  const agentStatus = preAgentStatus;
   const contextSummary = resolveThreadContextUsageSummary({
     thread,
     agentStatus,
@@ -195,12 +211,17 @@ export function ThreadView(props: ThreadViewProps) {
   const projectLocation = project
     ? resolveProjectLocation(project.location, thread.worktreePath)
     : undefined;
-  const isTerminal = (thread.presentationMode ?? "terminal") === "terminal";
+  const presentationMode = resolvedPresentationMode;
+  const isTerminal = presentationMode === "terminal";
+  const effectiveThread =
+    presentationMode === thread.presentationMode
+      ? thread
+      : { ...thread, presentationMode, threadStatusSource: "server" as const };
 
   if (!projectLocation) return null;
   // Captured into stable locals so the narrowed (non-null) types survive into
   // the reloadTerminal closure below.
-  const liveThread = thread;
+  const liveThread = effectiveThread;
   const liveProjectLocation = projectLocation;
 
   function reloadTerminal(): void {
@@ -254,8 +275,8 @@ export function ThreadView(props: ThreadViewProps) {
     });
 
   const commonProps = {
-    threadId: thread.id,
-    fallbackThread: thread,
+    threadId: effectiveThread.id,
+    fallbackThread: effectiveThread,
     agentStatus,
     projectLocation,
     paneCount: 1,
@@ -294,7 +315,7 @@ export function ThreadView(props: ThreadViewProps) {
         // directly on it, then a blocking approval/question above everything.
         <>
           <ComposerActionDocks
-            thread={thread}
+            thread={effectiveThread}
             agentStatus={agentStatus}
             project={project}
             dockState={dockState}
@@ -335,7 +356,7 @@ export function ThreadView(props: ThreadViewProps) {
         onTodoDockPlacementChange={dockState.onTodoDockPlacementChange}
         onTodoDockRetire={dockState.onTodoDockRetire}
       />
-      <ComposerCompactSummary thread={thread} agentStatus={agentStatus} />
+      <ComposerCompactSummary thread={effectiveThread} agentStatus={agentStatus} />
     </FloatingComposerDock>
   ) : null;
 
@@ -359,7 +380,7 @@ export function ThreadView(props: ThreadViewProps) {
       {props.hideHeader ? null : (
         <header className="mx-auto flex w-full max-w-[920px] items-center gap-2 px-3 py-1">
           <ThreadTitleRow
-            thread={thread}
+            thread={effectiveThread}
             onAction={props.onThreadAction}
             onNewThreadInWorktree={props.onNewThreadInWorktree}
             onDeleteWorktreeGroup={props.onDeleteWorktreeGroup}
@@ -367,7 +388,7 @@ export function ThreadView(props: ThreadViewProps) {
             onOpenNotes={props.onOpenNotes}
             onOpenTerminal={props.onOpenTerminal}
           />
-          <ThreadUsageIndicator thread={thread} />
+          <ThreadUsageIndicator thread={effectiveThread} />
         </header>
       )}
       {/* The terminal entry lives in the title row's actions menu. */}

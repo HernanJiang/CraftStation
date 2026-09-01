@@ -1,4 +1,4 @@
-import { type PoracodeChannel, productNameFor, resolvePoracodeChannel } from "@/shared/channel";
+import { type CraftStationChannel, productNameFor, resolveCraftStationChannel } from "@/shared/channel";
 
 function jsonForScript(value: string): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
@@ -24,7 +24,7 @@ function buildDarkPageShell(input: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#070709" />
-  <title>${productNameFor(resolvePoracodeChannel())}</title>${input.headExtra ?? ""}
+  <title>${productNameFor(resolveCraftStationChannel())}</title>${input.headExtra ?? ""}
   <style>
 ${input.css}
   </style>
@@ -109,8 +109,8 @@ export function buildLocalPairingPageHtml(input: { readonly httpBaseUrl: string 
     }`,
     body: `  <div class="app">
     <main>
-      <h1>${productNameFor(resolvePoracodeChannel())}</h1>
-      <p>The mobile web app bundle is not available from this desktop build. Rebuild Poracode so <span class="inline-code">mobile.html</span> is included in the renderer output, then open the pairing link again.</p>
+      <h1>${productNameFor(resolveCraftStationChannel())}</h1>
+      <p>The mobile web app bundle is not available from this desktop build. Rebuild CraftStation so <span class="inline-code">mobile.html</span> is included in the renderer output, then open the pairing link again.</p>
       <p>Desktop endpoint</p>
       <code class="endpoint" id="endpoint"></code>
     </main>
@@ -170,11 +170,11 @@ export function buildForwardEnterErrorPageHtml(): string {
 // Pairing from a nightly desktop installs a nightly PWA: same identity rules as
 // the hosted build (scripts/finalize-mobile-build.mjs), so the two never look
 // alike on a home screen.
-function pairingIconBaseName(channel: PoracodeChannel): string {
+function pairingIconBaseName(channel: CraftStationChannel): string {
   return channel === "nightly" ? "icon-nightly" : "icon";
 }
 
-function buildPairingManifest(channel: PoracodeChannel): string {
+function buildPairingManifest(channel: CraftStationChannel): string {
   const icon = pairingIconBaseName(channel);
   const name = productNameFor(channel);
   return JSON.stringify({
@@ -207,13 +207,13 @@ function buildPairingManifest(channel: PoracodeChannel): string {
 }
 
 export function buildLocalPairingManifestJson(
-  channel: PoracodeChannel = resolvePoracodeChannel(),
+  channel: CraftStationChannel = resolveCraftStationChannel(),
 ): string {
   return buildPairingManifest(channel);
 }
 
-const LOCAL_PAIRING_SERVICE_WORKER_JS = `const CACHE_NAME = "poracode-remote-local-__PORACODE_LOCAL_BUILD_VERSION__";
-const LEGACY_CACHE_NAME = "lightcode-remote-local-v1";
+const LOCAL_PAIRING_SERVICE_WORKER_JS = `const CACHE_NAME = "craftstation-remote-local-__CRAFTSTATION_LOCAL_BUILD_VERSION__";
+const LEGACY_CACHE_NAME = "craftstation-remote-local-v1";
 const NAVIGATION_FALLBACK_DELAY_MS = 500;
 const SHELL_URLS = ["/app", "/manifest.webmanifest", "/app-icon.svg"];
 
@@ -229,7 +229,7 @@ self.addEventListener("activate", (event) => {
       caches.keys().then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("poracode-remote-local-") && key !== CACHE_NAME)
+            .filter((key) => key.startsWith("craftstation-remote-local-") && key !== CACHE_NAME)
             .map((key) => caches.delete(key)),
         ),
       ),
@@ -261,31 +261,14 @@ self.addEventListener("push", (event) => {
   if (!payload) return;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
-      if (windows.some((client) => client.visibilityState === "visible")) return;
-      return self.registration.showNotification(payload.title, {
-        body: payload.body,
-        icon: "__PORACODE_LOCAL_NOTIFICATION_ICON__",
-        badge: "__PORACODE_LOCAL_NOTIFICATION_ICON__",
-        tag: \`poracode-thread-\${payload.threadId}\`,
-        data: { url: payload.url },
-      });
-    }),
-  );
-});
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const path = event.notification.data?.url;
-  if (typeof path !== "string" || !/^\\/(?!\\/)[^?#]*$/.test(path)) return;
-  const targetUrl = new URL(path, self.location.origin).href;
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
-      const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
-      if (existing) {
-        await existing.navigate(targetUrl);
-        return existing.focus();
+      for (const client of windows) {
+        client.postMessage({
+          type: "thread-user-notification",
+          threadId: payload.threadId,
+          title: payload.title,
+          body: payload.body,
+        });
       }
-      return self.clients.openWindow(targetUrl);
     }),
   );
 });
@@ -299,7 +282,7 @@ self.addEventListener("fetch", (event) => {
   const isPwaStaticRequest =
     url.pathname.startsWith("/assets/") ||
     url.pathname.startsWith("/icons/") ||
-    url.pathname.startsWith("/poracode-ssh-runtime/") ||
+    url.pathname.startsWith("/craftstation-ssh-runtime/") ||
     url.pathname === "/manifest.webmanifest" ||
     url.pathname === "/app-icon.svg" ||
     url.pathname === "/notification.mp3";
@@ -365,14 +348,14 @@ self.addEventListener("fetch", (event) => {
 
 export function buildLocalPairingServiceWorkerJs(
   appVersion: string,
-  channel: PoracodeChannel = resolvePoracodeChannel(),
+  channel: CraftStationChannel = resolveCraftStationChannel(),
 ): string {
   const buildVersion = appVersion.replace(/[^a-zA-Z0-9._-]/g, "-");
   return LOCAL_PAIRING_SERVICE_WORKER_JS.replace(
-    "__PORACODE_LOCAL_BUILD_VERSION__",
+    "__CRAFTSTATION_LOCAL_BUILD_VERSION__",
     buildVersion,
   ).replaceAll(
-    "__PORACODE_LOCAL_NOTIFICATION_ICON__",
+    "__CRAFTSTATION_LOCAL_NOTIFICATION_ICON__",
     `/icons/${pairingIconBaseName(channel)}-192.png`,
   );
 }
@@ -387,11 +370,11 @@ const PAIRING_ICON_GLYPH = `  <path fill-rule="evenodd" fill="__GLYPH__"
   <circle cx="636" cy="694" r="46" fill="#8B7BFF"/>`;
 
 const PAIRING_ICON_TILE: Record<
-  PoracodeChannel,
+  CraftStationChannel,
   { readonly fill: string; readonly glyph: string }
 > = {
   stable: { fill: "#0E0E14", glyph: "#EAF0FB" },
-  // Matches branding/assets/poracode-icon-nightly.svg's teal gradient tile.
+  // Matches branding/assets/craftstation-icon-nightly.svg's teal gradient tile.
   nightly: { fill: "url(#nightlyTile)", glyph: "#0B1220" },
 };
 
@@ -404,7 +387,7 @@ const NIGHTLY_TILE_DEFS = `  <defs>
 `;
 
 export function buildLocalPairingIconSvg(
-  channel: PoracodeChannel = resolvePoracodeChannel(),
+  channel: CraftStationChannel = resolveCraftStationChannel(),
 ): string {
   const tile = PAIRING_ICON_TILE[channel];
   const defs = channel === "nightly" ? NIGHTLY_TILE_DEFS : "";

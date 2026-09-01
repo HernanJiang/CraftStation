@@ -27,7 +27,7 @@ import { useThreadOutputStore } from "@/renderer/state/threadOutputStore";
 
 const project = {
   id: "p1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "windows", path: "C:\\repo" },
   createdAt: "2026-08-08T00:00:00.000Z",
   scripts: {
@@ -98,7 +98,7 @@ describe("runProjectAction", () => {
       handler({ type: "thread-output", threadId: tab.id, data: "PS> ", outputLength: 4 }),
     );
     const command = bridge.writeTerminal.mock.calls[0]?.[0].data ?? "";
-    const token = /poracode-shell-complete=([^:]+):/u.exec(command)?.[1];
+    const token = /craftstation-shell-complete=([^:]+):/u.exec(command)?.[1];
     expect(token).toBeTruthy();
     supervisorHandlers.forEach((handler) =>
       handler({
@@ -116,7 +116,7 @@ describe("runProjectAction", () => {
         outputLength: command.length + 16,
       }),
     );
-    const marker = `\u001B]777;poracode-shell-complete=${token}:1\u0007`;
+    const marker = `\u001B]777;craftstation-shell-complete=${token}:1\u0007`;
     supervisorHandlers.forEach((handler) =>
       handler({
         type: "thread-output",

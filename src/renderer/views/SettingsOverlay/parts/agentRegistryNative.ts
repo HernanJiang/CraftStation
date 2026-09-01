@@ -178,7 +178,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   {
     id: "codex",
     acpRegistryAliases: [{ id: "codex-acp" }],
-    description: msg`First-class Codex CLI integration using Poracode's native app-server runtime.`,
+    description: msg`First-class Codex CLI integration using CraftStation's native app-server runtime.`,
     docsUrl: "https://developers.openai.com/codex/cli",
     installCommand: (project) =>
       nativeInstallCommand(project, {
@@ -201,7 +201,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   {
     id: "claude",
     acpRegistryAliases: [{ id: "claude-acp" }],
-    description: msg`First-class Claude Code integration using Poracode's native SDK runtime.`,
+    description: msg`First-class Claude Code integration using CraftStation's native SDK runtime.`,
     docsUrl: "https://code.claude.com/docs/en/setup",
     installCommand: (project) =>
       nativeInstallCommand(project, {
@@ -223,7 +223,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   {
     id: "opencode",
     acpRegistryAliases: [{ id: "opencode" }],
-    description: msg`First-class OpenCode integration using Poracode's native SDK runtime.`,
+    description: msg`First-class OpenCode integration using CraftStation's native SDK runtime.`,
     docsUrl: "https://opencode.ai/docs/",
     installCommand: (project) =>
       nativeInstallCommand(project, {
@@ -268,7 +268,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   {
     id: "grok",
     acpRegistryAliases: [{ id: "grok-build" }],
-    description: msg`First-class Grok Build CLI integration using Poracode's native runtime.`,
+    description: msg`First-class Grok Build CLI integration using CraftStation's native runtime.`,
     docsUrl: "https://docs.x.ai/build/overview",
     installCommand: (project) =>
       nativeInstallCommand(project, {
@@ -284,7 +284,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   },
   {
     id: "kimi",
-    description: msg`First-class Kimi Code CLI integration using Poracode's native runtime.`,
+    description: msg`First-class Kimi Code CLI integration using CraftStation's native runtime.`,
     docsUrl: "https://www.kimi.com/code/docs/en/",
     installCommand: (project) =>
       posixOrWindows(
@@ -296,7 +296,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   },
   {
     id: "muse",
-    description: msg`First-class Muse Code CLI integration using Poracode's native terminal runtime.`,
+    description: msg`First-class Muse Code CLI integration using CraftStation's native terminal runtime.`,
     docsUrl: "https://dev.meta.ai/docs/muse-code",
     // Muse Code has no native Windows build. WSL projects get the posix curl
     // installer (run inside the distro); a native Windows project gets a clear
@@ -312,7 +312,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   {
     id: "factory",
     acpRegistryAliases: [{ id: "factory-droid", nativeSupport: true }],
-    description: msg`First-class Factory Droid integration using Poracode's ACP runtime.`,
+    description: msg`First-class Factory Droid integration using CraftStation's ACP runtime.`,
     docsUrl: "https://docs.factory.ai/cli/getting-started/overview",
     installCommand: (project) =>
       posixOrWindows(
@@ -326,7 +326,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   },
   {
     id: "antigravity",
-    description: msg`First-class Antigravity CLI integration using Poracode's native runtime.`,
+    description: msg`First-class Antigravity CLI integration using CraftStation's native runtime.`,
     docsUrl: "https://antigravity.google/docs/cli-getting-started",
     installCommand: (project) =>
       posixOrWindows(
@@ -344,7 +344,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   },
   {
     id: "commandcode",
-    description: msg`First-class Command Code CLI integration using Poracode's native runtime.`,
+    description: msg`First-class Command Code CLI integration using CraftStation's native runtime.`,
     docsUrl: "https://commandcode.ai/docs/quickstart",
     installCommand: (project) =>
       nativeInstallCommand(project, {
@@ -375,7 +375,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   {
     id: "gemini",
     acpRegistryAliases: [{ id: "gemini", nativeSupport: true }],
-    description: msg`First-class Gemini CLI integration using Poracode's native runtime.`,
+    description: msg`First-class Gemini CLI integration using CraftStation's native runtime.`,
     docsUrl: "https://github.com/google-gemini/gemini-cli",
     installCommand: (project) =>
       posixOrWindows(
@@ -388,7 +388,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   },
   {
     id: "qwen",
-    description: msg`First-class Qwen Code integration using Poracode's native terminal and ACP runtimes.`,
+    description: msg`First-class Qwen Code integration using CraftStation's native terminal and ACP runtimes.`,
     docsUrl: "https://qwenlm.github.io/qwen-code-docs/en/users/quickstart/",
     installCommand: (project) =>
       nativeInstallCommand(project, {
@@ -410,7 +410,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
   {
     id: "qoder",
     acpRegistryAliases: [{ id: "qoder", nativeSupport: true }],
-    description: msg`First-class Qoder CLI integration using Poracode's native terminal and ACP runtimes.`,
+    description: msg`First-class Qoder CLI integration using CraftStation's native terminal and ACP runtimes.`,
     docsUrl: "https://docs.qoder.com/en/cli/quick-start",
     installCommand: (project) =>
       posixOrWindows(
@@ -428,7 +428,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
       { id: "github-copilot", nativeSupport: true },
       { id: "github-copilot-cli", nativeSupport: true },
     ],
-    description: msg`First-class GitHub Copilot CLI integration using Poracode's native runtime.`,
+    description: msg`First-class GitHub Copilot CLI integration using CraftStation's native runtime.`,
     docsUrl:
       "https://docs.github.com/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
     installCommand: (project) =>

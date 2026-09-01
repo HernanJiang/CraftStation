@@ -74,7 +74,7 @@ const homeProject: Project = {
 
 const localProject: Project = {
   id: "local-1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "windows", path: "C:\\repo" },
   createdAt: "2026-07-01T00:00:00.000Z",
   workspaceId: "w1",
@@ -90,7 +90,7 @@ const secondLocalProject: Project = {
 
 const unreachableRemoteProject: Project = {
   id: "remote-1",
-  name: "Mac Poracode",
+  name: "Mac CraftStation",
   location: { kind: "posix", path: "/repo" },
   createdAt: "2026-07-01T00:00:00.000Z",
   remoteServerId: "desktop-1",
@@ -122,7 +122,7 @@ describe("SidebarFlatThreadList", () => {
 
     expect(screen.queryByText(/new-thread:/)).not.toBeInTheDocument();
     expect(screen.getByText(/thread:h1 in Home/)).toBeInTheDocument();
-    expect(screen.getByText(/thread:p1 in Poracode/)).toBeInTheDocument();
+    expect(screen.getByText(/thread:p1 in CraftStation/)).toBeInTheDocument();
   });
 
   it("keeps Home threads when the only workspace project is unreachable", () => {
@@ -166,12 +166,12 @@ describe("SidebarFlatThreadList", () => {
 
     render(<SidebarFlatThreadList sortMode="updated" />);
 
-    expect(screen.getByText(/thread:r1 in Mac Poracode/)).toBeInTheDocument();
+    expect(screen.getByText(/thread:r1 in Mac CraftStation/)).toBeInTheDocument();
   });
 
   it("tags remote-project rows with the machine name; local rows carry none", () => {
     useRemoteServersStore.setState({
-      servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+      servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
       runtime: { "desktop-1": { status: "online", projects: [], threads: [] } },
     } as never);
     useAppStore.setState({
@@ -184,9 +184,9 @@ describe("SidebarFlatThreadList", () => {
 
     render(<SidebarFlatThreadList sortMode="updated" />);
 
-    const remoteRow = screen.getByText(/thread:r1 in Mac Poracode/).closest("[data-testid=row]");
+    const remoteRow = screen.getByText(/thread:r1 in Mac CraftStation/).closest("[data-testid=row]");
     expect(remoteRow).toHaveTextContent("MacBook 16");
-    const localRow = screen.getByText(/thread:p1 in Poracode/).closest("[data-testid=row]");
+    const localRow = screen.getByText(/thread:p1 in CraftStation/).closest("[data-testid=row]");
     expect(localRow).not.toHaveTextContent("MacBook 16");
   });
 
@@ -201,7 +201,7 @@ describe("SidebarFlatThreadList", () => {
 
     render(<SidebarFlatThreadList sortMode="updated" />);
 
-    const row = screen.getByText(/thread:p1 in Poracode/).closest("[data-testid=row]");
+    const row = screen.getByText(/thread:p1 in CraftStation/).closest("[data-testid=row]");
     const glyph = row?.querySelector("svg");
     expect(glyph).not.toBeNull();
     // 12px, not the 16px menu default: the tag text next to it is 10px.
@@ -221,7 +221,7 @@ describe("SidebarFlatThreadList", () => {
     render(<SidebarFlatThreadList sortMode="updated" />);
 
     expect(screen.queryByText(/thread:h1/)).not.toBeInTheDocument();
-    expect(screen.getByText(/thread:p1 in Poracode/)).toBeInTheDocument();
+    expect(screen.getByText(/thread:p1 in CraftStation/)).toBeInTheDocument();
     expect(screen.queryByText(/new-thread:/)).not.toBeInTheDocument();
   });
 
@@ -239,7 +239,7 @@ describe("SidebarFlatThreadList", () => {
     render(<SidebarFlatThreadList sortMode="updated" />);
 
     expect(screen.getByTestId("project-filter")).toHaveTextContent("local-1");
-    expect(screen.getByText(/thread:p1 in Poracode/)).toBeInTheDocument();
+    expect(screen.getByText(/thread:p1 in CraftStation/)).toBeInTheDocument();
     expect(screen.queryByText(/thread:h1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/thread:s1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/new-thread:/)).not.toBeInTheDocument();
@@ -302,7 +302,7 @@ describe("SidebarFlatThreadList", () => {
     render(<SidebarFlatThreadList sortMode="updated" />);
 
     expect(screen.queryByTestId("project-filter")).not.toBeInTheDocument();
-    expect(screen.getByText(/thread:p1 in Poracode/)).toBeInTheDocument();
+    expect(screen.getByText(/thread:p1 in CraftStation/)).toBeInTheDocument();
   });
 
   it("keeps the only disabled project in the filter so it can be re-enabled", () => {
@@ -328,7 +328,7 @@ describe("SidebarFlatThreadList", () => {
 
     const { container } = render(<SidebarFlatThreadList sortMode="updated" />);
 
-    expect(container.querySelector(".poracode-flat-list-head")).toBeNull();
+    expect(container.querySelector(".craftstation-flat-list-head")).toBeNull();
     expect(screen.getByTestId("project-filter")).toBeInTheDocument();
     expect(screen.queryByText(/new-thread:/)).not.toBeInTheDocument();
   });
@@ -359,7 +359,7 @@ describe("SidebarFlatThreadList", () => {
 
     const { container } = render(<SidebarFlatThreadList sortMode="updated" />);
 
-    expect(container.querySelector(".poracode-flat-list-head")).toBeNull();
+    expect(container.querySelector(".craftstation-flat-list-head")).toBeNull();
     expect(screen.queryByTestId("project-filter")).not.toBeInTheDocument();
     expect(screen.queryByText(/new-thread:/)).not.toBeInTheDocument();
   });

@@ -1,20 +1,20 @@
 export const CHANGELOG_STORAGE_KEYS = {
-  seenVersion: "poracode-changelog-seen-version",
-  acknowledgedVersion: "poracode-changelog-ack-version",
-  hidden: "poracode-whatsnew-hidden",
-  cache: "poracode-changelog-cache",
+  seenVersion: "craftstation-changelog-seen-version",
+  acknowledgedVersion: "craftstation-changelog-ack-version",
+  hidden: "craftstation-whatsnew-hidden",
+  cache: "craftstation-changelog-cache",
 } as const;
 
 const LEGACY_CHANGELOG_STORAGE_KEYS = {
-  seenVersion: "lightcode-changelog-seen-version",
-  acknowledgedVersion: "lightcode-changelog-ack-version",
-  hidden: "lightcode-whatsnew-hidden",
-  cache: "lightcode-changelog-cache",
+  seenVersion: "craftstation-changelog-seen-version",
+  acknowledgedVersion: "craftstation-changelog-ack-version",
+  hidden: "craftstation-whatsnew-hidden",
+  cache: "craftstation-changelog-cache",
 } as const;
 
 /**
- * Preserve the user's changelog position across the Lightcode -> Poracode
- * rename. Copy only missing values so a Poracode launch always wins over stale
+ * Preserve the user's changelog position across the CraftStation -> CraftStation
+ * rename. Copy only missing values so a CraftStation launch always wins over stale
  * legacy state, and keep the originals for downgrade safety.
  */
 export function migrateLegacyChangelogStorage(storage: Pick<Storage, "getItem" | "setItem">): void {

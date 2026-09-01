@@ -6,7 +6,7 @@
  * counts counter increases within a `(provider, scopeId, epoch)` key, so this
  * tracker draws those boundaries for one mapper:
  *
- * - `scopeId` is the CODEX thread id (not the Poracode thread id). A fork or
+ * - `scopeId` is the CODEX thread id (not the CraftStation thread id). A fork or
  *   replacement provider thread switches the scope via {@link replaceScope},
  *   starting a new epoch whose first sample is a baseline (forked threads
  *   carry inherited history — that is not new spend).

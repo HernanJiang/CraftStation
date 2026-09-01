@@ -152,7 +152,7 @@ export function SkillMarketplaceModal(props: {
   ];
   const availabilityOptions = [
     { id: "shared", label: t`All agent apps` },
-    { id: "poracode", label: t`Poracode only` },
+    { id: "craftstation", label: t`CraftStation only` },
   ];
   const sourceOptions = [
     { id: "all", label: t`All sources` },
@@ -197,7 +197,7 @@ export function SkillMarketplaceModal(props: {
                 className="w-44"
                 options={availabilityOptions}
                 value={availability}
-                onChange={(value) => setAvailability(value === "poracode" ? "poracode" : "shared")}
+                onChange={(value) => setAvailability(value === "craftstation" ? "craftstation" : "shared")}
               />
               <p className="text-xs text-muted">
                 {marketplace === "skills-sh" ? (

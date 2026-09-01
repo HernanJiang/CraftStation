@@ -163,7 +163,7 @@ Test Files  6 failed | 855 passed | 10 skipped
 Tests       16 failed | 9610 passed | 48 skipped
 ```
 
-16 个失败集中在既有 `.poracode` / `.craftstation` 品牌路径、数据迁移、probe cwd 和 remote procedure classification；未发现 v0.7 native 定向测试新增失败。全仓基线失败不替代 Feature 验收，也不把本 Feature 自动判 PASS。
+16 个失败集中在既有 `.craftstation` / `.craftstation` 品牌路径、数据迁移、probe cwd 和 remote procedure classification；未发现 v0.7 native 定向测试新增失败。全仓基线失败不替代 Feature 验收，也不把本 Feature 自动判 PASS。
 
 ## Findings
 

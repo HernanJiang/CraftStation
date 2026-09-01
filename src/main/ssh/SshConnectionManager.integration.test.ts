@@ -8,15 +8,15 @@ import { REMOTE_STANDARD_SCOPES } from "@/shared/remote";
 import { RemoteDesktopClient } from "@/shared/remote/client";
 import { SshConnectionManager } from "./SshConnectionManager";
 
-const target = process.env.PORACODE_SSH_E2E_TARGET;
-const identityFile = process.env.PORACODE_SSH_E2E_IDENTITY;
-const port = Number(process.env.PORACODE_SSH_E2E_PORT ?? "22");
-const runAgent = process.env.PORACODE_SSH_E2E_AGENT === "1";
-const agentProjectPath = process.env.PORACODE_SSH_E2E_PROJECT;
-const connectionId = process.env.PORACODE_SSH_E2E_CONNECTION_ID;
-const preferredAgentKind = process.env.PORACODE_SSH_E2E_AGENT_KIND;
+const target = process.env.CRAFTSTATION_SSH_E2E_TARGET;
+const identityFile = process.env.CRAFTSTATION_SSH_E2E_IDENTITY;
+const port = Number(process.env.CRAFTSTATION_SSH_E2E_PORT ?? "22");
+const runAgent = process.env.CRAFTSTATION_SSH_E2E_AGENT === "1";
+const agentProjectPath = process.env.CRAFTSTATION_SSH_E2E_PROJECT;
+const connectionId = process.env.CRAFTSTATION_SSH_E2E_CONNECTION_ID;
+const preferredAgentKind = process.env.CRAFTSTATION_SSH_E2E_AGENT_KIND;
 const agentPresentationMode =
-  process.env.PORACODE_SSH_E2E_PRESENTATION === "gui" ? "gui" : "terminal";
+  process.env.CRAFTSTATION_SSH_E2E_PRESENTATION === "gui" ? "gui" : "terminal";
 
 function normalizedTerminalText(value: string): string {
   return stripAnsiPreservingLayout(value).replace(/\s+/gu, " ").trim();
@@ -28,7 +28,7 @@ function compactTerminalText(value: string): string {
 
 describe.skipIf(!target || !identityFile)("SshConnectionManager real SSH", () => {
   const root = resolve(import.meta.dirname, "../../..");
-  const cacheDir = join(tmpdir(), "poracode-ssh-e2e-runtime-bundles");
+  const cacheDir = join(tmpdir(), "craftstation-ssh-e2e-runtime-bundles");
   mkdirSync(cacheDir, { recursive: true });
   const manager = new SshConnectionManager({
     mainBundleDir: join(root, "dist", "main"),
@@ -47,7 +47,7 @@ describe.skipIf(!target || !identityFile)("SshConnectionManager real SSH", () =>
     async () => {
       const connection = {
         id: connectionId ?? crypto.randomUUID(),
-        label: "Poracode SSH E2E",
+        label: "CraftStation SSH E2E",
         target: target!,
         port,
         identityFile: identityFile!,
@@ -136,12 +136,12 @@ describe.skipIf(!target || !identityFile)("SshConnectionManager real SSH", () =>
       ).toBeDefined();
       expect(
         agentProjectPath,
-        "PORACODE_SSH_E2E_PROJECT is required for the agent probe",
+        "CRAFTSTATION_SSH_E2E_PROJECT is required for the agent probe",
       ).toBeTruthy();
       const projectResult = await client.projectCommand({
         kind: "add-existing",
         path: agentProjectPath!,
-        name: "Poracode SSH E2E",
+        name: "CraftStation SSH E2E",
       });
       let project = projectResult.project;
       expect(project).toBeDefined();
@@ -149,10 +149,10 @@ describe.skipIf(!target || !identityFile)("SshConnectionManager real SSH", () =>
         await client.projectCommand({
           kind: "update",
           projectId: project!.id,
-          patch: { name: "Poracode SSH E2E renamed", disabled: false },
+          patch: { name: "CraftStation SSH E2E renamed", disabled: false },
         })
       ).project;
-      expect(project?.name).toBe("Poracode SSH E2E renamed");
+      expect(project?.name).toBe("CraftStation SSH E2E renamed");
       const threadId = crypto.randomUUID();
       let threadDeleted = false;
       try {

@@ -36,7 +36,7 @@ export interface ChatItemAccordionProps {
    * or the whole title when it is a plain string) — the same treatment as
    * grouped tool rows, replacing any spinner. Only stable text may shimmer:
    * mutating text under `background-clip: text` ghosts old glyphs (see
-   * `.poracode-thinking-text` in styles.css). ReactNode titles are the
+   * `.craftstation-thinking-text` in styles.css). ReactNode titles are the
    * caller's responsibility.
    */
   isRunning?: boolean;
@@ -129,8 +129,8 @@ export function ChatItemAccordion({
     <code className={`${codeClass} flex items-baseline overflow-hidden`}>
       <span
         ref={prefixRef}
-        className={`shrink-0 whitespace-pre ${isRunning ? "poracode-thinking-text" : ""}`}
-        {...(isRunning ? { "data-poracode-shimmer-text": displayPrefix } : {})}
+        className={`shrink-0 whitespace-pre ${isRunning ? "craftstation-thinking-text" : ""}`}
+        {...(isRunning ? { "data-craftstation-shimmer-text": displayPrefix } : {})}
       >
         {displayPrefix}
       </span>
@@ -150,8 +150,8 @@ export function ChatItemAccordion({
   ) : (
     <code
       ref={codeRef}
-      className={`${codeClass} ${shimmerPlainTitle ? "poracode-thinking-text !block" : ""}`}
-      {...(shimmerPlainTitle ? { "data-poracode-shimmer-text": displayTitle as string } : {})}
+      className={`${codeClass} ${shimmerPlainTitle ? "craftstation-thinking-text !block" : ""}`}
+      {...(shimmerPlainTitle ? { "data-craftstation-shimmer-text": displayTitle as string } : {})}
     >
       {displayTitle}
     </code>

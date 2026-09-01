@@ -92,7 +92,7 @@ export interface GitReviewActionState {
   isCreatingPr: boolean;
   /** Current step of the git action in flight (null when idle). */
   actionPhase: GitActionPhase | null;
-  /** Commit hash of the Poracode pull stash awaiting re-apply after the in-progress merge. */
+  /** Commit hash of the CraftStation pull stash awaiting re-apply after the in-progress merge. */
   pullStashCommit: string | null;
 }
 

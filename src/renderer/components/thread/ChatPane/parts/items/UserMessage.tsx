@@ -224,7 +224,7 @@ export const UserMessage = memo(function UserMessage({
         ? "max-h-[50vh] overflow-y-auto"
         : "";
   const baseBodyClass = `min-w-0 leading-snug ${collapseClass}`;
-  const inlineBodyClass = `${baseBodyClass} poracode-user-message-inline-content whitespace-pre-wrap break-words text-[length:var(--lc-chat-font-size)] text-foreground`;
+  const inlineBodyClass = `${baseBodyClass} craftstation-user-message-inline-content whitespace-pre-wrap break-words text-[length:var(--lc-chat-font-size)] text-foreground`;
 
   let bodyContent: ReactNode = null;
   let bodyClass = baseBodyClass;
@@ -316,7 +316,7 @@ export const UserMessage = memo(function UserMessage({
       {!isRemote ? (
         <div
           data-user-message-actions="true"
-          className="poracode-message-action-strip mt-1 flex min-h-5 items-center justify-end gap-1 pr-1 text-[10px] text-muted opacity-0 transition-opacity group-hover/checkpoint:opacity-100 focus-within:opacity-100"
+          className="craftstation-message-action-strip mt-1 flex min-h-5 items-center justify-end gap-1 pr-1 text-[10px] text-muted opacity-0 transition-opacity group-hover/checkpoint:opacity-100 focus-within:opacity-100"
         >
           {sentAt ? <time dateTime={new Date(item.startedAt!).toISOString()}>{sentAt}</time> : null}
           {checkpointRevert ? (
@@ -495,15 +495,15 @@ function UserMessageSlashChip({
   const resolvedAriaLabel = skillName ? t`Skill: ${skill}` : undefined;
   return (
     <span
-      className="poracode-slash-chip mr-1.5"
+      className="craftstation-slash-chip mr-1.5"
       title={title}
       {...(resolvedAriaLabel ? { "aria-label": resolvedAriaLabel } : {})}
       {...(skillName ? { "data-skill-name": skillName } : {})}
       {...(mcpName ? { "data-mcp-name": mcpName } : {})}
       {...(pluginId ? { "data-plugin-id": pluginId } : {})}
     >
-      <span className="poracode-slash-chip__slash">{icon}</span>
-      <span className="poracode-slash-chip__name">{label}</span>
+      <span className="craftstation-slash-chip__slash">{icon}</span>
+      <span className="craftstation-slash-chip__name">{label}</span>
     </span>
   );
 }

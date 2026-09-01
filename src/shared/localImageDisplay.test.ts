@@ -7,22 +7,22 @@ describe("resolveLocalImageDisplayUrl", () => {
   });
 
   it("returns URLs unchanged when no resolver is installed (desktop behavior)", () => {
-    const local = "poracode-local://local/tmp/a.png";
+    const local = "craftstation-local://local/tmp/a.png";
     expect(resolveLocalImageDisplayUrl(local)).toBe(local);
     expect(resolveLocalImageDisplayUrl("https://example.com/a.png")).toBe(
       "https://example.com/a.png",
     );
   });
 
-  it("rewrites poracode-local URLs through the installed resolver", () => {
+  it("rewrites craftstation-local URLs through the installed resolver", () => {
     setRemoteLocalImageResolver(
       (url) => `https://desktop.test/api/files/image?from=${encodeURIComponent(url)}`,
     );
 
-    expect(resolveLocalImageDisplayUrl("poracode-local://local/tmp/a.png")).toBe(
-      "https://desktop.test/api/files/image?from=poracode-local%3A%2F%2Flocal%2Ftmp%2Fa.png",
+    expect(resolveLocalImageDisplayUrl("craftstation-local://local/tmp/a.png")).toBe(
+      "https://desktop.test/api/files/image?from=craftstation-local%3A%2F%2Flocal%2Ftmp%2Fa.png",
     );
-    // Non poracode-local sources bypass the resolver entirely.
+    // Non craftstation-local sources bypass the resolver entirely.
     expect(resolveLocalImageDisplayUrl("data:image/png;base64,AA")).toBe(
       "data:image/png;base64,AA",
     );

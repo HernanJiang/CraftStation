@@ -23,6 +23,12 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
+function isTerminalToolState(state: string): boolean {
+  return ["DONE", "COMPLETED", "SUCCESS", "FAILED", "ERROR", "CANCELLED", "CANCELED"].includes(
+    state,
+  );
+}
+
 function dshEvent(event: NativeWireEvent): {
   type: string;
   payload: Record<string, unknown>;
@@ -68,8 +74,16 @@ function usageEvent(
   providerSessionId: string | undefined,
   usage: Record<string, unknown> | undefined,
 ): RuntimeEvent[] {
-  const inputTokens = numberValue(usage?.inputTokens) ?? 0;
-  const outputTokens = numberValue(usage?.outputTokens) ?? 0;
+  const inputTokens =
+    numberValue(usage?.inputTokens) ??
+    numberValue(usage?.input_tokens) ??
+    numberValue(usage?.prompt_tokens) ??
+    0;
+  const outputTokens =
+    numberValue(usage?.outputTokens) ??
+    numberValue(usage?.output_tokens) ??
+    numberValue(usage?.completion_tokens) ??
+    0;
   if (inputTokens + outputTokens === 0) return [];
   return [
     {
@@ -117,7 +131,10 @@ export function canonicalizeNativeEvent(input: {
 
   if (nativeType === "init") return [attach({ type: "session.started", threadId, turnId })];
   if (nativeType === "step_update") {
-    const text = textFrom(payload);
+    const text =
+      typeof payload.step_type === "string" && payload.step_type === "agent_response"
+        ? textFrom(payload)
+        : undefined;
     const result: RuntimeEvent[] = [];
     const stepType = typeof payload.step_type === "string" ? payload.step_type : "";
     if (stepType === "tool" || stepType === "subagent") {
@@ -125,14 +142,18 @@ export function canonicalizeNativeEvent(input: {
       const conversationId = String(payload.conversation_id ?? threadId);
       const itemId = `${stepType}:${conversationId}:${stepIndex}`;
       const state = String(payload.state ?? "").toUpperCase();
+      const toolInfo = recordValue(payload.tool_info);
       const name =
         typeof payload.tool_name === "string"
           ? payload.tool_name
-          : stepType === "subagent"
-            ? "Antigravity subagent"
-            : "Antigravity tool";
-      const toolInfo = recordValue(payload.tool_info);
+          : typeof toolInfo?.name === "string"
+            ? toolInfo.name
+            : stepType === "subagent"
+              ? "Antigravity subagent"
+              : "Antigravity tool";
       const toolParameters = recordValue(toolInfo?.parameters);
+      const toolOutput = toolInfo?.output ?? payload.output;
+      const toolError = toolInfo?.error ?? payload.error;
       const mcpServerName =
         name === "call_mcp_tool" && typeof toolParameters?.ServerName === "string"
           ? toolParameters.ServerName
@@ -141,29 +162,52 @@ export function canonicalizeNativeEvent(input: {
         name === "call_mcp_tool" && typeof toolParameters?.ToolName === "string"
           ? toolParameters.ToolName
           : undefined;
+      const toolFailed = ["FAILED", "ERROR", "CANCELLED", "CANCELED"].includes(state);
       const itemPayload = {
         name,
-        status: state === "DONE" ? ("completed" as const) : ("running" as const),
+        status: isTerminalToolState(state)
+          ? toolFailed || toolError !== undefined
+            ? ("error" as const)
+            : ("success" as const)
+          : ("running" as const),
+        ...(toolParameters ? { args: toolParameters } : {}),
+        ...(toolOutput !== undefined ? { result: toolOutput } : {}),
+        ...(toolError !== undefined ? { error: toolError } : {}),
         ...(stepType === "subagent" ? { isSubAgent: true } : {}),
         ...(mcpServerName ? { mcpServerName } : {}),
         ...(mcpToolName ? { mcpToolName } : {}),
       };
-      result.push(
-        attach(
-          state === "DONE"
-            ? { type: "item.completed", threadId, itemId, payload: itemPayload }
-            : {
-                type: "item.started",
-                threadId,
-                itemId,
-                itemType: "tool_call",
-                payload: itemPayload,
-              },
-        ),
-      );
+      if (isTerminalToolState(state)) {
+        result.push(
+          attach({
+            type: "item.started",
+            threadId,
+            itemId,
+            itemType: "tool_call",
+            payload: { ...itemPayload, status: "running" },
+          }),
+          attach({ type: "item.completed", threadId, itemId, payload: itemPayload }),
+        );
+      } else {
+        result.push(
+          attach({
+            type: "item.started",
+            threadId,
+            itemId,
+            itemType: "tool_call",
+            payload: itemPayload,
+          }),
+        );
+      }
     }
     if (text) {
       result.push(
+        attach({
+          type: "item.started",
+          threadId,
+          itemId: `item:${turnId}`,
+          itemType: "assistant_message",
+        }),
         attach({
           type: "content.delta",
           threadId,
@@ -173,6 +217,19 @@ export function canonicalizeNativeEvent(input: {
         }),
       );
     }
+    const stepUsage = recordValue(payload.usage);
+    if (stepUsage) {
+      result.push(
+        ...usageEvent(
+          threadId,
+          turnId,
+          correlationId,
+          event.sequence,
+          providerSessionId,
+          stepUsage,
+        ).map(attach),
+      );
+    }
     // `agy` emits a DONE step_update for the user_input step before it emits
     // the assistant_response step. The terminal `result` envelope is the
     // authoritative turn boundary; completing on any DONE step would resolve
@@ -180,11 +237,37 @@ export function canonicalizeNativeEvent(input: {
     return result;
   }
   if (nativeType === "result") {
-    const status = String(payload.status ?? "").toUpperCase();
-    const response = typeof payload.response === "string" ? payload.response : undefined;
+    const resultPayload = recordValue(payload.result) ?? payload;
+    const status = String(resultPayload.status ?? payload.status ?? "").toUpperCase();
+    const response =
+      typeof resultPayload.response === "string"
+        ? resultPayload.response
+        : typeof payload.response === "string"
+          ? payload.response
+          : undefined;
+    const failed = new Set(["ERROR", "FAILED", "FAILURE", "AUTH_REQUIRED", "BLOCKED"]);
+    const cancelled = new Set(["CANCELLED", "CANCELED", "INTERRUPTED"]);
+    const state = failed.has(status)
+      ? ("failed" as const)
+      : cancelled.has(status)
+        ? ("cancelled" as const)
+        : ("completed" as const);
+    const rawError = resultPayload.error ?? payload.error;
+    const providerError =
+      typeof rawError === "string"
+        ? rawError
+        : rawError && typeof rawError === "object" && !Array.isArray(rawError)
+          ? String((rawError as Record<string, unknown>).message ?? "Native provider error.")
+          : undefined;
     return [
       ...(response
         ? [
+            attach({
+              type: "item.started",
+              threadId,
+              itemId: `item:${turnId}`,
+              itemType: "assistant_message",
+            }),
             attach({
               type: "content.delta",
               threadId,
@@ -194,14 +277,25 @@ export function canonicalizeNativeEvent(input: {
             }),
           ]
         : []),
-      ...(status === "ERROR"
-        ? [attach({ type: "error", threadId, message: "Native provider returned an error." })]
+      attach({
+        type: "item.completed",
+        threadId,
+        itemId: `item:${turnId}`,
+      }),
+      ...(state === "failed"
+        ? [
+            attach({
+              type: "error",
+              threadId,
+              message: providerError ?? `Native provider returned status ${status || "ERROR"}.`,
+            }),
+          ]
         : []),
       attach({
         type: "turn.completed",
         threadId,
         turnId,
-        state: status === "ERROR" ? "failed" : "completed",
+        state,
       }),
     ];
   }
@@ -298,6 +392,16 @@ export function canonicalizeNativeEvent(input: {
     return String(payload.status ?? "") === "running"
       ? [attach({ type: "session.started", threadId, turnId })]
       : [];
+  }
+  if (descriptor.harnessKind === "antigravity" && /permission|question|input/iu.test(nativeType)) {
+    return [
+      attach({
+        type: "warning",
+        threadId,
+        message:
+          "Antigravity stream-json does not expose an interactive permission or question reply channel.",
+      }),
+    ];
   }
   if (/permission|question|input/iu.test(nativeType)) {
     const requestId = String(payload.requestId ?? payload.callId ?? `request-${event.sequence}`);

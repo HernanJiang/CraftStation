@@ -23,9 +23,13 @@ import {
   type ResolvedMcpServer,
   BUILT_IN_MCP_SERVER_NAMES,
   DEFAULT_MCP_SERVER_TIMEOUT_MS,
+  isMcpServerSupportedByRuntime,
+  resolveComposerMcpScope,
   resolveEnabledMcpServers,
+  supportsMcpAtProjectLocation,
 } from "@/shared/contracts";
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
+import { resolveAgentPresentationMode } from "@/shared/agentStatus";
 import type { AgentNativePlugin } from "@/supervisor/agents/base";
 import {
   resolveBrowserMcpHttpConfigForLaunch,
@@ -90,7 +94,7 @@ export interface SpawnThreadInput {
   /**
    * Extra env injected into the agent PTY (merged on top of agentEnv +
    * provider spawnEnv). Currently used by the CLI hook ingress to ferry
-   * `PORACODE_HOOK_URL` / `PORACODE_HOOK_SECRET` / `PORACODE_THREAD_ID` etc.
+   * `CRAFTSTATION_HOOK_URL` / `CRAFTSTATION_HOOK_SECRET` / `CRAFTSTATION_THREAD_ID` etc.
    */
   extraEnv?: Record<string, string>;
   structuredSession?: StructuredSessionHandle;
@@ -106,6 +110,25 @@ export interface SpawnThreadInput {
   mcpLaunchSnapshot: McpLaunchSnapshot;
   launchConfig?: ThreadConfig;
   nativePlugins?: readonly AgentNativePlugin[];
+}
+
+/**
+ * Reconcile a persisted thread surface with the adapter's current contract.
+ * This is intentionally capability-driven: when an adapter removes terminal
+ * presentation after gaining a native structured runtime, old threads must
+ * not keep reopening the retired TUI. Providers that still advertise both
+ * surfaces preserve the user's explicit choice.
+ */
+export function resolveSupportedPresentationMode(
+  adapter: {
+    capabilities: {
+      presentationMode?: ThreadPresentationMode;
+      presentationModes?: readonly ThreadPresentationMode[] | undefined;
+    };
+  },
+  requested: ThreadPresentationMode | undefined,
+): ThreadPresentationMode {
+  return resolveAgentPresentationMode(adapter.capabilities, requested);
 }
 
 /**
@@ -266,6 +289,7 @@ export interface SpawnPipelineContext {
     prompt: string,
     segments?: PromptSegment[],
     requestedItemId?: string,
+    requestedTurnId?: string,
   ): string;
 }
 
@@ -293,7 +317,10 @@ export class SpawnPipeline {
     // Per-thread mode wins over the adapter default. Chat-mode threads route
     // input/output through the structured session even for adapters whose
     // `liveInputMode` is "terminal".
-    const requestedPresentation = payload.presentationMode ?? adapter.capabilities.presentationMode;
+    const requestedPresentation = resolveSupportedPresentationMode(
+      adapter,
+      payload.presentationMode,
+    );
     const usesTerminalPresentation = requestedPresentation === "terminal";
     const useStructuredFlow = isServerControlled || !usesTerminalPresentation;
     const pluginContributions = (await ctx.options.resolvePluginLaunchContributions?.(
@@ -358,15 +385,19 @@ export class SpawnPipeline {
     // newSession/loadSession) runs. When the renderer has already painted an
     // optimistic message and shipped its id with the payload, we reuse that
     // id end-to-end so the chat pane never sees a duplicate.
-    const optimisticUserMessageItemId =
+    const optimisticTurnId =
       !usesTerminalPresentation && initialPrompt.length > 0 && !payload.sessionRef
-        ? ctx.emitOptimisticUserMessage(
-            payload.threadId,
-            initialPrompt,
-            effectiveSegments,
-            payload.userMessageItemId,
-          )
+        ? `turn-${randomUUID()}`
         : undefined;
+    const optimisticUserMessageItemId = optimisticTurnId
+      ? ctx.emitOptimisticUserMessage(
+          payload.threadId,
+          initialPrompt,
+          effectiveSegments,
+          payload.userMessageItemId,
+          optimisticTurnId,
+        )
+      : undefined;
     const mcpLaunchSnapshotBase = {
       disabledBuiltInMcpServerIds: payload.disabledBuiltInMcpServerIds ?? [],
       disabledBuiltInMcpTools: payload.disabledBuiltInMcpTools ?? {},
@@ -389,7 +420,12 @@ export class SpawnPipeline {
       payload.threadId,
     );
     if (optimisticUserMessageItemId) {
-      this.emitOptimisticWorkingState(payload.threadId, payload.config, optimisticLaunchConfig);
+      this.emitOptimisticWorkingState(
+        payload.threadId,
+        payload.config,
+        optimisticLaunchConfig,
+        requestedPresentation,
+      );
     }
 
     // Prime the user's interactive-shell env (fnm / nvm / asdf / mise cd-hooks
@@ -536,6 +572,9 @@ export class SpawnPipeline {
         structuredSession.startTurn
       ) {
         const startOptions = {
+          ...(payload.agentKind === "opencode" && optimisticTurnId
+            ? { turnId: optimisticTurnId }
+            : {}),
           ...(optimisticUserMessageItemId
             ? { userMessageItemId: optimisticUserMessageItemId }
             : {}),
@@ -613,8 +652,8 @@ export class SpawnPipeline {
         );
 
     // Append CLI hook plugin args (e.g. Claude `--settings <path>`); env vars
-    // (`PORACODE_HOOK_URL`, `PORACODE_HOOK_SECRET`, `PORACODE_THREAD_ID`,
-    // `PORACODE_AGENT_KIND`, `PORACODE_HOOK_PROTOCOL_VERSION`) flow through
+    // (`CRAFTSTATION_HOOK_URL`, `CRAFTSTATION_HOOK_SECRET`, `CRAFTSTATION_THREAD_ID`,
+    // `CRAFTSTATION_AGENT_KIND`, `CRAFTSTATION_HOOK_PROTOCOL_VERSION`) flow through
     // `spawnThread` → `agentEnv` so they end up in the PTY env on every
     // platform (WSL, win32, posix). Failure to resolve plugin extras silently
     // degrades to L2 — the supervisor must never block thread creation on
@@ -818,10 +857,12 @@ export class SpawnPipeline {
         // already broadcast before the old session stopped. Reuse it without
         // emitting another turn.started + item pair. A missing id means this
         // path owns the first canonical paint and must emit it now.
+        const turnId = turn.turnId ?? `turn-${randomUUID()}`;
         const optimisticItemId =
           turn.userMessageItemId ??
-          ctx.emitOptimisticUserMessage(session.threadId, prompt, turn.segments);
+          ctx.emitOptimisticUserMessage(session.threadId, prompt, turn.segments, undefined, turnId);
         const startOptions = {
+          ...(session.agentKind === "opencode" ? { turnId } : {}),
           userMessageItemId: optimisticItemId,
           ...(turn.inlineInstructions ? { inlineInstructions: turn.inlineInstructions } : {}),
         };
@@ -932,7 +973,7 @@ export class SpawnPipeline {
     }
 
     const agentEnv = this.resolveAgentProcessEnv(input.adapter);
-    const cliHookEnvInjected = Boolean(input.extraEnv?.PORACODE_HOOK_URL);
+    const cliHookEnvInjected = Boolean(input.extraEnv?.CRAFTSTATION_HOOK_URL);
     // `baseSpawnEnv` underlies every lane; the location-specific `spawnEnv`
     // layers on top so a provider can still override per platform.
     const providerEnv = mergeSpawnEnv(
@@ -1073,6 +1114,16 @@ export class SpawnPipeline {
     adapter?: AgentAdapter;
     presentationMode?: ThreadPresentationMode;
   }): Promise<ResolvedMcpServer[]> {
+    if (
+      adapter &&
+      (!supportsMcpAtProjectLocation(adapter.capabilities, location) ||
+        resolveComposerMcpScope(
+          adapter.capabilities.mcpScope,
+          presentationMode ?? adapter.capabilities.presentationMode,
+        ) === "none")
+    ) {
+      return [];
+    }
     const providerSessionCrossagents = usesProviderSessionCrossagentRouting(
       adapter,
       presentationMode,
@@ -1115,7 +1166,7 @@ export class SpawnPipeline {
       mcpLaunchSnapshot,
       identity,
     );
-    return composeResolvedMcpServers(
+    const resolved = composeResolvedMcpServers(
       mcpLaunchSnapshot,
       browserMcp,
       crossagentMcp,
@@ -1123,6 +1174,19 @@ export class SpawnPipeline {
       chromeMcp,
       appControlsMcp,
     );
+    if (!adapter) return resolved;
+    const supported = resolved.filter((server) =>
+      isMcpServerSupportedByRuntime(server, adapter.capabilities),
+    );
+    if (supported.length !== resolved.length) {
+      const skippedNames = resolved
+        .filter((server) => !supported.includes(server))
+        .map((server) => server.name)
+        .join(", ");
+      // Provider-visible names only: never log URLs, headers, env, or arguments.
+      console.warn(`[supervisor] ${adapter.kind} skipped unsupported MCP servers: ${skippedNames}`);
+    }
+    return supported;
   }
 
   resolveMcpLaunchConfig(
@@ -1324,10 +1388,10 @@ export class SpawnPipeline {
       // Terminal presentation can safely fall back to its PTY path when the
       // optional structured helper cannot be created, so report once here.
       captureSupervisorException(diagnosticError, {
-        "poracode.feature_area": structuredRuntimeFeatureArea("session-creation"),
-        ...(presentationMode ? { "poracode.presentation": presentationMode } : {}),
-        "poracode.provider": agentKind,
-        "poracode.runtime_kind": "structured",
+        "craftstation.feature_area": structuredRuntimeFeatureArea("session-creation"),
+        ...(presentationMode ? { "craftstation.presentation": presentationMode } : {}),
+        "craftstation.provider": agentKind,
+        "craftstation.runtime_kind": "structured",
       });
       return undefined;
     }
@@ -1349,6 +1413,7 @@ export class SpawnPipeline {
     threadId: string,
     config: ThreadConfig,
     launchConfig: ThreadConfig,
+    presentationMode: ThreadPresentationMode,
   ): void {
     this.ctx.options.emit({
       type: "thread-state",
@@ -1359,6 +1424,7 @@ export class SpawnPipeline {
       launchConfig,
       canResumeWithConfig: false,
       threadStatusSource: "server",
+      presentationMode,
     });
   }
 }

@@ -208,7 +208,7 @@ export function ThreadDockActionRow({
   onAction: () => void;
   isActionDisabled?: boolean;
 }) {
-  const contentClass = `poracode-subagent-dock-row flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left leading-5 transition-[padding,background-color] duration-150 hover:bg-foreground/5 group-hover:pr-8 ${className}`;
+  const contentClass = `craftstation-subagent-dock-row flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left leading-5 transition-[padding,background-color] duration-150 hover:bg-foreground/5 group-hover:pr-8 ${className}`;
 
   return (
     <li className="group relative flex">
@@ -236,7 +236,7 @@ export function ThreadDockActionRow({
           event.stopPropagation();
           onAction();
         }}
-        className="poracode-subagent-dismiss absolute right-1 top-1/2 flex -translate-y-1/2 items-center justify-center rounded p-0.5 text-muted/70 opacity-0 transition-opacity duration-150 hover:bg-danger-500/10 hover:text-danger-500 focus:opacity-100 group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-40"
+        className="craftstation-subagent-dismiss absolute right-1 top-1/2 flex -translate-y-1/2 items-center justify-center rounded p-0.5 text-muted/70 opacity-0 transition-opacity duration-150 hover:bg-danger-500/10 hover:text-danger-500 focus:opacity-100 group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-40"
       >
         {action}
       </button>

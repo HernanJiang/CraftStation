@@ -61,9 +61,12 @@ const execFileAsync = promisify(execFile);
  * or the login command runs without the provider's base env.
  * v15 adds ACP-derived per-model thinking toggles and normalizes provider model
  * capability maps, so statuses cached before those capability semantics changed
- * must be re-probed.
+ * must be re-probed. v16 refreshes the complete capability payload so newly
+ * introduced presentation and MCP routing fields cannot remain stale in the
+ * supervisor cache. v17 adds MCP transport/header/location safety declarations;
+ * cached Antigravity statuses without them must not advertise unsafe servers.
  */
-export const STATUS_CACHE_VERSION = 15;
+export const STATUS_CACHE_VERSION = 17;
 const WSL_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const WSL_LXSS_REGISTRY_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss";
 

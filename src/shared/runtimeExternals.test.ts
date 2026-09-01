@@ -40,7 +40,7 @@ describe("scanModuleIds", () => {
   });
 
   it("does not stage debug's optional supports-color feature probe", () => {
-    const repoRoot = mkdtempSync(join(tmpdir(), "poracode-runtime-externals-"));
+    const repoRoot = mkdtempSync(join(tmpdir(), "craftstation-runtime-externals-"));
     try {
       const outputDir = join(repoRoot, "dist", "main");
       mkdirSync(outputDir, { recursive: true });

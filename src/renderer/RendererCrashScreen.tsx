@@ -71,11 +71,11 @@ function readBridgeDiagnostics(): {
   platform?: string;
   isDev?: boolean;
 } {
-  if (typeof window === "undefined" || !("poracode" in window)) {
+  if (typeof window === "undefined" || !("craftstation" in window)) {
     return {};
   }
 
-  const bridge = window.poracode;
+  const bridge = window.craftstation;
   return {
     ...(bridge.appVersion ? { appVersion: bridge.appVersion } : {}),
     ...(bridge.electronVersion ? { electronVersion: bridge.electronVersion } : {}),
@@ -102,7 +102,7 @@ export function createRendererCrashReport(input: RendererCrashInput): RendererCr
 
 export function formatRendererCrashReport(report: RendererCrashReport): string {
   const lines = [
-    "Poracode renderer crash",
+    "CraftStation renderer crash",
     `Kind: ${report.kind}`,
     `Time: ${report.timestamp}`,
     `URL: ${report.url}`,

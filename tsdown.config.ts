@@ -20,12 +20,12 @@ function readEnvValue(key: string): string {
 // tsdown's config loader doesn't follow TS-extension resolution. Equivalence
 // with src/shared/channel.normalizeChannel + scripts/electron-builder.shared.cjs
 // is pinned by src/shared/channel.config-parity.test.ts.
-const channel = process.env.PORACODE_CHANNEL === "nightly" ? "nightly" : "stable";
+const channel = process.env.CRAFTSTATION_CHANNEL === "nightly" ? "nightly" : "stable";
 
 const buildDefines = {
   __BUILD_SENTRY_DSN__: JSON.stringify(readEnvValue("SENTRY_DSN")),
   __BUILD_SENTRY_ENVIRONMENT__: JSON.stringify(readEnvValue("SENTRY_ENVIRONMENT")),
-  __PORACODE_CHANNEL__: JSON.stringify(channel),
+  __CRAFTSTATION_CHANNEL__: JSON.stringify(channel),
 };
 
 function packageNameFor(moduleId: string): string | null {
@@ -37,7 +37,7 @@ function packageNameFor(moduleId: string): string | null {
 
 function sshRuntimeManifest(entryName: SshRuntimeEntryName): TsdownPlugin {
   return {
-    name: `poracode:ssh-runtime-manifest:${entryName}`,
+    name: `craftstation:ssh-runtime-manifest:${entryName}`,
     generateBundle(_options, bundle) {
       const files = Object.values(bundle)
         .filter((output) => output.type === "chunk")
@@ -72,7 +72,7 @@ function sshRuntimeManifest(entryName: SshRuntimeEntryName): TsdownPlugin {
 }
 
 const deps = {
-  // @poracode/agents-usage is an internal workspace package consumed from
+  // @craftstation/agents-usage is an internal workspace package consumed from
   // source (its exports point at src/*.ts). It must be bundled into the
   // supervisor — left external, Node's ESM loader would try to load its raw
   // extensionless .ts imports at runtime and crash.
@@ -81,7 +81,7 @@ const deps = {
     "simple-git",
     "zod",
     "@sindresorhus/slugify",
-    /^@poracode\/agents-usage(?:\/|$)/,
+    /^@craftstation\/agents-usage(?:\/|$)/,
     // @opencode-ai/sdk exposes import-only ESM subpaths. Leaving it external in
     // the CJS Supervisor turns the generated import into require(), which Node
     // rejects with ERR_PACKAGE_PATH_NOT_EXPORTED before the app can start.
@@ -183,7 +183,7 @@ export default defineConfig([
     platform: "node" as const,
     format: "esm" as const,
     // The external SDK's documented floor is Node 22.13. Keep this portable
-    // worker compiled for Node 22 even though Poracode itself requires Node 24.
+    // worker compiled for Node 22 even though CraftStation itself requires Node 24.
     target: "node22" as const,
     sourcemap,
     dts: false,

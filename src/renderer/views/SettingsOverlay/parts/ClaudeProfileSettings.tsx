@@ -102,7 +102,7 @@ function EffortMultiSelect(props: {
             role="listbox"
             aria-label={t`Effort levels`}
             aria-multiselectable="true"
-            className="poracode-menu py-1"
+            className="craftstation-menu py-1"
           >
             {props.onInherit ? (
               <button
@@ -172,7 +172,7 @@ function PresetMenu(props: { onApply: (preset: ProfilePreset) => void }) {
       </Popover.Trigger>
       <Popover.Content placement="bottom end" className="w-40 p-0">
         <Popover.Dialog className="!p-0">
-          <div role="menu" aria-label={t`Provider presets`} className="poracode-menu py-1">
+          <div role="menu" aria-label={t`Provider presets`} className="craftstation-menu py-1">
             {PROFILE_PRESETS.map((preset) => (
               <button
                 key={preset.id}
@@ -635,7 +635,7 @@ export const claudeProfileSupport: NativeAgentProfileSupport = {
   RowSubtitle: ClaudeProfileConfigDir,
   removalBody: (profileName) => (
     <Trans>
-      Removing {profileName} drops its Poracode settings — env vars, models, and effort. Its config
+      Removing {profileName} drops its CraftStation settings — env vars, models, and effort. Its config
       directory and the Claude credentials inside it stay on disk.
     </Trans>
   ),

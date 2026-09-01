@@ -32,6 +32,7 @@ import {
   detectAntigravityTerminalStatus,
   syncAntigravityConfigFromTerminalState,
 } from "./terminal";
+import { createAntigravityStructuredSession } from "./structuredSession";
 
 export { detectAntigravityInvalidSessionRef } from "./session";
 
@@ -116,6 +117,13 @@ export function createAntigravityAdapter(): AgentAdapter {
         ...(status?.executablePath ? { executablePath: status.executablePath } : {}),
         wslDistros,
         allowSpawn: status?.authState === "authenticated",
+      });
+    },
+
+    async createStructuredSession(input) {
+      return createAntigravityStructuredSession(input, {
+        supportsSeparateModelEffort,
+        defaultModel,
       });
     },
 

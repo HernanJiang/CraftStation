@@ -4,12 +4,12 @@
       "version": "1.6.5",
       "date": "2026-08-18",
       "title": "Windows shell preferences, sturdier ACP agents & smarter PR targets",
-      "summary": "You can now choose which Windows shell runs your terminals and which one Poracode uses behind the scenes. Removing an ACP agent, opening a pull request from a worktree, and closing the app all behave the way you expect.",
+      "summary": "You can now choose which Windows shell runs your terminals and which one CraftStation uses behind the scenes. Removing an ACP agent, opening a pull request from a worktree, and closing the app all behave the way you expect.",
       "changes": [
         {
           "kind": "added",
           "label": "Windows",
-          "text": "You can now choose which shell the Terminal panel opens — PowerShell 7, Windows PowerShell 5.1, or Command Prompt — pick a separate PowerShell host for agents, logins, installs, and Poracode's internal commands, and pass extra arguments such as -NoProfile to every new terminal session."
+          "text": "You can now choose which shell the Terminal panel opens — PowerShell 7, Windows PowerShell 5.1, or Command Prompt — pick a separate PowerShell host for agents, logins, installs, and CraftStation's internal commands, and pass extra arguments such as -NoProfile to every new terminal session."
         },
         {
           "kind": "improved",
@@ -23,7 +23,7 @@
         },
         {
           "kind": "improved",
-          "text": "An agent that reports a successful sign-in Poracode cannot confirm now explains how to finish setup instead of showing a raw error, and an environment with a working session no longer asks you to log in again."
+          "text": "An agent that reports a successful sign-in CraftStation cannot confirm now explains how to finish setup instead of showing a raw error, and an environment with a working session no longer asks you to log in again."
         },
         {
           "kind": "fixed",
@@ -38,7 +38,7 @@
         {
           "kind": "fixed",
           "label": "Windows",
-          "text": "Closing the main window now quits Poracode when close-to-tray is off, instead of leaving the app running with nothing on screen."
+          "text": "Closing the main window now quits CraftStation when close-to-tray is off, instead of leaving the app running with nothing on screen."
         },
         {
           "kind": "fixed",
@@ -56,7 +56,7 @@
       "version": "1.6.4",
       "date": "2026-08-17",
       "title": "Codex context windows, Home permissions & project terminals",
-      "summary": "Poracode adds configurable context windows and compaction thresholds for Codex, enables unrestricted agent sessions in your Home directory, and adds direct terminal access to project menus. Branch tracking in worktrees and ACP skill badges in the composer also get useful fixes.",
+      "summary": "CraftStation adds configurable context windows and compaction thresholds for Codex, enables unrestricted agent sessions in your Home directory, and adds direct terminal access to project menus. Branch tracking in worktrees and ACP skill badges in the composer also get useful fixes.",
       "changes": [
         {
           "kind": "added",
@@ -89,12 +89,12 @@
       "version": "1.6.3",
       "date": "2026-08-16",
       "title": "Muse Code, Claude skills & sturdier sessions",
-      "summary": "Poracode adds Muse Code as a first-class terminal agent, surfaces Claude's own skills in the composer, and keeps launches and follow-ups alive when you switch panes or a session disappears.",
+      "summary": "CraftStation adds Muse Code as a first-class terminal agent, surfaces Claude's own skills in the composer, and keeps launches and follow-ups alive when you switch panes or a session disappears.",
       "changes": [
         {
           "kind": "added",
           "label": "Muse Code",
-          "text": "You can now run Meta's Muse Code CLI as a terminal session in Poracode — pick Muse Spark models and reasoning effort, sign in from Settings, and resume where you left off. On Windows, install it through WSL."
+          "text": "You can now run Meta's Muse Code CLI as a terminal session in CraftStation — pick Muse Spark models and reasoning effort, sign in from Settings, and resume where you left off. On Windows, install it through WSL."
         },
         {
           "kind": "improved",
@@ -112,7 +112,7 @@
         },
         {
           "kind": "fixed",
-          "text": "If a session is gone when you send a message — after a restart or unload — Poracode relaunches it and delivers the prompt instead of dropping it, including from the send_to_thread MCP tool. Interrupting a thread whose session already died now settles it to Inactive instead of leaving it stuck Working."
+          "text": "If a session is gone when you send a message — after a restart or unload — CraftStation relaunches it and delivers the prompt instead of dropping it, including from the send_to_thread MCP tool. Interrupting a thread whose session already died now settles it to Inactive instead of leaving it stuck Working."
         },
         {
           "kind": "fixed",
@@ -125,7 +125,7 @@
       "version": "1.6.2",
       "date": "2026-08-11",
       "title": "Agent Plugins, merged PR sync & stoppable actions",
-      "summary": "A big feature release: Poracode adds a standards-based Agent Plugins marketplace, syncs merged pull request branches automatically, and lets you stop running project actions from context menus. Worktree launches, pane placement, subagent status, usage reporting, and provider reliability all get substantial polish.",
+      "summary": "A big feature release: CraftStation adds a standards-based Agent Plugins marketplace, syncs merged pull request branches automatically, and lets you stop running project actions from context menus. Worktree launches, pane placement, subagent status, usage reporting, and provider reliability all get substantial polish.",
       "changes": [
         {
           "kind": "added",
@@ -140,12 +140,12 @@
         {
           "kind": "added",
           "label": "Worktrees",
-          "text": "Worktree threads launch more responsively: your message appears instantly with a live \"Creating worktree…\" indicator while Poracode sets everything up."
+          "text": "Worktree threads launch more responsively: your message appears instantly with a live \"Creating worktree…\" indicator while CraftStation sets everything up."
         },
         {
           "kind": "added",
           "label": "Pull requests",
-          "text": "After you merge a pull request, Poracode pulls the merged base branch into your checkout once per project, and sync badges now appear on experiment groups, thread groups, and thread rows until the pull completes."
+          "text": "After you merge a pull request, CraftStation pulls the merged base branch into your checkout once per project, and sync badges now appear on experiment groups, thread groups, and thread rows until the pull completes."
         },
         {
           "kind": "added",
@@ -154,7 +154,7 @@
         {
           "kind": "added",
           "label": "MCP",
-          "text": "The Poracode MCP server can identify the current thread and list or read live terminal panes with worktree-scoped scrollback, and you can @-mention Terminal in the composer when app controls are enabled."
+          "text": "The CraftStation MCP server can identify the current thread and list or read live terminal panes with worktree-scoped scrollback, and you can @-mention Terminal in the composer when app controls are enabled."
         },
         {
           "kind": "added",
@@ -363,12 +363,12 @@
       "version": "1.6.0",
       "date": "2026-08-03",
       "title": "Remote machines, GitHub Actions & PR automation",
-      "summary": "Poracode now runs agents on remote machines over SSH, manages GitHub Actions, and automates pull request fixes and merges. This release also adds project workspaces, configurable Crossagents routing, structured Cursor SDK chat, goal controls for Codex and Grok, and performance and reliability improvements.",
+      "summary": "CraftStation now runs agents on remote machines over SSH, manages GitHub Actions, and automates pull request fixes and merges. This release also adds project workspaces, configurable Crossagents routing, structured Cursor SDK chat, goal controls for Codex and Grok, and performance and reliability improvements.",
       "changes": [
         {
           "kind": "added",
           "label": "Remote",
-          "text": "Connect a machine from your SSH config to install the Poracode runtime and run agents, clone repositories, open threads and terminals, and review Git while project data remains on the remote machine."
+          "text": "Connect a machine from your SSH config to install the CraftStation runtime and run agents, clone repositories, open threads and terminals, and review Git while project data remains on the remote machine."
         },
         {
           "kind": "added",
@@ -491,7 +491,7 @@
       "version": "1.5.3",
       "date": "2026-07-24",
       "title": "Pi & Qoder agents, Opus 5, a mobile workspace & synced notes",
-      "summary": "Poracode gains two new coding agents — Pi and Qoder — defaults new Claude threads to Opus 5, and turns the mobile web app into a real workspace with a dockable side panel and notes and to-dos that sync with your desktop. Subagents get their own views, provider token usage finally survives restarts, and a wide round of mobile and notification fixes completes the release.",
+      "summary": "CraftStation gains two new coding agents — Pi and Qoder — defaults new Claude threads to Opus 5, and turns the mobile web app into a real workspace with a dockable side panel and notes and to-dos that sync with your desktop. Subagents get their own views, provider token usage finally survives restarts, and a wide round of mobile and notification fixes completes the release.",
       "changes": [
         {
           "kind": "added",
@@ -525,7 +525,7 @@
         },
         {
           "kind": "added",
-          "text": "Agents connected to the built-in Poracode MCP server can now orchestrate the whole app — managing threads, projects, files, Git, GitHub pull requests, MCP servers, skills, and settings."
+          "text": "Agents connected to the built-in CraftStation MCP server can now orchestrate the whole app — managing threads, projects, files, Git, GitHub pull requests, MCP servers, skills, and settings."
         },
         {
           "kind": "improved",
@@ -589,12 +589,12 @@
       "version": "1.5.2",
       "date": "2026-07-21",
       "title": "Web push, richer ACP agents & smoother chat",
-      "summary": "Installed Poracode web apps can now notify you when remote agents need attention, Qwen exposes its live goals, and Kimi and Qwen show background subagent work as it happens. A broad set of provider, chat, mobile, and browser refinements makes everyday sessions more reliable.",
+      "summary": "Installed CraftStation web apps can now notify you when remote agents need attention, Qwen exposes its live goals, and Kimi and Qwen show background subagent work as it happens. A broad set of provider, chat, mobile, and browser refinements makes everyday sessions more reliable.",
       "changes": [
         {
           "kind": "added",
           "label": "Remote",
-          "text": "Installed Poracode web apps can now receive push notifications from a paired desktop—even while suspended—when an agent finishes or needs input."
+          "text": "Installed CraftStation web apps can now receive push notifications from a paired desktop—even while suspended—when an agent finishes or needs input."
         },
         {
           "kind": "added",
@@ -621,8 +621,8 @@
         },
         {
           "kind": "improved",
-          "label": "Poracode",
-          "text": "Poracode's icon set is refreshed across desktop, tray, mobile, web, and browser surfaces, while the website gains a dedicated About page and clearer remote-pairing presentation."
+          "label": "CraftStation",
+          "text": "CraftStation's icon set is refreshed across desktop, tray, mobile, web, and browser surfaces, while the website gains a dedicated About page and clearer remote-pairing presentation."
         },
         {
           "kind": "fixed",
@@ -630,7 +630,7 @@
         },
         {
           "kind": "fixed",
-          "text": "Browser screenshots no longer include Poracode's presence cursor or click ripple, and Codex can use Poracode's Browser MCP without a conflicting browser skill overriding it."
+          "text": "Browser screenshots no longer include CraftStation's presence cursor or click ripple, and Codex can use CraftStation's Browser MCP without a conflicting browser skill overriding it."
         },
         {
           "kind": "fixed",
@@ -643,40 +643,40 @@
       "version": "1.5.1",
       "date": "2026-07-19",
       "title": "Smoother macOS rebrand upgrades",
-      "summary": "A focused hotfix makes the move from Lightcode to Poracode seamless on macOS, with reliable relaunching, correctly sized Dock artwork, and release notes highlighted in the sidebar after updating.",
+      "summary": "A focused hotfix makes the move from CraftStation to CraftStation seamless on macOS, with reliable relaunching, correctly sized Dock artwork, and release notes highlighted in the sidebar after updating.",
       "changes": [
         {
           "kind": "fixed",
           "label": "Updates",
-          "text": "Poracode now relaunches automatically after updating an existing Lightcode installation on macOS."
+          "text": "CraftStation now relaunches automatically after updating an existing CraftStation installation on macOS."
         },
         {
           "kind": "fixed",
           "label": "Dock",
-          "text": "The Poracode Dock icon now keeps the correct macOS optical size when the app launches instead of visibly growing."
+          "text": "The CraftStation Dock icon now keeps the correct macOS optical size when the app launches instead of visibly growing."
         },
         {
           "kind": "fixed",
           "label": "What's New",
-          "text": "Your previous changelog state now carries over from Lightcode, and What's New appears in the sidebar after an update without interrupting launch."
+          "text": "Your previous changelog state now carries over from CraftStation, and What's New appears in the sidebar after an update without interrupting launch."
         }
       ]
     },
     {
       "version": "1.5.0",
       "date": "2026-07-17",
-      "title": "Poracode arrives with mobile access & cross-provider agents",
-      "summary": "A big feature release, and the first under the Poracode name: Lightcode graduates into Poracode with a brand-new identity, your threads follow you to any phone or browser through the Poracode PWA, and your agents can now hand work to one another across providers. New agents, a full MCP toolkit, multi-agent worktree experiments, and a chat rebuilt for long, tool-heavy sessions round it out.",
+      "title": "CraftStation arrives with mobile access & cross-provider agents",
+      "summary": "A big feature release, and the first under the CraftStation name: CraftStation graduates into CraftStation with a brand-new identity, your threads follow you to any phone or browser through the CraftStation PWA, and your agents can now hand work to one another across providers. New agents, a full MCP toolkit, multi-agent worktree experiments, and a chat rebuilt for long, tool-heavy sessions round it out.",
       "changes": [
         {
           "kind": "added",
-          "label": "Poracode",
-          "text": "Lightcode becomes Poracode — a new name and a fresh visual identity with the indigo Pora-dot wordmark, Geist type, and refreshed dark and moonlight themes, all with a new home at poracode.com; your projects, settings, and automatic updates carry over."
+          "label": "CraftStation",
+          "text": "CraftStation becomes CraftStation — a new name and a fresh visual identity with the indigo Pora-dot wordmark, Geist type, and refreshed dark and moonlight themes, all with a new home at craftstation.com; your projects, settings, and automatic updates carry over."
         },
         {
           "kind": "added",
           "label": "PWA",
-          "text": "Take your work anywhere with the Poracode PWA at app.poracode.com — pair it with your desktop over your local network or an SSH connection to follow live threads, read terminal output, and send messages from a phone or any browser, with dynamic port forwarding and native iOS and Android betas on the way."
+          "text": "Take your work anywhere with the CraftStation PWA at app.craftstation.com — pair it with your desktop over your local network or an SSH connection to follow live threads, read terminal output, and send messages from a phone or any browser, with dynamic port forwarding and native iOS and Android betas on the way."
         },
         {
           "kind": "added",
@@ -691,12 +691,12 @@
         {
           "kind": "added",
           "label": "Qwen Code",
-          "text": "Run Qwen Code as a built-in agent through native terminal or ACP sessions, sign in from your browser or paste an API key, and track your usage quotas from Poracode."
+          "text": "Run Qwen Code as a built-in agent through native terminal or ACP sessions, sign in from your browser or paste an API key, and track your usage quotas from CraftStation."
         },
         {
           "kind": "added",
           "label": "MCP",
-          "text": "A full MCP toolkit lands: manage MCP servers globally and toggle them per thread, give agents computer-use control of your desktop, connect an external Chrome browser, and let scheduled tasks run agents automatically or drive Poracode itself through app-control tools."
+          "text": "A full MCP toolkit lands: manage MCP servers globally and toggle them per thread, give agents computer-use control of your desktop, connect an external Chrome browser, and let scheduled tasks run agents automatically or drive CraftStation itself through app-control tools."
         },
         {
           "kind": "added",
@@ -773,7 +773,7 @@
         },
         {
           "kind": "fixed",
-          "text": "Claude usage keeps loading after your sign-in token expires — Poracode now renews it automatically instead of showing a misleading “Not signed in”."
+          "text": "Claude usage keeps loading after your sign-in token expires — CraftStation now renews it automatically instead of showing a misleading “Not signed in”."
         }
       ]
     },
@@ -804,12 +804,12 @@
     {
       "version": "1.4.0",
       "date": "2026-06-28",
-      "title": "Poracode in 13 languages, a dockable browser & custom shortcuts",
-      "summary": "A big feature release: Poracode now speaks 13 languages, the built-in browser pops out into its own window with a real address bar and bookmarks, and you can rebind every keyboard shortcut. New usage providers, configurable worktree placement, and a built-in What's New round it out, alongside broad reliability fixes.",
+      "title": "CraftStation in 13 languages, a dockable browser & custom shortcuts",
+      "summary": "A big feature release: CraftStation now speaks 13 languages, the built-in browser pops out into its own window with a real address bar and bookmarks, and you can rebind every keyboard shortcut. New usage providers, configurable worktree placement, and a built-in What's New round it out, alongside broad reliability fixes.",
       "changes": [
         {
           "kind": "added",
-          "text": "Poracode is now available in 13 languages — English, Spanish, Russian, Ukrainian, Simplified Chinese, Japanese, Brazilian Portuguese, German, French, Korean, Polish, Vietnamese, and Turkish — with a new Language setting to choose your display language or follow your operating system, and a separate language for AI-generated commit messages and pull request summaries."
+          "text": "CraftStation is now available in 13 languages — English, Spanish, Russian, Ukrainian, Simplified Chinese, Japanese, Brazilian Portuguese, German, French, Korean, Polish, Vietnamese, and Turkish — with a new Language setting to choose your display language or follow your operating system, and a separate language for AI-generated commit messages and pull request summaries."
         },
         {
           "kind": "added",
@@ -829,7 +829,7 @@
         },
         {
           "kind": "added",
-          "text": "Choose where Poracode creates git worktrees — in one shared folder or nested inside each project under .poracode/worktrees — with per-project overrides for native and WSL paths, and point a project at its new location if you move its folder on disk."
+          "text": "Choose where CraftStation creates git worktrees — in one shared folder or nested inside each project under .craftstation/worktrees — with per-project overrides for native and WSL paths, and point a project at its new location if you move its folder on disk."
         },
         {
           "kind": "added",
@@ -837,7 +837,7 @@
         },
         {
           "kind": "added",
-          "text": "Run GitHub Copilot and Cursor as new built-in agents you can install, update, and launch directly in Poracode."
+          "text": "Run GitHub Copilot and Cursor as new built-in agents you can install, update, and launch directly in CraftStation."
         },
         {
           "kind": "improved",
@@ -861,7 +861,7 @@
         },
         {
           "kind": "fixed",
-          "text": "System notifications now appear reliably, and clicking one brings Poracode to the front and opens the thread that triggered it."
+          "text": "System notifications now appear reliably, and clicking one brings CraftStation to the front and opens the thread that triggered it."
         },
         {
           "kind": "fixed",
@@ -893,7 +893,7 @@
         },
         {
           "kind": "fixed",
-          "text": "Deleting a Claude profile now clears its agent status across native, WSL, and discovery lists, keeping what Poracode detects in sync with your saved profiles."
+          "text": "Deleting a Claude profile now clears its agent status across native, WSL, and discovery lists, keeping what CraftStation detects in sync with your saved profiles."
         }
       ]
     },
@@ -909,7 +909,7 @@
         },
         {
           "kind": "added",
-          "text": "Start a new project by cloning any GitHub repository directly from Poracode."
+          "text": "Start a new project by cloning any GitHub repository directly from CraftStation."
         },
         {
           "kind": "added",
@@ -957,7 +957,7 @@
         },
         {
           "kind": "added",
-          "text": "Poracode now supports Claude Fable 5, so you can run the latest Claude model directly in your sessions."
+          "text": "CraftStation now supports Claude Fable 5, so you can run the latest Claude model directly in your sessions."
         },
         {
           "kind": "improved",
@@ -981,7 +981,7 @@
       "version": "1.2.0",
       "date": "2026-06-05",
       "title": "Provider usage tracking, Command Code, and rebuilt themes",
-      "summary": "A big feature release: track your provider quotas and usage for Claude Code, Codex, and more in one place, run the new Command Code CLI entirely inside Poracode, and enjoy fully rebuilt light and dark themes. Git worktrees are faster with inline diffs and live status, and WSL and Windows support is stronger across the board.",
+      "summary": "A big feature release: track your provider quotas and usage for Claude Code, Codex, and more in one place, run the new Command Code CLI entirely inside CraftStation, and enjoy fully rebuilt light and dark themes. Git worktrees are faster with inline diffs and live status, and WSL and Windows support is stronger across the board.",
       "changes": [
         {
           "kind": "added",
@@ -989,7 +989,7 @@
         },
         {
           "kind": "added",
-          "text": "Command Code joins as a built-in CLI provider that you can install, update, log in to, and resume sessions with entirely inside Poracode."
+          "text": "Command Code joins as a built-in CLI provider that you can install, update, log in to, and resume sessions with entirely inside CraftStation."
         },
         {
           "kind": "added",
@@ -1033,11 +1033,11 @@
       "version": "1.1.1",
       "date": "2026-05-30",
       "title": "Smoother microphone access and wider file reach",
-      "summary": "A focused patch that smooths out microphone permissions and lets Poracode open files beyond your active project, plus a fix for links to deeply nested paths.",
+      "summary": "A focused patch that smooths out microphone permissions and lets CraftStation open files beyond your active project, plus a fix for links to deeply nested paths.",
       "changes": [
         {
           "kind": "improved",
-          "text": "Poracode now handles OS-level microphone permission gracefully and gives you a direct link to system settings when access needs to be granted."
+          "text": "CraftStation now handles OS-level microphone permission gracefully and gives you a direct link to system settings when access needs to be granted."
         },
         {
           "kind": "added",
@@ -1116,12 +1116,12 @@
     {
       "version": "1.0.0",
       "date": "2026-05-22",
-      "title": "Poracode reaches its first stable release",
-      "summary": "The first stable public release of Poracode, graduating from the 0.9.x betas into a polished build with refreshed chrome, smoother Browser MCP controls, and better multi-agent diff handling.",
+      "title": "CraftStation reaches its first stable release",
+      "summary": "The first stable public release of CraftStation, graduating from the 0.9.x betas into a polished build with refreshed chrome, smoother Browser MCP controls, and better multi-agent diff handling.",
       "changes": [
         {
           "kind": "added",
-          "text": "Poracode reaches its first stable public release, bringing the workspace-native experience for orchestrating Claude, Codex, Gemini, Grok, Command Code, and other coding agents out of beta."
+          "text": "CraftStation reaches its first stable public release, bringing the workspace-native experience for orchestrating Claude, Codex, Gemini, Grok, Command Code, and other coding agents out of beta."
         },
         {
           "kind": "improved",

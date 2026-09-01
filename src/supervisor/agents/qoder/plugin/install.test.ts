@@ -18,7 +18,7 @@ describe("installQoderPlugin", () => {
 
     expect(existsSync(join(result.paths.pluginDir, "plugin.json"))).toBe(true);
     expect(existsSync(join(result.paths.pluginDir, "forward.mjs"))).toBe(true);
-    expect(existsSync(join(result.paths.pluginDir, "poracode-hook-runtime.mjs"))).toBe(true);
+    expect(existsSync(join(result.paths.pluginDir, "craftstation-hook-runtime.mjs"))).toBe(true);
 
     const settings = JSON.parse(readFileSync(result.paths.settingsPath, "utf8")) as {
       hooks: Record<string, Array<{ hooks: Array<{ type: string; command: string }> }>>;

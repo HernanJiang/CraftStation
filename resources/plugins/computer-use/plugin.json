@@ -4,14 +4,14 @@
   "version": "1.1.0",
   "description": "Control desktop apps and complete visual workflows.",
   "author": {
-    "name": "Poracode",
-    "url": "https://poracode.com"
+    "name": "CraftStation",
+    "url": "https://craftstation.com"
   },
-  "homepage": "https://poracode.com",
+  "homepage": "https://craftstation.com",
   "license": "Apache-2.0",
   "keywords": ["desktop", "automation", "computer-use"],
   "extensions": {
-    "com.poracode.client": {
+    "com.craftstation.client": {
       "title": "Computer Use",
       "category": "automation",
       "featured": true,
@@ -25,7 +25,7 @@
       "skills": {
         "computer-use": {
           "name": "Computer Use",
-          "description": "Operate desktop apps through Poracode's desktop-control tools.",
+          "description": "Operate desktop apps through CraftStation's desktop-control tools.",
           "nativePluginName": "computer-use",
           "nativeSkill": "computer-use"
         }

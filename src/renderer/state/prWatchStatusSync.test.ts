@@ -94,7 +94,7 @@ describe("prWatchStatusSync", () => {
   beforeEach(() => {
     syncMergedPrBaseMock.mockReset();
     syncMergedPrBaseMock.mockResolvedValue(undefined);
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       value: {
         platform: "darwin",

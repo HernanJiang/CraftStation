@@ -98,7 +98,7 @@ const isSubAgentTool = (name: string): boolean =>
 
 /**
  * Structured (GUI) Pi session backed by the user's installed `pi --mode rpc`
- * CLI rather than the bundled SDK. Poracode drives the installed agent over
+ * CLI rather than the bundled SDK. CraftStation drives the installed agent over
  * stdin/stdout JSONL, mirroring how the Claude/OpenCode adapters drive their
  * installed CLIs — no Pi SDK is bundled into the app.
  */

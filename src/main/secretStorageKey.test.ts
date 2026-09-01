@@ -19,7 +19,7 @@ describe("readOrCreateSafeStorageSecretKey", () => {
   let consoleWarn: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "poracode-safe-storage-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-safe-storage-"));
     consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
     safeStorageMock.decryptString.mockReset();
     safeStorageMock.encryptString.mockReset().mockImplementation((value) => Buffer.from(value));
@@ -101,7 +101,7 @@ describe("readOrCreateSafeStorageSecretKey", () => {
     });
 
     expect(() => readOrCreateSafeStorageSecretKey(dir, "linux")).toThrow(
-      "Unable to encrypt the Poracode secret storage key.",
+      "Unable to encrypt the CraftStation secret storage key.",
     );
     expect(() => readFileSync(join(dir, "secret-key.safe"))).toThrow(/ENOENT|no such file/i);
   });

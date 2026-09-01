@@ -116,7 +116,7 @@ describe("buildAntigravityArgs", () => {
     ]);
   });
 
-  it("maps Poracode bypass and sandbox config to agy flags", () => {
+  it("maps CraftStation bypass and sandbox config to agy flags", () => {
     expect(
       buildAntigravityArgs({ ...config, approvalPolicy: "yolo", sandboxMode: "sandbox" }, ""),
     ).toEqual([
@@ -191,6 +191,17 @@ describe("createAntigravityAdapter", () => {
     expect(adapter.capabilities.modes).toEqual(["agent", "plan"]);
     expect(adapter.capabilities.defaultApprovalPolicy).toBe("yolo");
     expect(adapter.defaultOneShotModel).toBe(ANTIGRAVITY_DEFAULT_MODEL_ID);
+    expect(adapter.capabilities).toMatchObject({
+      liveInputMode: "server",
+      presentationMode: "gui",
+      presentationModes: ["gui"],
+      mcpScope: { terminal: "none", gui: "launch" },
+      supportedMcpTransports: ["stdio", "http"],
+      supportsMcpHttpHeaders: false,
+      requiresSecretFreeMcpConfig: true,
+      supportsMcpInWsl: false,
+    });
+    expect(adapter.createStructuredSession).toBeTypeOf("function");
   });
 
   it("advertises a terminal login method and bare-agy login command", async () => {
@@ -213,7 +224,7 @@ describe("createAntigravityAdapter", () => {
     expect(result?.authLogoutSupported).toBeUndefined();
   });
 
-  it("wires no ACP auth/logout dispatch (agy is terminal-only, not ACP)", () => {
+  it("keeps auth/logout outside ACP because agy uses stream-json plus terminal OAuth", () => {
     const adapter = createAntigravityAdapter();
 
     expect(adapter.buildAcpAuthCommand).toBeUndefined();
@@ -365,7 +376,7 @@ describe("createAntigravityAdapter", () => {
   });
 
   it("binds linked-worktree launches and subagents to a dedicated agy project", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "poracode-antigravity-worktree-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "craftstation-antigravity-worktree-"));
     writeFileSync(join(projectDir, ".git"), "gitdir: /repo/.git/worktrees/feature\n");
     const location: ProjectLocation = { kind: "posix", path: projectDir };
     const adapter = createAntigravityAdapter();
@@ -670,7 +681,7 @@ describe("detectAntigravityTerminalStatus", () => {
       "      ▄▀▀▄        Antigravity CLI 1.0.0",
       "     ▀▀▀▀▀▀       user@example.com",
       "    ▀▀▀▀▀▀▀▀      Gemini 3.5 Flash (High)",
-      "   ▄▀▀    ▀▀▄     ~/work/poracode",
+      "   ▄▀▀    ▀▀▄     ~/work/craftstation",
       "",
       "────────────────────────────────────────────────────────────────────────────────",
       ">",

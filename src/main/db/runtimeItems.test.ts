@@ -53,9 +53,9 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
 
   beforeEach(() => {
     if (nativeBindingEnv) {
-      process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
+      process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
     }
-    dir = mkdtempSync(join(tmpdir(), "poracode-runtime-db-test-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-runtime-db-test-"));
     initDatabase(join(dir, "state.sqlite"));
     dbUpsertProject(
       {
@@ -72,7 +72,7 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
   afterEach(() => {
     closeDatabase();
     rmSync(dir, { recursive: true, force: true });
-    delete process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING;
+    delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
   });
 
   it("applies streamed item and context updates without replacing the transcript", () => {

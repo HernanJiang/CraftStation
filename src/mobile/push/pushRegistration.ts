@@ -1,6 +1,6 @@
 import { registerPlugin } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
-import { ActivityBridge } from "@poracode/activity-bridge";
+import { ActivityBridge } from "@craftstation/activity-bridge";
 import type { RemotePushClient, RemotePushRegistration } from "@/shared/remote";
 
 /**
@@ -8,7 +8,7 @@ import type { RemotePushClient, RemotePushRegistration } from "@/shared/remote";
  *
  * iOS: collects the ordinary APNs device token (via
  * `@capacitor/push-notifications`), plus the Live Activity push-to-start token
- * and per-activity update tokens (via `@poracode/activity-bridge`).
+ * and per-activity update tokens (via `@craftstation/activity-bridge`).
  *
  * Android: the same `@capacitor/push-notifications` "registration" listener
  * yields the device's **FCM registration token** (Android has no native code

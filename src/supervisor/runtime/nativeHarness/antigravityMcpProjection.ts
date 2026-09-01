@@ -1,6 +1,5 @@
 import {
   existsSync,
-  lstatSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -10,12 +9,9 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ResolvedMcpServer } from "@/shared/contracts";
+import { hasCredentialLikeMcpLaunchFields, type ResolvedMcpServer } from "@/shared/contracts";
 
 const SESSION_HOME_PREFIX = "craftstation-agy-session-";
-const SECRET_KEY_NAME = /token|cookie|secret|password|authorization|api[_-]?key|credential/iu;
-const SECRET_ARGUMENT =
-  /(?:bearer\s+|(?:api[_-]?key|token|secret|password|authorization|cookie)\s*[:=])/iu;
 
 interface AntigravityMcpConfigEntry {
   disabled: false;
@@ -31,43 +27,27 @@ export interface AntigravityMcpProjection {
   dispose(): void;
 }
 
-function assertDiskSafeServer(server: ResolvedMcpServer): void {
-  if (server.transport.type === "sse") {
-    throw new Error(
-      `Antigravity selected MCP server '${server.name}' uses unsupported SSE transport.`,
-    );
-  }
+export interface AntigravityMcpProjectionOptions {
+  /** Test seam; production defaults to the provider's real native home. */
+  nativeHomeDir?: string;
+  /** Test seam; production defaults to the OS temporary directory. */
+  temporaryBaseDir?: string;
+}
+
+function diskUnsafeReason(server: ResolvedMcpServer): string | undefined {
+  if (server.transport.type === "sse") return "unsupported SSE transport";
   if (server.transport.type === "http" && Object.keys(server.transport.headers).length > 0) {
-    throw new Error(
-      `Antigravity selected HTTP MCP server '${server.name}' contains headers that cannot be written to a session config safely.`,
-    );
+    return "HTTP headers cannot be written to a session config safely";
   }
-  if (server.transport.type === "http") {
-    const url = new URL(server.transport.url);
-    if (
-      url.username ||
-      url.password ||
-      [...url.searchParams.keys()].some((key) => SECRET_KEY_NAME.test(key))
-    ) {
-      throw new Error(
-        `Antigravity selected HTTP MCP server '${server.name}' contains credential-like URL fields.`,
-      );
-    }
+  if (hasCredentialLikeMcpLaunchFields(server)) {
+    return server.transport.type === "stdio"
+      ? "credential-like command arguments cannot be written safely"
+      : "credential-like URL fields cannot be written safely";
   }
-  if (
-    server.transport.type === "stdio" &&
-    [server.transport.command, ...server.transport.args].some((value) =>
-      SECRET_ARGUMENT.test(value),
-    )
-  ) {
-    throw new Error(
-      `Antigravity selected MCP server '${server.name}' contains a credential-like command argument.`,
-    );
-  }
+  return undefined;
 }
 
 function configEntry(server: ResolvedMcpServer): AntigravityMcpConfigEntry {
-  assertDiskSafeServer(server);
   if (server.transport.type === "stdio") {
     return {
       disabled: false,
@@ -101,23 +81,31 @@ function mergeServerEnvironment(target: Record<string, string>, server: Resolved
  */
 export function createAntigravityMcpProjection(
   servers: readonly ResolvedMcpServer[],
+  options: AntigravityMcpProjectionOptions = {},
 ): AntigravityMcpProjection | undefined {
   if (servers.length === 0) return undefined;
 
   const processEnv: Record<string, string> = {};
   const mcpServers: Record<string, AntigravityMcpConfigEntry> = {};
   for (const server of servers) {
-    if (mcpServers[server.name]) {
+    const reason = diskUnsafeReason(server);
+    if (reason) {
+      // Name + reason only: never log URL, headers, env, args, or credentials.
+      console.warn(`[antigravity] skipped MCP server '${server.name}': ${reason}.`);
+      continue;
+    }
+    if (Object.hasOwn(mcpServers, server.name)) {
       throw new Error(`Duplicate Antigravity MCP server name '${server.name}'.`);
     }
     mcpServers[server.name] = configEntry(server);
     mergeServerEnvironment(processEnv, server);
   }
+  if (Object.keys(mcpServers).length === 0) return undefined;
 
-  const homeDir = mkdtempSync(join(tmpdir(), SESSION_HOME_PREFIX));
+  const homeDir = mkdtempSync(join(options.temporaryBaseDir ?? tmpdir(), SESSION_HOME_PREFIX));
   const isolatedGeminiDir = join(homeDir, ".gemini");
   const isolatedNativeHome = join(isolatedGeminiDir, "antigravity-cli");
-  const realNativeHome = join(homedir(), ".gemini", "antigravity-cli");
+  const realNativeHome = options.nativeHomeDir ?? join(homedir(), ".gemini", "antigravity-cli");
   const isolatedConversations = join(isolatedNativeHome, "conversations");
   const realConversations = join(realNativeHome, "conversations");
   const configDir = join(isolatedGeminiDir, "config");
@@ -128,14 +116,17 @@ export function createAntigravityMcpProjection(
   try {
     mkdirSync(configDir, { recursive: true });
     mkdirSync(isolatedNativeHome, { recursive: true });
-    if (existsSync(realConversations)) {
-      symlinkSync(
-        realConversations,
-        isolatedConversations,
-        process.platform === "win32" ? "junction" : "dir",
-      );
-      linkedConversations = true;
-    }
+    // Create the provider-owned persistent store before linking it. On a user's
+    // first real conversation the directory does not exist yet; omitting this
+    // step makes agy create it under the disposable HOME and resume breaks as
+    // soon as the projection is disposed.
+    mkdirSync(realConversations, { recursive: true });
+    symlinkSync(
+      realConversations,
+      isolatedConversations,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    linkedConversations = true;
     writeFileSync(configPath, `${JSON.stringify({ mcpServers }, null, 2)}\n`, {
       encoding: "utf8",
       mode: 0o600,
@@ -157,11 +148,9 @@ export function createAntigravityMcpProjection(
     dispose: () => {
       if (disposed) return;
       disposed = true;
-      if (
-        linkedConversations &&
-        existsSync(isolatedConversations) &&
-        lstatSync(isolatedConversations).isSymbolicLink()
-      ) {
+      // The linked directory contains persistent provider data. Remove only the
+      // link itself before recursively deleting the disposable projection home.
+      if (linkedConversations && existsSync(isolatedConversations)) {
         unlinkSync(isolatedConversations);
       }
       rmSync(homeDir, { recursive: true, force: true });

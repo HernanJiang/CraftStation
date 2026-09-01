@@ -1,7 +1,7 @@
 import {
   ALIBABA_TOKEN_PLAN_INTL_DASHBOARD_URL,
   allUsageProviderDescriptors,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import { isCommandCodeLoginCookieLive } from "./commandCodeLoginProbe";
 import { isOpenCodeLoginCookieLive } from "./openCodeLoginProbe";
 

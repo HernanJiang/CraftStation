@@ -131,8 +131,8 @@ resolveExecutablePath("dsh-jsonrpc-agent")
 全仓测试失败归属：
 
 - `remoteProcedureRouter.test.ts`：2 个 profile login procedure 未分类。
-- `poracodeData.migrate.test.ts`：迁移、marker、backup、lock、rollback 基线。
-- `channel.config-parity.test.ts`、`channel.test.ts`、`poracodePaths.test.ts`、`probeCwd.test.ts`：`.poracode` / `.craftstation` 品牌路径基线不一致。
+- `craftstationData.migrate.test.ts`：迁移、marker、backup、lock、rollback 基线。
+- `channel.config-parity.test.ts`、`channel.test.ts`、`craftstationPaths.test.ts`、`probeCwd.test.ts`：`.craftstation` / `.craftstation` 品牌路径基线不一致。
 - `supervisor/wsl/runtime/index.test.ts`：1 个 15 秒 timeout；这是本轮相较先前数字新增的环境性失败，没有证据指向 F41~F46。
 
 ## F41~F46 Status Matrix

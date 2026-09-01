@@ -97,7 +97,7 @@ describe("BrowserPanel", () => {
     const { container } = render(<BrowserPanel visible />);
     const webviews = container.querySelectorAll("webview");
     expect(webviews).toHaveLength(2);
-    expect(webviews[0]?.getAttribute("partition")).toBe("persist:lightcode-browser");
+    expect(webviews[0]?.getAttribute("partition")).toBe("persist:craftstation-browser");
     expect(webviews[0]?.getAttribute("allowpopups")).toBe("true");
     expect((webviews[0] as HTMLElement).style.display).toBe("flex");
     expect((webviews[1] as HTMLElement).style.display).toBe("none");

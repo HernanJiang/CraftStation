@@ -31,7 +31,7 @@ function makePlugin(
     source: "bundled",
     root: `/plugins/${name}`,
     manifest: { $schema: AGENT_PLUGINS_MANIFEST_SCHEMA_URL, name, version: "1.0.0" },
-    poracode: {
+    craftstation: {
       category: "developer-tools",
       featured: false,
       communityMaintained: false,
@@ -198,8 +198,8 @@ describe("plugin catalog", () => {
   it("resolves the plugin core skill and provider-native aliases", () => {
     const plugin = {
       ...BROWSER_TOOLS,
-      poracode: {
-        ...BROWSER_TOOLS.poracode,
+      craftstation: {
+        ...BROWSER_TOOLS.craftstation,
         coreSkill: "browser-control",
         nativePluginNames: ["browser"],
       },
@@ -214,8 +214,8 @@ describe("plugin catalog", () => {
     const plugin = {
       ...GITHUB,
       name: "outlook",
-      poracode: {
-        ...GITHUB.poracode,
+      craftstation: {
+        ...GITHUB.craftstation,
         nativePluginNames: ["outlook-email", "outlook-calendar"],
       },
     };

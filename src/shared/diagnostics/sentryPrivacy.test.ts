@@ -11,21 +11,21 @@ describe("sentryPrivacy", () => {
   it("keeps only allowlisted diagnostic tags", () => {
     const event = sanitizeSentryEvent({
       tags: {
-        "poracode.error_class": "/Users/alice/private-repo",
-        "poracode.failure_domain": "supervisor.ipc",
-        "poracode.operational": "true",
-        "poracode.provider": "codex",
-        "poracode.presentation": "terminal",
+        "craftstation.error_class": "/Users/alice/private-repo",
+        "craftstation.failure_domain": "supervisor.ipc",
+        "craftstation.operational": "true",
+        "craftstation.provider": "codex",
+        "craftstation.presentation": "terminal",
         repo: "secret-repo",
         user: "someone@example.com",
       },
     });
 
     expect(event.tags).toEqual({
-      "poracode.failure_domain": "supervisor.ipc",
-      "poracode.operational": "true",
-      "poracode.provider": "codex",
-      "poracode.presentation": "terminal",
+      "craftstation.failure_domain": "supervisor.ipc",
+      "craftstation.operational": "true",
+      "craftstation.provider": "codex",
+      "craftstation.presentation": "terminal",
     });
   });
 
@@ -33,7 +33,7 @@ describe("sentryPrivacy", () => {
     const event = sanitizeSentryEvent({
       breadcrumbs: [{ message: "terminal output" }],
       extra: { prompt: "write code", token: "secret" },
-      modules: { poracode: "0.1.7" },
+      modules: { craftstation: "0.1.7" },
       request: { url: "file:///Users/alice/work/repo" },
       server_name: "alice-macbook",
       user: { id: "alice" },
@@ -145,7 +145,7 @@ describe("sentryPrivacy", () => {
           transition: "failed",
         }),
         {
-          category: "poracode.diagnostic.transition",
+          category: "craftstation.diagnostic.transition",
           type: "info",
           message: "private prompt",
           data: {
@@ -161,7 +161,7 @@ describe("sentryPrivacy", () => {
 
     expect(event.breadcrumbs).toEqual([
       {
-        category: "poracode.diagnostic.transition",
+        category: "craftstation.diagnostic.transition",
         type: "info",
         level: "info",
         data: {
@@ -177,12 +177,12 @@ describe("sentryPrivacy", () => {
   it("keeps only stable privacy-safe fingerprints", () => {
     expect(
       sanitizeSentryEvent({
-        fingerprint: ["poracode", "supervisor.ipc", "write-terminal", "error"],
+        fingerprint: ["craftstation", "supervisor.ipc", "write-terminal", "error"],
       }).fingerprint,
-    ).toEqual(["poracode", "supervisor.ipc", "write-terminal", "error"]);
+    ).toEqual(["craftstation", "supervisor.ipc", "write-terminal", "error"]);
     expect(
       sanitizeSentryEvent({
-        fingerprint: ["poracode", "/Users/alice/private-repo"],
+        fingerprint: ["craftstation", "/Users/alice/private-repo"],
       }).fingerprint,
     ).toBeUndefined();
   });
@@ -194,8 +194,8 @@ describe("sentryPrivacy", () => {
     expect(
       prepareSentryEvent({
         tags: {
-          "poracode.feature_area": "supervisor-ipc",
-          "poracode.operation": operation,
+          "craftstation.feature_area": "supervisor-ipc",
+          "craftstation.operation": operation,
         },
         exception: { values: [{ value }] },
       }),
@@ -208,8 +208,8 @@ describe("sentryPrivacy", () => {
       const value = "Unknown thread session: 945a852b-4a68-42c2-ad9d-7671014abc71";
       const event = prepareSentryEvent({
         tags: {
-          "poracode.feature_area": "supervisor-ipc",
-          "poracode.operation": operation,
+          "craftstation.feature_area": "supervisor-ipc",
+          "craftstation.operation": operation,
         },
         exception: { values: [{ value }] },
       });
@@ -221,8 +221,8 @@ describe("sentryPrivacy", () => {
   it("does not drop a resize signature outside resizeTerminal", () => {
     const event = prepareSentryEvent({
       tags: {
-        "poracode.feature_area": "supervisor-ipc",
-        "poracode.operation": "startthread",
+        "craftstation.feature_area": "supervisor-ipc",
+        "craftstation.operation": "startthread",
       },
       exception: {
         values: [{ value: "Cannot resize a pty that has already exited" }],
@@ -236,7 +236,7 @@ describe("sentryPrivacy", () => {
 
   it("does not drop unknown errors at the beforeSend backstop", () => {
     const event = prepareSentryEvent({
-      tags: { "poracode.feature_area": "supervisor-ipc" },
+      tags: { "craftstation.feature_area": "supervisor-ipc" },
       exception: {
         values: [
           {
@@ -254,10 +254,10 @@ describe("sentryPrivacy", () => {
     ]);
   });
 
-  it("preserves the poracode context (channel, appVersion, packaged) while still dropping disallowed contexts", () => {
+  it("preserves the craftstation context (channel, appVersion, packaged) while still dropping disallowed contexts", () => {
     const event = sanitizeSentryEvent({
       contexts: {
-        poracode: {
+        craftstation: {
           appVersion: "0.9.5",
           channel: "nightly",
           packaged: true,
@@ -268,7 +268,7 @@ describe("sentryPrivacy", () => {
       },
     } satisfies SentryEventLike);
 
-    expect(event.contexts?.poracode).toEqual({
+    expect(event.contexts?.craftstation).toEqual({
       appVersion: "0.9.5",
       channel: "nightly",
       packaged: true,
@@ -287,10 +287,10 @@ describe("sentryPrivacy", () => {
         featureArea: "thread",
       }),
     ).toEqual({
-      "poracode.feature_area": "thread",
-      "poracode.presentation": "gui",
-      "poracode.provider": "codex",
-      "poracode.runtime_kind": "structured",
+      "craftstation.feature_area": "thread",
+      "craftstation.presentation": "gui",
+      "craftstation.provider": "codex",
+      "craftstation.runtime_kind": "structured",
     });
   });
 });

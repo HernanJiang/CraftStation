@@ -17,6 +17,7 @@ import { readBridge } from "./bridge";
 import {
   handleThreadStateNotification,
   shouldInspectThreadStateForNotification,
+  showInAppUserNotification,
 } from "./notifications";
 
 import { useAppStore } from "./state/appStore";
@@ -252,6 +253,9 @@ function handleSupervisorEvent(event: SupervisorEvent): void {
   }
   if (event.type === "thread-pending-steer") {
     useAppStore.getState().setPendingSteer(event.threadId, event.pending);
+  }
+  if (event.type === "thread-user-notification") {
+    showInAppUserNotification(event);
   }
   if (event.type === "thread-reset") {
     pendingRuntimeEvents.delete(event.threadId);

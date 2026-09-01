@@ -19,7 +19,7 @@ import { reconcileStagingStatus } from "./reconcileStagingStatus";
 import { DiffAnnotationView } from "../../DiffAnnotationView";
 
 const LARGE_DIFF_THRESHOLD = 500;
-const COMPOSER_FILE_DRAG_TYPE = "application/poracode-composer-file";
+const COMPOSER_FILE_DRAG_TYPE = "application/craftstation-composer-file";
 
 export function ConflictFileCard(props: {
   file: GitFileChange;

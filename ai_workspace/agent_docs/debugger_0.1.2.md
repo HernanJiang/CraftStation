@@ -42,7 +42,7 @@ Feature 主链仍未按 Spec 落地。产品 Craft 路径绕过 `harness-runtime
 
 ### Integration
 
-UI 切到 Craft Table 后，成功 Craft 会进入既有 chat draft launch，这只是 PoraCode 旧 thread 启动，不是 Entity/Session seam。Provenance 写到 renderer 进程内默认 store，且用 `store.threads[0]` 猜测 thread id。posix workspace 在 `ThreadDraftView` 被丢掉（只传 windows path）。
+UI 切到 Craft Table 后，成功 Craft 会进入既有 chat draft launch，这只是 CraftStation 旧 thread 启动，不是 Entity/Session seam。Provenance 写到 renderer 进程内默认 store，且用 `store.threads[0]` 猜测 thread id。posix workspace 在 `ThreadDraftView` 被丢掉（只传 windows path）。
 
 ### Regression
 

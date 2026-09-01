@@ -62,7 +62,7 @@ describe("agent plugin asset discovery", () => {
     const sources = discoverAgentPluginSources(agentsDir);
     const byKind = new Map(sources.map((source) => [source.kind, source.assets]));
 
-    expect(byKind.get("opencode")).toEqual(["plugin.json", "poracode-status.mjs"]);
+    expect(byKind.get("opencode")).toEqual(["plugin.json", "craftstation-status.mjs"]);
     for (const source of sources) {
       if (source.kind === "opencode") continue;
       expect(source.assets).toEqual(["plugin.json", "forward.mjs"]);
@@ -73,14 +73,14 @@ describe("agent plugin asset discovery", () => {
     const runtime = resolveSharedForwardRuntime(agentsDir);
 
     expect(runtime.src).toBe(
-      join(agentsDir, "plugin", "forward-runtime", "poracode-hook-runtime.mjs"),
+      join(agentsDir, "plugin", "forward-runtime", "craftstation-hook-runtime.mjs"),
     );
     expect(existsSync(runtime.src)).toBe(true);
-    expect(runtime.destRel).toBe(join("_runtime", "poracode-hook-runtime.mjs"));
+    expect(runtime.destRel).toBe(join("_runtime", "craftstation-hook-runtime.mjs"));
   });
 
   it("rejects provider plugins without exactly one supported runtime asset", () => {
-    const sourceAgentsDir = mkdtempSync(join(tmpdir(), "poracode-agent-sources-"));
+    const sourceAgentsDir = mkdtempSync(join(tmpdir(), "craftstation-agent-sources-"));
     tempDirs.push(sourceAgentsDir);
     const pluginDir = join(sourceAgentsDir, "example", "plugin");
     mkdirSync(pluginDir, { recursive: true });
@@ -91,14 +91,14 @@ describe("agent plugin asset discovery", () => {
     );
 
     writeFileSync(join(pluginDir, "forward.mjs"), "export {};\n");
-    writeFileSync(join(pluginDir, "poracode-status.mjs"), "export {};\n");
+    writeFileSync(join(pluginDir, "craftstation-status.mjs"), "export {};\n");
     expect(() => discoverAgentPluginSources(sourceAgentsDir)).toThrow(
       "example must provide exactly one runtime asset",
     );
   });
 
   it("fails before staging when the shared forward runtime is absent", () => {
-    const sourceAgentsDir = mkdtempSync(join(tmpdir(), "poracode-agent-sources-"));
+    const sourceAgentsDir = mkdtempSync(join(tmpdir(), "craftstation-agent-sources-"));
     tempDirs.push(sourceAgentsDir);
 
     expect(() => resolveSharedForwardRuntime(sourceAgentsDir)).toThrow(
@@ -107,7 +107,7 @@ describe("agent plugin asset discovery", () => {
   });
 
   it("stages byte-identical provider assets and the shared runtime", () => {
-    const destinationBase = mkdtempSync(join(tmpdir(), "poracode-agent-plugins-"));
+    const destinationBase = mkdtempSync(join(tmpdir(), "craftstation-agent-plugins-"));
     tempDirs.push(destinationBase);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 

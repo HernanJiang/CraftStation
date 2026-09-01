@@ -17,7 +17,7 @@ export function MobileSetupEmptyState(props: {
       title={isDesktop ? t`Connect desktop` : t`Add a project`}
       hint={
         isDesktop
-          ? t`Connect Poracode on your desktop before starting a thread.`
+          ? t`Connect CraftStation on your desktop before starting a thread.`
           : t`Projects live on the connected desktop. Add one before starting a thread.`
       }
       {...(props.onAction

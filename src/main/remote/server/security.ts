@@ -57,7 +57,7 @@ function resolveRateLimitClient(req: IncomingMessage): string {
 
 /**
  * A loopback web origin (any port), e.g. `http://localhost:3100` or
- * `http://127.0.0.1:8080`. The page itself is local, but its target Poracode
+ * `http://127.0.0.1:8080`. The page itself is local, but its target CraftStation
  * app may be any paired desktop/headless host. Pairing still requires the
  * one-time credential, and the resulting access token remains isolated to the
  * page's exact browser origin.

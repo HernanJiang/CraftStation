@@ -521,17 +521,17 @@ describe("sanitizeCommandCodeCwd", () => {
   // the raw path is sanitized — deterministic, and matching the verified
   // on-disk layout produced by @sindresorhus/slugify.
   it("maps a project cwd to command-code's projects/<dir> name", () => {
-    expect(sanitizeCommandCodeCwd("/Users/test-fixture-xyz/work/poracode")).toBe(
-      "users-test-fixture-xyz-work-poracode",
+    expect(sanitizeCommandCodeCwd("/Users/test-fixture-xyz/work/craftstation")).toBe(
+      "users-test-fixture-xyz-work-craftstation",
     );
   });
 
   it("lowercases and collapses dots and slashes (worktree + temp paths)", () => {
     expect(
       sanitizeCommandCodeCwd(
-        "/Users/test-fixture-xyz/.poracode/worktrees/lc-bbea/lc-golden-pixel-8f39b4b5",
+        "/Users/test-fixture-xyz/.craftstation/worktrees/lc-bbea/lc-golden-pixel-8f39b4b5",
       ),
-    ).toBe("users-test-fixture-xyz-poracode-worktrees-lc-bbea-lc-golden-pixel-8f39b4b5");
+    ).toBe("users-test-fixture-xyz-craftstation-worktrees-lc-bbea-lc-golden-pixel-8f39b4b5");
     expect(sanitizeCommandCodeCwd("/private/var/T/cc-dbg-ca.ppww")).toBe(
       "private-var-t-cc-dbg-ca-ppww",
     );

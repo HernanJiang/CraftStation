@@ -10,7 +10,7 @@ export interface ApnsConfig {
   teamId: string;
   /** PEM contents of the .p8 signing key, newlines normalized. */
   authKey: string;
-  /** App bundle id, e.g. com.poracode.app. */
+  /** App bundle id, e.g. com.craftstation.app. */
   topic: string;
   env: "production" | "sandbox";
   /** APNs host derived from `env`. */
@@ -51,14 +51,14 @@ export interface FcmConfig {
 export interface WebPushConfig {
   publicKey: string;
   privateKey: string;
-  /** VAPID contact URI, normally `mailto:support@poracode.com`. */
+  /** VAPID contact URI, normally `mailto:support@craftstation.com`. */
   subject: string;
 }
 
 export function getWebPushConfig(): WebPushConfig | null {
   const publicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
   const privateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
-  const subject = process.env.WEB_PUSH_VAPID_SUBJECT?.trim() || "mailto:support@poracode.com";
+  const subject = process.env.WEB_PUSH_VAPID_SUBJECT?.trim() || "mailto:support@craftstation.com";
   const base64Url = /^[A-Za-z0-9_-]+$/;
 
   if (!publicKey || !privateKey || !base64Url.test(publicKey) || !base64Url.test(privateKey)) {

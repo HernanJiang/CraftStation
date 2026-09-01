@@ -1,13 +1,13 @@
 import { clipboard } from "electron";
 import type { BrowserPanelManager } from "../browser";
-import type { PoracodePaths } from "@/shared/poracodePaths";
+import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import type { UsageLoginStateResponse } from "@/shared/contracts";
 import {
   collectOpenAiCompatible,
   createCredentialProbeHost,
   normalizeOpenAiCompatibleBaseUrl,
   validateVolcengineCredentials,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import { clearUsageSecret, hasUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import {
   PROVIDER_CONFIGS,
@@ -57,7 +57,7 @@ export class UsageLoginManager {
   private readonly antigravityOAuth: AntigravityOAuthManager;
 
   constructor(
-    private readonly paths: PoracodePaths,
+    private readonly paths: CraftStationPaths,
     private readonly getBrowserPanel: () => BrowserPanelManager | null,
   ) {
     this.antigravityOAuth = new AntigravityOAuthManager(paths.cacheDir);

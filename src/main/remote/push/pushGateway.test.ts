@@ -75,7 +75,7 @@ describe("push gateway client", () => {
 
     expect(onError).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn).toHaveBeenCalledWith("[poracode] Remote push send warning: transient-response.");
+    expect(warn).toHaveBeenCalledWith("[craftstation] Remote push send warning: transient-response.");
     expect(JSON.stringify(warn.mock.calls)).not.toContain("private");
     expect(JSON.stringify(warn.mock.calls)).not.toContain("subscription");
     warn.mockRestore();
@@ -116,7 +116,7 @@ describe("push gateway client", () => {
     expect(onError).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledTimes(2);
     for (const [reported] of warn.mock.calls) {
-      expect(reported).toBe("[poracode] Remote push send warning: timeout.");
+      expect(reported).toBe("[craftstation] Remote push send warning: timeout.");
       expect(reported).not.toContain("secret");
       expect(reported).not.toBe(rawFailure);
     }
@@ -140,7 +140,7 @@ describe("push gateway client", () => {
     expect(onError).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledOnce();
     expect(warn).toHaveBeenCalledWith(
-      "[poracode] Remote push resolve-web-key warning: transient-response.",
+      "[craftstation] Remote push resolve-web-key warning: transient-response.",
     );
     warn.mockRestore();
   });

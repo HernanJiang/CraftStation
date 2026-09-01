@@ -38,7 +38,7 @@ export const SHORTCUT_SECTIONS = [
   { id: "project", label: msg`Project`, groups: ["Project"] },
   { id: "thread", label: msg`Thread`, groups: ["Thread"] },
   { id: "scripts", label: msg`Scripts`, groups: ["Scripts"] },
-  { id: "general", label: msg`General`, groups: ["Poracode"] },
+  { id: "general", label: msg`General`, groups: ["CraftStation"] },
   { id: "custom", label: msg`Custom`, groups: ["Custom"] },
 ] as const;
 
@@ -156,7 +156,7 @@ export const LOCAL_SHORTCUTS: readonly LocalShortcut[] = [
     id: "overlay.close",
     title: msg`Close overlay`,
     description: msg`Panels and overlays`,
-    group: "Poracode",
+    group: "CraftStation",
     when: "panelFocus",
     keys: ["Escape"],
   },
@@ -308,7 +308,7 @@ export function buildShortcutRows(
 
   const systemRows = SYSTEM_SHORTCUTS.map((command) =>
     buildRebindableRow(command, () => ({
-      group: "Poracode",
+      group: "CraftStation",
       section: "general",
       contexts: ["global"],
       whenTemplate: null,

@@ -39,7 +39,7 @@ export type CursorSdkAuthSource = "option" | "environment";
 export type CursorSdkExecutionEnvironment = { kind: "native" } | { kind: "wsl"; distro: string };
 
 /**
- * Deliberately structural: Poracode does not depend on or bundle
+ * Deliberately structural: CraftStation does not depend on or bundle
  * `@cursor/sdk`. The session adapter can narrow additional SDK features at
  * its own boundary while the loader verifies the stable entry points it
  * needs to start or resume a local agent.

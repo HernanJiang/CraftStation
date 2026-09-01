@@ -46,7 +46,7 @@ vi.mock("./WorktreeGroupHeader", async (importOriginal) => {
 const worktreePath = "C:\\repo\\wt";
 const project = {
   id: "p1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "windows", path: "C:\\repo" },
   createdAt: "2026-08-08T00:00:00.000Z",
   scripts: { actions: [{ id: "build", name: "Build", command: "pnpm build" }] },

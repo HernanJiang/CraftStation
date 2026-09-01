@@ -16,10 +16,10 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		D10000000000000000000001 /* DesktopSessionLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* DesktopSessionLiveActivity.swift */; };
-		D10000000000000000000002 /* PoracodeActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* PoracodeActivitiesBundle.swift */; };
+		D10000000000000000000002 /* CraftStationActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* CraftStationActivitiesBundle.swift */; };
 		D10000000000000000000003 /* ThreadStatusDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000004 /* ThreadStatusDisplay.swift */; };
 		D10000000000000000000004 /* DesktopSessionAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000006 /* DesktopSessionAttributes.swift */; };
-		D10000000000000000000005 /* PoracodeActivities.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* PoracodeActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D10000000000000000000005 /* CraftStationActivities.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* CraftStationActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,7 +28,7 @@
 			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = D50000000000000000000001;
-			remoteInfo = PoracodeActivities;
+			remoteInfo = CraftStationActivities;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -39,7 +39,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				D10000000000000000000005 /* PoracodeActivities.appex in Embed App Extensions */,
+				D10000000000000000000005 /* CraftStationActivities.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -57,9 +57,9 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000001 /* PoracodeActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PoracodeActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D20000000000000000000001 /* CraftStationActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CraftStationActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D20000000000000000000002 /* DesktopSessionLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopSessionLiveActivity.swift; sourceTree = "<group>"; };
-		D20000000000000000000003 /* PoracodeActivitiesBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoracodeActivitiesBundle.swift; sourceTree = "<group>"; };
+		D20000000000000000000003 /* CraftStationActivitiesBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CraftStationActivitiesBundle.swift; sourceTree = "<group>"; };
 		D20000000000000000000004 /* ThreadStatusDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadStatusDisplay.swift; sourceTree = "<group>"; };
 		D20000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D20000000000000000000006 /* DesktopSessionAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DesktopSessionAttributes.swift; path = ../../native/activity-bridge/ios/Sources/ActivityBridgePlugin/DesktopSessionAttributes.swift; sourceTree = SOURCE_ROOT; };
@@ -89,7 +89,7 @@
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
-				D40000000000000000000001 /* PoracodeActivities */,
+				D40000000000000000000001 /* CraftStationActivities */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,7 +98,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
-				D20000000000000000000001 /* PoracodeActivities.appex */,
+				D20000000000000000000001 /* CraftStationActivities.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -118,16 +118,16 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		D40000000000000000000001 /* PoracodeActivities */ = {
+		D40000000000000000000001 /* CraftStationActivities */ = {
 			isa = PBXGroup;
 			children = (
 				D20000000000000000000006 /* DesktopSessionAttributes.swift */,
 				D20000000000000000000002 /* DesktopSessionLiveActivity.swift */,
 				D20000000000000000000005 /* Info.plist */,
-				D20000000000000000000003 /* PoracodeActivitiesBundle.swift */,
+				D20000000000000000000003 /* CraftStationActivitiesBundle.swift */,
 				D20000000000000000000004 /* ThreadStatusDisplay.swift */,
 			);
-			path = PoracodeActivities;
+			path = CraftStationActivities;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -155,9 +155,9 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
-		D50000000000000000000001 /* PoracodeActivities */ = {
+		D50000000000000000000001 /* CraftStationActivities */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D70000000000000000000003 /* Build configuration list for PBXNativeTarget "PoracodeActivities" */;
+			buildConfigurationList = D70000000000000000000003 /* Build configuration list for PBXNativeTarget "CraftStationActivities" */;
 			buildPhases = (
 				D30000000000000000000004 /* Sources */,
 				D30000000000000000000002 /* Frameworks */,
@@ -167,11 +167,11 @@
 			);
 			dependencies = (
 			);
-			name = PoracodeActivities;
+			name = CraftStationActivities;
 			packageProductDependencies = (
 			);
-			productName = PoracodeActivities;
-			productReference = D20000000000000000000001 /* PoracodeActivities.appex */;
+			productName = CraftStationActivities;
+			productReference = D20000000000000000000001 /* CraftStationActivities.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -211,7 +211,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
-				D50000000000000000000001 /* PoracodeActivities */,
+				D50000000000000000000001 /* CraftStationActivities */,
 			);
 		};
 /* End PBXProject section */
@@ -254,7 +254,7 @@
 			files = (
 				D10000000000000000000004 /* DesktopSessionAttributes.swift in Sources */,
 				D10000000000000000000001 /* DesktopSessionLiveActivity.swift in Sources */,
-				D10000000000000000000002 /* PoracodeActivitiesBundle.swift in Sources */,
+				D10000000000000000000002 /* CraftStationActivitiesBundle.swift in Sources */,
 				D10000000000000000000003 /* ThreadStatusDisplay.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -264,7 +264,7 @@
 /* Begin PBXTargetDependency section */
 		D60000000000000000000002 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = D50000000000000000000001 /* PoracodeActivities */;
+			target = D50000000000000000000001 /* CraftStationActivities */;
 			targetProxy = D60000000000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -413,7 +413,7 @@
 				);
 				MARKETING_VERSION = 1.5.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
-				PRODUCT_BUNDLE_IDENTIFIER = com.lightcodeapp.mobile;
+				PRODUCT_BUNDLE_IDENTIFIER = com.craftstationapp.mobile;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -435,7 +435,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.5.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lightcodeapp.mobile;
+				PRODUCT_BUNDLE_IDENTIFIER = com.craftstationapp.mobile;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -451,7 +451,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = PoracodeActivities/Info.plist;
+				INFOPLIST_FILE = CraftStationActivities/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -459,7 +459,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.5.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lightcodeapp.mobile.PoracodeActivities;
+				PRODUCT_BUNDLE_IDENTIFIER = com.craftstationapp.mobile.CraftStationActivities;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -475,7 +475,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = PoracodeActivities/Info.plist;
+				INFOPLIST_FILE = CraftStationActivities/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -483,7 +483,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.5.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lightcodeapp.mobile.PoracodeActivities;
+				PRODUCT_BUNDLE_IDENTIFIER = com.craftstationapp.mobile.CraftStationActivities;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -513,7 +513,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D70000000000000000000003 /* Build configuration list for PBXNativeTarget "PoracodeActivities" */ = {
+		D70000000000000000000003 /* Build configuration list for PBXNativeTarget "CraftStationActivities" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D70000000000000000000001 /* Debug */,

@@ -70,10 +70,10 @@ describe("profile IPC payloads", () => {
       driver: "claude",
       id: "work",
       displayName: "Work",
-      config: { configDir: "~/.poracode/claude-profiles/work" },
+      config: { configDir: "~/.craftstation/claude-profiles/work" },
     });
     expect(parsed.environment).toBeUndefined();
-    expect(parsed.config).toEqual({ configDir: "~/.poracode/claude-profiles/work" });
+    expect(parsed.config).toEqual({ configDir: "~/.craftstation/claude-profiles/work" });
 
     expect(() =>
       createProfilePayloadSchema.parse({ driver: "cursor", id: "work", displayName: "" }),

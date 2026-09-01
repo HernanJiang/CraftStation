@@ -247,7 +247,7 @@ describe("WslBridgeClient", () => {
 
     const client = new WslBridgeClient(mockServer);
     const result = await client.createGitCheckpointSnapshot(makeLocation(), {
-      ref: "refs/poracode/checkpoints/thread/item",
+      ref: "refs/craftstation/checkpoints/thread/item",
       metadata: { threadId: "thread", checkpointItemId: "item" },
     });
 
@@ -255,7 +255,7 @@ describe("WslBridgeClient", () => {
     expect(fake.lastRequest.url).toBe("/v1/git/checkpoint-snapshot");
     expect(fake.lastRequest.body).toEqual({
       projectRoot: "/home/user/proj",
-      ref: "refs/poracode/checkpoints/thread/item",
+      ref: "refs/craftstation/checkpoints/thread/item",
       metadata: { threadId: "thread", checkpointItemId: "item" },
     });
   });
@@ -285,7 +285,7 @@ describe("WslBridgeClient", () => {
     const result = await client.gitBatch(makeLocation(), {
       commands: [
         {
-          cwd: "/home/user/.poracode/worktrees/repo/feature",
+          cwd: "/home/user/.craftstation/worktrees/repo/feature",
           args: ["branch"],
           loginEnv: true,
         },
@@ -298,7 +298,7 @@ describe("WslBridgeClient", () => {
     expect(fake.lastRequest.body).toEqual({
       commands: [
         {
-          cwd: "/home/user/.poracode/worktrees/repo/feature",
+          cwd: "/home/user/.craftstation/worktrees/repo/feature",
           args: ["branch"],
           loginEnv: true,
         },

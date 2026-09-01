@@ -35,7 +35,7 @@ export const scheduleTools: ToolDomain = {
   specs: [
     {
       name: "list_schedules",
-      description: "List the user's Poracode schedules and their current status.",
+      description: "List the user's CraftStation schedules and their current status.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
@@ -59,7 +59,7 @@ export const scheduleTools: ToolDomain = {
     },
     {
       name: "update_schedule",
-      description: "Update selected fields on an existing Poracode schedule.",
+      description: "Update selected fields on an existing CraftStation schedule.",
       inputSchema: {
         type: "object",
         additionalProperties: false,

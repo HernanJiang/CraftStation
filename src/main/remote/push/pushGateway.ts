@@ -10,11 +10,11 @@ import type { RemoteWebPushSubscription } from "@/shared/remote";
 
 /** Production gateway origin (co-hosted with the marketing site / PWA). The
  * canonical domain is `website/src/lib/seo.ts` `SITE_URL`. */
-const DEFAULT_PUSH_GATEWAY_URL = "https://poracode.com";
+const DEFAULT_PUSH_GATEWAY_URL = "https://craftstation.com";
 
 /** Resolve the gateway origin: env override, else the production default. */
 export function resolvePushGatewayUrl(): string {
-  const fromEnv = process.env.PORACODE_PUSH_GATEWAY_URL?.trim();
+  const fromEnv = process.env.CRAFTSTATION_PUSH_GATEWAY_URL?.trim();
   return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_PUSH_GATEWAY_URL;
 }
 
@@ -145,7 +145,7 @@ function createOperationalReporter(options: CreatePushGatewayOptions) {
       options.onError?.(diagnostic);
       return;
     }
-    console.warn(`[poracode] ${diagnostic.message}`);
+    console.warn(`[craftstation] ${diagnostic.message}`);
   };
 }
 

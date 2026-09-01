@@ -29,10 +29,10 @@ export function ThreadContextDock({
   const tone = resolveContextUsageTone(summary);
   const fillClassName =
     tone === "danger"
-      ? "poracode-context-dock__bar-fill poracode-context-dock__bar-fill--danger"
+      ? "craftstation-context-dock__bar-fill craftstation-context-dock__bar-fill--danger"
       : tone === "warning"
-        ? "poracode-context-dock__bar-fill poracode-context-dock__bar-fill--warning"
-        : "poracode-context-dock__bar-fill";
+        ? "craftstation-context-dock__bar-fill craftstation-context-dock__bar-fill--warning"
+        : "craftstation-context-dock__bar-fill";
 
   return (
     <ThreadDockSection ariaLabel={t`Thread context usage`} placement="composer" collapsed={false}>
@@ -55,7 +55,7 @@ export function ThreadContextDock({
             <Trans>{summary.maxLabel} limit</Trans>
           </span>
         </div>
-        <div className="poracode-context-dock__bar" style={usageStyle} aria-hidden="true">
+        <div className="craftstation-context-dock__bar" style={usageStyle} aria-hidden="true">
           <div className={fillClassName} />
         </div>
         {summary.breakdown.length > 0 ? (

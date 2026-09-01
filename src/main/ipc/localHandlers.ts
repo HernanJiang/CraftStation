@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import { app, clipboard, dialog, nativeImage, shell, type BrowserWindow } from "electron";
+import { clipboard, dialog, nativeImage, shell, type BrowserWindow } from "electron";
 import type { BrowserPanelManager } from "../browser";
 import { openMicrophoneSettings } from "../browser/permissions";
 import {
@@ -39,7 +39,6 @@ import {
 import { createProjectDirectory } from "../projectDirectory";
 import { detectProjectIconFile, listProjectIconFiles } from "../projectIconDetect";
 import { diffSyncedThreads, syncedProjectsChanged } from "./threadSyncBroadcast";
-import { showOsNotification } from "../osNotifications";
 import { showAndFocusWindow } from "../window/showAndFocusWindow";
 import {
   getProfileCoreStats,
@@ -82,17 +81,12 @@ import {
   retagCrossagentSelectionUsageEntry,
 } from "@/shared/crossagentRanking";
 import { headersToRecord, readBoundedResponseBody } from "@/shared/http";
-import type { PoracodePaths } from "@/shared/poracodePaths";
+import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import { UsageLoginManager } from "../usageLogin/UsageLoginManager";
 import type { SshConnectionManager } from "../ssh/SshConnectionManager";
 import type { ScheduleService } from "../schedules/ScheduleService";
 import type { PrWatchService } from "../prWatch";
 import { homeScopeLocation } from "../schedules";
-import { resolvePoracodeChannel } from "@/shared/channel";
-import {
-  requestLegacyDataMigration,
-  resolveLegacyElectronUserDataDir,
-} from "../legacyDataMigration";
 
 interface CreateLocalIpcHandlersOptions {
   getMainWindow(): BrowserWindow | null;
@@ -104,13 +98,12 @@ interface CreateLocalIpcHandlersOptions {
   startTailscale(): Promise<StartTailscaleResult>;
   setRemoteAccessAdvertisedUrl(url: string): Promise<RemoteAccessPairingInfo>;
   sshConnectionManager: SshConnectionManager;
-  requirePoracodePaths(): PoracodePaths;
-  legacyElectronUserDataDir?: string;
-  legacyBaseDir?: string;
+  requireCraftStationPaths(): CraftStationPaths;
   updatePowerSaveBlocker(): void;
   autoUpdater: AutoUpdaterController;
   /** Called with the settings just written, so consumers don't re-read the file. */
   onSharedSettingsChanged?(settings: SharedSettings): void;
+  onShowNotification?(input: { title: string; body: string; threadId: string }): boolean;
   onKeybindingsChanged?(file: KeybindingsFile): void;
   setGlobalShortcutsSuspended?(suspended: boolean): void;
   /** Per-thread git/PR summaries mirrored from the renderer for remote clients. */
@@ -133,7 +126,7 @@ function requireBrowserPanel(getter: () => BrowserPanelManager | null): BrowserP
 
 let usageLoginManager: UsageLoginManager | null = null;
 function getUsageLoginManager(
-  requirePaths: () => PoracodePaths,
+  requirePaths: () => CraftStationPaths,
   getBrowserPanel: () => BrowserPanelManager | null,
 ): UsageLoginManager {
   usageLoginManager ??= new UsageLoginManager(requirePaths(), getBrowserPanel);
@@ -208,7 +201,7 @@ export function createLocalIpcHandlers(
   const applyToSharedSettingsFile = <T>(
     apply: (settings: SharedSettings, baseDir: string) => { settings: SharedSettings; result: T },
   ): T => {
-    const settingsPath = options.requirePoracodePaths().settingsPath;
+    const settingsPath = options.requireCraftStationPaths().settingsPath;
     const applied = apply(readSharedSettingsFile(settingsPath), dirname(settingsPath));
     writeSharedSettingsFile(settingsPath, applied.settings);
     options.onSharedSettingsChanged?.(applied.settings);
@@ -232,9 +225,9 @@ export function createLocalIpcHandlers(
     detectProjectIcon: ({ projectLocation }) => detectProjectIconFile(projectLocation),
     listProjectIconFiles: ({ projectLocation }) => listProjectIconFiles(projectLocation),
     saveClipboardImage: (payload) =>
-      saveClipboardImageFile(options.requirePoracodePaths(), payload),
+      saveClipboardImageFile(options.requireCraftStationPaths(), payload),
     saveHandoffContext: (payload) =>
-      saveHandoffContextFile(options.requirePoracodePaths(), payload),
+      saveHandoffContextFile(options.requireCraftStationPaths(), payload),
     saveImageFile: async ({ data, suggestedName }) => {
       const win = options.getMainWindow();
       const result = await dialog.showSaveDialog(win!, {
@@ -259,7 +252,7 @@ export function createLocalIpcHandlers(
     },
     readLocalImageFile: ({ url }) => readLocalImageFile(url),
     createProjectDirectory: (payload) => createProjectDirectory(payload),
-    // Desktop-as-client: proxy a remote Poracode server request through the
+    // Desktop-as-client: proxy a remote CraftStation server request through the
     // main process (no browser CORS). Restricted to http(s) and a bounded
     // response so a hostile/buggy peer can't exfiltrate via odd schemes or
     // exhaust memory. (The remote is one the user explicitly paired with.)
@@ -317,29 +310,14 @@ export function createLocalIpcHandlers(
       if (!win || win.isDestroyed()) return;
       showAndFocusWindow(win);
     },
-    showNotification: (payload) => showOsNotification(payload, options.getMainWindow),
-    requestLegacyDataMigration: () => {
-      const baseDir = options.requirePoracodePaths().baseDir;
-      const channel = resolvePoracodeChannel();
-      const electronUserDataDir = app.getPath("userData");
-      return requestLegacyDataMigration({
-        baseDir,
-        channel,
-        electronUserDataDir,
-        legacyElectronUserDataDir:
-          options.legacyElectronUserDataDir ??
-          resolveLegacyElectronUserDataDir(electronUserDataDir, channel),
-        ...(options.legacyBaseDir ? { legacyBaseDir: options.legacyBaseDir } : {}),
-        allowCustomDataRoot: app.isPackaged,
-      });
-    },
+    showNotification: (payload) => options.onShowNotification?.(payload) ?? false,
     relaunchApp: () => {
       options.requestRelaunch();
     },
     getHomeScopeLocation: () => homeScopeLocation(),
-    getKeybindings: () => readKeybindingsFile(options.requirePoracodePaths().keybindingsPath),
+    getKeybindings: () => readKeybindingsFile(options.requireCraftStationPaths().keybindingsPath),
     setKeybindings: (file) => {
-      const path = options.requirePoracodePaths().keybindingsPath;
+      const path = options.requireCraftStationPaths().keybindingsPath;
       options.setGlobalShortcutsSuspended?.(false);
       options.onKeybindingsChanged?.(file);
       try {
@@ -350,7 +328,7 @@ export function createLocalIpcHandlers(
           // previous bindings — re-apply them to roll the shortcuts back.
           options.onKeybindingsChanged?.(readKeybindingsFile(path).file);
         } catch (restoreError) {
-          console.error("[poracode] failed to restore global shortcuts:", restoreError);
+          console.error("[craftstation] failed to restore global shortcuts:", restoreError);
         }
         throw error;
       }
@@ -385,16 +363,17 @@ export function createLocalIpcHandlers(
     openPluginsFolder: async () => {
       // Created on demand so the folder is always there to drop a package into,
       // even on a fresh install that has never loaded a user plugin.
-      const pluginsDir = options.requirePoracodePaths().pluginsDir;
+      const pluginsDir = options.requireCraftStationPaths().pluginsDir;
       await mkdir(pluginsDir, { recursive: true });
       await shell.openPath(pluginsDir);
     },
     publishRemoteGitSummaries: (payload) => {
       options.onRemoteGitSummaries?.(payload.summaries);
     },
-    getSharedSettings: () => readSharedSettingsFile(options.requirePoracodePaths().settingsPath),
+    getSharedSettings: () =>
+      readSharedSettingsFile(options.requireCraftStationPaths().settingsPath),
     setSharedSettings: (settings) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       // Preserve supervisor-managed fields and encrypted provider-profile
       // environments so the renderer's persist cycle doesn't clobber writes
       // made out-of-band by the supervisor. (Shared with the app-controls MCP
@@ -410,7 +389,7 @@ export function createLocalIpcHandlers(
         return { settings: next, result: { storedValue } };
       }),
     removeCrossagentRoutingOverride: ({ tags }) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
       const overrides = removeCrossagentRoutingOverride(current.crossagentRoutingOverrides, tags);
       const settings = { ...current, crossagentRoutingOverrides: overrides };
@@ -419,7 +398,7 @@ export function createLocalIpcHandlers(
       return overrides;
     },
     removeCrossagentMemoryEntry: ({ entry }) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
       const usage = removeCrossagentSelectionUsageEntry(current.crossagentSelectionUsage, entry);
       const settings = { ...current, crossagentSelectionUsage: usage };
@@ -428,7 +407,7 @@ export function createLocalIpcHandlers(
       return usage;
     },
     updateCrossagentMemoryEntryTags: ({ entry, tags }) => {
-      const settingsPath = options.requirePoracodePaths().settingsPath;
+      const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
       const usage = retagCrossagentSelectionUsageEntry(
         current.crossagentSelectionUsage,
@@ -492,7 +471,7 @@ export function createLocalIpcHandlers(
     },
     dbDeleteThread: ({ threadId }) => {
       dbDeleteThread(threadId);
-      deleteThreadAttachments(options.requirePoracodePaths(), threadId);
+      deleteThreadAttachments(options.requireCraftStationPaths(), threadId);
       publishThreadsChanged([threadId]);
     },
     dbDeleteProject: ({ projectId }) => {
@@ -519,7 +498,7 @@ export function createLocalIpcHandlers(
         ...payload.upsertThreads.map(({ thread }) => thread.id),
         ...payload.deletedThreadIds,
       ]);
-      const paths = options.requirePoracodePaths();
+      const paths = options.requireCraftStationPaths();
       await Promise.all(
         payload.deletedThreadIds.map((threadId) => deleteThreadAttachmentsAsync(paths, threadId)),
       );
@@ -646,32 +625,34 @@ export function createLocalIpcHandlers(
       options.injectBrowserToMain();
     },
     startUsageLogin: (payload) =>
-      getUsageLoginManager(options.requirePoracodePaths, options.getBrowserPanelManager).startLogin(
-        payload.providerId,
-      ),
+      getUsageLoginManager(
+        options.requireCraftStationPaths,
+        options.getBrowserPanelManager,
+      ).startLogin(payload.providerId),
     cancelUsageLogin: (payload) => {
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).cancelLogin(payload.providerId);
     },
     clearUsageLogin: (payload) =>
-      getUsageLoginManager(options.requirePoracodePaths, options.getBrowserPanelManager).clearLogin(
-        payload.providerId,
-      ),
+      getUsageLoginManager(
+        options.requireCraftStationPaths,
+        options.getBrowserPanelManager,
+      ).clearLogin(payload.providerId),
     submitUsageApiKey: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitApiKey(payload.providerId, payload.apiKey),
     submitVolcengineCredentials: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitVolcengineCredentials(payload),
     submitOpenAiCompatibleCredentials: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitOpenAiCompatibleCredentials({
         baseUrl: payload.baseUrl,
@@ -682,7 +663,7 @@ export function createLocalIpcHandlers(
       }),
     submitUsageCookie: (payload) =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).submitCookie(payload.providerId, payload.cookie),
     resolveUsageLoginConfirmation: (payload) => {
@@ -690,7 +671,7 @@ export function createLocalIpcHandlers(
     },
     getUsageLoginState: () =>
       getUsageLoginManager(
-        options.requirePoracodePaths,
+        options.requireCraftStationPaths,
         options.getBrowserPanelManager,
       ).getLoginState(),
     getProfileCoreStats: (req) => getProfileCoreStats(req),

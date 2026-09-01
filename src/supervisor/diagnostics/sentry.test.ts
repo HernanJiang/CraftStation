@@ -209,7 +209,7 @@ function expectTransient(operation: string, error: Error, errorClass: string): v
     domain: "supervisor.ipc",
     operation: operation.toLowerCase(),
     errorClass,
-    fingerprint: ["poracode", "supervisor.ipc", operation.toLowerCase(), errorClass],
+    fingerprint: ["craftstation", "supervisor.ipc", operation.toLowerCase(), errorClass],
   });
 }
 
@@ -245,7 +245,7 @@ describe("supervisor Sentry policy", () => {
       domain: "structured-runtime",
       operation: "startthread",
       errorClass,
-      fingerprint: ["poracode", "structured-runtime", "startthread", errorClass],
+      fingerprint: ["craftstation", "structured-runtime", "startthread", errorClass],
     });
     expect(classifySupervisorFailure(error, "structured-runtime-turn")).toEqual({
       failureClass: "product-defect",
@@ -255,7 +255,7 @@ describe("supervisor Sentry policy", () => {
       domain: "structured-runtime",
       operation: "structured-runtime-turn",
       errorClass,
-      fingerprint: ["poracode", "structured-runtime", "structured-runtime-turn", errorClass],
+      fingerprint: ["craftstation", "structured-runtime", "structured-runtime-turn", errorClass],
     });
   });
 
@@ -282,7 +282,7 @@ describe("supervisor Sentry policy", () => {
         domain: "supervisor.ipc",
         operation: operation.toLowerCase(),
         errorClass,
-        fingerprint: ["poracode", "supervisor.ipc", operation.toLowerCase(), errorClass],
+        fingerprint: ["craftstation", "supervisor.ipc", operation.toLowerCase(), errorClass],
       });
     },
   );
@@ -385,7 +385,7 @@ describe("supervisor Sentry policy", () => {
       domain: "supervisor.runtime",
       operation: "supervisor",
       errorClass: "broken-pipe",
-      fingerprint: ["poracode", "supervisor.runtime", "supervisor", "broken-pipe"],
+      fingerprint: ["craftstation", "supervisor.runtime", "supervisor", "broken-pipe"],
     });
   });
 

@@ -496,7 +496,7 @@ async function spawnWslWorker(
   const deploy =
     dependencies.deploy ??
     ((distro, baseName, files) => deployFilesToWslTempBase(distro, baseName, files));
-  const deployed = deploy(location.distro, `poracode-cursor-sdk-${process.pid}`, [
+  const deployed = deploy(location.distro, `craftstation-cursor-sdk-${process.pid}`, [
     { src: workerSource, relDest: "cursor-sdk/cursor-sdk-worker.mjs" },
   ]);
   if (!deployed) {

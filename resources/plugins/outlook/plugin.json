@@ -12,7 +12,7 @@
   "license": "MIT",
   "keywords": ["outlook", "email", "calendar", "microsoft 365"],
   "extensions": {
-    "com.poracode.client": {
+    "com.craftstation.client": {
       "title": "Outlook",
       "category": "communication",
       "featured": true,

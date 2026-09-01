@@ -10,7 +10,7 @@ import {
   type HttpRequest,
   type HttpResponse,
   type UsageSnapshot,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
 import { grokAuthContainer, parseGrokAuth, parseGrokCookie } from "./grokCredentials";
 import { refreshRejectedGrokToken } from "./grokTokenRefresh";
@@ -520,7 +520,7 @@ export function buildGrokLoginScript(
       "Write-Host ('CraftStation GROK_HOME=' + $env:GROK_HOME)",
       loginCommand,
       "$lcExit = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }",
-      `Write-Host "$([char]27)]777;poracode-login-complete=${completionToken}:$lcExit$([char]7)" -NoNewline`,
+      `Write-Host "$([char]27)]777;craftstation-login-complete=${completionToken}:$lcExit$([char]7)" -NoNewline`,
     ].join("; ");
   }
   const bashCommand = [
@@ -529,7 +529,7 @@ export function buildGrokLoginScript(
     'echo "CraftStation GROK_HOME=$GROK_HOME"',
     loginCommand,
     "__lc_exit=$?",
-    `printf '\\033]777;poracode-login-complete=${completionToken}:%s\\007' "$__lc_exit"`,
+    `printf '\\033]777;craftstation-login-complete=${completionToken}:%s\\007' "$__lc_exit"`,
   ].join("; ");
   return `command bash -lc '${bashCommand.replaceAll("'", "'\\''")}'`;
 }

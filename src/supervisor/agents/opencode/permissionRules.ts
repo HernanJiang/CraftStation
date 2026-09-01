@@ -1,7 +1,7 @@
 import type { PermissionRule } from "./legacySdk";
 
 /**
- * Build the Poracode-owned permission override for OpenCode sessions.
+ * Build the CraftStation-owned permission override for OpenCode sessions.
  *
  * Supervised mode intentionally returns undefined so OpenCode resolves
  * permissions from its normal global + project config stack.

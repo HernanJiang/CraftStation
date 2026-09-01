@@ -1,6 +1,6 @@
 import { app } from "electron";
-import type { PoracodeChannel } from "@/shared/channel";
-import type { PoracodeDiagnosticTags, SentryEventLike } from "@/shared/diagnostics/sentryPrivacy";
+import type { CraftStationChannel } from "@/shared/channel";
+import type { CraftStationDiagnosticTags, SentryEventLike } from "@/shared/diagnostics/sentryPrivacy";
 import {
   readBuildSentryDsn,
   readBuildSentryEnvironment,
@@ -25,7 +25,7 @@ let mainSentry: MainSentryModule | null | undefined;
 export type MainSentryOptions = {
   appVersion: string;
   isDev: boolean;
-  channel: PoracodeChannel;
+  channel: CraftStationChannel;
 };
 
 function loadMainSentry(): MainSentryModule | null {
@@ -38,7 +38,7 @@ function loadMainSentry(): MainSentryModule | null {
   } catch (error) {
     mainSentry = null;
     console.warn(
-      "[poracode] Sentry main process integration unavailable:",
+      "[craftstation] Sentry main process integration unavailable:",
       error instanceof Error ? error.message : String(error),
     );
   }
@@ -63,16 +63,16 @@ function shouldEnableSentry(options: MainSentryOptions): boolean {
   return shouldEnableSentryReporting(readSentryDsn(), options.isDev);
 }
 
-function buildBaseTags(options: MainSentryOptions): PoracodeDiagnosticTags {
+function buildBaseTags(options: MainSentryOptions): CraftStationDiagnosticTags {
   return {
-    "poracode.app_version": options.appVersion,
-    "poracode.arch": process.arch,
-    "poracode.channel": options.channel,
-    "poracode.chrome": process.versions.chrome ?? "unknown",
-    "poracode.electron": process.versions.electron ?? "unknown",
-    "poracode.node": process.versions.node,
-    "poracode.platform": process.platform,
-    "poracode.process": "main",
+    "craftstation.app_version": options.appVersion,
+    "craftstation.arch": process.arch,
+    "craftstation.channel": options.channel,
+    "craftstation.chrome": process.versions.chrome ?? "unknown",
+    "craftstation.electron": process.versions.electron ?? "unknown",
+    "craftstation.node": process.versions.node,
+    "craftstation.platform": process.platform,
+    "craftstation.process": "main",
   };
 }
 
@@ -93,7 +93,7 @@ export function initializeMainSentry(options: MainSentryOptions): boolean {
 
   Sentry.init({
     dsn,
-    release: `poracode@${options.appVersion}`,
+    release: `craftstation@${options.appVersion}`,
     environment: readSentryEnvironment(options),
     sendDefaultPii: false,
     attachScreenshot: false,
@@ -120,7 +120,7 @@ export function initializeMainSentry(options: MainSentryOptions): boolean {
     },
   });
 
-  Sentry.setContext("poracode", {
+  Sentry.setContext("craftstation", {
     appVersion: options.appVersion,
     channel: options.channel,
     packaged: app.isPackaged,
@@ -132,7 +132,7 @@ export function initializeMainSentry(options: MainSentryOptions): boolean {
 
 export function captureMainException(
   error: unknown,
-  tags?: PoracodeDiagnosticTags,
+  tags?: CraftStationDiagnosticTags,
   fingerprint?: string[],
 ): void {
   const Sentry = loadMainSentry();

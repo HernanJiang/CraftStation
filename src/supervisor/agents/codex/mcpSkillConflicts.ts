@@ -104,8 +104,8 @@ function codexHomePaths(
 
 /**
  * OpenAI's bundled Browser plugin controls ChatGPT's own in-app browser via
- * node_repl. Its mandatory skill conflicts with Poracode's separate `browser`
- * MCP and makes Codex reject the working Poracode tools. Disable that one
+ * node_repl. Its mandatory skill conflicts with CraftStation's separate `browser`
+ * MCP and makes Codex reject the working CraftStation tools. Disable that one
  * skill in this child process while preserving the user's existing skill
  * enablement config. The plugin remains enabled in every other Codex host.
  */

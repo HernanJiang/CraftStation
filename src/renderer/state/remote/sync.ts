@@ -489,6 +489,12 @@ export interface RemoteDispatchHooks {
   readonly onGitSummaries?: (summaries: RemoteGitSummaries) => void;
   /** Applies the host-owned normalized Git/PR read model on remote clients. */
   readonly onGitState?: (patch: GitStatePatch) => void;
+  /** Renders an agent-requested notification in the host application's toast UI. */
+  readonly onUserNotification?: (input: {
+    readonly threadId: string;
+    readonly title: string;
+    readonly body: string;
+  }) => void;
 }
 
 export function dispatchRemoteSupervisorEvent(value: unknown, hooks?: RemoteDispatchHooks): void {
@@ -544,6 +550,9 @@ export function dispatchRemoteSupervisorEvent(value: unknown, hooks?: RemoteDisp
       useAppStore.getState().setPendingSteer(event.threadId, event.pending);
       return;
     }
+    case "thread-user-notification":
+      hooks?.onUserNotification?.(event);
+      return;
     case "thread-reset": {
       pendingRuntimeEvents.delete(event.threadId);
       useAppStore.getState().clearThreadRuntimeEvents(event.threadId);

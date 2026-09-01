@@ -14,8 +14,8 @@ export interface AppControlsMcpHttpConfig {
   headers: Record<string, string>;
 }
 
-export const APP_CONTROLS_MCP_URL_ENV = "PORACODE_APP_CONTROLS_MCP_URL";
-export const APP_CONTROLS_MCP_TOKEN_ENV = "PORACODE_APP_CONTROLS_MCP_TOKEN";
+export const APP_CONTROLS_MCP_URL_ENV = "CRAFTSTATION_APP_CONTROLS_MCP_URL";
+export const APP_CONTROLS_MCP_TOKEN_ENV = "CRAFTSTATION_APP_CONTROLS_MCP_TOKEN";
 
 export function resolveAppControlsMcpHttpConfig(
   location: AppControlsMcpLocation,

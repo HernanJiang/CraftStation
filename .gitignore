@@ -8,22 +8,28 @@ logs/
 *.tsbuildinfo
 build/icon-trimmed.png
 build/icons/
-# heroui-agents-md
 .heroui-docs/
 .tmp/
 tmp/
 .agent/
 mcps/
-poracode-diff.patch
+craftstation-diff.patch
 review.diff
 .spec-workflow/
 **/worktrees/
 /.worktrees/
+/dev/
+/reference/
+/学习材料/
+/.local/
+/.playwright-mcp/
+/%PNPM_SHIM%/
+/Test/
+/craftstation/
 /craftstation-dev/
 .cursor/
 .grok/
 .commandcode/
-mcps/
 .antigravitycli/
 .factory/
 .recovery/
@@ -45,6 +51,13 @@ website/.next/
 website/out/
 .vercel/
 .env*.local
-
 .vercel
 .env*
+
+# 本地迁移、验证和过程产物
+/ai_workspace/temp/
+/ai_workspace/validation/
+/.migration-backup-*/
+.DS_Store
+Thumbs.db
+cs-*.tmp.cjs

@@ -78,7 +78,7 @@ export function GitSettings() {
         title={t`Default PR automation`}
         description={
           <Trans>
-            Choose what Poracode does for new pull requests: nothing, fix merge blockers, or fix and
+            Choose what CraftStation does for new pull requests: nothing, fix merge blockers, or fix and
             merge.
           </Trans>
         }
@@ -98,7 +98,7 @@ export function GitSettings() {
         anchorId="git.mergeMethod"
         title={t`Merge method`}
         description={
-          <Trans>Choose how Poracode performs manual merges and automatic PR merges.</Trans>
+          <Trans>Choose how CraftStation performs manual merges and automatic PR merges.</Trans>
         }
       >
         <Select

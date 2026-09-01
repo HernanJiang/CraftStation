@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { allUsageProviderDescriptors } from "@poracode/agents-usage/providers";
+import { allUsageProviderDescriptors } from "@craftstation/agents-usage/providers";
 import {
   agentInstanceConfigMapSchema,
   installedAcpRegistryAgentSchema,
@@ -365,18 +365,18 @@ export const sharedSettingsSchema = z.object({
   /** Base font size for the dev terminal panel. Auto-shrinks in narrow/short panes. */
   terminalPanelFontSize: z.number().int().min(8).max(20),
   /**
-   * When to prevent the OS from sleeping while Poracode is running.
+   * When to prevent the OS from sleeping while CraftStation is running.
    * - "while-working": only while a thread is actively working
    * - "while-remote-access": while remote access is enabled or a thread is working
    * - "always": keep the machine awake whenever the app is running
    */
   preventSleep: z.enum(["while-working", "while-remote-access", "always"]),
-  /** Register Poracode to launch automatically when the user signs in to Windows. */
+  /** Register CraftStation to launch automatically when the user signs in to Windows. */
   launchAtStartup: z.boolean(),
-  /** Keep the main window hidden when Poracode is launched automatically at sign-in. */
+  /** Keep the main window hidden when CraftStation is launched automatically at sign-in. */
   startMinimized: z.boolean(),
   /**
-   * When true, closing the main window hides Poracode to the system tray
+   * When true, closing the main window hides CraftStation to the system tray
    * instead of quitting. The tray icon's Quit action (or Quit from the app
    * menu) still exits the process.
    */
@@ -434,18 +434,18 @@ export const sharedSettingsSchema = z.object({
   autoShowTerminalPanel: z.boolean(),
   /**
    * Where git worktrees are created: under a global root (`global`) or nested in
-   * each project at `<project>/.poracode/worktrees` (`project-relative`).
+   * each project at `<project>/.craftstation/worktrees` (`project-relative`).
    */
   worktreeStorageMode: worktreeStorageModeSchema,
   /**
    * Custom global worktree root for native projects. Empty string = built-in
-   * default (`~/.poracode/worktrees`). Only used when `worktreeStorageMode` is
+   * default (`~/.craftstation/worktrees`). Only used when `worktreeStorageMode` is
    * `global`.
    */
   worktreeBasePath: z.string(),
   /**
    * Custom global worktree root for WSL projects (a Linux path). Empty string =
-   * WSL default (`~/.poracode/worktrees` in the distro home). Only used when
+   * WSL default (`~/.craftstation/worktrees` in the distro home). Only used when
    * `worktreeStorageMode` is `global`.
    */
   wslWorktreeBasePath: z.string(),
@@ -457,7 +457,7 @@ export const sharedSettingsSchema = z.object({
    * sticky last-used choice for the Create PR split-button.
    */
   prCreateMode: prCreateModeSchema,
-  /** Default automation applied to pull requests created from Poracode. */
+  /** Default automation applied to pull requests created from CraftStation. */
   prAutomationDefault: prAutomationModeSchema,
   /**
    * Sticky last-used merge method. The PR split-button and automatic PR
@@ -596,9 +596,9 @@ export const sharedSettingsSchema = z.object({
   mcpServers: mcpServerListSchema,
   /** Built-in MCP servers hard-disabled for all new launches. */
   disabledBuiltInMcpServers: builtInMcpServerDisabledSchema,
-  /** Disabled tools for Poracode-owned built-in MCP servers. */
+  /** Disabled tools for CraftStation-owned built-in MCP servers. */
   disabledBuiltInMcpTools: builtInMcpDisabledToolsSchema,
-  /** First-party Poracode plugins installed from the built-in marketplace. */
+  /** First-party CraftStation plugins installed from the built-in marketplace. */
   installedPlugins: installedPluginsSchema,
   /**
    * In-app browser panel + agent MCP bridge settings. Whether the Browser MCP
@@ -624,7 +624,7 @@ export const sharedSettingsSchema = z.object({
 });
 export type SharedSettings = z.infer<typeof sharedSettingsSchema>;
 
-/** When to prevent the OS from sleeping while Poracode is running. */
+/** When to prevent the OS from sleeping while CraftStation is running. */
 export type PreventSleep = SharedSettings["preventSleep"];
 
 /** Browser element-picker delivery target for terminal-native (CLI) threads. */

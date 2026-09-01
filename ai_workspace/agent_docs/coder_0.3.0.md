@@ -27,7 +27,7 @@
 
 5. **v0.3/T08 & T09 恢复机制、生产 Cutover 与 Legacy 隔离**
    - 将 `SupervisorRuntime.craftAgent` 与 `resumeCraftAgent` 的生产实现完全切换到 `NativeCodexRuntimeAdapter`。
-   - 在 `boundaryGuard.test.ts` 中加入硬隔离守卫，严格禁止 `nativeCodex` 依赖 legacy PoraCode 的 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter` 或 `CodexStructuredSession`。
+   - 在 `boundaryGuard.test.ts` 中加入硬隔离守卫，严格禁止 `nativeCodex` 依赖 legacy CraftStation 的 `ThreadSessionManager`、`SpawnPipeline`、`AgentAdapter` 或 `CodexStructuredSession`。
 
 ---
 
@@ -60,7 +60,7 @@
 - `oxlint --deny-warnings`：**PASS** (0 warnings)
 - `oxfmt --check`：**PASS**
 - `vitest` 相关测试套件（Native Codex + Crafting + UI + Adapter + DB）：**12 个文件 / 87 项测试全绿 PASS**
-- 架构守卫（`boundaryGuard.test.ts`）：**PASS**（验证没有任何 legacy PoraCode 执行链依赖）
+- 架构守卫（`boundaryGuard.test.ts`）：**PASS**（验证没有任何 legacy CraftStation 执行链依赖）
 
 ---
 

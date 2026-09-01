@@ -178,7 +178,7 @@ export function SidebarWorkspaceSwitcher(props: { iconOnly?: boolean }) {
       <Dropdown.Popover placement="top start">
         <Dropdown.Menu
           aria-label={t`Workspaces`}
-          className="poracode-menu min-w-56"
+          className="craftstation-menu min-w-56"
           selectionMode="single"
           selectedKeys={[workspaceMenuKey(active.id)]}
           onAction={(key) => handleAction(String(key))}

@@ -1,5 +1,5 @@
 /**
- * Convert Poracode `PromptSegment[]` + prompt text into ACP `ContentBlock[]`.
+ * Convert CraftStation `PromptSegment[]` + prompt text into ACP `ContentBlock[]`.
  */
 import { readFile } from "node:fs/promises";
 import type { ContentBlock, PromptCapabilities } from "@agentclientprotocol/sdk";

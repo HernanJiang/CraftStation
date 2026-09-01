@@ -1,4 +1,4 @@
-// Renders the Poracode SVG masters into production icon assets.
+// Renders the CraftStation SVG masters into production icon assets.
 // Uses the repo's `sharp` for SVG->PNG, macOS `iconutil` for .icns, and a tiny
 // PNG-in-ICO packer for .ico. Outputs to branding/assets/out/. Run from repo root:
 //   node branding/assets/build-icons.mjs
@@ -152,7 +152,7 @@ async function buildTrayVariant(name, svg, dir, colors) {
 // template-image support, so each channel ships two glyph colors: the default
 // moon glyph for dark shells and the `-dark` ink variant for light ones.
 async function buildTrayIcons(dir) {
-  const svg = `${HERE}poracode-glyph.svg`;
+  const svg = `${HERE}craftstation-glyph.svg`;
   for (const variant of TRAY_VARIANTS) {
     await buildTrayVariant(variant.name, svg, dir, variant);
   }
@@ -160,12 +160,12 @@ async function buildTrayIcons(dir) {
 }
 
 // One PWA icon set per release channel. Stable and nightly are installed side
-// by side from separate origins (app.poracode.com / app-nightly.poracode.com),
+// by side from separate origins (app.craftstation.com / app-nightly.craftstation.com),
 // so nightly needs its own art or the two are indistinguishable on a home
 // screen.
 const PWA_VARIANTS = [
-  { suffix: "", svg: "poracode-icon.svg" },
-  { suffix: "-nightly", svg: "poracode-icon-nightly.svg" },
+  { suffix: "", svg: "craftstation-icon.svg" },
+  { suffix: "-nightly", svg: "craftstation-icon-nightly.svg" },
 ];
 
 // Maskable and apple-touch icons must be opaque corner to corner: the platform
@@ -223,8 +223,8 @@ async function main() {
 
   if (wants("build")) {
     console.log("build/ (app icons):");
-    await buildVariant("icon", `${HERE}poracode-icon.svg`, `${OUT}/build`);
-    await buildVariant("icon-nightly", `${HERE}poracode-icon-nightly.svg`, `${OUT}/build`);
+    await buildVariant("icon", `${HERE}craftstation-icon.svg`, `${OUT}/build`);
+    await buildVariant("icon-nightly", `${HERE}craftstation-icon-nightly.svg`, `${OUT}/build`);
     await buildTrayIcons(`${OUT}/build`);
   }
 
@@ -237,7 +237,7 @@ async function main() {
     console.log("website/public (favicons):");
     const web = `${OUT}/website`;
     await mkdir(web, { recursive: true });
-    const svg = `${HERE}poracode-icon.svg`;
+    const svg = `${HERE}craftstation-icon.svg`;
     const map = {
       "favicon-48x48.png": 48,
       "favicon-96x96.png": 96,

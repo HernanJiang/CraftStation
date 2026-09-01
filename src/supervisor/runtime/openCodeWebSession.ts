@@ -5,14 +5,14 @@ import {
   openCodeRequestCookie,
   OPENCODE_USER_AGENT,
   type UsageWindow,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import { parseZenBalance, workspacePageDiagnostics } from "./openCodeZenBalance";
 
 /**
  * The opencode.ai web session: the live check (workspace-id probe — the same
  * gate the browser login uses), the Zen balance, and the Go (Lite) subscription
  * windows. The web-session primitives (cookie filtering, signed-out detection,
- * workspace probe) live in `@poracode/agents-usage/openCodeWeb` so the
+ * workspace probe) live in `@craftstation/agents-usage/openCodeWeb` so the
  * browser-login validator and this module share one implementation.
  */
 

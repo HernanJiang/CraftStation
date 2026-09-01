@@ -40,7 +40,7 @@ async function resolveWslAttachmentDirs(
     uncPath: `\\\\wsl.localhost\\${distro}\\`,
   };
   const { home } = await client.home(rootLocation);
-  const linuxDir = `${home}/.poracode/attachments`;
+  const linuxDir = `${home}/.craftstation/attachments`;
   const location = attachmentLocation(distro, linuxDir);
   await client.mkdir(location, linuxDir, { recursive: true });
 
@@ -120,7 +120,7 @@ export async function rewriteSegmentsForWsl(
   return rewritten;
 }
 
-const WORKSPACE_ATTACHMENT_DIR = ".poracode";
+const WORKSPACE_ATTACHMENT_DIR = ".craftstation";
 const WORKSPACE_ATTACHMENT_SUBDIR = "attachments";
 
 function isInsideDir(child: string, parent: string): boolean {
@@ -130,10 +130,10 @@ function isInsideDir(child: string, parent: string): boolean {
 
 /**
  * Copies any attachment/file segment that lives outside `projectDir` into
- * `<projectDir>/.poracode/attachments` and rewrites its path there. Some agents
+ * `<projectDir>/.craftstation/attachments` and rewrites its path there. Some agents
  * (e.g. Command Code) sandbox file reads to their working directory, so a
- * picker screenshot in `~/.poracode/attachments` is otherwise unreadable. The
- * copied files self-ignore via a `.poracode/.gitignore` so they never show up
+ * picker screenshot in `~/.craftstation/attachments` is otherwise unreadable. The
+ * copied files self-ignore via a `.craftstation/.gitignore` so they never show up
  * in `git status`. Paths already inside the workspace are left untouched.
  */
 export async function rewriteSegmentsForWorkspace(

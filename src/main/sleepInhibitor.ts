@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import { powerSaveBlocker } from "electron";
 
-const LOG_PREFIX = "[poracode] sleepInhibitor:";
+const LOG_PREFIX = "[craftstation] sleepInhibitor:";
 
 export interface SleepInhibitor {
   setActive(active: boolean): void;
@@ -90,7 +90,7 @@ class SystemdInhibitor implements Inhibitor {
     try {
       child = this.spawnFn(
         "systemd-inhibit",
-        ["--what=sleep:idle", "--who=Poracode", "--why=Poracode is active", "--mode=block", "cat"],
+        ["--what=sleep:idle", "--who=CraftStation", "--why=CraftStation is active", "--mode=block", "cat"],
         { stdio: ["pipe", "ignore", "ignore"], detached: false },
       );
     } catch (error) {

@@ -15,7 +15,7 @@ const tempDirs: string[] = [];
 let savedBrowserMcpEnv: { url?: string; token?: string };
 
 function makeBaseDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-gemini-plugin-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-gemini-plugin-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -24,15 +24,15 @@ beforeEach(() => {
   // The install path bakes a browser MCP entry from these env vars when set.
   // Clear them so mcpServers assertions are deterministic in CI/dev shells.
   savedBrowserMcpEnv = {
-    ...(process.env.PORACODE_BROWSER_MCP_URL !== undefined
-      ? { url: process.env.PORACODE_BROWSER_MCP_URL }
+    ...(process.env.CRAFTSTATION_BROWSER_MCP_URL !== undefined
+      ? { url: process.env.CRAFTSTATION_BROWSER_MCP_URL }
       : {}),
-    ...(process.env.PORACODE_BROWSER_MCP_TOKEN !== undefined
-      ? { token: process.env.PORACODE_BROWSER_MCP_TOKEN }
+    ...(process.env.CRAFTSTATION_BROWSER_MCP_TOKEN !== undefined
+      ? { token: process.env.CRAFTSTATION_BROWSER_MCP_TOKEN }
       : {}),
   };
-  delete process.env.PORACODE_BROWSER_MCP_URL;
-  delete process.env.PORACODE_BROWSER_MCP_TOKEN;
+  delete process.env.CRAFTSTATION_BROWSER_MCP_URL;
+  delete process.env.CRAFTSTATION_BROWSER_MCP_TOKEN;
 });
 
 afterEach(() => {
@@ -40,15 +40,15 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
   }
   if (savedBrowserMcpEnv.url !== undefined) {
-    process.env.PORACODE_BROWSER_MCP_URL = savedBrowserMcpEnv.url;
+    process.env.CRAFTSTATION_BROWSER_MCP_URL = savedBrowserMcpEnv.url;
   }
   if (savedBrowserMcpEnv.token !== undefined) {
-    process.env.PORACODE_BROWSER_MCP_TOKEN = savedBrowserMcpEnv.token;
+    process.env.CRAFTSTATION_BROWSER_MCP_TOKEN = savedBrowserMcpEnv.token;
   }
 });
 
 describe("getGeminiPluginPaths", () => {
-  it("places Gemini settings under Poracode's plugin dir", () => {
+  it("places Gemini settings under CraftStation's plugin dir", () => {
     const baseDir = makeBaseDir();
     const paths = getGeminiPluginPaths({ envKind: "posix", baseDir });
 
@@ -86,7 +86,7 @@ describe("getGeminiPluginPaths", () => {
 describe("renderGeminiSettings", () => {
   it("renders only the trimmed hook surface with the resolved-node command prefix", () => {
     const commandPrefix =
-      "'/home/demo/.nvm/versions/node/v22.11.0/bin/node' '/home/demo/.poracode/agent-plugins/gemini/forward.mjs'";
+      "'/home/demo/.nvm/versions/node/v22.11.0/bin/node' '/home/demo/.craftstation/agent-plugins/gemini/forward.mjs'";
     const doc = renderGeminiSettings({ headExpression: commandPrefix });
 
     expect(doc.hooksConfig).toEqual({ notifications: false });
@@ -101,7 +101,7 @@ describe("renderGeminiSettings", () => {
     expect(doc.hooks.AfterAgent?.[0]?.matcher).toBeUndefined();
     expect(doc.hooks.Notification?.[0]?.matcher).toBeUndefined();
     expect(doc.hooks.AfterAgent?.[0]?.hooks[0]).toMatchObject({
-      name: "poracode-status-AfterAgent",
+      name: "craftstation-status-AfterAgent",
       type: "command",
       command: `${commandPrefix} AfterAgent`,
       timeout: 5000,
@@ -137,7 +137,7 @@ describe("installGeminiPlugin", () => {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
     };
     const command = settings.hooks.Notification?.[0]?.hooks[0]?.command ?? "";
-    expect(command).toMatch(/agent-plugins[\\/]+gemini[\\/]+poracode-hook\.(?:sh|cmd|ps1)/);
+    expect(command).toMatch(/agent-plugins[\\/]+gemini[\\/]+craftstation-hook\.(?:sh|cmd|ps1)/);
     expect(command).toMatch(
       process.platform === "win32"
         ? /^(?:"[^"]+[\\/](?:pwsh|powershell)\.exe"|pwsh(?:\.exe)?|powershell(?:\.exe)?|cmd\.exe \/d \/s \/c call ")/i

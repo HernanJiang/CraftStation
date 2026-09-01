@@ -56,7 +56,7 @@ function buildOpenCodeMcpEnv(
     ...launch.env,
     OPENCODE_CONFIG_CONTENT: launch.configContent,
     ...(mcpServers.some((server) => server.id === "crossagents")
-      ? { PORACODE_OPENCODE_SESSION_ROUTING: "1" }
+      ? { CRAFTSTATION_OPENCODE_SESSION_ROUTING: "1" }
       : {}),
   };
 }
@@ -112,7 +112,7 @@ export function createOpenCodeAdapter(): AgentAdapter {
     spawnEnv: { wsl: { BROWSER: "/bin/true" } },
 
     // ── CLI hook plugin support ──────────────────────────────────────────
-    pluginId: "poracode-status@opencode",
+    pluginId: "craftstation-status@opencode",
     pluginVersion: OPENCODE_PLUGIN_VERSION,
     minProtocolVersion: 1,
     async isPluginSupported(ctx) {
@@ -136,7 +136,7 @@ export function createOpenCodeAdapter(): AgentAdapter {
     },
     async pluginLaunchExtras() {
       // Plugin is auto-loaded from the plugins/ directory; no CLI flag or
-      // env override is needed. PORACODE_HOOK_URL et al are injected by the
+      // env override is needed. CRAFTSTATION_HOOK_URL et al are injected by the
       // cli-hook coordinator regardless of what we return.
       return {};
     },
@@ -185,7 +185,7 @@ export function createOpenCodeAdapter(): AgentAdapter {
 
     // ── Structured session (SDK-backed for both modes) ──────────────────
     //
-    // Terminal mode (default): runtime calls `activate()` + `openThread()`,
+    // Legacy terminal compatibility: runtime calls `activate()` + `openThread()`,
     // captures the returned session id into `launchOptions.resumeThreadId`,
     // then releases its SDK acquisition because `liveInputMode === "terminal"`.
     // The shared runtime server stays warm; the TUI launches with `--session
@@ -193,7 +193,7 @@ export function createOpenCodeAdapter(): AgentAdapter {
     // `opencode acp` allocation, just over HTTP+SDK so GUI projects share the
     // runtime sidecar.
     //
-    // GUI mode: same handle stays alive for the thread's lifetime; SSE
+    // Product GUI mode: the handle stays alive for the thread's lifetime; SSE
     // events stream through `sdkCanonicalMapping` into chat items.
     async createStructuredSession(input: CreateStructuredSessionInput) {
       // Terminal-mode resume: the TUI re-attaches via `--session <id>` from

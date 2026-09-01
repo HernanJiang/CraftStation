@@ -3,14 +3,14 @@ import PackageDescription
 
 // Swift Package Manager path (Capacitor 7/8 SPM plugin layout). Used when the
 // generated iOS app is created with `cap add ios --packagemanager SPM`. The
-// CocoaPods path (PoracodeActivityBridge.podspec) is used otherwise; both
+// CocoaPods path (CraftStationActivityBridge.podspec) is used otherwise; both
 // point at the same sources under ios/Sources, so either integration works.
 let package = Package(
-    name: "PoracodeActivityBridge",
+    name: "CraftStationActivityBridge",
     platforms: [.iOS(.v14)],
     products: [
         .library(
-            name: "PoracodeActivityBridge",
+            name: "CraftStationActivityBridge",
             targets: ["ActivityBridgePlugin"]
         )
     ],

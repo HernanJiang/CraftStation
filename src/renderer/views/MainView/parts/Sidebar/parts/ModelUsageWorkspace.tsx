@@ -240,7 +240,7 @@ function OpenAiCompatibleFormCard(props: {
       {loading ? (
         <p className="text-[10px] text-neutral-400">加载中…</p>
       ) : (
-        <form className="space-y-2" onSubmit={submit}>
+        <form className="space-y-2" onSubmit={(event) => void submit(event)}>
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1">
               <span className="text-[10px] text-neutral-400">提供商名称（卡片显示）</span>

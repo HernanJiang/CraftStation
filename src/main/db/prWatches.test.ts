@@ -46,14 +46,14 @@ describe.skipIf(!sqliteAvailable)("prWatches (real sqlite round-trip)", () => {
 
   beforeEach(() => {
     if (nativeBindingEnv) {
-      process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
+      process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
     }
-    dir = mkdtempSync(join(tmpdir(), "poracode-pr-watch-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-pr-watch-"));
     initDatabase(join(dir, "state.sqlite"));
     dbUpsertProject(
       {
         id: "project-1",
-        name: "Poracode",
+        name: "CraftStation",
         location: { kind: "posix", path: "/repo" },
         createdAt: "2026-07-25T00:00:00.000Z",
       },
@@ -64,7 +64,7 @@ describe.skipIf(!sqliteAvailable)("prWatches (real sqlite round-trip)", () => {
   afterEach(() => {
     closeDatabase();
     rmSync(dir, { recursive: true, force: true });
-    delete process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING;
+    delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
   });
 
   it("persists, updates, lists, and deletes a PR watch", () => {
@@ -92,15 +92,15 @@ describe.skipIf(!sqliteAvailable)("prWatches (upgrade from a pre-blocked-reason 
 
   beforeEach(() => {
     if (nativeBindingEnv) {
-      process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
+      process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
     }
-    dir = mkdtempSync(join(tmpdir(), "poracode-pr-watch-upgrade-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-pr-watch-upgrade-"));
   });
 
   afterEach(() => {
     closeDatabase();
     rmSync(dir, { recursive: true, force: true });
-    delete process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING;
+    delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
   });
 
   it("adds blocked_reason to a table created before schema 32", () => {
@@ -150,7 +150,7 @@ describe.skipIf(!sqliteAvailable)("prWatches (upgrade from a pre-blocked-reason 
       );
       INSERT INTO app_state (key, value) VALUES ('schema_version', '31');
       INSERT INTO projects (id, name, location_kind, location_path, created_at)
-        VALUES ('project-1', 'Poracode', 'posix', '/repo', '2026-07-25T00:00:00.000Z');
+        VALUES ('project-1', 'CraftStation', 'posix', '/repo', '2026-07-25T00:00:00.000Z');
       INSERT INTO pr_watches (project_id, pr_number, head_branch, agent_kind, config)
         VALUES ('project-1', 42, 'feature/pr-watch', 'codex', '{"model":"gpt-5.6"}');
     `);

@@ -164,7 +164,7 @@ export class PluginSkillPolicy {
       const state = installedPlugins[plugin.name];
       if (!state) return [];
       if (!this.isSupported(plugin, context)) return [];
-      const label = plugin.poracode.title ?? plugin.name;
+      const label = plugin.craftstation.title ?? plugin.name;
       return [
         {
           ...skill,

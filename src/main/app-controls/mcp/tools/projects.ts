@@ -29,7 +29,7 @@ export const projectTools: ToolDomain = {
     {
       name: "create_project",
       description:
-        "Register an existing folder on this device as a Poracode project. The directory must already exist; the path must be absolute.",
+        "Register an existing folder on this device as a CraftStation project. The directory must already exist; the path must be absolute.",
       inputSchema: {
         type: "object",
         additionalProperties: false,

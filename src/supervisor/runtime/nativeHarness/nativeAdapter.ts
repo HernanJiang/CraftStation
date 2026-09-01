@@ -77,10 +77,48 @@ function publicError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function finalResponseRemainder(streamed: string, response: string): string {
+  if (!streamed) return response;
+  if (response.startsWith(streamed)) return response.slice(streamed.length);
+  if (streamed.endsWith(response)) return "";
+  const maxOverlap = Math.min(streamed.length, response.length);
+  for (let length = maxOverlap; length > 0; length -= 1) {
+    if (streamed.endsWith(response.slice(0, length))) return response.slice(length);
+  }
+  return response;
+}
+
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+function nativeTerminalError(event: NativeWireEvent): CraftingError | undefined {
+  if (event.type !== "result") return undefined;
+  const result = recordValue(event.payload.result) ?? event.payload;
+  const status = String(result.status ?? "").toUpperCase();
+  if (!["ERROR", "FAILED", "FAILURE", "AUTH_REQUIRED", "BLOCKED"].includes(status)) {
+    return undefined;
+  }
+  const rawError = result.error;
+  const message =
+    typeof rawError === "string"
+      ? rawError
+      : rawError && typeof rawError === "object" && !Array.isArray(rawError)
+        ? String((rawError as Record<string, unknown>).message ?? "")
+        : "";
+  if (status === "AUTH_REQUIRED" || /auth|credential|api key/iu.test(message)) {
+    return CraftingError.authRequired(
+      "antigravity",
+      message || "Authenticate Antigravity before starting a native session.",
+    );
+  }
+  return CraftingError.executionFailed(
+    message || `The native Antigravity provider returned status ${status || "ERROR"}.`,
+    { status: status || "ERROR" },
+    "Inspect the Antigravity native diagnostic and retry after the provider error is resolved.",
+  );
 }
 
 function deepSeekTerminalError(event: NativeWireEvent): CraftingError | undefined {
@@ -131,6 +169,7 @@ class NativeProcessCraftSession implements CraftSession {
   private _resolveTurn: ((result: TurnResult) => void) | undefined;
   private _rejectTurn: ((error: unknown) => void) | undefined;
   private _response = "";
+  private _streamedResponse = "";
   private _disposed = false;
   private _sessionExited = false;
   private _terminating = false;
@@ -268,7 +307,8 @@ class NativeProcessCraftSession implements CraftSession {
       this._nativeSessionRef = event.payload.conversation_id;
     }
     const turnId = this._turnId ?? `turn:${randomUUID()}`;
-    const terminalError = this.mode === "deepseek" ? deepSeekTerminalError(event) : undefined;
+    const terminalError =
+      this.mode === "deepseek" ? deepSeekTerminalError(event) : nativeTerminalError(event);
     const canonicalEvents = canonicalizeNativeEvent({
       descriptor: this.descriptor,
       threadId: this.threadId,
@@ -276,12 +316,7 @@ class NativeProcessCraftSession implements CraftSession {
       correlationId: this.transport.correlationId,
       event,
     });
-    const events =
-      event.type === "result" && this._response.length > 0
-        ? canonicalEvents.filter(
-            (next) => !(next.type === "content.delta" && next.stream === "assistant_text"),
-          )
-        : canonicalEvents;
+    const events = canonicalEvents;
     for (const next of events) {
       if (
         next.type === "turn.started" &&
@@ -296,14 +331,18 @@ class NativeProcessCraftSession implements CraftSession {
       // in its terminal `result` event. Keep the canonical result useful when
       // a provider only emits `result`, but do not double-count the streamed
       // response when both forms are present.
-      if (
-        next.type === "content.delta" &&
-        next.stream === "assistant_text" &&
-        (event.type !== "result" || this._response.length === 0)
-      ) {
-        this._response += next.delta;
+      if (next.type === "content.delta" && next.stream === "assistant_text") {
+        const delta =
+          event.type === "result"
+            ? finalResponseRemainder(this._streamedResponse, next.delta)
+            : next.delta;
+        if (!delta) continue;
+        this._streamedResponse += delta;
+        this._response += delta;
+        this.emit({ ...next, delta });
+      } else {
+        this.emit(next);
       }
-      this.emit(next);
       if (next.type === "turn.completed") {
         this.finishTurn(
           next.state === "completed" ? "completed" : next.state,
@@ -447,6 +486,7 @@ class NativeProcessCraftSession implements CraftSession {
     this._turnId = command.turnId ?? `turn:${randomUUID()}`;
     this._turnEventsStart = this._events.length;
     this._response = "";
+    this._streamedResponse = "";
     this._status = "busy";
     this.emit({ type: "turn.started", threadId: this.threadId, turnId: this._turnId });
     this._turnPromise = new Promise<TurnResult>((resolve, reject) => {

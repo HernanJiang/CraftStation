@@ -19,6 +19,7 @@ import { useGitSummariesStore } from "./gitSummaries";
 import { useDesktopPanelStore } from "./desktopPanelStore";
 import { emitTerminalExited, emitTerminalReset } from "./terminalFeed";
 import { notifyLiveActivityThreadState } from "./push/liveActivityController";
+import { showInAppUserNotification } from "@/renderer/notifications";
 import {
   applyThreadSnapshot,
   clearPendingRuntimeEvents,
@@ -179,6 +180,7 @@ const mobileDispatchHooks: RemoteDispatchHooks = {
     store.applyPatch(patch);
     projectGitReadModelIntoLegacyStore(useGitReadModelStore.getState());
   },
+  onUserNotification: (input) => showInAppUserNotification(input),
 };
 
 export function dispatchRemoteSupervisorEvent(value: unknown): void {

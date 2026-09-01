@@ -1,9 +1,9 @@
-// Clones a Poracode channel SQLite DB into the dev base dir so dev runs start
+// Clones a CraftStation channel SQLite DB into the dev base dir so dev runs start
 // from real data. One-way (channel -> dev) by design; never the reverse.
 //
-// Source: ~/.poracode/state.sqlite       (default, stable)
-//         ~/.poracode-nightly/state.sqlite (with "nightly" argument)
-// Dest:   ~/.poracode-dev/state.sqlite
+// Source: ~/.craftstation/state.sqlite       (default, stable)
+//         ~/.craftstation-nightly/state.sqlite (with "nightly" argument)
+// Dest:   ~/.craftstation-dev/state.sqlite
 //
 // Uses SQLite's online backup API so it is safe to run while the source app
 // is open (no WAL/SHM corruption). The dev DB is overwritten.
@@ -14,8 +14,8 @@ import { existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const channel = process.argv[2] === "nightly" ? "nightly" : "stable";
-const srcDir = join(homedir(), channel === "nightly" ? ".poracode-nightly" : ".poracode");
-const destDir = join(homedir(), ".poracode-dev");
+const srcDir = join(homedir(), channel === "nightly" ? ".craftstation-nightly" : ".craftstation");
+const destDir = join(homedir(), ".craftstation-dev");
 const srcPath = join(srcDir, "state.sqlite");
 const destPath = join(destDir, "state.sqlite");
 

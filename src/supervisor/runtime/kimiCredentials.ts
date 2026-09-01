@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { OAuthToken } from "@poracode/agents-usage";
+import type { OAuthToken } from "@craftstation/agents-usage";
 import { nativeKimiHomePath, nativeKimiOAuthCredentialPath } from "../agents/kimi/paths";
 
 /**

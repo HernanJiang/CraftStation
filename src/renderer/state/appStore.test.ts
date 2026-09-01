@@ -67,6 +67,32 @@ describe("appStore runtime config sync", () => {
     expect(useAppStore.getState().threads[0]?.config.effort).toBe("high");
   });
 
+  it("persists the Supervisor-resolved GUI mode for a stale terminal thread", () => {
+    const project = useAppStore.getState().addProject({ kind: "windows", path: "C:\\repo" });
+    const thread = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "antigravity",
+      config: { model: "Gemini 3.5 Flash", mode: "plan" },
+      prompt: "hello",
+      presentationMode: "terminal",
+    });
+
+    useAppStore.getState().updateThreadRuntime(thread.id, {
+      status: "idle",
+      attention: "none",
+      config: { model: "Gemini 3.5 Flash", mode: "plan" },
+      canResumeWithConfig: true,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+    });
+
+    expect(useAppStore.getState().threads[0]).toMatchObject({
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      config: { model: "Gemini 3.5 Flash", mode: "plan" },
+    });
+  });
+
   it("tags an existing thread with worktree metadata (set-worktree command path)", () => {
     const project = useAppStore.getState().addProject({ kind: "posix", path: "/repo" });
     const thread = useAppStore.getState().createThread({
@@ -91,7 +117,7 @@ describe("appStore runtime config sync", () => {
       agentKind: "codex",
       config: { model: "gpt-5.4" },
       prompt: "hello",
-      worktreeBranch: "poracode/feature",
+      worktreeBranch: "craftstation/feature",
       worktreeProvisioning: true,
     });
     const experimentThread = useAppStore.getState().createThread({
@@ -99,7 +125,7 @@ describe("appStore runtime config sync", () => {
       agentKind: "codex",
       config: { model: "gpt-5.4" },
       prompt: "compare it",
-      worktreeBranch: "poracode/experiment-feature",
+      worktreeBranch: "craftstation/experiment-feature",
       groupId: "experiment-1",
       focus: false,
     });
@@ -123,7 +149,7 @@ describe("appStore runtime config sync", () => {
 
     useAppStore
       .getState()
-      .setThreadWorktree(thread.id, "C:\\worktrees\\feature", "poracode/feature");
+      .setThreadWorktree(thread.id, "C:\\worktrees\\feature", "craftstation/feature");
     const resolved = partialize(useAppStore.getState()) as Pick<AppStoreState, "threads" | "view">;
     expect(resolved.threads).toContainEqual(
       expect.objectContaining({ id: thread.id, worktreePath: "C:\\worktrees\\feature" }),

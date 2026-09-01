@@ -1,5 +1,5 @@
 /**
- * Shared helper for injecting the Poracode Crossagents MCP server
+ * Shared helper for injecting the CraftStation Crossagents MCP server
  * into agent runtimes. The supervisor hosts a single in-process Streamable-HTTP
  * MCP endpoint (`CrossagentMcpIngress`); each thread that opts in receives a URL +
  * bearer credential at launch so the agent can discover and spawn the other

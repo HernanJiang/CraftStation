@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
-import type { AlibabaCodingPlanRegion, OAuthToken } from "@poracode/agents-usage";
+import type { AlibabaCodingPlanRegion, OAuthToken } from "@craftstation/agents-usage";
 import type { SharedSettings } from "@/shared/settings";
 import { readSupervisorSharedSettings } from "./supervisorSharedSettings";
 

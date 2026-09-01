@@ -6,9 +6,9 @@ import { createPageMetadata } from "@/lib/seo";
 import { NightlyContent } from "@/app/nightly/nightly-content";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "Poracode Nightly — Latest pre-release builds",
+  title: "CraftStation Nightly — Latest pre-release builds",
   description:
-    "Download the latest Poracode nightly build. Pre-release installers with the newest changes, refreshed automatically from CI.",
+    "Download the latest CraftStation nightly build. Pre-release installers with the newest changes, refreshed automatically from CI.",
   path: "/nightly",
 });
 

@@ -2,7 +2,7 @@ import type { WebContents } from "electron";
 
 type PageExecutor = Pick<WebContents, "executeJavaScript">;
 
-const DRIVER_GLOBAL = "__poracodeBrowserDriver";
+const DRIVER_GLOBAL = "__craftstationBrowserDriver";
 
 const DRIVER_SOURCE = `(() => {
   if (window.${DRIVER_GLOBAL}) return true;

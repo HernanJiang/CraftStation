@@ -19,7 +19,7 @@ describe("friendlyErrorWithDetail", () => {
 
   it("strips the IPC wrapper for a non-Error class such as undici's TypeError", () => {
     const wrapped = new Error(
-      "Error invoking remote method 'poracode:remote-http-request': TypeError: fetch failed",
+      "Error invoking remote method 'craftstation:remote-http-request': TypeError: fetch failed",
     );
     expect(friendlyError(wrapped)).toBe(
       "Can't reach the remote server. Check that it is online, then reconnect it.",
@@ -85,13 +85,13 @@ describe("friendlyErrorWithDetail", () => {
   });
 
   it("maps helper bootstrap failures to shared messages", () => {
-    expect(friendlyError(new Error("Poracode Helper probe returned HTTP 503."))).toBe(
-      "Poracode Helper is not ready yet (HTTP 503).",
+    expect(friendlyError(new Error("CraftStation Helper probe returned HTTP 503."))).toBe(
+      "CraftStation Helper is not ready yet (HTTP 503).",
     );
     expect(
-      friendlyError(new Error("Poracode SSH requires Node 24.10 or newer on the remote host.")),
+      friendlyError(new Error("CraftStation SSH requires Node 24.10 or newer on the remote host.")),
     ).toBe(
-      "Poracode Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine.",
+      "CraftStation Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine.",
     );
   });
 
@@ -99,11 +99,11 @@ describe("friendlyErrorWithDetail", () => {
     expect(
       friendlyError(
         new Error(
-          "Poracode SSH runtime manifest is missing or invalid: C:\\Poracode\\server.ssh-runtime-manifest.json",
+          "CraftStation SSH runtime manifest is missing or invalid: C:\\CraftStation\\server.ssh-runtime-manifest.json",
         ),
       ),
     ).toBe(
-      "Poracode SSH runtime manifest is missing or invalid: C:\\Poracode\\server.ssh-runtime-manifest.json",
+      "CraftStation SSH runtime manifest is missing or invalid: C:\\CraftStation\\server.ssh-runtime-manifest.json",
     );
   });
 

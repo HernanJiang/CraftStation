@@ -124,7 +124,7 @@ describe("parseQwenClaudeProfiles", () => {
             },
             ANTHROPIC_AUTH_TOKEN: { value: "profile-key", sensitive: true },
           },
-          config: { configDir: "~/.poracode/claude-profiles/qwen" },
+          config: { configDir: "~/.craftstation/claude-profiles/qwen" },
         },
       },
     };
@@ -145,7 +145,7 @@ describe("parseQwenClaudeProfiles", () => {
             ANTHROPIC_BASE_URL: { value: "https://api.example.test/anthropic" },
             ANTHROPIC_AUTH_TOKEN: { value: "other-key", sensitive: true },
           },
-          config: { configDir: "~/.poracode/claude-profiles/other" },
+          config: { configDir: "~/.craftstation/claude-profiles/other" },
         },
       },
     };

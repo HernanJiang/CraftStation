@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SshBridgePlugin } from "@poracode/ssh-bridge";
-import { PORACODE_REMOTE_PROTOCOL_VERSION } from "@/shared/remote";
+import type { SshBridgePlugin } from "@craftstation/ssh-bridge";
+import { CRAFTSTATION_REMOTE_PROTOCOL_VERSION } from "@/shared/remote";
 import type { SshConnectionConfig } from "@/shared/ssh";
 
 const bridge = vi.hoisted(() => ({
@@ -13,7 +13,7 @@ const bridge = vi.hoisted(() => ({
   disconnect: vi.fn<SshBridgePlugin["disconnect"]>(),
 }));
 
-vi.mock("@poracode/ssh-bridge", () => ({ SshBridge: bridge }));
+vi.mock("@craftstation/ssh-bridge", () => ({ SshBridge: bridge }));
 
 import {
   __resetMobileSshRuntimeForTests,
@@ -45,7 +45,7 @@ function response(input: { json?: unknown; bytes?: Uint8Array; ok?: boolean; sta
 function helperEnvironmentResponse() {
   return response({
     json: {
-      protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+      protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
       hostMode: "helper",
       desktopId: "remote-test",
       label: "Remote test",
@@ -163,7 +163,7 @@ describe("mobile SSH bootstrap", () => {
     await connectMobileSsh(connection, { kind: "password", password: "secret" }, false);
     expect(bridge.upload).toHaveBeenCalledWith({
       connectionId: connection.id,
-      remotePath: `.poracode/ssh/uploads/${"b".repeat(64)}.tar.gz`,
+      remotePath: `.craftstation/ssh/uploads/${"b".repeat(64)}.tar.gz`,
       base64: "AQID",
     });
   });

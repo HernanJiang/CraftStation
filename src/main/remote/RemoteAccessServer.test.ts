@@ -122,7 +122,7 @@ const tempDirs: string[] = [];
 
 /** Creates a real temp dir for the local-image endpoint tests. */
 function createTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-remote-image-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-remote-image-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -169,7 +169,7 @@ afterEach(async () => {
   vi.mocked(dbReplaceThreadRuntimeSnapshot).mockReset();
   vi.mocked(dbUpsertProject).mockReset();
   vi.mocked(dbUpsertThread).mockReset();
-  dbSetState("poracode-experiments-v1", "");
+  dbSetState("craftstation-experiments-v1", "");
   vi.mocked(dbSetState).mockClear();
   vi.mocked(dbSetProjectNotes).mockReset();
   vi.mocked(dbTruncateThreadRuntimeAfter).mockReset();
@@ -218,7 +218,7 @@ function persistTestExperiment(overrides: Partial<Experiment> = {}): Experiment 
         threadId: "thread-1",
         agentKind: "codex",
         worktreePath: "/repo/one",
-        worktreeBranch: "poracode/experiment-one",
+        worktreeBranch: "craftstation/experiment-one",
         worktreeOwnerToken: "experiment-1:thread-1",
         worktreeState: "owned",
       },
@@ -226,7 +226,7 @@ function persistTestExperiment(overrides: Partial<Experiment> = {}): Experiment 
         threadId: "thread-2",
         agentKind: "claude",
         worktreePath: "/repo/two",
-        worktreeBranch: "poracode/experiment-two",
+        worktreeBranch: "craftstation/experiment-two",
         worktreeOwnerToken: "experiment-1:thread-2",
         worktreeState: "owned",
       },
@@ -237,7 +237,7 @@ function persistTestExperiment(overrides: Partial<Experiment> = {}): Experiment 
     ...overrides,
   };
   dbSetState(
-    "poracode-experiments-v1",
+    "craftstation-experiments-v1",
     JSON.stringify({ state: { experiments: { [experiment.id]: experiment } }, version: 1 }),
   );
   return experiment;
@@ -820,7 +820,7 @@ describe("RemoteAccessServer", () => {
     expect(pairingUrl.pathname).toBe("/pair");
 
     const descriptorResponse = await fetch(
-      new URL("/.well-known/poracode/environment", info.httpBaseUrl),
+      new URL("/.well-known/craftstation/environment", info.httpBaseUrl),
     );
     expect(descriptorResponse.status).toBe(200);
     await expect(descriptorResponse.json()).resolves.toMatchObject({
@@ -837,7 +837,7 @@ describe("RemoteAccessServer", () => {
     });
 
     const legacyDescriptorResponse = await fetch(
-      new URL("/.well-known/lightcode/environment", info.httpBaseUrl),
+      new URL("/.well-known/craftstation/environment", info.httpBaseUrl),
     );
     expect(legacyDescriptorResponse.status).toBe(200);
     await expect(legacyDescriptorResponse.json()).resolves.toMatchObject({
@@ -847,16 +847,16 @@ describe("RemoteAccessServer", () => {
     const pairingPageResponse = await fetch(info.pairingUrl);
     expect(pairingPageResponse.status).toBe(200);
     const pairingHtml = await pairingPageResponse.text();
-    expect(pairingHtml).toContain("Poracode");
+    expect(pairingHtml).toContain("CraftStation");
     expect(pairingHtml).toContain('rel="manifest"');
 
     const appResponse = await fetch(new URL("/app", info.httpBaseUrl));
     expect(appResponse.status).toBe(200);
-    await expect(appResponse.text()).resolves.toContain("Poracode");
+    await expect(appResponse.text()).resolves.toContain("CraftStation");
 
     const appRouteResponse = await fetch(new URL("/app/settings/appearance", info.httpBaseUrl));
     expect(appRouteResponse.status).toBe(200);
-    await expect(appRouteResponse.text()).resolves.toContain("Poracode");
+    await expect(appRouteResponse.text()).resolves.toContain("CraftStation");
 
     const manifestResponse = await fetch(new URL("/manifest.webmanifest", info.httpBaseUrl));
     expect(manifestResponse.status).toBe(200);
@@ -869,11 +869,13 @@ describe("RemoteAccessServer", () => {
     const serviceWorkerResponse = await fetch(new URL("/service-worker.js", info.httpBaseUrl));
     expect(serviceWorkerResponse.status).toBe(200);
     const serviceWorker = await serviceWorkerResponse.text();
-    expect(serviceWorker).toContain("poracode-remote-local-1.0.0");
+    expect(serviceWorker).toContain("craftstation-remote-local-1.0.0");
     expect(serviceWorker).toContain("caches.delete(LEGACY_CACHE_NAME)");
     expect(serviceWorker).toContain('self.addEventListener("push"');
-    expect(serviceWorker).toContain("showNotification");
-    expect(serviceWorker).toContain('self.addEventListener("notificationclick"');
+    expect(serviceWorker).toContain('type: "thread-user-notification"');
+    expect(serviceWorker).toContain("client.postMessage");
+    expect(serviceWorker).not.toContain("showNotification");
+    expect(serviceWorker).not.toContain('self.addEventListener("notificationclick"');
     expect(serviceWorker).toContain("if (response.ok)");
     expect(serviceWorker).toContain('url.pathname.startsWith("/assets/")');
     expect(serviceWorker).toContain("NAVIGATION_FALLBACK_DELAY_MS = 500");
@@ -1865,19 +1867,19 @@ describe("RemoteAccessServer", () => {
       identity: { desktopId: "desktop-test", label: "Test Desktop" },
       host: "127.0.0.1",
       port: 0,
-      pairingAppUrl: "https://mobile.poracode.test/app",
+      pairingAppUrl: "https://mobile.craftstation.test/app",
       callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
     });
     servers.push(server);
     const info = await server.start();
-    const descriptorUrl = new URL("/.well-known/poracode/environment", info.httpBaseUrl);
+    const descriptorUrl = new URL("/.well-known/craftstation/environment", info.httpBaseUrl);
 
     const hostedResponse = await fetch(descriptorUrl, {
-      headers: { origin: "https://mobile.poracode.test" },
+      headers: { origin: "https://mobile.craftstation.test" },
     });
     expect(hostedResponse.status).toBe(200);
     expect(hostedResponse.headers.get("access-control-allow-origin")).toBe(
-      "https://mobile.poracode.test",
+      "https://mobile.craftstation.test",
     );
 
     const nativeResponse = await fetch(descriptorUrl, {
@@ -1908,7 +1910,7 @@ describe("RemoteAccessServer", () => {
     });
     servers.push(devServer);
     const devInfo = await devServer.start();
-    const devDescriptorUrl = new URL("/.well-known/poracode/environment", devInfo.httpBaseUrl);
+    const devDescriptorUrl = new URL("/.well-known/craftstation/environment", devInfo.httpBaseUrl);
     const devResponse = await fetch(devDescriptorUrl, {
       headers: { origin: "http://localhost:3100" },
     });
@@ -1927,7 +1929,7 @@ describe("RemoteAccessServer", () => {
     servers.push(prodServer);
     const prodInfo = await prodServer.start();
     const prodResponse = await fetch(
-      new URL("/.well-known/poracode/environment", prodInfo.httpBaseUrl),
+      new URL("/.well-known/craftstation/environment", prodInfo.httpBaseUrl),
       { headers: { origin: "http://127.0.0.1:3100" } },
     );
     expect(prodResponse.status).toBe(200);
@@ -1980,7 +1982,7 @@ describe("RemoteAccessServer", () => {
     });
     servers.push(server);
     await server.start();
-    const localUrl = new URL("/.well-known/poracode/environment", `http://127.0.0.1:${port}/`);
+    const localUrl = new URL("/.well-known/craftstation/environment", `http://127.0.0.1:${port}/`);
 
     const allowed = await fetch(localUrl, { headers: { origin: advertised } });
     expect(allowed.status).toBe(200);
@@ -1997,7 +1999,7 @@ describe("RemoteAccessServer", () => {
       identity: { desktopId: "desktop-test", label: "Test Desktop" },
       host: "127.0.0.1",
       port: 0,
-      pairingAppUrl: "https://mobile.poracode.test/app",
+      pairingAppUrl: "https://mobile.craftstation.test/app",
       callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
     });
     servers.push(server);
@@ -2063,20 +2065,20 @@ describe("RemoteAccessServer", () => {
     expect(settingsPairing.searchParams.get("host")).toBe(info.httpBaseUrl);
   });
 
-  it("points production pairing links at the hosted Poracode app", async () => {
+  it("points production pairing links at the hosted CraftStation app", async () => {
     const server = new RemoteAccessServer({
       appVersion: "1.0.0",
       identity: { desktopId: "desktop-test", label: "Test Desktop" },
       host: "127.0.0.1",
       port: 0,
-      pairingAppUrl: "https://poracode.com",
+      pairingAppUrl: "https://craftstation.com",
       callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
     });
     servers.push(server);
     const info = await server.start();
 
     const startupPairing = new URL(info.pairingUrl);
-    expect(startupPairing.origin).toBe("https://poracode.com");
+    expect(startupPairing.origin).toBe("https://craftstation.com");
     expect(startupPairing.pathname).toBe("/pair");
     expect(startupPairing.searchParams.get("host")).toBe(info.httpBaseUrl);
     expect(new URLSearchParams(startupPairing.hash.slice(1)).get("token")).toMatch(/^lc_pair_/);
@@ -2461,8 +2463,8 @@ describe("RemoteAccessServer", () => {
       body: JSON.stringify({
         procedure: "workflowGetRun",
         payload: {
-          manifestPath: "/tmp/poracode/workflows/wf_1.json",
-          transcriptDir: "/tmp/poracode/subagents/workflows/wf_1",
+          manifestPath: "/tmp/craftstation/workflows/wf_1.json",
+          transcriptDir: "/tmp/craftstation/subagents/workflows/wf_1",
           includeAgentChats: true,
           location: { kind: "posix", path: "/tmp/example" },
         },
@@ -2472,8 +2474,8 @@ describe("RemoteAccessServer", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ result: { run: null } });
     expect(callSupervisor).toHaveBeenCalledWith("workflowGetRun", {
-      manifestPath: "/tmp/poracode/workflows/wf_1.json",
-      transcriptDir: "/tmp/poracode/subagents/workflows/wf_1",
+      manifestPath: "/tmp/craftstation/workflows/wf_1.json",
+      transcriptDir: "/tmp/craftstation/subagents/workflows/wf_1",
       includeAgentChats: true,
       location: { kind: "posix", path: "/tmp/example" },
     });
@@ -3067,7 +3069,7 @@ describe("RemoteAccessServer", () => {
     const headers = {
       authorization: `Bearer ${token}`,
       "content-type": "application/json",
-      "x-poracode-command-id": "prompt-item-1",
+      "x-craftstation-command-id": "prompt-item-1",
     };
     const body = JSON.stringify({
       threadId: "thread-1",
@@ -3266,7 +3268,7 @@ describe("RemoteAccessServer", () => {
   it("rejects destructive remote commands for experiment candidates before persistence", async () => {
     const candidate = createTestThread({
       worktreePath: "/repo/one",
-      worktreeBranch: "poracode/experiment-one",
+      worktreeBranch: "craftstation/experiment-one",
     });
     const db = mockThreadDb([candidate]);
     persistTestExperiment();
@@ -3356,7 +3358,7 @@ describe("RemoteAccessServer", () => {
       error: { code: "experiment_owned" },
     });
 
-    dbSetState("poracode-experiments-v1", "{");
+    dbSetState("craftstation-experiments-v1", "{");
     const unreadableResponse = await fetch(
       new URL("/api/threads/thread-1/command", info.httpBaseUrl),
       { method: "POST", headers, body: JSON.stringify({ kind: "archive" }) },
@@ -3611,8 +3613,8 @@ describe("RemoteAccessServer", () => {
         (name === "removeExperimentWorktrees"
           ? {
               candidates: [
-                { threadId: "thread-1", branch: "poracode/experiment-one" },
-                { threadId: "thread-2", branch: "poracode/experiment-two" },
+                { threadId: "thread-1", branch: "craftstation/experiment-one" },
+                { threadId: "thread-2", branch: "craftstation/experiment-two" },
               ],
             }
           : undefined) as never,
@@ -3648,7 +3650,7 @@ describe("RemoteAccessServer", () => {
     expect(callSupervisor).toHaveBeenCalledWith("closeThread", { threadId: "thread-1" });
     expect(dbDeleteProject).toHaveBeenCalledWith(project.id);
     const persisted = JSON.parse(
-      vi.mocked(dbSetState).mock.calls.findLast(([key]) => key === "poracode-experiments-v1")![1],
+      vi.mocked(dbSetState).mock.calls.findLast(([key]) => key === "craftstation-experiments-v1")![1],
     ) as { state: { experiments: Record<string, unknown> } };
     expect(persisted.state.experiments).toEqual({});
   });
@@ -4969,7 +4971,7 @@ describe("RemoteAccessServer", () => {
       },
       {
         procedure: "gitDeleteBranch",
-        payload: { projectLocation, branch: "poracode/experiment-one" },
+        payload: { projectLocation, branch: "craftstation/experiment-one" },
       },
       {
         procedure: "gitRemoveWorktree",
@@ -4988,7 +4990,7 @@ describe("RemoteAccessServer", () => {
         payload: {
           projectLocation,
           worktreeLocation,
-          worktreeBranch: "poracode/experiment-one",
+          worktreeBranch: "craftstation/experiment-one",
           sourceBranch: "main",
         },
       },
@@ -5038,7 +5040,7 @@ describe("RemoteAccessServer", () => {
     const experiment = persistTestExperiment();
     delete experiment.candidates[0]!.worktreePath;
     dbSetState(
-      "poracode-experiments-v1",
+      "craftstation-experiments-v1",
       JSON.stringify({ state: { experiments: { [experiment.id]: experiment } }, version: 1 }),
     );
     vi.mocked(dbGetProjects).mockReturnValue([createTestProject()]);

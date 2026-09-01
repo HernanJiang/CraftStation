@@ -14,7 +14,7 @@ import {
 } from "./install";
 
 describe("grokIntentFor", () => {
-  it("maps Grok's registered lifecycle events to Poracode intents", () => {
+  it("maps Grok's registered lifecycle events to CraftStation intents", () => {
     expect(grokIntentFor("SessionStart", undefined)).toBe("session.started");
     expect(grokIntentFor("UserPromptSubmit", undefined)).toBe("session.turn_started");
     expect(grokIntentFor("Stop", undefined)).toBe("session.turn_finished");
@@ -76,13 +76,13 @@ describe("renderGrokHookConfig", () => {
 
 describe("installGrokPlugin (native, global hook write)", () => {
   function makeNativeCtx() {
-    const baseDir = mkdtempSync(join(tmpdir(), "poracode-grok-stage-"));
-    const grokDir = mkdtempSync(join(tmpdir(), "poracode-grok-home-"));
+    const baseDir = mkdtempSync(join(tmpdir(), "craftstation-grok-stage-"));
+    const grokDir = mkdtempSync(join(tmpdir(), "craftstation-grok-home-"));
     const envKind = process.platform === "win32" ? ("windows" as const) : ("posix" as const);
     return { baseDir, grokDir, ctx: { envKind, baseDir } };
   }
 
-  it("writes ~/.grok/hooks/poracode-status.json at install time", () => {
+  it("writes ~/.grok/hooks/craftstation-status.json at install time", () => {
     const { grokDir, ctx } = makeNativeCtx();
     const result = installGrokPlugin(ctx, { globalGrokDirOverride: grokDir });
     expect(result.ok).toBe(true);
@@ -103,23 +103,6 @@ describe("installGrokPlugin (native, global hook write)", () => {
     expect(stop?.command.endsWith(" Stop")).toBe(true);
   });
 
-  it("removes the legacy Lightcode global hook after install", () => {
-    const { grokDir, ctx } = makeNativeCtx();
-    const legacyPath = join(grokDir, GLOBAL_HOOK_DIR_NAME, "lightcode-status.json");
-    mkdirSync(join(grokDir, GLOBAL_HOOK_DIR_NAME), { recursive: true });
-    writeFileSync(
-      legacyPath,
-      JSON.stringify(
-        renderGrokHookConfig({
-          command: "'/home/u/.poracode/agent-plugins/grok/lightcode-hook.sh'",
-        }),
-      ),
-    );
-
-    expect(installGrokPlugin(ctx, { globalGrokDirOverride: grokDir }).ok).toBe(true);
-    expect(existsSync(legacyPath)).toBe(false);
-  });
-
   it("is idempotent — re-install with identical inputs does not bump mtime", async () => {
     const { grokDir, ctx } = makeNativeCtx();
     const first = installGrokPlugin(ctx, { globalGrokDirOverride: grokDir });
@@ -137,7 +120,7 @@ describe("installGrokPlugin (native, global hook write)", () => {
 
   it("does not touch any project-level paths", () => {
     const { grokDir, ctx } = makeNativeCtx();
-    const projectDir = mkdtempSync(join(tmpdir(), "poracode-grok-proj-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "craftstation-grok-proj-"));
     mkdirSync(join(projectDir, ".grok"), { recursive: true });
 
     const result = installGrokPlugin(ctx, { globalGrokDirOverride: grokDir });
@@ -149,7 +132,7 @@ describe("installGrokPlugin (native, global hook write)", () => {
 
 describe("getGrokPluginPaths", () => {
   it("returns staging dir under provided baseDir for native ctx", () => {
-    const baseDir = mkdtempSync(join(tmpdir(), "poracode-grok-paths-"));
+    const baseDir = mkdtempSync(join(tmpdir(), "craftstation-grok-paths-"));
     const paths = getGrokPluginPaths({ envKind: "posix", baseDir });
     expect(paths.pluginDir).toBe(join(baseDir, "agent-plugins", "grok"));
   });
@@ -162,7 +145,7 @@ describe("isGrokPluginInstalled", () => {
     runtime?: boolean;
     wrapper?: boolean;
   }) {
-    const baseDir = mkdtempSync(join(tmpdir(), "poracode-grok-verify-"));
+    const baseDir = mkdtempSync(join(tmpdir(), "craftstation-grok-verify-"));
     const pluginDir = join(baseDir, "agent-plugins", "grok");
     mkdirSync(pluginDir, { recursive: true });
     if (parts.manifest) {
@@ -172,10 +155,10 @@ describe("isGrokPluginInstalled", () => {
       writeFileSync(join(pluginDir, "forward.mjs"), "// noop");
     }
     if (parts.runtime) {
-      writeFileSync(join(pluginDir, "poracode-hook-runtime.mjs"), "// noop runtime");
+      writeFileSync(join(pluginDir, "craftstation-hook-runtime.mjs"), "// noop runtime");
     }
     if (parts.wrapper) {
-      const wrapperName = process.platform === "win32" ? "poracode-hook.cmd" : "poracode-hook.sh";
+      const wrapperName = process.platform === "win32" ? "craftstation-hook.cmd" : "craftstation-hook.sh";
       writeFileSync(join(pluginDir, wrapperName), "#!/bin/sh\nexit 0\n");
     }
     return { baseDir, ctx: { envKind: "posix" as const, baseDir } };

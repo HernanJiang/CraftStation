@@ -64,7 +64,7 @@ function platformTag(electronPlatformName) {
 // npm installs every node-pty prebuild from its package tarball. electron-builder
 // preserves all of them under app.asar.unpacked, including the Intel-only macOS
 // spawn-helper in an arm64 app. macOS treats that nested helper as an Intel-based
-// component and displays its end-of-support warning even though Poracode itself
+// component and displays its end-of-support warning even though CraftStation itself
 // and the helper it actually loads are arm64. Remove all foreign prebuilds from
 // each thin package before signing. Older better-sqlite3 packages used a similar
 // bin/<platform>-<arch>-<abi> layout, so prune those defensively as well.

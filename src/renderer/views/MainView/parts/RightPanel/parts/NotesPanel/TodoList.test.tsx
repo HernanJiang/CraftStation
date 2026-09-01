@@ -7,7 +7,7 @@ import { setTodoActionsListener, type TodoActionsRequest } from "./todoActions";
 import { TodoList } from "./TodoList";
 
 const PROJECT_ID = "project-1";
-const originalPoracode = window.poracode;
+const originalCraftStation = window.craftstation;
 
 describe("TodoList", () => {
   beforeEach(() => {
@@ -23,7 +23,7 @@ describe("TodoList", () => {
   });
 
   afterEach(() => {
-    window.poracode = originalPoracode;
+    window.craftstation = originalCraftStation;
     setTodoActionsListener(null);
   });
 
@@ -51,7 +51,7 @@ describe("TodoList", () => {
   });
 
   it("opens the mobile action menu from a touch hold on the to-do text", () => {
-    window.poracode = { appVersion: "remote" } as typeof window.poracode;
+    window.craftstation = { appVersion: "remote" } as typeof window.craftstation;
     useNotesStore.setState({
       byProject: {
         [PROJECT_ID]: {

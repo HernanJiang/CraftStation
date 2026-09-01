@@ -8,7 +8,7 @@ describe("detectProjectIconFile", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "poracode-icon-detect-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-icon-detect-"));
   });
 
   afterEach(() => {
@@ -55,7 +55,7 @@ describe("listProjectIconFiles", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "poracode-icon-list-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-icon-list-"));
   });
 
   afterEach(() => {

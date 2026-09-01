@@ -1,5 +1,5 @@
 import type { AccountQuotaWindow } from "@/shared/contracts";
-import type { HttpClient, HttpRequest, HttpResponse, OAuthToken } from "@poracode/agents-usage";
+import type { HttpClient, HttpRequest, HttpResponse, OAuthToken } from "@craftstation/agents-usage";
 
 /**
  * Account-scoped Grok billing fallback. The official CLI remains the primary

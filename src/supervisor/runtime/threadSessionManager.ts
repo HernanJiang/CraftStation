@@ -174,12 +174,13 @@ export class ThreadSessionManager {
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
       isCurrentSession: (session) => this.isCurrentSession(session),
       resolveAgentSettings: (adapter) => this.resolveAgentSettings(adapter),
-      emitOptimisticUserMessage: (threadId, prompt, segments, requestedItemId) =>
+      emitOptimisticUserMessage: (threadId, prompt, segments, requestedItemId, requestedTurnId) =>
         this.structuredTurnQueue.emitOptimisticUserMessage(
           threadId,
           prompt,
           segments,
           requestedItemId,
+          requestedTurnId,
         ),
     });
     this.invalidSessionRecovery = new InvalidSessionRecoveryCoordinator({
@@ -196,7 +197,7 @@ export class ThreadSessionManager {
   }
 
   /**
-   * Resolve a provider-native root or child session to its live Poracode
+   * Resolve a provider-native root or child session to its live CraftStation
    * thread. Root ids use the reverse index; provider-owned child sessions can
    * opt into the fallback through `ownsProviderSession`.
    */
@@ -277,13 +278,15 @@ export class ThreadSessionManager {
     // the same item id so the replacement session cannot duplicate it.
     const pending = session.pendingSteer;
     if (!pending) return;
+    const turnId = pending.turnId ?? `turn-${randomUUID()}`;
     const userMessageItemId = this.structuredTurnQueue.emitOptimisticUserMessage(
       session.threadId,
       pending.prompt,
       pending.segments,
       pending.userMessageItemId,
+      turnId,
     );
-    const turn: QueuedStructuredTurn = { ...pending, userMessageItemId };
+    const turn: QueuedStructuredTurn = { ...pending, turnId, userMessageItemId };
     clearPendingSteerSlot(session, this.options.emit);
     void this.spawnPipeline.restartThread(session, turn).catch((error) => {
       if (!this.isCurrentSession(session)) return;

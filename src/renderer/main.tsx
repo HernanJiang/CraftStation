@@ -16,7 +16,7 @@ import { bootstrapAppThemeFromCache } from "./theme/applyAppTheme";
 import { bootstrapAppLocaleFromCache } from "./i18n/i18n";
 
 function logRendererBootstrap(message: string): void {
-  if (import.meta.env.DEV) performance.mark(`poracode:${message}`);
+  if (import.meta.env.DEV) performance.mark(`craftstation:${message}`);
   console.log(`[renderer-bootstrap] page +${Math.round(performance.now())}ms ${message}`);
 }
 
@@ -44,7 +44,7 @@ document.title = getAppName(readBridge().channel, import.meta.env.DEV);
 initializeRendererSentry();
 
 document.documentElement.dataset.platform =
-  typeof window !== "undefined" && "poracode" in window ? readBridge().platform : "unknown";
+  typeof window !== "undefined" && "craftstation" in window ? readBridge().platform : "unknown";
 document.documentElement.dataset.windowKind = readBridge().windowKind;
 
 // The translucent ("liquid glass") sidebar is applied by provider.tsx only once
@@ -82,7 +82,7 @@ function reportRootError(
   errorInfo: { componentStack?: string | undefined },
 ) {
   const componentStack = errorInfo.componentStack?.trim();
-  const prefix = `[poracode][react:${kind}]`;
+  const prefix = `[craftstation][react:${kind}]`;
 
   if (kind === "recoverable") {
     console.warn(prefix, error, componentStack ?? "");
@@ -97,7 +97,7 @@ function reportRootError(
 function renderCrashScreen(report: RendererCrashReport): void {
   if (renderingCrashScreen) return;
   renderingCrashScreen = true;
-  console.error(`[poracode][renderer:${report.kind}]`, report);
+  console.error(`[craftstation][renderer:${report.kind}]`, report);
   try {
     reactRoot?.render(<RendererCrashScreen report={report} />);
   } finally {

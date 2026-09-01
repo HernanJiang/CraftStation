@@ -9,7 +9,7 @@ Every supported agent implements the `AgentAdapter` interface (`src/supervisor/a
 - `kind` / `label` — Provider identifier and display name.
 - `capabilities` — Declares models, efforts, modes, approval policies, sandbox modes, resume/direct-input support, live input mode (terminal | server), presentation mode (terminal | gui).
 - `spawnEnv?` — Optional `{ native?, wsl? }` env records the runtime merges into the PTY spawn (e.g. `BROWSER=/bin/true` under WSL for OAuth-flow providers). Location-specific only — env that must ride EVERY spawn of the CLI belongs in `baseSpawnEnv` instead.
-- `baseSpawnEnv?` — Env applied to every Poracode-made spawn of this CLI in every lane (detection probes, terminal login, PTY launch, ACP session/auth/logout, one-shots, context extraction, subagent children), merged UNDER lane-specific env. Declare it once on the `DetectionSpec`; the adapter re-exposes it via `...inheritBaseSpawnEnv(spec)` so the two can never drift. Shared runtime fans it out — never repeat it per command builder. Deliberately NOT applied to `update` commands so the user-driven "update agent" action still reaches the CLI's own updater. WSL caveat: the shared merge sets spawn-level env; env that must reach the distro still has to be baked into the wsl.exe login-shell script by the command builder (`buildAgentCommand` does this) — keep the same map reference there, as factory does.
+- `baseSpawnEnv?` — Env applied to every CraftStation-made spawn of this CLI in every lane (detection probes, terminal login, PTY launch, ACP session/auth/logout, one-shots, context extraction, subagent children), merged UNDER lane-specific env. Declare it once on the `DetectionSpec`; the adapter re-exposes it via `...inheritBaseSpawnEnv(spec)` so the two can never drift. Shared runtime fans it out — never repeat it per command builder. Deliberately NOT applied to `update` commands so the user-driven "update agent" action still reaches the CLI's own updater. WSL caveat: the shared merge sets spawn-level env; env that must reach the distro still has to be baked into the wsl.exe login-shell script by the command builder (`buildAgentCommand` does this) — keep the same map reference there, as factory does.
 - `detectInstall(ctx?)` — Typically one line: `return detectAgentInstall(ctx, spec)`. Declare a `DetectionSpec` (binary, capabilities, versionArgs?, authProbes?, capabilitiesProbe?, baseSpawnEnv?) and let the engine own the WSL vs native probe + binary resolution + version + auth/capability merge.
 - `buildLaunchArgv()` / `buildResumeArgv()` — Return an `AgentArgvSpec` (`{ binary, args, env?, sessionRef? }`). The runtime wraps it through `resolveLaunchSpec` which owns WSL login-shell, Windows PowerShell encoding, and env injection. **Adapters must never call `buildAgentCommand` on the main launch path** — the contract is structurally argv-only.
 - `createInitialSessionRef()` — Generate a session ID on first launch (or `undefined` if the CLI generates its own).
@@ -169,7 +169,7 @@ most often forgotten.
       `buildAcpLogoutCommand` (see Grok/Copilot/Cursor).
 - [ ] L1 hook plugin → `pluginId`/`installPlugin`/`pluginLaunchExtras` + a
       `plugin/` dir containing `plugin.json` and exactly one staged runtime
-      (`forward.mjs` or OpenCode's `poracode-status.mjs`). Packaging discovers
+      (`forward.mjs` or OpenCode's `craftstation-status.mjs`). Packaging discovers
       these directories automatically; `prepareAgentPlugins.test.ts` pins the
       current provider set and staged asset shape.
 - [ ] OSC status (title spinner / iTerm2 progress) → `handleOscTitle`/
@@ -247,7 +247,7 @@ Pinned LTS version + SHA256 checksums for every target live in `src/supervisor/r
 
 Three layers, in order of cost:
 
-1. **Managed runtime fast path.** Single `existsSync` on `~/.poracode/runtime/node-v<x>-<target>/{bin/node,node.exe}`. Zero shell spawn — answers in microseconds when a previous boot installed it.
+1. **Managed runtime fast path.** Single `existsSync` on `~/.craftstation/runtime/node-v<x>-<target>/{bin/node,node.exe}`. Zero shell spawn — answers in microseconds when a previous boot installed it.
 2. **Login-shell probe.** macOS GUI apps don't inherit the user's interactive PATH (no Homebrew, no nvm) — so on POSIX we spawn `$SHELL -lic` with sentinel markers (`__LC_NODE_PATH__:`, `__LC_NODE_VERSION__:`) to extract the user's `node` past any rc-file noise. On Windows, Electron inherits PATH from the registry already, so `where.exe node` is enough. If the binary version is ≥ `MIN_ACCEPTED_NODE_MAJOR`, that's our pick.
 3. **Background install.** When 1 + 2 both miss, the resolver fires `installNativeRuntime` (download → SHA256-verify → `tar -xJf` for `.tar.xz` / `tar.exe -xf` for `.zip`) and immediately returns null. The current install pass falls back to `ELECTRON_RUN_AS_NODE=1`; next supervisor boot picks up the managed runtime via the fast path.
 
@@ -260,16 +260,16 @@ Result is memoized for the supervisor lifetime (one promise per base dir, shared
 
 ### Hook wrapper
 
-`installerBase.writeNativeHookWrapper(pluginDir, { nodePath? })` writes `poracode-hook.{sh,cmd}` next to `forward.mjs`. Two shapes:
+`installerBase.writeNativeHookWrapper(pluginDir, { nodePath? })` writes `craftstation-hook.{sh,cmd}` next to `forward.mjs`. Two shapes:
 
 - **With nodePath (preferred):** wrapper exec's the bare Node binary directly. ~30–50 ms cold start.
-- **Without:** wrapper sets `ELECTRON_RUN_AS_NODE=1` and exec's `process.execPath` (poracode's bundled Electron). ~150 ms cold start. Always works.
+- **Without:** wrapper sets `ELECTRON_RUN_AS_NODE=1` and exec's `process.execPath` (craftstation's bundled Electron). ~150 ms cold start. Always works.
 
 Adapters' `installPlugin` calls `resolveInstallNodePath(ctx)` from `installerBase`, which routes to the WSL or native resolver as appropriate. Provider install code passes the result through `options.resolvedNodePath` to `installXPlugin(ctx, options)`, which threads it into `writeNativeHookWrapper`. The wrapper is rewritten on every install pass — when a user installs Node between launches, the next boot detects it and upgrades the wrapper transparently.
 
 ### Bumping pinned Node
 
-Edit `PORACODE_PINNED_NODE_VERSION` in `src/supervisor/runtime/pinnedNode.ts`, then run `pnpm tsx scripts/refresh-node-checksums.mjs`. The script walks the `NODE_TARBALL_CHECKSUMS` block and replaces every target's SHA256 from the official `nodejs.org/dist/v<x>/SHASUMS256.txt`. Covers `linux-{x64,arm64}` (.tar.xz), `darwin-{x64,arm64}` (.tar.xz), `win-{x64,arm64}` (.zip).
+Edit `CRAFTSTATION_PINNED_NODE_VERSION` in `src/supervisor/runtime/pinnedNode.ts`, then run `pnpm tsx scripts/refresh-node-checksums.mjs`. The script walks the `NODE_TARBALL_CHECKSUMS` block and replaces every target's SHA256 from the official `nodejs.org/dist/v<x>/SHASUMS256.txt`. Covers `linux-{x64,arm64}` (.tar.xz), `darwin-{x64,arm64}` (.tar.xz), `win-{x64,arm64}` (.zip).
 
 ## Capability-Based UI
 

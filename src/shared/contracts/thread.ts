@@ -10,6 +10,7 @@ import {
   threadAttentionSchema,
   threadPresentationModeSchema,
   threadStatusSchema,
+  type ThreadPresentationMode,
 } from "./common";
 import { threadConfigSchema } from "./config";
 import {
@@ -71,7 +72,7 @@ export const threadSchema = z.object({
   slashCommands: z.array(agentSlashCommandSchema).optional(),
   /**
    * Id of the thread that created this thread as a child (e.g. via the
-   * `poracode` MCP `create_thread` tool). Persisted so child threads render
+   * `craftstation` MCP `create_thread` tool). Persisted so child threads render
    * grouped with their parent in the sidebar; absent for user-created threads.
    */
   parentThreadId: z.string().min(1).optional(),
@@ -89,6 +90,7 @@ export interface ThreadRuntimeSnapshot {
   canResumeWithConfig: boolean;
   errorMessage?: string;
   threadStatusSource?: ThreadStatusSource;
+  presentationMode?: ThreadPresentationMode;
   slashCommands?: z.infer<typeof agentSlashCommandSchema>[];
 }
 

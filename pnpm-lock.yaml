@@ -63,6 +63,18 @@ importers:
       '@chenglou/pretext':
         specifier: ^0.0.8
         version: 0.0.8
+      '@craftstation/activity-bridge':
+        specifier: file:native/activity-bridge
+        version: file:native/activity-bridge(@capacitor/core@8.4.1)
+      '@craftstation/agents-usage':
+        specifier: workspace:*
+        version: link:packages/agents-usage
+      '@craftstation/codex-protocol':
+        specifier: workspace:*
+        version: link:packages/codex-protocol
+      '@craftstation/ssh-bridge':
+        specifier: file:native/ssh-bridge
+        version: file:native/ssh-bridge(@capacitor/core@8.4.1)
       '@dnd-kit/abstract':
         specifier: ^0.5.0
         version: 0.5.0
@@ -117,18 +129,6 @@ importers:
       '@opencode-ai/sdk':
         specifier: ^1.18.10
         version: 1.18.10
-      '@poracode/activity-bridge':
-        specifier: file:native/activity-bridge
-        version: file:native/activity-bridge(@capacitor/core@8.4.1)
-      '@poracode/agents-usage':
-        specifier: workspace:*
-        version: link:packages/agents-usage
-      '@poracode/codex-protocol':
-        specifier: workspace:*
-        version: link:packages/codex-protocol
-      '@poracode/ssh-bridge':
-        specifier: file:native/ssh-bridge
-        version: file:native/ssh-bridge(@capacitor/core@8.4.1)
       '@sentry/electron':
         specifier: ^7.15.0
         version: 7.15.0(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
@@ -741,6 +741,16 @@ packages:
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
     engines: {node: '>=0.1.90'}
+
+  '@craftstation/activity-bridge@file:native/activity-bridge':
+    resolution: {directory: native/activity-bridge, type: directory}
+    peerDependencies:
+      '@capacitor/core': ^8.0.0
+
+  '@craftstation/ssh-bridge@file:native/ssh-bridge':
+    resolution: {directory: native/ssh-bridge, type: directory}
+    peerDependencies:
+      '@capacitor/core': ^8.0.0
 
   '@csstools/color-helpers@6.1.0':
     resolution: {integrity: sha512-064IFJdjTfUqnjpCVpMOdbr8FLQBhinbZj6yRv2An2E41O/pLEXqfFRWqGq/SxlE5PEUYTlvWsG2r8MswAVvkg==}
@@ -2056,16 +2066,6 @@ packages:
   '@peculiar/webcrypto@1.7.1':
     resolution: {integrity: sha512-ODOov0sGMJMf3jPonOkgGqPknTsu+DdQ7kD++gz8aI+aFMOMHFbWAA2taqXXVTdP+OTOQR/znGvSpmkeI0WTYQ==}
     engines: {node: '>=14.18.0'}
-
-  '@poracode/activity-bridge@file:native/activity-bridge':
-    resolution: {directory: native/activity-bridge, type: directory}
-    peerDependencies:
-      '@capacitor/core': ^8.0.0
-
-  '@poracode/ssh-bridge@file:native/ssh-bridge':
-    resolution: {directory: native/ssh-bridge, type: directory}
-    peerDependencies:
-      '@capacitor/core': ^8.0.0
 
   '@preact/signals-core@1.14.3':
     resolution: {integrity: sha512-m0K3vnbSLC5rHs2ZVfeAMvBtT1zIyq4mxx5OlNncSgMj5Iz6W5Rn3kPrDxAC+iIKmiVe0lSl6U37t5ZkEWoVAw==}
@@ -7980,6 +7980,14 @@ snapshots:
   '@colors/colors@1.5.0':
     optional: true
 
+  '@craftstation/activity-bridge@file:native/activity-bridge(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
+  '@craftstation/ssh-bridge@file:native/ssh-bridge(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
   '@csstools/color-helpers@6.1.0': {}
 
   '@csstools/css-calc@3.2.1(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)':
@@ -9136,14 +9144,6 @@ snapshots:
       '@peculiar/utils': 2.0.3
       tslib: 2.8.1
       webcrypto-core: 1.9.2
-
-  '@poracode/activity-bridge@file:native/activity-bridge(@capacitor/core@8.4.1)':
-    dependencies:
-      '@capacitor/core': 8.4.1
-
-  '@poracode/ssh-bridge@file:native/ssh-bridge(@capacitor/core@8.4.1)':
-    dependencies:
-      '@capacitor/core': 8.4.1
 
   '@preact/signals-core@1.14.3': {}
 

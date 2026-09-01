@@ -42,7 +42,7 @@
 - 触及文件 `oxlint --deny-warnings`：通过。
 - 触及文件 `oxfmt --check`：**失败**（6 files，见 F40）。
 - `git diff --check`（触及 nativeHarness / registry / HarnessPanel）：通过。
-- 本轮未把全仓 17 个既有失败算进 v0.7 回归；抽样方向与 v0.8 相同的品牌路径 `.poracode` vs `.craftstation` 属基线，不要求 Coder 为全绿改无关测试。
+- 本轮未把全仓 17 个既有失败算进 v0.7 回归；抽样方向与 v0.8 相同的品牌路径 `.craftstation` vs `.craftstation` 属基线，不要求 Coder 为全绿改无关测试。
 
 ### 真实 Antigravity 边界
 

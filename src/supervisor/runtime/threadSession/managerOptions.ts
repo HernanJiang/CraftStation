@@ -87,12 +87,12 @@ export interface ThreadSessionManagerOptions {
     builtInMcpServerIds: BuiltInMcpServerId[];
     nativePlugins: AgentNativePlugin[];
   }>;
-  /** Wrap servers with disabled tools in Poracode's same-environment filtering proxy. */
+  /** Wrap servers with disabled tools in CraftStation's same-environment filtering proxy. */
   prepareMcpToolFilters?(
     servers: McpServer[],
     projectLocation: ProjectLocation,
   ): Promise<McpServer[]>;
-  /** Synchronize Poracode-owned provider skill projections before a new agent process starts. */
+  /** Synchronize CraftStation-owned provider skill projections before a new agent process starts. */
   prepareSkillsForLaunch?(projectLocation: ProjectLocation, agentKind: AgentKind): Promise<void>;
   /** Enforce plugin skill policy before a segment reaches a provider. */
   filterPluginSkillSegments?(input: {

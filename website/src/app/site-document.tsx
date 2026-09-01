@@ -5,7 +5,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { createPageMetadata, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/seo";
 
-// Geist is the Poracode brand typeface (branding/BRAND.md §7). Exposed as CSS
+// Geist is the CraftStation brand typeface (branding/BRAND.md §7). Exposed as CSS
 // vars that globals.css maps onto Tailwind's --font-sans / --font-mono.
 const geistSans = Geist({
   subsets: ["latin"],

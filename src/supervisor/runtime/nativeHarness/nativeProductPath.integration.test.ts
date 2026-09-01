@@ -56,8 +56,8 @@ describe.skipIf(!enabled)("CraftStation native Antigravity product path evidence
       executablePath,
       promptMarker: prompt,
     };
-    const previousDataDir = process.env.PORACODE_DATA_DIR;
-    process.env.PORACODE_DATA_DIR = dataDir;
+    const previousDataDir = process.env.CRAFTSTATION_DATA_DIR;
+    process.env.CRAFTSTATION_DATA_DIR = dataDir;
     let runtime: SupervisorRuntime | undefined;
     let unsubscribe: (() => void) | undefined;
     let unsubscribeIpc: (() => void) | undefined;
@@ -146,8 +146,8 @@ describe.skipIf(!enabled)("CraftStation native Antigravity product path evidence
       unsubscribeIpc?.();
       unsubscribe?.();
       await runtime?.disposeAsync().catch(() => undefined);
-      if (previousDataDir === undefined) delete process.env.PORACODE_DATA_DIR;
-      else process.env.PORACODE_DATA_DIR = previousDataDir;
+      if (previousDataDir === undefined) delete process.env.CRAFTSTATION_DATA_DIR;
+      else process.env.CRAFTSTATION_DATA_DIR = previousDataDir;
       writeFileSync(
         join(validationDir, "v0.7.0-antigravity-product-path.json"),
         JSON.stringify(evidence, null, 2),
@@ -399,8 +399,8 @@ describe.skipIf(!grokEnabled)("CraftStation native Grok product path evidence", 
       credentialBoundary: "official host Grok login state; no API-key or proxy fallback",
       promptMarker,
     };
-    const previousDataDir = process.env.PORACODE_DATA_DIR;
-    process.env.PORACODE_DATA_DIR = isolatedDataDir;
+    const previousDataDir = process.env.CRAFTSTATION_DATA_DIR;
+    process.env.CRAFTSTATION_DATA_DIR = isolatedDataDir;
     let runtime: SupervisorRuntime | undefined;
     let unsubscribe: (() => void) | undefined;
     try {
@@ -472,8 +472,8 @@ describe.skipIf(!grokEnabled)("CraftStation native Grok product path evidence", 
     } finally {
       unsubscribe?.();
       await runtime?.disposeAsync().catch(() => undefined);
-      if (previousDataDir === undefined) delete process.env.PORACODE_DATA_DIR;
-      else process.env.PORACODE_DATA_DIR = previousDataDir;
+      if (previousDataDir === undefined) delete process.env.CRAFTSTATION_DATA_DIR;
+      else process.env.CRAFTSTATION_DATA_DIR = previousDataDir;
       writeFileSync(
         join(validationDir, "v0.7.9-grok-product-path.json"),
         JSON.stringify(evidence, null, 2),

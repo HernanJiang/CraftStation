@@ -80,8 +80,8 @@ Tests       16 failed | 9618 passed | 48 skipped (9682)
 16 个失败归属：
 
 - `remoteProcedureRouter.test.ts`：2 个 profile login procedures 未分类；
-- `poracodeData.migrate.test.ts`：8 个迁移、marker、backup、lock、rollback 基线失败；
-- `channel.config-parity.test.ts`、`channel.test.ts`、`poracodePaths.test.ts`、`probeCwd.test.ts`：`.poracode` / `.craftstation` 品牌路径基线不一致。
+- `craftstationData.migrate.test.ts`：8 个迁移、marker、backup、lock、rollback 基线失败；
+- `channel.config-parity.test.ts`、`channel.test.ts`、`craftstationPaths.test.ts`、`probeCwd.test.ts`：`.craftstation` / `.craftstation` 品牌路径基线不一致。
 
 这些失败没有命中 v0.7 native harness 触及模块，但全仓不能写成 PASS。全仓 lint 的既有失败仍为未触及的 `src/supervisor/agents/codex/codexRouterOverlay.test.ts:52`：`vitest(no-conditional-expect)`。
 

@@ -144,7 +144,7 @@ export function SortableThreadItem(props: {
           tooltipDelay={0}
           tooltipClassName="pointer-events-none rounded-lg border border-white/10 bg-[#222329]/95 p-2 text-xs shadow-xl backdrop-blur-md"
           isActive={isCurrentThread}
-          className={`poracode-sidebar-thread-row !mx-2 !my-0.5 !min-h-8 !rounded-lg !border ${isCurrentThread ? "!border-white/[0.04]" : "!border-transparent"} !px-2.5 !py-1.5`}
+          className={`craftstation-sidebar-thread-row !mx-2 !my-0.5 !min-h-8 !rounded-lg !border ${isCurrentThread ? "!border-white/[0.04]" : "!border-transparent"} !px-2.5 !py-1.5`}
           onPress={() => openThread(thread.id)}
           onDoubleClick={() => props.setEditingThreadId(thread.id)}
           isDragging={isDragging}

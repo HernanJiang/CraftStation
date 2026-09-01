@@ -1,4 +1,4 @@
-import type { HttpClient, OAuthToken } from "@poracode/agents-usage";
+import type { HttpClient, OAuthToken } from "@craftstation/agents-usage";
 import { getUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import { CraftStationCredentialVault, providerCredentialBucket } from "./credentialVault";
 import { createNodeHttpClient } from "./usageHttpClient";

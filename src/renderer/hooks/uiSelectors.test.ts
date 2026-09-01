@@ -11,7 +11,7 @@ import {
   useIsWorktreeTerminalActive,
 } from "./uiSelectors";
 
-const worktreePath = "/repo/.poracode/worktrees/feature";
+const worktreePath = "/repo/.craftstation/worktrees/feature";
 
 beforeEach(() => {
   useSharedSettings.setState({ terminalPosition: "bottom" });

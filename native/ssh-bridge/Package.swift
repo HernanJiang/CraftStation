@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "PoracodeSshBridge",
+    name: "CraftStationSshBridge",
     platforms: [.iOS(.v15)],
     products: [
-        .library(name: "PoracodeSshBridge", targets: ["SshBridgePlugin"])
+        .library(name: "CraftStationSshBridge", targets: ["SshBridgePlugin"])
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.0.0"),

@@ -3,7 +3,7 @@ import { normalizeAcpModeId } from "./probe";
 import { findThoughtLevelConfigOption } from "./thoughtLevel";
 
 /**
- * Resolve the ACP mode ID from Poracode's ThreadConfig.
+ * Resolve the ACP mode ID from CraftStation's ThreadConfig.
  *
  * Different agents expose different mode IDs:
  *   Gemini:  "default", "autoEdit", "yolo", "plan"

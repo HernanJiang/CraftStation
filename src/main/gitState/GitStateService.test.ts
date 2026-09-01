@@ -21,9 +21,9 @@ function status(branch = "feature/unified"): GitStatusResult {
     tracking: `origin/${branch}`,
     hasRemote: true,
     remoteInfo: {
-      url: "git@github.com:poracode/repo.git",
+      url: "git@github.com:craftstation/repo.git",
       platform: "github",
-      owner: "poracode",
+      owner: "craftstation",
       repo: "repo",
     },
     ahead: 0,
@@ -40,7 +40,7 @@ function pr(overrides: Partial<PrData> = {}): PrData {
     number: 42,
     state: "open",
     title: "Unify Git state",
-    url: "https://github.test/poracode/repo/pull/42",
+    url: "https://github.test/craftstation/repo/pull/42",
     baseBranch: "main",
     isDraft: false,
     checksStatus: "PENDING",
@@ -129,8 +129,8 @@ describe("GitStateService", () => {
 
   it("normalizes a branch PR once and associates every matching target", async () => {
     const { service, executor: fakeExecutor } = createService();
-    const worktreeA = "/repo/.poracode/worktrees/a";
-    const worktreeB = "/repo/.poracode/worktrees/b";
+    const worktreeA = "/repo/.craftstation/worktrees/a";
+    const worktreeB = "/repo/.craftstation/worktrees/b";
 
     await Promise.all([
       service.refreshTarget({
@@ -210,7 +210,7 @@ describe("GitStateService", () => {
       {
         kind: "target",
         projectId: project.id,
-        worktreePath: "/repo/.poracode/worktrees/a",
+        worktreePath: "/repo/.craftstation/worktrees/a",
         branch: "feature/unified",
         includePrDetails: true,
       },
@@ -238,7 +238,7 @@ describe("GitStateService", () => {
         {
           kind: "target",
           projectId: project.id,
-          worktreePath: "/repo/.poracode/worktrees/a",
+          worktreePath: "/repo/.craftstation/worktrees/a",
         },
       ],
       { fetchRemote: true },
@@ -256,7 +256,7 @@ describe("GitStateService", () => {
       {
         kind: "target" as const,
         projectId: project.id,
-        worktreePath: "/repo/.poracode/worktrees/a",
+        worktreePath: "/repo/.craftstation/worktrees/a",
       },
     ];
     service.start();
@@ -288,12 +288,12 @@ describe("GitStateService", () => {
         {
           kind: "target",
           projectId: project.id,
-          worktreePath: "/repo/.poracode/worktrees/a",
+          worktreePath: "/repo/.craftstation/worktrees/a",
         },
         {
           kind: "target",
           projectId: project.id,
-          worktreePath: "/repo/.poracode/worktrees/b",
+          worktreePath: "/repo/.craftstation/worktrees/b",
         },
       ],
       { fetchRemote: true },
@@ -313,7 +313,7 @@ describe("GitStateService", () => {
 
   it("publishes an externally observed PR without spawning gh", async () => {
     const { service, executor: fakeExecutor, patches } = createService();
-    const worktree = "/repo/.poracode/worktrees/a";
+    const worktree = "/repo/.craftstation/worktrees/a";
     await service.refreshTarget({
       projectId: project.id,
       worktreePath: worktree,
@@ -351,7 +351,7 @@ describe("GitStateService", () => {
     const { service } = createService();
     await service.refreshTarget({
       projectId: project.id,
-      worktreePath: "/repo/.poracode/worktrees/a",
+      worktreePath: "/repo/.craftstation/worktrees/a",
       branch: "feature/unified",
     });
     const branchKey = pullRequestBranchKey(

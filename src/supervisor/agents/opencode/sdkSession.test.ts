@@ -26,6 +26,40 @@ function streamOf<T>(...values: readonly T[]): AsyncGenerator<T> {
   })();
 }
 
+function controllableStream<T>(): {
+  stream: AsyncGenerator<T>;
+  push(value: T): void;
+  close(): void;
+} {
+  const queue: T[] = [];
+  let closed = false;
+  let resume: (() => void) | undefined;
+  return {
+    stream: (async function* () {
+      while (true) {
+        if (queue.length > 0) {
+          yield queue.shift()!;
+          continue;
+        }
+        if (closed) return;
+        await new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+      }
+    })(),
+    push(value) {
+      queue.push(value);
+      resume?.();
+      resume = undefined;
+    },
+    close() {
+      closed = true;
+      resume?.();
+      resume = undefined;
+    },
+  };
+}
+
 function serverConnectedEvent(): Event {
   return {
     id: "evt-server",
@@ -44,10 +78,64 @@ function emptyEventClient() {
   };
 }
 
-describe("OpencodeSdkSession", () => {
-  const projectLocation: ProjectLocation = { kind: "posix", path: "/repo" };
-  const config: ThreadConfig = { model: "opencode/big-pickle" };
+const projectLocation: ProjectLocation = { kind: "posix", path: "/repo" };
+const config: ThreadConfig = { model: "opencode/big-pickle" };
 
+async function createTurnHarness(options?: {
+  promptAsync?: (input: unknown) => Promise<unknown>;
+  abort?: (input: unknown) => Promise<unknown>;
+}) {
+  const events = controllableStream<unknown>();
+  const runtimeEvents: RuntimeEvent[] = [];
+  const updates: StructuredSessionUpdate[] = [];
+  const errors: string[] = [];
+  const promptAsync = vi.fn<(input: unknown) => Promise<unknown>>(
+    options?.promptAsync ?? (() => Promise.resolve({ data: {} })),
+  );
+  const abort = vi.fn<(input: unknown) => Promise<unknown>>(
+    options?.abort ?? (() => Promise.resolve({ data: true })),
+  );
+  mocks.acquireOpenCodeServer.mockResolvedValue({
+    eventClient: {
+      global: {
+        event: vi
+          .fn<() => Promise<{ stream: AsyncGenerator<unknown> }>>()
+          .mockResolvedValue({ stream: events.stream }),
+      },
+    },
+    client: {
+      command: { list: vi.fn<() => Promise<{ data: [] }>>().mockResolvedValue({ data: [] }) },
+      session: {
+        create: vi
+          .fn<() => Promise<{ data: { id: string } }>>()
+          .mockResolvedValue({ data: { id: "ses_turns" } }),
+        promptAsync,
+        abort,
+      },
+    },
+    baseUrl: "http://127.0.0.1:0",
+    handle: {},
+    dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  });
+
+  const session = await OpencodeSdkSession.create({
+    threadId: "thread-turns",
+    projectLocation,
+    config,
+    presentationMode: "gui",
+  });
+  session.setListener({
+    onClose: () => {},
+    onError: (message) => errors.push(message),
+    onUpdate: (update) => updates.push(update),
+    onRuntimeEvent: (event) => runtimeEvents.push(event),
+  });
+  await session.activate();
+  await session.openThread(config);
+  return { session, events, runtimeEvents, updates, errors, promptAsync, abort };
+}
+
+describe("OpencodeSdkSession", () => {
   beforeEach(() => {
     mocks.acquireOpenCodeServer.mockReset();
   });
@@ -878,7 +966,7 @@ describe("OpencodeSdkSession", () => {
 
     expect(create).toHaveBeenCalledWith({
       directory: "/repo",
-      title: "poracode/thread-o",
+      title: "craftstation/thread-o",
     });
   });
 
@@ -909,7 +997,7 @@ describe("OpencodeSdkSession", () => {
 
     expect(create).toHaveBeenCalledWith({
       directory: "/repo",
-      title: "poracode/thread-o",
+      title: "craftstation/thread-o",
       permission: [{ permission: "*", pattern: "*", action: "allow" }],
     });
   });
@@ -1011,6 +1099,192 @@ describe("OpencodeSdkSession", () => {
     expect(promptAsync).toHaveBeenCalledOnce();
 
     await session.dispose();
+  });
+
+  it("completes an admitted prompt with the same canonical turn id after early SSE idle", async () => {
+    let admitPrompt!: () => void;
+    const admitted = new Promise<unknown>((resolve) => {
+      admitPrompt = () => resolve({ data: {} });
+    });
+    const harness = await createTurnHarness({ promptAsync: () => admitted });
+
+    harness.updates.length = 0;
+    const starting = harness.session.startTurn("hello", config, undefined, {
+      turnId: "turn-gui-1",
+    });
+    await vi.waitFor(() => expect(harness.promptAsync).toHaveBeenCalledTimes(1));
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-idle-early",
+        type: "session.idle",
+        properties: { sessionID: "ses_turns" },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(harness.updates).toContainEqual(expect.objectContaining({ status: "idle" })),
+    );
+    expect(harness.runtimeEvents).not.toContainEqual(
+      expect.objectContaining({ type: "turn.completed" }),
+    );
+
+    admitPrompt();
+    await starting;
+
+    expect(harness.runtimeEvents).toContainEqual({
+      type: "turn.completed",
+      threadId: "thread-turns",
+      turnId: "turn-gui-1",
+      state: "completed",
+    });
+    harness.events.close();
+    await harness.session.dispose();
+  });
+
+  it("allocates a distinct fallback turn id before each prompt admission", async () => {
+    const harness = await createTurnHarness();
+
+    await harness.session.startTurn("first", config);
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-idle-first",
+        type: "session.idle",
+        properties: { sessionID: "ses_turns" },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(harness.runtimeEvents.filter((event) => event.type === "turn.completed")).toHaveLength(
+        1,
+      ),
+    );
+
+    await harness.session.startTurn("second", config);
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-idle-second",
+        type: "session.idle",
+        properties: { sessionID: "ses_turns" },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(harness.runtimeEvents.filter((event) => event.type === "turn.completed")).toHaveLength(
+        2,
+      ),
+    );
+
+    const turnIds = harness.runtimeEvents.flatMap((event) =>
+      event.type === "turn.completed" ? [event.turnId] : [],
+    );
+    expect(new Set(turnIds).size).toBe(2);
+
+    harness.events.close();
+    await harness.session.dispose();
+  });
+
+  it("marks an interrupted prompt as interrupted instead of completed on SSE idle", async () => {
+    const harness = await createTurnHarness();
+    await harness.session.startTurn("stop me", config, undefined, {
+      turnId: "turn-stop-1",
+    });
+
+    await harness.session.interruptTurn();
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-idle-stop",
+        type: "session.idle",
+        properties: { sessionID: "ses_turns" },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(harness.runtimeEvents).toContainEqual(
+        expect.objectContaining({
+          type: "turn.completed",
+          turnId: "turn-stop-1",
+          state: "interrupted",
+        }),
+      ),
+    );
+    expect(harness.runtimeEvents).not.toContainEqual(
+      expect.objectContaining({
+        type: "turn.completed",
+        turnId: "turn-stop-1",
+        state: "completed",
+      }),
+    );
+
+    harness.events.close();
+    await harness.session.dispose();
+  });
+
+  it("fails a rejected prompt once and suppresses its derivative session.error", async () => {
+    const harness = await createTurnHarness({
+      promptAsync: () => Promise.reject(new Error("prompt rejected")),
+    });
+
+    await expect(
+      harness.session.startTurn("fail", config, undefined, { turnId: "turn-fail-1" }),
+    ).rejects.toThrow("prompt rejected");
+    expect(harness.runtimeEvents).toContainEqual({
+      type: "turn.completed",
+      threadId: "thread-turns",
+      turnId: "turn-fail-1",
+      state: "failed",
+    });
+
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-error-after-reject",
+        type: "session.error",
+        properties: {
+          sessionID: "ses_turns",
+          error: { name: "APIError", data: { message: "prompt rejected" } },
+        },
+      },
+    });
+    await Promise.resolve();
+    expect(harness.errors).toEqual([]);
+    expect(harness.runtimeEvents.filter((event) => event.type === "turn.completed")).toHaveLength(
+      1,
+    );
+    expect(harness.runtimeEvents.filter((event) => event.type === "error")).toHaveLength(0);
+
+    harness.events.close();
+    await harness.session.dispose();
+  });
+
+  it("fails an active turn on session.error without emitting duplicate runtime errors", async () => {
+    const harness = await createTurnHarness();
+    await harness.session.startTurn("fail from SSE", config, undefined, {
+      turnId: "turn-sse-fail-1",
+    });
+
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-error-active",
+        type: "session.error",
+        properties: {
+          sessionID: "ses_turns",
+          error: { name: "APIError", data: { message: "provider failed" } },
+        },
+      },
+    });
+    await vi.waitFor(() => expect(harness.errors).toEqual(["provider failed"]));
+
+    expect(harness.runtimeEvents).toContainEqual({
+      type: "turn.completed",
+      threadId: "thread-turns",
+      turnId: "turn-sse-fail-1",
+      state: "failed",
+    });
+    expect(harness.runtimeEvents.filter((event) => event.type === "error")).toHaveLength(0);
+
+    harness.events.close();
+    await harness.session.dispose();
   });
 
   it("keeps disabled Crossagents tools denied in full access mode", async () => {

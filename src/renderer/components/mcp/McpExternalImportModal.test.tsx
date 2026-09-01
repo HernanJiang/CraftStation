@@ -377,7 +377,7 @@ describe("McpExternalImportModal", () => {
     ).toBeDisabled();
     expect(
       screen.getByRole("checkbox", {
-        name: "browser from Codex CLI: Managed by Poracode",
+        name: "browser from Codex CLI: Managed by CraftStation",
       }),
     ).toBeDisabled();
     expect(
@@ -386,7 +386,7 @@ describe("McpExternalImportModal", () => {
       }),
     ).toBeDisabled();
     expect(screen.getByText("Already configured")).toBeInTheDocument();
-    expect(screen.getByText("Managed by Poracode")).toBeInTheDocument();
+    expect(screen.getByText("Managed by CraftStation")).toBeInTheDocument();
     expect(screen.getByText("Duplicate server name in scan")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all MCP servers" }));

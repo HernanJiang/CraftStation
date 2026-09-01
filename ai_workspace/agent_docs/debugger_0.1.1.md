@@ -12,7 +12,7 @@ Feature-level Review：`v0.1.0 — OpenAI Model + Codex Harness Native Recipe`�
 - `ai_workspace/agent_docs/coder_0.1.0.md`
 - Tickets：`.scratch/craftstation-0.1.0/issues/01` ~ `06`
 - Working Copy：`craftstation/` 分支 `codex/v0.1.0`
-- 固定点：PoraCode 基线 `a28b995c47987b09862d8d18cb1203ddfb4ba159`
+- 固定点：CraftStation 基线 `a28b995c47987b09862d8d18cb1203ddfb4ba159`
 - 当前工作区：1 个已跟踪改动 + 16 个未提交新文件
 
 审查轴：Spec Fidelity、Integration、Regression、Runtime / Edge Cases、Architecture / Standards。
@@ -25,7 +25,7 @@ Feature-level Review：`v0.1.0 — OpenAI Model + Codex Harness Native Recipe`�
   - 已跟踪：`craftstation/src/shared/contracts.ts`（+1：re-export `./crafting/index`）
   - 未跟踪：`src/shared/crafting/**`、`src/renderer/components/crafting/**`、`src/supervisor/runtime/codexRuntimeAdapter.ts`、`src/supervisor/runtime/codexRuntimeAdapter.test.ts`
   - `findstr`：`CraftingGrid` / `CodexHarnessRuntimeAdapter` / `ProvenanceStore` 仅出现在各自模块与测试，无 renderer/main/supervisor 生产接线
-  - `package.json` 仍为 `"name": "poracode"`，version `1.6.6`
+  - `package.json` 仍为 `"name": "craftstation"`，version `1.6.6`
 - Tests / validation：
   - 独立执行：`pnpm exec vitest run src/shared/crafting src/renderer/components/crafting src/supervisor/runtime/codexRuntimeAdapter.test.ts --reporter=verbose`
   - 捕获到的新用例全部绿：domain / fake runtime / provenance in-memory / boundary 字符串扫描 / adapter mock / CraftingGrid 默认 auto 与 onCraft 回调
@@ -55,7 +55,7 @@ React CraftingGrid -> Recipe -> CraftPlan -> Codex Runtime -> Entity -> Session 
 
 Manager Key Risks 明确写了「没有真实 round-trip 不得 PASS」。T03/T04/T05/T06 的产品接线、持久化、真实 Codex、UI handoff 均未完成。Coder 文档把孤立模块写成已完成端到端链路，与代码不符。
 
-全仓 PoraCode 改名属于 Out of Scope；T01 需要的是可复现 baseline / smoke / 启动诊断，不是 rename。当前 diff 也没有这些 baseline 证据。
+全仓 CraftStation 改名属于 Out of Scope；T01 需要的是可复现 baseline / smoke / 启动诊断，不是 rename。当前 diff 也没有这些 baseline 证据。
 
 ### Integration
 
@@ -97,7 +97,7 @@ Domain 模块切分方向正确：crafting / registry / recipe 未 deep-import C
 
 - Evidence：`CraftingGrid` / `CodexHarnessRuntimeAdapter` / `ProvenanceStore` 仅存在于自身文件与测试；renderer/main 无引用。`CraftingGrid.onCraft` 只是可选回调，无 chat/session handoff。
 - Impact：用户无法从 UI Craft 进入真实 Entity Session。T04 / Feature Acceptance 直接失败。
-- Root Cause：实现停在孤立模块，没有接到 PoraCode 现有 thread/chat/IPC 路径。
+- Root Cause：实现停在孤立模块，没有接到 CraftStation 现有 thread/chat/IPC 路径。
 - Fix：把 CraftingGrid 挂到现有桌面入口；Craft 成功后走现有 GUI thread/session surface；supervisor 侧用生产 Adapter 创建/恢复/终止 Entity Session。
 - Acceptance：从 React Grid 选择 OpenAI Model、Harness `auto -> Codex`，Craft 后进入现有 chat，并能看到该 Session。
 
@@ -150,7 +150,7 @@ Domain 模块切分方向正确：crafting / registry / recipe 未 deep-import C
 
 ### F08 — T01 baseline / smoke 未形成可复现验收面
 
-- Evidence：Ticket 01 要求 identity、安装启动命令、typecheck/lint/test/build 记录、以及 startup/workspace/Codex/session/terminal/IPC/persistence/shutdown 的 regression checklist 或 smoke。本 diff 无这些产物。`package.json` 仍是 PoraCode identity。全仓改名属于 Out of Scope，不作为本 Finding 的修复范围。
+- Evidence：Ticket 01 要求 identity、安装启动命令、typecheck/lint/test/build 记录、以及 startup/workspace/Codex/session/terminal/IPC/persistence/shutdown 的 regression checklist 或 smoke。本 diff 无这些产物。`package.json` 仍是 CraftStation identity。全仓改名属于 Out of Scope，不作为本 Finding 的修复范围。
 - Impact：即使补上 Craft 链路，也没有 Feature 级回归面证明桌面基础能力未破。
 - Fix：记录并执行最小 smoke/checklist（命令 + 关键路径）。如需产品显示名，只改当前链路必要 terminology，禁止全仓 rename。
 - Acceptance：Debugger 复检能按文档复跑命令；有启动失败诊断；凭据不入日志。

@@ -68,7 +68,7 @@ describe("AppProvider", () => {
     expect(screen.getByText("provider works")).toBeInTheDocument();
   });
 
-  it("uses a bounded responsive toast width", async () => {
+  it("uses a compact top-left toast region", async () => {
     render(
       <AppProvider>
         <span />
@@ -83,8 +83,9 @@ describe("AppProvider", () => {
       const region = document.querySelector('[data-slot="toast-region"]');
       expect(region).toHaveClass("lc-toast-region");
       expect(region).toHaveStyle({
-        "--toast-width": "min(32rem, calc(100vw - 2rem))",
+        "--toast-width": "min(20rem, calc(100vw - 1rem))",
       });
+      expect(region).toHaveClass("toast-region--top-start");
     });
   });
 

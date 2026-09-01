@@ -27,7 +27,7 @@ import { resolvePluginMcpServers } from "./pluginMcpRuntime";
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "poracode-agent-plugins-"));
+  root = await mkdtemp(join(tmpdir(), "craftstation-agent-plugins-"));
 });
 
 afterEach(async () => {
@@ -168,14 +168,14 @@ describe("component discovery", () => {
     const dir = await writePackage("missing-core", {
       manifest: manifest("missing-core", {
         extensions: {
-          "com.poracode.client": { coreSkill: "missing" },
+          "com.craftstation.client": { coreSkill: "missing" },
         },
       }),
       skills: { present: skillBody("present") },
     });
 
     const result = loadPluginFromDirectory(dir, "bundled");
-    expect(result.plugin?.poracode.coreSkill).toBe("missing");
+    expect(result.plugin?.craftstation.coreSkill).toBe("missing");
     expect(codes(result.diagnostics)).toEqual(["extension-unknown-skill"]);
   });
 
@@ -415,7 +415,7 @@ describe("mcp runtime", () => {
     const plugin = await writePackage("unsupported", {
       manifest: manifest("unsupported", {
         extensions: {
-          "com.poracode.client": {
+          "com.craftstation.client": {
             platforms: ["darwin"],
             projectKinds: ["windows"],
           },
@@ -660,7 +660,7 @@ describe("shipped packages", () => {
       expect(result.diagnostics, `${name}: ${JSON.stringify(result.diagnostics)}`).toEqual([]);
       expect(result.plugin?.name).toBe(name);
       expect(result.plugin?.skills.length).toBeGreaterThan(0);
-      expect(result.plugin?.poracode.title).toBeTruthy();
+      expect(result.plugin?.craftstation.title).toBeTruthy();
 
       // SkillsService rejects a SKILL.md whose frontmatter `name` is not the
       // folder name, and the Skills list then shows the rejection reason where
@@ -713,9 +713,9 @@ describe("shipped packages", () => {
 
     for (const [name, markers] of Object.entries(expectations)) {
       const plugin = loadPluginFromDirectory(join(shippedDir, name), "bundled").plugin!;
-      const coreSkill = plugin.skills.find((skill) => skill.folder === plugin.poracode.coreSkill);
+      const coreSkill = plugin.skills.find((skill) => skill.folder === plugin.craftstation.coreSkill);
       expect(coreSkill, `${name} has no configured core skill`).toBeTruthy();
-      expect(plugin.poracode.examplePrompt, `${name} has no example prompt`).toBeTruthy();
+      expect(plugin.craftstation.examplePrompt, `${name} has no example prompt`).toBeTruthy();
       const contents = readFileSync(join(coreSkill!.path, "SKILL.md"), "utf8");
       for (const marker of markers) {
         expect(contents, `${name} core skill lacks '${marker}'`).toContain(marker);

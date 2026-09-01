@@ -1,6 +1,6 @@
 {
-  "appId": "com.lightcodeapp.mobile",
-  "appName": "Poracode",
+  "appId": "com.craftstationapp.mobile",
+  "appName": "CraftStation",
   "webDir": "dist/mobile",
   "backgroundColor": "#070709",
   "server": {

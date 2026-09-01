@@ -1,7 +1,7 @@
 import type { SessionNotification } from "@agentclientprotocol/sdk";
 import {
-  PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
-  PORACODE_ACP_SUBAGENT_PROGRESS_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
+  CRAFTSTATION_ACP_SUBAGENT_PROGRESS_META_KEY,
 } from "../acp/canonicalMapping";
 import type {
   AcpSubagentCompletionInput,
@@ -168,7 +168,7 @@ function qwenTaskSnapshotNotifications(
         toolCallId,
         status: "paused",
         ...(reason ? { result: reason } : {}),
-        terminalMeta: { [PORACODE_ACP_SUBAGENT_PROGRESS_META_KEY]: progress },
+        terminalMeta: { [CRAFTSTATION_ACP_SUBAGENT_PROGRESS_META_KEY]: progress },
       });
       if (completed) notifications.push(completed);
       continue;
@@ -200,7 +200,7 @@ function qwenTaskSnapshotNotifications(
       status:
         status === "completed" ? "completed" : status === "cancelled" ? "cancelled" : "failed",
       ...(error ? { result: error } : {}),
-      terminalMeta: { [PORACODE_ACP_SUBAGENT_PROGRESS_META_KEY]: progress },
+      terminalMeta: { [CRAFTSTATION_ACP_SUBAGENT_PROGRESS_META_KEY]: progress },
     });
     if (completed) notifications.push(completed);
   }
@@ -222,8 +222,8 @@ function qwenTaskProgressNotification(
       status: "in_progress",
       rawInput: subagents.canonicalInput(toolCallId),
       _meta: {
-        [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: toolCallId,
-        [PORACODE_ACP_SUBAGENT_PROGRESS_META_KEY]: progress,
+        [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: toolCallId,
+        [CRAFTSTATION_ACP_SUBAGENT_PROGRESS_META_KEY]: progress,
       },
     },
   };

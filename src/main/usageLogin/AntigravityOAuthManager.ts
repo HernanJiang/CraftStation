@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { net, shell } from "electron";
 import { clearUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import type { UsageLoginResult } from "@/shared/contracts";
@@ -272,7 +272,7 @@ export class AntigravityOAuthManager {
       }, LOGIN_TIMEOUT_MS);
       timer.unref?.();
 
-      server = createServer(async (req, res) => {
+      const handleOAuthCallback = async (req: IncomingMessage, res: ServerResponse) => {
         let parsed: URL;
         try {
           const hostHeader = req.headers.host || "127.0.0.1";
@@ -319,8 +319,8 @@ export class AntigravityOAuthManager {
           return;
         }
 
-        const stateParam = parsed.searchParams.get("state");
-        if (!stateParam || stateParam !== state) {
+        const returnedState = parsed.searchParams.get("state");
+        if (returnedState !== state) {
           finish(
             safeError("state_mismatch"),
             '<!doctype html><html><body style="font-family:sans-serif;padding:2rem;text-align:center;"><h2 style="color:#e53e3e;">校验失败 (State mismatch)</h2><p>请返回 CraftStation 重新发起授权。</p></body></html>',
@@ -373,6 +373,10 @@ export class AntigravityOAuthManager {
             500,
           );
         }
+      };
+
+      server = createServer((req, res) => {
+        void handleOAuthCallback(req, res).catch(() => undefined);
       });
 
       server.on("error", () => {

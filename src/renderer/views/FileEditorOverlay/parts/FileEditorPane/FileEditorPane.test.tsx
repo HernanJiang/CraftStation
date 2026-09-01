@@ -96,7 +96,7 @@ describe("FileEditorPane", () => {
 
     const img = screen.getByRole("img", { name: "logo.png" });
     expect(img).toBeInTheDocument();
-    expect(img).toHaveAttribute("src", expect.stringContaining("poracode-local://"));
+    expect(img).toHaveAttribute("src", expect.stringContaining("craftstation-local://"));
   });
 
   it("renders unsupported binary file warning and action", () => {

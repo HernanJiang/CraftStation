@@ -23,7 +23,7 @@ import { CliHookPluginCoordinator } from "./cliHookPluginCoordinator";
 const tempDirs: string[] = [];
 
 function makeTempSettings(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-cli-hook-cache-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-cli-hook-cache-"));
   tempDirs.push(dir);
   return join(dir, "settings.json");
 }
@@ -73,7 +73,7 @@ function makeStubAdapter(
       liveInputMode: liveInputMode ?? "terminal",
       presentationMode: "terminal",
     },
-    pluginId: `poracode-status@${kind}`,
+    pluginId: `craftstation-status@${kind}`,
     pluginVersion: "1.0.0",
     minProtocolVersion: 1,
     isPluginSupported,
@@ -413,8 +413,8 @@ describe("CliHookPluginCoordinator install cache", () => {
     expect(stub.installPlugin).toHaveBeenCalledTimes(1);
     expect(second).toBeDefined();
     expect(second!.env).toMatchObject({
-      PORACODE_THREAD_ID: "t2",
-      PORACODE_AGENT_KIND: "codex",
+      CRAFTSTATION_THREAD_ID: "t2",
+      CRAFTSTATION_AGENT_KIND: "codex",
     });
   });
 
@@ -492,12 +492,12 @@ describe("CliHookPluginCoordinator install cache", () => {
 
     expect(resolved).toBeDefined();
     expect(resolved!.env).toMatchObject({
-      PORACODE_THREAD_ID: "thread-42",
-      PORACODE_AGENT_KIND: "claude",
-      PORACODE_HOOK_PROTOCOL_VERSION: "1",
+      CRAFTSTATION_THREAD_ID: "thread-42",
+      CRAFTSTATION_AGENT_KIND: "claude",
+      CRAFTSTATION_HOOK_PROTOCOL_VERSION: "1",
     });
-    expect(resolved!.env.PORACODE_HOOK_URL).toMatch(/^http:\/\/127\.0\.0\.1:\d+/);
-    expect(resolved!.env.PORACODE_HOOK_SECRET).toMatch(/^[a-f0-9]+$/);
+    expect(resolved!.env.CRAFTSTATION_HOOK_URL).toMatch(/^http:\/\/127\.0\.0\.1:\d+/);
+    expect(resolved!.env.CRAFTSTATION_HOOK_SECRET).toMatch(/^[a-f0-9]+$/);
     expect(resolved!.extraArgs).toEqual(["--claude-marker"]);
   });
 
@@ -622,11 +622,11 @@ describe("CliHookPluginCoordinator install cache", () => {
 
     expect(ensureBridge).toHaveBeenCalledWith("Ubuntu");
     expect(resolved).toBeDefined();
-    expect(resolved!.env.PORACODE_HOOK_URL).toBe("http://127.0.0.1:55501/v1/agent-event");
+    expect(resolved!.env.CRAFTSTATION_HOOK_URL).toBe("http://127.0.0.1:55501/v1/agent-event");
     // Secret + protocol still come from the supervisor ingress so both
     // transports authenticate against the same token.
-    expect(resolved!.env.PORACODE_HOOK_SECRET).toMatch(/^[a-f0-9]+$/);
-    expect(resolved!.env.PORACODE_HOOK_PROTOCOL_VERSION).toBe("1");
+    expect(resolved!.env.CRAFTSTATION_HOOK_SECRET).toMatch(/^[a-f0-9]+$/);
+    expect(resolved!.env.CRAFTSTATION_HOOK_PROTOCOL_VERSION).toBe("1");
   });
 
   it("falls back to L2 when the WSL bridge is unavailable for the distro", async () => {
@@ -798,7 +798,7 @@ describe("CliHookPluginCoordinator install cache", () => {
     expect(readCache(settingsPath)).not.toHaveProperty("codex");
   });
 
-  it("resolves Codex spawn env with PORACODE_AGENT_KIND=codex", async () => {
+  it("resolves Codex spawn env with CRAFTSTATION_AGENT_KIND=codex", async () => {
     const stub = makeStubAdapter("codex");
     stub.isPluginInstalled.mockResolvedValue({ installed: true, version: "1.0.0" });
 
@@ -819,18 +819,18 @@ describe("CliHookPluginCoordinator install cache", () => {
 
     expect(resolved).toBeDefined();
     expect(resolved!.env).toMatchObject({
-      PORACODE_THREAD_ID: "thread-codex",
-      PORACODE_AGENT_KIND: "codex",
-      PORACODE_HOOK_PROTOCOL_VERSION: "1",
+      CRAFTSTATION_THREAD_ID: "thread-codex",
+      CRAFTSTATION_AGENT_KIND: "codex",
+      CRAFTSTATION_HOOK_PROTOCOL_VERSION: "1",
     });
     expect(resolved!.extraArgs).toEqual(["--codex-marker"]);
   });
 
-  it("resolves Gemini spawn env with PORACODE_AGENT_KIND=gemini and provider settings path", async () => {
+  it("resolves Gemini spawn env with CRAFTSTATION_AGENT_KIND=gemini and provider settings path", async () => {
     const stub = makeStubAdapter("gemini", {
       pluginLaunchExtras: async () => ({
         env: {
-          GEMINI_CLI_SYSTEM_SETTINGS_PATH: "/home/u/.poracode/agent-plugins/gemini/settings.json",
+          GEMINI_CLI_SYSTEM_SETTINGS_PATH: "/home/u/.craftstation/agent-plugins/gemini/settings.json",
         },
       }),
     });
@@ -853,10 +853,10 @@ describe("CliHookPluginCoordinator install cache", () => {
 
     expect(resolved).toBeDefined();
     expect(resolved!.env).toMatchObject({
-      PORACODE_THREAD_ID: "thread-gemini",
-      PORACODE_AGENT_KIND: "gemini",
-      PORACODE_HOOK_PROTOCOL_VERSION: "1",
-      GEMINI_CLI_SYSTEM_SETTINGS_PATH: "/home/u/.poracode/agent-plugins/gemini/settings.json",
+      CRAFTSTATION_THREAD_ID: "thread-gemini",
+      CRAFTSTATION_AGENT_KIND: "gemini",
+      CRAFTSTATION_HOOK_PROTOCOL_VERSION: "1",
+      GEMINI_CLI_SYSTEM_SETTINGS_PATH: "/home/u/.craftstation/agent-plugins/gemini/settings.json",
     });
     expect(resolved!.extraArgs).toEqual([]);
   });

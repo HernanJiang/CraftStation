@@ -62,7 +62,7 @@ describe("materializePickerAttachment", () => {
     const result = await materializePickerAttachment("remote:d1:thread:t1", attachment);
 
     expect(bridge.readLocalImageFile).toHaveBeenCalledWith({
-      url: "poracode-local://local/C:/capture.png",
+      url: "craftstation-local://local/C:/capture.png",
     });
     expect(bridge.saveClipboardImage).toHaveBeenCalledWith({
       threadId: "remote:d1:thread:t1",

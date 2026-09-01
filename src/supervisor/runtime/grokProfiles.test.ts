@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountControlError } from "@/shared/contracts";
 import { AccountStore } from "./accountStore";
-import { collectGrok, type HostPort, type UsageSnapshot } from "@poracode/agents-usage";
+import { collectGrok, type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
 import { parseGrokCookie } from "./grokCredentials";
 
-vi.mock("@poracode/agents-usage", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@poracode/agents-usage")>();
+vi.mock("@craftstation/agents-usage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@craftstation/agents-usage")>();
   return {
     ...actual,
     collectGrok: vi.fn<(host: HostPort) => Promise<UsageSnapshot>>().mockResolvedValue({

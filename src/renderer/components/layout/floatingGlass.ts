@@ -7,7 +7,7 @@
  * one material without sharing geometry.
  */
 export const floatingGlassSurfaceClass =
-  "poracode-floating-chrome border border-border/15 bg-[var(--floating-chrome-surface)] shadow-lg backdrop-blur-md";
+  "craftstation-floating-chrome border border-border/15 bg-[var(--floating-chrome-surface)] shadow-lg backdrop-blur-md";
 
 /** Denser, still-dark selected state for a floating glass control. */
-export const floatingGlassActiveClass = "poracode-floating-chrome--active";
+export const floatingGlassActiveClass = "craftstation-floating-chrome--active";

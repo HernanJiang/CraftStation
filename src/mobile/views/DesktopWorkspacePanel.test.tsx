@@ -256,10 +256,10 @@ describe("DesktopWorkspacePanel", () => {
       screen.getByTestId("subagent-header-description").closest('[data-active-tab="subagent"]'),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("subagent-header-title").closest(".poracode-right-panel-subagent-meta"),
+      screen.getByTestId("subagent-header-title").closest(".craftstation-right-panel-subagent-meta"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close subagent" }).parentElement).toHaveClass(
-      "poracode-right-panel-subagent-meta",
+      "craftstation-right-panel-subagent-meta",
     );
     expect(
       screen

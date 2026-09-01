@@ -26,7 +26,7 @@ export type ComposerIconKind = "effort" | "fast" | "mode" | "permission";
 
 const COLLAPSE_LEVELS = [0, 1, 2, 3, 4, 5] as const;
 const DEFAULT_LABEL_COLLAPSE_LEVEL = 1;
-const COMPOSER_FILE_DRAG_TYPE = "application/poracode-composer-file";
+const COMPOSER_FILE_DRAG_TYPE = "application/craftstation-composer-file";
 
 export type ComposerControl =
   | {
@@ -133,13 +133,13 @@ export function resolveComposerControlIcon(control: ComposerControl): ReactNode 
   }
 
   if (iconKind === "permission") {
-    // The `poracode-composer-permission-icon` marker is a provider-agnostic
+    // The `craftstation-composer-permission-icon` marker is a provider-agnostic
     // hook (keyed off the generic `iconKind`, never a provider name) that the
     // mobile compact composer uses to surface the permission chip as an icon.
     if (control.kind === "toggle") {
       return (
         <PermissionIcon
-          className="size-4 text-foreground poracode-composer-permission-icon"
+          className="size-4 text-foreground craftstation-composer-permission-icon"
           index={control.isSelected ? 1 : 0}
           count={2}
         />
@@ -149,7 +149,7 @@ export function resolveComposerControlIcon(control: ComposerControl): ReactNode 
     const idx = ids.indexOf(control.value);
     return (
       <PermissionIcon
-        className="size-4 text-foreground poracode-composer-permission-icon"
+        className="size-4 text-foreground craftstation-composer-permission-icon"
         index={idx < 0 ? 0 : idx}
         count={ids.length}
       />
@@ -536,20 +536,20 @@ export function ThreadComposer(props: {
   }, [effectiveToolbarLayoutKey]);
 
   const editorClassName = compact
-    ? "poracode-composer-editor poracode-composer-editor--compact"
-    : "poracode-composer-editor";
+    ? "craftstation-composer-editor craftstation-composer-editor--compact"
+    : "craftstation-composer-editor";
   const customInputClassName = compact
-    ? "poracode-composer-custom-input poracode-composer-custom-input--compact"
-    : "poracode-composer-custom-input";
+    ? "craftstation-composer-custom-input craftstation-composer-custom-input--compact"
+    : "craftstation-composer-custom-input";
   const toolbarClassName = compact
-    ? "poracode-composer-toolbar poracode-composer-toolbar--compact relative flex items-end justify-between gap-3"
-    : "poracode-composer-toolbar relative flex items-end justify-between gap-3";
+    ? "craftstation-composer-toolbar craftstation-composer-toolbar--compact relative flex items-end justify-between gap-3"
+    : "craftstation-composer-toolbar relative flex items-end justify-between gap-3";
   const shellClassName = [
-    "poracode-composer-shell",
-    variant === "draft" && "poracode-composer-shell--draft",
+    "craftstation-composer-shell",
+    variant === "draft" && "craftstation-composer-shell--draft",
     variant !== "draft" &&
       preserveDisabledControlStyle &&
-      "poracode-composer-shell--preserve-disabled-controls",
+      "craftstation-composer-shell--preserve-disabled-controls",
     "overflow-hidden",
   ]
     .filter(Boolean)
@@ -626,10 +626,10 @@ export function ThreadComposer(props: {
     if (control.kind === "static") {
       const hideLabel = control.iconOnly || shouldHideLabel;
       const labelClassName = hideOnWrap
-        ? `poracode-composer-label-hideable truncate${hideLabel ? " is-hidden" : ""}`
+        ? `craftstation-composer-label-hideable truncate${hideLabel ? " is-hidden" : ""}`
         : "truncate";
       const content = (
-        <div key={`${control.value}-${index}`} className="poracode-composer-static min-w-0 px-2.5">
+        <div key={`${control.value}-${index}`} className="craftstation-composer-static min-w-0 px-2.5">
           {control.icon}
           {!control.iconOnly && (
             <span data-collapse-tier={collapseTier} className={labelClassName}>
@@ -654,7 +654,7 @@ export function ThreadComposer(props: {
     if (control.kind === "toggle") {
       const hideLabel = control.iconOnly || shouldHideLabel;
       const labelClassName = hideOnWrap
-        ? `poracode-composer-label-hideable${hideLabel ? " is-hidden" : ""}`
+        ? `craftstation-composer-label-hideable${hideLabel ? " is-hidden" : ""}`
         : undefined;
       // `label` is the stable English logic key; `displayLabel` (when present)
       // is the localized text actually shown to the user.
@@ -667,9 +667,9 @@ export function ThreadComposer(props: {
           key={`toggle-${index}`}
           aria-label={toggleLabel}
           aria-disabled={gated}
-          className={`poracode-composer-toggle ${
-            control.fillIconOnSelect ? "poracode-composer-toggle--fill-icon-selected " : ""
-          }${control.isCurrentState ? "poracode-composer-toggle--current " : ""}${
+          className={`craftstation-composer-toggle ${
+            control.fillIconOnSelect ? "craftstation-composer-toggle--fill-icon-selected " : ""
+          }${control.isCurrentState ? "craftstation-composer-toggle--current " : ""}${
             control.iconOnly ? "min-w-9 px-2" : "min-w-0 px-2.5"
           }${gated ? " opacity-50 cursor-not-allowed" : ""}${
             control.className ? ` ${control.className}` : ""
@@ -731,7 +731,7 @@ export function ThreadComposer(props: {
       <OptionMenu
         key={`${control.value}-${index}`}
         buttonVariant="ghost"
-        className="poracode-composer-menu min-w-0 px-2.5"
+        className="craftstation-composer-menu min-w-0 px-2.5"
         options={control.options}
         value={control.value}
         onChange={control.onChange ?? (() => undefined)}
@@ -762,12 +762,12 @@ export function ThreadComposer(props: {
     const isStatic = control.kind === "static";
     const isToggle = control.kind === "toggle";
     const probeClassName = isStatic
-      ? "poracode-composer-static min-w-0 px-2.5"
+      ? "craftstation-composer-static min-w-0 px-2.5"
       : isToggle
-        ? `poracode-composer-toggle inline-flex min-w-0 items-center gap-[0.35rem] px-2.5 ${
+        ? `craftstation-composer-toggle inline-flex min-w-0 items-center gap-[0.35rem] px-2.5 ${
             control.iconOnly ? "min-w-9 px-2" : ""
           }`
-        : "poracode-composer-menu inline-flex min-w-0 items-center gap-[0.35rem] px-2.5";
+        : "craftstation-composer-menu inline-flex min-w-0 items-center gap-[0.35rem] px-2.5";
     const label = resolveControlProbeLabel(control, t`Thinking`);
 
     return (
@@ -882,7 +882,7 @@ export function ThreadComposer(props: {
             <Button
               isIconOnly
               aria-label={t`Stop response`}
-              className="poracode-composer-send"
+              className="craftstation-composer-send"
               isDisabled={stopPending}
               isPending={stopPending}
               onPress={onStop}
@@ -903,7 +903,7 @@ export function ThreadComposer(props: {
       <Button
         isIconOnly={!submitContent}
         aria-label={submitLabel}
-        className={submitContent ? "h-9 px-3" : "poracode-composer-send"}
+        className={submitContent ? "h-9 px-3" : "craftstation-composer-send"}
         isDisabled={submitDisabled || promptDisabled}
         isPending={submitPending}
         onPress={onSubmit}
@@ -932,7 +932,7 @@ export function ThreadComposer(props: {
         return [];
       }
     }
-    return window.poracode.getDroppedFilePaths(Array.from(dataTransfer.files));
+    return window.craftstation.getDroppedFilePaths(Array.from(dataTransfer.files));
   };
 
   const handleAttachmentDragEnter = (event: DragEvent<HTMLDivElement>) => {
@@ -1008,7 +1008,7 @@ export function ThreadComposer(props: {
   }
 
   return (
-    <div data-poracode-composer="">
+    <div data-craftstation-composer="">
       <div
         className={shellClassName}
         onDragEnter={handleAttachmentDragEnter}
@@ -1016,9 +1016,9 @@ export function ThreadComposer(props: {
         onDragLeave={handleAttachmentDragLeave}
         onDrop={handleAttachmentDrop}
       >
-        <span className="poracode-composer-border-glow" aria-hidden="true" />
+        <span className="craftstation-composer-border-glow" aria-hidden="true" />
         {isAttachmentDropActive ? (
-          <div className="poracode-composer-drop-overlay">
+          <div className="craftstation-composer-drop-overlay">
             <Trans>Drop here to attach</Trans>
           </div>
         ) : null}

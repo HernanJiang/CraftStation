@@ -93,21 +93,21 @@ describe("spawnCursorSdkWorker", () => {
           configuredPath: "/home/user/sdk",
           env: {
             CURSOR_API_KEY: "must-not-appear-in-command",
-            PORACODE_SAFE_TEST_VALUE: "visible",
+            CRAFTSTATION_SAFE_TEST_VALUE: "visible",
           },
         },
         {
           spawnProcess,
           resolveNode,
           deploy: (_distro, baseName, files) => {
-            expect(baseName).toMatch(/^poracode-cursor-sdk-/);
+            expect(baseName).toMatch(/^craftstation-cursor-sdk-/);
             expect(files).toEqual([
               {
                 src: fixture.path,
                 relDest: "cursor-sdk/cursor-sdk-worker.mjs",
               },
             ]);
-            return { linuxBaseDir: "/tmp/poracode-test" };
+            return { linuxBaseDir: "/tmp/craftstation-test" };
           },
         },
       );
@@ -117,8 +117,8 @@ describe("spawnCursorSdkWorker", () => {
       expect(call!.args).toEqual(expect.arrayContaining(["-d", "Ubuntu", "--cd", "/work/repo"]));
       const serializedArgv = JSON.stringify(call!.args);
       expect(serializedArgv).toContain("/home/user/.nvm/node");
-      expect(serializedArgv).toContain("/tmp/poracode-test/cursor-sdk/cursor-sdk-worker.mjs");
-      expect(serializedArgv).toContain("PORACODE_SAFE_TEST_VALUE");
+      expect(serializedArgv).toContain("/tmp/craftstation-test/cursor-sdk/cursor-sdk-worker.mjs");
+      expect(serializedArgv).toContain("CRAFTSTATION_SAFE_TEST_VALUE");
       expect(serializedArgv).not.toContain("must-not-appear-in-command");
       expect(call!.options.env?.CURSOR_API_KEY).toBeUndefined();
       expect(resolveNode).toHaveBeenCalledExactlyOnceWith("Ubuntu", {
@@ -326,7 +326,7 @@ function makeProtocolFixture(
   directory: string;
   path: string;
 } {
-  const directory = mkdtempSync(join(tmpdir(), "poracode-cursor-sdk-client-"));
+  const directory = mkdtempSync(join(tmpdir(), "craftstation-cursor-sdk-client-"));
   tempDirectories.push(directory);
   const path = join(directory, "worker.mjs");
   writeFileSync(
@@ -386,7 +386,7 @@ function makeDelayedMethodFixture(
   directory: string;
   path: string;
 } {
-  const directory = mkdtempSync(join(tmpdir(), "poracode-cursor-sdk-client-delayed-"));
+  const directory = mkdtempSync(join(tmpdir(), "craftstation-cursor-sdk-client-delayed-"));
   tempDirectories.push(directory);
   const path = join(directory, "worker.mjs");
   writeFileSync(

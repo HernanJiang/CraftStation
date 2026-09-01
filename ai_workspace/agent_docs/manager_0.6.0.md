@@ -1,65 +1,132 @@
-# Manager Plan — v0.6.0 Native Provider Authentication & Ark Token Plan
+# CraftStation Manager Plan — v0.6.0
 
-状态：`USER ACCEPTED RUNNABLE CANDIDATE / LOCAL MAIN PROMOTION AUTHORIZED / FEATURE GATES BLOCKED`
-允许工作树：`D:\Work\CraftStation\craftstation-dev`（`dev`）
+## Feature
+
+**v0.6.0 — Native Provider Authentication & Ark Token Plan Surface**
+
+Lifecycle: `PLAN READY / EXECUTION BLOCKED BY v0.5.7`
+
+Allowed development worktree (when execution is explicitly authorized): `D:\Work\CraftStation\craftstation-dev`, branch `dev`.
+
+This document is a planning artifact only. It does not authorize source changes, commits, pushes, tags, or `dev -> main` promotion. The active v0.5.7 Fix Cycle remains the only executable feature until the user accepts it and explicitly authorizes switching features.
 
 ## Part I — Ideate Brief
 
-这是独立于 v0.5.7 F33 的新 Feature。目标是：
+### Why this is a new Feature
 
-- Antigravity 使用系统默认浏览器 Google OAuth、localhost/loopback callback、主进程 code exchange、安全存储与额度刷新；禁止内置终端/内置网页登录。
-- 删除独立 Gemini usage provider、collector、login、quota card；保留 Gemini CLI agent/runtime、模型/MCP/Skills/session/analytics，并保留 Antigravity 内部 Gemini quota 分组。
-- 新增 Volcengine Ark 原生 Token Plan：API Key、AK/SK V4、Coding Plan/Agent Plan、5h/daily/weekly/monthly parser、稳定错误映射与测试。
+The delegated request changes provider authentication behaviour, the usage catalog, and introduces a new provider credential/usage model. It is materially wider than the v0.5.7 F33 Grok billing fix and must not be appended to that Fix Plan. v0.5.7 and the older v0.4 F04 remain `FAIL / BLOCKED`.
 
-不使用 CLIProxyAPI，不重写 Gemini CLI 或 Antigravity agent runtime，不改变 Item/Recipe/Crafter ontology，不把未知 Ark endpoint/字段当成事实。
+### User outcome
 
-## Part II — Feature Spec & Plan
+1. Antigravity login uses the operating system's default browser for Google OAuth, returns through a loopback callback, exchanges the code in the main process, stores credentials safely, and can refresh quota. CraftStation's embedded terminal and embedded web login are not used for this flow.
+2. The standalone Gemini usage provider, collector, login entry, and quota card disappear from the usage surface. Gemini CLI agent/runtime, models, MCP/Skills and session behaviour remain available. Antigravity's internal Gemini quota group remains visible and functional.
+3. Volcengine Ark is represented by a native Token Plan supporting API Key and AK/SK V4 credentials, Coding Plan and Agent Plan, five-hour/daily/weekly/monthly windows, stable error mapping, and tests grounded in official Ark documentation or SDK behaviour.
 
-### Gate Check
+### Non-goals and hard boundaries
 
-Feasibility/Alignment：OK（现有 Antigravity collector、usage IPC、safe storage 与 loopback OAuth 参考可复用）。Practicality：分票据执行。Info Completeness：Ark 官方 endpoint、字段、V4 签名与 Plan API 由 T01 先核验，未知即 fail closed。
+- No CLIProxyAPI in the Ark or Antigravity path.
+- No rewrite of Gemini CLI agent/runtime or Antigravity native agent runtime.
+- No change to CraftStation's Item/Recipe/Crafter ontology; Account, Quota and Usage remain provider/control-plane concerns.
+- No fabricated Ark endpoint, response field, quota number, or real E2E PASS when official access is unavailable.
+- No changes to v0.5.7 F33, no release tag, and no `dev -> main` promotion as part of this plan.
 
-### Deep modules
+## Part II — Manager Plan
 
-1. Antigravity OAuth Broker：`startLogin/cancelLogin/getAuthState/refresh`；隐藏系统浏览器、state/PKCE/nonce、loopback、exchange、rotation、safe storage 与错误映射。
-2. Usage Provider Catalog：独立 Gemini usage 从 descriptor/collector/login/UI catalog 移除，不触碰 Gemini runtime；保留 Antigravity Gemini group。
-3. Ark Token Plan Collector：`inspectCapabilities/collect(credentials, clock)`；隐藏官方 endpoint、API Key/AK-SK V4、plan 选择、窗口 parser、normalization 与错误映射。
+### Plan Gate Check
 
-### Execution order
+| Check                    | Result                   | Evidence / action                                                                                                                                                     |
+| ------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feasibility              | OK                       | Existing Antigravity adapter/collector and main-process usage IPC exist; `McpOAuthService` demonstrates loopback/state handling; secure usage storage already exists. |
+| Practicality             | OK with staged execution | OAuth, catalog removal and Ark are separated into narrow tickets; Ark official API/SDK facts are a T01 gate before implementation.                                    |
+| Alignment                | OK                       | Provider/auth and usage remain outside CraftStation core composition; native harness/runtime-first rule is preserved.                                                 |
+| Information completeness | Ready for Plan           | Open Ark endpoint/field questions are explicitly reserved for T01; no product-intent question is left to Coder.                                                       |
 
-`T01 -> T02 -> T03 -> T04 -> T05 -> T06 -> T07 -> T08 -> T09 -> T10`。T05、T06 依赖 T01；单 Coder 默认仍按编号执行。T10 后 Debugger 在 dev 独立验收，PASS 只代表 `DEV PASS / USER ACCEPTANCE PENDING`。
+### Current repository gap matrix
+
+| Area              | Current fact                                                                                                           | v0.6 target                                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Antigravity auth  | Local language-server/process usage path; descriptor is effectively local and does not provide Google OAuth lifecycle. | Main-process OAuth broker with system browser, loopback callback, code exchange, safe storage and refresh.          |
+| Antigravity quota | Internal Gemini and Claude & GPT groups already parse as Antigravity windows.                                          | Preserve both groups and connect refresh to the new credential projection.                                          |
+| Gemini usage      | Independent descriptor/collector and renderer usage-provider path exists.                                              | Remove independent usage catalog/login/quota surface while preserving Gemini CLI runtime identity and capabilities. |
+| Ark               | No validated native Token Plan surface.                                                                                | Officially verified API Key and AK/SK V4 modes, plan selection, normalized windows and errors.                      |
+| Security          | Main-process safe storage primitives exist; renderer must not receive secrets.                                         | Explicit secret projection, redaction and per-account refresh locking tested at the seam.                           |
+
+### Deep-module seams
+
+1. **Antigravity OAuth Broker** — small interface for `startLogin`, `cancelLogin`, `getAuthState` and `refresh`; hides browser launch, state/PKCE/nonce, loopback listener, exchange, rotation, safe storage and error mapping. Renderer receives status only.
+2. **Usage Provider Catalog** — one descriptor/collector/UI catalog seam. Removing Gemini here must not remove Gemini agent registry/runtime or Antigravity's nested Gemini group.
+3. **Ark Token Plan Collector** — `inspectCapabilities` and `collect(credentials, clock)` at the external seam; hides credential resolution, official endpoint/signing, plan selection, window parsing, normalization and provider error mapping.
+
+### Functional specification
+
+#### Antigravity
+
+- Login launches the OS default browser and binds a loopback callback only for the active flow.
+- Authorization state is unpredictable and validated; PKCE/nonce are used when required by the official Google flow.
+- Main process performs code exchange and refresh; access/refresh credentials are stored only in OS-backed safe storage or a main-process-managed profile.
+- Renderer IPC exposes redacted state, account identity and quota status, never tokens, cookies, authorization codes or raw provider bodies.
+- Concurrent refresh for the same account/provider is serialized; cancellation, timeout, callback mismatch and provider errors have stable codes.
+- Quota refresh preserves Antigravity's `Gemini` and `Claude & GPT` internal groups.
+
+#### Gemini removal
+
+- Remove the standalone Gemini usage descriptor, collector registration, login entry and quota card/provider projection.
+- Keep Gemini CLI agent/runtime registration, model capabilities, MCP/Skills, session and analytics identity.
+- Keep Antigravity's nested Gemini quota group and its parser/tests.
+
+#### Volcengine Ark
+
+- Support API Key and AK/SK V4 credential modes using secure storage and provider-specific validation.
+- Support Coding Plan and Agent Plan only after official documentation/SDK confirms their identity, endpoints and fields.
+- Normalize five-hour, daily, weekly and monthly windows with reset timestamps and provider status.
+- Map authentication, invalid/signature, rate-limit, quota-exhausted, network and unavailable responses to stable usage errors.
+- Never expose raw Ark response or secret material to renderer/logs.
+
+### Execution order and gates
+
+The tickets are ordered for one Coder in `craftstation-dev`:
+
+`T01 -> (T02, T05, T06) -> T03 -> T04 -> T07 -> T08 -> T09 -> T10`
+
+T02, T05 and T06 may be developed only after T01's audit, but remain sequential in the single-Coder default flow. T03 depends on the contract in T02; T04 depends on the OAuth broker; T07 depends on Ark credentials; T08 depends on the collector; T09 integrates all surfaces; T10 is the independent acceptance gate.
 
 ### Acceptance gates
 
-- Antigravity：真实系统浏览器 OAuth、正确 state/loopback、主进程 exchange/refresh、安全存储和脱敏 IPC；Gemini 与 Claude & GPT 内部分组可刷新。
-- Gemini：独立 usage descriptor/collector/login/quota card 消失；Gemini CLI runtime/MCP/Skills/session smoke 通过；Antigravity Gemini group 保留。
-- Ark：官方来源证据、API Key/AK-SK V4、Coding/Agent Plan、5h/daily/weekly/monthly reset、auth/signature/rate-limit/quota/network/unavailable 映射；不得以 fixture 冒充真实 E2E。
-- 全局：不引入 CLIProxyAPI；不修改 v0.5.7；不提交 token/account metadata。
+**Antigravity gate**
 
-### Execution gate
+- System browser visibly opens for Google OAuth; no embedded terminal/browser login.
+- Correct loopback state/callback, main-process exchange and refresh are demonstrated.
+- Safe-storage and redaction tests prove no secret crosses renderer/IPC/logs.
+- Quota refresh shows Antigravity Gemini and Claude & GPT groups with correct reset/error states.
 
-用户已于 2026-08-29 明确要求“现在开始执行”，因此解除本 Feature 的实现阻塞门。该授权仅覆盖在 dev worktree 执行 v0.6.0，不授权 commit、push、tag、dev→main promotion；v0.5.7、F29、Grok 真实额度与 v0.4 F04 的历史质量状态保持不变。
+**Gemini gate**
 
-完整 Manager 说明见根治理仓 `D:\Work\CraftStation\ai_workspace\agent_docs\manager_0.6.0.md`；本文件是 dev worktree 的执行入口。Tickets 位于 `D:\Work\CraftStation\craftstation-dev\.scratch\craftstation-0.6.0\issues\`。
+- No standalone Gemini usage descriptor/collector/login/quota card remains in the usage catalog.
+- Gemini CLI agent/runtime, model identity, MCP/Skills and session smoke remain green.
+- Antigravity Gemini nested quota parsing remains green.
 
-## Part III — Accepted Candidate Closeout（2026-08-31）
+**Ark gate**
 
-用户已在原生 Electron 应用中完成当前候选的手动验收，并明确授权 Manager 执行本地 `dev -> main` 收口。
+- Official source evidence is recorded for endpoint, credential modes, V4 signing and Coding/Agent Plan fields.
+- API Key and AK/SK fixture tests pass; real API smoke is required when credentials and service access are available.
+- Five windows preserve reset times; errors map deterministically; raw payloads/secrets stay private.
 
-本次授权的准确语义：
+**Global gate**
 
-- 接受当前可运行候选，允许完整归档 Dev 的已验收源码、测试、正式文档和依赖变更。
-- 允许以 fast-forward 方式提升到本地 Main，并创建清晰标注的 accepted-candidate checkpoint tag。
-- 不允许 push GitHub；不创建正式 `v0.6.0` PASS tag。
-- 不改变 Debugger 对 v0.6.0 的 `FAIL / BLOCKED` verdict：F35 真实 Antigravity Google OAuth E2E 与 F36 真实 Ark 线上凭据仍打开。
-- F33 Grok 真实 billing、F29 exact Token、v0.5.0 与 v0.4 F04 继续 `FAIL / BLOCKED`。
+- No CLIProxyAPI dependency or fallback is introduced.
+- Existing v0.5.7 and v0.4 status remains FAIL/BLOCKED until their own acceptance.
+- Debugger independently verifies the entire Feature in `craftstation-dev`, then records `DEV PASS / USER ACCEPTANCE PENDING`; only explicit user acceptance permits Manager promotion.
 
-运行缓存、Cookie、账号或凭据材料、`ai_workspace/temp/`、未跟踪的 `ai_workspace/validation/` 运行产物、误生成目录和一次性 Ticket 草稿不进入 Git；它们在收口时移到仓库外可恢复隔离区。
+### Risks and mitigations
 
-### Local Promotion Result
+- Google OAuth policy or redirect restrictions: T01/T02 must verify the official client flow before implementation; fail closed with actionable status.
+- Ark plan APIs may differ by account/region: do not infer fields; keep provider facts in the audit artifact and gate unsupported combinations as unavailable.
+- Removing Gemini usage may accidentally remove runtime support: add compile-time registry assertions and runtime smoke in T05/T09.
+- Dirty shared worktree: preserve all pre-existing edits; Coder must not reset/clean or commit account/token data.
 
-- 2026-08-31 已将完整 accepted candidate 归档到 Dev，并以 `--ff-only` 提升到本地 Main。
-- Main 与 Dev 在 closeout 完成后同步到同一提交。
-- 本地 checkpoint tag：`checkpoint-accepted-candidate-2026-08-31`。
-- 未 push `origin/main`、`origin/dev` 或 tag。
-- Feature verdict 不变：v0.6 F35/F36、F33、F29、v0.5.0 与 v0.4 F04 继续 `FAIL / BLOCKED`。
+### Handoff state
+
+- Manager plan: ready.
+- Coder start: **not authorized yet**; execution is blocked by active v0.5.7 and requires explicit user authorization after v0.5.7 acceptance/closeout.
+- Debugger target: independent Feature acceptance after T10.
+- Promotion/tag: not authorized.

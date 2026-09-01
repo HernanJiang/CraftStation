@@ -17,7 +17,7 @@
 1. F41 的官方 DeepSeek Harness / DSH 源码与协议路线是真实存在的，但当前本机可安装的官方 npm 包仍没有 `sdk` profile，产品解析到 Windows npm shim 后也不能直接由 Node `spawn()` 启动，故真实 Windows carrier 仍不可用，必须保持 `RUNTIME_UNAVAILABLE`。
 2. F44 虽然避免了 Windows interrupt 后再次向已死亡进程写 stdin，但 interrupt 路径没有发出 canonical `turn.completed` 和 `session.exited`，Supervisor 也不会自动释放 session；这会使 renderer turn 状态和 crafted-session map 可能残留。
 3. F40 的 focused `oxfmt --check` 仍失败于 `nativeHarnessLifecycleAcceptance.test.ts`。
-4. 全仓测试本轮为 `855 passed / 6 failed / 10 skipped` files、`9615 passed / 16 failed / 48 skipped` tests；失败集中在既有 remote procedure 分类、Poracode migration、channel/path 基线，不把它们错误归因给 F41~F46，但全仓也不是绿态。
+4. 全仓测试本轮为 `855 passed / 6 failed / 10 skipped` files、`9615 passed / 16 failed / 48 skipped` tests；失败集中在既有 remote procedure 分类、CraftStation migration、channel/path 基线，不把它们错误归因给 F41~F46，但全仓也不是绿态。
 5. 真实 Antigravity 证据证明了官方 `agy 1.1.22` 的 CraftStation 单轮 product path 和事件转发，不足以证明完整桌面点击、取消、resume、多轮、工具、permission、MCP、Skills、subagents、context 或 compaction。
 
 未修改产品源码、正式测试或状态文档；未创建/移动/切换 worktree；未 commit、push、tag、merge main 或执行 dev→main promotion。
@@ -84,7 +84,7 @@ Artifact：`ai_workspace/validation/v0.7.0-antigravity-product-path.json`
 - `pnpm run typecheck`：**PASS**。
 - `git diff --check`：**PASS**。
 - focused `oxfmt --check`：**FAIL**，文件：`src/supervisor/runtime/nativeHarness/nativeHarnessLifecycleAcceptance.test.ts`。
-- full `pnpm run lint`：**FAIL**，已知基线失败：`src/renderer/remoteProcedureRouter.test.ts:478` 的 `startCodexProfileLogin` / `startGrokProfileLogin` 未分类；本轮既有 full-test 也再次显示该失败及其他 Poracode/channel/path 基线失败。
+- full `pnpm run lint`：**FAIL**，已知基线失败：`src/renderer/remoteProcedureRouter.test.ts:478` 的 `startCodexProfileLogin` / `startGrokProfileLogin` 未分类；本轮既有 full-test 也再次显示该失败及其他 CraftStation/channel/path 基线失败。
 - full `pnpm run test -- --reporter=dot`：**FAIL**，`6 failed | 855 passed | 10 skipped` files；`16 failed | 9615 passed | 48 skipped` tests。失败归属见下文。
 
 ## F41~F46 Status Matrix
@@ -133,8 +133,8 @@ F42 的组件 seam 和定向测试证明回调 wiring，但没有本轮真实 El
 本轮 full test 的 16 个失败不是 F41~F46 的直接失败，但必须作为发布基线记录：
 
 - `src/renderer/remoteProcedureRouter.test.ts`：`startCodexProfileLogin`、`startGrokProfileLogin` 未被分类。
-- `src/main/poracodeData.migrate.test.ts`：迁移目录/marker/backup/锁定与恢复场景失败。
-- `src/shared/channel.config-parity.test.ts`、`src/shared/channel.test.ts`、`src/shared/poracodePaths.test.ts`、`src/supervisor/agents/probeCwd.test.ts`：`.poracode` 与 `.craftstation` 命名基线不一致。
+- `src/main/craftstationData.migrate.test.ts`：迁移目录/marker/backup/锁定与恢复场景失败。
+- `src/shared/channel.config-parity.test.ts`、`src/shared/channel.test.ts`、`src/shared/craftstationPaths.test.ts`、`src/supervisor/agents/probeCwd.test.ts`：`.craftstation` 与 `.craftstation` 命名基线不一致。
 
 这些基线失败不应被错误算给 F41~F46，也不能在报告中被隐藏成“全仓绿”。
 

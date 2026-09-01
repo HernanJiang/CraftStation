@@ -8,7 +8,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { McpServer } from "@/shared/contracts";
 
-const CONFIG_ENV = "PORACODE_MCP_FILTER_CONFIG";
+const CONFIG_ENV = "CRAFTSTATION_MCP_FILTER_CONFIG";
 
 function readConfig(): { server: McpServer; disabledTools: string[] } {
   const encoded = process.env[CONFIG_ENV];
@@ -43,7 +43,7 @@ function createUpstreamTransport(server: McpServer) {
 async function main(): Promise<void> {
   const config = readConfig();
   const disabled = new Set(config.disabledTools);
-  const client = new Client({ name: "poracode-mcp-filter", version: "1.0.0" });
+  const client = new Client({ name: "craftstation-mcp-filter", version: "1.0.0" });
   await client.connect(createUpstreamTransport(config.server) as Transport);
 
   const server = new Server(
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     if (disabled.has(name)) {
       return {
         isError: true,
-        content: [{ type: "text", text: `Tool disabled by Poracode: ${name}` }],
+        content: [{ type: "text", text: `Tool disabled by CraftStation: ${name}` }],
       };
     }
     return await client.callTool(request.params);

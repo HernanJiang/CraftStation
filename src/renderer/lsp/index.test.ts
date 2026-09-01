@@ -1,8 +1,8 @@
 import { expect, it, vi } from "vitest";
 import type { Monaco } from "@monaco-editor/react";
-import type { PoracodeBridge } from "@/shared/ipc";
+import type { CraftStationBridge } from "@/shared/ipc";
 
-const bridge = vi.hoisted(() => ({ lspStart: vi.fn<PoracodeBridge["lspStart"]>() }));
+const bridge = vi.hoisted(() => ({ lspStart: vi.fn<CraftStationBridge["lspStart"]>() }));
 
 vi.mock("@/renderer/bridge", () => ({ readBridge: () => bridge }));
 

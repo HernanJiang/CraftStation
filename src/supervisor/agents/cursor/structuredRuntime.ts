@@ -17,7 +17,7 @@ export function configuredCursorStructuredRuntime(
 
 export interface ResolvedCursorStructuredRuntime {
   runtime: CursorStructuredRuntime;
-  /** Provider-native id with Poracode's runtime discriminator removed. */
+  /** Provider-native id with CraftStation's runtime discriminator removed. */
   providerSessionId?: string;
 }
 

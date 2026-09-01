@@ -1,5 +1,5 @@
 // Env-aware replacement for `wait-on tcp:3100` in the dev pipeline: waits for
-// the Vite dev server on the port resolved from PORACODE_DEV_SERVER_PORT.
+// the Vite dev server on the port resolved from CRAFTSTATION_DEV_SERVER_PORT.
 import net from "node:net";
 import { resolveDevServerPort } from "./dev-server-port.mjs";
 

@@ -9,6 +9,7 @@ import type {
   PromptSegment,
   Thread,
 } from "@/shared/contracts";
+import { supportsHeaderBearingHttpMcp, supportsMcpAtProjectLocation } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
 import { agentStatusForPresentation, hasSelectableReasoning } from "@/shared/agentSelection";
 import {
@@ -237,8 +238,15 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     ? agentStatusForPresentation(agentStatus, presentationMode, thread.sessionRef)
     : undefined;
   const usesTerminalPresentation = presentationMode === "terminal";
+  const appControlsDisabled =
+    useSharedSettings((s) => s.disabledBuiltInMcpServers["app-controls"]) === true;
   const appControlsEnabled =
-    useSharedSettings((s) => s.disabledBuiltInMcpServers["app-controls"]) !== true;
+    !appControlsDisabled &&
+    Boolean(
+      effectiveAgentStatus &&
+      supportsHeaderBearingHttpMcp(effectiveAgentStatus.capabilities) &&
+      supportsMcpAtProjectLocation(effectiveAgentStatus.capabilities, projectLocation),
+    );
   // Composer MCP servers are bound at session-create time for the active
   // thread, so the "+" menu shows this run's bindings read-only: the enabled
   // built-ins (from thread config), the custom servers recorded at launch,
@@ -257,6 +265,14 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     enabled: effectiveMcpConfig?.[descriptor.configKey] === true,
     visible:
       descriptor.isAvailable(projectLocation) &&
+      Boolean(
+        effectiveAgentStatus &&
+        descriptor.getScope(
+          effectiveAgentStatus.capabilities,
+          presentationMode,
+          projectLocation,
+        ) !== "none",
+      ) &&
       effectiveMcpConfig?.[descriptor.configKey] === true,
     onToggle: () => {},
   }));
@@ -287,6 +303,14 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       .filter(
         (descriptor) =>
           descriptor.isAvailable(projectLocation) &&
+          Boolean(
+            effectiveAgentStatus &&
+            descriptor.getScope(
+              effectiveAgentStatus.capabilities,
+              presentationMode,
+              projectLocation,
+            ) !== "none",
+          ) &&
           effectiveMcpConfig?.[descriptor.configKey] === true,
       )
       .map((descriptor) => ({
@@ -686,8 +710,8 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       const text = (e as CustomEvent<string>).detail;
       if (text) setPrompt((prev) => prev + text);
     }
-    window.addEventListener("poracode:paste-to-composer", handlePasteToComposer);
-    return () => window.removeEventListener("poracode:paste-to-composer", handlePasteToComposer);
+    window.addEventListener("craftstation:paste-to-composer", handlePasteToComposer);
+    return () => window.removeEventListener("craftstation:paste-to-composer", handlePasteToComposer);
   }, []);
 
   // Publish the rendered presentation + collapsed state so the browser element

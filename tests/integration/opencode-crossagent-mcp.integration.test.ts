@@ -32,8 +32,8 @@ describe("opencode hosts Crossagents MCP on its shared server (live)", () => {
     process.platform === "win32" ? { kind: "windows", path } : { kind: "posix", path };
 
   beforeAll(async () => {
-    firstProjectDir = mkdtempSync(join(tmpdir(), "poracode-oc-shared-a-"));
-    secondProjectDir = mkdtempSync(join(tmpdir(), "poracode-oc-shared-b-"));
+    firstProjectDir = mkdtempSync(join(tmpdir(), "craftstation-oc-shared-a-"));
+    secondProjectDir = mkdtempSync(join(tmpdir(), "craftstation-oc-shared-b-"));
     writeFileSync(join(firstProjectDir, "README.md"), "# first shared server fixture\n");
     writeFileSync(join(secondProjectDir, "README.md"), "# second shared server fixture\n");
 
@@ -112,7 +112,7 @@ describe("opencode hosts Crossagents MCP on its shared server (live)", () => {
       const directory = resolveOpenCodeSessionDirectory(firstLocation);
       const created = await first.client.session.create({
         directory,
-        title: "poracode/crossagents-shared-test",
+        title: "craftstation/crossagents-shared-test",
       });
       const providerSessionId = created.data?.id;
       if (!providerSessionId) throw new Error("opencode session.create returned no id");

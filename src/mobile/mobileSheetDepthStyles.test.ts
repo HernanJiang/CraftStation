@@ -63,16 +63,16 @@ function runDisplayModeBootstrap(input: {
 describe("mobile sheet depth styles", () => {
   it("gives every mobile model picker a consistent tall drawer", () => {
     expect(css).toMatch(
-      /\.m-shell > \.m-sheet-backdrop > \.m-sheet:has\(\.poracode-model-menu-listbox\)\s*\{[^}]*overflow:\s*hidden;[^}]*height:\s*auto;[^}]*max-height:\s*65dvh;[^}]*padding-bottom:\s*0;/s,
+      /\.m-shell > \.m-sheet-backdrop > \.m-sheet:has\(\.craftstation-model-menu-listbox\)\s*\{[^}]*overflow:\s*hidden;[^}]*height:\s*auto;[^}]*max-height:\s*65dvh;[^}]*padding-bottom:\s*0;/s,
     );
     expect(css).toMatch(
-      /> \.m-sheet\[data-expanded\]:has\(\.poracode-model-menu-listbox\)\s*\{[^}]*height:\s*calc\(100dvh - env\(safe-area-inset-top\) - 0\.75rem\);[^}]*max-height:\s*calc\(100dvh - env\(safe-area-inset-top\) - 0\.75rem\);/s,
+      /> \.m-sheet\[data-expanded\]:has\(\.craftstation-model-menu-listbox\)\s*\{[^}]*height:\s*calc\(100dvh - env\(safe-area-inset-top\) - 0\.75rem\);[^}]*max-height:\s*calc\(100dvh - env\(safe-area-inset-top\) - 0\.75rem\);/s,
     );
     expect(css).toMatch(
-      /\.m-shell > \.m-sheet-backdrop > \.m-sheet \.poracode-model-menu-listbox\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*0;[^}]*max-height:\s*none !important;[^}]*flex:\s*1;/s,
+      /\.m-shell > \.m-sheet-backdrop > \.m-sheet \.craftstation-model-menu-listbox\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*0;[^}]*max-height:\s*none !important;[^}]*flex:\s*1;/s,
     );
     expect(css).toMatch(
-      /\.poracode-model-menu-listbox[\s\S]*\.poracode-model-menu-bottom-spacer\s*\{[^}]*box-sizing:\s*content-box;[^}]*padding-bottom:\s*env\(safe-area-inset-bottom\);/s,
+      /\.craftstation-model-menu-listbox[\s\S]*\.craftstation-model-menu-bottom-spacer\s*\{[^}]*box-sizing:\s*content-box;[^}]*padding-bottom:\s*env\(safe-area-inset-bottom\);/s,
     );
   });
 
@@ -91,13 +91,13 @@ describe("mobile sheet depth styles", () => {
       /\.m-shell[\s\S]*> \.m-sheet-backdrop\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0 0 auto;[^}]*height:\s*calc\(100svh \+ var\(--m-browser-band-paint\)\);[^}]*background:\s*transparent;/s,
     );
     expect(css).toMatch(
-      /> \.m-sheet:has\(\.poracode-model-menu-listbox\)\s*\{[^}]*overflow:\s*hidden;[^}]*height:\s*auto;[^}]*max-height:\s*calc\(65svh \+ var\(--m-browser-band-paint\)\);[^}]*padding-bottom:\s*0;/s,
+      /> \.m-sheet:has\(\.craftstation-model-menu-listbox\)\s*\{[^}]*overflow:\s*hidden;[^}]*height:\s*auto;[^}]*max-height:\s*calc\(65svh \+ var\(--m-browser-band-paint\)\);[^}]*padding-bottom:\s*0;/s,
     );
     expect(css).toMatch(
-      /> \.m-sheet[\s\S]*\.poracode-model-menu-listbox\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*0;[^}]*max-height:\s*none !important;[^}]*flex:\s*1;[^}]*scroll-padding-bottom:\s*calc\(var\(--m-browser-edge-gap\) \+ var\(--m-browser-toolbar-safe-area\)\);/s,
+      /> \.m-sheet[\s\S]*\.craftstation-model-menu-listbox\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*0;[^}]*max-height:\s*none !important;[^}]*flex:\s*1;[^}]*scroll-padding-bottom:\s*calc\(var\(--m-browser-edge-gap\) \+ var\(--m-browser-toolbar-safe-area\)\);/s,
     );
     expect(css).not.toContain("--m-model-menu-browser-depth");
-    expect(css).not.toMatch(/\.m-sheet:has\(\.poracode-model-menu-listbox\)::after/);
+    expect(css).not.toMatch(/\.m-sheet:has\(\.craftstation-model-menu-listbox\)::after/);
   });
 
   it("keeps Home Screen apps opaque even when WebKit also reports browser mode", () => {

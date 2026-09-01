@@ -83,7 +83,7 @@ function createManager(
     args: ["-NoLogo"],
   }),
 ): ThreadSessionManager {
-  const tempDir = mkdtempSync(join(tmpdir(), "poracode-start-close-"));
+  const tempDir = mkdtempSync(join(tmpdir(), "craftstation-start-close-"));
   tempDirs.push(tempDir);
   const manager = new ThreadSessionManager({
     emit,
@@ -421,7 +421,7 @@ describe("ThreadSessionManager start guards", () => {
         message: "Structured runtime session creation failed.",
       }),
       expect.objectContaining({
-        "poracode.feature_area": "structured-runtime-session-creation",
+        "craftstation.feature_area": "structured-runtime-session-creation",
       }),
     );
   });

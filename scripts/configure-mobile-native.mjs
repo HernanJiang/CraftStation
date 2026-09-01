@@ -4,23 +4,23 @@ import { resolve } from "node:path";
 const root = process.cwd();
 // Domain that owns pairing/universal links. The installed app claims
 // `applinks:<host>` so https://<host>/pair opens the app instead of the hosted
-// PWA. Override with PORACODE_MOBILE_APP_HOST (e.g. a staging domain).
-const DEFAULT_MOBILE_APP_HOST = "poracode.com";
+// PWA. Override with CRAFTSTATION_MOBILE_APP_HOST (e.g. a staging domain).
+const DEFAULT_MOBILE_APP_HOST = "craftstation.com";
 const appHost = readAppHost();
 const requireAndroidLinks =
-  readBoolEnv("PORACODE_MOBILE_REQUIRE_NATIVE_LINKS") ||
-  readBoolEnv("PORACODE_MOBILE_REQUIRE_ANDROID_LINKS");
+  readBoolEnv("CRAFTSTATION_MOBILE_REQUIRE_NATIVE_LINKS") ||
+  readBoolEnv("CRAFTSTATION_MOBILE_REQUIRE_ANDROID_LINKS");
 const requireIosLinks =
-  readBoolEnv("PORACODE_MOBILE_REQUIRE_NATIVE_LINKS") ||
-  readBoolEnv("PORACODE_MOBILE_REQUIRE_IOS_LINKS");
+  readBoolEnv("CRAFTSTATION_MOBILE_REQUIRE_NATIVE_LINKS") ||
+  readBoolEnv("CRAFTSTATION_MOBILE_REQUIRE_IOS_LINKS");
 
 if ((requireAndroidLinks || requireIosLinks) && !appHost) {
-  console.error("[configure-mobile-native] missing PORACODE_MOBILE_APP_HOST for native app links.");
+  console.error("[configure-mobile-native] missing CRAFTSTATION_MOBILE_APP_HOST for native app links.");
   process.exit(1);
 }
 
 if (!appHost) {
-  console.log("[configure-mobile-native] PORACODE_MOBILE_APP_HOST not set; skipping app links.");
+  console.log("[configure-mobile-native] CRAFTSTATION_MOBILE_APP_HOST not set; skipping app links.");
 } else {
   configureAndroid(appHost);
   configureIosAppLinks(appHost);
@@ -45,12 +45,12 @@ function readBoolEnv(key) {
 }
 
 function readAppHost() {
-  const raw = readEnv("PORACODE_MOBILE_APP_HOST") || DEFAULT_MOBILE_APP_HOST;
+  const raw = readEnv("CRAFTSTATION_MOBILE_APP_HOST") || DEFAULT_MOBILE_APP_HOST;
   if (!raw) return "";
   try {
     return new URL(raw.includes("://") ? raw : `https://${raw}`).host;
   } catch {
-    console.error(`[configure-mobile-native] invalid PORACODE_MOBILE_APP_HOST: ${raw}`);
+    console.error(`[configure-mobile-native] invalid CRAFTSTATION_MOBILE_APP_HOST: ${raw}`);
     process.exit(1);
   }
 }
@@ -219,7 +219,7 @@ function addPlistBoolean(plistPath, key) {
 
 function configureIosApsEnvironment() {
   const entitlementsPath = resolve(root, "ios/App/App/App.entitlements");
-  const apsEnvironment = readEnv("PORACODE_IOS_APS_ENVIRONMENT") || "production";
+  const apsEnvironment = readEnv("CRAFTSTATION_IOS_APS_ENVIRONMENT") || "production";
 
   let entitlements = existsSync(entitlementsPath)
     ? readFileSync(entitlementsPath, "utf8")
@@ -268,10 +268,10 @@ function configureAndroidPush() {
 // Copy the Firebase config into android/app/. Warn (don't fail) when the env var
 // is unset — an app-links-only build still needs to succeed.
 function copyAndroidGoogleServices() {
-  const src = readEnv("PORACODE_ANDROID_GOOGLE_SERVICES_JSON");
+  const src = readEnv("CRAFTSTATION_ANDROID_GOOGLE_SERVICES_JSON");
   if (!src) {
     console.warn(
-      "[configure-mobile-native] PORACODE_ANDROID_GOOGLE_SERVICES_JSON not set; " +
+      "[configure-mobile-native] CRAFTSTATION_ANDROID_GOOGLE_SERVICES_JSON not set; " +
         "Android push disabled until android/app/google-services.json is provided.",
     );
     return;
@@ -350,15 +350,15 @@ function copyWidgetExtensionSources() {
     return;
   }
 
-  const sourceDir = resolve(root, "native/ios/PoracodeActivities");
+  const sourceDir = resolve(root, "native/ios/CraftStationActivities");
   if (!existsSync(sourceDir)) {
     console.log(
-      "[configure-mobile-native] native/ios/PoracodeActivities missing; skipping widget sources.",
+      "[configure-mobile-native] native/ios/CraftStationActivities missing; skipping widget sources.",
     );
     return;
   }
 
-  const destDir = resolve(iosAppDir, "PoracodeActivities");
+  const destDir = resolve(iosAppDir, "CraftStationActivities");
   cpSync(sourceDir, destDir, { recursive: true });
-  console.log("[configure-mobile-native] synced PoracodeActivities widget-extension sources.");
+  console.log("[configure-mobile-native] synced CraftStationActivities widget-extension sources.");
 }

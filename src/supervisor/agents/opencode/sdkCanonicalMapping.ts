@@ -2,7 +2,7 @@
  * OpenCode SDK → canonical RuntimeEvent mapper (public barrel).
  *
  * Translates events emitted by the legacy client's `event.subscribe`
- * into Poracode's canonical chat events. Mirrors the role of
+ * into CraftStation's canonical chat events. Mirrors the role of
  * `acp/canonicalMapping.ts` for the ACP protocol.
  *
  * Reconciliation note: OpenCode interleaves `message.part.delta` (incremental)

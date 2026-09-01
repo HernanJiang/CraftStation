@@ -48,17 +48,21 @@ describe("isolatedCodexHomeCandidates", () => {
   it("always includes the CraftStation-owned Codex home", () => {
     const homes = isolatedCodexHomeCandidates();
     expect(homes).toContain(nativePrivateCodexHome());
-    if (isCodexRouterOverlayHome(hostCodexHome())) {
-      expect(homes).not.toContain(join(homedir(), ".codex"));
-    }
   });
+
+  it.runIf(isCodexRouterOverlayHome(hostCodexHome()))(
+    "never lists the host home when it is a Router overlay",
+    () => {
+      expect(isolatedCodexHomeCandidates()).not.toContain(join(homedir(), ".codex"));
+    },
+  );
 });
 
 describe("isolatedCodexAuthPath", () => {
-  it("does not return the host auth.json when that home is a Router overlay", () => {
-    if (!isCodexRouterOverlayHome(hostCodexHome())) {
-      return;
-    }
-    expect(isolatedCodexAuthPath()).toBe(join(nativePrivateCodexHome(), "auth.json"));
-  });
+  it.runIf(isCodexRouterOverlayHome(hostCodexHome()))(
+    "does not return the host auth.json when that home is a Router overlay",
+    () => {
+      expect(isolatedCodexAuthPath()).toBe(join(nativePrivateCodexHome(), "auth.json"));
+    },
+  );
 });

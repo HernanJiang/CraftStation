@@ -118,12 +118,12 @@ describe("gitStore batch updates", () => {
 
   it("clears in-memory and persisted cache state immediately", () => {
     useGitStore.getState().setStatus("p1", baseStatus);
-    localStorage.setItem("poracode-git-cache-v1", "stale-desktop-cache");
+    localStorage.setItem("craftstation-git-cache-v1", "stale-desktop-cache");
 
     resetGitStoreCache();
 
     expect(useGitStore.getState().statuses).toEqual({});
-    expect(localStorage.getItem("poracode-git-cache-v1")).toBeNull();
+    expect(localStorage.getItem("craftstation-git-cache-v1")).toBeNull();
   });
 
   it("skips replacing project records when snapshot data is unchanged", () => {

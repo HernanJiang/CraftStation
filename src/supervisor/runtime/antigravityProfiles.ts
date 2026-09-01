@@ -4,7 +4,7 @@ import {
   antigravityModelsFromFetchAvailableModels,
   antigravityPoolWindows,
   type HostPort,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
 import { CraftStationCredentialVault } from "./credentialVault";
 import {

@@ -191,6 +191,10 @@ const agentPresentationCapabilityOverrideSchema = z
     presentationModes: z.array(threadPresentationModeSchema).optional(),
     requiresTerminalFocusBeforeInput: z.boolean().optional(),
     bypassPermissions: bypassPermissionsSchema.optional(),
+    supportedMcpTransports: z.array(z.enum(["stdio", "http", "sse"])).optional(),
+    supportsMcpHttpHeaders: z.boolean().optional(),
+    requiresSecretFreeMcpConfig: z.boolean().optional(),
+    supportsMcpInWsl: z.boolean().optional(),
     settingDefs: z.array(agentSettingDefSchema),
     slashCommands: z.array(agentSlashCommandSchema).optional(),
     disabledSkillNames: z.array(z.string().min(1)).optional(),
@@ -318,6 +322,25 @@ export const agentCapabilitySchema = z.object({
   bypassPermissions: bypassPermissionsSchema.optional(),
   /** Composer MCP toggle gating for every server. */
   mcpScope: composerMcpScopesSchema.optional(),
+  /**
+   * MCP transports the active runtime can project. Absent means the runtime has
+   * not declared a transport restriction; `mcpScope: "none"` remains the
+   * presentation-level off switch.
+   */
+  supportedMcpTransports: z.array(z.enum(["stdio", "http", "sse"])).optional(),
+  /**
+   * Whether HTTP/SSE MCP request headers can be conveyed without persisting
+   * secrets in an unsafe provider config. Absent preserves existing provider
+   * behavior; `false` filters header-bearing servers in both UI and runtime.
+   */
+  supportsMcpHttpHeaders: z.boolean().optional(),
+  /**
+   * Reject transport fields that look like credentials because this runtime can
+   * only project MCP launch config through a temporary on-disk file.
+   */
+  requiresSecretFreeMcpConfig: z.boolean().optional(),
+  /** Whether this MCP projection can cross the native/WSL home boundary. */
+  supportsMcpInWsl: z.boolean().optional(),
   /** Provider-owned defaults for values stored in shared agent settings. */
   agentSettingsDefaults: z.record(z.string(), z.union([z.boolean(), z.string()])).optional(),
   /**
@@ -336,7 +359,7 @@ export const agentCapabilitySchema = z.object({
    * How Crossagents identifies the calling parent thread:
    *
    * - absent / "thread-token": the MCP bearer token maps directly to one
-   *   Poracode thread (the default for provider processes launched per thread).
+   *   CraftStation thread (the default for provider processes launched per thread).
    * - "provider-session": one provider-runtime credential is shared, and a
    *   trusted provider hook adds the native session id to every tool call so
    *   the supervisor can resolve the live parent thread at call time.

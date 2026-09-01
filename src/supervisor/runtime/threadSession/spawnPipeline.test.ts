@@ -4,9 +4,40 @@ import {
   applyAgentSettingsMcpFlags,
   composeResolvedMcpServers,
   effectiveLaunchConfig,
+  resolveSupportedPresentationMode,
   usesProviderSessionCrossagentRouting,
   workspaceLaunchConfig,
 } from "./spawnPipeline";
+
+describe("resolveSupportedPresentationMode", () => {
+  it("moves a legacy terminal thread to GUI when the provider is now GUI-only", () => {
+    expect(
+      resolveSupportedPresentationMode(
+        {
+          capabilities: {
+            presentationMode: "gui",
+            presentationModes: ["gui"],
+          },
+        },
+        "terminal",
+      ),
+    ).toBe("gui");
+  });
+
+  it("preserves an explicit terminal surface for providers that still support both", () => {
+    expect(
+      resolveSupportedPresentationMode(
+        {
+          capabilities: {
+            presentationMode: "gui",
+            presentationModes: ["gui", "terminal"],
+          },
+        },
+        "terminal",
+      ),
+    ).toBe("terminal");
+  });
+});
 
 const baseConfig: ThreadConfig = {
   model: "test-model",

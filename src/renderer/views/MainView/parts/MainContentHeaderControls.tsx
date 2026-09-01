@@ -42,7 +42,7 @@ export function MainContentHeaderControls() {
         <ControlTooltip
           label={t`Show/hide side panel`}
           shortcut="Ctrl+Alt+B"
-          triggerClassName="poracode-overlay-header__controls pointer-events-auto absolute top-2 right-2.5 z-[60]"
+          triggerClassName="craftstation-overlay-header__controls pointer-events-auto absolute top-2 right-2.5 z-[60]"
         >
           <button
             type="button"
@@ -53,7 +53,7 @@ export function MainContentHeaderControls() {
               event.stopPropagation();
               usePanelStore.getState().toggleAuxiliaryPanel("right");
             }}
-            className="poracode-overlay-header__controls pointer-events-auto flex size-7 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/5 hover:text-foreground"
+            className="craftstation-overlay-header__controls pointer-events-auto flex size-7 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/5 hover:text-foreground"
           >
             <PanelRight className="size-4" />
           </button>

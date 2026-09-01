@@ -173,14 +173,14 @@ function createReplacementOperation(): CursorSdkReplacementOperation {
 
 /**
  * Give every fresh local SDK agent a stable Cursor-shaped identity before the
- * provider creates any durable state. If Poracode or the worker exits after
+ * provider creates any durable state. If CraftStation or the worker exits after
  * Agent.create() but before the returned session ref is persisted, retrying
  * the same thread can safely resume this identity instead of orphaning a
  * second conversation.
  */
 export function cursorSdkAgentId(threadId: string): string {
   const digest = createHash("sha256")
-    .update("poracode/cursor-sdk/agent-id\0", "utf8")
+    .update("craftstation/cursor-sdk/agent-id\0", "utf8")
     .update(threadId, "utf8")
     .digest("hex");
   const versioned = `5${digest.slice(13, 16)}`;
@@ -216,7 +216,7 @@ function messageParts(message: unknown): ReadonlyArray<unknown> {
  * Provider-local structured session for a user-installed `@cursor/sdk`.
  *
  * The SDK itself stays in an isolated Node worker. This class owns only
- * provider-neutral lifecycle state and the translation into Poracode's
+ * provider-neutral lifecycle state and the translation into CraftStation's
  * canonical runtime events.
  */
 export class CursorSdkSession implements StructuredSessionHandle {
@@ -249,7 +249,7 @@ export class CursorSdkSession implements StructuredSessionHandle {
     // The shared GUI session factory normally leaves `input.env` absent and
     // structured runtimes inherit the supervisor process environment. Keep an
     // explicit scoped override authoritative (notably for WSL/SSH and tests),
-    // but also honor the ordinary CURSOR_API_KEY used to launch Poracode.
+    // but also honor the ordinary CURSOR_API_KEY used to launch CraftStation.
     // Passing it over worker RPC is required: SDK 1.0.24 can list models from
     // its ambient env while its local agent child later rejects the same key
     // unless Agent.create()/resume() receives it explicitly.
@@ -349,7 +349,7 @@ export class CursorSdkSession implements StructuredSessionHandle {
     const initializeOptions = { ...createOptions };
     // Agent.resume() already receives the durable provider identity as its
     // first argument. `AgentOptions.agentId` is a create-only recovery key;
-    // forwarding Poracode's deterministic fresh-thread id on resume could
+    // forwarding CraftStation's deterministic fresh-thread id on resume could
     // conflict with an older SDK agent that has a different native id.
     if (resumeAgentId) delete initializeOptions.agentId;
     // Passing a model to Agent.resume() makes the SDK perform another catalog
@@ -425,7 +425,7 @@ export class CursorSdkSession implements StructuredSessionHandle {
 
       // The SDK snapshots ambient Cursor hooks, MCP configuration, and
       // subagent definitions on its Agent handle. Refresh immediately before
-      // every new turn so an already-open Poracode thread observes edits made
+      // every new turn so an already-open CraftStation thread observes edits made
       // since its previous send.
       const worker = this.requireOpenedWorker();
       turn.worker = worker;
@@ -545,7 +545,7 @@ export class CursorSdkSession implements StructuredSessionHandle {
     const safetyPosture = sdkSafetyPosture(config);
     return {
       model: this.modelSelection(config),
-      name: `poracode/${this.input.threadId.slice(0, 8)}`,
+      name: `craftstation/${this.input.threadId.slice(0, 8)}`,
       local: {
         cwd: resolveSessionCwd(this.input.projectLocation),
         settingSources: ["all"],

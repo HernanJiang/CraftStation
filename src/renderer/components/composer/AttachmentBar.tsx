@@ -41,7 +41,7 @@ export function McpChip(props: {
         <Tooltip.Trigger>
           <button
             type="button"
-            className="poracode-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+            className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
             aria-label={title}
             onClick={(e) => e.stopPropagation()}
           >
@@ -54,17 +54,17 @@ export function McpChip(props: {
   }
   return (
     <div
-      className="poracode-attachment-chip poracode-browser-chip"
+      className="craftstation-attachment-chip craftstation-browser-chip"
       title={title}
       aria-label={title}
       role={onRemove ? "group" : "img"}
     >
       <Icon className="size-3 text-muted" aria-hidden="true" />
-      <span className="poracode-attachment-chip__name">{t(descriptor.label)}</span>
+      <span className="craftstation-attachment-chip__name">{t(descriptor.label)}</span>
       {onRemove ? (
         <button
           type="button"
-          className="poracode-attachment-chip__delete"
+          className="craftstation-attachment-chip__delete"
           aria-label={t(descriptor.disableLabel)}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
@@ -140,14 +140,14 @@ function AttachmentChip(props: {
       : att.selector
     : undefined;
   const labelClass = isPicked
-    ? "poracode-attachment-chip__name poracode-attachment-chip__selector"
-    : "poracode-attachment-chip__name";
+    ? "craftstation-attachment-chip__name craftstation-attachment-chip__selector"
+    : "craftstation-attachment-chip__name";
 
   const content = (
     <>
       {att.isImage ? (
         <img
-          className="poracode-attachment-chip__thumb"
+          className="craftstation-attachment-chip__thumb"
           src={attachmentImageUrl(att, imageUrlForPath)}
           alt={att.name}
           decoding="async"
@@ -155,7 +155,7 @@ function AttachmentChip(props: {
         />
       ) : (
         <img
-          className="poracode-attachment-chip__icon"
+          className="craftstation-attachment-chip__icon"
           src={getEntryIconUrl(att.name, false)}
           alt=""
           draggable={false}
@@ -169,7 +169,7 @@ function AttachmentChip(props: {
       {onRemove ? (
         <button
           type="button"
-          className="poracode-attachment-chip__delete"
+          className="craftstation-attachment-chip__delete"
           aria-label={t`Remove ${att.name}`}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
@@ -191,7 +191,7 @@ function AttachmentChip(props: {
   if (onPreview) {
     return (
       <div
-        className="poracode-attachment-chip"
+        className="craftstation-attachment-chip"
         role="button"
         tabIndex={0}
         aria-label={t`Preview ${att.name}`}
@@ -208,7 +208,7 @@ function AttachmentChip(props: {
     );
   }
 
-  return <div className="poracode-attachment-chip">{content}</div>;
+  return <div className="craftstation-attachment-chip">{content}</div>;
 }
 
 function ImagePreview(props: {
@@ -230,8 +230,8 @@ function ImagePreview(props: {
     return (
       <button
         type="button"
-        className="poracode-attachment-image-preview"
-        data-poracode-attachment-image-preview="true"
+        className="craftstation-attachment-image-preview"
+        data-craftstation-attachment-image-preview="true"
         onClick={() => onPreviewImage(att)}
         aria-label={t`Preview ${att.name}`}
       >
@@ -241,8 +241,8 @@ function ImagePreview(props: {
   }
   return (
     <span
-      className="poracode-attachment-image-preview"
-      data-poracode-attachment-image-preview="true"
+      className="craftstation-attachment-image-preview"
+      data-craftstation-attachment-image-preview="true"
     >
       {img}
     </span>
@@ -275,8 +275,8 @@ export function AttachmentBar(props: {
 
   const className =
     layout === "inset"
-      ? "poracode-attachment-bar poracode-attachment-bar--inset"
-      : "poracode-attachment-bar";
+      ? "craftstation-attachment-bar craftstation-attachment-bar--inset"
+      : "craftstation-attachment-bar";
 
   return (
     <div className={className}>

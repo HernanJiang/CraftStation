@@ -39,8 +39,8 @@ import {
  * auto-trusted by the CLI (no `trusted-hooks.json` fingerprint prompt), so a
  * merged install runs headlessly.
  *
- * Poracode-managed entries are tagged by the staged command path
- * (`PORACODE_FORWARD_RE`) and pruned/replaced on every reinstall and removed
+ * CraftStation-managed entries are tagged by the staged command path
+ * (`CRAFTSTATION_FORWARD_RE`) and pruned/replaced on every reinstall and removed
  * on uninstall, so the user's own hooks are never clobbered.
  */
 
@@ -56,7 +56,7 @@ interface CommandCodeHookSpec {
 }
 
 /**
- * The three v1 events Poracode needs. `Stop` is the authoritative turn-finished
+ * The three v1 events CraftStation needs. `Stop` is the authoritative turn-finished
  * (idle) edge; the tool events corroborate `working`.
  */
 const COMMANDCODE_HOOK_SPECS: ReadonlyArray<CommandCodeHookSpec> = [
@@ -66,14 +66,14 @@ const COMMANDCODE_HOOK_SPECS: ReadonlyArray<CommandCodeHookSpec> = [
 ];
 
 /**
- * Match any Poracode-staged Command Code hook command. Covers both the WSL
+ * Match any CraftStation-staged Command Code hook command. Covers both the WSL
  * shape (`forward.mjs` invoked via absolute node path) and native
- * (`poracode-hook.{sh,cmd,ps1}` wrapper).
+ * (`craftstation-hook.{sh,cmd,ps1}` wrapper).
  */
-const PORACODE_FORWARD_RE =
-  /agent-plugins(?:[/\\]+)commandcode(?:[/\\]+)(?:forward\.mjs|poracode-hook\.(?:sh|cmd|ps1))/;
+const CRAFTSTATION_FORWARD_RE =
+  /agent-plugins(?:[/\\]+)commandcode(?:[/\\]+)(?:forward\.mjs|craftstation-hook\.(?:sh|cmd|ps1))/;
 const MANAGED_FORWARD_RE =
-  /agent-plugins(?:[/\\]+)commandcode(?:[/\\]+)(?:forward\.mjs|(?:poracode|lightcode)-hook\.(?:sh|cmd|ps1))/;
+  /agent-plugins(?:[/\\]+)commandcode(?:[/\\]+)(?:forward\.mjs|(?:craftstation|craftstation)-hook\.(?:sh|cmd|ps1))/;
 
 const callerDir =
   typeof __dirname !== "undefined"
@@ -82,7 +82,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "commandcode",
-  sourceEnvVar: "PORACODE_COMMANDCODE_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_COMMANDCODE_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -140,13 +140,13 @@ function entryMatchesForwarder(entry: unknown, pattern: RegExp): boolean {
   );
 }
 
-function prunePoracodeEntries(entries: unknown): unknown[] {
+function pruneCraftStationEntries(entries: unknown): unknown[] {
   if (!Array.isArray(entries)) return [];
   return entries.filter((entry) => !entryMatchesForwarder(entry, MANAGED_FORWARD_RE));
 }
 
 /** Command Code's nested hook entry: `{ hooks: [{ type: "command", command }] }`. */
-function buildPoracodeEntry(
+function buildCraftStationEntry(
   spec: CommandCodeHookSpec,
   commandHead: string,
 ): Record<string, unknown> {
@@ -154,8 +154,8 @@ function buildPoracodeEntry(
 }
 
 /**
- * Merge Poracode hook entries into a parsed `settings.json` document,
- * preserving every other key (and any non-Poracode hooks). `commandHead` is
+ * Merge CraftStation hook entries into a parsed `settings.json` document,
+ * preserving every other key (and any non-CraftStation hooks). `commandHead` is
  * the pre-event portion of the hook command. Exported for unit tests.
  */
 export function mergeCommandCodeSettings(
@@ -165,8 +165,8 @@ export function mergeCommandCodeSettings(
   const settings = asObject(existingParsed);
   const hooksRoot = asObject(settings.hooks);
   for (const spec of COMMANDCODE_HOOK_SPECS) {
-    const pruned = prunePoracodeEntries(hooksRoot[spec.event]);
-    pruned.push(buildPoracodeEntry(spec, commandHead));
+    const pruned = pruneCraftStationEntries(hooksRoot[spec.event]);
+    pruned.push(buildCraftStationEntry(spec, commandHead));
     hooksRoot[spec.event] = pruned;
   }
   settings.hooks = hooksRoot;
@@ -174,14 +174,14 @@ export function mergeCommandCodeSettings(
 }
 
 /**
- * Remove only Poracode-managed hook entries from a parsed `settings.json`,
+ * Remove only CraftStation-managed hook entries from a parsed `settings.json`,
  * leaving the user's other settings and hooks intact. Exported for unit tests.
  */
 export function removeCommandCodeHooks(existingParsed: unknown): Record<string, unknown> {
   const settings = asObject(existingParsed);
   const hooksRoot = asObject(settings.hooks);
   for (const spec of COMMANDCODE_HOOK_SPECS) {
-    const pruned = prunePoracodeEntries(hooksRoot[spec.event]);
+    const pruned = pruneCraftStationEntries(hooksRoot[spec.event]);
     if (pruned.length > 0) hooksRoot[spec.event] = pruned;
     else delete hooksRoot[spec.event];
   }
@@ -368,7 +368,7 @@ export function uninstallCommandCodePlugin(ctx?: AgentEnvContext): void {
   removeStagedPluginDir("commandcode", ctx);
 }
 
-function settingsJsonHasPoracodeEntry(settingsPath: string): boolean {
+function settingsJsonHasCraftStationEntry(settingsPath: string): boolean {
   if (!existsSync(settingsPath)) return false;
   try {
     const doc = JSON.parse(readFileSync(settingsPath, "utf8")) as {
@@ -378,7 +378,7 @@ function settingsJsonHasPoracodeEntry(settingsPath: string): boolean {
     for (const spec of COMMANDCODE_HOOK_SPECS) {
       const entries = doc.hooks[spec.event];
       if (!Array.isArray(entries)) continue;
-      if (entries.some((entry) => entryMatchesForwarder(entry, PORACODE_FORWARD_RE))) return true;
+      if (entries.some((entry) => entryMatchesForwarder(entry, CRAFTSTATION_FORWARD_RE))) return true;
     }
     return false;
   } catch {
@@ -395,6 +395,6 @@ function verifyCommandCodeInstallAt(
 ): { installed: boolean; version?: string } {
   return verifyStagedPluginAt(readableDir, target, {
     assets: COMMANDCODE_VERIFY_ASSETS,
-    extraCheck: () => settingsJsonHasPoracodeEntry(settingsPath),
+    extraCheck: () => settingsJsonHasCraftStationEntry(settingsPath),
   });
 }

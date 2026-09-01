@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "@heroui/react";
+import { showInAppUserNotification } from "@/renderer/notifications";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ImageLightboxHost } from "@/renderer/components/composer/ImageLightbox";
 import { PullFromSourceDialog } from "@/renderer/views/MainView/parts/PullFromSourceDialog";
@@ -8,7 +9,6 @@ import { getChrome } from "./chrome";
 import { useDesktopPanelStore } from "./desktopPanelStore";
 import { NarrowShell } from "./NarrowShell";
 import { usePushLifecycle } from "./push/usePushLifecycle";
-import { WebPushPermissionPrompt } from "./push/WebPushPermissionPrompt";
 import { MobileAppProvider, type MobileAppContextValue } from "./remoteContext";
 import { getStoredPreference, setStoredPreference } from "./storage";
 import { UserMessageActionsSheet } from "./UserMessageActionsSheet";
@@ -30,6 +30,28 @@ export function RootLayout() {
   const isWide = useMediaQuery(WIDE_SHELL_QUERY);
   const useRightPanel = useMediaQuery(DESKTOP_RIGHT_PANEL_QUERY);
   const navigate = useNavigate();
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (!event.data || typeof event.data !== "object") return;
+      const data = event.data as Record<string, unknown>;
+      if (
+        data.type !== "thread-user-notification" ||
+        typeof data.threadId !== "string" ||
+        typeof data.title !== "string" ||
+        typeof data.body !== "string"
+      ) {
+        return;
+      }
+      showInAppUserNotification({
+        threadId: data.threadId,
+        title: data.title,
+        body: data.body,
+      });
+    };
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
+  }, []);
   // `location` switches to the pending URL before TanStack starts the View
   // Transition and commits its pending matches. Driving shell chrome from it
   // would therefore put the incoming header over the still-rendered outgoing
@@ -192,7 +214,6 @@ export function RootLayout() {
       <ImageLightboxHost />
       <UserMessageActionsSheet />
       <TodoActionsSheet />
-      <WebPushPermissionPrompt />
     </MobileAppProvider>
   );
 }

@@ -18,7 +18,7 @@ import {
 import { buildContextSizeCapabilities } from "../contextWindowLabel";
 import { getAgentProbeCwd, resolveProbeSpawnCwd } from "../probeCwd";
 
-// Approval policies surfaced to Poracode. Grok only honors `--always-approve`
+// Approval policies surfaced to CraftStation. Grok only honors `--always-approve`
 // (bypass) at launch — `--permission-mode <MODE>` is silently ignored by both
 // the TUI and `grok agent stdio` (re-verified live on 0.2.118; see argv.ts).
 // We therefore expose a single Default ↔ Bypass Approvals toggle in the
@@ -48,9 +48,9 @@ export const grokDefaultCapabilities: AgentCapability = {
   supportsResume: true,
   supportsOneShot: true,
   supportsDirectInput: true,
-  liveInputMode: "terminal",
-  presentationMode: "terminal",
-  presentationModes: ["terminal", "gui"],
+  liveInputMode: "server",
+  presentationMode: "gui",
+  presentationModes: ["gui"],
   defaultApprovalPolicy: "bypassPermissions",
   bypassPermissions: { approvalPolicy: "bypassPermissions" },
   settingDefs: [],
@@ -138,7 +138,7 @@ async function probeCapabilities(
 }
 
 /**
- * Poracode-canonical effort ordering (ascending). Grok advertises its tiers
+ * CraftStation-canonical effort ordering (ascending). Grok advertises its tiers
  * descending (high → low); the pickers across providers list ascending.
  * Unknown tier ids sort after the known ones, keeping their original order.
  */

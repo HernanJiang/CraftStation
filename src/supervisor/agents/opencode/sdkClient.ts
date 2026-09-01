@@ -73,7 +73,7 @@ interface PoolEntry {
 
 async function installSharedServerPlugin(projectLocation: ProjectLocation): Promise<void> {
   try {
-    const baseDir = process.env.PORACODE_DATA_DIR?.trim();
+    const baseDir = process.env.CRAFTSTATION_DATA_DIR?.trim();
     const ctx: AgentEnvContext =
       projectLocation.kind === "wsl"
         ? {
@@ -189,7 +189,7 @@ async function createLegacySdkClient(
 }
 
 async function spawnAndWire(projectLocation: ProjectLocation): Promise<ServerSnapshot> {
-  // The shared process must load the Poracode plugin before it starts. Besides
+  // The shared process must load the CraftStation plugin before it starts. Besides
   // lifecycle hooks for terminal launches, the plugin injects the trusted
   // provider session id used to route Crossagents calls from pooled GUI
   // sessions. Installing after `opencode serve` starts is too late because its
@@ -202,7 +202,7 @@ async function spawnAndWire(projectLocation: ProjectLocation): Promise<ServerSna
   const command = buildOpenCodeServerCommand(projectLocation, resolvedExecPath, {
     OPENCODE_SERVER_USERNAME: username,
     OPENCODE_SERVER_PASSWORD: password,
-    PORACODE_OPENCODE_SESSION_ROUTING: "1",
+    CRAFTSTATION_OPENCODE_SESSION_ROUTING: "1",
   });
   const handle = spawnOpenCodeServer(command);
 
@@ -411,7 +411,7 @@ async function acquireOpenCodeServerInner(
 
 /**
  * Supervisor shutdown helper. Releases pool bookkeeping, then terminates
- * only Poracode-spawned `opencode serve` processes still tracked in
+ * only CraftStation-spawned `opencode serve` processes still tracked in
  * {@link disposeSpawnedOpenCodeServerHandles}. Does not touch unrelated
  * `opencode.exe` processes the user started outside the app.
  */

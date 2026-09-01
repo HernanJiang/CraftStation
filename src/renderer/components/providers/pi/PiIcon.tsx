@@ -6,7 +6,7 @@ const PI_MAIN_PATH =
 const PI_DOT_PATH = "M517.36 400H634.72V634.72H517.36Z";
 
 export const PiIcon = createProviderIcon({
-  cssPrefix: "poracode-pi-icon",
+  cssPrefix: "craftstation-pi-icon",
   path: PI_MAIN_PATH,
   secondaryPath: PI_DOT_PATH,
   fillRule: "evenodd",

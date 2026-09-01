@@ -249,13 +249,13 @@ describe("mapOpenCodeSlashCommands", () => {
 describe("OpenCode prompt formatting", () => {
   it("places attachments on their own line with \\n\\n separator", () => {
     const adapter = createOpenCodeAdapter();
-    const attachmentPath = join(homedir(), ".poracode", "attachments", "draft", "image.png");
+    const attachmentPath = join(homedir(), ".craftstation", "attachments", "draft", "image.png");
     const prompt = adapter.formatPromptSegments?.([
       { kind: "text", content: "can you see this image?" },
       { kind: "attachment", path: attachmentPath },
     ]);
 
-    expect(prompt).toBe("can you see this image?\n\n@~/.poracode/attachments/draft/image.png ");
+    expect(prompt).toBe("can you see this image?\n\n@~/.craftstation/attachments/draft/image.png ");
   });
 
   it("wraps multiline prompts in bracketed paste in buildDirectInput", () => {
@@ -387,7 +387,7 @@ describe("detectOpenCodeTerminalStatus", () => {
 });
 
 describe("opencodeIntentFor", () => {
-  it("maps OpenCode lifecycle hooks to Poracode intents", () => {
+  it("maps OpenCode lifecycle hooks to CraftStation intents", () => {
     expect(opencodeIntentFor("session.created")).toBe("session.started");
     expect(opencodeIntentFor("tool.execute.before")).toBe("session.turn_started");
     expect(opencodeIntentFor("permission.asked")).toBe("session.needs_approval");
@@ -403,11 +403,20 @@ describe("opencodeIntentFor", () => {
 });
 
 describe("createOpenCodeAdapter", () => {
+  it("defaults new threads to the CraftStation GUI SDK session", () => {
+    const adapter = createOpenCodeAdapter();
+    expect(adapter.capabilities).toMatchObject({
+      liveInputMode: "server",
+      presentationMode: "gui",
+      presentationModes: ["gui"],
+    });
+  });
+
   it("declares the in-process plugin metadata and identity", () => {
     const adapter = createOpenCodeAdapter();
     expect(adapter.kind).toBe("opencode");
     expect(adapter.label).toBe("OpenCode");
-    expect(adapter.pluginId).toBe("poracode-status@opencode");
+    expect(adapter.pluginId).toBe("craftstation-status@opencode");
     expect(adapter.minProtocolVersion).toBe(1);
     expect(adapter.capabilities.crossagentMcpRouting).toBe("provider-session");
     expect(adapter.capabilities.agentSettingsDefaults?.crossagentMcp).toBe(true);
@@ -548,7 +557,7 @@ describe("createOpenCodeAdapter", () => {
 
     expect(argv.env?.OPENCODE_CONFIG_CONTENT).toBeDefined();
     expect(argv.env?.OPENCODE_CONFIG_CONTENT).not.toContain("Bearer secret");
-    expect(argv.env?.OPENCODE_CONFIG_CONTENT).toContain("{env:PORACODE_MCP_OPENCODE_");
+    expect(argv.env?.OPENCODE_CONFIG_CONTENT).toContain("{env:CRAFTSTATION_MCP_OPENCODE_");
     expect(Object.values(argv.env ?? {})).toContain("Bearer secret");
   });
 
@@ -575,7 +584,7 @@ describe("createOpenCodeAdapter", () => {
       },
     );
 
-    expect(argv.env?.PORACODE_OPENCODE_SESSION_ROUTING).toBe("1");
+    expect(argv.env?.CRAFTSTATION_OPENCODE_SESSION_ROUTING).toBe("1");
   });
 
   it("does not override OpenCode config when no custom MCP is selected", () => {

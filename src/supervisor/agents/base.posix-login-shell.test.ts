@@ -98,7 +98,7 @@ describe.skipIf(process.platform === "win32")("POSIX login shell wrappers", () =
     execFileAsyncMock.mockResolvedValue({
       stdout: [
         "claude\t/Users/demo/.local/bin/claude",
-        "__PORACODE_ENV_BEGIN__",
+        "__CRAFTSTATION_ENV_BEGIN__",
         "PATH=/opt/homebrew/bin:/usr/bin:/bin",
         "NVM_DIR=/Users/demo/.nvm",
         "HOMEBREW_PREFIX=/opt/homebrew",
@@ -130,7 +130,7 @@ describe.skipIf(process.platform === "win32")("POSIX login shell wrappers", () =
     execFileAsyncMock.mockResolvedValue({
       stdout: [
         "opencode\t/Users/demo/.opencode/bin/opencode",
-        "__PORACODE_ENV_BEGIN__",
+        "__CRAFTSTATION_ENV_BEGIN__",
         "PATH=/opt/homebrew/bin:/usr/bin:/bin",
       ].join("\n"),
       stderr: "",
@@ -161,7 +161,7 @@ describe.skipIf(process.platform === "win32")("POSIX login shell wrappers", () =
     execFileAsyncMock.mockResolvedValueOnce({
       stdout: [
         "claude\t/Users/demo/.local/bin/claude",
-        "__PORACODE_ENV_BEGIN__",
+        "__CRAFTSTATION_ENV_BEGIN__",
         "PATH=/Users/demo/.fnm/aliases/default/bin:/usr/bin:/bin",
       ].join("\n"),
       stderr: "",
@@ -172,7 +172,7 @@ describe.skipIf(process.platform === "win32")("POSIX login shell wrappers", () =
     // so the user's version manager swapped to the project-pinned node (24).
     execFileAsyncMock.mockResolvedValueOnce({
       stdout: [
-        "__PORACODE_ENV_BEGIN__",
+        "__CRAFTSTATION_ENV_BEGIN__",
         "PATH=/Users/demo/.local/share/fnm/node-versions/v24.13.1/installation/bin:/usr/bin:/bin",
         "EDITOR=nvim",
       ].join("\n"),
@@ -208,7 +208,7 @@ describe.skipIf(process.platform === "win32")("POSIX login shell wrappers", () =
     execFileAsyncMock.mockResolvedValueOnce({
       stdout: [
         "claude\t/Users/demo/.local/bin/claude",
-        "__PORACODE_ENV_BEGIN__",
+        "__CRAFTSTATION_ENV_BEGIN__",
         "PATH=/opt/homebrew/bin:/usr/bin:/bin",
       ].join("\n"),
       stderr: "",

@@ -9,7 +9,7 @@ import {
 
 describe("homeScope constants", () => {
   it("HOME_PROJECT_ID has expected value", () => {
-    expect(HOME_PROJECT_ID).toBe("__lightcode_home__");
+    expect(HOME_PROJECT_ID).toBe("__craftstation_home__");
   });
 
   it("HOME_PROJECT_NAME has expected value", () => {
@@ -19,7 +19,7 @@ describe("homeScope constants", () => {
 
 describe("isHomeProjectId", () => {
   it("returns true for the home project id", () => {
-    expect(isHomeProjectId("__lightcode_home__")).toBe(true);
+    expect(isHomeProjectId("__craftstation_home__")).toBe(true);
   });
 
   it("returns false for a different id", () => {
@@ -33,7 +33,7 @@ describe("isHomeProjectId", () => {
 
 describe("isHomeProject", () => {
   it("returns true for a project with the home id", () => {
-    expect(isHomeProject({ id: "__lightcode_home__" })).toBe(true);
+    expect(isHomeProject({ id: "__craftstation_home__" })).toBe(true);
   });
 
   it("returns false for a project with a different id", () => {

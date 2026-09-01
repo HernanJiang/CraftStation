@@ -31,7 +31,7 @@ const GLIDE_WAIT_CAP_MS = 600;
 // GLIDE_MS is enough — the persistent element keeps whatever it was created with.
 const INSTALL = `
 function __pcCursor(){
-  const ID="__poracode_cursor__";
+  const ID="__craftstation_cursor__";
   let el=document.getElementById(ID);
   if(!el){
     el=document.createElement("div"); el.id=ID; el.setAttribute("aria-hidden","true");
@@ -42,17 +42,17 @@ function __pcCursor(){
   return el;
 }
 function __pcRipple(x,y){
-  const d=document.createElement("div"); d.setAttribute("aria-hidden","true"); d.setAttribute("data-poracode-cursor-ripple","");
+  const d=document.createElement("div"); d.setAttribute("aria-hidden","true"); d.setAttribute("data-craftstation-cursor-ripple","");
   d.style.cssText="position:fixed;left:"+x+"px;top:"+y+"px;z-index:2147483646;pointer-events:none;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:rgba(125,108,246,.45);transform:scale(1);opacity:.9;transition:transform .5s ease-out,opacity .5s ease-out";
   (document.body||document.documentElement).appendChild(d);
   requestAnimationFrame(function(){ d.style.transform="scale(3.5)"; d.style.opacity="0"; });
   setTimeout(function(){ try{ d.remove(); }catch(e){} }, 560);
 }`;
 
-const SCREENSHOT_OVERLAY_STYLE_ID = "__poracode_screenshot_overlay_hide__";
-const SESSION_OVERLAY_STYLE_ID = "__poracode_session_overlay_hide__";
+const SCREENSHOT_OVERLAY_STYLE_ID = "__craftstation_screenshot_overlay_hide__";
+const SESSION_OVERLAY_STYLE_ID = "__craftstation_session_overlay_hide__";
 const CURSOR_OVERLAY_HIDDEN_CSS =
-  "#__poracode_cursor__,[data-poracode-cursor-ripple]{visibility:hidden!important}";
+  "#__craftstation_cursor__,[data-craftstation-cursor-ripple]{visibility:hidden!important}";
 const SCREENSHOT_OVERLAY_EVAL_CAP_MS = 250;
 
 const HIDE_OVERLAY_FOR_SCREENSHOT = `(async () => {

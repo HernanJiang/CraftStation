@@ -85,7 +85,7 @@ export function createFactoryAdapter(): AgentAdapter {
       // Droid answers `initialize` without an `mcpCapabilities` block even
       // though `session/new` connects HTTP MCP servers fine (verified against
       // droid 0.188.0, `exec --output-format acp`). Left to the advertised
-      // capabilities alone it would receive none of Poracode's built-in MCP
+      // capabilities alone it would receive none of CraftStation's built-in MCP
       // servers, which are all HTTP.
       const session = createAcpStructuredSession(command, input, {
         assumedMcpCapabilities: { http: true },

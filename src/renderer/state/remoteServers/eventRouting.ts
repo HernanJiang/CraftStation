@@ -49,6 +49,7 @@ export function filterRemoteThreadEvents(value: unknown, threadIds: ReadonlySet<
     type === "thread-pending-steer" ||
     type === "thread-output" ||
     type === "thread-osc-notification" ||
+    type === "thread-user-notification" ||
     type === "thread-osc-shell"
   ) {
     const threadId = (value as { threadId?: unknown }).threadId;

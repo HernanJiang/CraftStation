@@ -1,19 +1,16 @@
 /**
  * OpenCode legacy SDK structured session.
  *
- * One class powers two flows:
- *  - **Terminal mode** (default): the runtime calls `activate` → `openThread`
- *    to allocate a session id from the live `opencode serve` instance, then
- *    immediately disposes (`liveInputMode === "terminal"`). The TUI launches
- *    with `--session <id>` and resumes from SQLite — same observable
- *    behaviour as the previous `opencode acp` ephemeral allocation, but over
- *    HTTP+SDK so we share infrastructure with the GUI flow.
- *  - **GUI mode**: same `activate`/`openThread` but the session stays alive
- *    for the thread's lifetime. SSE subscription routes OpenCode events
- *    through `sdkCanonicalMapping` → renderer chat items. `startTurn` calls
- *    `session.promptAsync`; `interruptTurn` calls `session.abort`.
+ * CraftStation's product path keeps this handle alive for the thread's
+ * lifetime. SSE subscription routes official OpenCode events through
+ * `sdkCanonicalMapping` into native chat items; `startTurn` calls
+ * `session.promptAsync` and `interruptTurn` calls `session.abort`.
+ *
+ * The old terminal-session allocation branch remains defensive compatibility
+ * code for already persisted callers, but new CraftStation threads are GUI-only.
  */
 
+import { randomUUID } from "node:crypto";
 import type { Event, PermissionRule } from "./legacySdk";
 import type {
   AgentSlashCommand,
@@ -84,6 +81,20 @@ interface PendingQuestion {
 
 type PendingRequest = PendingPermission | PendingQuestion;
 
+type OpenCodeTurnState = "completed" | "failed" | "interrupted" | "cancelled";
+type OpenCodeTurnFailureSource = "prompt" | "session";
+
+interface OpenCodeActiveTurn {
+  turnId: string;
+  userMessageItemId?: string;
+  interrupted: boolean;
+  admissionStarted: boolean;
+  admitted: boolean;
+  idleObserved: boolean;
+  completionState?: OpenCodeTurnState;
+  failureSource?: OpenCodeTurnFailureSource;
+}
+
 export interface OpenCodeQuestionAnswerContext {
   answerKeys: string[];
   optionValues: Record<string, string>;
@@ -139,8 +150,10 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
   private disposed = false;
   private pendingRequests = new Map<ThreadServerRequestId, PendingRequest>();
   private currentSlashCommands: AgentSlashCommand[] | undefined;
-  /** True between `startTurn`'s promptAsync and the next SSE idle signal. */
-  private turnActive = false;
+  /** Allocated before prompt admission and settled exactly once by rejection/error/idle. */
+  private activeTurn: OpenCodeActiveTurn | undefined;
+  /** Failed turn retained until idle/next admission to suppress its derivative error path. */
+  private lastFailedTurn: OpenCodeActiveTurn | undefined;
   /** Live MCP set; starts from the launch input, replaced by settings saves. */
   private mcpServers: readonly ResolvedMcpServer[] | undefined;
 
@@ -254,7 +267,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     const createSession = (server: typeof acquired) =>
       server.client.session.create({
         directory: this.sdkDirectory,
-        title: `poracode/${this.threadId.slice(0, 8)}`,
+        title: `craftstation/${this.threadId.slice(0, 8)}`,
         ...(permission ? { permission } : {}),
       });
     let created: Awaited<ReturnType<typeof acquired.client.session.create>>;
@@ -296,12 +309,13 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     const acquired = this.requireAcquired();
     const sessionID = this.requireSessionId();
     this.currentConfig = config;
+    const turn = this.beginTurn(options);
 
     // Hand the runtime's optimistic user_message id to the mapper so the
     // SDK-side `message.updated` (role=user) reuses it instead of minting a
     // duplicate item id for the same prompt.
-    if (options?.userMessageItemId && this.mapperState) {
-      this.mapperState.pendingUserMessageItemIds.push(options.userMessageItemId);
+    if (turn.userMessageItemId && this.mapperState) {
+      this.mapperState.pendingUserMessageItemIds.push(turn.userMessageItemId);
     }
 
     const parts = buildOpenCodePromptParts(prompt, segments, this.input.projectLocation);
@@ -333,14 +347,36 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
 
     try {
       await this.syncSessionPermissions(config);
+      if (turn.completionState) return;
+      if (turn.interrupted) {
+        this.completeTurn(turn, "interrupted");
+        return;
+      }
+      turn.admissionStarted = true;
       try {
         await sendParts(parts);
       } catch (cause) {
         if (!shouldRetryOpenCodePromptWithTextFallback(cause, parts)) throw cause;
         await sendParts(await buildOpenCodeTextFallbackParts(parts));
       }
-      this.turnActive = true;
+      if (turn.completionState) return;
+      turn.admitted = true;
+      if (turn.idleObserved) {
+        this.completeTurn(turn, turn.interrupted ? "interrupted" : "completed");
+      }
     } catch (cause) {
+      this.removePendingUserMessageItemId(turn.userMessageItemId);
+      if (turn.completionState === "failed" && turn.failureSource === "session") {
+        // The SSE error path already surfaced the failure and completion.
+        return;
+      }
+      if (turn.interrupted || turn.completionState === "interrupted") {
+        this.completeTurn(turn, "interrupted");
+        return;
+      }
+      turn.failureSource = "prompt";
+      this.lastFailedTurn = turn;
+      this.completeTurn(turn, "failed");
       throw new Error(classifyOpenCodeError({ cause, operation: "session.promptAsync" }), {
         cause,
       });
@@ -349,6 +385,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
 
   async interruptTurn(): Promise<void> {
     if (!this.acquired || !this.sessionId) return;
+    if (this.activeTurn) this.activeTurn.interrupted = true;
     try {
       await this.acquired.client.session.abort({
         directory: this.sdkDirectory,
@@ -357,6 +394,14 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     } catch {
       // Best-effort — server may already be torn down.
     }
+  }
+
+  forceCompleteTurn(): void {
+    const turn = this.activeTurn;
+    if (!turn) return;
+    turn.interrupted = true;
+    this.removePendingUserMessageItemId(turn.userMessageItemId);
+    this.completeTurn(turn, "cancelled");
   }
 
   async resolveServerRequest(requestId: ThreadServerRequestId, response: unknown): Promise<void> {
@@ -805,7 +850,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
         ...(this.pendingRequestStatus() ?? upd),
         ...this.sessionRefUpdate(),
       });
-      if (upd.status === "idle") this.emitTurnCompletedIfActive();
+      if (upd.status === "idle") this.observeTurnIdle();
       return;
     }
 
@@ -814,7 +859,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
         ...(this.pendingRequestStatus() ?? { status: "idle", attention: "none" }),
         ...this.sessionRefUpdate(),
       });
-      this.emitTurnCompletedIfActive();
+      this.observeTurnIdle();
       return;
     }
 
@@ -857,7 +902,25 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
         err && typeof err === "object" && "data" in err && err.data
           ? String((err.data as { message?: string }).message ?? err.name)
           : (err?.name ?? "OpenCode session error");
+      const turn = this.activeTurn;
+      if (turn?.interrupted) {
+        this.completeTurn(turn, "interrupted");
+        return;
+      }
+      if (turn) {
+        turn.failureSource = "session";
+        this.lastFailedTurn = turn;
+        this.completeTurn(turn, "failed");
+        this.listener?.onError(msg);
+        return;
+      }
+      if (this.lastFailedTurn) {
+        // promptAsync rejection and session.error are two views of one failed turn.
+        this.lastFailedTurn = undefined;
+        return;
+      }
       this.listener?.onError(msg);
+      return;
     }
 
     // Translate to canonical runtime events for the chat pane.
@@ -867,22 +930,48 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     }
   }
 
-  /**
-   * Emit a `turn.completed` runtime event when a turn is active and the
-   * session transitions to idle. Provides a redundant settling signal for
-   * the SubagentRunManager (which also settles on the `onUpdate` idle
-   * callback) and aligns OpenCode with Codex/ACP, which always emit
-   * `turn.completed` from their canonical mappers.
-   */
-  private emitTurnCompletedIfActive(): void {
-    if (!this.turnActive) return;
-    this.turnActive = false;
+  private beginTurn(options: StartTurnOptions | undefined): OpenCodeActiveTurn {
+    const turn: OpenCodeActiveTurn = {
+      turnId: options?.turnId ?? `turn-${randomUUID()}`,
+      ...(options?.userMessageItemId ? { userMessageItemId: options.userMessageItemId } : {}),
+      interrupted: false,
+      admissionStarted: false,
+      admitted: false,
+      idleObserved: false,
+    };
+    this.lastFailedTurn = undefined;
+    this.activeTurn = turn;
+    return turn;
+  }
+
+  private removePendingUserMessageItemId(itemId: string | undefined): void {
+    if (!itemId || !this.mapperState) return;
+    const index = this.mapperState.pendingUserMessageItemIds.indexOf(itemId);
+    if (index >= 0) this.mapperState.pendingUserMessageItemIds.splice(index, 1);
+  }
+
+  /** Ignore pre-admission idle snapshots, then settle with the prompt's canonical id. */
+  private observeTurnIdle(): void {
+    const turn = this.activeTurn;
+    if (!turn) return;
+    if (!turn.admitted) {
+      if (turn.admissionStarted) turn.idleObserved = true;
+      return;
+    }
+    this.completeTurn(turn, turn.interrupted ? "interrupted" : "completed");
+  }
+
+  private completeTurn(turn: OpenCodeActiveTurn, state: OpenCodeTurnState): void {
+    if (turn.completionState) return;
+    turn.completionState = state;
+    if (state !== "completed") this.removePendingUserMessageItemId(turn.userMessageItemId);
+    if (this.activeTurn === turn) this.activeTurn = undefined;
     this.emitRuntimeEvents([
       {
         type: "turn.completed",
         threadId: this.threadId,
-        turnId: `opencode-${this.sessionId ?? "unknown"}`,
-        state: "completed",
+        turnId: turn.turnId,
+        state,
       },
     ]);
   }

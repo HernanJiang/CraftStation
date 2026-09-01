@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appIdFor,
   artifactPrefixFor,
-  PORACODE_CHANNELS,
+  CRAFTSTATION_CHANNELS,
   productNameFor,
   updaterChannelFor,
   userDataDirNameFor,
@@ -10,7 +10,7 @@ import {
 
 describe("channel", () => {
   it("enumerates exactly stable and nightly", () => {
-    expect(PORACODE_CHANNELS).toEqual(["stable", "nightly"]);
+    expect(CRAFTSTATION_CHANNELS).toEqual(["stable", "nightly"]);
   });
 
   it("returns the right product names", () => {
@@ -19,8 +19,8 @@ describe("channel", () => {
   });
 
   it("returns the right app ids", () => {
-    expect(appIdFor("stable")).toBe("com.lightcode.app");
-    expect(appIdFor("nightly")).toBe("com.lightcode.app.nightly");
+    expect(appIdFor("stable")).toBe("com.craftstation.app");
+    expect(appIdFor("nightly")).toBe("com.craftstation.app.nightly");
   });
 
   it("returns the right user data dir names", () => {
@@ -40,30 +40,30 @@ describe("channel", () => {
   });
 });
 
-describe("resolvePoracodeChannel", () => {
+describe("resolveCraftStationChannel", () => {
   afterEach(() => {
     vi.resetModules();
   });
 
-  it("defaults to stable when __PORACODE_CHANNEL__ is unset", async () => {
+  it("defaults to stable when __CRAFTSTATION_CHANNEL__ is unset", async () => {
     vi.resetModules();
     const mod = await import("./channel");
-    expect(mod.resolvePoracodeChannel()).toBe("stable");
+    expect(mod.resolveCraftStationChannel()).toBe("stable");
   });
 
   it("returns nightly when the build-time constant is 'nightly'", async () => {
     vi.resetModules();
-    vi.stubGlobal("__PORACODE_CHANNEL__", "nightly");
+    vi.stubGlobal("__CRAFTSTATION_CHANNEL__", "nightly");
     const mod = await import("./channel");
-    expect(mod.resolvePoracodeChannel()).toBe("nightly");
+    expect(mod.resolveCraftStationChannel()).toBe("nightly");
     vi.unstubAllGlobals();
   });
 
   it("falls back to stable for any unknown value", async () => {
     vi.resetModules();
-    vi.stubGlobal("__PORACODE_CHANNEL__", "beta");
+    vi.stubGlobal("__CRAFTSTATION_CHANNEL__", "beta");
     const mod = await import("./channel");
-    expect(mod.resolvePoracodeChannel()).toBe("stable");
+    expect(mod.resolveCraftStationChannel()).toBe("stable");
     vi.unstubAllGlobals();
   });
 });

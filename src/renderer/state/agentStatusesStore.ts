@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import {
-  areAgentSlashCommandsEqual,
   areAgentPresentationRuntimeFieldsEqual,
   areAgentProviderMetadataEqual,
   type AgentStatus,
@@ -60,43 +59,12 @@ function capabilitiesEqual(
   a: AgentStatus["capabilities"],
   b: AgentStatus["capabilities"],
 ): boolean {
-  if (
-    JSON.stringify(a.presentationCapabilities ?? {}) !==
-    JSON.stringify(b.presentationCapabilities ?? {})
-  ) {
-    return false;
-  }
-  if (a.models.length !== b.models.length) return false;
-  if (a.efforts.length !== b.efforts.length) return false;
-  for (let i = 0; i < a.models.length; i++) {
-    if (a.models[i]!.id !== b.models[i]!.id) return false;
-  }
-  for (let i = 0; i < a.efforts.length; i++) {
-    if (a.efforts[i] !== b.efforts[i]) return false;
-  }
-  if ((a.defaultEffort ?? "") !== (b.defaultEffort ?? "")) return false;
-  if (JSON.stringify(a.modelEfforts) !== JSON.stringify(b.modelEfforts)) return false;
-  if (JSON.stringify(a.modelDefaultEfforts ?? {}) !== JSON.stringify(b.modelDefaultEfforts ?? {})) {
-    return false;
-  }
-  if (JSON.stringify(a.thinkingModels ?? []) !== JSON.stringify(b.thinkingModels ?? [])) {
-    return false;
-  }
-  if (!areAgentSlashCommandsEqual(a.slashCommands, b.slashCommands)) return false;
-  // Compared so a status persisted before `supportsOneShot` existed (flag
-  // absent) is treated as different from a freshly-detected one (flag set) and
-  // gets replaced — otherwise the one-shot AI selectors would keep hiding
-  // one-shot-capable providers for the whole first post-upgrade session.
-  if ((a.supportsOneShot ?? false) !== (b.supportsOneShot ?? false)) return false;
-  // Codex context-window lists are user-editable. A detection that only
-  // changes those fields must replace the cached status or the composer keeps
-  // the previous picker after settings save / next launch.
-  if (JSON.stringify(a.contextSizes ?? []) !== JSON.stringify(b.contextSizes ?? [])) return false;
-  if (JSON.stringify(a.modelContextSizes ?? {}) !== JSON.stringify(b.modelContextSizes ?? {})) {
-    return false;
-  }
-  if ((a.defaultContextSize ?? "") !== (b.defaultContextSize ?? "")) return false;
-  return true;
+  // Capabilities are the renderer's cache-visible contract. Compare the whole
+  // normalized payload instead of maintaining a field whitelist: otherwise a
+  // newly added capability (for example liveInputMode, presentationModes,
+  // mcpScope, or mcpConfigSource) can change while the stale cached status is
+  // incorrectly treated as equal and retained by the store.
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function statusesEqual(a: AgentStatus[], b: AgentStatus[]): boolean {
@@ -262,14 +230,15 @@ export const useAgentStatusesStore = create<AgentStatusesStore>()(
         }),
     }),
     {
-      name: "poracode-agent-statuses-v1",
-      version: 12,
-      // v12 mirrors the supervisor STATUS_CACHE_VERSION=15 bump: ACP-derived
-      // thinking toggles and normalized per-model capability maps now need a
-      // fresh detection. v11 covered terminal auth methods now carrying
-      // baseSpawnEnv-derived `env`, and a persisted status
-      // from before that derivation would build a login command without the
-      // provider's base env. This mirrors the supervisor cache invalidation,
+      name: "craftstation-agent-statuses-v1",
+      version: 13,
+      // v13 mirrors the supervisor STATUS_CACHE_VERSION=16 bump: capability
+      // equality now includes the complete capability payload, including
+      // presentation and MCP routing fields. v12 covered ACP-derived thinking
+      // toggles and normalized per-model capability maps; v11 covered terminal
+      // auth methods now carrying baseSpawnEnv-derived `env`, and a persisted
+      // status from before that derivation would build a login command without
+      // the provider's base env. This mirrors supervisor cache invalidation,
       // which only covers the supervisor's on-disk cache, not this localStorage
       // copy. (v10 added ACP session readiness separately from authentication
       // and normalized ACP approval-policy labels.)

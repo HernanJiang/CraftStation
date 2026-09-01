@@ -28,7 +28,7 @@ import type {
   TurnPlanStepStatus,
   TurnPlanUpdatedNotification,
   TurnStartedNotification,
-} from "@poracode/codex-protocol";
+} from "@craftstation/codex-protocol";
 
 export type {
   ErrorNotification,

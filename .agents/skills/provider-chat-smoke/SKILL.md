@@ -1,6 +1,6 @@
 ---
 name: provider-chat-smoke
-description: Smoke test real Poracode provider chat threads and ACP sessions end to end. Use when validating Qwen Code, Kimi Code, or another structured/ACP provider; testing chat turn handling, steer, Stop, question or permission tools, live model changes, session resume, ACP handshake/capabilities, or provider-chat regressions.
+description: Smoke test real CraftStation provider chat threads and ACP sessions end to end. Use when validating Qwen Code, Kimi Code, or another structured/ACP provider; testing chat turn handling, steer, Stop, question or permission tools, live model changes, session resume, ACP handshake/capabilities, or provider-chat regressions.
 ---
 
 # Provider Chat Smoke
@@ -40,7 +40,7 @@ For a real ACP provider, prove the full path rather than only the rendered reply
 3. Confirm `session/update` messages produce the expected canonical runtime items: user message, reasoning, assistant message, tool call, and tool result/command result when applicable.
 4. Confirm each blocking request receives exactly one `request.resolved` outcome: `answered` for a question, `declined` for a rejected approval, or `cancelled` for an abandoned request.
 5. For the model gate, prove the update reached the live ACP session config (not merely the picker): inspect the persisted thread config and ensure the next turn uses it.
-6. Reopen the session and verify replayed ACP history does not duplicate Poracode’s persisted chat items.
+6. Reopen the session and verify replayed ACP history does not duplicate CraftStation’s persisted chat items.
 
 Capture session identity and configs without copying credentials, bearer tokens, or raw sensitive environment values into artifacts.
 

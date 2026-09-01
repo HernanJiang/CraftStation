@@ -131,7 +131,7 @@ export class StreamableHttpMcpIngress<TContext> {
     if (auth && auth.startsWith("Bearer ") && this.tokenMatches(auth.slice(7).trim())) {
       return true;
     }
-    const xToken = req.headers["x-poracode-token"];
+    const xToken = req.headers["x-craftstation-token"];
     return typeof xToken === "string" && this.tokenMatches(xToken);
   }
 
@@ -206,7 +206,7 @@ export class StreamableHttpMcpIngress<TContext> {
           res.setHeader("Access-Control-Allow-Origin", origin);
           res.setHeader(
             "Access-Control-Allow-Headers",
-            "Authorization, X-Poracode-Token, Content-Type, Mcp-Session-Id",
+            "Authorization, X-CraftStation-Token, Content-Type, Mcp-Session-Id",
           );
           res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
         }
@@ -330,7 +330,7 @@ export class StreamableHttpMcpIngress<TContext> {
             id,
             result: {
               isError: true,
-              content: [{ type: "text", text: `Tool disabled by Poracode: ${name}` }],
+              content: [{ type: "text", text: `Tool disabled by CraftStation: ${name}` }],
             },
           };
         }

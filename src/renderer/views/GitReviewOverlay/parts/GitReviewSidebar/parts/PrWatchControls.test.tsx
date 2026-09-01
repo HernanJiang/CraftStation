@@ -7,7 +7,7 @@ import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "posix", path: "/repo" },
   createdAt: "2026-07-25T00:00:00.000Z",
 };
@@ -254,7 +254,7 @@ describe("PrWatchControls", () => {
     );
   });
 
-  it("refreshes the visible PR while Poracode is watching it", async () => {
+  it("refreshes the visible PR while CraftStation is watching it", async () => {
     bridge.getPrWatch.mockResolvedValue({
       projectId: project.id,
       prNumber: 42,

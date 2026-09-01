@@ -1,6 +1,6 @@
 import { msg } from "@lingui/core/macro";
 import { toast } from "@heroui/react";
-import { getProjectAgentStatuses } from "@/shared/agentStatus";
+import { getProjectAgentStatuses, resolveAgentPresentationMode } from "@/shared/agentStatus";
 import { applyHomeScopePermissions } from "@/shared/agents/unrestrictedPermissions";
 import type {
   Project,
@@ -11,7 +11,13 @@ import type {
   ThreadConfig,
   ThreadPresentationMode,
 } from "@/shared/contracts";
-import { DEFAULT_TERMINAL_SIZE, resolveMcpLaunchSnapshot } from "@/shared/contracts";
+import {
+  DEFAULT_TERMINAL_SIZE,
+  isMcpServerSupportedByRuntime,
+  resolveComposerMcpScope,
+  resolveMcpLaunchSnapshot,
+  supportsMcpAtProjectLocation,
+} from "@/shared/contracts";
 import { isHomeProject, isHomeProjectId } from "@/shared/homeScope";
 import { resolveProjectLocation } from "@/shared/worktree";
 import { friendlyError } from "@/shared/messages";
@@ -51,45 +57,60 @@ export async function performInitialThreadLaunch(input: {
   initialSize: TerminalSize;
 }): Promise<void> {
   const { thread, projectLocation, prompt, segments, userMessageItemId, initialSize } = input;
-  const presentation = thread.presentationMode ?? "terminal";
-  if (thread.config.model) {
+  const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
+  const agentStatus = getProjectAgentStatuses(
+    projectLocation,
+    agentStatuses,
+    wslAgentStatuses,
+  ).find((status) => status.kind === thread.agentKind);
+  const presentation = agentStatus
+    ? resolveAgentPresentationMode(agentStatus.capabilities, thread.presentationMode)
+    : (thread.presentationMode ?? "terminal");
+  if (presentation !== thread.presentationMode) {
+    useAppStore.getState().updateThreadPresentationMode(thread.id, presentation);
+  }
+  const effectiveThread =
+    presentation === thread.presentationMode
+      ? thread
+      : { ...thread, presentationMode: presentation };
+  if (effectiveThread.config.model) {
     useSharedSettings
       .getState()
       .pushRecentModel(
-        thread.agentKind,
-        thread.config.model,
+        effectiveThread.agentKind,
+        effectiveThread.config.model,
         presentation,
-        thread.config.effort,
-        thread.config.fast,
+        effectiveThread.config.effort,
+        effectiveThread.config.fast,
       );
   }
 
   if (
-    !remoteOwner(thread) &&
-    thread.sessionRef?.providerSessionId &&
-    (await resumeCraftedThread({ thread, projectLocation, prompt }))
+    !remoteOwner(effectiveThread) &&
+    effectiveThread.sessionRef?.providerSessionId &&
+    (await resumeCraftedThread({ thread: effectiveThread, projectLocation, prompt }))
   ) {
-    captureThreadStarted(thread);
+    captureThreadStarted(effectiveThread);
     if (prompt.length > 0 || (segments?.length ?? 0) > 0) {
-      captureThreadPromptSubmitted(thread, prompt, segments, "initial");
+      captureThreadPromptSubmitted(effectiveThread, prompt, segments, "initial");
     }
     return;
   }
 
   const optimisticUserMessageItemId =
-    userMessageItemId ?? appendOptimisticInitialUserMessage(thread, prompt, segments);
+    userMessageItemId ?? appendOptimisticInitialUserMessage(effectiveThread, prompt, segments);
   if (optimisticUserMessageItemId) {
-    useAppStore.getState().updateThreadRuntime(thread.id, {
+    useAppStore.getState().updateThreadRuntime(effectiveThread.id, {
       status: "working",
       attention: "working",
-      canResumeWithConfig: thread.canResumeWithConfig,
-      ...(thread.sessionRef ? { sessionRef: thread.sessionRef } : {}),
+      canResumeWithConfig: effectiveThread.canResumeWithConfig,
+      ...(effectiveThread.sessionRef ? { sessionRef: effectiveThread.sessionRef } : {}),
     });
   }
 
-  if (optimisticUserMessageItemId && !isHomeProjectId(thread.projectId)) {
+  if (optimisticUserMessageItemId && !isHomeProjectId(effectiveThread.projectId)) {
     await captureFileCheckpoint({
-      threadId: thread.id,
+      threadId: effectiveThread.id,
       checkpointItemId: optimisticUserMessageItemId,
       projectLocation,
     });
@@ -97,31 +118,45 @@ export async function performInitialThreadLaunch(input: {
 
   const sharedSettings = useSharedSettings.getState();
   const projectMcpServers =
-    useAppStore.getState().projects.find((project) => project.id === thread.projectId)
+    useAppStore.getState().projects.find((project) => project.id === effectiveThread.projectId)
       ?.mcpServers ?? [];
   const mcpLaunchSnapshot = resolveMcpLaunchSnapshot(sharedSettings, projectMcpServers);
-  useAppStore.getState().setThreadMcpLaunchCustomServerNames(
-    thread.id,
-    mcpLaunchSnapshot.mcpServers.map((server) => server.name),
-  );
+  const runtimeSupportsMcp =
+    !agentStatus ||
+    (supportsMcpAtProjectLocation(agentStatus.capabilities, projectLocation) &&
+      resolveComposerMcpScope(agentStatus.capabilities.mcpScope, presentation) !== "none");
+  useAppStore
+    .getState()
+    .setThreadMcpLaunchCustomServerNames(
+      effectiveThread.id,
+      runtimeSupportsMcp
+        ? mcpLaunchSnapshot.mcpServers
+            .filter((server) =>
+              agentStatus ? isMcpServerSupportedByRuntime(server, agentStatus.capabilities) : true,
+            )
+            .map((server) => server.name)
+        : [],
+    );
 
   // Local and remote launches share one payload; only the transport differs.
   const startInput = {
-    agentKind: thread.agentKind,
-    ...(thread.agentInstanceId ? { agentInstanceId: thread.agentInstanceId } : {}),
-    config: thread.config,
+    agentKind: effectiveThread.agentKind,
+    ...(effectiveThread.agentInstanceId
+      ? { agentInstanceId: effectiveThread.agentInstanceId }
+      : {}),
+    config: effectiveThread.config,
     prompt,
     ...(segments ? { segments } : {}),
     initialSize,
-    ...(thread.sessionRef ? { sessionRef: thread.sessionRef } : {}),
-    ...(thread.presentationMode ? { presentationMode: thread.presentationMode } : {}),
+    ...(effectiveThread.sessionRef ? { sessionRef: effectiveThread.sessionRef } : {}),
+    ...(effectiveThread.presentationMode ? { presentationMode: presentation } : {}),
     ...(optimisticUserMessageItemId ? { userMessageItemId: optimisticUserMessageItemId } : {}),
   };
 
   // Mirrored remote threads must launch on their host. Spawning locally would
   // apply the remote projectLocation on this machine (posix path →
   // `spawn /bin/bash ENOENT` on Windows) and never reach the remote supervisor.
-  const owner = remoteOwner(thread);
+  const owner = remoteOwner(effectiveThread);
   if (owner) {
     // No mcpLaunchSnapshot here: the host ignores client-supplied MCP servers
     // and resolves the launch snapshot from its own settings.
@@ -134,15 +169,15 @@ export async function performInitialThreadLaunch(input: {
     );
   } else {
     await readBridge().startThread({
-      threadId: thread.id,
+      threadId: effectiveThread.id,
       projectLocation,
       ...startInput,
       ...mcpLaunchSnapshot,
     });
   }
-  captureThreadStarted(thread);
+  captureThreadStarted(effectiveThread);
   if (prompt.length > 0 || (segments?.length ?? 0) > 0) {
-    captureThreadPromptSubmitted(thread, prompt, segments, "initial");
+    captureThreadPromptSubmitted(effectiveThread, prompt, segments, "initial");
   }
 }
 

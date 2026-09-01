@@ -29,14 +29,14 @@ import {
  * Grok CLI plugin installer.
  *
  * Two writes per install:
- *   1. **Plugin staging** under `~/.poracode/agent-plugins/grok/` — copies
+ *   1. **Plugin staging** under `~/.craftstation/agent-plugins/grok/` — copies
  *      `forward.mjs` + `plugin.json` + the shared forwarder runtime + the
  *      native wrapper script. Same shape as Claude/Codex/Gemini/Copilot.
- *   2. **Global hook config** at `~/.grok/hooks/poracode-status.json`. Grok
+ *   2. **Global hook config** at `~/.grok/hooks/craftstation-status.json`. Grok
  *      loads global hooks at every session and always trusts them — no
  *      `/hooks-trust` prompt is required. Done at install time, not per-spawn.
  *
- * Both files are owned by Poracode — we replace them on reinstall and never
+ * Both files are owned by CraftStation — we replace them on reinstall and never
  * merge into user-authored config.
  */
 
@@ -55,8 +55,7 @@ export interface GrokPluginPaths {
 
 const GROK_HOOK_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop", "Notification"] as const;
 
-const GLOBAL_HOOK_FILENAME = "poracode-status.json";
-const LEGACY_GLOBAL_HOOK_FILENAME = "lightcode-status.json";
+const GLOBAL_HOOK_FILENAME = "craftstation-status.json";
 const GLOBAL_HOOK_DIR_NAME = "hooks";
 const GLOBAL_GROK_DIR_NAME = ".grok";
 const HOOK_TIMEOUT_SEC = 5;
@@ -68,7 +67,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "grok",
-  sourceEnvVar: "PORACODE_GROK_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_GROK_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -196,7 +195,6 @@ export function installGrokPlugin(
     command: nativeCommands.command,
   });
   if (!writeResult.ok) return writeResult;
-  removeManagedHookFile(join(globalGrokDir, GLOBAL_HOOK_DIR_NAME, LEGACY_GLOBAL_HOOK_FILENAME));
 
   console.log(
     [
@@ -239,10 +237,6 @@ function installGrokPluginWsl(
       reason: `failed to write Grok hook file at ${linuxHookFilePath} in wsl distro ${distro}: ${writeResult.reason}`,
     };
   }
-  removeManagedHookFile(
-    toWslUncPath(distro, `${linuxGrokDir}/${GLOBAL_HOOK_DIR_NAME}/${LEGACY_GLOBAL_HOOK_FILENAME}`),
-  );
-
   console.log(
     [
       `[supervisor] Grok hook plugin staged v${manifest.version} in WSL distro ${distro}`,
@@ -277,13 +271,13 @@ export function isGrokPluginInstalled(ctx?: AgentEnvContext): {
       : "";
     return verifyStagedPluginAt(wsl.uncBase, "wsl", {
       assets: GROK_VERIFY_ASSETS,
-      extraCheck: () => hookFile.length > 0 && hookFileMatchesPoracode(hookFile),
+      extraCheck: () => hookFile.length > 0 && hookFileMatchesCraftStation(hookFile),
     });
   }
   const hookFile = join(nativeGlobalGrokDir(), GLOBAL_HOOK_DIR_NAME, GLOBAL_HOOK_FILENAME);
   return verifyStagedPluginAt(getNativePluginBaseDir("grok", ctx?.baseDir), "native", {
     assets: GROK_VERIFY_ASSETS,
-    extraCheck: () => hookFileMatchesPoracode(hookFile),
+    extraCheck: () => hookFileMatchesCraftStation(hookFile),
   });
 }
 
@@ -292,20 +286,19 @@ export function uninstallGrokPlugin(ctx?: AgentEnvContext): void {
     ? toWslUncPath(ctx.wslDistro, `${wslGlobalGrokDir(ctx.wslDistro)}/${GLOBAL_HOOK_DIR_NAME}`)
     : join(nativeGlobalGrokDir(), GLOBAL_HOOK_DIR_NAME);
   removeManagedHookFile(join(hookDir, GLOBAL_HOOK_FILENAME));
-  removeManagedHookFile(join(hookDir, LEGACY_GLOBAL_HOOK_FILENAME));
   removeStagedPluginDir("grok", ctx);
 }
 
 /**
  * Match either the WSL command shape (absolute node path + forward.mjs) or
- * the native shape (`poracode-hook.{sh,cmd,ps1}` wrapper). Used to confirm
+ * the native shape (`craftstation-hook.{sh,cmd,ps1}` wrapper). Used to confirm
  * the hook file points at our staged wrapper and not at a stale or
  * user-authored entry.
  */
-const PORACODE_GROK_HOOK_RE =
-  /agent-plugins(?:[/\\]+)grok(?:[/\\]+)(?:forward\.mjs|poracode-hook\.(?:sh|cmd|ps1))/;
+const CRAFTSTATION_GROK_HOOK_RE =
+  /agent-plugins(?:[/\\]+)grok(?:[/\\]+)(?:forward\.mjs|craftstation-hook\.(?:sh|cmd|ps1))/;
 const MANAGED_GROK_HOOK_RE =
-  /agent-plugins(?:[/\\]+)grok(?:[/\\]+)(?:forward\.mjs|(?:poracode|lightcode)-hook\.(?:sh|cmd|ps1))/;
+  /agent-plugins(?:[/\\]+)grok(?:[/\\]+)(?:forward\.mjs|(?:craftstation|craftstation)-hook\.(?:sh|cmd|ps1))/;
 
 function removeManagedHookFile(path: string): void {
   try {
@@ -315,8 +308,8 @@ function removeManagedHookFile(path: string): void {
   }
 }
 
-function hookFileMatchesPoracode(path: string): boolean {
-  return hookFileMatches(path, PORACODE_GROK_HOOK_RE);
+function hookFileMatchesCraftStation(path: string): boolean {
+  return hookFileMatches(path, CRAFTSTATION_GROK_HOOK_RE);
 }
 
 function hookFileMatches(path: string, pattern: RegExp): boolean {
