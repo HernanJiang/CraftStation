@@ -86,7 +86,7 @@ vi.mock("./parts/BottomTerminalLayout", () => ({
 
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "posix", path: "/repo" },
   createdAt: "2026-05-12T00:00:00.000Z",
 };
@@ -200,7 +200,7 @@ describe("DevTerminalPanel", () => {
   });
 
   it("shows the project and worktree in the terminal scope label", () => {
-    const worktreePath = "/repo/.poracode/worktrees/feature";
+    const worktreePath = "/repo/.craftstation/worktrees/feature";
     useSharedSettings.setState({ terminalPosition: "bottom" });
     useDevTerminalStore.setState({
       activeWorktreePath: worktreePath,
@@ -209,7 +209,7 @@ describe("DevTerminalPanel", () => {
 
     render(<DevTerminalPanel hideHeader />);
 
-    expect(screen.getByText("Poracode / feature")).toBeInTheDocument();
+    expect(screen.getByText("CraftStation / feature")).toBeInTheDocument();
   });
 
   it("can force the right layout for an embedded host without changing saved settings", () => {

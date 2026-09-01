@@ -38,14 +38,14 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  Reflect.deleteProperty(window, "poracode");
+  Reflect.deleteProperty(window, "craftstation");
 });
 
 describe("RendererCrashScreen", () => {
   it("builds diagnostics with bridge and stack details", () => {
     const error = new Error("startup failed");
     Object.assign(window, {
-      poracode: {
+      craftstation: {
         appVersion: "0.1.7",
         electronVersion: "41.5.0",
         platform: "darwin",
@@ -113,7 +113,7 @@ describe("RendererCrashScreen", () => {
     expect(sentry.captureException).toHaveBeenCalledOnce();
     expect(sentry.scope.setContext).toHaveBeenCalledOnce();
     const componentContext = sentry.scope.setContext.mock.calls[0];
-    expect(componentContext?.[0]).toBe("poracode");
+    expect(componentContext?.[0]).toBe("craftstation");
     expect(componentContext?.[1]).toEqual({
       react_components: expect.arrayContaining(["PrivateProjectPanel", "RendererErrorBoundary"]),
     });
@@ -123,7 +123,7 @@ describe("RendererCrashScreen", () => {
   it("requests a tracked desktop renderer reload", () => {
     const reloadRenderer = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     Object.assign(window, {
-      poracode: {
+      craftstation: {
         appVersion: "1.5.4",
         electronVersion: "43.1.0",
         platform: "darwin",

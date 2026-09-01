@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { UsageSnapshot, UsageStatus, UsageWindow } from "@poracode/agents-usage";
+import type { UsageSnapshot, UsageStatus, UsageWindow } from "@craftstation/agents-usage";
 import type { AgentInstanceConfigMap } from "@/shared/contracts";
 import {
   hasRailUsage,
@@ -18,20 +18,20 @@ const agentInstances: AgentInstanceConfigMap = {
     id: "work",
     driver: "claude",
     displayName: "Work",
-    config: { configDir: "~/.poracode/claude-profiles/work" },
+    config: { configDir: "~/.craftstation/claude-profiles/work" },
   },
   home: {
     id: "home",
     driver: "claude",
     displayName: "Home",
-    config: { configDir: "~/.poracode/claude-profiles/home" },
+    config: { configDir: "~/.craftstation/claude-profiles/home" },
   },
   disabled: {
     id: "disabled",
     driver: "claude",
     displayName: "Disabled",
     enabled: false,
-    config: { configDir: "~/.poracode/claude-profiles/disabled" },
+    config: { configDir: "~/.craftstation/claude-profiles/disabled" },
   },
 };
 

@@ -62,10 +62,10 @@ export type CursorSdkMcpServerConfig =
     };
 
 /**
- * Project Poracode's provider-neutral MCP descriptors into the public
+ * Project CraftStation's provider-neutral MCP descriptors into the public
  * `@cursor/sdk` shape. Cursor has no per-server timeout field, so timeoutMs is
  * intentionally not forwarded. OAuth client configuration is likewise absent
- * here: Poracode resolves remote authorization before the provider boundary
+ * here: CraftStation resolves remote authorization before the provider boundary
  * and supplies the resulting headers.
  */
 export function buildCursorSdkMcpServers(
@@ -194,7 +194,7 @@ function openCodeMcpEnvVar(
   kind: "ENV" | "HEADER",
   key: string,
 ): string {
-  return `PORACODE_MCP_OPENCODE_${envLabel(server.name, "SERVER")}_${envIdentityHash(server.name, server.id)}_${kind}_${envLabel(key, "VALUE")}_${envIdentityHash(kind, key)}`;
+  return `CRAFTSTATION_MCP_OPENCODE_${envLabel(server.name, "SERVER")}_${envIdentityHash(server.name, server.id)}_${kind}_${envLabel(key, "VALUE")}_${envIdentityHash(kind, key)}`;
 }
 
 /**
@@ -325,7 +325,7 @@ function envLabel(value: string, fallback: string): string {
 }
 
 function codexMcpEnvPrefix(server: Pick<ResolvedMcpServer, "id" | "name">): string {
-  return `PORACODE_MCP_${envLabel(server.name, "SERVER")}_${envIdentityHash(server.name, server.id)}`;
+  return `CRAFTSTATION_MCP_${envLabel(server.name, "SERVER")}_${envIdentityHash(server.name, server.id)}`;
 }
 
 export function codexMcpTokenEnvVar(server: Pick<ResolvedMcpServer, "id" | "name">): string {

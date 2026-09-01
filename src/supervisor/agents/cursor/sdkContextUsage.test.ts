@@ -80,15 +80,15 @@ function installStore(stateRoot: string, blob: Uint8Array): string {
 
 describe("cursorSdkStateRoot", () => {
   it("mirrors the SDK default store layout for a workspace ref", () => {
-    const root = cursorSdkStateRoot("E:\\work\\lightcode", "C:\\home\\tester");
+    const root = cursorSdkStateRoot("E:\\work\\craftstation", "C:\\home\\tester");
     expect(root).toBe(
       join(
         "C:\\home\\tester",
         ".cursor",
         "projects",
-        "E-work-lightcode",
+        "E-work-craftstation",
         "sdk-agent-store",
-        createHash("md5").update("E:\\work\\lightcode").digest("hex"),
+        createHash("md5").update("E:\\work\\craftstation").digest("hex"),
       ),
     );
   });
@@ -110,7 +110,7 @@ describe("readCursorSdkContextUsage", () => {
     installStore(stateRoot, blob);
 
     const usage = await readCursorSdkContextUsage({
-      cwd: "E:\\work\\lightcode",
+      cwd: "E:\\work\\craftstation",
       agentId: AGENT_ID,
       stateRoot,
     });
@@ -153,7 +153,7 @@ describe("readCursorSdkContextUsage", () => {
     installStore(stateRoot, new Uint8Array([0x2a, 0xff, 0xff, 0xff, 0x7f, 0x01]));
 
     const usage = await readCursorSdkContextUsage({
-      cwd: "E:\\work\\lightcode",
+      cwd: "E:\\work\\craftstation",
       agentId: AGENT_ID,
       stateRoot,
     });

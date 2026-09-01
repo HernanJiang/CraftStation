@@ -29,7 +29,7 @@ import {
   initDatabase,
   onProjectThreadDataChanged,
 } from "./db";
-import { cleanupOrphanedAttachments, preparePoracodeDataRoot } from "./poracodeData";
+import { cleanupOrphanedAttachments, prepareCraftStationDataRoot } from "./craftstationData";
 import { createLocalIpcHandlers, showAddFilesDialog } from "./ipc/localHandlers";
 import { registerIpcHandlers } from "./ipc/registerHandlers";
 import { createSleepInhibitor } from "./sleepInhibitor";
@@ -68,14 +68,14 @@ import { createTray, type TrayHandle } from "./tray";
 import { readKeybindingsFile } from "./keybindingsFile";
 import { QuickComposerShortcutManager } from "./quickComposerShortcut";
 import { shouldStartMinimized, syncWindowsStartupRegistration } from "./startupSettings";
-import { type PoracodePaths, resolvePoracodeBaseDir } from "@/shared/poracodePaths";
+import { type CraftStationPaths, resolveCraftStationBaseDir } from "@/shared/craftstationPaths";
 import {
   incrementCrossagentSelectionUsage,
   removeCrossagentRoutingOverride,
   upsertCrossagentRoutingOverride,
 } from "@/shared/crossagentRanking";
 import { getAppName } from "@/shared/appName";
-import { productNameFor, resolvePoracodeChannel } from "@/shared/channel";
+import { productNameFor, resolveCraftStationChannel } from "@/shared/channel";
 import {
   IPC_EVENT_CHANNELS,
   IPC_WINDOW_CHANNELS,
@@ -123,7 +123,7 @@ import {
 import { shouldUseMockKeychain } from "./mockKeychain";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
-const channel = resolvePoracodeChannel();
+const channel = resolveCraftStationChannel();
 // Unpackaged Electron otherwise groups the dev window under electron.exe and
 // Windows may keep showing Electron's stock taskbar glyph even when the
 // BrowserWindow has a branded icon. Give the CraftStation dev shell its own
@@ -131,8 +131,8 @@ const channel = resolvePoracodeChannel();
 if (isDev && process.platform === "win32") {
   app.setAppUserModelId("com.craftstation.dev.v0.2.16");
 }
-const baseDirOverride = process.env.PORACODE_BASE_DIR;
-const legacyBaseDirOverride = process.env.LIGHTCODE_BASE_DIR?.trim() || undefined;
+const baseDirOverride = process.env.CRAFTSTATION_BASE_DIR;
+const legacyBaseDirOverride = process.env.CRAFTSTATION_BASE_DIR?.trim() || undefined;
 const defaultElectronUserDataDir = app.getPath("userData");
 const legacyElectronUserDataDir = legacyBaseDirOverride
   ? join(legacyBaseDirOverride, "userData")
@@ -148,8 +148,8 @@ if (preserveLegacySafeStorageIdentity) {
   app.setPath("userData", defaultElectronUserDataDir);
 }
 
-if (process.env.PORACODE_CDP_PORT) {
-  app.commandLine.appendSwitch("remote-debugging-port", process.env.PORACODE_CDP_PORT);
+if (process.env.CRAFTSTATION_CDP_PORT) {
+  app.commandLine.appendSwitch("remote-debugging-port", process.env.CRAFTSTATION_CDP_PORT);
 }
 
 // Isolated smoke runs replace HOME so they cannot read developer credentials.
@@ -181,12 +181,12 @@ if (baseDirOverride) {
 }
 
 const hasSingleInstanceLock = isDev || app.requestSingleInstanceLock();
-let poracodePaths: PoracodePaths | null = null;
+let craftstationPaths: CraftStationPaths | null = null;
 if (hasSingleInstanceLock) {
   const electronUserDataDir = app.getPath("userData");
-  poracodePaths = preparePoracodeDataRoot(
+  craftstationPaths = prepareCraftStationDataRoot(
     baseDirOverride ??
-      (isDev ? join(homedir(), ".craftstation-dev") : resolvePoracodeBaseDir(channel)),
+      (isDev ? join(homedir(), ".craftstation-dev") : resolveCraftStationBaseDir(channel)),
     {
       channel,
       electronUserDataDir,
@@ -205,12 +205,12 @@ const sentryEnabled = initializeMainSentry({ appVersion: app.getVersion(), isDev
 // Sentry's Electron integration also hooks these, but only when a DSN is
 // configured and initialization succeeded; this guarantees coverage otherwise.
 process.on("uncaughtException", (error) => {
-  console.error("[poracode] uncaught exception:", error);
-  captureMainException(error, { "poracode.feature_area": "main" });
+  console.error("[craftstation] uncaught exception:", error);
+  captureMainException(error, { "craftstation.feature_area": "main" });
 });
 process.on("unhandledRejection", (reason) => {
-  console.error("[poracode] unhandled rejection:", reason);
-  captureMainException(reason, { "poracode.feature_area": "main" });
+  console.error("[craftstation] unhandled rejection:", reason);
+  captureMainException(reason, { "craftstation.feature_area": "main" });
 });
 const posthogEnabled = process.env.POSTHOG_ENABLED !== "0";
 const posthogKey = posthogEnabled ? (process.env.POSTHOG_KEY ?? "").trim() : "";
@@ -255,17 +255,17 @@ function captureRendererProcessGone(
   captureMainException(
     new Error(`Electron renderer process gone (${diagnostic.bucket})`),
     {
-      "poracode.feature_area": featureArea,
-      "poracode.process": "renderer",
+      "craftstation.feature_area": featureArea,
+      "craftstation.process": "renderer",
     },
     diagnostic.fingerprint,
   );
 }
 
 function isCloseToTrayEnabled(): boolean {
-  if (!poracodePaths) return false;
+  if (!craftstationPaths) return false;
   try {
-    return readSharedSettingsFile(poracodePaths.settingsPath).closeToTray;
+    return readSharedSettingsFile(craftstationPaths.settingsPath).closeToTray;
   } catch {
     return false;
   }
@@ -282,9 +282,9 @@ function resolveWindowChromeOptions(): {
 } {
   let mode: "system" | "light" | "dark" = "dark";
   let wantGlass = false;
-  if (poracodePaths) {
+  if (craftstationPaths) {
     try {
-      const settings = readSharedSettingsFile(poracodePaths.settingsPath);
+      const settings = readSharedSettingsFile(craftstationPaths.settingsPath);
       mode = settings.themeMode;
       wantGlass = settings.sidebarTranslucency === true;
     } catch {
@@ -298,11 +298,11 @@ function resolveWindowChromeOptions(): {
 }
 
 function primeBrowserAllowFlags(settings?: SharedSettings): void {
-  if (!poracodePaths) return;
+  if (!craftstationPaths) return;
   let allowEval = false;
   let allowDataAccess = false;
   try {
-    const s = settings ?? readSharedSettingsFile(poracodePaths.settingsPath);
+    const s = settings ?? readSharedSettingsFile(craftstationPaths.settingsPath);
     allowEval = s.browser?.allowEval === true;
     allowDataAccess = s.browser?.allowDataAccess === true;
   } catch {
@@ -322,14 +322,14 @@ function primeBrowserAllowFlags(settings?: SharedSettings): void {
 let lastAppliedLaunchAtStartup: boolean | null = null;
 
 function syncStartupSettings(settings?: SharedSettings): void {
-  if (!poracodePaths) return;
+  if (!craftstationPaths) return;
   try {
-    const s = settings ?? readSharedSettingsFile(poracodePaths.settingsPath);
+    const s = settings ?? readSharedSettingsFile(craftstationPaths.settingsPath);
     if (s.launchAtStartup === lastAppliedLaunchAtStartup) return;
     syncWindowsStartupRegistration(app, s, process.platform, isDev);
     lastAppliedLaunchAtStartup = s.launchAtStartup;
   } catch (error) {
-    console.warn("[poracode] failed to update Windows startup registration", error);
+    console.warn("[craftstation] failed to update Windows startup registration", error);
   }
 }
 
@@ -341,7 +341,7 @@ function handleSharedSettingsChanged(settings: SharedSettings): void {
 function recordCrossagentSelectionPreference(
   event: Extract<SupervisorEvent, { type: "crossagent-selection-used" }>,
 ): void {
-  const settingsPath = requirePoracodePaths().settingsPath;
+  const settingsPath = requireCraftStationPaths().settingsPath;
   const current = readSharedSettingsFile(settingsPath);
   const next = {
     ...current,
@@ -358,7 +358,7 @@ function recordCrossagentSelectionPreference(
 function updateCrossagentRoutingOverride(
   event: Extract<SupervisorEvent, { type: "crossagent-routing-override-changed" }>,
 ): void {
-  const settingsPath = requirePoracodePaths().settingsPath;
+  const settingsPath = requireCraftStationPaths().settingsPath;
   const current = readSharedSettingsFile(settingsPath);
   const next = {
     ...current,
@@ -444,7 +444,7 @@ function commonAppWindowOptions() {
     posthogKey,
     sentryEnabled,
     browserUserAgent,
-    openDevTools: process.env.PORACODE_OPEN_DEVTOOLS === "1",
+    openDevTools: process.env.CRAFTSTATION_OPEN_DEVTOOLS === "1",
     ...(process.env.VITE_DEV_SERVER_URL ? { devServerUrl: process.env.VITE_DEV_SERVER_URL } : {}),
   };
 }
@@ -623,19 +623,19 @@ function injectBrowserToMain(): void {
 const workingThreads = new Set<string>();
 const sleepInhibitor = createSleepInhibitor();
 
-function requirePoracodePaths(): PoracodePaths {
-  if (!poracodePaths) {
-    throw new Error("Poracode paths are not initialized.");
+function requireCraftStationPaths(): CraftStationPaths {
+  if (!craftstationPaths) {
+    throw new Error("CraftStation paths are not initialized.");
   }
-  return poracodePaths;
+  return craftstationPaths;
 }
 
 function updatePowerSaveBlocker(): void {
-  if (!poracodePaths) {
+  if (!craftstationPaths) {
     sleepInhibitor.setActive(workingThreads.size > 0);
     return;
   }
-  const settings = readSharedSettingsFile(poracodePaths.settingsPath);
+  const settings = readSharedSettingsFile(craftstationPaths.settingsPath);
   sleepInhibitor.setActive(shouldPreventSystemSleep(settings, workingThreads.size));
 }
 
@@ -665,9 +665,9 @@ if (!hasSingleInstanceLock) {
   app.on("second-instance", (_event, commandLine) => {
     if (!app.isReady()) return;
     if (
-      poracodePaths &&
+      craftstationPaths &&
       shouldStartMinimized(
-        readSharedSettingsFile(poracodePaths.settingsPath),
+        readSharedSettingsFile(craftstationPaths.settingsPath),
         commandLine,
         process.platform,
       )
@@ -691,7 +691,7 @@ if (!hasSingleInstanceLock) {
       const browserSession = electronSession.fromPartition(BROWSER_SESSION_PARTITION);
       browserSession.setUserAgent(browserUserAgent);
 
-      const paths = requirePoracodePaths();
+      const paths = requireCraftStationPaths();
       // Re-seal an already-signed-in provider's cookie whenever the live jar
       // refreshes it, so providers with session-scoped auth cookies (Alibaba's
       // console) don't age out of the one snapshot taken at sign-in.
@@ -709,10 +709,10 @@ if (!hasSingleInstanceLock) {
         windowsJobObjectManager = manager;
         jobObjectReady = manager.start().catch((error) => {
           console.error(
-            "[poracode] Windows Job Object helper unavailable:",
+            "[craftstation] Windows Job Object helper unavailable:",
             error instanceof Error ? error.message : String(error),
           );
-          captureMainException(error, { "poracode.feature_area": "process-lifecycle" });
+          captureMainException(error, { "craftstation.feature_area": "process-lifecycle" });
           if (windowsJobObjectManager === manager) {
             windowsJobObjectManager = null;
           }
@@ -766,23 +766,23 @@ if (!hasSingleInstanceLock) {
           const env: Record<string, string> = {};
           const browserInfo = browserMcpIngress?.getInfo();
           if (browserInfo) {
-            env.PORACODE_BROWSER_MCP_URL = browserInfo.url;
-            env.PORACODE_BROWSER_MCP_TOKEN = browserInfo.token;
+            env.CRAFTSTATION_BROWSER_MCP_URL = browserInfo.url;
+            env.CRAFTSTATION_BROWSER_MCP_TOKEN = browserInfo.token;
           }
           const chromeInfo = chromeMcpIngress?.getInfo();
           if (chromeInfo) {
-            env.PORACODE_CHROME_MCP_URL = chromeInfo.url;
-            env.PORACODE_CHROME_MCP_TOKEN = chromeInfo.token;
+            env.CRAFTSTATION_CHROME_MCP_URL = chromeInfo.url;
+            env.CRAFTSTATION_CHROME_MCP_TOKEN = chromeInfo.token;
           }
           const computerUseInfo = computerUseMcpIngress?.getInfo();
           if (computerUseInfo) {
-            env.PORACODE_COMPUTER_USE_MCP_URL = computerUseInfo.url;
-            env.PORACODE_COMPUTER_USE_MCP_TOKEN = computerUseInfo.token;
+            env.CRAFTSTATION_COMPUTER_USE_MCP_URL = computerUseInfo.url;
+            env.CRAFTSTATION_COMPUTER_USE_MCP_TOKEN = computerUseInfo.token;
           }
           const appControlsInfo = appControlsMcpIngress?.getInfo();
           if (appControlsInfo) {
-            env.PORACODE_APP_CONTROLS_MCP_URL = appControlsInfo.url;
-            env.PORACODE_APP_CONTROLS_MCP_TOKEN = appControlsInfo.token;
+            env.CRAFTSTATION_APP_CONTROLS_MCP_URL = appControlsInfo.url;
+            env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = appControlsInfo.token;
           }
           return env;
         },
@@ -797,7 +797,7 @@ if (!hasSingleInstanceLock) {
             try {
               recordCrossagentSelectionPreference(event);
             } catch (error) {
-              captureMainException(error, { "poracode.feature_area": "crossagents-routing" });
+              captureMainException(error, { "craftstation.feature_area": "crossagents-routing" });
             }
             return;
           }
@@ -808,7 +808,7 @@ if (!hasSingleInstanceLock) {
             } catch (error) {
               errorMessage =
                 error instanceof Error ? error.message : "Unable to save the routing preference";
-              captureMainException(error, { "poracode.feature_area": "crossagents-routing" });
+              captureMainException(error, { "craftstation.feature_area": "crossagents-routing" });
             }
             void supervisorClient
               .call("confirmCrossagentRoutingOverride", {
@@ -817,7 +817,7 @@ if (!hasSingleInstanceLock) {
                 ...(errorMessage ? { error: errorMessage } : {}),
               })
               .catch((error) => {
-                captureMainException(error, { "poracode.feature_area": "crossagents-routing" });
+                captureMainException(error, { "craftstation.feature_area": "crossagents-routing" });
               });
             return;
           }
@@ -846,7 +846,7 @@ if (!hasSingleInstanceLock) {
         },
         ensureHomeProject: ensureHomeProjectRow,
         getProject: dbGetProject,
-        getSharedSettings: () => readSharedSettingsFile(requirePoracodePaths().settingsPath),
+        getSharedSettings: () => readSharedSettingsFile(requireCraftStationPaths().settingsPath),
         upsertThread: dbUpsertThread,
         deleteThread: dbDeleteThread,
         threadExists: (threadId) => dbGetThread(threadId) != null,
@@ -875,7 +875,7 @@ if (!hasSingleInstanceLock) {
       const sharedAppControlsDeps = buildSharedAppControlsIngressDeps({
         call: (name, payload) => supervisorClient.call(name, payload),
         sendThreadCommand: emitRemoteThreadCommand,
-        getSharedSettings: () => readSharedSettingsFile(requirePoracodePaths().settingsPath),
+        getSharedSettings: () => readSharedSettingsFile(requireCraftStationPaths().settingsPath),
         publishProjectsChanged,
       });
       prWatchService = createDevicePrWatchService({
@@ -894,7 +894,7 @@ if (!hasSingleInstanceLock) {
             .call("ghGetPrReviewComments", { projectLocation: project.location, prNumber })
             .then((result) => result.threads),
         getMergeMethod: () =>
-          readSharedSettingsFile(requirePoracodePaths().settingsPath).prMergeMethod,
+          readSharedSettingsFile(requireCraftStationPaths().settingsPath).prMergeMethod,
         mergePr: (project, prNumber, method) =>
           supervisorClient.call("ghMergePr", {
             projectLocation: project.location,
@@ -929,7 +929,7 @@ if (!hasSingleInstanceLock) {
         },
         ...buildPrWatchExecutionDeps({
           call: (name, payload) => supervisorClient.call(name, payload),
-          getSharedSettings: () => readSharedSettingsFile(requirePoracodePaths().settingsPath),
+          getSharedSettings: () => readSharedSettingsFile(requireCraftStationPaths().settingsPath),
         }),
       });
       gitStateService = new GitStateService({
@@ -957,9 +957,9 @@ if (!hasSingleInstanceLock) {
         getProjectNotes: dbGetProjectNotes,
         ...sharedAppControlsDeps,
         settings: {
-          read: () => readSharedSettingsFile(requirePoracodePaths().settingsPath),
+          read: () => readSharedSettingsFile(requireCraftStationPaths().settingsPath),
           write: (next) => {
-            writeSharedSettingsFile(requirePoracodePaths().settingsPath, next);
+            writeSharedSettingsFile(requireCraftStationPaths().settingsPath, next);
             updatePowerSaveBlocker();
             handleSharedSettingsChanged(next);
             mainWindow?.webContents.send(IPC_EVENT_CHANNELS.sharedSettingsChanged, next);
@@ -1034,19 +1034,19 @@ if (!hasSingleInstanceLock) {
       chromeMcpIngress.setConnectionAccessor(() => chromeBridgeServer?.getConnection() ?? null);
       primeBrowserAllowFlags(initialSettings);
       const mcpInfoReady = browserMcpIngress.start().catch((err) => {
-        console.error("[poracode] browser MCP ingress failed to start:", err);
+        console.error("[craftstation] browser MCP ingress failed to start:", err);
         return null;
       });
       const chromeMcpReady = chromeMcpIngress.start().catch((err) => {
-        console.error("[poracode] chrome MCP ingress failed to start:", err);
+        console.error("[craftstation] chrome MCP ingress failed to start:", err);
         return null;
       });
       const appControlsMcpReady = appControlsMcpIngress.start().catch((err) => {
-        console.error("[poracode] app controls MCP ingress failed to start:", err);
+        console.error("[craftstation] app controls MCP ingress failed to start:", err);
         return null;
       });
       chromeBridgeServer.start().catch((err) => {
-        console.error("[poracode] chrome bridge server failed to start:", err);
+        console.error("[craftstation] chrome bridge server failed to start:", err);
       });
       // Computer-use drives the host desktop and is only supported on macOS and
       // Windows (matches createComputerUseDriver). On other platforms the ingress
@@ -1062,7 +1062,7 @@ if (!hasSingleInstanceLock) {
             for (const threadId of threadIds) {
               void supervisorClient.call("interruptThread", { threadId }).catch((error) => {
                 console.error(
-                  `[poracode] failed to interrupt computer-use thread ${threadId}:`,
+                  `[craftstation] failed to interrupt computer-use thread ${threadId}:`,
                   error,
                 );
               });
@@ -1073,7 +1073,7 @@ if (!hasSingleInstanceLock) {
           onActivity: (event) => computerUseDesktopOverlay?.setActivity(event),
         });
         computerUseMcpInfoReady = computerUseMcpIngress.start().catch((err) => {
-          console.error("[poracode] computer use MCP ingress failed to start:", err);
+          console.error("[craftstation] computer use MCP ingress failed to start:", err);
           return null;
         });
       }
@@ -1122,16 +1122,16 @@ if (!hasSingleInstanceLock) {
         (accelerator) => {
           tray?.setQuickComposerShortcut(accelerator);
           if (accelerator) {
-            console.log(`[poracode] registered ${accelerator} for quick composer`);
+            console.log(`[craftstation] registered ${accelerator} for quick composer`);
           }
         },
       );
       try {
         quickComposerShortcutManager.apply(
-          readKeybindingsFile(requirePoracodePaths().keybindingsPath).file,
+          readKeybindingsFile(requireCraftStationPaths().keybindingsPath).file,
         );
       } catch (error) {
-        console.warn("[poracode] failed to register the quick composer shortcut", error);
+        console.warn("[craftstation] failed to register the quick composer shortcut", error);
       }
 
       registerIpcHandlers({
@@ -1145,7 +1145,7 @@ if (!hasSingleInstanceLock) {
           startTailscale: controller.startTailscale,
           setRemoteAccessAdvertisedUrl: controller.setAdvertisedUrl,
           sshConnectionManager,
-          requirePoracodePaths,
+          requireCraftStationPaths,
           legacyElectronUserDataDir,
           ...(legacyBaseDirOverride ? { legacyBaseDir: legacyBaseDirOverride } : {}),
           updatePowerSaveBlocker,
@@ -1227,10 +1227,10 @@ if (!hasSingleInstanceLock) {
       await jobObjectReady;
 
       const hookDebugOn =
-        Boolean(process.env.PORACODE_HOOK_DEBUG) && process.env.PORACODE_HOOK_DEBUG !== "0";
+        Boolean(process.env.CRAFTSTATION_HOOK_DEBUG) && process.env.CRAFTSTATION_HOOK_DEBUG !== "0";
       if (hookDebugOn) {
         console.log(
-          "[poracode] PORACODE_HOOK_DEBUG is on — watch for [supervisor] hook-debug lines (HookIngress, WSL bridge, L1/L2 spawn, envelopes).",
+          "[craftstation] CRAFTSTATION_HOOK_DEBUG is on — watch for [supervisor] hook-debug lines (HookIngress, WSL bridge, L1/L2 spawn, envelopes).",
         );
       }
 
@@ -1252,7 +1252,7 @@ if (!hasSingleInstanceLock) {
 
       initialMainWindow.once("ready-to-show", () => {
         setTimeout(() => {
-          const attachmentPaths = requirePoracodePaths();
+          const attachmentPaths = requireCraftStationPaths();
           cleanupOrphanedAttachments(
             attachmentPaths.attachmentsDir,
             dbGetThreads().map((thread) => thread.id),
@@ -1271,8 +1271,8 @@ if (!hasSingleInstanceLock) {
             clearTimeout(debounce);
           }
           debounce = setTimeout(() => {
-            console.log("[poracode] supervisor changed, restarting…");
-            supervisorClient.start(requirePoracodePaths().baseDir);
+            console.log("[craftstation] supervisor changed, restarting…");
+            supervisorClient.start(requireCraftStationPaths().baseDir);
           }, 200);
         });
       }
@@ -1324,8 +1324,8 @@ if (!hasSingleInstanceLock) {
       });
     })
     .catch((error: unknown) => {
-      console.error("[poracode] failed to initialize:", error);
-      captureMainException(error, { "poracode.feature_area": "main-initialization" });
+      console.error("[craftstation] failed to initialize:", error);
+      captureMainException(error, { "craftstation.feature_area": "main-initialization" });
       app.quit();
     });
 }

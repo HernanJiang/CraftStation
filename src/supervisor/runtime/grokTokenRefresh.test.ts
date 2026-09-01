@@ -1,4 +1,4 @@
-import type { GrokRefreshedToken, OAuthToken } from "@poracode/agents-usage";
+import type { GrokRefreshedToken, OAuthToken } from "@craftstation/agents-usage";
 import { describe, expect, it } from "vitest";
 import { parseGrokAuth } from "./grokCredentials";
 import {

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PORACODE_REMOTE_PROTOCOL_VERSION } from "@/shared/remote";
+import { CRAFTSTATION_REMOTE_PROTOCOL_VERSION } from "@/shared/remote";
 import { createHeadlessRemoteHost, resolveLocalProxyBase } from "./createHeadlessRemoteHost";
 
 // Mutable state shared with the hoisted vi.mock factories.
@@ -81,8 +81,8 @@ vi.mock("@/main/supervisor/SupervisorClient", () => ({
   },
 }));
 
-vi.mock("@/main/poracodeData", () => ({
-  preparePoracodeDataRoot: () => {
+vi.mock("@/main/craftstationData", () => ({
+  prepareCraftStationDataRoot: () => {
     const base = h.tmpBase;
     return {
       baseDir: base,
@@ -141,10 +141,10 @@ describe("createHeadlessRemoteHost", () => {
     // The startup pairing link is minted against the advertised loopback host.
     expect(info.pairingUrl).toContain("token=");
     const descriptor = await fetch(
-      new URL("/.well-known/poracode/environment", info.httpBaseUrl),
+      new URL("/.well-known/craftstation/environment", info.httpBaseUrl),
     ).then((response) => response.json());
     expect(descriptor).toMatchObject({
-      protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+      protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
       hostMode: "helper",
       appVersion: "9.9.9-test",
     });

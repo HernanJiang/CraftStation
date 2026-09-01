@@ -17,6 +17,6 @@ export function refreshMacDockIcon(
     if (!icon.isEmpty()) app.dock?.setIcon(icon);
   } catch (error) {
     // Icon refresh is cosmetic and must never prevent startup after an update.
-    console.warn("[poracode] failed to refresh macOS Dock icon", error);
+    console.warn("[craftstation] failed to refresh macOS Dock icon", error);
   }
 }

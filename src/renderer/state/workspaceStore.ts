@@ -8,7 +8,7 @@ import {
 import { useAppStore } from "./appStore";
 import { useSharedSettings, whenSharedSettingsHydrated } from "./sharedSettingsStore";
 
-const PERSIST_KEY = "poracode-active-workspace";
+const PERSIST_KEY = "craftstation-active-workspace";
 
 /** Key for projects picked while no workspace exists yet (fresh install). */
 const NO_WORKSPACE_KEY = "";

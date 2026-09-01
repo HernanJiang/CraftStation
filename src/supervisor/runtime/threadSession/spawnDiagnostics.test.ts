@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const ENV_KEYS = [
-  "PORACODE_COMPUTER_USE_MCP_URL",
-  "PORACODE_COMPUTER_USE_MCP_TOKEN",
-  "PORACODE_CHROME_MCP_URL",
-  "PORACODE_CHROME_MCP_TOKEN",
+  "CRAFTSTATION_COMPUTER_USE_MCP_URL",
+  "CRAFTSTATION_COMPUTER_USE_MCP_TOKEN",
+  "CRAFTSTATION_CHROME_MCP_URL",
+  "CRAFTSTATION_CHROME_MCP_TOKEN",
 ] as const;
 
 const savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));

@@ -29,14 +29,14 @@ import {
  * GitHub Copilot CLI plugin installer.
  *
  * Two writes per install:
- *   1. **Plugin staging** under `~/.poracode/agent-plugins/copilot/` — copies
+ *   1. **Plugin staging** under `~/.craftstation/agent-plugins/copilot/` — copies
  *      `forward.mjs` + `plugin.json` + the shared forwarder runtime + the
  *      native wrapper script. Same shape as Claude/Codex/Gemini.
- *   2. **Global hook config** at `${COPILOT_HOME ?? ~/.copilot}/hooks/poracode-status.json`.
+ *   2. **Global hook config** at `${COPILOT_HOME ?? ~/.copilot}/hooks/craftstation-status.json`.
  *      Copilot CLI loads this at every session regardless of cwd. Done at
  *      install time, not per-spawn — no per-project file is written.
  *
- * Both files are owned by Poracode — we replace them on reinstall and never
+ * Both files are owned by CraftStation — we replace them on reinstall and never
  * merge into user-authored config.
  */
 
@@ -62,8 +62,8 @@ const COPILOT_HOOK_EVENTS = [
   "errorOccurred",
 ] as const;
 
-const GLOBAL_HOOK_FILENAME = "poracode-status.json";
-const LEGACY_GLOBAL_HOOK_FILENAME = "lightcode-status.json";
+const GLOBAL_HOOK_FILENAME = "craftstation-status.json";
+const LEGACY_GLOBAL_HOOK_FILENAME = "craftstation-status.json";
 const GLOBAL_HOOK_DIR_NAME = "hooks";
 const HOOK_TIMEOUT_SEC = 5;
 
@@ -74,7 +74,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "copilot",
-  sourceEnvVar: "PORACODE_COPILOT_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_COPILOT_PLUGIN_SOURCE",
   callerDir,
 });
 

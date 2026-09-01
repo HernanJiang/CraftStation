@@ -206,7 +206,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: release-draft-${{ github.run_id }}
-          name: Poracode ${{ needs.prepare.outputs.tag }}
+          name: CraftStation ${{ needs.prepare.outputs.tag }}
           draft: true
           make_latest: false
           body_path: ${{ runner.temp }}/release-notes.md

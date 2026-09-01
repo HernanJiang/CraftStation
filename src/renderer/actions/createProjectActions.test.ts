@@ -133,31 +133,31 @@ describe("commitCloneProject", () => {
   });
 
   test("github source: clones, then adds the project at the returned path", async () => {
-    cloneRepo.mockResolvedValue({ path: "/Users/me/code/poracode" });
+    cloneRepo.mockResolvedValue({ path: "/Users/me/code/craftstation" });
 
     await commitCloneProject({
       choice: { kind: "native" },
       parentDir: "/Users/me/code",
-      name: "poracode",
+      name: "craftstation",
       source: {
         kind: "github",
-        nameWithOwner: "poracode/poracode",
-        account: { host: "github.com", login: "poracode" },
+        nameWithOwner: "craftstation/craftstation",
+        account: { host: "github.com", login: "craftstation" },
       },
     });
 
     expect(cloneRepo).toHaveBeenCalledWith({
       parentLocation: { kind: "posix", path: "/Users/me/code" },
-      name: "poracode",
+      name: "craftstation",
       source: {
         kind: "github",
-        nameWithOwner: "poracode/poracode",
-        account: { host: "github.com", login: "poracode" },
+        nameWithOwner: "craftstation/craftstation",
+        account: { host: "github.com", login: "craftstation" },
       },
     });
     expect(addProject).toHaveBeenCalledWith(
-      { kind: "posix", path: "/Users/me/code/poracode" },
-      "poracode",
+      { kind: "posix", path: "/Users/me/code/craftstation" },
+      "craftstation",
       ACTIVE_WORKSPACE_ID,
     );
     // Records the parent the user cloned into, not the new folder.

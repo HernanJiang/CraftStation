@@ -159,10 +159,10 @@ export function SettingsOverlay(props: { onClose: () => void }) {
         if (typeof el.scrollIntoView === "function") {
           el.scrollIntoView({ behavior: "smooth", block: "start" });
         }
-        el.classList.add("poracode-setting-highlight");
+        el.classList.add("craftstation-setting-highlight");
         el.addEventListener(
           "animationend",
-          () => el.classList.remove("poracode-setting-highlight"),
+          () => el.classList.remove("craftstation-setting-highlight"),
           { once: true },
         );
         setScrollTarget(null);

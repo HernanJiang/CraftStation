@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { HostPort, HttpRequest, HttpResponse, OAuthToken } from "@poracode/agents-usage";
+import type { HostPort, HttpRequest, HttpResponse, OAuthToken } from "@craftstation/agents-usage";
 import { scanAntigravityUsage } from "./antigravityUsageScanner";
 
 vi.mock("./antigravityProcessScan", () => ({

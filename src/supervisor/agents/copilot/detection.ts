@@ -130,7 +130,7 @@ async function probeCopilotModelEfforts(
     const runProbe = async () => {
       await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
-        clientInfo: { name: "poracode-probe", version: "0.1.0" },
+        clientInfo: { name: "craftstation-probe", version: "0.1.0" },
         clientCapabilities: {},
       });
       const session = await connection.newSession({ cwd: sessionCwd, mcpServers: [] });

@@ -39,42 +39,42 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      // Keep the established universal-link entry on poracode.com so existing
+      // Keep the established universal-link entry on craftstation.com so existing
       // native installs can claim it; browsers continue on the isolated PWA
       // origin.
       {
         source: "/pair",
-        destination: "https://app.poracode.com/pair",
+        destination: "https://app.craftstation.com/pair",
         permanent: false,
       },
       {
         source: "/app",
-        destination: "https://app.poracode.com/",
+        destination: "https://app.craftstation.com/",
         permanent: true,
       },
       {
         source: "/app/:path*",
-        destination: "https://app.poracode.com/:path*",
+        destination: "https://app.craftstation.com/:path*",
         permanent: true,
       },
       {
         source: "/pwa",
-        destination: "https://app.poracode.com/",
+        destination: "https://app.craftstation.com/",
         permanent: true,
       },
       {
         source: "/pwa/:path*",
-        destination: "https://app.poracode.com/:path*",
+        destination: "https://app.craftstation.com/:path*",
         permanent: true,
       },
       {
         source: "/app-nightly",
-        destination: "https://app-nightly.poracode.com/",
+        destination: "https://app-nightly.craftstation.com/",
         permanent: true,
       },
       {
         source: "/app-nightly/:path*",
-        destination: "https://app-nightly.poracode.com/:path*",
+        destination: "https://app-nightly.craftstation.com/:path*",
         permanent: true,
       },
     ];

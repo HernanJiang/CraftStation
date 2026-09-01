@@ -3,7 +3,7 @@ import type { GitStatusResult, Project, Thread } from "@/shared/contracts";
 import type { IpcProcedureName, IpcProcedurePayload, IpcProcedureResult } from "@/shared/ipc";
 import type { GitStatePatch, GitStateSnapshot } from "@/shared/gitState";
 import { HOME_PROJECT_ID } from "@/shared/homeScope";
-import { PORACODE_REMOTE_PROTOCOL_VERSION, type RemoteGitSummaries } from "@/shared/remote";
+import { CRAFTSTATION_REMOTE_PROTOCOL_VERSION, type RemoteGitSummaries } from "@/shared/remote";
 import { RemoteClientError, RemoteDesktopClient } from "@/shared/remote/client";
 import {
   __resetRemoteServersStoreForTest,
@@ -227,7 +227,7 @@ function makeClient(opts?: {
     environment:
       opts?.environment ??
       (async () => ({
-        protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+        protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
         ...(opts?.hostMode ? { hostMode: opts.hostMode } : {}),
         desktopId: "d1",
         label: "Server One",
@@ -296,7 +296,7 @@ function makeEnvironment(
   appVersion = "1.0",
 ): Awaited<ReturnType<RemoteDesktopClient["environment"]>> {
   return {
-    protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+    protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
     hostMode: "desktop",
     desktopId: "d1",
     label: "Server One",
@@ -990,7 +990,7 @@ describe("useRemoteServersStore", () => {
     });
     bridge.remoteHttpRequest.mockRejectedValueOnce(
       new Error(
-        "Error invoking remote method 'poracode:remote-http-request': TypeError: fetch failed",
+        "Error invoking remote method 'craftstation:remote-http-request': TypeError: fetch failed",
       ),
     );
 
@@ -1109,7 +1109,7 @@ describe("useRemoteServersStore", () => {
     expect(useRemoteServersStore.getState().servers[0]?.label).toBe("Mac Studio");
     expect(useRemoteServersStore.getState().servers[0]?.remoteLabel).toBe("Server One");
     expect(
-      JSON.parse(localStorage.getItem("poracode-remote-servers")!).state.servers[0].label,
+      JSON.parse(localStorage.getItem("craftstation-remote-servers")!).state.servers[0].label,
     ).toBe("Mac Studio");
   });
 
@@ -1128,7 +1128,7 @@ describe("useRemoteServersStore", () => {
       projectWorkspaceIds: { d1: { p1: "workspace-1" } },
       projectNameOverrides: { d1: { p1: "Pinned Remote App" } },
     });
-    const persisted = localStorage.getItem("poracode-remote-servers")!;
+    const persisted = localStorage.getItem("craftstation-remote-servers")!;
 
     __resetRemoteServersStoreForTest();
     useAppStore.setState((state) => ({
@@ -1136,7 +1136,7 @@ describe("useRemoteServersStore", () => {
       threads: state.threads.filter((thread) => thread.remoteServerId !== "d1"),
     }));
     useRemoteServersStore.setState({ servers: [], runtime: {}, lastKnownProjects: {} });
-    localStorage.setItem("poracode-remote-servers", persisted);
+    localStorage.setItem("craftstation-remote-servers", persisted);
     await useRemoteServersStore.persist.rehydrate();
     const snapshot = vi.fn<RemoteDesktopClient["snapshot"]>(async () => {
       throw new Error("offline");
@@ -1174,7 +1174,7 @@ describe("useRemoteServersStore", () => {
 
   it("keeps pre-v1 remote workspace overrides when rehydrating", async () => {
     localStorage.setItem(
-      "poracode-remote-servers",
+      "craftstation-remote-servers",
       JSON.stringify({
         state: {
           servers: [],
@@ -1216,7 +1216,7 @@ describe("useRemoteServersStore", () => {
     expect(useRemoteServersStore.getState().projectWorkspaceIds.d1?.p1).toBe("local-workspace");
     expect(useRemoteServersStore.getState().projectNameOverrides.d1?.p1).toBe("Local Project");
     expect(projectCommand).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem("poracode-remote-servers")!).state).toEqual(
+    expect(JSON.parse(localStorage.getItem("craftstation-remote-servers")!).state).toEqual(
       expect.objectContaining({
         projectWorkspaceIds: { d1: { p1: "local-workspace" } },
         projectNameOverrides: { d1: { p1: "Local Project" } },

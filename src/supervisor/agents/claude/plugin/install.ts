@@ -51,7 +51,7 @@ export interface ClaudePluginPaths {
   /**
    * Directory containing forward.mjs, plugin.json, hooks/hooks.json. For
    * WSL contexts this is a Linux path inside the distro (e.g.
-   * `/home/sdsle/.poracode/agent-plugins/claude`); the caller must NOT
+   * `/home/sdsle/.craftstation/agent-plugins/claude`); the caller must NOT
    * pass it to native fs APIs.
    */
   pluginDir: string;
@@ -68,7 +68,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "claude",
-  sourceEnvVar: "PORACODE_CLAUDE_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_CLAUDE_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -129,7 +129,7 @@ export function getClaudePluginPaths(ctx?: AgentEnvContext): ClaudePluginPaths {
  * Stage the Claude plugin assets and write a `settings.json` that wires
  * Claude's hook system to invoke the staged `forward.mjs`. Idempotent —
  * safe to call from every supervisor boot. For WSL contexts, assets are
- * staged into the distro's `~/.poracode/agent-plugins/claude/` via the
+ * staged into the distro's `~/.craftstation/agent-plugins/claude/` via the
  * shared `deployFilesToWslHome` helper.
  */
 export interface InstallClaudePluginOptions {
@@ -297,7 +297,7 @@ interface ClaudeSettings {
   /**
    * Opt into iTerm2-style OSC 9 notifications for "needs input" moments.
    * Claude Code only emits OSC 9 when this setting is active; we force it on
-   * for sessions poracode launches so L2 can read `needs_reply` / idle edges
+   * for sessions craftstation launches so L2 can read `needs_reply` / idle edges
    * from structured OSC instead of fragile TUI text parsing. See
    * `claudeOscHint` in ../index.ts.
    */
@@ -331,7 +331,7 @@ const CLAUDE_HOOK_SPECS_MINIMAL: ReadonlyArray<{ event: string; matcher?: string
 ];
 
 /**
- * When `PORACODE_HOOK_DEBUG` is set during plugin install, register every
+ * When `CRAFTSTATION_HOOK_DEBUG` is set during plugin install, register every
  * documented Claude hook so `forward.mjs` can log unmapped events too. Tool
  * events use `matcher: "*"` (high churn — enable debug only temporarily).
  */
@@ -354,7 +354,7 @@ const CLAUDE_HOOK_SPECS_FULL: ReadonlyArray<{ event: string; matcher?: string }>
 ];
 
 function claudeHookSpecsForInstall(): ReadonlyArray<{ event: string; matcher?: string }> {
-  const v = process.env.PORACODE_HOOK_DEBUG;
+  const v = process.env.CRAFTSTATION_HOOK_DEBUG;
   const debug = v === "1" || v === "true" || Boolean(v && v !== "0" && v !== "false");
   return debug ? CLAUDE_HOOK_SPECS_FULL : CLAUDE_HOOK_SPECS_MINIMAL;
 }

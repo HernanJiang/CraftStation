@@ -10,7 +10,7 @@ import {
   type RuntimeSegmentStatus,
   type SessionSwitchState,
 } from "@/shared/sessionHandoff";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { sanitizePortableRecord } from "./redaction";
 
 type Sqlite = InstanceType<typeof Database>;
@@ -64,11 +64,11 @@ export class RuntimeSegmentLedger {
   private closed = false;
 
   constructor(baseDir: string, sqlite?: Sqlite) {
-    const explicitNativeBinding = process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING?.trim();
+    const explicitNativeBinding = process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING?.trim();
     this.sqlite =
       sqlite ??
       new Database(
-        resolvePoracodePaths(baseDir).dbPath,
+        resolveCraftStationPaths(baseDir).dbPath,
         explicitNativeBinding ? { nativeBinding: explicitNativeBinding } : undefined,
       );
     this.sqlite.pragma("journal_mode = WAL");

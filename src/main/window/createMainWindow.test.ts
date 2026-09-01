@@ -75,7 +75,7 @@ describe("createMainWindow", () => {
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
     createMainWindow({
-      title: "Poracode",
+      title: "CraftStation",
       isDev: false,
       channel: "stable",
       preloadPath: "/tmp/preload.cjs",
@@ -121,7 +121,7 @@ describe("createMainWindow", () => {
         ) => void
       >();
     createMainWindow({
-      title: "Poracode",
+      title: "CraftStation",
       isDev: false,
       channel: "stable",
       preloadPath: "/tmp/preload.cjs",
@@ -133,7 +133,7 @@ describe("createMainWindow", () => {
       posthogKey: "",
       sentryEnabled: false,
       windowChromeHeight: 32,
-      browserUserAgent: "Poracode",
+      browserUserAgent: "CraftStation",
       appearance: "dark",
       sidebarTranslucency: false,
       onClosed: vi.fn<() => void>(),

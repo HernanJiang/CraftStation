@@ -57,7 +57,7 @@ function ModelVisibilityRow(props: {
         aria-selected={state === "all"}
         aria-checked={state === "all" ? "true" : state === "none" ? "false" : "mixed"}
         tabIndex={0}
-        className="poracode-menu-item group mx-1.5 mb-1 mt-2 flex h-8 cursor-default items-center gap-2 border-b border-border bg-overlay px-2 text-sm font-semibold text-foreground first:mt-0"
+        className="craftstation-menu-item group mx-1.5 mb-1 mt-2 flex h-8 cursor-default items-center gap-2 border-b border-border bg-overlay px-2 text-sm font-semibold text-foreground first:mt-0"
         onClick={handleToggle}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -87,7 +87,7 @@ function ModelVisibilityRow(props: {
         aria-selected={state === "all"}
         aria-checked={state === "all" ? "true" : state === "none" ? "false" : "mixed"}
         tabIndex={0}
-        className="poracode-menu-item group mx-1.5 flex h-6 cursor-default items-center pl-4 pr-2 text-[10px] font-normal italic tracking-normal text-muted/60"
+        className="craftstation-menu-item group mx-1.5 flex h-6 cursor-default items-center pl-4 pr-2 text-[10px] font-normal italic tracking-normal text-muted/60"
         onClick={handleToggle}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -116,7 +116,7 @@ function ModelVisibilityRow(props: {
       role="option"
       aria-selected={isVisible}
       tabIndex={0}
-      className={`poracode-menu-item group mx-1.5 flex h-7 cursor-default items-center text-foreground ${
+      className={`craftstation-menu-item group mx-1.5 flex h-7 cursor-default items-center text-foreground ${
         indent ? "pl-4" : ""
       }`}
       onClick={() => onToggleModel(item.hiddenModelsKey, item.modelId)}
@@ -321,7 +321,7 @@ export function ModelVisibilitySection() {
                 role="listbox"
                 aria-label={t`Visible models`}
                 aria-multiselectable="true"
-                className="poracode-menu no-scrollbar min-h-0 overflow-y-auto py-1.5"
+                className="craftstation-menu no-scrollbar min-h-0 overflow-y-auto py-1.5"
               >
                 {(() => {
                   let underSub = false;

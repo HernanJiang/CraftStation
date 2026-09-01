@@ -1,10 +1,10 @@
-const DEFAULT_APP_ID = "com.lightcodeapp.mobile";
+const DEFAULT_APP_ID = "com.craftstationapp.mobile";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  const appId = process.env.PORACODE_MOBILE_APP_ID?.trim() || DEFAULT_APP_ID;
-  const teamId = process.env.PORACODE_MOBILE_APPLE_TEAM_ID?.trim();
+  const appId = process.env.CRAFTSTATION_MOBILE_APP_ID?.trim() || DEFAULT_APP_ID;
+  const teamId = process.env.CRAFTSTATION_MOBILE_APPLE_TEAM_ID?.trim();
   const appleAppId = teamId ? `${teamId}.${appId}` : null;
 
   return Response.json(

@@ -130,12 +130,12 @@ export const SubAgentToolCall = memo(function SubAgentToolCall({
         {display.parts ? (
           // Shimmer only the stable prefix — the path segment can change while
           // running, and mutating text under `background-clip: text` ghosts old
-          // glyphs (see .poracode-thinking-text in styles.css).
+          // glyphs (see .craftstation-thinking-text in styles.css).
           <code className="flex min-w-0 items-baseline overflow-hidden font-mono text-[color:var(--muted)]">
             <span
               ref={titleRef}
-              className={`shrink-0 whitespace-pre ${isRunning ? "poracode-thinking-text" : ""}`}
-              {...(isRunning ? { "data-poracode-shimmer-text": displayPrefix } : {})}
+              className={`shrink-0 whitespace-pre ${isRunning ? "craftstation-thinking-text" : ""}`}
+              {...(isRunning ? { "data-craftstation-shimmer-text": displayPrefix } : {})}
             >
               {displayPrefix}
             </span>
@@ -153,8 +153,8 @@ export const SubAgentToolCall = memo(function SubAgentToolCall({
         ) : (
           <code
             ref={titleRef}
-            className={`block min-w-0 truncate font-mono text-[color:var(--muted)] ${isRunning ? "poracode-thinking-text" : ""}`}
-            {...(isRunning ? { "data-poracode-shimmer-text": displayTitle } : {})}
+            className={`block min-w-0 truncate font-mono text-[color:var(--muted)] ${isRunning ? "craftstation-thinking-text" : ""}`}
+            {...(isRunning ? { "data-craftstation-shimmer-text": displayTitle } : {})}
           >
             {displayTitle}
           </code>

@@ -48,7 +48,7 @@ describe("mcpServerSchema", () => {
   });
 
   it("protects all provider-visible built-in names case-insensitively", () => {
-    expect(isReservedMcpServerName("PoRaCoDe")).toBe(true);
+    expect(isReservedMcpServerName("CraftStation")).toBe(true);
     expect(isReservedMcpServerName("computer_use")).toBe(true);
     expect(isValidMcpServerName("browser")).toBe(false);
     expect(isValidMcpServerName("custom.server")).toBe(true);

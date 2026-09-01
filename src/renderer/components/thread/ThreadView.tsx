@@ -285,7 +285,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
       }`}
     >
       <div
-        className={`${dragHandleRef ? "poracode-content-over-drag-region" : "poracode-content-over-drag-region--drag"} @container ${
+        className={`${dragHandleRef ? "craftstation-content-over-drag-region" : "craftstation-content-over-drag-region--drag"} @container ${
           threadHeaderIsPortaled ? "" : alignClass
         } flex w-full min-w-0 ${threadHeaderIsPortaled ? "max-w-none" : "max-w-[920px]"} items-center gap-2 ${
           threadHeaderIsPortaled ? "h-full" : "py-1"
@@ -344,7 +344,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                   <button
                     type="button"
                     aria-label={t`Continue in another provider`}
-                    className="poracode-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+                    className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       setContinueDialogOpen(true);
@@ -367,7 +367,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                       runtimeDebugOpen ? t`Hide runtime debug panel` : t`Show runtime debug panel`
                     }
                     aria-pressed={runtimeDebugOpen}
-                    className={`poracode-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${runtimeDebugOpen ? "text-foreground" : "text-muted/60 hover:text-foreground"}`}
+                    className={`craftstation-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${runtimeDebugOpen ? "text-foreground" : "text-muted/60 hover:text-foreground"}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setRuntimeDebugOpen((o) => !o);
@@ -389,7 +389,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               <button
                 type="button"
                 aria-label={thread.done ? t`Unmark done` : t`Mark done`}
-                className={`poracode-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${thread.done ? "text-[oklch(0.78_0.1_180)]" : "text-muted/60 hover:text-foreground"}`}
+                className={`craftstation-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${thread.done ? "text-[oklch(0.78_0.1_180)]" : "text-muted/60 hover:text-foreground"}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onMarkDone();
@@ -402,7 +402,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               <button
                 type="button"
                 aria-label={t`Close pane`}
-                className="poracode-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+                className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation();
                   onClose?.();
@@ -421,7 +421,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     <>
       <div
         ref={droppableRef}
-        data-poracode-thread-pane=""
+        data-craftstation-thread-pane=""
         className={`group/pane relative flex h-full min-h-0 flex-col ${isDragging ? "opacity-50" : ""}`}
       >
         {dropIndicator === "replace" && (

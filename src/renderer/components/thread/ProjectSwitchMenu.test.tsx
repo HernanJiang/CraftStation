@@ -105,7 +105,7 @@ describe("ProjectSwitchMenu", () => {
       remoteId: "rp-1",
     } as Project;
     useRemoteServersStore.setState({
-      servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+      servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
       runtime: { "desktop-1": { status: "online", projects: [], threads: [] } },
     } as never);
     useAppStore.setState({ projects: [workProject, mirrored] });
@@ -131,7 +131,7 @@ describe("ProjectSwitchMenu", () => {
       remoteId: "rp-2",
     } as Project;
     useRemoteServersStore.setState({
-      servers: [{ desktopId: "desktop-1", label: "Poracode on MacBook 16" }],
+      servers: [{ desktopId: "desktop-1", label: "CraftStation on MacBook 16" }],
       runtime: { "desktop-1": { status: "online", projects: [], threads: [] } },
     } as never);
     // Store order interleaves remote mirrors among local projects — the

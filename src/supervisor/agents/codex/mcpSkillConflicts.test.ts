@@ -24,7 +24,7 @@ function browserServer(): ResolvedMcpServer {
 }
 
 describe("Codex MCP skill conflicts", () => {
-  it("serializes preserved skill settings and the Poracode-specific disable", () => {
+  it("serializes preserved skill settings and the CraftStation-specific disable", () => {
     expect(
       serializeSkillConfigOverride([
         { path: "/skills/user/SKILL.md", enabled: true },
@@ -38,8 +38,8 @@ describe("Codex MCP skill conflicts", () => {
     );
   });
 
-  it("disables the ChatGPT browser skill only for a launch with Poracode browser MCP", () => {
-    const codexHome = mkdtempSync(join(tmpdir(), "poracode-codex-skill-"));
+  it("disables the ChatGPT browser skill only for a launch with CraftStation browser MCP", () => {
+    const codexHome = mkdtempSync(join(tmpdir(), "craftstation-codex-skill-"));
     tempDirs.push(codexHome);
     const browserSkill = join(
       codexHome,
@@ -69,7 +69,7 @@ describe("Codex MCP skill conflicts", () => {
     expect(args[1]).toContain(`path = ${JSON.stringify(browserSkill)}, enabled = false`);
   });
 
-  it("does not alter skills when Poracode browser MCP is absent", () => {
+  it("does not alter skills when CraftStation browser MCP is absent", () => {
     expect(buildCodexMcpSkillConflictArgsForPaths([], "/missing", "/missing", [])).toEqual([]);
   });
 });

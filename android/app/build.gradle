@@ -1,13 +1,13 @@
 apply plugin: 'com.android.application'
 
-def mobileBuildNumber = (System.getenv("PORACODE_MOBILE_BUILD_NUMBER") ?: "1").toInteger()
-def mobileVersionName = System.getenv("PORACODE_MOBILE_VERSION_NAME") ?: "1.5.0"
+def mobileBuildNumber = (System.getenv("CRAFTSTATION_MOBILE_BUILD_NUMBER") ?: "1").toInteger()
+def mobileVersionName = System.getenv("CRAFTSTATION_MOBILE_VERSION_NAME") ?: "1.5.0"
 
 android {
-    namespace = "com.poracode.app"
+    namespace = "com.craftstation.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.lightcodeapp.mobile"
+        applicationId "com.craftstationapp.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode mobileBuildNumber

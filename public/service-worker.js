@@ -1,4 +1,4 @@
-// Service worker for the standalone (hosted) Poracode PWA. The desktop-served
+// Service worker for the standalone (hosted) CraftStation PWA. The desktop-served
 // build ships an equivalent worker generated at runtime (see
 // src/main/remote/pairingPage.ts); keep the two in sync.
 //
@@ -6,15 +6,15 @@
 // other same-origin GETs, and an app-shell fallback for offline navigations.
 // Cross-origin requests — notably the paired desktop's /api, /oauth and /ws
 // endpoints, which live on a different host — are never intercepted.
-const BUILD_VERSION = "__PORACODE_BUILD_VERSION__";
-const CACHE_NAME = `poracode-pwa-${BUILD_VERSION}`;
+const BUILD_VERSION = "__CRAFTSTATION_BUILD_VERSION__";
+const CACHE_NAME = `craftstation-pwa-${BUILD_VERSION}`;
 const NAVIGATION_FALLBACK_DELAY_MS = 500;
 const APP_BASE_URL = new URL("./", self.location.href);
 const shellUrl = (path) => new URL(path, APP_BASE_URL).pathname;
 const SHELL_URLS = ["./", "app", "manifest.webmanifest", "app-icon.svg"].map(shellUrl);
 // Substituted per channel by scripts/finalize-mobile-build.mjs so a nightly
 // install's notifications carry the nightly art, not the stable icon.
-const NOTIFICATION_ICON_URL = shellUrl("__PORACODE_NOTIFICATION_ICON__");
+const NOTIFICATION_ICON_URL = shellUrl("__CRAFTSTATION_NOTIFICATION_ICON__");
 
 function shellAssetUrls(html) {
   const urls = new Set();
@@ -58,7 +58,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("poracode-pwa-") && key !== CACHE_NAME)
+            .filter((key) => key.startsWith("craftstation-pwa-") && key !== CACHE_NAME)
             .map((key) => caches.delete(key)),
         ),
       )
@@ -96,7 +96,7 @@ self.addEventListener("push", (event) => {
         body: payload.body,
         icon: NOTIFICATION_ICON_URL,
         badge: NOTIFICATION_ICON_URL,
-        tag: `poracode-thread-${payload.threadId}`,
+        tag: `craftstation-thread-${payload.threadId}`,
         data: { url: payload.url },
       });
     }),

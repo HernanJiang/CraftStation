@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { allUsageProviderDescriptors } from "@poracode/agents-usage";
+import { allUsageProviderDescriptors } from "@craftstation/agents-usage";
 import type { AgentInstanceConfig } from "@/shared/contracts";
 import { decryptSecret, isEncryptedSecret } from "@/shared/secretStorage";
 import {
@@ -24,7 +24,7 @@ import {
 const tempDirs: string[] = [];
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-settings-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-settings-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -775,7 +775,7 @@ describe("applyProfileEnvironment (free-form environment provider)", () => {
       id: "glm",
       driver: "claude",
       displayName: "GLM",
-      config: { configDir: "~/.poracode/claude-profiles/glm" },
+      config: { configDir: "~/.craftstation/claude-profiles/glm" },
       ...(environment ? { environment } : {}),
     };
     return { ...defaultSharedSettings, agentInstances: { glm: instance } };

@@ -13,11 +13,11 @@ function readTrimmedEnv(name: string): string | undefined {
 }
 
 export function remoteAccessHost(): string {
-  return readTrimmedEnv("PORACODE_REMOTE_ACCESS_HOST") ?? DEFAULT_REMOTE_ACCESS_HOST;
+  return readTrimmedEnv("CRAFTSTATION_REMOTE_ACCESS_HOST") ?? DEFAULT_REMOTE_ACCESS_HOST;
 }
 
 export function remoteAccessPort(): number | undefined {
-  const raw = readTrimmedEnv("PORACODE_REMOTE_ACCESS_PORT");
+  const raw = readTrimmedEnv("CRAFTSTATION_REMOTE_ACCESS_PORT");
   if (!raw) return undefined;
   const explicit = Number(raw);
   return Number.isSafeInteger(explicit) && explicit >= 0 && explicit <= 65535
@@ -165,7 +165,7 @@ export function remoteAccessAdvertisedHost(input?: {
   readonly bindHost?: string;
   readonly interfaces?: NetworkInterfaceMap;
 }): string {
-  const explicit = readTrimmedEnv("PORACODE_REMOTE_ACCESS_ADVERTISED_HOST");
+  const explicit = readTrimmedEnv("CRAFTSTATION_REMOTE_ACCESS_ADVERTISED_HOST");
   if (explicit) return explicit;
 
   const bindHost = input?.bindHost ?? remoteAccessHost();
@@ -176,5 +176,5 @@ export function remoteAccessAdvertisedHost(input?: {
 }
 
 export function remoteAccessPairingAppUrl(): string | undefined {
-  return readTrimmedEnv("PORACODE_REMOTE_ACCESS_PAIRING_APP_URL");
+  return readTrimmedEnv("CRAFTSTATION_REMOTE_ACCESS_PAIRING_APP_URL");
 }

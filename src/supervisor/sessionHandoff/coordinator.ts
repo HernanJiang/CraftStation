@@ -131,9 +131,16 @@ export class SessionHandoffCoordinator {
     return false;
   }
 
+  /**
+   * Active-execution fence for crafted commands (v0.9 F1). Fail closed: a
+   * crafted active command WITHOUT a caller-bound execution envelope is
+   * rejected, as is any envelope that no longer matches the ledger's active
+   * Segment (segmentId, runtimeSessionId or bindingEpoch drifted). Legacy
+   * non-crafted threads never reach this seam.
+   */
   assertActiveExecution(
     threadId: string,
-    expected?: RuntimeExecutionEnvelope,
+    expected: RuntimeExecutionEnvelope | undefined,
     allowDuringSwitch = false,
   ): RuntimeSegment {
     const active = this.deps.ledger.active(threadId);
@@ -145,13 +152,24 @@ export class SessionHandoffCoordinator {
       );
     }
     if (
-      expected &&
-      (expected.segmentId !== active.id ||
-        expected.runtimeSessionId !== active.runtimeSessionId ||
-        expected.bindingEpoch !== active.bindingEpoch)
+      !expected ||
+      typeof expected.segmentId !== "string" ||
+      typeof expected.runtimeSessionId !== "string" ||
+      typeof expected.bindingEpoch !== "number"
     ) {
       throw new SessionHandoffError(
-        "HANDOFF_STALE_ACTIVE_COMMAND",
+        "HANDOFF_ACTIVE_EXECUTION_REQUIRED",
+        "failed",
+        "This command must carry the conversation's active Runtime execution envelope.",
+      );
+    }
+    if (
+      expected.segmentId !== active.id ||
+      expected.runtimeSessionId !== active.runtimeSessionId ||
+      expected.bindingEpoch !== active.bindingEpoch
+    ) {
+      throw new SessionHandoffError(
+        "HANDOFF_EXECUTION_STALE",
         "failed",
         "The command targets a stale Runtime Segment binding.",
       );

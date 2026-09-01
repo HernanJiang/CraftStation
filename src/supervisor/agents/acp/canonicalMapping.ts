@@ -2,7 +2,7 @@
  * Generic ACP → canonical RuntimeEvent mapper.
  *
  * This is the SINGLE source of truth for translating ACP protocol messages
- * (`@agentclientprotocol/sdk`) into Poracode's canonical chat events. It is
+ * (`@agentclientprotocol/sdk`) into CraftStation's canonical chat events. It is
  * consumed by every ACP-speaking adapter — Copilot, future Gemini-ACP,
  * user-registered generic-ACP instances, and the `codex-acp` Rust shim.
  *
@@ -18,19 +18,19 @@ export { createAcpMapperState, type AcpMapperState } from "./canonicalMapping/st
 export { closeOpenTurnItems } from "./canonicalMapping/toolCallPayloads";
 export {
   mapAcpCanonicalGoalUpdate,
-  PORACODE_ACP_GOAL_META_KEY,
+  CRAFTSTATION_ACP_GOAL_META_KEY,
   type AcpCanonicalGoalUpdate,
 } from "./canonicalMapping/goals";
 export {
-  PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
-  PORACODE_ACP_DETACHED_SUBAGENT_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_META_KEY,
   getDetachedSubAgentToolCallIdForNotification,
-  PORACODE_ACP_NEW_ASSISTANT_ITEM_META_KEY,
-  PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY,
-  PORACODE_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY,
-  PORACODE_ACP_SUBAGENT_PROGRESS_META_KEY,
-  PORACODE_ACP_SUBAGENT_STATUS_META_KEY,
-  PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
+  CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY,
+  CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY,
+  CRAFTSTATION_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY,
+  CRAFTSTATION_ACP_SUBAGENT_PROGRESS_META_KEY,
+  CRAFTSTATION_ACP_SUBAGENT_STATUS_META_KEY,
+  CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
 } from "./canonicalMapping/subagents";
 export { mapAcpSessionUpdate } from "./canonicalMapping/dispatch";
 export { mapAcpGoalSlashCommand } from "./canonicalMapping/goal";

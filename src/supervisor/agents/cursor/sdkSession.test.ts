@@ -254,7 +254,7 @@ describe("CursorSdkSession", () => {
             { id: "effort", value: "high" },
           ],
         },
-        name: "poracode/thread-1",
+        name: "craftstation/thread-1",
         local: {
           cwd: "/repo",
           settingSources: ["all"],
@@ -282,7 +282,7 @@ describe("CursorSdkSession", () => {
     });
   });
 
-  it("derives a stable Cursor-shaped local identity from the Poracode thread", () => {
+  it("derives a stable Cursor-shaped local identity from the CraftStation thread", () => {
     const first = cursorSdkAgentId("thread-123456789");
     expect(first).toMatch(
       /^agent-[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -485,7 +485,7 @@ describe("CursorSdkSession", () => {
             { id: "effort", value: "high" },
           ],
         },
-        name: "poracode/thread-1",
+        name: "craftstation/thread-1",
         local: {
           cwd: "/repo",
           settingSources: ["all"],

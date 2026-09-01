@@ -46,7 +46,7 @@ function TryNowPluginDetail() {
     ...base,
     plugin: {
       ...base.plugin,
-      poracode: { ...base.plugin.poracode, examplePrompt: "Inspect this page" },
+      craftstation: { ...base.plugin.craftstation, examplePrompt: "Inspect this page" },
     },
   };
   return <PluginDetail plugin={plugin} hostPlatform="win32" onBack={() => undefined} />;

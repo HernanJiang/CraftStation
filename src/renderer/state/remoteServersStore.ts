@@ -82,7 +82,7 @@ import type {
 } from "@/renderer/state/remoteServers/types";
 
 /**
- * Desktop-as-client. Lets the Electron desktop connect to *other* Poracode
+ * Desktop-as-client. Lets the Electron desktop connect to *other* CraftStation
  * servers (another desktop's remote access, or a headless `pnpm run server`)
  * and surface their projects in the sidebar — the mirror image of the PWA,
  * which connects to a single desktop. See docs/REMOTE_ARCHITECTURE.md, Phase 4.
@@ -971,7 +971,7 @@ export const useRemoteServersStore = create<RemoteServersState>()(
         const tokenResult = await factory(normalized).exchangePairingCredential({
           credential: input.token,
           scopes: REMOTE_STANDARD_SCOPES,
-          client: { label: "Poracode Desktop", deviceType: "desktop" },
+          client: { label: "CraftStation Desktop", deviceType: "desktop" },
         });
         const client = factory(normalized, tokenResult.accessToken);
         const [environment, snapshot, agentStatuses] = await Promise.all([
@@ -1540,7 +1540,7 @@ export const useRemoteServersStore = create<RemoteServersState>()(
       };
     },
     {
-      name: "poracode-remote-servers",
+      name: "craftstation-remote-servers",
       storage: createJSONStorage(() => localStorage),
       // Persist durable connection identity (incl. the bearer accessToken) and
       // last-known projects so offline servers keep their sidebar rows. Live

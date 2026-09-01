@@ -158,7 +158,7 @@ export function ExperimentView(props: { experimentId: string }) {
   return (
     <div className="flex h-full flex-col">
       <div
-        className={`poracode-content-over-drag-region ${macosTrafficLightPadClass} h-[env(titlebar-area-height,32px)] shrink-0 px-3`}
+        className={`craftstation-content-over-drag-region ${macosTrafficLightPadClass} h-[env(titlebar-area-height,32px)] shrink-0 px-3`}
       >
         <div className="mx-auto flex h-full max-w-4xl items-center gap-2">
           <FlaskConical className="size-3.5 shrink-0 text-muted" />

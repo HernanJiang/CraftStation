@@ -59,7 +59,7 @@ describe("buildCursorSdkUserMessage", () => {
   });
 
   it("reads image bytes into the only attachment shape the SDK supports", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "poracode-cursor-sdk-prompt-"));
+    const dir = await mkdtemp(join(tmpdir(), "craftstation-cursor-sdk-prompt-"));
     tempDirs.push(dir);
     const image = join(dir, "shot.png");
     await writeFile(image, Buffer.from([0, 1, 2, 255]));

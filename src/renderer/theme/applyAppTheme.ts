@@ -1,7 +1,7 @@
 /**
  * Applies a theme preset's variant to the document root as inline CSS custom
  * properties. Inline properties win over the `.light` / `.dark` rules in
- * styles.css, so the base ("Poracode") theme is expressed by *clearing* the
+ * styles.css, so the base ("CraftStation") theme is expressed by *clearing* the
  * managed properties — letting styles.css stay the source of truth — rather
  * than by re-setting equivalent values.
  */
@@ -31,11 +31,11 @@ export function applyAppTheme(root: HTMLElement, appearance: Appearance, themeId
 
 // Mirrors the localStorage key in sharedSettingsStore. Read directly here so the
 // pre-paint bootstrap doesn't have to import (and eagerly hydrate) the store.
-const SHARED_SETTINGS_CACHE_KEY = "poracode-shared-settings";
+const SHARED_SETTINGS_CACHE_KEY = "craftstation-shared-settings";
 
 // Resolved appearance + background, read by the inline pre-paint script in
 // index.html so the first frame matches the active theme. Keep the key in sync.
-const BOOT_CACHE_KEY = "poracode-boot";
+const BOOT_CACHE_KEY = "craftstation-boot";
 
 /**
  * Persists the resolved appearance + background so the next launch's pre-paint

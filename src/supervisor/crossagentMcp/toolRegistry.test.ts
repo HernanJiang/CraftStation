@@ -512,7 +512,7 @@ describe("subagent tool registration", () => {
     for (const legacy of ["run_agent", "spawn_agents", "wait_for_agents"]) {
       expect(names.has(legacy)).toBe(false);
     }
-    // Full-thread orchestration moved to the `poracode` (app-controls) MCP.
+    // Full-thread orchestration moved to the `craftstation` (app-controls) MCP.
     for (const name of [
       "create_thread",
       "list_threads",

@@ -259,7 +259,7 @@ export function isAcpPromptQuotaExhaustedError(error: unknown): boolean {
 /**
  * Some ACP agents acknowledge `session/cancel` by rejecting the in-flight
  * `session/prompt` request instead of returning a cancelled stop reason.
- * Treat that transport shape as cancellation only when Poracode actually
+ * Treat that transport shape as cancellation only when CraftStation actually
  * requested the interrupt; the same error without a user stop is still a
  * real prompt failure.
  */

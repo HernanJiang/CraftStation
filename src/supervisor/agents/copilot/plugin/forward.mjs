@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * GitHub Copilot CLI lifecycle hook forwarder for Poracode.
+ * GitHub Copilot CLI lifecycle hook forwarder for CraftStation.
  *
  * Copilot hooks communicate via JSON stdin and (for `preToolUse`) JSON stdout.
  * We never override permission decisions — we always exit silently with no
  * stdout, which leaves the CLI's default policy intact.
  *
  * The CLI loads hooks from `${COPILOT_HOME ?? ~/.copilot}/hooks/*.json`, so
- * the user-global `poracode-status.json` points its `bash` / `powershell`
- * field at this script (via the staged `poracode-hook.{sh,cmd,ps1}` wrapper or
+ * the user-global `craftstation-status.json` points its `bash` / `powershell`
+ * field at this script (via the staged `craftstation-hook.{sh,cmd,ps1}` wrapper or
  * an absolute node path on WSL).
  *
  * Generic plumbing (manifest read, env-var POST, retry, debug) lives in the
- * shared `poracode-hook-runtime.mjs` sibling. NOTE: the intent map below
+ * shared `craftstation-hook-runtime.mjs` sibling. NOTE: the intent map below
  * mirrors `intentMap.ts` — keep both in sync.
  */
 
@@ -20,7 +20,7 @@ import {
   copyStringExtra,
   readPluginVersionFromManifest,
   runForwarder,
-} from "./poracode-hook-runtime.mjs";
+} from "./craftstation-hook-runtime.mjs";
 
 const PLUGIN_VERSION = readPluginVersionFromManifest(import.meta.url);
 

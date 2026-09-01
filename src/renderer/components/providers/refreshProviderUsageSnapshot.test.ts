@@ -1,4 +1,4 @@
-import type { UsageSnapshot } from "@poracode/agents-usage";
+import type { UsageSnapshot } from "@craftstation/agents-usage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { refreshAndMergeProviderUsage } from "./refreshProviderUsageSnapshot";

@@ -93,15 +93,17 @@ describe.skipIf(process.platform !== "win32")("buildWindowsCommand", () => {
   });
 
   it("resolves bare Windows executables before spawning them", () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-direct-exe-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-direct-exe-"));
     tempDirs.push(dir);
-    const executablePath = join(dir, "poracode-test-agent.exe");
+    const executablePath = join(dir, "craftstation-test-agent.exe");
     writeFileSync(executablePath, "", "utf8");
     process.env.PATH = `${dir};${originalPath ?? ""}`;
 
-    const spec = buildAgentCommand({ kind: "windows", path: "C:\\repo" }, "poracode-test-agent", [
-      "--version",
-    ]);
+    const spec = buildAgentCommand(
+      { kind: "windows", path: "C:\\repo" },
+      "craftstation-test-agent",
+      ["--version"],
+    );
 
     expect(spec.command).toBe(executablePath);
     expect(spec.args).toEqual(["--version"]);
@@ -140,7 +142,7 @@ describe.skipIf(process.platform !== "win32")("buildWindowsCommand", () => {
   });
 
   it("bypasses npm .cmd shims so multiline args stay in argv", () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-cmd-shim-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-cmd-shim-"));
     tempDirs.push(dir);
     const scriptPath = join(dir, "node_modules", "command-code", "dist", "index.mjs");
     mkdirSync(join(scriptPath, ".."), { recursive: true });

@@ -41,7 +41,7 @@ describe("welcomeGateStore", () => {
   });
 
   it("treats a manual test launch as welcome-seen without persisting the flag", async () => {
-    vi.stubEnv("VITE_PORACODE_SKIP_WELCOME", "1");
+    vi.stubEnv("VITE_CRAFTSTATION_SKIP_WELCOME", "1");
     vi.resetModules();
     localStorage.clear();
 

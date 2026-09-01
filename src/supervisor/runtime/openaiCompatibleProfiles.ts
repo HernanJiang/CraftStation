@@ -4,7 +4,7 @@ import {
   normalizeOpenAiCompatibleBaseUrl,
   openAiCompatibleModelsUrl,
   type HostPort,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

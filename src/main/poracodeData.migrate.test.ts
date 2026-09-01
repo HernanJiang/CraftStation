@@ -41,11 +41,11 @@ import {
   requestLegacyDataMigration,
   resolveLegacyElectronUserDataDir,
 } from "./legacyDataMigration";
-import { preparePoracodeDataRoot } from "./poracodeData";
+import { prepareCraftStationDataRoot } from "./craftstationData";
 
-describe("complete Lightcode data migration", () => {
+describe("complete CraftStation data migration", () => {
   beforeEach(() => {
-    ctx.home = mkdtempSync(join(tmpdir(), "poracode-migrate-"));
+    ctx.home = mkdtempSync(join(tmpdir(), "craftstation-migrate-"));
     dbCtx.failSnapshot = false;
   });
 
@@ -53,10 +53,10 @@ describe("complete Lightcode data migration", () => {
     rmSync(ctx.home, { recursive: true, force: true });
   });
 
-  const legacyDir = () => join(ctx.home, ".lightcode");
-  const newDir = () => join(ctx.home, ".poracode");
-  const legacyElectronDir = () => join(ctx.home, "AppData", "Lightcode");
-  const newElectronDir = () => join(ctx.home, "AppData", "Poracode");
+  const legacyDir = () => join(ctx.home, ".craftstation");
+  const newDir = () => join(ctx.home, ".craftstation");
+  const legacyElectronDir = () => join(ctx.home, "AppData", "CraftStation");
+  const newElectronDir = () => join(ctx.home, "AppData", "CraftStation");
 
   function seedLegacyData(): void {
     mkdirSync(join(legacyDir(), "claude-profiles"), { recursive: true });
@@ -77,13 +77,13 @@ describe("complete Lightcode data migration", () => {
 
     mkdirSync(join(legacyElectronDir(), "Local Storage"), { recursive: true });
     mkdirSync(join(legacyElectronDir(), "IndexedDB"), { recursive: true });
-    mkdirSync(join(legacyElectronDir(), "Partitions", "persist_lightcode-browser"), {
+    mkdirSync(join(legacyElectronDir(), "Partitions", "persist_craftstation-browser"), {
       recursive: true,
     });
     writeFileSync(join(legacyElectronDir(), "Local Storage", "leveldb"), "local-storage");
     writeFileSync(join(legacyElectronDir(), "IndexedDB", "db"), "indexed-db");
     writeFileSync(
-      join(legacyElectronDir(), "Partitions", "persist_lightcode-browser", "Cookies"),
+      join(legacyElectronDir(), "Partitions", "persist_craftstation-browser", "Cookies"),
       "cookies",
     );
     writeFileSync(join(legacyElectronDir(), "lockfile"), "stale-lock");
@@ -97,10 +97,10 @@ describe("complete Lightcode data migration", () => {
     };
   }
 
-  it("copies every user-data subtree plus Electron storage and keeps the Lightcode source", () => {
+  it("copies every user-data subtree plus Electron storage and keeps the CraftStation source", () => {
     seedLegacyData();
 
-    preparePoracodeDataRoot(undefined, migrationOptions());
+    prepareCraftStationDataRoot(undefined, migrationOptions());
 
     expect(readFileSync(join(newDir(), "settings.json"), "utf8")).toBe('{"theme":"dark"}');
     expect(readFileSync(join(newDir(), "state.sqlite"), "utf8")).toBe("db-bytes");
@@ -121,7 +121,7 @@ describe("complete Lightcode data migration", () => {
     expect(readFileSync(join(newElectronDir(), "IndexedDB", "db"), "utf8")).toBe("indexed-db");
     expect(
       readFileSync(
-        join(newElectronDir(), "Partitions", "persist_lightcode-browser", "Cookies"),
+        join(newElectronDir(), "Partitions", "persist_craftstation-browser", "Cookies"),
         "utf8",
       ),
     ).toBe("cookies");
@@ -138,32 +138,34 @@ describe("complete Lightcode data migration", () => {
 
   it("runs automatically only once", () => {
     seedLegacyData();
-    preparePoracodeDataRoot(undefined, migrationOptions());
+    prepareCraftStationDataRoot(undefined, migrationOptions());
     writeFileSync(join(legacyDir(), "settings.json"), '{"theme":"light"}');
 
-    preparePoracodeDataRoot(undefined, migrationOptions());
+    prepareCraftStationDataRoot(undefined, migrationOptions());
 
     expect(readFileSync(join(newDir(), "settings.json"), "utf8")).toBe('{"theme":"dark"}');
   });
 
-  it("backs up an existing Poracode directory before the one-time import", () => {
+  it("backs up an existing CraftStation directory before the one-time import", () => {
     seedLegacyData();
     mkdirSync(newDir(), { recursive: true });
-    writeFileSync(join(newDir(), "poracode-only.txt"), "keep-me");
+    writeFileSync(join(newDir(), "craftstation-only.txt"), "keep-me");
 
     const result = migrateLegacyDataOnLaunch({ baseDir: newDir(), ...migrationOptions() });
 
     expect(result.status).toBe("migrated");
     expect(result.dataBackupPath).toBeDefined();
-    expect(readFileSync(join(result.dataBackupPath!, "poracode-only.txt"), "utf8")).toBe("keep-me");
+    expect(readFileSync(join(result.dataBackupPath!, "craftstation-only.txt"), "utf8")).toBe(
+      "keep-me",
+    );
     expect(readFileSync(join(newDir(), "settings.json"), "utf8")).toBe('{"theme":"dark"}');
   });
 
-  it("lets Settings request a complete import again and backs up current Poracode data", () => {
+  it("lets Settings request a complete import again and backs up current CraftStation data", () => {
     seedLegacyData();
-    preparePoracodeDataRoot(undefined, migrationOptions());
-    writeFileSync(join(newDir(), "poracode-only.txt"), "new-data");
-    writeFileSync(join(newElectronDir(), "poracode-only.txt"), "new-browser-data");
+    prepareCraftStationDataRoot(undefined, migrationOptions());
+    writeFileSync(join(newDir(), "craftstation-only.txt"), "new-data");
+    writeFileSync(join(newElectronDir(), "craftstation-only.txt"), "new-browser-data");
     writeFileSync(join(legacyDir(), "settings.json"), '{"theme":"light"}');
     writeFileSync(join(legacyElectronDir(), "IndexedDB", "db"), "updated-indexed-db");
 
@@ -174,19 +176,19 @@ describe("complete Lightcode data migration", () => {
 
     expect(result.status).toBe("migrated");
     expect(readFileSync(join(newDir(), "settings.json"), "utf8")).toBe('{"theme":"light"}');
-    expect(readFileSync(join(result.dataBackupPath!, "poracode-only.txt"), "utf8")).toBe(
+    expect(readFileSync(join(result.dataBackupPath!, "craftstation-only.txt"), "utf8")).toBe(
       "new-data",
     );
     expect(readFileSync(join(newElectronDir(), "IndexedDB", "db"), "utf8")).toBe(
       "updated-indexed-db",
     );
     expect(
-      readFileSync(join(result.electronUserDataBackupPath!, "poracode-only.txt"), "utf8"),
+      readFileSync(join(result.electronUserDataBackupPath!, "craftstation-only.txt"), "utf8"),
     ).toBe("new-browser-data");
   });
 
   it("records a completed no-data check and reports no source for a manual request", () => {
-    preparePoracodeDataRoot(undefined, migrationOptions());
+    prepareCraftStationDataRoot(undefined, migrationOptions());
 
     expect(readLegacyDataMigrationMarker(newDir())).toMatchObject({
       importedDataRoot: false,
@@ -226,21 +228,23 @@ describe("complete Lightcode data migration", () => {
     expect(readFileSync(join(newElectronDir(), "IndexedDB", "db"), "utf8")).toBe("indexed-db");
   });
 
-  it("imports from Lightcode's legacy custom data root when configured", () => {
+  it("imports from CraftStation's legacy custom data root when configured", () => {
     seedLegacyData();
     const legacyCustomDir = join(ctx.home, "legacy-custom-data");
-    const poracodeCustomDir = join(ctx.home, "poracode-custom-data");
+    const craftstationCustomDir = join(ctx.home, "craftstation-custom-data");
     renameSync(legacyDir(), legacyCustomDir);
 
     const result = migrateLegacyDataOnLaunch({
-      baseDir: poracodeCustomDir,
+      baseDir: craftstationCustomDir,
       ...migrationOptions(),
       legacyBaseDir: legacyCustomDir,
       allowCustomDataRoot: true,
     });
 
     expect(result.status).toBe("migrated");
-    expect(readFileSync(join(poracodeCustomDir, "settings.json"), "utf8")).toBe('{"theme":"dark"}');
+    expect(readFileSync(join(craftstationCustomDir, "settings.json"), "utf8")).toBe(
+      '{"theme":"dark"}',
+    );
     expect(readFileSync(join(legacyCustomDir, "settings.json"), "utf8")).toBe('{"theme":"dark"}');
   });
 
@@ -261,11 +265,11 @@ describe("complete Lightcode data migration", () => {
 
   it("clears a stale staging directory before retrying", () => {
     seedLegacyData();
-    const stagingDir = `${newDir()}.importing-lightcode`;
+    const stagingDir = `${newDir()}.importing-craftstation`;
     mkdirSync(stagingDir, { recursive: true });
     writeFileSync(join(stagingDir, "partial-junk"), "junk");
 
-    preparePoracodeDataRoot(undefined, migrationOptions());
+    prepareCraftStationDataRoot(undefined, migrationOptions());
 
     expect(existsSync(join(newDir(), "partial-junk"))).toBe(false);
     expect(existsSync(stagingDir)).toBe(false);
@@ -275,30 +279,30 @@ describe("complete Lightcode data migration", () => {
     seedLegacyData();
     mkdirSync(newDir(), { recursive: true });
     writeFileSync(join(newDir(), "server.lock"), String(process.pid));
-    writeFileSync(join(newDir(), "poracode-only.txt"), "keep-me");
+    writeFileSync(join(newDir(), "craftstation-only.txt"), "keep-me");
 
     expect(() => migrateLegacyDataOnLaunch({ baseDir: newDir(), ...migrationOptions() })).toThrow(
       "Cannot migrate data while a server is using",
     );
-    expect(readFileSync(join(newDir(), "poracode-only.txt"), "utf8")).toBe("keep-me");
+    expect(readFileSync(join(newDir(), "craftstation-only.txt"), "utf8")).toBe("keep-me");
     expect(existsSync(join(newDir(), "settings.json"))).toBe(false);
     expect(existsSync(newElectronDir())).toBe(false);
   });
 
-  it("restores both Poracode data locations when a later import step fails", () => {
+  it("restores both CraftStation data locations when a later import step fails", () => {
     seedLegacyData();
     mkdirSync(newDir(), { recursive: true });
     mkdirSync(newElectronDir(), { recursive: true });
-    writeFileSync(join(newDir(), "poracode-only.txt"), "current-data");
-    writeFileSync(join(newElectronDir(), "poracode-only.txt"), "current-browser-data");
+    writeFileSync(join(newDir(), "craftstation-only.txt"), "current-data");
+    writeFileSync(join(newElectronDir(), "craftstation-only.txt"), "current-browser-data");
     dbCtx.failSnapshot = true;
 
     expect(() => migrateLegacyDataOnLaunch({ baseDir: newDir(), ...migrationOptions() })).toThrow(
       "snapshot failed",
     );
 
-    expect(readFileSync(join(newDir(), "poracode-only.txt"), "utf8")).toBe("current-data");
-    expect(readFileSync(join(newElectronDir(), "poracode-only.txt"), "utf8")).toBe(
+    expect(readFileSync(join(newDir(), "craftstation-only.txt"), "utf8")).toBe("current-data");
+    expect(readFileSync(join(newElectronDir(), "craftstation-only.txt"), "utf8")).toBe(
       "current-browser-data",
     );
     expect(existsSync(join(newElectronDir(), "IndexedDB"))).toBe(false);
@@ -306,16 +310,16 @@ describe("complete Lightcode data migration", () => {
   });
 
   it("derives the legacy Electron directory for stable, nightly, and dev", () => {
-    expect(legacyProductNameFor("stable")).toBe("Lightcode");
-    expect(legacyProductNameFor("nightly")).toBe("Lightcode Nightly");
-    expect(resolveLegacyElectronUserDataDir("/home/me/.config/Poracode", "stable")).toBe(
-      join("/home/me/.config", "Lightcode"),
+    expect(legacyProductNameFor("stable")).toBe("CraftStation");
+    expect(legacyProductNameFor("nightly")).toBe("CraftStation Nightly");
+    expect(resolveLegacyElectronUserDataDir("/home/me/.config/CraftStation", "stable")).toBe(
+      join("/home/me/.config", "CraftStation"),
     );
-    expect(resolveLegacyElectronUserDataDir("/home/me/.config/Poracode Nightly", "nightly")).toBe(
-      join("/home/me/.config", "Lightcode Nightly"),
-    );
-    expect(resolveLegacyElectronUserDataDir("/home/me/.config/Poracode/Dev", "stable", true)).toBe(
-      join("/home/me/.config", "Lightcode", "Dev"),
-    );
+    expect(
+      resolveLegacyElectronUserDataDir("/home/me/.config/CraftStation Nightly", "nightly"),
+    ).toBe(join("/home/me/.config", "CraftStation Nightly"));
+    expect(
+      resolveLegacyElectronUserDataDir("/home/me/.config/CraftStation/Dev", "stable", true),
+    ).toBe(join("/home/me/.config", "CraftStation", "Dev"));
   });
 });

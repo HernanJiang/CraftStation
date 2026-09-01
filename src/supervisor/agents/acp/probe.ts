@@ -130,12 +130,12 @@ const INITIAL_SLASH_COMMANDS_TIMEOUT_MS = 2_000;
 // ── Mode mapping ─────────────────────────────────────────────────
 
 /**
- * Known ACP mode ID → Poracode mode + optional approval policy.
+ * Known ACP mode ID → CraftStation mode + optional approval policy.
  *
  * This is the reverse of `resolveAcpMode()` in session.ts.
  */
 /**
- * ACP mode ID → Poracode mode + optional approval policy ID.
+ * ACP mode ID → CraftStation mode + optional approval policy ID.
  *
  * Labels come from the ACP `SessionMode.name` field, not hardcoded here.
  * They are normalized for display by `humanizeAcpModeName`.
@@ -170,7 +170,7 @@ export function humanizeAcpModeName(name: string): string {
 }
 
 /**
- * Map ACP `SessionMode[]` to Poracode modes and approval policies.
+ * Map ACP `SessionMode[]` to CraftStation modes and approval policies.
  * Labels are taken from ACP's `SessionMode.name`, normalized for display.
  */
 export function mapAcpModes(availableModes: SessionMode[]): {
@@ -216,7 +216,7 @@ export function humanizeModelId(id: string): string {
 
 /**
  * Map the unstable ACP model list (pre-1.0 `ModelInfo[]`, see
- * `unstableModelCompat.ts`) to Poracode model options.
+ * `unstableModelCompat.ts`) to CraftStation model options.
  *
  * If the agent returns `name` equal to `modelId`, we generate a
  * friendlier label from the ID.
@@ -234,7 +234,7 @@ export function mapAcpModels(
   });
 }
 
-/** Map the standard ACP model config option to Poracode model options. */
+/** Map the standard ACP model config option to CraftStation model options. */
 export function mapAcpConfigModels(configOptions: unknown): Array<{ id: string; label: string }> {
   const option = findSelectConfigOption(configOptions, "model");
   if (!option) return [];
@@ -583,7 +583,7 @@ export async function probeAcpCapabilities(
     const initResult = await runWithinProbeBudget(
       connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
-        clientInfo: { name: "poracode-probe", version: "0.1.0" },
+        clientInfo: { name: "craftstation-probe", version: "0.1.0" },
         clientCapabilities: { auth: { terminal: true } },
       }),
     );
@@ -905,7 +905,7 @@ export async function authenticateAcpAgent(
         );
         const initResult = await connection.initialize({
           protocolVersion: PROTOCOL_VERSION,
-          clientInfo: { name: "poracode-auth", version: "0.1.0" },
+          clientInfo: { name: "craftstation-auth", version: "0.1.0" },
         });
         if (!initResult.authMethods?.some((method) => method.id === methodId)) {
           throw new Error(`ACP auth method not found: ${methodId}`);
@@ -982,7 +982,7 @@ export async function logoutAcpAgent(
         );
         const initResult = await connection.initialize({
           protocolVersion: PROTOCOL_VERSION,
-          clientInfo: { name: "poracode-auth", version: "0.1.0" },
+          clientInfo: { name: "craftstation-auth", version: "0.1.0" },
         });
         if (initResult.agentCapabilities?.auth?.logout === undefined) {
           throw new Error("ACP logout is not supported by this agent.");

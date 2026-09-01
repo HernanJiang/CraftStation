@@ -416,14 +416,14 @@ describe("mobile ThreadView", () => {
     );
 
     const summary = view.container.querySelector(".m-compose-summary");
-    expect(summary?.querySelector(".poracode-provider-icon")).not.toBeNull();
+    expect(summary?.querySelector(".craftstation-provider-icon")).not.toBeNull();
     expect(summary?.querySelector(".lucide-zap")).not.toBeNull();
     // Fast is only summarized when on, so its chip carries the fill modifier
     // (the real toolbar fills via the toggle's selected state, which this inert
     // summary never has).
     expect(summary?.querySelector(".m-compose-summary__item--fast .lucide-zap")).not.toBeNull();
-    expect(summary?.querySelector(".poracode-composer-mode-icon")).not.toBeNull();
-    expect(summary?.querySelector(".poracode-composer-permission-icon")).not.toBeNull();
+    expect(summary?.querySelector(".craftstation-composer-mode-icon")).not.toBeNull();
+    expect(summary?.querySelector(".craftstation-composer-permission-icon")).not.toBeNull();
     expect(summary).toHaveTextContent("GPT-5");
     expect(summary).toHaveTextContent("High");
 

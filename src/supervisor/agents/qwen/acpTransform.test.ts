@@ -3,12 +3,12 @@ import type { SessionNotification } from "@agentclientprotocol/sdk";
 import {
   createAcpMapperState,
   mapAcpSessionUpdate,
-  PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
-  PORACODE_ACP_GOAL_META_KEY,
-  PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY,
-  PORACODE_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY,
-  PORACODE_ACP_SUBAGENT_STATUS_META_KEY,
-  PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
+  CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY,
+  CRAFTSTATION_ACP_GOAL_META_KEY,
+  CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY,
+  CRAFTSTATION_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY,
+  CRAFTSTATION_ACP_SUBAGENT_STATUS_META_KEY,
+  CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY,
 } from "../acp/canonicalMapping";
 import { AcpStructuredSession } from "../acp/session";
 import { createQwenAcpSessionBridge, createQwenAcpSessionUpdateTransform } from "./acpTransform";
@@ -43,7 +43,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
     });
     expect(set._meta).toMatchObject({
       goalStatus: { kind: "set" },
-      [PORACODE_ACP_GOAL_META_KEY]: {
+      [CRAFTSTATION_ACP_GOAL_META_KEY]: {
         action: "set",
         objective: "Ship goal support",
         status: "active",
@@ -65,7 +65,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       },
     });
     expect(checking._meta).toMatchObject({
-      [PORACODE_ACP_GOAL_META_KEY]: {
+      [CRAFTSTATION_ACP_GOAL_META_KEY]: {
         action: "updated",
         objective: "Ship goal support",
         status: "active",
@@ -94,7 +94,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
         },
       });
       expect(terminal._meta).toMatchObject({
-        [PORACODE_ACP_GOAL_META_KEY]: {
+        [CRAFTSTATION_ACP_GOAL_META_KEY]: {
           action: "updated",
           objective: "Ship goal support",
           status,
@@ -113,7 +113,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       },
     });
     expect(cleared._meta).toMatchObject({
-      [PORACODE_ACP_GOAL_META_KEY]: {
+      [CRAFTSTATION_ACP_GOAL_META_KEY]: {
         action: "cleared",
         objective: "Ship goal support",
       },
@@ -132,7 +132,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
     });
     expect(parent.rawInput).toEqual({ _toolName: "task", subagent_type: "agent" });
     expect(parent._meta).toMatchObject({
-      [PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY]: true,
+      [CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY]: true,
     });
 
     const nestedAgent = transformedUpdate(transform, {
@@ -148,9 +148,9 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       },
     });
     expect(nestedAgent._meta).toMatchObject({
-      [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "agent-1",
+      [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "agent-1",
     });
-    expect(nestedAgent._meta).not.toHaveProperty(PORACODE_ACP_TOP_LEVEL_TOOL_CALL_META_KEY);
+    expect(nestedAgent._meta).not.toHaveProperty(CRAFTSTATION_ACP_TOP_LEVEL_TOOL_CALL_META_KEY);
 
     const child = transformedUpdate(transform, {
       sessionUpdate: "tool_call",
@@ -166,7 +166,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
     });
     expect(child._meta).toMatchObject({
       parentToolCallId: "agent-1",
-      [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "agent-1",
+      [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "agent-1",
     });
 
     const completed = transformedUpdate(transform, {
@@ -238,7 +238,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       },
     });
     expect(completionNotice._meta).toMatchObject({
-      [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-bg",
+      [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-bg",
     });
 
     const reasoning = transformedUpdate(transform, {
@@ -246,7 +246,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       content: { type: "text", text: "Preparing the child result." },
     });
     expect(reasoning._meta).toEqual({
-      [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-bg",
+      [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-bg",
     });
 
     transformedUpdate(transform, {
@@ -276,8 +276,8 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       },
       _meta: {
         usage: { totalTokens: 42 },
-        [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-bg",
-        [PORACODE_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY]: true,
+        [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-bg",
+        [CRAFTSTATION_ACP_SYNTHESIZE_SUBAGENT_RESULT_META_KEY]: true,
       },
     });
   });
@@ -567,7 +567,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       )?.update,
     ).toMatchObject({
       _meta: {
-        [PORACODE_ACP_GOAL_META_KEY]: {
+        [CRAFTSTATION_ACP_GOAL_META_KEY]: {
           status: "paused",
           objective: "Track the background task",
         },
@@ -855,7 +855,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       }),
     );
     expect((lateChunk.update as Record<string, unknown>)._meta).not.toMatchObject({
-      [PORACODE_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "agent-fallback-wins",
+      [CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY]: "agent-fallback-wins",
     });
     const lateBoundary = bridge.extensionSessionUpdateTransform("_qwencode/end_turn", {
       sessionId: "qwen-session",
@@ -925,9 +925,9 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       status: "failed",
       rawOutput: "Result from child.",
       _meta: {
-        [PORACODE_ACP_SUBAGENT_STATUS_META_KEY]: "cancelled",
-        [PORACODE_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-real-boundary",
-        [PORACODE_ACP_GOAL_META_KEY]: {
+        [CRAFTSTATION_ACP_SUBAGENT_STATUS_META_KEY]: "cancelled",
+        [CRAFTSTATION_ACP_DETACHED_SUBAGENT_ACTIVITY_META_KEY]: "agent-real-boundary",
+        [CRAFTSTATION_ACP_GOAL_META_KEY]: {
           action: "updated",
           objective: "Finish the background work",
           status: "paused",
@@ -954,7 +954,7 @@ describe("createQwenAcpSessionUpdateTransform", () => {
       },
     });
     expect(paused._meta).toMatchObject({
-      [PORACODE_ACP_GOAL_META_KEY]: {
+      [CRAFTSTATION_ACP_GOAL_META_KEY]: {
         action: "updated",
         objective: "Finish validation",
         status: "paused",

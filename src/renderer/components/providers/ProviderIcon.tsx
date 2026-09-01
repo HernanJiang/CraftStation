@@ -27,7 +27,7 @@ function DoneCheckOverlay() {
     <svg
       aria-hidden
       viewBox="0 0 24 24"
-      className="poracode-provider-icon__done-check text-success"
+      className="craftstation-provider-icon__done-check text-success"
     >
       <path
         d="M5 13l4 4L19 7"
@@ -45,16 +45,16 @@ function ExternalProviderIcon(props: { src: string; tone: StatusTone; className?
   const style = externalIconStyle(props.src);
   return (
     <span
-      className={`poracode-provider-icon poracode-provider-icon--external poracode-provider-icon--${props.tone}${props.className ? ` ${props.className}` : ""}`}
+      className={`craftstation-provider-icon craftstation-provider-icon--external craftstation-provider-icon--${props.tone}${props.className ? ` ${props.className}` : ""}`}
     >
       <span
-        className={`poracode-provider-icon__mask${props.tone === "done" ? " opacity-40" : ""}`}
+        className={`craftstation-provider-icon__mask${props.tone === "done" ? " opacity-40" : ""}`}
         style={style}
       />
       {props.tone === "working" ? (
         <span
           ref={syncMaskScanPhase}
-          className="poracode-provider-icon__mask poracode-provider-icon__mask-scan"
+          className="craftstation-provider-icon__mask craftstation-provider-icon__mask-scan"
           style={style}
         />
       ) : null}
@@ -94,10 +94,10 @@ function profileBadgeLabel(kind: string, fallbackLabel: string | undefined): str
 function GenericProviderIcon(props: { label?: string; tone: StatusTone; className?: string }) {
   return (
     <span
-      className={`poracode-provider-icon poracode-provider-icon--${props.tone}${props.className ? ` ${props.className}` : ""}`}
+      className={`craftstation-provider-icon craftstation-provider-icon--${props.tone}${props.className ? ` ${props.className}` : ""}`}
     >
       <span
-        className={`poracode-provider-icon__generic${props.tone === "done" ? " opacity-40" : ""}`}
+        className={`craftstation-provider-icon__generic${props.tone === "done" ? " opacity-40" : ""}`}
       >
         {fallbackInitial(props.label)}
       </span>

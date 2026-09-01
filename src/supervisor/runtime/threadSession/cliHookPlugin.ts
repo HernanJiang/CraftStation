@@ -118,7 +118,7 @@ export class CliHookSessionCoordinator {
         ...(mcpServers.length > 0 ? { mcpServers } : {}),
       });
       const merged = resolved ?? { env: {}, extraArgs: [] };
-      const hookUrl = merged.env.PORACODE_HOOK_URL;
+      const hookUrl = merged.env.CRAFTSTATION_HOOK_URL;
       const hasHookEnv = Boolean(hookUrl);
 
       if (liveInputMode === "server") {

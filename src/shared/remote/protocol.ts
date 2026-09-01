@@ -18,8 +18,8 @@ import { sharedSettingsSchema } from "../settings";
 // v4 carries project icon metadata and project-icon update patches, plus
 // per-project GitHub account selection through remote Actions calls and project
 // updates, so older hosts cannot silently discard either scope.
-export const PORACODE_REMOTE_PROTOCOL_VERSION = 4;
-export const REMOTE_COMMAND_ID_HEADER = "x-poracode-command-id";
+export const CRAFTSTATION_REMOTE_PROTOCOL_VERSION = 4;
+export const REMOTE_COMMAND_ID_HEADER = "x-craftstation-command-id";
 
 export const remoteAccessScopeSchema = z.enum([
   "session:read",
@@ -110,7 +110,7 @@ export const remoteClientMetadataSchema = z.object({
 export type RemoteClientMetadata = z.infer<typeof remoteClientMetadataSchema>;
 
 export const remoteEnvironmentDescriptorSchema = z.object({
-  protocolVersion: z.literal(PORACODE_REMOTE_PROTOCOL_VERSION),
+  protocolVersion: z.literal(CRAFTSTATION_REMOTE_PROTOCOL_VERSION),
   /**
    * Process hosting the shared remote-access server. Optional on the wire for
    * protocol-v1 servers released before standalone helpers advertised it.

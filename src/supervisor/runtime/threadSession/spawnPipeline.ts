@@ -90,7 +90,7 @@ export interface SpawnThreadInput {
   /**
    * Extra env injected into the agent PTY (merged on top of agentEnv +
    * provider spawnEnv). Currently used by the CLI hook ingress to ferry
-   * `PORACODE_HOOK_URL` / `PORACODE_HOOK_SECRET` / `PORACODE_THREAD_ID` etc.
+   * `CRAFTSTATION_HOOK_URL` / `CRAFTSTATION_HOOK_SECRET` / `CRAFTSTATION_THREAD_ID` etc.
    */
   extraEnv?: Record<string, string>;
   structuredSession?: StructuredSessionHandle;
@@ -613,8 +613,8 @@ export class SpawnPipeline {
         );
 
     // Append CLI hook plugin args (e.g. Claude `--settings <path>`); env vars
-    // (`PORACODE_HOOK_URL`, `PORACODE_HOOK_SECRET`, `PORACODE_THREAD_ID`,
-    // `PORACODE_AGENT_KIND`, `PORACODE_HOOK_PROTOCOL_VERSION`) flow through
+    // (`CRAFTSTATION_HOOK_URL`, `CRAFTSTATION_HOOK_SECRET`, `CRAFTSTATION_THREAD_ID`,
+    // `CRAFTSTATION_AGENT_KIND`, `CRAFTSTATION_HOOK_PROTOCOL_VERSION`) flow through
     // `spawnThread` → `agentEnv` so they end up in the PTY env on every
     // platform (WSL, win32, posix). Failure to resolve plugin extras silently
     // degrades to L2 — the supervisor must never block thread creation on
@@ -932,7 +932,7 @@ export class SpawnPipeline {
     }
 
     const agentEnv = this.resolveAgentProcessEnv(input.adapter);
-    const cliHookEnvInjected = Boolean(input.extraEnv?.PORACODE_HOOK_URL);
+    const cliHookEnvInjected = Boolean(input.extraEnv?.CRAFTSTATION_HOOK_URL);
     // `baseSpawnEnv` underlies every lane; the location-specific `spawnEnv`
     // layers on top so a provider can still override per platform.
     const providerEnv = mergeSpawnEnv(
@@ -1324,10 +1324,10 @@ export class SpawnPipeline {
       // Terminal presentation can safely fall back to its PTY path when the
       // optional structured helper cannot be created, so report once here.
       captureSupervisorException(diagnosticError, {
-        "poracode.feature_area": structuredRuntimeFeatureArea("session-creation"),
-        ...(presentationMode ? { "poracode.presentation": presentationMode } : {}),
-        "poracode.provider": agentKind,
-        "poracode.runtime_kind": "structured",
+        "craftstation.feature_area": structuredRuntimeFeatureArea("session-creation"),
+        ...(presentationMode ? { "craftstation.presentation": presentationMode } : {}),
+        "craftstation.provider": agentKind,
+        "craftstation.runtime_kind": "structured",
       });
       return undefined;
     }

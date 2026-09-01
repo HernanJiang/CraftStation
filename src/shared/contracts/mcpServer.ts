@@ -11,7 +11,7 @@ export interface McpToolAnnotations {
   openWorldHint?: boolean;
 }
 
-/** Stable ids for the MCP servers provided by Poracode itself. */
+/** Stable ids for the MCP servers provided by CraftStation itself. */
 export const BUILT_IN_MCP_SERVER_IDS = [
   "browser",
   "crossagents",
@@ -27,10 +27,10 @@ export const BUILT_IN_MCP_SERVER_NAMES: Record<BuiltInMcpServerId, string> = {
   crossagents: "crossagents",
   chrome: "chrome",
   "computer-use": "computer_use",
-  "app-controls": "poracode",
+  "app-controls": "craftstation",
 };
 
-/** Tool catalogs advertised by each Poracode-owned MCP server. */
+/** Tool catalogs advertised by each CraftStation-owned MCP server. */
 export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
   browser: [
     "api",
@@ -312,7 +312,7 @@ export type DiscoverExternalMcpServersResult = z.infer<
   typeof discoverExternalMcpServersResultSchema
 >;
 
-/** Canonical provider-agnostic custom MCP server managed by Poracode. */
+/** Canonical provider-agnostic custom MCP server managed by CraftStation. */
 export const mcpServerSchema = z
   .object({
     id: z.string().min(1),

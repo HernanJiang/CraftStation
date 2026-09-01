@@ -9,7 +9,7 @@
   "license": "MIT",
   "keywords": ["github", "pull requests", "issues", "ci", "code review"],
   "extensions": {
-    "com.poracode.client": {
+    "com.craftstation.client": {
       "title": "GitHub",
       "category": "developer-tools",
       "featured": true,

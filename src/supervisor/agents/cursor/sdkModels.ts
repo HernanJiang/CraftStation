@@ -33,7 +33,7 @@ export interface CursorSdkModelSelection {
 const SAFE_PARAM_TOKEN = /^[^,[\]=]+$/u;
 
 /**
- * Parameter families that Poracode already exposes as generic composer
+ * Parameter families that CraftStation already exposes as generic composer
  * controls. Cursor's account catalog names the same concept differently across
  * models (`context`, `context_size`, `context_window`, `contextSize`,
  * `reasoning`, `effort`, `reasoning_effort`, …), so families are matched by
@@ -87,7 +87,7 @@ function setParam(
 }
 
 /**
- * Convert Poracode's fixed composer controls plus Cursor's bracket-encoded
+ * Convert CraftStation's fixed composer controls plus Cursor's bracket-encoded
  * variant ids into the SDK's open-ended `{ id, params }` representation.
  * Unknown/retired values are dropped against the live model catalog instead
  * of sending a parameter Cursor no longer accepts.
@@ -148,7 +148,7 @@ export function buildCursorSdkModelSelection(
   if (thinking && config.thinking !== undefined)
     setParam(output, thinking, String(config.thinking), fixedParamIds);
 
-  // Cursor's canonical docs require an explicit Router objective. Poracode's
+  // Cursor's canonical docs require an explicit Router objective. CraftStation's
   // generic controls have no arbitrary-parameter picker, so Balance is the
   // stable default unless a catalog variant encoded another value in the id.
   // Keep this invariant during a resumed thread's temporary catalog outage:
@@ -224,7 +224,7 @@ function modelLabel(model: CursorSdkModel, effort: CursorSdkModelParameter | und
 }
 
 /**
- * Project the account-specific SDK catalog into Poracode's generic picker.
+ * Project the account-specific SDK catalog into CraftStation's generic picker.
  * Known parameter families become ordinary controls; named presets are also
  * retained as bracket-encoded model rows so Router and future arbitrary SDK
  * parameters remain selectable without adding provider fields to ThreadConfig.
@@ -369,7 +369,7 @@ function variantFamilyValue(
  *
  * SDK runs are headless: there is no interactive permission request. The
  * `default` approval id therefore means Cursor Auto-review, while `never`
- * preserves Poracode's provider-neutral full-access preset. The sandbox is a
+ * preserves CraftStation's provider-neutral full-access preset. The sandbox is a
  * separate, enforceable boundary and reuses the shared Codex-compatible ids.
  */
 export function cursorSdkGuiCapabilities(

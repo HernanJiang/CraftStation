@@ -214,7 +214,7 @@ export function usePluginMentionItems(
       !core ||
       !isPluginSkillEnabled(plugin, state, core.folder) ||
       !isPluginSupportedForProject(plugin, readBridge().platform, projectLocation) ||
-      plugin.poracode.builtInMcpServerIds.some((id) => disabledBuiltIns[id] === true)
+      plugin.craftstation.builtInMcpServerIds.some((id) => disabledBuiltIns[id] === true)
     ) {
       return [];
     }

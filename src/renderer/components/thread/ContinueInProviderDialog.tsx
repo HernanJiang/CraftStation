@@ -664,7 +664,7 @@ export function ContinueInProviderDialog(props: {
                         <Button
                           isIconOnly
                           aria-label={t`Attach files`}
-                          className="poracode-composer-menu min-w-9 px-2"
+                          className="craftstation-composer-menu min-w-9 px-2"
                           size="sm"
                           variant="ghost"
                           onPress={() => {

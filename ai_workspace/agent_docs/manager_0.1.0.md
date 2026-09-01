@@ -2,7 +2,7 @@
 
 ## Objective
 
-在新的 PoraCode-based `craftstation/` Working Copy 中证明第一条正式 CraftStation execution path：
+在新的 CraftStation-based `craftstation/` Working Copy 中证明第一条正式 CraftStation execution path：
 
 ```text
 OpenAI Model Item + Codex Harness Item
@@ -17,13 +17,13 @@ OpenAI Model Item + Codex Harness Item
 
 ## Problem Statement
 
-用户需要 CraftStation 从“以某个 Harness 为产品本体”的路线迁移为真正的 Agent Runtime Composition System。当前 PoraCode 已经具备可靠的 Codex process、transport、session、IPC、workspace 与 persistence implementation，但其 `AgentAdapter` 与 UI/runtime abstractions 不是 CraftStation 的 Minecraft Composition Model，也向调用者暴露了过多 Harness-specific 知识。
+用户需要 CraftStation 从“以某个 Harness 为产品本体”的路线迁移为真正的 Agent Runtime Composition System。当前 CraftStation 已经具备可靠的 Codex process、transport、session、IPC、workspace 与 persistence implementation，但其 `AgentAdapter` 与 UI/runtime abstractions 不是 CraftStation 的 Minecraft Composition Model，也向调用者暴露了过多 Harness-specific 知识。
 
 v0.1.0 需要在不重写成熟 infrastructure 的前提下，让用户通过 OpenAI Model Item 与 Codex Harness Item 形成真实 Recipe，得到可执行 CraftPlan，并运行、恢复和终止 Entity/Session。
 
 ## Solution
 
-以 PoraCode 为产品代码基线，在现有 execution path 外建立 CraftStation domain 与三个关键 seam：
+以 CraftStation 为产品代码基线，在现有 execution path 外建立 CraftStation domain 与三个关键 seam：
 
 1. `crafting` 负责 `resolve / validate / compile`。
 2. `registry` 负责 Items、Recipes 与 runtime binding。
@@ -45,14 +45,14 @@ CLIProxyAPI 作为独立 Go provider/API implementation 保留，通过公开 se
 10. 作为 CraftStation 用户，我希望认证、启动、transport 与 runtime 错误被完整透传，以免系统静默 fallback 到未知路径。
 11. 作为维护者，我希望 React UI 只依赖 CraftStation contracts，以便 Codex protocol 演进不扩散到界面。
 12. 作为维护者，我希望 Crafter 不操作 process/RPC lifecycle，以便组合决策和运行执行可以独立测试与演进。
-13. 作为维护者，我希望生产 Codex Adapter 复用 PoraCode 的成熟实现，以便保留现有稳定性和功能。
+13. 作为维护者，我希望生产 Codex Adapter 复用 CraftStation 的成熟实现，以便保留现有稳定性和功能。
 14. 作为维护者，我希望通过轻量 runtime Adapter 测试 domain execution path，以便无需真实 Codex process 验证大多数行为。
-15. 作为维护者，我希望保留 PoraCode 的 workspace、terminal、IPC、persistence 与 shutdown regression surface，以便第一阶段重构不破坏桌面基础能力。
+15. 作为维护者，我希望保留 CraftStation 的 workspace、terminal、IPC、persistence 与 shutdown regression surface，以便第一阶段重构不破坏桌面基础能力。
 16. 作为未来 Feature 的设计者，我希望 Model 与 Harness 仍为独立 Items，Result 仍为 Item，以便增加新 Harness 或递归 Recipe 时无需推翻数据模型。
 
 ## Repo Evidence
 
-当前 PoraCode Codex 主链：
+当前 CraftStation Codex 主链：
 
 ```text
 React Renderer
@@ -104,7 +104,7 @@ React Renderer
 ### Runtime Behavior
 
 - `harness-runtime` Interface 接受 CraftPlan 与 lifecycle intent，不接受 Codex protocol/RPC/stdio details。
-- 生产 Codex Adapter 调用现有 PoraCode execution path；不复制第二套 Codex process/session owner。
+- 生产 Codex Adapter 调用现有 CraftStation execution path；不复制第二套 Codex process/session owner。
 - Runtime 返回 Entity identity、Session identity、canonical runtime events 与明确 lifecycle/error results。
 - 支持创建与恢复 Session、发送 prompt、接收 events/streaming/response、正常终止与必要资源清理。
 - Codex 不可用、认证失败、启动失败、连接失败、session 恢复失败与执行失败必须穿过 seam 被上层感知，不静默 fallback。
@@ -152,7 +152,7 @@ React Renderer
 
 ### v0.1/T01 — 建立 CraftStation Working Baseline 与 Regression Harness
 
-**Goal:** 新产品能以 CraftStation identity 从 PoraCode 基线安装、检查和启动，并用自动化 smoke 锁定现有桌面/Codex 基础能力。
+**Goal:** 新产品能以 CraftStation identity 从 CraftStation 基线安装、检查和启动，并用自动化 smoke 锁定现有桌面/Codex 基础能力。
 
 **Blocked by:** None。
 
@@ -179,7 +179,7 @@ React Renderer
 
 ### v0.1/T03 — 通过 Codex Runtime 运行 Entity Session
 
-**Goal:** 将 T02 的 CraftPlan 交给生产 Codex Adapter，复用 PoraCode execution path 完成 Session create/resume、prompt/events/response 与 cleanup。
+**Goal:** 将 T02 的 CraftPlan 交给生产 Codex Adapter，复用 CraftStation execution path 完成 Session create/resume、prompt/events/response 与 cleanup。
 
 **Blocked by:** T02。
 
@@ -253,7 +253,7 @@ T01 -> T02 -> T03 -> T04 -> T05 -> T06
 
 - React UI 与 Crafting domain 不依赖 Codex protocol/transport implementation。
 - Crafter 不负责 process/RPC lifecycle。
-- Codex implementation 隐藏在 `harness-runtime` 后并复用 PoraCode 稳定链路。
+- Codex implementation 隐藏在 `harness-runtime` 后并复用 CraftStation 稳定链路。
 - CLIProxyAPI Go core 未被不必要重写，provider/API concern 与 Harness execution concern 可分离。
 - deep-module Interface 同时成为主要 test surface。
 
@@ -271,7 +271,7 @@ T01 -> T02 -> T03 -> T04 -> T05 -> T06
 - Context/Tool Policy/Memory/Compaction/Verifier Items。
 - Auto-Crafting、Recipe Search、Model Fingerprint、benchmark、learned routing 与复杂 constraint solving。
 - 完整 Recipe Graph persistence。
-- 全仓架构重写或全部 PoraCode 命名替换。
+- 全仓架构重写或全部 CraftStation 命名替换。
 - 将 CLIProxyAPI 重写为 TypeScript或强制作为 Codex execution hop。
 
 ## Key Risks

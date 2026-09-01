@@ -55,7 +55,7 @@ function makeThread(id: string): Thread {
 
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "windows", path: "C:\\repo" },
   createdAt: NOW,
 };
@@ -80,7 +80,7 @@ describe("SidebarThreadGroup — experiment header", () => {
           candidates: threads.map((thread, index) => ({
             threadId: thread.id,
             agentKind: "claude",
-            worktreeBranch: `poracode/experiment-${index}`,
+            worktreeBranch: `craftstation/experiment-${index}`,
             worktreeOwnerToken: `exp-1:${thread.id}`,
             worktreeState: "owned" as const,
           })),

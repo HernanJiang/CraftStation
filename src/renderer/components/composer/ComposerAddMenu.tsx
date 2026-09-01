@@ -213,7 +213,7 @@ export function ComposerAddMenu(props: {
     <Button
       isIconOnly
       aria-label={t`Add attachment or capability`}
-      className="poracode-composer-menu min-w-9 px-2"
+      className="craftstation-composer-menu min-w-9 px-2"
       size="sm"
       variant="ghost"
       {...(mobile ? { onPress: () => setIsOpen(true) } : {})}
@@ -396,7 +396,7 @@ export function ComposerAddMenu(props: {
               experiment.onToggle(!experiment.enabled);
             }
           }}
-          className="poracode-menu min-w-52"
+          className="craftstation-menu min-w-52"
         >
           {showFileOption ? (
             <Dropdown.Item id="file" textValue={t`File`}>
@@ -444,7 +444,7 @@ export function ComposerAddMenu(props: {
                     <div
                       role="list"
                       aria-label={t`MCP servers`}
-                      className="poracode-menu max-h-72 min-w-56 overflow-y-auto p-1"
+                      className="craftstation-menu max-h-72 min-w-56 overflow-y-auto p-1"
                     >
                       {visibleMcpServers.map((server) => {
                         const Icon = server.descriptor.icon;
@@ -492,7 +492,7 @@ export function ComposerAddMenu(props: {
                       selectionMode="multiple"
                       selectedKeys={submenuSelectedKeys}
                       onSelectionChange={handleSubmenuSelection}
-                      className="poracode-menu max-h-72 min-w-56 overflow-y-auto"
+                      className="craftstation-menu max-h-72 min-w-56 overflow-y-auto"
                     >
                       {visibleMcpServers.map((server) => {
                         const Icon = server.descriptor.icon;

@@ -227,7 +227,7 @@ const inlineCodeChipClass =
 const markdownCodeBlockClass =
   "not-prose my-2 min-w-0 overflow-x-hidden rounded bg-foreground/10 px-[0.5em] py-[0.25em] font-mono text-[0.875em] leading-snug text-foreground";
 const transformMarkdownUrl: UrlTransform = (url, key, node) =>
-  key === "src" && node.tagName === "img" && url.startsWith("poracode-local://")
+  key === "src" && node.tagName === "img" && url.startsWith("craftstation-local://")
     ? url
     : defaultUrlTransform(url, key, node);
 
@@ -253,12 +253,12 @@ function rewriteLocalImageUrls(
   if (node.tagName === "img" && typeof src === "string") {
     const rewritten = resolveMarkdownImageUrl(src);
     if (rewritten) node.properties!.src = rewritten;
-    // Remote PWA: swap poracode-local sources for the desktop's authenticated
+    // Remote PWA: swap craftstation-local sources for the desktop's authenticated
     // HTTP image endpoint. A no-op inside the desktop Electron app, which
     // never installs a resolver (see shared/localImageDisplay.ts).
     const localUrl = node.properties!.src as string;
     node.properties!.src =
-      localUrl.startsWith("poracode-local://") && remoteLocalImageUrl
+      localUrl.startsWith("craftstation-local://") && remoteLocalImageUrl
         ? remoteLocalImageUrl(localUrl) || localUrl
         : resolveLocalImageDisplayUrl(localUrl);
   }
@@ -278,7 +278,7 @@ function allowLocalImageProtocol(plugin: RehypePlugins[number]): RehypePlugins[n
       ...schema,
       protocols: {
         ...protocols,
-        src: [...(protocols.src ?? []), "poracode-local"],
+        src: [...(protocols.src ?? []), "craftstation-local"],
       },
     },
   ] as RehypePlugins[number];

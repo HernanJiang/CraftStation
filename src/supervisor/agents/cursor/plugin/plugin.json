@@ -1,5 +1,5 @@
 {
-  "name": "poracode-status-cursor",
+  "name": "craftstation-status-cursor",
   "version": "1.0.4",
-  "description": "Cursor CLI lifecycle hook forwarder for Poracode thread status"
+  "description": "Cursor CLI lifecycle hook forwarder for CraftStation thread status"
 }

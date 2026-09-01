@@ -70,7 +70,7 @@ import { crossagentRankingPreferences } from "@/shared/crossagentRanking";
 import type { CrossagentRoutingState } from "@/shared/crossagentRanking";
 import type { ConfirmCrossagentRoutingOverridePayload } from "@/shared/ipc/procedures/mcp";
 import { msg } from "@/shared/messages";
-import { resolvePoracodeBaseDir, resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationBaseDir, resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { joinProjectPosixPath } from "@/shared/wsl";
 import { prefetchNativeNodeRuntime } from "./runtime/prefetchNativeNode";
 import {
@@ -121,7 +121,7 @@ import {
   listCrossagentEligibleProviders,
 } from "./crossagentMcp/routingSnapshot";
 import { dispatchAgentEvent } from "./runtime/agentEventDispatcher";
-import { hookDebugEnvelope, isPoracodeHookDebug } from "./runtime/hookDebug";
+import { hookDebugEnvelope, isCraftStationHookDebug } from "./runtime/hookDebug";
 import { SupervisorSharedSettingsCache } from "./runtime/supervisorSharedSettings";
 import { WslBridgeServer } from "./wsl/bridge";
 import { WslBridgeClient } from "./wsl/bridge/client";
@@ -369,10 +369,10 @@ export class SupervisorRuntime {
     // `./undefined/settings.json` in cwd. Also reject bare relative paths —
     // the supervisor must always operate out of an absolute baseDir so
     // writes land somewhere predictable regardless of cwd at spawn time.
-    const rawBaseDir = process.env.PORACODE_DATA_DIR?.trim();
+    const rawBaseDir = process.env.CRAFTSTATION_DATA_DIR?.trim();
     const envBaseDir =
       rawBaseDir && rawBaseDir !== "undefined" && isAbsolute(rawBaseDir) ? rawBaseDir : undefined;
-    const baseDir = envBaseDir ?? resolvePoracodeBaseDir();
+    const baseDir = envBaseDir ?? resolveCraftStationBaseDir();
     this.baseDir = baseDir;
     this.runtimeSegmentLedger = new RuntimeSegmentLedger(baseDir);
     this.sessionHandoffCoordinator = new SessionHandoffCoordinator({
@@ -421,7 +421,7 @@ export class SupervisorRuntime {
     this.mcpProbeService = new McpProbeService({
       applyAuthorization: (server) => this.mcpOAuthService.applyAuthorizationToServer(server),
     });
-    const paths = resolvePoracodePaths(baseDir);
+    const paths = resolveCraftStationPaths(baseDir);
     this.logsDir = paths.terminalLogsDir;
     this.settingsPath = paths.settingsPath;
     this.acpIconsDir = paths.acpIconsDir;
@@ -468,7 +468,7 @@ export class SupervisorRuntime {
       emit,
     });
     this.pluginRegistry = new PluginRegistry({
-      bundledPluginsDir: () => process.env.PORACODE_BUNDLED_PLUGINS_DIR?.trim() || undefined,
+      bundledPluginsDir: () => process.env.CRAFTSTATION_BUNDLED_PLUGINS_DIR?.trim() || undefined,
       userPluginsDir: () => paths.pluginsDir,
     });
     this.pluginDataDir = paths.pluginDataDir;
@@ -494,7 +494,7 @@ export class SupervisorRuntime {
       // `preferredNotifChannel: "iterm2"` all stay in place so L2 keeps
       // flowing; we just ignore the L1 signal here.
       if (this.sharedSettingsCache.read().disableCliHookPlugin) {
-        if (isPoracodeHookDebug()) {
+        if (isCraftStationHookDebug()) {
           console.log(`[supervisor] hook-debug: L1 envelope dropped (dev toggle) ← ${source}`, {
             threadId: envelope.threadId,
             sessionId: envelope.sessionId,
@@ -512,7 +512,7 @@ export class SupervisorRuntime {
         onRoutedEvent: (session, env) =>
           this.threadSessionManager.noteCliHookPluginActivity(session, env),
         onUnroutable: (env) => {
-          if (isPoracodeHookDebug()) {
+          if (isCraftStationHookDebug()) {
             console.warn(
               `[supervisor] hook-debug: envelope NOT ROUTED (no live thread) ← ${source}`,
               {
@@ -534,8 +534,8 @@ export class SupervisorRuntime {
         adapters: this.adapters,
         settingsPath: this.settingsPath,
         baseDir,
-        ...(process.env.PORACODE_HOOK_PORT
-          ? { preferredPort: Number(process.env.PORACODE_HOOK_PORT) }
+        ...(process.env.CRAFTSTATION_HOOK_PORT
+          ? { preferredPort: Number(process.env.CRAFTSTATION_HOOK_PORT) }
           : {}),
       },
       dispatchEnvelope,
@@ -552,7 +552,7 @@ export class SupervisorRuntime {
         onEvent: (envelope) => runHookDispatch(envelope, "wsl-bridge"),
         onBridgeExit: (distro) => this._projectWatcher?.handleWslBridgeExit(distro),
         onError: (message, error) => {
-          if (isPoracodeHookDebug()) {
+          if (isCraftStationHookDebug()) {
             console.warn(`[supervisor] hook-debug: ${message}`, error);
           }
         },
@@ -887,7 +887,10 @@ export class SupervisorRuntime {
       await this.threadSessionManager.resolveThreadServerRequest(payload);
       return;
     }
-    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+    const active = this.sessionHandoffCoordinator.assertActiveExecution(
+      payload.threadId,
+      payload.execution,
+    );
     if (!craftedSession.respondToRequest) {
       throw new Error(`Crafted thread ${payload.threadId} does not support request resolution.`);
     }
@@ -895,6 +898,21 @@ export class SupervisorRuntime {
     const pending = this.craftedRequestsByThread.get(payload.threadId)?.get(requestId);
     if (!pending) {
       throw new Error(`Crafted thread ${payload.threadId} has no pending request ${requestId}.`);
+    }
+    // v0.9 F1 origin binding: the request must have been opened under the
+    // Segment that is still active, so a stale-origin request (e.g. answered
+    // after a handoff) can never resolve its response into the new Segment.
+    if (
+      !pending.execution ||
+      pending.execution.segmentId !== active.id ||
+      pending.execution.runtimeSessionId !== active.runtimeSessionId ||
+      pending.execution.bindingEpoch !== active.bindingEpoch
+    ) {
+      throw new SessionHandoffError(
+        "HANDOFF_EXECUTION_STALE",
+        "failed",
+        `Crafted request ${requestId} originated on a stale Runtime Segment binding.`,
+      );
     }
     const resolution: CraftRequestResolution = resolveCraftedRequest(pending, payload.response);
     await craftedSession.respondToRequest(requestId, resolution);
@@ -1643,16 +1661,16 @@ export class SupervisorRuntime {
     this.nativeHarnessSessions.set(harnessKind, session);
     if (binding) this.craftedSessionBindings.set(threadId, binding);
     else this.craftedSessionBindings.delete(threadId);
-    const activeSegment =
-      segment ??
-      (plan && entityId
-        ? this.sessionHandoffCoordinator.ensureInitialSegment({
+    const ensuredInitialSegment =
+      segment || !plan || !entityId
+        ? undefined
+        : this.sessionHandoffCoordinator.ensureInitialSegment({
             threadId,
             plan,
             entityId,
             session,
-          })
-        : undefined);
+          });
+    const activeSegment = segment ?? ensuredInitialSegment;
     let subscriptions = this.craftedSessionUnsubscribers.get(threadId);
     if (!subscriptions) {
       subscriptions = new Map();
@@ -1736,6 +1754,29 @@ export class SupervisorRuntime {
       };
       publishMarker(marker);
       publishMarker({ ...marker, type: "item.completed" });
+    }
+    // v0.9 F1: the FIRST crafted Segment never runs a handoff transaction, so
+    // without this publish the renderer never learns the active execution
+    // binding and every fenced active command fails closed. Reuse the existing
+    // session-switch-state channel (phase="active" + activeSegment) so the
+    // renderer's single envelope accessor stays the only epoch source; the
+    // durable copy lets readSessionSwitchState re-seed after a reload instead
+    // of clearing the binding.
+    if (ensuredInitialSegment) {
+      const now = new Date().toISOString();
+      const bindingState: import("@/shared/sessionHandoff").SessionSwitchState = {
+        requestId: `segment:${ensuredInitialSegment.id}`,
+        threadId,
+        mode: "after-current-turn",
+        phase: "active",
+        sourceSegmentId: ensuredInitialSegment.id,
+        targetBinding: ensuredInitialSegment.runtimeBinding,
+        activeSegment: ensuredInitialSegment,
+        requestedAt: ensuredInitialSegment.activatedAt ?? ensuredInitialSegment.createdAt,
+        updatedAt: now,
+      };
+      this.runtimeSegmentLedger.saveSwitchState(bindingState);
+      this.emit({ type: "session-switch-state", threadId, state: bindingState });
     }
   }
 
@@ -2054,7 +2095,7 @@ export class SupervisorRuntime {
   }
 
   /**
-   * The worktree roots Poracode considers "managed" for prune: the built-in
+   * The worktree roots CraftStation considers "managed" for prune: the built-in
    * default, the resolved global root (custom base or project-relative), and the
    * project-relative root. Per-project custom bases are excluded on purpose so we
    * never auto-delete a user-chosen directory.

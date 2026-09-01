@@ -2,23 +2,23 @@ import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSy
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { writeFileAtomic } from "@/shared/atomicFile";
-import { type PoracodeChannel, resolvePoracodeChannel } from "@/shared/channel";
-import { resolvePoracodeBaseDir } from "@/shared/poracodePaths";
+import { type CraftStationChannel, resolveCraftStationChannel } from "@/shared/channel";
+import { resolveCraftStationBaseDir } from "@/shared/craftstationPaths";
 import Database from "better-sqlite3";
 import { resolveBetterSqliteNativeBindingOptions } from "./db/connection";
 
 const MIGRATION_VERSION = 1;
-const MIGRATION_MARKER_FILENAME = ".lightcode-migration-v1.json";
-const MIGRATION_REQUEST_SUFFIX = ".lightcode-migration-request-v1";
+const MIGRATION_MARKER_FILENAME = ".craftstation-migration-v1.json";
+const MIGRATION_REQUEST_SUFFIX = ".craftstation-migration-request-v1";
 
-const LEGACY_DATA_DIR_NAME: Record<PoracodeChannel, string> = {
-  stable: ".lightcode",
-  nightly: ".lightcode-nightly",
+const LEGACY_DATA_DIR_NAME: Record<CraftStationChannel, string> = {
+  stable: ".craftstation",
+  nightly: ".craftstation-nightly",
 };
 
-const LEGACY_PRODUCT_NAME: Record<PoracodeChannel, string> = {
-  stable: "Lightcode",
-  nightly: "Lightcode Nightly",
+const LEGACY_PRODUCT_NAME: Record<CraftStationChannel, string> = {
+  stable: "CraftStation",
+  nightly: "CraftStation Nightly",
 };
 
 const TRANSIENT_DATA_ROOT_ENTRIES = new Set([
@@ -38,7 +38,7 @@ const TRANSIENT_ELECTRON_ENTRIES = new Set([
 
 export interface LegacyDataMigrationOptions {
   readonly baseDir: string;
-  readonly channel?: PoracodeChannel;
+  readonly channel?: CraftStationChannel;
   readonly electronUserDataDir?: string;
   readonly legacyElectronUserDataDir?: string;
   readonly legacyBaseDir?: string;
@@ -86,21 +86,21 @@ function requestPath(baseDir: string): string {
   return `${baseDir}${MIGRATION_REQUEST_SUFFIX}`;
 }
 
-function isDefaultDataRoot(baseDir: string, channel: PoracodeChannel): boolean {
-  return normalizedPath(baseDir) === normalizedPath(resolvePoracodeBaseDir(channel));
+function isDefaultDataRoot(baseDir: string, channel: CraftStationChannel): boolean {
+  return normalizedPath(baseDir) === normalizedPath(resolveCraftStationBaseDir(channel));
 }
 
-function legacyDataDir(channel: PoracodeChannel, override?: string): string {
+function legacyDataDir(channel: CraftStationChannel, override?: string): string {
   return override ?? join(homedir(), LEGACY_DATA_DIR_NAME[channel]);
 }
 
-export function legacyProductNameFor(channel: PoracodeChannel): string {
+export function legacyProductNameFor(channel: CraftStationChannel): string {
   return LEGACY_PRODUCT_NAME[channel];
 }
 
 function uniqueBackupPath(targetDir: string): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const prefix = `${targetDir}.before-lightcode-import-${timestamp}`;
+  const prefix = `${targetDir}.before-craftstation-import-${timestamp}`;
   let candidate = prefix;
   let suffix = 2;
   while (existsSync(candidate)) {
@@ -141,7 +141,7 @@ function replaceDirectoryFromLegacy(
   transientEntries: ReadonlySet<string>,
   prepareStaging?: (stagingDir: string) => void,
 ): string | undefined {
-  const stagingDir = `${targetDir}.importing-lightcode`;
+  const stagingDir = `${targetDir}.importing-craftstation`;
   let backupDir: string | undefined;
 
   rmSync(stagingDir, { recursive: true, force: true });
@@ -216,7 +216,7 @@ function removeMigrationRequest(baseDir: string): void {
 
 export function resolveLegacyElectronUserDataDir(
   electronUserDataDir: string,
-  channel: PoracodeChannel = resolvePoracodeChannel(),
+  channel: CraftStationChannel = resolveCraftStationChannel(),
   isDev = false,
 ): string {
   const currentProductDir = isDev ? dirname(electronUserDataDir) : electronUserDataDir;
@@ -227,7 +227,7 @@ export function resolveLegacyElectronUserDataDir(
 export function migrateLegacyDataOnLaunch(
   options: LegacyDataMigrationOptions,
 ): LegacyDataMigrationResult {
-  const channel = options.channel ?? resolvePoracodeChannel();
+  const channel = options.channel ?? resolveCraftStationChannel();
   if (!options.allowCustomDataRoot && !isDefaultDataRoot(options.baseDir, channel)) {
     return { status: "unavailable" };
   }
@@ -320,7 +320,7 @@ export function migrateLegacyDataOnLaunch(
         )
         .join("; ");
       throw new Error(
-        `Lightcode data import failed and Poracode data could not be fully restored: ${details}`,
+        `CraftStation data import failed and CraftStation data could not be fully restored: ${details}`,
         { cause: error },
       );
     }
@@ -337,7 +337,7 @@ export function migrateLegacyDataOnLaunch(
 export function requestLegacyDataMigration(
   options: LegacyDataMigrationOptions,
 ): LegacyDataMigrationRequestResult {
-  const channel = options.channel ?? resolvePoracodeChannel();
+  const channel = options.channel ?? resolveCraftStationChannel();
   if (!options.allowCustomDataRoot && !isDefaultDataRoot(options.baseDir, channel)) {
     return { status: "unavailable" };
   }

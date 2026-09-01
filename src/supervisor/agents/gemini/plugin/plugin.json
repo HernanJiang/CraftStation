@@ -1,5 +1,5 @@
 {
-  "name": "poracode-status-gemini",
+  "name": "craftstation-status-gemini",
   "version": "1.2.3",
-  "description": "Gemini CLI lifecycle hook forwarder for Poracode thread status"
+  "description": "Gemini CLI lifecycle hook forwarder for CraftStation thread status"
 }

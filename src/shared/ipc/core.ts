@@ -27,7 +27,7 @@ function toKebabCase(value: string): string {
 }
 
 export function createChannel(name: string): string {
-  return `poracode:${toKebabCase(name)}`;
+  return `craftstation:${toKebabCase(name)}`;
 }
 
 export function defineIpcProcedure<

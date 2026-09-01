@@ -161,7 +161,7 @@ describe("ProviderModelMenu", () => {
 
     const listbox = await screen.findByRole("listbox", { name: "Models" });
     expect(listbox).toHaveClass("no-scrollbar");
-    expect(listbox.querySelector(".poracode-model-menu-bottom-spacer")).toHaveAttribute(
+    expect(listbox.querySelector(".craftstation-model-menu-bottom-spacer")).toHaveAttribute(
       "data-scroll-end-gap",
       "6",
     );
@@ -613,7 +613,7 @@ describe("ProviderModelMenu", () => {
       });
       expect(row).not.toBeNull();
       const label = within(row as HTMLElement).getByText(subProviderLabel);
-      const providerIcon = (row as HTMLElement).querySelector(".poracode-provider-icon");
+      const providerIcon = (row as HTMLElement).querySelector(".craftstation-provider-icon");
       expect(providerIcon).not.toBeNull();
       expect(label.compareDocumentPosition(providerIcon as Element)).toBe(
         Node.DOCUMENT_POSITION_FOLLOWING,

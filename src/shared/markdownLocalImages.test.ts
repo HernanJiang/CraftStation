@@ -3,13 +3,13 @@ import { resolveMarkdownImageUrl, rewriteMarkdownLocalImageUrls } from "./markdo
 import { resolveLocalFileUrlPath, toLocalFileUrl } from "./promptContent";
 
 describe("resolveMarkdownImageUrl", () => {
-  it("converts Windows absolute paths to poracode-local URLs", () => {
+  it("converts Windows absolute paths to craftstation-local URLs", () => {
     expect(resolveMarkdownImageUrl("C:\\Users\\me\\.grok\\sessions\\shot.png")).toBe(
       toLocalFileUrl("C:\\Users\\me\\.grok\\sessions\\shot.png"),
     );
   });
 
-  it("converts POSIX absolute paths to poracode-local URLs", () => {
+  it("converts POSIX absolute paths to craftstation-local URLs", () => {
     expect(resolveMarkdownImageUrl("/tmp/shot.png")).toBe(toLocalFileUrl("/tmp/shot.png"));
   });
 
@@ -28,7 +28,7 @@ describe("resolveMarkdownImageUrl", () => {
   it("leaves remote and data URLs alone", () => {
     expect(resolveMarkdownImageUrl("https://example.test/a.png")).toBeNull();
     expect(resolveMarkdownImageUrl("data:image/png;base64,abc")).toBeNull();
-    expect(resolveMarkdownImageUrl("poracode-local://local/C:/tmp/a.png")).toBeNull();
+    expect(resolveMarkdownImageUrl("craftstation-local://local/C:/tmp/a.png")).toBeNull();
   });
 
   it("does not promote non-image relative paths", () => {
@@ -62,8 +62,8 @@ describe("rewriteMarkdownLocalImageUrls", () => {
     // `C:\Users\me\.grok\…` into `C:\Users\me.grok\…` if left unrewritten.
     const input = "![Before](C:\\Users\\me\\.grok\\sessions\\E%3A%5Cwork\\assets\\image.png)";
     const out = rewriteMarkdownLocalImageUrls(input);
-    expect(out).toContain("poracode-local://local/");
-    expect(out).toMatch(/^!\[[^\]]*\]\(<poracode-local:\/\/local\/[^>]+>\)$/);
+    expect(out).toContain("craftstation-local://local/");
+    expect(out).toMatch(/^!\[[^\]]*\]\(<craftstation-local:\/\/local\/[^>]+>\)$/);
 
     const url = out.match(/!\[[^\]]*\]\(<([^>]+)>\)/)?.[1];
     expect(url).toBeTruthy();
@@ -75,9 +75,11 @@ describe("rewriteMarkdownLocalImageUrls", () => {
   it("rewrites relative verification-shot paths when a project root is provided", () => {
     const out = rewriteMarkdownLocalImageUrls(
       "See ![After](verification-shots/01-collapsed-same-file-edits.png)",
-      { projectRoot: "E:\\work\\lightcode\\.poracode\\worktrees\\poracode-brave-willow" },
+      {
+        projectRoot: "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-brave-willow",
+      },
     );
-    expect(out).toContain("poracode-local://local/E:");
+    expect(out).toContain("craftstation-local://local/E:");
     expect(out).toContain("verification-shots");
     expect(out).not.toContain("](verification-shots/");
   });
@@ -93,9 +95,10 @@ describe("rewriteMarkdownLocalImageUrls", () => {
   });
 
   it("round-trips the nightly Grok ACP verification markdown paths", () => {
-    const projectRoot = "E:\\work\\lightcode\\.poracode\\worktrees\\poracode-brave-willow-b4fc6c26";
+    const projectRoot =
+      "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-brave-willow-b4fc6c26";
     const sessionAsset =
-      "C:\\Users\\sdsle\\.grok\\sessions\\E%3A%5Cwork%5Clightcode%5C.poracode%5Cworktrees%5Cporacode-brave-willow-b4fc6c26\\019f66fb-2716-7c00-ac5a-85ca2c4e8b58\\assets\\image-ea056148-aef3-4592-a6b7-1b3ec77fe7bd.png";
+      "C:\\Users\\sdsle\\.grok\\sessions\\E%3A%5Cwork%5Ccraftstation%5C.craftstation%5Cworktrees%5Ccraftstation-brave-willow-b4fc6c26\\019f66fb-2716-7c00-ac5a-85ca2c4e8b58\\assets\\image-ea056148-aef3-4592-a6b7-1b3ec77fe7bd.png";
     const md = [
       `![Before: individual Edit rows](${sessionAsset})`,
       "",
@@ -114,11 +117,12 @@ describe("rewriteMarkdownLocalImageUrls", () => {
 
   it("rewrites Grok image_gen relative paths against the session media root", () => {
     const sessionDir =
-      "C:\\Users\\sdsle\\.grok\\sessions\\E%3A%5Cwork%5Clightcode%5C.poracode%5Cworktrees%5Cporacode-warm-yak-d27ed350\\019f6789-4fd1-7740-a828-9a42918d42e8";
+      "C:\\Users\\sdsle\\.grok\\sessions\\E%3A%5Cwork%5Ccraftstation%5C.craftstation%5Cworktrees%5Ccraftstation-warm-yak-d27ed350\\019f6789-4fd1-7740-a828-9a42918d42e8";
     const out = rewriteMarkdownLocalImageUrls(
       "![Modal PDF preview](images/4.jpg)\n\n![Editor mockup](images/1.jpg)",
       {
-        projectRoot: "E:\\work\\lightcode\\.poracode\\worktrees\\poracode-warm-yak-d27ed350",
+        projectRoot:
+          "E:\\work\\craftstation\\.craftstation\\worktrees\\craftstation-warm-yak-d27ed350",
         extraRoots: [sessionDir],
       },
     );

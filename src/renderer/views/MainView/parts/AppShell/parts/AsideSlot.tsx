@@ -130,7 +130,7 @@ export function AsideSlot(props: {
       ? { transition: `opacity ${contentFadeDuration} ${contentFadeEase}` }
       : {
           animation: `${
-            contentVisible ? "poracode-panel-content-in" : "poracode-panel-content-out"
+            contentVisible ? "craftstation-panel-content-in" : "craftstation-panel-content-out"
           } ${contentFadeDuration} ${contentFadeEase}`,
         }),
     willChange: "opacity",
@@ -142,7 +142,9 @@ export function AsideSlot(props: {
       {showHandle && (
         <div
           key="handle"
-          className={isHorizontal ? "poracode-resize-handle-horizontal" : "poracode-resize-handle"}
+          className={
+            isHorizontal ? "craftstation-resize-handle-horizontal" : "craftstation-resize-handle"
+          }
           data-craftstation-workspace-split-handle={isHorizontal ? undefined : ""}
           onMouseDown={onResizeStart}
           onKeyDown={onResizeKeyDown}
@@ -156,7 +158,7 @@ export function AsideSlot(props: {
         {showOverlayHandle && (
           <div
             key="overlay-handle"
-            className="poracode-resize-handle-overlay"
+            className="craftstation-resize-handle-overlay"
             style={{ top: overlayTop }}
             onMouseDown={onResizeStart}
             onKeyDown={onResizeKeyDown}

@@ -51,7 +51,7 @@ export function BranchFooterActions(props: {
       {/* Create new branch */}
       <ListBox
         aria-label={t`Actions`}
-        className="poracode-menu"
+        className="craftstation-menu"
         selectionMode="none"
         onAction={() => {
           setIsCreating(true);
@@ -103,7 +103,7 @@ export function BranchFooterActions(props: {
       {!hideWorktreeToggle && (
         <ListBox
           aria-label={t`Options`}
-          className="poracode-menu"
+          className="craftstation-menu"
           selectionMode="none"
           onAction={() => {
             const next = !worktreeMode;
@@ -174,7 +174,7 @@ export function BranchFooterActions(props: {
       {showMoveBranch && (
         <ListBox
           aria-label={t`Move changes to a new worktree`}
-          className="poracode-menu"
+          className="craftstation-menu"
           selectionMode="none"
           disabledKeys={isMovingBranch ? ["move-branch"] : []}
           onAction={() => onMoveBranchToWorktree()}

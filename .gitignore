@@ -14,7 +14,7 @@ build/icons/
 tmp/
 .agent/
 mcps/
-poracode-diff.patch
+craftstation-diff.patch
 review.diff
 .spec-workflow/
 **/worktrees/

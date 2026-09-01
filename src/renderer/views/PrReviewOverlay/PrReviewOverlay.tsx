@@ -216,7 +216,7 @@ export function PrReviewOverlay(props: {
             {prUrl && (
               <Link
                 aria-label={t`Open PR on GitHub`}
-                className="poracode-overlay-header__controls shrink-0 text-muted hover:text-foreground"
+                className="craftstation-overlay-header__controls shrink-0 text-muted hover:text-foreground"
                 onPress={() => openExternalWithFeedback(prUrl)}
               >
                 <ExternalLink className="size-3.5" />
@@ -230,7 +230,7 @@ export function PrReviewOverlay(props: {
             )}
           </div>
           {showDiffControls && selectedFile && (
-            <div className="poracode-overlay-header__controls flex items-center gap-3">
+            <div className="craftstation-overlay-header__controls flex items-center gap-3">
               <button
                 type="button"
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:text-foreground"
@@ -247,7 +247,7 @@ export function PrReviewOverlay(props: {
 
           <div className="flex-1" />
 
-          <div className="poracode-overlay-header__controls flex items-center gap-1">
+          <div className="craftstation-overlay-header__controls flex items-center gap-1">
             {showDiffControls && (
               <>
                 <button

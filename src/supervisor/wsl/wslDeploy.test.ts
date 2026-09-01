@@ -26,26 +26,26 @@ afterEach(() => {
       // ignore
     }
   }
-  delete process.env.PORACODE_WSL_HELPERS_DIR;
-  delete process.env.PORACODE_WSL_WATCHER_DIR;
+  delete process.env.CRAFTSTATION_WSL_HELPERS_DIR;
+  delete process.env.CRAFTSTATION_WSL_WATCHER_DIR;
 });
 
 describe("resolveWslHelpersDir", () => {
-  it("prefers PORACODE_WSL_HELPERS_DIR over the legacy fallback", () => {
-    process.env.PORACODE_WSL_HELPERS_DIR = "C:/new/helpers";
-    process.env.PORACODE_WSL_WATCHER_DIR = "C:/old/watcher";
+  it("prefers CRAFTSTATION_WSL_HELPERS_DIR over the legacy fallback", () => {
+    process.env.CRAFTSTATION_WSL_HELPERS_DIR = "C:/new/helpers";
+    process.env.CRAFTSTATION_WSL_WATCHER_DIR = "C:/old/watcher";
     expect(resolveWslHelpersDir()).toBe("C:/new/helpers");
   });
 
-  it("falls back to PORACODE_WSL_WATCHER_DIR when the new var is unset", () => {
-    delete process.env.PORACODE_WSL_HELPERS_DIR;
-    process.env.PORACODE_WSL_WATCHER_DIR = "C:/legacy";
+  it("falls back to CRAFTSTATION_WSL_WATCHER_DIR when the new var is unset", () => {
+    delete process.env.CRAFTSTATION_WSL_HELPERS_DIR;
+    process.env.CRAFTSTATION_WSL_WATCHER_DIR = "C:/legacy";
     expect(resolveWslHelpersDir()).toBe("C:/legacy");
   });
 
   it("returns undefined when neither env var is set", () => {
-    delete process.env.PORACODE_WSL_HELPERS_DIR;
-    delete process.env.PORACODE_WSL_WATCHER_DIR;
+    delete process.env.CRAFTSTATION_WSL_HELPERS_DIR;
+    delete process.env.CRAFTSTATION_WSL_WATCHER_DIR;
     expect(resolveWslHelpersDir()).toBeUndefined();
   });
 });

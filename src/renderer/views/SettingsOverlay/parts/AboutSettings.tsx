@@ -12,8 +12,8 @@ import { SettingRow, SettingsPage } from "./SettingsForm";
 import appIconStableUrl from "../../../../../build/icon.png";
 import appIconNightlyUrl from "../../../../../build/icon-nightly.png";
 
-const GITHUB_REPO = "https://github.com/SDSLeon/lightcode";
-const WEBSITE_URL = "https://poracode.com/";
+const GITHUB_REPO = "https://github.com/SDSLeon/craftstation";
+const WEBSITE_URL = "https://craftstation.com/";
 
 function AboutLink(props: { href: string; children: React.ReactNode }) {
   return (
@@ -100,7 +100,7 @@ function UpdateButton() {
             // Updater failures already surface via onUpdateStatus (toast). This
             // catch only keeps an IPC transport rejection from bubbling to the
             // window as an unhandled rejection, which renders the crash screen.
-            console.error("[poracode][updates] check-for-update failed", error);
+            console.error("[craftstation][updates] check-for-update failed", error);
           })
       }
     >
@@ -124,17 +124,17 @@ export function AboutSettings() {
     try {
       const result = await bridge.requestLegacyDataMigration();
       if (result.status === "no-legacy-data") {
-        toast.warning(t`No Lightcode data was found.`);
+        toast.warning(t`No CraftStation data was found.`);
         return;
       }
       if (result.status === "unavailable") {
-        toast.warning(t`Lightcode data import is unavailable with a custom data folder.`);
+        toast.warning(t`CraftStation data import is unavailable with a custom data folder.`);
         return;
       }
       await bridge.relaunchApp();
     } catch (error) {
       toast.danger(
-        error instanceof Error ? error.message : t`Couldn't schedule the Lightcode data import.`,
+        error instanceof Error ? error.message : t`Couldn't schedule the CraftStation data import.`,
       );
     } finally {
       setMigrationPending(false);
@@ -196,11 +196,11 @@ export function AboutSettings() {
         {!isRemoteSession() && !bridge.isDev ? (
           <div className="mt-8 border-t border-[var(--hairline)] pt-6">
             <SettingRow
-              title={t`Import Lightcode data`}
+              title={t`Import CraftStation data`}
               description={
                 <Trans>
-                  Copy all Lightcode data into Poracode. Poracode restarts and keeps a complete
-                  backup of its current data.
+                  Copy all CraftStation data into CraftStation. CraftStation restarts and keeps a
+                  complete backup of its current data.
                 </Trans>
               }
             >
@@ -244,11 +244,11 @@ export function AboutSettings() {
       </SettingsPage>
       <ConfirmDialog
         isOpen={showMigrationConfirm}
-        title={t`Import Lightcode data again?`}
+        title={t`Import CraftStation data again?`}
         body={
           <Trans>
-            Poracode will restart, back up its current data, and replace it with a complete copy of
-            your Lightcode data.
+            CraftStation will restart, back up its current data, and replace it with a complete copy
+            of your CraftStation data.
           </Trans>
         }
         confirmLabel={t`Import and restart`}

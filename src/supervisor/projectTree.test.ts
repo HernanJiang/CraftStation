@@ -12,7 +12,7 @@ describe("ProjectTreeService", () => {
   let service: ProjectTreeService;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-project-tree-"));
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-project-tree-"));
     location =
       process.platform === "win32"
         ? { kind: "windows", path: tempDir }
@@ -97,7 +97,7 @@ describe("ProjectTreeService", () => {
   it("reads absolute file paths inside and outside the project root", async () => {
     const insidePath = join(tempDir, "inside.txt");
     writeFileSync(insidePath, "inside\n", "utf8");
-    const externalDir = mkdtempSync(join(tmpdir(), "poracode-abs-external-"));
+    const externalDir = mkdtempSync(join(tmpdir(), "craftstation-abs-external-"));
     const outsidePath = join(externalDir, "outside.txt");
     writeFileSync(outsidePath, "outside\n", "utf8");
 
@@ -134,7 +134,7 @@ describe("ProjectTreeService", () => {
   });
 
   it("readExternalFile reads files outside the project root", async () => {
-    const externalDir = mkdtempSync(join(tmpdir(), "poracode-external-"));
+    const externalDir = mkdtempSync(join(tmpdir(), "craftstation-external-"));
     const outsidePath = join(externalDir, "outside.txt");
     writeFileSync(outsidePath, "outside\n", "utf8");
 
@@ -151,7 +151,7 @@ describe("ProjectTreeService", () => {
   });
 
   it("readExternalFile treats PDFs as binary without loading body bytes", async () => {
-    const externalDir = mkdtempSync(join(tmpdir(), "poracode-external-pdf-"));
+    const externalDir = mkdtempSync(join(tmpdir(), "craftstation-external-pdf-"));
     const outsidePath = join(externalDir, "outside.pdf");
     const pdf = Buffer.from("%PDF-1.7\nexternal\0bytes");
     writeFileSync(outsidePath, pdf);
@@ -175,13 +175,13 @@ describe("ProjectTreeService", () => {
     await expect(
       service.readExternalFile({
         projectLocation: location,
-        absolutePath: join(tmpdir(), "poracode-does-not-exist-xyz.txt"),
+        absolutePath: join(tmpdir(), "craftstation-does-not-exist-xyz.txt"),
       }),
     ).resolves.toMatchObject({ status: "missing" });
   });
 
   it("writeExternalFile saves a file outside the project root", async () => {
-    const externalDir = mkdtempSync(join(tmpdir(), "poracode-external-"));
+    const externalDir = mkdtempSync(join(tmpdir(), "craftstation-external-"));
     const outsidePath = join(externalDir, "writable.txt");
     writeFileSync(outsidePath, "before\n", "utf8");
 
@@ -330,10 +330,10 @@ describe("ProjectTreeService WSL external files", () => {
   });
 
   it("readExternalFile reads a path outside the project root on WSL", async () => {
-    // A plan produced in a git worktree lives under ~/.poracode/worktrees,
+    // A plan produced in a git worktree lives under ~/.craftstation/worktrees,
     // outside the project root.
     const projectRoot = "/home/user/work/repo";
-    const planPath = "/home/user/.poracode/worktrees/repo/branch/PLAN.md";
+    const planPath = "/home/user/.craftstation/worktrees/repo/branch/PLAN.md";
     bridge.files.set(planPath, { content: Buffer.from("# Plan\n"), mtimeMs: 1000 });
 
     const result = await service.readExternalFile({
@@ -344,7 +344,7 @@ describe("ProjectTreeService WSL external files", () => {
     expect(result).toMatchObject({ status: "ready", content: "# Plan\n" });
     // The bridge must be anchored at the file's own directory, not the project
     // root — otherwise its containment check rejects the path.
-    expect(bridge.reads.at(-1)?.projectRoot).toBe("/home/user/.poracode/worktrees/repo/branch");
+    expect(bridge.reads.at(-1)?.projectRoot).toBe("/home/user/.craftstation/worktrees/repo/branch");
   });
 
   it("writeExternalFile saves a path outside the project root on WSL", async () => {
@@ -384,7 +384,7 @@ describe("ProjectTreeService WSL external files", () => {
 
   it("readAbsoluteFile reads a path outside the project root on WSL", async () => {
     const projectRoot = "/home/user/work/repo";
-    const externalPath = "/home/user/.poracode/worktrees/repo/branch/PLAN.md";
+    const externalPath = "/home/user/.craftstation/worktrees/repo/branch/PLAN.md";
     bridge.files.set(externalPath, { content: Buffer.from("# Plan\n"), mtimeMs: 2000 });
 
     const result = await service.readAbsoluteFile({
@@ -393,7 +393,7 @@ describe("ProjectTreeService WSL external files", () => {
     });
 
     expect(result).toMatchObject({ status: "ready", content: "# Plan\n" });
-    expect(bridge.reads.at(-1)?.projectRoot).toBe("/home/user/.poracode/worktrees/repo/branch");
+    expect(bridge.reads.at(-1)?.projectRoot).toBe("/home/user/.craftstation/worktrees/repo/branch");
   });
 
   it("readAbsoluteFile resolves relative paths against the project root on WSL", async () => {
@@ -417,7 +417,7 @@ describe("ProjectTreeService.browseHostDirectory", () => {
   let service: ProjectTreeService;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-host-browse-"));
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-host-browse-"));
     service = new ProjectTreeService();
   });
 

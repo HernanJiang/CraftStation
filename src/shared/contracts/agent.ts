@@ -336,7 +336,7 @@ export const agentCapabilitySchema = z.object({
    * How Crossagents identifies the calling parent thread:
    *
    * - absent / "thread-token": the MCP bearer token maps directly to one
-   *   Poracode thread (the default for provider processes launched per thread).
+   *   CraftStation thread (the default for provider processes launched per thread).
    * - "provider-session": one provider-runtime credential is shared, and a
    *   trusted provider hook adds the native session id to every tool call so
    *   the supervisor can resolve the live parent thread at call time.

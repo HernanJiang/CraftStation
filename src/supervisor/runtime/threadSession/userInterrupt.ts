@@ -17,7 +17,7 @@ export const USER_INTERRUPT_RECOVERY_GRACE_MS = 1200;
  * this deadline.
  *
  * Healthy agents acknowledge interrupts in well under a second. After this
- * fixed grace period Poracode disposes the provider process, closes the turn
+ * fixed grace period CraftStation disposes the provider process, closes the turn
  * locally, and recreates the structured session on the next message.
  */
 export const STRUCTURED_INTERRUPT_FORCE_STOP_MS = 3_000;

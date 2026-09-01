@@ -222,10 +222,10 @@ describe("resolveNodeForDistro", () => {
       { ok: false, stdout: "" },
       { ok: false, stdout: "" },
     ]);
-    const { resolveNodeForDistro, PORACODE_PINNED_NODE_VERSION } = await loadRuntime();
+    const { resolveNodeForDistro, CRAFTSTATION_PINNED_NODE_VERSION } = await loadRuntime();
 
     await expect(resolveNodeForDistro("Ubuntu", { minimumVersion: "23.0.0" })).rejects.toThrow(
-      `Poracode-managed Node ${PORACODE_PINNED_NODE_VERSION} does not satisfy the requested minimum 23.0.0.`,
+      `CraftStation-managed Node ${CRAFTSTATION_PINNED_NODE_VERSION} does not satisfy the requested minimum 23.0.0.`,
     );
   });
 

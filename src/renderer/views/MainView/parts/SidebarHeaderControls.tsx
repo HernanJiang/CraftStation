@@ -24,7 +24,7 @@ export function SidebarHeaderControls() {
   const browserVisible = browserPanelOpen && browserOnScreen;
 
   return (
-    <div className="poracode-overlay-header__controls flex items-center gap-1.5">
+    <div className="craftstation-overlay-header__controls flex items-center gap-1.5">
       <Tooltip delay={150}>
         <Tooltip.Trigger>
           <Button

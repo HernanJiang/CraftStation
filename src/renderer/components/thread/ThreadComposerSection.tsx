@@ -51,6 +51,7 @@ import {
 import { useComposerUiStore } from "@/renderer/state/composerUiStore";
 import { useGitStore } from "@/renderer/state/gitStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { isDraftContentNonEmpty } from "@/renderer/state/slices/types";
 import { selectActiveSubAgentParentItemIds } from "@/renderer/state/subAgentSelectors";
 import { useThread } from "@/renderer/state/useThread";
@@ -504,8 +505,12 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   function handleInterrupt() {
     if (isInterrupting) return;
     setIsInterrupting(true);
+    const execution = getRuntimeExecutionEnvelope(thread.id);
     void readBridge()
-      .interruptThread({ threadId: thread.id })
+      .interruptThread({
+        threadId: thread.id,
+        ...(execution ? { execution } : {}),
+      })
       .then(() => {
         captureProductEvent("thread.interrupted", threadProductProperties(thread));
       })
@@ -686,8 +691,9 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       const text = (e as CustomEvent<string>).detail;
       if (text) setPrompt((prev) => prev + text);
     }
-    window.addEventListener("poracode:paste-to-composer", handlePasteToComposer);
-    return () => window.removeEventListener("poracode:paste-to-composer", handlePasteToComposer);
+    window.addEventListener("craftstation:paste-to-composer", handlePasteToComposer);
+    return () =>
+      window.removeEventListener("craftstation:paste-to-composer", handlePasteToComposer);
   }, []);
 
   // Publish the rendered presentation + collapsed state so the browser element

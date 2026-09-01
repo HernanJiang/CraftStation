@@ -395,7 +395,7 @@ export function Sidebar() {
                         </span>
                       </span>
                     }
-                    className="poracode-sidebar-project-nudge !pl-1"
+                    className="craftstation-sidebar-project-nudge !pl-1"
                     onPress={() => toggleProjectCollapsed(homeProject.id)}
                     suffix={
                       <HomeTerminalButton

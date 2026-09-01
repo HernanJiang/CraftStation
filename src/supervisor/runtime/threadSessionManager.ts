@@ -196,7 +196,7 @@ export class ThreadSessionManager {
   }
 
   /**
-   * Resolve a provider-native root or child session to its live Poracode
+   * Resolve a provider-native root or child session to its live CraftStation
    * thread. Root ids use the reverse index; provider-owned child sessions can
    * opt into the fallback through `ownsProviderSession`.
    */

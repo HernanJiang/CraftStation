@@ -1,4 +1,4 @@
-// Electron-based hosts (VS Code, Poracode production build) set
+// Electron-based hosts (VS Code, CraftStation production build) set
 // ELECTRON_RUN_AS_NODE=1 in their child processes.  If that leaks into our
 // dev shell, `electron.exe` starts as plain Node and every Electron API is
 // undefined.  Delete the variable before spawning electronmon.
@@ -39,9 +39,9 @@ await waitForMainEntry();
 const env = {
   ...process.env,
   VITE_DEV_SERVER_URL:
-    process.env.PORACODE_DEV_APP_URL ?? `http://127.0.0.1:${resolveDevServerPort()}`,
+    process.env.CRAFTSTATION_DEV_APP_URL ?? `http://127.0.0.1:${resolveDevServerPort()}`,
 };
-const cdpUserDataDir = process.env.PORACODE_CDP_USER_DATA_DIR?.trim();
+const cdpUserDataDir = process.env.CRAFTSTATION_CDP_USER_DATA_DIR?.trim();
 if (cdpUserDataDir) {
   const require = createRequire(import.meta.url);
   const electronPath = require("electron");

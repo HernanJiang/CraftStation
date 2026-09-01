@@ -29,7 +29,7 @@ function ensureElectronBinary() {
   // weight there and its flakiness shouldn't fail the build. App-running flows
   // (local dev, packaging) leave this unset and still get the enforced download.
   if (process.env.ELECTRON_SKIP_BINARY_DOWNLOAD) {
-    console.log("[poracode] ELECTRON_SKIP_BINARY_DOWNLOAD set; skipping Electron binary check");
+    console.log("[craftstation] ELECTRON_SKIP_BINARY_DOWNLOAD set; skipping Electron binary check");
     return;
   }
 
@@ -46,7 +46,7 @@ function ensureElectronBinary() {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(
-      `[poracode] Electron binary missing; running electron/install.js (attempt ${attempt}/${maxAttempts})`,
+      `[craftstation] Electron binary missing; running electron/install.js (attempt ${attempt}/${maxAttempts})`,
     );
     // We only reach this loop when the executable is absent. A flaked or partial
     // extraction can still leave dist/version + path.txt behind, which makes
@@ -71,7 +71,7 @@ function ensureElectronBinary() {
   }
 
   throw new Error(
-    `[poracode] Electron binary is unavailable after ${maxAttempts} attempts of electron/install.js`,
+    `[craftstation] Electron binary is unavailable after ${maxAttempts} attempts of electron/install.js`,
   );
 }
 
@@ -81,7 +81,7 @@ function ensureNodePty() {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `[poracode] node-pty is unavailable: ${message}. If pnpm blocked native build scripts, run 'pnpm approve-builds' and reinstall.`,
+      `[craftstation] node-pty is unavailable: ${message}. If pnpm blocked native build scripts, run 'pnpm approve-builds' and reinstall.`,
       { cause: error },
     );
   }
@@ -93,7 +93,7 @@ function ensureBetterSqlite3() {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `[poracode] better-sqlite3 is unavailable: ${message}. If pnpm blocked native build scripts, run 'pnpm approve-builds' and reinstall.`,
+      `[craftstation] better-sqlite3 is unavailable: ${message}. If pnpm blocked native build scripts, run 'pnpm approve-builds' and reinstall.`,
       { cause: error },
     );
   }
@@ -149,12 +149,12 @@ function rebuildElectronNativeDependencies() {
     stdio: "inherit",
   });
   if (result.status !== 0) {
-    throw new Error("[poracode] electron-rebuild failed for better-sqlite3");
+    throw new Error("[craftstation] electron-rebuild failed for better-sqlite3");
   }
 }
 
 function ensureElectronNativeDependencies() {
-  const cacheDir = join(process.cwd(), "node_modules", ".cache", "poracode");
+  const cacheDir = join(process.cwd(), "node_modules", ".cache", "craftstation");
   const cachePath = join(cacheDir, "electron-native.json");
   const fingerprint = electronNativeFingerprint();
   let cachedFingerprint;
@@ -165,19 +165,21 @@ function ensureElectronNativeDependencies() {
   }
 
   if (fingerprintsMatch(cachedFingerprint, fingerprint)) {
-    console.log("[poracode] Electron native dependencies already compatible, skipping rebuild");
+    console.log("[craftstation] Electron native dependencies already compatible, skipping rebuild");
     return;
   }
 
   let validation = validateElectronNativeDependencies();
   if (validation.status !== 0) {
-    console.log("[poracode] Electron native dependency check failed; rebuilding better-sqlite3");
+    console.log(
+      "[craftstation] Electron native dependency check failed; rebuilding better-sqlite3",
+    );
     rebuildElectronNativeDependencies();
     validation = validateElectronNativeDependencies();
   }
   if (validation.status !== 0) {
     const detail = validation.stderr?.trim() || validation.error?.message || "unknown error";
-    throw new Error(`[poracode] Electron native dependency validation failed: ${detail}`);
+    throw new Error(`[craftstation] Electron native dependency validation failed: ${detail}`);
   }
 
   mkdirSync(cacheDir, { recursive: true });

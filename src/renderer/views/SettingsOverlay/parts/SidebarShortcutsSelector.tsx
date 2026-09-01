@@ -35,7 +35,7 @@ function SortableShortcutRow(props: {
       role="option"
       aria-selected={isVisible}
       tabIndex={0}
-      className={`poracode-menu-item group mx-1.5 flex h-8 cursor-default items-center gap-1.5 text-foreground ${
+      className={`craftstation-menu-item group mx-1.5 flex h-8 cursor-default items-center gap-1.5 text-foreground ${
         isDragging ? "opacity-40" : ""
       }`}
       onClick={onToggle}
@@ -169,7 +169,7 @@ export function SidebarShortcutsSelector() {
               role="listbox"
               aria-label={t`Sidebar shortcuts`}
               aria-multiselectable="true"
-              className="poracode-menu py-1.5"
+              className="craftstation-menu py-1.5"
             >
               {shortcuts.map((shortcut, index) => (
                 <SortableShortcutRow

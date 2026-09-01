@@ -375,13 +375,13 @@ describe("writeScriptToShellThenExitOnSuccess", () => {
     );
 
     emit({ type: "thread-output", threadId: "shell:1", data: "$ ", outputLength: 2 });
-    const token = /poracode-shell-complete=([^:]+):/u.exec(lastWrite())?.[1];
+    const token = /craftstation-shell-complete=([^:]+):/u.exec(lastWrite())?.[1];
     expect(token).toBeTruthy();
     expect(lastWrite()).toMatch(/^command bash -c /u);
     expect(lastWrite()).toMatch(/ && exit\r$/u);
     const innerScript = unwrapBashScript(lastWrite());
-    expect(innerScript).toContain("__poracode_setup_exit=$?");
-    expect(innerScript).toContain('exit "$__poracode_setup_exit"');
+    expect(innerScript).toContain("__craftstation_setup_exit=$?");
+    expect(innerScript).toContain('exit "$__craftstation_setup_exit"');
 
     const echoedCommand = lastWrite();
     emit({
@@ -390,7 +390,7 @@ describe("writeScriptToShellThenExitOnSuccess", () => {
       data: echoedCommand,
       outputLength: echoedCommand.length,
     });
-    const marker = `\u001B]777;poracode-shell-complete=${token}:1\u0007`;
+    const marker = `\u001B]777;craftstation-shell-complete=${token}:1\u0007`;
     emit({ type: "thread-output", threadId: "shell:1", data: marker, outputLength: marker.length });
 
     expect(onCommandComplete).toHaveBeenCalledWith(1);
@@ -424,8 +424,8 @@ describe("writeScriptToShellThenExitOnSuccess", () => {
     );
 
     emit({ type: "thread-output", threadId: "shell:1", data: "PS> ", outputLength: 4 });
-    const token = /poracode-shell-complete=([^:]+):/u.exec(lastWrite())?.[1];
-    const marker = `\u001B]777;poracode-shell-complete=${token}:0\u0007`;
+    const token = /craftstation-shell-complete=([^:]+):/u.exec(lastWrite())?.[1];
+    const marker = `\u001B]777;craftstation-shell-complete=${token}:0\u0007`;
     emit({ type: "thread-output", threadId: "shell:1", data: marker, outputLength: marker.length });
     emit({ type: "thread-exited", threadId: "shell:1", exitCode: 0 });
 

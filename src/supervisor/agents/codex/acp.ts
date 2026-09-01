@@ -86,13 +86,13 @@ const CODEX_SYSTEM_ERROR_FALLBACK_DELAY_MS = 250;
 const CODEX_RESUME_STATUS_REPLAY_SUPPRESSION_MS = 500;
 const CODEX_FORK_NOTIFICATION_BUFFER_LIMIT = 100;
 const CODEX_DISPOSE_INTERRUPT_TIMEOUT_MS = 2_000;
-const CODEX_EVENT_DEBUG_ENV = "PORACODE_DEBUG_CODEX_EVENTS";
+const CODEX_EVENT_DEBUG_ENV = "CRAFTSTATION_DEBUG_CODEX_EVENTS";
 
 type CodexEventDebugDirection =
-  | "codex->poracode"
-  | "poracode->codex"
-  | "poracode:update"
-  | "poracode:runtime"
+  | "codex->craftstation"
+  | "craftstation->codex"
+  | "craftstation:update"
+  | "craftstation:runtime"
   | "transport";
 
 function isCodexEventDebugEnabled(): boolean {
@@ -276,7 +276,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     }
     if (forwarded.length === 0) return;
     for (const event of forwarded) {
-      this.logCodexEventDebug("poracode:runtime", event);
+      this.logCodexEventDebug("craftstation:runtime", event);
     }
     if (!this.listener?.onRuntimeEvent) {
       this.bufferedRuntimeEvents.push(...forwarded);
@@ -634,7 +634,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
         id: this.remoteThreadId,
         ...(this.rolloutCreatedAt ? { timestamp: this.rolloutCreatedAt } : {}),
         ...(this.rolloutCwd ? { cwd: this.rolloutCwd } : {}),
-        originator: "poracode",
+        originator: "craftstation",
         ...(this.rolloutCliVersion ? { cli_version: this.rolloutCliVersion } : {}),
         ...(this.rolloutSource ? { source: this.rolloutSource } : {}),
         ...(this.rolloutModelProvider ? { model_provider: this.rolloutModelProvider } : {}),
@@ -1301,7 +1301,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       "initialize",
       {
         clientInfo: {
-          name: "poracode",
+          name: "craftstation",
           version: "0.1.0",
         },
         capabilities: {
@@ -1430,7 +1430,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
   }
 
   private emitUpdate(update: StructuredSessionUpdate): void {
-    this.logCodexEventDebug("poracode:update", update);
+    this.logCodexEventDebug("craftstation:update", update);
     this.listener?.onUpdate(update);
   }
 

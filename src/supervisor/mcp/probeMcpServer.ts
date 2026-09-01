@@ -70,7 +70,7 @@ function createTransport(server: McpServer, observation: AuthObservation): Probe
       args: transport.args,
       env: transport.env,
       ...(transport.cwd ? { cwd: transport.cwd } : {}),
-      // Probe output must not copy an MCP server's stderr into Poracode logs.
+      // Probe output must not copy an MCP server's stderr into CraftStation logs.
       stderr: "ignore",
     });
   }
@@ -242,7 +242,7 @@ export async function probeMcpServer(
 ): Promise<McpProbeResult> {
   const startedAt = Date.now();
   const observation: AuthObservation = {};
-  const client = new Client({ name: "poracode-mcp-probe", version: "1.0.0" });
+  const client = new Client({ name: "craftstation-mcp-probe", version: "1.0.0" });
   let transport: ProbeTransport | undefined;
   let stdioPid: number | null = null;
   let timedOut = false;

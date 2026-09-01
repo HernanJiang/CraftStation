@@ -213,7 +213,7 @@ function isLocalAgentAlreadyExistsError(error: unknown, agentId: string): boolea
 
 /**
  * Cursor SDK 1.x locates its sibling platform package by walking ancestors of
- * `process.argv[1]`. The worker helper lives in Poracode (and in a staged WSL
+ * `process.argv[1]`. The worker helper lives in CraftStation (and in a staged WSL
  * temp directory), so leave argv anchored at the verified external SDK entry
  * before invoking any SDK API. This changes only process-local discovery; it
  * neither executes nor copies the user-installed package.

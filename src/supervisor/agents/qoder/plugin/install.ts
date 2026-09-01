@@ -50,7 +50,7 @@ import {
 export interface QoderPluginPaths {
   /**
    * Directory containing forward.mjs, plugin.json. For WSL contexts this is a
-   * Linux path inside the distro (e.g. `/home/user/.poracode/agent-plugins/qoder`);
+   * Linux path inside the distro (e.g. `/home/user/.craftstation/agent-plugins/qoder`);
    * the caller must NOT pass it to native fs APIs.
    */
   pluginDir: string;
@@ -67,7 +67,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "qoder",
-  sourceEnvVar: "PORACODE_QODER_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_QODER_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -128,7 +128,7 @@ export function getQoderPluginPaths(ctx?: AgentEnvContext): QoderPluginPaths {
  * Stage the Qoder plugin assets and write a `settings.json` that wires
  * Qoder's hook system to invoke the staged `forward.mjs`. Idempotent — safe
  * to call from every supervisor boot. For WSL contexts, assets are staged
- * into the distro's `~/.poracode/agent-plugins/qoder/` via the shared
+ * into the distro's `~/.craftstation/agent-plugins/qoder/` via the shared
  * `deployFilesToWslHome` helper.
  */
 export interface InstallQoderPluginOptions {

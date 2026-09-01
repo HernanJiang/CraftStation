@@ -37,7 +37,7 @@ export function McpServersSettings() {
   return (
     <SettingsPage
       title={t`MCP Servers`}
-      description={t`Manage the MCP server configurations Poracode adds when starting supported agents. Workspace servers can be configured in each project's settings.`}
+      description={t`Manage the MCP server configurations CraftStation adds when starting supported agents. Workspace servers can be configured in each project's settings.`}
       bodyClassName="space-y-5"
     >
       <div data-settings-anchor="mcpServers.manage">

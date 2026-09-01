@@ -9,7 +9,7 @@ import {
   type MenuItemConstructorOptions,
   type NativeImage,
 } from "electron";
-import type { PoracodeChannel } from "@/shared/channel";
+import type { CraftStationChannel } from "@/shared/channel";
 import type { Project, Thread } from "@/shared/contracts";
 
 const RECENT_THREAD_LIMIT = 3;
@@ -19,7 +19,7 @@ const MAX_COMBINED_MENU_LABEL_LENGTH = 72;
 const MENU_REFRESH_DELAY_MS = 25;
 
 interface CreateTrayOptions {
-  channel: PoracodeChannel;
+  channel: CraftStationChannel;
   appName: string;
   getProjects?(): readonly Project[];
   getThreads?(): readonly Thread[];
@@ -57,7 +57,7 @@ function toMenuItem(
 }
 
 export function resolveTrayIconPath(
-  channel: PoracodeChannel,
+  channel: CraftStationChannel,
   darkShell: boolean = nativeTheme.shouldUseDarkColors,
 ): string | null {
   const suffix = channel === "nightly" ? "-nightly" : "";
@@ -129,8 +129,8 @@ export function createTray(options: CreateTrayOptions): TrayHandle {
   if (!trayImage) {
     console.warn(
       iconPath
-        ? `[poracode] Tray icon is empty: ${iconPath}`
-        : "[poracode] Tray icon not found; skipping tray creation.",
+        ? `[craftstation] Tray icon is empty: ${iconPath}`
+        : "[craftstation] Tray icon not found; skipping tray creation.",
     );
     return {
       available: false,

@@ -42,7 +42,7 @@ F13 已取得一份脱敏的真实产品路径验证证据，交给 Debugger 独
 
 ```powershell
 $env:CRAFTSTATION_REAL_GROK_E2E='1'
-$env:PORACODE_DATA_DIR='C:\Users\Haona\.craftstation-dev'
+$env:CRAFTSTATION_DATA_DIR='C:\Users\Haona\.craftstation-dev'
 pnpm exec vitest run --configLoader runner src/supervisor/runtime/grokAccountPool.integration.test.ts
 ```
 

@@ -5,9 +5,9 @@
  * but for the host platform (mac/linux/win32). Three layers, in order of
  * cost:
  *
- *   1. **Poracode-managed runtime** (zero-shell-spawn fast path).
+ *   1. **CraftStation-managed runtime** (zero-shell-spawn fast path).
  *      A previous background install dropped the pinned LTS at
- *      `~/.poracode/runtime/<archive-dir>/`. A single `existsSync` decides.
+ *      `~/.craftstation/runtime/<archive-dir>/`. A single `existsSync` decides.
  *
  *   2. **Login-shell probe.** On mac/linux, GUI-launched apps don't inherit
  *      the user's interactive PATH (no Homebrew, no nvm, no fnm) — so we
@@ -17,7 +17,7 @@
  *
  *   3. **Background install.** When 1 + 2 both miss, we kick off a
  *      fire-and-forget download of the pinned LTS archive into
- *      `~/.poracode/runtime/`. The current install pass falls back to
+ *      `~/.craftstation/runtime/`. The current install pass falls back to
  *      Electron-as-Node for this boot; the next supervisor boot picks up
  *      the managed runtime via the fast path.
  *
@@ -29,11 +29,11 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { pruneStaleRuntimeDirs, safeRm } from "../../runtime/cleanup";
 import { downloadToFile, verifySha256 } from "../../runtime/download";
 import {
-  PORACODE_PINNED_NODE_VERSION,
+  CRAFTSTATION_PINNED_NODE_VERSION,
   MIN_ACCEPTED_NODE_MAJOR,
   NODE_TARBALL_CHECKSUMS,
   detectNativeNodeTarget,
@@ -54,7 +54,7 @@ export interface ResolvedNativeNode {
   /** Reported version, e.g. "22.11.0". */
   nodeVersion: string;
   /** How we found it — useful for logs and tests. */
-  source: "user-installed" | "poracode-managed";
+  source: "user-installed" | "craftstation-managed";
 }
 
 export interface NativeRuntimeProgressEvent {
@@ -77,7 +77,7 @@ export interface NativeRuntimeProgressEvent {
 export type NativeRuntimeProgressListener = (event: NativeRuntimeProgressEvent) => void;
 
 export interface ResolveNativeNodeOptions {
-  /** Override `~/.poracode` for tests / dev runs. */
+  /** Override `~/.craftstation` for tests / dev runs. */
   baseDir?: string;
   /** Optional progress sink. */
   onProgress?: NativeRuntimeProgressListener;
@@ -136,7 +136,7 @@ async function resolveNativeNodeUncached(
   onProgress?.({ kind: "probe-start" });
 
   const target = detectNativeNodeTarget();
-  const baseDir = options?.baseDir ?? resolvePoracodePaths().baseDir;
+  const baseDir = options?.baseDir ?? resolveCraftStationPaths().baseDir;
 
   if (target) {
     const managedPath = managedNodePath(baseDir, target);
@@ -144,12 +144,12 @@ async function resolveNativeNodeUncached(
       onProgress?.({
         kind: "probe-found-managed",
         nodePath: managedPath,
-        version: PORACODE_PINNED_NODE_VERSION,
+        version: CRAFTSTATION_PINNED_NODE_VERSION,
       });
       return {
         nodePath: managedPath,
-        nodeVersion: PORACODE_PINNED_NODE_VERSION,
-        source: "poracode-managed",
+        nodeVersion: CRAFTSTATION_PINNED_NODE_VERSION,
+        source: "craftstation-managed",
       };
     }
   }
@@ -339,7 +339,7 @@ export async function installNativeRuntime(
   const checksum = NODE_TARBALL_CHECKSUMS[target];
   if (!checksum) {
     throw new Error(
-      `poracode is missing the SHA256 checksum for Node ${PORACODE_PINNED_NODE_VERSION} ${target}; rerun scripts/refresh-node-checksums.mjs`,
+      `craftstation is missing the SHA256 checksum for Node ${CRAFTSTATION_PINNED_NODE_VERSION} ${target}; rerun scripts/refresh-node-checksums.mjs`,
     );
   }
 
@@ -374,7 +374,7 @@ export async function installNativeRuntime(
     const finalDir = join(runtimeDir, nodeArchiveDirName(target));
     if (existsSync(finalDir)) {
       // Concurrent install or earlier failure left a partial dir; the
-      // runtime dir is owned exclusively by poracode, so we replace it.
+      // runtime dir is owned exclusively by craftstation, so we replace it.
       safeRm(finalDir);
     }
     renameSync(stagedDir, finalDir);

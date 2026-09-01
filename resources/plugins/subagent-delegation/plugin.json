@@ -4,14 +4,14 @@
   "version": "1.1.0",
   "description": "Delegate focused work to other installed agents and coordinate the results.",
   "author": {
-    "name": "Poracode",
-    "url": "https://poracode.com"
+    "name": "CraftStation",
+    "url": "https://craftstation.com"
   },
-  "homepage": "https://poracode.com",
+  "homepage": "https://craftstation.com",
   "license": "Apache-2.0",
   "keywords": ["subagents", "delegation", "orchestration"],
   "extensions": {
-    "com.poracode.client": {
+    "com.craftstation.client": {
       "title": "Subagent Delegation",
       "category": "productivity",
       "featured": true,

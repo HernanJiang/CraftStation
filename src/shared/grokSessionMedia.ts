@@ -3,7 +3,7 @@ import type { ProjectLocation } from "./contracts";
 /**
  * Absolute path of `~/.grok/sessions/<encoded-cwd>/<sessionId>` for a native
  * (Windows/POSIX) project. Returns null for WSL (session files live inside the
- * distro; local `poracode-local://` cannot reach them without a UNC home) or
+ * distro; local `craftstation-local://` cannot reach them without a UNC home) or
  * when inputs are incomplete.
  *
  * Grok image_gen writes `images/<n>.ext` under this directory; chat markdown

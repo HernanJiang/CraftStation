@@ -1,7 +1,7 @@
 export const BROWSER_NOTIFICATION_PERMISSION_CHANGED_EVENT =
-  "poracode:browser-notification-permission-changed";
+  "craftstation:browser-notification-permission-changed";
 
-const WEB_PUSH_ACTIVE_KEY = "poracode.webPushRegistrationActive";
+const WEB_PUSH_ACTIVE_KEY = "craftstation.webPushRegistrationActive";
 
 /** Request permission from a user gesture and notify the PWA lifecycle. */
 export function requestBrowserNotificationPermission(): Promise<NotificationPermission> {

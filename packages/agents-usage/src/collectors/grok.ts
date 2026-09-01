@@ -237,7 +237,7 @@ function grokGrpcRequest(http: HttpClient, cookie: string): Promise<HttpResponse
       "Content-Type": "application/grpc-web-text",
       "x-grpc-web": "1",
       "x-user-agent": "connect-es/2.1.1",
-      "User-Agent": "Poracode",
+      "User-Agent": "CraftStation",
     },
     body: GROK_GRPC_EMPTY_FRAME_BASE64,
     timeoutMs: 15_000,
@@ -540,7 +540,7 @@ export async function refreshGrokOAuthToken(
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
-        "User-Agent": "Poracode",
+        "User-Agent": "CraftStation",
       },
       body: new URLSearchParams({
         grant_type: "refresh_token",

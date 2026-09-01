@@ -1,9 +1,9 @@
 ---
 name: interactive-testing
-description: Run repeatable integration and smoke testing against the real Poracode Electron app through Chrome DevTools Protocol. Use when asked to smoke test, integration test, interactively test, verify a refactor in the UI, reproduce a renderer crash, click through the app, or check that changes did not regress functionality. Build a diff-derived coverage plan, run the scripted baseline and targeted scenarios, complete every required manual gate, capture screenshots and runtime errors, and report explicit per-surface evidence.
+description: Run repeatable integration and smoke testing against the real CraftStation Electron app through Chrome DevTools Protocol. Use when asked to smoke test, integration test, interactively test, verify a refactor in the UI, reproduce a renderer crash, click through the app, or check that changes did not regress functionality. Build a diff-derived coverage plan, run the scripted baseline and targeted scenarios, complete every required manual gate, capture screenshots and runtime errors, and report explicit per-surface evidence.
 ---
 
-# Interactive Testing — Poracode
+# Interactive Testing — CraftStation
 
 Test the real Electron renderer, preload bridge, main process, and supervisor integration. Treat unit tests as complementary; do not substitute them for this workflow when the skill triggers.
 
@@ -15,14 +15,14 @@ Test the real Electron renderer, preload bridge, main process, and supervisor in
 4. For a manual live check, generate the plan, then start or reuse one managed debug session:
 
    ```sh
-   node .agents/skills/interactive-testing/scripts/poracode-integration-smoke.mjs plan --scope changed
-   node .agents/skills/interactive-testing/scripts/run-poracode-smoke.mjs --launch-only --mode mock
+   node .agents/skills/interactive-testing/scripts/craftstation-integration-smoke.mjs plan --scope changed
+   node .agents/skills/interactive-testing/scripts/run-craftstation-smoke.mjs --launch-only --mode mock
    ```
 
 5. Audit the functional inventory only when changing `scripts/smoke-scenarios.mjs`, adding a production surface, or investigating coverage selection:
 
    ```sh
-   node .agents/skills/interactive-testing/scripts/poracode-integration-smoke.mjs audit
+   node .agents/skills/interactive-testing/scripts/craftstation-integration-smoke.mjs audit
    ```
 
 6. Use fixture projects, deterministic store state, and mocked provider/auth/runtime data for local regression coverage. The runner executes these gates automatically and reports them as `mocked`.
@@ -60,7 +60,7 @@ alive for repeated manual actions, and its owner process performs every stop.
 The one-command runner below allocates its own free ports, so each invocation spawns a fully isolated dev app. Runs from multiple worktrees can execute side by side without colliding on the Vite or CDP port.
 
 ```sh
-node .agents/skills/interactive-testing/scripts/run-poracode-smoke.mjs --scope changed --mode mock
+node .agents/skills/interactive-testing/scripts/run-craftstation-smoke.mjs --scope changed --mode mock
 ```
 
 This allocates distinct free dev-server and CDP ports (override with
@@ -68,12 +68,12 @@ This allocates distinct free dev-server and CDP ports (override with
 disposable fixture project, seeds an isolated database, starts Electron with an
 isolated profile and compiled runtime, dismisses and verifies the first-launch
 welcome screen, runs the integration suite, writes screenshots/report artifacts
-under `~/.poracode-smoke`, and tears down the process automatically. Managed
+under `~/.craftstation-smoke`, and tears down the process automatically. Managed
 launches never reclaim an occupied port or rebuild another session's runtime.
 No provider credentials, PTY input, git mutations, MCP server, mobile device, or
 native update flow is required for the default mock run.
 
-**`HOME` and provider detection — no drift between test and app.** Poracode's own state is always isolated via `PORACODE_BASE_DIR`, independent of `HOME`. Provider _detection_, however, resolves each CLI through the login-shell `command -v` (e.g. `kimi` → `~/.kimi-code/bin/kimi`) and reads credentials under the home dir — so it only matches the real app when `HOME` is the real home. Therefore:
+**`HOME` and provider detection — no drift between test and app.** CraftStation's own state is always isolated via `CRAFTSTATION_BASE_DIR`, independent of `HOME`. Provider _detection_, however, resolves each CLI through the login-shell `command -v` (e.g. `kimi` → `~/.kimi-code/bin/kimi`) and reads credentials under the home dir — so it only matches the real app when `HOME` is the real home. Therefore:
 
 - **Mock mode** sandboxes `HOME`/`APPDATA` and uses a mock keychain (deterministic isolation; providers are mocked). Real providers legitimately show **"Not found"** here — that is expected, not a bug, and mock gates never depend on real credentials.
 - **Real mode** (`--mode real`) keeps the **real `HOME`**, so authenticated providers (Kimi, Qwen, …) can detect as in the shipped app. Always verify a provider-dependent surface in real mode; never diagnose a real detection issue from a mock-mode "Not found".
@@ -83,9 +83,9 @@ Real `HOME` is necessary but not always sufficient: detection probes `command -v
 For a persistent interactive app, use the managed launcher:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/run-poracode-smoke.mjs --launch-only --mode mock
+node .agents/skills/interactive-testing/scripts/run-craftstation-smoke.mjs --launch-only --mode mock
 # Use the real HOME and provider credentials only when the task needs them:
-node .agents/skills/interactive-testing/scripts/run-poracode-smoke.mjs --launch-only --mode real
+node .agents/skills/interactive-testing/scripts/run-craftstation-smoke.mjs --launch-only --mode real
 ```
 
 When an agent must launch an intentionally independent session and then keep
@@ -93,7 +93,7 @@ working in the same turn, use the detached CDP launch command instead of
 inventing a `Start-Process`, shell-redirection, or helper-script wrapper:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs launch --new --mode mock --root "$HOME/.poracode-smoke/<unique-agent-root>"
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs launch --new --mode mock --root "$HOME/.craftstation-smoke/<unique-agent-root>"
 ```
 
 It returns only after READY and prints the exact `sessionFile`, ports, URL,
@@ -110,7 +110,7 @@ after those checks pass. Keep that exact terminal alive. When testing is
 complete, request verified teardown from any shell with:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs stop
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs stop
 ```
 
 The stop command returns success only after the owner has closed both ports,
@@ -127,7 +127,7 @@ are the behavior under test. If more than one session exists, every helper
 refuses to guess; pass the exact session printed by its launcher:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs info --session "<session.json path printed by launcher>"
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs info --session "<session.json path printed by launcher>"
 ```
 
 The authoritative `<run-id>/session.json` records the unique token, lifecycle,
@@ -143,13 +143,13 @@ Changed-surface run against the one active managed debug session (or pass
 `--session <session.json>` when concurrent sessions intentionally exist):
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-integration-smoke.mjs run --scope changed --mode mock --outDir "<outDir from session.json>"
+node .agents/skills/interactive-testing/scripts/craftstation-integration-smoke.mjs run --scope changed --mode mock --outDir "<outDir from session.json>"
 ```
 
 Full functional inventory run:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-integration-smoke.mjs run --scope full --mode mock --outDir "<outDir from session.json>"
+node .agents/skills/interactive-testing/scripts/craftstation-integration-smoke.mjs run --scope full --mode mock --outDir "<outDir from session.json>"
 ```
 
 Exit meanings:
@@ -163,7 +163,7 @@ The runner first dismisses the welcome screen through its real primary action an
 Do not acknowledge a real gate before exercising it. After completing real gates through real controls, record them:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-integration-smoke.mjs run --scope changed --mode real --outDir "<outDir from session.json>" --ack-manual provider-live,runtime-requests
+node .agents/skills/interactive-testing/scripts/craftstation-integration-smoke.mjs run --scope changed --mode real --outDir "<outDir from session.json>" --ack-manual provider-live,runtime-requests
 ```
 
 Replace the acknowledgement list with every real gate actually exercised. For
@@ -176,13 +176,13 @@ answer, and received the provider reply acknowledges
 Use the managed CDP helper for state, evaluation, screenshots, clicks, and typing:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs info
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs eval 'location.href'
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs nav about
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs click '[data-testid="settings-save"]'
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs type 'input[name="query"]' 'test'
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs shot - "<outDir from session.json>/manual-about.png"
-node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs reset
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs info
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs eval 'location.href'
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs nav about
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs click '[data-testid="settings-save"]'
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs type 'input[name="query"]' 'test'
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs shot - "<outDir from session.json>/manual-about.png"
+node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs reset
 ```
 
 In PowerShell, invoke action commands directly with the call operator; use
@@ -190,8 +190,8 @@ variables or quoted positional values so selectors containing spaces remain one
 argument. Never use `Start-Process` for CDP actions:
 
 ```powershell
-$cdp = ".agents/skills/interactive-testing/scripts/poracode-cdp.mjs"
-$session = "C:\Users\me\.poracode-smoke\my-run\session.json"
+$cdp = ".agents/skills/interactive-testing/scripts/craftstation-cdp.mjs"
+$session = "C:\Users\me\.craftstation-smoke\my-run\session.json"
 $selector = '[data-composer-input-anchor] [contenteditable="true"]'
 & node $cdp type $selector "latency probe" --session $session --commandTimeoutMs 2000
 & node $cdp eval 'document.body.innerText.includes("latency probe")' --session $session --commandTimeoutMs 2000
@@ -220,7 +220,7 @@ For a changed provider, start a fresh thread in the isolated project, observe th
 The integration runner invokes this automatically when Browser-related paths changed. It can also be run directly:
 
 ```sh
-node .agents/skills/interactive-testing/scripts/poracode-browser-smoke.mjs --outDir "<outDir from session.json>/browser"
+node .agents/skills/interactive-testing/scripts/craftstation-browser-smoke.mjs --outDir "<outDir from session.json>/browser"
 ```
 
 It verifies embedded page creation, DOM access, navigation history, toolbar state, Browser settings, screenshots, and zero renderer console errors.
@@ -235,13 +235,13 @@ If a changed behavior cannot be automated against a safe fixture, add a determin
 
 ## Safety and teardown
 
-- Default to `PORACODE_BASE_DIR` under `$HOME/.poracode-smoke`; never mutate real threads or settings.
+- Default to `CRAFTSTATION_BASE_DIR` under `$HOME/.craftstation-smoke`; never mutate real threads or settings.
 - Treat `session.json` as the only managed attachment authority; never infer ports from window titles, old logs, or nearby listeners.
 - Never blanket-kill Electron, Node, or `electron.exe`. Stop only the background process/session launched for this run.
 - Never send destructive prompts or approve destructive permission requests.
 - Write artifacts outside the repository so file watchers do not restart Electron.
-- Call `node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs reset` and close transient panels before teardown.
-- Stop with `node .agents/skills/interactive-testing/scripts/poracode-cdp.mjs stop`; do not infer failure from an outer PTY's Ctrl-C exit code.
+- Call `node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs reset` and close transient panels before teardown.
+- Stop with `node .agents/skills/interactive-testing/scripts/craftstation-cdp.mjs stop`; do not infer failure from an outer PTY's Ctrl-C exit code.
 - Leave the isolated smoke directory for inspection unless the user requested cleanup.
 - Never commit smoke artifacts or source changes created only to reach a UI state.
 

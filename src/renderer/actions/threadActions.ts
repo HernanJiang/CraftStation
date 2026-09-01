@@ -12,6 +12,7 @@ import { isDraftPaneId, parseDraftProjectId } from "@/shared/paneId";
 import { shouldRelaunchThreadOnOpen } from "@/shared/threadRelaunch";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
+import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { findExperimentByThreadId, useExperimentStore } from "@/renderer/state/experimentStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -370,7 +371,13 @@ export async function unloadStoredThread(
   const inVisiblePane = view.kind === "thread" && view.panes.includes(threadId);
 
   const owner = remoteOwner(thread);
-  await readBridge().closeThread({ threadId });
+  // Crafted threads must close under their active execution envelope; legacy
+  // threads have none and keep the plain payload.
+  const closeExecution = getRuntimeExecutionEnvelope(threadId);
+  await readBridge().closeThread({
+    threadId,
+    ...(closeExecution ? { execution: closeExecution } : {}),
+  });
   if (owner) await useRemoteServersStore.getState().refreshServer(owner.desktopId);
   startTransition(() => {
     useAppStore.getState().markThreadExited(threadId);
@@ -634,8 +641,12 @@ function deleteThreadOnly(threadId: string): void {
   )
     return;
   store.deleteThread(threadId);
+  const closeExecution = getRuntimeExecutionEnvelope(threadId);
   void readBridge()
-    .closeThread({ threadId })
+    .closeThread({
+      threadId,
+      ...(closeExecution ? { execution: closeExecution } : {}),
+    })
     .catch(() => undefined);
 }
 

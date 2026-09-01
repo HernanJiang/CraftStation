@@ -51,13 +51,13 @@ export const Reasoning = memo(function Reasoning({ item }: ReasoningProps) {
       >
         <Brain
           ref={brainRef}
-          className={`size-3 shrink-0 ${isStreaming ? "poracode-brain-thinking" : ""}`}
+          className={`size-3 shrink-0 ${isStreaming ? "craftstation-brain-thinking" : ""}`}
           {...(isStreaming ? { "aria-label": t`Thinking` } : {})}
         />
         <span
           ref={thinkingTextRef}
-          className={`shrink-0 ${isStreaming ? "poracode-thinking-text" : ""}`}
-          {...(isStreaming ? { "data-poracode-shimmer-text": t`Thinking` } : {})}
+          className={`shrink-0 ${isStreaming ? "craftstation-thinking-text" : ""}`}
+          {...(isStreaming ? { "data-craftstation-shimmer-text": t`Thinking` } : {})}
         >
           {isStreaming ? <Trans>Thinking</Trans> : <Trans>Thought</Trans>}
         </span>

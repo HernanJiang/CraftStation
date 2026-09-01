@@ -389,8 +389,8 @@ msgid "{0}mo ago"
 msgstr "{0}か月前"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "{agent} reported authentication success, but Poracode could not verify it. Configure {agent} directly, then try again."
-msgstr "{agent} は認証に成功したと報告しましたが、Poracode では確認できませんでした。{agent} を直接設定してから、もう一度お試しください。"
+msgid "{agent} reported authentication success, but CraftStation could not verify it. Configure {agent} directly, then try again."
+msgstr "{agent} は認証に成功したと報告しましたが、CraftStation では確認できませんでした。{agent} を直接設定してから、もう一度お試しください。"
 
 #: src/renderer/views/SettingsOverlay/parts/AcpRegistrySettings.tsx
 msgid "{agentLabel} install targets"
@@ -642,8 +642,8 @@ msgstr "@cursor/sdk はインストールされていません。"
 #~ msgstr "/skill-creator {destinationLabel} 用の新しい管理対象スキルを作成してください。"
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "/skill-creator-poracode Create a new managed skill for {destinationLabel}."
-msgstr "/skill-creator-poracode {destinationLabel} 用の新しい管理対象スキルを作成してください。"
+msgid "/skill-creator-craftstation Create a new managed skill for {destinationLabel}."
+msgstr "/skill-creator-craftstation {destinationLabel} 用の新しい管理対象スキルを作成してください。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "© {currentYear} Serhii Vecherenko. All rights reserved."
@@ -726,8 +726,8 @@ msgid "A server could not be started and was skipped."
 msgstr "サーバーを起動できなかったためスキップしました。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "A server has a name Poracode cannot use."
-msgstr "Poracode が使用できない名前のサーバーがあります。"
+msgid "A server has a name CraftStation cannot use."
+msgstr "CraftStation が使用できない名前のサーバーがあります。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "A server is not configured correctly and was skipped."
@@ -911,8 +911,8 @@ msgid "Add a project to use GitHub Actions."
 msgstr "GitHub Actions を使用するにはプロジェクトを追加してください。"
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "Add a skill to .agents/skills or .poracode/skills, or import one from another provider."
-msgstr ".agents/skills または .poracode/skills にスキルを追加するか、別のプロバイダーからインポートしてください。"
+msgid "Add a skill to .agents/skills or .craftstation/skills, or import one from another provider."
+msgstr ".agents/skills または .craftstation/skills にスキルを追加するか、別のプロバイダーからインポートしてください。"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 #~ msgid "Add a skill to .agents/skills or import one from another provider."
@@ -1675,8 +1675,8 @@ msgid "Automation is paused: the configured helper agent is unavailable. Check t
 msgstr "自動化は一時停止中です。設定された補助エージェントを利用できません。エージェントの接続と補助エージェントの設定を確認してください。"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrWatchControls.tsx
-msgid "Automation is paused: this PR's branch could not be checked out. Poracode keeps retrying automatically."
-msgstr "自動化は一時停止中です: このPRのブランチをチェックアウトできませんでした。Poracodeが自動的に再試行し続けます。"
+msgid "Automation is paused: this PR's branch could not be checked out. CraftStation keeps retrying automatically."
+msgstr "自動化は一時停止中です: このPRのブランチをチェックアウトできませんでした。CraftStationが自動的に再試行し続けます。"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrWatchControls.tsx
 #~ msgid "Automation is paused: this PR's branch could not be checked out. Re-select a mode to retry."
@@ -1908,8 +1908,8 @@ msgid "Browse your GitHub repositories or paste a clone URL."
 msgstr "GitHub リポジトリを参照するか、クローン URL を貼り付けます。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Browse, inspect, and test websites in Poracode's isolated in-app browser."
-msgstr "Poracode の隔離された組み込みブラウザーで Web サイトを閲覧・検査・テストします。"
+msgid "Browse, inspect, and test websites in CraftStation's isolated in-app browser."
+msgstr "CraftStation の隔離された組み込みブラウザーで Web サイトを閲覧・検査・テストします。"
 
 #: src/mobile/chrome.ts
 #: src/mobile/NarrowShell.tsx
@@ -2008,16 +2008,16 @@ msgid "Built-in order"
 msgstr "組み込み順"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
-msgid "Built-in servers are managed by Poracode. They can be disabled globally but cannot be edited or removed."
-msgstr "組み込みサーバーはPoracodeによって管理されます。グローバルに無効化できますが、編集や削除はできません。"
+msgid "Built-in servers are managed by CraftStation. They can be disabled globally but cannot be edited or removed."
+msgstr "組み込みサーバーはCraftStationによって管理されます。グローバルに無効化できますが、編集や削除はできません。"
 
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Built-in shortcut — can't be changed"
 msgstr "組み込みのショートカット — 変更できません"
 
 #: src/renderer/components/plugins/PluginMarketplace.tsx
-msgid "Bundles of skills and MCP servers that work across every supported agent. Poracode loads any package built for the Agent Plugins specification."
-msgstr "サポートされているすべてのエージェントで動作するスキルとMCPサーバーのバンドルです。Poracode は Agent Plugins 仕様に基づくパッケージをすべて読み込みます。"
+msgid "Bundles of skills and MCP servers that work across every supported agent. CraftStation loads any package built for the Agent Plugins specification."
+msgstr "サポートされているすべてのエージェントで動作するスキルとMCPサーバーのバンドルです。CraftStation は Agent Plugins 仕様に基づくパッケージをすべて読み込みます。"
 
 #: src/renderer/utils/projectIcons.ts
 msgid "Business & finance"
@@ -2359,8 +2359,8 @@ msgstr "候補を 2 つ以上選択し、プロンプトを入力してくださ
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose how Poracode performs manual merges and automatic PR merges."
-msgstr "Poracode が手動マージと PR の自動マージを行う方法を選択します。"
+msgid "Choose how CraftStation performs manual merges and automatic PR merges."
+msgstr "CraftStation が手動マージと PR の自動マージを行う方法を選択します。"
 
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
 msgid "Choose how to sign in for {env}."
@@ -2375,8 +2375,8 @@ msgid "Choose import destination"
 msgstr "インポート先を選択"
 
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
-msgid "Choose shells for the Terminal panel and Poracode's internal commands."
-msgstr "ターミナルパネルと Poracode の内部コマンドで使用するシェルを選択します。"
+msgid "Choose shells for the Terminal panel and CraftStation's internal commands."
+msgstr "ターミナルパネルと CraftStation の内部コマンドで使用するシェルを選択します。"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "Choose SSH identity file"
@@ -2384,8 +2384,8 @@ msgstr "SSH 秘密鍵ファイルを選択"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose the display language for Poracode's interface."
-msgstr "Poracode のインターフェースの表示言語を選択します。"
+msgid "Choose the display language for CraftStation's interface."
+msgstr "CraftStation のインターフェースの表示言語を選択します。"
 
 #: src/renderer/views/SettingsOverlay/parts/CursorProviderSettings.tsx
 #~ msgid "Choose the runtime for new Cursor GUI chats. SDK becomes available after its package is detected and its API key is authenticated."
@@ -2401,8 +2401,8 @@ msgstr "接続するスレッドを選択してください"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose what Poracode does for new pull requests: nothing, fix merge blockers, or fix and merge."
-msgstr "新しいプルリクエストに対するPoracodeの動作を選択します：何もしない、マージの妨げを修正する、または修正してマージする。"
+msgid "Choose what CraftStation does for new pull requests: nothing, fix merge blockers, or fix and merge."
+msgstr "新しいプルリクエストに対するCraftStationの動作を選択します：何もしない、マージの妨げを修正する、または修正してマージする。"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -2411,8 +2411,8 @@ msgstr "このマシンをスリープさせないタイミングを選びます
 
 #: src/renderer/views/SettingsOverlay/parts/BrowserSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Choose whether links from Poracode and browser popups stay in Poracode or open externally."
-msgstr "Poracode とブラウザのポップアップからのリンクを Poracode 内に残すか、外部で開くかを選択します。"
+msgid "Choose whether links from CraftStation and browser popups stay in CraftStation or open externally."
+msgstr "CraftStation とブラウザのポップアップからのリンクを CraftStation 内に残すか、外部で開くかを選択します。"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -3046,8 +3046,8 @@ msgid "Config directory"
 msgstr "設定ディレクトリ"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
-msgid "Configure the server Poracode will add when supported agents start."
-msgstr "対応エージェントの起動時にPoracodeが追加するサーバーを設定します。"
+msgid "Configure the server CraftStation will add when supported agents start."
+msgstr "対応エージェントの起動時にCraftStationが追加するサーバーを設定します。"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
@@ -3102,24 +3102,24 @@ msgid "Connect desktop"
 msgstr "デスクトップに接続"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
-msgid "Connect directly, through a relay, or over SSH. Every transport uses the same Poracode remote protocol, projects, threads, and agent runtimes."
-msgstr "直接、リレー経由、または SSH で接続します。どのトランスポートでも、同じ Poracode リモートプロトコル、プロジェクト、スレッド、エージェントランタイムを使用します。"
+msgid "Connect directly, through a relay, or over SSH. Every transport uses the same CraftStation remote protocol, projects, threads, and agent runtimes."
+msgstr "直接、リレー経由、または SSH で接続します。どのトランスポートでも、同じ CraftStation リモートプロトコル、プロジェクト、スレッド、エージェントランタイムを使用します。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
 msgid "Connect over SSH"
 msgstr "SSH で接続"
 
 #: src/mobile/setupEmptyState.tsx
-msgid "Connect Poracode on your desktop before starting a thread."
-msgstr "スレッドを開始する前に、デスクトップの Poracode に接続してください。"
+msgid "Connect CraftStation on your desktop before starting a thread."
+msgstr "スレッドを開始する前に、デスクトップの CraftStation に接続してください。"
 
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Connect the AI providers OpenCode can use and sign out of them here."
 msgstr "OpenCode が使用できる AI プロバイダーをここで接続し、サインアウトします。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
-#~ msgid "Connect to another Poracode desktop or a headless server to browse and manage its projects from here. Get its endpoint and pairing token from Settings → Remote Access on that machine."
-#~ msgstr "別の Poracode デスクトップまたはヘッドレスサーバーに接続すると、そのプロジェクトをここから参照・管理できます。エンドポイントとペアリングトークンは、その端末の「設定 → リモートアクセス」から取得してください。"
+#~ msgid "Connect to another CraftStation desktop or a headless server to browse and manage its projects from here. Get its endpoint and pairing token from Settings → Remote Access on that machine."
+#~ msgstr "別の CraftStation デスクトップまたはヘッドレスサーバーに接続すると、そのプロジェクトをここから参照・管理できます。エンドポイントとペアリングトークンは、その端末の「設定 → リモートアクセス」から取得してください。"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
@@ -3294,8 +3294,8 @@ msgid "Copy {0} device code {1}"
 msgstr "{0}デバイス コード{1}をコピーします"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Copy all Lightcode data into Poracode. Poracode restarts and keeps a complete backup of its current data."
-msgstr "すべての Lightcode データを Poracode にコピーします。Poracode は再起動し、現在のデータの完全なバックアップを保持します。"
+msgid "Copy all CraftStation data into CraftStation. CraftStation restarts and keeps a complete backup of its current data."
+msgstr "すべての CraftStation データを CraftStation にコピーします。CraftStation は再起動し、現在のデータの完全なバックアップを保持します。"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Copy code"
@@ -3498,8 +3498,8 @@ msgid "Couldn't scan MCP server configurations."
 msgstr "MCP サーバー設定をスキャンできませんでした。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Couldn't schedule the Lightcode data import."
-msgstr "Lightcode データのインポートを予約できませんでした。"
+msgid "Couldn't schedule the CraftStation data import."
+msgstr "CraftStation データのインポートを予約できませんでした。"
 
 #: src/mobile/QrScanner.tsx
 msgid "Couldn't start the camera"
@@ -4223,8 +4223,8 @@ msgid "Development"
 msgstr "開発"
 
 #: src/renderer/views/SettingsOverlay/parts/DevSettings.tsx
-msgid "Development-only overrides. Only visible in the PORACODE DEV build."
-msgstr "開発専用の上書き。 PORACODE DEV ビルドでのみ表示されます。"
+msgid "Development-only overrides. Only visible in the CRAFTSTATION DEV build."
+msgstr "開発専用の上書き。 CRAFTSTATION DEV ビルドでのみ表示されます。"
 
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4310,8 +4310,8 @@ msgid "Disabled globally"
 msgstr "グローバルで無効"
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "Disabling a skill moves it out of active skill folders and removes Poracode-managed provider copies. Its files are preserved so you can enable it again."
-msgstr "スキルを無効にすると、アクティブなスキルフォルダーから移動され、Poracode が管理するプロバイダーのコピーが削除されます。ファイルは保持されるため、再度有効にできます。"
+msgid "Disabling a skill moves it out of active skill folders and removes CraftStation-managed provider copies. Its files are preserved so you can enable it again."
+msgstr "スキルを無効にすると、アクティブなスキルフォルダーから移動され、CraftStation が管理するプロバイダーのコピーが削除されます。ファイルは保持されるため、再度有効にできます。"
 
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Discard"
@@ -5244,68 +5244,68 @@ msgid "Finished · Waiting for your input"
 msgstr "完了しました · 入力を待っています"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Antigravity CLI integration using Poracode's native runtime."
-msgstr "Poracode のネイティブ ランタイムを使用したファーストクラスの Antigravity CLI 統合。"
+msgid "First-class Antigravity CLI integration using CraftStation's native runtime."
+msgstr "CraftStation のネイティブ ランタイムを使用したファーストクラスの Antigravity CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Claude Code integration using Poracode's native SDK runtime."
-msgstr "Poracode のネイティブ SDK ランタイムを使用したファーストクラスの Claude Code 統合。"
+msgid "First-class Claude Code integration using CraftStation's native SDK runtime."
+msgstr "CraftStation のネイティブ SDK ランタイムを使用したファーストクラスの Claude Code 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Codex CLI integration using Poracode's native app-server runtime."
-msgstr "Poracode のネイティブ アプリサーバー ランタイムを使用したファーストクラスの Codex CLI 統合。"
+msgid "First-class Codex CLI integration using CraftStation's native app-server runtime."
+msgstr "CraftStation のネイティブ アプリサーバー ランタイムを使用したファーストクラスの Codex CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Command Code CLI integration using Poracode's native runtime."
-msgstr "Poracode のネイティブ ランタイムを使用したファーストクラスの Command Code CLI 統合。"
+msgid "First-class Command Code CLI integration using CraftStation's native runtime."
+msgstr "CraftStation のネイティブ ランタイムを使用したファーストクラスの Command Code CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-#~ msgid "First-class Cursor Agent integration using Poracode's native runtime."
-#~ msgstr "Poracode のネイティブ ランタイムを使用したファーストクラスの Cursor Agent 統合。"
+#~ msgid "First-class Cursor Agent integration using CraftStation's native runtime."
+#~ msgstr "CraftStation のネイティブ ランタイムを使用したファーストクラスの Cursor Agent 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Cursor integration using ACP or the public SDK runtime."
 msgstr "ACP または公開 SDK ランタイムを使用する Cursor のファーストクラス統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Factory Droid integration using Poracode's ACP runtime."
-msgstr "Poracode の ACP ランタイムを使用した Factory Droid のファーストクラス統合。"
+msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
+msgstr "CraftStation の ACP ランタイムを使用した Factory Droid のファーストクラス統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Gemini CLI integration using Poracode's native runtime."
-msgstr "Poracode のネイティブ ランタイムを使用したファーストクラスの Gemini CLI 統合。"
+msgid "First-class Gemini CLI integration using CraftStation's native runtime."
+msgstr "CraftStation のネイティブ ランタイムを使用したファーストクラスの Gemini CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class GitHub Copilot CLI integration using Poracode's native runtime."
-msgstr "Poracode のネイティブ ランタイムを使用したファーストクラスの GitHub Copilot CLI 統合。"
+msgid "First-class GitHub Copilot CLI integration using CraftStation's native runtime."
+msgstr "CraftStation のネイティブ ランタイムを使用したファーストクラスの GitHub Copilot CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Grok Build CLI integration using Poracode's native runtime."
-msgstr "Poracode のネイティブ ランタイムを使用したファーストクラスの Grok Build CLI 統合。"
+msgid "First-class Grok Build CLI integration using CraftStation's native runtime."
+msgstr "CraftStation のネイティブ ランタイムを使用したファーストクラスの Grok Build CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Kimi Code CLI integration using Poracode's native runtime."
-msgstr "Poracode のネイティブ ランタイムを使用したファーストクラスの Kimi Code CLI 統合。"
+msgid "First-class Kimi Code CLI integration using CraftStation's native runtime."
+msgstr "CraftStation のネイティブ ランタイムを使用したファーストクラスの Kimi Code CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Muse Code CLI integration using Poracode's native terminal runtime."
-msgstr "Poracode のネイティブなターミナル ランタイムを使用したファーストクラスの Muse Code CLI 統合。"
+msgid "First-class Muse Code CLI integration using CraftStation's native terminal runtime."
+msgstr "CraftStation のネイティブなターミナル ランタイムを使用したファーストクラスの Muse Code CLI 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class OpenCode integration using Poracode's native SDK runtime."
-msgstr "Poracode のネイティブ SDK ランタイムを使用したファーストクラスの OpenCode 統合。"
+msgid "First-class OpenCode integration using CraftStation's native SDK runtime."
+msgstr "CraftStation のネイティブ SDK ランタイムを使用したファーストクラスの OpenCode 統合。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Pi integration using a real terminal and Pi's native SDK runtime."
 msgstr "実際のターミナルと Pi のネイティブ SDK ランタイムを使用する、完全な Pi 統合です。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Qoder CLI integration using Poracode's native terminal and ACP runtimes."
-msgstr "Poracode のネイティブなターミナルおよび ACP ランタイムを使用する、Qoder CLI のファーストクラス統合です。"
+msgid "First-class Qoder CLI integration using CraftStation's native terminal and ACP runtimes."
+msgstr "CraftStation のネイティブなターミナルおよび ACP ランタイムを使用する、Qoder CLI のファーストクラス統合です。"
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
-msgid "First-class Qwen Code integration using Poracode's native terminal and ACP runtimes."
-msgstr "Poracode のネイティブなターミナルおよび ACP ランタイムを使用する、Qwen Code のファーストクラス統合です。"
+msgid "First-class Qwen Code integration using CraftStation's native terminal and ACP runtimes."
+msgstr "CraftStation のネイティブなターミナルおよび ACP ランタイムを使用する、Qwen Code のファーストクラス統合です。"
 
 #: src/renderer/components/pdf/PdfViewer.tsx
 #~ msgid "Fit width"
@@ -5773,8 +5773,8 @@ msgid "Headers"
 msgstr "ヘッダー"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
-msgid "Help me create a schedule. Ask for any missing details, then use the Poracode schedule controls to create it for me."
-msgstr "スケジュール作成を手伝ってください。不足している詳細を確認し、Poracodeのスケジュール操作を使って作成してください。"
+msgid "Help me create a schedule. Ask for any missing details, then use the CraftStation schedule controls to create it for me."
+msgstr "スケジュール作成を手伝ってください。不足している詳細を確認し、CraftStationのスケジュール操作を使って作成してください。"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "Hex color"
@@ -5990,12 +5990,12 @@ msgid "Import external skills"
 msgstr "外部スキルをインポート"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Import Lightcode data"
-msgstr "Lightcode データをインポート"
+msgid "Import CraftStation data"
+msgstr "CraftStation データをインポート"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Import Lightcode data again?"
-msgstr "Lightcode データを再度インポートしますか？"
+msgid "Import CraftStation data again?"
+msgstr "CraftStation データを再度インポートしますか？"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Import MCP servers"
@@ -6334,8 +6334,8 @@ msgstr "順調に進める"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Keep Poracode in the system tray when it launches at startup."
-msgstr "スタートアップ時は Poracode をシステムトレイに格納した状態で起動します。"
+msgid "Keep CraftStation in the system tray when it launches at startup."
+msgstr "スタートアップ時は CraftStation をシステムトレイに格納した状態で起動します。"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -6369,8 +6369,8 @@ msgid "Kimi Code"
 msgstr "Kimi Code"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Kimi Code could not update its credentials because another process is using the credential file. Close other Poracode or Kimi Code processes, then retry."
-msgstr "別のプロセスが認証情報ファイルを使用しているため、Kimi Code は認証情報を更新できませんでした。他の Poracode または Kimi Code プロセスを終了してから、もう一度お試しください。"
+msgid "Kimi Code could not update its credentials because another process is using the credential file. Close other CraftStation or Kimi Code processes, then retry."
+msgstr "別のプロセスが認証情報ファイルを使用しているため、Kimi Code は認証情報を更新できませんでした。他の CraftStation または Kimi Code プロセスを終了してから、もう一度お試しください。"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code ended the turn without returning a response. Restart the thread and try again."
@@ -6407,8 +6407,8 @@ msgstr "スタートアップ時に起動"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Launch Poracode automatically when you sign in to Windows."
-msgstr "Windows へのサインイン時に Poracode を自動的に起動します。"
+msgid "Launch CraftStation automatically when you sign in to Windows."
+msgstr "Windows へのサインイン時に CraftStation を自動的に起動します。"
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Launch thread"
@@ -6471,8 +6471,8 @@ msgid "Light"
 msgstr "ライト"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Lightcode data import is unavailable with a custom data folder."
-msgstr "カスタムデータフォルダーでは Lightcode データをインポートできません。"
+msgid "CraftStation data import is unavailable with a custom data folder."
+msgstr "カスタムデータフォルダーでは CraftStation データをインポートできません。"
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "Link to source"
@@ -6754,12 +6754,12 @@ msgstr "グローバルおよびプロジェクトスコープの共有スキル
 
 #: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Manage the MCP server configurations Poracode adds when starting supported agents. Workspace servers can be configured in each project's settings."
-msgstr "対応エージェントの起動時にPoracodeが追加するMCPサーバー設定を管理します。ワークスペースのサーバーは、各プロジェクトの設定で構成できます。"
+msgid "Manage the MCP server configurations CraftStation adds when starting supported agents. Workspace servers can be configured in each project's settings."
+msgstr "対応エージェントの起動時にCraftStationが追加するMCPサーバー設定を管理します。ワークスペースのサーバーは、各プロジェクトの設定で構成できます。"
 
 #: src/renderer/views/SettingsOverlay/parts/SkillsSettings.tsx
-#~ msgid "Manage the skills Poracode makes available to supported agents. Project skills can be managed in each project's settings."
-#~ msgstr "Poracode が対応エージェントに提供するスキルを管理します。プロジェクトスキルは各プロジェクトの設定で管理できます。"
+#~ msgid "Manage the skills CraftStation makes available to supported agents. Project skills can be managed in each project's settings."
+#~ msgstr "CraftStation が対応エージェントに提供するスキルを管理します。プロジェクトスキルは各プロジェクトの設定で管理できます。"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorkspaceSwitcher.tsx
 #~ msgid "Manage workspaces"
@@ -6779,8 +6779,8 @@ msgid "Managed by {pluginName}"
 msgstr "{pluginName} が管理"
 
 #: src/renderer/components/mcp/McpExternalImportModal.tsx
-msgid "Managed by Poracode"
-msgstr "Poracode による管理"
+msgid "Managed by CraftStation"
+msgstr "CraftStation による管理"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Managed by provider"
@@ -7872,8 +7872,8 @@ msgid "No learned selections yet."
 msgstr "学習済みの選択はまだありません。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "No Lightcode data was found."
-msgstr "Lightcode データが見つかりませんでした。"
+msgid "No CraftStation data was found."
+msgstr "CraftStation データが見つかりませんでした。"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "No marketplace skills match these filters."
@@ -8516,12 +8516,12 @@ msgid "Open Settings"
 msgstr "設定を開く"
 
 #: src/mobile/views/DesktopsView.tsx
-#~ msgid "Open Settings → Remote Access in Poracode on this computer, then paste its pairing token here."
-#~ msgstr "このコンピューターの Poracode で「設定」→「リモートアクセス」を開き、ペアリングトークンをここに貼り付けます。"
+#~ msgid "Open Settings → Remote Access in CraftStation on this computer, then paste its pairing token here."
+#~ msgstr "このコンピューターの CraftStation で「設定」→「リモートアクセス」を開き、ペアリングトークンをここに貼り付けます。"
 
 #: src/mobile/views/DesktopsView.tsx
-msgid "Open Settings → Remote Access in Poracode on your desktop, then scan the QR code from here — or enter the endpoint and pairing token manually."
-msgstr "デスクトップの Poracode で「設定 → リモートアクセス」を開き、ここから QR コードをスキャンしてください。または、エンドポイントとペアリングトークンを手動で入力します。"
+msgid "Open Settings → Remote Access in CraftStation on your desktop, then scan the QR code from here — or enter the endpoint and pairing token manually."
+msgstr "デスクトップの CraftStation で「設定 → リモートアクセス」を開き、ここから QR コードをスキャンしてください。または、エンドポイントとペアリングトークンを手動で入力します。"
 
 #. placeholder {0}: display.title
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
@@ -8574,8 +8574,8 @@ msgid "OpenSSH private key"
 msgstr "OpenSSH 秘密鍵"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Operate desktop apps through Poracode's desktop-control tools."
-msgstr "Poracode のデスクトップ制御ツールでデスクトップアプリを操作します。"
+msgid "Operate desktop apps through CraftStation's desktop-control tools."
+msgstr "CraftStation のデスクトップ制御ツールでデスクトップアプリを操作します。"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Optional"
@@ -8690,8 +8690,8 @@ msgid "Pair again"
 msgstr "もう一度ペアリング"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
-msgid "Pair with Poracode"
-msgstr "Poracode とペアリング"
+msgid "Pair with CraftStation"
+msgstr "CraftStation とペアリング"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Paired devices"
@@ -8991,62 +8991,62 @@ msgstr "このプロファイルを、カスタムの環境変数・モデル名
 
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "Popular editor themes adapted to Poracode. Each follows the light or dark mode above."
-msgstr "人気のエディター テーマを Poracode に適合させました。それぞれは上記のライト モードまたはダーク モードに従います。"
+msgid "Popular editor themes adapted to CraftStation. Each follows the light or dark mode above."
+msgstr "人気のエディター テーマを CraftStation に適合させました。それぞれは上記のライト モードまたはダーク モードに従います。"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
-msgid "Poracode and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
-msgstr "Poracode とエージェントはリモートマシン上で実行されます。SSH はリモート環境の起動とローカルトンネルの保護にのみ使用されます。"
+msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
+msgstr "CraftStation とエージェントはリモートマシン上で実行されます。SSH はリモート環境の起動とローカルトンネルの保護にのみ使用されます。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Poracode could not create this plugin's data folder."
-msgstr "Poracode はこのプラグインのデータフォルダを作成できませんでした。"
+msgid "CraftStation could not create this plugin's data folder."
+msgstr "CraftStation はこのプラグインのデータフォルダを作成できませんでした。"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
-#~ msgid "Poracode does not store marketplace credentials in plain settings. Open the catalog to browse its security-scanned skills."
-#~ msgstr "Poracode はマーケットプレイスの認証情報を設定に平文で保存しません。カタログを開いて、セキュリティスキャン済みのスキルを確認してください。"
+#~ msgid "CraftStation does not store marketplace credentials in plain settings. Open the catalog to browse its security-scanned skills."
+#~ msgstr "CraftStation はマーケットプレイスの認証情報を設定に平文で保存しません。カタログを開いて、セキュリティスキャン済みのスキルを確認してください。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine."
-msgstr "Poracode Helper を起動できませんでした。リモートマシンに Node 24.10 以降と npm がインストールされていることを確認してください。"
+msgid "CraftStation Helper failed to start. Check that Node 24.10 or newer and npm are installed on the remote machine."
+msgstr "CraftStation Helper を起動できませんでした。リモートマシンに Node 24.10 以降と npm がインストールされていることを確認してください。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode Helper is not ready yet (HTTP {status})."
-msgstr "Poracode Helper はまだ準備できていません（HTTP {status}）。"
+msgid "CraftStation Helper is not ready yet (HTTP {status})."
+msgstr "CraftStation Helper はまだ準備できていません（HTTP {status}）。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode Helper returned an invalid response."
-msgstr "Poracode Helper から無効な応答が返されました。"
+msgid "CraftStation Helper returned an invalid response."
+msgstr "CraftStation Helper から無効な応答が返されました。"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
-msgid "Poracode may be waiting on saved data or a background service. You can keep waiting, restart, or install an available update."
-msgstr "Poracode は保存済みデータまたはバックグラウンドサービスを待機している可能性があります。待機を続けるか、再起動するか、利用可能なアップデートをインストールできます。"
+msgid "CraftStation may be waiting on saved data or a background service. You can keep waiting, restart, or install an available update."
+msgstr "CraftStation は保存済みデータまたはバックグラウンドサービスを待機している可能性があります。待機を続けるか、再起動するか、利用可能なアップデートをインストールできます。"
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "Poracode only"
-msgstr "Poracode のみ"
+msgid "CraftStation only"
+msgstr "CraftStation のみ"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Poracode SSH runtime manifest is missing or invalid: {path}"
-msgstr "Poracode SSH ランタイムマニフェストが見つからないか、無効です: {path}"
+msgid "CraftStation SSH runtime manifest is missing or invalid: {path}"
+msgstr "CraftStation SSH ランタイムマニフェストが見つからないか、無効です: {path}"
 
 #: src/mobile/views/DesktopsView.tsx
-msgid "Poracode will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
-msgstr "Poracode は SSH ホストにサーバーをインストールまたは再利用し、認証情報をこのデバイスのセキュアストレージに保存します。"
+msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
+msgstr "CraftStation は SSH ホストにサーバーをインストールまたは再利用し、認証情報をこのデバイスのセキュアストレージに保存します。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-msgid "Poracode will restart, back up its current data, and replace it with a complete copy of your Lightcode data."
-msgstr "Poracode は再起動し、現在のデータをバックアップしてから、Lightcode データの完全なコピーに置き換えます。"
+msgid "CraftStation will restart, back up its current data, and replace it with a complete copy of your CraftStation data."
+msgstr "CraftStation は再起動し、現在のデータをバックアップしてから、CraftStation データの完全なコピーに置き換えます。"
 
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
-msgid "Poracode's built-in browser tools."
-msgstr "Poracode の組み込みブラウザツール。"
+msgid "CraftStation's built-in browser tools."
+msgstr "CraftStation の組み込みブラウザツール。"
 
 #: src/renderer/components/thread/MoveThreadToWorktreeDialog.tsx
-#~ msgid "poracode/my-branch"
-#~ msgstr "poracode/my-branch"
+#~ msgid "craftstation/my-branch"
+#~ msgstr "craftstation/my-branch"
 
 #: src/mobile/views/DesktopsView.tsx
 #: src/mobile/views/PortsView.tsx
@@ -9368,8 +9368,8 @@ msgid "Proposed plan"
 msgstr "提案された計画"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
-msgid "Provided and managed by Poracode for supported agents."
-msgstr "対応エージェント向けにPoracodeによって提供および管理されています。"
+msgid "Provided and managed by CraftStation for supported agents."
+msgstr "対応エージェント向けにCraftStationによって提供および管理されています。"
 
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/authHelpers.ts
 msgid "provider"
@@ -9447,8 +9447,8 @@ msgid "Pull ↓{behind}"
 msgstr "プル ↓{behind}"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Pull did not complete. Your local changes remain in a Poracode stash."
-msgstr "プルが完了しませんでした。ローカルでの変更は Poracode スタッシュに残ります。"
+msgid "Pull did not complete. Your local changes remain in a CraftStation stash."
+msgstr "プルが完了しませんでした。ローカルでの変更は CraftStation スタッシュに残ります。"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Pull failed: {detail}"
@@ -10022,8 +10022,8 @@ msgid "Removing {profileName} deletes its saved API key. Threads that use this p
 msgstr "{profileName} を削除すると、保存されたAPIキーも削除されます。このプロファイルを使用しているスレッドはエージェントを見つけられなくなります。"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
-msgid "Removing {profileName} drops its Poracode settings — env vars, models, and effort. Its config directory and the Claude credentials inside it stay on disk."
-msgstr "{profileName} を削除すると、Poracodeの設定（環境変数、モデル、Effort）が失われます。設定ディレクトリとその中のClaude認証情報はディスクに残ります。"
+msgid "Removing {profileName} drops its CraftStation settings — env vars, models, and effort. Its config directory and the Claude credentials inside it stay on disk."
+msgstr "{profileName} を削除すると、CraftStationの設定（環境変数、モデル、Effort）が失われます。設定ディレクトリとその中のClaude認証情報はディスクに残ります。"
 
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/TodoActionsSheet.tsx
@@ -10228,8 +10228,8 @@ msgid "Resolves merge conflicts during rebase or merge."
 msgstr "リベースまたはマージ中のマージ競合を解決します。"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
-msgid "Restart Poracode"
-msgstr "Poracode を再起動"
+msgid "Restart CraftStation"
+msgstr "CraftStation を再起動"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Restore"
@@ -10514,8 +10514,8 @@ msgstr "1 つのプロンプトを複数のエージェントで実行し、そ�
 #~ msgstr "プロジェクトなしで、このデバイス上の独立したタスクを実行します。"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
-msgid "Run standalone tasks on this device. Schedules run while the device is awake and Poracode is open."
-msgstr "このデバイスで単独タスクを実行します。スケジュールはデバイスが起動し、Poracodeが開いている間に実行されます。"
+msgid "Run standalone tasks on this device. Schedules run while the device is awake and CraftStation is open."
+msgstr "このデバイスで単独タスクを実行します。スケジュールはデバイスが起動し、CraftStationが開いている間に実行されます。"
 
 #: src/renderer/commands/registry.ts
 msgid "Run Terminal Command"
@@ -10702,8 +10702,8 @@ msgid "Scheduled tasks on this desktop"
 msgstr "このデスクトップのスケジュールタスク"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
-#~ msgid "Scheduled tasks run only while this device is awake and Poracode is open."
-#~ msgstr "スケジュールタスクは、このデバイスが起動中でPoracodeが開いている間のみ実行されます。"
+#~ msgid "Scheduled tasks run only while this device is awake and CraftStation is open."
+#~ msgstr "スケジュールタスクは、このデバイスが起動中でCraftStationが開いている間のみ実行されます。"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarShortcuts.tsx
@@ -11054,8 +11054,8 @@ msgid "Server {target} could not be started and was skipped."
 msgstr "サーバー {target} を起動できなかったためスキップしました。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "Server {target} has a name Poracode cannot use."
-msgstr "サーバー {target} は Poracode が使用できない名前です。"
+msgid "Server {target} has a name CraftStation cannot use."
+msgstr "サーバー {target} は CraftStation が使用できない名前です。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "Server {target} is not configured correctly and was skipped."
@@ -11066,8 +11066,8 @@ msgid "Server {target} runs on this computer and is unavailable for WSL projects
 msgstr "サーバー {target} はこのコンピューターで動作するため、WSL プロジェクトでは利用できません。"
 
 #: src/renderer/components/plugins/PluginDetail.tsx
-msgid "Servers this plugin declares in mcp.json. Poracode passes them to every supported agent."
-msgstr "このプラグインが mcp.json で宣言しているサーバーです。Poracode はサポートされているすべてのエージェントに渡します。"
+msgid "Servers this plugin declares in mcp.json. CraftStation passes them to every supported agent."
+msgstr "このプラグインが mcp.json で宣言しているサーバーです。CraftStation はサポートされているすべてのエージェントに渡します。"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Set group color"
@@ -12127,8 +12127,8 @@ msgstr "+ をタップしてデスクトップでフォルダーを追加する�
 #~ msgstr "+ をタップして直接ペアリングするか、SSH 経由でリモートマシンに接続します。"
 
 #: src/mobile/views/DesktopsView.tsx
-#~ msgid "Tap + to pair with Poracode on your desktop."
-#~ msgstr "+ をタップしてデスクトップの Poracode とペアリングしてください。"
+#~ msgid "Tap + to pair with CraftStation on your desktop."
+#~ msgstr "+ をタップしてデスクトップの CraftStation とペアリングしてください。"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/CreatePrModal.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrSection.tsx
@@ -12249,8 +12249,8 @@ msgid "That pairing code is no longer valid. Open Settings → Remote Access on 
 msgstr "このペアリングコードは無効になりました。デスクトップで設定 → リモートアクセスを開き、「新しいコード」を押してから再度ペアリングしてください。"
 
 #: src/mobile/routeComponents.tsx
-msgid "That QR code isn't a Poracode pairing link."
-msgstr "その QR コードは Poracode のペアリングリンクではありません。"
+msgid "That QR code isn't a CraftStation pairing link."
+msgstr "その QR コードは CraftStation のペアリングリンクではありません。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "That remote session was already gone."
@@ -12348,8 +12348,8 @@ msgid "The normal app shell could not render. The diagnostics below are shown be
 msgstr "通常のアプリシェルをレンダリングできませんでした。障害を調査できるよう、リロード前に以下の診断情報を表示しています。"
 
 #: src/mobile/useRemoteDesktop.ts
-msgid "The remote Poracode server returned no pairing credential."
-msgstr "リモートの Poracode サーバーからペアリング認証情報が返されませんでした。"
+msgid "The remote CraftStation server returned no pairing credential."
+msgstr "リモートの CraftStation サーバーからペアリング認証情報が返されませんでした。"
 
 #: src/renderer/state/remoteServersStore.ts
 msgid "The remote server returned no pairing credential."
@@ -12420,8 +12420,8 @@ msgid "The skills marketplace couldn't be loaded."
 msgstr "スキルマーケットプレイスを読み込めませんでした。"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "The SSH tunnel reached an incompatible Poracode server."
-msgstr "SSH トンネルは互換性のない Poracode サーバーに接続しました。"
+msgid "The SSH tunnel reached an incompatible CraftStation server."
+msgstr "SSH トンネルは互換性のない CraftStation サーバーに接続しました。"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "the target provider"
@@ -12531,8 +12531,8 @@ msgstr "この HTTPS ページは平文 HTTP のデスクトップに接続で�
 #~ msgstr "このキーは、このプロファイルのCursor CLI、ACP、SDKで使用されます。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
-#~ msgid "This link opens the app Poracode serves on your network. The hosted app is served over HTTPS, which browsers block from reaching a plain-HTTP desktop."
-#~ msgstr "このリンクは Poracode がネットワーク上で提供しているアプリを開きます。ホスト版のアプリは HTTPS で配信されるため、ブラウザは平文 HTTP のデスクトップに接続できません。"
+#~ msgid "This link opens the app CraftStation serves on your network. The hosted app is served over HTTPS, which browsers block from reaching a plain-HTTP desktop."
+#~ msgstr "このリンクは CraftStation がネットワーク上で提供しているアプリを開きます。ホスト版のアプリは HTTPS で配信されるため、ブラウザは平文 HTTP のデスクトップに接続できません。"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "This name is reserved by a built-in MCP server."
@@ -12566,8 +12566,8 @@ msgid "This plugin's folder could not be read."
 msgstr "このプラグインのフォルダを読み取れませんでした。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
-msgid "This plugin's Poracode settings were ignored because they are not valid."
-msgstr "このプラグインの Poracode 設定は無効なため無視されました。"
+msgid "This plugin's CraftStation settings were ignored because they are not valid."
+msgstr "このプラグインの CraftStation 設定は無効なため無視されました。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "This plugin's skills could not be read."
@@ -12606,8 +12606,8 @@ msgid "This removes the worktree on \"{0}\", then deletes the branch."
 msgstr "これにより、「{0}」のワークツリーが削除され、その後ブランチが削除されます。"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
-msgid "This server requires authentication before Poracode can check it."
-msgstr "Poracode が確認するには、事前にこのサーバーでの認証が必要です。"
+msgid "This server requires authentication before CraftStation can check it."
+msgstr "CraftStation が確認するには、事前にこのサーバーでの認証が必要です。"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "This server runs on this computer and is unavailable for WSL projects."
@@ -12641,8 +12641,8 @@ msgstr "このワークフローは手動で開始できません。"
 
 #. placeholder {0}: activeDialog.sourceBranch
 #: src/renderer/views/MainView/parts/PullFromSourceDialog.tsx
-msgid "This worktree has local changes. Poracode can temporarily stash them, pull from {0}, then re-apply your changes."
-msgstr "このワークツリーにはローカルな変更があります。Poracode はそれらを一時的にスタッシュし、{0}からプルして、変更を再適用できます。"
+msgid "This worktree has local changes. CraftStation can temporarily stash them, pull from {0}, then re-apply your changes."
+msgstr "このワークツリーにはローカルな変更があります。CraftStation はそれらを一時的にスタッシュし、{0}からプルして、変更を再適用できます。"
 
 #: src/renderer/components/thread/ChatPane/parts/items/Reasoning.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/ReasoningInline.tsx
@@ -12735,8 +12735,8 @@ msgid "Timed out"
 msgstr "タイムアウト"
 
 #: src/renderer/i18n/sharedMessages.ts
-msgid "Timed out waiting for Poracode Helper."
-msgstr "Poracode Helper の待機中にタイムアウトしました。"
+msgid "Timed out waiting for CraftStation Helper."
+msgstr "CraftStation Helper の待機中にタイムアウトしました。"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Timeout (ms)"
@@ -12924,8 +12924,8 @@ msgstr "試してみる"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-#~ msgid "Turn on Auto-merge automatically for pull requests you create in Poracode."
-#~ msgstr "Poracode で作成するプルリクエストの自動マージを自動的にオンにします。"
+#~ msgid "Turn on Auto-merge automatically for pull requests you create in CraftStation."
+#~ msgstr "CraftStation で作成するプルリクエストの自動マージを自動的にオンにします。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Turn on remote access to show a pairing code."
@@ -12933,8 +12933,8 @@ msgstr "リモートアクセスをオンにすると、ペアリングコード
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-#~ msgid "Turn on Watch PR automatically for pull requests you create in Poracode."
-#~ msgstr "Poracode で作成するプルリクエストの「PR を監視」を自動的にオンにします。"
+#~ msgid "Turn on Watch PR automatically for pull requests you create in CraftStation."
+#~ msgstr "CraftStation で作成するプルリクエストの「PR を監視」を自動的にオンにします。"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Turn tracking on or off per provider. Disabled providers are skipped by the auto-refresh."
@@ -13425,8 +13425,8 @@ msgid "Update method"
 msgstr "更新方法"
 
 #: src/mobile/views/PortsView.tsx
-msgid "Update Poracode on your desktop to use port forwarding."
-msgstr "ポート転送を使用するには、デスクトップの Poracode を更新してください。"
+msgid "Update CraftStation on your desktop to use port forwarding."
+msgstr "ポート転送を使用するには、デスクトップの CraftStation を更新してください。"
 
 #: src/renderer/views/SettingsOverlay/parts/cursorRuntimeInstall.ts
 msgid "Update SDK"
@@ -13562,8 +13562,8 @@ msgstr "スペースを使わず、英数字、ピリオド、ハイフン、ま
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
-msgid "Use one global folder, or nest worktrees inside each project at .poracode/worktrees."
-msgstr "1 つのグローバルフォルダーを使用するか、各プロジェクト内の .poracode/worktrees にワークツリーをネストします。"
+msgid "Use one global folder, or nest worktrees inside each project at .craftstation/worktrees."
+msgstr "1 つのグローバルフォルダーを使用するか、各プロジェクト内の .craftstation/worktrees にワークツリーをネストします。"
 
 #: src/renderer/views/MainView/parts/AppOverlays.tsx
 msgid "Use Session"
@@ -13605,8 +13605,8 @@ msgstr "{conflict}で使用中"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
-msgid "Used for agents, authentication, installs, and Poracode's internal commands."
-msgstr "エージェント、認証、インストール、Poracode の内部コマンドに使用します。"
+msgid "Used for agents, authentication, installs, and CraftStation's internal commands."
+msgstr "エージェント、認証、インストール、CraftStation の内部コマンドに使用します。"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
@@ -13921,8 +13921,8 @@ msgid "What's New"
 msgstr "新着情報"
 
 #: src/renderer/views/SettingsOverlay/parts/ChangelogSettings.tsx
-msgid "What's new in Poracode, newest first."
-msgstr "Poracodeの新着情報（新しい順）。"
+msgid "What's new in CraftStation, newest first."
+msgstr "CraftStationの新着情報（新しい順）。"
 
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
@@ -13930,8 +13930,8 @@ msgstr "有効にすると、検索では <0>.gitignore</0> エントリが尊�
 
 #: src/renderer/views/SettingsOverlay/parts/BrowserSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "When links open in a Poracode browser tab, choose where the browser is revealed."
-msgstr "Poracode ブラウザ タブでリンクが開くとき、ブラウザが表示される場所を選択します。"
+msgid "When links open in a CraftStation browser tab, choose where the browser is revealed."
+msgstr "CraftStation ブラウザ タブでリンクが開くとき、ブラウザが表示される場所を選択します。"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 msgid "When off, suppress notifications from terminal threads whose status comes from the OSC fallback (no CLI hook plugin)."
@@ -13944,8 +13944,8 @@ msgstr "表示されているスレッドのアプリ内トーストを表示す
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-msgid "When you close the window, keep Poracode running in the system tray. Disable to quit on close."
-msgstr "ウィンドウを閉じてもシステムトレイで Poracode を実行したままにします。オフにすると、閉じたときに終了します。"
+msgid "When you close the window, keep CraftStation running in the system tray. Disable to quit on close."
+msgstr "ウィンドウを閉じてもシステムトレイで CraftStation を実行したままにします。オフにすると、閉じたときに終了します。"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
@@ -13957,8 +13957,8 @@ msgid "Where do you want to begin?"
 msgstr "どこから始めたいですか?"
 
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
-msgid "Where Poracode creates git worktrees for new branches. Changes apply to worktrees created from now on; existing worktrees stay where they are."
-msgstr "Poracode が新しいブランチ用の git ワークツリーを作成する場所。変更はこれ以降に作成されるワークツリーに適用され、既存のワークツリーはそのままの場所に残ります。"
+msgid "Where CraftStation creates git worktrees for new branches. Changes apply to worktrees created from now on; existing worktrees stay where they are."
+msgstr "CraftStation が新しいブランチ用の git ワークツリーを作成する場所。変更はこれ以降に作成されるワークツリーに適用され、既存のワークツリーはそのままの場所に残ります。"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Where the run's conversation is created."
@@ -14163,8 +14163,8 @@ msgstr "ワークツリーの保存場所"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
-msgid "Worktree threads are marked done as soon as Poracode sees their pull request merge. Threads mid-turn wait until the turn finishes."
-msgstr "Poracode がプルリクエストのマージを検知すると、ワークツリーのスレッドは完了になります。ターン実行中のスレッドはターンが終わるまで待機します。"
+msgid "Worktree threads are marked done as soon as CraftStation sees their pull request merge. Threads mid-turn wait until the turn finishes."
+msgstr "CraftStation がプルリクエストのマージを検知すると、ワークツリーのスレッドは完了になります。ターン実行中のスレッドはターンが終わるまで待機します。"
 
 #. placeholder {0}: props.projectName
 #. placeholder {0}: props.worktreeBranch

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PORACODE_REMOTE_PROTOCOL_VERSION } from "@/shared/remote";
+import { CRAFTSTATION_REMOTE_PROTOCOL_VERSION } from "@/shared/remote";
 import { sshConnectionConfigSchema, type SshConnectionConfig } from "@/shared/ssh";
 import * as sshBootstrap from "@/shared/sshBootstrap";
 import { waitForRemoteEndpoint } from "@/shared/sshBootstrap";
@@ -65,7 +65,7 @@ function createRuntimeFixture(): {
   readonly wslHelpersDir: string;
   readonly cacheDir: string;
 } {
-  const root = mkdtempSync(join(tmpdir(), "poracode-ssh-bundle-test-"));
+  const root = mkdtempSync(join(tmpdir(), "craftstation-ssh-bundle-test-"));
   tempDirs.push(root);
   const mainBundleDir = join(root, "main");
   const agentPluginsDir = join(root, "agent-plugins");
@@ -89,7 +89,7 @@ function createRuntimeFixture(): {
 
 function helperDescriptor(appVersion: string) {
   return {
-    protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+    protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
     hostMode: "helper",
     desktopId: "remote-test",
     label: "Remote test",
@@ -173,7 +173,9 @@ describe("SSH command construction", () => {
       "-i",
       "/keys/id_ed25519",
     ]);
-    expect(buildScpArgs(connection(), "/tmp/runtime.tar.gz", ".poracode/upload.tar.gz")).toEqual([
+    expect(
+      buildScpArgs(connection(), "/tmp/runtime.tar.gz", ".craftstation/upload.tar.gz"),
+    ).toEqual([
       "-q",
       "-o",
       "BatchMode=yes",
@@ -186,7 +188,7 @@ describe("SSH command construction", () => {
       "-i",
       "/keys/id_ed25519",
       "/tmp/runtime.tar.gz",
-      "dev@example.com:.poracode/upload.tar.gz",
+      "dev@example.com:.craftstation/upload.tar.gz",
     ]);
   });
 
@@ -264,7 +266,7 @@ describe("SSH runtime bundle", () => {
     writeFileSync(join(mainBundleDir, "server.cjs"), 'require("electron");', "utf8");
 
     expect(() => ensureSshRuntimeBundle(options)).toThrow(
-      "Poracode Helper cannot include Electron",
+      "CraftStation Helper cannot include Electron",
     );
   });
 });
@@ -368,7 +370,7 @@ describe("SSH tunnel lifecycle", () => {
 describe("SSH helper readiness", () => {
   function descriptor(hostMode: "desktop" | "helper") {
     return {
-      protocolVersion: PORACODE_REMOTE_PROTOCOL_VERSION,
+      protocolVersion: CRAFTSTATION_REMOTE_PROTOCOL_VERSION,
       hostMode,
       desktopId: "remote-test",
       label: "Remote test",
@@ -404,6 +406,6 @@ describe("SSH helper readiness", () => {
   it("does not mistake a desktop-hosted server for the SSH helper", async () => {
     await expect(
       waitForRemoteEndpoint(endpoint("desktop"), "http://127.0.0.1:49152/", 1),
-    ).rejects.toThrow("Timed out waiting for Poracode Helper");
+    ).rejects.toThrow("Timed out waiting for CraftStation Helper");
   });
 });

@@ -97,7 +97,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         ) : null}
       </div>
       {reserveCopyButtonSpace ? (
-        <div className="poracode-message-action-strip mt-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/checkpoint:opacity-100 focus-within:opacity-100">
+        <div className="craftstation-message-action-strip mt-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/checkpoint:opacity-100 focus-within:opacity-100">
           {showCopyButton ? (
             <CopyTextButton text={rawText} label={t`Copy message`} />
           ) : (

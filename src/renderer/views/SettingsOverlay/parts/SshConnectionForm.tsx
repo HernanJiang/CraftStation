@@ -74,7 +74,7 @@ export function SshConnectionForm({
       <Input
         className="font-mono text-xs"
         value={target}
-        list="poracode-ssh-hosts"
+        list="craftstation-ssh-hosts"
         aria-label={t`SSH hostname`}
         placeholder={t`host.com, alias, or user@host.com`}
         spellCheck={false}
@@ -82,7 +82,7 @@ export function SshConnectionForm({
         autoCorrect="off"
         onChange={(event) => setTarget(event.currentTarget.value)}
       />
-      <datalist id="poracode-ssh-hosts">
+      <datalist id="craftstation-ssh-hosts">
         {discoveredHosts.map((host) => (
           <option key={host} value={host}>
             {host}
@@ -143,8 +143,8 @@ export function SshConnectionForm({
 
       <p className="text-xs leading-5 text-muted">
         <Trans>
-          Poracode and your agents run on the remote machine. SSH is used only to start the remote
-          environment and secure its local tunnel.
+          CraftStation and your agents run on the remote machine. SSH is used only to start the
+          remote environment and secure its local tunnel.
         </Trans>
       </p>
       <div className="flex items-center gap-2">

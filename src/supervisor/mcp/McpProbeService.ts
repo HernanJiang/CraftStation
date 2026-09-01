@@ -75,9 +75,11 @@ async function runWslProbeWorker(
   ]);
   if (signal.aborted) throw signal.reason;
 
-  const deployed = deployFilesToWslTempBase(location.distro, `poracode-mcp-probe-${process.pid}`, [
-    { src: workerSource, relDest: "mcp-probe/mcp-probe.mjs" },
-  ]);
+  const deployed = deployFilesToWslTempBase(
+    location.distro,
+    `craftstation-mcp-probe-${process.pid}`,
+    [{ src: workerSource, relDest: "mcp-probe/mcp-probe.mjs" }],
+  );
   if (!deployed) return unavailableMcpProbeResult("probe-unavailable", environment);
   if (signal.aborted) throw signal.reason;
   const workerPath = `${deployed.linuxBaseDir}/mcp-probe/mcp-probe.mjs`;

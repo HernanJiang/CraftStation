@@ -91,7 +91,7 @@ export function PullFromSourceDialog() {
         </AlertDialog.Heading>
         <p className="text-sm leading-5 text-muted">
           <Trans>
-            This worktree has local changes. Poracode can temporarily stash them, pull from{" "}
+            This worktree has local changes. CraftStation can temporarily stash them, pull from{" "}
             {activeDialog.sourceBranch}, then re-apply your changes.
           </Trans>
         </p>

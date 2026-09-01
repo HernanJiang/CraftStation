@@ -5,7 +5,7 @@ import {
   buildLocalPairingManifestJson,
   buildLocalPairingServiceWorkerJs,
 } from "@/main/remote/pairingPage";
-import { PORACODE_CHANNELS, productNameFor } from "@/shared/channel";
+import { CRAFTSTATION_CHANNELS, productNameFor } from "@/shared/channel";
 
 // Stable and nightly PWAs are installed side by side (separate origins for the
 // hosted build, separate desktops for the paired one). Nothing but the icon and
@@ -40,13 +40,13 @@ describe("PWA channel icons", () => {
     }
   });
 
-  it.each(PORACODE_CHANNELS)("names the %s paired PWA after its channel", (channel) => {
+  it.each(CRAFTSTATION_CHANNELS)("names the %s paired PWA after its channel", (channel) => {
     const manifest = JSON.parse(buildLocalPairingManifestJson(channel));
     expect(manifest.name).toBe(productNameFor(channel));
     expect(manifest.short_name).toBe(productNameFor(channel));
   });
 
-  it.each(PORACODE_CHANNELS)("serves committed PNG art to the %s paired PWA", (channel) => {
+  it.each(CRAFTSTATION_CHANNELS)("serves committed PNG art to the %s paired PWA", (channel) => {
     const manifest = JSON.parse(buildLocalPairingManifestJson(channel));
     const pngs = (manifest.icons as { src: string }[])
       .map((icon) => icon.src)
@@ -58,7 +58,7 @@ describe("PWA channel icons", () => {
   });
 
   it("gives the two paired channels disjoint PNG art", () => {
-    const srcs = (channel: (typeof PORACODE_CHANNELS)[number]) =>
+    const srcs = (channel: (typeof CRAFTSTATION_CHANNELS)[number]) =>
       (JSON.parse(buildLocalPairingManifestJson(channel)).icons as { src: string }[])
         .map((icon) => icon.src)
         .filter((src) => src.endsWith(".png"));
@@ -66,7 +66,7 @@ describe("PWA channel icons", () => {
     expect(srcs("stable").filter((src) => nightly.has(src))).toEqual([]);
   });
 
-  it.each(PORACODE_CHANNELS)("brands the %s inline pairing icon", (channel) => {
+  it.each(CRAFTSTATION_CHANNELS)("brands the %s inline pairing icon", (channel) => {
     const svg = buildLocalPairingIconSvg(channel);
     expect(svg).toContain(`aria-label="${productNameFor(channel)}"`);
     expect(svg).toContain("<rect");
@@ -77,9 +77,9 @@ describe("PWA channel icons", () => {
     expect(buildLocalPairingIconSvg("stable")).not.toContain("#3BE0DA");
   });
 
-  it.each(PORACODE_CHANNELS)("resolves the %s worker's notification icon", (channel) => {
+  it.each(CRAFTSTATION_CHANNELS)("resolves the %s worker's notification icon", (channel) => {
     const worker = buildLocalPairingServiceWorkerJs("1.2.3", channel);
-    expect(worker).not.toContain("__PORACODE_LOCAL_NOTIFICATION_ICON__");
+    expect(worker).not.toContain("__CRAFTSTATION_LOCAL_NOTIFICATION_ICON__");
     const expected = channel === "nightly" ? "icon-nightly-192.png" : "icon-192.png";
     expect(worker).toContain(`icon: "/icons/${expected}"`);
   });
@@ -87,7 +87,7 @@ describe("PWA channel icons", () => {
   it("leaves the hosted worker's notification icon for the build to substitute", () => {
     // scripts/finalize-mobile-build.mjs hard-fails if this token disappears.
     expect(readFileSync("public/service-worker.js", "utf8")).toContain(
-      "__PORACODE_NOTIFICATION_ICON__",
+      "__CRAFTSTATION_NOTIFICATION_ICON__",
     );
   });
 });

@@ -3,7 +3,7 @@ import type { ThreadConfig } from "@/shared/contracts";
 export const QODER_DEFAULT_MODEL_ID = "auto";
 
 /**
- * Map Poracode config to qodercli `--permission-mode` values. The CLI accepts
+ * Map CraftStation config to qodercli `--permission-mode` values. The CLI accepts
  * default | accept_edits | bypass_permissions | dont_ask | auto | plan, and
  * the ACP surface advertises the matching Default / Accept Edits / Bypass
  * Permissions / Plan modes. Approval-policy aliases cover configs carried

@@ -59,7 +59,7 @@ export function AuxiliaryPanelLauncher() {
       const panel = usePanelStore.getState();
       const projectId = selectedProject?.id;
       if (tab === "git") {
-        // Review is a real PoraCode GitReviewPanel, so it needs a repository
+        // Review is a real CraftStation GitReviewPanel, so it needs a repository
         // scope. From Home there may be no scope yet; send the user to the
         // existing project creation flow instead of leaving a dead disabled row.
         if (!projectId) {
@@ -77,7 +77,7 @@ export function AuxiliaryPanelLauncher() {
           currentProjectId === projectId ? currentWorktreePath : undefined,
         );
       } else if (tab === "files") {
-        // Files is the native PoraCode project file tree/editor entry. It follows
+        // Files is the native CraftStation project file tree/editor entry. It follows
         // the same scope rule as Review and can be launched from Home once a
         // project has been selected (or after creating one).
         if (!projectId) {
@@ -109,7 +109,7 @@ export function AuxiliaryPanelLauncher() {
   // Creating a project from the Review/Files entry should complete the
   // original intent. The launcher stays mounted behind the existing create
   // modal, so the first real project appearing is enough to continue into the
-  // native PoraCode surface without asking the user to click twice.
+  // native CraftStation surface without asking the user to click twice.
   useEffect(() => {
     if (!pendingProjectTool || !selectedProject) return;
     const tool = pendingProjectTool;

@@ -1,19 +1,19 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
-import type { PoracodePaths } from "@/shared/poracodePaths";
+import type { CraftStationPaths } from "@/shared/craftstationPaths";
 
 export function sanitizeAttachmentPathPart(value: string): string {
   return value.replace(/[<>:"/\\|?*]/g, "-");
 }
 
-export function getThreadAttachmentDir(paths: PoracodePaths, threadId: string): string {
+export function getThreadAttachmentDir(paths: CraftStationPaths, threadId: string): string {
   const pathPart = sanitizeAttachmentPathPart(threadId).slice(0, 12);
   return join(paths.attachmentsDir, pathPart === "." || pathPart === ".." ? "--" : pathPart);
 }
 
 /** Persist a browser-selected file under the host's attachment root. */
 export function saveUploadedAttachmentFile(
-  paths: PoracodePaths,
+  paths: CraftStationPaths,
   payload: { threadId: string; data: Uint8Array; fileName: string },
 ): string {
   const threadDir = getThreadAttachmentDir(paths, payload.threadId);

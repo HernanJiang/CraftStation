@@ -48,7 +48,9 @@ describe("NotesView", () => {
   it("locks the document viewport while a notes field has focus", async () => {
     viewportLock.release.mockReset();
     viewportLock.lock.mockReset().mockReturnValue(viewportLock.release);
-    render(<NotesView projectId="project-1" projectName="Poracode" onClose={() => undefined} />);
+    render(
+      <NotesView projectId="project-1" projectName="CraftStation" onClose={() => undefined} />,
+    );
 
     await waitFor(() => {
       expect(document.querySelector(".m-notes-screen")).toHaveStyle({
@@ -70,9 +72,9 @@ describe("NotesView", () => {
   it("shows the project notes surface and returns to its thread", () => {
     const onClose = vi.fn<() => void>();
 
-    render(<NotesView projectId="project-1" projectName="Poracode" onClose={onClose} />);
+    render(<NotesView projectId="project-1" projectName="CraftStation" onClose={onClose} />);
 
-    expect(screen.getByText("Poracode")).toBeInTheDocument();
+    expect(screen.getByText("CraftStation")).toBeInTheDocument();
     expect(screen.getByText("Notes & to-dos")).toBeInTheDocument();
     expect(screen.getByTestId("notes-panel")).toHaveAttribute("data-project-id", "project-1");
 

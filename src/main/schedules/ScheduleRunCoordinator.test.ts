@@ -14,7 +14,7 @@ import { defaultSharedSettings } from "@/shared/settings";
 import { ScheduleRunCoordinator, type ScheduleRunCoordinatorDeps } from "./ScheduleRunCoordinator";
 
 const HOME_PROJECT: Project = {
-  id: "__lightcode_home__",
+  id: "__craftstation_home__",
   name: "Home",
   location: { kind: "posix", path: "/home/user" },
   disabled: true,

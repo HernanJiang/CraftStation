@@ -1,12 +1,12 @@
-const DEFAULT_APP_ID = "com.lightcodeapp.mobile";
+const DEFAULT_APP_ID = "com.craftstationapp.mobile";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  const appId = process.env.PORACODE_MOBILE_APP_ID?.trim() || DEFAULT_APP_ID;
+  const appId = process.env.CRAFTSTATION_MOBILE_APP_ID?.trim() || DEFAULT_APP_ID;
   const rawFingerprints =
-    process.env.PORACODE_MOBILE_ANDROID_SHA256_CERT_FINGERPRINTS?.trim() ||
-    process.env.PORACODE_MOBILE_ANDROID_SHA256_CERT_FINGERPRINT?.trim() ||
+    process.env.CRAFTSTATION_MOBILE_ANDROID_SHA256_CERT_FINGERPRINTS?.trim() ||
+    process.env.CRAFTSTATION_MOBILE_ANDROID_SHA256_CERT_FINGERPRINT?.trim() ||
     "";
   const fingerprints = rawFingerprints
     .split(/[\n,]/)

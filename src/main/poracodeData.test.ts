@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanupOrphanedAttachments } from "./poracodeData";
+import { cleanupOrphanedAttachments } from "./craftstationData";
 
 describe("cleanupOrphanedAttachments", () => {
   let tempDir: string | undefined;
@@ -15,7 +15,7 @@ describe("cleanupOrphanedAttachments", () => {
   });
 
   it("keeps attachment directories referenced by staged composer messages", () => {
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-attachment-cleanup-"));
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-attachment-cleanup-"));
     const attachmentsDir = join(tempDir, "attachments");
     const retained = ["draft-project", "remote-server", "handoff-thread"];
     for (const directory of [...retained, "orphan-thread"]) {
@@ -32,7 +32,7 @@ describe("cleanupOrphanedAttachments", () => {
   });
 
   it("keeps durable thread directories and removes unknown directories", () => {
-    tempDir = mkdtempSync(join(tmpdir(), "poracode-attachment-cleanup-"));
+    tempDir = mkdtempSync(join(tmpdir(), "craftstation-attachment-cleanup-"));
     const attachmentsDir = join(tempDir, "attachments");
     mkdirSync(join(attachmentsDir, "thread-12345"), { recursive: true });
     mkdirSync(join(attachmentsDir, "unknown"), { recursive: true });

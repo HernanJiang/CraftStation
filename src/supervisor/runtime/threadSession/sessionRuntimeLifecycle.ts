@@ -189,10 +189,10 @@ export class SessionRuntimeLifecycle {
           error,
         );
         captureSupervisorException(new Error("PTY output pipeline failed."), {
-          "poracode.feature_area": "thread-session-lifecycle",
-          "poracode.presentation": session.presentationMode ?? "terminal",
-          "poracode.provider": session.agentKind,
-          "poracode.runtime_kind": "pty",
+          "craftstation.feature_area": "thread-session-lifecycle",
+          "craftstation.presentation": session.presentationMode ?? "terminal",
+          "craftstation.provider": session.agentKind,
+          "craftstation.runtime_kind": "pty",
         });
       }
     });

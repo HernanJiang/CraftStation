@@ -1,6 +1,6 @@
 import {
   prepareSentryEvent,
-  type PoracodeDiagnosticTags,
+  type CraftStationDiagnosticTags,
   type SentryEventLike,
 } from "@/shared/diagnostics/sentryPrivacy";
 import {
@@ -189,7 +189,7 @@ function loadSupervisorSentry(): SupervisorSentryModule | null {
   } catch (error) {
     supervisorSentry = null;
     console.warn(
-      "[poracode] Sentry supervisor integration unavailable:",
+      "[craftstation] Sentry supervisor integration unavailable:",
       error instanceof Error ? error.message : String(error),
     );
   }
@@ -210,13 +210,13 @@ function readSentryEnvironment(options: SupervisorSentryOptions): string {
   );
 }
 
-function buildBaseTags(options: SupervisorSentryOptions): PoracodeDiagnosticTags {
+function buildBaseTags(options: SupervisorSentryOptions): CraftStationDiagnosticTags {
   return {
-    "poracode.app_version": options.appVersion,
-    "poracode.arch": process.arch,
-    "poracode.node": process.versions.node,
-    "poracode.platform": process.platform,
-    "poracode.process": "supervisor",
+    "craftstation.app_version": options.appVersion,
+    "craftstation.arch": process.arch,
+    "craftstation.node": process.versions.node,
+    "craftstation.platform": process.platform,
+    "craftstation.process": "supervisor",
   };
 }
 
@@ -233,7 +233,7 @@ export function initializeSupervisorSentry(options: SupervisorSentryOptions): bo
 
   Sentry.init({
     dsn,
-    release: `poracode@${options.appVersion}`,
+    release: `craftstation@${options.appVersion}`,
     environment: readSentryEnvironment(options),
     sendDefaultPii: false,
     defaultIntegrations: false,
@@ -249,7 +249,7 @@ export function initializeSupervisorSentry(options: SupervisorSentryOptions): bo
     },
   });
 
-  Sentry.setContext("poracode", {
+  Sentry.setContext("craftstation", {
     appVersion: options.appVersion,
     process: "supervisor",
   });
@@ -346,23 +346,23 @@ export function classifySupervisorFailure(
 function captureSupervisorFailure(
   error: unknown,
   decision: DiagnosticFailureDecision,
-  tags?: PoracodeDiagnosticTags,
+  tags?: CraftStationDiagnosticTags,
 ): void {
   if (decision.treatment === "drop") return;
   const Sentry = loadSupervisorSentry();
   if (!Sentry) return;
   if (!Sentry.isEnabled()) return;
 
-  const diagnosticTags: PoracodeDiagnosticTags = {
+  const diagnosticTags: CraftStationDiagnosticTags = {
     ...tags,
-    "poracode.error_class": decision.errorClass,
-    "poracode.failure_domain": decision.domain,
-    "poracode.operation": decision.operation,
-    "poracode.operational": String(decision.operational),
-    "poracode.process": "supervisor",
+    "craftstation.error_class": decision.errorClass,
+    "craftstation.failure_domain": decision.domain,
+    "craftstation.operation": decision.operation,
+    "craftstation.operational": String(decision.operational),
+    "craftstation.process": "supervisor",
   };
   if (decision.treatment === "metric") {
-    Sentry.metrics.count("poracode.diagnostic.failure", 1, {
+    Sentry.metrics.count("craftstation.diagnostic.failure", 1, {
       attributes: {
         domain: decision.domain,
         error_class: decision.errorClass,
@@ -398,17 +398,20 @@ function captureSupervisorFailure(
 export function captureSupervisorIpcFailure(error: unknown, operation: string): void {
   const provider = structuredRuntimeProvider(error);
   captureSupervisorFailure(error, classifySupervisorIpcFailure(error, operation), {
-    "poracode.feature_area": "supervisor-ipc",
-    ...(provider ? { "poracode.provider": provider } : {}),
+    "craftstation.feature_area": "supervisor-ipc",
+    ...(provider ? { "craftstation.provider": provider } : {}),
   });
 }
 
-export function captureSupervisorException(error: unknown, tags?: PoracodeDiagnosticTags): void {
-  const operation = tags?.["poracode.feature_area"] ?? "unhandled";
-  const provider = tags?.["poracode.provider"] ?? structuredRuntimeProvider(error);
+export function captureSupervisorException(
+  error: unknown,
+  tags?: CraftStationDiagnosticTags,
+): void {
+  const operation = tags?.["craftstation.feature_area"] ?? "unhandled";
+  const provider = tags?.["craftstation.provider"] ?? structuredRuntimeProvider(error);
   captureSupervisorFailure(error, classifySupervisorFailure(error, operation), {
     ...tags,
-    ...(provider ? { "poracode.provider": provider } : {}),
+    ...(provider ? { "craftstation.provider": provider } : {}),
   });
 }
 

@@ -14,7 +14,7 @@ import {
   dbUpsertThread,
   initDatabase,
 } from "@/main/db";
-import { preparePoracodeDataRoot } from "@/main/poracodeData";
+import { prepareCraftStationDataRoot } from "@/main/craftstationData";
 import {
   patchSharedSettingsFile,
   readSharedSettingsFile,
@@ -85,7 +85,7 @@ export interface HeadlessRemoteHostOptions {
   readonly bundledPluginsDir?: string;
   /** base64 32-byte AES key shared with the supervisor for secret sealing. */
   readonly secretStorageKey: string;
-  /** Data dir; defaults to the standard Poracode base dir for the channel. */
+  /** Data dir; defaults to the standard CraftStation base dir for the channel. */
   readonly baseDir?: string;
   readonly host?: string;
   readonly port?: number;
@@ -152,7 +152,7 @@ export async function createHeadlessRemoteHost(
     host,
     ...(options.port !== undefined ? { port: options.port } : {}),
   });
-  const paths = preparePoracodeDataRoot(options.baseDir);
+  const paths = prepareCraftStationDataRoot(options.baseDir);
   initDatabase(paths.dbPath);
   // No agent session survived the restart; without a renderer to run
   // markThreadsInactiveOnLaunch, stale live statuses would be re-served to
@@ -203,8 +203,8 @@ export async function createHeadlessRemoteHost(
       const info = appControlsMcpIngress?.getInfo();
       return info
         ? {
-            PORACODE_APP_CONTROLS_MCP_URL: info.url,
-            PORACODE_APP_CONTROLS_MCP_TOKEN: info.token,
+            CRAFTSTATION_APP_CONTROLS_MCP_URL: info.url,
+            CRAFTSTATION_APP_CONTROLS_MCP_TOKEN: info.token,
           }
         : {};
     },
@@ -338,7 +338,7 @@ export async function createHeadlessRemoteHost(
     // honest not-available result instead of silently succeeding.
     notifyUser: () => ({
       delivered: false,
-      note: "No Poracode desktop app is connected, so no OS notification could be shown.",
+      note: "No CraftStation desktop app is connected, so no OS notification could be shown.",
     }),
     checkForUpdate: async () => ({
       supported: false,
@@ -353,7 +353,7 @@ export async function createHeadlessRemoteHost(
   const advertisedHost =
     options.advertisedHost ??
     (isDev
-      ? process.env.PORACODE_REMOTE_ACCESS_ADVERTISED_HOST?.trim() || "127.0.0.1"
+      ? process.env.CRAFTSTATION_REMOTE_ACCESS_ADVERTISED_HOST?.trim() || "127.0.0.1"
       : remoteAccessAdvertisedHost({ bindHost: host }));
   const pairingAppUrl = options.pairingAppUrl ?? remoteAccessPairingAppUrl();
 

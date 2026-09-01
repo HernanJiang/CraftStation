@@ -528,7 +528,9 @@ describe("SidebarProviderAccounts", () => {
     ).toBeInTheDocument();
     // Grok keeps the CraftStation glyph (brand has no colored asset).
     expect(
-      within(workspace).getByTestId("provider-badge-grok").querySelector(".poracode-provider-icon"),
+      within(workspace)
+        .getByTestId("provider-badge-grok")
+        .querySelector(".craftstation-provider-icon"),
     ).toBeInTheDocument();
     expect(within(workspace).queryByText("Gr")).not.toBeInTheDocument();
     expect(within(workspace).queryByText("Op")).not.toBeInTheDocument();

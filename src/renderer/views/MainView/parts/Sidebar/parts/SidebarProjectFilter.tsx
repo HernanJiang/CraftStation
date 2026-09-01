@@ -37,7 +37,7 @@ const ALL_PROJECTS_KEY = "__all__";
 const closeOnlyOutsideMenus = (element: Element) => element.closest('[role="menu"]') === null;
 
 /** Marks the filter trigger so the dismissal paths below can ignore it. */
-const TRIGGER_ATTR = "data-poracode-project-filter-trigger";
+const TRIGGER_ATTR = "data-craftstation-project-filter-trigger";
 
 /**
  * Dismiss the open filter on a press outside every menu overlay, and on Escape.
@@ -482,7 +482,7 @@ export function SidebarProjectFilter(props: {
       >
         <Dropdown.Menu
           aria-label={t`Projects`}
-          className="poracode-menu min-w-56"
+          className="craftstation-menu min-w-56"
           selectionMode="multiple"
           selectedKeys={menuSelectedKeys}
           onSelectionChange={handleSelectionChange}

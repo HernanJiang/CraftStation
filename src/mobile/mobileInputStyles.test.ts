@@ -36,10 +36,10 @@ describe("mobile iOS input ergonomics", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
     expect(css).toMatch(
-      /\.m-compose-dock:not\(\[data-expanded\]\) \.m-compose-bubble \.poracode-mention-input\s*\{[\s\S]*?height:\s*var\(--m-floating-control-line-height\);[\s\S]*?overflow:\s*hidden;[\s\S]*?line-height:\s*var\(--m-floating-control-line-height\);/,
+      /\.m-compose-dock:not\(\[data-expanded\]\) \.m-compose-bubble \.craftstation-mention-input\s*\{[\s\S]*?height:\s*var\(--m-floating-control-line-height\);[\s\S]*?overflow:\s*hidden;[\s\S]*?line-height:\s*var\(--m-floating-control-line-height\);/,
     );
     expect(css).toMatch(
-      /\.m-thread-compose-dock:is\(:not\(\[data-expanded\]\), \[data-collapsing\]\)[\s\S]*?\.poracode-mention-input\s*\{[\s\S]*?height:\s*var\(--m-floating-control-line-height\);[\s\S]*?overflow:\s*hidden;[\s\S]*?line-height:\s*var\(--m-floating-control-line-height\);/,
+      /\.m-thread-compose-dock:is\(:not\(\[data-expanded\]\), \[data-collapsing\]\)[\s\S]*?\.craftstation-mention-input\s*\{[\s\S]*?height:\s*var\(--m-floating-control-line-height\);[\s\S]*?overflow:\s*hidden;[\s\S]*?line-height:\s*var\(--m-floating-control-line-height\);/,
     );
   });
 });

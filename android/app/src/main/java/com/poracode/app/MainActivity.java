@@ -1,4 +1,4 @@
-package com.poracode.app;
+package com.craftstation.app;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;

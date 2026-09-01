@@ -1,19 +1,19 @@
-# Poracode Chrome Control
+# CraftStation Chrome Control
 
-Companion browser extension that lets Poracode agents drive your **real**
+Companion browser extension that lets CraftStation agents drive your **real**
 Chrome / Brave / Edge — your actual tabs, cookies, and logged-in sessions. It is
-the external-browser counterpart to Poracode's built-in **Browser** panel; the
+the external-browser counterpart to CraftStation's built-in **Browser** panel; the
 two run side by side.
 
 ## How it works
 
 ```
-Agent → chrome MCP server (Poracode) → localhost WebSocket → this extension → chrome.debugger (CDP) → your tabs
+Agent → chrome MCP server (CraftStation) → localhost WebSocket → this extension → chrome.debugger (CDP) → your tabs
 ```
 
 The extension holds no logic of its own: it relays Chrome DevTools Protocol
-(CDP) commands from Poracode to `chrome.debugger` and forwards CDP events back.
-Attaching shows Chrome's own **"Poracode started debugging this browser"** banner
+(CDP) commands from CraftStation to `chrome.debugger` and forwards CDP events back.
+Attaching shows Chrome's own **"CraftStation started debugging this browser"** banner
 on the driven tab — that banner is your consent + kill switch.
 
 ## Load it (unpacked)
@@ -22,10 +22,10 @@ on the driven tab — that banner is your consent + kill switch.
 2. Enable **Developer mode**.
 3. **Load unpacked** → select this `chrome-extension/` folder.
 
-That's it — no pairing, no buttons. The extension pairs with the Poracode
+That's it — no pairing, no buttons. The extension pairs with the CraftStation
 **app**: whenever the app is running it connects automatically and the popup
 shows a green **Connected**; when the app is closed it quietly retries and
-reconnects the moment the app launches again. It scans Poracode's default local
+reconnects the moment the app launches again. It scans CraftStation's default local
 port range, so there is nothing to enter.
 
 ## Use it
@@ -43,7 +43,7 @@ one."_ Good first calls: `chrome_status` → `chrome_list_tabs` → `chrome_atta
 - Actual control always surfaces Chrome's "started debugging this browser"
   banner — stop a session any time from there.
 - `chrome_eval` and `chrome_cookies` are gated behind the same
-  eval / data-access switches as the embedded browser (Poracode → Settings →
+  eval / data-access switches as the embedded browser (CraftStation → Settings →
   Browser). They stay off unless you enable them.
 - This drives your authenticated browser. Treat agent actions as your own.
 

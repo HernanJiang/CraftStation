@@ -23,7 +23,7 @@ function tmp(prefix: string): string {
 }
 
 describe("rewriteSegmentsForWorkspace", () => {
-  it("copies an out-of-workspace attachment into .poracode/attachments and rewrites the path", async () => {
+  it("copies an out-of-workspace attachment into .craftstation/attachments and rewrites the path", async () => {
     const project = tmp("lc-ws-project-");
     const outside = tmp("lc-ws-outside-");
     const src = join(outside, "shot.png");
@@ -34,12 +34,12 @@ describe("rewriteSegmentsForWorkspace", () => {
       project,
     );
 
-    const dest = join(project, ".poracode", "attachments", "shot.png");
+    const dest = join(project, ".craftstation", "attachments", "shot.png");
     expect(segments[0]).toEqual({ kind: "attachment", path: dest, mimeType: "image/png" });
     expect(existsSync(dest)).toBe(true);
     expect(readFileSync(dest, "utf8")).toBe("png-bytes");
     // The copies self-ignore so they never show up in `git status`.
-    expect(readFileSync(join(project, ".poracode", ".gitignore"), "utf8")).toContain("*");
+    expect(readFileSync(join(project, ".craftstation", ".gitignore"), "utf8")).toContain("*");
   });
 
   it("leaves attachments already inside the workspace untouched", async () => {
@@ -55,7 +55,7 @@ describe("rewriteSegmentsForWorkspace", () => {
     );
 
     expect(segments[0]).toEqual({ kind: "attachment", path: src, mimeType: "image/png" });
-    expect(existsSync(join(project, ".poracode"))).toBe(false);
+    expect(existsSync(join(project, ".craftstation"))).toBe(false);
   });
 
   it("passes through text segments and relative paths", async () => {

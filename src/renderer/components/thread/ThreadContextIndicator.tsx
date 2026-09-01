@@ -27,13 +27,17 @@ export function ThreadContextIndicator({
           type="button"
           aria-label={isOpen ? t`Hide context usage details` : t`Show context usage details`}
           aria-pressed={isOpen}
-          className={`poracode-context-indicator ${isOpen ? "poracode-context-indicator--open" : ""}`}
+          className={`craftstation-context-indicator ${isOpen ? "craftstation-context-indicator--open" : ""}`}
           data-tone={tone}
           onClick={onToggle}
         >
-          <svg className="poracode-context-indicator__ring" viewBox="0 0 16 16" aria-hidden="true">
+          <svg
+            className="craftstation-context-indicator__ring"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
             <circle
-              className="poracode-context-indicator__ring-track"
+              className="craftstation-context-indicator__ring-track"
               cx="8"
               cy="8"
               r={ringRadius}
@@ -42,7 +46,7 @@ export function ThreadContextIndicator({
             />
             {percent !== undefined ? (
               <circle
-                className="poracode-context-indicator__ring-progress"
+                className="craftstation-context-indicator__ring-progress"
                 cx="8"
                 cy="8"
                 r={ringRadius}

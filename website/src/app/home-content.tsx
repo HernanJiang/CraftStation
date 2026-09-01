@@ -72,7 +72,7 @@ import { LightboxProvider, LightboxTrigger, useLightbox } from "@/components/Lig
 import { LandingFaq } from "./landing-faq";
 
 const ACP_REGISTRY_CDN = "https://cdn.agentclientprotocol.com/registry/v1/latest";
-const WEB_APP_URL = "https://app.poracode.com";
+const WEB_APP_URL = "https://app.craftstation.com";
 
 // lucide-react 1.14.0 dropped brand glyphs, so the GitHub mark is inlined.
 function GithubMark({ className }: { className?: string }) {
@@ -164,12 +164,12 @@ const DETAILS = [
   { icon: Keyboard, title: "detail.shortcuts.title", desc: "detail.shortcuts.desc" },
 ] as const;
 
-// The built-in MCP servers Poracode exposes to any agent that speaks MCP.
+// The built-in MCP servers CraftStation exposes to any agent that speaks MCP.
 // `server` is the literal server name an agent addresses, so it stays untranslated.
 const MCP_POWERS = [
   {
     icon: SlidersHorizontal,
-    server: "poracode",
+    server: "craftstation",
     title: "mcp.appControls.title",
     desc: "mcp.appControls.desc",
   },
@@ -179,7 +179,7 @@ const MCP_POWERS = [
     title: "mcp.crossagents.title",
     desc: "mcp.crossagents.desc",
   },
-  { icon: Plug, server: "poracode", title: "mcp.extend.title", desc: "mcp.extend.desc" },
+  { icon: Plug, server: "craftstation", title: "mcp.extend.title", desc: "mcp.extend.desc" },
   {
     icon: MousePointerClick,
     server: "browser · chrome · computer_use",
@@ -187,7 +187,7 @@ const MCP_POWERS = [
     desc: "mcp.surfaces.desc",
   },
   // The user's side of the same story, given a full-width card: the servers
-  // above are Poracode's, this one is everyone else's.
+  // above are CraftStation's, this one is everyone else's.
   {
     icon: Server,
     server: "stdio · http · sse",
@@ -478,9 +478,9 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
     })),
   ];
   // Lead with the `Pora.code` wordmark, so the headline copy is the value-prop
-  // only: drop the "Poracode —" brand prefix from title1 and the trailing
+  // only: drop the "CraftStation —" brand prefix from title1 and the trailing
   // full-stop from title2 (the Pora dot stands in for it). Locale-safe.
-  const descriptor = `${t("hero.title1").replace(/^Poracode\s*[—–-]\s*/u, "")} ${t(
+  const descriptor = `${t("hero.title1").replace(/^CraftStation\s*[—–-]\s*/u, "")} ${t(
     "hero.title2",
   ).replace(/[.。]\s*$/u, "")}`;
 
@@ -514,7 +514,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
           <Link
             href={homeHref}
             prefetch={false}
-            aria-label="Poracode"
+            aria-label="CraftStation"
             className="transition-opacity hover:opacity-90"
           >
             <BrandLockup />
@@ -542,7 +542,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
               {t("nav.changelog")}
             </Link>
             <a
-              href="https://github.com/SDSLeon/lightcode"
+              href="https://github.com/SDSLeon/craftstation"
               target="_blank"
               rel="noreferrer"
               aria-label="GitHub"
@@ -600,7 +600,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
               <ArrowUpRight className="h-4 w-4 text-dim transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </a>
             <a
-              href="https://github.com/SDSLeon/lightcode"
+              href="https://github.com/SDSLeon/craftstation"
               target="_blank"
               rel="noreferrer"
               className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-7 font-semibold text-moon transition will-change-transform hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]"
@@ -672,7 +672,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
           <div className="pointer-events-none absolute -inset-x-10 -top-10 bottom-0 -z-10 bg-[radial-gradient(55%_45%_at_50%_28%,rgba(139,123,255,0.22),transparent)] blur-[90px]" />
           <AppWindow
             src="/hero-screenshot.png"
-            alt="Poracode desktop app running Claude and Codex coding agents side by side"
+            alt="CraftStation desktop app running Claude and Codex coding agents side by side"
             width={2920}
             height={1840}
             chrome
@@ -906,7 +906,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
                   {t("hero.downloadFor", { platform: platform.label })}
                 </a>
                 <a
-                  href="https://github.com/SDSLeon/lightcode"
+                  href="https://github.com/SDSLeon/craftstation"
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-6 font-medium text-moon transition hover:border-white/20 hover:bg-white/[0.06]"
@@ -944,7 +944,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
               {t("nav.changelog")}
             </Link>
             <a
-              href="https://github.com/SDSLeon/lightcode"
+              href="https://github.com/SDSLeon/craftstation"
               className="font-mono text-[13px] text-dim transition-colors hover:text-moon"
             >
               GitHub
@@ -959,7 +959,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
 
 /**
  * The web-app pitch rendered as a real browser window — the address bar is the
- * message. Chrome bar (traffic lights, nav, `app.poracode.com` address pill with
+ * message. Chrome bar (traffic lights, nav, `app.craftstation.com` address pill with
  * a live pora-dot), a living pairing link (desktop ⇄ browser), and the localized
  * description. The whole window links to the web app.
  */
@@ -983,7 +983,7 @@ function WebAppCard({ className, description }: { className?: string; descriptio
         </span>
         <span className="mx-auto flex min-w-0 items-center gap-2 rounded-md border border-white/[0.06] bg-night/70 px-3 py-1">
           <Lock className="h-3 w-3 shrink-0 text-ice" />
-          <span className="truncate font-mono text-[12px] text-dim">app.poracode.com</span>
+          <span className="truncate font-mono text-[12px] text-dim">app.craftstation.com</span>
           <span className="pora-dot pora-pulse h-1 w-1 shrink-0" />
         </span>
         <ArrowUpRight className="h-4 w-4 shrink-0 text-dim transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-moon" />
@@ -1013,7 +1013,7 @@ function WebAppCard({ className, description }: { className?: string; descriptio
 /**
  * The web app on a phone — the paired state. Where the browser card pitches the
  * pairing (traveling dot), the phone shows its outcome: the app glyph breathing,
- * a confirmed `paired` status, and the `app.poracode.com` address pill. Pure
+ * a confirmed `paired` status, and the `app.craftstation.com` address pill. Pure
  * CSS/SVG; no capture asset. The whole device links to the web app.
  */
 function PhoneMockup({ pairedLabel, className }: { pairedLabel: string; className?: string }) {
@@ -1038,7 +1038,7 @@ function PhoneMockup({ pairedLabel, className }: { pairedLabel: string; classNam
         {/* address pill */}
         <span className="mx-3 mt-3 flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-tile-2 px-3 py-1.5">
           <Lock className="h-2.5 w-2.5 shrink-0 text-ice" />
-          <span className="truncate font-mono text-[10px] text-dim">app.poracode.com</span>
+          <span className="truncate font-mono text-[10px] text-dim">app.craftstation.com</span>
           <span className="pora-dot pora-pulse ml-auto h-1 w-1 shrink-0" />
         </span>
         {/* paired state */}

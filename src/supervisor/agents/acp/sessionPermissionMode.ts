@@ -1,5 +1,5 @@
 /**
- * Mapping between Poracode's approval-policy ids and the ACP session modes an
+ * Mapping between CraftStation's approval-policy ids and the ACP session modes an
  * agent advertises, plus the synthetic-permission-request auto-approve helper
  * used when an agent has no native mode for the requested policy.
  */

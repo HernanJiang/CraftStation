@@ -7,11 +7,14 @@
 - Feature branch：`dev/v0.9-cross-harness-handoff`
 - Manager Plan：`ai_workspace/agent_docs/manager_0.9.0.md`
 - Manager Plan base：`7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`
-- Coder 状态：T01–T08 已连续实现，Feature-level self-check 已完成。
-- Ticket 状态：T01 Segment Ledger、T02 ConversationCheckpoint、T03 Same-Thread Switch、T04 Turn Boundary、T05 Abort/Rollback、T06 Event/Input Fence、T07 In-place UI、T08 Real Acceptance 均已实现并有对应源码/测试。
-- T08 真实证据：`ai_workspace/validation/v0.9-cross-harness-handoff-real.json`；`synthetic: false`，当前 `BLOCKED BY ENVIRONMENT / RUNTIME_UNAVAILABLE`。未取得真实 Codex → Grok Build → Codex non-synthetic response，不将 Feature 升格为 PASS。
-- Feature-level verdict：`IMPLEMENTED / BLOCKED BY ENVIRONMENT / READY FOR DEBUGGER`
-- 当前下一步：完成 Coder self-check、写 `ai_workspace/agent_docs/coder_0.9.0.md`，提交 Feature 分支并交接全新的项目绑定 `Debugger-0.9-Cross-Harness Handoff`。
+- Coder 状态：T01–T08 已连续实现并提交 `4ef61356bf9d9f4490517210cfa21fbe0454632d`；Debugger 已完成首轮独立 Feature Review。
+- Debugger Review：`ai_workspace/agent_docs/debugger_0.9.0.md`；Verdict `FAIL / BLOCKED BY ENVIRONMENT`；Requires Manager Re-plan `No`。
+- Current Fix Cycle：`v0.9.1`；Fix Owner：Coder；Fix Plan：`ai_workspace/agent_docs/debugger_0.9.1.md`。
+- 打开 Findings：F1/F2/F3 工程修复已完成（2026-09-01，未提交，见 `ai_workspace/agent_docs/coder_0.9.1.md`）；F1 crafted active commands 现全程携带 execution envelope 且 Supervisor 对 crafted Thread fail closed；F2 真实集成测试已消除 false-green（preflight 与 started-chain 分离、B/C 需真实 response summary、11 个 scenario 逐项记录、16 个 false-green 回归测试）；F3 schema 断言改为 `LATEST_SCHEMA_VERSION` 并验证 v0.9 新表/索引。
+- 修复后工程门：`pnpm typecheck` PASS；`build:renderer` + `build:electron` PASS；合并定向套件 15 files / 408 passed / 1 skipped（唯一 skip 为 gated 真实场景）；`git diff --check` PASS。完整套件失败均为既有 rename-migration/环境失败，无 v0.9 Feature 回归。
+- T08 真实证据：`ai_workspace/validation/v0.9-cross-harness-handoff-real.json`；`synthetic: false`，当前 `BLOCKED BY ENVIRONMENT / QUOTA_OR_LIMIT`、`scenarios: []`。未取得真实 Codex → Grok Build → Codex non-synthetic response，不将 Feature 升格为 PASS。
+- Feature-level verdict：`ENGINEERING FIX #1 COMPLETE / READY FOR USER ACCEPTANCE / REAL T08 STILL BLOCKED BY ENVIRONMENT`
+- 当前下一步：用户亲自验收工程候选（同线程切换 UI 与 fencing 行为）；真实 provider 三段 continuation 在额度恢复后由用户执行或授权执行；随后原配对 Debugger 复检。
 - Git 边界：Coder 不 merge `main`、不 merge共享 Dev、不打正式 tag、不 push；Debugger 独立验收后在本版本分支完成候选收口，用户明确授权后才允许 Main promotion。
 
 ## Dev Integration — v0.8.0
@@ -65,9 +68,9 @@ CraftStation 的长期路线收敛为四个阶段。当前版本只推进当前�
 
 ### Phase 1 — Runtime Foundation
 
-基于 PoraCode 建立独立、可诊断、可恢复的 Harness Runtime 基础设施。
+基于 CraftStation 建立独立、可诊断、可恢复的 Harness Runtime 基础设施。
 
-- 保留 PoraCode 的 Desktop、Workspace、Session persistence、Terminal、Git/Worktree、MCP 和已有 Agent integration。
+- 保留 CraftStation 的 Desktop、Workspace、Session persistence、Terminal、Git/Worktree、MCP 和已有 Agent integration。
 - 建立 `crafting`、`registry`、`harness-runtime` 与 `provider/API` seam。
 - 分别接入 DeepSeek Harness、Codex Harness、Grok Build Harness；统一 CraftStation 所需语义，不统一各 Harness 内部 agent loop、transport 或 process architecture。
 - 依次证明 `Model -> Vendor Harness -> Entity -> Session -> real response`，并覆盖错误透传、resume、terminate、资源清理和 observability。
@@ -113,29 +116,29 @@ Model Item + Harness Item
 
 ### Cross-Phase Principles
 
-- PoraCode 是工程基础，不是 CraftStation 的最终 domain；DeepSeek Harness、Codex Harness、Grok Build Harness 是独立 Runtime。
+- CraftStation 是工程基础，不是 CraftStation 的最终 domain；DeepSeek Harness、Codex Harness、Grok Build Harness 是独立 Runtime。
 - 采用 Strangler Refactor 与 deep-module 原则，不做一次性全仓 rename 或统一重写各 Harness 内部实现。
 - Runtime / Programming Model 先于 Auto-Crafting / Agentic Algorithm；基础设施没有真实运行证据时，不扩大算法 scope。
 - 正式的一等 Domain 术语保持 `Item`、`Component`、`Ingredient`、`Slot`、`Recipe`、`Result`、`Crafter`、`Entity`、`Session`。
 
 ## Lifecycle Snapshot
 
-| Field             | Current Value                                                                                           |
-| ----------------- | ------------------------------------------------------------------------------------------------------- |
-| Major Stage       | `v0`                                                                                                    |
-| Lifecycle State   | `v0.9.0 / IMPLEMENTED / BLOCKED BY ENVIRONMENT / READY FOR DEBUGGER`                                    |
-| Active Feature    | `v0.9.0 — Cross-Harness Session Handoff`                                                                |
-| Active Ticket     | T01–T08 implemented；T08 real Codex → Grok Build → Codex gate `RUNTIME_UNAVAILABLE`                     |
-| Current Fix Cycle | `v0.9.0`                                                                                                |
-| Current Role      | Coder                                                                                                   |
-| Review Status     | Coder self-check evidence complete; real provider evidence blocked; independent Debugger review pending |
+| Field             | Current Value                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| Major Stage       | `v0`                                                                                                      |
+| Lifecycle State   | `v0.9.1 / DEBUGGER FAIL / BLOCKED BY ENVIRONMENT / CODER FIX #1`                                          |
+| Active Feature    | `v0.9.0 — Cross-Harness Session Handoff`                                                                  |
+| Active Ticket     | F1 command fencing；F2 T08 evidence integrity/scenarios；F3 schema regression；real gate `QUOTA_OR_LIMIT` |
+| Current Fix Cycle | `v0.9.1`                                                                                                  |
+| Current Role      | Coder Fix #1                                                                                              |
+| Review Status     | `FAIL / BLOCKED BY ENVIRONMENT`；Fix Plan `debugger_0.9.1.md`                                             |
 
 ## v0.9.0 Plan Reference
 
 - Feature：`v0.9.0 — Cross-Harness Session Handoff`
 - Manager Ideate + Plan：`ai_workspace/agent_docs/manager_0.9.0.md`
 - Tickets：`.scratch/craftstation-0.9.0/issues/01-runtime-segment-ledger.md` 至 `08-real-cross-harness-acceptance.md`
-- 状态：`IMPLEMENTED / BLOCKED BY ENVIRONMENT / READY FOR DEBUGGER`
+- 状态：`DEBUGGER FAIL / BLOCKED BY ENVIRONMENT / CODER FIX #1 REQUIRED`
 - Feature worktree：`D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff`
 - Feature branch：`dev/v0.9-cross-harness-handoff`
 - Planning base：`7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`
@@ -148,7 +151,7 @@ Model Item + Harness Item
 - 验收主线：真实 `Codex -> Grok Build -> Codex continuation`、目标启动失败回滚、事件 epoch 隔离、应用重启恢复和凭据安全。
 - Gate Check：`OK`。采用 expand → migrate active writers → contract；以独立 Runtime Segment ledger、versioned ConversationCheckpoint 与 Supervisor-owned Session Handoff Module 实现。
 - Ticket 顺序：T01 Segment Ledger → T02 Checkpoint → T03 Same-Thread Tracer → T04 Turn Boundary → T05 Abort/Rollback → T06 Event/Input Fence → T07 UI → T08 Real Acceptance。
-- Coder 已完成源码实现与 Feature-level self-check；真实 T08 仍因首段官方 Codex Runtime 在当前环境不可用而 `BLOCKED BY ENVIRONMENT`。待独立 Debugger 读取交付文档并验收；不执行 merge、tag 或 push。
+- Debugger 首轮独立验收已完成：focused/remote/typecheck/build/touched lint/format 通过，但发现 active command fencing、T08 false-green/场景缺失、schema migration broader regression 三项工程 Finding；真实 T08 另因 `QUOTA_OR_LIMIT` 保持 `BLOCKED BY ENVIRONMENT`。下一步执行 v0.9.1 Coder Fix #1；不执行 merge、tag 或 push。
 
 ## Historical v0.3 Closeout
 
@@ -222,4 +225,4 @@ Model Item + Harness Item
 2. OpenAI、xAI、Google、DeepSeek、OpenAI-compatible Kimi 获得有效对应凭据后，再逐条补真实 assistant stream/后续 turn；未验证 route 继续 fail-closed。
 3. v0.6 F35/F36、Grok 真实额度、F29 exact Token、v0.5.0 与 v0.4 F04 继续保持 FAIL/BLOCKED。
 4. v0.8 尚未合入 main、未 tag、未 push；只有用户后续明确授权时才执行 Dev → Main promotion。
-5. v0.9 Coder 已在唯一 Feature worktree 完成 T01–T08 与 self-check；真实 T08 保持 `UNVERIFIED/BLOCKED`，下一步由配对 Debugger 独立验收。
+5. v0.9 Debugger 首轮 Verdict 为 `FAIL / BLOCKED BY ENVIRONMENT`；Coder 在唯一 Feature worktree 执行 `debugger_0.9.1.md` Fix #1，完成后通知原配对 Debugger 复检；真实 T08 保持 `UNVERIFIED/BLOCKED`。

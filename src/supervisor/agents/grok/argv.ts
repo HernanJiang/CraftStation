@@ -30,7 +30,7 @@ import type { ThreadConfig } from "@/shared/contracts";
  *     only approval control Grok honors at launch remains `--always-approve`
  *     (alias `--yolo`).
  *   • `--no-plan` is a hard restriction — passing it disables plan tooling
- *     entirely. Poracode never sets it; plan mode is entered in the TUI
+ *     entirely. CraftStation never sets it; plan mode is entered in the TUI
  *     (Shift+Tab or the model calling `enter_plan_mode`).
  *   • Grok ACP (`session/new`) still does not advertise `modes` / standard
  *     `configOptions`. Model + effort state ride vendor `_meta` extensions

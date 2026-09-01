@@ -181,7 +181,9 @@ export function McpServerEditor(props: {
                   {props.server ? <Trans>Edit MCP server</Trans> : <Trans>New MCP server</Trans>}
                 </Modal.Heading>
                 <p id={descriptionId} className="mt-0.5 text-xs text-muted">
-                  <Trans>Configure the server Poracode will add when supported agents start.</Trans>
+                  <Trans>
+                    Configure the server CraftStation will add when supported agents start.
+                  </Trans>
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3">

@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import type { UsageSnapshot, UsageWindow } from "@poracode/agents-usage";
+import type { UsageSnapshot, UsageWindow } from "@craftstation/agents-usage";
 import {
   formatCreditBalance,
   formatWindowSecondaryValue,

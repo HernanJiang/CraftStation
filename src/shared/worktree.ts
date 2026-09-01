@@ -66,7 +66,7 @@ function joinWorktreeSegments(base: string, parts: string[], sep: "/" | "\\"): s
  * (per-project override → global settings → built-in default). Pure and
  * renderer-safe (no `node:path`); the supervisor appends the per-branch segment.
  *
- * - **project-relative** → `<project>/.poracode/worktrees`, `omitRepoDir: true`.
+ * - **project-relative** → `<project>/.craftstation/worktrees`, `omitRepoDir: true`.
  * - **global + custom base** → that base, `omitRepoDir: false`.
  * - **global + empty base** → `root: undefined` (supervisor default), `omitRepoDir: false`.
  */
@@ -81,7 +81,7 @@ export function resolveWorktreePlacement(
     const base = location.kind === "wsl" ? location.linuxPath : location.path;
     const sep = location.kind === "windows" ? "\\" : "/";
     return {
-      root: joinWorktreeSegments(base, [".poracode", "worktrees"], sep),
+      root: joinWorktreeSegments(base, [".craftstation", "worktrees"], sep),
       omitRepoDir: true,
     };
   }

@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { dbGetState, dbSetState } from "../db";
 import { BrowserWindow, nativeImage, screen, type RenderProcessGoneDetails } from "electron";
-import type { PoracodeChannel } from "@/shared/channel";
-import type { PoracodeWindowKind } from "@/shared/ipc";
+import type { CraftStationChannel } from "@/shared/channel";
+import type { CraftStationWindowKind } from "@/shared/ipc";
 import type { RendererProcessGoneIntent } from "@/main/diagnostics/processGone";
 import { installSessionPermissions } from "../browser/permissions";
 import { supportsNativeWindowMaterial, syncNativeThemeForMaterial } from "./windowMaterial";
@@ -58,14 +58,14 @@ function saveWindowBounds(window: BrowserWindow, stateKey: string): void {
 
 export interface CreateMainWindowOptions {
   title: string;
-  windowKind?: PoracodeWindowKind;
+  windowKind?: CraftStationWindowKind;
   boundsStateKey?: string | null;
   defaultWidth?: number;
   defaultHeight?: number;
   minWidth?: number;
   minHeight?: number;
   isDev: boolean;
-  channel: PoracodeChannel;
+  channel: CraftStationChannel;
   preloadPath: string;
   rendererHtmlPath: string;
   appVersion: string;
@@ -91,7 +91,7 @@ export interface CreateMainWindowOptions {
   showOnReady?: boolean;
 }
 
-function resolveWindowIconPath(channel: PoracodeChannel): string | undefined {
+function resolveWindowIconPath(channel: CraftStationChannel): string | undefined {
   const suffix = channel === "nightly" ? "-nightly" : "";
   const buildDir = join(__dirname, "..", "..", "build");
   const candidates = [

@@ -1,8 +1,8 @@
-# Poracode
+# CraftStation
 
 ## CraftStation Overlay
 
-This working copy is CraftStation, based on PoraCode/lightcode.
+This working copy is CraftStation, based on CraftStation/craftstation.
 
 - Project identity and long-lived rules: `CRAFTSTATION.md`
 - Current Feature status: `PROJECT_STATUS.md`
@@ -118,7 +118,7 @@ toast.warning(i18n._(msg`Unable to install ${label}.`));
 ### Step 2 — Extract, then translate every locale
 
 1. Run `pnpm i18n:extract`. This registers the new msgids across all 13 catalogs. Forgetting this is the most common mistake — the new IDs never reach the catalogs and the strings silently stay English.
-2. **The catalogs are fully translated, not English-fallback.** Open each of the 12 non-English `messages.po` files and fill the new `msgstr ""` entries with a real translation. Leaving them empty ships a half-English UI. (`en` is the source locale and needs no `msgstr`.) Match the per-language terminology already used in the catalog — grep an existing entry first; keep product nouns like `Poracode`, `WSL`, `.poracode/worktrees` literal. The terminology cheat-sheet is in [i18n.md](.agents/docs/i18n.md).
+2. **The catalogs are fully translated, not English-fallback.** Open each of the 12 non-English `messages.po` files and fill the new `msgstr ""` entries with a real translation. Leaving them empty ships a half-English UI. (`en` is the source locale and needs no `msgstr`.) Match the per-language terminology already used in the catalog — grep an existing entry first; keep product nouns like `CraftStation`, `WSL`, `.craftstation/worktrees` literal. The terminology cheat-sheet is in [i18n.md](.agents/docs/i18n.md).
 3. Re-run `pnpm i18n:extract` to normalize `.po` formatting, and confirm the printed stats table shows **0 missing** for every locale.
 
 ### Checklist before you finish

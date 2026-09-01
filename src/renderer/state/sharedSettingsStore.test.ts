@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pluginFixture, seedBuiltInPlugins } from "@/renderer/testUtils/plugins";
 import { useSharedSettings, waitForPendingSharedSettings } from "./sharedSettingsStore";
 
-const originalPoracodeBridge = window.poracode;
+const originalCraftStationBridge = window.craftstation;
 
 describe("sharedSettingsStore", () => {
   afterEach(() => {
-    if (originalPoracodeBridge) window.poracode = originalPoracodeBridge;
-    else Reflect.deleteProperty(window, "poracode");
+    if (originalCraftStationBridge) window.craftstation = originalCraftStationBridge;
+    else Reflect.deleteProperty(window, "craftstation");
   });
 
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe("sharedSettingsStore", () => {
           finishWrite = resolve;
         }),
     );
-    window.poracode = { setSharedSettings } as unknown as typeof window.poracode;
+    window.craftstation = { setSharedSettings } as unknown as typeof window.craftstation;
 
     useSharedSettings.getState().setThemeMode("dark");
     let barrierFinished = false;
@@ -226,7 +226,7 @@ describe("sharedSettingsStore", () => {
 
   it("persists plugin lifecycle and contribution mutations", () => {
     const persistedPlugins = () =>
-      JSON.parse(localStorage.getItem("poracode-shared-settings") ?? "null").installedPlugins;
+      JSON.parse(localStorage.getItem("craftstation-shared-settings") ?? "null").installedPlugins;
 
     useSharedSettings.getState().installPlugin(pluginFixture("browser-tools"));
     expect(persistedPlugins()).toEqual({
@@ -302,7 +302,7 @@ describe("sharedSettingsStore", () => {
       id: "work",
       driver: "claude",
       displayName: "Work",
-      config: { configDir: "~/.poracode/claude-profiles/work" },
+      config: { configDir: "~/.craftstation/claude-profiles/work" },
     });
     useSharedSettings.setState({
       providerConfigs: {

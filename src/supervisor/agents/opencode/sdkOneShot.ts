@@ -116,7 +116,7 @@ export async function runOpenCodeOneShot(input: RunOneShotInput): Promise<string
     let session: Awaited<ReturnType<typeof acquired.client.session.create>>;
     try {
       session = await acquired.client.session.create({
-        title: `poracode one-shot ${parsedModel.modelID}`,
+        title: `craftstation one-shot ${parsedModel.modelID}`,
         // Generation is deny-all by default. Experiment judging opts into
         // read/search/list access inside its isolated anonymous diff workspace.
         permission: input.readOnlyWorkspace

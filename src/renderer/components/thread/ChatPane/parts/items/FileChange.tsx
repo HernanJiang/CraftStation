@@ -45,7 +45,7 @@ export const FileChange = memo(function FileChange({ item }: FileChangeProps) {
   const isRunning = item.state !== "completed";
   // The title is a custom node, so shimmer the stable kind label ("Edit",
   // "Create") here — never the path, which can change while running (see
-  // .poracode-thinking-text in styles.css). Matches grouped tool rows.
+  // .craftstation-thinking-text in styles.css). Matches grouped tool rows.
   const kindLabelRef = useShimmer<HTMLSpanElement>(isRunning);
 
   // Some SDKs (e.g. Claude `Write`) don't surface the new file contents on
@@ -90,10 +90,10 @@ export const FileChange = memo(function FileChange({ item }: FileChangeProps) {
     <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
       <span
         ref={kindLabelRef}
-        className={`shrink-0 !text-[color:var(--muted)] ${isRunning ? "poracode-thinking-text" : ""}`}
+        className={`shrink-0 !text-[color:var(--muted)] ${isRunning ? "craftstation-thinking-text" : ""}`}
         {...(isRunning
           ? {
-              "data-poracode-shimmer-text": localizeKindLabel(
+              "data-craftstation-shimmer-text": localizeKindLabel(
                 header.changeKind,
                 header.withPath,
                 t,

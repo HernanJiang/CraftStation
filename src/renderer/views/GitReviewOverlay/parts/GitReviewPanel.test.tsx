@@ -91,11 +91,11 @@ describe("GitReviewPanel", () => {
   it("refreshes an existing full status when the panel opens", async () => {
     const project: Project = {
       id: "remote-project",
-      name: "Poracode",
+      name: "CraftStation",
       createdAt: new Date().toISOString(),
       location: {
         kind: "posix",
-        path: "/Users/test/work/lightcode",
+        path: "/Users/test/work/craftstation",
         remoteServerId: "remote-desktop",
       },
     };

@@ -97,10 +97,10 @@ describe.skipIf(!sqliteAvailable)("usageLedger (real sqlite round-trip)", () => 
 
   beforeEach(() => {
     if (nativeBindingEnv) {
-      process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
+      process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = nativeBindingEnv;
     }
     seq = 0;
-    dir = mkdtempSync(join(tmpdir(), "poracode-usage-ledger-test-"));
+    dir = mkdtempSync(join(tmpdir(), "craftstation-usage-ledger-test-"));
     initDatabase(join(dir, "state.sqlite"));
     dbUpsertProject(
       {
@@ -117,7 +117,7 @@ describe.skipIf(!sqliteAvailable)("usageLedger (real sqlite round-trip)", () => 
   afterEach(() => {
     closeDatabase();
     rmSync(dir, { recursive: true, force: true });
-    delete process.env.PORACODE_BETTER_SQLITE3_NATIVE_BINDING;
+    delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
     vi.restoreAllMocks();
   });
 

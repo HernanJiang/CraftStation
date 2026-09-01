@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type OAuthToken, toEpochMs } from "@poracode/agents-usage";
+import { type OAuthToken, toEpochMs } from "@craftstation/agents-usage";
 import { readGrokAuthFromWsl } from "./wslCredentials";
 
 /**

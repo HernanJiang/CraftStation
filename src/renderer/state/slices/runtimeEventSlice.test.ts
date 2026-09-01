@@ -566,6 +566,36 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     expect(store.getState().runtimeRequestsByThread["t1"]).toHaveLength(0);
   });
 
+  it("keeps the origin execution envelope of crafted request.opened events", () => {
+    const execution = {
+      segmentId: "segment:thread-1:1",
+      runtimeSessionId: "runtime-codex",
+      bindingEpoch: 1,
+    };
+    apply("t1", {
+      type: "request.opened",
+      threadId: "t1",
+      requestId: "r1",
+      requestType: "command_execution_approval",
+      payload: { summary: "Run script.sh" },
+      execution,
+    });
+    const [open] = store.getState().runtimeRequestsByThread["t1"] ?? [];
+    expect(open?.execution).toEqual(execution);
+  });
+
+  it("stores legacy and snapshot-fallback requests without an execution envelope", () => {
+    apply("t1", {
+      type: "request.opened",
+      threadId: "t1",
+      requestId: "r1",
+      requestType: "command_execution_approval",
+      payload: { summary: "Run script.sh" },
+    });
+    const [open] = store.getState().runtimeRequestsByThread["t1"] ?? [];
+    expect(open?.execution).toBeUndefined();
+  });
+
   it("synthesises an inline error item on error events", () => {
     apply("t1", { type: "error", threadId: "t1", message: "boom" });
     const state = store.getState();

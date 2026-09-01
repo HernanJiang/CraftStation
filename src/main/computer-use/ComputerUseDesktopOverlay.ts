@@ -40,7 +40,7 @@ const OVERLAY_HTML = `<!doctype html>
     </style>
   </head>
   <body>
-    <div class="badge">Poracode using your computer | Esc to Exit</div>
+    <div class="badge">CraftStation using your computer | Esc to Exit</div>
   </body>
 </html>`;
 const OVERLAY_URL = `data:text/html;charset=utf-8,${encodeURIComponent(OVERLAY_HTML)}`;

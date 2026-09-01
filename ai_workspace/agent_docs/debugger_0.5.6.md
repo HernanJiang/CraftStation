@@ -36,7 +36,7 @@ F30/F31 壳层已关闭之后，用户用现场 UI 指出三个产品缺口：�
 
 - `ProviderBadge` 只 `label.slice(0, 2)`，不调 `ProviderIcon`。
 - `AccountRow` 左侧只有拖拽点，没有厂商图标。
-- `GrokProfileService.collectQuota` 走 `@poracode/agents-usage` 的 `collectGrok`：先 `https://cli-chat-proxy.grok.com/v1/billing`，再 cookie gRPC。没有 Token Monitor 的 official `grok agent stdio` + `x.ai/billing` RPC，也没有 Cockpit 的瞬态 SSL/EOF 重试。
+- `GrokProfileService.collectQuota` 走 `@craftstation/agents-usage` 的 `collectGrok`：先 `https://cli-chat-proxy.grok.com/v1/billing`，再 cookie gRPC。没有 Token Monitor 的 official `grok agent stdio` + `x.ai/billing` RPC，也没有 Cockpit 的瞬态 SSL/EOF 重试。
 - `classifyGrokQuotaTransportError` 把非 timeout/abort 的异常全部归类为 `network`。
 - 主列 `authorized-provider-grid` 是 `grid-cols-2 content-start`，**没有 `items-start`**；CSS Grid 默认 `align-items: stretch`，Kimi `ProviderCard` 被拉到 Grok 账号池高度。
 

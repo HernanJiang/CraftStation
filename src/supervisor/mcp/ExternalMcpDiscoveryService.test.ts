@@ -9,7 +9,7 @@ import { ExternalMcpDiscoveryService } from "./ExternalMcpDiscoveryService";
 const tempDirs: string[] = [];
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-mcp-discovery-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-mcp-discovery-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -81,12 +81,12 @@ describe("ExternalMcpDiscoveryService", () => {
         mcp: {
           user_tool: { type: 'local', command: ['npx', '-y', 'user-tool'], timeout: 7000 },
           browser: { type: 'remote', url: 'https://managed.example.test/mcp' },
-          poracode_subagents: { type: 'remote', url: 'https://legacy.example.test/mcp' },
+          craftstation_subagents: { type: 'remote', url: 'https://legacy.example.test/mcp' },
           CaseManaged: { type: 'remote', url: 'https://sidecar.example.test/mcp' },
         },
       }`,
     );
-    write(join(home, ".config", "opencode", ".poracode-managed-mcp.json"), '["casemanaged"]');
+    write(join(home, ".config", "opencode", ".craftstation-managed-mcp.json"), '["casemanaged"]');
     write(
       join(home, ".cursor", "mcp.json"),
       JSON.stringify({

@@ -132,7 +132,7 @@ export function ChatPane(props: ChatPaneProps) {
   );
 
   // Grok image_gen → session `images/N.jpg`; pass the session dir so markdown
-  // can resolve those relative paths via poracode-local://.
+  // can resolve those relative paths via craftstation-local://.
   const markdownImageRoots = useMemo(() => {
     if (thread.agentKind !== "grok" || isRemoteThread) return undefined;
     const sessionId = thread.sessionRef?.providerSessionId;

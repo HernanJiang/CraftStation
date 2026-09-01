@@ -12,6 +12,7 @@ import type {
 } from "@/shared/contracts";
 import type { PersistedRuntimeItem } from "@/shared/ipc";
 import { isDelegatedAgentTool } from "@/shared/toolCallClassification";
+import type { RuntimeExecutionEnvelope } from "@/shared/sessionHandoff";
 import { i18n } from "@/renderer/i18n/i18n";
 import type { SliceCreator } from "./shared";
 import {
@@ -87,6 +88,14 @@ export interface OpenRuntimeRequest {
   requestType: CanonicalRequestType;
   payload: RequestPayload;
   receivedAt: string;
+  /**
+   * Origin execution envelope the request was opened under (crafted threads
+   * only, v0.9 F1). The supervisor refuses resolution when this no longer
+   * matches the active Segment, so an answer can never land on a new Segment
+   * after a handoff. Absent for legacy threads and persisted-snapshot
+   * fallbacks, which are treated as unbound.
+   */
+  execution?: RuntimeExecutionEnvelope;
 }
 
 export interface RuntimeEventSlice {

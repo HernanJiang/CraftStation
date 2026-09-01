@@ -179,7 +179,7 @@ export function SkillImportModal(props: SkillImportModalProps) {
   ];
   const availabilityOptions = [
     { id: "shared", label: t`All agent apps` },
-    { id: "poracode", label: t`Poracode only` },
+    { id: "craftstation", label: t`CraftStation only` },
   ];
 
   return (
@@ -230,7 +230,7 @@ export function SkillImportModal(props: SkillImportModalProps) {
                 options={availabilityOptions}
                 value={availability}
                 onChange={(value) => {
-                  setAvailability(value === "poracode" ? "poracode" : "shared");
+                  setAvailability(value === "craftstation" ? "craftstation" : "shared");
                   setSelected(new Set());
                   setReplaceConflicts(false);
                 }}

@@ -88,14 +88,14 @@ describe("resolveImageViewSource", () => {
     expect(
       resolveImageViewSource({ name: "imageGeneration", result: "https://attacker.example/p.png" }),
     ).toBeNull();
-    // file:// and poracode-local:// → would read local files on view/copy.
+    // file:// and craftstation-local:// → would read local files on view/copy.
     expect(
       resolveImageViewSource({ name: "imageGeneration", result: "file:///C:/secret.png" }),
     ).toBeNull();
     expect(
       resolveImageViewSource({
         name: "imageGeneration",
-        result: { url: "poracode-local://local/C:/Users/me/secret.png" },
+        result: { url: "craftstation-local://local/C:/Users/me/secret.png" },
       }),
     ).toBeNull();
     // A filesystem path on args is no longer promoted to an image.

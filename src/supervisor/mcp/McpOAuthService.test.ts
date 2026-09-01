@@ -98,7 +98,7 @@ async function startFakeAuthServer(options: { expiresIn: number }): Promise<Fake
 }
 
 function makeService(): McpOAuthService {
-  const dir = mkdtempSync(join(tmpdir(), "poracode-mcp-oauth-"));
+  const dir = mkdtempSync(join(tmpdir(), "craftstation-mcp-oauth-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const service = new McpOAuthService({ baseDir: dir });
   cleanups.push(() => service.dispose());
@@ -218,7 +218,7 @@ describe("McpOAuthService", () => {
   });
 
   it("does not report credentials encrypted with an unavailable key as authenticated", () => {
-    const dir = mkdtempSync(join(tmpdir(), "poracode-mcp-oauth-"));
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-mcp-oauth-"));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
     const url = "https://mcp.vercel.com";
     const sealed = encryptSecret(dir, JSON.stringify({ access_token: "old" }));

@@ -65,7 +65,7 @@ const pr: PrData = {
   number: 42,
   state: "open",
   title: "Improve PR summary",
-  url: "https://github.com/example/poracode/pull/42",
+  url: "https://github.com/example/craftstation/pull/42",
   baseBranch: "main",
   isDraft: false,
   checksStatus: "PENDING",

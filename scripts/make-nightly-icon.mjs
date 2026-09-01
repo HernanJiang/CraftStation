@@ -21,11 +21,12 @@ const sharp = requireFromHere("sharp");
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD_DIR = join(repoRoot, "build");
-const SOURCE_PNG = process.env.PORACODE_NIGHTLY_ICON_SOURCE || join(BUILD_DIR, "icon-nightly.png");
+const SOURCE_PNG =
+  process.env.CRAFTSTATION_NIGHTLY_ICON_SOURCE || join(BUILD_DIR, "icon-nightly.png");
 const OUT_MAC_PNG = join(BUILD_DIR, "icon-nightly-mac.png");
 const OUT_ICNS = join(BUILD_DIR, "icon-nightly.icns");
 
-const stage = mkdtempSync(join(tmpdir(), "poracode-nightly-icon-"));
+const stage = mkdtempSync(join(tmpdir(), "craftstation-nightly-icon-"));
 console.log(`stage: ${stage}`);
 
 try {

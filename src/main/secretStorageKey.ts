@@ -35,12 +35,12 @@ function createPersistentKey(path: string): string {
   try {
     encrypted = safeStorage.encryptString(key);
   } catch {
-    throw new Error("Unable to encrypt the Poracode secret storage key.");
+    throw new Error("Unable to encrypt the CraftStation secret storage key.");
   }
   try {
     writeFileAtomic(path, encrypted.toString("base64"), { encoding: "utf8", mode: 0o600 });
   } catch {
-    throw new Error("Unable to persist the encrypted Poracode secret storage key.");
+    throw new Error("Unable to persist the encrypted CraftStation secret storage key.");
   }
   return key;
 }
@@ -76,7 +76,7 @@ export function readOrCreateSafeStorageSecretKey(
     serialized = readFileSync(path, "utf8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return createPersistentKey(path);
-    throwSecretStorageError("Unable to read the encrypted Poracode secret storage key.");
+    throwSecretStorageError("Unable to read the encrypted CraftStation secret storage key.");
   }
 
   try {

@@ -24,14 +24,15 @@ const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
 
 /**
- * Install a stub `window.poracode` bridge. ImageView delegates copy/download
+ * Install a stub `window.craftstation` bridge. ImageView delegates copy/download
  * unconditionally to the bridge; the browser-native implementations live in the
  * mobile bridge shim (src/mobile/bridge.ts), so here we assert delegation and
  * error handling against mocked bridge methods.
  */
 function installBridge(overrides: Record<string, unknown> = {}) {
-  const existing = (window as Window & { poracode?: Record<string, unknown> }).poracode ?? {};
-  Object.defineProperty(window, "poracode", {
+  const existing =
+    (window as Window & { craftstation?: Record<string, unknown> }).craftstation ?? {};
+  Object.defineProperty(window, "craftstation", {
     value: {
       ...existing,
       appVersion: "remote",
@@ -44,7 +45,7 @@ function installBridge(overrides: Record<string, unknown> = {}) {
 
 describe("ImageView", () => {
   afterEach(() => {
-    Reflect.deleteProperty(window, "poracode");
+    Reflect.deleteProperty(window, "craftstation");
     Reflect.deleteProperty(navigator, "clipboard");
     Object.defineProperty(globalThis, "ClipboardItem", {
       value: originalClipboardItem,
@@ -88,7 +89,7 @@ describe("ImageView", () => {
     expect(screen.queryByText("A red square")).toBeNull();
     const copyButton = screen.getByRole("button", { name: "Copy image" });
     expect(copyButton).toBeTruthy();
-    expect(copyButton.closest(".poracode-image-action-toolbar")).not.toBeNull();
+    expect(copyButton.closest(".craftstation-image-action-toolbar")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Download image" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open preview" })).toBeTruthy();
   });
@@ -106,7 +107,7 @@ describe("ImageView", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-    expect(document.querySelector(".poracode-image-lightbox__image")).toHaveStyle({
+    expect(document.querySelector(".craftstation-image-lightbox__image")).toHaveStyle({
       transform: "translate3d(0px, 0px, 0) scale(1.5)",
     });
   });
@@ -120,8 +121,8 @@ describe("ImageView", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open image preview" }));
-    const stage = document.querySelector(".poracode-image-lightbox__stage") as HTMLDivElement;
-    const image = document.querySelector(".poracode-image-lightbox__image") as HTMLImageElement;
+    const stage = document.querySelector(".craftstation-image-lightbox__stage") as HTMLDivElement;
+    const image = document.querySelector(".craftstation-image-lightbox__image") as HTMLImageElement;
     Object.defineProperties(stage, {
       clientWidth: { value: 200 },
       clientHeight: { value: 100 },

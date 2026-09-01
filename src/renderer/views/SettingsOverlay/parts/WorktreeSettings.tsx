@@ -25,12 +25,12 @@ export function WorktreeSettings() {
   return (
     <SettingsPage
       title={t`Worktrees`}
-      description={t`Where Poracode creates git worktrees for new branches. Changes apply to worktrees created from now on; existing worktrees stay where they are.`}
+      description={t`Where CraftStation creates git worktrees for new branches. Changes apply to worktrees created from now on; existing worktrees stay where they are.`}
     >
       <SettingRow
         anchorId="worktrees.storageLocation"
         title={t`Storage location`}
-        description={t`Use one global folder, or nest worktrees inside each project at .poracode/worktrees.`}
+        description={t`Use one global folder, or nest worktrees inside each project at .craftstation/worktrees.`}
       >
         <Select
           aria-label={t`Worktree storage location`}

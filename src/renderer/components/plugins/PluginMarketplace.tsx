@@ -44,10 +44,11 @@ export function PluginMarketplace(props: {
   );
 
   const installed = props.plugins.filter((entry) => installedPlugins[entry.plugin.name]);
-  const featured = matches.filter((entry) => entry.plugin.poracode.featured);
+  const featured = matches.filter((entry) => entry.plugin.craftstation.featured);
   const sections = CATEGORY_ORDER.flatMap((category) => {
     const entries = matches.filter(
-      (entry) => entry.plugin.poracode.category === category && !entry.plugin.poracode.featured,
+      (entry) =>
+        entry.plugin.craftstation.category === category && !entry.plugin.craftstation.featured,
     );
     return entries.length > 0 ? [{ category, entries }] : [];
   });
@@ -59,8 +60,8 @@ export function PluginMarketplace(props: {
       </h1>
       <p className="mb-5 mt-1 text-xs text-muted">
         <Trans>
-          Bundles of skills and MCP servers that work across every supported agent. Poracode loads
-          any package built for the Agent Plugins specification.
+          Bundles of skills and MCP servers that work across every supported agent. CraftStation
+          loads any package built for the Agent Plugins specification.
         </Trans>
       </p>
 
@@ -191,7 +192,7 @@ function PluginCard(props: {
                 <Trans>External</Trans>
               </PluginTag>
             ) : null}
-            {plugin.poracode.communityMaintained ? (
+            {plugin.craftstation.communityMaintained ? (
               <PluginTag>
                 <Trans>Community</Trans>
               </PluginTag>

@@ -165,7 +165,7 @@ export function UnifiedRightPanel(props: {
     handleResizeStart: handleSplitResizeStart,
     handleResizeKeyDown: handleSplitResizeKeyDown,
   } = useSplitPercent({
-    storageKey: "poracode-right-panel-split-percent",
+    storageKey: "craftstation-right-panel-split-percent",
     orientation: "column",
     containerRef: splitContainerRef,
     paneRef: splitFirstPaneRef,
@@ -186,7 +186,7 @@ export function UnifiedRightPanel(props: {
     };
   };
 
-  const dragCtl = "poracode-overlay-header__controls";
+  const dragCtl = "craftstation-overlay-header__controls";
   const labels = usePanelTabLabels();
   const tabs = [
     {
@@ -415,12 +415,12 @@ export function UnifiedRightPanel(props: {
 
   return (
     <div
-      data-poracode-panel=""
+      data-craftstation-panel=""
       data-craftstation-tools-column=""
       className="flex h-full min-h-0 flex-col bg-[var(--content-background)]"
     >
       <div
-        className={`poracode-overlay-header ${panelHeaderRowClass} min-w-0 gap-0`}
+        className={`craftstation-overlay-header ${panelHeaderRowClass} min-w-0 gap-0`}
         data-active-tab={activeTab}
         data-auxiliary-panel-header=""
       >
@@ -551,7 +551,7 @@ export function UnifiedRightPanel(props: {
         </div>
       </div>
       {hasSubagentTitle ? (
-        <div className="poracode-right-panel-subagent-meta flex h-6 shrink-0 items-center gap-2 border-b border-[color:var(--border)] px-3">
+        <div className="craftstation-right-panel-subagent-meta flex h-6 shrink-0 items-center gap-2 border-b border-[color:var(--border)] px-3">
           <div className="min-w-0 flex-1">{subagentTitle}</div>
           {onCloseSubagent ? (
             <button
@@ -622,7 +622,7 @@ export function UnifiedRightPanel(props: {
                 {splitPlacement === "top" ? splitSection : layerStack}
               </div>
               <div
-                className="poracode-pane-divider-horizontal"
+                className="craftstation-pane-divider-horizontal"
                 onPointerDown={handleSplitResizeStart}
                 onKeyDown={handleSplitResizeKeyDown}
                 role="separator"

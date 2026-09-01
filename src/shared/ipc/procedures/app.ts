@@ -89,7 +89,7 @@ export interface LegacyDataMigrationRequestResult {
 }
 
 /**
- * Desktop-as-client HTTP proxy. The renderer can't fetch a remote Poracode
+ * Desktop-as-client HTTP proxy. The renderer can't fetch a remote CraftStation
  * server directly — the server's CORS allowlist doesn't include the desktop's
  * origin — so remote requests run in the main process, which isn't subject to
  * CORS. See docs/REMOTE_ARCHITECTURE.md, Phase 4.

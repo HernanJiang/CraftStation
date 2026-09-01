@@ -54,7 +54,7 @@ describe("probeAcpCapabilities live-process paths", () => {
   it.each(["delete", "close"] as const)(
     "cleans up its disposable session with session/%s",
     async (capability) => {
-      const root = await mkdtemp(join(tmpdir(), "poracode-acp-probe-"));
+      const root = await mkdtemp(join(tmpdir(), "craftstation-acp-probe-"));
       const marker = join(root, "cleanup.txt");
       try {
         const result = await probeWith(
@@ -74,7 +74,7 @@ describe("probeAcpCapabilities live-process paths", () => {
   );
 
   it("falls back to session/close when session/delete is null", async () => {
-    const root = await mkdtemp(join(tmpdir(), "poracode-acp-probe-"));
+    const root = await mkdtemp(join(tmpdir(), "craftstation-acp-probe-"));
     const marker = join(root, "cleanup.txt");
     try {
       await probeWith(
@@ -92,7 +92,7 @@ describe("probeAcpCapabilities live-process paths", () => {
   });
 
   it("does not call a null session cleanup capability", async () => {
-    const root = await mkdtemp(join(tmpdir(), "poracode-acp-probe-"));
+    const root = await mkdtemp(join(tmpdir(), "craftstation-acp-probe-"));
     const marker = join(root, "cleanup.txt");
     try {
       await probeWith(
@@ -110,7 +110,7 @@ describe("probeAcpCapabilities live-process paths", () => {
   });
 
   it("reserves enough of a short probe deadline to delete the session", async () => {
-    const root = await mkdtemp(join(tmpdir(), "poracode-acp-probe-"));
+    const root = await mkdtemp(join(tmpdir(), "craftstation-acp-probe-"));
     const marker = join(root, "cleanup.txt");
     const started = Date.now();
     try {
@@ -264,7 +264,7 @@ describe("probeAcpCapabilities live-process paths", () => {
   });
 
   it("cleans up a created session before reaping an aborted probe", async () => {
-    const root = await mkdtemp(join(tmpdir(), "poracode-acp-probe-"));
+    const root = await mkdtemp(join(tmpdir(), "craftstation-acp-probe-"));
     const sessionMarker = join(root, "session.txt");
     const cleanupMarker = join(root, "cleanup.txt");
     const abort = new AbortController();

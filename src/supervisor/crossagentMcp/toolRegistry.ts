@@ -54,8 +54,8 @@ export function classifyModelTier(modelId: string, modelLabel: string): ModelTie
 
 /** Base routing guidance always included in the MCP `initialize` instructions. */
 export const CROSSAGENT_MCP_INSTRUCTIONS_BASE = [
-  "Use the Crossagents MCP server to delegate lightweight, ephemeral work to the other AI agents connected to this Poracode session.",
-  "Every tool named below belongs to this server. Hosts that namespace MCP tools expose them under this server's name (for example `crossagents__list_agents` or `mcp__crossagents__list_agents`), so resolve each bare name against your own tool list and call the crossagents entry — never the same bare name under another server such as `poracode`.",
+  "Use the Crossagents MCP server to delegate lightweight, ephemeral work to the other AI agents connected to this CraftStation session.",
+  "Every tool named below belongs to this server. Hosts that namespace MCP tools expose them under this server's name (for example `crossagents__list_agents` or `mcp__crossagents__list_agents`), so resolve each bare name against your own tool list and call the crossagents entry — never the same bare name under another server such as `craftstation`.",
   "Delegate only once the user has explicitly asked you to involve another agent in this thread, for example via an @Crossagents mention or a direct request to delegate or get a second opinion. That ask authorizes delegation for the rest of the thread, so later turns may spawn as the work requires; until then, never spawn subagents on your own initiative.",
   "Call list_agents when provider selection matters; call get_agent only when you need one provider's detailed models, reasoning options, Fast availability, or permissions preset.",
   "Classify every task with 1-5 concise lowercase tags and pass the same tags to list_agents and spawn_agent. Prefer this vocabulary when applicable: frontend, ui, design, backend, mobile, simulator, implementation, bugfix, review, testing, research, refactor, docs, devops, data. Crossagents learns tag-to-selection affinity from user-explicit selection choices without an extra model call.",
@@ -68,7 +68,7 @@ export const CROSSAGENT_MCP_INSTRUCTIONS_BASE = [
   "Background runs also survive interruption of the current parent turn, but still stop when the parent thread closes.",
   "Give each subagent a self-contained prompt — it does not share your conversation context.",
   "Always set name on spawn_agent and on every tasks=[...] entry: a short, specific label describing what that subagent will do (for example `Review runtime findings`). Users see this label in the thread; do not omit it or repeat provider/model/reasoning values there — Crossagents appends those automatically.",
-  "For long-lived, first-class app threads the user sees in the sidebar (optionally in their own git worktree) — e.g. one ticket or feature per thread — use the always-on `poracode` MCP server's thread tools (create_thread, list_threads, get_thread, read_thread, send_to_thread, wait_for_thread, interrupt_thread, stop_thread) instead.",
+  "For long-lived, first-class app threads the user sees in the sidebar (optionally in their own git worktree) — e.g. one ticket or feature per thread — use the always-on `craftstation` MCP server's thread tools (create_thread, list_threads, get_thread, read_thread, send_to_thread, wait_for_thread, interrupt_thread, stop_thread) instead.",
 ].join(" ");
 
 export function buildSubagentInstructions(routingGuide?: string): string {
@@ -317,7 +317,7 @@ const BASE_TOOLS: ToolSpec[] = RAW_TOOLS.map((tool) => ({
 }));
 
 /** Catalog: the ephemeral subagent-run lane. Full-thread orchestration lives
- *  in the always-on `poracode` (app-controls) MCP server's thread tools. */
+ *  in the always-on `craftstation` (app-controls) MCP server's thread tools. */
 export const TOOLS: ToolSpec[] = BASE_TOOLS;
 
 export const TOOL_NAMES = new Set(TOOLS.map((t) => t.name));

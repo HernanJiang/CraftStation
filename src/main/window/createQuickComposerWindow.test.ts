@@ -98,7 +98,7 @@ describe("quick composer window", () => {
 
   it("creates a frameless transparent window that remains natively draggable", () => {
     createQuickComposerWindow({
-      title: "Poracode",
+      title: "CraftStation",
       isDev: false,
       channel: "stable",
       preloadPath: "preload.cjs",
@@ -109,7 +109,7 @@ describe("quick composer window", () => {
       posthogHost: "",
       posthogKey: "",
       sentryEnabled: false,
-      browserUserAgent: "Poracode",
+      browserUserAgent: "CraftStation",
       onClosed: vi.fn<() => void>(),
     });
 

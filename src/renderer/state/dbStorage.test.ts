@@ -30,7 +30,7 @@ describe("createDbStorage", () => {
     bridge.dbGetState.mockReset().mockResolvedValue(null);
     bridge.dbSetState.mockReset().mockResolvedValue(undefined);
     bridge.dbSyncAll.mockReset().mockResolvedValue(undefined);
-    window.poracode = {} as typeof window.poracode;
+    window.craftstation = {} as typeof window.craftstation;
   });
 
   it("skips duplicate app metadata writes before dbSyncAll", async () => {
@@ -45,18 +45,18 @@ describe("createDbStorage", () => {
     const view = { kind: "home" as const };
     const groupLayouts = {};
 
-    await storage.setItem("poracode-app-v2", {
+    await storage.setItem("craftstation-app-v2", {
       state: { projects, threads, view, groupLayouts },
       version: 4,
     });
-    await storage.setItem("poracode-app-v2", {
+    await storage.setItem("craftstation-app-v2", {
       state: { projects, threads, view, groupLayouts },
       version: 4,
     });
 
     expect(bridge.dbSyncAll).toHaveBeenCalledTimes(1);
 
-    await storage.setItem("poracode-app-v2", {
+    await storage.setItem("craftstation-app-v2", {
       state: { projects, threads: [...threads], view, groupLayouts },
       version: 4,
     });
@@ -67,11 +67,11 @@ describe("createDbStorage", () => {
   it("still deduplicates generic persisted stores by serialized value", async () => {
     const storage = createDbStorage<{ collapsed: boolean }>();
 
-    await storage.setItem("poracode-thread-todo-dock-v1", {
+    await storage.setItem("craftstation-thread-todo-dock-v1", {
       state: { collapsed: false },
       version: 1,
     });
-    await storage.setItem("poracode-thread-todo-dock-v1", {
+    await storage.setItem("craftstation-thread-todo-dock-v1", {
       state: { collapsed: false },
       version: 1,
     });
@@ -82,24 +82,24 @@ describe("createDbStorage", () => {
   it("migrates a pre-rebrand generic state key on first read", async () => {
     const legacy = JSON.stringify({ state: { collapsed: true }, version: 1 });
     bridge.dbGetState.mockImplementation(async (key) =>
-      key === "lightcode-thread-todo-dock-v1" ? legacy : null,
+      key === "craftstation-thread-todo-dock-v1" ? legacy : null,
     );
     const storage = createDbStorage<{ collapsed: boolean }>();
 
-    await expect(storage.getItem("poracode-thread-todo-dock-v1")).resolves.toEqual({
+    await expect(storage.getItem("craftstation-thread-todo-dock-v1")).resolves.toEqual({
       state: { collapsed: true },
       version: 1,
     });
-    expect(bridge.dbGetState).toHaveBeenNthCalledWith(1, "poracode-thread-todo-dock-v1");
-    expect(bridge.dbGetState).toHaveBeenNthCalledWith(2, "lightcode-thread-todo-dock-v1");
-    expect(bridge.dbSetState).toHaveBeenCalledWith("poracode-thread-todo-dock-v1", legacy);
+    expect(bridge.dbGetState).toHaveBeenNthCalledWith(1, "craftstation-thread-todo-dock-v1");
+    expect(bridge.dbGetState).toHaveBeenNthCalledWith(2, "craftstation-thread-todo-dock-v1");
+    expect(bridge.dbSetState).toHaveBeenCalledWith("craftstation-thread-todo-dock-v1", legacy);
   });
 
   it("never writes the shared app snapshot from the quick composer window", async () => {
     bridge.windowKind = "quickComposer";
     const storage = createDbStorage();
 
-    await storage.setItem("poracode-app-v2", {
+    await storage.setItem("craftstation-app-v2", {
       state: {
         projects: [{ id: "quick-composer-only" }],
         threads: [],
@@ -120,7 +120,7 @@ describe("dbStorage persistence error reporting", () => {
     bridge.dbSyncAll.mockReset().mockResolvedValue(undefined);
     captureRendererException.mockClear();
     vi.spyOn(console, "error").mockImplementation(() => {});
-    window.poracode = {} as typeof window.poracode;
+    window.craftstation = {} as typeof window.craftstation;
   });
 
   afterEach(() => {
@@ -131,7 +131,7 @@ describe("dbStorage persistence error reporting", () => {
     bridge.dbSyncAll.mockRejectedValue(new Error("db locked"));
     const storage = createDbStorage();
 
-    await storage.setItem("poracode-app-v2", {
+    await storage.setItem("craftstation-app-v2", {
       state: { projects: [], threads: [], view: { kind: "home" }, groupLayouts: {} },
       version: 4,
     } as never);

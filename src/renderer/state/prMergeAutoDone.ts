@@ -13,7 +13,7 @@ import { useSharedSettings } from "./sharedSettingsStore";
  *
  * Only observed transitions count: the previous PR snapshot must say the PR was
  * not merged yet. That snapshot survives restarts through the git store's
- * persisted `prData` cache, so a PR merged while Poracode was closed still
+ * persisted `prData` cache, so a PR merged while CraftStation was closed still
  * registers on the next refresh — but once a thread is marked done the snapshot
  * reads "merged" forever after, so un-marking it by hand sticks. Only a PR whose
  * very first snapshot is already merged (no cache, or one older than its TTL) is

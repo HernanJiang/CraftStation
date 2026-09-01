@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { OpenCodeCostRow } from "@poracode/agents-usage";
+import type { OpenCodeCostRow } from "@craftstation/agents-usage";
 import { withReadonlyDb } from "./sqliteRead";
 
 /**

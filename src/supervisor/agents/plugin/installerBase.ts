@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { toWslUncPath } from "@/shared/wsl";
 import { detectPowerShell } from "../../shellPreference";
 import {
@@ -48,7 +48,7 @@ export function isWslPluginContext(ctx: AgentEnvContext | undefined): ctx is Wsl
 
 export interface PluginSourceResolverOptions {
   kind: string;
-  /** Env var override for the source dir, e.g. `PORACODE_CLAUDE_PLUGIN_SOURCE`. */
+  /** Env var override for the source dir, e.g. `CRAFTSTATION_CLAUDE_PLUGIN_SOURCE`. */
   sourceEnvVar: string;
   /**
    * `__dirname` of the *caller* (the provider's install.ts). Fallback candidate
@@ -60,7 +60,7 @@ export interface PluginSourceResolverOptions {
 
 /**
  * Memoized per-call: the first successful resolve is cached for the lifetime
- * of the closure. The `PORACODE_*_PLUGIN_SOURCE` env override is therefore
+ * of the closure. The `CRAFTSTATION_*_PLUGIN_SOURCE` env override is therefore
  * read only on the first call; subsequent env mutations are ignored.
  */
 export function createPluginSourceResolver(opts: PluginSourceResolverOptions): () => string {
@@ -221,7 +221,7 @@ export function buildNativeHookCommandHead(
  * through the shell it found on PATH (sh/bash via Git for Windows on most
  * developer machines), which can't parse PowerShell syntax and aborts with
  * `eval: line 3: syntax error near unexpected token '&'`. Routing through the
- * staged `poracode-hook.cmd` wrapper via `cmd.exe /d /s /c call …` keeps the
+ * staged `craftstation-hook.cmd` wrapper via `cmd.exe /d /s /c call …` keeps the
  * command pwsh-free and works under both sh and cmd shells. POSIX hosts get
  * the same shape as `buildNativeHookCommandHead`.
  */
@@ -244,12 +244,12 @@ export interface WslPluginBaseDirs {
 export function getWslPluginBaseDirs(distro: string, kind: string): WslPluginBaseDirs | undefined {
   const home = getCachedWslHomeDirectory(distro);
   if (!home) return undefined;
-  const linuxBase = `${home}/.poracode/agent-plugins/${kind}`;
+  const linuxBase = `${home}/.craftstation/agent-plugins/${kind}`;
   return { home, linuxBase, uncBase: toWslUncPath(distro, linuxBase) };
 }
 
 export function getNativePluginBaseDir(kind: string, baseDir?: string): string {
-  const paths = resolvePoracodePaths(baseDir);
+  const paths = resolveCraftStationPaths(baseDir);
   return join(paths.agentPluginsDir, kind);
 }
 
@@ -362,16 +362,16 @@ export function warnIfPluginManifestMissing(kind: string, version: string, devHi
 /**
  * Filename of the per-plugin native hook wrapper. The wrapper sits next
  * to `forward.mjs` in the plugin staging dir and runs `forward.mjs` under
- * poracode's bundled Electron Node via `ELECTRON_RUN_AS_NODE=1`. On
+ * craftstation's bundled Electron Node via `ELECTRON_RUN_AS_NODE=1`. On
  * Windows we write a `.cmd` because cmd.exe doesn't accept inline
  * `VAR=val` prefixes; everywhere else we write a POSIX `.sh`.
  */
 export function getNativeHookWrapperFilename(): string {
-  return process.platform === "win32" ? "poracode-hook.cmd" : "poracode-hook.sh";
+  return process.platform === "win32" ? "craftstation-hook.cmd" : "craftstation-hook.sh";
 }
 
 function getNativeHookPowerShellWrapperFilename(): string {
-  return "poracode-hook.ps1";
+  return "craftstation-hook.ps1";
 }
 
 /**
@@ -380,7 +380,7 @@ function getNativeHookPowerShellWrapperFilename(): string {
  *   - When `nodePath` is provided, the wrapper invokes that bare Node
  *     binary directly — fastest path (~30–50 ms cold) and what we always
  *     prefer.
- *   - Otherwise it falls back to running poracode's bundled Electron
+ *   - Otherwise it falls back to running craftstation's bundled Electron
  *     binary with `ELECTRON_RUN_AS_NODE=1`, which still produces a
  *     working Node runtime but pays a ~150 ms startup tax per spawn.
  *
@@ -390,7 +390,7 @@ function getNativeHookPowerShellWrapperFilename(): string {
  * portable if the staging dir is relocated.
  */
 export interface RenderNativeHookWrapperOptions {
-  /** poracode's bundled Electron binary, used as the fallback runtime. */
+  /** craftstation's bundled Electron binary, used as the fallback runtime. */
   electronPath: string;
   /** Absolute path to a usable native Node binary (preferred runtime). */
   nodePath?: string;
@@ -704,14 +704,14 @@ export function ensureNativeStateLink(source: string, target: string, kind: "dir
 /**
  * Filename of the shared forwarder runtime that ships next to each provider's
  * `forward.mjs` in the staging dir. Each `forward.mjs` imports it as a
- * sibling (`./poracode-hook-runtime.mjs`) and calls `runForwarder({...})`.
+ * sibling (`./craftstation-hook-runtime.mjs`) and calls `runForwarder({...})`.
  */
-export const FORWARD_RUNTIME_FILE = "poracode-hook-runtime.mjs";
+export const FORWARD_RUNTIME_FILE = "craftstation-hook-runtime.mjs";
 
 let cachedRuntimeSourcePath: string | undefined;
 
 /**
- * Resolve the canonical `poracode-hook-runtime.mjs` source path. Mirrors
+ * Resolve the canonical `craftstation-hook-runtime.mjs` source path. Mirrors
  * `createPluginSourceResolver`: checks packaged `<resources>/agent-plugins/
  * _runtime/`, then dev candidates relative to this module's location.
  * Memoized for the supervisor lifetime.
@@ -747,7 +747,7 @@ export function resolveForwardRuntimeSourcePath(): string {
 /**
  * Copy the shared runtime into a native plugin staging dir. Idempotent:
  * skips when target file is identical (size+mtime). Targets sit next to
- * `forward.mjs` so its relative `import "./poracode-hook-runtime.mjs"`
+ * `forward.mjs` so its relative `import "./craftstation-hook-runtime.mjs"`
  * resolves.
  */
 export function copyForwardRuntimeFile(targetDir: string): void {
@@ -798,7 +798,7 @@ export interface VerifyStagedPluginOptions {
   assets?: readonly string[];
   /**
    * When true (default), native installs must also have the
-   * `poracode-hook.{sh,cmd}` wrapper next to forward.mjs. WSL installs bake
+   * `craftstation-hook.{sh,cmd}` wrapper next to forward.mjs. WSL installs bake
    * the absolute node path directly into hook commands and never need it.
    * Providers that don't use a forwarder wrapper (OpenCode in-process plugin)
    * set this to false.
@@ -807,7 +807,7 @@ export interface VerifyStagedPluginOptions {
   /**
    * Optional provider-specific extra check run after the asset existence
    * checks pass. Returns true to continue treating the install as good.
-   * Used by Cursor (hooks.json must contain a Poracode entry) and OpenCode
+   * Used by Cursor (hooks.json must contain a CraftStation entry) and OpenCode
    * (dropped files must byte-match the staging dir).
    */
   extraCheck?: () => boolean;
@@ -851,7 +851,7 @@ export interface StagePluginAssetsToWslOptions {
    */
   assets?: readonly string[];
   /**
-   * When true, also stage the shared `poracode-hook-runtime.mjs` next to
+   * When true, also stage the shared `craftstation-hook-runtime.mjs` next to
    * `forward.mjs`. Forwarder-based providers (claude/codex/gemini/copilot/
    * cursor) pass true; OpenCode (in-process plugin, no forwarder) passes false.
    */
@@ -860,7 +860,7 @@ export interface StagePluginAssetsToWslOptions {
 
 /**
  * Stage a provider's plugin assets into a WSL distro under
- * `<home>/.poracode/agent-plugins/<kind>/`. Returns the deploy result on
+ * `<home>/.craftstation/agent-plugins/<kind>/`. Returns the deploy result on
  * success; on failure returns a `reason` string the caller should propagate.
  * Centralizes the `deployFilesToWslHome → !deploy → reason` pattern shared
  * across copilot/cursor/opencode (and matches the shape used by claude/codex

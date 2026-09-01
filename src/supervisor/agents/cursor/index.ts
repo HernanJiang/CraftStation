@@ -173,7 +173,7 @@ export function createCursorAdapter(options: CursorAdapterOptions = {}): AgentAd
     // change routing for every other environment.
     capabilities: cursorDefaultCapabilities,
     spawnEnv: { wsl: { BROWSER: "/bin/true" } },
-    pluginId: "poracode-status@cursor",
+    pluginId: "craftstation-status@cursor",
     pluginVersion: CURSOR_PLUGIN_VERSION,
     minProtocolVersion: 1,
 

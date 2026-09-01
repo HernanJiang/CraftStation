@@ -130,7 +130,7 @@ vi.mock("@legendapp/list/react", async () => {
         <div
           ref={setScrollRef}
           className={props.className}
-          data-poracode-chat-scroller="true"
+          data-craftstation-chat-scroller="true"
           onKeyDownCapture={props.onKeyDownCapture}
           onPointerDownCapture={props.onPointerDownCapture}
           onWheelCapture={props.onWheelCapture}
@@ -290,7 +290,7 @@ describe("MessageList", () => {
       />,
     );
 
-    const scroller = container.querySelector("[data-poracode-chat-scroller='true']");
+    const scroller = container.querySelector("[data-craftstation-chat-scroller='true']");
     const content = container.querySelector(".legend-list-content-container");
     expect(setScrollContainer).toHaveBeenCalledWith(scroller);
     expect(scrollContentRef.current).toBe(content);

@@ -10,8 +10,8 @@ import {
  * keep their collapsed projects; the `persist` envelope (PERSIST_KEY) takes
  * over on the first write.
  */
-const LEGACY_COLLAPSED_PROJECTS_KEY = "poracode-collapsed-projects";
-const PERSIST_KEY = "poracode-sidebar-ui";
+const LEGACY_COLLAPSED_PROJECTS_KEY = "craftstation-collapsed-projects";
+const PERSIST_KEY = "craftstation-sidebar-ui";
 
 interface SidebarUiState {
   collapsedProjects: Record<string, boolean>;

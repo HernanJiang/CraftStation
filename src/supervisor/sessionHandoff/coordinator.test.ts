@@ -219,7 +219,7 @@ describe("SessionHandoffCoordinator", () => {
         runtimeSessionId: "runtime-source",
         bindingEpoch: 1,
       }),
-    ).toThrowError(expect.objectContaining({ code: "HANDOFF_STALE_ACTIVE_COMMAND" }));
+    ).toThrowError(expect.objectContaining({ code: "HANDOFF_EXECUTION_STALE" }));
     expect(
       f.coordinator.acceptsEvent("thread-1", {
         type: "warning",
@@ -232,6 +232,47 @@ describe("SessionHandoffCoordinator", () => {
         },
       }),
     ).toBe(false);
+    f.ledger.close();
+  });
+
+  it("fails closed when a crafted active command omits its execution envelope", () => {
+    const f = fixture();
+    expect(() => f.coordinator.assertActiveExecution("thread-1", undefined)).toThrowError(
+      expect.objectContaining({ code: "HANDOFF_ACTIVE_EXECUTION_REQUIRED" }),
+    );
+    expect(() => f.coordinator.assertActiveExecution("thread-1", {} as never)).toThrowError(
+      expect.objectContaining({ code: "HANDOFF_ACTIVE_EXECUTION_REQUIRED" }),
+    );
+
+    // The current binding still passes the fence untouched.
+    const active = f.ledger.active("thread-1")!;
+    expect(
+      f.coordinator.assertActiveExecution("thread-1", {
+        segmentId: active.id,
+        runtimeSessionId: active.runtimeSessionId!,
+        bindingEpoch: active.bindingEpoch,
+      }),
+    ).toEqual(active);
+    f.ledger.close();
+  });
+
+  it("rejects each drifted envelope dimension as a stale execution", () => {
+    const f = fixture();
+    const active = f.ledger.active("thread-1")!;
+    const current = {
+      segmentId: active.id,
+      runtimeSessionId: active.runtimeSessionId!,
+      bindingEpoch: active.bindingEpoch,
+    };
+    for (const drifted of [
+      { ...current, segmentId: "segment:thread-1:9" },
+      { ...current, runtimeSessionId: "runtime-other" },
+      { ...current, bindingEpoch: current.bindingEpoch + 1 },
+    ]) {
+      expect(() => f.coordinator.assertActiveExecution("thread-1", drifted)).toThrowError(
+        expect.objectContaining({ code: "HANDOFF_EXECUTION_STALE" }),
+      );
+    }
     f.ledger.close();
   });
 

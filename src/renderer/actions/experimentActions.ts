@@ -134,7 +134,7 @@ export async function launchExperiment(input: LaunchExperimentInput): Promise<st
     return {
       spec,
       threadId: crypto.randomUUID(),
-      worktreeBranch: `poracode/experiment-${promptSlug}-${agentSlug}-${shortId}-${index + 1}`,
+      worktreeBranch: `craftstation/experiment-${promptSlug}-${agentSlug}-${shortId}-${index + 1}`,
       label,
     };
   });

@@ -2,14 +2,14 @@ import { z } from "zod";
 import {
   agentPluginManifestSchema,
   pluginMcpEntrySchema,
-  poracodePluginExtensionSchema,
+  craftstationPluginExtensionSchema,
 } from "../plugins/spec";
 
 /**
  * Contracts for Agent Plugins packages after loading.
  *
  * The manifest itself is defined by the specification (`src/shared/plugins/spec`).
- * This module covers what Poracode adds on top: where a package was found, what
+ * This module covers what CraftStation adds on top: where a package was found, what
  * the loader resolved out of it, and the per-plugin state the user controls.
  */
 
@@ -54,7 +54,7 @@ export const loadedPluginSchema = z
     /** Filesystem-resolved package boundary. */
     root: z.string().min(1),
     manifest: agentPluginManifestSchema,
-    poracode: poracodePluginExtensionSchema,
+    craftstation: craftstationPluginExtensionSchema,
     skills: z.array(pluginSkillRefSchema),
     mcpServers: z.array(pluginMcpServerRefSchema),
     diagnostics: z.array(pluginDiagnosticSchema),

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityBridge } from "@poracode/activity-bridge";
+import { ActivityBridge } from "@craftstation/activity-bridge";
 import {
   BROWSER_NOTIFICATION_PERMISSION_CHANGED_EVENT,
   setBrowserWebPushActive,

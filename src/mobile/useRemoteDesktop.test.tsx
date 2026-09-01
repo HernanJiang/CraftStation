@@ -79,7 +79,7 @@ const h = vi.hoisted(() => {
     ),
     updateDesktopPlatform: vi.fn<(...a: unknown[]) => Promise<void>>(async () => {}),
     gitAddWorktree: vi.fn<(...a: unknown[]) => Promise<{ path: string }>>(async () => ({
-      path: "/repo/.poracode/worktrees/mobile-fix",
+      path: "/repo/.craftstation/worktrees/mobile-fix",
     })),
     bridgeCloseThread: vi.fn<(...a: unknown[]) => Promise<void>>(async () => {}),
     bridgeStartThread: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({
@@ -694,7 +694,7 @@ describe("useRemoteDesktop", () => {
         config: { model: "m" },
         prompt: "Fix it",
         presentationMode: "gui",
-        worktreeBranch: "poracode/mobile-fix",
+        worktreeBranch: "craftstation/mobile-fix",
         worktreeBaseBranch: "main",
         worktreeIsNewBranch: true,
       });
@@ -703,11 +703,11 @@ describe("useRemoteDesktop", () => {
     expect(h.gitAddWorktree).toHaveBeenCalledTimes(1);
     expect(h.gitAddWorktree).toHaveBeenCalledWith({
       projectLocation: project.location,
-      branch: "poracode/mobile-fix",
+      branch: "craftstation/mobile-fix",
       createBranch: true,
       startPoint: "main",
       copyIgnoredPatterns: [".envrc", ".env.*"],
-      worktreeRoot: "/repo/.poracode/worktrees",
+      worktreeRoot: "/repo/.craftstation/worktrees",
       worktreeOmitRepoDir: true,
       transferUncommitted: false,
       keepChangesInSource: false,
@@ -715,8 +715,8 @@ describe("useRemoteDesktop", () => {
     expect(client.startNewThread).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: project.id,
-        worktreePath: "/repo/.poracode/worktrees/mobile-fix",
-        worktreeBranch: "poracode/mobile-fix",
+        worktreePath: "/repo/.craftstation/worktrees/mobile-fix",
+        worktreeBranch: "craftstation/mobile-fix",
         isNewWorktree: true,
       }),
     );
@@ -773,19 +773,19 @@ describe("useRemoteDesktop", () => {
         transferUncommitted: false,
         keepChangesInSource: false,
       });
-      expect(addPayload.branch).toEqual(expect.stringMatching(/^poracode\//));
+      expect(addPayload.branch).toEqual(expect.stringMatching(/^craftstation\//));
       // No git summary for the thread → no startPoint (host falls back to HEAD).
       expect(addPayload.startPoint).toBeUndefined();
       expect(client.sendThreadCommand).toHaveBeenCalledWith({
         kind: "set-worktree",
         threadId: "t1",
-        worktreePath: "/repo/.poracode/worktrees/mobile-fix",
+        worktreePath: "/repo/.craftstation/worktrees/mobile-fix",
         worktreeBranch: addPayload.branch,
         isNewWorktree: true,
       });
       // Optimistic local mirror tags the thread right away.
       const stored = useAppStore.getState().threads.find((entry) => entry.id === "t1");
-      expect(stored?.worktreePath).toBe("/repo/.poracode/worktrees/mobile-fix");
+      expect(stored?.worktreePath).toBe("/repo/.craftstation/worktrees/mobile-fix");
       expect(stored?.worktreeBranch).toBe(addPayload.branch);
     });
 
@@ -822,7 +822,7 @@ describe("useRemoteDesktop", () => {
       expect(h.bridgeStartThread).toHaveBeenCalledWith(
         expect.objectContaining({
           threadId: "t1",
-          projectLocation: { kind: "posix", path: "/repo/.poracode/worktrees/mobile-fix" },
+          projectLocation: { kind: "posix", path: "/repo/.craftstation/worktrees/mobile-fix" },
           sessionRef: "ses-1",
           presentationMode: "gui",
         }),

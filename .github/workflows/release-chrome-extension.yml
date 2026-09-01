@@ -154,7 +154,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ needs.prepare.outputs.version }}"
-          zip_name="poracode-chrome-extension-v${version}.zip"
+          zip_name="craftstation-chrome-extension-v${version}.zip"
           mkdir -p dist
           cd chrome-extension
           zip -r "../dist/${zip_name}" manifest.json background.js popup.html popup.js icons
@@ -165,7 +165,7 @@ jobs:
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: poracode-chrome-extension-v${{ needs.prepare.outputs.version }}
+          name: craftstation-chrome-extension-v${{ needs.prepare.outputs.version }}
           path: dist/${{ steps.package.outputs.zip_name }}
           if-no-files-found: error
 
@@ -184,7 +184,7 @@ jobs:
       - name: Download extension package
         uses: actions/download-artifact@v8
         with:
-          name: poracode-chrome-extension-v${{ needs.prepare.outputs.version }}
+          name: craftstation-chrome-extension-v${{ needs.prepare.outputs.version }}
           path: release-assets
 
       - name: Extract release notes
@@ -218,7 +218,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: Poracode Chrome Extension ${{ needs.prepare.outputs.tag }}
+          name: CraftStation Chrome Extension ${{ needs.prepare.outputs.tag }}
           draft: true
           fail_on_unmatched_files: true
           body_path: release-notes.md
@@ -250,7 +250,7 @@ jobs:
       - name: Download extension package
         uses: actions/download-artifact@v8
         with:
-          name: poracode-chrome-extension-v${{ needs.prepare.outputs.version }}
+          name: craftstation-chrome-extension-v${{ needs.prepare.outputs.version }}
           path: dist
 
       - name: Upload and submit package

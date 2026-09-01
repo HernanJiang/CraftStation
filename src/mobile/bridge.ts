@@ -12,7 +12,7 @@ import {
   parseIpcProcedureArgs,
   type BrowserState,
   type BrowserTabInfo,
-  type PoracodeBridge,
+  type CraftStationBridge,
 } from "@/shared/ipc";
 import {
   invokeRemoteIpcProcedure,
@@ -34,7 +34,7 @@ import { pushDesktopSettingsDiff } from "./settingsSync";
 import { applyAgentStatuses } from "./storeSync";
 
 /**
- * Remote-session implementation of `window.poracode`. The desktop renderer
+ * Remote-session implementation of `window.craftstation`. The desktop renderer
  * components reused by the PWA (ChatPane, ThreadComposerSection,
  * ThreadDraftView, …) call the bridge for thread mutations and shell
  * conveniences. Here those calls are routed to the paired desktop over the
@@ -59,7 +59,7 @@ export function setRemoteBridgeClient(
   activeClient = client;
   remoteTerminals.clear();
   hostPlatform = client ? (platform ?? null) : null;
-  // poracode-local <img> sources load only inside the desktop's Electron
+  // craftstation-local <img> sources load only inside the desktop's Electron
   // shell; in the PWA, swap them for the desktop's authenticated HTTP image
   // endpoint at render time (see shared/localImageDisplay.ts).
   setRemoteLocalImageResolver(client ? (url) => remoteLocalImageUrl(client, url) : null);
@@ -70,7 +70,7 @@ export function setRemoteBridgeClient(
 }
 
 /**
- * Maps a poracode-local image URL to the desktop's authenticated image
+ * Maps a craftstation-local image URL to the desktop's authenticated image
  * endpoint. The PWA has no `process.platform`, so the path decode keys off the
  * paired desktop's advertised platform when known, else just strips a leading
  * "/" before a Windows drive letter. Falls back to the original URL when the
@@ -389,6 +389,6 @@ const remoteBridge = Object.defineProperties(
 );
 
 export function installRemoteBridge(): void {
-  if (typeof window === "undefined" || window.poracode !== undefined) return;
-  window.poracode = remoteBridge as unknown as PoracodeBridge;
+  if (typeof window === "undefined" || window.craftstation !== undefined) return;
+  window.craftstation = remoteBridge as unknown as CraftStationBridge;
 }

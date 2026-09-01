@@ -40,7 +40,7 @@ nativeCodex / fake / boundary 测试绿。未跑全仓。工作区仍混有 v0.1
 
 ### Architecture
 
-方向对：CraftStation-owned host + JSON-RPC + mapping，不 deep-import PoraCode Codex session。boundaryGuard 检查 nativeCodex 不引用 TSM。这不够证明协议正确。
+方向对：CraftStation-owned host + JSON-RPC + mapping，不 deep-import CraftStation Codex session。boundaryGuard 检查 nativeCodex 不引用 TSM。这不够证明协议正确。
 
 ## Findings
 

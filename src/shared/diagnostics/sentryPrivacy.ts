@@ -1,32 +1,32 @@
 import { DIAGNOSTIC_BREADCRUMB_CATEGORY, isStableDiagnosticToken } from "./sentryPolicy";
 
-export const PORACODE_DIAGNOSTIC_TAG_KEYS = [
-  "poracode.app_version",
-  "poracode.arch",
-  "poracode.channel",
-  "poracode.chrome",
-  "poracode.error_class",
-  "poracode.electron",
-  "poracode.failure_domain",
-  "poracode.feature_area",
-  "poracode.node",
-  "poracode.operation",
-  "poracode.operational",
-  "poracode.platform",
-  "poracode.presentation",
-  "poracode.process",
-  "poracode.provider",
-  "poracode.runtime_kind",
+export const CRAFTSTATION_DIAGNOSTIC_TAG_KEYS = [
+  "craftstation.app_version",
+  "craftstation.arch",
+  "craftstation.channel",
+  "craftstation.chrome",
+  "craftstation.error_class",
+  "craftstation.electron",
+  "craftstation.failure_domain",
+  "craftstation.feature_area",
+  "craftstation.node",
+  "craftstation.operation",
+  "craftstation.operational",
+  "craftstation.platform",
+  "craftstation.presentation",
+  "craftstation.process",
+  "craftstation.provider",
+  "craftstation.runtime_kind",
   "event.environment",
   "event.origin",
   "event.process",
 ] as const;
 
-export type PoracodeDiagnosticTagKey = (typeof PORACODE_DIAGNOSTIC_TAG_KEYS)[number];
+export type CraftStationDiagnosticTagKey = (typeof CRAFTSTATION_DIAGNOSTIC_TAG_KEYS)[number];
 
-export type PoracodeDiagnosticTags = Partial<Record<PoracodeDiagnosticTagKey, string>>;
+export type CraftStationDiagnosticTags = Partial<Record<CraftStationDiagnosticTagKey, string>>;
 
-export type PoracodeRuntimeDiagnosticContext = {
+export type CraftStationRuntimeDiagnosticContext = {
   provider?: string;
   presentation?: "gui" | "terminal";
   runtimeKind?: "pty" | "structured";
@@ -62,12 +62,12 @@ export type SentryEventLike = Record<string, unknown> & {
   user?: Record<string, unknown>;
 };
 
-const ALLOWED_TAG_KEYS = new Set<string>(PORACODE_DIAGNOSTIC_TAG_KEYS);
+const ALLOWED_TAG_KEYS = new Set<string>(CRAFTSTATION_DIAGNOSTIC_TAG_KEYS);
 const STABLE_TOKEN_TAG_KEYS = new Set([
-  "poracode.error_class",
-  "poracode.failure_domain",
-  "poracode.operation",
-  "poracode.operational",
+  "craftstation.error_class",
+  "craftstation.failure_domain",
+  "craftstation.operation",
+  "craftstation.operational",
 ]);
 const ALLOWED_CONTEXT_KEYS = new Set([
   "app",
@@ -75,7 +75,7 @@ const ALLOWED_CONTEXT_KEYS = new Set([
   "chrome",
   "device",
   "gpu",
-  "poracode",
+  "craftstation",
   "node",
   "os",
   "runtime",
@@ -279,13 +279,13 @@ function sanitizeException(exception: SentryEventLike["exception"]): SentryEvent
 }
 
 export function buildRuntimeDiagnosticTags(
-  context: PoracodeRuntimeDiagnosticContext,
-): PoracodeDiagnosticTags {
+  context: CraftStationRuntimeDiagnosticContext,
+): CraftStationDiagnosticTags {
   return {
-    ...(context.provider ? { "poracode.provider": context.provider } : {}),
-    ...(context.presentation ? { "poracode.presentation": context.presentation } : {}),
-    ...(context.runtimeKind ? { "poracode.runtime_kind": context.runtimeKind } : {}),
-    ...(context.featureArea ? { "poracode.feature_area": context.featureArea } : {}),
+    ...(context.provider ? { "craftstation.provider": context.provider } : {}),
+    ...(context.presentation ? { "craftstation.presentation": context.presentation } : {}),
+    ...(context.runtimeKind ? { "craftstation.runtime_kind": context.runtimeKind } : {}),
+    ...(context.featureArea ? { "craftstation.feature_area": context.featureArea } : {}),
   };
 }
 
@@ -344,10 +344,10 @@ const TERMINAL_EXPECTED_SIGNATURES = new Set([
 ]);
 
 function isKnownExpectedEvent(event: SentryEventLike): boolean {
-  const domain = event.tags?.["poracode.failure_domain"];
-  const featureArea = event.tags?.["poracode.feature_area"];
+  const domain = event.tags?.["craftstation.failure_domain"];
+  const featureArea = event.tags?.["craftstation.feature_area"];
   if (domain !== "supervisor.ipc" && featureArea !== "supervisor-ipc") return false;
-  const operation = event.tags?.["poracode.operation"];
+  const operation = event.tags?.["craftstation.operation"];
 
   const values = [
     event.message,

@@ -77,7 +77,7 @@
 - 触及源码 `oxfmt --check`：PASS（34 个源码/测试文件）。
 - `git diff --check`：PASS。
 - `package.json` 与 `pnpm-lock.yaml`：无 diff。
-- Electron changed-surface mock smoke：`welcome-dismissal`、`baseline` PASS，console/runtime errors `0`；报告位于 `C:\Users\Haona\.poracode-smoke\automated-1788177448287-27260\artifacts\smoke-report.json`。该 smoke inventory 当前只执行 baseline，不能替代 handoff UI/真实 provider 验收。
+- Electron changed-surface mock smoke：`welcome-dismissal`、`baseline` PASS，console/runtime errors `0`；报告位于 `C:\Users\Haona\.craftstation-smoke\automated-1788177448287-27260\artifacts\smoke-report.json`。该 smoke inventory 当前只执行 baseline，不能替代 handoff UI/真实 provider 验收。
 
 ### 环境/历史阻塞，未误报为 Feature 回归
 
@@ -86,7 +86,7 @@
 - 迁移前 full test 曾在未固定 SQLite ABI 的环境下出现 Electron ABI 148 / Node ABI 137 mismatch 及历史 schema/命名债务；本轮 focused 测试统一使用：
 
   ```powershell
-  $env:PORACODE_BETTER_SQLITE3_NATIVE_BINDING = 'D:\Work\CraftStation\dist\server-native\better_sqlite3.node'
+  $env:CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = 'D:\Work\CraftStation\dist\server-native\better_sqlite3.node'
   ```
 
   不使用 worktree 内 Electron ABI 148 的 binding。focused 与 v0.9 相关测试的固定 ABI 结果已记录在上方。
@@ -106,7 +106,7 @@
 
 ```powershell
 cd D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff
-$env:PORACODE_BETTER_SQLITE3_NATIVE_BINDING = 'D:\Work\CraftStation\dist\server-native\better_sqlite3.node'
+$env:CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = 'D:\Work\CraftStation\dist\server-native\better_sqlite3.node'
 pnpm exec vitest run --configLoader runner src/supervisor/sessionHandoff/segmentLedger.test.ts src/supervisor/sessionHandoff/checkpointProjection.test.ts src/supervisor/sessionHandoff/coordinator.test.ts src/supervisor/runtime/crossHarnessHandoff.integration.test.ts
 pnpm typecheck
 pnpm run build:renderer
@@ -117,7 +117,7 @@ pnpm run build:electron
 
 ```powershell
 $env:CRAFTSTATION_REAL_CROSS_HARNESS_E2E = '1'
-$env:PORACODE_BETTER_SQLITE3_NATIVE_BINDING = 'D:\Work\CraftStation\dist\server-native\better_sqlite3.node'
+$env:CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING = 'D:\Work\CraftStation\dist\server-native\better_sqlite3.node'
 pnpm exec vitest run --configLoader runner src/supervisor/runtime/crossHarnessHandoff.integration.test.ts
 ```
 

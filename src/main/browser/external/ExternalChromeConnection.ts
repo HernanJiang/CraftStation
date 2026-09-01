@@ -45,7 +45,7 @@ export interface OpenTabOptions {
   groupColor?: string;
 }
 
-/** Outbound (Poracode -> extension) request payloads, minus the correlation id. */
+/** Outbound (CraftStation -> extension) request payloads, minus the correlation id. */
 type RequestPayload =
   | { type: "listTabs" }
   | { type: "attach"; tabId?: number }
@@ -116,7 +116,7 @@ export class ExternalChromeConnection {
   }
 
   /**
-   * Open (or reuse) a **background** tab inside the "Poracode" tab group (no
+   * Open (or reuse) a **background** tab inside the "CraftStation" tab group (no
    * focus steal) and make it the attached workspace. Runs in the user's real
    * profile, so logins/cookies carry over — it just doesn't hijack their
    * foreground tab. Reuses the existing workspace tab by default (never closes
@@ -140,7 +140,7 @@ export class ExternalChromeConnection {
   }
 
   /**
-   * Ensure a workspace tab is attached. Defaults to a background Poracode-group
+   * Ensure a workspace tab is attached. Defaults to a background CraftStation-group
    * tab so the agent never steals the user's foreground; `attach(tabId)` opts
    * into driving one of the user's own tabs instead.
    */
@@ -268,7 +268,7 @@ export class ExternalChromeConnection {
     }
     if (type === "detached") {
       if (msg.tabId !== this.attachedTabId) return;
-      // The user closed the tab or dismissed the "Poracode is debugging"
+      // The user closed the tab or dismissed the "CraftStation is debugging"
       // banner. Drop the attachment so the next command re-attaches.
       this.attachedTabId = null;
       this.attachedUrl = undefined;

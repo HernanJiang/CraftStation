@@ -1,4 +1,8 @@
-import { SshBridge, type SshBridgeAuthentication, type SshBridgeError } from "@poracode/ssh-bridge";
+import {
+  SshBridge,
+  type SshBridgeAuthentication,
+  type SshBridgeError,
+} from "@craftstation/ssh-bridge";
 import { arrayBufferToBase64 } from "@/shared/base64";
 import {
   bootstrapRemoteRuntime,
@@ -37,9 +41,9 @@ export function isMobileSshAuthenticationError(error: unknown): boolean {
 
 function runtimeBaseUrl(): URL {
   if (import.meta.env.BASE_URL.startsWith("/")) {
-    return new URL(`${import.meta.env.BASE_URL}poracode-ssh-runtime/`, window.location.origin);
+    return new URL(`${import.meta.env.BASE_URL}craftstation-ssh-runtime/`, window.location.origin);
   }
-  return new URL("./poracode-ssh-runtime/", document.baseURI);
+  return new URL("./craftstation-ssh-runtime/", document.baseURI);
 }
 
 async function loadManifest(): Promise<RuntimeManifest> {

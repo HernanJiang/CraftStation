@@ -104,11 +104,11 @@ export function SkillsManager(props: {
       .includes(normalizedQuery);
   });
   const managed = visibleSkills.filter(
-    (skill) => skill.origin === "managed" && skill.availability !== "poracode",
+    (skill) => skill.origin === "managed" && skill.availability !== "craftstation",
   );
   const providerGroups = groupSkills(
     visibleSkills.filter(
-      (skill) => skill.origin !== "managed" || skill.availability === "poracode",
+      (skill) => skill.origin !== "managed" || skill.availability === "craftstation",
     ),
     (skill) => `${skill.scope}:${skill.providerGroupId ?? skill.providerId}`,
   );
@@ -209,7 +209,7 @@ export function SkillsManager(props: {
             : t`the Windows user`;
     newThreadFromText(
       project.id,
-      t`/skill-creator-poracode Create a new managed skill for ${destinationLabel}.`,
+      t`/skill-creator-craftstation Create a new managed skill for ${destinationLabel}.`,
       { bindLeadingSkill: true },
     );
     usePanelStore.getState().closeSettings();
@@ -388,7 +388,7 @@ export function SkillsManager(props: {
       </p>
       <p className="text-xs text-muted">
         <Trans>
-          Disabling a skill moves it out of active skill folders and removes Poracode-managed
+          Disabling a skill moves it out of active skill folders and removes CraftStation-managed
           provider copies. Its files are preserved so you can enable it again.
         </Trans>
       </p>
@@ -457,7 +457,7 @@ export function SkillsManager(props: {
           </p>
           <p className="mt-1 max-w-md text-xs text-muted">
             <Trans>
-              Add a skill to .agents/skills or .poracode/skills, or import one from another
+              Add a skill to .agents/skills or .craftstation/skills, or import one from another
               provider.
             </Trans>
           </p>
@@ -577,9 +577,9 @@ function SkillRow(props: {
               {providerOwnedLabel}
             </span>
           ) : null}
-          {skill.availability === "poracode" ? (
+          {skill.availability === "craftstation" ? (
             <span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-[10px] text-muted">
-              <Trans>Poracode only</Trans>
+              <Trans>CraftStation only</Trans>
             </span>
           ) : null}
           {skill.linked ? (

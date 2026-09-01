@@ -144,7 +144,7 @@ describe("AssistantMessage", () => {
         </AppProvider>,
       );
       expect(screen.queryByLabelText("Copy message")).toBeNull();
-      const reservedStrip = container.querySelector(".poracode-message-action-strip");
+      const reservedStrip = container.querySelector(".craftstation-message-action-strip");
       expect(reservedStrip).not.toBeNull();
 
       rerender(
@@ -154,7 +154,7 @@ describe("AssistantMessage", () => {
       );
 
       expect(screen.getByLabelText("Copy message")).toBeTruthy();
-      expect(container.querySelector(".poracode-message-action-strip")).toBe(reservedStrip);
+      expect(container.querySelector(".craftstation-message-action-strip")).toBe(reservedStrip);
     });
   });
 });

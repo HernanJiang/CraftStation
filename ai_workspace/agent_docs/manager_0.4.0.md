@@ -50,7 +50,7 @@ Plan 需要根据真实仓库和 upstream audit 决定各 binary discovery、tra
 
 ### Ideate → Plan Gate Check
 
-- Feasibility：**OK**。`craftstation/` 已有 Supervisor、AgentAdapter/ACP、Codex native runtime、Crafting registry、thread persistence、MCP 与 UI event seam；`reference/` 已包含 Codex、PoraCode、Harnss、AionUI、CLIProxyAPI、DSH 研究材料。
+- Feasibility：**OK**。`craftstation/` 已有 Supervisor、AgentAdapter/ACP、Codex native runtime、Crafting registry、thread persistence、MCP 与 UI event seam；`reference/` 已包含 Codex、CraftStation、Harnss、AionUI、CLIProxyAPI、DSH 研究材料。
 - Practicality：**OK with staged risk**。五个目标较大，按“审计 → 薄 seam → 独立 tracer bullet → 统一验收”线性推进；Codex 保持 baseline，未装/未认证 Harness 只记录 `runtime unavailable`，不伪造 PASS。
 - Alignment：**OK**。直接服务 Phase 1/2；不提前进入 Phase 3/4 Auto-Crafting 或 Universal capability decomposition。
 - Info Completeness：**OK**。五个 target、native-first、Antigravity 取代 Gemini CLI、旧 DSH 禁用、验收矩阵和非目标均已明确。
@@ -61,7 +61,7 @@ Plan 需要根据真实仓库和 upstream audit 决定各 binary discovery、tra
 
 #### Problem Statement
 
-当前产品已有 Codex native runtime，但共享层与现有 PoraCode 适配仍容易让 UI、session 和事件语义被某一 Harness 绑死。没有跨 Harness 的 capability evidence，就无法判断哪些是 CraftStation 必需语义，哪些只是厂商实现细节。
+当前产品已有 Codex native runtime，但共享层与现有 CraftStation 适配仍容易让 UI、session 和事件语义被某一 Harness 绑死。没有跨 Harness 的 capability evidence，就无法判断哪些是 CraftStation 必需语义，哪些只是厂商实现细节。
 
 #### Solution
 
@@ -70,7 +70,7 @@ Plan 需要根据真实仓库和 upstream audit 决定各 binary discovery、tra
 #### Repository Evidence
 
 - `craftstation/` 当前已有 Codex native app-server、ACP generic registry、AgentAdapter、MCP、Crafting registry、thread/session persistence、renderer event projection；Codex runtime 相关实现仍有大量用户未提交修改，必须原地保留。
-- `reference/codex/` 是官方 Codex；`reference/poracode/` 是 `SDSLeon/lightcode` 基线；`reference/harnss/` 研究 ACP/MCP/权限/工作区；`reference/aionui/` 研究 Cowork/多 Agent UI；`reference/deepseek-harness/` 仅作最新 upstream/native 研究；`reference/CLIProxyAPI/` 仅作 provider/auth 参考，不能进入执行路径。
+- `reference/codex/` 是官方 Codex；`reference/craftstation/` 是 `SDSLeon/craftstation` 基线；`reference/harnss/` 研究 ACP/MCP/权限/工作区；`reference/aionui/` 研究 Cowork/多 Agent UI；`reference/deepseek-harness/` 仅作最新 upstream/native 研究；`reference/CLIProxyAPI/` 仅作 provider/auth 参考，不能进入执行路径。
 - CodeGraph 当前未初始化；T01 必须建立/记录索引或以结构化搜索降级。
 
 #### Module / Seam Decisions
@@ -84,7 +84,7 @@ Plan 需要根据真实仓库和 upstream audit 决定各 binary discovery、tra
 
 #### Testing Decisions
 
-- 测试跨 Adapter/Runtime seam，断言外部行为、生命周期、错误和清理，不断言内部类名或 PoraCode 文件布局。
+- 测试跨 Adapter/Runtime seam，断言外部行为、生命周期、错误和清理，不断言内部类名或 CraftStation 文件布局。
 - 每个 Harness 有 fake process/protocol fixture 与 discovery/readiness、session/resume、stream、tool、permission、interrupt、crash、cleanup 测试；真实环境再做 manual smoke。
 - Capability matrix 逐项记录 supported/integrated、native unsupported、implementation missing、unavailable、error，并保存版本、命令、证据路径。
 - UI/IPC 测试验证公共 shell 与 native-specific projection 不丢事件；安全测试禁止 token/cookie/raw prompt 进入日志、renderer、持久化。
@@ -106,7 +106,7 @@ UniversalSkillAdapter、UniversalMCPRuntime、UniversalSubAgentEngine、Universa
 
 #### v0.4/T03 — Codex Native Baseline Guard
 
-把现有官方 Codex app-server runtime 固化为兼容性基线：真实 session/thread identity、stream/tool/permission/MCP/skills/subagent/context/compaction 语义不回退，legacy PoraCode adapter 不进入生产路径；补齐 contract/e2e evidence。
+把现有官方 Codex app-server runtime 固化为兼容性基线：真实 session/thread identity、stream/tool/permission/MCP/skills/subagent/context/compaction 语义不回退，legacy CraftStation adapter 不进入生产路径；补齐 contract/e2e evidence。
 
 #### v0.4/T04 — Grok Build Native Harness
 

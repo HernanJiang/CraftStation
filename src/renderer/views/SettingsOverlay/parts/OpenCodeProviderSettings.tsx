@@ -267,7 +267,7 @@ export function OpenCodeProviderSettings(props: {
                 <div className="space-y-0.5">
                   <McpToggleRow
                     title={t`Browser`}
-                    description={<Trans>Poracode's built-in browser tools.</Trans>}
+                    description={<Trans>CraftStation's built-in browser tools.</Trans>}
                     isSelected={draftMcp.browserMcp}
                     onChange={(value) =>
                       setDraftMcp((current) => ({ ...current, browserMcp: value }))

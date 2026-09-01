@@ -77,7 +77,7 @@ function omittedFileList(
 ): string {
   if (reasons.size === 0 || maxLength <= 0) return "";
   const lines = [
-    "PORACODE NOTICE: The following untracked files are part of this solution, but their contents were omitted from AI comparison:",
+    "CRAFTSTATION NOTICE: The following untracked files are part of this solution, but their contents were omitted from AI comparison:",
   ];
   let length = lines[0]!.length;
   let listed = 0;

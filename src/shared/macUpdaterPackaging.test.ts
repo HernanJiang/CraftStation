@@ -16,7 +16,7 @@ describe("macOS updater manifest packaging", () => {
   let releaseDir: string;
 
   beforeEach(() => {
-    releaseDir = mkdtempSync(join(tmpdir(), "poracode-mac-manifest-"));
+    releaseDir = mkdtempSync(join(tmpdir(), "craftstation-mac-manifest-"));
   });
 
   afterEach(() => {
@@ -25,10 +25,10 @@ describe("macOS updater manifest packaging", () => {
 
   it("restores ZIP metadata after the branded DMG pass overwrites it", () => {
     const manifestPath = join(releaseDir, "latest-mac.yml");
-    writeFileSync(manifestPath, "path: Poracode-1.5.1-arm64.zip\n");
+    writeFileSync(manifestPath, "path: CraftStation-1.5.1-arm64.zip\n");
     const snapshots = snapshotMacUpdaterManifests(releaseDir);
 
-    writeFileSync(manifestPath, "path: Poracode-1.5.1-arm64.dmg\n");
+    writeFileSync(manifestPath, "path: CraftStation-1.5.1-arm64.dmg\n");
     restoreMacUpdaterManifests(releaseDir, snapshots);
 
     expect(readFileSync(manifestPath, "utf8")).toContain(".zip");

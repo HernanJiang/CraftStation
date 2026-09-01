@@ -39,7 +39,7 @@ import { resolveCodexNativeExecutableForWindows } from "../windowsExecutable";
 
 export interface CodexPluginPaths {
   pluginDir: string;
-  /** Private CODEX_HOME used only for Codex processes spawned by Poracode. */
+  /** Private CODEX_HOME used only for Codex processes spawned by CraftStation. */
   codexHomeDir: string;
   /** Path to hooks.json inside the private CODEX_HOME. */
   codexHooksPath: string;
@@ -56,15 +56,15 @@ const CODEX_HOOK_EVENTS = [
 ] as const;
 
 /**
- * Match any Poracode-staged Codex hook command in hooks.json. Covers both
+ * Match any CraftStation-staged Codex hook command in hooks.json. Covers both
  * the WSL shape (where `forward.mjs` is invoked directly via an absolute
- * node path) and the native shape (where `poracode-hook.{sh,cmd,ps1}` is the
+ * node path) and the native shape (where `craftstation-hook.{sh,cmd,ps1}` is the
  * entry point).
  */
-const PORACODE_FORWARD_RE =
-  /agent-plugins(?:[/\\]+)codex(?:[/\\]+)(?:forward\.mjs|poracode-hook\.(?:sh|cmd|ps1))/;
+const CRAFTSTATION_FORWARD_RE =
+  /agent-plugins(?:[/\\]+)codex(?:[/\\]+)(?:forward\.mjs|craftstation-hook\.(?:sh|cmd|ps1))/;
 const MANAGED_FORWARD_RE =
-  /agent-plugins(?:[/\\]+)codex(?:[/\\]+)(?:forward\.mjs|(?:poracode|lightcode)-hook\.(?:sh|cmd|ps1))/;
+  /agent-plugins(?:[/\\]+)codex(?:[/\\]+)(?:forward\.mjs|(?:craftstation|craftstation)-hook\.(?:sh|cmd|ps1))/;
 
 const callerDir =
   typeof __dirname !== "undefined"
@@ -73,7 +73,7 @@ const callerDir =
 
 const resolveSourceDir = createPluginSourceResolver({
   kind: "codex",
-  sourceEnvVar: "PORACODE_CODEX_PLUGIN_SOURCE",
+  sourceEnvVar: "CRAFTSTATION_CODEX_PLUGIN_SOURCE",
   callerDir,
 });
 
@@ -123,7 +123,7 @@ export function getCodexPluginPaths(ctx?: AgentEnvContext): CodexPluginPaths {
   return codexPluginPathsMemo.call(ctx);
 }
 
-function prunePoracodeGroups(groups: unknown): unknown[] {
+function pruneCraftStationGroups(groups: unknown): unknown[] {
   if (!Array.isArray(groups)) return [];
   return groups.filter((g) => {
     if (!g || typeof g !== "object") return true;
@@ -142,7 +142,7 @@ function commandForEvent(commandHead: string, event: string): string {
   return `${commandHead} ${event}`;
 }
 
-function buildPoracodeGroup(event: string, commandHead: string): Record<string, unknown> {
+function buildCraftStationGroup(event: string, commandHead: string): Record<string, unknown> {
   const command = commandForEvent(commandHead, event);
   const hook = { type: "command", command };
   if (event === "SessionStart" || event === "PreToolUse" || event === "PostToolUse") {
@@ -152,7 +152,7 @@ function buildPoracodeGroup(event: string, commandHead: string): Record<string, 
 }
 
 /**
- * Merge Poracode Codex hook matcher groups into a parsed `hooks.json`
+ * Merge CraftStation Codex hook matcher groups into a parsed `hooks.json`
  * document. `commandHead` is the entire pre-event portion of each hook
  * command — for WSL it's `"<absolute-node-path>" "<forward.mjs-path>"`;
  * for native it's just `"<wrapper-path>"`. Exported for unit tests.
@@ -174,8 +174,8 @@ export function mergeCodexHooksDocument(
 
   for (const event of CODEX_HOOK_EVENTS) {
     const prev = hooksRoot[event];
-    const pruned = prunePoracodeGroups(prev);
-    pruned.push(buildPoracodeGroup(event, commandHead));
+    const pruned = pruneCraftStationGroups(prev);
+    pruned.push(buildCraftStationGroup(event, commandHead));
     hooksRoot[event] = pruned;
   }
 
@@ -521,7 +521,7 @@ function verifyCodexInstallAt(
         for (const h of hooks) {
           if (!h || typeof h !== "object") continue;
           const cmd = (h as { command?: string }).command;
-          if (typeof cmd === "string" && PORACODE_FORWARD_RE.test(cmd)) {
+          if (typeof cmd === "string" && CRAFTSTATION_FORWARD_RE.test(cmd)) {
             found = true;
             break;
           }

@@ -24,18 +24,18 @@ function makeHandlers() {
       connect: vi.fn<() => Promise<never>>(),
       disconnect: vi.fn<() => Promise<void>>(),
     } as never,
-    requirePoracodePaths: () =>
+    requireCraftStationPaths: () =>
       ({
-        baseDir: "/tmp/poracode",
-        dbPath: "/tmp/poracode/db.sqlite",
-        logsDir: "/tmp/poracode/logs",
-        terminalLogsDir: "/tmp/poracode/logs",
-        attachmentsDir: "/tmp/poracode/attachments",
-        worktreesDir: "/tmp/poracode/worktrees",
-        cacheDir: "/tmp/poracode/cache",
-        settingsPath: "/tmp/poracode/settings.json",
-        keybindingsPath: "/tmp/poracode/keybindings.json",
-        statusCachePath: "/tmp/poracode/status-cache.json",
+        baseDir: "/tmp/craftstation",
+        dbPath: "/tmp/craftstation/db.sqlite",
+        logsDir: "/tmp/craftstation/logs",
+        terminalLogsDir: "/tmp/craftstation/logs",
+        attachmentsDir: "/tmp/craftstation/attachments",
+        worktreesDir: "/tmp/craftstation/worktrees",
+        cacheDir: "/tmp/craftstation/cache",
+        settingsPath: "/tmp/craftstation/settings.json",
+        keybindingsPath: "/tmp/craftstation/keybindings.json",
+        statusCachePath: "/tmp/craftstation/status-cache.json",
       }) as never,
     updatePowerSaveBlocker: vi.fn<() => void>(),
     autoUpdater: {
@@ -70,7 +70,7 @@ describe("local remoteHttpRequest handler", () => {
       expect(init?.signal).toBeInstanceOf(AbortSignal);
       return new Response("ok", {
         status: 202,
-        headers: { "x-poracode": "remote" },
+        headers: { "x-craftstation": "remote" },
       });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -84,7 +84,7 @@ describe("local remoteHttpRequest handler", () => {
       }),
     ).resolves.toEqual({
       status: 202,
-      headers: { "content-type": "text/plain;charset=UTF-8", "x-poracode": "remote" },
+      headers: { "content-type": "text/plain;charset=UTF-8", "x-craftstation": "remote" },
       body: "ok",
     });
   });
@@ -110,7 +110,7 @@ describe("local remoteHttpRequest handler", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      makeHandlers().remoteHttpRequest({ url: "file:///tmp/poracode.json" }),
+      makeHandlers().remoteHttpRequest({ url: "file:///tmp/craftstation.json" }),
     ).rejects.toThrow('remoteHttpRequest only supports http(s), got "file:".');
     expect(fetchMock).not.toHaveBeenCalled();
   });

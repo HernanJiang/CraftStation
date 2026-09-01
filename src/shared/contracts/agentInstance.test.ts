@@ -92,15 +92,15 @@ describe("Claude profile instance helpers", () => {
   it("parses a Claude profile config directory", () => {
     expect(
       parseClaudeProfileInstanceConfig({
-        configDir: "~/.poracode/claude-profiles/work",
+        configDir: "~/.craftstation/claude-profiles/work",
       }),
-    ).toEqual({ configDir: "~/.poracode/claude-profiles/work" });
+    ).toEqual({ configDir: "~/.craftstation/claude-profiles/work" });
   });
 
   it("parses external-provider model effort metadata", () => {
     expect(
       parseClaudeProfileInstanceConfig({
-        configDir: "~/.poracode/claude-profiles/kimi",
+        configDir: "~/.craftstation/claude-profiles/kimi",
         efforts: ["low", "high", "max", "ultracode"],
         defaultEffort: "high",
         modelEfforts: {
@@ -109,7 +109,7 @@ describe("Claude profile instance helpers", () => {
         },
       }),
     ).toEqual({
-      configDir: "~/.poracode/claude-profiles/kimi",
+      configDir: "~/.craftstation/claude-profiles/kimi",
       efforts: ["low", "high", "max", "ultracode"],
       defaultEffort: "high",
       modelEfforts: {

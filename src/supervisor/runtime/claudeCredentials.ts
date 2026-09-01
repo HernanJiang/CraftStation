@@ -5,7 +5,7 @@ import {
   type ClaudeRefreshedToken,
   type OAuthToken,
   refreshClaudeOAuthToken,
-} from "@poracode/agents-usage";
+} from "@craftstation/agents-usage";
 import { writeFileAtomic } from "@/shared/atomicFile";
 import { coalesceByKey } from "@/shared/coalesce";
 import {
@@ -18,7 +18,7 @@ import { readClaudeCredentialsFromWindowsVault } from "./windowsClaudeVault";
 import { readClaudeCredsFromWsl } from "./wslCredentials";
 
 /**
- * Claude (Anthropic) credential resolution, reusing the files Poracode's
+ * Claude (Anthropic) credential resolution, reusing the files CraftStation's
  * detection already reads. The pure parser is exported separately for tests.
  * Secrets are never logged.
  */

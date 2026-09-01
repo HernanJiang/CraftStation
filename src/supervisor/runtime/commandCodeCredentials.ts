@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { OAuthToken } from "@poracode/agents-usage";
+import type { OAuthToken } from "@craftstation/agents-usage";
 import { readCommandCodeApiKeyFromWsl, readCommandCodeAuthFromWsl } from "./wslCredentials";
 
 export const COMMAND_CODE_API_KEY_ENV = "COMMAND_CODE_API_KEY";

@@ -17,7 +17,7 @@ describe("keybindingStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useKeybindingStore.setState({
-      path: "C:\\poracode\\keybindings.json",
+      path: "C:\\craftstation\\keybindings.json",
       keybindings: [{ command: "settings.open", key: "Ctrl+," }],
       loaded: true,
     });
@@ -40,7 +40,7 @@ describe("keybindingStore", () => {
   it("reconciles the shortcut file returned by main", async () => {
     const next = [{ command: "quick-composer.toggle", key: "Ctrl+Shift+K" }];
     setKeybindings.mockResolvedValueOnce({
-      path: "C:\\poracode\\keybindings.json",
+      path: "C:\\craftstation\\keybindings.json",
       file: { version: 1, keybindings: next },
     });
 

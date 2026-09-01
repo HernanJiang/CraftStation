@@ -34,7 +34,7 @@ interface RunningBridge {
 
 async function startBridge(extraEnv: Record<string, string> = {}): Promise<RunningBridge> {
   const child = spawn(process.execPath, [BRIDGE_SCRIPT], {
-    env: { ...process.env, PORACODE_HOOK_SECRET: SECRET, ...extraEnv },
+    env: { ...process.env, CRAFTSTATION_HOOK_SECRET: SECRET, ...extraEnv },
     stdio: ["ignore", "pipe", "ignore"],
   });
 
@@ -147,8 +147,8 @@ describe("bridge.mjs Browser MCP proxy", () => {
     });
     upstreamBaseUrl = await listenLocalServer(upstream, "0.0.0.0");
     bridge = await startBridge({
-      PORACODE_BROWSER_MCP_URL: upstreamBaseUrl,
-      PORACODE_BROWSER_MCP_TOKEN: "upstream-token",
+      CRAFTSTATION_BROWSER_MCP_URL: upstreamBaseUrl,
+      CRAFTSTATION_BROWSER_MCP_TOKEN: "upstream-token",
     });
   });
 
@@ -193,8 +193,8 @@ describe("bridge.mjs Browser MCP proxy", () => {
     });
     const loopbackBaseUrl = await listenLocalServer(loopbackUpstream, "127.0.0.1");
     const loopbackBridge = await startBridge({
-      PORACODE_BROWSER_MCP_URL: loopbackBaseUrl,
-      PORACODE_BROWSER_MCP_TOKEN: "upstream-token",
+      CRAFTSTATION_BROWSER_MCP_URL: loopbackBaseUrl,
+      CRAFTSTATION_BROWSER_MCP_TOKEN: "upstream-token",
     });
 
     try {
@@ -352,7 +352,7 @@ describeOnPosix("bridge.mjs fs endpoints", () => {
   it("creates git checkpoint snapshots inside the bridge process", async () => {
     git(projectRoot, "init");
     git(projectRoot, "config", "user.email", "test@example.com");
-    git(projectRoot, "config", "user.name", "Poracode Test");
+    git(projectRoot, "config", "user.name", "CraftStation Test");
     git(projectRoot, "add", "README.md");
     git(projectRoot, "commit", "-m", "init");
     writeFileSync(join(projectRoot, "README.md"), "after");
@@ -362,7 +362,7 @@ describeOnPosix("bridge.mjs fs endpoints", () => {
       threadId: "thread-1",
       checkpointItemId: "user-1",
       capturedAt: "2026-05-16T00:00:00.000Z",
-      ref: "refs/poracode/checkpoints/dGhyZWFkLTE/dXNlci0x",
+      ref: "refs/craftstation/checkpoints/dGhyZWFkLTE/dXNlci0x",
       // Finalized checkpoints can carry a large changed-file manifest. Keep it
       // above common argv limits to prove commit-tree receives it over stdin.
       changedFiles: [{ path: `generated/${"x".repeat(300_000)}.txt` }],
@@ -382,14 +382,14 @@ describeOnPosix("bridge.mjs fs endpoints", () => {
     expect(readFileSync(join(projectRoot, "README.md"), "utf8")).toBe("after");
     expect(readFileSync(join(projectRoot, "new.txt"), "utf8")).toBe("new");
     expect(
-      readdirSync(join(projectRoot, ".git")).some((name) => name.startsWith("index.poracode-")),
+      readdirSync(join(projectRoot, ".git")).some((name) => name.startsWith("index.craftstation-")),
     ).toBe(false);
   });
 
   it("runs structured git batches without a shell", async () => {
     git(projectRoot, "init");
     git(projectRoot, "config", "user.email", "test@example.com");
-    git(projectRoot, "config", "user.name", "Poracode Test");
+    git(projectRoot, "config", "user.name", "CraftStation Test");
 
     const { status, body } = await post(`${bridge.baseUrl}/v1/git/batch`, {
       timeoutMs: 10_000,
@@ -525,15 +525,15 @@ describeOnPosix("bridge.mjs fs endpoints", () => {
   it("runs login-env git execs without exposing the bridge secret to hooks", async () => {
     git(projectRoot, "init");
     git(projectRoot, "config", "user.email", "test@example.com");
-    git(projectRoot, "config", "user.name", "Poracode Test");
+    git(projectRoot, "config", "user.name", "CraftStation Test");
     mkdirSync(join(projectRoot, ".githooks"));
     const hookPath = join(projectRoot, ".githooks", "pre-commit");
     writeFileSync(
       hookPath,
       [
         "#!/bin/sh",
-        'printf "%s" "${PORACODE_HOOK_SECRET:-missing}" > "$PWD/hook-env.txt"',
-        'printf ":%s" "${PORACODE_HOOK_PROTOCOL_VERSION:-missing}" >> "$PWD/hook-env.txt"',
+        'printf "%s" "${CRAFTSTATION_HOOK_SECRET:-missing}" > "$PWD/hook-env.txt"',
+        'printf ":%s" "${CRAFTSTATION_HOOK_PROTOCOL_VERSION:-missing}" >> "$PWD/hook-env.txt"',
         "",
       ].join("\n"),
     );

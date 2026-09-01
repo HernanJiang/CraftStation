@@ -3,7 +3,7 @@ import { agentKindSchema, projectLocationSchema } from "./common";
 import { fullCommitOidSchema } from "./git";
 import { promptSegmentSchema } from "./thread";
 
-export const EXPERIMENT_STORE_KEY = "poracode-experiments-v1";
+export const EXPERIMENT_STORE_KEY = "craftstation-experiments-v1";
 export const EXPERIMENT_STORE_VERSION = 1;
 export const MAX_EXPERIMENT_CANDIDATES = 8;
 export const MAX_EXPERIMENT_DIFF_LENGTH = 2_000_000;

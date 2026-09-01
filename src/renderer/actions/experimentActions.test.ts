@@ -161,8 +161,8 @@ const BASE_COMMIT = "a".repeat(40);
 const CANDIDATE_COMMIT = "c".repeat(40);
 
 function ownerTokenForBranch(branch: string): string | null {
-  if (branch === "poracode/one") return "experiment-1:thread-1";
-  if (branch === "poracode/two") return "experiment-1:thread-2";
+  if (branch === "craftstation/one") return "experiment-1:thread-1";
+  if (branch === "craftstation/two") return "experiment-1:thread-2";
   return null;
 }
 
@@ -205,7 +205,7 @@ function experiment(): Experiment {
         effort: "high",
         fast: true,
         worktreePath: "/repo/one",
-        worktreeBranch: "poracode/one",
+        worktreeBranch: "craftstation/one",
         worktreeOwnerToken: "experiment-1:thread-1",
         worktreeState: "owned",
       },
@@ -214,7 +214,7 @@ function experiment(): Experiment {
         agentKind: "codex",
         model: "gpt-5",
         worktreePath: "/repo/two",
-        worktreeBranch: "poracode/two",
+        worktreeBranch: "craftstation/two",
         worktreeOwnerToken: "experiment-1:thread-2",
         worktreeState: "owned",
       },
@@ -258,8 +258,8 @@ describe("experimentActions", () => {
     });
     mocks.bridge.gitListWorktrees.mockResolvedValue({
       worktrees: [
-        { path: "/repo/one", branch: "poracode/one" },
-        { path: "/repo/two", branch: "poracode/two" },
+        { path: "/repo/one", branch: "craftstation/one" },
+        { path: "/repo/two", branch: "craftstation/two" },
       ],
     });
     mocks.bridge.gitAddWorktree
@@ -324,7 +324,7 @@ describe("experimentActions", () => {
     mocks.bridge.getGitStatus.mockImplementation(async (payload) => {
       const path = (payload as { projectLocation: { path: string } }).projectLocation.path;
       return {
-        branch: path.endsWith("/two") ? "poracode/two" : "poracode/one",
+        branch: path.endsWith("/two") ? "craftstation/two" : "craftstation/one",
         staged: [],
         unstaged: [],
       };
@@ -757,8 +757,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -797,8 +797,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -840,8 +840,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -878,9 +878,9 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
         {
-          ...thread("thread-2", "/repo/two", "poracode/two"),
+          ...thread("thread-2", "/repo/two", "craftstation/two"),
           config: { model: "gpt-5-mini", effort: "low", fast: false },
         },
       ],
@@ -917,8 +917,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -979,8 +979,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -1010,8 +1010,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment({
@@ -1025,7 +1025,7 @@ describe("experimentActions", () => {
     mocks.bridge.getGitStatus.mockImplementation(async (payload) => {
       const path = (payload as { projectLocation: { path: string } }).projectLocation.path;
       return {
-        branch: path.endsWith("/two") ? "poracode/two" : "poracode/one",
+        branch: path.endsWith("/two") ? "craftstation/two" : "craftstation/one",
         staged: [],
         unstaged: path.endsWith("/one") ? [{ path: "src/a.ts" }] : [],
       };
@@ -1047,7 +1047,7 @@ describe("experimentActions", () => {
     expect(mocks.runGitMergeToSource).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceBranch: "main",
-        worktreeBranch: "poracode/one",
+        worktreeBranch: "craftstation/one",
         expectedWorktreeCommit: CANDIDATE_COMMIT,
       }),
     );
@@ -1055,14 +1055,14 @@ describe("experimentActions", () => {
       1,
       project,
       "/repo/one",
-      "poracode/one",
+      "craftstation/one",
       "experiment-1:thread-1",
     );
     expect(mocks.performWorktreeRemoval).toHaveBeenNthCalledWith(
       2,
       project,
       "/repo/two",
-      "poracode/two",
+      "craftstation/two",
       "experiment-1:thread-2",
     );
     expect(useExperimentStore.getState().experiments["experiment-1"]).toMatchObject({
@@ -1086,8 +1086,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
       view: { kind: "experiment", experimentId: "experiment-1", projectId: project.id },
     }));
@@ -1097,7 +1097,7 @@ describe("experimentActions", () => {
 
     expect(mocks.bridge.ghCreatePr).toHaveBeenCalledWith(
       expect.objectContaining({
-        branch: "poracode/one",
+        branch: "craftstation/one",
         baseBranch: "main",
         title: "Candidate pull request",
       }),
@@ -1115,8 +1115,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -1142,8 +1142,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -1161,8 +1161,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment({
@@ -1176,7 +1176,7 @@ describe("experimentActions", () => {
     mocks.bridge.getGitStatus.mockImplementation(async (payload) => {
       const path = (payload as { projectLocation: { path: string } }).projectLocation.path;
       return {
-        branch: path.endsWith("/two") ? "poracode/two" : "poracode/one",
+        branch: path.endsWith("/two") ? "craftstation/two" : "craftstation/one",
         staged: [],
         unstaged: [],
       };
@@ -1192,11 +1192,11 @@ describe("experimentActions", () => {
   });
 
   it("stops and discards candidates with a live background workflow", async () => {
-    const runningThread = thread("thread-1", "/repo/one", "poracode/one");
+    const runningThread = thread("thread-1", "/repo/one", "craftstation/one");
     runningThread.status = "working";
     useAppStore.setState((state) => ({
       ...state,
-      threads: [runningThread, thread("thread-2", "/repo/two", "poracode/two")],
+      threads: [runningThread, thread("thread-2", "/repo/two", "craftstation/two")],
     }));
     useExperimentStore.getState().addExperiment(experiment());
     useThreadLiveWorkflowStore.setState({ liveThreadIds: new Set(["thread-1"]) });
@@ -1211,8 +1211,8 @@ describe("experimentActions", () => {
 
   it("removes the experiment before discard cleanup finishes", async () => {
     const threads = [
-      thread("thread-1", "/repo/one", "poracode/one"),
-      thread("thread-2", "/repo/two", "poracode/two"),
+      thread("thread-1", "/repo/one", "craftstation/one"),
+      thread("thread-2", "/repo/two", "craftstation/two"),
     ];
     useAppStore.setState((state) => ({
       ...state,
@@ -1244,8 +1244,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
       view: { kind: "experiment", experimentId: "experiment-1", projectId: project.id },
     }));
@@ -1275,8 +1275,8 @@ describe("experimentActions", () => {
 
   it("keeps the experiment removed when discard cleanup is partial", async () => {
     const threads = [
-      thread("thread-1", "/repo/one", "poracode/one"),
-      thread("thread-2", "/repo/two", "poracode/two"),
+      thread("thread-1", "/repo/one", "craftstation/one"),
+      thread("thread-2", "/repo/two", "craftstation/two"),
     ];
     useAppStore.setState((state) => ({
       ...state,
@@ -1297,8 +1297,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
@@ -1309,15 +1309,15 @@ describe("experimentActions", () => {
     expect(mocks.performWorktreeRemoval).toHaveBeenCalledExactlyOnceWith(
       project,
       "/repo/two",
-      "poracode/two",
+      "craftstation/two",
       "experiment-1:thread-2",
     );
     expect(useExperimentStore.getState().experiments["experiment-1"]).toBeUndefined();
   });
 
   it("recovers candidate worktree paths from their branches after an interrupted launch", async () => {
-    const first = thread("thread-1", "/repo/one", "poracode/one");
-    const second = thread("thread-2", "/repo/two", "poracode/two");
+    const first = thread("thread-1", "/repo/one", "craftstation/one");
+    const second = thread("thread-2", "/repo/two", "craftstation/two");
     delete first.worktreePath;
     delete second.worktreePath;
     useAppStore.setState((state) => ({ ...state, threads: [first, second] }));
@@ -1326,8 +1326,8 @@ describe("experimentActions", () => {
     useExperimentStore.getState().addExperiment(record);
     mocks.bridge.gitListWorktrees.mockResolvedValue({
       worktrees: [
-        { path: "/repo/one", branch: "poracode/one" },
-        { path: "/repo/two", branch: "poracode/two" },
+        { path: "/repo/one", branch: "craftstation/one" },
+        { path: "/repo/two", branch: "craftstation/two" },
       ],
     });
 
@@ -1337,21 +1337,21 @@ describe("experimentActions", () => {
       1,
       project,
       "/repo/one",
-      "poracode/one",
+      "craftstation/one",
       "experiment-1:thread-1",
     );
     expect(mocks.performWorktreeRemoval).toHaveBeenNthCalledWith(
       2,
       project,
       "/repo/two",
-      "poracode/two",
+      "craftstation/two",
       "experiment-1:thread-2",
     );
   });
 
   it("removes owner-marked branches left behind without worktrees", async () => {
-    const first = thread("thread-1", "/repo/one", "poracode/one");
-    const second = thread("thread-2", "/repo/two", "poracode/two");
+    const first = thread("thread-1", "/repo/one", "craftstation/one");
+    const second = thread("thread-2", "/repo/two", "craftstation/two");
     delete first.worktreePath;
     delete second.worktreePath;
     useAppStore.setState((state) => ({ ...state, threads: [first, second] }));
@@ -1365,13 +1365,13 @@ describe("experimentActions", () => {
     expect(mocks.performWorktreeRemoval).not.toHaveBeenCalled();
     expect(mocks.bridge.gitDeleteBranch).toHaveBeenCalledWith({
       projectLocation: project.location,
-      branch: "poracode/one",
+      branch: "craftstation/one",
       force: true,
       expectedOwnerToken: "experiment-1:thread-1",
     });
     expect(mocks.bridge.gitDeleteBranch).toHaveBeenCalledWith({
       projectLocation: project.location,
-      branch: "poracode/two",
+      branch: "craftstation/two",
       force: true,
       expectedOwnerToken: "experiment-1:thread-2",
     });
@@ -1381,8 +1381,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment({
@@ -1398,13 +1398,13 @@ describe("experimentActions", () => {
     expect(mocks.performWorktreeRemoval).toHaveBeenCalledWith(
       project,
       "/repo/one",
-      "poracode/one",
+      "craftstation/one",
       "experiment-1:thread-1",
     );
     expect(mocks.performWorktreeRemoval).toHaveBeenCalledWith(
       project,
       "/repo/two",
-      "poracode/two",
+      "craftstation/two",
       "experiment-1:thread-2",
     );
   });
@@ -1413,15 +1413,15 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/stale-one", "poracode/one"),
-        thread("thread-2", "/repo/stale-two", "poracode/two"),
+        thread("thread-1", "/repo/stale-one", "craftstation/one"),
+        thread("thread-2", "/repo/stale-two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
     mocks.bridge.gitListWorktrees.mockResolvedValue({
       worktrees: [
-        { path: "/repo/moved-one", branch: "poracode/one" },
-        { path: "/repo/moved-two", branch: "poracode/two" },
+        { path: "/repo/moved-one", branch: "craftstation/one" },
+        { path: "/repo/moved-two", branch: "craftstation/two" },
       ],
     });
 
@@ -1431,14 +1431,14 @@ describe("experimentActions", () => {
       1,
       project,
       "/repo/moved-one",
-      "poracode/one",
+      "craftstation/one",
       "experiment-1:thread-1",
     );
     expect(mocks.performWorktreeRemoval).toHaveBeenNthCalledWith(
       2,
       project,
       "/repo/moved-two",
-      "poracode/two",
+      "craftstation/two",
       "experiment-1:thread-2",
     );
   });
@@ -1447,15 +1447,15 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment(experiment());
     mocks.bridge.gitListWorktrees.mockResolvedValue({
       worktrees: [
         { path: "/repo/one", branch: "feature/other" },
-        { path: "/repo/two", branch: "poracode/two" },
+        { path: "/repo/two", branch: "craftstation/two" },
       ],
     });
 
@@ -1472,8 +1472,8 @@ describe("experimentActions", () => {
     useAppStore.setState((state) => ({
       ...state,
       threads: [
-        thread("thread-1", "/repo/one", "poracode/one"),
-        thread("thread-2", "/repo/two", "poracode/two"),
+        thread("thread-1", "/repo/one", "craftstation/one"),
+        thread("thread-2", "/repo/two", "craftstation/two"),
       ],
     }));
     useExperimentStore.getState().addExperiment({
@@ -1487,7 +1487,7 @@ describe("experimentActions", () => {
     mocks.bridge.getGitStatus.mockImplementation(async (payload) => {
       const path = (payload as { projectLocation: { path: string } }).projectLocation.path;
       return {
-        branch: path.endsWith("/two") ? "poracode/two" : "poracode/one",
+        branch: path.endsWith("/two") ? "craftstation/two" : "craftstation/one",
         staged: [],
         unstaged: [],
       };
@@ -1512,7 +1512,7 @@ describe("experimentActions", () => {
     expect(mocks.performWorktreeRemoval).toHaveBeenLastCalledWith(
       project,
       "/repo/one",
-      "poracode/one",
+      "craftstation/one",
       "experiment-1:thread-1",
     );
     expect(

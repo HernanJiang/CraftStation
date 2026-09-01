@@ -53,7 +53,7 @@ function geminiOscTitleHint(title: { text: string }): TerminalStatusHint | null 
  * snapshot starts from the installed hook configuration.
  */
 function geminiEnvContextForLocation(location: ProjectLocation): AgentEnvContext {
-  const baseDir = process.env.PORACODE_DATA_DIR?.trim();
+  const baseDir = process.env.CRAFTSTATION_DATA_DIR?.trim();
   return location.kind === "wsl"
     ? { envKind: "wsl", wslDistro: location.distro, ...(baseDir ? { baseDir } : {}) }
     : { envKind: location.kind, ...(baseDir ? { baseDir } : {}) };
@@ -121,7 +121,7 @@ export function createGeminiAdapter(): AgentAdapter {
     spawnEnv: {
       wsl: { BROWSER: "/bin/true" },
     },
-    pluginId: "poracode-status@gemini",
+    pluginId: "craftstation-status@gemini",
     pluginVersion: GEMINI_PLUGIN_VERSION,
     minProtocolVersion: 1,
 

@@ -32,7 +32,7 @@ vi.mock("@/shared/ipc", () => ({
 }));
 
 vi.mock("./picker/pickerProtocol", () => ({
-  PICKER_COMMIT_ORIGIN: "poracode-picker",
+  PICKER_COMMIT_ORIGIN: "craftstation-picker",
   onPickerCommit: vi.fn<() => () => void>(() => vi.fn<() => void>()),
 }));
 
@@ -165,7 +165,7 @@ describe("BrowserPanelManager", () => {
     );
     const group = {
       id: "group-agent",
-      title: "Poracode",
+      title: "CraftStation",
       color: "purple",
       collapsed: false,
     } satisfies BrowserTabGroupInfo;
@@ -195,7 +195,7 @@ describe("BrowserPanelManager", () => {
     );
     const group = {
       id: "group-agent",
-      title: "Poracode",
+      title: "CraftStation",
       color: "purple",
       collapsed: false,
     } satisfies BrowserTabGroupInfo;

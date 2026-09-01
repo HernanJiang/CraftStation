@@ -106,7 +106,7 @@ async function ensureWslKimiWorkspaceTrust(distro: string, linuxPath: string): P
 }
 
 // Folders whose marker we have already confirmed this session. The marker is
-// write-once and nothing in Poracode removes it, so re-checking it costs two
+// write-once and nothing in CraftStation removes it, so re-checking it costs two
 // WSL bridge round trips per launch for no new information. Only successful
 // runs are recorded, so a transient failure is retried on the next launch.
 const trustedWorkDirs = new Set<string>();

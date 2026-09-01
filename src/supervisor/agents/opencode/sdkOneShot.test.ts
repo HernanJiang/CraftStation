@@ -44,7 +44,7 @@ describe("runOpenCodeOneShot", () => {
     ).resolves.toBe("judgement");
 
     expect(create).toHaveBeenCalledWith({
-      title: "poracode one-shot model",
+      title: "craftstation one-shot model",
       permission: [
         { permission: "*", pattern: "*", action: "deny" },
         { permission: "read", pattern: "*", action: "allow" },
@@ -63,7 +63,7 @@ describe("runOpenCodeOneShot", () => {
     });
 
     expect(create).toHaveBeenCalledWith({
-      title: "poracode one-shot model",
+      title: "craftstation one-shot model",
       permission: [{ permission: "*", pattern: "*", action: "deny" }],
     });
   });

@@ -13,7 +13,7 @@ interface InlineFilePathChipProps {
  * Inline chip rendered inside chat markdown for `path[:line]` references.
  * Vertically centered with surrounding prose (em-based sizing) so it reads
  * inline without clipping descenders. Mirrors the visual language of
- * `.poracode-mention-chip` used in the composer.
+ * `.craftstation-mention-chip` used in the composer.
  *
  * When `onOpen` rejects (e.g. a bare basename that couldn't be resolved to a
  * real project file), the chip switches to an inert visual — same badge but
@@ -41,15 +41,15 @@ export function InlineFilePathChip({ path, line, endLine, onOpen }: InlineFilePa
   return (
     <button
       type="button"
-      className={`poracode-inline-path-chip${inert ? " poracode-inline-path-chip--inert" : ""}`}
+      className={`craftstation-inline-path-chip${inert ? " craftstation-inline-path-chip--inert" : ""}`}
       title={title}
       disabled={inert}
       onClick={handleClick}
     >
-      <img className="poracode-inline-path-chip__icon" src={iconUrl} alt="" draggable={false} />
-      <span className="poracode-inline-path-chip__name">{basename}</span>
+      <img className="craftstation-inline-path-chip__icon" src={iconUrl} alt="" draggable={false} />
+      <span className="craftstation-inline-path-chip__name">{basename}</span>
       {line !== undefined ? (
-        <span className="poracode-inline-path-chip__line">{`· L${lineLabel}`}</span>
+        <span className="craftstation-inline-path-chip__line">{`· L${lineLabel}`}</span>
       ) : null}
     </button>
   );

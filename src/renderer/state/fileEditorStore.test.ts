@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PoracodeBridge } from "@/shared/ipc";
+import type { CraftStationBridge } from "@/shared/ipc";
 import type { RemoteDesktopClient } from "@/shared/remote/client";
 import {
   useFileEditorStore,
@@ -395,7 +395,7 @@ describe("resolvePathForFileOpen (worktree-relative traversal regression)", () =
 });
 
 describe("fileEditorStore remote roots", () => {
-  const originalPoracode = window.poracode;
+  const originalCraftStation = window.craftstation;
 
   beforeEach(() => {
     useFileEditorStore.setState({
@@ -412,7 +412,7 @@ describe("fileEditorStore remote roots", () => {
     useRemoteServersStore.getState().closeRemoteThread();
     useRemoteServersStore.setState({ servers: [], runtime: {} });
     useGitStore.setState({ statuses: {}, worktreeStatuses: {} });
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
       value: undefined,
@@ -420,17 +420,17 @@ describe("fileEditorStore remote roots", () => {
   });
 
   afterEach(() => {
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
-      value: originalPoracode,
+      value: originalCraftStation,
     });
   });
 
   it("saves project files through the remote bridge without local git side effects", async () => {
     const writeProjectFile = vi.fn<() => Promise<void>>();
     const gitStage = vi.fn<() => Promise<void>>();
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
       value: {
@@ -519,9 +519,9 @@ describe("fileEditorStore remote roots", () => {
   });
 
   it("reads and writes remote files outside the project through the owning host", async () => {
-    const localRead = vi.fn<PoracodeBridge["readExternalFile"]>();
-    const localWrite = vi.fn<PoracodeBridge["writeExternalFile"]>();
-    Object.defineProperty(window, "poracode", {
+    const localRead = vi.fn<CraftStationBridge["readExternalFile"]>();
+    const localWrite = vi.fn<CraftStationBridge["writeExternalFile"]>();
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
       value: { readExternalFile: localRead, writeExternalFile: localWrite },
@@ -595,10 +595,10 @@ describe("fileEditorStore remote roots", () => {
           resolveRead = resolve as typeof resolveRead;
         }),
     );
-    Object.defineProperty(window, "poracode", {
+    Object.defineProperty(window, "craftstation", {
       configurable: true,
       writable: true,
-      value: { readProjectFile: vi.fn<PoracodeBridge["readProjectFile"]>() },
+      value: { readProjectFile: vi.fn<CraftStationBridge["readProjectFile"]>() },
     });
     useRemoteServersStore.setState({
       servers: [

@@ -5,7 +5,7 @@ import type { AgentStatus, Project } from "@/shared/contracts";
 
 const project: Project = {
   id: "project-1",
-  name: "Poracode",
+  name: "CraftStation",
   location: { kind: "posix", path: "/repo" },
   createdAt: "2026-07-25T00:00:00.000Z",
 };

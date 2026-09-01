@@ -30,7 +30,7 @@ vi.mock("@/renderer/bridge", () => ({
 
 import { AboutSettings } from "./AboutSettings";
 
-describe("AboutSettings Lightcode data import", () => {
+describe("AboutSettings CraftStation data import", () => {
   beforeEach(() => {
     bridgeMock.remote = false;
     bridgeMock.isDev = false;
@@ -44,14 +44,16 @@ describe("AboutSettings Lightcode data import", () => {
     render(<AboutSettings />);
 
     fireEvent.click(screen.getByRole("button", { name: "Import again" }));
-    expect(screen.getByRole("alertdialog", { name: "Import Lightcode data again?" })).toBeVisible();
+    expect(
+      screen.getByRole("alertdialog", { name: "Import CraftStation data again?" }),
+    ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Import and restart" }));
 
     await waitFor(() => expect(bridgeMock.requestLegacyDataMigration).toHaveBeenCalledOnce());
     expect(bridgeMock.relaunchApp).toHaveBeenCalledOnce();
   });
 
-  it("does not relaunch when no Lightcode data exists", async () => {
+  it("does not relaunch when no CraftStation data exists", async () => {
     bridgeMock.requestLegacyDataMigration.mockResolvedValue({ status: "no-legacy-data" });
     render(<AboutSettings />);
 

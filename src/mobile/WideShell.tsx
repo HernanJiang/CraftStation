@@ -27,7 +27,7 @@ const DesktopWorkspacePanel = lazy(() =>
   })),
 );
 
-const SIDEBAR_WIDTH_KEY = "poracode-mobile.sidebar-width";
+const SIDEBAR_WIDTH_KEY = "craftstation-mobile.sidebar-width";
 const SIDEBAR_MIN_WIDTH = 240;
 const SIDEBAR_MAX_WIDTH = 500;
 const SIDEBAR_MIN_CONTENT_WIDTH = 320;

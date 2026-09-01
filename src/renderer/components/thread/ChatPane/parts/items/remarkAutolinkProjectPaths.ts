@@ -5,10 +5,10 @@ import { PROJECT_PATH_TOKEN_SOURCE, type ProjectPathRef } from "./parseProjectPa
  * so the markdown anchor renderer can route them to file/folder chip components
  * instead of treating them as user-authored markdown links.
  */
-export const AUTO_PATH_FILE_PREFIX = "poracode:path:";
-export const AUTO_PATH_FOLDER_PREFIX = "poracode:folder:";
-export const AUTO_PATH_FILE_HREF_PREFIX = "https://poracode.local/path/";
-export const AUTO_PATH_FOLDER_HREF_PREFIX = "https://poracode.local/folder/";
+export const AUTO_PATH_FILE_PREFIX = "craftstation:path:";
+export const AUTO_PATH_FOLDER_PREFIX = "craftstation:folder:";
+export const AUTO_PATH_FILE_HREF_PREFIX = "https://craftstation.local/path/";
+export const AUTO_PATH_FOLDER_HREF_PREFIX = "https://craftstation.local/folder/";
 
 interface MdNode {
   type: string;

@@ -322,7 +322,7 @@ describe("ThreadComposerSection", () => {
           ...guiThread,
           status: "launching",
           sessionRef: undefined,
-          worktreeBranch: "poracode/feature",
+          worktreeBranch: "craftstation/feature",
         },
       }),
     );
@@ -402,7 +402,9 @@ describe("ThreadComposerSection", () => {
     // 用量/额度不再常驻显示：旧指标行已移除，详情收敛进工具栏的悬浮圆环。
     expect(container.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
     expect(container.querySelectorAll('[data-testid="context-quota-ring"]')).toHaveLength(1);
-    expect(container.querySelector(".poracode-context-indicator__ring")).not.toBeInTheDocument();
+    expect(
+      container.querySelector(".craftstation-context-indicator__ring"),
+    ).not.toBeInTheDocument();
     expect(composerAddMenuSpy).toHaveBeenCalled();
   });
 
@@ -429,7 +431,7 @@ describe("ThreadComposerSection", () => {
     expect(screen.getByTestId("control-kinds")).toBeEmptyDOMElement();
   });
 
-  it("inserts @Terminal as a Poracode MCP directive", async () => {
+  it("inserts @Terminal as a CraftStation MCP directive", async () => {
     const rangeRectDescriptor = Object.getOwnPropertyDescriptor(
       Range.prototype,
       "getBoundingClientRect",
@@ -845,7 +847,7 @@ describe("ThreadComposerSection", () => {
       await waitFor(() => {
         expect(screen.getByAltText("Image 1.png")).toHaveAttribute(
           "src",
-          "poracode-local://local/C:/attachments/thread-gui-idle/image-1.png",
+          "craftstation-local://local/C:/attachments/thread-gui-idle/image-1.png",
         );
       });
       expect(screen.getByRole("textbox")).toHaveTextContent("unsent note");
@@ -1177,7 +1179,7 @@ describe("ThreadComposerSection", () => {
       expect(revokeObjectURL).toHaveBeenCalledWith("blob:app/pasted-1");
       expect(screen.getByAltText("Image 1.png")).toHaveAttribute(
         "src",
-        "poracode-local://local/C:/attachments/thread-gui-idle/image-1.png",
+        "craftstation-local://local/C:/attachments/thread-gui-idle/image-1.png",
       );
     } finally {
       Reflect.deleteProperty(URL, "createObjectURL");

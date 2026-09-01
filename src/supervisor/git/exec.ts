@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join, normalize, posix, win32 } from "node:path";
 import { promisify } from "node:util";
 import type { GitRemoteInfo, ProjectLocation, RemoteHostPlatform } from "@/shared/contracts";
-import { resolvePoracodePaths } from "@/shared/poracodePaths";
+import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { attachErrorDetails, errorDetail, msg } from "@/shared/messages";
 import { getProjectName } from "@/shared/wsl";
 import { sanitizeWorktreeBranchName, sanitizeWorktreePathSegment } from "@/shared/worktree";
@@ -301,13 +301,13 @@ export interface WorktreePathOptions {
   omitRepoDir?: boolean;
 }
 
-/** Built-in default worktree root for a location (`~/.poracode/worktrees`). */
+/** Built-in default worktree root for a location (`~/.craftstation/worktrees`). */
 export async function resolveBuiltInWorktreeRoot(location: ProjectLocation): Promise<string> {
   if (location.kind === "wsl") {
     const homePath = await resolveWslHomeDirectory(location.distro);
-    return posix.join(homePath, ".poracode", "worktrees");
+    return posix.join(homePath, ".craftstation", "worktrees");
   }
-  return resolvePoracodePaths(join(homedir(), ".poracode")).worktreesDir;
+  return resolveCraftStationPaths(join(homedir(), ".craftstation")).worktreesDir;
 }
 
 export async function computeDefaultWorktreePath(

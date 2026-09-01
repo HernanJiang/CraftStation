@@ -558,7 +558,7 @@ export function ProjectAuxiliaryPanel(props: {
       harnessContent={<HarnessPanel />}
       sideChatContent={<SideChatPanel />}
       usageHeaderActions={
-        <UsagePanelHeaderActions dragControlClass="poracode-overlay-header__controls" />
+        <UsagePanelHeaderActions dragControlClass="craftstation-overlay-header__controls" />
       }
       showTerminalTab={props.includeTerminal}
       showFilesTab={!isHomeScope}
