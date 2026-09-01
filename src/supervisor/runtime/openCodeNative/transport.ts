@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
 import type { ProjectLocation } from "@/shared/contracts";
 import type { NativeHarnessDiagnostic } from "@/shared/crafting";
-import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 import { resolveAgentBinaryPath } from "@/supervisor/agents/binaryResolver";
 import { buildOpenCodeServerCommand } from "@/supervisor/agents/opencode/argv";
 import { terminateChildProcessTree } from "@/shared/processTree";
@@ -64,6 +63,24 @@ export interface OpenCodeNativeConnection {
   dispose(): Promise<void>;
 }
 
+type OpencodeSdkV2ClientModule = typeof import("@opencode-ai/sdk/v2/client");
+
+// The OpenCode SDK only exposes `import` export conditions, so a bundler-
+// rewritten require() inside the CJS supervisor bundle fails at load with
+// ERR_PACKAGE_PATH_NOT_EXPORTED. Keeping the module id in a variable forces
+// the native dynamic import() to survive CJS output.
+const OPENCODE_SDK_V2_CLIENT_MODULE_ID = "@opencode-ai/sdk/v2/client";
+let createOpencodeClientPromise:
+  | Promise<OpencodeSdkV2ClientModule["createOpencodeClient"]>
+  | undefined;
+
+function loadCreateOpencodeClient(): Promise<OpencodeSdkV2ClientModule["createOpencodeClient"]> {
+  createOpencodeClientPromise ??= import(OPENCODE_SDK_V2_CLIENT_MODULE_ID).then(
+    (mod) => mod.createOpencodeClient,
+  );
+  return createOpencodeClientPromise;
+}
+
 function diagnostic(
   correlationId: string,
   options: OpenCodeNativeTransportOptions,
@@ -85,13 +102,14 @@ function diagnostic(
   });
 }
 
-function createClient(
+async function createClient(
   options: OpenCodeNativeTransportOptions,
   baseUrl: string,
   privateAuthorization?: string,
-): OpenCodeNativeClient {
+): Promise<OpenCodeNativeClient> {
   const authorization = options.authorization ?? privateAuthorization;
   if (options.clientFactory) return options.clientFactory(baseUrl, authorization);
+  const createOpencodeClient = await loadCreateOpencodeClient();
   return createOpencodeClient({
     baseUrl,
     ...(authorization ? { headers: { Authorization: authorization } } : {}),
@@ -176,7 +194,7 @@ export class OpenCodeNativeTransport {
   async connect(): Promise<OpenCodeNativeConnection> {
     if (this.disposed) throw new Error("OpenCode native transport is disposed.");
     const baseUrl = this.options.baseUrl ?? (await this.startServer());
-    const client = createClient(this.options, baseUrl, this.startedAuthorization);
+    const client = await createClient(this.options, baseUrl, this.startedAuthorization);
     const connection: OpenCodeNativeConnection = {
       client,
       baseUrl,

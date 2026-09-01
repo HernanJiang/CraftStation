@@ -398,6 +398,80 @@ export const DATABASE_MIGRATIONS = [
       addColumnIfMissing(sqlite, "usage_events", "account_id", "TEXT");
     },
   },
+  {
+    version: 37,
+    name: "runtime segment ledger",
+    migrate: (sqlite) =>
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS runtime_segments (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+          ordinal INTEGER NOT NULL,
+          binding_epoch INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          craft_plan_id TEXT NOT NULL,
+          recipe_id TEXT NOT NULL,
+          result_item_id TEXT NOT NULL,
+          runtime_binding TEXT NOT NULL,
+          entity_id TEXT,
+          runtime_session_id TEXT,
+          native_session_ref TEXT,
+          predecessor_segment_id TEXT,
+          checkpoint_id TEXT,
+          created_at TEXT NOT NULL,
+          activated_at TEXT,
+          deactivated_at TEXT,
+          failure_code TEXT,
+          UNIQUE(thread_id, ordinal),
+          UNIQUE(thread_id, binding_epoch)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_runtime_segments_one_active
+          ON runtime_segments(thread_id) WHERE status = 'active';
+        CREATE INDEX IF NOT EXISTS idx_runtime_segments_thread_ordinal
+          ON runtime_segments(thread_id, ordinal);
+        CREATE TABLE IF NOT EXISTS runtime_segment_event_archive (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          segment_id TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          event_sequence INTEGER,
+          received_at TEXT NOT NULL
+        );
+      `),
+  },
+  {
+    version: 38,
+    name: "conversation checkpoints",
+    migrate: (sqlite) =>
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS conversation_checkpoints (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+          source_segment_id TEXT NOT NULL,
+          schema_version INTEGER NOT NULL,
+          payload TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_thread_created
+          ON conversation_checkpoints(thread_id, created_at);
+      `),
+  },
+  {
+    version: 39,
+    name: "session switch transactions",
+    migrate: (sqlite) =>
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS session_switch_transactions (
+          request_id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+          phase TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_session_switch_one_open
+          ON session_switch_transactions(thread_id)
+          WHERE phase NOT IN ('active', 'rolled_back', 'failed', 'cancelled');
+      `),
+  },
 ] as const satisfies readonly DatabaseMigration[];
 
 export const LATEST_SCHEMA_VERSION = DATABASE_MIGRATIONS[DATABASE_MIGRATIONS.length - 1]!.version;
@@ -608,6 +682,42 @@ const REQUIRED_COLUMNS = {
     "active_thread_id",
     "last_error",
     "blocked_reason",
+  ],
+  runtime_segments: [
+    "id",
+    "thread_id",
+    "ordinal",
+    "binding_epoch",
+    "status",
+    "craft_plan_id",
+    "recipe_id",
+    "result_item_id",
+    "runtime_binding",
+    "entity_id",
+    "runtime_session_id",
+    "native_session_ref",
+    "predecessor_segment_id",
+    "checkpoint_id",
+    "created_at",
+    "activated_at",
+    "deactivated_at",
+    "failure_code",
+  ],
+  conversation_checkpoints: [
+    "id",
+    "thread_id",
+    "source_segment_id",
+    "schema_version",
+    "payload",
+    "created_at",
+  ],
+  session_switch_transactions: ["request_id", "thread_id", "phase", "payload", "updated_at"],
+  runtime_segment_event_archive: [
+    "id",
+    "segment_id",
+    "event_type",
+    "event_sequence",
+    "received_at",
   ],
 } as const;
 

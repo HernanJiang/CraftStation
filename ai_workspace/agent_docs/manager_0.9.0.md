@@ -4,7 +4,7 @@
 
 ## Part I — Ideate
 
-- Status：Ready for Plan
+- Status：Planned
 - Ready for Plan：Yes
 - Created：2026-08-31
 - Last Updated：2026-08-31
@@ -195,20 +195,212 @@ requestSwitch(threadRef, targetBinding, mode)
 ### Ideate Handoff
 
 - Ready for Plan：Yes
-- Plan Status：Not Started
-- Notes：三项核心产品语义已冻结。进入 Plan 前必须做 Ideate → Plan Gate Check，并从最新 Dev 基线创建独立 v0.9 Feature worktree；本次不创建 Coder/Debugger，不修改源码，不执行 merge/tag/push。
+- Plan Status：Complete / Awaiting Coder Authorization
+- Notes：三项核心产品语义已冻结；Gate Check 与 Plan 已在独立 v0.9 Feature worktree 完成。本次不创建 Coder/Debugger，不修改产品源码，不执行 merge/tag/push。
 
 ## Ideate → Plan Gate Check
 
-> 待 Manager / Plan 进入 Planning 前结合最新 Dev Repo 执行。
+> 2026-08-31 结合最新 Dev Repo、Crafting Runtime seam、Supervisor、canonical event routing、数据库 schema 与既有 Continue-in-Provider 流程完成。
 
-- Feasibility：Pending
-- Practicality：Pending
-- Alignment：Pending
-- Info Completeness：Pending
+- Feasibility：**OK**。结构化 Runtime seam 已具备 session create/resume/interrupt/terminate 与 canonical event 入口，可以建立同 Thread handoff transaction。
+- Practicality：**OK WITH STAGED MIGRATION**。现有事件与持久化以 `threadId` 为主键，采用 expand → migrate active writers → contract，避免一次性破坏所有事件消费者。
+- Alignment：**OK**。属于 Phase 2 Native Composition Runtime，是 v1.0 Model × Harness Workbench 的连续性基础，不进入 Auto-Crafting 或官方 Harness 内部 agent loop。
+- Info Completeness：**OK**。默认切换时机、主动终止语义、checkpoint 内容和回切规则均已确认。
 
-结论：PENDING
+Manager 自行修复的非产品级问题：
+
+1. 先加入可选 Segment envelope 与 durable ledger，再迁移 active writer 到 epoch fencing，最后覆盖 Renderer/remote sync。
+2. 复用 `ContinueInProviderDialog` 的选择器与 context extraction 经验，保留 Fork/Move；新 Switch 必须由 Supervisor 在同一 Thread 内完成事务。
+3. canonical runtime items 继续作为 conversation ledger/source of truth；`ConversationCheckpoint` 只保存版本化投影、锚点与 provenance，不沿用 50,000 字符 transcript fallback。
+
+结论：**OK — READY FOR IMPLEMENTATION AFTER USER AUTHORIZATION**
 
 ## Part II — Plan
 
-状态：Not Started。等待用户明确进入 Manager / Plan。
+### Plan Metadata
+
+- Status：`PLAN READY / NOT EXECUTING`
+- Feature：`v0.9.0 — Cross-Harness Session Handoff`
+- Planning Base：`dev@8bc45cfe408a6e603c777f04bce3c22627b76656`
+- Feature Branch：`feature/v0.9-cross-harness-handoff`
+- Feature Worktree：`D:\Work\CraftStation\craftstation-dev\.worktrees\v0.9-cross-harness-handoff`
+- Implementation Owner：尚未创建；等待用户授权启动 Coder
+- Local Tickets：`.scratch/craftstation-0.9.0/issues/01-runtime-segment-ledger.md` 至 `08-real-cross-harness-acceptance.md`
+
+### Objective
+
+在不伪造跨厂商 native resume 的前提下，让同一 CraftStation Thread 的后续 Turn 从一个 Model × Harness 组合安全、可恢复地交接到另一个组合。切换使用可审计的 `ConversationCheckpoint`、新的 Runtime Segment/Entity/native Session 和唯一 active binding epoch；失败时回滚，迟到事件不得污染当前 Runtime。
+
+### User Stories
+
+1. 用户可让当前 Turn 完成后自动切换，不中断工作、不新建对话。
+2. 用户可终止过长的 Turn 并切换；旧 Runtime 未确认停止时系统 fail closed。
+3. 目标 Harness 获得任务摘要、状态、关键结果、最近若干轮和同一工作区，而不是全量重放历史。
+4. 切换失败后旧组合仍可恢复，消息、文件变更和任务状态不丢失。
+5. 每条输出可追溯 Segment、Recipe、CraftPlan、Model、Harness、Entity 和 native Session。
+6. 应用重启后恢复同一 Thread、Segment 历史和唯一 active 组合。
+
+### Architecture and Interfaces
+
+#### Runtime Segment Ledger
+
+- `RuntimeSegment` 是 implementation-level lifecycle record，不加入一级 Domain language。
+- 同一 Thread 拥有按 `ordinal` 排序的 Segment ledger，任一时刻最多一个 `active` Segment/`bindingEpoch`。
+- Segment 至少持久化：identity、ordinal、epoch、status、脱敏 CraftPlan/provenance snapshot 或引用、model/harness/provider/auth/profile opaque refs、Entity/runtime/native session refs、predecessor/checkpoint ref 与 lifecycle timestamps。
+- 建议 durable status：`preparing | active | inactive | failed | rolled_back | terminated`。
+- 旧 Thread 无 Segment 时执行幂等 lazy bootstrap；完整 runtime items 仍形成一条 Thread timeline，不拆成多个用户 Thread。
+
+#### Versioned ConversationCheckpoint
+
+- 至少包含 source Segment/native ref、任务摘要、当前状态、关键决策、重要工具/文件结果、workspace change summary、最近 N 个 completed turns、ledger anchors、projection policy、预算/截断 metadata 与脱敏 provenance。
+- canonical ledger 是 source of truth；checkpoint 是可重建的目标相关投影，不取代原 timeline，也不默认注入全量历史。
+- 最近轮数与 token/字符预算集中配置并受目标能力限制；`extractContext` 可作为摘要来源之一，但不是唯一数据源。
+- 不导出 hidden reasoning、provider internal state、活动工具句柄、未决 permission/question 或 credentials。
+
+#### Session Handoff Deep Module
+
+外部 Interface 保持小而稳定：
+
+```ts
+requestSwitch(threadRef, targetCraftPlan, mode): Promise<SwitchResult>
+cancelQueuedSwitch(threadRef, requestId): Promise<void>
+readSwitchState(threadRef): SwitchState
+```
+
+`mode` 只支持 `after-current-turn` 与 `abort-current-turn`。模块内部隐藏 per-thread lock、preflight、safe-boundary detection、checkpoint projection、target prepare/bootstrap/readiness、epoch event subscription、active binding CAS、source deactivation、rollback、cleanup 与 diagnostics。Renderer 不得自行编排 `close + craftAgent`。
+
+#### Transaction State Machine
+
+```text
+requested -> queued -> preparing -> checkpointed
+          -> target_starting -> target_ready -> activating -> active
+
+abort: requested -> interrupting_source -> source_stopped -> checkpointed -> ...
+failure: ... -> rolling_back -> rolled_back | failed
+```
+
+- target Ready 与 subscription 完成前，source 保持可恢复；只有 active binding CAS 成功后才更新 Thread 当前组合并接收 Prompt。
+- queued request 采用 replace-latest；进入 preparing 后不能静默替换。
+- 不设置固定 60 秒总超时；每阶段使用可取消、可配置 timeout，并报告 phase、operation、code 和 cleanup/rollback result。
+
+#### Safe Boundary and Fencing
+
+- 激活目标前必须确认：source 已完成 Turn 或 abort 已确认；无 active tool、permission、question、request、steer、subagent、compaction 或 interrupt handshake；completed items/turns 已持久化；switch lock 与 source epoch 仍有效。
+- canonical `RuntimeEvent` 先扩展可选 execution envelope：`segmentId`、`runtimeSessionId`、`bindingEpoch`、可选 `eventSequence`，保持旧事件可解码。
+- 新 Prompt、steer、permission/question answer、interrupt 与 terminate 必须验证当前 active epoch。
+- 旧 epoch 事件可归档，但不得更新 active message、Turn、permission/question、attention、usage、request 或 completion state。
+
+#### Return-to-Harness Rule
+
+从 Segment A 离开后，只要中间 Segment 产生新消息、工具结果、completed turn 或 workspace change，回到同一 Harness 必须创建新的 continuation Segment C、新 Entity 和新 native Session，并注入增量 checkpoint。中间无新内容且官方能力明确支持安全 resume 时才可复用旧 ref；该优化不是 v0.9 PASS 条件。
+
+#### UI and Persistence
+
+- 复用 Continue-in-Provider 选择入口，保留 Fork/Move，新增 `Switch in this conversation`。
+- 显示 current/target combination、两种 mode、queued/preparing/checkpointed/starting/activated/rollback/failed 状态。
+- timeline 用轻量分隔/标签显示 `Model · Harness` provenance；当前组合显示 `Recipe 配置名称 · 模型名称`。
+- 重启从 durable ledger 恢复；不能安全恢复的 preparing transaction 标为 failed/rolled_back，绝不自动激活两个 Runtime。
+- 关键日志携带 correlation/thread/segment/epoch/phase/operation/status/error/cleanup，不记录敏感内容。
+
+### Acceptance Criteria
+
+- [ ] 旧 Thread 可 lazy bootstrap initial Segment，新旧 Thread 均保持单一连续 timeline。
+- [ ] 重启恢复全部 Segment、provenance 与唯一 active binding。
+- [ ] checkpoint 默认只含摘要、状态、必要结果、最近若干 completed turns 和 anchors；预算、截断、版本与 redaction 有测试。
+- [ ] idle Codex → Grok switch 在同一 Thread 完成，目标真实 response 进入原 timeline。
+- [ ] busy Runtime 默认 queued，并在 safe boundary 自动切换；下一 Prompt 不抢跑给旧 Segment。
+- [ ] abort 模式等待官方 interrupt confirmation；失败不激活目标、不形成双 writer。
+- [ ] target preflight/start/bootstrap/activation 任一步失败均保留或恢复 source，并给出稳定诊断。
+- [ ] active input 与 canonical events 受 epoch fence 保护，迟到事件不污染当前状态。
+- [ ] `Codex A -> Grok B -> Codex C` 中，B 产生新内容后 C 是新 continuation Segment。
+- [ ] UI 同一 Thread 展示切换进度、回滚和 provenance，既有 Fork/Move 不退化。
+- [ ] 真实 Debugger tracer 完成 Codex → Grok → Codex 多轮、同工作区 continuation，均为官方 Runtime non-synthetic response。
+- [ ] secrets/artifacts scan 无明文凭据或隐藏推理；未验证组合继续 UNVERIFIED/BLOCKED。
+
+### Tickets
+
+#### T01 — Expand Durable Runtime Segment Ledger
+
+- Goal：建立 Segment history 与唯一 active epoch 的持久化基础。
+- Scope：DB migration、repository API、lazy bootstrap、restart recovery、脱敏 provenance。
+- Depends On：None。
+- Acceptance：迁移幂等；同 Thread 不能有两个 active Segment；重启恢复 order/epoch/native refs；旧单 Session 路径不变。
+
+#### T02 — Build Versioned ConversationCheckpoint Projection
+
+- Goal：从 canonical ledger 生成可预算、脱敏、可追溯的 portable continuation context。
+- Scope：schema/versioning、summary/state/decisions/results/recent turns/anchors、budget、redaction。
+- Depends On：T01。
+- Acceptance：默认无全量 transcript；确定性投影；预算截断；敏感数据/hidden reasoning negative tests；可关联 source Segment。
+
+#### T03 — First Same-Thread Safe Switch Tracer Bullet
+
+- Goal：完成 idle Codex Segment → Grok Segment 的 Supervisor-owned vertical slice。
+- Scope：`requestSwitch`、lock、preflight/start/bootstrap、最小 epoch CAS、rollback、原 timeline event。
+- Depends On：T01、T02。
+- Acceptance：不创建新 Thread；Ready 后才 active；target failure 时 source 可用；无双 writer。
+
+#### T04 — Queue Switch at Turn Boundary
+
+- Goal：实现默认的 Turn 完成后自动切换。
+- Scope：safe-boundary detector、queued/replace-latest/cancel、所有 active/pending gates、next-Prompt routing。
+- Depends On：T03。
+- Acceptance：busy 时只排队；Turn 持久化后自动切换；pending gate 阻止 activation；queued request 可取消/替换。
+
+#### T05 — Abort Current Turn and Transactional Rollback
+
+- Goal：实现“终止当前 Turn 并切换”及完整 failure cleanup。
+- Scope：official interrupt handshake、source-stopped confirmation、target failure rollback、phase timeout/cancel、diagnostics。
+- Depends On：T04。
+- Acceptance：abort 未确认则 fail closed；target 失败时 source 可恢复；无资源泄漏、无双 writer；错误含 correlation/phase/code/rollback。
+
+#### T06 — Fence Events and Inputs Across Active Paths
+
+- Goal：把最小 epoch transaction 扩展到 canonical events、commands、remote sync 与 restart replay。
+- Scope：optional envelope、dispatcher/input guards、stale archive policy、Renderer boundary、兼容迁移。
+- Depends On：T03。
+- Acceptance：旧事件仍可读但不改变 active state；stale command 被拒绝；remote/restart 保留 provenance；不做全仓 breaking migration。
+
+#### T07 — In-place Switch UI and Provenance Timeline
+
+- Goal：提供同一对话内可理解、可操作、可恢复的组合切换体验。
+- Scope：复用 selector、保留 Fork/Move、新增 Switch、两种 mode、progress/error/rollback、provenance、a11y/i18n。
+- Depends On：T04、T05、T06。
+- Acceptance：Renderer 仅调用 Handoff Interface；timeline 连续；状态清楚；Fork/Move 不退化；restart presentation 可恢复。
+
+#### T08 — Real Codex → Grok → Codex Continuation Acceptance
+
+- Goal：以真实官方 Runtime 关闭 Feature-level evidence gate。
+- Scope：真实多轮/文件状态、queued/abort/rollback/late-event/restart、回切新 Segment、安全扫描与回归。
+- Depends On：T07。
+- Acceptance：三段真实 non-synthetic response；Grok 理解 checkpoint/workspace；回 Codex 创建新 continuation；失败场景有证据；未验证 route 不升格。
+
+### Execution Order
+
+```text
+T01 -> T02 -> T03 -> T04 -> T05
+                  +-> T06
+T04 + T05 + T06 -> T07 -> T08
+```
+
+单 Coder 推荐顺序：`T01 -> T02 -> T03 -> T04 -> T05 -> T06 -> T07 -> T08`。T03 必须包含最小 epoch CAS，T06 再覆盖所有入口；不能在没有 fencing 的情况下先暴露 UI。
+
+### Key Risks
+
+| Risk | Control |
+| --- | --- |
+| 迟到事件污染新 Segment | epoch + runtimeSessionId fence；旧事件只归档 |
+| abort 形成双 writer | 官方停止确认、per-thread lock、CAS、fail closed |
+| checkpoint 遗漏历史 | 完整 ledger 保留，checkpoint 有 anchors，可按需重投影 |
+| 凭据或隐藏推理泄露 | allowlist schema、central redaction、negative tests、artifact scan |
+| migration 破坏旧 Thread | expand/lazy bootstrap/idempotent migration，旧字段 optional |
+| Renderer 导致非原子切换 | Supervisor-owned deep module |
+| portable continuation 被误称 native resume | UI/event/docs 明确 Segment 边界 |
+| 未验证 Harness 被误升格 | T08 逐 Runtime 真实证据；其余保持 UNVERIFIED/BLOCKED |
+
+### Coder Start Contract
+
+- 当前只完成 Manager Plan 和 Ticket 草案，不修改产品源码。
+- 用户明确授权执行后，Manager 才创建项目绑定的 `Coder-0.9-Cross-Harness Handoff`，模型 `gpt-5.6-sol` / `high`，唯一允许工作区为本 Feature worktree。
+- Coder 按 T01–T08 交付，并在 Feature self-check 后自行创建同 worktree 的 `Debugger-0.9-Cross-Harness Handoff`，模型 `grok-4.6` / `high`。
+- Debugger PASS 后才允许合入 nested Dev；Dev → Main、正式 tag 与 push 不在本 Plan 授权范围。

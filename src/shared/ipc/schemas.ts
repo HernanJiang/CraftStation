@@ -14,6 +14,11 @@ import {
   threadSchema,
 } from "../contracts";
 import { craftPlanSchema } from "../crafting/types";
+export {
+  cancelSessionSwitchPayloadSchema,
+  readSessionSwitchStatePayloadSchema,
+  requestSessionSwitchPayloadSchema,
+} from "../sessionHandoff";
 
 export const pickFilesOptionsSchema = z
   .object({

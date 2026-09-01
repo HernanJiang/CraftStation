@@ -376,6 +376,9 @@ function applyRuntimeEventToRuntimeState(
         requestType: event.requestType,
         payload: event.payload,
         receivedAt: new Date().toISOString(),
+        // Keep the supervisor-bound origin envelope so resolution can echo the
+        // binding the request belongs to (crafted threads only).
+        ...(event.execution ? { execution: event.execution } : {}),
       };
       return {
         runtimeRequestsByThread: {

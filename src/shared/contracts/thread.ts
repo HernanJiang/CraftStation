@@ -19,6 +19,7 @@ import {
   mcpServerListSchema,
 } from "./mcpServer";
 import { goalControlActionSchema } from "./runtimeEvent";
+import { runtimeExecutionEnvelopeSchema } from "../sessionHandoff";
 
 /** How thread status/attention is derived for terminal agents (supervisor → renderer). */
 export const threadStatusSourceSchema = z.enum(["cli_hook", "terminal_parse", "server"]);
@@ -181,11 +182,13 @@ export const sendThreadInputPayloadSchema = z.object({
   config: threadConfigSchema,
   /** See {@link startThreadPayloadSchema.userMessageItemId}. */
   userMessageItemId: z.string().min(1).optional(),
+  execution: runtimeExecutionEnvelopeSchema.optional(),
 });
 export type SendThreadInputPayload = z.infer<typeof sendThreadInputPayloadSchema>;
 
 export const interruptThreadPayloadSchema = z.object({
   threadId: z.string().min(1),
+  execution: runtimeExecutionEnvelopeSchema.optional(),
 });
 export type InterruptThreadPayload = z.infer<typeof interruptThreadPayloadSchema>;
 
@@ -218,11 +221,13 @@ export const setPendingSteerPayloadSchema = z.object({
   prompt: z.string().min(1),
   segments: z.array(promptSegmentSchema).optional(),
   config: threadConfigSchema,
+  execution: runtimeExecutionEnvelopeSchema.optional(),
 });
 export type SetPendingSteerPayload = z.infer<typeof setPendingSteerPayloadSchema>;
 
 export const clearPendingSteerPayloadSchema = z.object({
   threadId: z.string().min(1),
+  execution: runtimeExecutionEnvelopeSchema.optional(),
 });
 export type ClearPendingSteerPayload = z.infer<typeof clearPendingSteerPayloadSchema>;
 
@@ -383,6 +388,7 @@ export type ResizeTerminalPayload = z.infer<typeof resizeTerminalPayloadSchema>;
 
 export const closeThreadPayloadSchema = z.object({
   threadId: z.string().min(1),
+  execution: runtimeExecutionEnvelopeSchema.optional(),
 });
 export type CloseThreadPayload = z.infer<typeof closeThreadPayloadSchema>;
 
@@ -394,6 +400,7 @@ export const resolveThreadServerRequestPayloadSchema = z.object({
   requestId: threadServerRequestIdSchema,
   method: z.string().min(1),
   response: z.unknown(),
+  execution: runtimeExecutionEnvelopeSchema.optional(),
 });
 export type ResolveThreadServerRequestPayload = z.infer<
   typeof resolveThreadServerRequestPayloadSchema

@@ -41,6 +41,7 @@ import { getProjectAgentStatuses } from "@/shared/agentStatus";
 import { recordRuntimeUsage } from "./state/usageRecorder";
 import { useDevTerminalStore } from "./state/devTerminalStore";
 import { useThreadOutputStore } from "./state/threadOutputStore";
+import { applySessionHandoffState } from "./actions/sessionHandoffActions";
 import { applyAgentStatusSupervisorEvent, useAgentStatusesStore } from "./state/agentStatusesStore";
 import { useProviderUsageStore } from "./state/providerUsageStore";
 import { useUsageAccountsStore } from "./state/usageAccountsStore";
@@ -201,6 +202,11 @@ function handleSupervisorEvent(event: SupervisorEvent): void {
     useThreadOutputStore.getState().appendOutput(event.threadId, event.data);
   } else if (event.type === "thread-reset") {
     useThreadOutputStore.getState().clearOutput(event.threadId);
+  }
+
+  if (event.type === "session-switch-state") {
+    void applySessionHandoffState(event.state);
+    return;
   }
 
   if (event.type === "thread-runtime-event") {

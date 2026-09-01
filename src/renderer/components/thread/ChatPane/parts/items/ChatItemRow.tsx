@@ -14,6 +14,7 @@ import { ImageView } from "./ImageView";
 import { PlanItem } from "./PlanItem";
 import { QuestionAnswer } from "./QuestionAnswer";
 import { Reasoning } from "./Reasoning";
+import { RuntimeSegmentMarker } from "./RuntimeSegmentMarker";
 import { SubAgentToolCall } from "./SubAgentToolCall";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { UserMessage } from "./UserMessage";
@@ -131,6 +132,8 @@ function renderItem(
       return <ImageView item={item} />;
     case "web_search":
       return <WebSearchItem item={item} />;
+    case "runtime_segment":
+      return <RuntimeSegmentMarker item={item} />;
     case "error":
       return null;
     default:

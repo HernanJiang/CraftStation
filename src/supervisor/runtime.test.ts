@@ -15,6 +15,7 @@ import {
   CraftingError,
   FakeCodexParityHarness,
   type HarnessRuntimeAdapter,
+  type SessionEventListener,
 } from "@/shared/crafting";
 import { TranscriptBuffer } from "@/shared/transcriptBuffer";
 import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
@@ -3706,6 +3707,72 @@ describe("SupervisorRuntime craftAgent", () => {
     expect(result.entityId).toMatch(/^entity:fake-codex:/);
   });
 
+  it("keeps the CraftStation Thread identity stable when the native Session uses its own UUID", async () => {
+    const runtime = makeRuntime(() => undefined);
+    runtime.setCustomCraftingAdapter((plan) => ({
+      id: `native-identity:${plan.runtimeBinding.harnessKind}`,
+      harnessKind: plan.runtimeBinding.harnessKind,
+      supports: () => true,
+      spawnEntity: async (resolvedPlan) => ({
+        id: `entity:${resolvedPlan.runtimeBinding.harnessKind}`,
+        resultItemId: resolvedPlan.resultItemId,
+        craftPlan: resolvedPlan,
+        status: "spawned",
+        createdAt: new Date(0).toISOString(),
+      }),
+      createSession: async (entity) => {
+        const harnessKind = entity.craftPlan.runtimeBinding.harnessKind;
+        return {
+          id: `runtime-session:${harnessKind}`,
+          threadId: `official-native-uuid:${harnessKind}`,
+          entityId: entity.id,
+          status: "idle" as const,
+          startTurn: async () => ({
+            turnId: `turn:${harnessKind}`,
+            status: "completed" as const,
+            events: [],
+          }),
+          interrupt: async () => undefined,
+          terminate: async () => undefined,
+          getSnapshot: () => ({
+            sessionId: `runtime-session:${harnessKind}`,
+            threadId: `official-native-uuid:${harnessKind}`,
+            entityId: entity.id,
+            status: "idle" as const,
+            events: [],
+          }),
+          subscribe: () => () => undefined,
+          sendPrompt: async () => ({ response: "continued", events: [] }),
+        };
+      },
+      resumeSession: async () => {
+        throw new Error("resume is not used by this identity test");
+      },
+    }));
+
+    const threadId = "craft-thread:visible";
+    const created = await runtime.craftAgent({
+      craftPlan: craftPlan(threadId),
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "",
+    });
+
+    expect(created.threadId).toBe(threadId);
+    await expect(
+      runtime.requestSessionSwitch({
+        threadId,
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        targetCraftPlan: nativeCraftPlan("grok", "xai", threadId),
+        mode: "after-current-turn",
+        prompt: "continue in the same conversation",
+      }),
+    ).resolves.toMatchObject({
+      disposition: "activated",
+      state: { threadId, phase: "active" },
+    });
+    expect(runtime.readSessionSwitchState(threadId)).toMatchObject({ threadId, phase: "active" });
+  });
+
   it("binds an explicit OpenAI-compatible account to an isolated Native Codex host", async () => {
     const baseDir = makeTempDir();
     process.env.CRAFTSTATION_DATA_DIR = baseDir;
@@ -3797,7 +3864,8 @@ describe("SupervisorRuntime craftAgent", () => {
   });
 
   it("routes the existing request-resolution IPC seam to a crafted native Session", async () => {
-    const runtime = makeRuntime(() => undefined);
+    const emitted: Array<{ type: string } & Record<string, unknown>> = [];
+    const runtime = makeRuntime((event) => emitted.push(event as { type: string }));
     const listeners = new Set<(event: RuntimeEvent) => void>();
     const respondToRequest = vi
       .fn<(requestId: string, resolution: unknown) => Promise<void>>()
@@ -3844,6 +3912,23 @@ describe("SupervisorRuntime craftAgent", () => {
       projectLocation: { kind: "windows", path: "C:\\repo" },
       prompt: "",
     });
+    // v0.9 F1: resolution is fenced, so bind it to the initially published
+    // active execution envelope.
+    const bindingState = emitted.find(
+      (event) =>
+        event.type === "session-switch-state" &&
+        (event.state as { phase?: string }).phase === "active",
+    )!;
+    const bindingSegment = (
+      bindingState.state as {
+        activeSegment: { id: string; runtimeSessionId: string; bindingEpoch: number };
+      }
+    ).activeSegment;
+    const execution = {
+      segmentId: bindingSegment.id,
+      runtimeSessionId: bindingSegment.runtimeSessionId,
+      bindingEpoch: bindingSegment.bindingEpoch,
+    };
     for (const listener of listeners) {
       listener({
         type: "request.opened",
@@ -3858,6 +3943,7 @@ describe("SupervisorRuntime craftAgent", () => {
       requestId: "permission_1",
       method: "requestPermission",
       response: { optionId: "once" },
+      execution,
     });
     expect(respondToRequest).toHaveBeenCalledWith("permission_1", {
       kind: "permission",
@@ -3893,6 +3979,7 @@ describe("SupervisorRuntime craftAgent", () => {
       requestId: "question_1",
       method: "requestPermission",
       response: { answers: { q0: "q0.0" } },
+      execution,
     });
     expect(respondToRequest).toHaveBeenLastCalledWith("question_1", {
       kind: "question",
@@ -4393,7 +4480,8 @@ describe("SupervisorRuntime craftAgent", () => {
     });
 
     it("releases a crafted account binding when the public closeThread seam terminates it", async () => {
-      const runtime = makeRuntime(() => undefined);
+      const emitted: Array<{ type: string } & Record<string, unknown>> = [];
+      const runtime = makeRuntime((event) => emitted.push(event as { type: string }));
       const account = addGrokAccount(runtime, "A");
       const adapter = routedAdapter("grok");
       nativeHarnessFactoryOverrides.set(
@@ -4409,8 +4497,27 @@ describe("SupervisorRuntime craftAgent", () => {
         prompt: "bind",
       });
 
+      // v0.9 F1: closeThread on a crafted thread requires the active execution
+      // envelope published when the crafted session started.
+      const bindingState = emitted.find(
+        (event) =>
+          event.type === "session-switch-state" &&
+          (event.state as { phase?: string }).phase === "active",
+      )!;
+      const bindingSegment = (
+        bindingState.state as {
+          activeSegment: { id: string; runtimeSessionId: string; bindingEpoch: number };
+        }
+      ).activeSegment;
       await expect(
-        runtime.closeThread({ threadId: "grok-lifecycle-release" }),
+        runtime.closeThread({
+          threadId: "grok-lifecycle-release",
+          execution: {
+            segmentId: bindingSegment.id,
+            runtimeSessionId: bindingSegment.runtimeSessionId,
+            bindingEpoch: bindingSegment.bindingEpoch,
+          },
+        }),
       ).resolves.toBeUndefined();
       expect(() => runtime.removeAccount(account.accountId)).not.toThrow();
       expect(runtime.accountStore.get(account.accountId)).toBeUndefined();
@@ -4614,4 +4721,249 @@ describe("SupervisorRuntime official Crafting model inventory", () => {
       expect(JSON.stringify(result)).not.toContain("private path");
     },
   );
+});
+
+describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
+  const projectLocation = { kind: "windows" as const, path: "C:\\repo" };
+
+  function fencePlan(threadId: string) {
+    const result = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+      { workspace: "C:\\repo", threadId },
+    );
+    expect(result.success).toBe(true);
+    return result.craftPlan!;
+  }
+
+  interface FenceFixture {
+    runtime: SupervisorRuntime;
+    plan: ReturnType<typeof fencePlan>;
+    /** Supervisor events (session-switch-state, thread-runtime-event, ...). */
+    emitted: Array<{ type: string } & Record<string, unknown>>;
+    sessionIds: string[];
+    /** Emit a canonical event from the MOST RECENTly created crafted session. */
+    emitFromSession: (event: RuntimeEvent) => void;
+  }
+
+  function makeFenceRuntime(threadId: string): FenceFixture {
+    const emitted: Array<{ type: string } & Record<string, unknown>> = [];
+    const runtime = makeRuntime((event) => emitted.push(event as { type: string }));
+    let emitFromCurrent: (event: RuntimeEvent) => void = () => undefined;
+    const sessionIds: string[] = [];
+    let sessionCounter = 0;
+    runtime.setCustomCraftingAdapter(
+      (plan): HarnessRuntimeAdapter => ({
+        id: "fence-harness",
+        harnessKind: plan.runtimeBinding.harnessKind,
+        supports: () => true,
+        spawnEntity: async (entityPlan) => ({
+          id: `entity:fence:${sessionCounter + 1}`,
+          resultItemId: entityPlan.resultItemId,
+          craftPlan: entityPlan,
+          status: "spawned",
+          createdAt: new Date(0).toISOString(),
+        }),
+        createSession: async (entity) => {
+          sessionCounter += 1;
+          const sessionId = `runtime-fence:${sessionCounter}`;
+          sessionIds.push(sessionId);
+          const snapshot = {
+            sessionId,
+            threadId: entity.craftPlan.threadId,
+            entityId: entity.id,
+            status: "idle" as const,
+            events: [],
+          };
+          return {
+            id: sessionId,
+            threadId: entity.craftPlan.threadId,
+            entityId: entity.id,
+            status: "idle" as const,
+            startTurn: async () => ({
+              turnId: "turn:fence",
+              status: "completed" as const,
+              events: [],
+            }),
+            interrupt: async () => undefined,
+            steer: async () => undefined,
+            respondToRequest: async () => undefined,
+            terminate: async () => undefined,
+            getSnapshot: () => snapshot,
+            subscribe: (listener: SessionEventListener) => {
+              emitFromCurrent = (event) => listener(event, snapshot);
+              return () => undefined;
+            },
+            sendPrompt: async () => ({ response: "fence-ok", events: [] }),
+          };
+        },
+        resumeSession: async () => {
+          throw new Error("resume is not used by the fencing test");
+        },
+      }),
+    );
+    return {
+      runtime,
+      plan: fencePlan(threadId),
+      emitted,
+      sessionIds,
+      emitFromSession: (event) => emitFromCurrent(event),
+    };
+  }
+
+  function activeBindingStates(fixture: FenceFixture) {
+    return fixture.emitted
+      .filter(
+        (event) =>
+          event.type === "session-switch-state" &&
+          (event.state as { phase?: string }).phase === "active",
+      )
+      .map((event) => (event.state as { activeSegment: Record<string, unknown> }).activeSegment);
+  }
+
+  function envelopeFor(segment: Record<string, unknown>) {
+    return {
+      segmentId: segment.id as string,
+      runtimeSessionId: segment.runtimeSessionId as string,
+      bindingEpoch: segment.bindingEpoch as number,
+    };
+  }
+
+  it("publishes the initial active binding and fences crafted active commands", async () => {
+    const threadId = "fence-thread";
+    const f = makeFenceRuntime(threadId);
+    await f.runtime.craftAgent({ craftPlan: f.plan, projectLocation, prompt: "" });
+
+    // The FIRST crafted Segment publishes its binding through the existing
+    // session-switch-state channel, so the renderer can fence commands.
+    const segments = activeBindingStates(f);
+    expect(segments).toHaveLength(1);
+    const envelope = envelopeFor(segments[0]!);
+    expect(envelope.runtimeSessionId).toBe("runtime-fence:1");
+
+    const missing = { code: "HANDOFF_ACTIVE_EXECUTION_REQUIRED" };
+    await expect(
+      f.runtime.sendThreadInput({ threadId, prompt: "hi", config: { model: "m" } }),
+    ).rejects.toMatchObject(missing);
+    await expect(f.runtime.interruptThread({ threadId })).rejects.toMatchObject(missing);
+    await expect(f.runtime.closeThread({ threadId })).rejects.toMatchObject(missing);
+    await expect(f.runtime.clearPendingSteer({ threadId })).rejects.toMatchObject(missing);
+    await expect(
+      f.runtime.setPendingSteer({ threadId, prompt: "s", config: { model: "m" } }),
+    ).rejects.toMatchObject(missing);
+    await expect(
+      f.runtime.resolveThreadServerRequest({
+        threadId,
+        requestId: "req-1",
+        method: "requestPermission",
+        response: { optionId: "allow" },
+      }),
+    ).rejects.toMatchObject(missing);
+
+    // The current envelope lets the same commands through.
+    await f.runtime.sendThreadInput({
+      threadId,
+      prompt: "hi",
+      config: { model: "m" },
+      execution: envelope,
+    });
+    await f.runtime.interruptThread({ threadId, execution: envelope });
+    await f.runtime.clearPendingSteer({ threadId, execution: envelope });
+    await f.runtime.setPendingSteer({
+      threadId,
+      prompt: "s",
+      config: { model: "m" },
+      execution: envelope,
+    });
+
+    const stale = { code: "HANDOFF_EXECUTION_STALE" };
+    await expect(
+      f.runtime.sendThreadInput({
+        threadId,
+        prompt: "hi",
+        config: { model: "m" },
+        execution: { ...envelope, bindingEpoch: envelope.bindingEpoch + 1 },
+      }),
+    ).rejects.toMatchObject(stale);
+    await expect(
+      f.runtime.interruptThread({
+        threadId,
+        execution: { ...envelope, segmentId: "segment:other" },
+      }),
+    ).rejects.toMatchObject(stale);
+    await expect(
+      f.runtime.closeThread({ threadId, execution: { ...envelope, runtimeSessionId: "other" } }),
+    ).rejects.toMatchObject(stale);
+  });
+
+  it("never resolves a pending request whose origin execution went stale", async () => {
+    const threadId = "fence-origin-thread";
+    const f = makeFenceRuntime(threadId);
+    await f.runtime.craftAgent({ craftPlan: f.plan, projectLocation, prompt: "" });
+
+    f.emitFromSession({
+      type: "request.opened",
+      threadId,
+      requestId: "req-1",
+      requestType: "command_execution_approval",
+      payload: { summary: "Run script.sh" },
+    });
+
+    await expect(
+      f.runtime.resolveThreadServerRequest({
+        threadId,
+        requestId: "req-1",
+        method: "requestPermission",
+        response: { optionId: "allow" },
+      }),
+    ).rejects.toMatchObject({ code: "HANDOFF_ACTIVE_EXECUTION_REQUIRED" });
+
+    // Rebind the SAME durable thread to a fresh native session. The Segment id
+    // and epoch are reused, but the runtime session identity moved — the old
+    // request's origin execution no longer matches the active binding.
+    await f.runtime.craftAgent({ craftPlan: f.plan, projectLocation, prompt: "" });
+    expect(f.sessionIds).toEqual(["runtime-fence:1", "runtime-fence:2"]);
+    const latestEnvelope = envelopeFor(activeBindingStates(f).at(-1)!);
+    expect(latestEnvelope.runtimeSessionId).toBe("runtime-fence:2");
+
+    await expect(
+      f.runtime.resolveThreadServerRequest({
+        threadId,
+        requestId: "req-1",
+        method: "requestPermission",
+        response: { optionId: "allow" },
+        execution: latestEnvelope,
+      }),
+    ).rejects.toMatchObject({ code: "HANDOFF_EXECUTION_STALE" });
+
+    // A request opened under the NEW binding still resolves.
+    f.emitFromSession({
+      type: "request.opened",
+      threadId,
+      requestId: "req-2",
+      requestType: "command_execution_approval",
+      payload: { summary: "Run again" },
+    });
+    await expect(
+      f.runtime.resolveThreadServerRequest({
+        threadId,
+        requestId: "req-2",
+        method: "requestPermission",
+        response: { optionId: "allow" },
+        execution: latestEnvelope,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps legacy non-crafted threads on the ThreadSessionManager path", async () => {
+    const runtime = makeRuntime(() => undefined);
+    // No crafted session for these threads: commands must fall through to the
+    // legacy manager and fail with ITS error — never a handoff fence code.
+    await expect(
+      runtime.sendThreadInput({ threadId: "legacy-thread", prompt: "hi", config: { model: "m" } }),
+    ).rejects.toThrow(/Unknown thread session/);
+    // Legacy close/interrupt tolerate unknown threads (best-effort) and never
+    // demand an execution envelope.
+    await expect(runtime.closeThread({ threadId: "legacy-thread" })).resolves.toBeUndefined();
+    await expect(runtime.interruptThread({ threadId: "legacy-thread" })).resolves.toBeUndefined();
+  });
 });

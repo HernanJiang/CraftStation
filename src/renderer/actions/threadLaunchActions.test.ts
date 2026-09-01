@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project, Thread } from "@/shared/contracts";
 import type { RemoteThreadLaunchResult } from "@/renderer/state/remoteServers/types";
-import { BUILTIN_MODEL_ITEMS, Crafter } from "@/shared/crafting";
+import { BUILTIN_MODEL_ITEMS, Crafter, getDefaultRegistry } from "@/shared/crafting";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 
 function deferred<T>() {
@@ -68,6 +68,7 @@ const mocks = vi.hoisted(() => {
     dbUpsertThread: vi.fn<(thread: unknown) => Promise<void>>(),
     craftAgent: vi.fn<(input: unknown) => Promise<unknown>>(),
     resumeCraftAgent: vi.fn<(input: unknown) => Promise<unknown>>(),
+    readSessionSwitchState: vi.fn<(input: unknown) => Promise<unknown>>(),
     dbGetState: vi.fn<(key: string) => Promise<string | null>>(),
     dbSetState: vi.fn<(key: string, value: string) => Promise<void>>(),
   };
@@ -96,6 +97,13 @@ const mocks = vi.hoisted(() => {
 vi.mock("@/renderer/state/appStore", () => ({
   useAppStore: {
     getState: () => mocks.appState,
+    setState: (
+      update:
+        | Partial<typeof mocks.appState>
+        | ((state: typeof mocks.appState) => Partial<typeof mocks.appState>),
+    ) => {
+      Object.assign(mocks.appState, typeof update === "function" ? update(mocks.appState) : update);
+    },
   },
 }));
 
@@ -242,6 +250,7 @@ describe("startThreadFromDraft host transport", () => {
       sessionId: "sess:codex:local-thread",
       response: "",
     });
+    mocks.bridge.readSessionSwitchState.mockResolvedValue(null);
     mocks.bridge.dbGetState.mockResolvedValue(null);
     mocks.bridge.dbSetState.mockResolvedValue(undefined);
     mocks.primeWorktreeGitState.mockResolvedValue(undefined);
@@ -901,6 +910,8 @@ describe("performInitialThreadLaunch host transport", () => {
       sessionId: "sess:codex:local-thread",
       response: "",
     });
+    mocks.bridge.readSessionSwitchState.mockResolvedValue(null);
+    mocks.bridge.dbUpsertThread.mockResolvedValue(undefined);
     mocks.bridge.dbGetState.mockResolvedValue(null);
     mocks.bridge.dbSetState.mockResolvedValue(undefined);
   });
@@ -1030,5 +1041,95 @@ describe("performInitialThreadLaunch host transport", () => {
       }),
     );
     expect(mocks.bridge.startThread).not.toHaveBeenCalled();
+  });
+
+  it("recovers the exact active handoff CraftPlan and native Session after restart", async () => {
+    const registry = getDefaultRegistry();
+    const target = new Crafter(registry).compile(
+      {
+        slots: {
+          model: registry.getItem("xai:grok-4.6")!,
+          harness: registry.getItem("harness:grok")!,
+        },
+      },
+      { threadId: "local-thread", workspace: "C:\\repo" },
+    );
+    const sourceProvenance = new Crafter().compile({
+      slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" },
+    }).resultItem!.provenance;
+    const thread = {
+      ...localThread,
+      id: "local-thread",
+      presentationMode: "gui",
+      agentKind: "codex",
+      config: { model: "gpt-5.3-codex" },
+      compositionProvenance: sourceProvenance,
+      sessionRef: {
+        providerSessionId: "native-codex-old",
+        discoveredAt: "2026-08-23T00:00:00.000Z",
+      },
+    } as Thread;
+    mocks.appState.threads = [thread];
+    mocks.bridge.readSessionSwitchState.mockResolvedValue({
+      requestId: "switch-restart",
+      threadId: thread.id,
+      mode: "after-current-turn",
+      phase: "active",
+      sourceSegmentId: "segment-1",
+      targetSegmentId: "segment-2",
+      targetBinding: target.craftPlan!.runtimeBinding,
+      targetCraftPlan: target.craftPlan,
+      targetProvenance: target.resultItem!.provenance,
+      activeSegment: {
+        id: "segment-2",
+        threadId: thread.id,
+        ordinal: 1,
+        bindingEpoch: 2,
+        status: "active",
+        craftPlanId: target.craftPlan!.id,
+        recipeId: target.craftPlan!.recipeId,
+        resultItemId: target.craftPlan!.resultItemId,
+        runtimeBinding: target.craftPlan!.runtimeBinding,
+        entityId: "entity-grok",
+        runtimeSessionId: "runtime-grok",
+        nativeSessionRef: "native-grok-current",
+        predecessorSegmentId: "segment-1",
+        checkpointId: "checkpoint-1",
+        createdAt: "2026-08-31T00:00:01.000Z",
+        activatedAt: "2026-08-31T00:00:02.000Z",
+      },
+      requestedAt: "2026-08-31T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:02.000Z",
+    });
+    mocks.bridge.resumeCraftAgent.mockResolvedValue({
+      threadId: thread.id,
+      entityId: "entity-grok-restarted",
+      sessionId: "runtime-grok-restarted",
+      response: "",
+    });
+
+    await performInitialThreadLaunch({
+      thread,
+      projectLocation: localProject.location,
+      prompt: "",
+      initialSize,
+    });
+
+    expect(mocks.bridge.resumeCraftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionRef: "native-grok-current",
+        craftPlan: expect.objectContaining({
+          id: target.craftPlan!.id,
+          threadId: thread.id,
+          recipeId: "recipe:xai-grok-native",
+          sessionRef: "native-grok-current",
+        }),
+      }),
+    );
+    expect(mocks.appState.threads[0]).toMatchObject({
+      id: thread.id,
+      agentKind: "grok",
+      sessionRef: { providerSessionId: "native-grok-current" },
+    });
   });
 });

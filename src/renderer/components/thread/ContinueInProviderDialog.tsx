@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Paperclip } from "lucide-react";
 import { Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -41,12 +41,30 @@ import { supportsUsableFastMode } from "./threadDraftViewHelpers";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useAppStore } from "@/renderer/state/appStore";
 import type { RuntimeChatItem } from "@/renderer/state/slices/runtimeEventSlice";
+import {
+  cancelSessionHandoff,
+  compileHandoffTarget,
+  readSessionHandoffState,
+  requestSessionHandoff,
+} from "@/renderer/actions/sessionHandoffActions";
+import { useSessionHandoffStore } from "@/renderer/state/sessionHandoffStore";
+import type { SessionSwitchMode, SessionSwitchPhase } from "@/shared/sessionHandoff";
 
 type Phase = "select" | "extracting" | "error";
 type PendingSubmission = { prompt: string; segments?: PromptSegment[] };
 const MAX_TRANSCRIPT_CONTEXT_CHARS = 50_000;
 const DEFAULT_HANDOFF_PROMPT =
   "Continue from the transferred context and pick up where the previous provider left off.";
+const HANDOFF_BUSY_PHASES = new Set<SessionSwitchPhase>([
+  "queued",
+  "interrupting_source",
+  "preparing",
+  "checkpointed",
+  "target_starting",
+  "target_ready",
+  "activating",
+  "rolling_back",
+]);
 
 function supportedPresentationModes(agent: AgentStatus): ThreadPresentationMode[] {
   return agent.capabilities.presentationModes ?? [agent.capabilities.presentationMode];
@@ -260,8 +278,11 @@ export function ContinueInProviderDialog(props: {
   const [errorMessage, setErrorMessage] = useState("");
   const [pendingCloseOriginal, setPendingCloseOriginal] = useState(false);
   const [pendingSubmission, setPendingSubmission] = useState<PendingSubmission | null>(null);
+  const [switchMode, setSwitchMode] = useState<SessionSwitchMode>("after-current-turn");
+  const [switchError, setSwitchError] = useState("");
   const mentionRef = useRef<MentionInputHandle>(null);
   const attachments = useAttachments();
+  const handoffState = useSessionHandoffStore((state) => state.statesByThread[thread.id]);
 
   const sourceAgent = installedAgents.find((a) => a.kind === thread.agentKind);
   const selectedAgent = otherAgents.find((a) => a.kind === selectedKind);
@@ -363,6 +384,32 @@ export function ContinueInProviderDialog(props: {
         },
       )
     : [];
+  const handoffTarget = useMemo(
+    () =>
+      compileHandoffTarget({
+        thread,
+        projectLocation: props.projectLocation,
+        targetAgentKind: selectedKind,
+        targetConfig,
+      }),
+    [props.projectLocation, selectedKind, targetConfig, thread],
+  );
+  const canSwitchInPlace =
+    targetPresentationMode === "gui" && handoffTarget.available && Boolean(handoffTarget.craftPlan);
+  const isSwitchBusy = handoffState ? HANDOFF_BUSY_PHASES.has(handoffState.phase) : false;
+  const isQueuedSwitch = handoffState?.phase === "queued";
+  const activeSegment = handoffState?.phase === "active" ? handoffState.activeSegment : undefined;
+
+  useEffect(() => {
+    if (!props.isOpen || thread.remoteServerId) return;
+    let cancelled = false;
+    void readSessionHandoffState(thread.id).catch((error) => {
+      if (!cancelled) setSwitchError(error instanceof Error ? error.message : String(error));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.isOpen, thread.id, thread.remoteServerId]);
   // --- Extraction config (source provider) ---
   const hiddenModelIds = useSharedSettings(
     (s) => s.hiddenModels[modelVisibilityKey(thread.agentKind, sourcePresentationMode)],
@@ -485,6 +532,36 @@ export function ContinueInProviderDialog(props: {
     }
   }
 
+  async function handleSwitchInPlace() {
+    const submission = buildSubmission();
+    if (!submission || !canSwitchInPlace) return;
+    setSwitchError("");
+    setLastPresentationMode(selectedKind, "gui");
+    try {
+      const state = await requestSessionHandoff({
+        thread,
+        projectLocation: props.projectLocation,
+        targetAgentKind: selectedKind,
+        targetConfig,
+        mode: switchMode,
+        prompt: submission.prompt,
+      });
+      if (state.phase === "active") onClose();
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function handleCancelSwitch() {
+    if (!handoffState) return;
+    setSwitchError("");
+    try {
+      await cancelSessionHandoff(thread.id, handoffState.requestId);
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   function handleCancel() {
     if (phase === "extracting") {
       readBridge()
@@ -603,6 +680,134 @@ export function ContinueInProviderDialog(props: {
                       }
                     />
                   </div>
+                  {thread.presentationMode === "gui" &&
+                    thread.compositionProvenance &&
+                    !thread.remoteServerId && (
+                      <section
+                        className="rounded-lg border border-border px-3 py-3"
+                        aria-label={t`Switch in this conversation`}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">
+                              <Trans>Switch in this conversation</Trans>
+                            </p>
+                            <p className="text-xs text-muted">
+                              <Trans>
+                                Current:{" "}
+                                {activeSegment?.recipeId ?? thread.compositionProvenance?.recipeId}{" "}
+                                · {activeSegment?.runtimeBinding.modelId ?? thread.config.model} ·{" "}
+                                {activeSegment?.runtimeBinding.harnessKind ?? thread.agentKind}
+                              </Trans>
+                            </p>
+                            <p className="text-xs text-muted">
+                              <Trans>
+                                Target: {targetConfig.model} · {selectedKind}
+                              </Trans>
+                            </p>
+                          </div>
+                          {handoffState && (
+                            <span
+                              className="rounded bg-default-100 px-2 py-1 text-xs"
+                              data-testid="session-switch-phase"
+                            >
+                              {handoffState.phase}
+                            </span>
+                          )}
+                        </div>
+                        <fieldset
+                          className="mt-3 flex flex-col gap-2 text-sm"
+                          disabled={isSwitchBusy}
+                        >
+                          <legend className="sr-only">
+                            <Trans>Switch timing</Trans>
+                          </legend>
+                          <label
+                            htmlFor="session-switch-after-turn"
+                            aria-label={t`After current turn`}
+                            className="flex cursor-pointer items-start gap-2"
+                          >
+                            <input
+                              id="session-switch-after-turn"
+                              type="radio"
+                              name="session-switch-mode"
+                              value="after-current-turn"
+                              checked={switchMode === "after-current-turn"}
+                              onChange={() => setSwitchMode("after-current-turn")}
+                            />
+                            <span>
+                              <span className="block">
+                                <Trans>After current turn</Trans>
+                              </span>
+                              <span className="block text-xs text-muted">
+                                <Trans>
+                                  Wait for a completed-turn boundary, then create a portable
+                                  checkpoint and a new native Session.
+                                </Trans>
+                              </span>
+                            </span>
+                          </label>
+                          <label
+                            htmlFor="session-switch-abort-turn"
+                            aria-label={t`Abort current turn and switch`}
+                            className="flex cursor-pointer items-start gap-2"
+                          >
+                            <input
+                              id="session-switch-abort-turn"
+                              type="radio"
+                              name="session-switch-mode"
+                              value="abort-current-turn"
+                              checked={switchMode === "abort-current-turn"}
+                              onChange={() => setSwitchMode("abort-current-turn")}
+                            />
+                            <span>
+                              <span className="block">
+                                <Trans>Abort current turn and switch</Trans>
+                              </span>
+                              <span className="block text-xs text-muted">
+                                <Trans>
+                                  Confirm the source turn stopped before activating a new Runtime
+                                  Segment.
+                                </Trans>
+                              </span>
+                            </span>
+                          </label>
+                        </fieldset>
+                        <p className="mt-2 text-xs text-muted">
+                          <Trans>
+                            This transfers portable conversation context; it does not resume another
+                            provider's native Session. Attachments are not copied into the
+                            checkpoint.
+                          </Trans>
+                        </p>
+                        {!canSwitchInPlace && (
+                          <p className="mt-2 text-xs text-warning">
+                            {targetPresentationMode !== "gui"
+                              ? t`Choose the GUI presentation to switch in place.`
+                              : handoffTarget.reason}
+                          </p>
+                        )}
+                        {(switchError || handoffState?.diagnostic?.message) && (
+                          <p className="mt-2 text-xs text-danger">
+                            {switchError || handoffState?.diagnostic?.message}
+                          </p>
+                        )}
+                        <div className="mt-3 flex justify-end gap-2">
+                          {isQueuedSwitch && (
+                            <Button variant="ghost" onPress={() => void handleCancelSwitch()}>
+                              <Trans>Cancel queued switch</Trans>
+                            </Button>
+                          )}
+                          <Button
+                            variant="primary"
+                            isDisabled={!canSwitchInPlace || isSwitchBusy}
+                            onPress={() => void handleSwitchInPlace()}
+                          >
+                            <Trans>Switch in this conversation</Trans>
+                          </Button>
+                        </div>
+                      </section>
+                    )}
                 </div>
               )}
 

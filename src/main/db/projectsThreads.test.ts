@@ -306,7 +306,24 @@ describe("projectsThreads (real sqlite round-trip)", () => {
 
     initDatabase(databasePath);
 
-    expect(dbGetState("schema_version")).toBe("36");
+    expect(dbGetState("schema_version")).toBe(String(LATEST_SCHEMA_VERSION));
+    const sqlite = getSqlite();
+    const objects = sqlite.prepare("SELECT type, name FROM sqlite_master").all() as {
+      type: string;
+      name: string;
+    }[];
+    // Migrations 37-39 must exist after a v32 -> latest upgrade, not just in the
+    // registry: the handoff tables and the one-active-segment partial index are
+    // load-bearing for cross-harness session handoff.
+    for (const table of [
+      "runtime_segments",
+      "runtime_segment_event_archive",
+      "conversation_checkpoints",
+      "session_switch_transactions",
+    ]) {
+      expect(objects).toContainEqual({ type: "table", name: table });
+    }
+    expect(objects).toContainEqual({ type: "index", name: "idx_runtime_segments_one_active" });
     const legacyProject = dbGetProject("legacy-project");
     expect(legacyProject).toMatchObject({
       id: "legacy-project",

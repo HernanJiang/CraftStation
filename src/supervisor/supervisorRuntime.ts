@@ -49,6 +49,10 @@ import type {
   ResolveThreadServerRequestPayload,
   ResolvedMcpServer,
   SendThreadInputPayload,
+  InterruptThreadPayload,
+  SetPendingSteerPayload,
+  ClearPendingSteerPayload,
+  CloseThreadPayload,
 } from "@/shared/contracts";
 import type {
   CraftRequestResolution,
@@ -176,6 +180,17 @@ import { AccountStoreOpenCodeRuntimeBindingResolver } from "./runtime/openCodeNa
 import { OpenCodeNativeServerPool } from "./runtime/openCodeNative/serverPool";
 import { resolveCraftedRequest, type CraftedRequest } from "./runtime/craftedRequestResolution";
 import { probeCodexCapabilities } from "./agents/codex/probe";
+import type {
+  RequestSessionSwitchPayload,
+  SessionSwitchResult,
+  SessionSwitchState,
+} from "@/shared/sessionHandoff";
+import { RuntimeSegmentLedger } from "./sessionHandoff/segmentLedger";
+import {
+  SessionHandoffCoordinator,
+  SessionHandoffError,
+  type PreparedTargetRuntime,
+} from "./sessionHandoff/coordinator";
 
 export { detectWslAgentStatuses, writeSubmittedPrompt };
 
@@ -272,8 +287,18 @@ export class SupervisorRuntime {
   private readonly craftedSessionBindings = new Map<string, AccountBinding>();
   /** Every live crafted session, keyed by its durable CraftStation thread id. */
   private readonly craftedSessionsByThread = new Map<string, CraftSession>();
-  private readonly craftedSessionUnsubscribers = new Map<string, () => void>();
+  /** Immutable active plan per durable CraftStation thread. */
+  private readonly craftedPlansByThread = new Map<string, CraftAgentPayload["craftPlan"]>();
+  /** Source binding retained only across target CAS -> bootstrap commit. */
+  private readonly handoffSourceBindings = new Map<string, AccountBinding | undefined>();
+  private readonly pendingHandoffEvents = new Map<
+    string,
+    import("@/shared/contracts").RuntimeEvent[]
+  >();
+  private readonly craftedSessionUnsubscribers = new Map<string, Map<string, () => void>>();
   private readonly craftedRequestsByThread = new Map<string, Map<string, CraftedRequest>>();
+  private readonly runtimeSegmentLedger: RuntimeSegmentLedger;
+  private readonly sessionHandoffCoordinator: SessionHandoffCoordinator;
   /** Per-account quota refresh locks so concurrent refreshes coalesce (v0.5 T09). */
   private readonly accountRefreshLocks = new Map<string, Promise<unknown>>();
   private availableWindowsShellsCache:
@@ -367,6 +392,49 @@ export class SupervisorRuntime {
       rawBaseDir && rawBaseDir !== "undefined" && isAbsolute(rawBaseDir) ? rawBaseDir : undefined;
     const baseDir = envBaseDir ?? resolveCraftStationBaseDir();
     this.baseDir = baseDir;
+    this.runtimeSegmentLedger = new RuntimeSegmentLedger(baseDir);
+    this.sessionHandoffCoordinator = new SessionHandoffCoordinator({
+      ledger: this.runtimeSegmentLedger,
+      getSession: (threadId) => this.craftedSessionsByThread.get(threadId),
+      getPlan: (threadId) => this.craftedPlansByThread.get(threadId),
+      getPendingRequestCount: (threadId) => this.craftedRequestsByThread.get(threadId)?.size ?? 0,
+      prepareTarget: (plan, location, accountId, accountMode) =>
+        this.prepareHandoffTarget(plan, location, accountId, accountMode),
+      activateTarget: (threadId, target, segment) => {
+        this.handoffSourceBindings.set(threadId, this.craftedSessionBindings.get(threadId));
+        this.pendingHandoffEvents.set(threadId, []);
+        this.registerCraftedSession(
+          threadId,
+          target.plan.runtimeBinding.harnessKind,
+          target.session,
+          target.accountBinding,
+          target.plan,
+          target.entity.id,
+          segment,
+        );
+      },
+      restoreSource: (threadId, plan, session, segment) => {
+        this.pendingHandoffEvents.delete(threadId);
+        this.registerCraftedSession(
+          threadId,
+          plan.runtimeBinding.harnessKind,
+          session,
+          this.handoffSourceBindings.get(threadId),
+          plan,
+          session.entityId,
+          segment,
+        );
+        this.handoffSourceBindings.delete(threadId);
+      },
+      commitTarget: (threadId) => {
+        this.handoffSourceBindings.delete(threadId);
+        const events = this.pendingHandoffEvents.get(threadId) ?? [];
+        this.pendingHandoffEvents.delete(threadId);
+        if (events.length > 0) this.emit({ type: "thread-runtime-events", threadId, events });
+      },
+      emitState: (state) =>
+        this.emit({ type: "session-switch-state", threadId: state.threadId, state }),
+    });
     this.mcpOAuthService = new McpOAuthService({ baseDir });
     this.mcpProbeService = new McpProbeService({
       applyAuthorization: (server) => this.mcpOAuthService.applyAuthorizationToServer(server),
@@ -815,33 +883,19 @@ export class SupervisorRuntime {
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
   }
 
-  /** Interrupt either a crafted native session or a regular terminal/ACP thread. */
-  async interruptThread(payload: { threadId: string }): Promise<void> {
-    const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
-    if (craftedSession) {
-      await craftedSession.interrupt();
-      return;
-    }
-    await this.threadSessionManager.interruptThread(payload);
-  }
-
-  /** Send a follow-up turn to either a crafted native Session or a regular thread. */
-  async sendThreadInput(payload: SendThreadInputPayload): Promise<void> {
-    const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
-    if (craftedSession) {
-      await craftedSession.startTurn({ prompt: payload.prompt });
-      return;
-    }
-    await this.threadSessionManager.sendThreadInput(payload);
-  }
-
   /** Close either a crafted native session or a regular terminal/ACP thread. */
-  async closeThread(payload: { threadId: string }): Promise<void> {
+  async closeThread(payload: CloseThreadPayload): Promise<void> {
     const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
     if (craftedSession) {
+      this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+      const switchState = this.sessionHandoffCoordinator.readState(payload.threadId);
+      if (switchState?.phase === "queued") {
+        this.sessionHandoffCoordinator.cancelQueued(payload.threadId, switchState.requestId);
+      }
       try {
         await craftedSession.terminate();
       } finally {
+        this.sessionHandoffCoordinator.terminateActive(payload.threadId);
         this.releaseCraftedSession(payload.threadId);
       }
       return;
@@ -855,6 +909,10 @@ export class SupervisorRuntime {
       await this.threadSessionManager.resolveThreadServerRequest(payload);
       return;
     }
+    const active = this.sessionHandoffCoordinator.assertActiveExecution(
+      payload.threadId,
+      payload.execution,
+    );
     if (!craftedSession.respondToRequest) {
       throw new Error(`Crafted thread ${payload.threadId} does not support request resolution.`);
     }
@@ -863,9 +921,88 @@ export class SupervisorRuntime {
     if (!pending) {
       throw new Error(`Crafted thread ${payload.threadId} has no pending request ${requestId}.`);
     }
+    // v0.9 F1 origin binding: the request must have been opened under the
+    // Segment that is still active, so a stale-origin request (e.g. answered
+    // after a handoff) can never resolve its response into the new Segment.
+    if (
+      !pending.execution ||
+      pending.execution.segmentId !== active.id ||
+      pending.execution.runtimeSessionId !== active.runtimeSessionId ||
+      pending.execution.bindingEpoch !== active.bindingEpoch
+    ) {
+      throw new SessionHandoffError(
+        "HANDOFF_EXECUTION_STALE",
+        "failed",
+        `Crafted request ${requestId} originated on a stale Runtime Segment binding.`,
+      );
+    }
     const resolution: CraftRequestResolution = resolveCraftedRequest(pending, payload.response);
     await craftedSession.respondToRequest(requestId, resolution);
     this.craftedRequestsByThread.get(payload.threadId)?.delete(requestId);
+  }
+
+  async requestSessionSwitch(payload: RequestSessionSwitchPayload): Promise<SessionSwitchResult> {
+    return this.sessionHandoffCoordinator.requestSwitch(payload);
+  }
+
+  cancelSessionSwitch(threadId: string, requestId: string): void {
+    this.sessionHandoffCoordinator.cancelQueued(threadId, requestId);
+  }
+
+  readSessionSwitchState(threadId: string): SessionSwitchState | null {
+    return this.sessionHandoffCoordinator.readState(threadId) ?? null;
+  }
+
+  async sendThreadInput(payload: SendThreadInputPayload): Promise<void> {
+    const session = this.craftedSessionsByThread.get(payload.threadId);
+    if (!session) {
+      await this.threadSessionManager.sendThreadInput(payload);
+      return;
+    }
+    if (this.sessionHandoffCoordinator.hasQueuedSwitch(payload.threadId)) {
+      throw new SessionHandoffError(
+        "HANDOFF_SWITCH_QUEUED",
+        "queued",
+        "A Runtime switch is queued; the next Prompt cannot race the source Segment.",
+      );
+    }
+    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+    await session.sendPrompt(payload.prompt);
+  }
+
+  async interruptThread(payload: InterruptThreadPayload): Promise<void> {
+    const session = this.craftedSessionsByThread.get(payload.threadId);
+    if (!session) {
+      await this.threadSessionManager.interruptThread(payload);
+      return;
+    }
+    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+    await session.interrupt(session.getSnapshot().activeTurnId);
+  }
+
+  async setPendingSteer(payload: SetPendingSteerPayload): Promise<void> {
+    const session = this.craftedSessionsByThread.get(payload.threadId);
+    if (!session) {
+      await this.threadSessionManager.setPendingSteer(payload);
+      return;
+    }
+    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+    if (!session.steer) {
+      throw new SessionHandoffError(
+        "HANDOFF_STEER_UNSUPPORTED",
+        "failed",
+        "The active native Runtime does not support steer commands.",
+      );
+    }
+    await session.steer(payload.prompt);
+  }
+
+  async clearPendingSteer(payload: ClearPendingSteerPayload): Promise<void> {
+    if (!this.craftedSessionsByThread.has(payload.threadId)) {
+      await this.threadSessionManager.clearPendingSteer(payload);
+      return;
+    }
+    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
   }
 
   selectAccount(accountId: string): AccountView {
@@ -1324,22 +1461,25 @@ export class SupervisorRuntime {
       entityId = entity.id;
       craftedSession = session;
       sessionId = session.id;
-      craftedThreadId = session.threadId ?? plan.threadId;
+      craftedThreadId = plan.threadId ?? session.threadId;
       this.registerCraftedSession(
         craftedThreadId,
         plan.runtimeBinding.harnessKind,
         session,
         accountBinding,
+        plan,
+        entity.id,
       );
       const response =
         payload.prompt.trim().length > 0
           ? await session.sendPrompt(payload.prompt)
           : { response: "" };
       return {
-        // The official app-server allocates the authoritative thread UUID.
-        // Keep the CraftPlan request identity separate from the live Session
-        // identity and return the latter to IPC callers.
-        threadId: session.threadId ?? plan.threadId ?? "",
+        // CraftStation owns the stable user-visible Thread identity. A native
+        // runtime may allocate a different provider Session/thread UUID, but
+        // that identity belongs to the Runtime Segment and must not replace
+        // the CraftStation Thread key used by IPC and session handoff.
+        threadId: plan.threadId ?? session.threadId ?? "",
         entityId: entity.id,
         sessionId: session.id,
         ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
@@ -1391,18 +1531,20 @@ export class SupervisorRuntime {
       entityId = entity.id;
       craftedSession = session;
       sessionId = session.id;
-      craftedThreadId = session.threadId ?? plan.threadId;
+      craftedThreadId = plan.threadId ?? session.threadId;
       this.registerCraftedSession(
         craftedThreadId,
         plan.runtimeBinding.harnessKind,
         session,
         accountBinding,
+        plan,
+        entity.id,
       );
       const response = payload.prompt?.trim()
         ? await session.sendPrompt(payload.prompt)
         : { response: "" };
       return {
-        threadId: session.threadId ?? plan.threadId ?? "",
+        threadId: plan.threadId ?? session.threadId ?? "",
         entityId: entity.id,
         sessionId: session.id,
         ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
@@ -1701,37 +1843,168 @@ export class SupervisorRuntime {
     return { segments, ...(inlineInstructions ? { inlineInstructions } : {}) };
   }
 
+  private async prepareHandoffTarget(
+    craftPlan: CraftAgentPayload["craftPlan"],
+    projectLocation: ProjectLocation,
+    accountId?: string,
+    accountMode?: "explicit" | "selected" | "auto",
+  ): Promise<PreparedTargetRuntime> {
+    let binding: AccountBinding | undefined;
+    try {
+      const created = await this.createCraftingAdapter(
+        craftPlan,
+        projectLocation,
+        undefined,
+        accountId,
+        accountMode,
+      );
+      binding = created.accountBinding;
+      const entity = await created.adapter.spawnEntity(created.plan);
+      const session = await created.adapter.createSession(entity);
+      return {
+        entity,
+        session,
+        plan: created.plan,
+        ...(binding ? { accountBinding: binding } : {}),
+      };
+    } catch (error) {
+      if (binding) this.releaseCraftedBinding(binding);
+      throw error;
+    }
+  }
+
   private registerCraftedSession(
     threadId: string | undefined,
     harnessKind: string,
     session: CraftSession,
     binding: AccountBinding | undefined,
+    plan?: CraftAgentPayload["craftPlan"],
+    entityId?: string,
+    segment?: import("@/shared/sessionHandoff").RuntimeSegment,
   ): void {
     if (!threadId) return;
-    const previousUnsubscribe = this.craftedSessionUnsubscribers.get(threadId);
-    previousUnsubscribe?.();
     this.craftedSessionsByThread.set(threadId, session);
+    if (plan) this.craftedPlansByThread.set(threadId, plan);
     this.nativeHarnessSessions.set(harnessKind, session);
     if (binding) this.craftedSessionBindings.set(threadId, binding);
+    else this.craftedSessionBindings.delete(threadId);
+    const ensuredInitialSegment =
+      segment || !plan || !entityId
+        ? undefined
+        : this.sessionHandoffCoordinator.ensureInitialSegment({
+            threadId,
+            plan,
+            entityId,
+            session,
+          });
+    const activeSegment = segment ?? ensuredInitialSegment;
+    let subscriptions = this.craftedSessionUnsubscribers.get(threadId);
+    if (!subscriptions) {
+      subscriptions = new Map();
+      this.craftedSessionUnsubscribers.set(threadId, subscriptions);
+    }
+    // Rollback re-registers the original source Session. Its existing listener
+    // already carries the source Segment identity, so subscribing twice would
+    // duplicate every subsequent canonical event.
+    if (subscriptions.has(session.id)) return;
     const unsubscribe = session.subscribe((event) => {
-      if (event.type === "request.opened") {
+      const execution =
+        activeSegment && activeSegment.runtimeSessionId === session.id
+          ? {
+              segmentId: activeSegment.id,
+              runtimeSessionId: session.id,
+              bindingEpoch: activeSegment.bindingEpoch,
+              ...(event.nativeEnvelope?.sequence !== undefined
+                ? { eventSequence: event.nativeEnvelope.sequence }
+                : {}),
+            }
+          : this.sessionHandoffCoordinator.executionEnvelope(threadId, session);
+      const fencedEvent = execution ? { ...event, execution } : event;
+      if (!this.sessionHandoffCoordinator.acceptsEvent(threadId, fencedEvent)) return;
+      if (fencedEvent.type === "request.opened") {
         let requests = this.craftedRequestsByThread.get(threadId);
         if (!requests) {
           requests = new Map();
           this.craftedRequestsByThread.set(threadId, requests);
         }
-        requests.set(event.requestId, event);
-      } else if (event.type === "request.resolved") {
-        this.craftedRequestsByThread.get(threadId)?.delete(event.requestId);
+        requests.set(fencedEvent.requestId, fencedEvent);
+      } else if (fencedEvent.type === "request.resolved") {
+        this.craftedRequestsByThread.get(threadId)?.delete(fencedEvent.requestId);
       }
-      if (event.type === "session.exited") this.releaseCraftedSession(threadId);
-      this.emit({ type: "thread-runtime-event", threadId, event });
+      const pending = this.pendingHandoffEvents.get(threadId);
+      if (pending) pending.push(fencedEvent);
+      else this.emit({ type: "thread-runtime-event", threadId, event: fencedEvent });
+      void this.sessionHandoffCoordinator.onRuntimeEvent(threadId, fencedEvent);
+      if (
+        fencedEvent.type === "session.exited" &&
+        this.craftedSessionsByThread.get(threadId) === session
+      ) {
+        this.releaseCraftedSession(threadId);
+      }
     });
-    this.craftedSessionUnsubscribers.set(threadId, unsubscribe);
-    // Crafted native sessions do not pass through ThreadSessionManager's
-    // RuntimeEventBuffer. Forward their canonical events through the same
-    // Supervisor IPC event seam so the existing renderer timeline receives
-    // live native output without learning provider-specific protocols.
+    subscriptions.set(session.id, unsubscribe);
+    if (activeSegment) {
+      const activeEntityId = activeSegment.entityId ?? entityId;
+      if (!activeEntityId) {
+        throw new Error("HANDOFF_RUNTIME_SEGMENT_ENTITY_MISSING");
+      }
+      const markerId = `runtime-segment:${activeSegment.id}`;
+      const marker = {
+        type: "item.started" as const,
+        threadId,
+        itemId: markerId,
+        itemType: "runtime_segment" as const,
+        payload: {
+          segmentId: activeSegment.id,
+          ordinal: activeSegment.ordinal,
+          recipeId: activeSegment.recipeId,
+          craftPlanId: activeSegment.craftPlanId,
+          modelId: activeSegment.runtimeBinding.modelId,
+          harnessKind: activeSegment.runtimeBinding.harnessKind,
+          entityId: activeEntityId,
+          runtimeSessionId: activeSegment.runtimeSessionId ?? session.id,
+          ...(activeSegment.nativeSessionRef
+            ? { nativeSessionRef: activeSegment.nativeSessionRef }
+            : {}),
+          bindingEpoch: activeSegment.bindingEpoch,
+        },
+        execution: {
+          segmentId: activeSegment.id,
+          runtimeSessionId: activeSegment.runtimeSessionId ?? session.id,
+          bindingEpoch: activeSegment.bindingEpoch,
+        },
+      };
+      const publishMarker = (event: import("@/shared/contracts").RuntimeEvent) => {
+        const pending = this.pendingHandoffEvents.get(threadId);
+        if (pending) pending.push(event);
+        else this.emit({ type: "thread-runtime-event", threadId, event });
+      };
+      publishMarker(marker);
+      publishMarker({ ...marker, type: "item.completed" });
+    }
+    // v0.9 F1: the FIRST crafted Segment never runs a handoff transaction, so
+    // without this publish the renderer never learns the active execution
+    // binding and every fenced active command fails closed. Reuse the existing
+    // session-switch-state channel (phase="active" + activeSegment) so the
+    // renderer's single envelope accessor stays the only epoch source; the
+    // durable copy lets readSessionSwitchState re-seed after a reload instead
+    // of clearing the binding.
+    if (ensuredInitialSegment) {
+      const now = new Date().toISOString();
+      const bindingState: import("@/shared/sessionHandoff").SessionSwitchState = {
+        requestId: `segment:${ensuredInitialSegment.id}`,
+        threadId,
+        mode: "after-current-turn",
+        phase: "active",
+        sourceSegmentId: ensuredInitialSegment.id,
+        targetBinding: ensuredInitialSegment.runtimeBinding,
+        activeSegment: ensuredInitialSegment,
+        requestedAt: ensuredInitialSegment.activatedAt ?? ensuredInitialSegment.createdAt,
+        updatedAt: now,
+      };
+      this.runtimeSegmentLedger.saveSwitchState(bindingState);
+      this.emit({ type: "session-switch-state", threadId, state: bindingState });
+    }
   }
 
   private releaseCraftedBinding(binding: AccountBinding): void {
@@ -1741,15 +2014,20 @@ export class SupervisorRuntime {
   }
 
   private releaseCraftedSession(threadId: string): void {
-    this.craftedSessionUnsubscribers.get(threadId)?.();
+    for (const unsubscribe of this.craftedSessionUnsubscribers.get(threadId)?.values() ?? []) {
+      unsubscribe();
+    }
     this.craftedSessionUnsubscribers.delete(threadId);
     const session = this.craftedSessionsByThread.get(threadId);
     this.craftedSessionsByThread.delete(threadId);
+    this.craftedPlansByThread.delete(threadId);
     this.craftedRequestsByThread.delete(threadId);
     for (const [harnessKind, candidate] of this.nativeHarnessSessions) {
       if (candidate === session) this.nativeHarnessSessions.delete(harnessKind);
     }
     this.craftedSessionBindings.delete(threadId);
+    this.pendingHandoffEvents.delete(threadId);
+    this.handoffSourceBindings.delete(threadId);
   }
 
   /**
@@ -2197,6 +2475,10 @@ export class SupervisorRuntime {
   }
 
   dispose(): void {
+    // The public shutdown hook is intentionally fire-and-forget. Close the
+    // supervisor-owned SQLite handle synchronously so Windows can release the
+    // DB/WAL files before a caller removes a temporary data directory.
+    this.runtimeSegmentLedger.close();
     void this.disposeAsync();
   }
 
@@ -2212,6 +2494,7 @@ export class SupervisorRuntime {
     await Promise.allSettled(
       [...this.craftedSessionsByThread.entries()].map(async ([threadId, session]) => {
         await session.terminate().catch(() => undefined);
+        this.sessionHandoffCoordinator.terminateActive(threadId);
         this.releaseCraftedSession(threadId);
       }),
     );
@@ -2228,6 +2511,7 @@ export class SupervisorRuntime {
       console.warn("[supervisor] CLI hook plugin coordinator dispose failed:", error);
     });
     await this.openCodeServerPool.dispose();
+    this.runtimeSegmentLedger.close();
     const { shutdownSpawnedOpenCodeServers } = await import("./agents/opencode/sdkClient");
     shutdownSpawnedOpenCodeServers();
     const { shutdownSpawnedCodexAppServers } = await import("./agents/codex/serverPool");

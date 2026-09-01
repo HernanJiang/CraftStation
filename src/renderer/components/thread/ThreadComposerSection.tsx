@@ -52,6 +52,7 @@ import {
 import { useComposerUiStore } from "@/renderer/state/composerUiStore";
 import { useGitStore } from "@/renderer/state/gitStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { isDraftContentNonEmpty } from "@/renderer/state/slices/types";
 import { selectActiveSubAgentParentItemIds } from "@/renderer/state/subAgentSelectors";
 import { useThread } from "@/renderer/state/useThread";
@@ -528,8 +529,12 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   function handleInterrupt() {
     if (isInterrupting) return;
     setIsInterrupting(true);
+    const execution = getRuntimeExecutionEnvelope(thread.id);
     void readBridge()
-      .interruptThread({ threadId: thread.id })
+      .interruptThread({
+        threadId: thread.id,
+        ...(execution ? { execution } : {}),
+      })
       .then(() => {
         captureProductEvent("thread.interrupted", threadProductProperties(thread));
       })

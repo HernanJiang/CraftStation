@@ -31,6 +31,7 @@ import {
 } from "@/renderer/actions/terminalActions";
 import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
 import { useAppStore } from "@/renderer/state/appStore";
+import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -471,10 +472,12 @@ function chatCommand(command: AgentSlashCommand, thread: Thread): AppCommand {
     when: "hasThread",
     showInShortcuts: false,
     run: async () => {
+      const execution = getRuntimeExecutionEnvelope(thread.id);
       await readBridge().sendThreadInput({
         threadId: thread.id,
         prompt: `/${command.id}`,
         config: thread.config,
+        ...(execution ? { execution } : {}),
       });
       captureThreadPromptSubmitted(thread, `/${command.id}`, undefined, "command_palette");
       useAppStore.getState().touchThread(thread.id);

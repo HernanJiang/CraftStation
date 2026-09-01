@@ -14,6 +14,7 @@ import { friendlyError } from "@/shared/messages";
 import { isUnknownThreadSessionError } from "@/shared/threadRelaunch";
 import { resolveProjectLocation } from "@/shared/worktree";
 import { buildPromptContentBlocks } from "@/shared/promptContent";
+import type { RuntimeExecutionEnvelope } from "@/shared/sessionHandoff";
 import { readBridge } from "@/renderer/bridge";
 import {
   captureThreadPromptSubmitted,
@@ -22,6 +23,7 @@ import {
 import { captureProductEvent } from "@/renderer/analytics/productAnalytics";
 import { useAppStore } from "@/renderer/state/appStore";
 import { captureFileCheckpoint } from "@/renderer/state/fileCheckpointActions";
+import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { remoteOwner } from "@/renderer/state/remoteProjection";
 import { performInitialThreadLaunch } from "./threadLaunchActions";
 
@@ -59,6 +61,14 @@ export async function performThreadInputSubmit(input: {
   prompt: string;
   segments?: PromptSegment[];
   transport: ThreadInputTransport;
+  /**
+   * Active Runtime execution envelope for crafted threads (v0.9 F1). The
+   * supervisor fails closed when a crafted active command omits it; legacy
+   * threads send none. Resolved by the desktop caller via
+   * {@link getRuntimeExecutionEnvelope} — the remote PWA transport forwards
+   * whatever the host renderer bound.
+   */
+  execution?: RuntimeExecutionEnvelope;
   /** Desktop-only: capture a file checkpoint keyed to the optimistic user message. */
   captureCheckpoint?: (checkpointItemId: string) => Promise<void>;
   /**
@@ -125,6 +135,7 @@ export async function performThreadInputSubmit(input: {
       ...(segments ? { segments } : {}),
       config: thread.config,
       ...(optimisticUserMessageItemId ? { userMessageItemId: optimisticUserMessageItemId } : {}),
+      ...(input.execution ? { execution: input.execution } : {}),
     });
   } catch (error) {
     // The host session is gone (thread unloaded, supervisor restarted) but the
@@ -174,10 +185,12 @@ export async function submitThreadInput(
   if (!resolved) return;
   const { thread, projectLocation } = resolved;
   const owner = remoteOwner(thread);
+  const execution = getRuntimeExecutionEnvelope(threadId);
   await performThreadInputSubmit({
     thread,
     prompt,
     ...(segments ? { segments } : {}),
+    ...(execution ? { execution } : {}),
     transport: readBridge(),
     resumeLaunch: async (resume) => {
       // Re-resolve the thread: the pre-send snapshot can miss a sessionRef
@@ -225,11 +238,13 @@ export async function resolveThreadServerRequest(
 ): Promise<void> {
   const store = useAppStore.getState();
   const thread = store.threads.find((candidate) => candidate.id === threadId);
+  const execution = getRuntimeExecutionEnvelope(threadId);
   await readBridge().resolveThreadServerRequest({
     threadId,
     requestId: input.requestId,
     method: input.method,
     response: input.response,
+    ...(execution ? { execution } : {}),
   });
   if (input.analytics) {
     captureProductEvent("thread.request_resolved", {
@@ -268,8 +283,12 @@ export function changeThreadConfig(threadId: string, config: ThreadConfig): void
  * outside the compact composer.
  */
 export function clearThreadPendingSteer(threadId: string): void {
+  const execution = getRuntimeExecutionEnvelope(threadId);
   void readBridge()
-    .clearPendingSteer({ threadId })
+    .clearPendingSteer({
+      threadId,
+      ...(execution ? { execution } : {}),
+    })
     .catch((error: unknown) => {
       console.error("[thread] failed to clear pending steer", error);
       toast.danger(friendlyError(error));
@@ -281,10 +300,12 @@ export async function setThreadPendingSteer(
   prompt: string,
   segments: PromptSegment[] | undefined,
 ): Promise<void> {
+  const execution = getRuntimeExecutionEnvelope(thread.id);
   await readBridge().setPendingSteer({
     threadId: thread.id,
     prompt,
     ...(segments ? { segments } : {}),
     config: thread.config,
+    ...(execution ? { execution } : {}),
   });
 }

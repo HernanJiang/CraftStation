@@ -15,6 +15,7 @@ import type { RemoteProjectCommand } from "@/shared/remote";
 import { readBridge } from "@/renderer/bridge";
 import { i18n } from "@/renderer/i18n/i18n";
 import { useAppStore } from "@/renderer/state/appStore";
+import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
 import { useGitStore } from "@/renderer/state/gitStore";
@@ -327,8 +328,12 @@ async function deleteProjectAsync(projectId: string): Promise<void> {
   store.deleteProject(projectId);
 
   for (const threadId of projectThreadIds) {
+    const closeExecution = getRuntimeExecutionEnvelope(threadId);
     void readBridge()
-      .closeThread({ threadId })
+      .closeThread({
+        threadId,
+        ...(closeExecution ? { execution: closeExecution } : {}),
+      })
       .catch(() => undefined);
   }
 
