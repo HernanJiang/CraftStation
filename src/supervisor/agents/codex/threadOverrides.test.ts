@@ -46,4 +46,26 @@ describe("buildCodexThreadOverrides", () => {
       model_auto_compact_token_limit: 950_000,
     });
   });
+
+  it("runs a Home-scope thread in its per-thread scratch dir, never the real home", () => {
+    const overrides = buildCodexThreadOverrides(
+      { model: "gpt-5.6" },
+      {
+        projectLocation: { kind: "windows", path: "C:\\Users\\Haona" },
+        threadId: "thread-7",
+      },
+    );
+
+    expect(overrides.cwd).toBe("C:\\Users\\Haona/.craftstation/workspace-home/thread-7");
+    expect(overrides.cwd).not.toBe("C:\\Users\\Haona");
+  });
+
+  it("keeps the project cwd for real projects when a threadId is present", () => {
+    const overrides = buildCodexThreadOverrides(
+      { model: "gpt-5.6" },
+      { projectLocation: { kind: "windows", path: "D:\\Work\\app" }, threadId: "thread-7" },
+    );
+
+    expect(overrides.cwd).toBe("D:\\Work\\app");
+  });
 });

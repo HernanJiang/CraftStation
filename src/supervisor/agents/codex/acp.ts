@@ -505,6 +505,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     const threadOverrides = buildCodexThreadOverrides(config, {
       projectLocation: this.projectLocation,
       mcpServers: this.mcpServers,
+      threadId: this.threadId,
     });
 
     let threadId: string;
@@ -945,6 +946,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     const threadOverrides = buildCodexThreadOverrides(rollbackConfig, {
       projectLocation: this.projectLocation,
       mcpServers: this.mcpServers,
+      threadId: this.threadId,
     });
     this.forkNotificationBuffer = [];
     try {

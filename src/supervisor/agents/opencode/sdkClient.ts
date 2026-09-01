@@ -229,6 +229,12 @@ async function spawnAndWire(projectLocation: ProjectLocation): Promise<ServerSna
  */
 export interface AcquireOpenCodeServerInput {
   projectLocation: ProjectLocation;
+  /**
+   * Session-level working directory (thread workspace). Defaults to the
+   * project location; home-scope threads pass their per-thread scratch dir so
+   * directory-scoped settings land where the session actually runs.
+   */
+  directory?: string;
   mcpServers?: readonly ResolvedMcpServer[];
 }
 
@@ -360,7 +366,7 @@ async function acquireOpenCodeServerInner(
     throw error;
   }
 
-  const directory = resolveOpenCodeSessionDirectory(input.projectLocation);
+  const directory = input.directory ?? resolveOpenCodeSessionDirectory(input.projectLocation);
   let client: LegacyOpenCodeClient;
   try {
     client = await createLegacySdkClient(snapshot.baseUrl, snapshot.authorization, directory);

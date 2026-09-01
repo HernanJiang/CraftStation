@@ -57,6 +57,7 @@ import type {
   McpTransportKind,
 } from "@/shared/contracts";
 import { areAgentSlashCommandsEqual } from "@/shared/contracts";
+import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { buildPromptContentBlocks } from "@/shared/promptContent";
 import {
   closeOpenTurnItems,
@@ -90,8 +91,6 @@ import {
   resolveAcpReadableHostFsPath,
   resolveAcpResourcePath,
   resolveAcpWritableHostFsPath,
-  resolveSessionCwd,
-  resolveSpawnCwd,
   sliceTextFileContent,
   toAcpResourceUri,
 } from "./sessionPaths";
@@ -561,8 +560,11 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     threadId: string,
     options?: AcpStructuredSessionOptions,
   ): AcpStructuredSession {
-    const sessionCwd = resolveSessionCwd(projectLocation);
-    const spawnCwd = command.cwd ?? resolveSpawnCwd(projectLocation);
+    // Home-scope (projectless) threads run in a per-thread scratch directory
+    // instead of the real user home, so agents never scan or write there.
+    const sessionCwd = resolveThreadWorkspace(projectLocation, threadId);
+    // WSL agents receive their cwd via the CLI argv (--cd), not the host spawn.
+    const spawnCwd = projectLocation.kind === "wsl" ? undefined : sessionCwd;
 
     const child = spawnChild(command.command, command.args, {
       ...(spawnCwd ? { cwd: spawnCwd } : {}),

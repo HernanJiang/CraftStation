@@ -1,6 +1,6 @@
 import { codexContextWindowOverrides } from "@/shared/agents/codexContextWindows";
 import type { ProjectLocation, ResolvedMcpServer, ThreadConfig } from "@/shared/contracts";
-import { getProjectPosixPath } from "@/shared/wsl";
+import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { buildCodexMcp } from "../userMcp";
 import type { CodexClientRequestMap } from "./protocol";
 
@@ -15,12 +15,22 @@ export function buildCodexThreadOverrides(
   options?: {
     projectLocation?: ProjectLocation;
     mcpServers?: readonly ResolvedMcpServer[];
+    /** CraftStation thread id; home-scope threads derive their isolated cwd from it. */
+    threadId?: string;
   },
 ): ThreadConfigOverrides {
   const mcpConfig = options?.mcpServers ? buildCodexMcp(options.mcpServers).config : {};
+  const cwd =
+    options?.projectLocation && options.threadId
+      ? resolveThreadWorkspace(options.projectLocation, options.threadId)
+      : options?.projectLocation
+        ? options.projectLocation.kind === "wsl"
+          ? options.projectLocation.linuxPath
+          : options.projectLocation.path
+        : undefined;
   return {
     model: config.model,
-    ...(options?.projectLocation ? { cwd: getProjectPosixPath(options.projectLocation) } : {}),
+    ...(cwd ? { cwd } : {}),
     ...(config.approvalPolicy
       ? {
           approvalPolicy: config.approvalPolicy as NonNullable<ThreadForkParams["approvalPolicy"]>,

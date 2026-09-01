@@ -26,3 +26,28 @@ export function isHomeScopeLocation(location: ProjectLocation): boolean {
   }
   return /^\/(?:home\/[^/]+|Users\/[^/]+|root)$/.test(normalized);
 }
+
+const HOME_WORKSPACE_ROOT = ".craftstation/workspace-home";
+
+/**
+ * Working directory for a provider session bound to `location`.
+ *
+ * Real projects run in their own location. A projectless (Home) thread must
+ * NOT run with the user home directory as cwd: CLI agents then scan the real
+ * home and pick up unrelated projects and state there (observed with Codex
+ * and OpenCode). Home-scope threads get a stable per-thread scratch directory
+ * under the CraftStation home scope instead — the cwd stays identical across
+ * turns and restarts so provider sessions can resume, while file churn lands
+ * in a clearly CraftStation-owned folder.
+ */
+export function resolveThreadWorkspace(location: ProjectLocation, threadId: string): string {
+  if (!isHomeScopeLocation(location)) {
+    return location.kind === "wsl" ? location.linuxPath : location.path;
+  }
+  const segment = threadId.replace(/[^a-zA-Z0-9._-]/gu, "-") || "home";
+  const base = (location.kind === "wsl" ? location.linuxPath : location.path).replace(
+    /[\\/]+$/u,
+    "",
+  );
+  return `${base}/${HOME_WORKSPACE_ROOT}/${segment}`;
+}

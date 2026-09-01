@@ -85,6 +85,7 @@ import {
 import { setWslAttachmentBridgeClient } from "./runtime/threadAttachments";
 import { FileIndexService } from "./fileIndex";
 import { GitService, resolveBuiltInWorktreeRoot, type CapturedExperimentSnapshot } from "./git";
+import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { normalizeWorktreePathForComparison, resolveWorktreePlacement } from "@/shared/worktree";
 import { GitCheckpointService } from "./git/checkpointService";
 import { GitHubService } from "./github";
@@ -1440,7 +1441,7 @@ export class SupervisorRuntime {
   }> {
     const plan = {
       ...craftPlan,
-      workspace: projectLocation.kind === "wsl" ? projectLocation.linuxPath : projectLocation.path,
+      workspace: resolveThreadWorkspace(projectLocation, craftPlan.threadId ?? craftPlan.id),
       runtimeBinding: {
         ...craftPlan.runtimeBinding,
         environment: {

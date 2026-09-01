@@ -39,12 +39,12 @@ import {
   buildQuestionAnswerEvents,
   type QuestionAnswerSourceQuestion,
 } from "../questionAnswerEvents";
+import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { mapOpenCodeSlashCommands } from "./detection";
 import { classifyOpenCodeError, isOpenCodeConnectionLoss } from "./opencodeErrors";
 import { buildOpenCodePermissionRules } from "./permissionRules";
 import {
   acquireOpenCodeServer,
-  resolveOpenCodeSessionDirectory,
   type AcquiredOpenCodeServer,
   type AcquireOpenCodeServerInput,
 } from "./sdkClient";
@@ -161,7 +161,9 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     this.input = input;
     this.threadId = input.threadId;
     this.isGui = input.presentationMode === "gui";
-    this.sdkDirectory = resolveOpenCodeSessionDirectory(input.projectLocation);
+    // Home-scope (projectless) threads run in a per-thread scratch directory
+    // instead of the real user home, so agents never scan or write there.
+    this.sdkDirectory = resolveThreadWorkspace(input.projectLocation, input.threadId);
     this.currentConfig = input.config;
     this.mcpServers = input.mcpServers;
     this.launchOptions = { suppressResumeConfigOverrides: true };
@@ -788,6 +790,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     const { mcpServers } = this;
     return {
       projectLocation: this.input.projectLocation,
+      directory: this.sdkDirectory,
       ...(mcpServers !== undefined ? { mcpServers } : {}),
     };
   }
