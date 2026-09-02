@@ -237,9 +237,7 @@ describe.skipIf(!sqliteAvailable)("remote thread collaboration gateway", () => {
         hopDepth: 0,
       });
     }).rejects.toMatchObject({ status: 503 });
-    await expect(async () => {
-      await unavailable.read("source", "missing");
-    }).rejects.toBeInstanceOf(RemoteHttpError);
+    expect(() => unavailable.read("source", "missing")).toThrow(RemoteHttpError);
     expect(() => unavailable.listTargets("source")).toThrowError(RemoteHttpError);
   });
 });
