@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import type { SelectedModelEntry } from "@/shared/crafting/workbenchTypes";
-import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
+import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 
 /**
  * Models Inventory: square slots, one per user-selected model material. Only
@@ -40,10 +40,10 @@ export function ModelsInventory(props: {
                   : "border-white/10 bg-white/[0.04] hover:bg-white/10"
               }`}
             >
-              <ProviderIcon
-                kind={entry.providerKind}
-                fallbackLabel={entry.providerLabel}
-                className="size-6 shrink-0"
+              <ProviderBrandBadge
+                id={entry.providerKind}
+                label={entry.providerLabel}
+                size="avatar"
               />
               <span className="w-full truncate text-[9px] leading-tight text-neutral-300">
                 {entry.displayName}

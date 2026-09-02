@@ -46,6 +46,7 @@ import {
 import { shouldMarkUserScrollIntentFromPointerTarget } from "./chatScrollGeometry";
 import { normalizeChatProjectPath } from "./chatPathUtils";
 import { MessageList, type CheckpointRevertActions } from "./parts/MessageList";
+import { ChatNavRail } from "./ChatNavRail";
 import { SubAgentOpenController } from "./parts/items/SubAgentOverlay";
 
 interface ChatPaneProps {
@@ -116,6 +117,21 @@ export function ChatPane(props: ChatPaneProps) {
   const isInitialScrollSettled = initialScrollSettledThreadId === threadId;
 
   const scrollControlsRef = useRef<ChatScrollControlsHandle>(null);
+
+  // Conversation scroll progress (0..1) feeding the left quick-nav rail's
+  // current-prompt highlight.
+  const [scrollProgress, setScrollProgress] = useState(0);
+  useEffect(() => {
+    const el = scrollEl;
+    if (!el) return undefined;
+    const update = () => {
+      const scrollable = el.scrollHeight - el.clientHeight;
+      setScrollProgress(scrollable > 0 ? Math.min(Math.max(el.scrollTop / scrollable, 0), 1) : 0);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    return () => el.removeEventListener("scroll", update);
+  }, [scrollEl]);
   const virtualScrollToBottomRef = useRef<(() => void) | null>(null);
   const timelineEntries = useAppStore(
     useShallow((s) => selectVisibleThreadTimelineEntries(s, threadId, hiddenRuntimeItemId)),
@@ -367,125 +383,134 @@ export function ChatPane(props: ChatPaneProps) {
   return (
     <ChatPaneActionsContext.Provider value={paneActionsOverride ?? paneActions}>
       <div className="flex h-full min-h-0 flex-col">
-        <div className="relative min-h-0 flex-1">
-          <MessageList
-            key={threadId}
+        <div className="relative flex min-h-0 flex-1">
+          <ChatNavRail
             threadId={threadId}
-            threadConfig={thread.config}
             entries={timelineEntries}
-            isTurnActive={isLive}
-            setScrollContainer={setScrollContainer}
-            scrollContentRef={contentRef}
-            onContentHeightChange={() => scrollControlsRef.current?.onContentHeightChange()}
-            onVirtualizerLayoutChange={() =>
-              scrollControlsRef.current?.beginVirtualizerLayoutChange()
-            }
-            onLiveVirtualizerLayoutChange={() =>
-              scrollControlsRef.current?.beginLiveVirtualizerLayoutChange()
-            }
-            registerVirtualScrollToBottom={(handler) => {
-              virtualScrollToBottomRef.current = handler;
-            }}
-            scrollClassName="min-h-0 h-full overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable]"
-            scrollStyle={scrollFadeStyle}
-            contentClassName={`min-h-full pb-2 ${isInitialScrollSettled ? "" : "pointer-events-none opacity-0"}`}
-            emptyContent={
-              isEmpty && !showTailLoader && showEmptyHint ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-foreground-muted">
-                  <span>
-                    <Trans>No messages yet</Trans>
-                  </span>
-                </div>
-              ) : null
-            }
-            footer={
-              isWorktreeProvisioning ? (
-                <ChatWorktreeProvisioningFooter />
-              ) : isConnecting ? (
-                <ChatConnectingFooter />
-              ) : showTailLoader && tailTurn ? (
-                <ChatTurnElapsedFooter turn={tailTurn} isPaused={isTurnPaused} />
-              ) : null
-            }
-            onWheelCapture={(event) => {
-              if (event.deltaY < 0) {
+            scrollProgress={scrollProgress}
+            scrollToIndex={(index, options) => scrollToIndexRef.current?.(index, options)}
+            className="z-10"
+          />
+          <div className="relative min-h-0 min-w-0 flex-1">
+            <MessageList
+              key={threadId}
+              threadId={threadId}
+              threadConfig={thread.config}
+              entries={timelineEntries}
+              isTurnActive={isLive}
+              setScrollContainer={setScrollContainer}
+              scrollContentRef={contentRef}
+              onContentHeightChange={() => scrollControlsRef.current?.onContentHeightChange()}
+              onVirtualizerLayoutChange={() =>
+                scrollControlsRef.current?.beginVirtualizerLayoutChange()
+              }
+              onLiveVirtualizerLayoutChange={() =>
+                scrollControlsRef.current?.beginLiveVirtualizerLayoutChange()
+              }
+              registerVirtualScrollToBottom={(handler) => {
+                virtualScrollToBottomRef.current = handler;
+              }}
+              scrollClassName="min-h-0 h-full overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable]"
+              scrollStyle={scrollFadeStyle}
+              contentClassName={`min-h-full pb-2 ${isInitialScrollSettled ? "" : "pointer-events-none opacity-0"}`}
+              emptyContent={
+                isEmpty && !showTailLoader && showEmptyHint ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-foreground-muted">
+                    <span>
+                      <Trans>No messages yet</Trans>
+                    </span>
+                  </div>
+                ) : null
+              }
+              footer={
+                isWorktreeProvisioning ? (
+                  <ChatWorktreeProvisioningFooter />
+                ) : isConnecting ? (
+                  <ChatConnectingFooter />
+                ) : showTailLoader && tailTurn ? (
+                  <ChatTurnElapsedFooter turn={tailTurn} isPaused={isTurnPaused} />
+                ) : null
+              }
+              onWheelCapture={(event) => {
+                if (event.deltaY < 0) {
+                  scrollControlsRef.current?.markUserScrollIntent();
+                  scrollControlsRef.current?.disableStickToBottom();
+                }
+              }}
+              onPointerDownCapture={(event) => {
+                // Only arm scroll-intent for real scroll gestures (scrollbar /
+                // empty-canvas drags). Tool expand/collapse clicks must not —
+                // sticky row-height compensation then looks like a user
+                // scroll-away and strands the transcript above the bottom.
+                if (!shouldMarkUserScrollIntentFromPointerTarget(event.target)) {
+                  // The control can commit a taller virtual row before its
+                  // post-layout measurement callback runs. Guard that earlier
+                  // LegendList anchor adjustment directly from pointerdown.
+                  scrollControlsRef.current?.beginVirtualizerLayoutChange();
+                  return;
+                }
                 scrollControlsRef.current?.markUserScrollIntent();
+                // Unpin immediately — same as wheel-up. Native scrollbar thumbs
+                // are not DOM nodes and often overlay the content box (Windows
+                // overlay scrollbars), so gutter hit-testing is unreliable.
+                // Waiting for the first scroll event leaves sticky on long enough
+                // for row-measure ResizeObservers to re-pin and yank the thumb
+                // back to the bottom while the user is still dragging.
                 scrollControlsRef.current?.disableStickToBottom();
+              }}
+              onKeyDownCapture={(event) => {
+                if (isScrollNavigationKey(event.key)) {
+                  scrollControlsRef.current?.markUserScrollIntent();
+                }
+              }}
+              onStartReached={() => {
+                void loadOlderThreadRuntimeItems(threadId);
+              }}
+              registerScrollToIndex={registerScrollToIndex}
+              suppressInlineTurnAnchorId={suppressInlineTurnAnchorId}
+              canRevertCheckpoints={!isLive && !isHomeScope}
+              checkpointGuard={checkpointGuard}
+              checkpointActions={checkpointActions}
+              projectLocation={
+                checkpointProjectLocation ??
+                (isHomeScope ? undefined : targetContext?.projectLocation)
               }
-            }}
-            onPointerDownCapture={(event) => {
-              // Only arm scroll-intent for real scroll gestures (scrollbar /
-              // empty-canvas drags). Tool expand/collapse clicks must not —
-              // sticky row-height compensation then looks like a user
-              // scroll-away and strands the transcript above the bottom.
-              if (!shouldMarkUserScrollIntentFromPointerTarget(event.target)) {
-                // The control can commit a taller virtual row before its
-                // post-layout measurement callback runs. Guard that earlier
-                // LegendList anchor adjustment directly from pointerdown.
-                scrollControlsRef.current?.beginVirtualizerLayoutChange();
-                return;
-              }
-              scrollControlsRef.current?.markUserScrollIntent();
-              // Unpin immediately — same as wheel-up. Native scrollbar thumbs
-              // are not DOM nodes and often overlay the content box (Windows
-              // overlay scrollbars), so gutter hit-testing is unreliable.
-              // Waiting for the first scroll event leaves sticky on long enough
-              // for row-measure ResizeObservers to re-pin and yank the thumb
-              // back to the bottom while the user is still dragging.
-              scrollControlsRef.current?.disableStickToBottom();
-            }}
-            onKeyDownCapture={(event) => {
-              if (isScrollNavigationKey(event.key)) {
-                scrollControlsRef.current?.markUserScrollIntent();
-              }
-            }}
-            onStartReached={() => {
-              void loadOlderThreadRuntimeItems(threadId);
-            }}
-            registerScrollToIndex={registerScrollToIndex}
-            suppressInlineTurnAnchorId={suppressInlineTurnAnchorId}
-            canRevertCheckpoints={!isLive && !isHomeScope}
-            checkpointGuard={checkpointGuard}
-            checkpointActions={checkpointActions}
-            projectLocation={
-              checkpointProjectLocation ??
-              (isHomeScope ? undefined : targetContext?.projectLocation)
-            }
-          />
-          <ChatScrollControls
-            key={`scroll:${threadId}`}
-            ref={scrollControlsRef}
-            scrollRef={scrollRef}
-            contentRef={contentRef}
-            layoutChangeToken={layoutChangeToken}
-            tailEntryId={timelineEntries.at(-1)?.id ?? null}
-            threadId={threadId}
-            tailLoaderVisible={isWorktreeProvisioning || isConnecting || showTailLoader}
-            initialScrollSettled={isInitialScrollSettled}
-            initialScrollRevealDelayMs={props.initialScrollRevealDelayMs ?? 0}
-            virtualScrollToBottomRef={virtualScrollToBottomRef}
-            onInitialScrollSettled={() => {
-              setInitialScrollSettledThreadId(threadId);
-              props.onInitialScrollSettled?.();
-            }}
-          />
-          <SubAgentOpenController
-            key={`subagent:${threadId}`}
-            threadId={threadId}
-            {...(targetContext ? { projectLocation: targetContext.projectLocation } : {})}
-            onOpen={(parentItemId, projectLocation) => {
-              if (onOpenSubAgent) {
-                onOpenSubAgent(parentItemId, projectLocation);
-                return;
-              }
-              showSubAgentPanel(threadId, parentItemId, projectLocation);
-            }}
-          />
-          <ChatFindBar
-            threadId={threadId}
-            scrollToIndexRef={scrollToIndexRef}
-            scrollElement={scrollEl}
-          />
+            />
+            <ChatScrollControls
+              key={`scroll:${threadId}`}
+              ref={scrollControlsRef}
+              scrollRef={scrollRef}
+              contentRef={contentRef}
+              layoutChangeToken={layoutChangeToken}
+              tailEntryId={timelineEntries.at(-1)?.id ?? null}
+              threadId={threadId}
+              tailLoaderVisible={isWorktreeProvisioning || isConnecting || showTailLoader}
+              initialScrollSettled={isInitialScrollSettled}
+              initialScrollRevealDelayMs={props.initialScrollRevealDelayMs ?? 0}
+              virtualScrollToBottomRef={virtualScrollToBottomRef}
+              onInitialScrollSettled={() => {
+                setInitialScrollSettledThreadId(threadId);
+                props.onInitialScrollSettled?.();
+              }}
+            />
+            <SubAgentOpenController
+              key={`subagent:${threadId}`}
+              threadId={threadId}
+              {...(targetContext ? { projectLocation: targetContext.projectLocation } : {})}
+              onOpen={(parentItemId, projectLocation) => {
+                if (onOpenSubAgent) {
+                  onOpenSubAgent(parentItemId, projectLocation);
+                  return;
+                }
+                showSubAgentPanel(threadId, parentItemId, projectLocation);
+              }}
+            />
+            <ChatFindBar
+              threadId={threadId}
+              scrollToIndexRef={scrollToIndexRef}
+              scrollElement={scrollEl}
+            />
+          </div>
         </div>
       </div>
     </ChatPaneActionsContext.Provider>

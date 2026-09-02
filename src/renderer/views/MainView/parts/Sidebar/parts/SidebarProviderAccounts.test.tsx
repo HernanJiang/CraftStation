@@ -124,6 +124,8 @@ describe("SidebarProviderAccounts", () => {
   beforeEach(() => {
     usePanelStore.setState({
       modelUsageDialogOpen: false,
+      modelUsageWorkspaceTab: "usage",
+      modelUsageEntryMode: null,
       settingsOpen: false,
       settingsSection: "general",
     });

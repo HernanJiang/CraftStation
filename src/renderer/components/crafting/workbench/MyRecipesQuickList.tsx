@@ -34,14 +34,14 @@ export function MyRecipesQuickList(props: {
           还没有保存的配方
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5 overflow-y-auto pr-1">
+        <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-1">
           {recent.map((recipe) => (
             <button
               key={recipe.id}
               type="button"
               onClick={() => onLoad(recipe)}
               title={recipe.systemName}
-              className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-2.5 py-2 text-left transition-colors hover:bg-white/[0.07]"
+              className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.07]"
             >
               <PackageOpen className="size-4 shrink-0 text-amber-300" />
               <span className="min-w-0 flex-1">

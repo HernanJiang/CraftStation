@@ -1,5 +1,5 @@
 import type { SelectedModelEntry, HarnessReference } from "@/shared/crafting/workbenchTypes";
-import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
+import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 
 /**
  * Shared Inspector: a single detail pane for the currently selected Model or
@@ -24,11 +24,7 @@ export function SharedInspector(props: {
     >
       {model ? (
         <div className="flex items-start gap-3">
-          <ProviderIcon
-            kind={model.providerKind}
-            fallbackLabel={model.providerLabel}
-            className="size-8 shrink-0"
-          />
+          <ProviderBrandBadge id={model.providerKind} label={model.providerLabel} size="avatar" />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-semibold text-foreground">{model.displayName}</p>
             <p className="truncate text-[11px] text-neutral-400" title={model.modelId}>
@@ -51,11 +47,7 @@ export function SharedInspector(props: {
       ) : null}
       {harness ? (
         <div className="mt-3 flex items-start gap-3 border-t border-white/5 pt-3">
-          <ProviderIcon
-            kind={harness.vendor}
-            fallbackLabel={harness.displayName}
-            className="size-8 shrink-0"
-          />
+          <ProviderBrandBadge id={harness.vendor} label={harness.displayName} size="avatar" />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-semibold text-foreground">{harness.displayName}</p>
             <p className="text-[11px] text-neutral-400">

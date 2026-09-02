@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import type { HarnessReference } from "@/shared/crafting/workbenchTypes";
-import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
+import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 import { isHarnessSelectable } from "@/renderer/crafting/harnessInventory";
 
 /**
@@ -43,11 +43,7 @@ export function HarnessInventory(props: {
                   : "border-white/10 bg-white/[0.04] hover:bg-white/10"
               }`}
             >
-              <ProviderIcon
-                kind={ref.vendor}
-                fallbackLabel={ref.displayName}
-                className="size-6 shrink-0"
-              />
+              <ProviderBrandBadge id={ref.vendor} label={ref.displayName} size="avatar" />
               <span className="w-full truncate text-[9px] leading-tight text-neutral-300">
                 {ref.displayName}
               </span>
@@ -62,11 +58,7 @@ export function HarnessInventory(props: {
             onClick={() => onSelect(ref)}
             className="aspect-square flex flex-col items-center justify-center gap-1 rounded-lg border border-amber-500/30 bg-black/30 p-1 text-center opacity-60 transition-colors hover:opacity-90"
           >
-            <ProviderIcon
-              kind={ref.vendor}
-              fallbackLabel={ref.displayName}
-              className="size-6 shrink-0"
-            />
+            <ProviderBrandBadge id={ref.vendor} label={ref.displayName} size="avatar" />
             <span className="w-full truncate text-[9px] leading-tight text-neutral-400">
               {ref.displayName}
             </span>

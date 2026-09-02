@@ -33,6 +33,20 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Collaboration errors that mean "this provider cannot do that", not a failure. */
+const UNSUPPORTED_COLLABORATION_CODES = new Set([
+  "THREAD_COLLABORATION_CAPABILITY_UNAVAILABLE",
+  "HANDOFF_STEER_UNSUPPORTED",
+]);
+
+function exchangeUnsupported(exchange: ThreadExchangeView): boolean {
+  return exchange.error ? UNSUPPORTED_COLLABORATION_CODES.has(exchange.error.code) : false;
+}
+
+function unsupportedNotice(label: string): string {
+  return `${label} 暂不支持：该 Provider 的运行时不提供此能力，未产生失败。`;
+}
+
 export function ThreadCollaborationDialog(props: {
   isOpen: boolean;
   sourceThreadId: string;
@@ -465,9 +479,15 @@ export function ThreadCollaborationDialog(props: {
                           </p>
                         ) : null}
                         {exchange.error ? (
-                          <p className="break-words text-xs text-danger">
-                            {exchange.error.code}: {exchange.error.message}
-                          </p>
+                          exchangeUnsupported(exchange) ? (
+                            <p className="break-words text-xs text-amber-300/90">
+                              {unsupportedNotice("该 Provider 跨线程消息")}
+                            </p>
+                          ) : (
+                            <p className="break-words text-xs text-danger">
+                              {exchange.error.code}: {exchange.error.message}
+                            </p>
+                          )
                         ) : null}
                         <div className="flex items-center justify-end gap-1">
                           {canCancel ? (

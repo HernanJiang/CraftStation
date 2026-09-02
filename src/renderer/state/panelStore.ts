@@ -553,7 +553,14 @@ export const usePanelStore = create<PanelState>()((set) => ({
   },
 
   openBrowserPanel: () => set({ browserPanelOpen: true }),
-  openModelUsageDialog: () => set({ modelUsageDialogOpen: true }),
+  openModelUsageDialog: () =>
+    set(() => ({
+      modelUsageDialogOpen: true,
+      // A plain "open" (sidebar entry) lands on the usage tab; only the
+      // explicit openModelUsageWorkspace action targets a specific tab.
+      modelUsageWorkspaceTab: "usage",
+      modelUsageEntryMode: null,
+    })),
   closeModelUsageDialog: () => set({ modelUsageDialogOpen: false }),
   openModelUsageWorkspace: (input) =>
     set(() => ({

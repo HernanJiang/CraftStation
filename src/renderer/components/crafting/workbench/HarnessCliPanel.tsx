@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2, RefreshCw, Settings2, XCircle } from "lucide-react";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
-import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
+import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 
 const statusMeta: Record<
   NativeHarnessControlPlaneEntry["status"],
@@ -62,10 +62,10 @@ export function HarnessCliPanel(props: {
                   : "border-white/5 bg-white/[0.03] hover:bg-white/[0.07]"
               }`}
             >
-              <ProviderIcon
-                kind={entry.descriptor.vendor}
-                fallbackLabel={entry.descriptor.label}
-                className="size-5 shrink-0"
+              <ProviderBrandBadge
+                id={entry.descriptor.vendor}
+                label={entry.descriptor.label}
+                size="avatar"
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium text-foreground">
