@@ -59,6 +59,7 @@ import type {
 import { areAgentSlashCommandsEqual } from "@/shared/contracts";
 import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { buildPromptContentBlocks } from "@/shared/promptContent";
+import { ensureThreadWorkspace } from "../../runtime/threadWorkspace";
 import {
   closeOpenTurnItems,
   createAcpMapperState,
@@ -563,6 +564,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     // Home-scope (projectless) threads run in a per-thread scratch directory
     // instead of the real user home, so agents never scan or write there.
     const sessionCwd = resolveThreadWorkspace(projectLocation, threadId);
+    ensureThreadWorkspace(projectLocation, sessionCwd);
     // WSL agents receive their cwd via the CLI argv (--cd), not the host spawn.
     const spawnCwd = projectLocation.kind === "wsl" ? undefined : sessionCwd;
 

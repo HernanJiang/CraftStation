@@ -40,6 +40,7 @@ import {
   type QuestionAnswerSourceQuestion,
 } from "../questionAnswerEvents";
 import { resolveThreadWorkspace } from "@/shared/homeScope";
+import { ensureThreadWorkspace } from "../../runtime/threadWorkspace";
 import { mapOpenCodeSlashCommands } from "./detection";
 import { classifyOpenCodeError, isOpenCodeConnectionLoss } from "./opencodeErrors";
 import { buildOpenCodePermissionRules } from "./permissionRules";
@@ -164,6 +165,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     // Home-scope (projectless) threads run in a per-thread scratch directory
     // instead of the real user home, so agents never scan or write there.
     this.sdkDirectory = resolveThreadWorkspace(input.projectLocation, input.threadId);
+    ensureThreadWorkspace(input.projectLocation, this.sdkDirectory);
     this.currentConfig = input.config;
     this.mcpServers = input.mcpServers;
     this.launchOptions = { suppressResumeConfigOverrides: true };

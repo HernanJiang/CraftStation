@@ -178,6 +178,7 @@ import { NATIVE_HARNESS_DESCRIPTORS } from "./runtime/nativeHarness/descriptors"
 import { projectNativeHarnessControlPlane } from "./runtime/nativeHarness/controlPlane";
 import { AccountStoreOpenCodeRuntimeBindingResolver } from "./runtime/openCodeNative/runtimeBinding";
 import { OpenCodeNativeServerPool } from "./runtime/openCodeNative/serverPool";
+import { ensureThreadWorkspace } from "./runtime/threadWorkspace";
 import { resolveCraftedRequest, type CraftedRequest } from "./runtime/craftedRequestResolution";
 import { probeCodexCapabilities } from "./agents/codex/probe";
 import type {
@@ -1593,6 +1594,7 @@ export class SupervisorRuntime {
         },
       },
     };
+    ensureThreadWorkspace(projectLocation, plan.workspace);
 
     let accountRoot: string | undefined;
     let accountEnv: Record<string, string> | undefined;
