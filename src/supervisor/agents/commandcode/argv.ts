@@ -67,3 +67,43 @@ export function buildCommandCodeArgs(
   }
   return args;
 }
+
+/**
+ * Argv for official headless GUI turns: `command-code -p --output-format json`.
+ * Each CraftStation turn is one process; follow-ups resume with `--resume <id>`.
+ *
+ * Headless has no approval UI. Plan stays read-only; auto-accept maps to the
+ * official flag; `dont-ask` keeps the CLI's default (writes/shell blocked);
+ * every other policy uses `--yolo` so a coding turn can actually edit.
+ */
+export function buildCommandCodePrintArgs(
+  config: ThreadConfig,
+  prompt: string,
+  resumeSessionId?: string,
+): string[] {
+  const args: string[] = [
+    "--trust",
+    "--skip-onboarding",
+    "--no-auto-update",
+    "--output-format",
+    "json",
+  ];
+  if (resumeSessionId) {
+    args.push("--resume", resumeSessionId);
+  }
+  if (config.model) {
+    args.push("--model", config.model);
+  }
+  if (config.effort) {
+    args.push("--effort", config.effort);
+  }
+  if (config.mode === "plan") {
+    args.push("--plan");
+  } else if (config.approvalPolicy === "auto_edit") {
+    args.push("--auto-accept");
+  } else if (config.approvalPolicy !== "dont-ask") {
+    args.push("--yolo");
+  }
+  args.push("-p", prompt);
+  return args;
+}

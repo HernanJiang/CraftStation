@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectLocation, ThreadConfig } from "@/shared/contracts";
 import { createCommandCodeAdapter } from ".";
-import { buildCommandCodeArgs } from "./argv";
+import { buildCommandCodeArgs, buildCommandCodePrintArgs } from "./argv";
 import {
   buildCommandCodeModelPickerCapabilities,
   COMMANDCODE_DEFAULT_MODEL_ID,
@@ -127,6 +127,43 @@ describe("buildCommandCodeArgs", () => {
   });
 });
 
+describe("buildCommandCodePrintArgs", () => {
+  const config: ThreadConfig = { model: "deepseek/deepseek-v4-flash" };
+
+  it("runs official headless json print mode with yolo for a GUI coding turn", () => {
+    expect(buildCommandCodePrintArgs(config, "hello")).toEqual([
+      "--trust",
+      "--skip-onboarding",
+      "--no-auto-update",
+      "--output-format",
+      "json",
+      "--model",
+      "deepseek/deepseek-v4-flash",
+      "--yolo",
+      "-p",
+      "hello",
+    ]);
+  });
+
+  it("resumes a known session id and stays in print mode", () => {
+    const args = buildCommandCodePrintArgs(config, "next", "af75c40e-44dd-4369-a187-571745a01df2");
+    expect(args).toContain("--resume");
+    expect(args).toContain("af75c40e-44dd-4369-a187-571745a01df2");
+    expect(args).toContain("-p");
+    expect(args).not.toContain("--continue");
+  });
+
+  it("maps plan and auto-accept without yolo, and leaves dont-ask as the blocked default", () => {
+    expect(buildCommandCodePrintArgs({ ...config, mode: "plan" }, "x")).toContain("--plan");
+    expect(buildCommandCodePrintArgs({ ...config, approvalPolicy: "auto_edit" }, "x")).toContain(
+      "--auto-accept",
+    );
+    expect(buildCommandCodePrintArgs({ ...config, approvalPolicy: "dont-ask" }, "x")).not.toContain(
+      "--yolo",
+    );
+  });
+});
+
 describe("createCommandCodeAdapter", () => {
   const project: ProjectLocation = { kind: "windows", path: "C:\\demo" };
 
@@ -145,7 +182,9 @@ describe("createCommandCodeAdapter", () => {
     expect(adapter.capabilities.defaultApprovalPolicy).toBe("yolo");
     expect(adapter.capabilities.defaultEffort).toBe("high");
     expect(adapter.capabilities.models).toHaveLength(50);
-    expect(defaultCommandCodeCapabilities.presentationModes).toEqual(["terminal"]);
+    expect(defaultCommandCodeCapabilities.presentationMode).toBe("gui");
+    expect(defaultCommandCodeCapabilities.presentationModes).toEqual(["gui", "terminal"]);
+    expect(adapter.createStructuredSession).toBeTypeOf("function");
     expect(adapter.defaultOneShotModel).toBe(COMMANDCODE_DEFAULT_MODEL_ID);
   });
 

@@ -374,8 +374,8 @@ export const defaultCommandCodeCapabilities: AgentCapability = {
   // screenshots / attachments must be copied into the project before use.
   requiresWorkspaceLocalAttachments: true,
   liveInputMode: "terminal",
-  presentationMode: "terminal",
-  presentationModes: ["terminal"],
+  presentationMode: "gui",
+  presentationModes: ["gui", "terminal"],
   defaultApprovalPolicy: "yolo",
   bypassPermissions: { approvalPolicy: "yolo" },
   // No dedicated-server hosting path in any presentation.
@@ -393,11 +393,11 @@ const storedCredentialsAuthProbe: AuthProbe = async (ctx) => {
 };
 
 // Command Code authenticates via `command-code login` (browser OAuth or an API
-// key) run in a terminal. There is no ACP/structured probe, so we synthesize
-// the terminal auth method when the binary is installed; this is what surfaces
-// the Login / Re-login button (the renderer routes `type: "terminal"` methods
-// to `runTerminalLogin` → `loginCommand`). `authProbes` above supplies the
-// `authState` that decides Login vs Re-login / Signed in.
+// key) run in a terminal. GUI chat uses headless `-p --output-format json`,
+// which has no auth handshake, so we still synthesize the terminal login
+// method when the binary is installed. The renderer routes `type: "terminal"`
+// methods to `runTerminalLogin` → `loginCommand`. `authProbes` above supplies
+// the `authState` that decides Login vs Re-login / Signed in.
 const COMMANDCODE_TERMINAL_AUTH: AgentTerminalAuthMethod = {
   id: "commandcode-terminal-login",
   name: "Login",

@@ -334,7 +334,7 @@ export function isKnownToolName(name: string): boolean {
  * - `structured`: implements `createStructuredSession` (full GUI runtime).
  * - `one-shot`: has no structured runtime but implements
  *   `buildSubagentOneShotCommand` (a bypass-permissions CLI invocation) — this
- *   pulls CLI-only providers (Antigravity, Command Code) into the roster.
+ *   pulls CLI-only providers into the roster.
  * The `execution` field is surfaced so calling agents can see which lane a child
  * uses (one-shot children stream a single result and can't be steered).
  */

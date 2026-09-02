@@ -8,6 +8,7 @@ import {
 } from "../base";
 import { resolveInstallNodePath, warnIfPluginManifestMissing } from "../plugin/installerBase";
 import { buildCommandCodeArgs } from "./argv";
+import { createCommandCodeStructuredSession } from "./structuredSession";
 import {
   COMMANDCODE_DEFAULT_MODEL_ID,
   commandCodeDetectionSpec,
@@ -128,6 +129,10 @@ export function createCommandCodeAdapter(): AgentAdapter {
       return status;
     },
 
+    async createStructuredSession(input) {
+      return createCommandCodeStructuredSession(input);
+    },
+
     buildLaunchArgv(location, config, prompt) {
       // `command-code` has no flag to pre-assign or report a session id, so we
       // snapshot the existing transcripts here and let the runtime discover the
@@ -204,10 +209,10 @@ export function createCommandCodeAdapter(): AgentAdapter {
       };
     },
 
-    // Command Code has no structured (GUI) runtime, so it joins the subagent
-    // roster via the one-shot child lane. `--trust` skips folder trust; `--yolo`
-    // is the actual tool-permission bypass required because a one-shot child has
-    // no interactive approval channel and must never block on input.
+    // GUI threads use createStructuredSession (`-p --output-format json`).
+    // This one-shot lane remains for callers that don't open a structured
+    // session. `--trust` skips folder trust; `--yolo` bypasses tool prompts
+    // because a one-shot child has no interactive approval channel.
     buildSubagentOneShotCommand({ model, effort, prompt }) {
       return {
         command: "command-code",
