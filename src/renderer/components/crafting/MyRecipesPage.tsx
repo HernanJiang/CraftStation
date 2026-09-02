@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
-import { Pencil, Search, Trash2 } from "lucide-react";
+import { MessageSquarePlus, Pencil, Search, Trash2 } from "lucide-react";
 import type { StoredRecipe } from "@/shared/crafting/workbenchTypes";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { useAppStore } from "@/renderer/state/appStore";
+import { getCurrentProjectId } from "@/renderer/actions/currentProject";
 import { Button } from "@/renderer/components/common";
 
 /**
@@ -32,6 +34,27 @@ export function MyRecipesPage() {
   const handleLoad = (recipe: StoredRecipe) => {
     loadRecipeToDraft(recipe, "efficient");
     usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting" });
+  };
+
+  /**
+   * "Use in chat": stage the recipe as a pending intent and align the project's
+   * draft with the recipe's harness/model so the chat composer opens preloaded.
+   * It only records the intent — the user still submits the prompt themselves.
+   */
+  const handleUseInChat = (recipe: StoredRecipe) => {
+    const projectId = getCurrentProjectId();
+    if (projectId) {
+      const project = useAppStore.getState().projects.find((p) => p.id === projectId);
+      const draft = project?.lastDraftConfig;
+      useAppStore.getState().updateProjectDraftConfig(projectId, {
+        ...(draft ?? { model: recipe.lastKnownModel?.modelId ?? "" }),
+        agentKind:
+          recipe.lastKnownHarness?.harnessKind ?? recipe.harnessRef.replace(/^harness:/, ""),
+        model: recipe.lastKnownModel?.modelId ?? draft?.model ?? "",
+      });
+    }
+    useCraftingWorkbenchStore.getState().setPendingRecipeIntent({ recipeId: recipe.id });
+    usePanelStore.getState().closeModelUsageDialog();
   };
 
   const beginEditAlias = (recipe: StoredRecipe) => {
@@ -120,6 +143,15 @@ export function MyRecipesPage() {
                   <Button size="sm" variant="ghost" onPress={() => handleLoad(recipe)}>
                     加载
                   </Button>
+                  <button
+                    type="button"
+                    aria-label="在聊天中使用"
+                    title="在聊天中使用该配方"
+                    onClick={() => handleUseInChat(recipe)}
+                    className="rounded-md p-1.5 text-neutral-400 hover:bg-white/10 hover:text-emerald-300"
+                  >
+                    <MessageSquarePlus className="size-3.5" />
+                  </button>
                   <button
                     type="button"
                     aria-label="编辑别名"
