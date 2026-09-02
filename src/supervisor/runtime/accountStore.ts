@@ -163,6 +163,7 @@ export class AccountStore {
   }
 
   list(provider?: string): AccountView[] {
+    this.scrubIdentityLessAccounts(provider);
     return this.read()
       .accounts.filter((account) => provider === undefined || account.provider === provider)
       .sort((left, right) => left.order - right.order)
@@ -447,13 +448,28 @@ export class AccountStore {
    * Remove an uncompleted pending account row. Any row without a resolvable
    * provider identity is treated as an interrupted login leftover — it cannot
    * select a working session and must not keep occupying the usage list.
+   * Rows created in the last 10 minutes with no quota probe yet are kept so an
+   * in-flight `createEmpty` + login is not deleted mid-browser-auth.
    */
   cleanupOrphanedPendingAccounts(provider: string): number {
-    const orphaned = this.records(provider).filter(
-      (account) => !account.providerAccountId?.trim() && !account.maskedIdentity?.trim(),
-    );
+    const now = Date.now();
+    const orphaned = this.records(provider).filter((account) => {
+      if (account.providerAccountId?.trim() || account.maskedIdentity?.trim()) return false;
+      if (account.lastQuotaAt) return true;
+      return now - account.createdAt > 10 * 60 * 1000;
+    });
     for (const account of orphaned) this.remove(account.accountId);
     return orphaned.length;
+  }
+
+  private scrubIdentityLessAccounts(provider?: string): void {
+    const providers = provider
+      ? [provider]
+      : [...new Set(this.read().accounts.map((account) => account.provider))];
+    for (const id of providers) {
+      this.cleanupOrphanedPendingAccounts(id);
+      this.dedupeProviderIdentities(id);
+    }
   }
 
   /** Collapse duplicate identities for one provider, keeping the selected/newest row. */

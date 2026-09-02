@@ -284,8 +284,17 @@ export class CodexProfileService {
         return this.options.store.get(duplicate.accountId)!;
       }
     }
+    if (!providerAccountId) {
+      // A probe that cannot name the ChatGPT user is an interrupted/empty
+      // profile. Keep it in the store and it becomes another "账号身份未知" row.
+      this.options.store.remove(accountId);
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "Codex quota probe returned no account identity.",
+      );
+    }
     const withMetadata = this.options.store.updateProviderMetadata(accountId, {
-      ...(providerAccountId ? { providerAccountId } : {}),
+      providerAccountId,
       ...(maskedIdentity ? { maskedIdentity } : {}),
       ...(snapshot.plan ? { plan: snapshot.plan } : {}),
     });

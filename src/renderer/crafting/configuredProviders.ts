@@ -23,6 +23,7 @@ export function resolveConfiguredProviderIds(input: {
           status?: string | undefined;
           authenticatedAs?: string | null | undefined;
           plan?: string | null | undefined;
+          windows?: ReadonlyArray<unknown> | undefined;
         }
       | undefined
     >
@@ -39,8 +40,9 @@ export function resolveConfiguredProviderIds(input: {
   }
   for (const [id, snapshot] of Object.entries(input.usageSnapshots ?? {})) {
     if (!snapshot) continue;
-    if (isAuthorizedUsageStatus(snapshot.status)) ids.add(id);
-    if (snapshot.authenticatedAs?.trim() || snapshot.plan?.trim()) ids.add(id);
+    if (snapshot.authenticatedAs?.trim()) ids.add(id);
+    const hasWindows = (snapshot.windows?.length ?? 0) > 0;
+    if (isAuthorizedUsageStatus(snapshot.status) && hasWindows) ids.add(id);
   }
   return [...ids];
 }

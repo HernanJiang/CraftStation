@@ -447,6 +447,34 @@ describe("ThreadDraftView", () => {
     expect(document.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
   });
 
+  it("keeps a single Branch/Worktree Git entry above the full draft input", () => {
+    useGitStore.setState({
+      statuses: {
+        [project.id]: {
+          isRepo: true,
+          branch: "main",
+          tracking: "origin/main",
+          hasRemote: true,
+          remoteInfo: null,
+          ahead: 0,
+          behind: 0,
+          staged: [],
+          unstaged: [],
+          totalInsertions: 0,
+          totalDeletions: 0,
+        },
+      },
+    });
+    const { container } = render(
+      <ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={() => {}} />,
+    );
+
+    const contextBar = container.querySelector("[data-draft-context-bar]");
+    expect(contextBar?.querySelector("[data-draft-worktree-row]")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Worktree mode" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Select branch" })).toHaveLength(1);
+  });
+
   it("adds experiment candidates without a prompt and keeps the composer submit button", () => {
     useGitStore.setState({
       statuses: {

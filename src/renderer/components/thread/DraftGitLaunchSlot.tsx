@@ -17,6 +17,11 @@ export function useDraftGitLaunchControls(): ReactNode {
   return useContext(LaunchNodeContext);
 }
 
+/** True when the Home/conversation composer can portal Git controls into the context bar. */
+export function useDraftGitLaunchSlotActive(): boolean {
+  return useContext(SetLaunchContext) !== null;
+}
+
 /**
  * When a slot provider is present (full new-conversation page), render `children`
  * in the context bar above the input. Otherwise keep them in place (compact /

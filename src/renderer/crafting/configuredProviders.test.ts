@@ -19,6 +19,18 @@ describe("resolveConfiguredProviderIds", () => {
     ).toEqual(["antigravity", "codex", "grok"]);
   });
 
+  it("does not treat a plan-only OpenCode CLI snapshot as an added channel", () => {
+    expect(
+      resolveConfiguredProviderIds({
+        accounts: [],
+        storedLogin: {},
+        usageSnapshots: {
+          opencode: { status: "ok", plan: "Go", windows: [] },
+        },
+      }),
+    ).toEqual([]);
+  });
+
   it("matches composer agents by base kind", () => {
     const configured = new Set(["cursor"]);
     expect(isConfiguredComposerAgent("cursor:work", configured)).toBe(true);

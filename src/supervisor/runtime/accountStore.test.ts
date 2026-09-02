@@ -158,7 +158,7 @@ describe("AccountStore", () => {
   it("purges identity-less rows regardless of status and dedupes matching identities", () => {
     const store = createStore();
     const unknown = store.add({ provider: "codex", label: "ghost" });
-    store.updateStatus(unknown.accountId, "available");
+    store.updateStatus(unknown.accountId, "available", { lastQuotaAt: Date.now() });
     store.updateQuota(unknown.accountId, [{ id: "weekly", label: "Weekly", usedPercent: 10 }]);
     expect(store.cleanupOrphanedPendingAccounts("codex")).toBe(1);
     expect(store.list("codex")).toEqual([]);
@@ -175,6 +175,14 @@ describe("AccountStore", () => {
     });
     expect(store.dedupeProviderIdentities("codex")).toBe(1);
     expect(store.list("codex").map((account) => account.accountId)).toEqual([first.accountId]);
+  });
+
+  it("keeps a brand-new identity-less row during login, then list() drops probed ghosts", () => {
+    const store = createStore();
+    const pending = store.add({ provider: "codex", label: "A" });
+    expect(store.list("codex").map((account) => account.accountId)).toEqual([pending.accountId]);
+    store.updateStatus(pending.accountId, "available", { lastQuotaAt: Date.now() });
+    expect(store.list("codex")).toEqual([]);
   });
 
   it("matches provider identities case-insensitively and cleans only orphaned pending homes", () => {

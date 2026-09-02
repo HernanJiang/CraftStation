@@ -348,6 +348,8 @@ describe("SidebarProviderAccounts", () => {
       accountId: "codex:existing",
       provider: "codex",
       label: "Work profile",
+      providerAccountId: "work@example.com",
+      maskedIdentity: "work@example.com",
       createdAt: 1,
       enabled: true,
       selected: true,

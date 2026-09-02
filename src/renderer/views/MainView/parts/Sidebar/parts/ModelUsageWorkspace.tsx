@@ -82,12 +82,7 @@ function accountIdentity(account: AccountView): string {
  * available, never probed) count as stale.
  */
 function isStaleCachedAccount(account: AccountView): boolean {
-  return (
-    !account.providerAccountId?.trim() &&
-    !account.maskedIdentity?.trim() &&
-    account.status === "unavailable" &&
-    (account.quotaWindows === undefined || account.quotaWindows.length === 0)
-  );
+  return !account.providerAccountId?.trim() && !account.maskedIdentity?.trim();
 }
 
 /**
