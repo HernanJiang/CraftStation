@@ -28,6 +28,12 @@ const projectLocation = { kind: "windows" as const, path: "D:\\repo" };
 
 function craftedThread(): Thread {
   const registry = getDefaultRegistry();
+  // Codex owns its model catalog through app-server discovery; seed the
+  // official model in this handoff fixture instead of relying on the filtered
+  // stale builtin catalog.
+  registry.refreshCodexModels([
+    { id: "gpt-5.3-codex", displayName: "GPT-5.3 Codex", contextWindow: 200_000 },
+  ]);
   const result = new Crafter(registry).compile({
     slots: {
       model: registry.getItem("openai:gpt-5.3-codex")!,

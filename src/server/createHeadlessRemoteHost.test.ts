@@ -19,10 +19,17 @@ const h = vi.hoisted(() => ({
     mcpServers: [] as unknown[],
     disabledBuiltInMcpServers: {} as Record<string, boolean>,
   },
+  sqlite: {
+    prepare: vi.fn(() => ({ all: vi.fn(() => []), get: vi.fn(() => undefined), run: vi.fn() })),
+  },
 }));
 
 // `../db` (used by RemoteAccessServer) and `@/main/db` resolve to the same
 // file, so this mock covers both importers. Native better-sqlite3 never loads.
+vi.mock("@/main/db/connection", () => ({
+  getSqlite: () => h.sqlite,
+}));
+
 vi.mock("@/main/db", () => ({
   initDatabase: (dbPath: string) => h.initDatabase(dbPath),
   closeDatabase: () => h.closeDatabase(),
@@ -47,6 +54,7 @@ vi.mock("@/main/db", () => ({
   dbGetThreads: vi.fn<() => unknown[]>(() => []),
   dbGetThread: vi.fn<() => unknown>(() => null),
   dbGetThreadRuntimeItems: vi.fn<() => unknown[]>(() => []),
+  dbGetThreadRuntimeItem: vi.fn<() => unknown>(() => null),
   dbGetThreadCompletedTurns: vi.fn<() => unknown[]>(() => []),
   dbGetThreadContextUsage: vi.fn<() => unknown>(() => null),
   dbGetLatestThreadRuntimeAnchorItemId: vi.fn<() => null>(() => null),
