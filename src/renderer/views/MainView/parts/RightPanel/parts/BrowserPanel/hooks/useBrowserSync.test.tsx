@@ -58,7 +58,7 @@ describe("useBrowserSync", () => {
     usePanelStore.setState({
       auxiliaryPanelPlacement: "right",
       auxiliaryPanelTab: "browser",
-      auxiliaryPanelTabs: ["harness", "browser"],
+      auxiliaryPanelTabs: ["notes", "browser"],
       rightPanelTab: "browser",
       browserPanelOpen: true,
       browserOverlayOpen: true,
@@ -79,9 +79,9 @@ describe("useBrowserSync", () => {
     });
 
     expect(usePanelStore.getState()).toMatchObject({
-      auxiliaryPanelTab: "harness",
-      auxiliaryPanelTabs: ["harness"],
-      rightPanelTab: "harness",
+      auxiliaryPanelTab: "notes",
+      auxiliaryPanelTabs: ["notes"],
+      rightPanelTab: "notes",
       browserPanelOpen: false,
       browserOverlayOpen: false,
       browserOverlayMaximized: false,

@@ -158,7 +158,7 @@ describe("ProjectAuxiliaryPanel", () => {
     usePanelStore.setState({
       auxiliaryPanelPlacement: "right",
       auxiliaryPanelTab: "browser",
-      auxiliaryPanelTabs: ["harness", "browser"],
+      auxiliaryPanelTabs: ["notes", "browser"],
       rightPanelTab: "browser",
       browserPanelOpen: true,
       browserOverlayOpen: true,
@@ -176,7 +176,7 @@ describe("ProjectAuxiliaryPanel", () => {
 
     expect(usePanelStore.getState()).toMatchObject({
       auxiliaryPanelTab: "browser",
-      auxiliaryPanelTabs: ["harness", "browser"],
+      auxiliaryPanelTabs: ["notes", "browser"],
       browserOverlayOpen: false,
       browserOverlayMaximized: false,
     });

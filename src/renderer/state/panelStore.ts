@@ -46,8 +46,12 @@ export interface SubAgentPanelContext {
   projectLocation?: ProjectLocation;
 }
 
+/**
+ * Valid right-panel tool tabs. The old "harness" Crafting Table tab was
+ * removed in v1.0.0 — the Crafting Table is now the "合成台" first-level tab
+ * of the model-usage workspace (openModelUsageWorkspace({ tab: "crafting" })).
+ */
 export type RightPanelTab =
-  | "harness"
   | "git"
   | "files"
   | "terminal"
@@ -141,6 +145,10 @@ interface PanelState {
   browserOverlayDrawerWidth: number;
   /** Global Codex-style provider account and quota dialog. */
   modelUsageDialogOpen: boolean;
+  /** Primary workspace tab shown when the model-usage workspace is open. */
+  modelUsageWorkspaceTab: "usage" | "models" | "crafting" | "recipes";
+  /** Workbench mode to enter when the crafting tab is opened (null = restore last). */
+  modelUsageEntryMode: "efficient" | "creative" | null;
   settingsOpen: boolean;
   /** When the overlay is opened deep-linked to a section (e.g. "usage"); else null. */
   settingsSection: string | null;
@@ -190,6 +198,16 @@ interface PanelState {
   openBrowserPanel: () => void;
   openModelUsageDialog: () => void;
   closeModelUsageDialog: () => void;
+  /**
+   * Open the model-usage workspace at a specific primary tab, optionally
+   * entering the crafting workbench in a chosen mode (null = restore last
+   * Workbench mode). Kept as a single action so every chat/panel entry point
+   * drives the same state instead of mutating local tab state separately.
+   */
+  openModelUsageWorkspace: (input: {
+    tab: "usage" | "models" | "crafting" | "recipes";
+    entryMode?: "efficient" | "creative";
+  }) => void;
   openSettings: () => void;
   openSettingsSection: (section: string) => void;
   clearSettingsSection: () => void;
@@ -299,6 +317,8 @@ export const usePanelStore = create<PanelState>()((set) => ({
     ? clampDrawerWidth(initialPersisted.browserOverlayDrawerWidth)
     : DEFAULT_DRAWER_WIDTH,
   modelUsageDialogOpen: false,
+  modelUsageWorkspaceTab: "usage",
+  modelUsageEntryMode: null,
   settingsOpen: false,
   settingsSection: null,
   projectSettingsId: null,
@@ -535,6 +555,12 @@ export const usePanelStore = create<PanelState>()((set) => ({
   openBrowserPanel: () => set({ browserPanelOpen: true }),
   openModelUsageDialog: () => set({ modelUsageDialogOpen: true }),
   closeModelUsageDialog: () => set({ modelUsageDialogOpen: false }),
+  openModelUsageWorkspace: (input) =>
+    set(() => ({
+      modelUsageDialogOpen: true,
+      modelUsageWorkspaceTab: input.tab,
+      modelUsageEntryMode: input.entryMode ?? null,
+    })),
   openSettings: () => set({ settingsOpen: true, settingsSection: null }),
   openSettingsSection: (section) => set({ settingsOpen: true, settingsSection: section }),
   clearSettingsSection: () => set({ settingsSection: null }),

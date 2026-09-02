@@ -195,10 +195,7 @@ export function MainTitlebar() {
   const updatePercent = useUpdateStore((state) => state.downloadPercent);
 
   function openCraftingTable() {
-    const panel = usePanelStore.getState();
-    panel.setAuxiliaryPanelPlacement("right");
-    panel.setAuxiliaryPanelTab("harness");
-    panel.setRightPanelTab("harness");
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting" });
   }
 
   return (

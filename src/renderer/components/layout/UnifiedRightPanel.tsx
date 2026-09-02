@@ -53,9 +53,7 @@ export function UnifiedRightPanel(props: {
   showPlanTab?: boolean;
   showSubagentTab?: boolean;
   showBrowserTab?: boolean;
-  showHarnessTab?: boolean;
   showSideChatTab?: boolean;
-  harnessContent?: ReactNode;
   sideChatContent?: ReactNode;
   onToggleMaximize?: () => void;
   isMaximized?: boolean;
@@ -118,9 +116,7 @@ export function UnifiedRightPanel(props: {
     showPlanTab = false,
     showSubagentTab = false,
     showBrowserTab = true,
-    showHarnessTab = false,
     showSideChatTab = false,
-    harnessContent,
     sideChatContent,
     onCloseSubagent,
     onToggleMaximize,
@@ -262,14 +258,6 @@ export function UnifiedRightPanel(props: {
       onOpen: onOpenBrowser,
     },
     {
-      id: "harness",
-      label: labels.harness,
-      icon: PANEL_TAB_ICONS.harness,
-      content: harnessContent,
-      visible: showHarnessTab,
-      onOpen: undefined,
-    },
-    {
       id: "side-chat",
       label: labels["side-chat"],
       icon: PANEL_TAB_ICONS["side-chat"],
@@ -309,7 +297,7 @@ export function UnifiedRightPanel(props: {
     label: tab.title || tab.url,
   }));
   const addableTabs = visibleTabs.filter((tab) =>
-    ["git", "terminal", "browser", "files", "harness", "side-chat"].includes(tab.id),
+    ["git", "terminal", "browser", "files", "side-chat"].includes(tab.id),
   );
 
   const renderToolTab = (tab: (typeof tabs)[number]) => {

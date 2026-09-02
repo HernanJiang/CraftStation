@@ -12,7 +12,6 @@ import {
 } from "@/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/browserWindowActions";
 import { DevTerminalPanel } from "@/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/DevTerminalPanel";
 import { AuxiliaryPanelLauncher } from "@/renderer/views/MainView/parts/AuxiliaryPanelLauncher";
-import { HarnessPanel } from "./RightPanel/parts/HarnessPanel/HarnessPanel";
 import { SideChatPanel } from "./RightPanel/parts/SideChatPanel";
 import {
   UnifiedRightPanel,
@@ -241,7 +240,6 @@ export function ProjectAuxiliaryPanel(props: {
       (auxiliaryPanelTab === "notes" && notesPanelOpen) ||
       (auxiliaryPanelTab === "plan" && planInCurrentThread) ||
       (auxiliaryPanelTab === "subagent" && subAgentInCurrentThread) ||
-      auxiliaryPanelTab === "harness" ||
       (auxiliaryPanelTab === "side-chat" && currentThreadId !== null);
     if (!hasContent) closeAuxiliaryPanelTab(auxiliaryPanelTab);
   }, [
@@ -555,7 +553,6 @@ export function ProjectAuxiliaryPanel(props: {
           />
         ) : undefined
       }
-      harnessContent={<HarnessPanel />}
       sideChatContent={<SideChatPanel />}
       usageHeaderActions={
         <UsagePanelHeaderActions dragControlClass="craftstation-overlay-header__controls" />
@@ -566,7 +563,6 @@ export function ProjectAuxiliaryPanel(props: {
       showNotesTab={notesProjectId !== undefined}
       showPlanTab={renderPlanContent}
       showSubagentTab={renderSubAgentContent}
-      showHarnessTab
       showSideChatTab={currentThreadId !== null}
       openTabs={openTabs}
       launcherOpen={launcherOpen}

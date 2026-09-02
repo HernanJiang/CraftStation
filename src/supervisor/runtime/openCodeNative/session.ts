@@ -408,6 +408,16 @@ export class OpenCodeNativeSession implements CraftSession {
       const diagnosticRecord = diagnostic(this.connection.correlationId, "session.abort", error);
       this._diagnostics.push(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
+      // The abort call failed, but the user asked for Stop: settle the local
+      // pending turn so the session accepts the next prompt instead of hanging
+      // on a promise no one will resolve. The supervisor's interrupt watchdog
+      // is still armed as the last-resort force close.
+      if (this.pendingTurn) {
+        this._activeTurnStatus = "interrupted";
+        const pending = this.pendingTurn;
+        this.pendingTurn = undefined;
+        pending.resolve();
+      }
       throw error;
     }
   }

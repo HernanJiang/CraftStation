@@ -45,6 +45,8 @@ import {
 import type { AccountView, UsageSnapshot } from "@/shared/contracts";
 import { AccountQuotaCard, ProviderQuotaCard } from "./AccountQuotaCard";
 import { ModelManagementPage } from "./ModelManagementPage";
+import { CraftingWorkbenchPage } from "@/renderer/components/crafting/CraftingWorkbenchPage";
+import { MyRecipesPage } from "@/renderer/components/crafting/MyRecipesPage";
 
 const CLI_LOGIN_COMMANDS: Record<string, string> = {
   claude: "claude auth login",
@@ -1326,7 +1328,13 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   const [openAiCompatibleForm, setOpenAiCompatibleForm] = useState<{ accountId?: string } | null>(
     null,
   );
-  const [workspaceTab, setWorkspaceTab] = useState<"usage" | "models">("usage");
+  const [workspaceTab, setWorkspaceTab] = useState<"usage" | "models" | "crafting" | "recipes">(
+    usePanelStore.getState().modelUsageWorkspaceTab,
+  );
+  const setWorkspaceTabAndEntry = (tab: "usage" | "models" | "crafting" | "recipes") => {
+    setWorkspaceTab(tab);
+    usePanelStore.getState().openModelUsageWorkspace({ tab });
+  };
   const customModels = useSharedSettings((state) => state.customModels);
   const setCustomModels = useSharedSettings((state) => state.setCustomModels);
   const [accountQueryStates, setAccountQueryStates] = useState<
@@ -1889,6 +1897,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
               [
                 ["usage", "添加渠道与查看用量"],
                 ["models", "管理模型"],
+                ["crafting", "合成台"],
+                ["recipes", "我的配方"],
               ] as const
             ).map(([tab, label]) => (
               <button
@@ -1896,7 +1906,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 type="button"
                 role="tab"
                 aria-selected={workspaceTab === tab}
-                onClick={() => setWorkspaceTab(tab)}
+                onClick={() => setWorkspaceTabAndEntry(tab)}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                   workspaceTab === tab
                     ? "bg-white/10 text-white"
@@ -1924,6 +1934,17 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
           onUpdateCustomModels={setCustomModels}
           configuredProviderIds={[...configuredProviderIds]}
         />
+      ) : workspaceTab === "crafting" ? (
+        <CraftingWorkbenchPage
+          accounts={accounts}
+          customModels={customModels}
+          onUpdateCustomModels={setCustomModels}
+          configuredProviderIds={[...configuredProviderIds]}
+          providerOrder={providerOrder}
+          entryMode={usePanelStore.getState().modelUsageEntryMode ?? undefined}
+        />
+      ) : workspaceTab === "recipes" ? (
+        <MyRecipesPage />
       ) : (
         <div className="flex min-h-0 flex-1 gap-3 overflow-auto p-3">
           <div

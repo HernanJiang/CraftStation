@@ -347,8 +347,22 @@ class StructuredNativeCraftSession implements CraftSession {
 
   async interrupt(): Promise<void> {
     if (this._disposed) return;
+    if (!this.handle.interruptTurn) {
+      // No native cancel on this handle. Refuse to fake a stop: throw so the
+      // supervisor's interrupt watchdog force-closes the turn instead of the
+      // renderer believing a still-running turn was interrupted.
+      this._diagnostics.push(
+        diagnostic(
+          this.descriptor,
+          "interrupt",
+          "interrupt",
+          new Error("interruptTurn unavailable"),
+        ),
+      );
+      throw new Error("native handle does not support interruptTurn");
+    }
     try {
-      await this.handle.interruptTurn?.();
+      await this.handle.interruptTurn();
     } catch (error) {
       this._diagnostics.push(diagnostic(this.descriptor, "interrupt", "interrupt", error));
       throw error;

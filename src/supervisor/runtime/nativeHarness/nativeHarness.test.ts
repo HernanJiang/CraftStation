@@ -215,6 +215,28 @@ describe("Native Harness runtime seam", () => {
     );
   });
 
+  it("refuses to fake an interrupt when the native handle has no interruptTurn", async () => {
+    const handle = makeStructuredHandle();
+    delete (handle as Partial<StructuredSessionHandle>).interruptTurn;
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: makeStructuredAgent(handle),
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+    });
+    const entity = await adapter.spawnEntity(makePlan("grok", "xai"));
+    const session = await adapter.createSession(entity);
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    await expect(session.interrupt()).rejects.toThrow("does not support interruptTurn");
+    // No fake turn.completed and no optimistic idle flip: the supervisor's
+    // watchdog owns the force-close decision.
+    expect(events).toEqual([]);
+    expect(session.getDiagnostics?.() ?? []).toEqual(
+      expect.arrayContaining([expect.objectContaining({ operation: "interrupt" })]),
+    );
+  });
+
   it("forwards the native prompt error observer into the provider structured-session seam", async () => {
     const handle = makeStructuredHandle();
     const createStructuredSession = vi.fn(async () => handle);
