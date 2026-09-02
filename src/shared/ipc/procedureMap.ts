@@ -1,5 +1,6 @@
 import { appProcedures } from "./procedures/app";
 import { browserProcedures } from "./procedures/browser";
+import { collaborationProcedures } from "./procedures/collaboration";
 import { dbProcedures } from "./procedures/db";
 import { experimentProcedures } from "./procedures/experiment";
 import { githubProcedures } from "./procedures/github";
@@ -21,6 +22,7 @@ import { nativeHarnessProcedures } from "./procedures/nativeHarness";
 
 export const groupedIpcProcedures = {
   app: appProcedures,
+  collaboration: collaborationProcedures,
   thread: threadProcedures,
   git: gitProcedures,
   experiment: experimentProcedures,
@@ -44,6 +46,7 @@ export const groupedIpcProcedures = {
 
 export const ipcProcedureMap = {
   ...appProcedures,
+  ...collaborationProcedures,
   ...threadProcedures,
   ...gitProcedures,
   ...experimentProcedures,
@@ -92,6 +95,12 @@ export const MAIN_LOCAL_PROCEDURE_NAMES = [
   "openExternalNative",
   "openMicrophoneSettings",
   "focusWindow",
+  "listThreadCollaborationTargets",
+  "requestThreadDialogue",
+  "listThreadExchanges",
+  "readThreadExchange",
+  "waitForThreadExchange",
+  "cancelThreadExchange",
   "showNotification",
   "relaunchApp",
   "getHomeScopeLocation",

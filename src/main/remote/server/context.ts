@@ -7,6 +7,7 @@ import type {
   RemoteGitStateEvent,
   RemoteProjectsChangedEvent,
   RemoteThreadsChangedEvent,
+  RemoteThreadCollaborationChangedEvent,
   RemoteWebSocketServerMessage,
 } from "@/shared/remote";
 import type { SupervisorEvent } from "@/shared/ipc";
@@ -23,7 +24,8 @@ export type RemoteBroadcastEvent =
   | RemoteGitSummariesEvent
   | RemoteGitStateEvent
   | RemoteProjectsChangedEvent
-  | RemoteThreadsChangedEvent;
+  | RemoteThreadsChangedEvent
+  | RemoteThreadCollaborationChangedEvent;
 
 export interface BufferedSupervisorEvent {
   readonly seq: number;

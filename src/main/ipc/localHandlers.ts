@@ -86,6 +86,8 @@ import { UsageLoginManager } from "../usageLogin/UsageLoginManager";
 import type { SshConnectionManager } from "../ssh/SshConnectionManager";
 import type { ScheduleService } from "../schedules/ScheduleService";
 import type { PrWatchService } from "../prWatch";
+import type { ThreadCollaborationService } from "../thread-collaboration";
+import { toThreadExchangeView } from "@/shared/threadCollaboration";
 import { homeScopeLocation } from "../schedules";
 
 interface CreateLocalIpcHandlersOptions {
@@ -114,6 +116,8 @@ interface CreateLocalIpcHandlersOptions {
   requestRelaunch(): void;
   scheduleService: ScheduleService;
   prWatchService: PrWatchService;
+  /** Shared instance owned by App Controls; null only during early startup/tests. */
+  getThreadCollaborationService?(): ThreadCollaborationService | null;
 }
 
 function requireBrowserPanel(getter: () => BrowserPanelManager | null): BrowserPanelManager {
@@ -177,6 +181,11 @@ export async function showAddFilesDialog(
 export function createLocalIpcHandlers(
   options: CreateLocalIpcHandlersOptions,
 ): MainLocalIpcHandlerMap {
+  const requireCollaboration = (): ThreadCollaborationService => {
+    const service = options.getThreadCollaborationService?.();
+    if (!service) throw new Error("Thread collaboration is not initialized.");
+    return service;
+  };
   const publishProjectsChanged = (projects = dbGetProjects()): void => {
     const server = options.getRemoteAccessServer();
     if (!server) return;
@@ -208,6 +217,32 @@ export function createLocalIpcHandlers(
     return applied.result;
   };
   return defineMainLocalIpcHandlers({
+    listThreadCollaborationTargets: ({ sourceThreadId, query }) =>
+      requireCollaboration().listTargets(sourceThreadId, query),
+    requestThreadDialogue: async (request) =>
+      toThreadExchangeView(
+        await requireCollaboration().requestDialogue({
+          actorThreadId: request.sourceThreadId,
+          request,
+        }),
+      ),
+    listThreadExchanges: ({ actorThreadId, threadId, limit }) =>
+      requireCollaboration()
+        .listExchanges(actorThreadId, threadId, limit)
+        .map(toThreadExchangeView),
+    readThreadExchange: ({ actorThreadId, exchangeId }) =>
+      toThreadExchangeView(requireCollaboration().readExchange(actorThreadId, exchangeId)),
+    waitForThreadExchange: async ({ actorThreadId, exchangeId, afterUpdatedAt, timeoutMs }) => {
+      const result = await requireCollaboration().waitForExchange(
+        actorThreadId,
+        exchangeId,
+        afterUpdatedAt,
+        timeoutMs,
+      );
+      return { timedOut: result.timedOut, exchange: toThreadExchangeView(result.exchange) };
+    },
+    cancelThreadExchange: ({ actorThreadId, exchangeId }) =>
+      toThreadExchangeView(requireCollaboration().cancelExchange(actorThreadId, exchangeId)),
     pickFolder: async (defaultPath) => {
       const result = await dialog.showOpenDialog(options.getMainWindow()!, {
         properties: ["openDirectory"],

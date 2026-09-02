@@ -5,6 +5,7 @@ import type { GitStatePatch, GitStateSnapshot } from "@/shared/gitState";
 import { HOME_PROJECT_ID } from "@/shared/homeScope";
 import { CRAFTSTATION_REMOTE_PROTOCOL_VERSION, type RemoteGitSummaries } from "@/shared/remote";
 import { RemoteClientError, RemoteDesktopClient } from "@/shared/remote/client";
+import type { ThreadExchangeView } from "@/shared/threadCollaboration";
 import {
   __resetRemoteServersStoreForTest,
   installRemoteProjectWorkspaceSync,
@@ -3215,6 +3216,87 @@ describe("useRemoteServersStore", () => {
 
     expect(after).toBe(before);
     expect(after.projects).toBe(before.projects);
+  });
+
+  it("refreshes runtime identity when only collaboration exchanges change", async () => {
+    const exchange = {
+      id: "exchange-1",
+      linkId: "link-1",
+      projectId: "p1",
+      sourceThreadId: "rt-source",
+      targetThreadId: "rt-target",
+      sequence: 1,
+      deliveryMode: "after-current-turn",
+      status: "queued",
+      sourceProvenance: {
+        threadId: "rt-source",
+        projectId: "p1",
+        title: "Source",
+        modelId: "gpt-5.6-sol",
+        harnessId: "codex",
+        agentMcpSupported: true,
+      },
+      targetProvenance: {
+        threadId: "rt-target",
+        projectId: "p1",
+        title: "Target",
+        modelId: "grok-4.6",
+        harnessId: "grok",
+        agentMcpSupported: true,
+      },
+      requestItemId: "request-1",
+      deliveryBaselineTurnIndex: null,
+      deliveryAnchorItemId: null,
+      replyTurnIndex: null,
+      replyAnchorItemId: null,
+      replyExcerpt: null,
+      causalParentExchangeId: null,
+      hopDepth: 0,
+      error: null,
+      createdAt: "2026-08-31T09:00:00.000Z",
+      updatedAt: "2026-08-31T09:00:00.000Z",
+      deliveredAt: null,
+      repliedAt: null,
+    } satisfies ThreadExchangeView;
+    let currentExchange: ThreadExchangeView = exchange;
+    const snapshot = vi.fn<RemoteDesktopClient["snapshot"]>(async () => ({
+      snapshotSeq: 2,
+      projects: [{ ...proj, location: { ...proj.location } }],
+      threads: [],
+      runtimeSummariesByThread: {},
+      collaborationExchangesByThread: { "rt-source": [currentExchange] },
+      updatedAt: currentExchange.updatedAt,
+    }));
+    useRemoteServersStore.getState().setClientFactory(factoryFor(makeClient({ snapshot })));
+    await pairIsolated(() => makeSocket());
+    const before = useRemoteServersStore.getState().runtime.d1!;
+
+    currentExchange = {
+      ...exchange,
+      status: "replied",
+      replyTurnIndex: 2,
+      replyAnchorItemId: "reply-1",
+      replyExcerpt: "Completed reply",
+      updatedAt: "2026-08-31T09:01:00.000Z",
+      repliedAt: "2026-08-31T09:01:00.000Z",
+    };
+    await useRemoteServersStore.getState().refreshServer("d1");
+    const after = useRemoteServersStore.getState().runtime.d1!;
+
+    expect(after).not.toBe(before);
+    expect(after.projects).toBe(before.projects);
+    expect(after.threads).toBe(before.threads);
+    expect(
+      after.collaborationExchangesByThread?.[remoteThreadId("d1", "rt-source")]?.[0],
+    ).toMatchObject({
+      id: "remote:d1:exchange:exchange-1",
+      status: "replied",
+      replyAnchorItemId: "reply-1",
+    });
+
+    const stable = after;
+    await useRemoteServersStore.getState().refreshServer("d1");
+    expect(useRemoteServersStore.getState().runtime.d1).toBe(stable);
   });
 
   // ── Finding #3: pairing during in-flight connectAll ─────────────────

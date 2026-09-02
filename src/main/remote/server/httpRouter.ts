@@ -13,6 +13,12 @@ import {
   remotePushUnregisterSchema,
   remoteRuntimeItemsPageRequestSchema,
   remoteTimelineEntryCountSchema,
+  remoteThreadCollaborationCancelRequestSchema,
+  remoteThreadCollaborationListRequestSchema,
+  remoteThreadCollaborationReadRequestSchema,
+  remoteThreadCollaborationRequestSchema,
+  remoteThreadCollaborationTargetsRequestSchema,
+  remoteThreadCollaborationWaitRequestSchema,
   remoteSettingsPatchSchema,
   remoteScheduleCommandSchema,
   remoteTokenExchangePayloadSchema,
@@ -389,6 +395,111 @@ export async function handleHttp(
     if (req.method === "GET" && url.pathname === "/api/snapshot") {
       ctx.security.requireBearer(req, ["session:read"]);
       await writeNegotiatedJsonResponse(req, res, 200, buildShellSnapshot(ctx));
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/thread-collaboration/targets") {
+      ctx.security.requireBearer(req, ["session:read"]);
+      const input = remoteThreadCollaborationTargetsRequestSchema.parse({
+        sourceThreadId: url.searchParams.get("sourceThreadId"),
+        ...(url.searchParams.get("query") ? { query: url.searchParams.get("query") } : {}),
+      });
+      const gateway = ctx.options.threadCollaboration;
+      if (!gateway) {
+        throw new RemoteHttpError(
+          "thread_collaboration_unavailable",
+          "Thread collaboration is not available on this host.",
+          503,
+        );
+      }
+      writeJson(res, 200, gateway.listTargets(input.sourceThreadId, input.query));
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/thread-collaboration/exchanges") {
+      ctx.security.requireBearer(req, ["session:read"]);
+      const input = remoteThreadCollaborationListRequestSchema.parse({
+        actorThreadId: url.searchParams.get("actorThreadId"),
+        threadId: url.searchParams.get("threadId"),
+        limit: Number(url.searchParams.get("limit") ?? 30),
+      });
+      const gateway = ctx.options.threadCollaboration;
+      if (!gateway) {
+        throw new RemoteHttpError(
+          "thread_collaboration_unavailable",
+          "Thread collaboration is not available on this host.",
+          503,
+        );
+      }
+      writeJson(
+        res,
+        200,
+        gateway.list(input.actorThreadId, input.threadId, input.limit).map(gateway.summarize),
+      );
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/thread-collaboration/request") {
+      ctx.security.requireBearer(req, ["session:operate"]);
+      const request = remoteThreadCollaborationRequestSchema.parse(await readJsonBody(req));
+      const gateway = ctx.options.threadCollaboration;
+      if (!gateway) {
+        throw new RemoteHttpError(
+          "thread_collaboration_unavailable",
+          "Thread collaboration is not available on this host.",
+          503,
+        );
+      }
+      const exchange = await gateway.request(request.sourceThreadId, request);
+      writeJson(res, 200, gateway.summarize(exchange));
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/thread-collaboration/read") {
+      ctx.security.requireBearer(req, ["session:read"]);
+      const input = remoteThreadCollaborationReadRequestSchema.parse(await readJsonBody(req));
+      const gateway = ctx.options.threadCollaboration;
+      if (!gateway) {
+        throw new RemoteHttpError(
+          "thread_collaboration_unavailable",
+          "Thread collaboration is not available on this host.",
+          503,
+        );
+      }
+      writeJson(res, 200, gateway.summarize(gateway.read(input.actorThreadId, input.exchangeId)));
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/thread-collaboration/wait") {
+      ctx.security.requireBearer(req, ["session:read"]);
+      const input = remoteThreadCollaborationWaitRequestSchema.parse(await readJsonBody(req));
+      const gateway = ctx.options.threadCollaboration;
+      if (!gateway) {
+        throw new RemoteHttpError(
+          "thread_collaboration_unavailable",
+          "Thread collaboration is not available on this host.",
+          503,
+        );
+      }
+      const result = await gateway.wait(
+        input.actorThreadId,
+        input.exchangeId,
+        input.afterUpdatedAt,
+        input.timeoutMs,
+      );
+      writeJson(res, 200, {
+        timedOut: result.timedOut,
+        exchange: gateway.summarize(result.exchange),
+      });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/thread-collaboration/cancel") {
+      ctx.security.requireBearer(req, ["session:operate"]);
+      const input = remoteThreadCollaborationCancelRequestSchema.parse(await readJsonBody(req));
+      const gateway = ctx.options.threadCollaboration;
+      if (!gateway) {
+        throw new RemoteHttpError(
+          "thread_collaboration_unavailable",
+          "Thread collaboration is not available on this host.",
+          503,
+        );
+      }
+      writeJson(res, 200, gateway.summarize(gateway.cancel(input.actorThreadId, input.exchangeId)));
       return;
     }
     if (req.method === "GET" && url.pathname === "/api/agent-statuses") {

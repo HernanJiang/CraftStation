@@ -104,6 +104,10 @@ import type {
   CreateAppThreadResult,
 } from "../../../threads/appThreadLauncher";
 import type { ThreadStateBroker } from "../../../threads/threadStateBroker";
+import type {
+  ThreadCollaborationService,
+  ThreadControlAdapter,
+} from "../../../thread-collaboration";
 
 /**
  * Typed subset of `supervisorClient.call` the thread-management tools use. Kept
@@ -329,6 +333,10 @@ export interface AppControlsToolContext {
   checkForUpdate(): Promise<AppControlsUpdateCheck>;
   /** Live status cache + event-driven wait surface (persistent, ingress-owned). */
   threadStates: ThreadStateBroker;
+  /** Shared long-lived thread control seam; never used for ephemeral Crossagents. */
+  threadControl: ThreadControlAdapter;
+  /** CraftStation-owned collaboration policy, ledger and reply-correlation module. */
+  threadCollaboration: ThreadCollaborationService;
 }
 
 /** One tool's handler; receives validated raw args and the request context. */

@@ -1,5 +1,6 @@
 export * from "./DesktopRemoteAccessController";
 export * from "./RemoteAccessServer";
+export * from "./threadCollaborationGateway";
 export * from "./RemoteBrowserGateway";
 export * from "./RemotePortForwardGateway";
 export * from "./auth";

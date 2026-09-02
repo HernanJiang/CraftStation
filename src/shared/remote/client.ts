@@ -25,7 +25,11 @@ import {
   remoteProjectSettingsSchema,
   remoteRuntimeItemsPageSchema,
   remoteShellSnapshotSchema,
+  remoteThreadCollaborationTargetsResponseSchema,
+  remoteThreadCollaborationWaitResponseSchema,
+  remoteThreadExchangeSummarySchema,
   remoteThreadSnapshotSchema,
+  type RemoteThreadExchangeSummary,
   remoteWebSocketServerMessageSchema,
   remoteWebSocketTicketResultSchema,
   toWebSocketUrl,
@@ -90,6 +94,7 @@ import {
   type ScheduledTaskInput,
 } from "@/shared/contracts";
 import { readBoundedResponseBody } from "@/shared/http";
+import type { ThreadDialogueRequest, ThreadTargetSummary } from "@/shared/threadCollaboration";
 
 export class RemoteClientError extends Error {
   constructor(
@@ -579,6 +584,84 @@ export class RemoteDesktopClient {
     });
     return remoteThreadSnapshotSchema.parse(
       await this.requestJson(`/api/threads/${encodeURIComponent(threadId)}/history?${search}`),
+    );
+  }
+
+  async listThreadCollaborationTargets(input: {
+    sourceThreadId: string;
+    query?: string;
+  }): Promise<ThreadTargetSummary[]> {
+    const search = new URLSearchParams({
+      sourceThreadId: input.sourceThreadId,
+      ...(input.query ? { query: input.query } : {}),
+    });
+    return remoteThreadCollaborationTargetsResponseSchema.parse(
+      await this.requestJson(`/api/thread-collaboration/targets?${search}`),
+    );
+  }
+
+  async requestThreadDialogue(
+    request: ThreadDialogueRequest,
+  ): Promise<RemoteThreadExchangeSummary> {
+    return remoteThreadExchangeSummarySchema.parse(
+      await this.requestJson("/api/thread-collaboration/request", {
+        method: "POST",
+        body: request,
+      }),
+    );
+  }
+
+  async listThreadExchanges(input: {
+    actorThreadId: string;
+    threadId: string;
+    limit: number;
+  }): Promise<RemoteThreadExchangeSummary[]> {
+    const search = new URLSearchParams({
+      actorThreadId: input.actorThreadId,
+      threadId: input.threadId,
+      limit: String(input.limit),
+    });
+    return remoteThreadExchangeSummarySchema
+      .array()
+      .parse(await this.requestJson(`/api/thread-collaboration/exchanges?${search}`));
+  }
+
+  async readThreadExchange(input: {
+    actorThreadId: string;
+    exchangeId: string;
+  }): Promise<RemoteThreadExchangeSummary> {
+    return remoteThreadExchangeSummarySchema.parse(
+      await this.requestJson("/api/thread-collaboration/read", {
+        method: "POST",
+        body: input,
+      }),
+    );
+  }
+
+  async waitForThreadExchange(input: {
+    actorThreadId: string;
+    exchangeId: string;
+    afterUpdatedAt?: string;
+    timeoutMs: number;
+  }): Promise<{ timedOut: boolean; exchange: RemoteThreadExchangeSummary }> {
+    return remoteThreadCollaborationWaitResponseSchema.parse(
+      await this.requestJson("/api/thread-collaboration/wait", {
+        method: "POST",
+        body: input,
+        timeoutMs: input.timeoutMs + 5_000,
+      }),
+    );
+  }
+
+  async cancelThreadExchange(input: {
+    actorThreadId: string;
+    exchangeId: string;
+  }): Promise<RemoteThreadExchangeSummary> {
+    return remoteThreadExchangeSummarySchema.parse(
+      await this.requestJson("/api/thread-collaboration/cancel", {
+        method: "POST",
+        body: input,
+      }),
     );
   }
 

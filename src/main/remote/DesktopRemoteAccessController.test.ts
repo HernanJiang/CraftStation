@@ -240,6 +240,7 @@ function createController(
     scheduleService: {} as never,
     prWatchService: {} as never,
     gitStateService: { refreshInterests: h.refreshGitInterests } as never,
+    getThreadCollaborationService: () => null,
     updates: {
       currentVersion: () => "9.9.9-test",
       status: () => null,

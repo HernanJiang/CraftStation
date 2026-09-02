@@ -472,6 +472,67 @@ export const DATABASE_MIGRATIONS = [
           WHERE phase NOT IN ('active', 'rolled_back', 'failed', 'cancelled');
       `),
   },
+  {
+    version: 40,
+    name: "thread collaboration ledger",
+    migrate: (sqlite) =>
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS thread_conversation_links (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          participant_a_thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+          participant_b_thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+          status TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(project_id, participant_a_thread_id, participant_b_thread_id)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_conversation_links_participants
+          ON thread_conversation_links (project_id, participant_a_thread_id, participant_b_thread_id);
+        CREATE TABLE IF NOT EXISTS thread_exchanges (
+          id TEXT PRIMARY KEY,
+          link_id TEXT NOT NULL REFERENCES thread_conversation_links(id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL,
+          source_thread_id TEXT NOT NULL,
+          target_thread_id TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
+          delivery_mode TEXT NOT NULL,
+          status TEXT NOT NULL,
+          request TEXT NOT NULL,
+          context_capsule TEXT,
+          source_provenance TEXT NOT NULL,
+          target_provenance TEXT NOT NULL,
+          idempotency_key TEXT NOT NULL,
+          request_item_id TEXT NOT NULL,
+          delivery_baseline_turn_index INTEGER,
+          delivery_anchor_item_id TEXT,
+          reply_turn_index INTEGER,
+          reply_anchor_item_id TEXT,
+          reply_excerpt TEXT,
+          causal_parent_exchange_id TEXT,
+          hop_depth INTEGER NOT NULL DEFAULT 0,
+          error TEXT,
+          claim_token TEXT,
+          claim_expires_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          delivered_at TEXT,
+          replied_at TEXT,
+          UNIQUE(source_thread_id, idempotency_key),
+          UNIQUE(link_id, sequence)
+        );
+        CREATE INDEX IF NOT EXISTS idx_thread_exchanges_target_status_sequence
+          ON thread_exchanges (target_thread_id, status, sequence);
+        CREATE INDEX IF NOT EXISTS idx_thread_exchanges_source_updated
+          ON thread_exchanges (source_thread_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_thread_exchanges_link_sequence
+          ON thread_exchanges (link_id, sequence);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_exchanges_source_idempotency
+          ON thread_exchanges (source_thread_id, idempotency_key);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_exchanges_link_sequence_unique
+          ON thread_exchanges (link_id, sequence);
+      `),
+  },
 ] as const satisfies readonly DatabaseMigration[];
 
 export const LATEST_SCHEMA_VERSION = DATABASE_MIGRATIONS[DATABASE_MIGRATIONS.length - 1]!.version;
@@ -718,6 +779,45 @@ const REQUIRED_COLUMNS = {
     "event_type",
     "event_sequence",
     "received_at",
+  ],
+  thread_conversation_links: [
+    "id",
+    "project_id",
+    "participant_a_thread_id",
+    "participant_b_thread_id",
+    "status",
+    "created_at",
+    "updated_at",
+  ],
+  thread_exchanges: [
+    "id",
+    "link_id",
+    "project_id",
+    "source_thread_id",
+    "target_thread_id",
+    "sequence",
+    "delivery_mode",
+    "status",
+    "request",
+    "context_capsule",
+    "source_provenance",
+    "target_provenance",
+    "idempotency_key",
+    "request_item_id",
+    "delivery_baseline_turn_index",
+    "delivery_anchor_item_id",
+    "reply_turn_index",
+    "reply_anchor_item_id",
+    "reply_excerpt",
+    "causal_parent_exchange_id",
+    "hop_depth",
+    "error",
+    "claim_token",
+    "claim_expires_at",
+    "created_at",
+    "updated_at",
+    "delivered_at",
+    "replied_at",
   ],
 } as const;
 

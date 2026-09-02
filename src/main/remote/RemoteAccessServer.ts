@@ -13,6 +13,7 @@ import {
   type RemotePushRegistration,
   type RemoteSettings,
   type RemoteSettingsPatch,
+  type RemoteThreadExchangeSummary,
   type RemoteWebSocketServerMessage,
 } from "@/shared/remote";
 import type { GitStateInterest, GitStateSnapshot } from "@/shared/gitState";
@@ -31,6 +32,11 @@ import type {
   IpcProcedureResult,
   SupervisorProcedureName,
 } from "@/shared/ipc";
+import type {
+  ThreadDialogueRequest,
+  ThreadExchange,
+  ThreadTargetSummary,
+} from "@/shared/threadCollaboration";
 import { buildPairingUrl } from "@/shared/remote/pairingUrl";
 import { RemoteHttpError, RemoteAuthStore, type AuthenticatedRemoteSession } from "./auth";
 import type { RemoteAccessIdentity } from "./identity";
@@ -201,6 +207,22 @@ export interface RemoteAccessServerOptions {
     delete(projectId: string, prNumber: number): void;
     syncAgent(agent: PrWatchAgentSync): void;
   };
+  /** Host-owned Thread Collaboration module. The remote layer never sends a
+   * dialogue through the legacy raw thread-send endpoint. */
+  readonly threadCollaboration?: {
+    listTargets(sourceThreadId: string, query?: string): ThreadTargetSummary[];
+    request(actorThreadId: string, request: ThreadDialogueRequest): Promise<ThreadExchange>;
+    list(actorThreadId: string, threadId: string, limit: number): ThreadExchange[];
+    read(actorThreadId: string, exchangeId: string): ThreadExchange;
+    wait(
+      actorThreadId: string,
+      exchangeId: string,
+      afterUpdatedAt: string | undefined,
+      timeoutMs: number,
+    ): Promise<{ timedOut: boolean; exchange: ThreadExchange }>;
+    cancel(actorThreadId: string, exchangeId: string): ThreadExchange;
+    summarize(exchange: ThreadExchange): RemoteThreadExchangeSummary;
+  };
   /** Latest per-thread git/PR summaries published by the desktop renderer. */
   gitSummaries?(): RemoteGitSummaries;
   /** Canonical Git/PR read model owned by the host process. */
@@ -276,6 +298,7 @@ const REMOTELY_CONSUMED_EVENT_TYPES: ReadonlySet<RemoteBroadcastEvent["type"]> =
   "remote-git-state",
   "remote-projects-changed",
   "remote-threads-changed",
+  "remote-thread-collaboration-changed",
 ]);
 
 export class RemoteAccessServer {

@@ -312,18 +312,23 @@ describe("projectsThreads (real sqlite round-trip)", () => {
       type: string;
       name: string;
     }[];
-    // Migrations 37-39 must exist after a v32 -> latest upgrade, not just in the
-    // registry: the handoff tables and the one-active-segment partial index are
-    // load-bearing for cross-harness session handoff.
+    // The v0.9 handoff tables and v0.10 collaboration ledger must all exist
+    // after a legacy upgrade, not merely appear in the migration registry.
     for (const table of [
       "runtime_segments",
       "runtime_segment_event_archive",
       "conversation_checkpoints",
       "session_switch_transactions",
+      "thread_conversation_links",
+      "thread_exchanges",
     ]) {
       expect(objects).toContainEqual({ type: "table", name: table });
     }
     expect(objects).toContainEqual({ type: "index", name: "idx_runtime_segments_one_active" });
+    expect(objects).toContainEqual({
+      type: "index",
+      name: "idx_thread_exchanges_source_idempotency",
+    });
     const legacyProject = dbGetProject("legacy-project");
     expect(legacyProject).toMatchObject({
       id: "legacy-project",

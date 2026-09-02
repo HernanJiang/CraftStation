@@ -31,6 +31,7 @@ import {
   PushRegistrationStore,
 } from "@/main/remote/push";
 import { RemoteAccessServer, type RemoteAccessServerInfo } from "@/main/remote/RemoteAccessServer";
+import { createRemoteThreadCollaborationGateway } from "@/main/remote/threadCollaborationGateway";
 import {
   remoteAccessAdvertisedHost,
   remoteAccessHost,
@@ -40,7 +41,11 @@ import {
 import type { SupervisorEvent } from "@/shared/ipc";
 import { isThreadTurnActive, resolveMcpLaunchSnapshot } from "@/shared/contracts";
 import { buildRemoteGitTargetInterests } from "@/shared/gitStateInterestPolicy";
-import { pickRemoteSettings, remoteProjectCommandResultSchema } from "@/shared/remote";
+import {
+  pickRemoteSettings,
+  remoteProjectCommandResultSchema,
+  toRemoteThreadExchangeSummary,
+} from "@/shared/remote";
 import { configureSecretStorageKey } from "@/shared/secretStorage";
 import {
   createDeviceScheduleService,
@@ -211,11 +216,13 @@ export async function createHeadlessRemoteHost(
     ...(options.reportError ? { reportError: (error) => options.reportError?.(error) } : {}),
     onEvent: (event) => {
       options.onSupervisorEvent?.(event);
+      // The remote server owns headless runtime persistence; publish first so
+      // collaboration reply correlation always reads the post-event database.
+      serverRef?.publishSupervisorEvent(event);
       appControlsMcpIngress?.observeSupervisorEvent(event);
       prWatchService?.observeSupervisorEvent(event);
       gitStateService?.observeSupervisorEvent(event);
       scheduleRunCoordinator?.observeSupervisorEvent(event);
-      serverRef?.publishSupervisorEvent(event);
       pushCoordinator.handleSupervisorEvent(event);
     },
     onReset: () => {
@@ -345,6 +352,12 @@ export async function createHeadlessRemoteHost(
       currentVersion: options.appVersion,
       note: "Update checks are not available on the headless server; update the host from the desktop app.",
     }),
+    onExchangeChanged: (exchange) => {
+      serverRef?.publishSupervisorEvent({
+        type: "remote-thread-collaboration-changed",
+        exchanges: [toRemoteThreadExchangeSummary(exchange)],
+      });
+    },
   });
 
   // In dev, advertise loopback by default so the iOS simulator's WebView can
@@ -399,6 +412,9 @@ export async function createHeadlessRemoteHost(
     },
     portForward: portForwarding.gateway,
     portProxy: portForwarding.proxy,
+    threadCollaboration: createRemoteThreadCollaborationGateway(
+      () => appControlsMcpIngress?.getThreadCollaborationService() ?? null,
+    ),
   });
   serverRef = server;
 
@@ -410,6 +426,7 @@ export async function createHeadlessRemoteHost(
       if (!started) {
         await appControlsMcpIngress?.start();
         supervisorClient.start(paths.baseDir);
+        await appControlsMcpIngress?.recoverThreadCollaboration();
         scheduleService.start();
         prWatchService?.start();
         gitStateService?.start();

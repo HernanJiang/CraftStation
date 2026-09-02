@@ -31,6 +31,7 @@ import { showInAppUserNotification } from "@/renderer/notifications";
 import { useAppStore } from "@/renderer/state/appStore";
 import { seedOlderThreadRuntimeItemsCursor } from "@/renderer/state/chatRuntimePersister";
 import {
+  projectRemoteCollaborationMap,
   projectRemoteProject,
   projectRemoteThread,
   projectRemoteThreadEvent,
@@ -539,6 +540,11 @@ export const useRemoteServersStore = create<RemoteServersState>()(
                   projects: current.projects,
                   threads: current.threads,
                   ...(current.agentStatuses ? { agentStatuses: current.agentStatuses } : {}),
+                  ...(current.collaborationExchangesByThread
+                    ? {
+                        collaborationExchangesByThread: current.collaborationExchangesByThread,
+                      }
+                    : {}),
                 },
               },
             };
@@ -1009,6 +1015,14 @@ export const useRemoteServersStore = create<RemoteServersState>()(
               status: "online",
               projects: snapshot.projects,
               threads: snapshot.threads,
+              ...(snapshot.collaborationExchangesByThread
+                ? {
+                    collaborationExchangesByThread: projectRemoteCollaborationMap(
+                      record.desktopId,
+                      snapshot.collaborationExchangesByThread,
+                    ),
+                  }
+                : {}),
               agentStatuses,
             },
           },
@@ -1304,17 +1318,33 @@ export const useRemoteServersStore = create<RemoteServersState>()(
                     JSON.stringify(current.agentStatuses.wsl) === JSON.stringify(agentStatuses.wsl)
                   ? current.agentStatuses
                   : agentStatuses;
+            const projectedCollaborationExchanges = snapshot.collaborationExchangesByThread
+              ? projectRemoteCollaborationMap(desktopId, snapshot.collaborationExchangesByThread)
+              : undefined;
+            const nextCollaborationExchanges =
+              current?.collaborationExchangesByThread &&
+              projectedCollaborationExchanges &&
+              JSON.stringify(current.collaborationExchangesByThread) ===
+                JSON.stringify(projectedCollaborationExchanges)
+                ? current.collaborationExchangesByThread
+                : projectedCollaborationExchanges;
             const nextRuntime: RemoteServerRuntime =
               current?.status === "online" &&
               current.message === undefined &&
               projects === current.projects &&
               threads === current.threads &&
-              nextAgentStatuses === current.agentStatuses
+              nextAgentStatuses === current.agentStatuses &&
+              nextCollaborationExchanges === current.collaborationExchangesByThread
                 ? current
                 : {
                     status: "online",
                     projects,
                     threads,
+                    ...(nextCollaborationExchanges
+                      ? {
+                          collaborationExchangesByThread: nextCollaborationExchanges,
+                        }
+                      : {}),
                     ...(nextAgentStatuses ? { agentStatuses: nextAgentStatuses } : {}),
                   };
             set((state) => {

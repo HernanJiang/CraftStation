@@ -310,6 +310,60 @@ export function initDatabase(dbPath: string) {
       payload TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS thread_conversation_links (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      participant_a_thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      participant_b_thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(project_id, participant_a_thread_id, participant_b_thread_id)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_conversation_links_participants
+      ON thread_conversation_links (project_id, participant_a_thread_id, participant_b_thread_id);
+    CREATE TABLE IF NOT EXISTS thread_exchanges (
+      id TEXT PRIMARY KEY,
+      link_id TEXT NOT NULL REFERENCES thread_conversation_links(id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL,
+      source_thread_id TEXT NOT NULL,
+      target_thread_id TEXT NOT NULL,
+      sequence INTEGER NOT NULL,
+      delivery_mode TEXT NOT NULL,
+      status TEXT NOT NULL,
+      request TEXT NOT NULL,
+      context_capsule TEXT,
+      source_provenance TEXT NOT NULL,
+      target_provenance TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_item_id TEXT NOT NULL,
+      delivery_baseline_turn_index INTEGER,
+      delivery_anchor_item_id TEXT,
+      reply_turn_index INTEGER,
+      reply_anchor_item_id TEXT,
+      reply_excerpt TEXT,
+      causal_parent_exchange_id TEXT,
+      hop_depth INTEGER NOT NULL DEFAULT 0,
+      error TEXT,
+      claim_token TEXT,
+      claim_expires_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      delivered_at TEXT,
+      replied_at TEXT,
+      UNIQUE(source_thread_id, idempotency_key),
+      UNIQUE(link_id, sequence)
+    );
+    CREATE INDEX IF NOT EXISTS idx_thread_exchanges_target_status_sequence
+      ON thread_exchanges (target_thread_id, status, sequence);
+    CREATE INDEX IF NOT EXISTS idx_thread_exchanges_source_updated
+      ON thread_exchanges (source_thread_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_thread_exchanges_link_sequence
+      ON thread_exchanges (link_id, sequence);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_exchanges_source_idempotency
+      ON thread_exchanges (source_thread_id, idempotency_key);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_exchanges_link_sequence_unique
+      ON thread_exchanges (link_id, sequence);
   `);
 
   const storedVersion = Number(

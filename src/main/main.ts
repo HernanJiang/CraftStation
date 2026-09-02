@@ -87,7 +87,7 @@ import {
 } from "@/shared/ipc";
 import type { SharedSettings } from "@/shared/settings";
 import { readSharedSettingsFile, writeSharedSettingsFile } from "./sharedSettingsFile";
-import { remoteProjectCommandResultSchema } from "@/shared/remote";
+import { remoteProjectCommandResultSchema, toRemoteThreadExchangeSummary } from "@/shared/remote";
 import { WindowsJobObjectManager } from "./windowsJobObject";
 import { captureMainException, initializeMainSentry } from "./diagnostics/sentry";
 import {
@@ -1002,6 +1002,12 @@ if (!hasSingleInstanceLock) {
                 note: "CraftStation is not ready to show an in-app notification.",
               };
         },
+        onExchangeChanged: (exchange) => {
+          remoteAccessController?.getServer()?.publishSupervisorEvent({
+            type: "remote-thread-collaboration-changed",
+            exchanges: [toRemoteThreadExchangeSummary(exchange)],
+          });
+        },
         checkForUpdate: async () => {
           await autoUpdaterController.checkForUpdate();
           const status = lastUpdateStatus;
@@ -1055,10 +1061,16 @@ if (!hasSingleInstanceLock) {
         console.error("[craftstation] chrome MCP ingress failed to start:", err);
         return null;
       });
-      const appControlsMcpReady = appControlsMcpIngress.start().catch((err) => {
-        console.error("[craftstation] app controls MCP ingress failed to start:", err);
-        return null;
-      });
+      const appControlsMcpReady = appControlsMcpIngress
+        .start()
+        .then(async (info) => {
+          await appControlsMcpIngress?.recoverThreadCollaboration();
+          return info;
+        })
+        .catch((err) => {
+          console.error("[craftstation] app controls MCP ingress failed to start:", err);
+          return null;
+        });
       chromeBridgeServer.start().catch((err) => {
         console.error("[craftstation] chrome bridge server failed to start:", err);
       });
@@ -1120,6 +1132,8 @@ if (!hasSingleInstanceLock) {
         scheduleService,
         prWatchService,
         gitStateService,
+        getThreadCollaborationService: () =>
+          appControlsMcpIngress?.getThreadCollaborationService() ?? null,
         updates: {
           currentVersion: () => app.getVersion(),
           status: () => lastUpdateStatus,
@@ -1176,6 +1190,8 @@ if (!hasSingleInstanceLock) {
           },
           scheduleService,
           prWatchService,
+          getThreadCollaborationService: () =>
+            appControlsMcpIngress?.getThreadCollaborationService() ?? null,
         }),
         callSupervisor: (name, payload) => supervisorClient.call(name, payload),
       });

@@ -8,6 +8,7 @@ export function shouldRefreshRemoteServerAfterEvent(value: unknown): boolean {
     type === "thread-state" ||
     type === "thread-exited" ||
     type === "thread-reset" ||
+    type === "remote-thread-collaboration-changed" ||
     type === "remote-projects-changed" ||
     type === "remote-threads-changed"
   );
@@ -56,7 +57,13 @@ export function filterRemoteThreadEvents(value: unknown, threadIds: ReadonlySet<
     return typeof threadId === "string" && threadIds.has(threadId) ? value : null;
   }
 
-  if (type === "remote-git-summaries" || type === "remote-git-state") return value;
+  if (
+    type === "remote-git-summaries" ||
+    type === "remote-git-state" ||
+    type === "remote-thread-collaboration-changed"
+  ) {
+    return value;
+  }
 
   return null;
 }

@@ -21,6 +21,7 @@ import type { SharedSettings } from "@/shared/settings";
 import type { Project } from "@/shared/contracts";
 import { resolveMcpLaunchSnapshot } from "@/shared/contracts";
 import { buildRemoteGitTargetInterests } from "@/shared/gitStateInterestPolicy";
+import type { ThreadCollaborationService } from "../thread-collaboration";
 import type { ScheduleService } from "../schedules/ScheduleService";
 import type { PrWatchService } from "../prWatch";
 import type { GitStateService } from "../gitState";
@@ -47,6 +48,7 @@ import {
   type RemoteAccessServerOptions,
 } from "./RemoteAccessServer";
 import { RemoteBrowserGateway } from "./RemoteBrowserGateway";
+import { createRemoteThreadCollaborationGateway } from "./threadCollaborationGateway";
 import {
   buildTailscaleHttpsUrl,
   disableTailscaleServe,
@@ -82,6 +84,7 @@ export interface DesktopRemoteAccessControllerOptions {
   readonly prWatchService: PrWatchService;
   readonly gitStateService: GitStateService;
   readonly updates: NonNullable<RemoteAccessServerOptions["updates"]>;
+  readonly getThreadCollaborationService: () => ThreadCollaborationService | null;
 }
 
 export interface DesktopRemoteAccessController {
@@ -430,6 +433,9 @@ export function createDesktopRemoteAccessController(
           options.notifyRemoteAccessPairingChanged(getRemoteAccessPairingInfo(server));
         },
         onProjectsChanged: options.notifyProjectStateChanged,
+        threadCollaboration: createRemoteThreadCollaborationGateway(
+          options.getThreadCollaborationService,
+        ),
       });
       attempt.server = server;
       remoteAccessServer = server;

@@ -27,9 +27,15 @@ import {
   isRemoteOmittedField,
   pickRemoteSettings,
   readRemoteImageRef,
+  toRemoteThreadExchangeSummary,
   type RemoteHostUpdateStatus,
   type RemoteSettings,
 } from "@/shared/remote";
+import type {
+  ThreadDialogueRequest,
+  ThreadExchange,
+  ThreadTargetSummary,
+} from "@/shared/threadCollaboration";
 import { defaultSharedSettings } from "@/shared/settings";
 import { emptyGitStateSnapshot } from "@/shared/gitState";
 import type { BrowserPanelManager } from "../browser";
@@ -5254,6 +5260,263 @@ describe("RemoteAccessServer", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       error: { code: "push_unavailable" },
+    });
+  });
+});
+
+describe("RemoteAccessServer thread collaboration endpoints", () => {
+  const cannedExchange: ThreadExchange = {
+    id: "exchange-1",
+    linkId: "link-1",
+    projectId: "project-1",
+    sourceThreadId: "source",
+    targetThreadId: "target",
+    sequence: 1,
+    deliveryMode: "after-current-turn",
+    status: "delivered",
+    request: "SECRET-SOURCE-REQUEST-TEXT",
+    contextCapsule: {
+      kind: "portable-context",
+      text: "SECRET-CONTEXT-TEXT",
+      sourceKinds: ["summary"],
+      redacted: false,
+      originalChars: 18,
+    },
+    sourceProvenance: {
+      threadId: "source",
+      projectId: "project-1",
+      title: "Source",
+      modelId: "gpt-5.6",
+      harnessId: "codex",
+      agentMcpSupported: true,
+    },
+    targetProvenance: {
+      threadId: "target",
+      projectId: "project-1",
+      title: "Target",
+      modelId: "grok-4.6",
+      harnessId: "grok",
+      agentMcpSupported: true,
+    },
+    idempotencyKey: "SECRET-IDEMPOTENCY-KEY",
+    requestItemId: "request-1",
+    deliveryBaselineTurnIndex: 0,
+    deliveryAnchorItemId: "request-1",
+    replyTurnIndex: null,
+    replyAnchorItemId: null,
+    replyExcerpt: null,
+    causalParentExchangeId: null,
+    hopDepth: 0,
+    error: null,
+    claimToken: "SECRET-CLAIM-TOKEN",
+    claimExpiresAt: "2026-01-01T00:01:00.000Z",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    deliveredAt: "2026-01-01T00:00:00.000Z",
+    repliedAt: null,
+  };
+
+  const cannedTarget: ThreadTargetSummary = {
+    threadId: "target",
+    projectId: "project-1",
+    title: "Target",
+    status: "idle",
+    attention: "none",
+    provenance: cannedExchange.targetProvenance,
+    sameWorktree: true,
+    available: true,
+    sameComposition: false,
+  };
+
+  function collaborationGateway() {
+    return {
+      listTargets: vi.fn<() => ThreadTargetSummary[]>(() => [cannedTarget]),
+      request: vi.fn<(actor: string, request: ThreadDialogueRequest) => Promise<ThreadExchange>>(
+        async (_actor, request) => ({
+          ...cannedExchange,
+          idempotencyKey: request.idempotencyKey,
+          targetThreadId: request.targetThreadId,
+        }),
+      ),
+      list: vi.fn<() => ThreadExchange[]>(() => [cannedExchange]),
+      read: vi.fn<() => ThreadExchange>(() => cannedExchange),
+      wait: vi.fn<() => Promise<{ timedOut: boolean; exchange: ThreadExchange }>>(async () => ({
+        timedOut: false,
+        exchange: cannedExchange,
+      })),
+      cancel: vi.fn<() => ThreadExchange>(() => cannedExchange),
+      summarize: toRemoteThreadExchangeSummary,
+    };
+  }
+
+  it("serves targets, request, read, wait and cancel through the host gateway without leaking internals", async () => {
+    const gateway = collaborationGateway();
+    const server = new RemoteAccessServer({
+      appVersion: "1.0.0",
+      identity: { desktopId: "desktop-test", label: "Test Desktop" },
+      host: "127.0.0.1",
+      port: 0,
+      callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
+      threadCollaboration: gateway,
+    });
+    servers.push(server);
+    const info = await server.start();
+    const token = await issueAccessToken(info, ["session:read", "session:operate"]);
+    const headers = { authorization: `Bearer ${token}` };
+    const post = (path: string, body: unknown) =>
+      fetch(new URL(path, info.httpBaseUrl), {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    // The targets route returns the host summary list verbatim.
+    const targets = await fetch(
+      new URL(
+        "/api/thread-collaboration/targets?sourceThreadId=source&query=grok",
+        info.httpBaseUrl,
+      ),
+      { headers },
+    );
+    expect(targets.status).toBe(200);
+    await expect(targets.json()).resolves.toEqual([cannedTarget]);
+    expect(gateway.listTargets).toHaveBeenCalledWith("source", "grok");
+
+    // The request route summarizes the durable exchange: no request/context
+    // text, idempotency key or claim credentials ever reach the wire.
+    const requested = await post("/api/thread-collaboration/request", {
+      sourceThreadId: "source",
+      targetThreadId: "target",
+      request: "hello over remote",
+      deliveryMode: "after-current-turn",
+      idempotencyKey: "remote-key-1",
+      hopDepth: 0,
+    });
+    expect(requested.status).toBe(200);
+    const summary = (await requested.json()) as Record<string, unknown>;
+    expect(summary.id).toBe(cannedExchange.id);
+    const serialized = JSON.stringify(summary);
+    for (const secret of [
+      "SECRET-SOURCE-REQUEST-TEXT",
+      "SECRET-CONTEXT-TEXT",
+      "SECRET-IDEMPOTENCY-KEY",
+      "SECRET-CLAIM-TOKEN",
+      '"contextCapsule"',
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+    expect(gateway.request).toHaveBeenCalledWith(
+      "source",
+      expect.objectContaining({ targetThreadId: "target", idempotencyKey: "remote-key-1" }),
+    );
+
+    // List/read/wait routes hit the same gateway and summarize their results.
+    const list = await fetch(
+      new URL(
+        "/api/thread-collaboration/exchanges?actorThreadId=source&threadId=source&limit=5",
+        info.httpBaseUrl,
+      ),
+      { headers },
+    );
+    expect(list.status).toBe(200);
+    await expect(list.json()).resolves.toEqual([summary]);
+
+    const read = await post("/api/thread-collaboration/read", {
+      actorThreadId: "source",
+      exchangeId: "exchange-1",
+    });
+    expect(read.status).toBe(200);
+    expect(((await read.json()) as Record<string, unknown>).id).toBe("exchange-1");
+
+    const wait = await post("/api/thread-collaboration/wait", {
+      actorThreadId: "source",
+      exchangeId: "exchange-1",
+      timeoutMs: 0,
+    });
+    expect(wait.status).toBe(200);
+    await expect(wait.json()).resolves.toMatchObject({
+      timedOut: false,
+      exchange: { id: "exchange-1" },
+    });
+
+    const cancel = await post("/api/thread-collaboration/cancel", {
+      actorThreadId: "source",
+      exchangeId: "exchange-1",
+    });
+    expect(cancel.status).toBe(200);
+    expect(gateway.cancel).toHaveBeenCalledWith("source", "exchange-1");
+    expect(((await cancel.json()) as Record<string, unknown>).id).toBe("exchange-1");
+
+    // Service-level actor/participant rejections are masked as internal errors:
+    // no durable detail and no policy error text reaches the remote peer.
+    gateway.read.mockImplementation(() => {
+      throw Object.assign(
+        new Error("Only exchange participants may read this collaboration record."),
+        { code: "THREAD_COLLABORATION_EXCHANGE_UNAUTHORIZED" },
+      );
+    });
+    const rejected = await post("/api/thread-collaboration/read", {
+      actorThreadId: "bystander",
+      exchangeId: "exchange-1",
+    });
+    expect(rejected.status).toBe(500);
+    const rejectedBody = await rejected.text();
+    expect(JSON.parse(rejectedBody)).toMatchObject({
+      error: { code: "internal_error" },
+    });
+    expect(rejectedBody).not.toContain("THREAD_COLLABORATION_EXCHANGE_UNAUTHORIZED");
+  });
+
+  it("rejects a read-scoped token from the operate-only request route", async () => {
+    const server = new RemoteAccessServer({
+      appVersion: "1.0.0",
+      identity: { desktopId: "desktop-test", label: "Test Desktop" },
+      host: "127.0.0.1",
+      port: 0,
+      callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
+      threadCollaboration: collaborationGateway(),
+    });
+    servers.push(server);
+    const info = await server.start();
+    const readToken = await issueAccessToken(info, ["session:read"]);
+
+    const response = await fetch(new URL("/api/thread-collaboration/request", info.httpBaseUrl), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${readToken}`,
+      },
+      body: JSON.stringify({
+        sourceThreadId: "source",
+        targetThreadId: "target",
+        request: "hello",
+        deliveryMode: "after-current-turn",
+        idempotencyKey: "remote-key-2",
+        hopDepth: 0,
+      }),
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it("reports thread collaboration as unavailable when the host module is absent", async () => {
+    const server = new RemoteAccessServer({
+      appVersion: "1.0.0",
+      identity: { desktopId: "desktop-test", label: "Test Desktop" },
+      host: "127.0.0.1",
+      port: 0,
+      callSupervisor: vi.fn<RemoteAccessServerOptions["callSupervisor"]>(async () => "" as never),
+    });
+    servers.push(server);
+    const info = await server.start();
+    const token = await issueAccessToken(info, ["session:read", "session:operate"]);
+
+    const response = await fetch(
+      new URL("/api/thread-collaboration/targets?sourceThreadId=source", info.httpBaseUrl),
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "thread_collaboration_unavailable" },
     });
   });
 });

@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Tooltip } from "@heroui/react";
-import { ArrowRightLeft, Bug, CircleCheck, X } from "lucide-react";
+import { Button, Tooltip } from "@heroui/react";
+import { ArrowRightLeft, Bug, CircleCheck, MessagesSquare, X } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type {
   AgentStatus,
@@ -29,6 +29,8 @@ import type { SaveClipboardImage } from "../composer/useAttachments";
 import { ContinueInProviderDialog } from "./ContinueInProviderDialog";
 import { GuiThreadContent } from "./ThreadContent";
 import { TerminalThreadContent } from "./TerminalThreadContent";
+import { ThreadCollaborationActivity } from "./ThreadCollaborationActivity";
+import { ThreadCollaborationDialog } from "./ThreadCollaborationDialog";
 import { ThreadHeaderStatusButton } from "./ThreadHeaderStatus";
 
 /**
@@ -193,6 +195,8 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
   const terminalPaneRef = useRef<TerminalPaneHandle>(null);
   const [terminalSize, setTerminalSize] = useState<TerminalSize | null>(null);
   const [continueDialogOpen, setContinueDialogOpen] = useState(false);
+  const [collaborationDialogOpen, setCollaborationDialogOpen] = useState(false);
+  const [collaborationRefreshKey, setCollaborationRefreshKey] = useState(0);
   const [runtimeDebugOpen, setRuntimeDebugOpen] = useState(false);
   const launchRequestRef = useRef<string | null>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
@@ -220,6 +224,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
 
   useLayoutEffect(() => {
     setContinueDialogOpen(false);
+    setCollaborationDialogOpen(false);
     setRuntimeDebugOpen(false);
     setIsTitleTooltipOpen(false);
   }, [thread.id]);
@@ -348,6 +353,25 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               </span>
             ) : null}
             {isWsl ? <TuxIcon className="h-3 w-auto shrink-0 px-1 text-muted/60" /> : null}
+            {thread.sessionRef || thread.canResumeWithConfig ? (
+              <Tooltip delay={0}>
+                <Tooltip.Trigger>
+                  <Button
+                    isIconOnly
+                    aria-label={t`Ask another thread`}
+                    className="craftstation-overlay-header__controls min-w-0 shrink-0 rounded p-1 text-muted/60 hover:bg-[var(--row-hover)] hover:text-foreground"
+                    size="sm"
+                    variant="ghost"
+                    onPress={() => setCollaborationDialogOpen(true)}
+                  >
+                    <MessagesSquare className="size-3.5" />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <Trans>Ask another thread</Trans>
+                </Tooltip.Content>
+              </Tooltip>
+            ) : null}
             {onContinueInProvider &&
             installedAgents &&
             installedAgents.filter((a) => a.kind !== thread.agentKind).length > 0 &&
@@ -475,6 +499,11 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
           : threadHeader}
 
         <div className={contentShellClass}>
+          <ThreadCollaborationActivity
+            threadId={thread.id}
+            refreshKey={collaborationRefreshKey}
+            onOpen={() => setCollaborationDialogOpen(true)}
+          />
           <div className={contentBodyClass}>
             {usesTerminalPresentation ? (
               <TerminalThreadContent
@@ -544,6 +573,14 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               ctx,
             );
           }}
+        />
+      ) : null}
+      {collaborationDialogOpen ? (
+        <ThreadCollaborationDialog
+          isOpen
+          sourceThreadId={thread.id}
+          onChanged={() => setCollaborationRefreshKey((current) => current + 1)}
+          onClose={() => setCollaborationDialogOpen(false)}
         />
       ) : null}
     </>

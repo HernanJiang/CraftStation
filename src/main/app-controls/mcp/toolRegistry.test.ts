@@ -31,6 +31,8 @@ import type {
 } from "@/shared/contracts";
 import type { RemoteProjectCommand, RemoteProjectCommandResult } from "@/shared/remote";
 import { defaultSharedSettings, type SharedSettings } from "@/shared/settings";
+import type { ThreadExchange } from "@/shared/threadCollaboration";
+import { ThreadControlAdapter } from "../../thread-collaboration";
 import type { ScheduleService } from "../../schedules/ScheduleService";
 import type {
   CreateAppThreadRequest,
@@ -108,6 +110,17 @@ function context(
     probeResult?: McpProbeResult;
     authenticatedUrls?: string[];
     skillScan?: SkillScanResult;
+    requestDialogue?: (input: {
+      actorThreadId: string;
+      request: {
+        sourceThreadId: string;
+        targetThreadId: string;
+        request: string;
+        deliveryMode: "after-current-turn" | "interrupt-and-send";
+        idempotencyKey: string;
+        hopDepth: number;
+      };
+    }) => Promise<ThreadExchange>;
   } = {},
 ) {
   const tasks = options.tasks ?? [];
@@ -341,10 +354,78 @@ function context(
   const updateProject = vi.fn<(project: Project) => void>();
   const settingsWrite = vi.fn<(next: SharedSettings) => void>();
   const settingsValue = options.settings ?? defaultSharedSettings;
+  const threadStates = new ThreadStateBroker();
+  for (const snapshot of options.snapshots ?? []) {
+    threadStates.observe({
+      type: "thread-state",
+      threadId: snapshot.threadId,
+      status: snapshot.status,
+      attention: snapshot.attention,
+      canResumeWithConfig: snapshot.canResumeWithConfig,
+    });
+  }
+  const threadControl = new ThreadControlAdapter({
+    getThread: (id) =>
+      threads.find((entry) => entry.id === id) ?? (id === thread.id ? thread : null),
+    getThreads: () => threads,
+    getProject: (id) => options.projects?.find((project) => project.id === id) ?? null,
+    settings: () => settingsValue,
+    runtime: supervisor,
+    states: threadStates,
+  });
+  const requestDialogue = vi.fn<NonNullable<typeof options.requestDialogue>>(
+    options.requestDialogue ??
+      (async (input) =>
+        ({
+          id: "exchange-1",
+          linkId: "link-1",
+          projectId: "project-1",
+          sourceThreadId: input.request.sourceThreadId,
+          targetThreadId: input.request.targetThreadId,
+          sequence: 1,
+          deliveryMode: input.request.deliveryMode,
+          status: "delivered",
+          request: input.request.request,
+          contextCapsule: null,
+          sourceProvenance: {
+            threadId: input.request.sourceThreadId,
+            projectId: "project-1",
+            title: "Source",
+            modelId: "gpt-5.6",
+            harnessId: "codex",
+            agentMcpSupported: true,
+          },
+          targetProvenance: {
+            threadId: input.request.targetThreadId,
+            projectId: "project-1",
+            title: "Target",
+            modelId: "gpt-5.6",
+            harnessId: "codex",
+            agentMcpSupported: true,
+          },
+          idempotencyKey: input.request.idempotencyKey,
+          requestItemId: "request-1",
+          deliveryBaselineTurnIndex: 0,
+          deliveryAnchorItemId: "request-1",
+          replyTurnIndex: null,
+          replyAnchorItemId: null,
+          replyExcerpt: null,
+          causalParentExchangeId: null,
+          hopDepth: 0,
+          error: null,
+          claimToken: null,
+          claimExpiresAt: null,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          deliveredAt: "2026-01-01T00:00:00.000Z",
+          repliedAt: null,
+        }) satisfies ThreadExchange),
+  );
   const ctx: AppControlsToolContext = {
     identity: { threadId: thread.id, title: "Schedule this" },
     scheduleService: service,
-    getThread: (id) => threads.find((entry) => entry.id === id) ?? null,
+    getThread: (id) =>
+      threads.find((entry) => entry.id === id) ?? (id === thread.id ? thread : null),
     getThreads: () => threads,
     getProjects: () => options.projects ?? [],
     getProject: (id) => options.projects?.find((project) => project.id === id) ?? null,
@@ -362,7 +443,11 @@ function context(
     openThreadInUi,
     notifyUser,
     checkForUpdate,
-    threadStates: new ThreadStateBroker(),
+    threadStates,
+    threadControl,
+    threadCollaboration: {
+      requestDialogue,
+    } as unknown as AppControlsToolContext["threadCollaboration"],
   };
   return {
     ctx,
@@ -378,6 +463,7 @@ function context(
     applyProjectCommand,
     updateProject,
     settingsWrite,
+    requestDialogue,
   };
 }
 
@@ -616,68 +702,30 @@ describe("CraftStation app control tools — threads", () => {
 
   it("send_to_thread interrupts first when requested then sends", async () => {
     const threads = [makeThread({ id: "a" })];
-    const { ctx, supervisor } = context({ threads });
-    await dispatchTool(
+    const { ctx, requestDialogue, supervisor } = context({ threads });
+    const result = await dispatchTool(
       "send_to_thread",
       { threadId: "a", message: "hello", interruptFirst: true },
       ctx,
     );
-    expect(supervisor.interruptThread).toHaveBeenCalledWith({ threadId: "a" });
-    expect(supervisor.sendThreadInput).toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: "a", prompt: "hello" }),
-    );
-    expect(supervisor.startThread).not.toHaveBeenCalled();
-  });
-
-  it("send_to_thread resumes a thread whose live session is gone, delivering the message as the first input", async () => {
-    const threads = [
-      makeThread({
-        id: "a",
-        projectId: "p1",
-        agentKind: "codex",
-        presentationMode: "gui",
-        sessionRef: { providerSessionId: "sess-1", discoveredAt: "2026-01-01T00:00:00.000Z" },
-        worktreePath: "/work/alpha/.craftstation/worktrees/wt",
+    expect(result).toMatchObject({
+      threadId: "a",
+      exchangeId: "exchange-1",
+      status: "delivered",
+      delivered: true,
+      interruptedFirst: true,
+    });
+    expect(requestDialogue).toHaveBeenCalledWith({
+      actorThreadId: "thread-1",
+      request: expect.objectContaining({
+        sourceThreadId: "thread-1",
+        targetThreadId: "a",
+        request: "hello",
+        deliveryMode: "interrupt-and-send",
       }),
-    ];
-    const projects = [
-      { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
-    ];
-    const { ctx, supervisor } = context({ threads, projects });
-    // The supervisor no longer has a live session for this thread.
-    supervisor.sendThreadInput.mockRejectedValueOnce(new Error("Unknown thread session: a"));
-
-    const result = (await dispatchTool(
-      "send_to_thread",
-      { threadId: "a", message: "resume please" },
-      ctx,
-    )) as { delivered: boolean; resumed?: boolean };
-
-    expect(result.delivered).toBe(true);
-    expect(result.resumed).toBe(true);
-    expect(supervisor.startThread).toHaveBeenCalledWith(
-      expect.objectContaining({
-        threadId: "a",
-        prompt: "resume please",
-        agentKind: "codex",
-        presentationMode: "gui",
-        sessionRef: { providerSessionId: "sess-1", discoveredAt: "2026-01-01T00:00:00.000Z" },
-        projectLocation: expect.objectContaining({ kind: "posix" }),
-      }),
-    );
-  });
-
-  it("send_to_thread refuses a non-resumable dead thread and points to create_thread", async () => {
-    const threads = [makeThread({ id: "a", projectId: "p1", canResumeWithConfig: false })];
-    const projects = [
-      { id: "p1", name: "Alpha", location: { kind: "posix", path: "/work/alpha" } } as Project,
-    ];
-    const { ctx, supervisor } = context({ threads, projects });
-    supervisor.sendThreadInput.mockRejectedValueOnce(new Error("Unknown thread session: a"));
-
-    await expect(
-      dispatchTool("send_to_thread", { threadId: "a", message: "hi" }, ctx),
-    ).rejects.toThrow(/create_thread/);
+    });
+    expect(supervisor.interruptThread).not.toHaveBeenCalled();
+    expect(supervisor.sendThreadInput).not.toHaveBeenCalled();
     expect(supervisor.startThread).not.toHaveBeenCalled();
   });
 
