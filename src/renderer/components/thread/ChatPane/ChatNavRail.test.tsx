@@ -73,6 +73,11 @@ describe("ChatNavRail", () => {
 
     fireEvent.click(screen.getByTitle("继续修复登录问题"));
     expect(scrollToIndex).toHaveBeenCalledWith(2, { align: "start" });
+
+    const rail = screen.getByTestId("chat-nav-rail");
+    expect(rail.className).toContain("absolute");
+    expect(rail.className).toContain("left-0");
+    expect(rail.getAttribute("data-expanded")).toBe("true");
   });
 
   it("marks the current node from scroll progress", () => {

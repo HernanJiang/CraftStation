@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { PlanProgressSlot } from "./ComposerStatusRow";
 import { ProjectSwitchMenu } from "./ProjectSwitchMenu";
 import { CraftModeSwitch, type CraftMode } from "./CraftModeSwitch";
+import { useDraftGitLaunchControls } from "./DraftGitLaunchSlot";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 
@@ -49,6 +50,7 @@ export function DraftContextBar(props: {
   const pendingRecipe = pendingRecipeIntent
     ? recipes.find((recipe) => recipe.id === pendingRecipeIntent.recipeId)
     : undefined;
+  const launchGitControls = useDraftGitLaunchControls();
 
   const itemClass = "flex items-center gap-1.5 font-medium";
 
@@ -106,7 +108,9 @@ export function DraftContextBar(props: {
             data-composer-git-controls=""
             className="flex h-7 min-w-0 items-center overflow-hidden rounded-lg bg-white/5 text-[11px] text-neutral-300"
           >
-            {branch && !props.worktreePath ? (
+            {launchGitControls ? (
+              launchGitControls
+            ) : branch && !props.worktreePath ? (
               <BranchSelector
                 projectId={props.project.id}
                 currentBranch={branch}

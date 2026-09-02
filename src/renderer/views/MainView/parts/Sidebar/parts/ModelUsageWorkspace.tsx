@@ -46,6 +46,7 @@ import type { AccountView, UsageSnapshot } from "@/shared/contracts";
 import { AccountQuotaCard, ProviderQuotaCard } from "./AccountQuotaCard";
 import { ModelManagementPage } from "./ModelManagementPage";
 import { CraftingWorkbenchPage } from "@/renderer/components/crafting/CraftingWorkbenchPage";
+import { resolveConfiguredProviderIds } from "@/renderer/crafting/configuredProviders";
 import { MyRecipesPage } from "@/renderer/components/crafting/MyRecipesPage";
 
 const CLI_LOGIN_COMMANDS: Record<string, string> = {
@@ -55,6 +56,9 @@ const CLI_LOGIN_COMMANDS: Record<string, string> = {
   kimi: "kimi acp --login",
   // CLI v1.38.2 的真实登录命令（"cmdc auth login" 是其内部过时提示，会报参数错误）。
   commandcode: "cmdc login",
+  // Official OpenCode login writes ~/.local/share/opencode/auth.json. Cookie
+  // paste remains a last-resort fallback, not the primary path.
+  opencode: "opencode auth login",
 };
 
 function isAuthorizedUsageStatus(status: string | undefined): boolean {
@@ -739,7 +743,7 @@ function ProviderCard(props: {
                     managedAccounts
                       .find((account) => account.provider === props.id)
                       ?.maskedIdentity?.trim() ||
-                    "账号身份未知"}
+                    (isAuthorizedUsageStatus(snapshot?.status) ? "已登录" : label)}
                 </p>
                 <p className="break-words text-[9px] leading-4 text-neutral-500">
                   {snapshot?.plan ?? "套餐未知"}
@@ -1878,7 +1882,13 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
 
   if (!open) return null;
 
-  const configuredProviderIds = new Set(accounts.map((account) => account.provider));
+  const configuredProviderIds = new Set(
+    resolveConfiguredProviderIds({
+      accounts,
+      storedLogin,
+      usageSnapshots,
+    }),
+  );
   for (const provider of leftCardProviders) configuredProviderIds.add(provider.id);
 
   return (

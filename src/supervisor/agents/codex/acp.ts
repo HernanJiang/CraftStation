@@ -1120,24 +1120,24 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     const completedTurnId = readTurnId(params);
     const isTrackedConcurrentCompletion =
       completedTurnId !== undefined && this.activeTurnIds.has(completedTurnId);
-    if (
+    const isStaleSiblingCompletion =
       (method === "turn/completed" || method === "turn/aborted") &&
       isStaleCodexTurnCompletion(params, this.activeTurnId) &&
-      !isTrackedConcurrentCompletion
-    ) {
-      // A late completion for an earlier turn must not drop the live turn id
-      // or settle the session while Codex is still working. That is what
-      // strands Stop/Steer on "expected active turn id … but found …".
-      return;
-    }
+      !isTrackedConcurrentCompletion &&
+      this.activeTurnIds.size > 1;
 
     // Translate to canonical chat events for chat-mode renderers. Runs
     // alongside the existing status-derivation logic below — terminal mode
     // is unaffected. A `turn/completed` arriving while a sibling turn still
     // runs must not purge the mapper's per-turn item state.
+    // Id-mismatched completions with 0–1 tracked turns are treated as the
+    // live turn settling (Codex sometimes reports a different id on
+    // turn/start vs turn/completed). Only drop settlement when a real
+    // sibling turn is still tracked — but still map output events.
     const turnWillSettleThread =
-      (method !== "turn/completed" && method !== "turn/aborted") ||
-      this.willTurnCompletionSettleThread(completedTurnId);
+      !isStaleSiblingCompletion &&
+      ((method !== "turn/completed" && method !== "turn/aborted") ||
+        this.willTurnCompletionSettleThread(completedTurnId));
     const mappedRuntimeEvents = suppressResumeReplay
       ? []
       : mapCodexNotification(method, params, this.ensureMapperState(), this.wslDistro, {
@@ -1279,15 +1279,24 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       this.activeTurnIds.clear();
     }
     if (this.activeTurnIds.size > 0) {
-      // A sibling turn (auto-compact continuation, or an earlier
-      // `turn/start` the server accepted concurrently) is still running.
-      // Keep the thread working and hold per-turn mapper state so the live
-      // turn keeps resolving its items.
-      this.pendingTurnInterrupt = false;
-      if (this.activeTurnId === completedTurnId) {
-        this.activeTurnId = [...this.activeTurnIds].at(-1);
+      const leftoverIsMismatchedLiveTurn =
+        this.activeTurnIds.size === 1 &&
+        completedTurnId !== undefined &&
+        this.activeTurnId !== undefined &&
+        !this.activeTurnIds.has(completedTurnId);
+      if (leftoverIsMismatchedLiveTurn) {
+        this.activeTurnIds.clear();
+      } else {
+        // A sibling turn (auto-compact continuation, or an earlier
+        // `turn/start` the server accepted concurrently) is still running.
+        // Keep the thread working and hold per-turn mapper state so the live
+        // turn keeps resolving its items.
+        this.pendingTurnInterrupt = false;
+        if (this.activeTurnId === completedTurnId) {
+          this.activeTurnId = [...this.activeTurnIds].at(-1);
+        }
+        return true;
       }
-      return true;
     }
 
     this.pendingTurnInterrupt = false;

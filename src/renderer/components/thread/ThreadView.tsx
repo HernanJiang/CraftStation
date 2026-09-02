@@ -292,8 +292,15 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
   const alignClass =
     paneAlign === "right" ? "ml-auto" : paneAlign === "left" ? "mr-auto" : "mx-auto";
   const paddingClass = "px-2";
-  const contentShellClass = `${alignClass} relative flex min-h-0 w-full max-w-[1040px] flex-1 flex-col ${paddingClass} px-3 pb-2`;
-  const contentBodyClass = `${alignClass} flex min-h-0 w-full max-w-[920px] flex-1 flex-col pt-2`;
+  // GUI chats are full-bleed so the quick-nav rail can sit flush against the
+  // main sidebar. Message rows and the composer keep their own 920px centering.
+  // Terminal panes stay in the historic centered column.
+  const contentShellClass = usesTerminalPresentation
+    ? `${alignClass} relative flex min-h-0 w-full max-w-[1040px] flex-1 flex-col ${paddingClass} px-3 pb-2`
+    : "relative flex min-h-0 w-full flex-1 flex-col pb-2";
+  const contentBodyClass = usesTerminalPresentation
+    ? `${alignClass} flex min-h-0 w-full max-w-[920px] flex-1 flex-col pt-2`
+    : "relative flex min-h-0 w-full flex-1 flex-col pt-2";
   const threadHeaderIsPortaled = !hidden && paneCount === 1 && threadHeaderPortalTarget !== null;
   const threadHeader = (
     <div

@@ -5,8 +5,8 @@ import type {
   HarnessReference,
   SelectedModelEntry,
 } from "@/shared/crafting/workbenchTypes";
-import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 import { Button } from "@/renderer/components/common";
+import { CraftingSlot } from "./CraftingSlot";
 
 const uiStatusLabel: Record<CapabilityResolution["status"], string> = {
   NATIVE: "原生兼容",
@@ -14,13 +14,11 @@ const uiStatusLabel: Record<CapabilityResolution["status"], string> = {
   IMPOSSIBLE: "不可合成",
 };
 
-type FocusSlot = "model" | "harness" | "result";
+type FocusSlot = "model" | "harness" | "pack" | "reserved" | "result";
 
 /**
- * Efficient Workbench: a compact 4x4 crafting grid → status arrow → one result
- * slot. Model and Harness are the real semantic slots (v1.0); Pack and the
- * remaining cells stay reserved placeholders. Clicking a placed slot focuses
- * its details in the side panel.
+ * Efficient Workbench: 4 input slots (2×2) → status arrow → 1 result slot.
+ * Slot size matches the model/harness inventory cards below.
  */
 export function EfficientWorkbench(props: {
   model?: SelectedModelEntry | undefined;
@@ -32,23 +30,8 @@ export function EfficientWorkbench(props: {
   const { model, harness, resolution, onCraft, onClear } = props;
   const [focus, setFocus] = useState<FocusSlot>("model");
 
-  // Materials are placed bottom-left so the 4x4 reads like a Minecraft
-  // crafting grid; only model (bottom-left) and harness (bottom-right) accept
-  // items. Pack keeps its reserved slot; every other cell is inert.
   const canCraft = resolution?.status === "NATIVE" || resolution?.status === "CRAFTABLE";
   const resultName = model && harness ? `${harness.displayName} · ${model.displayName}` : "";
-
-  const cellClass =
-    "size-9 flex items-center justify-center rounded-lg border border-white/10 bg-black/25 text-neutral-600";
-  const slotClass =
-    "size-9 relative flex items-center justify-center rounded-lg border transition-colors";
-  const emptySlotClass = "border-dashed border-white/15 bg-white/[0.02]";
-  const filledSlotClass = "border-white/25 bg-white/[0.06] hover:border-white/40";
-  const focusedRing = "ring-1 ring-accent/70";
-
-  const focusModel = () => setFocus("model");
-  const focusHarness = () => setFocus("harness");
-
   const detail = focus === "model" ? modelDetail(model) : harnessDetail(harness);
 
   return (
@@ -58,61 +41,45 @@ export function EfficientWorkbench(props: {
       aria-label="高效合成台"
     >
       <div className="flex items-start gap-4">
-        {/* Compact 4x4 crafting grid */}
-        <div className="shrink-0" data-testid="crafting-grid-4x4">
-          <div className="grid grid-cols-4 gap-1.5">
-            {Array.from({ length: 12 }).map((_, index) => (
-              <div key={`cell-${index}`} className={cellClass} aria-hidden="true" />
-            ))}
-            {/* Row 4: model | harness | pack | reserved */}
-            <button
-              type="button"
-              onClick={focusModel}
-              title={model ? `模型 · ${model.displayName}` : "选择模型"}
-              className={`${slotClass} ${model ? filledSlotClass : emptySlotClass} ${
-                focus === "model" ? focusedRing : ""
-              }`}
-              data-testid="crafting-slot-model"
-            >
-              {model ? (
-                <ProviderBrandBadge id={model.providerKind} label={model.displayName} size="row" />
-              ) : (
-                <span className="text-[9px] text-neutral-600">模型</span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={focusHarness}
-              title={harness ? `Harness · ${harness.displayName}` : "选择 Harness"}
-              className={`${slotClass} ${harness ? filledSlotClass : emptySlotClass} ${
-                focus === "harness" ? focusedRing : ""
-              }`}
-              data-testid="crafting-slot-harness"
-            >
-              {harness ? (
-                <ProviderBrandBadge id={harness.vendor} label={harness.displayName} size="row" />
-              ) : (
-                <span className="text-[9px] text-neutral-600">Harness</span>
-              )}
-            </button>
-            <div
-              className={`${slotClass} ${emptySlotClass}`}
-              title="Pack · 预留槽"
-              aria-disabled="true"
-            >
-              <Package className="size-3.5 text-neutral-600" />
-            </div>
-            <div
-              className={`${slotClass} ${emptySlotClass}`}
-              title="预留组件槽 · 暂未开放"
-              aria-disabled="true"
-            >
-              <SquareDashedMousePointer className="size-3.5 text-neutral-700" />
-            </div>
+        <div className="shrink-0" data-testid="crafting-grid-2x2">
+          <div className="grid grid-cols-2 gap-1.5">
+            <CraftingSlot
+              label="模型"
+              filled={Boolean(model)}
+              focused={focus === "model"}
+              brandId={model?.providerKind}
+              brandLabel={model?.displayName}
+              name={model?.displayName}
+              testId="crafting-slot-model"
+              onClick={() => setFocus("model")}
+            />
+            <CraftingSlot
+              label="Harness"
+              filled={Boolean(harness)}
+              focused={focus === "harness"}
+              brandId={harness?.vendor}
+              brandLabel={harness?.displayName}
+              name={harness?.displayName}
+              testId="crafting-slot-harness"
+              onClick={() => setFocus("harness")}
+            />
+            <CraftingSlot
+              label="Pack"
+              focused={focus === "pack"}
+              icon={<Package className="size-3.5 text-neutral-600" />}
+              testId="crafting-slot-pack"
+              onClick={() => setFocus("pack")}
+            />
+            <CraftingSlot
+              label="预留"
+              focused={focus === "reserved"}
+              icon={<SquareDashedMousePointer className="size-3.5 text-neutral-700" />}
+              testId="crafting-slot-reserved"
+              onClick={() => setFocus("reserved")}
+            />
           </div>
         </div>
 
-        {/* Status arrow */}
         <div className="flex shrink-0 flex-col items-center justify-center gap-1 self-center px-1">
           <ArrowRight className="size-5 text-neutral-500" aria-hidden="true" />
           <span
@@ -132,29 +99,18 @@ export function EfficientWorkbench(props: {
           ) : null}
         </div>
 
-        {/* Result slot */}
-        <button
-          type="button"
+        <CraftingSlot
+          label="合成结果"
+          filled={Boolean(resultName)}
+          focused={focus === "result"}
+          brandId={harness && model ? harness.vendor : undefined}
+          brandLabel={harness?.displayName}
+          name={resultName || undefined}
+          icon={<Hammer className="size-4 text-neutral-600" />}
+          testId="crafting-result-slot"
           onClick={() => setFocus("result")}
-          title={resultName || "合成结果"}
-          className={`${slotClass} size-12 shrink-0 flex-col gap-0.5 rounded-xl border ${
-            resultName ? filledSlotClass : emptySlotClass
-          } ${focus === "result" ? focusedRing : ""}`}
-          data-testid="crafting-result-slot"
-        >
-          {model && harness ? (
-            <>
-              <ProviderBrandBadge id={harness.vendor} label={harness.displayName} size="row" />
-              <span className="w-20 truncate text-[8px] leading-tight text-neutral-400">
-                {model.displayName}
-              </span>
-            </>
-          ) : (
-            <Hammer className="size-4 text-neutral-600" />
-          )}
-        </button>
+        />
 
-        {/* Side details of the focused item */}
         <div className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/25 px-3 py-2">
           <p className="flex items-center gap-1 text-[10px] font-medium text-neutral-500">
             <Info className="size-3" aria-hidden="true" />
@@ -171,6 +127,10 @@ export function EfficientWorkbench(props: {
                   : "放入模型与 Harness 后自动判断兼容性。"}
               </p>
             </div>
+          ) : focus === "pack" ? (
+            <p className="mt-1 text-[10px] text-neutral-500">Pack 槽预留，暂未开放。</p>
+          ) : focus === "reserved" ? (
+            <p className="mt-1 text-[10px] text-neutral-500">预留组件槽，暂未开放。</p>
           ) : detail ? (
             <div className="mt-1 min-w-0 space-y-0.5">{detail}</div>
           ) : (
@@ -181,7 +141,6 @@ export function EfficientWorkbench(props: {
         </div>
       </div>
 
-      {/* Craft controls */}
       <div className="mt-2.5 flex items-center justify-end gap-2">
         <Button
           variant="ghost"

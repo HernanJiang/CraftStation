@@ -1,5 +1,40 @@
 import type { JsonRpcNotification } from "./types";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
+function pushNativeDelta(
+  events: RuntimeEvent[],
+  context: EventMappingContext,
+  threadId: string,
+  params: Record<string, any>,
+  stream: "assistant_text" | "reasoning_text",
+  itemType: "assistant_message" | "reasoning",
+): void {
+  const item = params.item ?? {};
+  const itemId = params.itemId || item.id || context.turnId || "";
+  const delta =
+    typeof params.delta === "string"
+      ? params.delta
+      : typeof params.delta?.text === "string"
+        ? params.delta.text
+        : "";
+  if (!itemId || !delta) return;
+  if (context.activeItemIds && !context.activeItemIds.has(itemId)) {
+    context.activeItemIds.add(itemId);
+    events.push({
+      type: "item.started",
+      threadId,
+      itemId,
+      itemType,
+    });
+  }
+  events.push({
+    type: "content.delta",
+    threadId,
+    itemId,
+    stream,
+    delta,
+  });
+}
+
 interface UsageScope {
   scopeId: string;
   epoch: number;
@@ -75,29 +110,14 @@ export function mapCodexNotificationToRuntimeEvents(
     case "item/agentMessage/delta":
     case "agentMessage/delta":
     case "content/delta": {
-      const itemId = params.itemId || "";
-      const delta = params.delta || "";
-      events.push({
-        type: "content.delta",
-        threadId,
-        itemId,
-        stream: "assistant_text",
-        delta,
-      });
+      pushNativeDelta(events, context, threadId, params, "assistant_text", "assistant_message");
       break;
     }
 
+    case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta":
     case "reasoning/textDelta": {
-      const itemId = params.itemId || "";
-      const delta = params.delta || "";
-      events.push({
-        type: "content.delta",
-        threadId,
-        itemId,
-        stream: "reasoning_text",
-        delta,
-      });
+      pushNativeDelta(events, context, threadId, params, "reasoning_text", "reasoning");
       break;
     }
 

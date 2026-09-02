@@ -383,15 +383,14 @@ export function ChatPane(props: ChatPaneProps) {
   return (
     <ChatPaneActionsContext.Provider value={paneActionsOverride ?? paneActions}>
       <div className="flex h-full min-h-0 flex-col">
-        <div className="relative flex min-h-0 flex-1">
+        <div className="relative min-h-0 flex-1">
           <ChatNavRail
             threadId={threadId}
             entries={timelineEntries}
             scrollProgress={scrollProgress}
             scrollToIndex={(index, options) => scrollToIndexRef.current?.(index, options)}
-            className="z-10"
           />
-          <div className="relative min-h-0 min-w-0 flex-1">
+          <div className="relative h-full min-h-0 min-w-0">
             <MessageList
               key={threadId}
               threadId={threadId}

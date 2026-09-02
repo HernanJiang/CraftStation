@@ -232,35 +232,6 @@ const antigravityStatus: AgentStatus = {
   },
 };
 
-const commandCodeStatus: AgentStatus = {
-  kind: "commandcode",
-  label: "Command Code",
-  installed: true,
-  authState: "authenticated",
-  capabilities: {
-    models: [
-      { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash" },
-      { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-    ],
-    efforts: [],
-    defaultEffort: "high",
-    modelEfforts: {
-      "deepseek/deepseek-v4-flash": ["high", "max"],
-      "gpt-5.4-mini": ["low", "medium", "high"],
-    },
-    modes: ["agent", "plan"],
-    approvalPolicies: [{ id: "yolo", label: "Bypass Permissions" }],
-    sandboxModes: [],
-    supportsResume: true,
-    supportsDirectInput: true,
-    liveInputMode: "terminal",
-    presentationMode: "terminal",
-    presentationModes: ["terminal"],
-    defaultApprovalPolicy: "yolo",
-    settingDefs: [],
-  },
-};
-
 const claudeStatus: AgentStatus = {
   kind: "claude",
   label: "Claude",
@@ -1763,7 +1734,7 @@ describe("ThreadDraftView", () => {
     expect(screen.queryByRole("tab", { name: "CLI" })).not.toBeInTheDocument();
   });
 
-  it("surfaces terminal-only providers in the draft model picker", async () => {
+  it("hides terminal-only providers from the GUI draft model picker", async () => {
     const onStart = vi.fn<(input: unknown) => void>();
 
     render(
@@ -1787,78 +1758,8 @@ describe("ThreadDraftView", () => {
         }>;
       };
       const providerModel = props.controls.find((c) => c.kind === "provider-model");
-      const antigravity = providerModel?.providers?.find(
-        (provider) => provider.kind === "antigravity",
-      );
       expect(providerModel?.presentationMode).toBe("gui");
-      expect(antigravity?.presentationMode).toBe("terminal");
-      expect(antigravity?.capabilities.models).toEqual([{ id: "auto", label: "Auto" }]);
-    });
-  });
-
-  it("switches the draft surface when selecting a terminal-only provider", async () => {
-    const onStart = vi.fn<(input: unknown) => void>();
-
-    render(
-      <ThreadDraftView
-        project={project}
-        agentStatuses={[dualModeCodexStatus, antigravityStatus]}
-        onStart={onStart}
-      />,
-    );
-
-    await waitFor(() => {
-      const props = composerSpy.mock.lastCall?.[0] as {
-        controls: Array<{
-          kind?: string;
-          currentAgentKind?: string;
-          currentModel?: string;
-          presentationMode?: string;
-          onChange?: (next: {
-            agentKind: string;
-            model: string;
-            presentationMode?: "terminal" | "gui";
-          }) => void;
-        }>;
-      };
-      const providerModel = props.controls.find((c) => c.kind === "provider-model");
-      expect(providerModel?.currentAgentKind).toBe("codex");
-    });
-
-    const initialProps = composerSpy.mock.lastCall?.[0] as {
-      controls: Array<{
-        kind?: string;
-        onChange?: (next: {
-          agentKind: string;
-          model: string;
-          presentationMode?: "terminal" | "gui";
-        }) => void;
-      }>;
-    };
-    const providerModel = initialProps.controls.find((c) => c.kind === "provider-model");
-
-    composerSpy.mockClear();
-    act(() => {
-      providerModel?.onChange?.({
-        agentKind: "antigravity",
-        model: "auto",
-        presentationMode: "terminal",
-      });
-    });
-
-    await waitFor(() => {
-      const props = composerSpy.mock.lastCall?.[0] as {
-        controls: Array<{
-          kind?: string;
-          currentAgentKind?: string;
-          currentModel?: string;
-          presentationMode?: string;
-        }>;
-      };
-      const nextProviderModel = props.controls.find((c) => c.kind === "provider-model");
-      expect(nextProviderModel?.currentAgentKind).toBe("antigravity");
-      expect(nextProviderModel?.currentModel).toBe("auto");
-      expect(nextProviderModel?.presentationMode).toBe("terminal");
+      expect(providerModel?.providers?.map((provider) => provider.kind)).toEqual(["codex"]);
     });
   });
 
@@ -1915,10 +1816,22 @@ describe("ThreadDraftView", () => {
       expect(providerModel?.providers?.map((provider) => provider.kind)).toEqual(["codex"]);
     });
 
+    const grokStatus: AgentStatus = {
+      ...dualModeCodexStatus,
+      kind: "grok",
+      label: "Grok",
+      capabilities: {
+        ...dualModeCodexStatus.capabilities,
+        models: [{ id: "grok-4.6", label: "Grok 4.6" }],
+        presentationMode: "gui",
+        presentationModes: ["gui"],
+        liveInputMode: "server",
+      },
+    };
     rerender(
       <ThreadDraftView
         project={project}
-        agentStatuses={[dualModeCodexStatus, commandCodeStatus]}
+        agentStatuses={[dualModeCodexStatus, grokStatus]}
         lastDraftConfig={lastDraftConfig}
         onStart={onStart}
       />,
@@ -1940,13 +1853,7 @@ describe("ThreadDraftView", () => {
       const providerModel = props.controls.find((c) => c.kind === "provider-model");
       expect(providerModel?.currentAgentKind).toBe("codex");
       expect(providerModel?.currentModel).toBe("gpt-5.4");
-      const commandCodeProvider = providerModel?.providers?.find(
-        (provider) => provider.kind === "commandcode",
-      );
-      expect(commandCodeProvider?.capabilities.models.map((model) => model.id)).toEqual([
-        "deepseek/deepseek-v4-flash",
-        "gpt-5.4-mini",
-      ]);
+      expect(providerModel?.providers?.map((provider) => provider.kind)).toEqual(["codex", "grok"]);
     });
   });
 

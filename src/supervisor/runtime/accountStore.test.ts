@@ -155,6 +155,28 @@ describe("AccountStore", () => {
     expect(() => store.remove("codex:missing")).toThrow(AccountControlError);
   });
 
+  it("purges identity-less rows regardless of status and dedupes matching identities", () => {
+    const store = createStore();
+    const unknown = store.add({ provider: "codex", label: "ghost" });
+    store.updateStatus(unknown.accountId, "available");
+    store.updateQuota(unknown.accountId, [{ id: "weekly", label: "Weekly", usedPercent: 10 }]);
+    expect(store.cleanupOrphanedPendingAccounts("codex")).toBe(1);
+    expect(store.list("codex")).toEqual([]);
+
+    const first = store.add({
+      provider: "codex",
+      label: "one",
+      providerAccountId: "User@Example.com",
+    });
+    store.add({
+      provider: "codex",
+      label: "two",
+      providerAccountId: "user@example.com",
+    });
+    expect(store.dedupeProviderIdentities("codex")).toBe(1);
+    expect(store.list("codex").map((account) => account.accountId)).toEqual([first.accountId]);
+  });
+
   it("matches provider identities case-insensitively and cleans only orphaned pending homes", () => {
     const store = createStore();
     const account = store.add({

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Project } from "@/shared/contracts";
 import { DraftContextBar } from "./DraftContextBar";
+import { DraftGitLaunchSlotProvider } from "./DraftGitLaunchSlot";
 import type { CraftMode } from "./CraftModeSwitch";
 
 /**
@@ -26,27 +27,29 @@ export function UniversalDockedChatInput(props: {
   threadId?: string;
 }) {
   return (
-    <div
-      data-universal-docked-chat-input=""
-      data-placement={props.placement}
-      className={
-        props.placement === "conversation"
-          ? "sticky bottom-0 z-10 flex flex-col bg-[var(--content-background)] pb-2 pt-1"
-          : "flex flex-col"
-      }
-    >
-      {props.project ? (
-        <DraftContextBar
-          project={props.project}
-          craftMode={props.craftMode}
-          onCraftModeChange={props.onCraftModeChange}
-          {...(props.threadId ? { threadId: props.threadId } : {})}
-          {...(props.paneId ? { paneId: props.paneId } : {})}
-          {...(props.worktreePath ? { worktreePath: props.worktreePath } : {})}
-          {...(props.onProjectChange ? { onProjectChange: props.onProjectChange } : {})}
-        />
-      ) : null}
-      {props.children}
-    </div>
+    <DraftGitLaunchSlotProvider>
+      <div
+        data-universal-docked-chat-input=""
+        data-placement={props.placement}
+        className={
+          props.placement === "conversation"
+            ? "sticky bottom-0 z-10 flex flex-col bg-[var(--content-background)] pb-2 pt-1"
+            : "flex flex-col"
+        }
+      >
+        {props.project ? (
+          <DraftContextBar
+            project={props.project}
+            craftMode={props.craftMode}
+            onCraftModeChange={props.onCraftModeChange}
+            {...(props.threadId ? { threadId: props.threadId } : {})}
+            {...(props.paneId ? { paneId: props.paneId } : {})}
+            {...(props.worktreePath ? { worktreePath: props.worktreePath } : {})}
+            {...(props.onProjectChange ? { onProjectChange: props.onProjectChange } : {})}
+          />
+        ) : null}
+        {props.children}
+      </div>
+    </DraftGitLaunchSlotProvider>
   );
 }

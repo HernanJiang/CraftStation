@@ -65,6 +65,9 @@ import {
   mergeSpawnEnv,
 } from "../../agents/base";
 import { captureSupervisorException } from "../../diagnostics/sentry";
+import { wrapHeaderBearingHttpMcpAsStdio } from "../../mcp/McpToolFilterService";
+import { ensureThreadWorkspace } from "../threadWorkspace";
+import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { ensureNodePtySpawnHelperExecutable } from "../../nodePty";
 import type { QueuedStructuredTurn, SessionRuntime } from "../sessionTypes";
 import type { ThreadOutputPipeline } from "../threadOutputPipeline";
@@ -314,6 +317,10 @@ export class SpawnPipeline {
       return { threadId: payload.threadId };
     }
 
+    ensureThreadWorkspace(
+      payload.projectLocation,
+      resolveThreadWorkspace(payload.projectLocation, payload.threadId),
+    );
     const adapter = this.requireAdapter(payload.agentKind);
     const isServerControlled = adapter.capabilities.liveInputMode === "server";
     // Per-thread mode wins over the adapter default. Chat-mode threads route
@@ -1179,7 +1186,13 @@ export class SpawnPipeline {
       appControlsMcp,
     );
     if (!adapter) return resolved;
-    const supported = resolved.filter((server) =>
+    const secretFree =
+      adapter.capabilities.requiresSecretFreeMcpConfig === true ||
+      adapter.capabilities.supportsMcpHttpHeaders === false;
+    const projected = secretFree
+      ? await wrapHeaderBearingHttpMcpAsStdio(resolved, location)
+      : resolved;
+    const supported = projected.filter((server) =>
       isMcpServerSupportedByRuntime(server, adapter.capabilities),
     );
     if (supported.length !== resolved.length) {

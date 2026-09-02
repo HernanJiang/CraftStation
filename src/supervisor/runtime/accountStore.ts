@@ -444,19 +444,44 @@ export class AccountStore {
   }
 
   /**
-   * Remove an uncompleted pending account row. Rows with an identity, a prior
-   * probe/quota snapshot, or an auth-expired state remain recoverable.
+   * Remove an uncompleted pending account row. Any row without a resolvable
+   * provider identity is treated as an interrupted login leftover — it cannot
+   * select a working session and must not keep occupying the usage list.
    */
   cleanupOrphanedPendingAccounts(provider: string): number {
     const orphaned = this.records(provider).filter(
-      (account) =>
-        !account.providerAccountId?.trim() &&
-        !account.maskedIdentity?.trim() &&
-        account.status === "unavailable" &&
-        (account.quotaWindows === undefined || account.quotaWindows.length === 0),
+      (account) => !account.providerAccountId?.trim() && !account.maskedIdentity?.trim(),
     );
     for (const account of orphaned) this.remove(account.accountId);
     return orphaned.length;
+  }
+
+  /** Collapse duplicate identities for one provider, keeping the selected/newest row. */
+  dedupeProviderIdentities(provider: string): number {
+    const groups = new Map<string, AccountRecord[]>();
+    for (const account of this.records(provider)) {
+      const identity = normalizeProviderIdentity(
+        account.providerAccountId ?? account.maskedIdentity,
+      );
+      if (!identity) continue;
+      const group = groups.get(identity) ?? [];
+      group.push(account);
+      groups.set(identity, group);
+    }
+    let removed = 0;
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      const kept =
+        group.find((account) => account.selected) ??
+        [...group].sort((left, right) => right.createdAt - left.createdAt)[0];
+      if (!kept) continue;
+      for (const account of group) {
+        if (account.accountId === kept.accountId) continue;
+        this.remove(account.accountId);
+        removed += 1;
+      }
+    }
+    return removed;
   }
 
   projectCredential(projection: AccountCredentialProjection): string {

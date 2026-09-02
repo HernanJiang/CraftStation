@@ -370,6 +370,15 @@ export function buildControls(
   onConfigChange: (config: ThreadConfig) => void,
   modelPreferences?: Record<string, ProviderModelPreference>,
   onModelPreferenceChange?: (model: string, preference: ProviderModelPreference) => void,
+  options?: {
+    providers?: ProviderModelMenuProvider[];
+    onProviderChange?: (next: {
+      agentKind: string;
+      model: string;
+      presentationMode?: ThreadPresentationMode;
+      accountId?: string;
+    }) => void;
+  },
 ): ComposerControl[] {
   const presentationMode =
     thread.presentationMode ?? agentStatus?.capabilities.presentationMode ?? "terminal";
@@ -395,16 +404,19 @@ export function buildControls(
       ...(config.fast !== undefined ? { fast: config.fast } : {}),
     });
   };
-  const provider: ProviderModelMenuProvider = {
+  const currentProvider: ProviderModelMenuProvider = {
     kind: thread.agentKind,
     label: agentStatus.label,
     ...(agentStatus.icon ? { icon: agentStatus.icon } : {}),
     capabilities: filteredCaps,
   };
+  const providers =
+    options?.providers && options.providers.length > 0 ? options.providers : [currentProvider];
+  const lockToCurrentAgent = providers.length === 1 && providers[0]?.kind === thread.agentKind;
 
   return appendProviderComposerControls(
     buildModelPickerControls({
-      providers: [provider],
+      providers,
       selectedAgentKind: thread.agentKind,
       model: effectiveConfig.model,
       ...(effectiveConfig.effort ? { effort: effectiveConfig.effort } : {}),
@@ -412,13 +424,17 @@ export function buildControls(
       ...(effectiveConfig.fast ? { fast: effectiveConfig.fast } : {}),
       ...(effectiveConfig.thinking ? { thinking: effectiveConfig.thinking } : {}),
       capabilities: filteredCaps,
-      lockedAgentKind: thread.agentKind,
+      ...(lockToCurrentAgent ? { lockedAgentKind: thread.agentKind } : {}),
       presentationMode,
       isDisabled,
-      onProviderModelChange: ({ model }) => {
-        const preference = modelPreferences?.[model];
+      onProviderModelChange: (next) => {
+        if (next.agentKind !== thread.agentKind) {
+          options?.onProviderChange?.(next);
+          return;
+        }
+        const preference = modelPreferences?.[next.model];
         onPatch(
-          patchConfigForModelChange(filteredCaps, model, {
+          patchConfigForModelChange(filteredCaps, next.model, {
             ...(preference?.effort !== undefined ? { effort: preference.effort } : {}),
             ...(effectiveConfig.contextSize ? { contextSize: effectiveConfig.contextSize } : {}),
             ...(preference?.fast !== undefined ? { fast: preference.fast } : {}),

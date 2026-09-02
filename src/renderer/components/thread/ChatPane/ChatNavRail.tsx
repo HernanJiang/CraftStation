@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { getRuntimeItemPayload } from "@/renderer/state/slices/runtimeEventSlice";
 import { useAppStore } from "@/renderer/state/appStore";
@@ -81,28 +81,29 @@ export function ChatNavRail(props: {
     return Math.min(Math.max(approx, 0), nodes.length - 1);
   }, [nodes, scrollProgress]);
 
-  // Collapse when the pointer leaves and no node is being interacted with.
-  useEffect(() => {
-    if (expanded) return;
-    return undefined;
-  }, [expanded]);
-
   if (nodes.length === 0) return null;
 
   const nodeCount = nodes.length;
-  const collapsedWidth = "w-4";
-  const expandedWidth = "w-56";
+  // Overlay on the far left of the chat content (flush to the main sidebar).
+  // Collapsed it is a 12px tick gutter; expanded it paints over the messages
+  // instead of pushing the conversation sideways.
+  const widthClass = expanded ? "w-52" : "w-3";
 
   return (
     <div
       ref={railRef}
       data-testid="chat-nav-rail"
-      className={`group relative h-full ${expanded ? expandedWidth : collapsedWidth} shrink-0 self-stretch transition-[width] duration-200 ${className ?? ""}`}
+      data-expanded={expanded ? "true" : "false"}
+      className={`group pointer-events-auto absolute inset-y-0 left-0 z-20 ${widthClass} overflow-hidden transition-[width] duration-150 ${
+        expanded
+          ? "bg-[color:var(--content-background)]/92 shadow-[4px_0_16px_rgba(0,0,0,0.28)] backdrop-blur-sm"
+          : ""
+      } ${className ?? ""}`}
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
       aria-label={t`Conversation quick navigation`}
     >
-      <div className="absolute inset-y-0 left-0 flex w-full flex-col gap-0.5 overflow-hidden py-2 pl-0.5">
+      <div className="flex h-full w-full flex-col gap-0.5 py-2 pl-0.5 pr-1">
         {nodes.map((node, index) => {
           const isCurrent = index === currentIndex;
           return (
@@ -112,7 +113,11 @@ export function ChatNavRail(props: {
               data-testid={`chat-nav-node-${index}`}
               aria-current={isCurrent ? "true" : undefined}
               title={node.summary || t`Prompt #${index + 1}`}
-              onClick={() => scrollToIndex(node.entryIndex, { align: "start" })}
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpanded(true);
+                scrollToIndex(node.entryIndex, { align: "start" });
+              }}
               className="flex min-h-3 flex-1 items-center gap-1.5 rounded-md px-0.5 text-left transition-colors hover:bg-white/5"
             >
               <span

@@ -22,6 +22,11 @@ const TARGET_ITEMS: Readonly<
     harnessItemId: "harness:antigravity",
     modelItemId: (model) => `google:${model}`,
   },
+  opencode: {
+    harnessItemId: "harness:opencode",
+    modelItemId: (model) =>
+      model.includes(":") || model.includes("/") ? model : `openai:${model}`,
+  },
 };
 
 export interface HandoffTargetCompilation {
@@ -62,7 +67,14 @@ export function compileHandoffTarget(input: {
   }
   const registry = getDefaultRegistry();
   const modelItemId = prefixedModelId(target.modelItemId, input.targetConfig.model);
-  const modelItem = registry.getItem(modelItemId);
+  const modelItem =
+    registry.getItem(modelItemId) ??
+    registry.listItems("model").find((item) => {
+      const prefix = modelItemId.includes(":")
+        ? modelItemId.slice(0, modelItemId.indexOf(":") + 1)
+        : "";
+      return prefix.length > 0 && item.id.startsWith(prefix);
+    });
   const harnessItem = registry.getItem(target.harnessItemId);
   if (!modelItem || !harnessItem) {
     return {
@@ -194,4 +206,52 @@ export async function readSessionHandoffState(
 
 export async function cancelSessionHandoff(threadId: string, requestId: string): Promise<void> {
   await readBridge().cancelSessionSwitch({ threadId, requestId });
+}
+
+/**
+ * Switch the live thread to another model/provider while keeping the same
+ * Thread identity. Prefers the native CraftPlan handoff when the target is a
+ * verified GUI recipe; otherwise rebinds the durable Thread row so the next
+ * send launches the new provider against the existing conversation timeline.
+ */
+export async function switchLiveThreadProvider(input: {
+  thread: Thread;
+  projectLocation: ProjectLocation;
+  targetAgentKind: string;
+  targetConfig: ThreadConfig;
+  targetPresentationMode?: Thread["presentationMode"];
+}): Promise<void> {
+  const compiled = compileHandoffTarget({
+    thread: input.thread,
+    projectLocation: input.projectLocation,
+    targetAgentKind: input.targetAgentKind,
+    targetConfig: input.targetConfig,
+  });
+  if (compiled.available && compiled.craftPlan && compiled.provenance) {
+    await requestSessionHandoff({
+      thread: input.thread,
+      projectLocation: input.projectLocation,
+      targetAgentKind: input.targetAgentKind,
+      targetConfig: input.targetConfig,
+      mode: "after-current-turn",
+      prompt: "Continue this conversation with the newly selected model. Preserve prior context.",
+    });
+    return;
+  }
+
+  const { sessionRef: _previous, accountBinding: _binding, ...stable } = input.thread;
+  const updatedThread: Thread = {
+    ...stable,
+    agentKind: input.targetAgentKind,
+    config: input.targetConfig,
+    ...(input.targetPresentationMode ? { presentationMode: input.targetPresentationMode } : {}),
+    canResumeWithConfig: false,
+    updatedAt: new Date().toISOString(),
+  };
+  useAppStore.setState((current) => ({
+    threads: current.threads.map((thread) =>
+      thread.id === input.thread.id ? updatedThread : thread,
+    ),
+  }));
+  await readBridge().dbUpsertThread(updatedThread);
 }

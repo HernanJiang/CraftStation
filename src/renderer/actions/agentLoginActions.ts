@@ -519,12 +519,7 @@ async function runCodexProfileLoginInternal(input: {
         .getState()
         .accounts.find((account) => account.accountId === input.accountId);
       loginSucceeded = Boolean(
-        authorized &&
-        (authorized.status === "available" ||
-          authorized.status === "quota-low" ||
-          authorized.status === "quota-exhausted" ||
-          authorized.maskedIdentity ||
-          authorized.providerAccountId),
+        authorized && (authorized.providerAccountId?.trim() || authorized.maskedIdentity?.trim()),
       );
       window.setTimeout(() => {
         if (useLoginTerminalStore.getState().active?.shellId === shellId) {

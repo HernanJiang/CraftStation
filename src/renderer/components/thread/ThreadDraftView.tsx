@@ -29,6 +29,12 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
+import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
+import {
+  isConfiguredComposerAgent,
+  resolveConfiguredProviderIds,
+} from "@/renderer/crafting/configuredProviders";
 import { filterHiddenModels } from "@/shared/agentSelection";
 import type { ProviderModelPreference } from "@/shared/settings";
 import { mergeCustomModelsIntoCapabilities } from "./customModelCatalog";
@@ -791,6 +797,21 @@ export function ThreadDraftView(props: {
   );
   const allHiddenModels = useSharedSettings((s) => s.hiddenModels);
   const usageAccounts = useUsageAccountsStore((s) => s.accounts);
+  const storedLogin = useUsageLoginStateStore((s) => s.stored);
+  const usageSnapshots = useProviderUsageStore((s) => s.snapshots);
+  const usageAccountsHydrated = useUsageAccountsStore((s) => s.hydrated);
+  const configuredProviderIds = useMemo(
+    () =>
+      new Set(
+        resolveConfiguredProviderIds({
+          accounts: usageAccounts,
+          storedLogin,
+          usageSnapshots,
+        }),
+      ),
+    [usageAccounts, storedLogin, usageSnapshots],
+  );
+  const usageChannelsReady = usageAccountsHydrated || Object.values(storedLogin).some(Boolean);
   const selectedAgentFilteredCapabilities = useMemo(
     () =>
       selectedAgentForConfig
@@ -799,7 +820,12 @@ export function ThreadDraftView(props: {
     [selectedAgentForConfig, hiddenModelIds],
   );
   const providerModelProviders = useMemo(() => {
-    const baseProviders = buildProviderModelMenuProviders(installedAgents, {
+    const supportsGuiPicker = (agent: (typeof installedAgents)[number]) => {
+      if (presentationMode !== "gui") return true;
+      const modes = agent.capabilities.presentationModes ?? [agent.capabilities.presentationMode];
+      return modes.includes("gui");
+    };
+    const allProviders = buildProviderModelMenuProviders(installedAgents, {
       resolvePresentationMode: (agent) => {
         const supported = agent.capabilities.presentationModes ?? [
           agent.capabilities.presentationMode,
@@ -809,6 +835,7 @@ export function ThreadDraftView(props: {
           : resolveInitialPresentationMode(agent, lastPresentationModeByAgent);
       },
       hiddenModelsByAgent: allHiddenModels,
+      filterAgent: supportsGuiPicker,
     }).map((provider) => ({
       ...provider,
       // 普通自定义模型属于 adapter；带 accountId 的模型由独立渠道承载。
@@ -818,6 +845,11 @@ export function ThreadDraftView(props: {
         customModels,
       ),
     }));
+    const baseProviders = usageChannelsReady
+      ? allProviders.filter((provider) =>
+          isConfiguredComposerAgent(provider.kind, configuredProviderIds),
+        )
+      : allProviders;
     const accountGroups = new Map<string, typeof customModels>();
     for (const entry of customModels) {
       if (!entry.accountId) continue;
@@ -825,10 +857,10 @@ export function ThreadDraftView(props: {
     }
     const accountProviders = [...accountGroups].flatMap(([accountId, models]) => {
       const source =
-        baseProviders.find(
+        allProviders.find(
           (provider) =>
             provider.kind === models[0]?.provider && provider.presentationMode === "gui",
-        ) ?? baseProviders.find((provider) => provider.kind === models[0]?.provider);
+        ) ?? allProviders.find((provider) => provider.kind === models[0]?.provider);
       if (!source) return [];
       const account = usageAccounts.find((candidate) => candidate.accountId === accountId);
       const label =
@@ -855,6 +887,8 @@ export function ThreadDraftView(props: {
     allHiddenModels,
     customModels,
     usageAccounts,
+    configuredProviderIds,
+    usageChannelsReady,
   ]);
   const latestConfigPatchRef = useRef<(patch: Partial<ThreadConfig>) => void>(() => undefined);
   const latestProviderModelChangeRef = useRef<

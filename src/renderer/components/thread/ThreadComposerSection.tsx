@@ -65,6 +65,8 @@ import { supportsUsableFastMode } from "./threadDraftViewHelpers";
 import { getApprovalDenyOption } from "./ThreadRuntimeRequestPanel/helpers";
 import { hasReportedContextUsage, resolveThreadContextUsageSummary } from "./threadContextUsage";
 import { buildControls } from "./buildModelPickerControls";
+import { useManagedComposerProviders } from "./useManagedComposerProviders";
+import { switchLiveThreadProvider } from "@/renderer/actions/sessionHandoffActions";
 import { submitComposerPrompt } from "./threadComposerSubmit";
 import {
   filterSlashCommands,
@@ -450,6 +452,10 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   );
   const modelPreferences = useSharedSettings((s) => s.providerModelPreferences[thread.agentKind]);
   const setProviderModelPreference = useSharedSettings((s) => s.setProviderModelPreference);
+  const managedProviders = useManagedComposerProviders({
+    presentationMode,
+    includeAgentKind: thread.agentKind,
+  });
   const controls = buildControls(
     thread,
     effectiveAgentStatus,
@@ -457,6 +463,21 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     (config) => changeThreadConfig(thread.id, config),
     modelPreferences,
     (model, preference) => setProviderModelPreference(thread.agentKind, model, preference),
+    {
+      providers: managedProviders,
+      onProviderChange: (next) => {
+        void switchLiveThreadProvider({
+          thread,
+          projectLocation,
+          targetAgentKind: next.agentKind,
+          targetConfig: {
+            ...thread.config,
+            model: next.model,
+          },
+          ...(next.presentationMode ? { targetPresentationMode: next.presentationMode } : {}),
+        }).catch((error: unknown) => toast.danger(friendlyError(error)));
+      },
+    },
   );
   const controlsWithOpenSignal = controls.map((control): ComposerControl => {
     if (controlOpenRequest?.target === "model" && control.kind === "provider-model") {

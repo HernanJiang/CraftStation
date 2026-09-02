@@ -104,19 +104,21 @@ export function GuiThreadContent(
         </div>
       </div>
       {props.hideComposer ? null : (
-        <ThreadComposerSection
-          {...props}
-          todoDockCollapsed={dockState.todoDockCollapsed}
-          todoDockPlacement={dockState.todoDockPlacement}
-          todoDockState={dockState.todoDockState}
-          goalDockState={dockState.goalDockState}
-          errorDockStates={dockState.errorDockStates}
-          onGoalDockDismiss={dockState.onGoalDockDismiss}
-          onDismissError={dockState.onDismissError}
-          onTodoDockCollapsedChange={dockState.onTodoDockCollapsedChange}
-          onTodoDockPlacementChange={dockState.onTodoDockPlacementChange}
-          onTodoDockRetire={dockState.onTodoDockRetire}
-        />
+        <div className="mx-auto w-full max-w-[920px] px-3">
+          <ThreadComposerSection
+            {...props}
+            todoDockCollapsed={dockState.todoDockCollapsed}
+            todoDockPlacement={dockState.todoDockPlacement}
+            todoDockState={dockState.todoDockState}
+            goalDockState={dockState.goalDockState}
+            errorDockStates={dockState.errorDockStates}
+            onGoalDockDismiss={dockState.onGoalDockDismiss}
+            onDismissError={dockState.onDismissError}
+            onTodoDockCollapsedChange={dockState.onTodoDockCollapsedChange}
+            onTodoDockPlacementChange={dockState.onTodoDockPlacementChange}
+            onTodoDockRetire={dockState.onTodoDockRetire}
+          />
+        </div>
       )}
     </>
   );

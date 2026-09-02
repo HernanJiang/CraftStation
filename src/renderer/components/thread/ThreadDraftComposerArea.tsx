@@ -99,6 +99,7 @@ import {
 } from "./threadSlashCommands";
 import { useKeybindingStore } from "@/renderer/commands/keybindingStore";
 import { handleComposerControlShortcut } from "./threadComposerShortcuts";
+import { DraftGitLaunchPortal } from "./DraftGitLaunchSlot";
 import { WorktreeModeSelect, type WorktreeMode } from "./WorktreeModeSelect";
 import {
   isCurrentCheckoutRef,
@@ -1326,57 +1327,59 @@ export function ThreadDraftComposerArea(props: {
         }
       />
       {props.gitBranch ? (
-        <div
-          data-draft-worktree-row=""
-          className="order-3 mt-1.5 flex flex-wrap items-center gap-1 px-1"
-        >
-          <WorktreeModeSelect
-            mode={experimentMode ? "new" : worktreeMode}
-            canBringChanges={experimentMode ? false : canBringChanges}
-            onChange={handleWorktreeModeChange}
-            isDisabled={experimentMode}
-            compact
-          />
-          <BranchSelector
-            projectId={props.project.id}
-            currentBranch={props.gitBranch}
-            value={
-              experimentMode
-                ? (experimentBaseBranch ?? defaultWorktreeBase ?? props.gitBranch)
-                : worktreeSelected
-                  ? (worktreeBase ?? props.gitBranch)
-                  : (branchSelection?.branch ?? props.gitBranch)
-            }
-            isWorktree={experimentMode ? true : branchSelection?.isWorktree}
-            baseBranch={
-              experimentMode
-                ? (experimentBaseBranch ?? defaultWorktreeBase ?? props.gitBranch)
-                : worktreeSelected
-                  ? worktreeBase
-                  : branchSelection?.baseBranch
-            }
-            worktreeMode={experimentMode || props.worktreeMode}
-            {...(!experimentMode ? { onWorktreeModeChange: props.onWorktreeModeChange } : {})}
-            onSelect={
-              experimentMode
-                ? (selection) =>
-                    setExperimentBaseBranch(
-                      resolveOriginBase(selection.baseBranch ?? selection.branch),
-                    )
-                : handleBranchSelect
-            }
-            onSwitchBranch={props.onSwitchBranch}
-            hideWorktreeToggle
-            hideTriggerIcon
-            compact
-            showMoveBranchAction={!experimentMode}
-            {...(props.project.scripts?.worktreeCopyPatterns
-              ? {
-                  moveBranchCopyIgnoredPatterns: props.project.scripts.worktreeCopyPatterns,
-                }
-              : {})}
-          />
-        </div>
+        <DraftGitLaunchPortal>
+          <div
+            data-draft-worktree-row=""
+            className="flex min-w-0 flex-wrap items-center gap-1 px-1"
+          >
+            <WorktreeModeSelect
+              mode={experimentMode ? "new" : worktreeMode}
+              canBringChanges={experimentMode ? false : canBringChanges}
+              onChange={handleWorktreeModeChange}
+              isDisabled={experimentMode}
+              compact
+            />
+            <BranchSelector
+              projectId={props.project.id}
+              currentBranch={props.gitBranch}
+              value={
+                experimentMode
+                  ? (experimentBaseBranch ?? defaultWorktreeBase ?? props.gitBranch)
+                  : worktreeSelected
+                    ? (worktreeBase ?? props.gitBranch)
+                    : (branchSelection?.branch ?? props.gitBranch)
+              }
+              isWorktree={experimentMode ? true : branchSelection?.isWorktree}
+              baseBranch={
+                experimentMode
+                  ? (experimentBaseBranch ?? defaultWorktreeBase ?? props.gitBranch)
+                  : worktreeSelected
+                    ? worktreeBase
+                    : branchSelection?.baseBranch
+              }
+              worktreeMode={experimentMode || props.worktreeMode}
+              {...(!experimentMode ? { onWorktreeModeChange: props.onWorktreeModeChange } : {})}
+              onSelect={
+                experimentMode
+                  ? (selection) =>
+                      setExperimentBaseBranch(
+                        resolveOriginBase(selection.baseBranch ?? selection.branch),
+                      )
+                  : handleBranchSelect
+              }
+              onSwitchBranch={props.onSwitchBranch}
+              hideWorktreeToggle
+              hideTriggerIcon
+              compact
+              showMoveBranchAction={!experimentMode}
+              {...(props.project.scripts?.worktreeCopyPatterns
+                ? {
+                    moveBranchCopyIgnoredPatterns: props.project.scripts.worktreeCopyPatterns,
+                  }
+                : {})}
+            />
+          </div>
+        </DraftGitLaunchPortal>
       ) : null}
     </>
   );

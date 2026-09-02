@@ -133,12 +133,15 @@ export class CodexProfileService {
 
   constructor(private readonly options: CodexProfileServiceOptions) {
     this.provider = options.provider ?? "codex";
-    // Remove only interrupted, never-identified pending rows. Auth-expired and
-    // previously probed rows remain available for recovery and diagnostics.
+    // Remove interrupted never-identified pending rows and collapse duplicate
+    // ChatGPT identities so the usage list cannot accumulate "账号身份未知".
     this.options.store.cleanupOrphanedPendingAccounts(this.provider);
+    this.options.store.dedupeProviderIdentities(this.provider);
   }
 
   list(): AccountView[] {
+    this.options.store.cleanupOrphanedPendingAccounts(this.provider);
+    this.options.store.dedupeProviderIdentities(this.provider);
     return this.options.store.list(this.provider);
   }
 
@@ -214,6 +217,24 @@ export class CodexProfileService {
     return this.options.store.credentialRoot(accountId);
   }
 
+  private readManagedAuthIdentity(codexHome: string): {
+    accountId?: string;
+    email?: string;
+  } {
+    const authPath = join(codexHome, "auth.json");
+    if (!existsSync(authPath)) return {};
+    try {
+      const token = parseCodexAuth(readFileSync(authPath, "utf8"));
+      if (!token) return {};
+      return {
+        ...(token.accountId?.trim() ? { accountId: token.accountId.trim() } : {}),
+        ...(token.email?.trim() ? { email: token.email.trim() } : {}),
+      };
+    } catch {
+      return {};
+    }
+  }
+
   async collectQuota(accountId: string, host: HostPort): Promise<AccountView> {
     const account = this.options.store.getRecord(accountId);
     if (!account)
@@ -246,8 +267,26 @@ export class CodexProfileService {
           : snapshot.status === "auth-missing"
             ? "auth-expired"
             : "unavailable";
+    const authIdentity = this.readManagedAuthIdentity(codexHome);
+    const providerAccountId =
+      snapshot.authenticatedAs?.trim() ||
+      authIdentity.accountId ||
+      authIdentity.email ||
+      account.providerAccountId;
+    const maskedIdentity = authIdentity.email || account.maskedIdentity;
+    if (providerAccountId) {
+      const duplicate = this.options.store.findByProviderIdentities(this.provider, [
+        providerAccountId,
+        authIdentity.email,
+      ]);
+      if (duplicate && duplicate.accountId !== accountId) {
+        this.options.store.remove(accountId);
+        return this.options.store.get(duplicate.accountId)!;
+      }
+    }
     const withMetadata = this.options.store.updateProviderMetadata(accountId, {
-      ...(snapshot.authenticatedAs ? { providerAccountId: snapshot.authenticatedAs } : {}),
+      ...(providerAccountId ? { providerAccountId } : {}),
+      ...(maskedIdentity ? { maskedIdentity } : {}),
       ...(snapshot.plan ? { plan: snapshot.plan } : {}),
     });
     const updated = this.options.store.updateStatus(accountId, status, {
