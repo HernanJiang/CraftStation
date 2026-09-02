@@ -51,7 +51,9 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
     });
     start.mockRestore();
   });
-  function setupMockClientTransport(options: { turnStartError?: string } = {}) {
+  function setupMockClientTransport(
+    options: { turnStartError?: string; interruptError?: string } = {},
+  ) {
     const clientToHost = new PassThrough();
     const hostToClient = new PassThrough();
     const transport = new JsonRpcTransport(hostToClient, clientToHost);
@@ -195,6 +197,14 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
                 }) + "\n",
               );
             }, 10);
+          } else if (msg.method === "turn/interrupt" && options.interruptError) {
+            hostToClient.write(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: msg.id,
+                error: { code: -32002, message: options.interruptError },
+              }) + "\n",
+            );
           } else {
             // Default response for turn/interrupt, turn/steer, approval/respond, etc.
             hostToClient.write(
@@ -519,6 +529,41 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
 
     const turnRes = await turnPromise;
     expect(turnRes.status).toBe("interrupted");
+  });
+
+  it("propagates interrupt failures instead of faking a local turn completion", async () => {
+    const { client, receivedRequests } = setupMockClientTransport({
+      interruptError: "app-server rejected interrupt",
+    });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+
+    const crafter = new Crafter();
+    const plan = crafter.compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { threadId: "thread-interrupt-fail" },
+    ).craftPlan!;
+
+    const entity = await adapter.spawnEntity(plan);
+    const session = await adapter.createSession(entity);
+    const events: Array<{ type: string; state?: string }> = [];
+    session.subscribe((event) => {
+      events.push({
+        type: event.type,
+        ...((event as { state?: string }).state
+          ? { state: (event as { state?: string }).state }
+          : {}),
+      });
+    });
+
+    const turnPromise = session.startTurn({ prompt: "Long work" });
+    await expect(session.interrupt()).rejects.toThrow("app-server rejected interrupt");
+    expect(receivedRequests.some((r) => r.method === "turn/interrupt")).toBe(true);
+    // The failure must NOT emit a fake turn.completed: the supervisor's
+    // interrupt watchdog owns the local force-close decision. (The mock host
+    // may still deliver its own scripted turn/completed later; only the local
+    // optimistic emission is forbidden here.)
+    expect(events.some((e) => e.type === "turn.completed")).toBe(false);
+    void turnPromise.catch(() => undefined);
   });
 
   it("integrates Approval and Permission control plane requests from official app-server", async () => {

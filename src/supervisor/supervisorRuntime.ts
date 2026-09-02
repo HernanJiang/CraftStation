@@ -200,6 +200,14 @@ import {
 
 export { detectWslAgentStatuses, writeSubmittedPrompt };
 
+/**
+ * Absolute force-stop deadline for crafted interrupts, mirroring the legacy
+ * StructuredInterruptWatchdog grace. If the native runtime does not
+ * acknowledge Stop with a turn completion by this point, the turn is closed
+ * locally so the renderer can never stay wedged in "working".
+ */
+const CRAFTED_INTERRUPT_FORCE_STOP_MS = 3_000;
+
 function enrichCraftingError(
   error: CraftingError,
   plan: CraftAgentPayload["craftPlan"],
@@ -303,6 +311,8 @@ export class SupervisorRuntime {
   >();
   private readonly craftedSessionUnsubscribers = new Map<string, Map<string, () => void>>();
   private readonly craftedRequestsByThread = new Map<string, Map<string, CraftedRequest>>();
+  /** Force-stop deadlines for crafted interrupts that the runtime never acknowledged. */
+  private readonly craftedInterruptWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly runtimeSegmentLedger: RuntimeSegmentLedger;
   private readonly sessionHandoffCoordinator: SessionHandoffCoordinator;
   /** Per-account quota refresh locks so concurrent refreshes coalesce (v0.5 T09). */
@@ -982,8 +992,75 @@ export class SupervisorRuntime {
       await this.threadSessionManager.interruptThread(payload);
       return;
     }
-    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
-    await session.interrupt(session.getSnapshot().activeTurnId);
+    // Stop must never fail closed on a missing/stale execution envelope: a
+    // dropped handoff event must not leave the user unable to stop a running
+    // turn. Interrupt is idempotent and touches no credentials, so fencing is
+    // relaxed to a best-effort request.
+    try {
+      this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+    } catch (error) {
+      console.warn(
+        "[supervisor] interrupt execution fence failed; interrupting anyway:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    const turnId = session.getSnapshot().activeTurnId;
+    this.armCraftedInterruptWatchdog(payload.threadId, session, turnId);
+    try {
+      await session.interrupt(turnId);
+    } catch (error) {
+      console.error(
+        "[supervisor] native interrupt rejected; watchdog will force-stop the turn:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * Crafted-path force-stop watchdog. Native runtimes acknowledge Stop with a
+   * `turn.completed` event; if the provider ignores the interrupt (or the
+   * request errored without a local settle), close the turn locally at the
+   * deadline so the renderer never stays wedged in "working" with a dead
+   * Stop button.
+   */
+  private armCraftedInterruptWatchdog(
+    threadId: string,
+    session: CraftSession,
+    turnId: string | undefined,
+  ): void {
+    const previous = this.craftedInterruptWatchdogs.get(threadId);
+    if (previous) clearTimeout(previous);
+    const sessionId = session.id;
+    const watchdog = setTimeout(() => {
+      this.craftedInterruptWatchdogs.delete(threadId);
+      const current = this.craftedSessionsByThread.get(threadId);
+      if (!current || current.id !== sessionId) return;
+      const snapshot = current.getSnapshot();
+      if (snapshot.activeTurnId !== turnId || snapshot.activeTurnStatus !== "running") return;
+      this.emit({
+        type: "thread-runtime-event",
+        threadId,
+        event: {
+          type: "turn.completed",
+          threadId,
+          turnId: turnId ?? "",
+          state: "interrupted",
+        },
+      });
+      console.warn(
+        "[supervisor] crafted turn did not acknowledge interrupt in time; closed locally:",
+        threadId,
+      );
+    }, CRAFTED_INTERRUPT_FORCE_STOP_MS);
+    this.craftedInterruptWatchdogs.set(threadId, watchdog);
+  }
+
+  private clearCraftedInterruptWatchdog(threadId: string): void {
+    const watchdog = this.craftedInterruptWatchdogs.get(threadId);
+    if (watchdog) {
+      clearTimeout(watchdog);
+      this.craftedInterruptWatchdogs.delete(threadId);
+    }
   }
 
   async setPendingSteer(payload: SetPendingSteerPayload): Promise<void> {
@@ -992,15 +1069,34 @@ export class SupervisorRuntime {
       await this.threadSessionManager.setPendingSteer(payload);
       return;
     }
-    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
-    if (!session.steer) {
-      throw new SessionHandoffError(
-        "HANDOFF_STEER_UNSUPPORTED",
-        "failed",
-        "The active native Runtime does not support steer commands.",
+    try {
+      this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+    } catch (error) {
+      console.warn(
+        "[supervisor] steer execution fence failed; continuing best-effort:",
+        error instanceof Error ? error.message : String(error),
       );
     }
-    await session.steer(payload.prompt);
+    if (session.steer) {
+      await session.steer(payload.prompt);
+      return;
+    }
+    // The runtime has no native steer. The user must still be able to keep
+    // talking: interrupt the running turn and send the new message as a fresh
+    // turn once the interrupt settles, instead of wedging the conversation.
+    const snapshot = session.getSnapshot();
+    if (snapshot.activeTurnStatus === "running" && snapshot.activeTurnId) {
+      this.armCraftedInterruptWatchdog(payload.threadId, session, snapshot.activeTurnId);
+      try {
+        await session.interrupt(snapshot.activeTurnId);
+      } catch (error) {
+        console.error(
+          "[supervisor] steer-fallback interrupt rejected; watchdog will force-stop:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+    await session.sendPrompt(payload.prompt);
   }
 
   async clearPendingSteer(payload: ClearPendingSteerPayload): Promise<void> {
@@ -1980,6 +2076,9 @@ export class SupervisorRuntime {
       const pending = this.pendingHandoffEvents.get(threadId);
       if (pending) pending.push(fencedEvent);
       else this.emit({ type: "thread-runtime-event", threadId, event: fencedEvent });
+      // The runtime acknowledged the interrupt with a real turn completion:
+      // disarm the force-stop watchdog.
+      if (fencedEvent.type === "turn.completed") this.clearCraftedInterruptWatchdog(threadId);
       void this.sessionHandoffCoordinator.onRuntimeEvent(threadId, fencedEvent);
       if (
         fencedEvent.type === "session.exited" &&
@@ -2074,6 +2173,7 @@ export class SupervisorRuntime {
     this.craftedSessionBindings.delete(threadId);
     this.pendingHandoffEvents.delete(threadId);
     this.handoffSourceBindings.delete(threadId);
+    this.clearCraftedInterruptWatchdog(threadId);
   }
 
   /**

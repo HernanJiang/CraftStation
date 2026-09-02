@@ -684,6 +684,21 @@ export class ThreadSessionManager {
     }
     this.options.crossagentMcp?.cancelForeground(payload.threadId);
     await this.structuredInterruptWatchdog.interruptStructuredTurn(session);
+    // Terminal-PTY threads have no structured interrupt. The real Stop for
+    // them is Ctrl+C in the PTY — the same keystroke the user would press —
+    // plus the hook-plugin recovery timer that flips the local state to idle
+    // when the CLI does not report back.
+    if (session.presentationMode !== "gui" && isInterruptibleBusyStatus(session.status)) {
+      try {
+        requireSessionPty(session).write("\u0003");
+        this.maybeArmUserInterruptRecovery(session, "\u0003");
+      } catch (error) {
+        console.error(
+          "[supervisor] terminal interrupt fallback failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
   }
 
   async controlThreadGoal(payload: ControlThreadGoalPayload): Promise<void> {

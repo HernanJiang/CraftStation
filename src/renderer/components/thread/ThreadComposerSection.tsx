@@ -378,15 +378,15 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const isTerminalInput = effectiveAgentStatus?.capabilities.liveInputMode === "terminal";
   const needsFocusBeforeInput =
     effectiveAgentStatus?.capabilities.requiresTerminalFocusBeforeInput === true;
+  // A running turn must never lock the composer. On GUI threads a submit while
+  // working routes through the pending-steer path (native steer where the
+  // runtime supports it, interrupt-then-send otherwise), so a missing
+  // `sessionRef` on fresh crafted sessions must not block the send.
   const canQueueServerInput =
-    isServerControlled &&
-    !usesTerminalPresentation &&
-    thread.sessionRef !== undefined &&
-    thread.status === "working";
+    isServerControlled && !usesTerminalPresentation && thread.status === "working";
   const canSubmitServerInput =
     isServerControlled &&
     !isConnecting &&
-    thread.sessionRef !== undefined &&
     (thread.status === "idle" ||
       thread.status === "needs_reply" ||
       thread.status === "error" ||

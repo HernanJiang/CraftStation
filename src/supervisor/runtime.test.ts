@@ -4446,6 +4446,203 @@ describe("SupervisorRuntime craftAgent", () => {
       expect(session.interrupt).not.toHaveBeenCalled();
     });
 
+    it("force-closes an unacknowledged crafted turn via the interrupt watchdog", async () => {
+      vi.useFakeTimers();
+      try {
+        const emitted: Array<{ threadId: string; event: unknown }> = [];
+        const runtime = makeRuntime((event) => {
+          if (event.type === "thread-runtime-event") {
+            emitted.push({ threadId: event.threadId, event: event.event });
+          }
+        });
+        const adapter = routedAdapter("grok");
+        const session = await adapter.createSession({
+          id: "entity:grok:watchdog",
+          resultItemId: "result:grok",
+          craftPlan: nativeCraftPlan("grok", "xai", "grok-watchdog-thread"),
+          status: "spawned",
+          createdAt: new Date().toISOString(),
+        });
+        let sessionListener: ((event: unknown) => void) | undefined;
+        session.subscribe = vi.fn<(listener: (event: unknown) => void) => () => void>(
+          (listener) => {
+            sessionListener = listener;
+            return () => undefined;
+          },
+        );
+        session.getSnapshot = vi.fn<typeof session.getSnapshot>(() => ({
+          sessionId: session.id,
+          entityId: "entity:grok:watchdog",
+          threadId: "grok-watchdog-thread",
+          status: "busy",
+          activeTurnId: "turn-wedged",
+          activeTurnStatus: "running",
+          events: [],
+        }));
+        // The native runtime ignores the interrupt entirely: no turn.completed.
+        session.interrupt = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+        adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
+        nativeHarnessFactoryOverrides.set(
+          "grok",
+          vi.fn(() => adapter),
+        );
+        // The runtime never subscribes an ack: the local listener exists only to
+        // mirror the real adapter shape.
+        void sessionListener;
+
+        await runtime.craftAgent({
+          craftPlan: nativeCraftPlan("grok", "xai", "grok-watchdog-thread"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          prompt: "bind",
+        });
+
+        // No execution envelope: Stop must still work instead of failing closed.
+        await expect(
+          runtime.interruptThread({ threadId: "grok-watchdog-thread" }),
+        ).resolves.toBeUndefined();
+        expect(session.interrupt).toHaveBeenCalledTimes(1);
+
+        // The runtime never acknowledged; before the deadline nothing is force-closed.
+        expect(emitted.some((e) => (e.event as { type: string }).type === "turn.completed")).toBe(
+          false,
+        );
+
+        vi.advanceTimersByTime(3_100);
+        expect(emitted).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              threadId: "grok-watchdog-thread",
+              event: expect.objectContaining({
+                type: "turn.completed",
+                turnId: "turn-wedged",
+                state: "interrupted",
+              }),
+            }),
+          ]),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("disarms the crafted interrupt watchdog when the runtime acknowledges the stop", async () => {
+      vi.useFakeTimers();
+      try {
+        const emitted: Array<{ threadId: string; event: unknown }> = [];
+        const runtime = makeRuntime((event) => {
+          if (event.type === "thread-runtime-event") {
+            emitted.push({ threadId: event.threadId, event: event.event });
+          }
+        });
+        const adapter = routedAdapter("grok");
+        const session = await adapter.createSession({
+          id: "entity:grok:ack",
+          resultItemId: "result:grok",
+          craftPlan: nativeCraftPlan("grok", "xai", "grok-ack-thread"),
+          status: "spawned",
+          createdAt: new Date().toISOString(),
+        });
+        let sessionListener: ((event: unknown) => void) | undefined;
+        session.subscribe = vi.fn<(listener: (event: unknown) => void) => () => void>(
+          (listener) => {
+            sessionListener = listener;
+            return () => undefined;
+          },
+        );
+        session.getSnapshot = vi.fn<typeof session.getSnapshot>(() => ({
+          sessionId: session.id,
+          entityId: "entity:grok:ack",
+          threadId: "grok-ack-thread",
+          status: "busy",
+          activeTurnId: "turn-ack",
+          activeTurnStatus: "running",
+          events: [],
+        }));
+        session.interrupt = vi.fn<() => Promise<void>>().mockImplementation(async () => {
+          sessionListener?.({
+            type: "turn.completed",
+            threadId: "grok-ack-thread",
+            turnId: "turn-ack",
+            state: "interrupted",
+          });
+        });
+        adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
+        nativeHarnessFactoryOverrides.set(
+          "grok",
+          vi.fn(() => adapter),
+        );
+
+        await runtime.craftAgent({
+          craftPlan: nativeCraftPlan("grok", "xai", "grok-ack-thread"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          prompt: "bind",
+        });
+
+        await runtime.interruptThread({ threadId: "grok-ack-thread" });
+        const completions = emitted.filter(
+          (e) => (e.event as { type: string }).type === "turn.completed",
+        );
+        expect(completions).toHaveLength(1);
+
+        // After a real acknowledgement the watchdog must not double-complete.
+        vi.advanceTimersByTime(3_100);
+        const after = emitted.filter(
+          (e) => (e.event as { type: string }).type === "turn.completed",
+        );
+        expect(after).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("falls back to interrupt-then-send when the crafted runtime has no steer", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const adapter = routedAdapter("grok");
+      const session = await adapter.createSession({
+        id: "entity:grok:steer",
+        resultItemId: "result:grok",
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-steer-thread"),
+        status: "spawned",
+        createdAt: new Date().toISOString(),
+      });
+      session.getSnapshot = vi.fn<typeof session.getSnapshot>(() => ({
+        sessionId: session.id,
+        entityId: "entity:grok:steer",
+        threadId: "grok-steer-thread",
+        status: "busy",
+        activeTurnId: "turn-steer",
+        activeTurnStatus: "running",
+        events: [],
+      }));
+      session.interrupt = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      session.sendPrompt = vi.fn<typeof session.sendPrompt>(async (prompt) => ({
+        response: `grok:${prompt}`,
+        events: [],
+      }));
+      // No `steer` on the session: the unsupported path must not throw.
+      adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
+      nativeHarnessFactoryOverrides.set(
+        "grok",
+        vi.fn(() => adapter),
+      );
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-steer-thread"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "bind",
+      });
+
+      await expect(
+        runtime.setPendingSteer({
+          threadId: "grok-steer-thread",
+          prompt: "next instruction",
+          config: { model: "grok-model" },
+        }),
+      ).resolves.toBeUndefined();
+      expect(session.interrupt).toHaveBeenCalledTimes(1);
+      expect(session.sendPrompt).toHaveBeenCalledWith("next instruction");
+    });
+
     it("routes public sendThreadInput follow-ups to the same live crafted session", async () => {
       const runtime = makeRuntime(() => undefined);
       const adapter = routedAdapter("grok");
@@ -4857,12 +5054,8 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
     await expect(
       f.runtime.sendThreadInput({ threadId, prompt: "hi", config: { model: "m" } }),
     ).rejects.toMatchObject(missing);
-    await expect(f.runtime.interruptThread({ threadId })).rejects.toMatchObject(missing);
     await expect(f.runtime.closeThread({ threadId })).rejects.toMatchObject(missing);
     await expect(f.runtime.clearPendingSteer({ threadId })).rejects.toMatchObject(missing);
-    await expect(
-      f.runtime.setPendingSteer({ threadId, prompt: "s", config: { model: "m" } }),
-    ).rejects.toMatchObject(missing);
     await expect(
       f.runtime.resolveThreadServerRequest({
         threadId,
@@ -4871,6 +5064,13 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
         response: { optionId: "allow" },
       }),
     ).rejects.toMatchObject(missing);
+    // Stop and steer are deliberately best-effort: a dropped handoff envelope
+    // must never leave the user unable to stop a wedged turn or keep talking.
+    // The fence failure is logged, not thrown.
+    await expect(f.runtime.interruptThread({ threadId })).resolves.toBeUndefined();
+    await expect(
+      f.runtime.setPendingSteer({ threadId, prompt: "s", config: { model: "m" } }),
+    ).resolves.toBeUndefined();
 
     // The current envelope lets the same commands through.
     await f.runtime.sendThreadInput({
@@ -4898,14 +5098,15 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
       }),
     ).rejects.toMatchObject(stale);
     await expect(
+      f.runtime.closeThread({ threadId, execution: { ...envelope, runtimeSessionId: "other" } }),
+    ).rejects.toMatchObject(stale);
+    // A stale envelope on interrupt/steer also degrades to best-effort.
+    await expect(
       f.runtime.interruptThread({
         threadId,
         execution: { ...envelope, segmentId: "segment:other" },
       }),
-    ).rejects.toMatchObject(stale);
-    await expect(
-      f.runtime.closeThread({ threadId, execution: { ...envelope, runtimeSessionId: "other" } }),
-    ).rejects.toMatchObject(stale);
+    ).resolves.toBeUndefined();
   });
 
   it("never resolves a pending request whose origin execution went stale", async () => {

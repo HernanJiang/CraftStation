@@ -219,24 +219,22 @@ export class NativeCodexCraftSession implements CraftSession {
   async interrupt(_turnId?: string): Promise<void> {
     if (this._status === "terminated") return;
     const currentTurnId = this._activeTurnId;
-    try {
-      await this.client.interruptTurn({
+    // A failed turn/interrupt propagates: the supervisor's interrupt watchdog
+    // owns the force-close decision. Faking `turn.completed` here would strand
+    // the renderer's Stop while the app-server turn keeps running.
+    await this.client.interruptTurn({
+      threadId: this.threadId,
+      turnId: currentTurnId,
+    });
+    if (this._activeTurnStatus === "running" && currentTurnId) {
+      this._activeTurnStatus = "interrupted";
+      this._status = "idle";
+      this.emitEvent({
+        type: "turn.completed",
         threadId: this.threadId,
         turnId: currentTurnId,
+        state: "interrupted",
       });
-    } catch (err) {
-      console.warn("[NativeCodexCraftSession] Interrupt error:", err);
-    } finally {
-      if (this._activeTurnStatus === "running" && currentTurnId) {
-        this._activeTurnStatus = "interrupted";
-        this._status = "idle";
-        this.emitEvent({
-          type: "turn.completed",
-          threadId: this.threadId,
-          turnId: currentTurnId,
-          state: "interrupted",
-        });
-      }
     }
   }
 
