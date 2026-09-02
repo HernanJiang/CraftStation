@@ -16,6 +16,7 @@ import {
   usesSystemBrowserOAuth,
 } from "./usageProviders";
 import { openExternalWithFeedback } from "@/renderer/utils/openExternal";
+import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
 
 /**
  * Sign-in / sign-out flow for a usage provider, shared by the usage panel card
@@ -71,12 +72,24 @@ export function useUsageProviderLogin(id: string) {
       id === "commandcode" ||
       id === "antigravity");
 
+  const refreshAgentStatus = async (): Promise<void> => {
+    try {
+      await readBridge().refreshAgentStatuses?.(currentWslDistros(), {
+        agentKinds: [id],
+      });
+    } catch (error) {
+      console.warn(`[usage-login] failed to refresh ${id} agent status`, error);
+    }
+  };
+
   const handleSignIn = async () => {
     if (externalLoginUrl) {
       // External-browser providers sign in in the user's own browser; the
       // caller surfaces the cookie-paste form. No embedded capture tab, and
       // no lingering "signing in" state — completion is the cookie submit.
-      openExternalWithFeedback(externalLoginUrl);
+      openExternalWithFeedback(externalLoginUrl, {
+        successMessage: "已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。",
+      });
       return;
     }
     if (systemBrowserOAuth) {
@@ -89,6 +102,7 @@ export function useUsageProviderLogin(id: string) {
         }
         useUsageLoginStateStore.getState().setStored(id, true);
         await refreshAndMergeProviderUsage(id);
+        await refreshAgentStatus();
       } catch (error) {
         toast.danger(error instanceof Error ? error.message : `Unable to sign in to ${id}.`);
       } finally {
@@ -130,6 +144,7 @@ export function useUsageProviderLogin(id: string) {
       // independent of whether the usage fetch below yields displayable data.
       useUsageLoginStateStore.getState().setStored(id, true);
       await refreshAndMergeProviderUsage(id);
+      await refreshAgentStatus();
     } catch (error) {
       toast.danger(error instanceof Error ? error.message : `Unable to sign in to ${id}.`);
     } finally {
@@ -173,6 +188,8 @@ export function useUsageProviderLogin(id: string) {
       setCookie("");
       useUsageLoginStateStore.getState().setStored(id, true);
       await refreshAndMergeProviderUsage(id);
+      await refreshAgentStatus();
+      toast.success(`${id} usage session connected.`);
       return true;
     } catch (error) {
       toast.danger(

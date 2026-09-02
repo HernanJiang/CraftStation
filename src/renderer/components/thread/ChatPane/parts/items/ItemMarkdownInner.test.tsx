@@ -62,6 +62,73 @@ describe("ItemMarkdownInner", () => {
     expect(container.querySelector("code")).toHaveTextContent("const value = 1");
   });
 
+  it("renders inline and display LaTeX through KaTeX", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={`Inline $x^2$
+
+$$
+\\frac{1}{2}
+$$`}
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex").length).toBeGreaterThan(0));
+    expect(container.querySelectorAll(".katex")).toHaveLength(2);
+    expect(
+      container.querySelectorAll('annotation[encoding="application/x-tex"]')[1],
+    ).toHaveTextContent("\\frac{1}{2}");
+    expect(container.querySelector(".katex-error")).toBeNull();
+  });
+
+  it("renders Mermaid flowcharts and normalizes diagram fence aliases", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={`\`\`\`flowchart
+flowchart TD
+  A[Start] --> B[End]
+\`\`\``}
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelector("svg")).not.toBeNull(), { timeout: 5000 });
+    expect(screen.queryByTestId("code-block")).not.toBeInTheDocument();
+  });
+
+  it("styles tensor pipeline prose like a code block", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={"CLIP encoder -> Linear projection -> modality_router -> Qwen LoRA"}
+        />
+      </AppProvider>,
+    );
+
+    const architectureBlock = container.querySelector('div[class~="bg-foreground/10"]');
+    expect(architectureBlock).toHaveClass("bg-foreground/10", "font-mono");
+    expect(architectureBlock).toHaveTextContent(
+      "CLIP encoder -> Linear projection -> modality_router -> Qwen LoRA",
+    );
+    expect(architectureBlock?.tagName).toBe("DIV");
+  });
+
+  it("keeps ordinary arrow prose on the paragraph path", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"Open the menu -> choose Settings -> save your changes."} />
+      </AppProvider>,
+    );
+
+    expect(container.querySelector("p")).toHaveTextContent(
+      "Open the menu -> choose Settings -> save your changes.",
+    );
+    expect(container.querySelector('div[class~="bg-foreground/10"]')).toBeNull();
+  });
+
   it("falls back to a plain pre/code block for language-less fences", () => {
     const { container } = render(
       <AppProvider>

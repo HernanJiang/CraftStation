@@ -1377,9 +1377,7 @@ export function ThreadDraftComposerArea(props: {
               : {})}
           />
         </div>
-      ) : props.compact ? null : (
-        <div aria-hidden data-draft-worktree-row="" className="mt-1.5 min-h-[1.625rem] px-1" />
-      )}
+      ) : null}
     </>
   );
 }

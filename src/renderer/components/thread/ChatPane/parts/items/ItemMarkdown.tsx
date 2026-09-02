@@ -235,6 +235,56 @@ function buildSeparatorRow(cellCount: number, sourceCells: string[]): string {
   return `| ${parts.join(" | ")} |`;
 }
 
+/**
+ * Models sometimes use the diagram type as a fence language (`flowchart` or
+ * `graph`) instead of Mermaid's canonical `mermaid` language. Normalize only
+ * known Mermaid diagram declarations so ordinary code fences keep their label.
+ */
+export function normalizeMermaidFenceLanguages(text: string): string {
+  const lines = text.match(/[^\r\n]*(?:\r\n|\n|\r|$)/g);
+  if (!lines) return text;
+  let changed = false;
+  const normalized = [...lines];
+  for (let index = 0; index < normalized.length; index += 1) {
+    const line = normalized[index];
+    if (line === undefined) continue;
+    const newlineMatch = line.match(/(\r\n|\n|\r)$/);
+    const newline = newlineMatch?.[0] ?? "";
+    const body = newline ? line.slice(0, -newline.length) : line;
+    const match = body.match(/^( {0,3})(```|~~~)([^\s`]*)\s*(.*)$/u);
+    if (!match) continue;
+    const language = match[3]?.trim();
+    if (language && isMermaidFenceLanguage(language)) {
+      changed = true;
+      normalized[index] =
+        `${match[1]}${match[2]}mermaid${match[4] ? ` ${match[4]}` : ""}${newline}`;
+      continue;
+    }
+    if (language) continue;
+    const declaration = normalized
+      .slice(index + 1)
+      .map((content) => content.replace(/(?:\r\n|\n|\r)$/u, "").trim())
+      .find((content) => content.length > 0);
+    if (isMermaidDeclaration(declaration)) {
+      changed = true;
+      normalized[index] = `${match[1]}${match[2]}mermaid${newline}`;
+    }
+  }
+  return changed ? normalized.join("") : text;
+}
+
+function isMermaidDeclaration(line: string | undefined): boolean {
+  return /^(?:flowchart|graph)\s+(?:TB|TD|BT|RL|LR)\b|^(?:sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram|journey|gantt|pie|quadrantChart|gitGraph|mindmap|timeline|xychart(?:-beta)?)\b/iu.test(
+    line ?? "",
+  );
+}
+
+function isMermaidFenceLanguage(language: string | undefined): boolean {
+  return /^(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram|journey|gantt|pie|quadrantChart|gitGraph|mindmap|timeline|xychart(?:-beta)?)$/u.test(
+    language ?? "",
+  );
+}
+
 export function normalizeShortCodeFenceClosers(text: string): string {
   let inBacktickFence = false;
   let changed = false;

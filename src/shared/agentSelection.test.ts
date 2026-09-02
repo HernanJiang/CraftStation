@@ -124,6 +124,60 @@ describe("agent selection", () => {
     ]);
   });
 
+  it("preserves root context metadata when presentation models use compatible ids", () => {
+    const withContextMetadata: AgentCapability = {
+      ...capabilities,
+      models: [
+        { id: "chat-model", label: "Chat" },
+        { id: "other-model", label: "Other" },
+      ],
+      contextSizes: [
+        { id: "128k", label: "128K" },
+        { id: "256k", label: "256K" },
+      ],
+      modelContextSizes: {
+        "chat-model": ["128k", "256k"],
+        "other-model": ["128k"],
+      },
+      defaultContextSize: "128k",
+      presentationCapabilities: {
+        gui: {
+          ...capabilities.presentationCapabilities!.gui!,
+          models: [{ id: "chat-model", label: "Chat" }],
+        },
+      },
+    };
+
+    expect(capabilitiesForPresentation(withContextMetadata, "gui")).toMatchObject({
+      contextSizes: [
+        { id: "128k", label: "128K" },
+        { id: "256k", label: "256K" },
+      ],
+      modelContextSizes: { "chat-model": ["128k", "256k"] },
+      defaultContextSize: "128k",
+    });
+  });
+
+  it("does not expose root context metadata to incompatible presentation models", () => {
+    const withContextMetadata: AgentCapability = {
+      ...capabilities,
+      contextSizes: [{ id: "400k", label: "400K" }],
+      modelContextSizes: { "terminal-model": ["400k"] },
+      defaultContextSize: "400k",
+      presentationCapabilities: {
+        gui: {
+          ...capabilities.presentationCapabilities!.gui!,
+          models: [{ id: "chat-model", label: "Chat" }],
+        },
+      },
+    };
+
+    const gui = capabilitiesForPresentation(withContextMetadata, "gui");
+    expect(gui.contextSizes).toBeUndefined();
+    expect(gui.modelContextSizes).toBeUndefined();
+    expect(gui.defaultContextSize).toBeUndefined();
+  });
+
   it("validates orchestrator input against the advertised options", () => {
     const gui = capabilitiesForPresentation(capabilities, "gui");
     expect(

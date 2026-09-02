@@ -133,6 +133,9 @@ export class CodexProfileService {
 
   constructor(private readonly options: CodexProfileServiceOptions) {
     this.provider = options.provider ?? "codex";
+    // Remove only interrupted, never-identified pending rows. Auth-expired and
+    // previously probed rows remain available for recovery and diagnostics.
+    this.options.store.cleanupOrphanedPendingAccounts(this.provider);
   }
 
   list(): AccountView[] {
@@ -156,11 +159,37 @@ export class CodexProfileService {
         "The selected Codex auth.json is invalid or unauthenticated.",
       );
     }
-    const account = this.options.store.add({
-      provider: this.provider,
-      label: input.label,
-      ...(token.accountId ? { providerAccountId: token.accountId } : {}),
-    });
+    const email = token.email?.trim();
+    // Email is the stable provider identity when Codex omits account_id. Keep
+    // it in providerAccountId for future deduplication and use maskedIdentity
+    // only for its renderer-safe presentation.
+    const providerAccountId = token.accountId?.trim() || email;
+    // A valid access token without either stable identity is not importable: it
+    // would create a row which cannot be displayed or reliably deduplicated.
+    if (!providerAccountId && !email) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "The selected Codex auth.json has no account identity.",
+      );
+    }
+    const existing = this.options.store.findByProviderIdentities(this.provider, [
+      providerAccountId,
+      email,
+    ]);
+    const account = existing
+      ? this.options.store.get(existing.accountId)!
+      : this.options.store.add({
+          provider: this.provider,
+          label: input.label,
+          ...(providerAccountId ? { providerAccountId } : {}),
+          ...(email ? { maskedIdentity: email } : {}),
+        });
+    if (existing) {
+      this.options.store.updateProviderMetadata(account.accountId, {
+        ...(providerAccountId ? { providerAccountId } : {}),
+        ...(email ? { maskedIdentity: email } : {}),
+      });
+    }
     try {
       const credentialRoot = this.options.store.projectCredential({
         accountId: account.accountId,
@@ -170,7 +199,9 @@ export class CodexProfileService {
       ensureManagedCodexHome(credentialRoot);
       return this.options.store.updateStatus(account.accountId, "available");
     } catch (error) {
-      this.options.store.remove(account.accountId);
+      // Reused accounts retain their row and diagnostics on projection failure;
+      // only a row created by this import must be removed.
+      if (!existing) this.options.store.remove(account.accountId);
       throw error;
     }
   }

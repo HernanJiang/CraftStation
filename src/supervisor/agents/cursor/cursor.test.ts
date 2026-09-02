@@ -504,6 +504,16 @@ describe("buildCursorAcpModelPickerCapabilities", () => {
     expect(capabilities.modelEfforts).toMatchObject({
       "gpt-5.5[context=272k,reasoning=medium,fast=false]": [],
     });
+    expect(capabilities.contextSizes).toEqual([
+      { id: "200k", label: "200K" },
+      { id: "272k", label: "272K" },
+      { id: "300k", label: "300K" },
+    ]);
+    expect(capabilities.modelContextSizes).toEqual({
+      "gpt-5.5[context=272k,reasoning=medium,fast=false]": ["272k"],
+      "claude-opus-4-7[thinking=true,context=300k,effort=xhigh]": ["300k"],
+      "claude-sonnet-4[thinking=false,context=200k]": ["200k"],
+    });
     expect(capabilities.defaultHiddenModels).toEqual([
       "composer-2[fast=true]",
       "gpt-5.5[context=272k,reasoning=medium,fast=false]",

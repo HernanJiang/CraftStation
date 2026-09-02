@@ -15,6 +15,7 @@ const bridgeMock = vi.hoisted(() => ({
   clearUsageLogin: vi.fn<() => Promise<{ ok: boolean }>>(),
   forgetProviderUsage: vi.fn<(p: { providerId: string }) => Promise<void>>(),
   refreshProviderUsage: vi.fn<() => Promise<{ snapshots: UsageSnapshot[]; fromCache: boolean }>>(),
+  refreshAgentStatuses: vi.fn<(wslDistros?: string[], scope?: unknown) => Promise<void>>(),
   openExternal: vi.fn<(url: string) => Promise<void>>(async () => {}),
 }));
 
@@ -28,6 +29,7 @@ vi.mock("@/renderer/bridge", () => ({
     clearUsageLogin: bridgeMock.clearUsageLogin,
     forgetProviderUsage: bridgeMock.forgetProviderUsage,
     refreshProviderUsage: bridgeMock.refreshProviderUsage,
+    refreshAgentStatuses: bridgeMock.refreshAgentStatuses,
     openExternal: bridgeMock.openExternal,
   }),
 }));
@@ -70,6 +72,7 @@ describe("useUsageProviderLogin", () => {
     bridgeMock.clearUsageLogin.mockReset();
     bridgeMock.forgetProviderUsage.mockReset().mockResolvedValue(undefined);
     bridgeMock.refreshProviderUsage.mockReset();
+    bridgeMock.refreshAgentStatuses.mockReset().mockResolvedValue(undefined);
     useProviderUsageStore.setState({ snapshots: {} });
     useUsageLoginStateStore.setState({ stored: {} });
     usePanelStore.setState({ browserOverlayOpen: false, browserOverlayMaximized: false });
@@ -251,6 +254,9 @@ describe("useUsageProviderLogin", () => {
       force: true,
     });
     expect(result.current.signingIn).toBe(false);
+    expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledWith([], {
+      agentKinds: ["qwen"],
+    });
   });
 
   it("refreshes usage after a successful API-key sign-in", async () => {

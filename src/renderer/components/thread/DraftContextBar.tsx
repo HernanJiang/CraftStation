@@ -105,7 +105,7 @@ export function DraftContextBar(props: {
                 value={branch}
                 onSwitchBranch={handleSwitchBranch}
                 hideWorktreeToggle
-                showMoveBranchAction
+                showMoveBranchAction={false}
                 popoverPlacement="top"
                 compact
                 trigger={

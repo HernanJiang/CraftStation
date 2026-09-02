@@ -66,6 +66,21 @@ describe("CreateProjectModal", () => {
     await waitFor(() => expect(createButton).toBeEnabled());
   });
 
+  test("auto-fills a valid project name from the picked folder leaf", async () => {
+    mocks.pickFolder.mockResolvedValue("/Users/me/projects/EQ-Agent");
+    usePanelStore.getState().openCreateProjectModal();
+    render(<CreateProjectModal />);
+
+    await waitFor(() => expect(mocks.loadHomeScopeLocation).toHaveBeenCalled());
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Browse for parent folder"));
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Project name")).toHaveValue("EQ-Agent"));
+    expect(screen.getByRole("button", { name: "Create project" })).toBeEnabled();
+  });
+
   test("shows the full target path in the picker, with no separate preview line", async () => {
     usePanelStore.getState().openCreateProjectModal();
     render(<CreateProjectModal />);

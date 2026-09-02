@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizeGfmTableSeparators, normalizeShortCodeFenceClosers } from "./ItemMarkdown";
+import {
+  normalizeGfmTableSeparators,
+  normalizeMermaidFenceLanguages,
+  normalizeShortCodeFenceClosers,
+} from "./ItemMarkdown";
 
 describe("normalizeShortCodeFenceClosers", () => {
   it("treats a two-backtick line as a closer inside a triple-backtick fence", () => {
@@ -10,6 +14,28 @@ describe("normalizeShortCodeFenceClosers", () => {
 
   it("leaves two backticks alone outside code fences", () => {
     expect(normalizeShortCodeFenceClosers("before\n``\nafter\n")).toBe("before\n``\nafter\n");
+  });
+});
+
+describe("normalizeMermaidFenceLanguages", () => {
+  it("normalizes flowchart and graph fence aliases", () => {
+    expect(normalizeMermaidFenceLanguages("```flowchart\nflowchart TD\nA --> B\n```")).toBe(
+      "```mermaid\nflowchart TD\nA --> B\n```",
+    );
+    expect(normalizeMermaidFenceLanguages("~~~graph\ngraph LR\nA --> B\n~~~")).toBe(
+      "~~~mermaid\ngraph LR\nA --> B\n~~~",
+    );
+  });
+
+  it("normalizes an unlabelled Mermaid declaration fence", () => {
+    expect(normalizeMermaidFenceLanguages("```\nflowchart LR\nA --> B\n```")).toBe(
+      "```mermaid\nflowchart LR\nA --> B\n```",
+    );
+  });
+
+  it("leaves ordinary code fence languages untouched", () => {
+    const source = "```typescript\nconst flowchart = true;\n```";
+    expect(normalizeMermaidFenceLanguages(source)).toBe(source);
   });
 });
 

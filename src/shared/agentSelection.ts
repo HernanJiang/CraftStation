@@ -62,6 +62,53 @@ function restoreProviderLogin(source: AgentStatus, status: AgentStatus): AgentSt
   };
 }
 
+function compatibleContextMetadata(
+  capabilities: AgentCapability,
+  override: NonNullable<
+    NonNullable<AgentCapability["presentationCapabilities"]>[ThreadPresentationMode]
+  >,
+): Pick<AgentCapability, "contextSizes" | "modelContextSizes" | "defaultContextSize"> {
+  const overrideModelIds = override?.models?.map((model) => model.id) ?? [];
+  if (overrideModelIds.length === 0) return {};
+
+  const rootModelIds = new Set(capabilities.models.map((model) => model.id));
+  if (!overrideModelIds.every((modelId) => rootModelIds.has(modelId))) return {};
+  const compatibleModelIds = overrideModelIds;
+
+  const rootModelContextSizes = capabilities.modelContextSizes;
+  const compatibleModelContextSizes = rootModelContextSizes
+    ? Object.fromEntries(
+        compatibleModelIds.flatMap((modelId) => {
+          const contextIds = rootModelContextSizes[modelId];
+          return contextIds ? [[modelId, contextIds]] : [];
+        }),
+      )
+    : undefined;
+  const compatibleContextIds = new Set(Object.values(compatibleModelContextSizes ?? {}).flat());
+  const contextSizes = capabilities.contextSizes?.filter(
+    (size) => !rootModelContextSizes || compatibleContextIds.has(size.id),
+  );
+  const defaultContextSize =
+    capabilities.defaultContextSize &&
+    (!rootModelContextSizes || compatibleContextIds.has(capabilities.defaultContextSize))
+      ? capabilities.defaultContextSize
+      : undefined;
+
+  return {
+    ...(override.contextSizes === undefined && contextSizes && contextSizes.length > 0
+      ? { contextSizes }
+      : {}),
+    ...(override.modelContextSizes === undefined &&
+    compatibleModelContextSizes &&
+    Object.keys(compatibleModelContextSizes).length > 0
+      ? { modelContextSizes: compatibleModelContextSizes }
+      : {}),
+    ...(override.defaultContextSize === undefined && defaultContextSize
+      ? { defaultContextSize }
+      : {}),
+  };
+}
+
 export function capabilitiesForPresentation(
   capabilities: AgentCapability,
   presentationMode: ThreadPresentationMode,
@@ -97,6 +144,7 @@ export function capabilitiesForPresentation(
     liveInputMode: override.liveInputMode ?? capabilities.liveInputMode,
     presentationMode: override.presentationMode ?? capabilities.presentationMode,
     settingDefs: override.settingDefs ?? capabilities.settingDefs,
+    ...compatibleContextMetadata(capabilities, override),
     presentationCapabilities: capabilities.presentationCapabilities,
   };
 }

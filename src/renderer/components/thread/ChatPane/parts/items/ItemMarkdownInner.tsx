@@ -18,6 +18,9 @@ import {
   type UrlTransform,
 } from "streamdown";
 import remarkGfm from "remark-gfm";
+import { createMathPlugin } from "@streamdown/math";
+import { createMermaidPlugin } from "@streamdown/mermaid";
+import "katex/dist/katex.min.css";
 import { openExternalWithFeedback } from "@/renderer/utils/openExternal";
 import {
   resolveMarkdownImageUrl,
@@ -33,7 +36,11 @@ import { ImageCard } from "./ImageCard";
 import { InlineFilePathChip } from "./InlineFilePathChip";
 import { InlineFolderPathChip } from "./InlineFolderPathChip";
 import { LC_SELECTOR_LANG, tryParseSelectorPayload } from "./SelectorBadge";
-import { normalizeGfmTableSeparators, normalizeShortCodeFenceClosers } from "./ItemMarkdown";
+import {
+  normalizeGfmTableSeparators,
+  normalizeMermaidFenceLanguages,
+  normalizeShortCodeFenceClosers,
+} from "./ItemMarkdown";
 import { imageViewSourceFromMarkdownImage } from "./imageViewSource";
 import { normalizeHighlightLanguage } from "./languageDetect";
 import { parseProjectPathRef, type ProjectPathRef } from "./parseProjectPathRef";
@@ -47,6 +54,15 @@ import {
 
 type RemarkPlugins = NonNullable<ComponentProps<typeof Streamdown>["remarkPlugins"]>;
 type RehypePlugins = NonNullable<ComponentProps<typeof Streamdown>["rehypePlugins"]>;
+
+const markdownMathPlugin = createMathPlugin({ singleDollarTextMath: true });
+const markdownMermaidPlugin = createMermaidPlugin({
+  config: {
+    startOnLoad: false,
+    securityLevel: "strict",
+    suppressErrorRendering: true,
+  },
+});
 
 // Streamdown bundles `rehype-harden`, which rewrites links whose href fails its
 // allowlist into `<span>…[blocked]</span>`. During streaming, partial hrefs
@@ -111,7 +127,9 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
   const extraRoots = actions?.markdownImageRoots;
   const markdownText = rewriteMarkdownLocalImageUrls(
     normalizeIncompleteProjectLinkTail(
-      normalizeGfmTableSeparators(normalizeShortCodeFenceClosers(text)),
+      normalizeMermaidFenceLanguages(
+        normalizeGfmTableSeparators(normalizeShortCodeFenceClosers(text)),
+      ),
     ),
     {
       ...(projectRoot ? { projectRoot } : {}),
@@ -125,6 +143,8 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
         rehypePlugins={rehypePlugins}
         components={MD_COMPONENTS}
         urlTransform={transformMarkdownUrl}
+        plugins={{ math: markdownMathPlugin, mermaid: markdownMermaidPlugin }}
+        controls={{ mermaid: { copy: true, download: false, fullscreen: false, panZoom: false } }}
         parseIncompleteMarkdown
       >
         {markdownText}
@@ -158,6 +178,12 @@ const MD_COMPONENTS: StreamdownComponents = {
         <pre>{markCodeChildAsBlock(children)}</pre>
       </MdCodeBlockFrame>
     );
+  },
+  p({ children }) {
+    if (isStructuredArchitectureProse(flattenMdChildren(children))) {
+      return <div className={markdownCodeBlockClass}>{children}</div>;
+    }
+    return <p>{children}</p>;
   },
   code({ className, children, ...rest }) {
     const isBlock =
@@ -338,6 +364,19 @@ function extractRawLangFromClassName(className: string | undefined): string | nu
     if (token.startsWith("lang-")) return token.slice("lang-".length).toLowerCase();
   }
   return null;
+}
+
+/**
+ * Architecture summaries are often emitted as a single prose paragraph rather
+ * than a fenced block. Keep this deliberately narrow: require an arrow chain
+ * with at least two stages and recognizable model/pipeline terminology so
+ * ordinary prose (and all explicit markdown fences) retain their existing path.
+ */
+function isStructuredArchitectureProse(text: string): boolean {
+  if (!/(?:->|→)/u.test(text)) return false;
+  const stages = text.split(/\s*(?:->|→)\s*/u).filter(Boolean);
+  if (stages.length < 3) return false;
+  return /(?:model|modality|router|lora|clip|linear|encoder|decoder|pipeline)/iu.test(text);
 }
 
 function findCodeChild(children: ReactNode): ReactElement | null {

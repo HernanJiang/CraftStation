@@ -248,9 +248,12 @@ export async function signInAndImportAntigravityAccount(input?: {
     useUsageLoginStateStore.getState().setStored("antigravity", true);
     // Pull the new row's quota right away, or the pool shows
     // 暂无可用额度数据 until the next refresh cycle.
+    let quotaRefreshFailed = false;
     await readBridge()
       .refreshAccountQuota({ accountId: account.accountId })
-      .catch(() => undefined);
+      .catch(() => {
+        quotaRefreshFailed = true;
+      });
     const accounts = await readBridge().listAccounts({});
     useUsageAccountsStore.getState().setAccounts(accounts);
     await refreshAndMergeProviderUsage("antigravity");
@@ -259,6 +262,9 @@ export async function signInAndImportAntigravityAccount(input?: {
         ? `Antigravity 账号 ${account.label} 已更新授权。`
         : "Antigravity 账号已加入号池。",
     );
+    if (quotaRefreshFailed) {
+      toast.warning("授权已完成，但额度刷新失败；稍后可再次刷新。");
+    }
     return true;
   } catch (error) {
     toast.danger(error instanceof Error ? error.message : "Antigravity 授权失败，请重试。");

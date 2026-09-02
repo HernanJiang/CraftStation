@@ -1,4 +1,4 @@
-import { type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { ChevronDown, ChevronRight, GripVertical, LogOut, RefreshCw } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -20,6 +20,7 @@ import { usesSharedWindowReset } from "@/renderer/components/providers/usageProv
 import { useProviderUsageRefresh } from "@/renderer/components/providers/useProviderUsageRefresh";
 import { useUsageProviderLogin } from "@/renderer/components/providers/useUsageProviderLogin";
 import { useProviderUsage } from "@/renderer/state/providerUsageStore";
+import { signInAndImportAntigravityAccount } from "@/renderer/actions/agentLoginActions";
 
 /** Compact one-line window chips shown when the card is collapsed. */
 function WindowChips(props: {
@@ -86,14 +87,27 @@ export function UsageProviderCard(props: {
     signingOut,
     apiKey,
     setApiKey,
+    cookie,
+    setCookie,
+    externalLoginUrl,
     handleSignIn,
     handleSubmitApiKey,
+    handleSubmitCookie,
     handleSignOut,
   } = useUsageProviderLogin(id);
+  const [cookieOpen, setCookieOpen] = useState(false);
   const { refreshing, refresh } = useProviderUsageRefresh(id);
   const onSubmitApiKey = (event: FormEvent) => {
     event.preventDefault();
     void handleSubmitApiKey();
+  };
+  const onBrowserSignIn = () => {
+    if (id === "antigravity") {
+      void signInAndImportAntigravityAccount();
+      return;
+    }
+    if (externalLoginUrl) setCookieOpen(true);
+    void handleSignIn();
   };
   const { ref, handleRef, isDragging } = useSortable({
     id: `usage-order:${id}`,
@@ -224,7 +238,7 @@ export function UsageProviderCard(props: {
               {canBrowserSignIn ? (
                 <button
                   type="button"
-                  onClick={() => void handleSignIn()}
+                  onClick={onBrowserSignIn}
                   disabled={signingIn}
                   className="rounded-lg border border-[color:var(--separator)] bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/10 disabled:opacity-50"
                 >
@@ -250,6 +264,40 @@ export function UsageProviderCard(props: {
                   >
                     {signingIn ? <Trans>Signing in…</Trans> : <Trans>Sign in</Trans>}
                   </button>
+                </form>
+              ) : null}
+              {cookieOpen && externalLoginUrl ? (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSubmitCookie().then((success) => {
+                      if (success) setCookieOpen(false);
+                    });
+                  }}
+                  className="space-y-1.5 rounded-lg border border-[color:var(--separator)] bg-background/40 p-2"
+                >
+                  <p className="text-[11px] leading-4 text-muted">
+                    <Trans>登录完成后，将完整 Cookie 请求头粘贴到这里。</Trans>
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="password"
+                      value={cookie}
+                      onChange={(event) => setCookie(event.target.value)}
+                      placeholder={t`Paste ${label} Cookie`}
+                      aria-label={t`${label} Cookie`}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="min-w-0 flex-1 rounded-lg border border-[color:var(--separator)] bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:focus-ring"
+                    />
+                    <button
+                      type="submit"
+                      disabled={signingIn || cookie.trim().length === 0}
+                      className="shrink-0 rounded-lg border border-[color:var(--separator)] bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/10 disabled:opacity-50"
+                    >
+                      {signingIn ? <Trans>Saving…</Trans> : <Trans>Save</Trans>}
+                    </button>
+                  </div>
                 </form>
               ) : null}
             </div>

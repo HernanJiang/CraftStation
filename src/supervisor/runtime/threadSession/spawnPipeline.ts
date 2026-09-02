@@ -283,6 +283,7 @@ export interface SpawnPipelineContext {
   cliHookPlugin: CliHookSessionCoordinator;
   closeThread(payload: CloseThreadPayload): Promise<void>;
   failStructuredSession(session: SessionRuntime, error: unknown): void;
+  failThreadLaunch(threadId: string, error: unknown): void;
   isCurrentSession(session: SessionRuntime): boolean;
   resolveAgentSettings(adapter: AgentAdapter): Record<string, boolean | string>;
   emitOptimisticUserMessage(
@@ -511,6 +512,7 @@ export class SpawnPipeline {
         if (ctx.pendingStartInterrupts.delete(payload.threadId)) {
           return { threadId: payload.threadId };
         }
+        ctx.failThreadLaunch(payload.threadId, error);
         throw error;
       }
     }
@@ -530,6 +532,7 @@ export class SpawnPipeline {
         if (ctx.pendingStartInterrupts.delete(payload.threadId)) {
           return { threadId: payload.threadId };
         }
+        ctx.failThreadLaunch(payload.threadId, error);
         throw error;
       }
     }

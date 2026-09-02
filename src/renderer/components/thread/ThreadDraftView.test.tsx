@@ -828,14 +828,12 @@ describe("ThreadDraftView", () => {
     );
   });
 
-  it("reserves the worktree control row for Home drafts", () => {
+  it("does not reserve an empty worktree row for Home drafts", () => {
     const { container } = render(
       <ThreadDraftView project={homeProject} agentStatuses={[codexStatus]} onStart={() => {}} />,
     );
 
-    const worktreeRow = container.querySelector("[data-draft-worktree-row]");
-    expect(worktreeRow).toBeEmptyDOMElement();
-    expect(worktreeRow).toHaveClass("min-h-[1.625rem]");
+    expect(container.querySelector("[data-draft-worktree-row]")).toBeNull();
     expect(screen.queryByRole("button", { name: "Worktree mode" })).not.toBeInTheDocument();
   });
 

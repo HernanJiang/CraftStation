@@ -61,6 +61,7 @@ import {
   readCodexInitCommands,
 } from "./probe";
 import { CodexSubAgentRouter } from "./subAgentRouting";
+import { ensureThreadWorkspace } from "../../runtime/threadWorkspace";
 import { isStaleCodexTurnCompletion, nextCodexInterruptTurnId } from "./turnInterrupt";
 
 export { deriveCodexStructuredState, parseCodexSocketMessage } from "./acpProtocol";
@@ -507,6 +508,9 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       mcpServers: this.mcpServers,
       threadId: this.threadId,
     });
+    if (typeof threadOverrides.cwd === "string") {
+      ensureThreadWorkspace(this.projectLocation, threadOverrides.cwd);
+    }
 
     let threadId: string;
     // `fresh` marks a brand-new provider thread (usage ledger baseline 0). A

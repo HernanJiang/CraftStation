@@ -172,6 +172,7 @@ export class ThreadSessionManager {
       cliHookPlugin: this.cliHookPlugin,
       closeThread: (payload) => this.closeThread(payload),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
+      failThreadLaunch: (threadId, error) => this.failThreadLaunch(threadId, error),
       isCurrentSession: (session) => this.isCurrentSession(session),
       resolveAgentSettings: (adapter) => this.resolveAgentSettings(adapter),
       emitOptimisticUserMessage: (threadId, prompt, segments, requestedItemId, requestedTurnId) =>
@@ -263,6 +264,20 @@ export class ThreadSessionManager {
       threadId: session.threadId,
       message,
     });
+  }
+
+  private failThreadLaunch(threadId: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    this.options.emit({
+      type: "thread-state",
+      threadId,
+      status: "error",
+      attention: "error",
+      canResumeWithConfig: false,
+      errorMessage: message,
+    });
+    this.enqueueRuntimeEvent(threadId, { type: "error", threadId, message });
+    this.runtimeEventRouter.flush();
   }
 
   private completeForcedStructuredInterrupt(session: SessionRuntime): void {

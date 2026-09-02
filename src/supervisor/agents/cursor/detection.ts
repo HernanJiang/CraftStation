@@ -12,6 +12,7 @@ import { parseCursorModelId } from "@/shared/cursorModelId";
 import {
   formatBracketParamHints,
   formatCursorBaseModelLabel,
+  parseBracketParams,
   stripBracketParams,
 } from "@/shared/modelLabels";
 import {
@@ -374,6 +375,36 @@ function formatCursorAcpModelLabel(model: LabeledOption): string {
   return hints ? `${baseLabel} · ${hints}` : baseLabel;
 }
 
+function contextTokenValue(id: string): number {
+  const match = /^(\d+(?:\.\d+)?)([km])$/iu.exec(id);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const amount = Number(match[1]);
+  return amount * (match[2]!.toLowerCase() === "m" ? 1_000_000 : 1_000);
+}
+
+function cursorAcpContextCapabilities(
+  models: readonly LabeledOption[],
+): Pick<AgentCapability, "contextSizes" | "modelContextSizes"> {
+  const contextSizes = new Map<string, string>();
+  const modelContextSizes: Record<string, string[]> = {};
+
+  for (const model of models) {
+    const context = parseBracketParams(model.id).context;
+    if (!context || !/^\d+(?:\.\d+)?[kKmM]$/u.test(context)) continue;
+    const id = context.toLowerCase();
+    contextSizes.set(id, id.endsWith("m") ? `${id.slice(0, -1)}M` : id.toUpperCase());
+    modelContextSizes[model.id] = [id];
+  }
+
+  const sizes = [...contextSizes]
+    .map(([id, label]) => ({ id, label }))
+    .sort((left, right) => contextTokenValue(left.id) - contextTokenValue(right.id));
+  return {
+    ...(sizes.length > 0 ? { contextSizes: sizes } : {}),
+    ...(Object.keys(modelContextSizes).length > 0 ? { modelContextSizes } : {}),
+  };
+}
+
 export function buildCursorAcpModelPickerCapabilities(
   models: LabeledOption[],
 ): Pick<
@@ -384,6 +415,8 @@ export function buildCursorAcpModelPickerCapabilities(
   | "modelEfforts"
   | "subProviders"
   | "modelSubProvider"
+  | "contextSizes"
+  | "modelContextSizes"
 > {
   const displayModels = models.map((model) => ({
     id: model.id,
@@ -398,6 +431,7 @@ export function buildCursorAcpModelPickerCapabilities(
     ...cursorModelGrouping(sortedModels),
     efforts: [],
     modelEfforts: Object.fromEntries(sortedModels.map((model) => [model.id, []])),
+    ...cursorAcpContextCapabilities(sortedModels),
   };
 }
 

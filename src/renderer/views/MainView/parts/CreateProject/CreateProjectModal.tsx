@@ -117,7 +117,7 @@ function CreateProjectForm() {
     if (!name.trim()) {
       const leaf = splitPathLeaf(picked);
       if (leaf.tail) {
-        setName(leaf.tail);
+        setName(leaf.tail.replace(/^[/\\]+/, ""));
       }
     }
   }

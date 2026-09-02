@@ -5,6 +5,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   statSync,
@@ -88,6 +89,12 @@ function defaultProviderAccountLabel(provider: string): string {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
   return display || "Account";
+}
+
+/** Normalize provider identities for stable matching across imports/probes. */
+export function normalizeProviderIdentity(identity: string | undefined): string | undefined {
+  const normalized = identity?.trim().toLowerCase();
+  return normalized || undefined;
 }
 
 export function maskIdentity(identity: string | undefined): string | undefined {
@@ -378,18 +385,78 @@ export class AccountStore {
    */
   updateProviderMetadata(
     accountId: string,
-    metadata: { providerAccountId?: string; plan?: string },
+    metadata: { providerAccountId?: string; maskedIdentity?: string; plan?: string },
   ): AccountView {
     return this.update(accountId, (account) => {
       const providerAccountId = metadata.providerAccountId?.trim();
+      const maskedIdentity = metadata.maskedIdentity?.trim();
       const plan = metadata.plan?.trim();
       if (providerAccountId) account.providerAccountId = providerAccountId;
+      if (maskedIdentity)
+        account.maskedIdentity = displayIdentity(account.provider, maskedIdentity);
       if (plan) account.plan = plan;
       if (providerAccountId && account.provider === "grok") {
         // 邮箱全称 contract: keep the full email on the Grok row.
         account.maskedIdentity = providerAccountId;
       }
     });
+  }
+
+  /** Find an account by one of its normalized provider-visible identities. */
+  findByProviderIdentities(
+    provider: string,
+    identities: Iterable<string | undefined>,
+  ): AccountRecord | undefined {
+    const normalizedIdentities = new Set(
+      [...identities]
+        .map((identity) => normalizeProviderIdentity(identity))
+        .filter((identity): identity is string => identity !== undefined),
+    );
+    if (normalizedIdentities.size === 0) return undefined;
+    return this.records(provider).find((account) =>
+      [account.providerAccountId, account.maskedIdentity].some((value) =>
+        normalizedIdentities.has(normalizeProviderIdentity(value) ?? ""),
+      ),
+    );
+  }
+
+  /** Find an account by a normalized provider-visible identity. */
+  findByProviderIdentity(provider: string, identity: string): AccountRecord | undefined {
+    return this.findByProviderIdentities(provider, [identity]);
+  }
+
+  /**
+   * Remove pending runtime homes not present in the active set. Restrict the
+   * operation to the caller-provided prefix so unrelated provider data remains
+   * untouched.
+   */
+  cleanupOrphanedPendingHomes(prefix: string, activeHomes: readonly string[]): number {
+    const active = new Set(activeHomes.map((home) => resolve(home)));
+    let removed = 0;
+    for (const entry of readdirSync(this.managedRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
+      const home = resolve(join(this.managedRoot, entry.name));
+      if (active.has(home)) continue;
+      rmSync(home, { recursive: true, force: true });
+      removed += 1;
+    }
+    return removed;
+  }
+
+  /**
+   * Remove an uncompleted pending account row. Rows with an identity, a prior
+   * probe/quota snapshot, or an auth-expired state remain recoverable.
+   */
+  cleanupOrphanedPendingAccounts(provider: string): number {
+    const orphaned = this.records(provider).filter(
+      (account) =>
+        !account.providerAccountId?.trim() &&
+        !account.maskedIdentity?.trim() &&
+        account.status === "unavailable" &&
+        (account.quotaWindows === undefined || account.quotaWindows.length === 0),
+    );
+    for (const account of orphaned) this.remove(account.accountId);
+    return orphaned.length;
   }
 
   projectCredential(projection: AccountCredentialProjection): string {

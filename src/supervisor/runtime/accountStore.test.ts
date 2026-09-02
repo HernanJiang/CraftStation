@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -153,6 +153,33 @@ describe("AccountStore", () => {
     const store = createStore();
     expect(() => store.select("codex:missing")).toThrow(AccountControlError);
     expect(() => store.remove("codex:missing")).toThrow(AccountControlError);
+  });
+
+  it("matches provider identities case-insensitively and cleans only orphaned pending homes", () => {
+    const store = createStore();
+    const account = store.add({
+      provider: "codex",
+      label: "Personal",
+      providerAccountId: "User@Example.com",
+    });
+    expect(store.findByProviderIdentity("codex", " user@example.COM ")?.accountId).toBe(
+      account.accountId,
+    );
+
+    const activeHome = join(store.managedRoot, "grok-pending-active");
+    const orphanHome = join(store.managedRoot, "grok-pending-orphan");
+    const unrelated = join(store.managedRoot, "other-provider-pending");
+    mkdirSync(activeHome, { recursive: true });
+    mkdirSync(orphanHome, { recursive: true });
+    mkdirSync(unrelated, { recursive: true });
+    writeFileSync(join(activeHome, "keep"), "active", { encoding: "utf8", flag: "w" });
+    writeFileSync(join(orphanHome, "remove"), "orphan", { encoding: "utf8", flag: "w" });
+    writeFileSync(join(unrelated, "keep"), "unrelated", { encoding: "utf8", flag: "w" });
+
+    expect(store.cleanupOrphanedPendingHomes("grok-pending-", [activeHome])).toBe(1);
+    expect(readFileSync(join(activeHome, "keep"), "utf8")).toBe("active");
+    expect(() => readFileSync(join(orphanHome, "remove"), "utf8")).toThrow(/ENOENT/);
+    expect(readFileSync(join(unrelated, "keep"), "utf8")).toBe("unrelated");
   });
 
   it("masks email identities with the first and last three local-part characters", () => {

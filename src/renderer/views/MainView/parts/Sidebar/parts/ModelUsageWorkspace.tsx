@@ -53,7 +53,6 @@ const CLI_LOGIN_COMMANDS: Record<string, string> = {
   kimi: "kimi acp --login",
   // CLI v1.38.2 的真实登录命令（"cmdc auth login" 是其内部过时提示，会报参数错误）。
   commandcode: "cmdc login",
-  opencode: "opencode providers login",
 };
 
 function isAuthorizedUsageStatus(status: string | undefined): boolean {
