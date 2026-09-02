@@ -20,7 +20,17 @@ const h = vi.hoisted(() => ({
     disabledBuiltInMcpServers: {} as Record<string, boolean>,
   },
   sqlite: {
-    prepare: vi.fn(() => ({ all: vi.fn(() => []), get: vi.fn(() => undefined), run: vi.fn() })),
+    prepare: vi.fn<
+      (sql: string) => {
+        all: (...args: unknown[]) => unknown[];
+        get: (...args: unknown[]) => unknown;
+        run: (...args: unknown[]) => unknown;
+      }
+    >((_sql) => ({
+      all: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
+      get: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
+      run: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
+    })),
   },
 }));
 
