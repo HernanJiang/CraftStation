@@ -22,7 +22,7 @@ import { useSideChatStore } from "@/renderer/state/sideChatStore";
 import { isHomeProjectId } from "@/shared/homeScope";
 
 type LauncherItem = {
-  id: Extract<RightPanelTab, "git" | "terminal" | "browser" | "files" | "harness" | "side-chat">;
+  id: Extract<RightPanelTab, "git" | "terminal" | "browser" | "files" | "side-chat"> | "crafting";
   label: string;
   shortcut: string;
   icon: typeof FileDiff;
@@ -50,7 +50,7 @@ export function AuxiliaryPanelLauncher() {
     { id: "terminal", label: t`Terminal`, shortcut: "Ctrl+`", icon: TerminalSquare },
     { id: "browser", label: t`Browser`, shortcut: "Ctrl+T", icon: Globe },
     { id: "files", label: t`Files`, shortcut: "Ctrl+P", icon: FolderOpen },
-    { id: "harness", label: t`Crafting Table`, shortcut: "", icon: Hammer },
+    { id: "crafting", label: t`Crafting Table`, shortcut: "", icon: Hammer },
     { id: "side-chat", label: t`Side Chat`, shortcut: "", icon: MessageCircle },
   ];
 
@@ -94,8 +94,12 @@ export function AuxiliaryPanelLauncher() {
         panel.setBrowserOverlayOpen(false);
         panel.setBrowserPanelOpen(true);
         panel.setRightPanelTab("browser");
-      } else if (tab === "harness") {
-        panel.setRightPanelTab("harness");
+      } else if (tab === "crafting") {
+        // The Crafting Table is now a first-level workspace tab, not a
+        // chat-right auxiliary tool. Navigating there replaces the content area.
+        panel.setAuxiliaryPanelPlacement("hidden");
+        panel.openModelUsageWorkspace({ tab: "crafting" });
+        return;
       } else if (tab === "side-chat") {
         if (!currentThreadId || !useSideChatStore.getState().openFromThread(currentThreadId))
           return;

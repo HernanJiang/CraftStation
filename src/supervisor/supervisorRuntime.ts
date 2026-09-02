@@ -65,6 +65,11 @@ import type {
   NativeHarnessControlPlaneEntry,
   NativeHarnessControlPlanePayload,
 } from "@/shared/crafting";
+import {
+  resolveCompatibility,
+  type ResolveCompatibilityPayload,
+  type ResolveCompatibilityResult,
+} from "@/shared/crafting/compatibility";
 import { nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
 import { AccountControlError } from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
@@ -1439,6 +1444,45 @@ export class SupervisorRuntime {
         },
       };
     }
+  }
+
+  async resolveCraftingCompatibility(
+    payload: ResolveCompatibilityPayload,
+  ): Promise<ResolveCompatibilityResult> {
+    const entries = await this.getNativeHarnessControlPlane({});
+    const harnessRef = entries
+      .map((entry) => ({
+        harnessItemId: `harness:${entry.descriptor.harnessKind}`,
+        harnessKind: entry.descriptor.harnessKind,
+        descriptorId: entry.descriptor.id,
+        displayName: entry.descriptor.label,
+        vendor: entry.descriptor.vendor,
+        official: entry.descriptor.official,
+        status: entry.status,
+        transport: entry.descriptor.transport,
+      }))
+      .find((ref) => ref.harnessItemId === payload.harnessRef);
+
+    // The renderer resolves the full SelectedModelEntry for its inventory; the
+    // Supervisor only needs the provider kind to decide the compatibility tier.
+    const openCodeRouteReady = this.nativeHarnessAdapters.has("opencode");
+    const result = resolveCompatibility({
+      modelEntry: {
+        entryId: payload.modelEntryRef,
+        source: "agent",
+        providerKind: harnessRef?.vendor ?? "",
+        providerSurfaceKey: harnessRef?.harnessKind ?? "",
+        providerLabel: harnessRef?.displayName ?? "",
+        channelLabel: harnessRef?.displayName ?? "",
+        modelId: payload.modelEntryRef,
+        displayName: payload.modelEntryRef,
+        ...(payload.providerProfileRef ? { accountId: payload.providerProfileRef } : {}),
+      },
+      harnessRef,
+      harnessReady: harnessRef?.status === "ready",
+      openCodeRouteReady,
+    });
+    return result;
   }
 
   async craftAgent(payload: CraftAgentPayload): Promise<CraftAgentResult> {

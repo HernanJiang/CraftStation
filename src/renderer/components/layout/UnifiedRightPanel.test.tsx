@@ -19,13 +19,11 @@ describe("UnifiedRightPanel", () => {
         activeTab="browser"
         onTabChange={() => {}}
         gitContent={<div>review-content</div>}
-        harnessContent={<div>crafting-content</div>}
         filesContent={<div>files-content</div>}
         browserContent={<div>browser-content</div>}
         showTerminalTab={false}
         showFilesTab={false}
         showGitTab
-        showHarnessTab
         showUsageTab={false}
         showNotesTab={false}
         browserTabs={[
@@ -51,7 +49,6 @@ describe("UnifiedRightPanel", () => {
     );
 
     expect(screen.getByText("Review")).toBeTruthy();
-    expect(screen.getByText("Crafting Table")).toBeTruthy();
     expect(screen.getByText("Example")).toBeTruthy();
     expect(screen.getByText("Docs")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Hide panel" })).toBeNull();
@@ -78,7 +75,6 @@ describe("UnifiedRightPanel", () => {
         showTerminalTab={false}
         showFilesTab={false}
         showGitTab
-        showHarnessTab={false}
         showUsageTab={false}
         showNotesTab={false}
         showBrowserTab={false}
@@ -129,9 +125,8 @@ describe("UnifiedRightPanel", () => {
         filesContent={<div>files-content</div>}
         browserContent={<div>browser-content</div>}
         showTerminalTab={false}
-        showFilesTab={false}
+        showFilesTab
         showGitTab={false}
-        showHarnessTab
         showUsageTab={false}
         showNotesTab={false}
         showBrowserTab
@@ -157,8 +152,8 @@ describe("UnifiedRightPanel", () => {
     expect(menu).toBeInTheDocument();
     expect(menu.parentElement).toBe(document.body);
     expect(menu).toHaveClass("z-[200]");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Crafting Table" }));
-    expect(onTabChange).toHaveBeenCalledWith("harness");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Files" }));
+    expect(onTabChange).toHaveBeenCalledWith("files");
   });
 
   it("switches an open tab and selects a tool from the plus menu", () => {
@@ -175,10 +170,9 @@ describe("UnifiedRightPanel", () => {
         showTerminalTab={false}
         showFilesTab
         showGitTab
-        showHarnessTab
         showUsageTab={false}
         showNotesTab={false}
-        showBrowserTab={false}
+        showBrowserTab
         openTabs={["git", "files"]}
         projectName="CraftStation"
         onAddTool={onAddTool}
@@ -193,8 +187,8 @@ describe("UnifiedRightPanel", () => {
     expect(onAddTool).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("menu", { name: "Add tool" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Crafting Table" }));
-    expect(onTabChange).toHaveBeenCalledWith("harness");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+    expect(onTabChange).toHaveBeenCalledWith("browser");
   });
 
   it("keeps open tabs in the header while the launcher replaces tool content", () => {
@@ -208,7 +202,6 @@ describe("UnifiedRightPanel", () => {
         showTerminalTab={false}
         showFilesTab={false}
         showGitTab={false}
-        showHarnessTab={false}
         showUsageTab={false}
         showNotesTab={false}
         openTabs={["browser"]}

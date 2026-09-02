@@ -76,6 +76,7 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     refreshAccountQuota: (payload) => runtime.refreshAccountQuota(payload.accountId),
     getNativeHarnessControlPlane: (payload) => runtime.getNativeHarnessControlPlane(payload),
     getCraftingModelInventory: (payload) => runtime.getCraftingModelInventory(payload),
+    resolveCraftingCompatibility: (payload) => runtime.resolveCraftingCompatibility(payload),
     getAgentHookPluginStatuses: (payload) => hookPlugins.getStatuses(payload),
     installAgentHookPlugin: (payload) => hookPlugins.installPlugin(payload),
     uninstallAgentHookPlugin: (payload) => hookPlugins.uninstallPlugin(payload),

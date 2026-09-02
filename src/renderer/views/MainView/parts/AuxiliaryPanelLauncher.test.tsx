@@ -33,7 +33,7 @@ describe("AuxiliaryPanelLauncher", () => {
     usePanelStore.setState({
       auxiliaryPanelTab: null,
       auxiliaryPanelTabs: [],
-      rightPanelTab: "harness",
+      rightPanelTab: "git",
       gitReviewContext: null,
       gitReviewAsPanel: false,
     });

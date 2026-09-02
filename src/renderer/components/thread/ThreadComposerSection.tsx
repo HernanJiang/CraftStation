@@ -513,11 +513,8 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
 
   const handleCraftModeChange = (next: CraftMode) => {
     setCraftMode(next);
-    if (next !== "creative") return;
-    const panel = usePanelStore.getState();
-    panel.setAuxiliaryPanelPlacement("right");
-    panel.setAuxiliaryPanelTab("harness");
-    panel.setRightPanelTab("harness");
+    if (next === "auto") return;
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode: next });
   };
 
   useEffect(() => {

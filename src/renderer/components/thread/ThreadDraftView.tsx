@@ -1257,11 +1257,8 @@ export function ThreadDraftView(props: {
 
   const handleCraftModeChange = (next: CraftMode) => {
     setCraftMode(next);
-    if (next !== "creative") return;
-    const panel = usePanelStore.getState();
-    panel.setAuxiliaryPanelPlacement("right");
-    panel.setAuxiliaryPanelTab("harness");
-    panel.setRightPanelTab("harness");
+    if (next === "auto") return;
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode: next });
   };
 
   // Effective launch flag for each composer MCP: a per-draft `@`-mention OR a

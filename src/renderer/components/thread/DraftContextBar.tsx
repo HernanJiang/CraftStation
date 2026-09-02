@@ -148,10 +148,8 @@ export function DraftContextBar(props: {
           type="button"
           className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-white/5 px-2 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
           onClick={() => {
-            const panel = usePanelStore.getState();
-            panel.setAuxiliaryPanelPlacement("right");
-            panel.setAuxiliaryPanelTab("harness");
-            panel.setRightPanelTab("harness");
+            const entryMode = props.craftMode === "creative" ? "creative" : "efficient";
+            usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode });
           }}
         >
           <Hammer className="size-3.5 text-neutral-300" />
