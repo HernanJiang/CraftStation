@@ -4410,9 +4410,16 @@ describe("SupervisorRuntime craftAgent", () => {
         projectLocation: { kind: "windows", path: "C:\\repo" },
         prompt: "bind",
       });
+      const activeSegment = runtime.readSessionSwitchState("grok-interrupt-thread")
+        ?.activeSegment as { id: string; runtimeSessionId: string; bindingEpoch: number };
+      const execution = {
+        segmentId: activeSegment.id,
+        runtimeSessionId: activeSegment.runtimeSessionId,
+        bindingEpoch: activeSegment.bindingEpoch,
+      };
 
       await expect(
-        runtime.interruptThread({ threadId: "grok-interrupt-thread" }),
+        runtime.interruptThread({ threadId: "grok-interrupt-thread", execution }),
       ).resolves.toBeUndefined();
       expect(session.interrupt).toHaveBeenCalledTimes(1);
 
@@ -4449,11 +4456,9 @@ describe("SupervisorRuntime craftAgent", () => {
         status: "spawned",
         createdAt: new Date().toISOString(),
       });
-      session.startTurn = vi.fn<typeof session.startTurn>(async (command) => ({
-        turnId: command.turnId ?? "turn:follow-up",
-        status: "completed" as const,
+      session.sendPrompt = vi.fn<typeof session.sendPrompt>(async (prompt) => ({
+        response: `grok:${prompt}`,
         events: [],
-        response: "FOLLOW_UP_OK",
       }));
       adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
       nativeHarnessFactoryOverrides.set(
@@ -4466,17 +4471,25 @@ describe("SupervisorRuntime craftAgent", () => {
         projectLocation: { kind: "windows", path: "C:\\repo" },
         prompt: "first turn",
       });
+      const activeSegment = runtime.readSessionSwitchState("grok-crafted-multi-turn")
+        ?.activeSegment as { id: string; runtimeSessionId: string; bindingEpoch: number };
+      const execution = {
+        segmentId: activeSegment.id,
+        runtimeSessionId: activeSegment.runtimeSessionId,
+        bindingEpoch: activeSegment.bindingEpoch,
+      };
       await expect(
         runtime.sendThreadInput({
           threadId: "grok-crafted-multi-turn",
           prompt: "second turn",
           config: { model: "grok-model" },
+          execution,
         }),
       ).resolves.toBeUndefined();
 
-      expect(session.startTurn).toHaveBeenCalledWith({ prompt: "second turn" });
+      expect(session.sendPrompt).toHaveBeenCalledWith("second turn");
       expect(craftedLifecycleCounts(runtime).craftedSessions).toBe(1);
-      await runtime.closeThread({ threadId: "grok-crafted-multi-turn" });
+      await runtime.closeThread({ threadId: "grok-crafted-multi-turn", execution });
     });
 
     it("releases a crafted account binding when the public closeThread seam terminates it", async () => {
