@@ -136,6 +136,32 @@ export class AppServerClient {
     }
   }
 
+  async readAccount(): Promise<Record<string, unknown> | undefined> {
+    if (!this._initialized) {
+      await this.initialize();
+    }
+    try {
+      return await this.transport.request<Record<string, unknown>>("account/read", {}, 10000);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async readRateLimits(): Promise<Record<string, unknown> | undefined> {
+    if (!this._initialized) {
+      await this.initialize();
+    }
+    try {
+      return await this.transport.request<Record<string, unknown>>(
+        "account/rateLimits/read",
+        {},
+        10000,
+      );
+    } catch {
+      return undefined;
+    }
+  }
+
   async getCapabilitySnapshot(): Promise<CodexRuntimeCapabilitySnapshot> {
     const init = await this.initialize();
     const models = await this.listModels();

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nativeProfileSpecSchema } from "./nativeProfile";
 
 /**
  * Account binding reason (v0.5). `explicit` is a per-session override that
@@ -11,5 +12,6 @@ export const accountBindingSchema = z.object({
   credentialScopeRef: z.string().min(1).max(240),
   reason: z.enum(["explicit", "selected", "priority", "round-robin", "random"]),
   boundAt: z.number().int().nonnegative(),
+  nativeProfile: nativeProfileSpecSchema.optional(),
 });
 export type AccountBinding = z.infer<typeof accountBindingSchema>;

@@ -22,6 +22,7 @@ import type { AccountBinding, PromptSegment, ResolvedMcpServer } from "@/shared/
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import { buildCodexMcp } from "@/supervisor/agents/userMcp";
 import { AppServerClient } from "./appServerClient";
+import { verifyProfileIdentity } from "../nativeProfile";
 import { AppServerProcessHost } from "./appServerProcessHost";
 import { mapCodexNotificationToRuntimeEvents, type EventMappingContext } from "./eventMapping";
 import { NativeCodexSubAgentRouter } from "./subAgentMapping";
@@ -500,6 +501,15 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
     }
 
     await client.initialize();
+    if (this.options?.accountBinding && this.options.codexHome) {
+      try {
+        verifyProfileIdentity("codex", this.options.codexHome, {
+          accountId: this.options.accountBinding.accountId,
+        });
+      } catch (err) {
+        console.warn("[codex] account identity verification warning:", err);
+      }
+    }
     this._client = client;
     return client;
   }

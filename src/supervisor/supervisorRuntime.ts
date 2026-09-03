@@ -168,6 +168,7 @@ import {
   managedCodexLoginCwd,
   managedCodexProcessEnvironment,
 } from "./runtime/codexProfiles";
+import { prepareNativeProfile, verifyProfileIdentity } from "./runtime/nativeProfile";
 import {
   GrokProfileService,
   buildGrokLoginScript,
@@ -1748,9 +1749,11 @@ export class SupervisorRuntime {
           ? "codex"
           : plan.runtimeBinding.harnessKind === "grok"
             ? "grok"
-            : plan.runtimeBinding.harnessKind === "opencode"
-              ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
-              : undefined;
+            : plan.runtimeBinding.harnessKind === "kimi"
+              ? "kimi"
+              : plan.runtimeBinding.harnessKind === "opencode"
+                ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
+                : undefined;
     const hasCredentialedManagedAccount = managedProvider
       ? this.accountStore
           .records(managedProvider)
@@ -1765,12 +1768,18 @@ export class SupervisorRuntime {
         mode: accountMode ?? (accountId ? "explicit" : "auto"),
         ...(accountId ? { explicitAccountId: accountId } : {}),
       });
+      const profileSpec = prepareNativeProfile(managedProvider, {
+        accountId: resolution.account.accountId,
+        credentialRoot: this.accountStore.credentialRoot(resolution.account.accountId),
+        credentialScopeRef: resolution.account.credentialScopeRef,
+      });
       accountBinding = {
         accountId: resolution.account.accountId,
         provider: resolution.account.provider,
         credentialScopeRef: resolution.account.credentialScopeRef,
         reason: resolution.reason,
         boundAt: Date.now(),
+        nativeProfile: profileSpec,
       };
       if (managedProvider === "openai-compatible") {
         const runtime = this.openAiCompatibleProfileService.prepareCodexRuntime(
@@ -1780,6 +1789,8 @@ export class SupervisorRuntime {
         accountEnv = runtime.env;
       } else {
         accountRoot = this.accountStore.credentialRoot(resolution.account.accountId);
+        accountEnv = profileSpec.env;
+        verifyProfileIdentity(managedProvider, accountRoot, resolution.account);
       }
     }
 
@@ -1830,8 +1841,17 @@ export class SupervisorRuntime {
                   }),
                 }
               : {}),
-            ...(accountRoot && plan.runtimeBinding.harnessKind === "grok"
-              ? { baseSpawnEnv: managedGrokProcessEnvironment(accountRoot) }
+            ...(accountRoot &&
+            (plan.runtimeBinding.harnessKind === "grok" ||
+              plan.runtimeBinding.harnessKind === "kimi")
+              ? {
+                  baseSpawnEnv:
+                    accountEnv ??
+                    prepareNativeProfile(plan.runtimeBinding.harnessKind, {
+                      accountId: accountBinding!.accountId,
+                      credentialRoot: accountRoot,
+                    }).env,
+                }
               : {}),
             ...(accountBinding && plan.runtimeBinding.harnessKind === "grok"
               ? {
@@ -1862,6 +1882,9 @@ export class SupervisorRuntime {
     if (provider === "grok" || provider === "codex") {
       return existsSync(join(credentialRoot, "auth.json"));
     }
+    if (provider === "kimi") {
+      return existsSync(join(credentialRoot, "credentials", "kimi-code.json"));
+    }
     return true;
   }
 
@@ -1877,7 +1900,9 @@ export class SupervisorRuntime {
     threadId: string;
   }): { accountId: string; reason: string; env: Record<string, string> } | undefined {
     const provider =
-      input.provider === "codex" || input.provider === "grok" ? input.provider : undefined;
+      input.provider === "codex" || input.provider === "grok" || input.provider === "kimi"
+        ? input.provider
+        : undefined;
     if (!provider) return undefined;
     const hasCredentialedManagedAccount = this.accountStore
       .records(provider)
@@ -1887,7 +1912,12 @@ export class SupervisorRuntime {
     // the explicit all-failed error, not a silent ambient fallback.
     const resolution = this.accountResolver.resolve({ provider, mode: "auto" });
     const root = this.accountStore.credentialRoot(resolution.account.accountId);
-    const env = provider === "grok" ? managedGrokProcessEnvironment(root) : { CODEX_HOME: root };
+    const profileSpec = prepareNativeProfile(provider, {
+      accountId: resolution.account.accountId,
+      credentialRoot: root,
+      credentialScopeRef: resolution.account.credentialScopeRef,
+    });
+    const env = profileSpec.env;
     console.log(
       `[account] pool account selected: provider=${provider} thread=${input.threadId} account=${resolution.account.accountId} reason=${resolution.reason}`,
     );

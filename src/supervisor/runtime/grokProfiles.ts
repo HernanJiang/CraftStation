@@ -23,7 +23,11 @@ import {
 import { collectManagedGrokTokenQuota } from "./grokQuotaTokenFallback";
 
 /**
- * Managed Grok account control plane. Grok's official CLI honours `GROK_HOME`
+ * Managed Grok account control plane.
+ *
+ * Includes profile and Leader socket isolation based on switch-acc-ai:
+ * MIT License, Copyright (c) 2025-2026 tonamson
+ * Grok's official CLI honours `GROK_HOME`
  * as its config/auth root (the OIDC CLI reads `$GROK_HOME/auth.json`), so each
  * CraftStation account owns an opaque managed home under the account store and
  * a session is bound to exactly one account. We never overwrite the host
@@ -497,6 +501,7 @@ export function managedGrokProcessEnvironment(
   }
   for (const key of blankKeys) env[key] = "";
   env.GROK_HOME = managedGrokHome;
+  env.GROK_LEADER_SOCKET = join(managedGrokHome, "leader.sock");
   ensureManagedGrokHome(managedGrokHome);
   return env;
 }
@@ -517,7 +522,9 @@ export function buildGrokLoginScript(
       "Clear-Host",
       "Remove-Item Env:GROK_API_KEY,Env:XAI_API_KEY -ErrorAction SilentlyContinue",
       "if (-not $env:GROK_HOME) { throw 'GROK_HOME is missing from the isolated login shell.' }",
+      "if (-not $env:GROK_LEADER_SOCKET) { $env:GROK_LEADER_SOCKET = Join-Path $env:GROK_HOME 'leader.sock' }",
       "Write-Host ('CraftStation GROK_HOME=' + $env:GROK_HOME)",
+      "Write-Host ('CraftStation GROK_LEADER_SOCKET=' + $env:GROK_LEADER_SOCKET)",
       loginCommand,
       "$lcExit = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }",
       `Write-Host "$([char]27)]777;craftstation-login-complete=${completionToken}:$lcExit$([char]7)" -NoNewline`,
@@ -526,7 +533,9 @@ export function buildGrokLoginScript(
   const bashCommand = [
     "clear",
     'if [ -z "$GROK_HOME" ]; then echo "GROK_HOME is missing from the isolated login shell." >&2; exit 1; fi',
+    'if [ -z "$GROK_LEADER_SOCKET" ]; then export GROK_LEADER_SOCKET="$GROK_HOME/leader.sock"; fi',
     'echo "CraftStation GROK_HOME=$GROK_HOME"',
+    'echo "CraftStation GROK_LEADER_SOCKET=$GROK_LEADER_SOCKET"',
     loginCommand,
     "__lc_exit=$?",
     `printf '\\033]777;craftstation-login-complete=${completionToken}:%s\\007' "$__lc_exit"`,

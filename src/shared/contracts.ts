@@ -16,6 +16,7 @@ export * from "./contracts/usage";
 export * from "./contracts/tokenUsage";
 export * from "./contracts/accounts";
 export * from "./contracts/accountBinding";
+export * from "./contracts/nativeProfile";
 export * from "./contracts/codexProfiles";
 export * from "./contracts/grokProfiles";
 export * from "./contracts/notes";

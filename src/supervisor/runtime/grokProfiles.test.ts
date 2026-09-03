@@ -198,6 +198,7 @@ describe("managedGrokProcessEnvironment", () => {
     });
 
     expect(env.GROK_HOME).toBe(root);
+    expect(env.GROK_LEADER_SOCKET).toContain("leader.sock");
     expect(env.GROK_API_KEY).toBe("");
     expect(env.XAI_API_KEY).toBe("");
     expect(env.CLIPROXY_HOME).toBe("");
@@ -358,11 +359,13 @@ describe("buildGrokLoginScript", () => {
     const posix = buildGrokLoginScript("posix", "lc_grok_test");
     expect(posix).toContain("grok login --device-auth");
     expect(posix).toContain('"$GROK_HOME"');
+    expect(posix).toContain("GROK_LEADER_SOCKET");
     expect(posix).toContain("lc_grok_test");
 
     const windows = buildGrokLoginScript("windows", "lc_grok_test");
     expect(windows).toContain("grok login --device-auth");
     expect(windows).toContain("$env:GROK_HOME");
+    expect(windows).toContain("GROK_LEADER_SOCKET");
     expect(windows).toContain("lc_grok_test");
   });
 
