@@ -28,6 +28,7 @@ import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
@@ -1291,6 +1292,7 @@ export function ThreadDraftView(props: {
 
   const handleCraftModeChange = (next: CraftMode) => {
     setCraftMode(next);
+    useCraftingWorkbenchStore.getState().setCapabilityMode(next);
     if (next === "auto") return;
     usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode: next });
   };

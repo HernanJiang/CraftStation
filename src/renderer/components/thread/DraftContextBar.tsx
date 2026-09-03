@@ -162,6 +162,7 @@ export function DraftContextBar(props: {
           className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-white/5 px-2 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
           onClick={() => {
             const entryMode = props.craftMode === "creative" ? "creative" : "efficient";
+            useCraftingWorkbenchStore.getState().setCapabilityMode(props.craftMode);
             usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode });
           }}
         >

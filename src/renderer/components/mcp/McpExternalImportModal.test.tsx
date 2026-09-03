@@ -134,6 +134,11 @@ describe("McpExternalImportModal", () => {
         ...candidate("ignored", "node_repl"),
         id: expect.any(String),
         description: "",
+        origin: "imported",
+        sourceProviderId: "codex",
+        sourceProviderLabel: "Codex CLI",
+        sourcePath: "C:\\Users\\demo\\.codex\\config.toml",
+        importedAt: expect.any(String),
       },
     ]);
     expect(onImport.mock.calls[0]?.[1][0]?.id).not.toBe("codex:node");

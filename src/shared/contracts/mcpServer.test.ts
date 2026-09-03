@@ -31,6 +31,47 @@ function server(id: string, name: string, enabled = true): McpServer {
 }
 
 describe("mcpServerSchema", () => {
+  it("preserves origin and source provider metadata when provided", () => {
+    const parsed = mcpServerSchema.parse({
+      id: "imported-codex",
+      name: "codex-tools",
+      transport: { type: "stdio", command: "node" },
+      origin: "managed",
+      sourceProviderId: "codex",
+      sourceProviderLabel: "Codex",
+      sourcePath: "/path/to/codex/config.json",
+      importedAt: "2026-09-03T12:00:00.000Z",
+    });
+    expect(parsed.origin).toBe("managed");
+    expect(parsed.sourceProviderId).toBe("codex");
+    expect(parsed.sourceProviderLabel).toBe("Codex");
+    expect(parsed.sourcePath).toBe("/path/to/codex/config.json");
+    expect(parsed.importedAt).toBe("2026-09-03T12:00:00.000Z");
+  });
+
+  it("represents the canonical imported origin with source provider metadata", () => {
+    const parsed = mcpServerSchema.parse({
+      id: "imported-codex",
+      name: "codex-tools",
+      transport: { type: "stdio", command: "node" },
+      origin: "imported",
+      sourceProviderId: "codex",
+      sourceProviderLabel: "Codex",
+      sourcePath: "/path/to/codex/config.json",
+      importedAt: "2026-09-03T12:00:00.000Z",
+    });
+    expect(parsed.origin).toBe("imported");
+  });
+
+  it("keeps legacy entries without an origin valid", () => {
+    const parsed = mcpServerSchema.parse({
+      id: "legacy",
+      name: "legacy-server",
+      transport: { type: "stdio", command: "node" },
+    });
+    expect(parsed.origin).toBeUndefined();
+  });
+
   it("normalizes defaults for a canonical stdio server", () => {
     expect(
       mcpServerSchema.parse({

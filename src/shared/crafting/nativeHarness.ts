@@ -202,6 +202,7 @@ export interface NativeHarnessLifecycleContract {
 export const nativeRuntimeExecutionConfigSchema = z.object({
   workspace: z.string().min(1).optional(),
   model: z.string().min(1),
+  capabilityMode: z.enum(["auto", "efficient", "creative"]).optional(),
   reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
   serviceTier: z.enum(["default", "flex", "fast", "priority"]).optional(),
   approvalPolicy: z.enum(["always", "auto", "never", "on-demand"]).optional(),
@@ -269,6 +270,15 @@ export function nativeRuntimeExecutionConfigForPlan(
   return nativeRuntimeExecutionConfigSchema.parse({
     ...(plan.workspace ? { workspace: plan.workspace } : {}),
     model: overrides.model ?? plan.runtimeBinding.modelId,
+    ...(overrides.capabilityMode ||
+    (typeof bindingOptions.capabilityMode === "string" &&
+      ["auto", "efficient", "creative"].includes(bindingOptions.capabilityMode))
+      ? {
+          capabilityMode:
+            overrides.capabilityMode ??
+            (bindingOptions.capabilityMode as "auto" | "efficient" | "creative"),
+        }
+      : {}),
     ...((overrides.reasoningEffort ?? stringOption(bindingOptions, "reasoningEffort"))
       ? {
           reasoningEffort:

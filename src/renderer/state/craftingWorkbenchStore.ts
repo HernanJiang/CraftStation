@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createDbStorage } from "./dbStorage";
+import type { CapabilityMode } from "@/shared/crafting/types";
 import type {
   CapabilityResolution,
   CreativeDraft,
@@ -47,6 +48,8 @@ interface CraftingWorkbenchActions {
   loadRecipeToDraft: (recipe: StoredRecipe, mode: WorkbenchMode) => void;
   setPendingRecipeIntent: (intent?: PendingRecipeIntent) => void;
   clearPendingRecipeIntent: () => void;
+  /** v1.2 capability resolution policy selected from the composer craft switch. */
+  setCapabilityMode: (mode: CapabilityMode) => void;
 }
 
 export interface CraftingWorkbenchStore extends CraftingWorkbenchActions {
@@ -56,6 +59,7 @@ export interface CraftingWorkbenchStore extends CraftingWorkbenchActions {
   recipes: StoredRecipe[];
   selectedInspectorRef?: string | undefined;
   pendingRecipeIntent?: PendingRecipeIntent | undefined;
+  capabilityMode: CapabilityMode;
 }
 
 function invalidate(draft: EfficientDraft): EfficientDraft {
@@ -78,9 +82,12 @@ export const useCraftingWorkbenchStore = create<CraftingWorkbenchStore>()(
       recipes: [],
       selectedInspectorRef: undefined,
       pendingRecipeIntent: undefined,
+      capabilityMode: "auto",
 
       setMode: (mode) =>
         set((state) => (state.lastWorkbenchMode === mode ? {} : { lastWorkbenchMode: mode })),
+
+      setCapabilityMode: (capabilityMode) => set({ capabilityMode }),
 
       setEfficientModel: (modelEntryRef) =>
         set((state) => ({

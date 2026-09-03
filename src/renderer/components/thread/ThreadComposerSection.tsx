@@ -43,6 +43,7 @@ import { threadProductProperties } from "@/renderer/analytics/posthog";
 import { captureProductEvent } from "@/renderer/analytics/productAnalytics";
 import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { useBrowserAttachInbox } from "@/renderer/state/browserAttachInbox";
 import {
@@ -534,6 +535,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
 
   const handleCraftModeChange = (next: CraftMode) => {
     setCraftMode(next);
+    useCraftingWorkbenchStore.getState().setCapabilityMode(next);
     if (next === "auto") return;
     usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode: next });
   };

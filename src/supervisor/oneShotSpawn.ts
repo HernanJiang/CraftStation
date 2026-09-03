@@ -154,6 +154,11 @@ export function spawnAgentPty(
     let timedOut = false;
 
     const killPty = () => {
+      // The exit handler may have disposed the pty before a late timeout or
+      // abort fires; touching a torn-down handle must stay a no-op.
+      if (!pty || typeof pty.pid !== "number") {
+        return;
+      }
       if (process.platform === "win32") {
         terminateProcessTree(pty.pid);
         return;

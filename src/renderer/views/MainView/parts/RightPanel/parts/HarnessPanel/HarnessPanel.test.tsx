@@ -269,6 +269,7 @@ describe("HarnessPanel native control-plane surface", () => {
       },
       fakeResult,
       "inspect repository",
+      { capabilityMode: "auto" },
     );
   });
 

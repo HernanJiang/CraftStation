@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join, parse } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LoadedPlugin, ProjectLocation } from "@/shared/contracts";
 import type { InstalledPlugins } from "@/shared/contracts/plugin";
@@ -1560,11 +1560,12 @@ describe("SkillsService", () => {
     });
   });
 
-  it("disables and restores linked imports with their provider source", async () => {
+  it("rejects new linked imports and still disables/restores pre-existing links", async () => {
     const source = join(home, ".claude", "skills", "linked-review");
     await writeSkill(source, "linked-review");
-    const [linked] = (
-      await service.import({
+    // New Managed imports must be copies; link creation is rejected.
+    await expect(
+      service.import({
         skills: [
           {
             sourcePath: source,
@@ -1574,15 +1575,20 @@ describe("SkillsService", () => {
             projectLocation,
           },
         ],
-      })
-    ).imported;
+      }),
+    ).rejects.toThrow("Linked imports are no longer available");
 
-    expect((await lstat(linked!)).isSymbolicLink()).toBe(true);
+    // A linked import created before copy-only imports keeps working.
+    const linked = join(home, ".agents", "skills", "linked-review");
+    await mkdir(dirname(linked), { recursive: true });
+    await symlink(resolve(source), linked, process.platform === "win32" ? "junction" : "dir");
+
+    expect((await lstat(linked)).isSymbolicLink()).toBe(true);
     await service.setEnabled({ absolutePath: source, enabled: false, projectLocation });
 
     const disabledSource = join(home, ".claude", "skills.craftstation-disabled", "linked-review");
     const disabledLink = join(home, ".agents", "skills.craftstation-disabled", "linked-review");
-    await expect(lstat(linked!)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(lstat(linked)).rejects.toMatchObject({ code: "ENOENT" });
     expect((await lstat(disabledLink)).isSymbolicLink()).toBe(true);
     expect(await realpath(disabledLink)).toBe(await realpath(disabledSource));
     expect(
@@ -1597,27 +1603,17 @@ describe("SkillsService", () => {
       projectLocation,
     });
 
-    expect((await lstat(linked!)).isSymbolicLink()).toBe(true);
-    expect(await realpath(linked!)).toBe(await realpath(source));
+    expect((await lstat(linked)).isSymbolicLink()).toBe(true);
+    expect(await realpath(linked)).toBe(await realpath(source));
     await expect(lstat(disabledLink)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("restores a linked import when disabling its source rolls back", async () => {
+  it("restores a pre-existing linked import when disabling its source rolls back", async () => {
     const source = join(home, ".claude", "skills", "linked-review");
     await writeSkill(source, "linked-review");
-    const [linked] = (
-      await service.import({
-        skills: [
-          {
-            sourcePath: source,
-            destinationScope: "global",
-            mode: "link",
-            replace: false,
-            projectLocation,
-          },
-        ],
-      })
-    ).imported;
+    const linked = join(home, ".agents", "skills", "linked-review");
+    await mkdir(dirname(linked), { recursive: true });
+    await symlink(resolve(source), linked, process.platform === "win32" ? "junction" : "dir");
     await mkdir(join(projectPath, ".claude"), { recursive: true });
     await writeFile(join(projectPath, ".claude", "skills"), "blocks project synchronization");
 
@@ -1626,8 +1622,8 @@ describe("SkillsService", () => {
     ).rejects.toThrow("EEXIST");
 
     expect(await readFile(join(source, "SKILL.md"), "utf8")).toContain("linked-review");
-    expect((await lstat(linked!)).isSymbolicLink()).toBe(true);
-    expect(await realpath(linked!)).toBe(await realpath(source));
+    expect((await lstat(linked)).isSymbolicLink()).toBe(true);
+    expect(await realpath(linked)).toBe(await realpath(source));
     await expect(
       lstat(join(home, ".agents", "skills.craftstation-disabled", "linked-review")),
     ).rejects.toMatchObject({ code: "ENOENT" });

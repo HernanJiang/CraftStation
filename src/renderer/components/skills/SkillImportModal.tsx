@@ -11,7 +11,6 @@ import type {
 import { readBridge } from "@/renderer/bridge";
 import { Button, Select } from "@/renderer/components/common";
 import {
-  GLOBAL_MCP_DESTINATION_ID,
   McpProjectDestinationDropdown,
   type McpProjectDestination,
 } from "@/renderer/components/mcp/McpProjectDestinationDropdown";
@@ -169,14 +168,10 @@ export function SkillImportModal(props: SkillImportModalProps) {
   const hostGlobalLabel = t(hostGlobalScopeLabel(readBridge().platform));
   const destinationLabel =
     destinationTarget.project?.name ?? destinationTarget.wslDistro ?? hostGlobalLabel;
-  const canLink =
-    props.sourceTarget.id === GLOBAL_MCP_DESTINATION_ID &&
-    destinationTarget.id === GLOBAL_MCP_DESTINATION_ID &&
-    props.scan.canLinkToGlobal;
-  const modeOptions = [
-    { id: "copy", label: t`Copy (recommended)` },
-    ...(canLink ? [{ id: "link", label: t`Link to source` }] : []),
-  ];
+  // v1.2 Managed Skill imports are CraftStation-owned copies: the external
+  // source stays untouched and deleting the managed copy never affects it.
+  // Linked imports remain supported only for pre-existing legacy data.
+  const modeOptions = [{ id: "copy", label: t`Copy (recommended)` }];
   const availabilityOptions = [
     { id: "shared", label: t`All agent apps` },
     { id: "craftstation", label: t`CraftStation only` },

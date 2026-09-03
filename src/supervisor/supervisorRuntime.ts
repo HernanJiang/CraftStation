@@ -75,7 +75,11 @@ import {
   type ResolveCompatibilityResult,
 } from "@/shared/crafting/compatibility";
 import { nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
-import { AccountControlError } from "@/shared/contracts";
+import {
+  AccountControlError,
+  BUILT_IN_MCP_SERVER_NAMES,
+  DEFAULT_MCP_SERVER_TIMEOUT_MS,
+} from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
 import type {
   CraftAgentPayload,
@@ -147,6 +151,11 @@ import { resolveWslHostAccess } from "./wsl/hostAccess";
 import { McpOAuthService } from "./mcp/McpOAuthService";
 import { McpProbeService } from "./mcp/McpProbeService";
 import { prepareMcpToolFilters } from "./mcp/McpToolFilterService";
+import { resolveCapabilities, type BuiltInMcpCandidate } from "./capabilities/capabilityResolver";
+import {
+  readComputerUseMcpEnv,
+  resolveComputerUseMcpHttpConfig,
+} from "@/supervisor/agents/computerUseMcp";
 import { ExternalMcpDiscoveryService } from "./mcp/ExternalMcpDiscoveryService";
 import { SkillsService } from "./skills/SkillsService";
 import { dropSkillSegmentsOnPolicyFailure } from "./skills/pluginSkillPolicy";
@@ -2142,64 +2151,150 @@ export class SupervisorRuntime {
     projectLocation: ProjectLocation,
     candidates: McpServer[] | undefined,
   ): Promise<ResolvedMcpServer[] | undefined> {
-    const selectedIds = nativeRuntimeExecutionConfigForPlan(plan).mcpServerIds ?? [];
-    if (selectedIds.length === 0) return undefined;
+    const config = nativeRuntimeExecutionConfigForPlan(plan);
+    const explicitIds = config.mcpServerIds;
+    const mode = config.capabilityMode ?? (explicitIds !== undefined ? "creative" : "auto");
+    const harnessKind = plan.runtimeBinding.harnessKind;
+    const adapter = this.adapters.get(harnessKind as AgentKind);
+    const runtimeSupport = adapter?.capabilities;
 
-    const enabledCandidates = (candidates ?? []).filter((server) => server.enabled);
-    const candidatesById = new Map(enabledCandidates.map((server) => [server.id, server]));
-    const missingIds = selectedIds.filter((id) => !candidatesById.has(id));
-    if (missingIds.length > 0) {
-      throw CraftingError.runtimeUnavailable(
-        plan.runtimeBinding.harnessKind,
-        `CraftPlan selected unavailable MCP server ids: ${missingIds.join(", ")}.`,
+    const resolution = await resolveCapabilities({
+      harnessKind,
+      agentKind: this.adapters.has(harnessKind as AgentKind) ? harnessKind : undefined,
+      mode,
+      projectLocation,
+      candidateMcpServers: candidates,
+      runtimeSupport,
+      explicitMcpServerIds: explicitIds,
+      builtInMcpCandidates: this.builtInMcpCandidates(projectLocation),
+    });
+
+    if (mode === "creative" && explicitIds && explicitIds.length > 0) {
+      const missingOrDisabled = resolution.diagnostics.skipped.filter(
+        (item) =>
+          item.kind === "mcp" && (item.reason === "not-found" || item.reason === "disabled"),
       );
+      if (missingOrDisabled.length > 0) {
+        throw CraftingError.runtimeUnavailable(
+          harnessKind,
+          `CraftPlan selected unavailable MCP server ids: ${missingOrDisabled.map((i) => i.id).join(", ")}.`,
+        );
+      }
     }
 
-    let selected = selectedIds.map((id) => candidatesById.get(id)!);
+    if (resolution.mcpServers.length === 0 && resolution.builtInMcpServerIds.length === 0) {
+      return undefined;
+    }
+
+    let selected = resolution.mcpServers;
     selected = await this.mcpOAuthService.applyAuthorization(selected);
     selected = await prepareMcpToolFilters(selected, projectLocation);
-    return selected.map(({ description: _description, enabled: _enabled, ...server }) => server);
+
+    // Capability-resolved built-ins (currently computer-use) join the same
+    // injected MCP list: the AgentAdapter receives one merged, secret-free set.
+    const builtInServers: ResolvedMcpServer[] = [];
+    for (const builtInId of resolution.builtInMcpServerIds) {
+      if (builtInId !== "computer-use") continue;
+      const httpConfig = resolveComputerUseMcpHttpConfig(
+        projectLocation,
+        plan.threadId ? { threadId: plan.threadId } : undefined,
+      );
+      if (!httpConfig) continue;
+      builtInServers.push({
+        id: "computer-use",
+        name: BUILT_IN_MCP_SERVER_NAMES["computer-use"],
+        timeoutMs: DEFAULT_MCP_SERVER_TIMEOUT_MS,
+        transport: { type: "http", url: httpConfig.url, headers: httpConfig.headers },
+      });
+    }
+    const merged: ResolvedMcpServer[] = [
+      ...selected.map(({ description: _description, enabled: _enabled, ...server }) => server),
+      ...builtInServers,
+    ];
+    if (merged.length === 0) return undefined;
+    return merged;
+  }
+
+  /**
+   * Built-in MCP candidates for capability resolution. Availability is honest:
+   * computer-use requires a supported host platform, a configured launch
+   * endpoint, and a project location that can reach the loopback ingress.
+   */
+  private builtInMcpCandidates(projectLocation: ProjectLocation): BuiltInMcpCandidate[] {
+    const hostPlatformOk = process.platform === "win32" || process.platform === "darwin";
+    const endpointConfigured = readComputerUseMcpEnv() !== null;
+    const isWsl = projectLocation.kind === "wsl";
+    const available = hostPlatformOk && endpointConfigured && !isWsl;
+    const unavailableReason = !hostPlatformOk
+      ? `computer-use is unsupported on ${process.platform}.`
+      : isWsl
+        ? "computer-use cannot reach the host loopback ingress from a WSL project."
+        : endpointConfigured
+          ? undefined
+          : "computer-use MCP launch endpoint is not configured.";
+    return [
+      {
+        id: "computer-use",
+        name: "computer_use",
+        available,
+        ...(unavailableReason ? { unavailableReason } : {}),
+      },
+    ];
   }
 
   private async resolveCraftingSkills(
     plan: CraftAgentPayload["craftPlan"],
     projectLocation: ProjectLocation,
   ): Promise<{ segments: PromptSegment[]; inlineInstructions?: string }> {
-    const requested = nativeRuntimeExecutionConfigForPlan(plan).skills ?? [];
-    if (requested.length === 0) return { segments: [] };
-
+    const config = nativeRuntimeExecutionConfigForPlan(plan);
+    const explicitSkills = config.skills;
+    const mode = config.capabilityMode ?? (explicitSkills !== undefined ? "creative" : "auto");
     const harnessKind = plan.runtimeBinding.harnessKind;
     const agentKind = this.adapters.has(harnessKind as AgentKind)
       ? (harnessKind as AgentKind)
       : undefined;
+
     if (agentKind) await this.skillsService.prepareForLaunch(projectLocation, agentKind);
     const scan = await this.skillsService.scan({
       projectLocation,
       ...(agentKind ? { agentKind } : {}),
       presentationMode: "gui",
     });
-    const eligibleIds = agentKind
-      ? new Set(scan.effectiveSkillIds)
-      : new Set(
-          scan.skills.filter((skill) => skill.enabled && skill.valid).map((skill) => skill.id),
-        );
-    const selected = requested.map((requestedSkill) => {
-      const matches = scan.skills.filter(
-        (skill) =>
-          eligibleIds.has(skill.id) &&
-          (skill.id === requestedSkill ||
-            skill.name.toLowerCase() === requestedSkill.toLowerCase()),
-      );
-      if (matches.length !== 1) {
-        throw CraftingError.runtimeUnavailable(
-          harnessKind,
-          matches.length === 0
-            ? `CraftPlan selected unavailable skill '${requestedSkill}'.`
-            : `CraftPlan skill '${requestedSkill}' is ambiguous; select its stable skill id.`,
-        );
-      }
-      return matches[0]!;
+
+    const eligibleSkills = agentKind
+      ? scan.skills.filter((skill) => scan.effectiveSkillIds.includes(skill.id))
+      : scan.skills.filter((skill) => skill.enabled && skill.valid);
+
+    const resolution = await resolveCapabilities({
+      harnessKind,
+      agentKind,
+      mode,
+      projectLocation,
+      availableSkills: eligibleSkills,
+      explicitSkillIds: explicitSkills,
     });
+
+    if (mode === "creative" && explicitSkills && explicitSkills.length > 0) {
+      for (const requestedSkill of explicitSkills) {
+        const matches = eligibleSkills.filter(
+          (skill) =>
+            skill.id === requestedSkill ||
+            skill.name.toLowerCase() === requestedSkill.toLowerCase(),
+        );
+        if (matches.length !== 1) {
+          throw CraftingError.runtimeUnavailable(
+            harnessKind,
+            matches.length === 0
+              ? `CraftPlan selected unavailable skill '${requestedSkill}'.`
+              : `CraftPlan skill '${requestedSkill}' is ambiguous; select its stable skill id.`,
+          );
+        }
+      }
+    }
+
+    if (resolution.skills.length === 0) return { segments: [] };
+
+    const selected = resolution.skills;
     const invocationFor = (name: string): string => {
       if (scan.invocation === "slash") return `/${name}`;
       if (scan.invocation === "dollar") return `$${name}`;
