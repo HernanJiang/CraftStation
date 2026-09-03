@@ -146,7 +146,9 @@ export type AccountErrorCode =
   | "ACCOUNT_LOCKED"
   | "ACCOUNT_CORRUPT"
   | "ACCOUNT_PROJECTION_FAILED"
-  | "ACCOUNT_RUNTIME_UNSUPPORTED";
+  | "ACCOUNT_RUNTIME_UNSUPPORTED"
+  | "PROFILE_IDENTITY_MISMATCH"
+  | "ACCOUNT_IDENTITY_UNAVAILABLE";
 
 export const accountProviderPayloadSchema = z.object({
   provider: accountProviderSchema.optional(),

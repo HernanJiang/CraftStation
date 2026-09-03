@@ -13,6 +13,7 @@ import {
   threadPresentationModeSchema,
   threadSchema,
 } from "../contracts";
+import { accountBindingSchema } from "../contracts/accountBinding";
 import { craftPlanSchema } from "../crafting/types";
 export {
   cancelSessionSwitchPayloadSchema,
@@ -117,15 +118,7 @@ export const craftAgentResultSchema = z.object({
   /** Provider-native identity required to resume the same Session in a new runtime. */
   sessionRef: z.string().min(1).optional(),
   response: z.string(),
-  accountBinding: z
-    .object({
-      accountId: z.string().min(1),
-      provider: z.string().min(1),
-      credentialScopeRef: z.string().min(1),
-      reason: z.enum(["explicit", "selected", "priority", "round-robin", "random"]),
-      boundAt: z.number().int().nonnegative(),
-    })
-    .optional(),
+  accountBinding: accountBindingSchema.optional(),
 });
 export type CraftAgentResult = z.infer<typeof craftAgentResultSchema>;
 

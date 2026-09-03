@@ -39,6 +39,10 @@ import type {
   GrokProfileLoginCreateResult,
   GrokProfileLoginPayload,
   GrokProfileLoginResult,
+  KimiProfileCreatePayload,
+  KimiProfileImportPayload,
+  KimiProfileLoginPayload,
+  KimiProfileLoginResult,
   GrokProfileCompletePayload,
   GrokProfileCancelPayload,
   GrokProfilePollPayload,
@@ -163,11 +167,18 @@ import {
   TokenUsageAdapter,
 } from "./runtime/tokenUsageAdapter";
 import {
+  KimiProfileService,
+  buildKimiLoginScript,
+  managedKimiLoginCwd,
+  managedKimiProcessEnvironment,
+} from "./runtime/kimiProfiles";
+import {
   CodexProfileService,
   buildCodexLoginScript,
   managedCodexLoginCwd,
   managedCodexProcessEnvironment,
 } from "./runtime/codexProfiles";
+import { prepareNativeProfile, verifyProfileIdentity } from "./runtime/nativeProfile";
 import {
   GrokProfileService,
   buildGrokLoginScript,
@@ -339,6 +350,7 @@ export class SupervisorRuntime {
   readonly tokenUsageAdapter: TokenUsageAdapter;
   readonly codexProfileService: CodexProfileService;
   readonly grokProfileService: GrokProfileService;
+  readonly kimiProfileService: KimiProfileService;
   readonly antigravityProfileService: AntigravityProfileService;
   readonly openAiCompatibleProfileService: OpenAiCompatibleProfileService;
   /**
@@ -810,6 +822,7 @@ export class SupervisorRuntime {
     );
     this.codexProfileService = new CodexProfileService({ store: this.accountStore });
     this.grokProfileService = new GrokProfileService({ store: this.accountStore });
+    this.kimiProfileService = new KimiProfileService({ store: this.accountStore });
     this.antigravityProfileService = new AntigravityProfileService({
       store: this.accountStore,
       cacheDir: paths.cacheDir,
@@ -1162,6 +1175,72 @@ export class SupervisorRuntime {
 
   createCodexProfile(payload: CodexProfileCreatePayload): AccountView {
     const account = this.codexProfileService.createEmpty(payload.label);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  createKimiProfile(payload: KimiProfileCreatePayload): AccountView {
+    const account = this.kimiProfileService.createEmpty(payload.label);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  importKimiProfile(payload: KimiProfileImportPayload): AccountView {
+    const account = this.kimiProfileService.importCredential(payload);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  async startKimiProfileLogin(payload: KimiProfileLoginPayload): Promise<KimiProfileLoginResult> {
+    const record = this.accountStore.getRecord(payload.accountId);
+    if (!record)
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${payload.accountId}'.`);
+    if (record.provider !== "kimi") {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Kimi profile login can only target a Kimi account.",
+      );
+    }
+    const hostShellKind = process.platform === "win32" ? "windows" : "posix";
+    if (payload.projectLocation.kind !== hostShellKind) {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Managed Kimi profile login requires a host-native project location.",
+        { accountId: payload.accountId },
+      );
+    }
+    const kimiHome = this.kimiProfileService.managedKimiHome(payload.accountId);
+    try {
+      await this.threadSessionManager.startShellWithEnvironment(
+        {
+          shellId: payload.shellId,
+          projectLocation: payload.projectLocation,
+          cwdOverride: managedKimiLoginCwd(kimiHome),
+          ...(process.platform === "win32"
+            ? { windowsShellRuntime: payload.windowsShellRuntime ?? "powershell" }
+            : {}),
+        },
+        managedKimiProcessEnvironment(kimiHome),
+      );
+      await this.threadSessionManager.writeTerminal({
+        threadId: payload.shellId,
+        data: `${buildKimiLoginScript(hostShellKind, payload.completionToken)}\r`,
+      });
+    } catch (error) {
+      await this.threadSessionManager
+        .closeThread({ threadId: payload.shellId })
+        .catch(() => undefined);
+      throw error;
+    }
+    return {
+      shellId: payload.shellId,
+      label: record.label,
+      completionToken: payload.completionToken,
+    };
+  }
+
+  completeKimiProfileLogin(accountId: string): AccountView {
+    const account = this.kimiProfileService.completeLogin(accountId);
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
   }
@@ -1748,9 +1827,11 @@ export class SupervisorRuntime {
           ? "codex"
           : plan.runtimeBinding.harnessKind === "grok"
             ? "grok"
-            : plan.runtimeBinding.harnessKind === "opencode"
-              ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
-              : undefined;
+            : plan.runtimeBinding.harnessKind === "kimi"
+              ? "kimi"
+              : plan.runtimeBinding.harnessKind === "opencode"
+                ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
+                : undefined;
     const hasCredentialedManagedAccount = managedProvider
       ? this.accountStore
           .records(managedProvider)
@@ -1765,12 +1846,23 @@ export class SupervisorRuntime {
         mode: accountMode ?? (accountId ? "explicit" : "auto"),
         ...(accountId ? { explicitAccountId: accountId } : {}),
       });
+      const profileSpec = prepareNativeProfile(managedProvider, {
+        accountId: resolution.account.accountId,
+        credentialRoot: this.accountStore.credentialRoot(resolution.account.accountId),
+        credentialScopeRef: resolution.account.credentialScopeRef,
+      });
       accountBinding = {
         accountId: resolution.account.accountId,
         provider: resolution.account.provider,
         credentialScopeRef: resolution.account.credentialScopeRef,
         reason: resolution.reason,
         boundAt: Date.now(),
+        ...(resolution.account.providerAccountId
+          ? { providerAccountId: resolution.account.providerAccountId }
+          : {}),
+        ...(resolution.account.maskedIdentity
+          ? { maskedIdentity: resolution.account.maskedIdentity }
+          : {}),
       };
       if (managedProvider === "openai-compatible") {
         const runtime = this.openAiCompatibleProfileService.prepareCodexRuntime(
@@ -1780,6 +1872,8 @@ export class SupervisorRuntime {
         accountEnv = runtime.env;
       } else {
         accountRoot = this.accountStore.credentialRoot(resolution.account.accountId);
+        accountEnv = profileSpec.env;
+        verifyProfileIdentity(managedProvider, accountRoot, resolution.account);
       }
     }
 
@@ -1799,6 +1893,7 @@ export class SupervisorRuntime {
                     codexHome: accountRoot,
                     ...(accountEnv ? { env: accountEnv } : {}),
                   }),
+                  codexHome: accountRoot,
                 }
               : {}),
             ...(accountBinding ? { accountBinding } : {}),
@@ -1830,8 +1925,17 @@ export class SupervisorRuntime {
                   }),
                 }
               : {}),
-            ...(accountRoot && plan.runtimeBinding.harnessKind === "grok"
-              ? { baseSpawnEnv: managedGrokProcessEnvironment(accountRoot) }
+            ...(accountRoot &&
+            (plan.runtimeBinding.harnessKind === "grok" ||
+              plan.runtimeBinding.harnessKind === "kimi")
+              ? {
+                  baseSpawnEnv:
+                    accountEnv ??
+                    prepareNativeProfile(plan.runtimeBinding.harnessKind, {
+                      accountId: accountBinding!.accountId,
+                      credentialRoot: accountRoot,
+                    }).env,
+                }
               : {}),
             ...(accountBinding && plan.runtimeBinding.harnessKind === "grok"
               ? {
@@ -1862,6 +1966,9 @@ export class SupervisorRuntime {
     if (provider === "grok" || provider === "codex") {
       return existsSync(join(credentialRoot, "auth.json"));
     }
+    if (provider === "kimi") {
+      return existsSync(join(credentialRoot, "credentials", "kimi-code.json"));
+    }
     return true;
   }
 
@@ -1877,7 +1984,9 @@ export class SupervisorRuntime {
     threadId: string;
   }): { accountId: string; reason: string; env: Record<string, string> } | undefined {
     const provider =
-      input.provider === "codex" || input.provider === "grok" ? input.provider : undefined;
+      input.provider === "codex" || input.provider === "grok" || input.provider === "kimi"
+        ? input.provider
+        : undefined;
     if (!provider) return undefined;
     const hasCredentialedManagedAccount = this.accountStore
       .records(provider)
@@ -1887,7 +1996,12 @@ export class SupervisorRuntime {
     // the explicit all-failed error, not a silent ambient fallback.
     const resolution = this.accountResolver.resolve({ provider, mode: "auto" });
     const root = this.accountStore.credentialRoot(resolution.account.accountId);
-    const env = provider === "grok" ? managedGrokProcessEnvironment(root) : { CODEX_HOME: root };
+    const profileSpec = prepareNativeProfile(provider, {
+      accountId: resolution.account.accountId,
+      credentialRoot: root,
+      credentialScopeRef: resolution.account.credentialScopeRef,
+    });
+    const env = profileSpec.env;
     console.log(
       `[account] pool account selected: provider=${provider} thread=${input.threadId} account=${resolution.account.accountId} reason=${resolution.reason}`,
     );

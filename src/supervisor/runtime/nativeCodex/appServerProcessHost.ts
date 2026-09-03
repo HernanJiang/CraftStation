@@ -2,6 +2,7 @@
 import { CodexBinaryResolver, type ResolvedCodexBinary } from "./codexBinaryResolver";
 import { JsonRpcTransport } from "./jsonRpcTransport";
 import { CraftingError } from "@/shared/crafting/errors";
+import { managedCodexProcessEnvironment } from "../codexProfiles";
 
 export interface AppServerProcessOptions {
   binaryPath?: string | undefined;
@@ -75,7 +76,9 @@ export class AppServerProcessHost {
     const env = {
       ...process.env,
       ...this.options?.env,
-      ...(this.options?.codexHome ? { CODEX_HOME: this.options.codexHome } : {}),
+      ...(this.options?.codexHome
+        ? managedCodexProcessEnvironment(this.options.codexHome, process.env)
+        : {}),
     };
 
     try {

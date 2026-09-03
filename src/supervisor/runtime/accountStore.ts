@@ -517,7 +517,7 @@ export class AccountStore {
     // Home-var projections (CODEX_HOME, GROK_HOME) must always point back at
     // this account's managed scope — a managed account never gets a home that
     // aliases the host profile or another account's root.
-    for (const homeKey of ["CODEX_HOME", "GROK_HOME"] as const) {
+    for (const homeKey of ["CODEX_HOME", "GROK_HOME", "KIMI_CODE_HOME"] as const) {
       const requestedHome = projection.environment?.[homeKey];
       if (requestedHome !== undefined && resolve(requestedHome) !== root) {
         throw new AccountControlError(

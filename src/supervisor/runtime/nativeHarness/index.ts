@@ -70,7 +70,7 @@ export interface NativeHarnessAdapterFactoryOptions {
 
 type NativeHarnessFactory = (options: NativeHarnessAdapterFactoryOptions) => HarnessRuntimeAdapter;
 
-function withGrokBaseSpawnEnv<T extends { baseSpawnEnv?: Record<string, string> }>(
+function withBaseSpawnEnv<T extends { baseSpawnEnv?: Record<string, string> }>(
   adapter: T,
   baseSpawnEnv: Record<string, string> | undefined,
 ): T {
@@ -91,7 +91,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     inlineSkillInstructions,
   }) =>
     new StructuredNativeHarnessRuntimeAdapter({
-      adapter: withGrokBaseSpawnEnv(createGrokAdapter(), baseSpawnEnv),
+      adapter: withBaseSpawnEnv(createGrokAdapter(), baseSpawnEnv),
       descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
       ...(accountBinding ? { accountBinding } : {}),
@@ -105,12 +105,13 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     projectLocation,
     accountBinding,
     profileRef,
+    baseSpawnEnv,
     mcpServers,
     skillSegments,
     inlineSkillInstructions,
   }) =>
     new StructuredNativeHarnessRuntimeAdapter({
-      adapter: createKimiAdapter(),
+      adapter: withBaseSpawnEnv(createKimiAdapter(), baseSpawnEnv),
       descriptor: KIMI_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
       ...(accountBinding ? { accountBinding } : {}),

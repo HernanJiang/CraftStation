@@ -20,6 +20,10 @@ const CODEX_ROUTER_ENV_KEYS = [
 
 /**
  * Isolate a managed Codex login/runtime from the host Codex-Router overlay.
+ *
+ * Includes file credential store isolation based on subswap and official codex config:
+ * MIT License, Copyright (c) 2026 subswap contributors
+ *
  * Router catalogs are not official Codex config and will crash `codex login`.
  */
 export function managedCodexProcessEnvironment(
@@ -53,6 +57,8 @@ export function managedCodexProcessEnvironment(
 const MANAGED_CODEX_CONFIG = [
   "# CraftStation managed Codex profile",
   "# Isolated from the host ~/.codex Codex-Router overlay.",
+  'cli_auth_credentials_store = "file"',
+  'mcp_oauth_credentials_store = "file"',
   'model_provider = "openai"',
   'sandbox_mode = "danger-full-access"',
   "",

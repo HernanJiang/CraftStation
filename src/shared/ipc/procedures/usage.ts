@@ -73,6 +73,13 @@ import {
   type OpenAiCompatibleProfileImportPayload,
   type ChannelModelsPayload,
   type ChannelModelsResponse,
+  type KimiProfileCreatePayload,
+  type KimiProfileImportPayload,
+  type KimiProfileLoginPayload,
+  type KimiProfileLoginResult,
+  kimiProfileCreatePayloadSchema,
+  kimiProfileImportPayloadSchema,
+  kimiProfileLoginPayloadSchema,
 } from "../../contracts";
 import { definePayloadProcedure } from "../core";
 
@@ -244,6 +251,26 @@ export const usageProcedures = {
     CodexProfileLoginResult,
     "supervisor"
   >("startCodexProfileLogin", "supervisor", codexProfileLoginPayloadSchema),
+  createKimiProfile: definePayloadProcedure<KimiProfileCreatePayload, AccountView, "supervisor">(
+    "createKimiProfile",
+    "supervisor",
+    kimiProfileCreatePayloadSchema,
+  ),
+  importKimiProfile: definePayloadProcedure<KimiProfileImportPayload, AccountView, "supervisor">(
+    "importKimiProfile",
+    "supervisor",
+    kimiProfileImportPayloadSchema,
+  ),
+  startKimiProfileLogin: definePayloadProcedure<
+    KimiProfileLoginPayload,
+    KimiProfileLoginResult,
+    "supervisor"
+  >("startKimiProfileLogin", "supervisor", kimiProfileLoginPayloadSchema),
+  completeKimiProfileLogin: definePayloadProcedure<AccountIdPayload, AccountView, "supervisor">(
+    "completeKimiProfileLogin",
+    "supervisor",
+    accountIdPayloadSchema,
+  ),
   createGrokProfileLogin: definePayloadProcedure<
     GrokProfileLoginCreatePayload,
     GrokProfileLoginCreateResult,

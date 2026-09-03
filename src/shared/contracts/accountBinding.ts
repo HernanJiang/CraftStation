@@ -11,5 +11,8 @@ export const accountBindingSchema = z.object({
   credentialScopeRef: z.string().min(1).max(240),
   reason: z.enum(["explicit", "selected", "priority", "round-robin", "random"]),
   boundAt: z.number().int().nonnegative(),
+  /** Provider-visible identity used by the Supervisor's native gate. */
+  providerAccountId: z.string().max(160).optional(),
+  maskedIdentity: z.string().max(160).optional(),
 });
 export type AccountBinding = z.infer<typeof accountBindingSchema>;

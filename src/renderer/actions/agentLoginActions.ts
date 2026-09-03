@@ -18,6 +18,7 @@ import {
 } from "@/renderer/utils/shellUtils";
 
 let codexProfileLoginStartInFlight = false;
+let kimiProfileLoginStartInFlight = false;
 
 function resolveLoginProject(): Project | undefined {
   const app = useAppStore.getState();
@@ -576,6 +577,161 @@ async function runCodexProfileLoginInternal(input: {
       useLoginTerminalStore.getState().close();
     }
     toast.danger(error instanceof Error ? error.message : i18n._(msg`Unable to open Codex login.`));
+    settleLogin(false);
+    return false;
+  }
+}
+
+/** Atomically create a managed Kimi profile and open its isolated login. */
+export async function createAndRunKimiProfileLogin(input?: {
+  label?: string;
+  project?: Project;
+}): Promise<boolean> {
+  if (useLoginTerminalStore.getState().active || kimiProfileLoginStartInFlight) {
+    toast.info(i18n._(msg`A login terminal is already active.`));
+    return false;
+  }
+  kimiProfileLoginStartInFlight = true;
+  let accountId: string | undefined;
+  try {
+    const project = input?.project ?? resolveLoginProject();
+    if (!project) {
+      toast.warning(i18n._(msg`Add a project before signing in.`));
+      return false;
+    }
+    const account = await readBridge().createKimiProfile({
+      label: input?.label?.trim() || "New Kimi",
+    });
+    accountId = account.accountId;
+    const succeeded = await runKimiProfileLoginInternal({
+      accountId,
+      label: account.label,
+      project,
+    });
+    if (!succeeded) {
+      await readBridge()
+        .removeAccount({ accountId })
+        .catch(() => undefined);
+      useUsageAccountsStore.getState().removeAccount(accountId);
+    }
+    return succeeded;
+  } catch (error) {
+    if (accountId)
+      await readBridge()
+        .removeAccount({ accountId })
+        .catch(() => undefined);
+    toast.danger(
+      error instanceof Error ? error.message : i18n._(msg`Unable to create a Kimi account.`),
+    );
+    return false;
+  } finally {
+    kimiProfileLoginStartInFlight = false;
+  }
+}
+
+/** Re-authenticate an existing managed Kimi profile in its isolated home. */
+export async function runKimiProfileLogin(input: {
+  accountId: string;
+  label: string;
+  project?: Project;
+}): Promise<boolean> {
+  if (useLoginTerminalStore.getState().active || kimiProfileLoginStartInFlight) {
+    toast.info(i18n._(msg`A login terminal is already active.`));
+    return false;
+  }
+  kimiProfileLoginStartInFlight = true;
+  try {
+    return await runKimiProfileLoginInternal(input);
+  } finally {
+    kimiProfileLoginStartInFlight = false;
+  }
+}
+
+async function runKimiProfileLoginInternal(input: {
+  accountId: string;
+  label: string;
+  project?: Project;
+}): Promise<boolean> {
+  const project = input.project ?? resolveLoginProject();
+  if (!project) {
+    toast.warning(i18n._(msg`Add a project before signing in.`));
+    return false;
+  }
+  const shellId = `login:${crypto.randomUUID()}`;
+  const completionToken = createCompletionToken();
+  let cancelled = false;
+  let completed = false;
+  let completionStop: () => void = () => undefined;
+  let settleLogin: (succeeded: boolean) => void = () => undefined;
+  const loginFinished = new Promise<boolean>((resolve) => {
+    settleLogin = resolve;
+  });
+  const finish = async (exitCode: number) => {
+    if (completed) return;
+    completed = true;
+    completionStop();
+    if (exitCode !== 0) {
+      useLoginTerminalStore.getState().markFailed(shellId, exitCode);
+      settleLogin(false);
+      return;
+    }
+    try {
+      await readBridge().completeKimiProfileLogin({ accountId: input.accountId });
+      const refreshed = await readBridge().listAccounts({ provider: "kimi" });
+      const current = useUsageAccountsStore.getState().accounts;
+      useUsageAccountsStore
+        .getState()
+        .setAccounts([...current.filter((account) => account.provider !== "kimi"), ...refreshed]);
+      window.setTimeout(() => {
+        if (useLoginTerminalStore.getState().active?.shellId === shellId)
+          useLoginTerminalStore.getState().close();
+      }, 1200);
+      settleLogin(true);
+    } catch (error) {
+      useLoginTerminalStore.getState().markFailed(shellId, -1);
+      toast.danger(error instanceof Error ? error.message : "Kimi 登录未完成身份验证。");
+      settleLogin(false);
+    }
+  };
+  completionStop = watchCommandCompletion(
+    shellId,
+    completionToken,
+    (exitCode) => void finish(exitCode),
+    project.location.remoteServerId,
+  );
+  useLoginTerminalStore.getState().open({
+    shellId,
+    label: input.label,
+    projectLocation: project.location,
+    onForceClose: () => {
+      cancelled = true;
+      completionStop();
+      void readBridge()
+        .closeThread({ threadId: shellId })
+        .catch(() => undefined);
+      settleLogin(false);
+    },
+  });
+  try {
+    await readBridge().startKimiProfileLogin({
+      accountId: input.accountId,
+      shellId,
+      projectLocation: project.location,
+      completionToken,
+      ...(project.location.kind === "windows"
+        ? { windowsShellRuntime: "powershell" as const }
+        : {}),
+    });
+    if (cancelled) return false;
+    return await loginFinished;
+  } catch (error) {
+    completionStop();
+    void readBridge()
+      .closeThread({ threadId: shellId })
+      .catch(() => undefined);
+    if (useLoginTerminalStore.getState().active?.shellId === shellId)
+      useLoginTerminalStore.getState().close();
+    toast.danger(error instanceof Error ? error.message : i18n._(msg`Unable to open Kimi login.`));
     settleLogin(false);
     return false;
   }
