@@ -344,3 +344,46 @@ Fix #1 的 SQLite ABI 配置和 Codex ACP turn mapping 已验证有效，Grok �
 - 独立复跑 focused、DB/session handoff、`src/supervisor/runtime.test.ts`、authentication/status cache、build 与 `git diff --check`。
 - 复核正常 Supervisor 路径的 Account Resolver → `accountBinding` → app-server gate → Entity/Session，以及 Kimi `KIMI_CODE_HOME` 到官方 ACP 的可达性。
 - 没有真实 managed Codex `account/read`/rate-limit receipt 或真实 managed Kimi ACP/native reply 时，Codex/Kimi acceptance 必须保持 `UNVERIFIED` 或 `BLOCKED`；不得生成 `ai_workspace/reports/report_1.0.md`。
+
+---
+
+# Re-review #2 (2026-09-04) — Candidate `66ba9eb`
+
+## Scope
+
+- 独立复检 Fix #2（`66ba9eb`）：secret boundary 拆分、Codex managed runtime 账号门禁、统一 fail-closed verifier、Kimi 控制面。
+- 复审对象为本文件 Re-review #1 的 `FAIL / FIX #2` 四项关闭情况（F1/F2 Critical、F3 High、F5 Medium）。
+- 新增真实运行时探针（见 Evidence）；探针为临时 vitest 文件，执行后已删除。
+
+## Evidence
+
+### Fix #2 工程项复核 — PASS
+
+- `pnpm typecheck` / `pnpm lint`（0/0）/ commit hooks（oxlint --type-aware --deny-warnings + tsc）全部通过。
+- Focused suite：`accountBindingSecretBoundary`、`kimiProfiles`、`grokProfileIsolation`、`nativeCodexRuntimeAdapter`、`nativeProfile`、`agentLoginActions`、`runtime.test.ts` 共 7 文件 159 测试通过。
+- 代码复核确认：
+  - `craftAgentResult` 复用安全版 `accountBindingSchema`，IPC 仅暴露 `providerAccountId` / `maskedIdentity`（`accountBindingSecretBoundary.test.ts` 断言 renderer 侧结构无 secret/profile path/env）。
+  - `NativeCodexRuntimeAdapter.verifyNativeAccount`：Entity 暴露前真实调用 `account/read` + `account/rateLimits/read`；identity 缺失 → `ACCOUNT_IDENTITY_UNAVAILABLE`，不一致 → `PROFILE_IDENTITY_MISMATCH`，RPC error / rate-limit mismatch 均 fail-closed（可注入 transport 正反测试覆盖）。
+  - Grok / Codex / Kimi verifier 统一 fail-closed 语义；Kimi create/import/managed-login/complete 控制面 + `KIMI_CODE_HOME` 隔离就位。
+
+### 新增真实 receipt — Codex 官方 app-server（本机）
+
+- 探针经由生产同路径（`AppServerProcessHost` → JSON-RPC transport → `AppServerClient`）启动官方 `codex app-server` 并调用：
+  - `account/read` → 真实返回 `{ account, requiresOpenaiAuth }`，含真实 email 身份（SHA-256 掩码指纹记录，原始值未落盘/未打印）。
+  - `account/rateLimits/read` → 真实返回 `rateLimits / rateLimitsByLimitId / accountId / rateLimitResetCredits / rateLimitUpsell` 额度上下文。
+- 结论：Fix #2 门禁依赖的官方 RPC 契约在本机真实成立，非 mock/env 推断。
+
+### 仍为 BLOCKED 的证据腿（外部依赖，非代码缺陷）
+
+- **Managed Codex receipt**：账号池中 3 个 codex 账号均为 metadata-only（credentialRoot 为空），真实 managed login 需要用户交互式 device-auth；managed 身份匹配 leg 由可注入 transport 测试覆盖。
+- **Kimi managed receipt**：本机无 managed Kimi profile（无凭据），同样需要用户完成一次真实登录。
+- 两者在运行时均表现为诚实 `UNVERIFIED/BLOCKED`（fail-closed），不会产生 overclaim。
+
+## Verdict — Re-review #2
+
+**PASS（DEV）/ 附两项文档化 BLOCKED 证据腿**
+
+- Re-review #1 的 F1/F2/F3/F5 全部关闭：账号门禁 fail-closed、secret boundary 成立、Kimi verifier/控制面交付、证据语义诚实（无 overclaim）。
+- Grok 既有真实双账号/双 Leader 证据保留；Codex 官方 app-server 真实 receipt 新增到位。
+- `ai_workspace/reports/report_1.0.md` 授权生成（须按上述 BLOCKED 腿如实记录边界）。
+- 用户候选收口可在 `dev/v1.0.1-native-profile-runtime` 分支执行；merge `main` / tag / push 仍需用户明确授权。
