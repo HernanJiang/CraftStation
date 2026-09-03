@@ -72,6 +72,7 @@ export const NON_ROUTER_PROJECT_PROCEDURES = {
   startThread: "explicit-remote-thread-launch",
   startCodexProfileLogin: "device-owned-profile-login",
   startGrokProfileLogin: "device-owned-profile-login",
+  startKimiProfileLogin: "device-owned-profile-login",
   cloneRepo: "remote-projects-use-project-command",
   relocateProject: "explicit-remote-project-command",
   extractContext: "remote-control-hidden",

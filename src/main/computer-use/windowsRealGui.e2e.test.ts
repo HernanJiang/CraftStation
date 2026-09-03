@@ -40,13 +40,17 @@ describe.skipIf(!e2eReady)("Computer Use real Windows GUI acceptance", () => {
   let lastWindows: unknown[] = [];
 
   it("drives enable/api/list/launch/window-state/activate/click/type/key/scroll/drag/disable for real", async () => {
-    // Hygiene: a leftover system dialog (e.g. OpenWith) holds the foreground
-    // and defeats SetForegroundWindow for every interactive action.
-    try {
-      execSync("taskkill /IM OpenWith.exe /F", { stdio: "ignore" });
-    } catch {
-      // none present
+    // Hygiene: leftover system dialogs (e.g. OpenWith) hold the foreground and
+    // defeat SetForegroundWindow for every interactive action; a surviving
+    // Notepad from an earlier run reopens restored tabs that shift geometry.
+    for (const image of ["OpenWith.exe", "Notepad.exe"]) {
+      try {
+        execSync(`taskkill /IM ${image} /F`, { stdio: "ignore" });
+      } catch {
+        // none present
+      }
     }
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     // 1-2. Session + API surface
     expect(await call("enable")).toBeTruthy();
@@ -94,8 +98,26 @@ describe.skipIf(!e2eReady)("Computer Use real Windows GUI acceptance", () => {
     const stateText = JSON.stringify(state);
     expect(stateText.length).toBeGreaterThan(1000); // real screenshot payload
 
-    // 9. Foreground
-    expect(await call("activate_window", { window: notepad })).toBeTruthy();
+    // 9. Foreground — the host desktop is live, so retry activation: another
+    // app (or the user) may legitimately steal focus between attempts.
+    let activated = false;
+    let lastActivateError: unknown;
+    for (let attempt = 0; attempt < 4 && !activated; attempt++) {
+      try {
+        await call("activate_window", { window: notepad });
+        activated = true;
+      } catch (error) {
+        lastActivateError = error;
+        // The window may have been re-identified; refresh before retrying.
+        const fresh = (await call("get_window", {
+          app: notepad.app,
+          id: notepad.id,
+        }).catch(() => undefined)) as Partial<CuWindow> | undefined;
+        if (typeof fresh?.id === "number") notepad = { ...notepad, id: fresh.id };
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    }
+    if (!activated) throw lastActivateError;
 
     // 10. Click into the editor area (window-relative, mid-lower canvas)
     const width = Number(target.width ?? 800);

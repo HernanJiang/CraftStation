@@ -455,7 +455,10 @@ async function settingsScenario(client) {
           evaluate(
             client,
             `(() => ({
-              hasSearch: Boolean(document.querySelector('[aria-label="Search skills"]')),
+              // The app localizes aria-labels; match the known translations.
+              hasSearch: Boolean(
+                document.querySelector('[aria-label="Search skills"], [aria-label="搜索技能"]'),
+              ),
               text: document.body.innerText,
             }))()`,
           ),
@@ -513,7 +516,7 @@ async function pluginsSectionDeepDive(client) {
       evaluate(
         client,
         `(() => {
-          const search = document.querySelector('[aria-label="Search plugins"]');
+          const search = document.querySelector('[aria-label="Search plugins"], [aria-label="搜索插件"]');
           const action = document.querySelector("#plugin-browser-tools-action");
           return {
             visible: Boolean(search && !search.closest("[hidden]")),
@@ -527,7 +530,9 @@ async function pluginsSectionDeepDive(client) {
     "plugins marketplace",
   );
   assert(
-    marketplaceState.action === (marketplaceState.initialInstalled ? "Manage" : "Install"),
+    marketplaceState.initialInstalled
+      ? ["Manage", "管理"].includes(marketplaceState.action)
+      : ["Install", "安装"].includes(marketplaceState.action),
     `Browser Tools marketplace action did not match install state: ${JSON.stringify(marketplaceState)}`,
   );
 
@@ -561,12 +566,12 @@ async function pluginsSectionDeepDive(client) {
             );
             return {
               installed: window.__craftstationDev.stores.sharedSettings.getState().installedPlugins["browser-tools"] !== undefined,
-              back: buttonText.includes("Back to plugins"),
-              uninstall: buttonText.includes("Uninstall"),
-              mcpServers: headings.includes("MCP servers") && document.body.innerText.includes("Browser"),
-              skills: headings.includes("Skills") && document.body.innerText.includes("Browser Control"),
+              back: buttonText.some((t) => ["Back to plugins", "返回插件"].includes(t)),
+              uninstall: buttonText.some((t) => ["Uninstall", "卸载"].includes(t)),
+              mcpServers: headings.some((h) => ["MCP servers", "MCP服务器"].includes(h)) && /Browser|浏览器/.test(document.body.innerText),
+              skills: headings.some((h) => ["Skills", "技能"].includes(h)) && /Browser Control|浏览器控制/.test(document.body.innerText),
               bundledMcpHasNoSeparateSwitch: !switchNames.includes("Browser MCP"),
-              skillSwitch: switchNames.includes("Browser Control Skill"),
+              skillSwitch: switchNames.some((name) => /Browser Control|浏览器控制/.test(name)),
             };
           })()`,
         ),
@@ -597,7 +602,7 @@ async function pluginsSectionDeepDive(client) {
         client,
         `(() => {
           const button = [...document.querySelectorAll("button")].find(
-            (candidate) => candidate.textContent?.trim() === "Uninstall",
+            (candidate) => ["Uninstall", "卸载"].includes(candidate.textContent?.trim() ?? ""),
           );
           if (!(button instanceof HTMLButtonElement)) return false;
           button.click();
@@ -661,10 +666,10 @@ async function skillsSectionDeepDive(client) {
     client,
     `(() => {
       const marketplace = [...document.querySelectorAll("button")].find(
-        (candidate) => candidate.textContent?.trim() === "Marketplace",
+        (candidate) => ["Marketplace", "市场"].includes(candidate.textContent?.trim() ?? ""),
       );
       const add = [...document.querySelectorAll("button")].find(
-        (candidate) => candidate.textContent?.trim() === "Add skill",
+        (candidate) => ["Add skill", "添加技能"].includes(candidate.textContent?.trim() ?? ""),
       );
       return {
         marketplaceTertiary: marketplace?.classList.contains("button--tertiary") ?? false,
@@ -674,12 +679,15 @@ async function skillsSectionDeepDive(client) {
   );
   assert(toolbarState.marketplaceTertiary, "skills marketplace action is not tertiary");
   assert(toolbarState.addTertiary, "skills add action is not tertiary");
-  await evaluate(client, `document.querySelector('[aria-label="Skills location"]')?.click()`);
+  await evaluate(
+    client,
+    `document.querySelector('[aria-label="Skills location"], [aria-label="技能位置"]')?.click()`,
+  );
   await waitForValue(
     () =>
       evaluate(
         client,
-        `(() => { const text = document.body.innerText; return text.includes("Global") && text.includes("Projects") && text.includes("project"); })()`,
+        `(() => { const text = document.body.innerText; return (text.includes("Global") || text.includes("全局")) && (text.includes("Projects") || text.includes("项目")); })()`,
       ),
     Boolean,
     "skills target menu",
@@ -693,7 +701,7 @@ async function skillsSectionDeepDive(client) {
   const opened = await evaluate(
     client,
     `(() => {
-      const button = document.querySelector('button[aria-label="Import external skills"]');
+      const button = document.querySelector('button[aria-label="Import external skills"], button[aria-label="导入外部技能"]');
       if (!(button instanceof HTMLElement)) return false;
       button.click();
       return true;
@@ -701,24 +709,28 @@ async function skillsSectionDeepDive(client) {
   );
   assert(opened, "skills import modal trigger was unavailable");
   await waitForValue(
-    () => evaluate(client, `document.body.innerText.includes("Import external agent skills")`),
+    () =>
+      evaluate(
+        client,
+        `/Import external agent skills|导入外部智能体技能/.test(document.body.innerText)`,
+      ),
     Boolean,
     "skills import modal",
   );
   const importDestinationIsGhost = await evaluate(
     client,
-    `(() => { const trigger = document.querySelector('button[aria-label="Import destination"]'); return Boolean(trigger?.classList.contains("button--ghost") && trigger.classList.contains("select__trigger")); })()`,
+    `(() => { const trigger = document.querySelector('button[aria-label="Import destination"], button[aria-label="导入目标"]'); return Boolean(trigger?.classList.contains("button--ghost") && trigger.classList.contains("select__trigger")); })()`,
   );
   assert(importDestinationIsGhost, "skills import destination does not match select styling");
   await evaluate(
     client,
-    `document.querySelector('button[aria-label="Import destination"]')?.click()`,
+    `document.querySelector('button[aria-label="Import destination"], button[aria-label="导入目标"]')?.click()`,
   );
   await waitForValue(
     () =>
       evaluate(
         client,
-        `(() => { const text = document.body.innerText; return text.includes("Global") && text.includes("Projects") && text.includes("project"); })()`,
+        `(() => { const text = document.body.innerText; return (text.includes("Global") || text.includes("全局")) && (text.includes("Projects") || text.includes("项目")); })()`,
       ),
     Boolean,
     "skills import destination menu",
@@ -730,17 +742,17 @@ async function skillsSectionDeepDive(client) {
   await screenshot(client, skillsImportDestinationsScreenshotPath);
   await evaluate(
     client,
-    `[...document.querySelectorAll('[role="menuitemradio"]')].find((item) => item.textContent?.trim().startsWith("Global"))?.click()`,
+    `[...document.querySelectorAll('[role="menuitemradio"]')].find((item) => /^(?:Global|全局)/.test(item.textContent?.trim() ?? ""))?.click()`,
   );
   const expanded = await evaluate(
     client,
     `(() => {
-      const button = [...document.querySelectorAll("button")].find((candidate) =>
-        candidate.getAttribute("aria-label")?.startsWith("Show skills from "),
+      const buttons = [...document.querySelectorAll("button")].filter((candidate) =>
+        candidate.getAttribute("aria-label")?.match(/^(?:Show skills from |显示来自 ).+/),
       );
-      if (!(button instanceof HTMLElement)) return false;
-      button.click();
-      return true;
+      // Expand every provider group so the fixture skill is reachable.
+      for (const button of buttons) button.click();
+      return buttons.length > 0;
     })()`,
   );
   assert(expanded, "skills import provider group was unavailable");
@@ -749,7 +761,11 @@ async function skillsSectionDeepDive(client) {
       evaluate(
         client,
         `(() => {
-          const checkbox = document.querySelector('[aria-label^="Select smoke-global-external from "]');
+          // Match only the modal's candidate checkbox (zh renders 从 <provider> 中选择 <skill>),
+          // not the manager-page buttons that merely mention the skill name.
+          const checkbox =
+            document.querySelector('[aria-label^="Select smoke-global-external from "]') ??
+            document.querySelector('[aria-label^="从 "][aria-label$="smoke-global-external"]');
           if (!(checkbox instanceof HTMLElement)) return false;
           checkbox.click();
           return true;
@@ -759,11 +775,22 @@ async function skillsSectionDeepDive(client) {
     "skills import candidate",
   );
   assert(selected, "skills import candidate could not be selected");
+  if (process.env.SMOKE_DEBUG) {
+    const dump = await evaluate(
+      client,
+      `(() => {
+        const candidates = [...document.querySelectorAll('[aria-label*="smoke-global-external"]')];
+        const buttons = [...document.querySelectorAll("button")].map((b) => b.textContent?.trim()).filter(Boolean);
+        return { count: candidates.length, labels: candidates.map((c) => c.getAttribute("aria-label")), buttons: buttons.slice(0, 20) };
+      })()`,
+    );
+    console.log("[smoke-debug] import selection:", JSON.stringify(dump, null, 2));
+  }
   await waitForValue(
     () =>
       evaluate(
         client,
-        `(() => { const button = [...document.querySelectorAll("button")].find((candidate) => candidate.textContent?.trim() === "Import selected"); return Boolean(button && !button.disabled); })()`,
+        `(() => { const button = [...document.querySelectorAll("button")].find((candidate) => ["Import selected", "导入所选项"].includes(candidate.textContent?.trim() ?? "")); return Boolean(button && !button.disabled); })()`,
       ),
     Boolean,
     "skills import selection",
@@ -773,7 +800,7 @@ async function skillsSectionDeepDive(client) {
   const closed = await evaluate(
     client,
     `(() => {
-      const button = document.querySelector('[role="dialog"] button[aria-label="Close"]');
+      const button = document.querySelector('[role="dialog"] button[aria-label="Close"], [role="dialog"] button[aria-label="关闭"]');
       if (!(button instanceof HTMLElement)) return false;
       button.click();
       return true;
@@ -784,7 +811,7 @@ async function skillsSectionDeepDive(client) {
     () =>
       evaluate(
         client,
-        `({ modalClosed: !document.body.innerText.includes("Import external agent skills"), settingsOpen: Boolean(document.querySelector('[aria-label="Search skills"]')) })`,
+        `({ modalClosed: !/Import external agent skills|导入外部智能体技能/.test(document.body.innerText), settingsOpen: Boolean(document.querySelector('[aria-label="Search skills"], [aria-label="搜索技能"]')) })`,
       ),
     (state) => state.modalClosed && state.settingsOpen,
     "skills import modal close",
@@ -793,7 +820,7 @@ async function skillsSectionDeepDive(client) {
     client,
     `(() => {
       const button = [...document.querySelectorAll("button")].find(
-        (candidate) => candidate.textContent?.trim() === "Marketplace",
+        (candidate) => ["Marketplace", "市场"].includes(candidate.textContent?.trim() ?? ""),
       );
       if (!(button instanceof HTMLElement)) return false;
       button.click();
@@ -802,14 +829,14 @@ async function skillsSectionDeepDive(client) {
   );
   assert(marketplaceOpened, "skills marketplace trigger was unavailable");
   await waitForValue(
-    () => evaluate(client, `document.body.innerText.includes("Skills marketplace")`),
+    () => evaluate(client, `/Skills marketplace|技能市场/.test(document.body.innerText)`),
     Boolean,
     "skills marketplace modal",
   );
   const sourceOpened = await evaluate(
     client,
     `(() => {
-      const control = document.querySelector('[aria-label="Skill marketplace source"]');
+      const control = document.querySelector('[aria-label="Skill marketplace source"], [aria-label="技能市场来源"]');
       if (!(control instanceof HTMLElement)) return false;
       control.click();
       return true;
@@ -850,13 +877,17 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
     `(() => {
       const browserRow = document.querySelector('[data-built-in-mcp-server="browser"]');
       return {
-        builtInsVisible: document.body.innerText.includes("Built-in MCP servers"),
-        builtInToolCount: /\\b\\d+ tools?\\b/.test(browserRow?.textContent ?? ""),
-        addButton: Boolean([...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Add MCP server")),
-        browserSwitch: Boolean(document.querySelector('[role="switch"][aria-label="Disable Browser"]')),
+        builtInsVisible: /Built-in MCP servers|内置 MCP 服务器/.test(document.body.innerText),
+        builtInToolCount: /(?:\\b\\d+ tools?\\b|\\d+ 个工具)/.test(browserRow?.textContent ?? ""),
+        addButton: Boolean([...document.querySelectorAll("button")].find((button) => ["Add MCP server", "添加 MCP 服务器"].includes(button.textContent?.trim() ?? ""))),
+        browserSwitch: Boolean(
+          document.querySelector('[role="switch"][aria-label="Disable Browser"], [role="switch"][aria-label="禁用 浏览器"]'),
+        ),
+        switchLabels: [...document.querySelectorAll('[role="switch"]')].map((s) => s.getAttribute("aria-label")),
       };
     })()`,
   );
+  if (process.env.SMOKE_DEBUG) console.log("[smoke-debug] mcpState:", JSON.stringify(mcpState));
   assert(mcpState.builtInsVisible, "MCP settings did not render built-in servers");
   assert(mcpState.builtInToolCount, "MCP settings did not render built-in tool counts");
   assert(mcpState.addButton, "MCP settings add control is missing");
@@ -867,9 +898,9 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
         evaluate(
           client,
           `(() => ({
-            connected: document.body.innerText.includes("Connected"),
-            toolCount: document.body.innerText.includes("1 tool"),
-            authRequired: document.body.innerText.includes("Authentication required"),
+            connected: /Connected|已连接/.test(document.body.innerText),
+            toolCount: /1 tool|1 个工具/.test(document.body.innerText),
+            authRequired: /Authentication required|需要身份验证/.test(document.body.innerText),
             statuses: [...document.querySelectorAll('[role="status"]')].map((status) => status.textContent?.trim()),
           }))()`,
         ),
@@ -887,7 +918,7 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
 
   await evaluate(
     client,
-    `document.querySelector('[role="switch"][aria-label="Disable Browser"]').click()`,
+    `document.querySelector('[role="switch"][aria-label="Disable Browser"], [role="switch"][aria-label="禁用 浏览器"]').click()`,
   );
   await waitForValue(
     () =>
@@ -900,7 +931,7 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
   );
   await evaluate(
     client,
-    `document.querySelector('[role="switch"][aria-label="Enable Browser"]').click()`,
+    `document.querySelector('[role="switch"][aria-label="Enable Browser"], [role="switch"][aria-label="启用 浏览器"]').click()`,
   );
   await waitForValue(
     () =>
@@ -914,15 +945,15 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
 
   await evaluate(
     client,
-    `[...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Add MCP server").click()`,
+    `[...document.querySelectorAll("button")].find((button) => ["Add MCP server", "添加 MCP 服务器"].includes(button.textContent?.trim() ?? "")).click()`,
   );
   await waitForValue(
     () =>
       evaluate(
         client,
         `({
-          editor: document.body.innerText.includes("New MCP server"),
-          formTab: Boolean([...document.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent?.trim() === "Form")),
+          editor: /New MCP server|新建 MCP 服务器/.test(document.body.innerText),
+          formTab: Boolean([...document.querySelectorAll('[role="tab"]')].find((tab) => ["Form", "表单"].includes(tab.textContent?.trim() ?? ""))),
         })`,
       ),
     (candidate) => candidate.editor && candidate.formTab,
@@ -936,7 +967,7 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
     () =>
       evaluate(
         client,
-        `Boolean(document.querySelector('textarea[aria-label="MCP server JSON configuration"]'))`,
+        `Boolean(document.querySelector('textarea[aria-label="MCP server JSON configuration"], textarea[aria-label="MCP 服务器 JSON 配置"]'))`,
       ),
     Boolean,
     "MCP JSON editor",
@@ -945,21 +976,25 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
   await screenshot(client, mcpScreenshotPath);
   await evaluate(
     client,
-    `[...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Cancel").click()`,
+    `[...document.querySelectorAll("button")].find((button) => ["Cancel", "取消"].includes(button.textContent?.trim() ?? "")).click()`,
   );
 
   await evaluate(
     client,
-    `document.querySelector('button[aria-label="Import MCP servers"]').click()`,
+    `document.querySelector('button[aria-label="Import MCP servers"], button[aria-label="导入 MCP 服务器"]').click()`,
   );
   await waitForValue(
-    () => evaluate(client, `document.body.innerText.includes("Import external agent MCP servers")`),
+    () =>
+      evaluate(
+        client,
+        `/Import external agent MCP servers|导入外部代理的 MCP 服务器/.test(document.body.innerText)`,
+      ),
     Boolean,
     "MCP external import modal",
   );
   await evaluate(
     client,
-    `document.querySelector('button[aria-label="MCP server source scope"]').click()`,
+    `document.querySelector('button[aria-label="MCP server source scope"], button[aria-label="MCP 服务器来源范围"]').click()`,
   );
   await waitForValue(
     () =>
@@ -978,20 +1013,20 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
     () =>
       evaluate(
         client,
-        `document.body.innerText.includes("smoke_external") || Boolean(document.querySelector('button[aria-label="Show MCP servers from .mcp.json"]'))`,
+        `document.body.innerText.includes("smoke_external") || Boolean(document.querySelector('button[aria-label="Show MCP servers from .mcp.json"], button[aria-label="显示 .mcp.json 的 MCP 服务器"]'))`,
       ),
     Boolean,
     "MCP project source discovery",
   );
   await evaluate(
     client,
-    `document.querySelector('button[aria-label="Show MCP servers from .mcp.json"]')?.click()`,
+    `document.querySelector('button[aria-label="Show MCP servers from .mcp.json"], button[aria-label="显示 .mcp.json 的 MCP 服务器"]')?.click()`,
   );
   await waitForValue(
     () =>
       evaluate(
         client,
-        `Boolean(document.querySelector('[aria-label="Select smoke_external from .mcp.json"]'))`,
+        `Boolean(document.querySelector('[aria-label="Select smoke_external from .mcp.json"], [aria-label="从 .mcp.json 中选择 smoke_external"]'))`,
       ),
     Boolean,
     "MCP project candidate",
@@ -1001,7 +1036,7 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
   const candidateCheckbox = await evaluate(
     client,
     `(() => {
-      const checkbox = document.querySelector('[aria-label="Select smoke_external from .mcp.json"]');
+      const checkbox = document.querySelector('[aria-label="Select smoke_external from .mcp.json"], [aria-label="从 .mcp.json 中选择 smoke_external"]');
       const control = checkbox
         ?.closest('[data-slot="checkbox"]')
         ?.querySelector('[data-slot="checkbox-control"]');
@@ -1019,11 +1054,11 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
   );
   await evaluate(
     client,
-    `document.querySelector('[aria-label="Select smoke_external from .mcp.json"]').click()`,
+    `document.querySelector('[aria-label="Select smoke_external from .mcp.json"], [aria-label="从 .mcp.json 中选择 smoke_external"]').click()`,
   );
   await evaluate(
     client,
-    `document.querySelector('button[aria-label="Choose import destination"]').click()`,
+    `document.querySelector('button[aria-label="Choose import destination"], button[aria-label="选择导入目标"]').click()`,
   );
   await waitForValue(
     () =>
@@ -1042,20 +1077,20 @@ async function mcpServersSectionDeepDive(client, mcpFixture) {
     () =>
       evaluate(
         client,
-        `(() => { const button = [...document.querySelectorAll("button")].find((item) => item.textContent?.trim() === "Import to project"); return Boolean(button && !button.disabled); })()`,
+        `(() => { const button = [...document.querySelectorAll("button")].find((item) => /^(?:Import to |导入到 )/.test(item.textContent?.trim() ?? "")); return Boolean(button && !button.disabled); })()`,
       ),
     Boolean,
     "MCP project import selection",
   );
   await evaluate(
     client,
-    `[...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Import to project").click()`,
+    `(async () => { const button = [...document.querySelectorAll("button")].find((item) => /^(?:Import to |导入到 )/.test(item.textContent?.trim() ?? "")); button?.click(); })()`,
   );
   await waitForValue(
     () =>
       evaluate(
         client,
-        `document.body.innerText.includes("smoke_external") && document.body.innerText.includes("Workspace")`,
+        `document.body.innerText.includes("smoke_external") && (document.body.innerText.includes("Workspace") || document.body.innerText.includes("工作区"))`,
       ),
     Boolean,
     "MCP project import persistence",
