@@ -23,7 +23,8 @@ D:\Work\CraftStation\              # Product Git Root；main 源码、测试、�
 
 - 产品源码、测试、配置与 `main` 分支直接位于 `D:\Work\CraftStation`，不再增加 `craftstation/` 包装层。
 - Git 拓扑：`D:\Work\CraftStation` = Product Git Root / `main`；所有并行版本开发工作树直接位于 `D:\Work\CraftStation\.worktrees\<version-feature>`，对应分支统一为 `dev/<version-feature>`。本项目不维护共享 `dev` 分支或共享 Dev 工作树；该结构与 `my-workflow` 的默认拓扑一致。
-- 一个版本 Feature 对应一个 `dev/<version-feature>` 分支与一个 `.worktrees/<version-feature>` 工作树。该版本的 Manager Plan、Coder 实现、Fix Cycle、Debugger 验收和用户候选试用均在同一工作树完成；不同版本可以并行，禁止跨工作树写入。
+- 一个版本 Feature 对应一个 `dev/<version-feature>` 分支与一个 `.worktrees/<version-feature>` 工作树。该版本的 Manager Plan、Coder 实现、Fix Cycle、Debugger 验收和用户候选试用均在同一工作树完成；不同版本可以并行，禁止跨 Feature worktree 写入。
+- 已立项的版本 Feature 仍走独立 worktree。用户确认要修的问题、缺陷、hotfix 与 main 上的治理约定，默认直接在 Product Git Root 的 `main` 修改与验证，不为此新建 Feature worktree。
 - Debugger PASS 后在当前版本开发分支完成候选收口并通知 Manager，不再执行 Feature → 共享 Dev 合并。只有用户完成验收并明确授权后，Manager 才把该 `dev/<version-feature>` 分支收口到 `main`；Coder / Debugger 不得 merge main、打正式 tag 或 push `origin/main`。
 - 旧 `D:\Work\CraftStation\dev`、`craftstation-dev` 与其中的工作树均为迁移残留，统一归档到仓库外备份；旧 `D:\Work\CraftStation\craftstation` 仅允许暂存被既有运行中产物占用的迁移残留。新开发不得使用这些旧路径。
 - `reference/` 与 `学习材料/` 不进入产品构建、测试或 Product Git 的上游源码历史。
@@ -105,8 +106,10 @@ Auto-Crafting、Model Fingerprint、Active Probing、Compatibility Prediction、
 仅当用户明确调用 `$my-workflow` 或指定其 `Architect`、`Manager`、`Coder`、`Debugger`、`Assistant` 角色时启用大型项目工作流。
 
 - 生命周期：`Architect Brief -> Manager Feature Spec/Tickets -> Coder -> Debugger`。
-- 配对规则：每个 Feature 的 Coder 必须在完成全部 Ticket 与 Feature-level self-check 后，自动创建并交接一个对应的 Debugger 任务；Manager 不预先创建 Debugger。Debugger 使用 `grok-4.6`、推理强度 `high`，且只验收其绑定 Coder 的同一 Feature worktree。Coder 默认使用 `gpt-5.6-sol`、推理强度 `high`。
-- Manager：每项目唯一，标题固定 `Manager`，不绑 Feature 版本；负责与用户讨论并下发计划，跨 Feature 复用同一会话。
+- 配对规则：每个 Feature 的 Coder 必须在完成全部 Ticket 与 Feature-level self-check 后，自动创建并交接一个对应的 Debugger 任务；Manager 不预先创建 Debugger。Debugger 只验收其绑定 Coder 的同一 Feature worktree。
+- 角色默认模型：Coder 默认使用 `gemini-3.8-flash`、推理强度 `high`；Debugger 默认使用 `gpt-5.6-sol`、推理强度 `high`。创建或继续 Coder / Debugger 会话时使用上述默认值，不要覆盖为其他模型，除非用户当次明确指定。
+- 问题修复分流：版本 Feature 仍在独立 worktree 开发；用户确认的问题、缺陷与 hotfix 默认由 Manager / Coder 直接在 `main` 修改，不另开 Feature worktree。
+- Manager：每项目唯一，标题固定 `Manager`，不绑 Feature 版本；负责与用户讨论并下发计划，跨 Feature 复用同一会话。Plan 发布并完成 Coder 派发后立即收口本轮，不持续等待、轮询或查看 Coder 进度；Coder 连续执行全部 Tickets 并自行创建 Debugger。仅当用户明确要求查看进度、出现阻塞/Re-plan，或用户授权 Dev → Main 收口时，Manager 才再介入。
 - Coder / Debugger / Assistant 会话命名：`{Role}-{Version}-{ShortDesc}`，例如 `Coder-0.7-OpenCode Native`、`Debugger-0.6-Provider Auth`。`Version` 用 Feature `X.Y`，不要加 `v`。
 - 新建角色会话必须绑定本项目（`projectId` `16cc8579-4db8-4ce6-89c3-a12a48187705` / `D:\\Work\\CraftStation`），禁止 projectless 会话。同一角色多个 Feature 会话时按版本匹配，不得复用其他版本的 Debugger，也不得新建第二个 Manager。
 - Debugger `PASS` 后在当前 `dev/<version-feature>` 分支完成候选收口，通知 Manager，并打开该版本工作树产物给用户看；不再合入共享 Dev。`FAIL` 后在同一工作树进入 Fix Cycle。用户验收并明确授权后，版本开发分支 → `main` 由 Manager 执行；发生冲突时保留现场并向用户说明，不强制覆盖。

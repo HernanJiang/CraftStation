@@ -16,11 +16,16 @@
 1. 本文件 —— 当前 Feature、Verdict、Git 检查点、Next Step
 2. `AGENTS.md` / 产品仓 `CRAFTSTATION.md` —— 硬规则与仓库边界
 3. `IDEA_GUIDE.md` —— Ideate Mode 提示词
-4. `ai_workspace/agent_docs/manager_0.5.0.md` —— 当前 Feature 的 Ideate + Plan
+4. `ai_workspace/agent_docs/manager_1.0.1.md` —— 当前产品执行 Feature 的 Ideate + Plan（v1.0.1 Native Profile Runtime）
+5. `ai_workspace/agent_docs/manager_1.1.0.md` —— 并行 Feature v1.1.0 Compatibility Bridge 的 Ideate + Plan（worktree 内同源文件）
+6. `.worktrees/v1.2.0-mcp-skills-capability/ai_workspace/agent_docs/manager_1.2.0.md` —— 并行 Feature v1.2.0 Unified MCP + Skills Capability Foundation 的 Ideate + Plan
 
 当前冻结点：
 
-- 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。
+- 当前执行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.0.1.md`。Status：`PLAN READY / EXECUTING`。尚未实现、未验收，不得表述为 PASS。
+- 并行 Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`。worktree `.worktrees/v1.1.0-compatibility-bridge`，分支 `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.1.0.md`。尚未实现、未验收，不得表述为 PASS。
+- 并行 Feature：`v1.2.0 — Unified MCP + Skills Capability Foundation`。worktree `.worktrees/v1.2.0-mcp-skills-capability`，分支 `dev/v1.2.0-mcp-skills-capability`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.2.0.md`。尚未实现、未验收，不得表述为 PASS。不要把 main 上的 v1.1 未提交骨架带进 v1.2。
+- 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。不要写入这两个 worktree。
 - v0.9 Manager Plan：`.worktrees/v0.9-cross-harness-handoff/ai_workspace/agent_docs/manager_0.9.0.md`；Plan commit `7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`。
 - v0.10 Manager Plan：`.worktrees/v0.10-cross-thread-collaboration/ai_workspace/agent_docs/manager_0.10.0.md`；Plan commit `0bbba5f66e5b7be782443206c02781ed6825ba77`。
 - Coder 协调状态：两个 Coder 的源码与未提交测试均已无损迁移到新 Feature worktree，并已按新路径恢复原有 Coder 线程继续执行。此前的平台协调异常不是 Feature FAIL，也不是代码损坏。
@@ -113,6 +118,27 @@ Model Item + Harness Item
 - 高效模式四格配置是组合入口；每次 Model × Harness × Profile 配置变化都必须生成并展示当前组合的 `CapabilityResolution`（能力来源、状态、差异和诊断），用户明确 Craft 后才进入 Recipe/CraftPlan。
 - 当前待拍板：四格第三/第四槽位、九格自动模式是否只读、全矩阵“可尝试但不保证可执行”的状态语义、Adapter 持久化和首条真实 tracer bullet。
 - 执行门：未进入 Plan；不创建 Coder/Debugger，不修改当前 v0.6、v0.7、v0.8 的执行状态，不执行 commit/push/merge/tag。
+- 与 v1.1.0 的关系：组合 UX / Model × Harness 产品概念保留。其“统一 Compatibility Layer”执行架构被 `v1.1.0` 的 Native Route + CLIProxyAPI Compatibility Route 取代；不静默改写本条历史。
+
+## Parallel Feature — v1.1.0 (Plan Ready / Executing)
+
+- Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`
+- Manager Plan：`.worktrees/v1.1.0-compatibility-bridge/ai_workspace/agent_docs/manager_1.1.0.md`（Product Git Root 同步副本：`ai_workspace/agent_docs/manager_1.1.0.md`）
+- 状态：`PLAN READY / EXECUTING`
+- 工作树：已创建 `.worktrees/v1.1.0-compatibility-bridge` / `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`（`f5a4bb276b22e664e7691e67b486e2b1252e5d9a`）。
+- 目标：完全保留现有 Native Harness 路径；仅在非原生 Model/Subscription × Harness 时引入 CLIProxyAPI Compatibility Bridge，按目标 Harness 选择协议，再启动官方 Target Harness。
+- 硬约束：Native pairing 永远绕过 CLIProxyAPI；CLIProxyAPI 不是 Usage Authority；不重做 Account Pool / Quota / Tokscale / Token Monitor；Antigravity 直接使用 Gemini-compatible `/v1beta`，不加 OpenAI→Gemini proxy。
+- 范围：Codex、Kimi Code、OpenCode、Grok Build、Antigravity。OpenCode 作为第一条 Compatibility tracer bullet。
+- Tickets：T01–T13，由 `Coder-1.1-Compatibility Bridge` 在本 worktree 连续执行；Debugger 由 Coder 自检后创建，Manager 不预创建。
+- 执行门：已进入 Plan 并派发 Coder。不得表述为实现完成或 PASS。不改变当前产品执行 Feature `v1.0.1`，也不写入 v0.9 / v0.10 / v1.0.1 worktree。未经用户授权不得 merge/tag/push `origin/main`。
+
+## Parallel Feature — v1.2.0 (Plan Ready / Executing)
+
+- Feature：`v1.2.0 — Unified MCP + Skills Capability Foundation`
+- Manager Plan：`.worktrees/v1.2.0-mcp-skills-capability/ai_workspace/agent_docs/manager_1.2.0.md`
+- 工作树：已创建 `.worktrees/v1.2.0-mcp-skills-capability` / `dev/v1.2.0-mcp-skills-capability`，基线 `main@f5a4bb2`（`f5a4bb276b22e664e7691e67b486e2b1252e5d9a`）。
+- 范围：复用 Poracode 成熟 MCP/Skills/Plugin/AgentAdapter 基础设施，补 origin metadata、Managed copy import、Capability Resolver 与 Auto/Efficient 选择。不重造平行系统，不写外部 CLI 配置，不实现 Computer Use，Creative 细粒度本版本不阻塞。
+- 执行门：已进入 Plan 并派发 Coder。不得表述为实现完成或 PASS。不写入 v0.9 / v0.10 / v1.0.1 / v1.1.0 worktree，也不把 main 上的 v1.1 未提交骨架带进本 Feature。未经用户授权不得 merge/tag/push `origin/main`。
 
 ## Lifecycle Snapshot
 
@@ -179,7 +205,10 @@ Model Item + Harness Item
 
 ## Next Step
 
-1. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
-2. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
-3. 两个 Coder 完成后分别创建一对一 `grok-4.6 / high` Debugger；Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
-4. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
+1. v1.2.0 Coder 只在 `D:\Work\CraftStation\.worktrees\v1.2.0-mcp-skills-capability` / `dev/v1.2.0-mcp-skills-capability` 按 `manager_1.2.0.md` Part II 连续执行 T01–T12；Manager 发布 Plan 后不轮询等待。不得表述为 PASS。
+2. v1.0.1 Coder 只在 `D:\Work\CraftStation\.worktrees\v1.0.1-native-profile-runtime` / `dev/v1.0.1-native-profile-runtime` 继续 Native Profile Runtime；不得表述为 PASS。
+3. v1.1.0 Coder 只在 `D:\Work\CraftStation\.worktrees\v1.1.0-compatibility-bridge` / `dev/v1.1.0-compatibility-bridge` 按 `manager_1.1.0.md` Part II 连续执行 T01–T13；Manager 发布 Plan 后不轮询等待。
+4. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
+5. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
+6. v1.2.0 Coder 自检后创建一对一 `Debugger-1.2-MCP Skills Capability`（`gpt-5.6-sol / high`）；其他 Feature 的 Coder 完成后分别创建一对一 Debugger。Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
+7. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
