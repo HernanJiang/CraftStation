@@ -16,6 +16,12 @@ export default defineConfig({
       reporter: ["text", "html"],
     },
     exclude: ["dist", "node_modules"],
+    env: {
+      CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING: resolve(
+        import.meta.dirname,
+        "dist/server-native/better_sqlite3.node",
+      ),
+    },
     projects: [
       {
         extends: true,

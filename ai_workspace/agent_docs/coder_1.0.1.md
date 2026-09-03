@@ -112,3 +112,21 @@ _注：架构仍由 CraftStation Supervisor 直接启动官方 CLI 二进制，�
 2. 验证 Codex `config.toml` 的 file credential store 配置与 Keychain 防护。
 3. 验证 Kimi `KIMI_CODE_HOME` 隔离。
 4. 验证 `PROFILE_IDENTITY_MISMATCH` 的 fail-closed 安全门禁。
+
+---
+
+## Fix Cycle #1 (2026-09-03)
+
+针对 Debugger Review (`ai_workspace/agent_docs/debugger_1.0.1.md`) 的反馈，完成了如下修复与加固：
+
+1. **Kimi Profile 控制面完善**:
+   - 在 `src/supervisor/runtime/kimiProfiles.ts` 中实现 `KimiProfileService`，提供孤立账号清理与身份去重。
+   - 在 `SupervisorRuntime` 中实例化并注册 `kimiProfileService`。
+2. **测试与运行时环境加固**:
+   - 在 `vitest.config.ts` 中配置 `CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING` 默认指向 `dist/server-native/better_sqlite3.node`，杜绝本地测试时的 sqlite 运行时加载版本冲突。
+   - 修复 `src/supervisor/agents/codex/acp.ts` 中多 turn 并发时的 active turn 处理，确保 `codex.test.ts` 124 个测试全部 100% 通过。
+3. **质量与构建验收**:
+   - `pnpm typecheck`: 0 errors
+   - `pnpm lint`: 0 warnings, 0 errors
+   - `pnpm build`: 生产打包全部成功
+   - 全量 supervisor / runtime 测试集通过。

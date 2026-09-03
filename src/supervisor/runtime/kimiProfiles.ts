@@ -55,3 +55,20 @@ export function ensureManagedKimiHome(managedKimiHome: string): string {
   mkdirSync(join(managedKimiHome, "credentials"), { recursive: true });
   return managedKimiHome;
 }
+
+export interface KimiProfileServiceOptions {
+  store: import("./accountStore").AccountStore;
+}
+
+export class KimiProfileService {
+  private readonly provider = "kimi";
+
+  constructor(private readonly options: KimiProfileServiceOptions) {
+    this.options.store.cleanupOrphanedPendingAccounts(this.provider);
+    this.options.store.dedupeProviderIdentities(this.provider);
+  }
+
+  managedKimiHome(accountId: string): string {
+    return this.options.store.credentialRoot(accountId);
+  }
+}

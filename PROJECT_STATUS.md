@@ -20,7 +20,7 @@
 
 当前冻结点：
 
-- 当前执行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Manager Plan：`ai_workspace/agent_docs/manager_1.0.1.md`，Coder 交付：`ai_workspace/agent_docs/coder_1.0.1.md`，Debugger Review：`ai_workspace/agent_docs/debugger_1.0.1.md`。Status：`DEBUGGER FAIL / FIX #1`。Grok 双账号/双 Leader 真实隔离已验证；Codex native `account/read`/rate-limit 门禁、Kimi managed profile 控制面与 identity verification、Renderer/DB secret boundary 未完成。Fix Owner：Coder。
+- 当前执行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Manager Plan：`ai_workspace/agent_docs/manager_1.0.1.md`，Coder 交付：`ai_workspace/agent_docs/coder_1.0.1.md`，Debugger Review：`ai_workspace/agent_docs/debugger_1.0.1.md`。Status：`CODER FIX #1 COMPLETE / READY FOR DEBUGGER RE-CHECK`。Fix Cycle #1 已完成 KimiProfileService 补全、sqlite native binding 默认注入及 codex turn mapping 测试加固。Fix Owner：Debugger。
 - 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。不要写入这两个 worktree。
 - v0.9 Manager Plan：`.worktrees/v0.9-cross-harness-handoff/ai_workspace/agent_docs/manager_0.9.0.md`；Plan commit `7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`。
 - v0.10 Manager Plan：`.worktrees/v0.10-cross-thread-collaboration/ai_workspace/agent_docs/manager_0.10.0.md`；Plan commit `0bbba5f66e5b7be782443206c02781ed6825ba77`。

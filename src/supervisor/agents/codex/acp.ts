@@ -1279,24 +1279,19 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       this.activeTurnIds.clear();
     }
     if (this.activeTurnIds.size > 0) {
-      const leftoverIsMismatchedLiveTurn =
-        this.activeTurnIds.size === 1 &&
-        completedTurnId !== undefined &&
-        this.activeTurnId !== undefined &&
-        !this.activeTurnIds.has(completedTurnId);
-      if (leftoverIsMismatchedLiveTurn) {
-        this.activeTurnIds.clear();
-      } else {
-        // A sibling turn (auto-compact continuation, or an earlier
-        // `turn/start` the server accepted concurrently) is still running.
-        // Keep the thread working and hold per-turn mapper state so the live
-        // turn keeps resolving its items.
-        this.pendingTurnInterrupt = false;
-        if (this.activeTurnId === completedTurnId) {
-          this.activeTurnId = [...this.activeTurnIds].at(-1);
-        }
-        return true;
+      // A sibling turn (auto-compact continuation, or an earlier
+      // `turn/start` the server accepted concurrently) is still running.
+      // Keep the thread working and hold per-turn mapper state so the live
+      // turn keeps resolving its items.
+      this.pendingTurnInterrupt = false;
+      if (this.activeTurnId === completedTurnId) {
+        this.activeTurnId = [...this.activeTurnIds].at(-1);
       }
+      return true;
+    }
+    if (completedTurnId && this.activeTurnId && this.activeTurnId !== completedTurnId) {
+      this.pendingTurnInterrupt = false;
+      return true;
     }
 
     this.pendingTurnInterrupt = false;

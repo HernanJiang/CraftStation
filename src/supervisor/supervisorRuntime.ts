@@ -162,6 +162,7 @@ import {
   createRuntimeLedgerTokenUsageScanner,
   TokenUsageAdapter,
 } from "./runtime/tokenUsageAdapter";
+import { KimiProfileService } from "./runtime/kimiProfiles";
 import {
   CodexProfileService,
   buildCodexLoginScript,
@@ -340,6 +341,7 @@ export class SupervisorRuntime {
   readonly tokenUsageAdapter: TokenUsageAdapter;
   readonly codexProfileService: CodexProfileService;
   readonly grokProfileService: GrokProfileService;
+  readonly kimiProfileService: KimiProfileService;
   readonly antigravityProfileService: AntigravityProfileService;
   readonly openAiCompatibleProfileService: OpenAiCompatibleProfileService;
   /**
@@ -811,6 +813,7 @@ export class SupervisorRuntime {
     );
     this.codexProfileService = new CodexProfileService({ store: this.accountStore });
     this.grokProfileService = new GrokProfileService({ store: this.accountStore });
+    this.kimiProfileService = new KimiProfileService({ store: this.accountStore });
     this.antigravityProfileService = new AntigravityProfileService({
       store: this.accountStore,
       cacheDir: paths.cacheDir,
