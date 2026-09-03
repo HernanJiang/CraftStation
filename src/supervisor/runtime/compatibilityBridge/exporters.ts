@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { CompatibilityBridgeStatus } from "./types";
 
 export interface TargetHarnessConfig {
@@ -7,6 +9,45 @@ export interface TargetHarnessConfig {
   model: string;
   protocol: string;
   customEnv: Record<string, string>;
+}
+
+/**
+ * Write an isolated OpenCode provider configuration that points the official
+ * OpenCode CLI at the running Compatibility Bridge. The file is session-scoped
+ * (written under the caller's directory, never into the user's OpenCode home)
+ * and carries the bridge api-key, so the official harness consumes the Bridge
+ * as a first-class OpenAI-compatible provider.
+ */
+export function writeOpenCodeConfigFile(
+  config: TargetHarnessConfig,
+  directory: string,
+  providerId = "craftstation-compat",
+): string {
+  if (config.harnessKind !== "opencode") {
+    throw new Error(
+      `OpenCode config export requires the opencode harness, got ${config.harnessKind}.`,
+    );
+  }
+  mkdirSync(directory, { recursive: true });
+  const configPath = join(directory, "opencode-compat.json");
+  const document = {
+    $schema: "https://opencode.ai/config.json",
+    provider: {
+      [providerId]: {
+        name: "CraftStation Compatibility Bridge",
+        npm: "@ai-sdk/openai-compatible",
+        options: {
+          baseURL: config.baseUrl,
+          apiKey: config.apiKey,
+        },
+        models: {
+          [config.model]: { name: `${config.model} (via CraftStation Bridge)` },
+        },
+      },
+    },
+  };
+  writeFileSync(configPath, JSON.stringify(document, null, 2), "utf8");
+  return configPath;
 }
 
 export function exportOpenCodeCompatibility(

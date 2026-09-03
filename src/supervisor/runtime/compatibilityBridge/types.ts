@@ -14,6 +14,8 @@ export interface CompatibilityBridgeOptions {
   binaryPath?: string | undefined;
   authDir?: string | undefined;
   apiKey?: string | undefined;
+  /** Optional upstream proxy for the sidecar's outbound provider traffic. */
+  proxyUrl?: string | undefined;
   debug?: boolean | undefined;
   probeTimeoutMs?: number | undefined;
   spawnFn?: SpawnFunction | undefined;

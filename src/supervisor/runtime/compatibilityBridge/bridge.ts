@@ -29,6 +29,7 @@ export class CompatibilityBridgeService extends EventEmitter {
   private stopTimeoutMs: number;
   private startupLogs: string[] = [];
   private configPath: string | undefined;
+  private proxyUrl: string | undefined;
 
   constructor(options: CompatibilityBridgeOptions = {}) {
     super();
@@ -37,7 +38,10 @@ export class CompatibilityBridgeService extends EventEmitter {
     this.binaryPath = options.binaryPath ?? process.env.CLIPROXY_BINARY_PATH;
     this.authDir = options.authDir;
     this.apiKey = options.apiKey ?? `cs-bridge-${randomUUID()}`;
-    this.probeTimeoutMs = options.probeTimeoutMs ?? 5000;
+    this.proxyUrl = options.proxyUrl ?? process.env.CLIPROXY_PROXY_URL;
+    // A cold CPA start downloads/refreshes provider model catalogs; give the
+    // sidecar a generous window before declaring readiness failure.
+    this.probeTimeoutMs = options.probeTimeoutMs ?? 15000;
     this.spawnFn = options.spawnFn ?? ((cmd, args, opts) => spawn(cmd, args, opts));
     this.fetchFn = options.fetchFn ?? ((url, init) => fetch(url, init));
     this.resolveBinaryFn = options.resolveBinaryFn ?? resolveExecutablePath;
@@ -85,12 +89,17 @@ export class CompatibilityBridgeService extends EventEmitter {
       mkdirSync(bridgeTempDir, { recursive: true });
     }
     const configFilePath = join(bridgeTempDir, `config-${this.port}.yaml`);
+    // YAML double-quoted scalars treat `\` as an escape character, so Windows
+    // paths must be written with forward slashes.
+    const authDirYaml = (this.authDir ?? "").replace(/\\/g, "/");
+    const proxyYaml = (this.proxyUrl ?? "").replace(/\\/g, "/");
     const yamlContent = [
       `host: "${this.host}"`,
       `port: ${this.port}`,
-      `auth-dir: "${this.authDir ?? ""}"`,
+      `auth-dir: "${authDirYaml}"`,
       `api-keys:`,
       `  - "${this.apiKey}"`,
+      ...(this.proxyUrl ? [`proxy-url: "${proxyYaml}"`] : []),
       `debug: false`,
     ].join("\n");
 
@@ -181,11 +190,11 @@ export class CompatibilityBridgeService extends EventEmitter {
       }
 
       try {
-        const res = await this.fetchFn(`${endpoint}/health`, {
+        // `/healthz` is the sidecar's documented liveness route; a 200 proves
+        // the actual CLIProxyAPI server is listening, not just any HTTP port.
+        const res = await this.fetchFn(`${endpoint}/healthz`, {
           headers: { Authorization: `Bearer ${this.apiKey}` },
         });
-        // Only the expected authenticated success response proves readiness.
-        // A 404/401 merely proves that some HTTP server answered.
         if (res.status === 200) {
           isReady = true;
           break;

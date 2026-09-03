@@ -149,6 +149,7 @@ import { dropSkillSegmentsOnPolicyFailure } from "./skills/pluginSkillPolicy";
 import { PluginRegistry, resolvePluginMcpServers } from "./plugins";
 import { captureExperimentResponseSnapshot } from "./experimentResponseSnapshot";
 import { CompatibilityBridgeService } from "./runtime/compatibilityBridge";
+import { CompatibilityRuntimeAdapter } from "./runtime/compatibilityBridge/compatibilityRuntimeAdapter";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
 import { AppServerProcessHost } from "./runtime/nativeCodex/appServerProcessHost";
 import { CraftingError } from "@/shared/crafting/errors";
@@ -271,6 +272,70 @@ export class SupervisorRuntime {
   ): void {
     this._customCraftingAdapter = factory;
   }
+
+  private _compatibilityRuntimeAdapterFactory?:
+    | ((
+        harnessKind: string,
+        accountId: string | undefined,
+      ) =>
+        | import("@/shared/crafting").HarnessRuntimeAdapter
+        | Promise<import("@/shared/crafting").HarnessRuntimeAdapter>
+        | undefined)
+    | undefined;
+
+  /**
+   * Override the production Compatibility adapter (real CLIProxyAPI sidecar +
+   * official Target Harness CLI). Returning undefined keeps the honest
+   * RUNTIME_UNAVAILABLE fail-closed behavior.
+   */
+  setCompatibilityRuntimeAdapterFactory(
+    factory?:
+      | ((
+          harnessKind: string,
+          accountId: string | undefined,
+        ) =>
+          | import("@/shared/crafting").HarnessRuntimeAdapter
+          | Promise<import("@/shared/crafting").HarnessRuntimeAdapter>
+          | undefined)
+      | undefined,
+  ): void {
+    this._compatibilityRuntimeAdapterFactory = factory;
+  }
+
+  /**
+   * Production Compatibility adapter: real CLIProxyAPI sidecar from
+   * CLIPROXY_BINARY_PATH plus a session-scoped account credential namespace
+   * (the account's credential root becomes the bridge auth-dir). Undefined
+   * when the sidecar is not configured so the route stays honestly
+   * RUNTIME_UNAVAILABLE instead of pretending readiness.
+   */
+  private async createDefaultCompatibilityRuntimeAdapter(
+    harnessKind: string,
+    accountId: string | undefined,
+  ): Promise<import("@/shared/crafting").HarnessRuntimeAdapter | undefined> {
+    const binaryPath = process.env.CLIPROXY_BINARY_PATH;
+    if (!binaryPath) return undefined;
+    let accountPin: { accountId: string; credentialNamespace: string; authDir: string } | undefined;
+    if (accountId) {
+      const record = this.accountStore.getRecord(accountId);
+      if (record) {
+        accountPin = {
+          accountId,
+          credentialNamespace: "cli-proxy-api-auth",
+          authDir: this.accountStore.credentialRoot(record.accountId),
+        };
+      }
+    }
+    const bridge = new CompatibilityBridgeService({
+      binaryPath,
+      ...(accountPin ? { authDir: accountPin.authDir } : {}),
+    });
+    return new CompatibilityRuntimeAdapter(harnessKind, {
+      bridge,
+      ...(accountPin ? { accountPin } : {}),
+    });
+  }
+
   private _craftingModelDiscovery:
     | ((location: ProjectLocation) => Promise<CraftingDiscoveredModel[] | undefined>)
     | undefined;
@@ -1777,16 +1842,25 @@ export class SupervisorRuntime {
 
     const isCompatibilityRoute = plan.runtimeBinding.routeType === "compatibility";
     if (isCompatibilityRoute) {
-      // There is intentionally no compatibility adapter in this Feature yet.
-      // Do not route a compatibility CraftPlan through a native adapter merely
-      // because a sidecar can be started: that would silently change protocol,
-      // session, and tool semantics. Keep the product path unavailable until a
-      // real bridge-shaped adapter and target-runtime verification are landed.
-      throw CraftingError.runtimeUnavailable(
-        plan.runtimeBinding.harnessKind,
-        "Compatibility runtime adapter is not implemented; no native Harness adapter will consume Compatibility configuration.",
-        "Use a verified native pairing or install a future Compatibility adapter with a tested target-runtime Agent Loop.",
-      );
+      // Compatibility plans never touch native adapters: protocol, session and
+      // tool semantics differ. The independent CompatibilityRuntimeAdapter owns
+      // the CLIProxyAPI sidecar and the official Target Harness CLI process.
+      const adapter = this._compatibilityRuntimeAdapterFactory
+        ? await Promise.resolve(
+            this._compatibilityRuntimeAdapterFactory(plan.runtimeBinding.harnessKind, accountId),
+          )
+        : await this.createDefaultCompatibilityRuntimeAdapter(
+            plan.runtimeBinding.harnessKind,
+            accountId,
+          );
+      if (!adapter) {
+        throw CraftingError.runtimeUnavailable(
+          plan.runtimeBinding.harnessKind,
+          "Compatibility Bridge sidecar is unavailable (CLIPROXY_BINARY_PATH not configured or adapter factory declined).",
+          "Install the CLIProxyAPI sidecar and configure its binary path to enable the Compatibility route.",
+        );
+      }
+      return { adapter, plan };
     }
 
     let accountRoot: string | undefined;

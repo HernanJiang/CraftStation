@@ -12,7 +12,21 @@ describe("Codex native baseline guard", () => {
 
     expect(supervisorSource).toContain("new NativeCodexRuntimeAdapter");
     expect(supervisorSource).not.toMatch(/CodexHarnessRuntimeAdapter/u);
-    expect(supervisorSource).not.toMatch(/CLIProxyAPI|cliproxyapi/iu);
+
+    // Since v1.1.3, compatibility plans are fenced off BEFORE native adapter
+    // selection and route through the independent Compatibility runtime adapter
+    // factory; the Codex native path below that fence must stay free of any
+    // Compatibility/CLIProxyAPI wiring.
+    const fenceIndex = supervisorSource.indexOf('routeType === "compatibility"');
+    expect(fenceIndex).toBeGreaterThan(-1);
+    const compatibilityBranch = supervisorSource.slice(
+      fenceIndex,
+      supervisorSource.indexOf("let accountRoot"),
+    );
+    expect(compatibilityBranch).toContain("_compatibilityRuntimeAdapterFactory");
+    expect(compatibilityBranch).not.toContain("new NativeCodexRuntimeAdapter");
+    const nativePath = supervisorSource.slice(supervisorSource.indexOf("let accountRoot"));
+    expect(nativePath).not.toMatch(/new CompatibilityBridgeService|CompatibilityRuntimeAdapter/u);
   });
 
   it("declares only product-path-proven app-server capabilities", () => {
