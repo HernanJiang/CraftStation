@@ -22,7 +22,7 @@
 当前冻结点：
 
 - 当前执行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不得表述为 PASS。
-- 并行 Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`。worktree `.worktrees/v1.1.0-compatibility-bridge`，分支 `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。Status：`DEBUGGER TAKEOVER FAIL / BLOCKED`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.1.0.md`。未通过验收，不得表述为 PASS。
+- 并行 Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`。worktree `.worktrees/v1.1.0-compatibility-bridge`，分支 `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。Status：**`v1.1.3 DELIVERED / READY FOR DEBUGGER RE-REVIEW`**（`dd0d0e1`；前判 `FAIL / BLOCKED`，经 `manager_1.1.0-replan.md` 授权重受理）。独立 CompatibilityRuntimeAdapter + 真实 CLIProxyAPI release 二进制（`.tools/`，不提交）+ OpenCode fixture-scoped 真实 Agent Loop tracer E2E 已交付；兼容套件 12/12、crafting/runtime 回归 176/176。不得表述为 PASS，等 Debugger 独立复检。
 - 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。不要写入这两个 worktree。
 - v0.9 Manager Plan：`.worktrees/v0.9-cross-harness-handoff/ai_workspace/agent_docs/manager_0.9.0.md`；Plan commit `7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`。
 - v0.10 Manager Plan：`.worktrees/v0.10-cross-thread-collaboration/ai_workspace/agent_docs/manager_0.10.0.md`；Plan commit `0bbba5f66e5b7be782443206c02781ed6825ba77`。
