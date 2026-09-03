@@ -16,11 +16,14 @@
 1. 本文件 —— 当前 Feature、Verdict、Git 检查点、Next Step
 2. `AGENTS.md` / 产品仓 `CRAFTSTATION.md` —— 硬规则与仓库边界
 3. `IDEA_GUIDE.md` —— Ideate Mode 提示词
-4. `ai_workspace/agent_docs/manager_0.5.0.md` —— 当前 Feature 的 Ideate + Plan
+4. `ai_workspace/agent_docs/manager_1.0.1.md` —— 当前产品执行 Feature 的 Ideate + Plan（v1.0.1 Native Profile Runtime）
+5. `ai_workspace/agent_docs/manager_1.1.0.md` —— 本并行 Feature v1.1.0 Compatibility Bridge 的 Ideate + Plan
 
 当前冻结点：
 
-- 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。
+- 当前执行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不得表述为 PASS。
+- 并行 Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`。worktree `.worktrees/v1.1.0-compatibility-bridge`，分支 `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。Status：`DEBUGGER TAKEOVER FAIL / BLOCKED`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.1.0.md`。未通过验收，不得表述为 PASS。
+- 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。不要写入这两个 worktree。
 - v0.9 Manager Plan：`.worktrees/v0.9-cross-harness-handoff/ai_workspace/agent_docs/manager_0.9.0.md`；Plan commit `7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`。
 - v0.10 Manager Plan：`.worktrees/v0.10-cross-thread-collaboration/ai_workspace/agent_docs/manager_0.10.0.md`；Plan commit `0bbba5f66e5b7be782443206c02781ed6825ba77`。
 - Coder 协调状态：两个 Coder 的源码与未提交测试均已无损迁移到新 Feature worktree，并已按新路径恢复原有 Coder 线程继续执行。此前的平台协调异常不是 Feature FAIL，也不是代码损坏。
@@ -114,17 +117,37 @@ Model Item + Harness Item
 - 当前待拍板：四格第三/第四槽位、九格自动模式是否只读、全矩阵“可尝试但不保证可执行”的状态语义、Adapter 持久化和首条真实 tracer bullet。
 - 执行门：未进入 Plan；不创建 Coder/Debugger，不修改当前 v0.6、v0.7、v0.8 的执行状态，不执行 commit/push/merge/tag。
 
+## Parallel Feature — v1.1.0 (Debugger Takeover FAIL / BLOCKED)
+
+- Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`
+- Manager Plan：`ai_workspace/agent_docs/manager_1.1.0.md`
+- 状态：`DEBUGGER TAKEOVER FAIL / BLOCKED`
+- 工作树：已创建 `.worktrees/v1.1.0-compatibility-bridge` / `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。
+- Tickets：T01–T13；Coder 两轮修复后由 Debugger Takeover 完成独立收口审查。
+- Debugger：`ai_workspace/agent_docs/debugger_1.1.0.md`
+- Re-review #1：`ai_workspace/agent_docs/debugger_1.1.1.md`
+- 核心结论：Compatibility Bridge、Crafter/Registry、Supervisor route branching、真实 exporter runtime、readiness、account pin 与 session lifecycle 尚未形成可执行闭环；局部测试/类型检查/构建通过不构成功能 PASS。
+- Re-review 结论：`FAIL`。默认 CPA 启动参数/健康探针与参考 CLIProxyAPI 契约不一致；Compatibility readiness 仍可隐式为 true；secret-bearing DTO、模型身份解析、真实 Target Harness Agent Loop、账号 pin、SessionSnapshot 与 UI gate 均未达到 acceptance。
+- Current Fix Cycle：`v1.1.2`
+- Fix Owner：`Coder-1.1-Compatibility Bridge`
+- Fix Plan：`ai_workspace/agent_docs/debugger_1.1.1.md`
+- Debugger Takeover：`ai_workspace/agent_docs/debugger_1.1.2.md`
+- Report：`ai_workspace/reports/report_1.1.md`
+- Takeover result：局部 fail-closed、Bridge 生命周期、fake-key 与 UI gate 已修复；真实 CPA、独立 Compatibility adapter、官方 Target Harness consumption、账号 namespace/session sticky 与 Agent Loop 仍未证明。
+- Next Step：`保持 FAIL / BLOCKED，等待后续真实 CPA/官方 Target Harness 证据与独立 Compatibility adapter；不得启动用户验收产物。`
+- 不得表述为实现完成或 PASS。不得写入 v1.0.1 / v0.9 / v0.10 worktree。未经用户授权不得 merge/tag/push `origin/main`。
+
 ## Lifecycle Snapshot
 
-| Field             | Current Value                                                                                              |
-| ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| Major Stage       | `v0`                                                                                                       |
-| Lifecycle State   | `v0.9.0 + v0.10.0 / CODER IN PROGRESS`                                                                     |
-| Active Feature    | `v0.9.0 — Cross-Harness Session Handoff`；`v0.10.0 — Cross-Thread Collaboration`                           |
-| Active Ticket     | 两个 Coder 分别继续各自 Manager Plan 的剩余 Tickets                                                        |
-| Current Fix Cycle | 尚未进入 Debugger Fix Cycle                                                                                |
-| Current Role      | Coder（并行）／Manager（拓扑治理）                                                                         |
-| Review Status     | v0.9/v0.10 尚未验收；v0.6 F35/F36、v0.5 F29/F33、v0.4 F04 保持 FAIL/BLOCKED；Main Promotion NOT AUTHORIZED |
+| Field             | Current Value                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Major Stage       | `v0`                                                                                                                            |
+| Lifecycle State   | `v0.9.0 + v0.10.0 / CODER IN PROGRESS`                                                                                          |
+| Active Feature    | `v0.9.0 — Cross-Harness Session Handoff`；`v0.10.0 — Cross-Thread Collaboration`                                                |
+| Active Ticket     | 两个 Coder 分别继续各自 Manager Plan 的剩余 Tickets                                                                             |
+| Current Fix Cycle | `v1.1.2` — Debugger Takeover completed; no further Coder round authorized                                                       |
+| Current Role      | Debugger Takeover（v1.1）／Manager（拓扑治理）                                                                                  |
+| Review Status     | v1.1 FAIL / BLOCKED；v0.9/v0.10 尚未验收；v0.6 F35/F36、v0.5 F29/F33、v0.4 F04 保持 FAIL/BLOCKED；Main Promotion NOT AUTHORIZED |
 
 ## Historical v0.3 Closeout
 
@@ -179,7 +202,9 @@ Model Item + Harness Item
 
 ## Next Step
 
-1. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
-2. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
-3. 两个 Coder 完成后分别创建一对一 `grok-4.6 / high` Debugger；Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
-4. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
+1. v1.1.0 保持 `FAIL / BLOCKED`；后续只有在取得真实 CPA/官方 Target Harness 证据并实现独立 Compatibility adapter 后，才可重新计划，不启动用户验收产物。
+2. v1.0.1 仍是产品当前执行 Feature，不得表述为 PASS；不要写入其 worktree。
+3. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
+4. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
+5. 两个 Coder 完成后分别创建一对一 `grok-4.6 / high` Debugger；Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
+6. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。

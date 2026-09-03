@@ -43,6 +43,10 @@ export interface SessionSnapshot {
   readonly runtimeConfig?: NativeRuntimeExecutionConfig | undefined;
   readonly effectiveOverrides?: RuntimeOverrides | undefined;
   readonly metadata?: Record<string, unknown> | undefined;
+  readonly routeType?: "native" | "compatibility" | undefined;
+  readonly accountId?: string | undefined;
+  readonly compatibilityProtocol?: string | undefined;
+  readonly compatibilityBridgeEndpoint?: string | undefined;
 }
 
 export interface StartTurnCommand {

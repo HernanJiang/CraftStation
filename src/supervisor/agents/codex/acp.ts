@@ -1123,8 +1123,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     const isStaleSiblingCompletion =
       (method === "turn/completed" || method === "turn/aborted") &&
       isStaleCodexTurnCompletion(params, this.activeTurnId) &&
-      !isTrackedConcurrentCompletion &&
-      this.activeTurnIds.size > 1;
+      !isTrackedConcurrentCompletion;
 
     // Translate to canonical chat events for chat-mode renderers. Runs
     // alongside the existing status-derivation logic below — terminal mode
@@ -1273,30 +1272,32 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     }
 
     const completedTurnId = readTurnId(params);
+    const hadTrackedCompletion =
+      completedTurnId !== undefined ? this.activeTurnIds.has(completedTurnId) : false;
     if (completedTurnId) {
       this.activeTurnIds.delete(completedTurnId);
     } else {
       this.activeTurnIds.clear();
     }
     if (this.activeTurnIds.size > 0) {
-      const leftoverIsMismatchedLiveTurn =
-        this.activeTurnIds.size === 1 &&
-        completedTurnId !== undefined &&
-        this.activeTurnId !== undefined &&
-        !this.activeTurnIds.has(completedTurnId);
-      if (leftoverIsMismatchedLiveTurn) {
-        this.activeTurnIds.clear();
-      } else {
-        // A sibling turn (auto-compact continuation, or an earlier
-        // `turn/start` the server accepted concurrently) is still running.
-        // Keep the thread working and hold per-turn mapper state so the live
-        // turn keeps resolving its items.
-        this.pendingTurnInterrupt = false;
-        if (this.activeTurnId === completedTurnId) {
-          this.activeTurnId = [...this.activeTurnIds].at(-1);
-        }
-        return true;
+      // A sibling turn (auto-compact continuation, or an earlier
+      // `turn/start` the server accepted concurrently) is still running.
+      // Keep the thread working and hold per-turn mapper state so the live
+      // turn keeps resolving its items.
+      this.pendingTurnInterrupt = false;
+      if (this.activeTurnId === completedTurnId) {
+        this.activeTurnId = [...this.activeTurnIds].at(-1);
       }
+      return true;
+    }
+
+    if (
+      completedTurnId &&
+      this.activeTurnId &&
+      completedTurnId !== this.activeTurnId &&
+      !hadTrackedCompletion
+    ) {
+      return true;
     }
 
     this.pendingTurnInterrupt = false;

@@ -148,6 +148,7 @@ import { SkillsService } from "./skills/SkillsService";
 import { dropSkillSegmentsOnPolicyFailure } from "./skills/pluginSkillPolicy";
 import { PluginRegistry, resolvePluginMcpServers } from "./plugins";
 import { captureExperimentResponseSnapshot } from "./experimentResponseSnapshot";
+import { CompatibilityBridgeService } from "./runtime/compatibilityBridge";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
 import { AppServerProcessHost } from "./runtime/nativeCodex/appServerProcessHost";
 import { CraftingError } from "@/shared/crafting/errors";
@@ -199,6 +200,20 @@ import {
 } from "./sessionHandoff/coordinator";
 
 export { detectWslAgentStatuses, writeSubmittedPrompt };
+
+/**
+ * Parse the renderer's stable model material id. Agent material ids are
+ * `agent:<provider-surface>:<presentation>:<model>` and custom material ids
+ * begin `custom:<provider>:...`; in both cases the provider is the second
+ * segment. Unknown ids are rejected instead of borrowing the Harness vendor.
+ */
+function modelProviderFromEntryRef(entryRef: string): string | undefined {
+  const parts = entryRef.split(":");
+  if (parts[0] !== "agent" && parts[0] !== "custom") return undefined;
+  if (parts.length < 3 || !parts.slice(2).join(":").trim()) return undefined;
+  const provider = parts[1]?.trim();
+  return provider && /^[a-z][a-z0-9-]*$/u.test(provider) ? provider : undefined;
+}
 
 /**
  * Absolute force-stop deadline for crafted interrupts, mirroring the legacy
@@ -278,6 +293,7 @@ export class SupervisorRuntime {
   // The service cluster is public on purpose: `createSupervisorIpcHandlers`
   // maps IPC procedures straight onto these services — this class only wires
   // them together and hosts the few cross-service orchestrations below.
+  readonly compatibilityBridgeService = new CompatibilityBridgeService();
   readonly gitService = new GitService();
   readonly gitCheckpointService = new GitCheckpointService();
   private _projectWatcher: ProjectWatcher | undefined;
@@ -1562,11 +1578,30 @@ export class SupervisorRuntime {
     // The renderer resolves the full SelectedModelEntry for its inventory; the
     // Supervisor only needs the provider kind to decide the compatibility tier.
     const openCodeRouteReady = this.nativeHarnessAdapters.has("opencode");
+    const modelVendor = modelProviderFromEntryRef(payload.modelEntryRef);
+    if (!modelVendor) {
+      return resolveCompatibility({
+        modelEntry: {
+          entryId: payload.modelEntryRef,
+          source: payload.modelEntryRef.startsWith("custom:") ? "custom" : "agent",
+          providerKind: "unknown",
+          providerSurfaceKey: "unknown",
+          providerLabel: "Unknown provider",
+          channelLabel: "Unknown provider",
+          modelId: payload.modelEntryRef,
+          displayName: payload.modelEntryRef,
+        },
+        harnessRef,
+        harnessReady: false,
+        compatibilityBridgeReady: false,
+      });
+    }
+
     const result = resolveCompatibility({
       modelEntry: {
         entryId: payload.modelEntryRef,
         source: "agent",
-        providerKind: harnessRef?.vendor ?? "",
+        providerKind: modelVendor,
         providerSurfaceKey: harnessRef?.harnessKind ?? "",
         providerLabel: harnessRef?.displayName ?? "",
         channelLabel: harnessRef?.displayName ?? "",
@@ -1577,6 +1612,10 @@ export class SupervisorRuntime {
       harnessRef,
       harnessReady: harnessRef?.status === "ready",
       openCodeRouteReady,
+      // Resolution is a read-only query and never starts a sidecar. Until a
+      // runtime-scoped bridge has completed binary, config, auth, protocol and
+      // exporter verification, compatibility remains unavailable.
+      compatibilityBridgeReady: false,
     });
     return result;
   }
@@ -1736,6 +1775,20 @@ export class SupervisorRuntime {
     };
     ensureThreadWorkspace(projectLocation, plan.workspace);
 
+    const isCompatibilityRoute = plan.runtimeBinding.routeType === "compatibility";
+    if (isCompatibilityRoute) {
+      // There is intentionally no compatibility adapter in this Feature yet.
+      // Do not route a compatibility CraftPlan through a native adapter merely
+      // because a sidecar can be started: that would silently change protocol,
+      // session, and tool semantics. Keep the product path unavailable until a
+      // real bridge-shaped adapter and target-runtime verification are landed.
+      throw CraftingError.runtimeUnavailable(
+        plan.runtimeBinding.harnessKind,
+        "Compatibility runtime adapter is not implemented; no native Harness adapter will consume Compatibility configuration.",
+        "Use a verified native pairing or install a future Compatibility adapter with a tested target-runtime Agent Loop.",
+      );
+    }
+
     let accountRoot: string | undefined;
     let accountEnv: Record<string, string> | undefined;
     let accountBinding: AccountBinding | undefined;
@@ -1796,7 +1849,7 @@ export class SupervisorRuntime {
             ...(accountRoot
               ? {
                   host: new AppServerProcessHost({
-                    codexHome: accountRoot,
+                    ...(accountRoot ? { codexHome: accountRoot } : {}),
                     ...(accountEnv ? { env: accountEnv } : {}),
                   }),
                 }
@@ -1815,7 +1868,9 @@ export class SupervisorRuntime {
             ...(skills.inlineInstructions
               ? { inlineSkillInstructions: skills.inlineInstructions }
               : {}),
-            ...(plan.runtimeBinding.options ? { runtimeOptions: plan.runtimeBinding.options } : {}),
+            runtimeOptions: {
+              ...(plan.runtimeBinding.options ?? {}),
+            },
             ...(plan.runtimeBinding.profileRef
               ? { profileRef: plan.runtimeBinding.profileRef }
               : {}),
@@ -1830,9 +1885,11 @@ export class SupervisorRuntime {
                   }),
                 }
               : {}),
-            ...(accountRoot && plan.runtimeBinding.harnessKind === "grok"
-              ? { baseSpawnEnv: managedGrokProcessEnvironment(accountRoot) }
-              : {}),
+            baseSpawnEnv: {
+              ...(accountRoot && plan.runtimeBinding.harnessKind === "grok"
+                ? managedGrokProcessEnvironment(accountRoot)
+                : {}),
+            },
             ...(accountBinding && plan.runtimeBinding.harnessKind === "grok"
               ? {
                   onPromptError: (error: unknown) =>

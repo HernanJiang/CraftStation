@@ -30,7 +30,9 @@ export function EfficientWorkbench(props: {
   const { model, harness, resolution, onCraft, onClear } = props;
   const [focus, setFocus] = useState<FocusSlot>("model");
 
-  const canCraft = resolution?.status === "NATIVE" || resolution?.status === "CRAFTABLE";
+  // Compatibility is currently diagnostic-only until a verified target
+  // runtime/exporter Agent Loop exists. Never expose CRAFTABLE as executable.
+  const canCraft = resolution?.status === "NATIVE";
   const resultName = model && harness ? `${harness.displayName} · ${model.displayName}` : "";
   const detail = focus === "model" ? modelDetail(model) : harnessDetail(harness);
 
@@ -95,7 +97,7 @@ export function EfficientWorkbench(props: {
             {resolution ? uiStatusLabel[resolution.status] : "待放入材料"}
           </span>
           {resolution?.status === "CRAFTABLE" ? (
-            <span className="text-[9px] text-amber-300/70">compatibility layer</span>
+            <span className="text-[9px] text-amber-300/70">Compatibility · 未验证</span>
           ) : null}
         </div>
 
@@ -151,7 +153,13 @@ export function EfficientWorkbench(props: {
         >
           清空
         </Button>
-        <Button size="sm" variant="primary" onPress={onCraft} data-testid="craft-button">
+        <Button
+          size="sm"
+          variant="primary"
+          onPress={onCraft}
+          isDisabled={!canCraft}
+          data-testid="craft-button"
+        >
           合成
         </Button>
       </div>

@@ -50,6 +50,7 @@ describe("workbench compatibility tiers", () => {
       modelEntry: modelEntry({ providerKind: "openai" }),
       harnessRef: harnessRef({ vendor: "codex", harnessKind: "codex", status: "ready" }),
       harnessReady: true,
+      compatibilityBridgeReady: true,
     });
     expect(resolution.status).toBe("CRAFTABLE");
     expect(resolution.source).toBe("compatibility-layer");
@@ -89,9 +90,19 @@ describe("workbench compatibility tiers", () => {
       harnessRef: harnessRef({ harnessKind: "opencode", vendor: "opencode", status: "ready" }),
       harnessReady: true,
       openCodeRouteReady: true,
+      compatibilityBridgeReady: true,
     });
     expect(verified.status).toBe("CRAFTABLE");
     expect(verified.source).toBe("compatibility-layer");
+  });
+
+  it("does not infer compatibility readiness when the supervisor omits it", () => {
+    const resolution = resolveCompatibility({
+      modelEntry: modelEntry({ providerKind: "openai" }),
+      harnessRef: harnessRef({ vendor: "codex", status: "ready" }),
+      harnessReady: true,
+    });
+    expect(resolution.status).toBe("IMPOSSIBLE");
   });
 
   it("resolution key changes when any slot identity changes", () => {

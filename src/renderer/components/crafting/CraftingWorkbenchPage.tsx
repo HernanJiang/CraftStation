@@ -215,7 +215,9 @@ export function CraftingWorkbenchPage(props: {
   };
 
   const handleCraft = () => {
-    if (!resolution || resolution.status === "IMPOSSIBLE") return;
+    // Compatibility remains visible as a diagnostic state, but is not an
+    // executable/saveable recipe until the target runtime path is verified.
+    if (!resolution || resolution.status !== "NATIVE") return;
     const name =
       selectedModel && selectedHarness
         ? `${selectedHarness.displayName} · ${selectedModel.displayName}`

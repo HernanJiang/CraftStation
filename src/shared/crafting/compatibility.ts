@@ -5,6 +5,7 @@ import {
   type HarnessReference,
   type SelectedModelEntry,
 } from "./workbenchTypes";
+import { resolveExecutionRoute } from "./executionRoute";
 
 /**
  * Pure, deterministic Model × Harness compatibility resolution.
@@ -35,6 +36,8 @@ export interface CompatibilityReadinessInput {
   harnessReady: boolean;
   /** OpenCode-specific route readiness; only meaningful when harnessKind === "opencode". */
   openCodeRouteReady?: boolean;
+  /** Compatibility bridge service readiness */
+  compatibilityBridgeReady?: boolean;
   /** A stable adapter id/version selected for this combination. */
   adapterId?: string;
   adapterVersion?: string;
@@ -78,36 +81,30 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
   internalStatus: "NATIVE" | "SUPPORTED" | "EXPERIMENTAL" | "INCOMPATIBLE" | "UNAVAILABLE";
   source: "native" | "compatibility-layer" | "unavailable";
 } {
-  const { modelEntry, harnessRef, harnessReady } = input;
-  if (!modelEntry || !harnessRef) {
-    return { status: "IMPOSSIBLE", internalStatus: "UNAVAILABLE", source: "unavailable" };
-  }
+  const { modelEntry, harnessRef, harnessReady, openCodeRouteReady, compatibilityBridgeReady } =
+    input;
+  const routeDecision = resolveExecutionRoute({
+    modelEntry,
+    harnessRef,
+    harnessReady,
+    openCodeRouteReady,
+    compatibilityBridgeReady,
+  });
 
-  const native = modelEntry.providerKind === harnessRef.vendor;
-  const internal = native ? "NATIVE" : "SUPPORTED";
-
-  if (!harnessReady) {
+  if (routeDecision.routeType === "fail-closed") {
+    const isOpencodeUnready = harnessRef?.harnessKind === "opencode" && openCodeRouteReady !== true;
     return {
       status: "IMPOSSIBLE",
-      internalStatus: "UNAVAILABLE",
-      source: "unavailable",
+      internalStatus: isOpencodeUnready ? "EXPERIMENTAL" : "UNAVAILABLE",
+      source: isOpencodeUnready ? "compatibility-layer" : "unavailable",
     };
   }
 
-  if (harnessRef.harnessKind === "opencode" && input.openCodeRouteReady !== true) {
-    // OpenCode installed !== this provider/model route executable. Fail closed
-    // until a real route-specific readiness provider verifies the binding.
-    return {
-      status: "IMPOSSIBLE",
-      internalStatus: "EXPERIMENTAL",
-      source: "compatibility-layer",
-    };
-  }
-
-  if (native) {
+  if (routeDecision.routeType === "native") {
     return { status: "NATIVE", internalStatus: "NATIVE", source: "native" };
   }
-  return { status: "CRAFTABLE", internalStatus: internal, source: "compatibility-layer" };
+
+  return { status: "CRAFTABLE", internalStatus: "SUPPORTED", source: "compatibility-layer" };
 }
 
 /** Compose the full CapabilityResolution for a four-cell combination. */
