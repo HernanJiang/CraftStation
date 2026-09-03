@@ -3,7 +3,7 @@ import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import type { CapabilityResolution } from "@/shared/crafting/workbenchTypes";
 
 /**
- * Save Recipe dialog: shown when the user clicks "合成" on a NATIVE/CRAFTABLE
+ * Save Recipe dialog: shown when the user clicks "合成" on a verified NATIVE
  * combination. Only saves a StoredRecipe — it never launches a Thread/Agent.
  * The system name is auto-composed and the alias is an optional subtitle.
  */
@@ -37,7 +37,7 @@ export function RecipeSaveDialog(props: {
             </div>
             {resolution.status === "CRAFTABLE" ? (
               <p className="mt-2 text-[11px] text-amber-300/80">
-                通过 CraftStation compatibility layer 保存
+                Compatibility 尚未完成运行时验证，不能保存
               </p>
             ) : null}
             {duplicateCount > 0 ? (
@@ -64,6 +64,7 @@ export function RecipeSaveDialog(props: {
             <Button
               variant="primary"
               onPress={() => onSave(alias.trim() ? alias.trim() : undefined)}
+              isDisabled={resolution.status !== "NATIVE"}
               data-testid="confirm-save-recipe"
             >
               保存配方

@@ -152,6 +152,8 @@ import { SkillsService } from "./skills/SkillsService";
 import { dropSkillSegmentsOnPolicyFailure } from "./skills/pluginSkillPolicy";
 import { PluginRegistry, resolvePluginMcpServers } from "./plugins";
 import { captureExperimentResponseSnapshot } from "./experimentResponseSnapshot";
+import { CompatibilityBridgeService } from "./runtime/compatibilityBridge";
+import { CompatibilityRuntimeAdapter } from "./runtime/compatibilityBridge/compatibilityRuntimeAdapter";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
 import { AppServerProcessHost } from "./runtime/nativeCodex/appServerProcessHost";
 import { CraftingError } from "@/shared/crafting/errors";
@@ -212,6 +214,20 @@ import {
 export { detectWslAgentStatuses, writeSubmittedPrompt };
 
 /**
+ * Parse the renderer's stable model material id. Agent material ids are
+ * `agent:<provider-surface>:<presentation>:<model>` and custom material ids
+ * begin `custom:<provider>:...`; in both cases the provider is the second
+ * segment. Unknown ids are rejected instead of borrowing the Harness vendor.
+ */
+function modelProviderFromEntryRef(entryRef: string): string | undefined {
+  const parts = entryRef.split(":");
+  if (parts[0] !== "agent" && parts[0] !== "custom") return undefined;
+  if (parts.length < 3 || !parts.slice(2).join(":").trim()) return undefined;
+  const provider = parts[1]?.trim();
+  return provider && /^[a-z][a-z0-9-]*$/u.test(provider) ? provider : undefined;
+}
+
+/**
  * Absolute force-stop deadline for crafted interrupts, mirroring the legacy
  * StructuredInterruptWatchdog grace. If the native runtime does not
  * acknowledge Stop with a turn completion by this point, the turn is closed
@@ -267,6 +283,70 @@ export class SupervisorRuntime {
   ): void {
     this._customCraftingAdapter = factory;
   }
+
+  private _compatibilityRuntimeAdapterFactory?:
+    | ((
+        harnessKind: string,
+        accountId: string | undefined,
+      ) =>
+        | import("@/shared/crafting").HarnessRuntimeAdapter
+        | Promise<import("@/shared/crafting").HarnessRuntimeAdapter>
+        | undefined)
+    | undefined;
+
+  /**
+   * Override the production Compatibility adapter (real CLIProxyAPI sidecar +
+   * official Target Harness CLI). Returning undefined keeps the honest
+   * RUNTIME_UNAVAILABLE fail-closed behavior.
+   */
+  setCompatibilityRuntimeAdapterFactory(
+    factory?:
+      | ((
+          harnessKind: string,
+          accountId: string | undefined,
+        ) =>
+          | import("@/shared/crafting").HarnessRuntimeAdapter
+          | Promise<import("@/shared/crafting").HarnessRuntimeAdapter>
+          | undefined)
+      | undefined,
+  ): void {
+    this._compatibilityRuntimeAdapterFactory = factory;
+  }
+
+  /**
+   * Production Compatibility adapter: real CLIProxyAPI sidecar from
+   * CLIPROXY_BINARY_PATH plus a session-scoped account credential namespace
+   * (the account's credential root becomes the bridge auth-dir). Undefined
+   * when the sidecar is not configured so the route stays honestly
+   * RUNTIME_UNAVAILABLE instead of pretending readiness.
+   */
+  private async createDefaultCompatibilityRuntimeAdapter(
+    harnessKind: string,
+    accountId: string | undefined,
+  ): Promise<import("@/shared/crafting").HarnessRuntimeAdapter | undefined> {
+    const binaryPath = process.env.CLIPROXY_BINARY_PATH;
+    if (!binaryPath) return undefined;
+    let accountPin: { accountId: string; credentialNamespace: string; authDir: string } | undefined;
+    if (accountId) {
+      const record = this.accountStore.getRecord(accountId);
+      if (record) {
+        accountPin = {
+          accountId,
+          credentialNamespace: "cli-proxy-api-auth",
+          authDir: this.accountStore.credentialRoot(record.accountId),
+        };
+      }
+    }
+    const bridge = new CompatibilityBridgeService({
+      binaryPath,
+      ...(accountPin ? { authDir: accountPin.authDir } : {}),
+    });
+    return new CompatibilityRuntimeAdapter(harnessKind, {
+      bridge,
+      ...(accountPin ? { accountPin } : {}),
+    });
+  }
+
   private _craftingModelDiscovery:
     | ((location: ProjectLocation) => Promise<CraftingDiscoveredModel[] | undefined>)
     | undefined;
@@ -289,6 +369,7 @@ export class SupervisorRuntime {
   // The service cluster is public on purpose: `createSupervisorIpcHandlers`
   // maps IPC procedures straight onto these services — this class only wires
   // them together and hosts the few cross-service orchestrations below.
+  readonly compatibilityBridgeService = new CompatibilityBridgeService();
   readonly gitService = new GitService();
   readonly gitCheckpointService = new GitCheckpointService();
   private _projectWatcher: ProjectWatcher | undefined;
@@ -1641,11 +1722,30 @@ export class SupervisorRuntime {
     // The renderer resolves the full SelectedModelEntry for its inventory; the
     // Supervisor only needs the provider kind to decide the compatibility tier.
     const openCodeRouteReady = this.nativeHarnessAdapters.has("opencode");
+    const modelVendor = modelProviderFromEntryRef(payload.modelEntryRef);
+    if (!modelVendor) {
+      return resolveCompatibility({
+        modelEntry: {
+          entryId: payload.modelEntryRef,
+          source: payload.modelEntryRef.startsWith("custom:") ? "custom" : "agent",
+          providerKind: "unknown",
+          providerSurfaceKey: "unknown",
+          providerLabel: "Unknown provider",
+          channelLabel: "Unknown provider",
+          modelId: payload.modelEntryRef,
+          displayName: payload.modelEntryRef,
+        },
+        harnessRef,
+        harnessReady: false,
+        compatibilityBridgeReady: false,
+      });
+    }
+
     const result = resolveCompatibility({
       modelEntry: {
         entryId: payload.modelEntryRef,
         source: "agent",
-        providerKind: harnessRef?.vendor ?? "",
+        providerKind: modelVendor,
         providerSurfaceKey: harnessRef?.harnessKind ?? "",
         providerLabel: harnessRef?.displayName ?? "",
         channelLabel: harnessRef?.displayName ?? "",
@@ -1656,6 +1756,10 @@ export class SupervisorRuntime {
       harnessRef,
       harnessReady: harnessRef?.status === "ready",
       openCodeRouteReady,
+      // Resolution is a read-only query and never starts a sidecar. Until a
+      // runtime-scoped bridge has completed binary, config, auth, protocol and
+      // exporter verification, compatibility remains unavailable.
+      compatibilityBridgeReady: false,
     });
     return result;
   }
@@ -1815,6 +1919,29 @@ export class SupervisorRuntime {
     };
     ensureThreadWorkspace(projectLocation, plan.workspace);
 
+    const isCompatibilityRoute = plan.runtimeBinding.routeType === "compatibility";
+    if (isCompatibilityRoute) {
+      // Compatibility plans never touch native adapters: protocol, session and
+      // tool semantics differ. The independent CompatibilityRuntimeAdapter owns
+      // the CLIProxyAPI sidecar and the official Target Harness CLI process.
+      const adapter = this._compatibilityRuntimeAdapterFactory
+        ? await Promise.resolve(
+            this._compatibilityRuntimeAdapterFactory(plan.runtimeBinding.harnessKind, accountId),
+          )
+        : await this.createDefaultCompatibilityRuntimeAdapter(
+            plan.runtimeBinding.harnessKind,
+            accountId,
+          );
+      if (!adapter) {
+        throw CraftingError.runtimeUnavailable(
+          plan.runtimeBinding.harnessKind,
+          "Compatibility Bridge sidecar is unavailable (CLIPROXY_BINARY_PATH not configured or adapter factory declined).",
+          "Install the CLIProxyAPI sidecar and configure its binary path to enable the Compatibility route.",
+        );
+      }
+      return { adapter, plan };
+    }
+
     let accountRoot: string | undefined;
     let accountEnv: Record<string, string> | undefined;
     let accountBinding: AccountBinding | undefined;
@@ -1890,7 +2017,7 @@ export class SupervisorRuntime {
             ...(accountRoot
               ? {
                   host: new AppServerProcessHost({
-                    codexHome: accountRoot,
+                    ...(accountRoot ? { codexHome: accountRoot } : {}),
                     ...(accountEnv ? { env: accountEnv } : {}),
                   }),
                   codexHome: accountRoot,
@@ -1910,7 +2037,9 @@ export class SupervisorRuntime {
             ...(skills.inlineInstructions
               ? { inlineSkillInstructions: skills.inlineInstructions }
               : {}),
-            ...(plan.runtimeBinding.options ? { runtimeOptions: plan.runtimeBinding.options } : {}),
+            runtimeOptions: {
+              ...(plan.runtimeBinding.options ?? {}),
+            },
             ...(plan.runtimeBinding.profileRef
               ? { profileRef: plan.runtimeBinding.profileRef }
               : {}),

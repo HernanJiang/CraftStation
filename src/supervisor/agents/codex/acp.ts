@@ -1123,8 +1123,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     const isStaleSiblingCompletion =
       (method === "turn/completed" || method === "turn/aborted") &&
       isStaleCodexTurnCompletion(params, this.activeTurnId) &&
-      !isTrackedConcurrentCompletion &&
-      this.activeTurnIds.size > 1;
+      !isTrackedConcurrentCompletion;
 
     // Translate to canonical chat events for chat-mode renderers. Runs
     // alongside the existing status-derivation logic below — terminal mode
@@ -1273,6 +1272,8 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     }
 
     const completedTurnId = readTurnId(params);
+    const hadTrackedCompletion =
+      completedTurnId !== undefined ? this.activeTurnIds.has(completedTurnId) : false;
     if (completedTurnId) {
       this.activeTurnIds.delete(completedTurnId);
     } else {
@@ -1289,8 +1290,13 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       }
       return true;
     }
-    if (completedTurnId && this.activeTurnId && this.activeTurnId !== completedTurnId) {
-      this.pendingTurnInterrupt = false;
+
+    if (
+      completedTurnId &&
+      this.activeTurnId &&
+      completedTurnId !== this.activeTurnId &&
+      !hadTrackedCompletion
+    ) {
       return true;
     }
 

@@ -78,6 +78,14 @@ export const runtimeBindingSchema = z.object({
   /** Supervisor-owned reference; this is never an API credential value. */
   authRef: z.string().min(1).optional(),
   profileRef: z.string().min(1).optional(),
+  /** Route classification: native official pairing vs compatibility bridge */
+  routeType: z.enum(["native", "compatibility"]).optional(),
+  /** Selected account identity (opaque ID), secret-free */
+  accountId: z.string().min(1).optional(),
+  /** Protocol exposed by or targeted by compatibility bridge */
+  compatibilityProtocol: z.string().min(1).optional(),
+  /** Loopback host:port endpoint for CLIProxyAPI sidecar, strictly without token or secret */
+  compatibilityBridgeEndpoint: z.string().min(1).optional(),
   environment: nativeHarnessEnvironmentSchema.optional(),
   options: z.record(z.string(), z.unknown()).optional(),
 });

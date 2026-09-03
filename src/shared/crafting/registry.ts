@@ -1,6 +1,7 @@
 import type { Item, ItemKind, Recipe, SlotSelection } from "./types";
 import { NativeHarnessRecipe } from "./recipes/nativeHarnessRecipe";
 import { OpenAICodexNativeRecipe } from "./recipes/openaiCodexRecipe";
+import { CompatibilityBridgeRecipe } from "./recipes/compatibilityRecipe";
 
 export const BUILTIN_MODEL_ITEMS: Item[] = [
   {
@@ -617,6 +618,7 @@ export class ItemRegistry {
     this.registerItem(BUILTIN_OPENCODE_HARNESS_ITEM);
     this.registerRecipe(new OpenAICodexNativeRecipe());
     for (const recipe of NATIVE_HARNESS_RECIPES) this.registerRecipe(recipe);
+    this.registerRecipe(new CompatibilityBridgeRecipe());
   }
 
   registerItem(item: Item): void {
@@ -653,11 +655,6 @@ export class ItemRegistry {
     }
     return undefined;
   }
-
-  /**
-   * Deterministically resolve slot selection.
-   * "auto" for harness slot resolves to BUILTIN_CODEX_HARNESS_ITEM.
-   */
 
   refreshCodexModels(
     models: Array<{
