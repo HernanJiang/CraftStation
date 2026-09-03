@@ -179,7 +179,10 @@ $launchAliases = @(
     names = @('notepad')
     tokenPattern = 'Notepad'
     leaf = 'Notepad'
-    targets = @()
+    # Bare 'notepad' is not on PATH on modern Windows (Store Notepad only ships
+    # an App Execution Alias outside the system PATH), so Start-Process throws
+    # and the launch reports "Unable to launch app". Target the alias explicitly.
+    targets = @('notepad.exe')
     hints = @('Notepad')
   }
 )
