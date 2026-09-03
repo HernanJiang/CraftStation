@@ -16,9 +16,12 @@
 1. 本文件 —— 当前 Feature、Verdict、Git 检查点、Next Step
 2. `AGENTS.md` / 产品仓 `CRAFTSTATION.md` —— 硬规则与仓库边界
 3. `IDEA_GUIDE.md` —— Ideate Mode 提示词
-4. `ai_workspace/agent_docs/manager_0.5.0.md` —— 当前 Feature 的 Ideate + Plan
+4. `ai_workspace/agent_docs/manager_1.2.0.md` —— 当前 Feature 的 Ideate + Plan（v1.2.0 Unified MCP + Skills Capability Foundation）
 
 当前冻结点：
+- 当前执行 Feature：`v1.2.0 — Unified MCP + Skills Capability Foundation`。worktree `.worktrees/v1.2.0-mcp-skills-capability`，分支 `dev/v1.2.0-mcp-skills-capability`，基线 `main@f5a4bb2`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.2.0.md`。Status：`PLAN READY / EXECUTING`。尚未实现、未验收，不得表述为 PASS。
+- 并行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不要写入该 worktree。
+- 并行 Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`。worktree `.worktrees/v1.1.0-compatibility-bridge`，分支 `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不要写入该 worktree，也不要把 main 上的 v1.1 未提交骨架带进本 Feature。
 
 - 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。
 - v0.9 Manager Plan：`.worktrees/v0.9-cross-harness-handoff/ai_workspace/agent_docs/manager_0.9.0.md`；Plan commit `7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`。
@@ -158,7 +161,7 @@ Model Item + Harness Item
 - Prior Fix Plan：`ai_workspace/agent_docs/debugger_0.4.12-native-harness.md`
 - Prior re-review：`ai_workspace/agent_docs/debugger_0.4.10-rereview-native-harness.md`
 - Manager document：`ai_workspace/agent_docs/manager_0.4.0.md`
-- Next-version Ideate：`ai_workspace/agent_docs/manager_0.5.0.md`
+- Next-version Ideate：`ai_workspace/agent_docs/manager_1.2.0.md`（本 Feature 已进入 Plan / EXECUTING）
 - Grok Account Control Brief：`ai_workspace/agent_docs/debugger_0.5.0-grok-account-control-brief.md`
 - Current evidence：F08–F24 工程项已关闭；F04 五 Harness 产品级真实 response 仍 BLOCKED。新 Session 的 `craftAgent` 当前不传 `accountId`，走 Auto；点账号行只改 selected。不能把「无论选哪个都能回复」当成 per-account sticky PASS。
 - Binding finding：用户希望耗尽时静默填补、不要把「Grok 额度已耗尽」挡在聊天前面。这与冻结的 F20 explicit 语义冲突，必须由下一版本 Manager / Ideate 拍板，不能静默改代码。
@@ -179,7 +182,9 @@ Model Item + Harness Item
 
 ## Next Step
 
-1. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
-2. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
-3. 两个 Coder 完成后分别创建一对一 `grok-4.6 / high` Debugger；Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
-4. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
+1. v1.2.0 Coder 只在 `D:\Work\CraftStation\.worktrees\v1.2.0-mcp-skills-capability` / `dev/v1.2.0-mcp-skills-capability` 按 `manager_1.2.0.md` Part II 连续执行 T01–T12；Manager 发布 Plan 后不轮询等待。不得表述为 PASS。
+2. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
+3. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
+4. v1.2.0 Coder 自检后创建一对一 `Debugger-1.2-MCP Skills Capability`（`gpt-5.6-sol / high`）；v0.9 / v0.10 Coder 完成后分别创建一对一 Debugger。Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
+5. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
+
