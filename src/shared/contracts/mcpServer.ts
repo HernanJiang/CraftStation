@@ -315,6 +315,15 @@ export type DiscoverExternalMcpServersResult = z.infer<
   typeof discoverExternalMcpServersResultSchema
 >;
 
+export const mcpServerOriginSchema = z.enum([
+  "managed",
+  "built-in",
+  "plugin",
+  "imported",
+  "external",
+]);
+export type McpServerOrigin = z.infer<typeof mcpServerOriginSchema>;
+
 /** Canonical provider-agnostic custom MCP server managed by CraftStation. */
 export const mcpServerSchema = z
   .object({
@@ -325,6 +334,11 @@ export const mcpServerSchema = z
     timeoutMs: z.number().int().positive().default(DEFAULT_MCP_SERVER_TIMEOUT_MS),
     disabledTools: z.array(z.string().min(1)).optional(),
     transport: mcpTransportSchema,
+    origin: mcpServerOriginSchema.optional(),
+    sourceProviderId: z.string().min(1).optional(),
+    sourceProviderLabel: z.string().min(1).optional(),
+    sourcePath: z.string().min(1).optional(),
+    importedAt: z.string().optional(),
   })
   .refine((server) => !isReservedMcpServerName(server.name), {
     path: ["name"],

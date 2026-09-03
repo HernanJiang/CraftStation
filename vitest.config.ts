@@ -16,6 +16,15 @@ export default defineConfig({
       reporter: ["text", "html"],
     },
     exclude: ["dist", "node_modules"],
+    env: {
+      // Tests run under Node while node_modules' better-sqlite3 binary is
+      // compiled for Electron's ABI. Point every explicit Database open at the
+      // Node-ABI copy built by `pnpm prepare:server-native`.
+      CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING: resolve(
+        import.meta.dirname,
+        "dist/server-native/better_sqlite3.node",
+      ),
+    },
     projects: [
       {
         extends: true,

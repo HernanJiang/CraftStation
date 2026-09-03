@@ -145,7 +145,10 @@ function validateElectronNativeDependencies() {
 
 function rebuildElectronNativeDependencies() {
   const rebuildCli = join(dirname(require.resolve("@electron/rebuild")), "cli.js");
-  const result = spawnSync(process.execPath, [rebuildCli, "--only", "better-sqlite3"], {
+  // --force is required: electron-rebuild's up-to-date check can be fooled by
+  // stale store metadata (e.g. after a store refresh replaced the binary with a
+  // Node-ABI prebuild) and silently no-op while still printing Rebuild Complete.
+  const result = spawnSync(process.execPath, [rebuildCli, "--only", "better-sqlite3", "--force"], {
     stdio: "inherit",
   });
   if (result.status !== 0) {

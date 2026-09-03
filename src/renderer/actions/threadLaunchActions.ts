@@ -208,6 +208,12 @@ export interface CraftedSessionLaunchOptions {
   accountId?: string;
   /** Defaults to auto; explicit requires accountId and never falls back. */
   accountMode?: "auto" | "explicit";
+  /**
+   * v1.2 capability resolution policy (MCP/Skills Auto/Efficient/Creative).
+   * Distinct from the Workbench 4-grid/9-grid UX mode: it is carried into the
+   * CraftPlan runtime overrides so the Supervisor resolver honors it.
+   */
+  capabilityMode?: "auto" | "efficient" | "creative";
 }
 
 interface ThreadLaunchHostTransport {
@@ -603,18 +609,26 @@ import {
   provenanceStateKey,
 } from "@/shared/crafting";
 
-function selectedCraftingMcpServers(
+/**
+ * MCP candidate snapshot for Crafting launches. Auto/Efficient plans (no
+ * explicit ids) must hand the complete enabled candidate snapshot to the
+ * Supervisor resolver so it can inject compatible servers; Creative/explicit
+ * plans pass only the selected ids, which the Supervisor fails closed on.
+ */
+function craftingMcpLaunchServers(
   plan: CraftPlan,
   projectMcpServers: readonly import("@/shared/contracts").McpServer[] = [],
 ) {
-  const selectedIds = nativeRuntimeExecutionConfigForPlan(plan).mcpServerIds ?? [];
-  if (selectedIds.length === 0) return [];
   const snapshot = resolveMcpLaunchSnapshot(useSharedSettings.getState(), projectMcpServers);
-  const byId = new Map(snapshot.mcpServers.map((server) => [server.id, server]));
-  return selectedIds.flatMap((id) => {
-    const server = byId.get(id);
-    return server ? [server] : [];
-  });
+  const selectedIds = nativeRuntimeExecutionConfigForPlan(plan).mcpServerIds;
+  if (selectedIds && selectedIds.length > 0) {
+    const byId = new Map(snapshot.mcpServers.map((server) => [server.id, server]));
+    return selectedIds.flatMap((id) => {
+      const server = byId.get(id);
+      return server ? [server] : [];
+    });
+  }
+  return [...snapshot.mcpServers];
 }
 
 export async function startThreadFromCraft(
@@ -634,10 +648,18 @@ export async function startThreadFromCraft(
 
   const threadId = planThreadId(craftResult.craftPlan.threadId);
   const projectLocation = resolveProjectLocation(project.location, undefined);
-  const plan = {
+  const plan: CraftPlan = {
     ...craftResult.craftPlan,
     threadId,
     workspace: projectLocation.kind === "wsl" ? projectLocation.linuxPath : projectLocation.path,
+    ...(options.capabilityMode
+      ? {
+          overrides: {
+            ...craftResult.craftPlan.overrides,
+            capabilityMode: options.capabilityMode,
+          },
+        }
+      : {}),
   };
   const agentKind = plan.runtimeBinding.harnessKind;
   const config: ThreadConfig = {
@@ -693,9 +715,7 @@ export async function startThreadFromCraft(
       projectLocation,
       prompt,
       accountMode,
-      ...(nativeRuntimeExecutionConfigForPlan(plan).mcpServerIds?.length
-        ? { mcpServers: selectedCraftingMcpServers(plan, project.mcpServers) }
-        : {}),
+      mcpServers: craftingMcpLaunchServers(plan, project.mcpServers),
       ...(accountMode === "explicit" && accountId ? { accountId } : {}),
     });
     if (craftAgentResult.accountBinding) {
@@ -764,9 +784,7 @@ async function resumeCraftedThread(input: {
     craftPlan: recoveredCraftPlan,
     projectLocation: input.projectLocation,
     sessionRef: providerSessionId,
-    ...(nativeRuntimeExecutionConfigForPlan(recoveredCraftPlan).mcpServerIds?.length
-      ? { mcpServers: selectedCraftingMcpServers(recoveredCraftPlan, projectMcpServers) }
-      : {}),
+    mcpServers: craftingMcpLaunchServers(recoveredCraftPlan, projectMcpServers),
     ...((activeHandoff?.activeAccountBinding?.accountId ?? input.thread.accountBinding?.accountId)
       ? {
           accountId:

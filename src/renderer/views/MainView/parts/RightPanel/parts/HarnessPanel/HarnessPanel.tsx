@@ -18,6 +18,7 @@ import { CraftingGrid } from "@/renderer/components/crafting/CraftingGrid";
 import { Button } from "@/renderer/components/common";
 import { useAppStore } from "@/renderer/state/appStore";
 import { startThreadFromCraft } from "@/renderer/actions/threadLaunchActions";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { getCurrentProjectId } from "@/renderer/actions/currentProject";
 import { resolveProjectLocation } from "@/shared/worktree";
 
@@ -261,7 +262,9 @@ export function HarnessPanel() {
     if (!currentProject) {
       throw new Error(t(msg`No project selected to launch crafted Agent.`));
     }
-    await startThreadFromCraft(currentProject, result, prompt);
+    await startThreadFromCraft(currentProject, result, prompt, {
+      capabilityMode: useCraftingWorkbenchStore.getState().capabilityMode,
+    });
   };
 
   const workspaceLocation = useMemo(

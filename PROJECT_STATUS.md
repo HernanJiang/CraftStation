@@ -19,7 +19,8 @@
 4. `ai_workspace/agent_docs/manager_1.2.0.md` —— 当前 Feature 的 Ideate + Plan（v1.2.0 Unified MCP + Skills Capability Foundation）
 
 当前冻结点：
-- 当前执行 Feature：`v1.2.0 — Unified MCP + Skills Capability Foundation`。worktree `.worktrees/v1.2.0-mcp-skills-capability`，分支 `dev/v1.2.0-mcp-skills-capability`，基线 `main@f5a4bb2`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.2.0.md`。Status：`PLAN READY / EXECUTING`。尚未实现、未验收，不得表述为 PASS。
+
+- 当前执行 Feature：`v1.2.0 — Unified MCP + Skills Capability Foundation`。worktree `.worktrees/v1.2.0-mcp-skills-capability`，分支 `dev/v1.2.0-mcp-skills-capability`，基线 `main@f5a4bb2`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.2.0.md`。Status：`FAIL`。当前 Fix Cycle：`v1.2.0.1`；Fix Owner：`Coder`；Fix Plan：`ai_workspace/agent_docs/debugger_1.2.0.1.md`。不得表述为 PASS。
 - 并行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不要写入该 worktree。
 - 并行 Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`。worktree `.worktrees/v1.1.0-compatibility-bridge`，分支 `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不要写入该 worktree，也不要把 main 上的 v1.1 未提交骨架带进本 Feature。
 
@@ -182,9 +183,8 @@ Model Item + Harness Item
 
 ## Next Step
 
-1. v1.2.0 Coder 只在 `D:\Work\CraftStation\.worktrees\v1.2.0-mcp-skills-capability` / `dev/v1.2.0-mcp-skills-capability` 按 `manager_1.2.0.md` Part II 连续执行 T01–T12；Manager 发布 Plan 后不轮询等待。不得表述为 PASS。
+1. Coder 在 `D:\Work\CraftStation\.worktrees\v1.2.0-mcp-skills-capability` / `dev/v1.2.0-mcp-skills-capability` 执行 `ai_workspace/agent_docs/debugger_1.2.0.1.md` Fix Plan，完成后交回 Debugger 独立复核。
 2. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续剩余 Tickets 和 Feature-level self-check。
 3. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
 4. v1.2.0 Coder 自检后创建一对一 `Debugger-1.2-MCP Skills Capability`（`gpt-5.6-sol / high`）；v0.9 / v0.10 Coder 完成后分别创建一对一 Debugger。Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
 5. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
-

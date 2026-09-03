@@ -1376,9 +1376,12 @@ export class SkillsService {
     }
 
     if (input.mode === "link") {
-      if (input.destinationScope !== "global" || environment.wsl) {
-        throw new Error("Linked imports are available only for host-global skills.");
-      }
+      // v1.2 Managed imports are CraftStation-owned copies; new link creation
+      // is rejected. Links are still honored for pre-existing legacy imports
+      // (their enable/disable moves continue to work).
+      throw new Error(
+        "Linked imports are no longer available; managed skill imports are copied into CraftStation storage.",
+      );
     }
     return {
       input,

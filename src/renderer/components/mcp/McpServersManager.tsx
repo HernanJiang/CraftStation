@@ -666,6 +666,15 @@ function ConfiguredServerRow(props: {
           <span className="truncate text-sm font-medium text-foreground">{server.name}</span>
           <Badge>{props.scopeLabel}</Badge>
           <Badge>{server.transport.type.toUpperCase()}</Badge>
+          {server.origin === "imported" || server.sourceProviderLabel ? (
+            <Badge>
+              {server.sourceProviderLabel
+                ? t`Imported (${server.sourceProviderLabel})`
+                : t`Imported`}
+            </Badge>
+          ) : server.origin === "managed" ? (
+            <Badge>{t`Managed`}</Badge>
+          ) : null}
         </div>
         <p className="truncate font-mono text-xs text-muted">
           {mcpTransportSummary(server.transport)}

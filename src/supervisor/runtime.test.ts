@@ -3161,6 +3161,102 @@ describe("SupervisorRuntime craftAgent", () => {
     );
   });
 
+  it("injects all enabled and compatible MCP servers in Auto mode when no explicit ids are given", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const adapter = routedAdapter("grok");
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+    nativeHarnessFactoryOverrides.set("grok", factory);
+
+    const s1 = {
+      id: "server-one",
+      name: "server_one",
+      description: "s1",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["s1.mjs"], env: {} },
+    };
+    const s2 = {
+      id: "server-two",
+      name: "server_two",
+      description: "s2",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["s2.mjs"], env: {} },
+    };
+    const sDisabled = {
+      id: "server-disabled",
+      name: "server_disabled",
+      description: "sDisabled",
+      enabled: false,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["sd.mjs"], env: {} },
+    };
+    const basePlan = nativeCraftPlan("grok", "xai", "craft-grok-auto-mcp");
+
+    await runtime.craftAgent({
+      craftPlan: {
+        ...basePlan,
+        overrides: { ...basePlan.overrides, capabilityMode: "auto" },
+      },
+      projectLocation: { kind: "windows", path: "C:\repo" },
+      mcpServers: [s1, s2, sDisabled],
+      prompt: "native Auto MCP route",
+    });
+
+    expect(factory).toHaveBeenCalledWith(
+      "grok",
+      expect.objectContaining({
+        mcpServers: [
+          expect.objectContaining({ id: "server-one" }),
+          expect.objectContaining({ id: "server-two" }),
+        ],
+      }),
+    );
+  });
+
+  it("filters MCP servers by HarnessProfile in Efficient mode", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const adapter = routedAdapter("grok");
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+    nativeHarnessFactoryOverrides.set("grok", factory);
+
+    const sBrowser = {
+      id: "browser",
+      name: "browser",
+      description: "browser",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["browser.mjs"], env: {} },
+    };
+    const sOther = {
+      id: "other-mcp",
+      name: "other_mcp",
+      description: "other",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["other.mjs"], env: {} },
+    };
+    const basePlan = nativeCraftPlan("grok", "xai", "craft-grok-efficient-mcp");
+
+    await runtime.craftAgent({
+      craftPlan: {
+        ...basePlan,
+        overrides: { ...basePlan.overrides, capabilityMode: "efficient" },
+      },
+      projectLocation: { kind: "windows", path: "C:\repo" },
+      mcpServers: [sBrowser, sOther],
+      prompt: "native Efficient MCP route",
+    });
+
+    // Grok profile recommends browser, excluding other-mcp
+    expect(factory).toHaveBeenCalledWith(
+      "grok",
+      expect.objectContaining({
+        mcpServers: [expect.objectContaining({ id: "browser" })],
+      }),
+    );
+  });
+
   it("rejects a missing or disabled CraftPlan MCP id before constructing an Entity", async () => {
     const runtime = makeRuntime(() => undefined);
     const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>();
@@ -3263,6 +3359,71 @@ describe("SupervisorRuntime craftAgent", () => {
           }),
         ],
         inlineSkillInstructions: "INLINE_SKILL_INSTRUCTIONS",
+      }),
+    );
+  });
+
+  it("keeps the $ prefix on dollar-invocation skill segments", async () => {
+    const runtime = makeRuntime(() => undefined);
+    const adapter = routedAdapter("grok");
+    const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+    nativeHarnessFactoryOverrides.set("grok", factory);
+    const skillFilePath = "C:\\repo\\.agents\\skills\\agentic-probe\\SKILL.md";
+    vi.spyOn(runtime.skillsService, "prepareForLaunch").mockResolvedValue(undefined);
+    vi.spyOn(runtime.skillsService, "scan").mockResolvedValue({
+      skills: [
+        {
+          id: "agents:project:agentic-probe",
+          name: "agentic-probe",
+          description: "Probe skill",
+          folderName: "agentic-probe",
+          absolutePath: "C:\\repo\\.agents\\skills\\agentic-probe",
+          skillFilePath,
+          rootPath: "C:\\repo\\.agents\\skills",
+          providerId: "agents",
+          providerLabel: "Shared agent skills",
+          scope: "project",
+          scopeLabel: "Project",
+          origin: "external",
+          enabled: true,
+          mutable: false,
+          valid: true,
+          linked: false,
+        },
+      ],
+      effectiveSkillIds: ["agents:project:agentic-probe"],
+      invocation: "dollar",
+      issues: [],
+      canLinkToGlobal: true,
+    });
+    vi.spyOn(runtime.skillsService, "filterPluginSkillSegments").mockImplementation(
+      async (segments) => [...segments],
+    );
+    vi.spyOn(runtime.skillsService, "buildTurnSkillInjection").mockResolvedValue(
+      "INLINE_SKILL_INSTRUCTIONS",
+    );
+    const basePlan = nativeCraftPlan("grok", "xai", "craft-grok-dollar-skill");
+
+    await runtime.craftAgent({
+      craftPlan: {
+        ...basePlan,
+        overrides: { ...basePlan.overrides, skills: ["agents:project:agentic-probe"] },
+      },
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "dollar skill route",
+    });
+
+    expect(factory).toHaveBeenCalledWith(
+      "grok",
+      expect.objectContaining({
+        skillSegments: [
+          expect.objectContaining({
+            kind: "skill",
+            name: "agentic-probe",
+            path: skillFilePath,
+            invocation: "$agentic-probe",
+          }),
+        ],
       }),
     );
   });

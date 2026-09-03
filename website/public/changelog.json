@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.0",
+      "date": "2026-09-03",
+      "title": "Unified MCP and Skills capability management & multi-harness injection",
+      "summary": "CraftStation now acts as the unified management and injection layer for MCP servers and Skills across all supported harnesses, featuring Auto and Efficient capability resolution policies.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Capabilities",
+          "text": "Unified MCP and Skills capability foundation with Auto (enabled + compatible + available) and Efficient (Harness Profile recommended) resolution modes."
+        },
+        {
+          "kind": "added",
+          "label": "MCP & Skills",
+          "text": "Imported external MCP servers and Skills are now tracked with provenance metadata, ensuring CraftStation remains the single source of truth for managed capabilities."
+        },
+        {
+          "kind": "improved",
+          "label": "Harness Injection",
+          "text": "Launch-time capability injection automatically filters MCP transports and skills based on harness runtime compatibility and environment support."
+        }
+      ]
+    },
+    {
       "version": "1.6.5",
       "date": "2026-08-18",
       "title": "Windows shell preferences, sturdier ACP agents & smarter PR targets",

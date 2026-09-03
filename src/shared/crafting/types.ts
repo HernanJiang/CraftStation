@@ -106,8 +106,12 @@ export type ServiceTier = z.infer<typeof serviceTierSchema>;
 export const approvalPolicySchema = z.enum(["always", "auto", "never", "on-demand"]);
 export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
 
+export const capabilityModeSchema = z.enum(["auto", "efficient", "creative"]);
+export type CapabilityMode = z.infer<typeof capabilityModeSchema>;
+
 export const runtimeOverridesSchema = z.object({
   model: z.string().optional(),
+  capabilityMode: capabilityModeSchema.optional(),
   reasoningEffort: reasoningEffortSchema.optional(),
   serviceTier: serviceTierSchema.optional(),
   approvalPolicy: approvalPolicySchema.optional(),

@@ -329,6 +329,61 @@ describe("startThreadFromDraft host transport", () => {
     );
   });
 
+  it("passes the full candidate MCP snapshot on a no-ID Auto launch", async () => {
+    const enabledServer = {
+      id: "craft-probe",
+      name: "craft-probe",
+      description: "enabled candidate",
+      enabled: true,
+      timeoutMs: 30_000,
+      transport: { type: "stdio" as const, command: "node", args: ["probe.mjs"], env: {} },
+    };
+    const secondServer = {
+      ...enabledServer,
+      id: "second-probe",
+      name: "second-probe",
+      description: "second enabled candidate",
+    };
+    const disabledServer = { ...enabledServer, id: "off-probe", name: "off-probe", enabled: false };
+    const project = {
+      ...localProject,
+      mcpServers: [enabledServer, secondServer, disabledServer],
+    };
+    const craftResult = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+      { workspace: "C:\\repo", threadId: "craft-thread-auto-mcp" },
+    );
+
+    await startThreadFromCraft(project, craftResult, "auto-inject capabilities");
+
+    expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // Auto resolution must see every enabled candidate so the Supervisor
+        // resolver can inject compatible MCP servers; disabled ones stay home.
+        mcpServers: [enabledServer, secondServer],
+      }),
+    );
+  });
+
+  it("carries the selected capability mode into the CraftPlan runtime overrides", async () => {
+    const craftResult = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+      { workspace: "C:\\repo", threadId: "craft-thread-mode" },
+    );
+
+    await startThreadFromCraft(localProject, craftResult, "efficient mode launch", {
+      capabilityMode: "efficient",
+    });
+
+    expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        craftPlan: expect.objectContaining({
+          overrides: expect.objectContaining({ capabilityMode: "efficient" }),
+        }),
+      }),
+    );
+  });
+
   it("passes an account-row choice as an explicit one-shot launch override", async () => {
     useUsageAccountsStore.getState().setNextSessionAccount("grok:account-a");
     const craftResult = new Crafter().compile(
