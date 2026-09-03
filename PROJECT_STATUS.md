@@ -20,7 +20,7 @@
 
 当前冻结点：
 
-- 当前执行 Feature：`v1.2.0 — Unified MCP + Skills Capability Foundation`。worktree `.worktrees/v1.2.0-mcp-skills-capability`，分支 `dev/v1.2.0-mcp-skills-capability`，基线 `main@f5a4bb2`。Manager Plan：该 worktree 的 `ai_workspace/agent_docs/manager_1.2.0.md`。Status：`FAIL`。当前 Fix Cycle：`v1.2.0.1`；Fix Owner：`Coder`；Fix Plan：`ai_workspace/agent_docs/debugger_1.2.0.1.md`。不得表述为 PASS。
+- 当前执行 Feature：`v1.2.0 — Unified MCP + Skills Capability Foundation`。worktree `.worktrees/v1.2.0-mcp-skills-capability`，分支 `dev/v1.2.0-mcp-skills-capability`，基线 `main@f5a4bb2`。Status：**`v1.2.0 RE-REVIEW PASS (DEV)` + `v1.3.0 Computer Use 真实 GUI 验收 PASS`**。v1.2.0 候选 `de052d3`（F1–F8 全关，真实应用 smoke PASS，`debugger_1.2.0.2.md`）；v1.3 续体（`3bd4228`）：`windowsRealGui.e2e.test.ts`（`CRAFTSTATION_CU_E2E=1` 门控）以真实 Windows 驱动完成 13+ 项真实桌面操作全部通过（真实启动 Store Notepad、真实截图、真实 SendInput 焦点/点击/键入/滚动/拖拽），并修复裸名 `notepad` 启动缺陷；Capability 链现状 = Registry（built-in MCP `computer-use` + 插件清单 builtInMcpServerIds）→ spawnPipeline 每线程注入 loopback HTTP MCP（AgentAdapter 腿）；Resolver 层 built-in 感知为下一接线项。
 - 并行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不要写入该 worktree。
 - 并行 Feature：`v1.1.0 — Compatibility Bridge & Model × Harness Composition`。worktree `.worktrees/v1.1.0-compatibility-bridge`，分支 `dev/v1.1.0-compatibility-bridge`，基线 `main@f5a4bb2`。Status：`PLAN READY / EXECUTING`。不要写入该 worktree，也不要把 main 上的 v1.1 未提交骨架带进本 Feature。
 
