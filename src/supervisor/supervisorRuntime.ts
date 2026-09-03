@@ -71,7 +71,11 @@ import {
   type ResolveCompatibilityResult,
 } from "@/shared/crafting/compatibility";
 import { nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
-import { AccountControlError } from "@/shared/contracts";
+import {
+  AccountControlError,
+  BUILT_IN_MCP_SERVER_NAMES,
+  DEFAULT_MCP_SERVER_TIMEOUT_MS,
+} from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
 import type {
   CraftAgentPayload,
@@ -143,7 +147,11 @@ import { resolveWslHostAccess } from "./wsl/hostAccess";
 import { McpOAuthService } from "./mcp/McpOAuthService";
 import { McpProbeService } from "./mcp/McpProbeService";
 import { prepareMcpToolFilters } from "./mcp/McpToolFilterService";
-import { resolveCapabilities } from "./capabilities/capabilityResolver";
+import { resolveCapabilities, type BuiltInMcpCandidate } from "./capabilities/capabilityResolver";
+import {
+  readComputerUseMcpEnv,
+  resolveComputerUseMcpHttpConfig,
+} from "@/supervisor/agents/computerUseMcp";
 import { ExternalMcpDiscoveryService } from "./mcp/ExternalMcpDiscoveryService";
 import { SkillsService } from "./skills/SkillsService";
 import { dropSkillSegmentsOnPolicyFailure } from "./skills/pluginSkillPolicy";
@@ -1915,6 +1923,7 @@ export class SupervisorRuntime {
       candidateMcpServers: candidates,
       runtimeSupport,
       explicitMcpServerIds: explicitIds,
+      builtInMcpCandidates: this.builtInMcpCandidates(projectLocation),
     });
 
     if (mode === "creative" && explicitIds && explicitIds.length > 0) {
@@ -1930,12 +1939,64 @@ export class SupervisorRuntime {
       }
     }
 
-    if (resolution.mcpServers.length === 0) return undefined;
+    if (resolution.mcpServers.length === 0 && resolution.builtInMcpServerIds.length === 0) {
+      return undefined;
+    }
 
     let selected = resolution.mcpServers;
     selected = await this.mcpOAuthService.applyAuthorization(selected);
     selected = await prepareMcpToolFilters(selected, projectLocation);
-    return selected.map(({ description: _description, enabled: _enabled, ...server }) => server);
+
+    // Capability-resolved built-ins (currently computer-use) join the same
+    // injected MCP list: the AgentAdapter receives one merged, secret-free set.
+    const builtInServers: ResolvedMcpServer[] = [];
+    for (const builtInId of resolution.builtInMcpServerIds) {
+      if (builtInId !== "computer-use") continue;
+      const httpConfig = resolveComputerUseMcpHttpConfig(
+        projectLocation,
+        plan.threadId ? { threadId: plan.threadId } : undefined,
+      );
+      if (!httpConfig) continue;
+      builtInServers.push({
+        id: "computer-use",
+        name: BUILT_IN_MCP_SERVER_NAMES["computer-use"],
+        timeoutMs: DEFAULT_MCP_SERVER_TIMEOUT_MS,
+        transport: { type: "http", url: httpConfig.url, headers: httpConfig.headers },
+      });
+    }
+    const merged: ResolvedMcpServer[] = [
+      ...selected.map(({ description: _description, enabled: _enabled, ...server }) => server),
+      ...builtInServers,
+    ];
+    if (merged.length === 0) return undefined;
+    return merged;
+  }
+
+  /**
+   * Built-in MCP candidates for capability resolution. Availability is honest:
+   * computer-use requires a supported host platform, a configured launch
+   * endpoint, and a project location that can reach the loopback ingress.
+   */
+  private builtInMcpCandidates(projectLocation: ProjectLocation): BuiltInMcpCandidate[] {
+    const hostPlatformOk = process.platform === "win32" || process.platform === "darwin";
+    const endpointConfigured = readComputerUseMcpEnv() !== null;
+    const isWsl = projectLocation.kind === "wsl";
+    const available = hostPlatformOk && endpointConfigured && !isWsl;
+    const unavailableReason = !hostPlatformOk
+      ? `computer-use is unsupported on ${process.platform}.`
+      : isWsl
+        ? "computer-use cannot reach the host loopback ingress from a WSL project."
+        : endpointConfigured
+          ? undefined
+          : "computer-use MCP launch endpoint is not configured.";
+    return [
+      {
+        id: "computer-use",
+        name: "computer_use",
+        available,
+        ...(unavailableReason ? { unavailableReason } : {}),
+      },
+    ];
   }
 
   private async resolveCraftingSkills(

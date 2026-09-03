@@ -197,4 +197,40 @@ describe("CapabilityResolver", () => {
 
     expect(result.mcpServers.map((s) => s.id)).toEqual(["browser"]);
   });
+
+  it("resolves available built-in MCPs in Auto mode and skips unavailable ones with reasons", async () => {
+    const result = await resolveCapabilities({
+      harnessKind: "codex",
+      mode: "auto",
+      builtInMcpCandidates: [
+        { id: "computer-use", name: "computer_use", available: true },
+        {
+          id: "browser",
+          name: "browser",
+          available: false,
+          unavailableReason: "launch endpoint is not configured.",
+        },
+      ],
+    });
+
+    expect(result.builtInMcpServerIds).toEqual(["computer-use"]);
+    const skipped = result.diagnostics.skipped.find((d) => d.id === "browser");
+    expect(skipped?.reason).toBe("not-available");
+    expect(skipped?.details).toContain("not configured");
+  });
+
+  it("honours the Efficient harness profile when resolving built-in MCPs", async () => {
+    const customMcp = createServer("extra-mcp", "extra-mcp");
+    const result = await resolveCapabilities({
+      harnessKind: "grok",
+      mode: "efficient",
+      builtInMcpCandidates: [{ id: "computer-use", name: "computer_use", available: true }],
+      candidateMcpServers: [mcpBrowser, customMcp],
+    });
+
+    // Built-ins follow the same Auto/Efficient policy; the grok profile has no
+    // computer-use exclusion, so the available built-in is resolved.
+    expect(result.builtInMcpServerIds).toEqual(["computer-use"]);
+    expect(result.diagnostics.skipped.find((d) => d.id === "computer-use")).toBeUndefined();
+  });
 });

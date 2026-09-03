@@ -22,6 +22,17 @@ export interface CapabilityResolutionInput {
   runtimeSupport?: McpRuntimeSupport | undefined;
   explicitMcpServerIds?: readonly string[] | undefined;
   explicitSkillIds?: readonly string[] | undefined;
+  /** Platform built-in MCPs (e.g. computer-use) resolved through the same capability policy. */
+  builtInMcpCandidates?: readonly BuiltInMcpCandidate[] | undefined;
+}
+
+export interface BuiltInMcpCandidate {
+  /** Built-in MCP server id (e.g. "computer-use"). */
+  id: string;
+  name: string;
+  /** Whether the built-in can serve this launch (platform support, endpoint configured, project location). */
+  available: boolean;
+  unavailableReason?: string | undefined;
 }
 
 export interface CapabilityDiagnosticItem {
@@ -36,6 +47,8 @@ export interface ResolvedCapabilities {
   mode: CapabilityMode;
   mcpServers: McpServer[];
   skills: SkillEntry[];
+  /** Built-in MCP ids the policy resolved for this launch (e.g. "computer-use"). */
+  builtInMcpServerIds: string[];
   diagnostics: {
     skipped: CapabilityDiagnosticItem[];
   };
@@ -181,6 +194,37 @@ export async function resolveCapabilities(
     resolvedMcpServers.push(server);
   }
 
+  // --- 1b. Built-in MCP resolution (same capability policy as custom servers).
+  // Built-ins never enter the fail-closed Creative explicit-id validation; they
+  // follow Auto/Efficient availability + profile policy and carry honest
+  // not-available diagnostics when the platform/endpoint cannot serve them.
+  const builtInMcpServerIds: string[] = [];
+  for (const candidate of input.builtInMcpCandidates ?? []) {
+    const profileExcluded =
+      mode === "efficient" && profile?.excludedMcpServerIds?.includes(candidate.id);
+    if (!candidate.available) {
+      skipped.push({
+        id: candidate.id,
+        name: candidate.name,
+        kind: "mcp",
+        reason: "not-available",
+        ...(candidate.unavailableReason ? { details: candidate.unavailableReason } : {}),
+      });
+      continue;
+    }
+    if (profileExcluded) {
+      skipped.push({
+        id: candidate.id,
+        name: candidate.name,
+        kind: "mcp",
+        reason: "excluded-by-profile",
+        details: `Excluded by profile for ${harnessKind}`,
+      });
+      continue;
+    }
+    builtInMcpServerIds.push(candidate.id);
+  }
+
   // --- 2. Skills Resolution ---
   const allSkills = input.availableSkills ?? [];
   let candidateSkills: SkillEntry[] = [];
@@ -255,6 +299,7 @@ export async function resolveCapabilities(
     mode,
     mcpServers: resolvedMcpServers,
     skills: candidateSkills,
+    builtInMcpServerIds,
     diagnostics: {
       skipped,
     },
