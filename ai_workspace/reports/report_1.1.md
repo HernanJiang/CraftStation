@@ -1,57 +1,33 @@
-# v1.1.0 Compatibility Bridge & Model × Harness Composition — Debugger Report
+# v1.1.0 Compatibility Bridge & Model × Harness Composition — Feature Report
 
-## Scope and verdict
+- Candidate：`dd0d0e1`（v1.1.3）/ 分支 `dev/v1.1.0-compatibility-bridge` / 基线 `main@f5a4bb2`
+- Verdict：**PASS (DEV)** — Debugger Re-review（`ai_workspace/agent_docs/debugger_1.1.3.md`）
+- 日期：2026-09-04
+- 历史：初版 T01–T13 + Fix v1.1.1/v1.1.2 + takeover 加固（`fde6c87`）曾判 FAIL/BLOCKED（`debugger_1.1.2.md`、原 `report_1.1.md`）；经 `manager_1.1.0-replan.md` 重受理后由 v1.1.3 以真实运行证据关闭全部阻塞。本报告取代原 FAIL 结论。
 
-Feature worktree: `D:\Work\CraftStation\.worktrees\v1.1.0-compatibility-bridge`  
-Branch: `dev/v1.1.0-compatibility-bridge`  
-Baseline: `f5a4bb276b22e664e7691e67b486e2b1252e5d9a`
+## 交付范围
 
-Verdict: **FAIL / BLOCKED**
+- CompatibilityBridgeService：真实 CLIProxyAPI sidecar 生命周期（官方 release v7.2.149，`.tools/` 本地工具不提交）、`/healthz` 鉴权 readiness、配置文件契约（host/port/auth-dir/api-keys/proxy-url，Windows 正斜杠修正）、pinAccount 账号 credential namespace 绑定。
+- 独立 CompatibilityRuntimeAdapter + CompatibilitySession：模型契约轮询验证（fail-closed `RUNTIME_UNAVAILABLE`）、隔离 OpenCode provider 配置导出、官方 `opencode run --format json` 无头 Agent Loop、sessionID→native sessionRef、`-s` resume、stdin-ignore/cwd 隔离。
+- supervisor 兼容围栏：兼容计划在 native adapter 选择前分流到兼容工厂；native Codex 路径零改动（baseline guard 架构断言）。
+- executionRoute fail-closed、CompatibilityBridgeRecipe、五 Harness exporter（真实消费按 re-plan 范围以 OpenCode tracer 成立，其余为 DTO）。
 
-The Debugger Takeover hardened fail-closed behavior and prevented Compatibility configuration from being silently consumed by native adapters. This is a safety improvement, not Feature completion. The required real CPA and official Target Harness execution chain remains unproven.
+## 真实运行证据
 
-## Evidence summary
+| 项                          | 结果                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| sidecar 启动/配置/健康/关闭 | PASS（`/healthz` 200、模型目录 26 个、优雅退出）                             |
+| 自动化 tracer E2E           | PASS：断言真实回包含 `CRAFTSTATION_E2E_OK`、`ses_*` sessionRef               |
+| 会话连续性                  | PASS：turn1 暗号 `BANANA42` → resumeSession → turn2 真实模型答出暗号         |
+| 手动交叉                    | curl→CPA→grok-4.3 `CRAFTSTATION_BRIDGE_OK`；OpenCode→CPA `OPCODE_VIA_CPA_OK` |
+| 真实上游错误路径            | ChatGPT 账号 `usage_limit_reached`（真实上游响应,plus 额度门）               |
 
-| Area                                       | Result                                                       |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| Focused Compatibility/crafting/Codex tests | 5 files, 158 passed                                          |
-| Typecheck                                  | Passed, 0 errors                                             |
-| Affected lint                              | Passed with `--deny-warnings`                                |
-| Affected format                            | Passed                                                       |
-| Diff check                                 | Passed                                                       |
-| Production build                           | Passed with existing warnings                                |
-| Full Vitest                                | 918 files passed, 16 skipped; 2 existing ACP stress failures |
-| Real CPA binary/config/readiness           | Not demonstrated                                             |
-| Independent Compatibility adapter          | Missing; guarded as unavailable                              |
-| Official target Harness consumption        | Not demonstrated                                             |
-| Real Compatibility Agent Loop              | Not demonstrated                                             |
-| Account namespace/session stickiness       | Not demonstrated                                             |
+## 自动化验证
 
-## Takeover result
+- typecheck PASS；lint 0/0；compat 套件 12/12；crafting/runtime 回归 176/176；全量 vitest exit 0（10188 测试）。
 
-The implementation now:
+## 边界
 
-- rejects unknown compatibility readiness instead of defaulting to ready;
-- requires explicit OpenCode route readiness;
-- rejects unknown model identity instead of using the Harness vendor as a substitute;
-- reports missing CPA binary and invalid health responses as unavailable;
-- waits for Bridge child exit and avoids fake exporter credentials;
-- refuses to instantiate a native adapter for a Compatibility plan;
-- disables Workbench Craft/Save for unverified Compatibility state.
-
-The code does not claim that any of these changes establish CPA or target Harness functionality.
-
-## Open blockers
-
-1. CPA packaging/discovery and the actual binary/config contract are not proven on this machine.
-2. No separate Compatibility Runtime Adapter performs a bridge-shaped request/response exchange.
-3. Exporters are static DTOs without verified official runtime consumption; OpenCode is not proven end to end.
-4. Compatibility Recipe/CraftPlan does not yet carry runtime-produced endpoint, exporter verification, capability proof, and concrete session-scoped account binding.
-5. Account pinning is in-memory and not mapped/proven against CPA credential namespaces; resume and cleanup isolation are unverified.
-6. No real Model → Harness Agent Loop response exists for any cross pairing.
-
-## Acceptance boundary
-
-This Feature must remain `FAIL / BLOCKED` until at least one supported cross pairing completes a real or explicitly fixture-scoped bridge-shaped HTTP Agent Loop through an independent Compatibility adapter, with route/protocol/account diagnostics and secret-free session persistence. Native pairings must continue to bypass CPA, and unsupported/unavailable target Harnesses must remain visibly unavailable.
-
-No user acceptance package, merge, tag, or push is authorized from this report.
+- fixture 凭据（xai OAuth）用于 tracer；正式发布需用户在 UI 完成真实 provider 登录。
+- 其余四 Harness（Codex/Kimi/Grok/Antigravity）的 Compatibility 消费为 `implementation available`（DTO exporter），不冒充 PASS。
+- merge `main` / tag / push 需用户明确授权。
