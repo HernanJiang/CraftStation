@@ -15,10 +15,19 @@ import { managedKimiProcessEnvironment } from "./kimiProfiles";
 import { grokAuthContainer } from "./grokCredentials";
 import { parseCodexAuth } from "./codexCredentials";
 
+/** Supervisor-only launch description. Never place this object in an IPC,
+ * session, renderer or persistence contract. */
+export type NativeProfileLaunchSpec = NativeProfileSpec & {
+  /** Supervisor-only managed filesystem root. */
+  profilePath: string;
+  env: Record<string, string>;
+  runtimeIsolation?: { ipcPath?: string; socketPath?: string };
+};
+
 export function prepareGrokProfile(
   account: { accountId: string; credentialRoot: string; credentialScopeRef?: string },
   baseEnv?: Record<string, string | undefined>,
-): NativeProfileSpec {
+): NativeProfileLaunchSpec {
   const profilePath = account.credentialRoot;
   const leaderSocket = join(profilePath, "leader.sock");
   const env = managedGrokProcessEnvironment(profilePath, baseEnv);
@@ -38,7 +47,7 @@ export function prepareGrokProfile(
 export function prepareCodexProfile(
   account: { accountId: string; credentialRoot: string; credentialScopeRef?: string },
   baseEnv?: Record<string, string | undefined>,
-): NativeProfileSpec {
+): NativeProfileLaunchSpec {
   const profilePath = account.credentialRoot;
   const env = managedCodexProcessEnvironment(profilePath, baseEnv);
   return {
@@ -53,7 +62,7 @@ export function prepareCodexProfile(
 export function prepareKimiProfile(
   account: { accountId: string; credentialRoot: string; credentialScopeRef?: string },
   baseEnv?: Record<string, string | undefined>,
-): NativeProfileSpec {
+): NativeProfileLaunchSpec {
   const profilePath = account.credentialRoot;
   const env = managedKimiProcessEnvironment(profilePath, baseEnv);
   return {
@@ -69,7 +78,7 @@ export function prepareNativeProfile(
   provider: string,
   account: { accountId: string; credentialRoot: string; credentialScopeRef?: string },
   baseEnv?: Record<string, string | undefined>,
-): NativeProfileSpec {
+): NativeProfileLaunchSpec {
   switch (provider) {
     case "grok":
       return prepareGrokProfile(account, baseEnv);
@@ -82,15 +91,17 @@ export function prepareNativeProfile(
         providerId: provider,
         accountId: account.accountId,
         profilePath: account.credentialRoot,
-        env: {},
         ...(account.credentialScopeRef ? { credentialScope: account.credentialScopeRef } : {}),
+        env: {},
       };
   }
 }
 
 /**
  * Verify that the runtime profile contains credentials matching the expected account.
- * Throws PROFILE_IDENTITY_MISMATCH if the profile belongs to a different identity.
+ * A different identity throws PROFILE_IDENTITY_MISMATCH; missing, malformed, or
+ * otherwise unverifiable credentials throw ACCOUNT_IDENTITY_UNAVAILABLE. Both
+ * outcomes must be handled before Entity/Session creation.
  */
 export function verifyProfileIdentity(
   provider: string,
@@ -103,60 +114,118 @@ export function verifyProfileIdentity(
 ): void {
   if (provider === "grok") {
     const authPath = join(profilePath, "auth.json");
-    if (!existsSync(authPath)) return;
+    if (!existsSync(authPath)) {
+      throw identityUnavailable(provider, expectedAccount, "credential file is missing");
+    }
     try {
       const raw = readFileSync(authPath, "utf8");
       const json = JSON.parse(raw);
       const container = grokAuthContainer(json);
-      const target =
-        container?.container ?? (typeof json === "object" && json !== null ? json : undefined);
-      if (!target) return;
+      const target = container?.container;
+      if (!target) throw identityUnavailable(provider, expectedAccount, "credential is malformed");
       const parsed = grokAccountIdentityFromContainer(target);
-      if (!parsed) return;
-      const expected = expectedAccount.providerAccountId || expectedAccount.maskedIdentity;
-      if (
-        expected &&
-        parsed.providerAccountId &&
-        parsed.providerAccountId !== expected &&
-        parsed.maskedIdentity !== expected
-      ) {
-        throw new AccountControlError(
-          "PROFILE_IDENTITY_MISMATCH",
-          `Grok profile identity mismatch: expected '${expected}', got '${parsed.providerAccountId}' in profile.`,
-          {
-            accountId: expectedAccount.accountId,
-            expected,
-            actual: parsed.providerAccountId,
-            profilePath,
-          },
-        );
-      }
+      if (!parsed)
+        throw identityUnavailable(provider, expectedAccount, "native identity is absent");
+      assertIdentityMatch(provider, expectedAccount, [
+        parsed.providerAccountId,
+        parsed.maskedIdentity,
+      ]);
     } catch (err) {
       if (err instanceof AccountControlError) throw err;
+      throw identityUnavailable(provider, expectedAccount, "credential could not be read");
     }
   } else if (provider === "codex") {
     const authPath = join(profilePath, "auth.json");
-    if (!existsSync(authPath)) return;
+    if (!existsSync(authPath)) {
+      throw identityUnavailable(provider, expectedAccount, "credential file is missing");
+    }
     try {
       const raw = readFileSync(authPath, "utf8");
       const token = parseCodexAuth(raw);
-      if (!token) return;
-      const expected = expectedAccount.providerAccountId || expectedAccount.maskedIdentity;
-      const actual = token.accountId || token.email;
-      if (expected && actual && actual !== expected && token.email !== expected) {
-        throw new AccountControlError(
-          "PROFILE_IDENTITY_MISMATCH",
-          `Codex profile identity mismatch: expected '${expected}', got '${actual}' in profile.`,
-          {
-            accountId: expectedAccount.accountId,
-            expected,
-            actual,
-            profilePath,
-          },
-        );
-      }
+      if (!token) throw identityUnavailable(provider, expectedAccount, "credential is malformed");
+      assertIdentityMatch(provider, expectedAccount, [token.accountId, token.email]);
     } catch (err) {
       if (err instanceof AccountControlError) throw err;
+      throw identityUnavailable(provider, expectedAccount, "credential could not be read");
+    }
+  } else if (provider === "kimi") {
+    const credentialPath = join(profilePath, "credentials", "kimi-code.json");
+    if (!existsSync(credentialPath)) {
+      throw identityUnavailable(provider, expectedAccount, "credential file is missing");
+    }
+    try {
+      const parsed = JSON.parse(readFileSync(credentialPath, "utf8")) as unknown;
+      const identities = collectIdentityValues(parsed);
+      if (identities.length === 0) {
+        throw identityUnavailable(provider, expectedAccount, "native identity is absent");
+      }
+      assertIdentityMatch(provider, expectedAccount, identities);
+    } catch (err) {
+      if (err instanceof AccountControlError) throw err;
+      throw identityUnavailable(provider, expectedAccount, "credential could not be read");
     }
   }
+}
+
+function identityUnavailable(
+  provider: string,
+  expected: { accountId: string },
+  reason: string,
+): AccountControlError {
+  return new AccountControlError(
+    "ACCOUNT_IDENTITY_UNAVAILABLE",
+    `${provider} native identity unavailable: ${reason}.`,
+    { accountId: expected.accountId, provider, reason },
+  );
+}
+
+function assertIdentityMatch(
+  provider: string,
+  expectedAccount: {
+    accountId: string;
+    providerAccountId?: string | undefined;
+    maskedIdentity?: string | undefined;
+  },
+  actualValues: readonly (string | undefined)[],
+): void {
+  const expected =
+    expectedAccount.providerAccountId?.trim() || expectedAccount.maskedIdentity?.trim();
+  const actual = actualValues.find((value) => value?.trim())?.trim();
+  if (!expected || !actual) {
+    throw identityUnavailable(provider, expectedAccount, "selected or native identity is absent");
+  }
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    throw new AccountControlError(
+      "PROFILE_IDENTITY_MISMATCH",
+      `${provider} profile identity mismatch or unavailable.`,
+      {
+        accountId: expectedAccount.accountId,
+        provider,
+        expected,
+        actual,
+      },
+    );
+  }
+}
+
+function collectIdentityValues(value: unknown, depth = 0): string[] {
+  if (depth > 4 || !value || typeof value !== "object" || Array.isArray(value)) return [];
+  const record = value as Record<string, unknown>;
+  const values: string[] = [];
+  for (const key of [
+    "email",
+    "user_email",
+    "userId",
+    "user_id",
+    "accountId",
+    "account_id",
+    "subject",
+    "sub",
+  ]) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) values.push(candidate.trim());
+  }
+  for (const child of Object.values(record))
+    values.push(...collectIdentityValues(child, depth + 1));
+  return [...new Set(values)];
 }

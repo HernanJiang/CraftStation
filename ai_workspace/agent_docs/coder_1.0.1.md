@@ -2,9 +2,9 @@
 
 ## Verdict
 
-`T01–T08 IMPLEMENTED / FEATURE SELF-CHECK COMPLETE / READY FOR DEBUGGER`
+`T01–T08 IMPLEMENTED / FEATURE SELF-CHECK COMPLETE / READY FOR DEBUGGER RE-REVIEW`
 
-本交付完成了 CraftStation 官方 Native CLI Multi-Account Profile Runtime 的隔离修复，移植并复用了 `switch-acc-ai` 与 `subswap` 已验证的 Profile / Leader / Credential 隔离机制，彻底修复了“UI 选择了账号 B，但 Native CLI / Harness 实际仍运行为账号 A”的根本缺陷。
+本交付完成了源码与自动化验证范围内的隔离修复，移植并复用了 `switch-acc-ai` 与 `subswap` 已验证的 Profile / Leader / Credential 隔离机制。真实官方 Codex/Kimi runtime receipt 尚未取得，因此本报告不把 Feature 标为最终 PASS。
 
 ## Worktree Guard
 
@@ -47,7 +47,7 @@ _注：架构仍由 CraftStation Supervisor 直接启动官方 CLI 二进制，�
 ### T01 — Audit 当前 CraftStation profile/runtime
 
 - 沿真实链路追踪 Account Pool → Resolver → Session → Entity → Adapter → Supervisor spawn → official CLI。
-- 产出审计报告：`ai_workspace/reports/v1.0.1_t01_profile_runtime_audit.md`，确立了 DONE/FIX/MISSING 矩阵与根因。
+- 完成 Account Resolver → Supervisor → Native Adapter → official runtime 的源码审计，确立 DONE/FIX/MISSING 矩阵与根因。
 
 ### T02 — Clone / 阅读 switch-acc-ai
 
@@ -84,34 +84,42 @@ _注：架构仍由 CraftStation Supervisor 直接启动官方 CLI 二进制，�
 - `supervisorRuntime.ts` 将 `kimi` 纳入 managed provider 调度与环境注入。
 - `nativeHarness/index.ts` 确保 Kimi adapter 正确接收 `baseSpawnEnv`。
 
-### T08 — Session Sticky & Full Matrix Verification
+### T08 — Session Sticky & Verification
 
 - `accountBinding` 在 session 创建时仅执行一次并持久化绑定，后续 turn / steer / interrupt 保持 sticky。
-- 测试套件全量通过（705 tests passed across `src/supervisor/runtime/`）。
-- `pnpm typecheck` 与 `pnpm lint` 零警告零错误。
+- Session binding 在创建时固定，后续 turn / steer / interrupt 保持 sticky。
+- 受影响 focused tests、`pnpm typecheck` 与 `pnpm lint` 已通过；完整 Supervisor 回归与真实 provider runtime 仍按下方证据状态记录。
 
 ---
 
 ## 4. Verification Matrix
 
-| Provider  | Global CLI Account | CraftStation Selected Account | Native Reported Identity / Socket                 | Verification Status |
-| --------- | ------------------ | ----------------------------- | ------------------------------------------------- | ------------------- |
-| **Grok**  | Account A          | Account A                     | Identity=A, LeaderSocket=A/leader.sock            | PASS                |
-| **Grok**  | Account A          | Account B                     | Identity=B, LeaderSocket=B/leader.sock (Isolated) | PASS                |
-| **Grok**  | Account B          | Account A                     | Identity=A, LeaderSocket=A/leader.sock (Isolated) | PASS                |
-| **Codex** | Account A          | Account B (managed)           | File Credential Store, Identity=B                 | PASS                |
-| **Kimi**  | Account A          | Account B (managed)           | KIMI_CODE_HOME=B (Isolated)                       | PASS                |
+| Provider  | Global CLI Account | CraftStation Selected Account | Native Reported Identity / Socket                                 | Verification Status                               |
+| --------- | ------------------ | ----------------------------- | ----------------------------------------------------------------- | ------------------------------------------------- |
+| **Grok**  | Account A          | Account A                     | Identity=A, LeaderSocket=A/leader.sock                            | PASS                                              |
+| **Grok**  | Account A          | Account B                     | Identity=B, LeaderSocket=B/leader.sock (Isolated)                 | PASS                                              |
+| **Grok**  | Account B          | Account A                     | Identity=A, LeaderSocket=A/leader.sock (Isolated)                 | PASS                                              |
+| **Codex** | Account A          | Account B (managed)           | 可注入 app-server gate：matching / mismatch / missing / RPC error | VERIFIED (mock transport only)                    |
+| **Kimi**  | Account A          | Account B (managed)           | account-scoped `KIMI_CODE_HOME` 与 identity-gated promotion       | VERIFIED (local service/control-plane tests only) |
 
 ---
 
-## 5. Next Steps for Debugger
+## 5. Verification Evidence and Limits
 
-请 Debugger (`Debugger-1.0-Native Profile Runtime`，模型 `gpt-5.6-sol` / `high`) 对本 Feature worktree (`D:\Work\CraftStation\.worktrees\v1.0.1-native-profile-runtime`) 进行独立验收：
+已验证：
 
-1. 验证 Grok `GROK_LEADER_SOCKET` 与 `GROK_HOME` 在并发与重启下的真实隔离。
-2. 验证 Codex `config.toml` 的 file credential store 配置与 Keychain 防护。
-3. 验证 Kimi `KIMI_CODE_HOME` 隔离。
-4. 验证 `PROFILE_IDENTITY_MISMATCH` 的 fail-closed 安全门禁。
+- Grok `GROK_LEADER_SOCKET` / `GROK_HOME` 的既有真实双账号证据仍保留在 Debugger review。
+- Codex app-server gate 的可注入 transport negative/positive tests 通过；shared binding secret sentinel boundary 通过。
+- Grok/Codex/Kimi verifier 的 missing、malformed、identity unavailable、mismatch 语义，以及 Kimi create/import/login/complete service 测试通过。
+- `pnpm typecheck`、`pnpm lint`、focused test matrix 通过。
+
+尚未验证或受限：
+
+- 当前没有本机真实 managed Codex `account/read` + `account/rateLimits/read` receipt；Codex native Feature acceptance 为 `UNVERIFIED`。
+- 当前没有本机真实 managed Kimi ACP/native reply receipt；Kimi native Feature acceptance 为 `UNVERIFIED`。
+- 没有使用 mock、环境变量字符串或测试数量宣称 Codex/Kimi native PASS。
+
+请 Debugger (`Debugger-1.0-Native Profile Runtime`，模型 `gpt-5.6-sol` / `high`) 对本 Feature worktree 独立验收；真实 provider receipt 缺失时应保持 `UNVERIFIED/BLOCKED`，不要生成 `ai_workspace/reports/report_1.0.md`。
 
 ---
 

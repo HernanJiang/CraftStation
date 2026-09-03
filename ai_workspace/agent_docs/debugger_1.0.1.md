@@ -2,13 +2,13 @@
 
 > Review date：2026-09-03  
 > Manager Plan：`c082652` / `ai_workspace/agent_docs/manager_1.0.1.md`  
-> Coder delivery：`cc7b5df` / `ai_workspace/agent_docs/coder_1.0.1.md`  
+> Coder delivery：`2b43241` / `ai_workspace/agent_docs/coder_1.0.1.md`
 > Worktree：`D:\Work\CraftStation\.worktrees\v1.0.1-native-profile-runtime`  
 > Branch：`dev/v1.0.1-native-profile-runtime`  
 > Fix owner：Coder  
 > Requires Manager Re-plan：**No**  
 > Requires Ideate Revision：**No**  
-> Verdict：**FAIL — Coder Fix #1 required**
+> Verdict（Re-review pending）：**Coder Fix #2 implementation delivered; independent Debugger verdict not yet issued**
 
 ## Review Scope
 
@@ -257,3 +257,90 @@ safe binding/runtime spec split
 `FAIL / FIX #1`
 
 Grok 的核心 Leader socket 修复已经取得真实双账号证据；但 Codex native account 校验不可达且未调用官方 RPC，Kimi 没有可用控制面或身份校验，`NativeProfileSpec.env` 还形成敏感环境进入 Renderer/数据库的可达路径。当前 Feature 不可 PASS，也不得生成最终 `report_1.0.md`。
+
+---
+
+## Re-review #1 — Fix Cycle #1
+
+### Review Scope
+
+- Candidate：`2b4324193705414948101f0c9cea931364d935d9`，branch `dev/v1.0.1-native-profile-runtime`。
+- 复核 Fix #1 的实际差异（相对 `6ccf0ad` 仅 6 个文件、57 行改动），并重新检查初审 F1–F5 的关闭条件。
+- 独立运行 profile、Codex adapter、边界/DB/Renderer、Supervisor runtime 回归，以及 ABI 恢复后的三组此前阻断测试；随后执行 typecheck、lint、build。
+- Worktree 在复检后保持 clean；未修改 Product Git Root `main`，未 merge、tag 或 push。
+
+### Independent Evidence
+
+| Check                                            |                  Result | Meaning                                                                                          |
+| ------------------------------------------------ | ----------------------: | ------------------------------------------------------------------------------------------------ |
+| `nativeProfile` / Grok / Codex-Kimi helper tests |                   15/15 | helper 与浅层 mock identity 断言通过；不证明官方 Codex/Kimi native identity                      |
+| Codex adapter / app-server tests                 |                   15/15 | 既有 mock transport 行为通过；未覆盖产品路径实际调用 `account/read` 与 `account/rateLimits/read` |
+| boundary / DB / Renderer tests                   |                   27/27 | 现有测试通过；没有 sentinel secret 穿透负向测试，且 contract 仍允许 env                          |
+| `src/supervisor/runtime.test.ts`                 |                   95/95 | runtime 回归通过                                                                                 |
+| `src/supervisor/runtime`                         | 800 passed / 17 skipped | 宽回归通过，不能覆盖未实现的 acceptance 条款                                                     |
+| `agentAuthentication.test.ts`                    |                     2/2 | Fix #1 的 SQLite binding 路径解除原 Node ABI 阻断                                                |
+| `agentStatusCache.test.ts`                       |                     9/9 | 同上                                                                                             |
+| `pnpm typecheck`                                 |                    PASS | 工程检查                                                                                         |
+| `pnpm lint`                                      |                    PASS | 工程检查                                                                                         |
+| `pnpm build`                                     |                    PASS | 生产打包通过；保留既有 Vite/CSS/sourcemap/chunk-size warnings                                    |
+| `git diff --check`                               |                    PASS | 无空白错误                                                                                       |
+
+### Findings Still Open
+
+#### F1 — Critical：Codex official identity/rate-limit gate remains absent
+
+`src/supervisor/runtime/nativeCodex/appServerClient.ts` 仍只是定义 `readAccount()` 和 `readRateLimits()`；独立源码搜索显示产品源码没有调用点。`NativeCodexRuntimeAdapter.ensureClient()` 仍只在 `codexHome` 分支调用本地 `verifyProfileIdentity`，且 Supervisor 构造 adapter 时传入的是预构造 `host`、没有传 `codexHome`，正常路径无法进入该分支。异常仍被 `console.warn` 后继续启动。
+
+因此不能证明官方 app-server `account/read == selected account`，也不能证明 `account/rateLimits/read` 在同一 account context 成功；missing/mismatch/RPC error 仍可能创建 Session。F1 未关闭。
+
+#### F2 — Critical：runtime env remains in shared and persisted binding
+
+`src/shared/contracts/nativeProfile.ts:11-23` 仍定义 `env: z.record(...)`，`src/shared/contracts/accountBinding.ts:9-16` 仍把完整 `nativeProfile` 放进共享 `AccountBinding`。`SupervisorRuntime.createCraftingAdapter()` 在 `:1779-1785` 将含 env 的 profile 写入 binding；该 binding 继续经过 `craftAgent` result、Session handoff `activeAccountBinding`、Renderer `applySessionHandoffState()` 和 `dbUpsertThread()` 的 JSON 持久化。
+
+因此宿主环境中的 API key/token/cookie 等 sentinel 仍有进入 Renderer state、IPC payload 和数据库 JSON 的可达路径。Fix #1 没有拆分 trusted launch spec 与 renderer/persistence-safe binding。F2 未关闭。
+
+#### F3 — High：identity verification remains fail-open; Kimi still has no verifier
+
+`src/supervisor/runtime/nativeProfile.ts:104-161` 对 Grok/Codex 的 credential missing、malformed、identity missing、expected identity unavailable 和 read error 仍直接 return 或吞掉异常；provider `kimi` 没有 verifier 分支。现有测试只覆盖本地 mock credential 中明确 mismatch 的情形。不能把“无法证明”当作“通过”。F3 未关闭。
+
+#### F4 — High：KimiProfileService is only a cleanup/path shell, not a control plane
+
+Fix #1 新增的 `KimiProfileService`（`src/supervisor/runtime/kimiProfiles.ts:59-73`）只在构造时清理 orphan/dedupe，并返回 `credentialRoot`。没有 credential import、managed login/create/complete IPC，也没有 Renderer action/UI 接线；`addAccount()` 仍只创建 metadata row。用户不能从产品控制面建立 account-scoped Kimi credential，更没有 native identity-gated promotion。F4 未关闭。
+
+#### F5 — Medium：tests and delivery matrix still overclaim native PASS
+
+`codexKimiProfileIsolation.test.ts:96-104` 仍只断言 `readFileSync` 函数和 credential path 字符串定义；Coder 报告的 Codex/Kimi `PASS` matrix 仍无 official native receipt。Fix #1 的测试/文档没有修正证据语义。F5 未关闭。
+
+### Fix #2 Plan
+
+Fix #1 未触及初审的安全与 native runtime 核心，不能进入 PASS 或生成 `report_1.0.md`。按原 Fix Plan 执行第二轮修复，Fix Owner 为 Coder：
+
+1. 将 Supervisor-only launch env 与 shared/persisted safe binding 完全拆分；`AccountBinding`、session handoff、Renderer/IPC/DB 只保留 opaque account/profile refs 与脱敏 identity，增加 API_KEY/TOKEN/COOKIE sentinel negative tests。
+2. 让正常 Supervisor Codex 路径把 selected provider identity 传入 adapter；app-server 初始化后实际调用并解析 `account/read` 与 `account/rateLimits/read`。matching 才继续；missing、mismatch、RPC error/timeout、不可验证必须 fail-closed，删除 warning-only 路径，并增加可注入 transport tests。
+3. 统一 Grok/Codex/Kimi identity verifier 语义：credential missing、malformed、identity absent、expected identity unavailable、read error 均使用稳定诊断并在 Entity/Session 创建前终止；Kimi 必须从官方 credential/native ACP 输出验证 identity。
+4. 完成 Kimi account-scoped control plane：create/import 或 managed official login 的 IPC + Renderer action/UI；成功前不得留下 metadata-only runnable account，完成后先 native identity verification 再激活 AccountStore row。
+5. 修正测试名、测试断言与 Coder 文档矩阵；未取得真实 Codex/Kimi native identity/receipt 时标记 `UNVERIFIED`，不以 mock、env 字符串或 test count 写 PASS。保留 Grok 已取得的真实双账号证据。
+6. Fix #2 完成后重新运行 focused、`src/supervisor/runtime.test.ts`、`agentAuthentication.test.ts`、`agentStatusCache.test.ts`、宽 Supervisor suite、typecheck、lint、build、`git diff --check`，并提交更新后的准确 Coder report，通知本配对 Debugger 进行 Re-review #2。
+
+### Re-review #1 Verdict
+
+`FAIL / FIX #2`
+
+Fix #1 的 SQLite ABI 配置和 Codex ACP turn mapping 已验证有效，Grok 既有真实双账号证据仍可保留；但 F1/F2 为 Critical，F3/F4 为 High，均未关闭。Feature 仍不可 PASS，不生成 `ai_workspace/reports/report_1.0.md`，不启动用户验收，不进行任何 main promotion。
+
+---
+
+## Coder Fix #2 Delivery Handoff — 2026-09-03
+
+以下是 Coder 在本 worktree 已完成、待本文件作者独立复核的项目；本节不是 Debugger 最终 verdict：
+
+- `AccountBinding`、`NativeProfileSpec` 与 `craftAgentResult` 已改为 renderer/persistence-safe schema；Supervisor-only launch env/path 不再进入 shared binding。新增 `src/shared/accountBindingSecretBoundary.test.ts` 覆盖 binding、CraftAgent IPC 与 session-switch state 的 sentinel 负向断言。
+- `NativeCodexRuntimeAdapter` 在 managed binding 下于 Entity 暴露前实际调用 `account/read` 与 `account/rateLimits/read`；matching、missing identity、RPC error、account mismatch、rate-limit mismatch 均有可注入 transport 测试，错误分别 fail closed。
+- Grok/Codex/Kimi 本地 credential verifier 已统一缺失、损坏、身份缺失与 mismatch 的稳定错误语义；Kimi 新增 account-scoped create/import/managed login/complete control plane、IPC、Renderer action/UI 与本地 service tests。
+- 最新 Coder 自检记录：focused affected suite `7 files / 68 tests passed`，`pnpm typecheck` PASS，`pnpm lint` PASS。以上均不等价于真实官方 Codex/Kimi native receipt。
+
+### Re-review #2 required checks
+
+- 独立复跑 focused、DB/session handoff、`src/supervisor/runtime.test.ts`、authentication/status cache、build 与 `git diff --check`。
+- 复核正常 Supervisor 路径的 Account Resolver → `accountBinding` → app-server gate → Entity/Session，以及 Kimi `KIMI_CODE_HOME` 到官方 ACP 的可达性。
+- 没有真实 managed Codex `account/read`/rate-limit receipt 或真实 managed Kimi ACP/native reply 时，Codex/Kimi acceptance 必须保持 `UNVERIFIED` 或 `BLOCKED`；不得生成 `ai_workspace/reports/report_1.0.md`。

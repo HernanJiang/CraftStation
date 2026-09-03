@@ -4069,7 +4069,12 @@ describe("SupervisorRuntime craftAgent", () => {
       if (withCredential) {
         writeFileSync(
           join(runtime.accountStore.credentialRoot(account.accountId), "auth.json"),
-          JSON.stringify({ testCredential: true }),
+          JSON.stringify({
+            "https://auth.x.ai::test-client": {
+              key: "test-access-token",
+              email: `${label}@example.com`,
+            },
+          }),
           "utf8",
         );
       }

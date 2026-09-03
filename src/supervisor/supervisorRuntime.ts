@@ -39,6 +39,10 @@ import type {
   GrokProfileLoginCreateResult,
   GrokProfileLoginPayload,
   GrokProfileLoginResult,
+  KimiProfileCreatePayload,
+  KimiProfileImportPayload,
+  KimiProfileLoginPayload,
+  KimiProfileLoginResult,
   GrokProfileCompletePayload,
   GrokProfileCancelPayload,
   GrokProfilePollPayload,
@@ -162,7 +166,12 @@ import {
   createRuntimeLedgerTokenUsageScanner,
   TokenUsageAdapter,
 } from "./runtime/tokenUsageAdapter";
-import { KimiProfileService } from "./runtime/kimiProfiles";
+import {
+  KimiProfileService,
+  buildKimiLoginScript,
+  managedKimiLoginCwd,
+  managedKimiProcessEnvironment,
+} from "./runtime/kimiProfiles";
 import {
   CodexProfileService,
   buildCodexLoginScript,
@@ -1170,6 +1179,72 @@ export class SupervisorRuntime {
     return account;
   }
 
+  createKimiProfile(payload: KimiProfileCreatePayload): AccountView {
+    const account = this.kimiProfileService.createEmpty(payload.label);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  importKimiProfile(payload: KimiProfileImportPayload): AccountView {
+    const account = this.kimiProfileService.importCredential(payload);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  async startKimiProfileLogin(payload: KimiProfileLoginPayload): Promise<KimiProfileLoginResult> {
+    const record = this.accountStore.getRecord(payload.accountId);
+    if (!record)
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${payload.accountId}'.`);
+    if (record.provider !== "kimi") {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Kimi profile login can only target a Kimi account.",
+      );
+    }
+    const hostShellKind = process.platform === "win32" ? "windows" : "posix";
+    if (payload.projectLocation.kind !== hostShellKind) {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Managed Kimi profile login requires a host-native project location.",
+        { accountId: payload.accountId },
+      );
+    }
+    const kimiHome = this.kimiProfileService.managedKimiHome(payload.accountId);
+    try {
+      await this.threadSessionManager.startShellWithEnvironment(
+        {
+          shellId: payload.shellId,
+          projectLocation: payload.projectLocation,
+          cwdOverride: managedKimiLoginCwd(kimiHome),
+          ...(process.platform === "win32"
+            ? { windowsShellRuntime: payload.windowsShellRuntime ?? "powershell" }
+            : {}),
+        },
+        managedKimiProcessEnvironment(kimiHome),
+      );
+      await this.threadSessionManager.writeTerminal({
+        threadId: payload.shellId,
+        data: `${buildKimiLoginScript(hostShellKind, payload.completionToken)}\r`,
+      });
+    } catch (error) {
+      await this.threadSessionManager
+        .closeThread({ threadId: payload.shellId })
+        .catch(() => undefined);
+      throw error;
+    }
+    return {
+      shellId: payload.shellId,
+      label: record.label,
+      completionToken: payload.completionToken,
+    };
+  }
+
+  completeKimiProfileLogin(accountId: string): AccountView {
+    const account = this.kimiProfileService.completeLogin(accountId);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
   importCodexProfile(payload: CodexProfileImportPayload): AccountView {
     const account = this.codexProfileService.importAuthJson(payload);
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
@@ -1782,7 +1857,12 @@ export class SupervisorRuntime {
         credentialScopeRef: resolution.account.credentialScopeRef,
         reason: resolution.reason,
         boundAt: Date.now(),
-        nativeProfile: profileSpec,
+        ...(resolution.account.providerAccountId
+          ? { providerAccountId: resolution.account.providerAccountId }
+          : {}),
+        ...(resolution.account.maskedIdentity
+          ? { maskedIdentity: resolution.account.maskedIdentity }
+          : {}),
       };
       if (managedProvider === "openai-compatible") {
         const runtime = this.openAiCompatibleProfileService.prepareCodexRuntime(
@@ -1813,6 +1893,7 @@ export class SupervisorRuntime {
                     codexHome: accountRoot,
                     ...(accountEnv ? { env: accountEnv } : {}),
                   }),
+                  codexHome: accountRoot,
                 }
               : {}),
             ...(accountBinding ? { accountBinding } : {}),

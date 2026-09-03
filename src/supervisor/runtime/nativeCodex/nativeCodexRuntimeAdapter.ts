@@ -18,7 +18,12 @@ import type {
 import { CODEX_NATIVE_HARNESS_DESCRIPTOR } from "../nativeHarness/descriptors";
 import { CraftingError } from "@/shared/crafting/errors";
 import { logCraftingEvent } from "@/shared/crafting/logging";
-import type { AccountBinding, PromptSegment, ResolvedMcpServer } from "@/shared/contracts";
+import {
+  AccountControlError,
+  type AccountBinding,
+  type PromptSegment,
+  type ResolvedMcpServer,
+} from "@/shared/contracts";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import { buildCodexMcp } from "@/supervisor/agents/userMcp";
 import { AppServerClient } from "./appServerClient";
@@ -482,7 +487,10 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
   }
 
   private async ensureClient(): Promise<AppServerClient> {
-    if (this._client) return this._client;
+    if (this._client) {
+      if (this.accountBinding) await this.verifyNativeAccount(this._client);
+      return this._client;
+    }
 
     if (!this._host) {
       const mcp = buildCodexMcp(this.options?.mcpServers ?? []);
@@ -501,17 +509,69 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
     }
 
     await client.initialize();
-    if (this.options?.accountBinding && this.options.codexHome) {
-      try {
-        verifyProfileIdentity("codex", this.options.codexHome, {
-          accountId: this.options.accountBinding.accountId,
-        });
-      } catch (err) {
-        console.warn("[codex] account identity verification warning:", err);
-      }
+    if (this.options?.accountBinding) {
+      if (this.options.codexHome)
+        verifyProfileIdentity("codex", this.options.codexHome, this.options.accountBinding);
+      await this.verifyNativeAccount(client);
     }
     this._client = client;
     return client;
+  }
+
+  private async verifyNativeAccount(client: AppServerClient): Promise<void> {
+    const binding = this.accountBinding;
+    if (!binding?.providerAccountId && !binding?.maskedIdentity) {
+      throw new AccountControlError(
+        "ACCOUNT_IDENTITY_UNAVAILABLE",
+        "Codex selected account has no provider identity; native account verification cannot run.",
+        { accountId: binding?.accountId, provider: "codex" },
+      );
+    }
+    try {
+      const account = await client.readAccount();
+      const expected = binding.providerAccountId ?? binding.maskedIdentity;
+      const actuals = findNativeIdentities(account);
+      if (!expected || actuals.length === 0) {
+        throw new AccountControlError(
+          "ACCOUNT_IDENTITY_UNAVAILABLE",
+          "Codex app-server did not report a usable account identity.",
+          { accountId: binding.accountId, provider: "codex" },
+        );
+      }
+      if (!actuals.some((actual) => actual.toLowerCase() === expected.toLowerCase())) {
+        throw new AccountControlError(
+          "PROFILE_IDENTITY_MISMATCH",
+          "Codex app-server reported an identity different from the selected account.",
+          { accountId: binding.accountId, expected, actual: actuals[0] },
+        );
+      }
+      const rateLimits = await client.readRateLimits();
+      if (!rateLimits || typeof rateLimits !== "object") {
+        throw new AccountControlError(
+          "ACCOUNT_IDENTITY_UNAVAILABLE",
+          "Codex app-server did not return a rate-limit context for the verified account.",
+          { accountId: binding.accountId },
+        );
+      }
+      const rateLimitIdentities = findNativeIdentities(rateLimits);
+      if (
+        rateLimitIdentities.length > 0 &&
+        !rateLimitIdentities.some((actual) => actual.toLowerCase() === expected.toLowerCase())
+      ) {
+        throw new AccountControlError(
+          "PROFILE_IDENTITY_MISMATCH",
+          "Codex app-server returned rate limits for a different account.",
+          { accountId: binding.accountId, expected, actual: rateLimitIdentities[0] },
+        );
+      }
+    } catch (error) {
+      if (error instanceof AccountControlError) throw error;
+      throw new AccountControlError(
+        "ACCOUNT_IDENTITY_UNAVAILABLE",
+        `Codex native account verification failed: ${error instanceof Error ? error.message : String(error)}.`,
+        { accountId: binding.accountId, provider: "codex" },
+      );
+    }
   }
 
   async spawnEntity(craftPlan: CraftPlan): Promise<Entity> {
@@ -523,6 +583,9 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
       );
     }
 
+    // A managed account must be proven before an Entity is exposed to the
+    // Supervisor. Ambient (unbound) Codex keeps the legacy capability path.
+    if (this.accountBinding) await this.ensureClient();
     const entityId = `entity:codex:${randomUUID()}`;
     const entity: Entity = {
       id: entityId,
@@ -655,4 +718,17 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
       throw error;
     }
   }
+}
+
+function findNativeIdentities(value: unknown, depth = 0): string[] {
+  if (depth > 5 || !value || typeof value !== "object" || Array.isArray(value)) return [];
+  const record = value as Record<string, unknown>;
+  const identities: string[] = [];
+  for (const key of ["accountId", "account_id", "email", "userId", "user_id"]) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) identities.push(candidate.trim());
+  }
+  for (const child of Object.values(record))
+    identities.push(...findNativeIdentities(child, depth + 1));
+  return [...new Set(identities)];
 }

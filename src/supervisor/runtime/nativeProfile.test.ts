@@ -54,7 +54,7 @@ describe("verifyProfileIdentity", () => {
     const dir = mkdtempSync(join(tmpdir(), "grok-id-match-"));
     writeFileSync(
       join(dir, "auth.json"),
-      JSON.stringify({ user: { email: "user-b@example.com" } }),
+      JSON.stringify({ access_token: "fixture-token", user: { email: "user-b@example.com" } }),
       "utf8",
     );
 
@@ -70,7 +70,7 @@ describe("verifyProfileIdentity", () => {
     const dir = mkdtempSync(join(tmpdir(), "grok-id-mismatch-"));
     writeFileSync(
       join(dir, "auth.json"),
-      JSON.stringify({ user: { email: "user-a@example.com" } }),
+      JSON.stringify({ access_token: "fixture-token", user: { email: "user-a@example.com" } }),
       "utf8",
     );
 

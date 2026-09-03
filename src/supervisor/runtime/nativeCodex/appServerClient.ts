@@ -136,30 +136,18 @@ export class AppServerClient {
     }
   }
 
-  async readAccount(): Promise<Record<string, unknown> | undefined> {
+  async readAccount(): Promise<Record<string, unknown>> {
     if (!this._initialized) {
       await this.initialize();
     }
-    try {
-      return await this.transport.request<Record<string, unknown>>("account/read", {}, 10000);
-    } catch {
-      return undefined;
-    }
+    return this.transport.request<Record<string, unknown>>("account/read", {}, 10000);
   }
 
-  async readRateLimits(): Promise<Record<string, unknown> | undefined> {
+  async readRateLimits(): Promise<Record<string, unknown>> {
     if (!this._initialized) {
       await this.initialize();
     }
-    try {
-      return await this.transport.request<Record<string, unknown>>(
-        "account/rateLimits/read",
-        {},
-        10000,
-      );
-    } catch {
-      return undefined;
-    }
+    return this.transport.request<Record<string, unknown>>("account/rateLimits/read", {}, 10000);
   }
 
   async getCapabilitySnapshot(): Promise<CodexRuntimeCapabilitySnapshot> {

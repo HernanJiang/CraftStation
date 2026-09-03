@@ -6,8 +6,11 @@ const bridge = vi.hoisted(() => ({
   startShell: vi.fn<(payload: unknown) => Promise<void>>(),
   closeThread: vi.fn<() => Promise<void>>(),
   createCodexProfile: vi.fn<() => Promise<unknown>>(),
+  createKimiProfile: vi.fn<() => Promise<unknown>>(),
   removeAccount: vi.fn<(payload: unknown) => Promise<void>>(),
   startCodexProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  startKimiProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  completeKimiProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
   createGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
   startGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
   pollGrokProfileLogin: vi.fn<(payload: unknown) => Promise<unknown>>(),
@@ -85,10 +88,12 @@ import { toast } from "@heroui/react";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import {
   createAndRunCodexProfileLogin,
+  createAndRunKimiProfileLogin,
   createAndRunGrokProfileLogin,
   runAgentInstallCommand,
   runAgentLoginCommand,
   runCodexProfileLogin,
+  runKimiProfileLogin,
 } from "./agentLoginActions";
 
 const wslProject: Project = {
@@ -143,8 +148,11 @@ describe("runAgentLoginCommand", () => {
     bridge.startShell.mockReset().mockResolvedValue(undefined);
     bridge.closeThread.mockReset().mockResolvedValue(undefined);
     bridge.createCodexProfile.mockReset();
+    bridge.createKimiProfile.mockReset();
     bridge.removeAccount.mockReset().mockResolvedValue(undefined);
     bridge.startCodexProfileLogin.mockReset().mockResolvedValue({});
+    bridge.startKimiProfileLogin.mockReset().mockResolvedValue({});
+    bridge.completeKimiProfileLogin.mockReset().mockResolvedValue({});
     bridge.createGrokProfileLogin.mockReset().mockResolvedValue({
       pendingRef: "grok-pending:test",
       label: "New Grok",
@@ -743,6 +751,105 @@ describe("runAgentLoginCommand", () => {
       threadId: expect.stringMatching(/^login:/u),
     });
     expect(toast.danger).toHaveBeenCalledWith("ACCOUNT_NOT_FOUND");
+  });
+
+  it("creates a Kimi row, starts isolated login, and completes it after the native marker", async () => {
+    const account = {
+      accountId: "kimi:new",
+      provider: "kimi",
+      label: "New Kimi",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "unavailable" as const,
+      credentialScopeRef: "managed:kimi:new",
+    };
+    const authorized = { ...account, status: "available" as const, maskedIdentity: "kimi-user" };
+    bridge.createKimiProfile.mockResolvedValue(account);
+    bridge.listAccounts.mockResolvedValue([authorized]);
+
+    const pending = createAndRunKimiProfileLogin({ project: windowsProject });
+    await vi.waitFor(() => expect(bridge.startKimiProfileLogin).toHaveBeenCalledOnce());
+
+    const payload = bridge.startKimiProfileLogin.mock.calls[0]?.[0] as {
+      accountId: string;
+      shellId: string;
+      completionToken: string;
+      projectLocation: Project["location"];
+      windowsShellRuntime: string;
+    };
+    expect(bridge.createKimiProfile).toHaveBeenCalledWith({ label: "New Kimi" });
+    expect(payload).toMatchObject({
+      accountId: account.accountId,
+      projectLocation: windowsProject.location,
+      windowsShellRuntime: "powershell",
+    });
+    expect(payload.completionToken).toMatch(/^lc_[A-Za-z0-9_-]+$/u);
+
+    emit({
+      type: "thread-output",
+      threadId: payload.shellId,
+      data: `\u001B]777;craftstation-login-complete=${payload.completionToken}:0\u0007`,
+      outputLength: 0,
+    });
+    await expect(pending).resolves.toBe(true);
+
+    expect(bridge.completeKimiProfileLogin).toHaveBeenCalledWith({ accountId: account.accountId });
+    expect(bridge.listAccounts).toHaveBeenCalledWith({ provider: "kimi" });
+    expect(bridge.removeAccount).not.toHaveBeenCalled();
+    expect(useUsageAccountsStore.getState().accounts).toEqual([authorized]);
+  });
+
+  it("removes a newly-created Kimi row when identity completion fails", async () => {
+    const account = {
+      accountId: "kimi:orphan",
+      provider: "kimi",
+      label: "New Kimi",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "unavailable" as const,
+      credentialScopeRef: "managed:kimi:orphan",
+    };
+    bridge.createKimiProfile.mockResolvedValue(account);
+    bridge.completeKimiProfileLogin.mockRejectedValueOnce(
+      new Error("ACCOUNT_IDENTITY_UNAVAILABLE"),
+    );
+
+    const pending = createAndRunKimiProfileLogin({ project: posixProject });
+    await vi.waitFor(() => expect(bridge.startKimiProfileLogin).toHaveBeenCalledOnce());
+    const payload = bridge.startKimiProfileLogin.mock.calls[0]?.[0] as {
+      accountId: string;
+      shellId: string;
+      completionToken: string;
+    };
+    emit({
+      type: "thread-output",
+      threadId: payload.shellId,
+      data: `\u001B]777;craftstation-login-complete=${payload.completionToken}:0\u0007`,
+      outputLength: 0,
+    });
+
+    await expect(pending).resolves.toBe(false);
+    expect(bridge.removeAccount).toHaveBeenCalledWith({ accountId: account.accountId });
+    expect(useUsageAccountsStore.getState().accounts).toEqual([]);
+  });
+
+  it("closes a failed Kimi login shell when the Supervisor start call rejects", async () => {
+    bridge.startKimiProfileLogin.mockRejectedValueOnce(new Error("ACCOUNT_RUNTIME_UNSUPPORTED"));
+    const pending = runKimiProfileLogin({
+      accountId: "kimi:existing",
+      label: "Existing Kimi",
+      project: windowsProject,
+    });
+
+    await expect(pending).resolves.toBe(false);
+    expect(bridge.closeThread).toHaveBeenCalledWith({
+      threadId: expect.stringMatching(/^login:/u),
+    });
+    expect(toast.danger).toHaveBeenCalledWith("ACCOUNT_RUNTIME_UNSUPPORTED");
   });
 
   it("promotes a Grok login once the pending auth.json carries an identity and closes the overlay", async () => {

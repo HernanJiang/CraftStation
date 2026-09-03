@@ -52,7 +52,14 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
     start.mockRestore();
   });
   function setupMockClientTransport(
-    options: { turnStartError?: string; interruptError?: string } = {},
+    options: {
+      turnStartError?: string;
+      interruptError?: string;
+      accountIdentity?: string | null;
+      accountReadError?: string;
+      rateLimitsIdentity?: string;
+      rateLimitsError?: string;
+    } = {},
   ) {
     const clientToHost = new PassThrough();
     const hostToClient = new PassThrough();
@@ -79,6 +86,42 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
                   serverInfo: { name: "official-codex", version: "0.3.0" },
                   capabilities: { streaming: true },
                 },
+              }) + "\n",
+            );
+          } else if (msg.method === "account/read") {
+            hostToClient.write(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: msg.id,
+                ...(options.accountReadError
+                  ? { error: { code: -32010, message: options.accountReadError } }
+                  : {
+                      result: {
+                        account: {
+                          accountId:
+                            options.accountIdentity === undefined
+                              ? "codex:work"
+                              : options.accountIdentity,
+                        },
+                      },
+                    }),
+              }) + "\n",
+            );
+          } else if (msg.method === "account/rateLimits/read") {
+            hostToClient.write(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: msg.id,
+                ...(options.rateLimitsError
+                  ? { error: { code: -32011, message: options.rateLimitsError } }
+                  : {
+                      result: {
+                        limits: {},
+                        ...(options.rateLimitsIdentity
+                          ? { account: { accountId: options.rateLimitsIdentity } }
+                          : {}),
+                      },
+                    }),
               }) + "\n",
             );
           } else if (msg.method === "thread/start" || msg.method === "thread/resume") {
@@ -255,6 +298,114 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
       model: "gpt-5.3-codex",
       serviceTier: "fast",
       approvalPolicy: "never",
+    });
+  });
+
+  function managedCodexBinding() {
+    return {
+      accountId: "codex:work",
+      provider: "codex" as const,
+      credentialScopeRef: "managed:codex:work",
+      reason: "selected" as const,
+      boundAt: 1,
+      providerAccountId: "codex:work",
+    };
+  }
+
+  function managedCodexPlan() {
+    return new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { workspace: "D:\\test\\workspace", threadId: "thread-managed-gate" },
+    ).craftPlan!;
+  }
+
+  it("requires native account identity before exposing a managed Entity", async () => {
+    const { client } = setupMockClientTransport({ accountIdentity: null });
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: managedCodexBinding(),
+    });
+
+    await expect(adapter.spawnEntity(managedCodexPlan())).rejects.toMatchObject({
+      code: "ACCOUNT_IDENTITY_UNAVAILABLE",
+    });
+  });
+
+  it("requires a selected provider identity before managed verification", async () => {
+    const { client } = setupMockClientTransport();
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: {
+        ...managedCodexBinding(),
+        providerAccountId: undefined,
+      },
+    });
+
+    await expect(adapter.spawnEntity(managedCodexPlan())).rejects.toMatchObject({
+      code: "ACCOUNT_IDENTITY_UNAVAILABLE",
+    });
+  });
+
+  it("fails closed when account/read returns an RPC error", async () => {
+    const { client } = setupMockClientTransport({ accountReadError: "not authenticated" });
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: managedCodexBinding(),
+    });
+
+    await expect(adapter.spawnEntity(managedCodexPlan())).rejects.toMatchObject({
+      code: "ACCOUNT_IDENTITY_UNAVAILABLE",
+    });
+  });
+
+  it("fails closed when account/read identity mismatches the selected account", async () => {
+    const { client } = setupMockClientTransport({ accountIdentity: "codex:other" });
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: managedCodexBinding(),
+    });
+
+    await expect(adapter.spawnEntity(managedCodexPlan())).rejects.toMatchObject({
+      code: "PROFILE_IDENTITY_MISMATCH",
+    });
+  });
+
+  it("fails closed when account/rateLimits/read returns an RPC error", async () => {
+    const { client } = setupMockClientTransport({ rateLimitsError: "rate limits unavailable" });
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: managedCodexBinding(),
+    });
+
+    await expect(adapter.spawnEntity(managedCodexPlan())).rejects.toMatchObject({
+      code: "ACCOUNT_IDENTITY_UNAVAILABLE",
+    });
+  });
+
+  it("calls account/read and account/rateLimits/read for a managed injected transport", async () => {
+    const { client, receivedRequests } = setupMockClientTransport();
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: managedCodexBinding(),
+    });
+
+    await expect(adapter.spawnEntity(managedCodexPlan())).resolves.toMatchObject({
+      status: "spawned",
+    });
+    expect(receivedRequests.map((request) => request.method)).toEqual(
+      expect.arrayContaining(["initialize", "account/read", "account/rateLimits/read"]),
+    );
+  });
+
+  it("rejects rate-limit context belonging to a different account", async () => {
+    const { client } = setupMockClientTransport({ rateLimitsIdentity: "codex:other" });
+    const adapter = new NativeCodexRuntimeAdapter({
+      client,
+      accountBinding: managedCodexBinding(),
+    });
+
+    await expect(adapter.spawnEntity(managedCodexPlan())).rejects.toMatchObject({
+      code: "PROFILE_IDENTITY_MISMATCH",
     });
   });
 
@@ -446,6 +597,7 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
         credentialScopeRef: "managed:codex:work",
         reason: "selected",
         boundAt: 1,
+        providerAccountId: "codex:work",
       },
     });
     const plan = new Crafter().compile(

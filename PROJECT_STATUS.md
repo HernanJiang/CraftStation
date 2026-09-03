@@ -20,7 +20,7 @@
 
 当前冻结点：
 
-- 当前执行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Manager Plan：`ai_workspace/agent_docs/manager_1.0.1.md`，Coder 交付：`ai_workspace/agent_docs/coder_1.0.1.md`，Debugger Review：`ai_workspace/agent_docs/debugger_1.0.1.md`。Status：`CODER FIX #1 COMPLETE / READY FOR DEBUGGER RE-CHECK`。Fix Cycle #1 已完成 KimiProfileService 补全、sqlite native binding 默认注入及 codex turn mapping 测试加固。Fix Owner：Debugger。
+- 当前执行 Feature：`v1.0.1 — Native CLI Multi-Account Profile Runtime`。worktree `.worktrees/v1.0.1-native-profile-runtime`，分支 `dev/v1.0.1-native-profile-runtime`，基线 `main@f5a4bb2`。Manager Plan：`ai_workspace/agent_docs/manager_1.0.1.md`，Coder 交付：`ai_workspace/agent_docs/coder_1.0.1.md`，Debugger Review：`ai_workspace/agent_docs/debugger_1.0.1.md`。Status：`IMPLEMENTED / READY FOR DEBUGGER RE-REVIEW; native Codex/Kimi acceptance UNVERIFIED`。Fix #2 的 Codex app-server gate、secret boundary、fail-closed verifier、Kimi control plane 与 focused tests 已完成；真实 Codex/Kimi receipt 仍未取得，不能宣称 Feature PASS。Fix Owner：Coder。
 - 当前并行 Feature：`v0.9.0 — Cross-Harness Session Handoff` 与 `v0.10.0 — Cross-Thread Collaboration`，分别位于目标拓扑下的独立 Feature worktree；两者尚未完成 Coder 自检或 Debugger 验收，不得表述为 PASS。不要写入这两个 worktree。
 - v0.9 Manager Plan：`.worktrees/v0.9-cross-harness-handoff/ai_workspace/agent_docs/manager_0.9.0.md`；Plan commit `7d1e2485eb86fe2f7c982dbf02c20144e46bd54a`。
 - v0.10 Manager Plan：`.worktrees/v0.10-cross-thread-collaboration/ai_workspace/agent_docs/manager_0.10.0.md`；Plan commit `0bbba5f66e5b7be782443206c02781ed6825ba77`。
@@ -31,7 +31,7 @@
 - Coder 交付：`ai_workspace/agent_docs/coder_0.6.0.md`。
 - v0.5.0 继续 **FAIL / BLOCKED**；F33 真实 Grok billing 与 F29 exact Token 未关闭。
 - v0.4.0 仍 **没有 PASS**，检查点 `checkpoint-v0.4.12` / `b1af0e2`
-- 下一步：v1.0.1 Coder 在同一 Feature worktree 执行 `debugger_1.0.1.md` Fix #1，完成后通知原配对 Debugger 复检；v0.9 与 v0.10 继续各自独立流程。有真实 Google / Ark 凭据时才补 v0.6 F35/F36 脱敏证据。未经用户授权不得 merge main、创建正式 tag 或 push。远端 `origin/dev` 保留为迁移前历史，不再是默认集成线。
+- 下一步：v1.0.1 交由原配对 Debugger 在同一 Feature worktree 进行 Re-review #2；无真实 Codex/Kimi receipt 时保持 `UNVERIFIED/BLOCKED`，不生成 `ai_workspace/reports/report_1.0.md`。v0.9 与 v0.10 继续各自独立流程。有真实 Google / Ark 凭据时才补 v0.6 F35/F36 脱敏证据。未经用户授权不得 merge main、创建正式 tag 或 push。远端 `origin/dev` 保留为迁移前历史，不再是默认集成线。
 - 产品源码与治理文档推送到 `https://github.com/HernanJiang/CraftStation.git`
 
 ## Roadmap
@@ -117,15 +117,15 @@ Model Item + Harness Item
 
 ## Lifecycle Snapshot
 
-| Field             | Current Value                                                                                       |
-| ----------------- | --------------------------------------------------------------------------------------------------- |
-| Major Stage       | `v0`                                                                                                |
-| Lifecycle State   | `v1.0.1 / DEBUGGER FAIL / FIX #1`；v0.9.0 + v0.10.0 保持各自独立流程                                |
-| Active Feature    | `v1.0.1 — Native CLI Multi-Account Profile Runtime`；并行 v0.9.0 / v0.10.0                          |
-| Active Ticket     | v1.0.1 Coder 执行 `debugger_1.0.1.md` Fix Plan                                                      |
-| Current Fix Cycle | `v1.0.1 / Fix #1`                                                                                   |
-| Current Role      | Coder（v1.0.1 Fix #1；其余版本独立并行）                                                            |
-| Review Status     | v1.0.1 FAIL；v0.9/v0.10 按各自状态；v0.6/v0.5/v0.4 保持 FAIL/BLOCKED；Main Promotion NOT AUTHORIZED |
+| Field             | Current Value                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Major Stage       | `v0`                                                                                                                                |
+| Lifecycle State   | `v1.0.1 / IMPLEMENTED / READY FOR DEBUGGER RE-REVIEW`；native Codex/Kimi acceptance `UNVERIFIED`；v0.9.0 + v0.10.0 保持各自独立流程 |
+| Active Feature    | `v1.0.1 — Native CLI Multi-Account Profile Runtime`；并行 v0.9.0 / v0.10.0                                                          |
+| Active Ticket     | v1.0.1 Debugger Re-review #2；源码修复与 Coder 自检已完成                                                                           |
+| Current Fix Cycle | `v1.0.1 / Fix #2 complete`                                                                                                          |
+| Current Role      | Coder handoff to Debugger（其余版本独立并行）                                                                                       |
+| Review Status     | v1.0.1 READY FOR RE-REVIEW; native Codex/Kimi UNVERIFIED；v0.9/v0.10 按各自状态；Main Promotion NOT AUTHORIZED                      |
 
 ## Historical v0.3 Closeout
 
@@ -180,7 +180,7 @@ Model Item + Harness Item
 
 ## Next Step
 
-1. v1.0.1 Coder 只在 `D:\Work\CraftStation\.worktrees\v1.0.1-native-profile-runtime` / `dev/v1.0.1-native-profile-runtime` 执行 `ai_workspace/agent_docs/debugger_1.0.1.md` 的 Fix #1；完成全部修复与自检后通知原配对 Debugger 复检。
+1. v1.0.1 Coder 已在 `D:\Work\CraftStation\.worktrees\v1.0.1-native-profile-runtime` / `dev/v1.0.1-native-profile-runtime` 完成 `ai_workspace/agent_docs/debugger_1.0.1.md` 的 Fix #2；下一步由原配对 Debugger 执行 Re-review #2，并对真实 Codex/Kimi receipt 缺失保持诚实判定。
 2. v0.9 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.9-cross-harness-handoff` / `dev/v0.9-cross-harness-handoff` 继续其独立流程。
 3. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续其独立流程。
 4. 各 Feature Debugger 只在对应版本开发分支完成验收和候选收口，不合入 main。

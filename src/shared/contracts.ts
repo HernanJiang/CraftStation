@@ -19,6 +19,7 @@ export * from "./contracts/accountBinding";
 export * from "./contracts/nativeProfile";
 export * from "./contracts/codexProfiles";
 export * from "./contracts/grokProfiles";
+export * from "./contracts/kimiProfiles";
 export * from "./contracts/notes";
 export * from "./contracts/profile";
 export * from "./contracts/schedule";

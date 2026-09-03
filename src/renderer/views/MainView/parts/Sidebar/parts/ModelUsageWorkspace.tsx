@@ -18,8 +18,10 @@ import { useUsageProviderLogin } from "@/renderer/components/providers/useUsageP
 import {
   createAndRunCodexProfileLogin,
   createAndRunGrokProfileLogin,
+  createAndRunKimiProfileLogin,
   runAgentLoginCommand,
   runCodexProfileLogin,
+  runKimiProfileLogin,
   signInAndImportAntigravityAccount,
 } from "@/renderer/actions/agentLoginActions";
 import { refreshAndMergeProviderUsage } from "@/renderer/components/providers/refreshProviderUsageSnapshot";
@@ -353,6 +355,7 @@ function ProviderCard(props: {
   onDragStartProvider?: (p: string) => void;
   onDropProvider?: (t: string) => void;
   onRenameAccount?: (account: AccountView) => void;
+  onImportAccount?: () => void;
 }) {
   const snapshot = useProviderUsage(props.id);
   const managedAccounts = useUsageAccountsStore(
@@ -493,6 +496,13 @@ function ProviderCard(props: {
       );
       return;
     }
+    if (props.id === "kimi") {
+      setCliSigningIn(true);
+      void createAndRunKimiProfileLogin({ label: "New Kimi" }).finally(() =>
+        setCliSigningIn(false),
+      );
+      return;
+    }
     // commandcode 有意落入下方的 CLI 登录分支：官方 `cmdc auth login` 会把
     // {apiKey, userId, userName} 写进 ~/.commandcode/auth.json，采集器随后
     // 直接读它出额度与身份；浏览器 Cookie 粘贴流程对 CLI 用户不可用。
@@ -627,6 +637,17 @@ function ProviderCard(props: {
                 : "添加账号"
               : "登录/授权"}
         </button>
+        {props.onImportAccount ? (
+          <button
+            type="button"
+            disabled={signingIn || cliSigningIn}
+            onClick={props.onImportAccount}
+            className="inline-flex h-8 shrink-0 items-center rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+            aria-label={label + " 导入本机登录"}
+          >
+            导入
+          </button>
+        ) : null}
       </header>
 
       {managedAccounts.length > 0 ? (
@@ -1192,6 +1213,17 @@ function ManagedAccountPool(props: {
       >
         <UserRoundPlus className="size-3.5" /> 添加账号
       </button>
+      {props.onImport ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={props.onImport}
+          aria-label={props.importAriaLabel}
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+        >
+          导入
+        </button>
+      ) : null}
     </div>
   ) : (
     <div className="mb-2 flex items-center justify-between">
@@ -1508,6 +1540,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
 
   const codexAccounts = accounts.filter((a) => a.provider === "codex");
   const grokAccounts = accounts.filter((a) => a.provider === "grok");
+  const kimiAccounts = accounts.filter((a) => a.provider === "kimi");
   const signedInCodexAccounts = useMemo(
     () => codexAccounts.filter((a) => Boolean(a.maskedIdentity) || Boolean(a.providerAccountId)),
     [codexAccounts],
@@ -1515,6 +1548,10 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   const signedGrokAccounts = useMemo(
     () => grokAccounts.filter((a) => Boolean(a.maskedIdentity) || Boolean(a.providerAccountId)),
     [grokAccounts],
+  );
+  const signedKimiAccounts = useMemo(
+    () => kimiAccounts.filter((a) => Boolean(a.maskedIdentity) || Boolean(a.providerAccountId)),
+    [kimiAccounts],
   );
   const antigravityAccounts = accounts.filter((a) => a.provider === "antigravity");
   const signedAntigravityAccounts = useMemo(
@@ -1536,6 +1573,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
         (p) =>
           p.id !== "codex" &&
           p.id !== "grok" &&
+          p.id !== "kimi" &&
           p.id !== "antigravity" &&
           p.id !== "openai-compatible",
       ),
@@ -1610,6 +1648,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
       channels.set("codex", { kind: "pool", id: "codex", label: "ChatGPT" });
     if (signedGrokAccounts.length > 0)
       channels.set("grok", { kind: "pool", id: "grok", label: "Grok" });
+    if (signedKimiAccounts.length > 0)
+      channels.set("kimi", { kind: "pool", id: "kimi", label: "Kimi Code" });
     if (signedAntigravityAccounts.length > 0)
       channels.set("antigravity", { kind: "pool", id: "antigravity", label: "Antigravity" });
     if (signedOpenAiCompatibleAccounts.length > 0)
@@ -1635,6 +1675,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     leftCardProviders,
     signedInCodexAccounts.length,
     signedGrokAccounts.length,
+    signedKimiAccounts.length,
     signedAntigravityAccounts.length,
     signedOpenAiCompatibleAccounts.length,
   ]);
@@ -1719,6 +1760,18 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
         : "已创建账号，但本机 ~/.codex/auth.json 无法解析",
     );
   };
+  const createKimiProfile = async () => {
+    await createAndRunKimiProfileLogin({ label: "New Kimi" });
+  };
+  const importHostKimiLogin = async () => {
+    const account = await readBridge().importKimiProfile({ label: "本机 Kimi" });
+    await refreshAccountList();
+    toast.success(
+      account.status === "available"
+        ? "已导入本机 Kimi Code 登录"
+        : "已创建 Kimi 账号，但本机凭据无法解析",
+    );
+  };
   const handleProviderDrop = (targetId: string) => {
     if (!draggedProviderId || draggedProviderId === targetId) return;
     const displayed = resolveDisplayedProviders(providerOrder, []).map((p) => p.id);
@@ -1749,11 +1802,13 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     const pool =
       provider === "grok"
         ? grokAccounts
-        : provider === "antigravity"
-          ? antigravityAccounts
-          : provider === "openai-compatible"
-            ? signedOpenAiCompatibleAccounts
-            : codexAccounts;
+        : provider === "kimi"
+          ? kimiAccounts
+          : provider === "antigravity"
+            ? antigravityAccounts
+            : provider === "openai-compatible"
+              ? signedOpenAiCompatibleAccounts
+              : codexAccounts;
     const ordered = [...pool].sort((a, b) => a.order - b.order);
     const from = ordered.findIndex((a) => a.accountId === draggedAccountId);
     const to = ordered.findIndex((a) => a.accountId === targetId);
@@ -1836,6 +1891,25 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
               void accountActions(async () => {
                 await createAndRunGrokProfileLogin({ label: a.label });
               })
+            }
+          />
+        );
+      case "kimi":
+        return (
+          <ManagedAccountPool
+            {...shared}
+            providerId="kimi"
+            title="Kimi Code 账号池"
+            badgeLabel="Kimi Code"
+            addAriaLabel="添加 Kimi Code 账号"
+            accounts={signedKimiAccounts}
+            onAdd={() => void accountActions(createKimiProfile)}
+            onImport={() => void accountActions(importHostKimiLogin)}
+            importAriaLabel="导入本机 Kimi Code 登录"
+            onReauth={(a) =>
+              void accountActions(() =>
+                runKimiProfileLogin({ accountId: a.accountId, label: a.label }),
+              )
             }
           />
         );
@@ -1985,6 +2059,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             )}
             {signedInCodexAccounts.length === 0 &&
             signedGrokAccounts.length === 0 &&
+            signedKimiAccounts.length === 0 &&
             signedAntigravityAccounts.length === 0 &&
             signedOpenAiCompatibleAccounts.length === 0 &&
             leftCardProviders.length === 0 ? (
@@ -2008,6 +2083,13 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             !hasProviderIdentity(usageSnapshots.grok) &&
             !storedLogin.grok ? (
               <ProviderCard id="grok" label="Grok" />
+            ) : null}
+            {signedKimiAccounts.length === 0 ? (
+              <ProviderCard
+                id="kimi"
+                label="Kimi Code"
+                onImportAccount={() => void accountActions(importHostKimiLogin)}
+              />
             ) : null}
             {signedAntigravityAccounts.length === 0 &&
             !antigravitySnapshotConnected &&

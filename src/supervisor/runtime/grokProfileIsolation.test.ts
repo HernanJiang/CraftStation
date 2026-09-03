@@ -85,7 +85,7 @@ describe("Grok Multi-Account Profile & Leader Isolation (T04/T05)", () => {
     // Simulate account A profile accidentally having account B tokens
     writeFileSync(
       join(rootA, "auth.json"),
-      JSON.stringify({ user: { email: "user-b@xai.com" } }),
+      JSON.stringify({ access_token: "fixture-token", user: { email: "user-b@xai.com" } }),
       "utf8",
     );
 
