@@ -7,6 +7,14 @@
 - 真实能力边界保持诚实：Antigravity、Grok、Kimi、Codex Native 的既有证据按各自 artifact 记录；官方 DSH 与 DeepSeek API/provider 结果仍受认证/外部 provider 限制；Command Code 或普通 API 证据不冒充官方 DSH。
 - 本次合并成功不等于 v0.7 Feature 全部外部模型/高级能力永久 PASS；未验证能力继续按 `implementation missing`、`AUTH_REQUIRED` 或 `RUNTIME_UNAVAILABLE` 表达。
 
+## Release 1.0.0 — 2026-09-04
+
+- v1.0.1 / v1.1.0 / v1.2.0(+v1.3 Computer Use 续体) 三分支已全部兼容合并进 `main`：`567965a` → `3082918` → `45b99ab`；package.json 定版 **`1.0.0`**（`9bceee6`）。
+- 最终 main 全链路验收：install/typecheck/lint/build PASS；**全量 vitest 927 文件 / 10184 测试全部通过（exit 0，两次确认）**；真实应用启动 smoke 全场景 PASS（0 控制台错误）；CPA 兼容 tracer 真实流量 E2E PASS；Computer Use 真实 Windows GUI 验收 PASS（13+ 项操作）。
+- 最终验收报告：`ai_workspace/reports/report_release_1.0.0.md`。
+- 外部阻塞（非代码）：ChatGPT-via-CPA refresh token 轮换待用户重登；Kimi/DeepSeek/Gemini-Antigravity 原生腿缺用户凭据；Computer Use 复跑需控制台解锁。
+- 未 push、未打 tag；发布动作待用户明确授权。
+
 > CraftStation 当前动态状态的唯一来源。长期规则见 `AGENTS.md`，外部仓库精确基线见 `reference/BASELINES.md`。
 
 ## 如何接手本项目
