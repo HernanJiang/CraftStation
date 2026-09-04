@@ -105,18 +105,24 @@ Auto-Crafting、Model Fingerprint、Active Probing、Compatibility Prediction、
 
 仅当用户明确调用 `$my-workflow` 或指定其 `Architect`、`Manager`、`Coder`、`Debugger`、`Assistant` 角色时启用大型项目工作流。
 
-- 生命周期：`Architect Brief -> Manager Feature Spec/Tickets -> Coder -> Debugger`。
-- 配对规则：每个 Feature 的 Coder 必须在完成全部 Ticket 与 Feature-level self-check 后，自动创建并交接一个对应的 Debugger 任务；Manager 不预先创建 Debugger。Debugger 只验收其绑定 Coder 的同一 Feature worktree。
-- 角色默认模型：Coder 默认使用 `gemini-3.8-flash`、推理强度 `high`；Debugger 默认使用 `gpt-5.6-sol`、推理强度 `high`。创建或继续 Coder / Debugger 会话时使用上述默认值，不要覆盖为其他模型，除非用户当次明确指定。
+- 生命周期：`Architect Brief -> Manager Feature Spec/Tickets -> Coder (Stage 1/2) -> Debugger (Stage 1/2) ⇄ Coder (Stage 1/2) [Mutual Loop] -> DEV PASS`。
+- 双阶段互审与修复机制：
+  - **Coder 双阶段**：Stage 1 连续执行全部 Tickets（T01 → Tn）/ 反向审查 Debugger 修复改动；Stage 2 自我审查自修 / 亲自修复审出的回归缺陷并验证。
+  - **Debugger 双阶段**：Stage 1 独立审查与测试/Runtime 验证；Stage 2 亲自直接修复自己在 Stage 1 审出的缺陷并全量回归验证。
+  - **互审互修循环（最多 3 轮）**：遵循「谁发现、谁在 Stage 2 修复」，杜绝只出报告让对方猜题。循环上限为 3 轮。
+  - **终极攻坚与阻断**：若 3 轮后仍有未能解决的 bug，由 Debugger 和 Coder 启动 Matt 的 `diagnosing-bugs` 与 `tdd` 技能进行最后一轮终极联合攻坚修复，再修不好则标记 `BLOCKED` 上报用户；若遇到**需要用户配合才能解决**的问题（缺少凭据/配置/权限/需人工决策），**立即标记 `BLOCKED` 直接上报用户**，严禁空耗互审轮次。
+  - **双向 PASS 收尾**：当 Coder 与 Debugger 在互审中均判定 0 Findings（达成双向 PASS）时，由 Debugger 在当前版本 Dev 分支完成候选收口（状态进入 `DEV PASS / USER ACCEPTANCE PENDING`），生成 `report_X.Y.md`，并启动产物引导用户进行 Smoke 验收。
+- 配对规则：每个 Feature 的 Coder 必须在完成全部 Ticket 与 Stage 2 自查自修后，自动创建并交接一个对应的 Debugger 任务；Manager 不预先创建 Debugger。Debugger 只验收其绑定 Coder 的同一 Feature worktree。
+- 角色默认模型：Coder 默认使用 `muse-spark-1.3-contributor` (Muse-Spark-1.3-Contributor)、推理强度 `xhigh`；Debugger 默认使用 `gpt-5.6-sol` (ChatGPT 5.6 sol)、推理强度 `high`。创建或继续 Coder / Debugger 会话时使用上述默认值，不要覆盖为其他模型，除非用户当次明确指定。
 - 问题修复分流：版本 Feature 仍在独立 worktree 开发；用户确认的问题、缺陷与 hotfix 默认由 Manager / Coder 直接在 `main` 修改，不另开 Feature worktree。
 - Manager：每项目唯一，标题固定 `Manager`，不绑 Feature 版本；负责与用户讨论并下发计划，跨 Feature 复用同一会话。Plan 发布并完成 Coder 派发后立即收口本轮，不持续等待、轮询或查看 Coder 进度；Coder 连续执行全部 Tickets 并自行创建 Debugger。仅当用户明确要求查看进度、出现阻塞/Re-plan，或用户授权 Dev → Main 收口时，Manager 才再介入。
 - Coder / Debugger / Assistant 会话命名：`{Role}-{Version}-{ShortDesc}`，例如 `Coder-0.7-OpenCode Native`、`Debugger-0.6-Provider Auth`。`Version` 用 Feature `X.Y`，不要加 `v`。
 - 新建角色会话必须绑定本项目（`projectId` `16cc8579-4db8-4ce6-89c3-a12a48187705` / `D:\\Work\\CraftStation`），禁止 projectless 会话。同一角色多个 Feature 会话时按版本匹配，不得复用其他版本的 Debugger，也不得新建第二个 Manager。
-- Debugger `PASS` 后在当前 `dev/<version-feature>` 分支完成候选收口，通知 Manager，并打开该版本工作树产物给用户看；不再合入共享 Dev。`FAIL` 后在同一工作树进入 Fix Cycle。用户验收并明确授权后，版本开发分支 → `main` 由 Manager 执行；发生冲突时保留现场并向用户说明，不强制覆盖。
-- 版本：`vX` Major Stage、`vX.Y` Feature Version、`vX.Y/Tnn` Ticket、`vX.Y.Z` Fix Cycle。
+- 双向 PASS 达成后，由 Debugger 在当前 `dev/<version-feature>` 分支完成候选收口，通知 Manager，并打开该版本工作树产物给用户看；不再合入共享 Dev。用户验收并明确授权后，版本开发分支 → `main` 由 Manager 执行；发生冲突时保留现场并向用户说明，不强制覆盖。
+- 版本：`vX` Major Stage、`vX.Y` Feature Version、`vX.Y/Tnn` Ticket、`vX.Y.Z` 互审与修复 Cycle。
 - 动态状态只维护在 `PROJECT_STATUS.md`。
 - 角色文档写入 `ai_workspace/agent_docs/{role}_X.Y.Z.md`。
-- Feature 最终 PASS 后，Debugger 生成 `ai_workspace/reports/report_X.Y.md`。
+- Feature 最终双向 PASS 后，Debugger 生成 `ai_workspace/reports/report_X.Y.md`。
 
 ## Common Commands
 

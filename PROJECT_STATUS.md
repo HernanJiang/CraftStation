@@ -12,8 +12,8 @@
 - v1.0.1 / v1.1.0 / v1.2.0(+v1.3 Computer Use 续体) 三分支已全部兼容合并进 `main`：`567965a` → `3082918` → `45b99ab`；package.json 定版 **`1.0.0`**（`9bceee6`）。
 - 最终 main 全链路验收：install/typecheck/lint/build PASS；**全量 vitest 927 文件 / 10184 测试全部通过（exit 0，两次确认）**；真实应用启动 smoke 全场景 PASS（0 控制台错误）；CPA 兼容 tracer 真实流量 E2E PASS；Computer Use 真实 Windows GUI 验收 PASS（13+ 项操作）。
 - 最终验收报告：`ai_workspace/reports/report_release_1.0.0.md`。
-- 外部阻塞（非代码）：ChatGPT-via-CPA refresh token 轮换待用户重登；Kimi/DeepSeek/Gemini-Antigravity 原生腿缺用户凭据；Computer Use 复跑需控制台解锁。
-- 未 push、未打 tag；发布动作待用户明确授权。
+- 2026-09-04 续验：Kimi 原生腿 **PASS**（`kimi -p` 真实回包 `KIMI_NATIVE_OK`，kimi 0.36.1）。DeepSeek 已升级官方 `dsh` 到 **0.1.2-rc.1**，但 `dsh --profile headless` 在官方 plugin tree 崩溃（缺 `pi-ai` openai.json；`@deepseek-ai/dsh-llm` 无 `assertNever` export），仍 **BLOCKED**（上游 CLI 缺陷，不是缺安装）。Gemini/Antigravity 原生仍 **PASS**。ChatGPT-via-CPA 仍 **BLOCKED**：产品凭据根是 `~/.craftstation`（`AccountStore`=`craftstation-accounts/`，隔离 Codex home=`agent-plugins/codex/home`）。本轮用该库投影到本仓库 CPA `:18317`（pid 35360，已停）后 `POST gpt-5.5` 仍 HTTP 503 / `refresh_token_invalidated`。库在，但 ChatGPT 凭据与宿主 `~/.codex` 是同一套已作废 refresh（账号 `77092101-...`，last_refresh 2026-08-24）；managed Codex 账户 `codex:002993b5-...` 的 profile 目录为空壳。live 需交互式登录进 CraftStation 自己的账户库，不是再刷宿主 `codex login`，也未动 Codex-Router `:28081`。Muse Code / Muse Spark 未进入本轮产品接线：WSL Ubuntu 已安装官方 **Muse Code 1.0.2 (1.0.2-R2040.1)**，`muse --version` PASS，但未提交的 `harness:muse` composition 已丢弃；live 仍 **BLOCKED**。Computer Use 复跑需控制台解锁。
+- 未 push、未打 tag；发布动作待用户明确授权（本轮用户未下达 push/tag 指令）。
 
 > CraftStation 当前动态状态的唯一来源。长期规则见 `AGENTS.md`，外部仓库精确基线见 `reference/BASELINES.md`。
 

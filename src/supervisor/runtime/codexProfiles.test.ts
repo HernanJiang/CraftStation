@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { AccountStore } from "./accountStore";
 import {
   CodexProfileService,
+  breakManagedStateSymlink,
   buildCodexLoginScript,
   ensureManagedCodexHome,
   managedCodexProcessEnvironment,
@@ -187,5 +188,63 @@ describe("managedCodexProcessEnvironment", () => {
     expect(config).toContain('sandbox_mode = "danger-full-access"');
     expect(config).not.toContain("model_catalog_json");
     expect(config).not.toMatch(/model_catalog_json\s*=/);
+  });
+
+  it("breaks a config.toml symlink instead of writing through into the linked home", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-symlink-"));
+    roots.push(root);
+    const routerHome = join(root, "router-home");
+    const home = join(root, "profile");
+    mkdirSync(routerHome, { recursive: true });
+    mkdirSync(home, { recursive: true });
+    const routerConfig = join(routerHome, "config.toml");
+    writeFileSync(routerConfig, 'model_provider = "codex-router-overlay"\n');
+    let linked = true;
+    try {
+      require("node:fs").symlinkSync(routerConfig, join(home, "config.toml"), "file");
+    } catch {
+      linked = false;
+    }
+    if (!linked) return;
+    expect(breakManagedStateSymlink(join(home, "config.toml"))).toBe(true);
+    ensureManagedCodexHome(home);
+    const config = require("node:fs").readFileSync(join(home, "config.toml"), "utf8");
+    expect(config).toContain('model_provider = "openai"');
+    expect(require("node:fs").lstatSync(join(home, "config.toml")).isSymbolicLink()).toBe(false);
+    // The Router-owned file must be untouched.
+    expect(require("node:fs").readFileSync(routerConfig, "utf8")).toContain("codex-router-overlay");
+  });
+
+  it("breakManagedStateSymlink ignores missing paths and regular files", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-symlink-"));
+    roots.push(root);
+    expect(breakManagedStateSymlink(join(root, "missing.toml"))).toBe(false);
+    const regular = join(root, "regular.toml");
+    writeFileSync(regular, "x");
+    expect(breakManagedStateSymlink(regular)).toBe(false);
+    expect(require("node:fs").readFileSync(regular, "utf8")).toBe("x");
+  });
+
+  it("breaks a leftover hardlink instead of writing through into the host overlay", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-hardlink-"));
+    roots.push(root);
+    const routerHome = join(root, "router-home");
+    const home = join(root, "profile");
+    mkdirSync(routerHome, { recursive: true });
+    mkdirSync(home, { recursive: true });
+    const routerConfig = join(routerHome, "config.toml");
+    writeFileSync(routerConfig, 'model_provider = "codex-router-overlay"\n');
+    let linked = true;
+    try {
+      require("node:fs").linkSync(routerConfig, join(home, "config.toml"));
+    } catch {
+      linked = false;
+    }
+    if (!linked) return;
+    expect(breakManagedStateSymlink(join(home, "config.toml"))).toBe(true);
+    ensureManagedCodexHome(home);
+    const config = require("node:fs").readFileSync(join(home, "config.toml"), "utf8");
+    expect(config).toContain('model_provider = "openai"');
+    expect(require("node:fs").readFileSync(routerConfig, "utf8")).toContain("codex-router-overlay");
   });
 });

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseCodexAuth, resolveCodexToken } from "./codexCredentials";
@@ -70,8 +70,29 @@ const MANAGED_CODEX_CONFIG = [
 export function ensureManagedCodexHome(managedCodexHome: string): string {
   mkdirSync(managedCodexHome, { recursive: true });
   const configPath = join(managedCodexHome, "config.toml");
+  // Never write through a leftover symlink/hardlink into another home.
+  // Startup used to link a private home at host ~/.codex/config.toml; an
+  // unconditional write would follow that link and replace the Router overlay.
+  breakManagedStateSymlink(configPath);
   writeFileSync(configPath, MANAGED_CODEX_CONFIG, { encoding: "utf8" });
   return managedCodexHome;
+}
+
+/**
+ * Remove `targetPath` when it is a symlink or hardlink so managed writes land
+ * in the managed home itself, never in a linked host/Router home. Returns true
+ * when a link was removed. Exported for unit tests.
+ */
+export function breakManagedStateSymlink(targetPath: string): boolean {
+  let st;
+  try {
+    st = lstatSync(targetPath);
+  } catch {
+    return false;
+  }
+  if (!st.isSymbolicLink() && st.nlink <= 1) return false;
+  unlinkSync(targetPath);
+  return true;
 }
 
 /**

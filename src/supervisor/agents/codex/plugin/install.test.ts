@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +16,8 @@ vi.mock("node:child_process", async () => {
 });
 
 import {
+  breakPrivateHostStateLink,
+  buildWslCodexHomeSeedScript,
   codexHooksFeatureFlagForSemver,
   getCodexPluginPaths,
   isCodexSemverSupportedForGoals,
@@ -23,6 +25,8 @@ import {
   mergeCodexHooksDocument,
   parseCodexVersionLine,
   probeCodexCliSemver,
+  seedNativeCodexHome,
+  shouldLinkHostCodexStateFile,
 } from "./install";
 import { buildNativeHookCommandHead } from "../../plugin/installerBase";
 
@@ -120,6 +124,128 @@ describe("parseCodexVersionLine + isCodexSemverSupportedForHooks", () => {
     expect(isCodexSemverSupportedForGoals([0, 130, 0])).toBe(true);
     expect(isCodexSemverSupportedForGoals([1, 0, 0])).toBe(true);
     expect(isCodexSemverSupportedForGoals(null)).toBe(false);
+  });
+});
+
+describe("shouldLinkHostCodexStateFile", () => {
+  it("never links host config.toml or auth.json", () => {
+    expect(shouldLinkHostCodexStateFile("C:\\Users\\demo\\.codex", "config.toml")).toBe(false);
+    expect(shouldLinkHostCodexStateFile("C:\\Users\\demo\\.codex", "auth.json")).toBe(false);
+    expect(shouldLinkHostCodexStateFile("C:\\Users\\demo\\.codex", "sessions")).toBe(true);
+    expect(shouldLinkHostCodexStateFile("C:\\Users\\demo\\.codex", "session_index.jsonl")).toBe(
+      true,
+    );
+  });
+});
+
+describe("breakPrivateHostStateLink", () => {
+  const tempRoots: string[] = [];
+  afterEach(() => {
+    for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+
+  it("unlinks a leftover private config.toml that points at the Router overlay", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-break-link-"));
+    tempRoots.push(root);
+    const hostHome = join(root, "host");
+    const privateHome = join(root, "private");
+    mkdirSync(hostHome, { recursive: true });
+    mkdirSync(privateHome, { recursive: true });
+    const hostConfig = join(hostHome, "config.toml");
+    const privateConfig = join(privateHome, "config.toml");
+    writeFileSync(hostConfig, 'model_provider = "codex-router"\n');
+    let linked = true;
+    try {
+      require("node:fs").symlinkSync(hostConfig, privateConfig, "file");
+    } catch {
+      linked = false;
+    }
+    if (!linked) return;
+    expect(breakPrivateHostStateLink(privateConfig, hostConfig)).toBe(true);
+    expect(require("node:fs").existsSync(privateConfig)).toBe(false);
+    expect(require("node:fs").readFileSync(hostConfig, "utf8")).toContain("codex-router");
+  });
+
+  it("leaves an independent private config.toml in place", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-keep-private-"));
+    tempRoots.push(root);
+    const hostConfig = join(root, "host.toml");
+    const privateConfig = join(root, "private.toml");
+    writeFileSync(hostConfig, "host");
+    writeFileSync(privateConfig, "private");
+    expect(breakPrivateHostStateLink(privateConfig, hostConfig)).toBe(false);
+    expect(require("node:fs").readFileSync(privateConfig, "utf8")).toBe("private");
+  });
+});
+
+describe("buildWslCodexHomeSeedScript", () => {
+  it("never mkdir/touch/link host config.toml or auth.json", () => {
+    const script = buildWslCodexHomeSeedScript({
+      linuxCodexHome: "/home/demo/.craftstation/agent-plugins/codex/home",
+      globalCodexHome: "/home/demo/.codex",
+    });
+    expect(script).not.toContain("mkdir -p '/home/demo/.codex/sessions'");
+    expect(script).not.toContain("touch '/home/demo/.codex/session_index.jsonl'");
+    expect(script).not.toContain("ln -s '/home/demo/.codex/config.toml'");
+    expect(script).not.toContain("ln -s '/home/demo/.codex/auth.json'");
+    expect(script).not.toContain("ln '/home/demo/.codex/config.toml'");
+    expect(script).not.toContain("cp '/home/demo/.codex/config.toml'");
+    expect(script).toContain(
+      "rm -f '/home/demo/.craftstation/agent-plugins/codex/home/config.toml'",
+    );
+    expect(script).toContain("rm -f '/home/demo/.craftstation/agent-plugins/codex/home/auth.json'");
+    expect(script).toContain("ln -s '/home/demo/.codex/sessions'");
+  });
+});
+
+describe("seedNativeCodexHome", () => {
+  const tempRoots: string[] = [];
+  afterEach(() => {
+    for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+
+  it("does not create or overwrite host config.toml/auth.json", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-seed-native-"));
+    tempRoots.push(root);
+    const hostHome = join(root, "host");
+    const privateHome = join(root, "private");
+    mkdirSync(hostHome, { recursive: true });
+    mkdirSync(privateHome, { recursive: true });
+    const hostConfig = join(hostHome, "config.toml");
+    const hostAuth = join(hostHome, "auth.json");
+    writeFileSync(
+      hostConfig,
+      'model_provider = "codex-router"\nmodel_catalog_json = "catalog.json"\n',
+    );
+    writeFileSync(hostAuth, '{"tokens":{"access_token":"secret"}}');
+    seedNativeCodexHome(privateHome, hostHome);
+    expect(require("node:fs").readFileSync(hostConfig, "utf8")).toContain("codex-router");
+    expect(require("node:fs").readFileSync(hostAuth, "utf8")).toContain("secret");
+    expect(require("node:fs").existsSync(join(hostHome, "sessions"))).toBe(false);
+    expect(require("node:fs").existsSync(join(hostHome, "session_index.jsonl"))).toBe(false);
+  });
+
+  it("breaks a leftover private config.toml symlink into the host overlay", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-seed-break-"));
+    tempRoots.push(root);
+    const hostHome = join(root, "host");
+    const privateHome = join(root, "private");
+    mkdirSync(hostHome, { recursive: true });
+    mkdirSync(privateHome, { recursive: true });
+    const hostConfig = join(hostHome, "config.toml");
+    const privateConfig = join(privateHome, "config.toml");
+    writeFileSync(hostConfig, 'model_provider = "codex-router"\n');
+    let linked = true;
+    try {
+      require("node:fs").symlinkSync(hostConfig, privateConfig, "file");
+    } catch {
+      linked = false;
+    }
+    if (!linked) return;
+    seedNativeCodexHome(privateHome, hostHome);
+    expect(require("node:fs").existsSync(privateConfig)).toBe(false);
+    expect(require("node:fs").lstatSync(privateConfig, { throwIfNoEntry: false })).toBeUndefined();
+    expect(require("node:fs").readFileSync(hostConfig, "utf8")).toContain("codex-router");
   });
 });
 

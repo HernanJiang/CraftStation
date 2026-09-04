@@ -1,11 +1,5 @@
 import { execFileSync } from "node:child_process";
-import {
-  copyFileSync as fsCopyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -189,34 +183,106 @@ const CODEX_LINK_TARGETS = [
   { name: "config.toml", kind: "file" as const },
 ];
 
-function seedNativeCodexHome(codexHomeDir: string): void {
+export function seedNativeCodexHome(
+  codexHomeDir: string,
+  hostCodexHomeDir = join(homedir(), ".codex"),
+): void {
   mkdirSync(codexHomeDir, { recursive: true });
-  const globalCodexHome = join(homedir(), ".codex");
-  mkdirSync(join(globalCodexHome, "sessions"), { recursive: true });
-  if (!existsSync(join(globalCodexHome, "session_index.jsonl"))) {
-    writeFileSync(join(globalCodexHome, "session_index.jsonl"), "", { flag: "a" });
-  }
-  restorePrivateStateFile(codexHomeDir, globalCodexHome, "auth.json");
-  restorePrivateStateFile(codexHomeDir, globalCodexHome, "config.toml");
+  // Host ~/.codex/config.toml and auth.json are live Desktop/Router state.
+  // Startup must never create, restore, copy, or link those files, and must
+  // break leftover private symlink/hardlinks so later managed writes stay in
+  // the CraftStation home. Session history may still be shared if it exists.
+  breakPrivateHostStateLink(
+    join(codexHomeDir, "config.toml"),
+    join(hostCodexHomeDir, "config.toml"),
+  );
+  breakPrivateHostStateLink(join(codexHomeDir, "auth.json"), join(hostCodexHomeDir, "auth.json"));
 
   for (const { name, kind } of CODEX_LINK_TARGETS) {
-    ensureNativeStateLink(join(globalCodexHome, name), join(codexHomeDir, name), kind);
+    if (!shouldLinkHostCodexStateFile(hostCodexHomeDir, name)) continue;
+    ensureNativeStateLink(join(hostCodexHomeDir, name), join(codexHomeDir, name), kind);
   }
 }
 
-function restorePrivateStateFile(
-  codexHomeDir: string,
-  globalCodexHome: string,
-  file: "auth.json" | "config.toml",
-): void {
-  const source = join(codexHomeDir, file);
-  const target = join(globalCodexHome, file);
-  if (existsSync(target) || !existsSync(source)) return;
+/**
+ * Whether the private home may link at a host `~/.codex` state file.
+ * `config.toml`/`auth.json` are never linked: they are live Router/Desktop
+ * forwarding state. Exported for unit tests.
+ */
+export function shouldLinkHostCodexStateFile(_globalCodexHome: string, name: string): boolean {
+  return name !== "config.toml" && name !== "auth.json";
+}
+
+/**
+ * Drop a leftover private config/auth path that still points at the host
+ * home (symlink or hardlink). Returns true when the private path was removed.
+ * Exported for unit tests.
+ */
+export function breakPrivateHostStateLink(privatePath: string, hostPath: string): boolean {
+  let st;
   try {
-    fsCopyFileSync(source, target);
+    st = lstatSync(privatePath);
   } catch {
-    // Best-effort recovery for Windows when file symlinks were unavailable.
+    return false;
   }
+  if (st.isSymbolicLink()) {
+    unlinkSync(privatePath);
+    return true;
+  }
+  if (!existsSync(hostPath) || privatePath === hostPath) return false;
+  let hostSt;
+  try {
+    hostSt = lstatSync(hostPath);
+  } catch {
+    return false;
+  }
+  if (hostSt.isSymbolicLink()) return false;
+  if (st.dev === hostSt.dev && st.ino === hostSt.ino && Number(st.ino) !== 0) {
+    unlinkSync(privatePath);
+    return true;
+  }
+  return false;
+}
+
+export function buildWslCodexHomeSeedScript(input: {
+  linuxCodexHome: string;
+  globalCodexHome: string;
+}): string {
+  const { linuxCodexHome, globalCodexHome } = input;
+  const unlinkIfPointsAtHost = (name: "config.toml" | "auth.json") => {
+    const privatePath = quotePosixShellArg(`${linuxCodexHome}/${name}`);
+    const hostPath = quotePosixShellArg(`${globalCodexHome}/${name}`);
+    return `if [ -L ${privatePath} ] || { [ -e ${privatePath} ] && [ -e ${hostPath} ] && [ ${privatePath} -ef ${hostPath} ]; }; then rm -f ${privatePath}; fi`;
+  };
+  const sourceExists = (path: string) =>
+    `[ -e ${quotePosixShellArg(path)} ] || [ -L ${quotePosixShellArg(path)} ]`;
+  // ln -s can fail on Windows-mounted filesystems (9p / DrvFs). For files,
+  // fall back to hardlink, then copy. Dirs only get the symlink attempt.
+  const linkLine = (name: string, kind: "dir" | "file") => {
+    const target = quotePosixShellArg(`${linuxCodexHome}/${name}`);
+    const source = quotePosixShellArg(`${globalCodexHome}/${name}`);
+    const attempts = [
+      `[ -e ${target} ] || [ -L ${target} ]`,
+      `${sourceExists(`${globalCodexHome}/${name}`)} && ln -s ${source} ${target}`,
+      ...(kind === "file"
+        ? [
+            `${sourceExists(`${globalCodexHome}/${name}`)} && ln ${source} ${target}`,
+            `${sourceExists(`${globalCodexHome}/${name}`)} && cp ${source} ${target}`,
+          ]
+        : []),
+    ];
+    return attempts.join(" || ");
+  };
+  const lines = [
+    `mkdir -p ${quotePosixShellArg(linuxCodexHome)}`,
+    unlinkIfPointsAtHost("config.toml"),
+    unlinkIfPointsAtHost("auth.json"),
+  ];
+  for (const { name, kind } of CODEX_LINK_TARGETS) {
+    if (name === "config.toml" || name === "auth.json") continue;
+    lines.push(linkLine(name, kind));
+  }
+  return lines.join("\n");
 }
 
 async function seedWslCodexHome(
@@ -227,29 +293,10 @@ async function seedWslCodexHome(
   const uncCodexHome = toWslUncPath(distro, linuxCodexHome);
   mkdirSync(uncCodexHome, { recursive: true });
   const globalCodexHome = `${home}/.codex`;
-  const linkExists = (path: string) =>
-    `[ -e ${quotePosixShellArg(path)} ] || [ -L ${quotePosixShellArg(path)} ]`;
-  // ln -s can fail on Windows-mounted filesystems (9p / DrvFs). For files,
-  // fall back to hardlink, then copy. Dirs only get the symlink attempt.
-  const linkLine = (name: string, kind: "dir" | "file") => {
-    const target = quotePosixShellArg(`${linuxCodexHome}/${name}`);
-    const source = quotePosixShellArg(`${globalCodexHome}/${name}`);
-    const attempts = [
-      linkExists(`${linuxCodexHome}/${name}`),
-      `ln -s ${source} ${target}`,
-      ...(kind === "file" ? [`ln ${source} ${target}`, `cp ${source} ${target}`] : []),
-    ];
-    return attempts.join(" || ");
-  };
-  const script = [
-    [
-      "mkdir -p",
-      quotePosixShellArg(linuxCodexHome),
-      quotePosixShellArg(`${globalCodexHome}/sessions`),
-    ].join(" "),
-    `touch ${quotePosixShellArg(`${globalCodexHome}/session_index.jsonl`)}`,
-    ...CODEX_LINK_TARGETS.map(({ name, kind }) => linkLine(name, kind)),
-  ].join("\n");
+  const script = buildWslCodexHomeSeedScript({
+    linuxCodexHome,
+    globalCodexHome,
+  });
   await execInWsl(distro, "/", "sh", ["-lc", script], { timeout: 15_000 }).catch((error) => {
     console.warn(`[codex] WSL plugin install failed for distro ${distro}:`, error);
   });
