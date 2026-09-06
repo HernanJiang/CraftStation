@@ -77,8 +77,27 @@ export const threadSchema = z.object({
    * grouped with their parent in the sidebar; absent for user-created threads.
    */
   parentThreadId: z.string().min(1).optional(),
+  /**
+   * Memory-only Side Chat branch: a temporary fork that lives in the right
+   * panel, never appears in the left sidebar, and is never written to SQLite
+   * (see `dbStorage.saveAppStore`). Cleared when the user promotes the branch
+   * to a formal thread ("save as formal"); the row is discarded on Side Chat
+   * close while still ephemeral. Absent/false for every durable thread, so
+   * existing rows and all existing parsers are unaffected.
+   */
+  isEphemeral: z.boolean().optional(),
 });
 export type Thread = z.infer<typeof threadSchema>;
+
+/**
+ * True for memory-only Side Chat branches. Use this predicate (rather than a
+ * bare truthiness read) at every surface that lists durable threads so a
+ * temporary branch can never leak into the left thread list, search, Home,
+ * adjacent-thread navigation, or SQLite persistence.
+ */
+export function isEphemeralSideChatThread(thread: Pick<Thread, "isEphemeral">): boolean {
+  return thread.isEphemeral === true;
+}
 
 export interface ThreadRuntimeSnapshot {
   threadId: string;

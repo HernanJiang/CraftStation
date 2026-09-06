@@ -8,6 +8,7 @@ import type {
   PromptSegment,
   Thread,
 } from "@/shared/contracts";
+import { isEphemeralSideChatThread } from "@/shared/contracts";
 import { getProjectAgentStatuses } from "@/shared/agentStatus";
 import { resolveActivePaneId } from "@/renderer/actions/currentProject";
 import {
@@ -351,7 +352,11 @@ export function useDraftEnvironment(project: Project | undefined): {
 export function useProjectThreads(projectId: string | undefined): Thread[] {
   return useAppStore(
     useShallow((s) =>
-      projectId ? s.threads.filter((t) => t.projectId === projectId && !t.archived) : EMPTY_THREADS,
+      projectId
+        ? s.threads.filter(
+            (t) => t.projectId === projectId && !t.archived && !isEphemeralSideChatThread(t),
+          )
+        : EMPTY_THREADS,
     ),
   );
 }
@@ -362,7 +367,11 @@ export function useActiveProjectThreads(projectId: string | undefined): Thread[]
     useShallow((s) =>
       projectId
         ? s.threads.filter(
-            (t) => t.projectId === projectId && !t.archived && (t.status !== "inactive" || !t.done),
+            (t) =>
+              t.projectId === projectId &&
+              !t.archived &&
+              !isEphemeralSideChatThread(t) &&
+              (t.status !== "inactive" || !t.done),
           )
         : EMPTY_THREADS,
     ),

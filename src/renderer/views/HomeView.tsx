@@ -2,6 +2,7 @@ import { ArrowRight, FolderOpen, Plus } from "lucide-react";
 import { useShallow } from "zustand/shallow";
 import { Trans } from "@lingui/react/macro";
 import { isHomeProject, isHomeProjectId } from "@/shared/homeScope";
+import { isEphemeralSideChatThread } from "@/shared/contracts";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { openThread } from "@/renderer/actions/threadActions";
@@ -20,7 +21,11 @@ export function HomeView() {
     useShallow((state) =>
       state.threads
         .filter(
-          (t) => !t.done && !t.archived && (homeScopeEnabled || !isHomeProjectId(t.projectId)),
+          (t) =>
+            !t.done &&
+            !t.archived &&
+            !isEphemeralSideChatThread(t) &&
+            (homeScopeEnabled || !isHomeProjectId(t.projectId)),
         )
         .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 8),

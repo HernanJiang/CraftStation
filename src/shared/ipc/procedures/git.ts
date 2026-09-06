@@ -14,6 +14,7 @@ import {
   gitAddWorktreePayloadSchema,
   gitCommitPayloadSchema,
   gitDeleteBranchPayloadSchema,
+  gitDescribePayloadSchema,
   gitFetchPayloadSchema,
   gitFinishMergePayloadSchema,
   gitGetWorktreeOwnerPayloadSchema,

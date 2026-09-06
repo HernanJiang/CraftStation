@@ -2,7 +2,6 @@ import {
   FileDiff,
   FolderOpen,
   Globe,
-  Hammer,
   MessageCircle,
   Plus,
   TerminalSquare,
@@ -10,19 +9,18 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { showFilesPanel, showGitReviewPanel } from "@/renderer/actions/panelActions";
+import { openSideChatPanel } from "@/renderer/actions/sideChatActions";
 import { showTerminalPanel } from "@/renderer/actions/terminalActions";
 import { usePanelStore, type RightPanelTab } from "@/renderer/state/panelStore";
 import { useAppStore } from "@/renderer/state/appStore";
 import {
   useCurrentProjectId,
   useCurrentWorktreePath,
-  useFocusedThreadId,
 } from "@/renderer/hooks/uiSelectors";
-import { useSideChatStore } from "@/renderer/state/sideChatStore";
 import { isHomeProjectId } from "@/shared/homeScope";
 
 type LauncherItem = {
-  id: Extract<RightPanelTab, "git" | "terminal" | "browser" | "files" | "side-chat"> | "crafting";
+  id: Extract<RightPanelTab, "git" | "terminal" | "browser" | "files" | "side-chat">;
   label: string;
   shortcut: string;
   icon: typeof FileDiff;
@@ -40,7 +38,6 @@ export function AuxiliaryPanelLauncher() {
   const [pendingProjectTool, setPendingProjectTool] = useState<ProjectScopedTool | null>(null);
   const currentProjectId = useCurrentProjectId();
   const currentWorktreePath = useCurrentWorktreePath();
-  const currentThreadId = useFocusedThreadId();
   const selectedProject =
     realProjects.find((project) => project.id === selectedProjectId) ??
     realProjects.find((project) => project.id === currentProjectId) ??
@@ -50,7 +47,6 @@ export function AuxiliaryPanelLauncher() {
     { id: "terminal", label: t`Terminal`, shortcut: "Ctrl+`", icon: TerminalSquare },
     { id: "browser", label: t`Browser`, shortcut: "Ctrl+T", icon: Globe },
     { id: "files", label: t`Files`, shortcut: "Ctrl+P", icon: FolderOpen },
-    { id: "crafting", label: t`Crafting Table`, shortcut: "", icon: Hammer },
     { id: "side-chat", label: t`Side Chat`, shortcut: "", icon: MessageCircle },
   ];
 
@@ -94,20 +90,13 @@ export function AuxiliaryPanelLauncher() {
         panel.setBrowserOverlayOpen(false);
         panel.setBrowserPanelOpen(true);
         panel.setRightPanelTab("browser");
-      } else if (tab === "crafting") {
-        // The Crafting Table is now a first-level workspace tab, not a
-        // chat-right auxiliary tool. Navigating there replaces the content area.
-        panel.setAuxiliaryPanelPlacement("hidden");
-        panel.openModelUsageWorkspace({ tab: "crafting" });
-        return;
       } else if (tab === "side-chat") {
-        if (!currentThreadId || !useSideChatStore.getState().openFromThread(currentThreadId))
-          return;
+        openSideChatPanel();
         panel.setRightPanelTab("side-chat");
       }
       panel.setAuxiliaryPanelTab(tab);
     },
-    [currentProjectId, currentThreadId, currentWorktreePath, selectedProject?.id],
+    [currentProjectId, currentWorktreePath, selectedProject?.id],
   );
 
   // Creating a project from the Review/Files entry should complete the

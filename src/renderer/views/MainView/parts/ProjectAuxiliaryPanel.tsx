@@ -34,6 +34,7 @@ import { useFileEditorStore, type FileEditorRootContext } from "@/renderer/state
 import { usePanelStore, type GitReviewContext } from "@/renderer/state/panelStore";
 import { useThreadTodoDockStore } from "@/renderer/state/threadTodoDockStore";
 import { useSideChatStore } from "@/renderer/state/sideChatStore";
+import { closeSideChat } from "@/renderer/actions/sideChatActions";
 import { watchRemoteTerminal } from "@/renderer/state/remoteTerminalFeed";
 import { prefetchVisibleGitPanelPrData } from "@/renderer/state/gitRefresh";
 import {
@@ -120,6 +121,10 @@ export function ProjectAuxiliaryPanel(props: {
   const terminalWorktreePath = useDevTerminalStore((s) => s.activeWorktreePath);
   const terminalProject = projects.find((project) => project.id === terminalProjectId);
   const currentThreadId = useFocusedThreadId();
+  // Side Chat no longer requires an active main thread: the chooser can open
+  // from Home (existing-thread flow) and the tab stays while a side thread —
+  // ephemeral branch or parallel formal thread — is selected.
+  const sideChatPanelOpen = useSideChatStore((state) => state.panelOpen);
   const todoDockPlacement = useThreadTodoDockStore((state) =>
     currentThreadId
       ? (state.byThreadId[currentThreadId]?.placement ?? state.defaultPlacement)
@@ -435,7 +440,7 @@ export function ProjectAuxiliaryPanel(props: {
     if (tab === "usage") setUsagePanelOpen(false);
     if (tab === "notes") setNotesPanelOpen(false);
     if (tab === "terminal") useDevTerminalStore.getState().closePanel();
-    if (tab === "side-chat") useSideChatStore.getState().close();
+    if (tab === "side-chat") closeSideChat();
     closeAuxiliaryPanelTab(tab);
   }
 
@@ -464,7 +469,7 @@ export function ProjectAuxiliaryPanel(props: {
     if (tab === "notes") return notesPanelOpen || auxiliaryPanelTabs.includes("notes");
     if (tab === "plan") return renderPlanContent;
     if (tab === "subagent") return renderSubAgentContent;
-    if (tab === "side-chat") return currentThreadId !== null;
+    if (tab === "side-chat") return sideChatPanelOpen;
     return true;
   });
 
@@ -563,7 +568,7 @@ export function ProjectAuxiliaryPanel(props: {
       showNotesTab={notesProjectId !== undefined}
       showPlanTab={renderPlanContent}
       showSubagentTab={renderSubAgentContent}
-      showSideChatTab={currentThreadId !== null}
+      showSideChatTab={sideChatPanelOpen}
       openTabs={openTabs}
       launcherOpen={launcherOpen}
       launcherContent={<AuxiliaryPanelLauncher />}

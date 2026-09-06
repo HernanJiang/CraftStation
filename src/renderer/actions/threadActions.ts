@@ -1,6 +1,7 @@
 import { startTransition } from "react";
 import { toast } from "@heroui/react";
 import {
+  isEphemeralSideChatThread,
   isProjectInWorkspace,
   type Project,
   type RemoteThreadCommand,
@@ -293,7 +294,10 @@ export function openThread(
 export function switchToAdjacentThread(current: Thread, direction: "next" | "previous"): void {
   const store = useAppStore.getState();
   const projectThreads = store.threads.filter(
-    (thread) => thread.projectId === current.projectId && !thread.archived,
+    (thread) =>
+      thread.projectId === current.projectId &&
+      !thread.archived &&
+      !isEphemeralSideChatThread(thread),
   );
   if (projectThreads.length < 2) return;
 
@@ -624,7 +628,12 @@ export function acknowledgeThread(threadId: string): void {
   apply();
 }
 
-function deleteThreadOnly(threadId: string): void {
+/**
+ * Remove a thread row and close its runtime session without touching any
+ * worktree directory. Used for memory-only Side Chat branches (which never
+ * own a worktree) and as the shared tail of the sidebar delete path.
+ */
+export function deleteThreadOnly(threadId: string): void {
   const store = useAppStore.getState();
   const thread = store.threads.find((candidate) => candidate.id === threadId);
   if (store.provisioningWorktreeThreadIds[threadId] === true) {

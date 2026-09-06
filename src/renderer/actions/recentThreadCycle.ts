@@ -1,4 +1,5 @@
 import type { AppStoreState } from "@/renderer/state/appStore";
+import { isEphemeralSideChatThread } from "@/shared/contracts";
 import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { openThread } from "./threadActions";
@@ -90,7 +91,12 @@ let recentCycleAnchor: RecentCycleAnchor | null = null;
 function buildRecentThreadOrder(state: AppStoreState): string[] {
   const viewedAt = state.lastViewedAtByThreadId;
   return state.threads
-    .filter((thread) => !thread.archived && viewedAt[thread.id] !== undefined)
+    .filter(
+      (thread) =>
+        !thread.archived &&
+        !isEphemeralSideChatThread(thread) &&
+        viewedAt[thread.id] !== undefined,
+    )
     .sort((a, b) => (viewedAt[b.id] ?? 0) - (viewedAt[a.id] ?? 0))
     .map((thread) => thread.id);
 }

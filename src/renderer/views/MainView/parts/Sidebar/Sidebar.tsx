@@ -5,6 +5,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { AnimatedTerminalIcon } from "@/renderer/components/common/AnimatedTerminalIcon";
 import { getAppName } from "@/shared/appName";
 import type { Thread } from "@/shared/contracts";
+import { isEphemeralSideChatThread } from "@/shared/contracts";
 import { isHomeProject, isHomeProjectId } from "@/shared/homeScope";
 import { SidebarButton } from "@/renderer/components/common/SidebarButton";
 import { ThreadProviderIcon } from "@/renderer/components/providers/ThreadProviderIcon";
@@ -143,6 +144,7 @@ function CollapsedThreadRail() {
           thread.status !== "inactive" &&
           !thread.done &&
           !thread.archived &&
+          !isEphemeralSideChatThread(thread) &&
           (homeScopeEnabled || !isHomeProjectId(thread.projectId)),
       ),
     ),

@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useShallow } from "zustand/shallow";
 import { useAppStore } from "@/renderer/state/appStore";
+import { isEphemeralSideChatThread } from "@/shared/contracts";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useDragSource } from "@/renderer/dnd";
 import { openThread } from "@/renderer/actions/threadActions";
@@ -50,7 +51,9 @@ export function ThreadSearchOverlay(props: { onClose: () => void }) {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const candidates = threads.filter((thread) => !thread.archived);
+    const candidates = threads.filter(
+      (thread) => !thread.archived && !isEphemeralSideChatThread(thread),
+    );
     const filtered = q
       ? candidates.filter((thread) => thread.title.toLowerCase().includes(q))
       : candidates;

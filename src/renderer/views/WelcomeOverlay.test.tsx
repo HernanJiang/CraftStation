@@ -22,17 +22,15 @@ describe("WelcomeOverlay startup pipeline", () => {
   it("covers background hydration with a spinning logo and loading copy", () => {
     const { container } = render(<WelcomeOverlay ready={false} />);
     expect(screen.getByTestId("welcome-loading-status")).toHaveTextContent("Starting up");
-    expect(screen.queryByRole("button", { name: "Enter Chat" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Enter Project" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
     expect(container.querySelector('[data-welcome-spinning="true"]')).not.toBeNull();
     expect(container.querySelector('[data-welcome-loading="true"]')).not.toBeNull();
   });
 
-  it("reveals entry actions as soon as background hydration finishes", () => {
+  it("reveals a single start action as soon as background hydration finishes", () => {
     const { rerender, container } = render(<WelcomeOverlay ready={false} />);
     rerender(<WelcomeOverlay ready />);
-    expect(screen.getByRole("button", { name: "Enter Chat" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Enter Project" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
     expect(screen.queryByTestId("welcome-loading-status")).not.toBeInTheDocument();
     expect(container.querySelector('[data-welcome-spinning="true"]')).toBeNull();
     expect(container.querySelector('[data-welcome-loading="true"]')).toBeNull();

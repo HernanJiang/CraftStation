@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react";
-import { FolderPlus, MessageSquareText } from "lucide-react";
 import { Button } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { isHomeProject } from "@/shared/homeScope";
@@ -13,7 +12,6 @@ import {
 } from "@/renderer/state/welcomeGateStore";
 import { writeStoredBoolean } from "@/renderer/utils/localStorage";
 import { BrandWordmark } from "@/renderer/components/common/BrandWordmark";
-import { CreateProjectMenu } from "@/renderer/views/MainView/parts/CreateProject/CreateProjectMenu";
 import { WELCOME_BACKGROUND_CODE } from "./welcomeBackgroundCode";
 import appIconUrl from "../../../build/icon.png";
 
@@ -262,15 +260,11 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
             <h1 className="flex items-baseline gap-3 overflow-visible pr-[0.22em] pb-[0.2em] text-[clamp(3.25rem,8vw,6.25rem)] leading-[1.28] font-semibold tracking-normal">
               <BrandWordmark className="inline-block pr-[0.04em] pb-[0.12em]" />
             </h1>
-            {actionsVisible ? (
-              <p className="text-sm text-muted">
-                <Trans>Choose how you want to enter CraftStation.</Trans>
-              </p>
-            ) : null}
           </div>
 
           {actionsVisible ? (
-            <div className="grid w-full max-w-[460px] grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex w-full max-w-[460px] flex-col items-center gap-4">
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
               <Button
                 fullWidth
                 size="lg"
@@ -278,20 +272,8 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
                 className="craftstation-welcome-button h-12 justify-center gap-2 !text-white"
                 onPress={handleAskQuestion}
               >
-                <MessageSquareText className="size-4" />
-                <Trans>Enter Chat</Trans>
+                <Trans>Start</Trans>
               </Button>
-              <CreateProjectMenu onSelect={dismissWelcome}>
-                <Button
-                  fullWidth
-                  size="lg"
-                  variant="tertiary"
-                  className="craftstation-welcome-button h-12 justify-center gap-2 !text-white"
-                >
-                  <FolderPlus className="size-4" />
-                  <Trans>Enter Project</Trans>
-                </Button>
-              </CreateProjectMenu>
             </div>
           ) : (
             <p

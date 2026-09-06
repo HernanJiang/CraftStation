@@ -1,5 +1,6 @@
 import { useShallow } from "zustand/shallow";
 import type { Project } from "@/shared/contracts";
+import { isEphemeralSideChatThread } from "@/shared/contracts";
 import { isHomeProject } from "@/shared/homeScope";
 import { ProjectIcon } from "@/renderer/components/common/ProjectIcon";
 import {
@@ -101,7 +102,8 @@ export function SidebarFlatThreadList(props: { sortMode: ThreadSortMode }) {
 
   const allThreads = useAppStore((s) => s.threads);
   const visibleThreads = allThreads.filter(
-    (thread) => !thread.archived && projectsById.has(thread.projectId),
+    (thread) =>
+      !thread.archived && !isEphemeralSideChatThread(thread) && projectsById.has(thread.projectId),
   );
   const threadCounts = new Map<string, number>();
   for (const thread of visibleThreads) {

@@ -95,6 +95,30 @@ describe("createDbStorage", () => {
 
     expect(bridge.dbSyncAll).not.toHaveBeenCalled();
   });
+
+  it("filters memory-only Side Chat branches out of the dbSyncAll payload", async () => {
+    const storage = createDbStorage<{
+      projects: unknown[];
+      threads: Array<{ id: string; isEphemeral?: boolean }>;
+      view: { kind: "home" };
+      groupLayouts: Record<string, unknown>;
+    }>();
+    const formal = { id: "thread-formal" };
+    const branch = { id: "thread-branch", isEphemeral: true };
+
+    await storage.setItem("craftstation-app-v2", {
+      state: {
+        projects: [],
+        threads: [formal, branch],
+        view: { kind: "home" },
+        groupLayouts: {},
+      },
+      version: 4,
+    });
+
+    expect(bridge.dbSyncAll).toHaveBeenCalledTimes(1);
+    expect(bridge.dbSyncAll.mock.calls[0]?.[1]).toEqual([formal]);
+  });
 });
 
 describe("dbStorage persistence error reporting", () => {

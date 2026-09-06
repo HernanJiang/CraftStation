@@ -84,6 +84,12 @@ export interface ThreadSlice {
     focus?: boolean;
     /** Orchestrator thread that created this one (metadata only). */
     parentThreadId?: string;
+    /**
+     * Memory-only Side Chat branch: kept out of the sidebar and SQLite (see
+     * `isEphemeralSideChatThread`). The caller owns its lifecycle (Side Chat
+     * close discards it, "save as formal" clears the flag).
+     */
+    isEphemeral?: boolean;
   }) => Thread;
   deleteThread: (threadId: string) => void;
   renameThread: (threadId: string, title: string) => void;
@@ -195,6 +201,7 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
     presentationMode,
     focus,
     parentThreadId,
+    isEphemeral,
   }) => {
     const now = new Date().toISOString();
     const thread: Thread = {
@@ -220,6 +227,7 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
       ...(groupId ? { groupId } : {}),
       ...(groupName ? { groupName } : {}),
       ...(parentThreadId ? { parentThreadId } : {}),
+      ...(isEphemeral === true ? { isEphemeral: true } : {}),
       createdAt: now,
       updatedAt: now,
       activeTurnStartedAt: now,

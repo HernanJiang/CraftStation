@@ -2,6 +2,7 @@ import type { PersistStorage, StorageValue } from "zustand/middleware";
 import { isQuickComposerWindow, readBridge } from "../bridge";
 import { captureRendererException } from "../diagnostics/sentry";
 import type { Project, Thread, AppView } from "@/shared/contracts";
+import { isEphemeralSideChatThread } from "@/shared/contracts";
 
 /**
  * Surface a persistence failure instead of silently dropping it. These writes
@@ -129,7 +130,9 @@ async function saveAppStore(value: StorageValue<unknown>): Promise<void> {
     readBridge()
       .dbSyncAll(
         state.projects ?? [],
-        state.threads ?? [],
+        // Memory-only Side Chat branches must never reach SQLite: they are
+        // temporary by definition and would otherwise reload as formal rows.
+        (state.threads ?? []).filter((thread) => !isEphemeralSideChatThread(thread)),
         JSON.stringify(state.view ?? { kind: "home" }),
       )
       .catch((error) => reportPersistError("projects/threads/view", error));

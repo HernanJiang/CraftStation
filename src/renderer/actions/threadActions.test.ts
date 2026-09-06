@@ -44,7 +44,10 @@ const { refreshServer, sendThreadCommand, toast } = vi.hoisted(() => ({
   toast: { danger: vi.fn<(message: string) => void>() },
 }));
 
-vi.mock("@heroui/react", () => ({ toast }));
+vi.mock("@heroui/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@heroui/react")>();
+  return { ...actual, toast };
+});
 
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridge,
@@ -1024,6 +1027,20 @@ describe("threadActions", () => {
 
       switchToAdjacentThread(only, "next");
       expect(useAppStore.getState().view).toEqual({ kind: "home" });
+    });
+
+    it("skips memory-only Side Chat branches", async () => {
+      const threads = [
+        makeThread({ id: "a" }),
+        makeThread({ id: "branch", isEphemeral: true }),
+        makeThread({ id: "b" }),
+      ];
+      useAppStore.setState((state) => ({ ...state, threads }));
+
+      switchToAdjacentThread(threads[0]!, "next");
+      await waitFor(() =>
+        expect(useAppStore.getState().view).toEqual({ kind: "thread", panes: ["b"] }),
+      );
     });
   });
 });
