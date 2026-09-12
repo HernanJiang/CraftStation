@@ -611,6 +611,7 @@ describe("Kimi background subagent bridge", () => {
           return undefined;
         },
         pollIntervalMs: 1,
+        sessionDirTimeoutMs: 30_000,
         now: () => clock,
       },
     );
@@ -642,7 +643,10 @@ describe("Kimi background subagent bridge", () => {
       }
       return undefined;
     });
-    const { bridge, updates } = startBridge(readText, { now: () => clock });
+    const { bridge, updates } = startBridge(readText, {
+      now: () => clock,
+      taskTimeoutMs: 2 * 60 * 60 * 1_000,
+    });
 
     bridge.onBackgroundLaunch({
       sessionId: "session-1",
