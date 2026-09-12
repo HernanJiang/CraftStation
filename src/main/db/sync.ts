@@ -146,16 +146,18 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       attention, can_resume_with_config, session_ref, terminal_prompt, worktree_path,
       composition_provenance,
       account_binding,
-      worktree_branch, pr_number, group_id, group_name, parent_thread_id, archived, done, done_at,
-      starred, presentation_mode, sort_order, created_at, updated_at,
+      goal,
+      worktree_branch, pr_number, group_id, group_name, parent_thread_id, archived, archived_at, done, done_at,
+      starred, pinned_at, presentation_mode, sort_order, created_at, updated_at,
       active_turn_started_at, last_turn_started_at, last_turn_ended_at
     ) VALUES (
       @id, @projectId, @title, @agentKind, @agentInstanceId, @config, @status,
       @attention, @canResumeWithConfig, @sessionRef, NULL, @worktreePath,
       @compositionProvenance,
       @accountBinding,
-      @worktreeBranch, @prNumber, @groupId, @groupName, @parentThreadId, @archived, @done, @doneAt,
-      @starred, @presentationMode, @sortOrder, @createdAt, @updatedAt,
+      @goal,
+      @worktreeBranch, @prNumber, @groupId, @groupName, @parentThreadId, @archived, @archivedAt, @done, @doneAt,
+      @starred, @pinnedAt, @presentationMode, @sortOrder, @createdAt, @updatedAt,
       @activeTurnStartedAt, @lastTurnStartedAt, @lastTurnEndedAt
     )
     ON CONFLICT(id) DO UPDATE SET
@@ -168,6 +170,7 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       session_ref = excluded.session_ref,
       composition_provenance = excluded.composition_provenance,
       account_binding = excluded.account_binding,
+      goal = excluded.goal,
       terminal_prompt = excluded.terminal_prompt,
       worktree_path = excluded.worktree_path,
       worktree_branch = excluded.worktree_branch,
@@ -176,9 +179,11 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       group_name = excluded.group_name,
       parent_thread_id = excluded.parent_thread_id,
       archived = excluded.archived,
+      archived_at = excluded.archived_at,
       done = excluded.done,
       done_at = excluded.done_at,
       starred = excluded.starred,
+      pinned_at = excluded.pinned_at,
       presentation_mode = excluded.presentation_mode,
       sort_order = excluded.sort_order,
       updated_at = excluded.updated_at,
@@ -186,6 +191,14 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       last_turn_started_at = excluded.last_turn_started_at,
       last_turn_ended_at = excluded.last_turn_ended_at
   `);
+}
+
+/** Legacy backfill for pre-pinnedAt starred rows (null when unpinned/unparseable). */
+function legacyPinnedAtFallback(thread: Thread): number | null {
+  if (thread.pinnedAt != null) return thread.pinnedAt;
+  if (!thread.starred) return null;
+  const parsed = Date.parse(thread.updatedAt);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function runThreadSync(stmt: SqliteStatement, thread: Thread, sortOrder: number): void {
@@ -204,6 +217,7 @@ function runThreadSync(stmt: SqliteStatement, thread: Thread, sortOrder: number)
       ? JSON.stringify(thread.compositionProvenance)
       : null,
     accountBinding: thread.accountBinding ? JSON.stringify(thread.accountBinding) : null,
+    goal: thread.goal ? JSON.stringify(thread.goal) : null,
     worktreePath: thread.worktreePath ?? null,
     worktreeBranch: thread.worktreeBranch ?? null,
     prNumber: thread.prNumber ?? null,
@@ -211,9 +225,11 @@ function runThreadSync(stmt: SqliteStatement, thread: Thread, sortOrder: number)
     groupName: thread.groupName ?? null,
     parentThreadId: thread.parentThreadId ?? null,
     archived: thread.archived ? 1 : 0,
+    archivedAt: thread.archivedAt ?? (thread.archived ? thread.updatedAt : null),
     done: thread.done ? 1 : 0,
     doneAt: thread.doneAt ?? null,
     starred: thread.starred ? 1 : 0,
+    pinnedAt: thread.pinnedAt ?? legacyPinnedAtFallback(thread),
     presentationMode: thread.presentationMode ?? "terminal",
     sortOrder,
     createdAt: thread.createdAt,

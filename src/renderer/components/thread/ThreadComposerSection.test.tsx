@@ -24,6 +24,7 @@ const bridgeMock = vi.hoisted(() => ({
   clearPendingSteer: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   interruptThread: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   setPendingSteer: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  appendUsageEvents: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   refreshAgentStatuses: vi
     .fn<() => Promise<{ windows: AgentStatus[]; wsl: AgentStatus[] }>>()
     .mockResolvedValue({ windows: [], wsl: [] }),
@@ -86,6 +87,7 @@ vi.mock("../../bridge", () => ({
     setPendingSteer: bridgeMock.setPendingSteer,
     writeTerminal: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     refreshAgentStatuses: bridgeMock.refreshAgentStatuses,
+    appendUsageEvents: bridgeMock.appendUsageEvents,
   }),
 }));
 
@@ -540,15 +542,15 @@ describe("ThreadComposerSection", () => {
         menuProps.mcpServers
           .filter((server) => server.visible)
           .map((server) => server.descriptor.id),
-      ).toEqual(["crossagents"]);
+      ).toEqual(["own-subagents"]);
       expect(menuProps.customMcpServers).toEqual([
         expect.objectContaining({ name: "Vision-MCP", enabled: true }),
       ]);
       expect(menuProps.readOnly).toBe(true);
 
       const input = screen.getByRole("textbox");
-      typeComposerText(input, "@cro");
-      expect(screen.getByRole("option")).toHaveTextContent("Crossagents");
+      typeComposerText(input, "@own");
+      expect(screen.getByRole("option")).toHaveTextContent("Own Subagents");
 
       typeComposerText(input, "@vis");
       expect(screen.getByRole("option")).toHaveTextContent("Vision-MCP");
@@ -1564,7 +1566,7 @@ describe("ThreadComposerSection", () => {
     expect(screen.getByLabelText("Thread goal dock")).toHaveTextContent("No mobile dead ends");
   });
 
-  it("shows a GUI plan only as a collapsed capsule in the context bar", () => {
+  it("keeps GUI plans out of the composer chrome; step status lives in the top-right capsule", () => {
     const todoDockState: ThreadTodoDockState = {
       sourceItemId: "plan-gui",
       itemState: "updated",
@@ -1601,18 +1603,12 @@ describe("ThreadComposerSection", () => {
 
     const contextBar = container.querySelector("[data-draft-context-bar]");
     expect(contextBar).not.toBeNull();
-    expect(contextBar?.querySelector('[data-testid="plan-progress-badge"]')).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Plan progress 1/3" })).toHaveTextContent(
-      "Progress1/3",
-    );
+    // 底部 Progress 入口已删除：composer 不再渲染 plan-progress 徽标或浮层，
+    // 唯一的步骤状态入口是右上角状态胶囊。
+    expect(contextBar?.querySelector('[data-testid="plan-progress-badge"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: /Plan progress/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("plan-progress-popover")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Thread todo dock")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Plan progress 1/3" }));
-
-    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent("Move plan progress");
-    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent(
-      "Current: Move plan progress",
-    );
   });
 
   it("captures a successful remote terminal interrupt", async () => {
@@ -1637,6 +1633,56 @@ describe("ThreadComposerSection", () => {
         "thread.interrupted",
         expect.objectContaining({ provider: "claude" }),
       );
+    });
+  });
+
+  it("marks the live turn cancelled on stop so its status bar reads 已取消", async () => {
+    bridgeMock.isRemoteSession.mockReturnValue(true);
+    const startedAt = "2026-05-01T12:00:00.000Z";
+    renderComposer({
+      thread: {
+        ...terminalThread,
+        id: "thread-terminal-cancel",
+        status: "working",
+        attention: "working",
+        activeTurnStartedAt: startedAt,
+      },
+      agentStatus: claudeTerminalStatus,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
+
+    await waitFor(() => {
+      expect(
+        useAppStore.getState().userCancelledTurnStartsByThread["thread-terminal-cancel"],
+      ).toEqual([Date.parse(startedAt)]);
+    });
+  });
+
+  it("re-arms the stop button after a successful interrupt even while still working", async () => {
+    bridgeMock.isRemoteSession.mockReturnValue(true);
+    renderComposer({
+      thread: {
+        ...terminalThread,
+        id: "thread-terminal-rearm",
+        status: "working",
+        attention: "working",
+      },
+      agentStatus: claudeTerminalStatus,
+    });
+
+    const stopButton = screen.getByRole("button", { name: "Stop response" });
+    fireEvent.click(stopButton);
+
+    await waitFor(() => {
+      expect(bridgeMock.interruptThread).toHaveBeenCalledWith({
+        threadId: "thread-terminal-rearm",
+      });
+    });
+    // Status never leaves "working" here — the button must still become
+    // clickable again instead of sticking on its pending spinner.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Stop response" })).not.toBeDisabled();
     });
   });
 

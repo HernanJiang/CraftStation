@@ -2,6 +2,7 @@ import { codexContextWindowOverrides } from "@/shared/agents/codexContextWindows
 import type { ProjectLocation, ResolvedMcpServer, ThreadConfig } from "@/shared/contracts";
 import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { buildCodexMcp } from "../userMcp";
+import { toCodexApprovalPolicy } from "./acpProtocol";
 import type { CodexClientRequestMap } from "./protocol";
 
 type ThreadForkParams = CodexClientRequestMap["thread/fork"]["params"];
@@ -28,12 +29,13 @@ export function buildCodexThreadOverrides(
           ? options.projectLocation.linuxPath
           : options.projectLocation.path
         : undefined;
+  const approvalPolicy = toCodexApprovalPolicy(config.approvalPolicy);
   return {
     model: config.model,
     ...(cwd ? { cwd } : {}),
-    ...(config.approvalPolicy
+    ...(approvalPolicy
       ? {
-          approvalPolicy: config.approvalPolicy as NonNullable<ThreadForkParams["approvalPolicy"]>,
+          approvalPolicy: approvalPolicy as NonNullable<ThreadForkParams["approvalPolicy"]>,
         }
       : {}),
     ...(config.approvalsReviewer

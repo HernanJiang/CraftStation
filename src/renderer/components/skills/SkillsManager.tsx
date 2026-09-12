@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Input, Tooltip, toast } from "@heroui/react";
-import { Box, ChevronDown, Download, Plus, RefreshCw, Search, Store, Trash2 } from "lucide-react";
+import { Box, ChevronDown, Download, Plus, RefreshCw, Search, Share2, Store, Trash2 } from "lucide-react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import type { SkillEntry } from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
@@ -169,6 +169,31 @@ export function SkillsManager(props: {
         ...skillTargetRequest(target),
       }),
     );
+
+  /**
+   * One-click "Add to Shared" for a harness-private skill: copies it into the
+   * current scope's shared skills folder (`~/.agents/skills` globally) so
+   * every CLI can read and use it. Same seam as the Import modal, fixed to
+   * copy/shared/no-replace. Only offered when the scan reports the skill as
+   * import-available; conflicts keep flowing through the Import modal's
+   * replace flow.
+   */
+  const addToShared = (skill: SkillEntry) =>
+    runMutation(skill, async () => {
+      await readBridge().importSkills({
+        skills: [
+          {
+            sourcePath: skill.absolutePath,
+            ...skillTargetRequest(target),
+            destinationScope: target.scope,
+            availability: "shared",
+            mode: "copy",
+            replace: false,
+          },
+        ],
+      });
+      toast.success(t`Added to Shared.`);
+    });
 
   const confirmDelete = async () => {
     const skill = pendingDelete;
@@ -446,6 +471,7 @@ export function SkillsManager(props: {
           onEnabledChange={setEnabled}
           onView={setViewingSkill}
           onDelete={setPendingDelete}
+          onAddToShared={addToShared}
         />
       ))}
 
@@ -482,6 +508,7 @@ function SkillSection(props: {
   onEnabledChange: (skill: SkillEntry, enabled: boolean) => Promise<void>;
   onView: (skill: SkillEntry) => void;
   onDelete: (skill: SkillEntry) => void;
+  onAddToShared: (skill: SkillEntry) => Promise<void>;
 }) {
   return (
     <section className="space-y-2">
@@ -506,6 +533,7 @@ function SkillSection(props: {
             onEnabledChange={props.onEnabledChange}
             onView={props.onView}
             onDelete={props.onDelete}
+            onAddToShared={props.onAddToShared}
           />
         ))}
       </div>
@@ -520,6 +548,7 @@ function SkillRow(props: {
   onEnabledChange: (skill: SkillEntry, enabled: boolean) => Promise<void>;
   onView: (skill: SkillEntry) => void;
   onDelete: (skill: SkillEntry) => void;
+  onAddToShared: (skill: SkillEntry) => Promise<void>;
 }) {
   const { t } = useLingui();
   const skill = props.skill;
@@ -603,6 +632,21 @@ function SkillRow(props: {
       </div>
       {skill.mutable ? (
         <>
+          {skill.origin === "external" &&
+          skill.importState === "available" &&
+          skill.portable !== false ? (
+            <Button
+              size="sm"
+              variant="tertiary"
+              className="shrink-0 gap-1.5"
+              aria-label={t`Add ${skill.name} to Shared`}
+              isDisabled={props.pending}
+              onPress={() => void props.onAddToShared(skill)}
+            >
+              <Share2 className="size-3.5" />
+              <Trans>Add to Shared</Trans>
+            </Button>
+          ) : null}
           <ToggleSwitch
             aria-label={skill.enabled ? t`Disable ${skill.name}` : t`Enable ${skill.name}`}
             isSelected={skill.enabled}

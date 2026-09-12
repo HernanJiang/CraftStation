@@ -358,11 +358,74 @@ async function signedPlan(
   });
 }
 
+type VolcengineCredentialProbe = {
+  ok: boolean;
+  code: "accepted" | "rejected" | "unavailable";
+  model?: string;
+};
+
+async function validateArkApiKey(host: HostPort, apiKey: string): Promise<VolcengineCredentialProbe> {
+  let sawModelUnavailable = false;
+  for (const model of VOLCENGINE_ARK_PROBE_MODELS) {
+    const response = await host.http.request({
+      method: "POST",
+      url: VOLCENGINE_ARK_CHAT_COMPLETIONS_URL,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1,
+        messages: [{ role: "user", content: "hi" }],
+      }),
+      timeoutMs: 12_000,
+    });
+    if (response.status === 401) return { ok: false, code: "rejected" };
+    if (response.status === 429 || (response.status >= 200 && response.status < 300)) {
+      // Remember which probe model the key can actually run — the caller
+      // uses it as the auto-provisioned channel's first verified model.
+      return { ok: true, code: "accepted", model };
+    }
+    if (response.status === 403 || response.status === 404) {
+      sawModelUnavailable = true;
+      continue;
+    }
+    return { ok: false, code: "unavailable" };
+  }
+  return { ok: false, code: sawModelUnavailable ? "unavailable" : "rejected" };
+}
+
+async function validateVolcenginePlanKeys(
+  host: HostPort,
+  accessKeyId: string,
+  secretAccessKey: string,
+  region: string,
+): Promise<VolcengineCredentialProbe> {
+  const responses = await Promise.all([
+    signedPlan(host, VOLCENGINE_CODING_PLAN_URL, accessKeyId, secretAccessKey, region),
+    signedPlan(host, VOLCENGINE_AGENT_PLAN_URL, accessKeyId, secretAccessKey, region),
+  ]);
+  if (responses.some((response) => response.status === 401 || response.status === 403)) {
+    return { ok: false, code: "rejected" };
+  }
+  if (
+    responses.some(
+      (response) => response.status === 429 || (response.status >= 200 && response.status < 300),
+    )
+  ) {
+    return { ok: true, code: "accepted" };
+  }
+  return { ok: false, code: "unavailable" };
+}
+
 /**
- * Validate credentials without writing them or spending model tokens. API
- * keys use Ark's read-only model catalog; AK/SK uses the two read-only plan
- * actions. A 429 still proves the credential was accepted, while 401/403 is
- * the only credential rejection. The body is deliberately not returned.
+ * Validate credentials without writing them. The two Volcengine surfaces are
+ * complementary and may be supplied together:
+ * - Ark API key proves inference (auto-provisioned model channel)
+ * - AK/SK proves Coding Plan / Agent Plan quota
+ * A 429 still proves the credential was accepted; 401/403 is rejection.
  */
 export async function validateVolcengineCredentials(
   host: HostPort,
@@ -372,58 +435,26 @@ export async function validateVolcengineCredentials(
     secretAccessKey?: string;
     region?: string;
   },
-): Promise<{ ok: boolean; code: "accepted" | "rejected" | "unavailable" }> {
+): Promise<VolcengineCredentialProbe> {
   const apiKey = input.apiKey?.trim();
   const accessKeyId = input.accessKeyId?.trim();
   const secretAccessKey = input.secretAccessKey?.trim();
   const region = input.region?.trim() || DEFAULT_REGION;
   try {
-    if (apiKey) {
-      let sawModelUnavailable = false;
-      for (const model of VOLCENGINE_ARK_PROBE_MODELS) {
-        const response = await host.http.request({
-          method: "POST",
-          url: VOLCENGINE_ARK_CHAT_COMPLETIONS_URL,
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 1,
-            messages: [{ role: "user", content: "hi" }],
-          }),
-          timeoutMs: 12_000,
-        });
-        if (response.status === 401) return { ok: false, code: "rejected" };
-        if (response.status === 429 || (response.status >= 200 && response.status < 300)) {
-          return { ok: true, code: "accepted" };
-        }
-        if (response.status === 403 || response.status === 404) {
-          sawModelUnavailable = true;
-          continue;
-        }
-        return { ok: false, code: "unavailable" };
-      }
-      return { ok: false, code: sawModelUnavailable ? "unavailable" : "rejected" };
+    if (apiKey && accessKeyId && secretAccessKey) {
+      const [keyResult, planResult] = await Promise.all([
+        validateArkApiKey(host, apiKey),
+        validateVolcenginePlanKeys(host, accessKeyId, secretAccessKey, region),
+      ]);
+      if (!keyResult.ok) return keyResult;
+      if (!planResult.ok) return planResult;
+      return keyResult;
     }
-    if (!accessKeyId || !secretAccessKey) return { ok: false, code: "rejected" };
-    const responses = await Promise.all([
-      signedPlan(host, VOLCENGINE_CODING_PLAN_URL, accessKeyId, secretAccessKey, region),
-      signedPlan(host, VOLCENGINE_AGENT_PLAN_URL, accessKeyId, secretAccessKey, region),
-    ]);
-    if (responses.some((response) => response.status === 401 || response.status === 403)) {
-      return { ok: false, code: "rejected" };
+    if (apiKey) return validateArkApiKey(host, apiKey);
+    if (accessKeyId && secretAccessKey) {
+      return validateVolcenginePlanKeys(host, accessKeyId, secretAccessKey, region);
     }
-    if (
-      responses.some(
-        (response) => response.status === 429 || (response.status >= 200 && response.status < 300),
-      )
-    ) {
-      return { ok: true, code: "accepted" };
-    }
-    return { ok: false, code: "unavailable" };
+    return { ok: false, code: "rejected" };
   } catch {
     return { ok: false, code: "unavailable" };
   }

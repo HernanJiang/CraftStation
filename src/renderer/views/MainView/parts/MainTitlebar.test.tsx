@@ -1,10 +1,12 @@
 import type { ComponentProps, ReactNode } from "react";
+import { createContext, useContext } from "react";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { AgentCapability, AgentStatus } from "@/shared/contracts";
 
 const bridgeMock = vi.hoisted(() => ({
+  appVersion: "1.0.1",
   getLatestAgentVersion:
     vi.fn<(payload: { agentKind: string }) => Promise<{ version?: string; source?: string }>>(),
   updateAgentBinary: vi.fn<() => Promise<{ ok: boolean; output?: string }>>(),
@@ -64,6 +66,9 @@ const updateState = { phase: "idle", version: undefined, downloadPercent: 0 };
 
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridgeMock,
+  isRemoteSession: () => false,
+  isDevApp: () => false,
+  isWindows: () => true,
 }));
 
 vi.mock("@/renderer/state/agentStatusesStore", () => ({
@@ -81,7 +86,16 @@ vi.mock("@/renderer/state/panelStore", () => ({
 }));
 
 vi.mock("@/renderer/state/updateStore", () => ({
-  useUpdateStore: (selector: (state: unknown) => unknown) => selector(updateState),
+  useUpdateStore: Object.assign(
+    (selector: (state: unknown) => unknown) => selector(updateState),
+    {
+      getState: () => ({
+        setAvailableCliUpdates: vi.fn<() => void>(),
+        beginAgentUpdate: vi.fn<() => void>(),
+        finishAgentUpdate: vi.fn<() => void>(),
+      }),
+    },
+  ),
 }));
 
 vi.mock("@/renderer/state/sidebarOverlayStore", () => ({
@@ -101,18 +115,46 @@ function Trigger(props: ComponentProps<"button"> & { onPress?: () => void }) {
   return <button type="button" {...rest} onClick={onPress} />;
 }
 
+function PressableItem(props: { children: ReactNode; id?: string }) {
+  const onAction = useContext(MenuActionContext);
+  const press = () => props.id !== undefined && onAction?.(props.id);
+  return (
+    <div
+      role="menuitem"
+      tabIndex={0}
+      onClick={press}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") press();
+      }}
+    >
+      {props.children}
+    </div>
+  );
+}
+
+const MenuActionContext = createContext<((key: string) => void) | undefined>(undefined);
+
+function ActionMenu(props: { children: ReactNode; onAction?: (key: string) => void }) {
+  return (
+    <MenuActionContext.Provider value={props.onAction}>
+      <div>{props.children}</div>
+    </MenuActionContext.Provider>
+  );
+}
+
 vi.mock("@heroui/react", () => ({
   Dropdown: Object.assign(({ children }: { children: ReactNode }) => <div>{children}</div>, {
     Trigger,
     Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Menu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Item: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Menu: ActionMenu,
+    Item: PressableItem,
   }),
   Label: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   toast: toastMock,
 }));
 
 import { MainTitlebar } from "./MainTitlebar";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 
 describe("MainTitlebar CLI 更新入口", () => {
   beforeEach(() => {
@@ -130,6 +172,7 @@ describe("MainTitlebar CLI 更新入口", () => {
   it("在窗口按钮左侧用一个小按钮汇总已安装 CLI 的更新", async () => {
     render(<MainTitlebar />);
 
+    expect(screen.getByTestId("titlebar-app-version")).toHaveTextContent("v1.0.1");
     const updateButton = screen.getByTestId("titlebar-cli-update-button");
     const windowControls = screen.getByTestId("titlebar-window-controls-spacer");
 
@@ -144,5 +187,82 @@ describe("MainTitlebar CLI 更新入口", () => {
 
     fireEvent.click(updateButton);
     await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("MainTitlebar 顶部快捷栏", () => {
+  const defaultPins = ["crafting", "settings.mcpServers", "settingsHome"];
+  beforeEach(() => {
+    useSharedSettings.getState().setTopShortcutOrder([...defaultPins]);
+    panelActions.openSettingsSection.mockClear();
+    panelActions.openSettings.mockClear();
+    panelActions.openModelUsageDialog.mockClear();
+  });
+
+  function topButtons() {
+    return screen.getAllByTestId(/^top-shortcut-/);
+  }
+
+  it("默认钉住合成台、MCP 服务器和设置", () => {
+    render(<MainTitlebar />);
+
+    const labels = topButtons().map((button) => button.textContent);
+    expect(labels).toEqual(["Crafting Table", "MCP Servers", "Settings"]);
+  });
+
+  it("从 + 菜单添加外观并能导航到对应设置页", async () => {
+    render(<MainTitlebar />);
+
+    fireEvent.click(screen.getByRole("menuitem", { name: /Appearance/ }));
+    await waitFor(() =>
+      expect(topButtons().map((button) => button.textContent)).toContain("Appearance"),
+    );
+
+    fireEvent.click(screen.getByTestId("top-shortcut-settings.appearance"));
+    expect(panelActions.openSettingsSection).toHaveBeenCalledWith("appearance");
+  });
+
+  it("重复添加不会产生第二个相同入口", () => {
+    useSharedSettings
+      .getState()
+      .setTopShortcutOrder(["settings.mcpServers", "settings.mcpServers", "crafting"]);
+    render(<MainTitlebar />);
+
+    // 移除的默认项不会自动回来：normalize 只去重不清零、不回填。
+    expect(topButtons().map((button) => button.textContent)).toEqual([
+      "MCP Servers",
+      "Crafting Table",
+    ]);
+  });
+
+  it("在 + 菜单里再次点击可移除已添加项", async () => {
+    render(<MainTitlebar />);
+    expect(topButtons()).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("menuitem", { name: /MCP Servers/ }));
+    await waitFor(() => expect(topButtons()).toHaveLength(2));
+    expect(topButtons().map((button) => button.textContent)).not.toContain("MCP Servers");
+  });
+
+  it("搜索能过滤可添加项", async () => {
+    render(<MainTitlebar />);
+
+    const search = screen.getByPlaceholderText("Search settings");
+    fireEvent.change(search, { target: { value: "mcp" } });
+    expect(await screen.findByRole("menuitem", { name: /MCP Servers/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Appearance/ })).not.toBeInTheDocument();
+  });
+
+  it("根据真实 route 同步 active（经 Sidebar 打开也一样）", () => {
+    Object.assign(panelState, { settingsOpen: true, settingsSection: "mcpServers" });
+    try {
+      render(<MainTitlebar />);
+      expect(screen.getByTestId("top-shortcut-settings.mcpServers").className).toMatch(
+        /row-active/,
+      );
+      expect(screen.getByTestId("top-shortcut-settingsHome").className).not.toMatch(/row-active/);
+    } finally {
+      Object.assign(panelState, { settingsOpen: false, settingsSection: null });
+    }
   });
 });

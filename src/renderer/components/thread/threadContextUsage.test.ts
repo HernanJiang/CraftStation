@@ -3,7 +3,13 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStatus, Thread } from "@/shared/contracts";
 import { formatTokenCount } from "./formatTokenCount";
-import { hasReportedContextUsage, resolveThreadContextUsageSummary } from "./threadContextUsage";
+import {
+  classifyContextOccupancy,
+  hasReportedContextUsage,
+  resolveContextOccupancy,
+  resolveSessionCacheHitRate,
+  resolveThreadContextUsageSummary,
+} from "./threadContextUsage";
 
 const baseThread: Thread = {
   id: "thread-1",
@@ -147,5 +153,63 @@ describe("threadContextUsage", () => {
 
     expect(summary.maxTokens).toBe(272_000);
     expect(summary.headline).toBe("272K context");
+  });
+
+  it("maps provider buckets onto occupancy rows including MCP, skills, and tool calls", () => {
+    const occupancy = resolveContextOccupancy(
+      [
+        { id: "messages-1", label: "Messages", tokens: 69_400 },
+        { id: "mcp-tools", label: "MCP tools", tokens: 13_000 },
+        { id: "tools", label: "Tool definitions", tokens: 12_800 },
+        { id: "tool-calls", label: "Tool calls", tokens: 4_000 },
+        { id: "skills", label: "Skills", tokens: 2_400 },
+        { id: "system-prompt-0", label: "System prompt", tokens: 1_300 },
+        { id: "cache-read", label: "Cache read", tokens: 50_000 },
+        { id: "other", label: "Other", tokens: 1_000 },
+      ],
+      103_900,
+    );
+
+    expect(occupancy.map((row) => [row.id, row.label, row.tokens])).toEqual([
+      ["messages", "消息", 69_400],
+      ["tool-calls", "工具调用", 4_000],
+      ["mcp-tools", "MCP 工具", 13_000],
+      ["system-tools", "系统工具", 12_800],
+      ["skills", "技能", 2_400],
+      ["system-prompt", "系统提示词", 1_300],
+      ["other", "其他", 1_000],
+    ]);
+    expect(classifyContextOccupancy({ id: "input", label: "Input" })).toBe("messages");
+    expect(
+      resolveSessionCacheHitRate([
+        { id: "input", label: "Input", tokens: 50 },
+        { id: "cache-read", label: "Cache read", tokens: 50 },
+      ]),
+    ).toBe(50);
+    expect(resolveSessionCacheHitRate([{ id: "input", label: "Input", tokens: 80 }])).toBeUndefined();
+  });
+
+  it("does not invent occupancy rows from a bare used-token total", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: baseThread,
+      agentStatus: baseAgent,
+      reportedUsage: { usedTokens: 71_000 },
+    });
+    expect(summary.occupancy.every((row) => row.tokens === 0) || summary.occupancy.length === 0).toBe(
+      true,
+    );
+    expect(summary.cacheHitRate).toBeUndefined();
+  });
+
+  it("does not dump excluded cache tokens into 其他", () => {
+    const occupancy = resolveContextOccupancy(
+      [
+        { id: "input", label: "Input", tokens: 2_400_000 },
+        { id: "cache-read", label: "Cache read", tokens: 2_400_000 },
+      ],
+      4_800_000,
+    );
+    expect(occupancy.find((row) => row.id === "messages")?.tokens).toBe(2_400_000);
+    expect(occupancy.find((row) => row.id === "other")?.tokens).toBe(0);
   });
 });

@@ -1112,7 +1112,7 @@ describe("ChatPane", () => {
     expect(await screen.findByRole("heading", { name: "Protocol result" })).toBeInTheDocument();
   });
 
-  it("labels a Crossagents child separately from native subagents", async () => {
+  it("labels an Own Subagents child separately from native subagents", async () => {
     const thread = makeThread();
     useAppStore.getState().applyRuntimeEvent(thread.id, {
       type: "item.started",
@@ -1140,12 +1140,12 @@ describe("ChatPane", () => {
     renderChatPane(thread);
     await waitFor(() => expect(hydrateThreadRuntimeItems).toHaveBeenCalledWith(thread.id));
 
-    expect(await screen.findByRole("button", { name: "Crossagent Result" })).toBeInTheDocument();
-    expect(document.body).toHaveTextContent("Crossagent · protocol specialist");
+    expect(await screen.findByRole("button", { name: "Own Subagent Result" })).toBeInTheDocument();
+    expect(document.body).toHaveTextContent("Own subagent · protocol specialist");
     expect(screen.queryByRole("button", { name: "Subagent Result" })).not.toBeInTheDocument();
   });
 
-  it("shows an intentionally cancelled Crossagent without an error indicator", async () => {
+  it("shows an intentionally cancelled Own Subagent without an error indicator", async () => {
     const thread = makeThread();
     useAppStore.getState().applyRuntimeEvent(thread.id, {
       type: "item.started",
@@ -1175,7 +1175,7 @@ describe("ChatPane", () => {
     await waitFor(() => expect(hydrateThreadRuntimeItems).toHaveBeenCalledWith(thread.id));
 
     const row = await screen.findByRole("button", {
-      name: "Open Crossagent: Crossagent: cancel probe",
+      name: "Open own subagent: Own subagent: cancel probe",
     });
     expect(row).toHaveTextContent("cancelled");
     expect(row).toHaveAccessibleDescription("cancelled");
@@ -1872,7 +1872,7 @@ describe("ChatPane", () => {
 
     renderChatPane(thread);
 
-    const label = screen.getByText("Worked for 1m 15s");
+    const label = screen.getByText("Completed in 1m 15s");
     expect(label.closest(".surface")).not.toBeNull();
   });
 
@@ -1903,7 +1903,10 @@ describe("ChatPane", () => {
 
     renderChatPane(thread);
 
-    expect(screen.getAllByText("Worked for 1m 15s")).toHaveLength(1);
+    // The unrendered goal anchor resolves onto the rendered assistant row, and
+    // the duration shows inline there instead of the tail footer.
+    expect(screen.getAllByText("Completed in 1m 15s")).toHaveLength(1);
+    expect(screen.queryByText("Worked for 1m 15s")).not.toBeInTheDocument();
   });
 
   it("keeps a completed turn anchored before an optimistic follow-up prompt", async () => {
@@ -1924,17 +1927,111 @@ describe("ChatPane", () => {
     ]);
 
     const { container } = renderChatPane(thread);
-    await waitFor(() => expect(screen.getByText("Worked for 1m 15s")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Completed in 1m 15s")).toBeInTheDocument());
 
     act(() => {
       seedUserMessage(thread.id, "Follow-up prompt", "user-2");
     });
     await screen.findByText("Follow-up prompt");
 
-    expect(screen.getAllByText("Worked for 1m 15s")).toHaveLength(1);
+    expect(screen.getAllByText("Completed in 1m 15s")).toHaveLength(1);
     const text = container.textContent ?? "";
-    expect(text.indexOf("Inspect output")).toBeLessThan(text.indexOf("Worked for 1m 15s"));
-    expect(text.indexOf("Worked for 1m 15s")).toBeLessThan(text.indexOf("Follow-up prompt"));
+    expect(text.indexOf("Inspect output")).toBeLessThan(text.indexOf("Completed in 1m 15s"));
+    expect(text.indexOf("Completed in 1m 15s")).toBeLessThan(text.indexOf("Follow-up prompt"));
+  });
+
+  it("ticks a live status bar under the latest user bubble instead of the tail", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-01T12:01:10.000Z"));
+    try {
+      const thread = {
+        ...makeThread(),
+        activeTurnStartedAt: "2026-05-01T12:00:00.000Z",
+      };
+      useAppStore.setState({ threads: [thread] });
+      seedUserMessage(thread.id, "Do the thing", "user-1");
+      useAppStore.getState().applyRuntimeEvent(thread.id, {
+        type: "turn.started",
+        threadId: thread.id,
+        turnId: "turn-1",
+      });
+
+      const { container } = renderChatPane(thread);
+      const bar = screen.getByTestId("turn-status-bar");
+      expect(bar).toHaveAttribute("data-turn-state", "working");
+      expect(bar).toHaveTextContent("Working 1m 10s");
+      // The divider sits below the working/timing line (not above) and is
+      // strong enough to read as a phase boundary.
+      expect(bar.className).toContain("border-b");
+      expect(bar.className).not.toContain("border-t");
+      const text = container.textContent ?? "";
+      expect(text.indexOf("Do the thing")).toBeLessThan(text.indexOf("Working 1m 10s"));
+      // The tail timer stands down while the inline bar owns the live timer.
+      expect(screen.getAllByText("Working 1m 10s")).toHaveLength(1);
+      expect(screen.queryByText(/^Working for /)).toBeNull();
+    } finally {
+      useAppStore.setState({ runtimeOpenTurnByThread: {} });
+      vi.useRealTimers();
+    }
+  });
+
+  it("freezes a failed status bar when the turn range holds an error item", () => {
+    const thread = {
+      ...makeThread(),
+      status: "idle" as const,
+      activeTurnStartedAt: undefined,
+    };
+    seedUserMessage(thread.id, "Risky prompt", "user-1");
+    seedAssistantMessage(thread.id, "Partial output");
+    completeAssistantMessage(thread.id);
+    useAppStore.getState().applyRuntimeEvent(thread.id, {
+      type: "error",
+      threadId: thread.id,
+      message: "boom",
+    });
+    useAppStore.getState().hydrateThreadCompletedTurns(thread.id, [
+      {
+        startedAt: new Date("2026-05-01T12:00:00.000Z").getTime(),
+        endedAt: new Date("2026-05-01T12:01:48.000Z").getTime(),
+        anchorItemId: ASSISTANT_ITEM_ID,
+      },
+    ]);
+
+    renderChatPane(thread);
+
+    const bar = screen.getByTestId("turn-status-bar");
+    expect(bar).toHaveAttribute("data-turn-state", "failed");
+    expect(bar).toHaveTextContent("Failed after 1m 48s");
+  });
+
+  it("shows a user-stopped turn as paused instead of completed", () => {
+    const thread = {
+      ...makeThread(),
+      status: "idle" as const,
+      activeTurnStartedAt: undefined,
+    };
+    seedUserMessage(thread.id, "Long task", "user-1");
+    seedAssistantMessage(thread.id, "Partial output");
+    completeAssistantMessage(thread.id);
+    const startedAt = new Date("2026-05-01T12:00:00.000Z").getTime();
+    useAppStore.getState().hydrateThreadCompletedTurns(thread.id, [
+      {
+        startedAt,
+        endedAt: new Date("2026-05-01T12:00:42.000Z").getTime(),
+        anchorItemId: ASSISTANT_ITEM_ID,
+      },
+    ]);
+    useAppStore.getState().markUserCancelledTurn(thread.id, startedAt);
+
+    try {
+      renderChatPane(thread);
+
+      const bar = screen.getByTestId("turn-status-bar");
+      expect(bar).toHaveAttribute("data-turn-state", "paused");
+      expect(bar).toHaveTextContent("Paused after 42s");
+    } finally {
+      useAppStore.setState({ userCancelledTurnStartsByThread: {} });
+    }
   });
 
   it("ignores sub-second duplicate completed turns when rendering a rehydrated footer", () => {
@@ -1961,8 +2058,8 @@ describe("ChatPane", () => {
 
     renderChatPane(thread);
 
-    expect(screen.getAllByText("Worked for 7m 50s")).toHaveLength(1);
-    expect(screen.queryByText("Worked for 0s")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Completed in 7m 50s")).toHaveLength(1);
+    expect(screen.queryByText("Completed in 0s")).not.toBeInTheDocument();
   });
 
   it("waits for a base file checkpoint before finalizing a completed turn", async () => {

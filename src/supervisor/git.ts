@@ -434,6 +434,25 @@ export class GitService {
   }
 
   /**
+   * Nearest reachable tag + short HEAD sha for the current checkout.
+   * Never throws: repos without tags/commits resolve to nulls so the UI can
+   * render "无" instead of failing the whole card.
+   */
+  async describe(
+    location: ProjectLocation,
+  ): Promise<{ tag: string | null; sha: string | null }> {
+    const [tag, sha] = await Promise.all([
+      execGit(location, ["describe", "--tags", "--abbrev=0"], { acceptedExitCodes: [128] })
+        .then((output) => output.trim() || null)
+        .catch(() => null),
+      execGit(location, ["rev-parse", "--short", "HEAD"], { acceptedExitCodes: [128] })
+        .then((output) => output.trim() || null)
+        .catch(() => null),
+    ]);
+    return { tag, sha };
+  }
+
+  /**
    * Clone `url` into a new `name` folder inside `parent`, returning the path of
    * the created folder. The clone runs with `parent` as its working directory,
    * so `parent` must already exist (the renderer picks an existing folder).

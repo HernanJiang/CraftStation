@@ -14,8 +14,8 @@ import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { bootstrapWorkspaces } from "@/renderer/state/workspaceStore";
 import { startPrMergeAutoDone } from "@/renderer/state/prMergeAutoDone";
 import { startPrWatchStatusSync } from "@/renderer/state/prWatchStatusSync";
-import { startDeferredFeaturePrewarm } from "@/renderer/deferredFeatures";
-import { setThreadRuntimeReopenEnabled } from "@/renderer/actions/threadActions";
+import { startScheduleSync } from "@/renderer/state/scheduleStore";
+import { cleanupExpiredArchives, setThreadRuntimeReopenEnabled } from "@/renderer/actions/threadActions";
 
 interface IdleCallbackHandle {
   cancel: () => void;
@@ -33,7 +33,6 @@ function scheduleIdle(work: () => void): IdleCallbackHandle {
 export function useAppHydration(options: { runtimeOwner?: boolean } = {}) {
   const runtimeOwner = options.runtimeOwner ?? true;
   const markThreadsInactiveOnLaunch = useAppStore((state) => state.markThreadsInactiveOnLaunch);
-  const purgeStaleArchivedThreads = useAppStore((state) => state.purgeStaleArchivedThreads);
   const archiveOldDoneThreads = useAppStore((state) => state.archiveOldDoneThreads);
   const reconcileRuntimeSnapshots = useAppStore((state) => state.reconcileRuntimeSnapshots);
   const updateThreadRuntime = useAppStore((state) => state.updateThreadRuntime);
@@ -124,7 +123,20 @@ export function useAppHydration(options: { runtimeOwner?: boolean } = {}) {
 
       startTransition(() => {
         markThreadsInactiveOnLaunch();
-        purgeStaleArchivedThreads(30);
+        // Boot sweep: no session survives a restart, so any sub-agent row
+        // still marked running in the rehydrated store is an orphan by
+        // definition. Settle them here or closed/inactive threads keep a
+        // ghost "working" badge forever (hydration-on-open only heals threads
+        // the user actually opens).
+        for (const thread of useAppStore.getState().threads) {
+          useAppStore.getState().reconcileStaleSubAgents(thread.id);
+        }
+        // Archive retention cleanup at startup: strictly from `archivedAt`
+        // under the user's policy (default 7d). Reuses the same
+        // permanent-delete path as a manual archive delete (local projection
+        // + runtime close) — never widens native-thread destructive scope.
+        // Idempotent: missing rows are ignored on the next run.
+        cleanupExpiredArchives(useSharedSettings.getState().archiveRetention);
       });
 
       // A user can create a thread while this request is in flight. Scope the
@@ -221,18 +233,31 @@ export function useAppHydration(options: { runtimeOwner?: boolean } = {}) {
 
     const stopPrMergeAutoDone = startPrMergeAutoDone();
     const stopPrWatchStatusSync = startPrWatchStatusSync();
+    const stopScheduleSync = startScheduleSync();
+
+    // Scheduled retention sweep (does not require the Archive page open):
+    // every 6h re-evaluate expirations so policy changes and aging archives
+    // converge without a restart. Inexact timing is fine.
+    const retentionTimer = window.setInterval(() => {
+      try {
+        cleanupExpiredArchives(useSharedSettings.getState().archiveRetention);
+      } catch {
+        // Best-effort background sweep; failures surface on next run.
+      }
+    }, 6 * 60 * 60 * 1000);
 
     return () => {
       isActive = false;
       setThreadRuntimeReopenEnabled(false);
       idleHandle.cancel();
+      window.clearInterval(retentionTimer);
       stopPrMergeAutoDone();
       stopPrWatchStatusSync();
+      stopScheduleSync();
     };
   }, [
     loadT0,
     markThreadsInactiveOnLaunch,
-    purgeStaleArchivedThreads,
     archiveOldDoneThreads,
     reconcileRuntimeSnapshots,
     updateThreadRuntime,
@@ -285,19 +310,6 @@ export function useAppHydration(options: { runtimeOwner?: boolean } = {}) {
     updateThreadRuntime,
     view,
   ]);
-
-  useEffect(() => {
-    if (!storeHydrated || initialLoading) return;
-
-    let stopPrewarm = () => {};
-    const frame = window.requestAnimationFrame(() => {
-      stopPrewarm = startDeferredFeaturePrewarm();
-    });
-    return () => {
-      window.cancelAnimationFrame(frame);
-      stopPrewarm();
-    };
-  }, [initialLoading, storeHydrated]);
 
   return { initialLoading, runtimeSnapshotsReady, storeHydrated, loadT0 };
 }

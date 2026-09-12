@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { normalizeThirdPartyModelId } from "@/shared/thirdPartyRouting";
 import type { AccountBinding, ProjectLocation } from "@/shared/contracts";
 import type {
   CraftPlan,
@@ -69,7 +70,7 @@ export class OpenCodeNativeRuntimeAdapter implements HarnessRuntimeAdapter {
     return (
       this.options.readinessProvider?.({
         providerID,
-        modelID: plan.runtimeBinding.modelId,
+        modelID: normalizeThirdPartyModelId(plan.runtimeBinding.modelId),
         ...(plan.runtimeBinding.authRef ? { authRef: plan.runtimeBinding.authRef } : {}),
         ...(plan.runtimeBinding.profileRef ? { profileRef: plan.runtimeBinding.profileRef } : {}),
       }) ?? {
@@ -85,7 +86,7 @@ export class OpenCodeNativeRuntimeAdapter implements HarnessRuntimeAdapter {
     const providerID = plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor;
     throw CraftingError.runtimeUnavailable(
       "opencode",
-      `Cannot ${operation}: OpenCode route '${providerID}:${plan.runtimeBinding.modelId}' is not executable (${readiness.status}): ${readiness.reason}`,
+      `Cannot ${operation}: OpenCode route '${providerID}:${normalizeThirdPartyModelId(plan.runtimeBinding.modelId)}' is not executable (${readiness.status}): ${readiness.reason}`,
       "Configure a verified provider/model/auth binding before executing this route.",
     );
   }
@@ -147,7 +148,7 @@ export class OpenCodeNativeRuntimeAdapter implements HarnessRuntimeAdapter {
         official: true,
         machineFacingBoundary: this.descriptor.machineFacingBoundary,
         providerID: plan.runtimeBinding.providerID,
-        modelID: plan.runtimeBinding.modelId,
+        modelID: normalizeThirdPartyModelId(plan.runtimeBinding.modelId),
       },
     };
   }

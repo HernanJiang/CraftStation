@@ -194,10 +194,13 @@ export interface RemoteAccessServerOptions {
   };
   readonly schedules?: {
     list(): ScheduledTask[];
+    get?(id: string): ScheduledTask | null;
     create(task: ScheduledTaskInput): ScheduledTask;
     update(id: string, task: ScheduledTaskInput): ScheduledTask;
     delete(id: string): void;
     runNow(id: string): ScheduledTask;
+    pause(id: string): ScheduledTask;
+    resume(id: string): ScheduledTask;
   };
   /** Persistent PR automation owned by the host process. */
   readonly prWatches?: {
@@ -298,6 +301,7 @@ const REMOTELY_CONSUMED_EVENT_TYPES: ReadonlySet<RemoteBroadcastEvent["type"]> =
   "remote-git-state",
   "remote-projects-changed",
   "remote-threads-changed",
+  "remote-schedules-changed",
   "remote-thread-collaboration-changed",
 ]);
 

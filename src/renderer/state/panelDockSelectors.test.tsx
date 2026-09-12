@@ -13,6 +13,7 @@ describe("useIsPanelTabVisible", () => {
       auxiliaryPanelTabs: ["browser"],
       rightPanelSplit: null,
       bottomPanelDocks: EMPTY_BOTTOM_PANEL_DOCKS,
+      modelUsageDialogOpen: false,
     });
   });
 
@@ -29,6 +30,15 @@ describe("useIsPanelTabVisible", () => {
     const { result } = renderHook(() => useIsPanelTabVisible("browser"));
 
     act(() => usePanelStore.getState().setAuxiliaryPanelPlacement("hidden"));
+
+    expect(result.current).toBe(false);
+  });
+
+  it("hides docked tabs while the model-usage workspace is open", () => {
+    const { result } = renderHook(() => useIsPanelTabVisible("browser"));
+    expect(result.current).toBe(true);
+
+    act(() => usePanelStore.setState({ modelUsageDialogOpen: true }));
 
     expect(result.current).toBe(false);
   });

@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { validateWindowsLaunchAppInput } from "./windows";
+
+const WINDOWS_DRIVER_SOURCE = readFileSync(fileURLToPath(new URL("./windows.ts", import.meta.url)), "utf8");
 
 describe("validateWindowsLaunchAppInput", () => {
   it("allows app aliases, drive paths, and shell AppsFolder targets", () => {
@@ -30,5 +34,16 @@ describe("validateWindowsLaunchAppInput", () => {
     expect(() => validateWindowsLaunchAppInput(String.raw`.\tool.exe`)).toThrow(
       "Relative paths are not allowed",
     );
+  });
+});
+
+describe("Windows computer-use cursor restore", () => {
+  it("saves and restores the user cursor around click/scroll/drag", () => {
+    expect(WINDOWS_DRIVER_SOURCE).toContain("GetCursorPos");
+    expect(WINDOWS_DRIVER_SOURCE).toContain("function Invoke-StealingMouse");
+    expect(WINDOWS_DRIVER_SOURCE).toContain("Invoke-StealingMouse {");
+    expect(WINDOWS_DRIVER_SOURCE).toMatch(/"click"[\s\S]*Invoke-StealingMouse/);
+    expect(WINDOWS_DRIVER_SOURCE).toMatch(/"scroll"[\s\S]*Invoke-StealingMouse/);
+    expect(WINDOWS_DRIVER_SOURCE).toMatch(/"drag"[\s\S]*Invoke-StealingMouse/);
   });
 });

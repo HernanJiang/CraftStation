@@ -30,7 +30,7 @@ describe("ThreadGoalDock", () => {
     bridgeMock.controlThreadGoal.mockClear();
   });
 
-  it("renders goal details with the shared dock chrome", () => {
+  it("renders goal details with the shared dock chrome", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-12T10:00:10Z"));
     const onDismiss = vi.fn<() => void>();
@@ -61,8 +61,16 @@ describe("ThreadGoalDock", () => {
     expect(screen.getByText("120/1K tokens")).toBeInTheDocument();
     expect(screen.getByText("5s")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Close goal" }));
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Edit goal" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause goal" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear goal" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear goal" }));
+    await waitFor(() =>
+      expect(bridgeMock.controlThreadGoal).toHaveBeenCalledWith({
+        threadId: "thread-1",
+        action: "clear",
+      }),
+    );
   });
 
   it("offers Codex edit, pause, and clear controls and sends direct goal actions", async () => {

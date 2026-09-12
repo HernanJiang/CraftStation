@@ -51,7 +51,9 @@ function numberValue(value: unknown): number | undefined {
 function percentValue(value: unknown): number | undefined {
   const numeric = numberValue(value);
   if (numeric === undefined) return undefined;
-  const percent = numeric >= 0 && numeric <= 1 ? numeric * 100 : numeric;
+  // Fractions are (0, 1). Exactly 1 is 1%, not 100% — SuperGrok windows that
+  // report `usedPercent: 1` were previously marked exhausted on refresh.
+  const percent = numeric > 0 && numeric < 1 ? numeric * 100 : numeric;
   return percent >= 0 && percent <= 100 ? percent : undefined;
 }
 
@@ -72,12 +74,14 @@ function windowFromRecord(
 ): AccountQuotaWindow | undefined {
   const id = typeof record.id === "string" ? record.id : fallbackId;
   const label = typeof record.label === "string" ? record.label : id;
+  const used = numberValue(record.used);
+  const limit = numberValue(record.limit);
   const usedPercent =
     percentValue(record.usedPercent) ??
     percentValue(record.percentUsed) ??
     percentValue(record.usagePercent) ??
-    (numberValue(record.used) !== undefined && numberValue(record.limit) !== undefined
-      ? percentValue(numberValue(record.used)! / Math.max(1, numberValue(record.limit)!))
+    (used !== undefined && limit !== undefined && limit > 0
+      ? Math.min(100, Math.max(0, (used / limit) * 100))
       : undefined);
   if (usedPercent === undefined) return undefined;
   const reset = epochMs(record.resetsAt ?? record.resetAt ?? record.reset_at ?? record.windowEnd);

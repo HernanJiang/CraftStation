@@ -33,6 +33,15 @@ export const threadRemoveActionOptions = [
   },
 ] as const satisfies readonly LocalizedOption[];
 
+export const archiveRetentionOptions = [
+  { id: "immediate", label: msg`Delete immediately` },
+  { id: "3d", label: msg`After 3 days` },
+  { id: "7d", label: msg`After 7 days` },
+  { id: "15d", label: msg`After 15 days` },
+  { id: "30d", label: msg`After 30 days` },
+  { id: "forever", label: msg`Never` },
+] as const satisfies readonly LocalizedOption[];
+
 export const cliPickerTargetOptions = [
   { id: "ask", label: msg`Ask each time` },
   { id: "terminal", label: msg`Terminal input` },

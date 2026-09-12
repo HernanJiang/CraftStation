@@ -169,6 +169,31 @@ describe("ComputerUseMcpIngress", () => {
     expect(driver.dispose).toHaveBeenCalledOnce();
   });
 
+  it("moves the overlay pointer to the click target before dispatching", async () => {
+    const onPointer = vi.fn<NonNullable<ComputerUseMcpIngressOptions["onPointer"]>>();
+    const click = vi.fn<ComputerUseDriver["click"]>(async () => ({
+      ok: true as const,
+      mode: "interactive" as const,
+    }));
+    ingress = new ComputerUseMcpIngress({
+      driver: createDriver({ click }),
+      onPointer,
+    });
+    const info = await ingress.start();
+
+    expect(
+      (
+        await callTool(info, "click", {
+          window: { app: "calc", id: 1, x: 100, y: 200 },
+          x: 10,
+          y: 20,
+        })
+      ).status,
+    ).toBe(200);
+    expect(onPointer).toHaveBeenCalledWith({ kind: "click", x: 110, y: 220 });
+    expect(onPointer.mock.invocationCallOrder[0]).toBeLessThan(click.mock.invocationCallOrder[0]!);
+  });
+
   it("normalizes interactive tool aliases in activity events", async () => {
     const onActivity = vi.fn<NonNullable<ComputerUseMcpIngressOptions["onActivity"]>>();
     ingress = new ComputerUseMcpIngress({ driver: createDriver(), onActivity });

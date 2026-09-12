@@ -11,6 +11,10 @@ export interface OpenCodeRuntimeBindingRequest {
   readonly profileRef?: string | undefined;
 }
 
+export interface OpenCodeThirdPartyRuntimePreparer {
+  (accountId: string, modelId: string): { env: Record<string, string> };
+}
+
 export interface ResolvedOpenCodeRuntimeBinding {
   /** Private, opaque pool partition. Never expose this value to renderer/UI. */
   readonly isolationKey: string;
@@ -34,7 +38,10 @@ function locationKey(location: ProjectLocation): string {
  * outside the transport closure.
  */
 export class AccountStoreOpenCodeRuntimeBindingResolver implements OpenCodeRuntimeBindingResolver {
-  constructor(private readonly accountStore: AccountStore) {}
+  constructor(
+    private readonly accountStore: AccountStore,
+    private readonly prepareThirdPartyRuntime?: OpenCodeThirdPartyRuntimePreparer,
+  ) {}
 
   async resolve(request: OpenCodeRuntimeBindingRequest): Promise<ResolvedOpenCodeRuntimeBinding> {
     const providerID = request.plan.runtimeBinding.providerID ?? request.plan.runtimeBinding.vendor;
@@ -56,14 +63,26 @@ export class AccountStoreOpenCodeRuntimeBindingResolver implements OpenCodeRunti
       };
     }
 
-    if (account.provider !== providerID && account.provider !== "opencode") {
+    if (
+      account.provider !== providerID &&
+      account.provider !== "opencode" &&
+      account.provider !== "openai-compatible"
+    ) {
       throw CraftingError.incompatibleCombination(
         `OpenCode account provider '${account.provider}' cannot execute route '${providerID}'.`,
       );
     }
-    const serverEnvironment = this.accountStore.readCredentialEnvironment(account.accountId);
+    const serverEnvironment =
+      account.provider === "openai-compatible"
+        ? (this.prepareThirdPartyRuntime?.(account.accountId, request.plan.runtimeBinding.modelId)
+            ?.env ?? {})
+        : this.accountStore.readCredentialEnvironment(account.accountId);
     const runtime = this.accountStore.prepareOpenCodeRuntimeRoot(account.accountId);
-    if (Object.keys(serverEnvironment).length === 0 && !runtime.authConfigured) {
+    if (
+      account.provider !== "openai-compatible" &&
+      Object.keys(serverEnvironment).length === 0 &&
+      !runtime.authConfigured
+    ) {
       throw CraftingError.runtimeUnavailable(
         "opencode",
         "The selected OpenCode account has no projected provider environment or auth store.",

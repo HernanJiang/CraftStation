@@ -11,6 +11,7 @@ import { withReadonlyDb } from "./sqliteRead";
  */
 
 const OPENCODE_GO_PROVIDER_ID = "opencode-go";
+const OPENCODE_ZEN_PROVIDER_ID = "opencode";
 
 function openCodeDataDirs(): string[] {
   const home = homedir();
@@ -99,12 +100,12 @@ export function normalizeRows(raw: { createdMs?: unknown; cost?: unknown }[]): O
   return rows;
 }
 
-export function hasOpenCodeGoAuth(): boolean {
+function hasOpenCodeAuthKey(providerId: string): boolean {
   for (const path of openCodeAuthPaths()) {
     if (!existsSync(path)) continue;
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-      const entry = parsed[OPENCODE_GO_PROVIDER_ID];
+      const entry = parsed[providerId];
       if (!entry || typeof entry !== "object") continue;
       const key = (entry as { key?: unknown }).key;
       if (typeof key === "string" && key.trim()) return true;
@@ -113,6 +114,20 @@ export function hasOpenCodeGoAuth(): boolean {
     }
   }
   return false;
+}
+
+export function hasOpenCodeGoAuth(): boolean {
+  return hasOpenCodeAuthKey(OPENCODE_GO_PROVIDER_ID);
+}
+
+/**
+ * OpenCode Zen logins land in the same CLI `auth.json` under the `opencode`
+ * key (`opencode auth login` for Zen stores an api key there, not
+ * `opencode-go`). Treating only the Go key as "signed in" wrongly shows
+ * auth-missing for Zen-only users.
+ */
+export function hasOpenCodeZenAuth(): boolean {
+  return hasOpenCodeAuthKey(OPENCODE_ZEN_PROVIDER_ID);
 }
 
 export async function readOpenCodeGoRows(): Promise<OpenCodeCostRow[] | undefined> {

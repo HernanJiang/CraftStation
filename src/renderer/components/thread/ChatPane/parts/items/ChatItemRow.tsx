@@ -11,6 +11,7 @@ import { AssistantMessage } from "./AssistantMessage";
 import { CommandExecution } from "./CommandExecution";
 import { FileChange } from "./FileChange";
 import { ImageView } from "./ImageView";
+import { ModelSwitchMarker } from "./ModelSwitchMarker";
 import { PlanItem } from "./PlanItem";
 import { QuestionAnswer } from "./QuestionAnswer";
 import { Reasoning } from "./Reasoning";
@@ -134,6 +135,8 @@ function renderItem(
       return <WebSearchItem item={item} />;
     case "runtime_segment":
       return <RuntimeSegmentMarker item={item} />;
+    case "model_switch":
+      return <ModelSwitchMarker item={item} />;
     case "error":
       return null;
     default:

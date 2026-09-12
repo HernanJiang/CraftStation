@@ -1,6 +1,16 @@
 import { clearUsageSecret, getUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import { AccountControlError, type AccountView } from "@/shared/contracts";
 import {
+  normalizeThirdPartyModelId,
+  THIRD_PARTY_OPENCODE_PROVIDER_ID,
+} from "@/shared/thirdPartyRouting";
+import {
+  normalizeApiRoot,
+  probeThirdPartyProvider,
+  type ProbeFetch,
+  type ThirdPartyProtocol,
+} from "@/shared/thirdPartyValidation";
+import {
   normalizeOpenAiCompatibleBaseUrl,
   openAiCompatibleModelsUrl,
   type HostPort,
@@ -9,6 +19,7 @@ import { AccountStore } from "./accountStore";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CraftStationCredentialVault } from "./credentialVault";
+import { buildMuseForeignChildEnv } from "../agents/muse/foreignEndpoint";
 
 /**
  * OpenAI 兼容 API 多提供商号池。每个账号是一个用户自定义的第三方端点：
@@ -23,7 +34,15 @@ import { CraftStationCredentialVault } from "./credentialVault";
 const PROVIDER = "openai-compatible";
 const STAGING_BUCKET = "openai-compatible:pending";
 
-const BUNDLE_KEYS = ["baseUrl", "apiKey", "providerName", "model", "displayName"] as const;
+const BUNDLE_KEYS = [
+  "baseUrl",
+  "apiKey",
+  "providerName",
+  "model",
+  "displayName",
+  "validatedProtocol",
+  "validatedAt",
+] as const;
 
 export interface OpenAiCompatibleProfileServiceOptions {
   store: AccountStore;
@@ -36,6 +55,24 @@ interface ProfileBundle {
   providerName?: string;
   model?: string;
   displayName?: string;
+  /**
+   * Real-probe outcome (Responses-first, see shared/thirdPartyValidation).
+   * Absent on bundles staged before validation existed — such bundles must
+   * re-verify before import (importStaging rejects them).
+   */
+  validatedProtocol?: "responses" | "chat_completions" | undefined;
+  validatedAt?: number | undefined;
+}
+
+function readValidatedProtocol(value: string | undefined): ProfileBundle["validatedProtocol"] {
+  const trimmed = value?.trim();
+  return trimmed === "responses" || trimmed === "chat_completions" ? trimmed : undefined;
+}
+
+function readValidatedAt(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function readBundle(cacheDir: string, bucket: string): ProfileBundle | undefined {
@@ -53,6 +90,12 @@ function readBundle(cacheDir: string, bucket: string): ProfileBundle | undefined
       : {}),
     ...(getUsageSecret(cacheDir, bucket, "displayName")?.trim()
       ? { displayName: getUsageSecret(cacheDir, bucket, "displayName")!.trim() }
+      : {}),
+    ...(readValidatedProtocol(getUsageSecret(cacheDir, bucket, "validatedProtocol"))
+      ? { validatedProtocol: readValidatedProtocol(getUsageSecret(cacheDir, bucket, "validatedProtocol"))! }
+      : {}),
+    ...(readValidatedAt(getUsageSecret(cacheDir, bucket, "validatedAt")) !== undefined
+      ? { validatedAt: readValidatedAt(getUsageSecret(cacheDir, bucket, "validatedAt"))! }
       : {}),
   };
 }
@@ -86,6 +129,8 @@ export class OpenAiCompatibleProfileService {
     model?: string;
     displayName?: string;
     providerName?: string;
+    validatedProtocol?: "responses" | "chat_completions";
+    validatedAt?: number;
   } {
     const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
     if (!bundle)
@@ -95,6 +140,32 @@ export class OpenAiCompatibleProfileService {
       ...(bundle.model ? { model: bundle.model } : {}),
       ...(bundle.displayName ? { displayName: bundle.displayName } : {}),
       ...(bundle.providerName ? { providerName: bundle.providerName } : {}),
+      ...(bundle.validatedProtocol ? { validatedProtocol: bundle.validatedProtocol } : {}),
+      ...(bundle.validatedAt !== undefined ? { validatedAt: bundle.validatedAt } : {}),
+    };
+  }
+
+  /**
+   * Routing descriptor for a validated third-party account: model id +
+   * verified protocol + normalized base URL. Never includes the API key —
+   * the key stays in the sealed bucket and is only projected into the
+   * harness child-process env at spawn time.
+   */
+  getDescriptor(accountId: string): {
+    accountId: string;
+    baseUrl: string;
+    model?: string;
+    validatedProtocol?: "responses" | "chat_completions";
+    validatedAt?: number;
+  } | undefined {
+    const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
+    if (!bundle) return undefined;
+    return {
+      accountId,
+      baseUrl: bundle.baseUrl,
+      ...(bundle.model ? { model: bundle.model } : {}),
+      ...(bundle.validatedProtocol ? { validatedProtocol: bundle.validatedProtocol } : {}),
+      ...(bundle.validatedAt !== undefined ? { validatedAt: bundle.validatedAt } : {}),
     };
   }
 
@@ -106,6 +177,14 @@ export class OpenAiCompatibleProfileService {
       throw new AccountControlError(
         "ACCOUNT_PROJECTION_FAILED",
         "未找到新的 OpenAI 兼容 API 配置；请先在表单中验证并保存。",
+      );
+    }
+    // No verification → no catalog entry. A bundle staged before real-probe
+    // validation existed (or with wiped validation keys) must re-verify.
+    if (!bundle.validatedProtocol) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "该配置尚未通过真实兼容性验证；请先验证 Base URL + API Key + Model，验证通过后才能添加。",
       );
     }
     const identity =
@@ -208,6 +287,144 @@ export class OpenAiCompatibleProfileService {
     };
   }
 
+  /**
+   * Prepare an isolated official OpenCode server profile for a third-party
+   * OpenAI-compatible account. GLM and other models without an official
+   * Harness run here. The API key stays in the isolated config file under
+   * the supervisor cache — never the user's ~/.config/opencode.
+   */
+  prepareOpenCodeRuntime(
+    accountId: string,
+    modelId?: string,
+  ): {
+    configDir: string;
+    env: Record<string, string>;
+  } {
+    const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
+    if (!bundle) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "OpenAI 兼容 API 配置缺失，请重新编辑并验证。",
+      );
+    }
+    const configDir = join(
+      this.options.cacheDir,
+      "openai-compatible-opencode",
+      safeAccountPathSegment(accountId),
+    );
+    mkdirSync(configDir, { recursive: true });
+    const model = normalizeThirdPartyModelId(modelId ?? bundle.model ?? "default") || "default";
+    const providerId = THIRD_PARTY_OPENCODE_PROVIDER_ID;
+    const document = {
+      $schema: "https://opencode.ai/config.json",
+      provider: {
+        [providerId]: {
+          name: bundle.providerName ?? "OpenAI Compatible",
+          npm: "@ai-sdk/openai-compatible",
+          options: {
+            baseURL: bundle.baseUrl,
+            apiKey: bundle.apiKey,
+          },
+          models: {
+            [model]: { name: bundle.displayName ?? model },
+          },
+        },
+      },
+    };
+    const serialized = JSON.stringify(document, null, 2);
+    writeFileSync(join(configDir, "opencode.json"), serialized, { encoding: "utf8" });
+    // Native OpenCode transport derives OPENCODE_CONFIG_DIR from the managed
+    // account root (`<root>/config/opencode`). Mirror the file there so the
+    // craft-lane resolver does not need a reserved env key.
+    const nativeConfigDir = join(
+      this.options.store.credentialRoot(accountId),
+      "config",
+      "opencode",
+    );
+    mkdirSync(nativeConfigDir, { recursive: true });
+    writeFileSync(join(nativeConfigDir, "opencode.json"), serialized, { encoding: "utf8" });
+    return {
+      configDir,
+      env: {
+        OPENCODE_CONFIG_DIR: configDir,
+        CRAFTSTATION_OPENCODE_PROVIDER: providerId,
+      },
+    };
+  }
+
+  /**
+   * Prepare an isolated Muse Code child that talks to this account's Responses
+   * endpoint. The API key is child-env only (`META_API_KEY`); XDG homes are
+   * redirected so the launch cannot read or write `~/.config/muse`.
+   */
+  prepareMuseRuntime(accountId: string): {
+    isolationDir: string;
+    env: Record<string, string>;
+  } {
+    const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
+    if (!bundle) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "OpenAI 兼容 API 配置缺失，请重新编辑并验证。",
+      );
+    }
+    const isolationDir = join(
+      this.options.cacheDir,
+      "openai-compatible-muse",
+      safeAccountPathSegment(accountId),
+    );
+    return {
+      isolationDir,
+      env: buildMuseForeignChildEnv({
+        apiKey: bundle.apiKey,
+        baseUrl: bundle.baseUrl,
+        isolationDir,
+      }),
+    };
+  }
+
+  /**
+   * Project a third-party OpenAI-compatible Base URL + key into a native
+   * vendor CLI (Kimi Code / Grok Build / DeepSeek Harness) via child env only.
+   */
+  prepareVendorCompatRuntime(
+    accountId: string,
+    harness: "kimi" | "grok" | "deepseek",
+  ): { env: Record<string, string> } {
+    const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
+    if (!bundle) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "OpenAI 兼容 API 配置缺失，请重新编辑并验证。",
+      );
+    }
+    if (harness === "kimi") {
+      return {
+        env: {
+          KIMI_CODE_API_KEY: bundle.apiKey,
+          KIMI_CODE_BASE_URL: bundle.baseUrl,
+        },
+      };
+    }
+    if (harness === "grok") {
+      return {
+        env: {
+          GROK_API_KEY: bundle.apiKey,
+          XAI_API_KEY: bundle.apiKey,
+          GROK_API_BASE: bundle.baseUrl,
+          GROK_BASE_URL: bundle.baseUrl,
+        },
+      };
+    }
+    return {
+      env: {
+        DEEPSEEK_API_KEY: bundle.apiKey,
+        OPENAI_API_KEY: bundle.apiKey,
+        OPENAI_BASE_URL: bundle.baseUrl,
+      },
+    };
+  }
+
   /** 该账号端点的可用模型 id 列表（/models）。 */
   async listModels(accountId: string): Promise<string[]> {
     const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
@@ -226,21 +443,77 @@ export class OpenAiCompatibleProfileService {
           for (const entry of data) {
             if (entry && typeof entry === "object") {
               const id = (entry as Record<string, unknown>).id;
-              if (typeof id === "string" && id.trim()) ids.push(id.trim());
+              if (typeof id === "string" && id.trim()) ids.push(normalizeThirdPartyModelId(id));
             }
           }
         }
         const models = (body as Record<string, unknown>).models;
         if (Array.isArray(models)) {
-          for (const id of models) if (typeof id === "string" && id.trim()) ids.push(id.trim());
+          for (const id of models)
+            if (typeof id === "string" && id.trim()) ids.push(normalizeThirdPartyModelId(id));
         } else if (models && typeof models === "object") {
-          ids.push(...Object.keys(models));
+          ids.push(...Object.keys(models).map(normalizeThirdPartyModelId));
         }
       }
       return [...new Set(ids)];
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Per-model add-time gate: run the real Responses-first inference probe for
+   * one model id with the account's sealed key (the key never leaves the
+   * supervisor). `/models` listing alone never passes. Returns the verified
+   * protocol; throws AccountControlError with a user-facing message otherwise.
+   */
+  async verifyModel(
+    accountId: string,
+    model: string,
+    fetchImpl?: ProbeFetch | undefined,
+  ): Promise<{ validatedProtocol: ThirdPartyProtocol; validatedAt: number }> {
+    const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
+    if (!bundle) {
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
+    }
+    const apiRoot = normalizeApiRoot(bundle.baseUrl);
+    if (!apiRoot) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "该账号的 Base URL 无效，请重新编辑并验证。",
+        { accountId },
+      );
+    }
+    const probe: ProbeFetch =
+      fetchImpl ??
+      (async (url, init, timeoutMs) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch(url, {
+            method: init.method,
+            headers: init.headers,
+            ...(init.body ? { body: init.body } : {}),
+            signal: controller.signal,
+          });
+          return { status: res.status, bodyText: await res.text().catch(() => "") };
+        } finally {
+          clearTimeout(timer);
+        }
+      });
+    const result = await probeThirdPartyProvider({
+      baseUrl: apiRoot,
+      apiKey: bundle.apiKey,
+      model: normalizeThirdPartyModelId(model),
+      fetchImpl: probe,
+    });
+    if (!result.ok) {
+      throw new AccountControlError("ACCOUNT_PROJECTION_FAILED", result.message, {
+        accountId,
+        code: result.code,
+      });
+    }
+    return { validatedProtocol: result.validatedProtocol, validatedAt: result.validatedAt };
   }
 
   /**

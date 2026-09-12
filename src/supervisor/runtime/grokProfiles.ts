@@ -11,7 +11,7 @@ import {
   type HttpResponse,
   type UsageSnapshot,
 } from "@craftstation/agents-usage";
-import { AccountStore } from "./accountStore";
+import { AccountStore, shouldPreserveInferenceExhaustion } from "./accountStore";
 import { grokAuthContainer, parseGrokAuth, parseGrokCookie } from "./grokCredentials";
 import { refreshRejectedGrokToken } from "./grokTokenRefresh";
 import { UsageHttpError } from "./usageHttpClient";
@@ -282,7 +282,11 @@ export class GrokProfileService {
    * account row so A/B quota/reset/status stay isolated. Never touches the host
    * ~/.grok or Codex-Router oauth pool.
    */
-  async collectQuota(accountId: string, host: HostPort): Promise<AccountView> {
+  async collectQuota(
+    accountId: string,
+    host: HostPort,
+    options?: { recoverInferenceMark?: boolean },
+  ): Promise<AccountView> {
     const account = this.options.store.getRecord(accountId);
     if (!account)
       throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
@@ -318,9 +322,7 @@ export class GrokProfileService {
       const native = await this.nativeQuotaProbe(
         nativeGrokQuotaProbeOptions(grokHome, grokHome, managedEnv),
       );
-      const nativeStatus = native.windows.some((window) => window.usedPercent >= 90)
-        ? "quota-low"
-        : "available";
+      const nativeStatus = quotaStatusForWindows(native.windows);
       const updated = this.options.store.updateStatus(accountId, nativeStatus, {
         lastQuotaAt: native.fetchedAt,
       });
@@ -342,9 +344,17 @@ export class GrokProfileService {
           refreshRejectedGrokToken(rejectedToken, undefined, authPath),
       });
       if (tokenQuota.ok) {
-        const tokenStatus = tokenQuota.windows.some((window) => window.usedPercent >= 90)
-          ? "quota-low"
-          : "available";
+        const tokenStatus = quotaStatusForWindows(tokenQuota.windows);
+        if (
+          options?.recoverInferenceMark !== true &&
+          (tokenStatus === "available" || tokenStatus === "quota-low") &&
+          shouldPreserveInferenceExhaustion(this.options.store.getRecord(accountId), Date.now())
+        ) {
+          // Same inference-mark rule as the cookie path below: a fresh token
+          // window must not resurrect a row that just failed inference.
+          await persistPlan();
+          return this.options.store.updateQuota(accountId, tokenQuota.windows);
+        }
         const updated = this.options.store.updateStatus(accountId, tokenStatus, {
           lastQuotaAt: tokenQuota.fetchedAt,
         });
@@ -422,9 +432,7 @@ export class GrokProfileService {
             : grokQuotaFailureMessage(snapshot, transport.issue);
     const status =
       snapshot.status === "ok"
-        ? snapshot.windows.some((window) => window.usedPercent >= 90)
-          ? "quota-low"
-          : "available"
+        ? quotaStatusForWindows(snapshot.windows)
         : snapshot.status === "quota-hit"
           ? "quota-exhausted"
           : snapshot.status === "auth-missing"
@@ -436,6 +444,23 @@ export class GrokProfileService {
       ...(snapshot.authenticatedAs ? { providerAccountId: snapshot.authenticatedAs } : {}),
       ...(snapshot.plan ? { plan: snapshot.plan } : {}),
     });
+    const quotaWindows = snapshot.windows.map((window) => ({
+      id: window.id,
+      label: window.label,
+      usedPercent: window.usedPercent,
+      ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
+    }));
+    if (
+      options?.recoverInferenceMark !== true &&
+      (status === "available" || status === "quota-low") &&
+      shouldPreserveInferenceExhaustion(this.options.store.getRecord(accountId), Date.now())
+    ) {
+      // A real inference failure outranks % windows (different budget): keep
+      // the row out of scheduling, but persist the fresh windows so the bars
+      // stay truthful. The mark expires via TTL; newer quota evidence after
+      // that recovers the row normally.
+      return this.options.store.updateQuota(accountId, quotaWindows) ?? withMetadata;
+    }
     const updated = this.options.store.updateStatus(accountId, status, {
       ...(snapshotError ? { lastError: snapshotError } : {}),
       lastQuotaAt: snapshot.fetchedAt,
@@ -443,12 +468,7 @@ export class GrokProfileService {
     return (
       this.options.store.updateQuota(
         accountId,
-        snapshot.windows.map((window) => ({
-          id: window.id,
-          label: window.label,
-          usedPercent: window.usedPercent,
-          ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
-        })),
+        quotaWindows,
       ) ??
       withMetadata ??
       updated
@@ -469,9 +489,31 @@ function safeParseJson(content: string): unknown {
 }
 
 /**
+ * Map quota windows onto an account status. A fully-consumed window must mark
+ * the account `quota-exhausted` (unusable for new sessions) — capping at
+ * `quota-low` kept a 100%-used account eligible and silently defeated pool
+ * fallback.
+ */
+function quotaStatusForWindows(
+  windows: ReadonlyArray<{ usedPercent: number }>,
+): "available" | "quota-low" | "quota-exhausted" {
+  if (windows.some((window) => window.usedPercent >= 100)) return "quota-exhausted";
+  if (windows.some((window) => window.usedPercent >= 90)) return "quota-low";
+  return "available";
+}
+
+/**
+ * Compatibility-bridge endpoint keys. Native Grok runs must never inherit
+ * these: only a non-native model on the native vendor may go through CPA,
+ * everything else runs the official CLI against the account pool.
+ */
+export const GROK_COMPATIBILITY_ENV_KEYS = ["GROK_API_BASE", "GROK_BASE_URL"] as const;
+
+/**
  * Isolate a managed Grok runtime from the host CLI/Router overlay: pin
  * `GROK_HOME` to the managed root and strip variables that could redirect the
- * official binary onto another account (CLIProxy / Router / catalog).
+ * official binary onto another account (CLIProxy / Router / catalog) or onto
+ * the Compatibility Bridge endpoint.
  */
 export function managedGrokProcessEnvironment(
   managedGrokHome: string,
@@ -492,7 +534,8 @@ export function managedGrokProcessEnvironment(
       upper.includes("CODEX_ROUTER") ||
       upper.includes("MODEL_CATALOG") ||
       upper.includes("GROK_API_KEY") ||
-      upper.includes("XAI_API_KEY")
+      upper.includes("XAI_API_KEY") ||
+      (GROK_COMPATIBILITY_ENV_KEYS as readonly string[]).includes(upper)
     ) {
       blankKeys.add(key);
       continue;

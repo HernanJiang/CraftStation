@@ -1,34 +1,26 @@
-import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   CalendarDays,
   Download,
-  Gauge,
   GitPullRequest,
   Hammer,
   PanelLeft,
-  Plus,
-  Puzzle,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
-import { Dropdown, Label, toast } from "@heroui/react";
+import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
 import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
+import { runCliUpdateBinary } from "@/renderer/actions/runCliUpdate";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
-import { usePanelStore } from "@/renderer/state/panelStore";
 import { toggleSidebar } from "@/renderer/state/sidebarOverlayStore";
+import { TopShortcutBar } from "./TopShortcuts/TopShortcutBar";
 import { useUpdateStore } from "@/renderer/state/updateStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
-import {
-  currentWslDistros,
-  envLabelForStatus,
-  scopeEnvForStatus,
-  statusUpdateScope,
-} from "@/renderer/utils/acpRegistryAuth";
+import { envLabelForStatus } from "@/renderer/utils/acpRegistryAuth";
 import { extractAcpGenericInstanceId, type AgentStatus } from "@/shared/contracts";
 import { isNewerVersion } from "@/shared/agents/updateResolver";
 
@@ -48,6 +40,9 @@ export function CliUpdateMenu() {
   const [checking, setChecking] = useState(false);
   const [updates, setUpdates] = useState<CliUpdate[]>([]);
   const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+  const inFlightRef = useRef(0);
+  const statusesRef = useRef<{ key: string; status: AgentStatus }[]>([]);
+  const autoCheckedKeysetRef = useRef<string | null>(null);
   const statuses = useMemo(() => {
     const byKey = new Map<string, AgentStatus>();
     for (const status of [...agentStatuses, ...wslAgentStatuses]) {
@@ -65,53 +60,79 @@ export function CliUpdateMenu() {
     return [...byKey.entries()].map(([key, status]) => ({ key, status }));
   }, [agentStatuses, wslAgentStatuses]);
 
-  const check = useCallback(async () => {
+  const runCheck = useCallback(async (options?: { force?: boolean }) => {
+    // Re-entrancy guard for the automatic path: agent-status store churn
+    // re-renders this component constantly while any thread is active, and a
+    // new check per render kept the titlebar spinner spinning forever. Manual
+    // presses (and post-update refreshes) bypass the guard with `force`.
+    if (inFlightRef.current > 0 && !options?.force) return;
+    inFlightRef.current += 1;
     setChecking(true);
     try {
-      const resolved = await Promise.all(
-        statuses.map(async ({ key, status }) => {
-          try {
-            const result = await readBridge().getLatestAgentVersion({ agentKind: status.kind });
-            return result.version && isNewerVersion(result.version, status.version ?? "")
-              ? ({ key, status, latest: result.version } satisfies CliUpdate)
-              : undefined;
-          } catch {
-            return undefined;
-          }
-        }),
+      // Safety valve: each upstream probe aborts at 8s per URL, but adapters
+      // can chain several URLs — never let the spinner stick past 30s.
+      const settled = await Promise.race([
+        Promise.all(
+          statusesRef.current.map(async ({ key, status }) => {
+            try {
+              const result = await readBridge().getLatestAgentVersion({ agentKind: status.kind });
+              return result.version && isNewerVersion(result.version, status.version ?? "")
+                ? ({ key, status, latest: result.version } satisfies CliUpdate)
+                : undefined;
+            } catch {
+              return undefined;
+            }
+          }),
+        ),
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30_000)),
+      ]);
+      if (!settled) return;
+      const found = settled.filter((entry): entry is CliUpdate => entry !== undefined);
+      setUpdates(found);
+      // Publish for the synthesis-bench Harness surfaces so the titlebar menu
+      // and the bench cards/rows always reflect the same availability.
+      useUpdateStore.getState().setAvailableCliUpdates(
+        found.map((entry) => ({
+          key: entry.key,
+          agentKind: entry.status.kind,
+          label: entry.status.label,
+          version: entry.status.version ?? "",
+          latest: entry.latest,
+        })),
       );
-      setUpdates(resolved.filter((entry): entry is CliUpdate => entry !== undefined));
     } finally {
-      setChecking(false);
+      inFlightRef.current -= 1;
+      if (inFlightRef.current === 0) setChecking(false);
     }
-  }, [statuses]);
+  }, []);
 
+  // Auto-check once per mount and again only when the SET of updatable CLIs
+  // changes (install/uninstall) — not on every agent-status array identity
+  // churn, which happens on nearly every supervisor event.
   useEffect(() => {
-    void check();
-  }, [check]);
+    statusesRef.current = statuses;
+    const keyset = statuses
+      .map((entry) => entry.key)
+      .sort()
+      .join(",");
+    if (autoCheckedKeysetRef.current === keyset) return;
+    autoCheckedKeysetRef.current = keyset;
+    void runCheck();
+  }, [statuses, runCheck]);
 
   const updateOne = async (entry: CliUpdate) => {
     if (updatingKey) return;
     setUpdatingKey(entry.key);
     try {
-      const scope = statusUpdateScope(entry.status);
-      const result = await readBridge().updateAgentBinary({
+      // Shared path with the bench Harness rows/cards; afterwards re-run the
+      // version check so a failed landing reappears in this menu.
+      await runCliUpdateBinary({
+        key: entry.key,
         agentKind: entry.status.kind,
-        envKind: scope.envKind,
-        ...(scope.wslDistro ? { wslDistro: scope.wslDistro } : {}),
+        label: entry.status.label,
+        latest: entry.latest,
       });
-      if (!result.ok) {
-        toast.danger(result.output?.trim() || `无法更新 ${entry.status.label}。`);
-        return;
-      }
-      toast.success(`${entry.status.label} 已更新到 v${entry.latest}。`);
-      await readBridge().refreshAgentStatuses(currentWslDistros(), {
-        agentKinds: [entry.status.kind],
-        envs: [scopeEnvForStatus(entry.status)],
-      });
-      await check();
-    } catch (error) {
-      toast.danger(error instanceof Error ? error.message : `无法更新 ${entry.status.label}。`);
+      await runCheck({ force: true });
     } finally {
       setUpdatingKey(null);
     }
@@ -129,7 +150,7 @@ export function CliUpdateMenu() {
           className={`${buttonClass} relative mr-1 px-1.5 ${
             updates.length > 0 ? "text-amber-300" : ""
           }`}
-          onPress={() => void check()}
+          onPress={() => void runCheck({ force: true })}
         >
           {checking ? (
             <RefreshCw className="size-3.5 animate-spin" />
@@ -147,7 +168,7 @@ export function CliUpdateMenu() {
         <Dropdown.Menu
           aria-label={t`CLI updates`}
           onAction={(key) => {
-            if (key === "check") void check();
+            if (key === "check") void runCheck({ force: true });
             const entry = updates.find((candidate) => candidate.key === String(key));
             if (entry) void updateOne(entry);
           }}
@@ -194,10 +215,6 @@ export function MainTitlebar() {
   const updateVersion = useUpdateStore((state) => state.version);
   const updatePercent = useUpdateStore((state) => state.downloadPercent);
 
-  function openCraftingTable() {
-    usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting" });
-  }
-
   return (
     <header className="craftstation-titlebar flex h-[38px] min-w-0 items-center bg-[var(--window-header-background)] px-2 text-foreground">
       <div className="craftstation-titlebar-control flex shrink-0 items-center gap-0.5">
@@ -233,7 +250,7 @@ export function MainTitlebar() {
         </ControlTooltip>
       </div>
 
-      <nav className="craftstation-titlebar-control ml-1 flex min-w-0 items-center gap-0.5">
+      <nav className="craftstation-titlebar-control ml-1 flex min-w-0 flex-1 items-center gap-0.5">
         <ControlTooltip label={t`Pull requests`} detail={t`View and review pull requests`}>
           <button
             type="button"
@@ -264,79 +281,24 @@ export function MainTitlebar() {
             <span>{t`Work`}</span>
           </button>
         </ControlTooltip>
-        <ControlTooltip label={t`Plugins`} detail={t`Manage extensions and plugins`}>
-          <button
-            type="button"
-            className={buttonClass}
-            onClick={() => usePanelStore.getState().openSettingsSection("plugins")}
-          >
-            <Puzzle className="size-3.5" />
-            <span>{t`Plugins`}</span>
-          </button>
-        </ControlTooltip>
-        <ControlTooltip label={t`Skills`} detail={t`Manage agent skills`}>
-          <button
-            type="button"
-            className={buttonClass}
-            onClick={() => usePanelStore.getState().openSettingsSection("skills")}
-          >
-            <Sparkles className="size-3.5" />
-            <span>{t`Skills`}</span>
-          </button>
-        </ControlTooltip>
-        <ControlTooltip label={t`Usage`} detail={t`View model authorization and usage`}>
-          <button
-            type="button"
-            className={buttonClass}
-            onClick={() => usePanelStore.getState().openModelUsageDialog()}
-          >
-            <Gauge className="size-3.5" />
-            <span>{t`Usage`}</span>
-          </button>
-        </ControlTooltip>
-        <Dropdown>
-          <ControlTooltip label={t`Customize shortcuts`} detail={t`Open more features`}>
-            <Dropdown.Trigger
-              aria-label={t`Customize shortcuts`}
-              className={`${buttonClass} px-1.5`}
-            >
-              <Plus className="size-4" />
-            </Dropdown.Trigger>
-          </ControlTooltip>
-          <Dropdown.Popover placement="bottom start" className="min-w-[220px] rounded-[14px]">
-            <Dropdown.Menu
-              aria-label={t`Customize shortcuts`}
-              onAction={(key) => {
-                if (key === "crafting") openCraftingTable();
-                if (key === "mcp") usePanelStore.getState().openSettingsSection("mcpServers");
-                if (key === "settings") usePanelStore.getState().openSettings();
-              }}
-            >
-              <Dropdown.Item id="crafting" textValue={t`Crafting Table`}>
-                <Hammer className="size-4 text-amber-300" />
-                <Label>{t`Crafting Table`}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="mcp" textValue={t`MCP Servers`}>
-                <Puzzle className="size-4 text-muted" />
-                <Label>{t`MCP Servers`}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="settings" textValue={t`Settings`}>
-                <Sparkles className="size-4 text-muted" />
-                <Label>{t`Settings`}</Label>
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
+        <TopShortcutBar />
       </nav>
 
       <div className="craftstation-titlebar-drag min-w-8 flex-1 self-stretch" aria-hidden="true" />
+      <span
+        data-testid="titlebar-app-version"
+        className="craftstation-titlebar-control mr-1 shrink-0 px-1.5 text-[11px] tabular-nums text-muted"
+        title={t`CraftStation version`}
+      >
+        v{readBridge().appVersion}
+      </span>
       <CliUpdateMenu />
       {updatePhase === "downloading" || updatePhase === "downloaded" ? (
         <button
           type="button"
           disabled={updatePhase !== "downloaded"}
           onClick={() => void readBridge().installUpdate()}
-          className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-white/5 px-2 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-200 disabled:cursor-default disabled:hover:bg-white/5"
+          className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground disabled:cursor-default disabled:hover:bg-[var(--row-hover)]"
         >
           {updatePhase === "downloaded" ? (
             <Download className="size-3.5" />

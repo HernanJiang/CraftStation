@@ -63,9 +63,10 @@ function trustMarkerRecord(root: string): string {
   return JSON.stringify({ root, trustedAt: Date.now() });
 }
 
-function ensureNativeKimiWorkspaceTrust(projectPath: string): boolean {
+function ensureNativeKimiWorkspaceTrust(projectPath: string, kimiHome?: string): boolean {
   const root = resolveTrustRoot(projectPath);
-  const markerPath = join(nativeKimiHomePath(), "workspace-trust", encodeKimiWorkDirKey(root));
+  const home = kimiHome?.trim() || nativeKimiHomePath();
+  const markerPath = join(home, "workspace-trust", encodeKimiWorkDirKey(root));
   try {
     if (existsSync(markerPath)) return true;
     mkdirSync(dirname(markerPath), { recursive: true });
@@ -111,8 +112,10 @@ async function ensureWslKimiWorkspaceTrust(distro: string, linuxPath: string): P
 // runs are recorded, so a transient failure is retried on the next launch.
 const trustedWorkDirs = new Set<string>();
 
-function trustCacheKey(location: ProjectLocation, workDir: string): string {
-  return location.kind === "wsl" ? `wsl:${location.distro}:${workDir}` : `native:${workDir}`;
+function trustCacheKey(location: ProjectLocation, workDir: string, kimiHome?: string): string {
+  const base = location.kind === "wsl" ? `wsl:${location.distro}:${workDir}` : `native:${workDir}`;
+  const home = kimiHome?.trim();
+  return home ? `${base}:home:${home}` : base;
 }
 
 /**
@@ -125,15 +128,17 @@ function trustCacheKey(location: ProjectLocation, workDir: string): string {
 export async function ensureKimiWorkspaceTrust(
   location: ProjectLocation,
   workDir?: string,
+  options?: { kimiHome?: string },
 ): Promise<void> {
   const target = workDir ?? (location.kind === "wsl" ? location.linuxPath : location.path);
-  const cacheKey = trustCacheKey(location, target);
+  const kimiHome = options?.kimiHome?.trim();
+  const cacheKey = trustCacheKey(location, target, kimiHome);
   if (trustedWorkDirs.has(cacheKey)) return;
   try {
     const trusted =
       location.kind === "wsl"
         ? await ensureWslKimiWorkspaceTrust(location.distro, target)
-        : ensureNativeKimiWorkspaceTrust(target);
+        : ensureNativeKimiWorkspaceTrust(target, kimiHome);
     if (trusted) trustedWorkDirs.add(cacheKey);
   } catch {
     // Best effort (see ensureNativeKimiWorkspaceTrust).

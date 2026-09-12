@@ -116,11 +116,13 @@ export function useLocalizedPluginCatalog(): LocalizedPlugin[] {
             ? t`Browser`
             : id === "chrome"
               ? t`Chrome`
-              : id === "crossagents"
-                ? t`Crossagents`
-                : id === "computer-use"
-                  ? t`Computer Use`
-                  : id,
+              : id === "own-subagents"
+                ? t`Own Subagents`
+                : id === "crossagents"
+                  ? t`Crossagents`
+                  : id === "computer-use"
+                    ? t`Computer Use`
+                    : id,
       }),
     );
     const declaredMcpServers = plugin.mcpServers.map((server): LocalizedPluginContribution => {

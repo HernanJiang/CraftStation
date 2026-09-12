@@ -67,6 +67,86 @@ export function isPdfPath(path: string, mimeType?: string): boolean {
   return mimeType === "application/pdf" || getExtension(path) === "pdf";
 }
 
+/** Audio formats accepted as model input (mirrors the codex audio whitelist). */
+export const AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "webm", "ogg"] as const;
+
+const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS);
+
+const AUDIO_MIME_BY_EXT: Record<string, string> = {
+  wav: "audio/wav",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  webm: "audio/webm",
+  ogg: "audio/ogg",
+};
+
+/** Model audio-input size cap (mirrors codex `MAX_PROMPT_AUDIO_INPUT_BYTES`). */
+export const MAX_PROMPT_AUDIO_INPUT_BYTES = 50 * 1024 * 1024;
+
+export function isAudioPath(path: string, mimeType?: string): boolean {
+  return mimeType?.startsWith("audio/") === true || AUDIO_EXTENSION_SET.has(getExtension(path));
+}
+
+/** The audio MIME type implied by a path's extension, when it is a known one. */
+export function mimeForAudioPath(path: string): string | undefined {
+  return AUDIO_MIME_BY_EXT[getExtension(path)];
+}
+
+/**
+ * Image formats models reliably accept (codex + major model APIs). Other
+ * image extensions preview fine in the side pane but may be rejected when
+ * sent to a model — the composer surfaces a warning for those.
+ */
+export const MODEL_IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"] as const;
+
+const MODEL_IMAGE_EXTENSION_SET = new Set<string>(MODEL_IMAGE_EXTENSIONS);
+
+export function isModelSupportedImagePath(path: string, mimeType?: string): boolean {
+  if (!isImagePath(path, mimeType)) return false;
+  if (mimeType) {
+    return (
+      mimeType === "image/png" ||
+      mimeType === "image/jpeg" ||
+      mimeType === "image/gif" ||
+      mimeType === "image/webp"
+    );
+  }
+  return MODEL_IMAGE_EXTENSION_SET.has(getExtension(path));
+}
+
+/** Side-pane inline video playback (Chromium-native containers). */
+export const VIDEO_EXTENSIONS = ["mp4", "m4v", "mov", "webm"] as const;
+
+const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
+
+export function isVideoPath(path: string, mimeType?: string): boolean {
+  return mimeType?.startsWith("video/") === true || VIDEO_EXTENSION_SET.has(getExtension(path));
+}
+
+/** Office documents with plain-text extraction preview (OOXML only). */
+export const OFFICE_EXTENSIONS = ["docx", "xlsx", "pptx"] as const;
+
+const OFFICE_EXTENSION_SET = new Set<string>(OFFICE_EXTENSIONS);
+
+export function isOfficePath(path: string, mimeType?: string): boolean {
+  if (mimeType) {
+    return (
+      mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    );
+  }
+  return OFFICE_EXTENSION_SET.has(getExtension(path));
+}
+
+export function isCsvPath(path: string, mimeType?: string): boolean {
+  return mimeType === "text/csv" || getExtension(path) === "csv";
+}
+
+export function isNotebookPath(path: string, mimeType?: string): boolean {
+  return mimeType === "application/x-ipynb+json" || getExtension(path) === "ipynb";
+}
+
 /**
  * Encode an absolute filesystem path for use in a URL path (file:// or
  * craftstation-local://). Segments are percent-encoded so spaces and literal `%`
@@ -222,6 +302,16 @@ export function buildPromptContentBlocks(
         content.push({
           kind: "image",
           mimeType: segment.mimeType ?? MIME_BY_EXT[getExtension(segment.path)] ?? "image/*",
+          dataUrl: toLocalFileUrl(segment.path),
+          path: segment.path,
+          name,
+          source: "attachment",
+        });
+      } else if (isAudioPath(segment.path, segment.mimeType)) {
+        content.push({
+          kind: "audio",
+          mimeType:
+            segment.mimeType ?? AUDIO_MIME_BY_EXT[getExtension(segment.path)] ?? "audio/*",
           dataUrl: toLocalFileUrl(segment.path),
           path: segment.path,
           name,

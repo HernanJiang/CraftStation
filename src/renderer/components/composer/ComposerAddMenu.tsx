@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FlaskConical,
+  Hammer,
   Info,
   Monitor,
   Paperclip,
@@ -19,6 +20,8 @@ import {
   ResponsiveMenuSurface,
   useResponsiveMenu,
 } from "@/renderer/components/common/ResponsiveMenuSurface";
+import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import type { ComposerMcpServerDescriptor } from "./composerMcpServers";
 
 /** Selection id for the Computer Use row inside the MCP submenu. */
@@ -125,6 +128,10 @@ export function ComposerAddMenu(props: {
     disabled: boolean;
     onToggle: (next: boolean) => void;
   };
+  /** Opens the Crafting Workbench from the add menu. */
+  workbench?: {
+    onOpen: () => void;
+  };
   /**
    * Display-only mode for an active thread: MCP bindings were fixed when the
    * session launched, so the list shows what this run has without switches
@@ -133,11 +140,13 @@ export function ComposerAddMenu(props: {
   readOnly?: boolean;
   readOnlyCaption?: ReactNode;
 }) {
-  const { mcpServers, showFileOption = true, onPickFiles, computerUse, experiment } = props;
+  const { mcpServers, showFileOption = true, onPickFiles, computerUse, experiment, workbench } = props;
   const customMcpServers = props.customMcpServers ?? [];
   const readOnly = props.readOnly === true;
   const { t } = useLingui();
   const { mobile } = useResponsiveMenu();
+  // Shared overlay zoom compensation (see overlayZoom.ts): empty at factor 1.
+  const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
   const [isOpen, setIsOpen] = useState(false);
   // Mobile sheet drill-in: the root list swaps to the MCP list in place.
   const [mobileView, setMobileView] = useState<"root" | "mcp">("root");
@@ -160,7 +169,7 @@ export function ComposerAddMenu(props: {
     customMcpServers.filter((server) => server.enabled).length +
     (showComputerUse && computerUse.enabled ? 1 : 0);
 
-  if (!showFileOption && !hasMcpMenu && !experiment) return null;
+  if (!showFileOption && !hasMcpMenu && !experiment && !workbench) return null;
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
@@ -250,6 +259,12 @@ export function ComposerAddMenu(props: {
           </span>
           <InfoHint text={experimentHint} />
           <MenuSwitch checked={experiment.enabled} />
+        </button>
+      ) : null}
+      {workbench ? (
+        <button type="button" className="m-sheet-action" onClick={() => { setIsOpen(false); workbench.onOpen(); }}>
+          <Hammer className="size-4 text-muted" />
+          <span className="flex-1 truncate"><Trans>Crafting Workbench</Trans></span>
         </button>
       ) : null}
       {hasMcpMenu ? (
@@ -375,7 +390,9 @@ export function ComposerAddMenu(props: {
         trigger={button}
         placement="top"
         contentClassName="p-0"
-        dialogClassName="overflow-hidden"
+        dialogClassName="overflow-hidden bg-[var(--composer-surface)]"
+        mobileSheetClassName="bg-[var(--composer-surface)]"
+        mobileSheetStyle={{ backgroundColor: "var(--composer-surface)" }}
       >
         {mobileView === "mcp" && hasMcpMenu ? mobileMcpList : mobileRootList}
       </ResponsiveMenuSurface>
@@ -386,17 +403,21 @@ export function ComposerAddMenu(props: {
   return (
     <Dropdown>
       {button}
-      <Dropdown.Popover placement="top start">
+      <Dropdown.Popover
+        placement="top start"
+        {...(overlayZoom.root ? { className: overlayZoom.root } : {})}
+      >
         <Dropdown.Menu
           aria-label={t`Add to composer`}
           selectionMode="none"
           onAction={(key) => {
             if (key === "file") handlePickFiles();
+            if (key === "workbench" && workbench) workbench.onOpen();
             if (key === "experiment" && experiment) {
               experiment.onToggle(!experiment.enabled);
             }
           }}
-          className="craftstation-menu min-w-52"
+          className={withOverlayClass("craftstation-menu min-w-52 bg-[var(--composer-surface)]", overlayZoom.content)}
         >
           {showFileOption ? (
             <Dropdown.Item id="file" textValue={t`File`}>
@@ -423,7 +444,13 @@ export function ComposerAddMenu(props: {
               <MenuSwitch checked={experiment.enabled} />
             </Dropdown.Item>
           ) : null}
-          {(showFileOption || experiment) && hasMcpMenu ? <Separator /> : null}
+          {workbench ? (
+            <Dropdown.Item id="workbench" textValue={t`Crafting Workbench`}>
+              <Hammer className="size-4 text-muted" />
+              <Label className="flex-1 truncate"><Trans>Crafting Workbench</Trans></Label>
+            </Dropdown.Item>
+          ) : null}
+          {(showFileOption || experiment || workbench) && hasMcpMenu ? <Separator /> : null}
           {hasMcpMenu ? (
             <Dropdown.SubmenuTrigger>
               <Dropdown.Item id="mcp-servers" textValue={t`MCP servers`}>
@@ -436,8 +463,8 @@ export function ComposerAddMenu(props: {
                 ) : null}
                 <Dropdown.SubmenuIndicator />
               </Dropdown.Item>
-              <Dropdown.Popover>
-                <div className="flex flex-col">
+              <Dropdown.Popover {...(overlayZoom.root ? { className: overlayZoom.root } : {})}>
+                <div className={withOverlayClass("flex flex-col bg-[var(--composer-surface)]", overlayZoom.content)}>
                   {readOnly ? (
                     // Session bindings are fixed at launch — render a static list
                     // (not menu items) so rows do not look or act clickable.

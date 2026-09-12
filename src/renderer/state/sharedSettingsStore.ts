@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import { readBridge } from "../bridge";
 import {
+  CUSTOM_GLOBAL_PROMPT_MAX,
   defaultSharedSettings,
+  normalizeOwnSubagentsRouteOrder,
   normalizeSidebarShortcutOrder,
   normalizeSharedSettings,
+  normalizeTopShortcutOrder,
   WINDOWS_SHELL_ARGUMENTS_MAX,
   type CliPickerTarget,
   type PreventSleep,
@@ -52,6 +55,7 @@ interface SharedSettingsState extends SharedSettings {
   setThemePreset: (id: string) => void;
   setLocale: (locale: LocaleSetting) => void;
   setGitTextLanguage: (value: AiContentLanguage) => void;
+  setCustomGlobalPrompt: (value: string) => void;
   setTerminalPosition: (position: TerminalPosition) => void;
   setWindowsShellPath: (path: string) => void;
   setWindowsInternalShellPath: (path: string) => void;
@@ -84,19 +88,25 @@ interface SharedSettingsState extends SharedSettings {
   setAgentSecretSetting: (agentKind: string, key: string, value: string) => Promise<boolean>;
   setModelHidden: (agentKind: string, modelId: string, hidden: boolean) => void;
   setHiddenModels: (agentKind: string, hiddenIds: string[]) => void;
+  /** Explicitly-shown ids for curated-discovery channels (see settings.shownModels). */
+  setShownModels: (agentKind: string, shownIds: string[]) => void;
   /** 「管理模型」页维护的自定义模型清单（含上下文档位）。 */
   setCustomModels: (models: SharedSettings["customModels"]) => void;
   setAgentDisabled: (agentKind: string, disabled: boolean) => void;
-  setCrossagentProviderPaused: (agentKind: string, paused: boolean) => void;
-  setCrossagentHiddenModels: (agentKind: string, hiddenIds: string[]) => void;
+  setOwnSubagentProviderPaused: (agentKind: string, paused: boolean) => void;
+  setOwnSubagentHiddenModels: (agentKind: string, hiddenIds: string[]) => void;
+  /** Persist the user-ordered Own Subagents route (native lane + provider kinds). */
+  setOwnSubagentsRouteOrder: (order: string[]) => void;
   setProviderOrder: (order: string[]) => void;
   setCollapseTerminalComposer: (value: boolean) => void;
   setCliPickerTarget: (value: CliPickerTarget) => void;
   setStaleThreadUnloadMinutes: (value: number) => void;
   setAutoArchiveDoneAfterDays: (value: number) => void;
+  setArchiveRetention: (value: SharedSettings["archiveRetention"]) => void;
   setScrollSpeed: (value: number) => void;
   setAgentTerminalFontSize: (value: number) => void;
   setGuiChatFontSize: (value: number) => void;
+  setZoomFactor: (value: number) => void;
   setTerminalPanelFontSize: (value: number) => void;
   setPreventSleep: (value: PreventSleep) => void;
   setLaunchAtStartup: (value: boolean) => void;
@@ -108,6 +118,7 @@ interface SharedSettingsState extends SharedSettings {
   setHomeScopeEnabled: (value: boolean) => void;
   setSidebarShortcutVisible: (id: SidebarShortcutId, visible: boolean) => void;
   setSidebarShortcutOrder: (order: SidebarShortcutId[]) => void;
+  setTopShortcutOrder: (order: string[]) => void;
   setSidebarTranslucency: (value: boolean) => void;
   setSidebarGlassTint: (appearance: "light" | "dark", value: number | null) => void;
   setAutoShowTerminalPanel: (value: boolean) => void;
@@ -126,7 +137,7 @@ interface SharedSettingsState extends SharedSettings {
   dismissHookInstallProposal: (key: string) => void;
   /**
    * Turn a composer MCP server on/off persistently, keyed by composer MCP id
-   * (`"browser"`, `"crossagents"`, `"computer-use"`). Persisted like the other
+   * (`"browser"`, `"own-subagents"`, `"computer-use"`). Persisted like the other
    * setters; consumed as the standing default for every new thread.
    */
   setMcpServerEnabled: (id: string, enabled: boolean) => void;
@@ -196,7 +207,7 @@ interface SharedSettingsState extends SharedSettings {
     modelId: string,
     fallbackMode: ThreadPresentationMode,
   ) => boolean;
-  setCrossagentRoutingGuide: (value: string) => void;
+  setOwnSubagentRoutingGuide: (value: string) => void;
   pushRecentModel: (
     agentKind: string,
     modelId: string,
@@ -324,6 +335,15 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     set({ gitTextLanguage });
     persistSettings(selectSharedSettings(get()));
   },
+  setCustomGlobalPrompt: (customGlobalPrompt) => {
+    const trimmed =
+      customGlobalPrompt.length > CUSTOM_GLOBAL_PROMPT_MAX
+        ? customGlobalPrompt.slice(0, CUSTOM_GLOBAL_PROMPT_MAX)
+        : customGlobalPrompt;
+    if (get().customGlobalPrompt === trimmed) return;
+    set({ customGlobalPrompt: trimmed });
+    persistSettings(selectSharedSettings(get()));
+  },
   setTerminalPosition: (terminalPosition) => {
     set({ terminalPosition });
     persistSettings(selectSharedSettings(get()));
@@ -446,6 +466,11 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     set({ hiddenModels: { ...current, [agentKind]: hiddenIds } });
     persistSettings(selectSharedSettings(get()));
   },
+  setShownModels: (agentKind, shownIds) => {
+    const current = get().shownModels;
+    set({ shownModels: { ...current, [agentKind]: shownIds } });
+    persistSettings(selectSharedSettings(get()));
+  },
   setCustomModels: (models) => {
     set({ customModels: models });
     persistSettings(selectSharedSettings(get()));
@@ -458,17 +483,24 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     set({ disabledAgents: next });
     persistSettings(selectSharedSettings(get()));
   },
-  setCrossagentProviderPaused: (agentKind, paused) => {
-    const current = get().crossagentPausedProviders;
+  setOwnSubagentProviderPaused: (agentKind, paused) => {
+    const current = get().ownSubagentPausedProviders;
     const next = paused
       ? [...new Set([...current, agentKind])]
       : current.filter((k) => k !== agentKind);
-    set({ crossagentPausedProviders: next });
+    set({ ownSubagentPausedProviders: next });
     persistSettings(selectSharedSettings(get()));
   },
-  setCrossagentHiddenModels: (agentKind, hiddenIds) => {
-    const current = get().crossagentHiddenModels;
-    set({ crossagentHiddenModels: { ...current, [agentKind]: hiddenIds } });
+  setOwnSubagentHiddenModels: (agentKind, hiddenIds) => {
+    const current = get().ownSubagentHiddenModels;
+    set({ ownSubagentHiddenModels: { ...current, [agentKind]: hiddenIds } });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setOwnSubagentsRouteOrder: (order) => {
+    const next = normalizeOwnSubagentsRouteOrder(order);
+    const current = get().ownSubagentsRouteOrder;
+    if (current.length === next.length && current.every((entry, i) => entry === next[i])) return;
+    set({ ownSubagentsRouteOrder: next });
     persistSettings(selectSharedSettings(get()));
   },
   setProviderOrder: (order) => {
@@ -494,6 +526,10 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     set({ autoArchiveDoneAfterDays });
     persistSettings(selectSharedSettings(get()));
   },
+  setArchiveRetention: (archiveRetention) => {
+    set({ archiveRetention });
+    persistSettings(selectSharedSettings(get()));
+  },
   setScrollSpeed: (scrollSpeed) => {
     set({ scrollSpeed });
     persistSettings(selectSharedSettings(get()));
@@ -504,6 +540,10 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
   },
   setGuiChatFontSize: (guiChatFontSize) => {
     set({ guiChatFontSize });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setZoomFactor: (zoomFactor) => {
+    set({ zoomFactor });
     persistSettings(selectSharedSettings(get()));
   },
   setTerminalPanelFontSize: (terminalPanelFontSize) => {
@@ -563,6 +603,13 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     const current = get().sidebarShortcutOrder;
     if (current.length === next.length && current.every((id, index) => id === next[index])) return;
     set({ sidebarShortcutOrder: next });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setTopShortcutOrder: (order) => {
+    const next = normalizeTopShortcutOrder(order);
+    const current = normalizeTopShortcutOrder(get().topShortcutOrder);
+    if (current.length === next.length && current.every((id, index) => id === next[index])) return;
+    set({ topShortcutOrder: next });
     persistSettings(selectSharedSettings(get()));
   },
   setSidebarTranslucency: (sidebarTranslucency) => {
@@ -930,9 +977,9 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     persistSettings(selectSharedSettings(get()));
     return !isFavorite;
   },
-  setCrossagentRoutingGuide: (crossagentRoutingGuide) => {
-    if (get().crossagentRoutingGuide === crossagentRoutingGuide) return;
-    set({ crossagentRoutingGuide });
+  setOwnSubagentRoutingGuide: (ownSubagentRoutingGuide) => {
+    if (get().ownSubagentRoutingGuide === ownSubagentRoutingGuide) return;
+    set({ ownSubagentRoutingGuide });
     persistSettings(selectSharedSettings(get()));
   },
   pushRecentModel: (agentKind, modelId, presentationMode, effort, fast) => {
@@ -977,6 +1024,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     themePreset: state.themePreset,
     locale: state.locale,
     gitTextLanguage: state.gitTextLanguage,
+    customGlobalPrompt: state.customGlobalPrompt,
     terminalPosition: state.terminalPosition,
     windowsShellPath: state.windowsShellPath,
     windowsInternalShellPath: state.windowsInternalShellPath,
@@ -1013,6 +1061,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     wslConflictResolverPresentationMode: state.wslConflictResolverPresentationMode,
     agentSettings: state.agentSettings,
     hiddenModels: state.hiddenModels,
+    shownModels: state.shownModels,
     customModels: state.customModels,
     disabledAgents: state.disabledAgents,
     providerOrder: state.providerOrder,
@@ -1022,9 +1071,11 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     cliPickerTarget: state.cliPickerTarget,
     staleThreadUnloadMinutes: state.staleThreadUnloadMinutes,
     autoArchiveDoneAfterDays: state.autoArchiveDoneAfterDays,
+    archiveRetention: state.archiveRetention,
     scrollSpeed: state.scrollSpeed,
     agentTerminalFontSize: state.agentTerminalFontSize,
     guiChatFontSize: state.guiChatFontSize,
+    zoomFactor: state.zoomFactor,
     terminalPanelFontSize: state.terminalPanelFontSize,
     preventSleep: state.preventSleep,
     launchAtStartup: state.launchAtStartup,
@@ -1075,12 +1126,13 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     favoriteModels: state.favoriteModels,
     recentModels: state.recentModels,
     agentSelectionUsage: state.agentSelectionUsage,
-    crossagentPausedProviders: state.crossagentPausedProviders,
-    crossagentHiddenModels: state.crossagentHiddenModels,
+    ownSubagentPausedProviders: state.ownSubagentPausedProviders,
+    ownSubagentHiddenModels: state.ownSubagentHiddenModels,
+    ownSubagentsRouteOrder: state.ownSubagentsRouteOrder,
     browser: state.browser,
     audio: state.audio,
     usage: state.usage,
-    crossagentRoutingGuide: state.crossagentRoutingGuide,
+    ownSubagentRoutingGuide: state.ownSubagentRoutingGuide,
   };
 }
 

@@ -105,6 +105,25 @@ export type PanelDockTarget =
   | { zone: "right-panel"; placement: "top" | "bottom" }
   | { zone: "bottom-panel"; placement: BottomDockPlacement };
 
+/** Per-thread right-sidebar snapshot (see threadAuxiliaryPanels). */
+export interface ThreadAuxiliaryPanelSnapshot {
+  placement: AuxiliaryPanelPlacement;
+  tab: RightPanelTab | null;
+  tabs: RightPanelTab[];
+  browserOpen: boolean;
+  usageOpen: boolean;
+  notesOpen: boolean;
+}
+
+export const EMPTY_THREAD_AUXILIARY_PANEL: ThreadAuxiliaryPanelSnapshot = {
+  placement: "hidden",
+  tab: null,
+  tabs: [],
+  browserOpen: false,
+  usageOpen: false,
+  notesOpen: false,
+};
+
 interface PanelState {
   auxiliaryPanelPlacement: AuxiliaryPanelPlacement;
   /** No default tool: opening the dock first shows the Codex-style tool chooser. */
@@ -113,6 +132,16 @@ interface PanelState {
   auxiliaryPanelMaximized: boolean;
   /** Session-scoped multi-tab set for the Codex-style auxiliary workspace. */
   auxiliaryPanelTabs: RightPanelTab[];
+  /**
+   * Per-thread right-sidebar snapshots. Each thread owns its auxiliary shell
+   * (placement/tab/tabs) plus the simple open flags; switching threads
+   * captures the previous thread's state and restores the target's (or
+   * defaults when the thread has none). Payload contexts (git review, files,
+   * subagent, PR) and layout chrome (maximized, splits, docks) stay global
+   * on purpose — they reference specific repos/sessions, not the thread.
+   * Session-only: never persisted (persistStoreSlice allowlist below).
+   */
+  threadAuxiliaryPanels: Record<string, ThreadAuxiliaryPanelSnapshot>;
   gitReviewContext: GitReviewContext | null;
   gitReviewAsPanel: boolean;
   gitOverlayOpen: boolean;
@@ -146,7 +175,7 @@ interface PanelState {
   /** Global Codex-style provider account and quota dialog. */
   modelUsageDialogOpen: boolean;
   /** Primary workspace tab shown when the model-usage workspace is open. */
-  modelUsageWorkspaceTab: "usage" | "models" | "crafting" | "recipes";
+  modelUsageWorkspaceTab: ModelUsageWorkspaceTab;
   /** Workbench mode to enter when the crafting tab is opened (null = restore last). */
   modelUsageEntryMode: "efficient" | "creative" | null;
   settingsOpen: boolean;
@@ -174,6 +203,10 @@ interface PanelState {
   setRightPanelTab: (tab: RightPanelTab) => void;
   setAuxiliaryPanelPlacement: (placement: AuxiliaryPanelPlacement) => void;
   setAuxiliaryPanelTab: (tab: RightPanelTab | null) => void;
+  /** Snapshot the current right-sidebar shell under a thread id. */
+  captureThreadAuxiliaryPanel: (threadId: string) => void;
+  /** Restore a thread's right-sidebar shell (defaults when it has none). */
+  restoreThreadAuxiliaryPanel: (threadId: string) => void;
   closeAuxiliaryPanelTab: (tab: RightPanelTab) => void;
   toggleAuxiliaryPanel: (placement: Exclude<AuxiliaryPanelPlacement, "hidden">) => void;
   /** Hide the auxiliary panel while preserving its active tab and open tabs. */
@@ -205,7 +238,7 @@ interface PanelState {
    * drives the same state instead of mutating local tab state separately.
    */
   openModelUsageWorkspace: (input: {
-    tab: "usage" | "models" | "crafting" | "recipes";
+    tab: ModelUsageWorkspaceTab;
     entryMode?: "efficient" | "creative";
   }) => void;
   openSettings: () => void;
@@ -262,10 +295,24 @@ const initialPersisted = readPersistedSlice<{
   threadToolRailOffset?: number;
   threadSortMode?: ThreadSortMode;
   threadListLayout?: ThreadListLayout;
+  modelUsageWorkspaceTab?: unknown;
 }>(PERSIST_KEY);
 
 function sanitizeThreadSortMode(value: unknown): ThreadSortMode {
   return value === "updated" || value === "created" || value === "manual" ? value : "updated";
+}
+
+/** First-level tabs of the model-usage workspace. */
+export type ModelUsageWorkspaceTab = "usage" | "models" | "stats" | "crafting" | "recipes";
+
+function sanitizeModelUsageWorkspaceTab(value: unknown): ModelUsageWorkspaceTab {
+  return value === "usage" ||
+    value === "models" ||
+    value === "stats" ||
+    value === "crafting" ||
+    value === "recipes"
+    ? value
+    : "usage";
 }
 
 function sanitizeThreadListLayout(value: unknown): ThreadListLayout {
@@ -295,6 +342,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
   auxiliaryPanelTab: null,
   auxiliaryPanelMaximized: false,
   auxiliaryPanelTabs: [],
+  threadAuxiliaryPanels: {},
   gitReviewContext: initialPersisted?.gitReviewContext ?? null,
   gitReviewAsPanel: false,
   gitOverlayOpen: false,
@@ -317,7 +365,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
     ? clampDrawerWidth(initialPersisted.browserOverlayDrawerWidth)
     : DEFAULT_DRAWER_WIDTH,
   modelUsageDialogOpen: false,
-  modelUsageWorkspaceTab: "usage",
+  modelUsageWorkspaceTab: sanitizeModelUsageWorkspaceTab(initialPersisted?.modelUsageWorkspaceTab),
   modelUsageEntryMode: null,
   settingsOpen: false,
   settingsSection: null,
@@ -424,6 +472,43 @@ export const usePanelStore = create<PanelState>()((set) => ({
         auxiliaryPanelTab: tab,
         rightPanelTab: tab,
         auxiliaryPanelTabs: nextTabs,
+      };
+    }),
+
+  captureThreadAuxiliaryPanel: (threadId) =>
+    set((state) => ({
+      threadAuxiliaryPanels: {
+        ...state.threadAuxiliaryPanels,
+        [threadId]: {
+          placement: state.auxiliaryPanelPlacement,
+          tab: state.auxiliaryPanelTab,
+          tabs: state.auxiliaryPanelTabs,
+          browserOpen: state.browserPanelOpen,
+          usageOpen: state.usagePanelOpen,
+          notesOpen: state.notesPanelOpen,
+        },
+      },
+    })),
+
+  restoreThreadAuxiliaryPanel: (threadId) =>
+    set((state) => {
+      const snapshot = state.threadAuxiliaryPanels[threadId] ?? EMPTY_THREAD_AUXILIARY_PANEL;
+      if (
+        state.auxiliaryPanelPlacement === snapshot.placement &&
+        state.auxiliaryPanelTab === snapshot.tab &&
+        state.browserPanelOpen === snapshot.browserOpen &&
+        state.usagePanelOpen === snapshot.usageOpen &&
+        state.notesPanelOpen === snapshot.notesOpen
+      ) {
+        return {};
+      }
+      return {
+        auxiliaryPanelPlacement: snapshot.placement,
+        auxiliaryPanelTab: snapshot.tab,
+        auxiliaryPanelTabs: snapshot.tabs,
+        browserPanelOpen: snapshot.browserOpen,
+        usagePanelOpen: snapshot.usageOpen,
+        notesPanelOpen: snapshot.notesOpen,
       };
     }),
 
@@ -556,9 +641,9 @@ export const usePanelStore = create<PanelState>()((set) => ({
   openModelUsageDialog: () =>
     set(() => ({
       modelUsageDialogOpen: true,
-      // A plain "open" (sidebar entry) lands on the usage tab; only the
-      // explicit openModelUsageWorkspace action targets a specific tab.
-      modelUsageWorkspaceTab: "usage",
+      // A plain "open" (sidebar entry) restores the last-visited tab; only the
+      // explicit openModelUsageWorkspace action targets a specific tab. First
+      // run defaults to "usage" via the sanitized initial state.
       modelUsageEntryMode: null,
     })),
   closeModelUsageDialog: () => set({ modelUsageDialogOpen: false }),
@@ -593,10 +678,14 @@ export const usePanelStore = create<PanelState>()((set) => ({
         auxiliaryPanelMaximized: false,
         ...(isDocked("git") ? {} : { gitReviewContext: null }),
         ...(isDocked("files") ? {} : { filesPanelContext: null }),
-        ...(isDocked("browser") ? {} : { browserPanelOpen: false }),
+        ...(isDocked("browser") ? { browserPanelOpen: false } : { browserPanelOpen: false }),
         ...(isDocked("usage") ? {} : { usagePanelOpen: false }),
         ...(isDocked("notes") ? {} : { notesPanelOpen: false }),
         subAgentPanelOpen: false,
+        // The subagent tab is not dockable: closing everything must drop its
+        // context too, otherwise the tab fallback resurrects a dead subagent
+        // page the next time the rail opens.
+        subAgentPanelContext: null,
         rightPanelSplit: null,
       };
       const alreadyClosed =
@@ -606,6 +695,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
         (next.gitReviewContext === undefined || state.gitReviewContext === null) &&
         (next.filesPanelContext === undefined || state.filesPanelContext === null) &&
         !state.subAgentPanelOpen &&
+        state.subAgentPanelContext === null &&
         (next.browserPanelOpen === undefined || !state.browserPanelOpen) &&
         (next.usagePanelOpen === undefined || !state.usagePanelOpen) &&
         (next.notesPanelOpen === undefined || !state.notesPanelOpen) &&
@@ -637,4 +727,5 @@ persistStoreSlice(usePanelStore, PERSIST_KEY, (state) => ({
   threadToolRailOffset: state.threadToolRailOffset,
   threadSortMode: state.threadSortMode,
   threadListLayout: state.threadListLayout,
+  modelUsageWorkspaceTab: state.modelUsageWorkspaceTab,
 }));

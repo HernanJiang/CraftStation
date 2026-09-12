@@ -135,6 +135,32 @@ describe("side chat actions", () => {
     expect(toast.success).toHaveBeenCalledTimes(1);
   });
 
+  it("inherits the goal snapshot at branch time and stays independent after", () => {
+    const sourceId = seedSource();
+    const now = new Date().toISOString();
+    useAppStore
+      .getState()
+      .setThreadGoal(sourceId, { prompt: "source goal", createdAt: now, updatedAt: now });
+
+    expect(openSideChatBranch(sourceId)).toBe(true);
+
+    const state = useAppStore.getState();
+    const branch = state.threads.find((thread) => thread.id !== sourceId)!;
+    // Snapshot value copied, not shared by reference.
+    expect(branch.goal).toEqual({ prompt: "source goal", createdAt: now, updatedAt: now });
+    expect(branch.goal).not.toBe(state.threads.find((thread) => thread.id === sourceId)?.goal);
+
+    // Later changes on either side do not leak across.
+    useAppStore.getState().setThreadGoal(branch.id, {
+      prompt: "branch goal",
+      createdAt: now,
+      updatedAt: now,
+    });
+    expect(
+      useAppStore.getState().threads.find((thread) => thread.id === sourceId)?.goal?.prompt,
+    ).toBe("source goal");
+  });
+
   it("refuses to branch a thread without branchable context", () => {
     const store = useAppStore.getState();
     const source = store.createThread({

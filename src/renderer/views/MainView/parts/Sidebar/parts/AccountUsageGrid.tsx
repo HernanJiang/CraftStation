@@ -1,5 +1,6 @@
 import type { AccountView } from "@/shared/contracts";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
+import { resolveAccountTokenAttribution } from "./quotaStatus";
 
 export type AccountUsageQueryStatus = "idle" | "loading" | "success" | "error";
 
@@ -70,17 +71,17 @@ export function AccountUsageGrid(props: {
     fastWindow?.usedPercent != null ? fastWindow.usedPercent : (longWindow?.usedPercent ?? null);
 
   // A provider-wide summary is not an account summary. Only render a token
-  // value when the response contains an exact accountId breakdown entry.
-  const tokenEntry = tokenResponse?.summaries
-    ?.flatMap((summary) =>
-      summary.byAccount
-        .filter((entry) => entry.key === account.accountId)
-        .map((entry) => ({ summary, entry })),
-    )
-    .find(({ summary }) => summary.quality !== "estimated");
-  const tokenTotal = tokenEntry?.entry.totalTokens;
-  const cacheRead = tokenEntry?.entry.cacheReadTokens ?? 0;
-  const cacheWrite = tokenEntry?.entry.cacheWriteTokens ?? 0;
+  // value when the response contains an exact accountId breakdown entry; when
+  // token data exists but not for this account, say so honestly instead of the
+  // blanket "no exact usage".
+  const tokenAttribution = resolveAccountTokenAttribution(
+    tokenResponse?.summaries,
+    account.accountId,
+  );
+  const tokenEntry = tokenAttribution.kind === "exact" ? tokenAttribution : undefined;
+  const tokenTotal = tokenEntry?.totalTokens;
+  const cacheRead = tokenEntry?.cacheReadTokens ?? 0;
+  const cacheWrite = tokenEntry?.cacheWriteTokens ?? 0;
   const hasReliableCache = tokenEntry !== undefined && cacheRead + cacheWrite > 0;
   const tokenUnavailableReason =
     tokenResponse?.sources.find((source) => !source.available && source.unavailableReason)
@@ -109,7 +110,9 @@ export function AccountUsageGrid(props: {
           ? displayError(tokenUnavailableReason)
           : tokenTotal == null
             ? queryState?.token === "success" || tokenResponse !== null
-              ? "暂无精确用量"
+              ? tokenAttribution.kind === "unattributable"
+                ? "无法精确归因"
+                : "暂无精确用量"
               : "—"
             : formatCompactToken(tokenTotal);
 

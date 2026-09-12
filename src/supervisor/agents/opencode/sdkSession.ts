@@ -103,14 +103,20 @@ export interface OpenCodeQuestionAnswerContext {
 
 function parseModelSlug(
   modelSlug: string | undefined,
+  thirdPartyProvider?: string,
 ): { providerID: string; modelID: string } | undefined {
   if (!modelSlug) return undefined;
   const slash = modelSlug.indexOf("/");
-  if (slash <= 0) return undefined;
-  return {
-    providerID: modelSlug.slice(0, slash),
-    modelID: modelSlug.slice(slash + 1),
-  };
+  if (slash > 0) {
+    return {
+      providerID: modelSlug.slice(0, slash),
+      modelID: modelSlug.slice(slash + 1),
+    };
+  }
+  if (thirdPartyProvider) {
+    return { providerID: thirdPartyProvider, modelID: modelSlug };
+  }
+  return undefined;
 }
 
 function mapStatusUpdate(properties: { sessionID: string; status: { type: string } }): {
@@ -328,7 +334,10 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     if (options?.inlineInstructions) {
       parts.push({ type: "text", text: options.inlineInstructions });
     }
-    const model = parseModelSlug(config.model);
+    const model = parseModelSlug(
+      config.model,
+      this.input.baseSpawnEnv?.CRAFTSTATION_OPENCODE_PROVIDER,
+    );
     // ThreadConfig.mode is `agent | plan | autopilot`; OpenCode's SDK uses
     // `agent` (e.g. "build", "plan") to switch between the two built-in
     // agents. Map "plan" → "plan"; everything else uses the session default.
@@ -742,12 +751,44 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     const acquired = this.requireAcquired();
     this.unsubscribeServerExit = acquired.onServerExit?.(() => {
       if (this.disposed || this.acquired !== acquired) return;
+      this.failUnsettledTurnOnServerExit(acquired);
       void this.reacquireOpenCodeServer().catch((cause) => {
         if (this.disposed) return;
         const message = classifyOpenCodeError({ cause, operation: "restart opencode serve" });
         this.emitRuntimeEvents([{ type: "error", threadId: this.threadId, message }]);
       });
     });
+  }
+
+  /**
+   * A server exit mid-turn orphans the admitted turn: promptAsync already
+   * resolved, so no idle/error event will ever arrive and the UI would show
+   * Running forever. Fail it with the real exit info (no timeout fakery) so
+   * the timer stops and the error surfaces; the server is still reacquired
+   * for the next turn. A later promptAsync rejection for the same turn is
+   * recognized as the same failure via failureSource and suppressed — the
+   * same protocol as the session.error path.
+   */
+  private failUnsettledTurnOnServerExit(acquired: AcquiredOpenCodeServer): void {
+    const turn = this.activeTurn;
+    if (!turn || turn.completionState) return;
+    const child = acquired.handle.child;
+    const detail =
+      child?.signalCode != null
+        ? `killed by signal ${child.signalCode}`
+        : child?.exitCode != null
+          ? `exited with code ${child.exitCode}`
+          : "exited";
+    if (turn.interrupted) {
+      this.completeTurn(turn, "interrupted");
+      return;
+    }
+    turn.failureSource = "session";
+    this.lastFailedTurn = turn;
+    this.completeTurn(turn, "failed");
+    this.listener?.onError(
+      `OpenCode server ${detail} mid-turn. The server is restarting for the next turn.`,
+    );
   }
 
   private reacquireOpenCodeServer(): Promise<void> {
@@ -790,10 +831,12 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
    */
   private buildAcquireInput(): AcquireOpenCodeServerInput {
     const { mcpServers } = this;
+    const isolationKey = this.input.baseSpawnEnv?.OPENCODE_CONFIG_DIR;
     return {
       projectLocation: this.input.projectLocation,
       directory: this.sdkDirectory,
       ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(isolationKey ? { isolationKey, serverEnvironment: this.input.baseSpawnEnv } : {}),
     };
   }
 

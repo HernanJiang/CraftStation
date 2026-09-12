@@ -1,20 +1,17 @@
-import { ChevronDown, FileDiff, GitBranch, Hammer, Monitor, PackageOpen, X } from "lucide-react";
-import { toast } from "@heroui/react";
+import { Monitor, PackageOpen, X } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
-import type { Project } from "@/shared/contracts";
+import type { Project, ThreadGoal } from "@/shared/contracts";
 import { isHomeProjectId } from "@/shared/homeScope";
-import { friendlyError } from "@/shared/messages";
-import { readBridge } from "@/renderer/bridge";
-import { showGitReviewPanel } from "@/renderer/actions/panelActions";
-import { BranchSelector } from "@/renderer/components/common";
-import { useGitStore } from "@/renderer/state/gitStore";
-import type { ReactNode } from "react";
-import { PlanProgressSlot } from "./ComposerStatusRow";
+import { moveThreadToProject, stopThreadGoal } from "@/renderer/actions/threadActions";
+import { useAppStore } from "@/renderer/state/appStore";
+import { useState, type ReactNode } from "react";
 import { ProjectSwitchMenu } from "./ProjectSwitchMenu";
-import { CraftModeSwitch, type CraftMode } from "./CraftModeSwitch";
-import { useDraftGitLaunchControls, useDraftGitLaunchSlotActive } from "./DraftGitLaunchSlot";
-import { usePanelStore } from "@/renderer/state/panelStore";
+import type { CraftMode } from "./CraftModeSwitch";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
+import { ComposerPlanChip } from "./ComposerPlanChip";
+import { ThreadGoalDock } from "./ThreadGoalDock";
+import { selectThreadGoalDockState, type ThreadGoalDockState } from "./threadGoalState";
+import { ThreadRuntimeStatusBar } from "./ThreadRuntimeStatusBar";
 
 /**
  * v0.2.8 — Codex-style context strip above the draft composer (1:1 with Codex).
@@ -25,24 +22,26 @@ import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchSto
 export function DraftContextBar(props: {
   project: Project;
   paneId?: string;
-  /** 会话 id：有计划时在标签栏左侧显示计划进度胶囊。 */
+  /** 会话 id：用于绑定 live thread 的 Goal chip、计划进度芯片与项目切换。右上角状态胶囊仍保留自己的计划入口。 */
   threadId?: string;
   worktreePath?: string;
   onProjectChange?: (projectId: string) => void;
   craftMode: CraftMode;
   onCraftModeChange: (mode: CraftMode) => void;
   rightActions?: ReactNode;
+  /** When false, the context bar does not host the goal strip (mobile chips / terminal dock). */
+  showGoalStrip?: boolean;
 }) {
   const { t } = useLingui();
-  const gitStatus = useGitStore((state) =>
-    props.worktreePath
-      ? state.worktreeStatuses[props.worktreePath]
-      : state.statuses[props.project.id],
-  );
-  const discoveredBranch = useGitStore((state) => state.branches[props.project.id]?.current);
-  const branch = gitStatus?.branch || discoveredBranch;
   const runtimeLabel = props.project.location.kind === "wsl" ? "WSL" : t`Local`;
   const showProject = !isHomeProjectId(props.project.id);
+  // A live thread rebinds itself to the picked project ("+ Add to project");
+  // draft panes keep their local draft-switching behavior.
+  const liveThreadId = useAppStore((state) =>
+    props.threadId && state.threads.some((thread) => thread.id === props.threadId)
+      ? props.threadId
+      : undefined,
+  );
   // A staged "use in chat" recipe from My Recipes. The chip is a visual cue;
   // the chat submit still resolves the StoredRecipe fresh before crafting.
   const pendingRecipeIntent = useCraftingWorkbenchStore((state) => state.pendingRecipeIntent);
@@ -50,130 +49,81 @@ export function DraftContextBar(props: {
   const pendingRecipe = pendingRecipeIntent
     ? recipes.find((recipe) => recipe.id === pendingRecipeIntent.recipeId)
     : undefined;
-  const launchGitControls = useDraftGitLaunchControls();
-  const gitLaunchSlotActive = useDraftGitLaunchSlotActive();
 
   const itemClass = "flex items-center gap-1.5 font-medium";
 
-  function openGitReview() {
-    showGitReviewPanel(props.project.id, props.worktreePath);
-  }
-
-  function handleSwitchBranch(nextBranch: string, createNew: boolean) {
-    readBridge()
-      .gitSwitchBranch({
-        projectLocation: props.project.location,
-        branch: nextBranch,
-        createNew,
-      })
-      .then((result) => {
-        const store = useGitStore.getState();
-        const current = store.statuses[props.project.id];
-        if (!current) return;
-        store.setStatus(props.project.id, {
-          ...current,
-          branch: result.branch,
-          tracking: result.tracking,
-          ahead: result.ahead,
-          behind: result.behind,
-        });
-      })
-      .catch((error: unknown) => toast.danger(friendlyError(error)));
-  }
+  // Durable `/goal` bound to the live thread (if any). Shown only while a
+  // goal is active — never a placeholder.
+  const goalThreadId = liveThreadId ?? props.threadId;
+  const threadGoal = useAppStore((state) =>
+    goalThreadId ? state.threads.find((thread) => thread.id === goalThreadId)?.goal : undefined,
+  );
+  const runtimeGoal = useAppStore((state) =>
+    goalThreadId ? selectThreadGoalDockState(state, goalThreadId) : null,
+  );
+  const [dismissedGoalItemId, setDismissedGoalItemId] = useState<string | null>(null);
+  const visibleRuntimeGoal =
+    runtimeGoal && runtimeGoal.sourceItemId !== dismissedGoalItemId ? runtimeGoal : null;
+  const contextUsage = useAppStore((state) =>
+    goalThreadId ? state.runtimeContextByThread[goalThreadId] : undefined,
+  );
+  const durableGoalState =
+    !visibleRuntimeGoal && goalThreadId && threadGoal
+      ? durableGoalToDockState(goalThreadId, threadGoal, contextUsage?.usedTokens)
+      : null;
+  const visibleGoalState = visibleRuntimeGoal ?? durableGoalState;
 
   return (
     <div
       data-draft-context-bar=""
-      className="relative z-[1] -mb-px mx-auto flex w-[calc(100%-32px)] items-center justify-between rounded-t-lg border border-b-0 border-[rgba(255,255,255,0.07)] bg-[#1c1d22] px-3 py-1.5 text-xs text-muted"
+      className="relative z-[1] -mb-px mx-auto flex w-[calc(100%-32px)] items-center justify-between rounded-t-lg border border-b-0 border-[var(--hairline)] px-3 py-1.5 text-xs text-muted"
     >
-      <div className="flex min-w-0 items-center gap-3">
-        {props.threadId ? <PlanProgressSlot threadId={props.threadId} /> : null}
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <ProjectSwitchMenu
           currentProjectId={props.project.id}
           variant="compact"
           homeAsNoProject
+          strong
           {...(props.paneId ? { paneId: props.paneId } : {})}
-          {...(props.onProjectChange ? { onSelectProject: props.onProjectChange } : {})}
+          {...(liveThreadId
+            ? {
+                onSelectProject: (projectId: string) =>
+                  moveThreadToProject(liveThreadId, projectId),
+              }
+            : props.onProjectChange
+              ? { onSelectProject: props.onProjectChange }
+              : {})}
         />
         {!showProject ? <span className="sr-only">{t`No project`}</span> : null}
         <span className={itemClass}>
           <Monitor className="size-3.5 shrink-0 text-muted" />
           <span>{runtimeLabel}</span>
         </span>
+        {goalThreadId ? <ComposerPlanChip threadId={goalThreadId} /> : null}
+        {props.showGoalStrip !== false && goalThreadId && visibleGoalState ? (
+          <ThreadGoalDock
+            threadId={goalThreadId}
+            state={visibleGoalState}
+            placement="context-bar"
+            onDismiss={() => {
+              if (visibleRuntimeGoal) {
+                setDismissedGoalItemId(visibleRuntimeGoal.sourceItemId);
+                return;
+              }
+              if (goalThreadId) void stopThreadGoal(goalThreadId);
+            }}
+          />
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
         {props.rightActions}
-        {showProject ? (
-          <div
-            data-composer-git-controls=""
-            className="flex h-7 min-w-0 items-center overflow-hidden rounded-lg bg-white/5 text-[11px] text-neutral-300"
-          >
-            {gitLaunchSlotActive ? (
-              launchGitControls
-            ) : branch && !props.worktreePath ? (
-              <BranchSelector
-                projectId={props.project.id}
-                currentBranch={branch}
-                value={branch}
-                onSwitchBranch={handleSwitchBranch}
-                hideWorktreeToggle
-                showMoveBranchAction={false}
-                popoverPlacement="top"
-                compact
-                trigger={
-                  <button
-                    type="button"
-                    aria-label={t`Switch branch`}
-                    className="flex h-7 min-w-0 items-center gap-1 px-2 transition-colors hover:bg-white/10"
-                  >
-                    <GitBranch className="size-3.5 shrink-0" />
-                    <span className="max-w-28 truncate font-mono">{branch}</span>
-                    <ChevronDown className="size-3 shrink-0 text-muted" />
-                  </button>
-                }
-              />
-            ) : (
-              <button
-                type="button"
-                aria-label={t`Open Git review`}
-                className="flex h-7 min-w-0 items-center gap-1 px-2 transition-colors hover:bg-white/10"
-                onClick={openGitReview}
-              >
-                <GitBranch className="size-3.5 shrink-0" />
-                <span className="max-w-28 truncate font-mono">{branch ?? t`Git`}</span>
-              </button>
-            )}
-            <span className="h-4 w-px bg-white/10" aria-hidden="true" />
-            <button
-              type="button"
-              aria-label={t`Open Git review`}
-              title={t`Review changes, commit, and sync`}
-              className="flex h-7 items-center gap-1 px-2 transition-colors hover:bg-white/10"
-              onClick={openGitReview}
-            >
-              <FileDiff className="size-3.5 shrink-0" />
-              <span>{t`Review`}</span>
-            </button>
-          </div>
-        ) : null}
-        <button
-          type="button"
-          className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-white/5 px-2 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
-          onClick={() => {
-            const entryMode = props.craftMode === "creative" ? "creative" : "efficient";
-            useCraftingWorkbenchStore.getState().setCapabilityMode(props.craftMode);
-            usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode });
-          }}
-        >
-          <Hammer className="size-3.5 text-neutral-300" />
-          <span>{t`Crafting Table`}</span>
-        </button>
+        {goalThreadId ? <ThreadRuntimeStatusBar threadId={goalThreadId} /> : null}
         {pendingRecipe ? (
           <span
             data-testid="pending-recipe-chip"
             title={pendingRecipe.systemName}
-            className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 text-[11px] font-medium text-amber-300"
+            className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 text-[11px] font-medium text-amber-700 dark:text-amber-300"
           >
             <PackageOpen className="size-3.5" />
             <span className="max-w-40 truncate">{pendingRecipe.systemName}</span>
@@ -187,8 +137,30 @@ export function DraftContextBar(props: {
             </button>
           </span>
         ) : null}
-        <CraftModeSwitch value={props.craftMode} onChange={props.onCraftModeChange} />
+        {/* 模式选择已移出聊天框：高效/创造模式改为在模型选择栏直接选对应配方。
+            合成台按钮顺延为最右侧。craftMode 状态保留给合成台入口的 entryMode。 */}
       </div>
     </div>
   );
+}
+
+function durableGoalToDockState(
+  threadId: string,
+  goal: ThreadGoal,
+  tokensUsed: number | undefined,
+): ThreadGoalDockState {
+  const createdAtSeconds = Date.parse(goal.createdAt) / 1000;
+  const paused = goal.paused === true;
+  return {
+    sourceItemId: `durable-goal:${threadId}`,
+    itemState: "completed",
+    objective: goal.prompt,
+    status: paused ? "paused" : "active",
+    action: "set",
+    availableActions: paused ? ["edit", "resume", "clear"] : ["edit", "pause", "clear"],
+    ...(tokensUsed !== undefined ? { tokensUsed } : {}),
+    ...(paused
+      ? { timeUsedSeconds: Math.max(0, Math.round(Date.now() / 1000 - createdAtSeconds)) }
+      : { timeUsedSeconds: 0, updatedAt: createdAtSeconds }),
+  };
 }

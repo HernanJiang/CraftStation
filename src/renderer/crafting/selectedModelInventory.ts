@@ -35,6 +35,7 @@ export function buildSelectedModelInventory(input: {
   agentStatuses: AgentStatus[];
   wslAgentStatuses: AgentStatus[];
   hiddenModels: SharedSettings["hiddenModels"];
+  shownModels?: SharedSettings["shownModels"];
   customModels: SharedSettings["customModels"];
   accounts: ReadonlyArray<{ accountId: string }>;
   configuredProviderIds: readonly string[];
@@ -44,6 +45,7 @@ export function buildSelectedModelInventory(input: {
     agentStatuses,
     wslAgentStatuses,
     hiddenModels,
+    shownModels,
     customModels,
     accounts,
     configuredProviderIds,
@@ -62,7 +64,7 @@ export function buildSelectedModelInventory(input: {
     .flatMap((provider) => {
       const surfaceKey = providerVisibilityKey(provider);
       const hidden = new Set(
-        resolveHiddenModelIds(provider.capabilities, hiddenModels[surfaceKey]),
+        resolveHiddenModelIds(provider.capabilities, hiddenModels[surfaceKey], shownModels?.[surfaceKey]),
       );
       return provider.capabilities.models
         .filter((model) => model.id !== "auto" && !hidden.has(model.id))

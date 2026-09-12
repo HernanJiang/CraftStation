@@ -42,6 +42,13 @@ describe("provider slash-command registry", () => {
     });
     expect(sdk.map(({ id }) => id)).toEqual(["model", "plan", "agent"]);
 
+    const withCompact = resolveAvailableSlashCommands(
+      [{ id: "compact", label: "compact — Compact older conversation history" }],
+      undefined,
+      { agentKind: "codex", presentationMode: "gui" },
+    );
+    expect(withCompact.map(({ id }) => id)).toContain("compact");
+
     // ACP sessions keep the commands cursor-agent reports itself.
     const acp = resolveAvailableSlashCommands(
       [{ id: "summarize", label: "summarize" }],

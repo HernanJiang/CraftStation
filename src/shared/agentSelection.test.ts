@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { AgentCapability, AgentStatus, SessionRef } from "./contracts";
 import {
+  adaptThreadConfigForCapabilities,
   agentStatusForPresentation,
   authStatusForPresentation,
   authStateForPresentation,
   capabilitiesForPresentation,
   filterHiddenModels,
   modelSelectionFor,
+  resolveHighestCompatibleEffort,
   resolveHiddenModelIds,
   resolveModelSelection,
   resolveReasoningSelection,
@@ -74,10 +76,46 @@ describe("agent selection", () => {
       defaultEffort: "low",
       modelDefaultEfforts: { k3: "high", "removed-model": "max", highspeed: "unsupported" },
     };
-    // Per-model default wins; an unsupported per-model value falls back to the
-    // provider default; models without an entry keep the provider default.
+    // Product default is high everywhere: a high tier wins over per-model and
+    // provider defaults; models whose vocabulary has no high tier keep the
+    // existing chain (per-model pin, then provider default).
     expect(modelSelectionFor(withModelDefaults, "k3").reasoning.default).toBe("high");
-    expect(modelSelectionFor(withModelDefaults, "highspeed").reasoning.default).toBe("low");
+    expect(modelSelectionFor(withModelDefaults, "highspeed").reasoning.default).toBe("high");
+  });
+
+  it("defaults undeclared models to the highest compatible tier, never empty", () => {
+    const undeclared: AgentCapability = {
+      ...capabilities,
+      efforts: ["low", "medium", "high"],
+    };
+    expect(modelSelectionFor(undeclared, "any-model").reasoning.default).toBe("high");
+    expect(resolveReasoningSelection(undeclared, "any-model", "")).toBe("high");
+    expect(resolveReasoningSelection(undeclared, "any-model", undefined)).toBe("high");
+  });
+
+  it("omits effort entirely when a model offers no tiers", () => {
+    const untiered: AgentCapability = { ...capabilities, efforts: [] };
+    expect(modelSelectionFor(untiered, "any-model").reasoning.default).toBeUndefined();
+    expect(resolveReasoningSelection(untiered, "any-model", undefined)).toBeUndefined();
+    // An explicitly empty tier list means "no effort supported" — clear it.
+    const explicitEmpty: AgentCapability = {
+      ...capabilities,
+      efforts: [],
+      modelEfforts: { "tier-less": [] },
+    };
+    expect(resolveReasoningSelection(explicitEmpty, "tier-less", "high")).toBeUndefined();
+    // A model id missing from the vocabulary entirely (stale probe,
+    // slug/display skew) must not clobber an explicit pick into "".
+    expect(resolveReasoningSelection(untiered, "unknown-model", "low")).toBe("low");
+  });
+
+  it("ranks highest-compatible effort high-first across casings", () => {
+    expect(resolveHighestCompatibleEffort([])).toBeUndefined();
+    expect(resolveHighestCompatibleEffort(["low", "medium", "high"])).toBe("high");
+    expect(resolveHighestCompatibleEffort(["low", "medium"])).toBe("medium");
+    expect(resolveHighestCompatibleEffort(["Low", "Medium", "High"])).toBe("High");
+    expect(resolveHighestCompatibleEffort(["on"])).toBe("on");
+    expect(resolveHighestCompatibleEffort(["low", "high", "max"])).toBe("high");
   });
 
   it("uses provider visibility defaults until the user saves an explicit list", () => {
@@ -94,14 +132,17 @@ describe("agent selection", () => {
     expect(filterHiddenModels(withDefaults, undefined).models.map(({ id }) => id)).toEqual([
       "current",
     ]);
-    expect(resolveHiddenModelIds(withDefaults, [])).toEqual([]);
-    expect(filterHiddenModels(withDefaults, []).models.map(({ id }) => id)).toEqual([
-      "legacy",
-      "current",
-    ]);
-    expect(filterHiddenModels(withDefaults, ["current"]).models.map(({ id }) => id)).toEqual([
-      "legacy",
-    ]);
+    // Curated-discovery semantics: an explicit hidden list alone never opts a
+    // default-hidden model back in — only an explicit "shown" entry does.
+    expect(resolveHiddenModelIds(withDefaults, [])).toEqual(["legacy"]);
+    expect(filterHiddenModels(withDefaults, []).models.map(({ id }) => id)).toEqual(["current"]);
+    expect(filterHiddenModels(withDefaults, ["current"]).models.map(({ id }) => id)).toEqual([]);
+    // Explicitly shown models stay visible regardless of the hidden list.
+    expect(
+      filterHiddenModels(withDefaults, ["current", "legacy"], ["legacy"]).models.map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["legacy"]);
   });
 
   it("does not leak terminal visibility defaults into a GUI capability override", () => {
@@ -356,5 +397,69 @@ describe("agent selection", () => {
     const terminal = agentStatusForPresentation(status, "terminal", sessionRef("run:sdk:123"));
     expect(terminal.installed).toBe(true);
     expect(terminal.capabilities.models[0]?.id).toBe("terminal-model");
+  });
+});
+
+describe("adaptThreadConfigForCapabilities", () => {
+  const codexCaps: AgentCapability = {
+    models: [{ id: "gpt-5.6-sol", label: "5.6 Sol" }],
+    efforts: ["low", "medium", "high"],
+    modelEfforts: {},
+    modes: ["agent", "plan"],
+    approvalPolicies: [
+      { id: "on-request", label: "On Request" },
+      { id: "never", label: "Full Access" },
+      { id: "untrusted", label: "Untrusted" },
+    ],
+    sandboxModes: [
+      { id: "workspace-write", label: "Workspace Write" },
+      { id: "danger-full-access", label: "Full Access" },
+    ],
+    supportsResume: true,
+    supportsDirectInput: true,
+    liveInputMode: "server",
+    presentationMode: "gui",
+    settingDefs: [],
+    defaultApprovalPolicy: "on-request",
+    defaultSandboxMode: "workspace-write",
+    bypassPermissions: { approvalPolicy: "never", sandboxMode: "danger-full-access" },
+  };
+
+  it("maps Grok bypassPermissions onto Codex never + full sandbox", () => {
+    expect(
+      adaptThreadConfigForCapabilities(
+        { model: "gpt-5.6-sol", approvalPolicy: "bypassPermissions", effort: "high" },
+        codexCaps,
+      ),
+    ).toEqual({
+      model: "gpt-5.6-sol",
+      approvalPolicy: "never",
+      sandboxMode: "danger-full-access",
+      effort: "high",
+    });
+  });
+
+  it("maps an unknown supervised policy onto the target default", () => {
+    expect(
+      adaptThreadConfigForCapabilities(
+        { model: "gpt-5.6-sol", approvalPolicy: "default" },
+        codexCaps,
+      ),
+    ).toMatchObject({
+      model: "gpt-5.6-sol",
+      approvalPolicy: "on-request",
+    });
+  });
+
+  it("keeps a policy the target already advertises", () => {
+    expect(
+      adaptThreadConfigForCapabilities(
+        { model: "gpt-5.6-sol", approvalPolicy: "on-request", sandboxMode: "workspace-write" },
+        codexCaps,
+      ),
+    ).toMatchObject({
+      approvalPolicy: "on-request",
+      sandboxMode: "workspace-write",
+    });
   });
 });

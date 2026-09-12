@@ -1,7 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
-import type { AgentCapability, AgentTerminalAuthMethod, ProjectLocation } from "@/shared/contracts";
+import type {
+  AgentCapability,
+  AgentTerminalAuthMethod,
+  AuthState,
+  ProjectLocation,
+} from "@/shared/contracts";
 import { probeAcpCapabilities, type AcpProbeResult } from "../acp";
 import {
   batchWslCommandsAsync,
@@ -15,14 +20,23 @@ import { buildContextSizeCapabilities } from "../contextWindowLabel";
 import { getAgentProbeCwd, resolveProbeSpawnCwd } from "../probeCwd";
 import { kimiThoughtLevelChoices, preferredKimiThoughtTier } from "./thoughtLevels";
 import { ensureKimiWorkspaceTrust } from "./kimiTrust";
-import { nativeKimiHomePath, nativeKimiOAuthCredentialPath } from "./paths";
+import {
+  kimiHomeFromOAuthCredentialPath,
+  listKimiOAuthCredentialPaths,
+  nativeKimiHomePath,
+  nativeKimiOAuthCredentialPath,
+} from "./paths";
 
-// Kimi Code exposes three permission modes: manual (the CLI default), auto,
-// and yolo. CraftStation starts fresh threads in auto mode.
-//   • default/manual → no flag
-//   • auto           → `--auto`
-//   • yolo           → `--yolo` (bypass — auto-approve everything)
-// The two auto-approve modes are mutually exclusive at launch.
+// Kimi Code permission modes (verified against `kimi --help` on 0.42.0):
+//   • default/manual → no flag (CLI default: ask)
+//   • auto           → `--auto` (Never Ask: never interrupts, everything runs
+//                      and is decided automatically — the true full access)
+//   • yolo           → `--yolo` (Ask When Needed: routine edits/commands run
+//                      automatically, but risky actions, questions and plans
+//                      STILL ask — NOT a full bypass since 0.42)
+// CraftStation starts fresh threads in auto mode, and "完全访问权限" maps to
+// `auto` (not `yolo`) for exactly this reason. The two flags are mutually
+// exclusive at launch.
 const KIMI_APPROVAL_POLICIES = [
   { id: "default", label: "Default" },
   { id: "auto", label: "Auto Approve" },
@@ -46,7 +60,7 @@ export const kimiDefaultCapabilities: AgentCapability = {
   presentationMode: "gui",
   presentationModes: ["gui"],
   defaultApprovalPolicy: "auto",
-  bypassPermissions: { approvalPolicy: "yolo" },
+  bypassPermissions: { approvalPolicy: "auto" },
   settingDefs: [],
 };
 
@@ -121,6 +135,8 @@ export function buildKimiProbeCapabilities(
   credentialState: {
     hasAnyCredential: boolean;
     hasManagedOAuthCredential: boolean;
+    /** Live token in a CraftStation managed account profile, not the host CLI home. */
+    hasPoolOAuthCredential?: boolean;
   },
 ): CapabilitiesProbeResult {
   let contextCaps: Pick<AgentCapability, "contextSizes" | "modelContextSizes"> = {};
@@ -147,8 +163,10 @@ export function buildKimiProbeCapabilities(
     authMethods: [kimiTerminalAuthMethod],
     // Prefer the ACP-native auth signal (session/new succeeded → authenticated,
     // `auth_required` → missing); fall back to the credential files when the
-    // probe couldn't decide.
-    authState: probe?.authState ?? (credentialState.hasAnyCredential ? "authenticated" : "missing"),
+    // probe couldn't decide. A managed pool token wins over a host-home probe
+    // that reports missing: sessions spawn with KIMI_CODE_HOME pinned to the
+    // pool profile, so the host CLI's empty stub must not disable the composer.
+    authState: resolveKimiAuthState(probe, credentialState),
     // v2 advertises `agentCapabilities.auth.logout` (the ACP logout RPC); the
     // legacy engine has no RPC but its managed OAuth token file can be
     // removed directly — the adapter's logout command handles both.
@@ -159,10 +177,54 @@ export function buildKimiProbeCapabilities(
   };
 }
 
+// Offline fallback model snapshot (model ids + thought levels verified
+// against real `session/new` payloads from kimi 0.33.0 — see
+// detection.test.ts "normalizes the same payload probed from a K3 model").
+// Used only when the live ACP probe yields no models, e.g. the host CLI is
+// logged out (empty host credential) while a managed pool account holds valid
+// auth and quota. The live probe replaces this whenever it succeeds, so it
+// never has to stay current (same pattern as Command Code's
+// COMMANDCODE_FALLBACK_MODEL_IDS).
+export const KIMI_FALLBACK_PROBE: Pick<
+  AcpProbeResult,
+  "models" | "efforts" | "defaultEffort" | "modelEfforts" | "modelDefaultEfforts"
+> = {
+  models: [
+    { id: "kimi-code/k3-256k", label: "Kimi K3 256K" },
+    { id: "kimi-code/k3", label: "Kimi K3" },
+    { id: "kimi-code/kimi-for-coding", label: "Kimi For Coding" },
+    { id: "kimi-code/kimi-for-coding-highspeed", label: "Kimi For Coding Highspeed" },
+  ],
+  efforts: ["low", "high", "max", "on"],
+  defaultEffort: "on",
+  modelEfforts: {
+    "kimi-code/kimi-for-coding": ["on"],
+    "kimi-code/kimi-for-coding-highspeed": ["on"],
+  },
+  modelDefaultEfforts: {
+    "kimi-code/kimi-for-coding": "on",
+    "kimi-code/kimi-for-coding-highspeed": "on",
+    "kimi-code/k3": "on",
+    "kimi-code/k3-256k": "on",
+  },
+};
+
+export function resolveKimiAuthState(
+  probe: Pick<AcpProbeResult, "authState"> | undefined,
+  credentialState: {
+    hasAnyCredential: boolean;
+    hasPoolOAuthCredential?: boolean;
+  },
+): AuthState {
+  if (credentialState.hasPoolOAuthCredential) return "authenticated";
+  return probe?.authState ?? (credentialState.hasAnyCredential ? "authenticated" : "missing");
+}
+
 async function probeCapabilities(
   location: ProjectLocation,
   executablePath?: string,
   signal?: AbortSignal,
+  probeEnv?: Record<string, string>,
 ): Promise<CapabilitiesProbeResult> {
   const spec = buildKimiCommand(location, ["acp"], executablePath);
   const sessionCwd = getAgentProbeCwd(location);
@@ -173,8 +235,13 @@ async function probeCapabilities(
   // elsewhere) rather than the project path a launch would use.
   // Only the ACP probe depends on the trust marker, so read the credential
   // files (another WSL round trip) alongside the marker write instead of after.
-  const credentialStatePromise = readKimiCredentialState(location);
-  await ensureKimiWorkspaceTrust(location, sessionCwd);
+  const credentialState = await readKimiCredentialState(location);
+  const probeHome = location.kind === "wsl" ? undefined : credentialState.probeHome;
+  await ensureKimiWorkspaceTrust(
+    location,
+    sessionCwd,
+    probeHome ? { kimiHome: probeHome } : undefined,
+  );
   // No `authenticateMethodIds`: on the legacy engine `authenticate` triggers
   // the interactive OAuth device flow, and on 0.33.0's v2 server it only
   // re-validates — probing must never invoke either.
@@ -183,8 +250,19 @@ async function probeCapabilities(
     timeoutMs: 20_000,
     ...(signal ? { signal } : {}),
     label: location.kind === "wsl" ? `kimi:wsl:${location.distro}` : `kimi:${location.kind}`,
+    env: {
+      ...(probeEnv ?? {}),
+      ...(probeHome ? { KIMI_CODE_HOME: probeHome } : {}),
+    },
   });
-  return buildKimiProbeCapabilities(probe, await credentialStatePromise);
+  // Fall back to the verified snapshot when the live probe has no models
+  // (host logged out, managed pool account still usable). A successful probe
+  // always wins — the fallback only fills the model/effort surface.
+  const effectiveProbe =
+    probe?.models?.length
+      ? probe
+      : { ...(probe ?? {}), ...KIMI_FALLBACK_PROBE };
+  return buildKimiProbeCapabilities(effectiveProbe, credentialState);
 }
 
 /**
@@ -242,22 +320,55 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function readKimiCredentialState(location: ProjectLocation): Promise<{
+interface KimiCredentialState {
   hasAnyCredential: boolean;
   hasManagedOAuthCredential: boolean;
-}> {
+  hasPoolOAuthCredential: boolean;
+  probeHome?: string;
+}
+
+/**
+ * Home the ACP probe and composer should treat as Kimi's runtime home.
+ * Prefers a CraftStation pool profile that actually holds a live token over
+ * the host `~/.kimi-code`, which isolation may have wiped to an empty stub.
+ */
+export async function resolveKimiProbeHome(location: ProjectLocation): Promise<string> {
+  if (location.kind === "wsl") return nativeKimiHomePath();
+  return (await readKimiCredentialState(location)).probeHome ?? nativeKimiHomePath();
+}
+
+async function readKimiCredentialState(location: ProjectLocation): Promise<KimiCredentialState> {
   if (location.kind !== "wsl") {
-    const [hasConfigCredential, hasManagedOAuthCredential] = await Promise.all([
-      readFile(join(nativeKimiHomePath(), "config.toml"), "utf8")
+    const hostHome = nativeKimiHomePath();
+    const hostPath = nativeKimiOAuthCredentialPath();
+    const [hasConfigCredential, hostOAuthContent, credentialPaths] = await Promise.all([
+      readFile(join(hostHome, "config.toml"), "utf8")
         .then(hasKimiCredential)
         .catch(() => false),
-      readFile(nativeKimiOAuthCredentialPath(), "utf8")
-        .then(hasKimiOAuthCredential)
-        .catch(() => false),
+      readFile(hostPath, "utf8").catch(() => ""),
+      listKimiOAuthCredentialPaths(),
     ]);
+    const hasHostOAuthCredential = hasKimiOAuthCredential(hostOAuthContent);
+    let hasPoolOAuthCredential = false;
+    let probeHome = hostHome;
+    for (const path of credentialPaths) {
+      if (path === hostPath) continue;
+      try {
+        const content = await readFile(path, "utf8");
+        if (!hasKimiOAuthCredential(content)) continue;
+        hasPoolOAuthCredential = true;
+        probeHome = kimiHomeFromOAuthCredentialPath(path);
+        break;
+      } catch {
+        // Unreadable pool files are not credentials.
+      }
+    }
+    const hasManagedOAuthCredential = hasHostOAuthCredential || hasPoolOAuthCredential;
     return {
       hasAnyCredential: hasConfigCredential || hasManagedOAuthCredential,
       hasManagedOAuthCredential,
+      hasPoolOAuthCredential,
+      probeHome,
     };
   }
   const [configResult, oauthResult] = await batchWslCommandsAsync(location.distro, [
@@ -271,6 +382,7 @@ async function readKimiCredentialState(location: ProjectLocation): Promise<{
   return {
     hasAnyCredential: hasConfigCredential || hasManagedOAuthCredential,
     hasManagedOAuthCredential,
+    hasPoolOAuthCredential: false,
   };
 }
 
@@ -320,6 +432,6 @@ export const kimiDetectionSpec: DetectionSpec = {
   },
   async capabilitiesProbe(ctx) {
     if (!ctx.executablePath) return undefined;
-    return probeCapabilities(ctx.location, ctx.executablePath, ctx.signal);
+    return probeCapabilities(ctx.location, ctx.executablePath, ctx.signal, ctx.probeEnv);
   },
 };

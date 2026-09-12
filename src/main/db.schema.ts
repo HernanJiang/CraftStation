@@ -56,10 +56,15 @@ export const threads = sqliteTable("threads", {
   groupName: text("group_name"),
   /** Orchestrator thread that created this one via the Crossagents MCP. */
   parentThreadId: text("parent_thread_id"),
+  /** Durable `/goal` prompt bound by an explicit `/goal + Prompt` submit. JSON */
+  goal: text("goal"),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  archivedAt: text("archived_at"),
   done: integer("done", { mode: "boolean" }).notNull().default(false),
   doneAt: text("done_at"),
   starred: integer("starred", { mode: "boolean" }).notNull().default(false),
+  /** Global pin time (epoch ms). Null = not pinned. Presentation only. */
+  pinnedAt: integer("pinned_at"),
   /** "terminal" (xterm-backed PTY) vs "gui" (renderer-native chat). */
   presentationMode: text("presentation_mode").notNull().default("terminal"),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -182,6 +187,31 @@ export const threadCompletedTurns = sqliteTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.threadId, table.idx] }),
+  }),
+);
+
+/**
+ * Native-session history per logical thread. One row per (thread × native
+ * session): every model/harness switch APPENDS, never replaces — so
+ * archiving, copying, or auditing a logical thread can enumerate every
+ * native session it ever used. Identity only (provider/model/session id);
+ * live paths resolve on demand supervisor-side.
+ */
+export const threadNativeSessions = sqliteTable(
+  "thread_native_sessions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    harness: text("harness").notNull(),
+    model: text("model").notNull().default(""),
+    nativeSessionId: text("native_session_id"),
+    poolAccountId: text("pool_account_id"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    threadIdx: index("idx_thread_native_sessions_thread").on(table.threadId),
   }),
 );
 

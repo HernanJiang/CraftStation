@@ -107,7 +107,8 @@ export const craftAgentPayloadSchema = z.object({
   /** Candidate custom MCP servers selected by the CraftPlan; Supervisor revalidates ids. */
   mcpServers: mcpServerListSchema.optional(),
   accountId: z.string().min(1).optional(),
-  accountMode: z.enum(["explicit", "selected", "auto"]).optional(),
+  /** `preferred` = honour the pick but fall back to the pool when unusable. */
+  accountMode: z.enum(["explicit", "preferred", "selected", "auto"]).optional(),
 });
 export type CraftAgentPayload = z.infer<typeof craftAgentPayloadSchema>;
 
@@ -181,6 +182,26 @@ export const dbDeleteThreadPayloadSchema = z.object({
 export const dbDeleteProjectPayloadSchema = z.object({
   projectId: z.string().min(1),
 });
+export const dbInsertThreadNativeSessionPayloadSchema = z.object({
+  threadId: z.string().min(1),
+  harness: z.string().min(1),
+  model: z.string().default(""),
+  nativeSessionId: z.string().min(1).optional(),
+  poolAccountId: z.string().min(1).optional(),
+});
+export type DbInsertThreadNativeSessionPayload = z.infer<
+  typeof dbInsertThreadNativeSessionPayloadSchema
+>;
+export const threadNativeSessionSchema = z.object({
+  id: z.number().int(),
+  threadId: z.string(),
+  harness: z.string(),
+  model: z.string(),
+  nativeSessionId: z.string().nullable(),
+  poolAccountId: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type ThreadNativeSession = z.infer<typeof threadNativeSessionSchema>;
 const persistedThreadConfigSchema = threadConfigSchema
   .extend({ model: z.string() })
   .transform((config) => (config.model.trim().length > 0 ? config : { ...config, model: "auto" }));

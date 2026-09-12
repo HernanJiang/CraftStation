@@ -102,11 +102,18 @@ export interface RankedCrossagentCandidate {
 }
 
 export interface CrossagentRankingPreferences {
-  crossagentSelectionUsage: readonly CrossagentSelectionUsageEntry[];
+  ownSubagentSelectionUsage: readonly CrossagentSelectionUsageEntry[];
   agentSelectionUsage: readonly AgentSelectionUsageEntry[];
   favoriteModels: SharedSettings["favoriteModels"];
-  routingOverrides?: SharedSettings["crossagentRoutingOverrides"];
+  routingOverrides?: SharedSettings["ownSubagentRoutingOverrides"];
   contextTags?: readonly string[];
+  /**
+   * User-ordered Own Subagents route (provider kinds; `"native"` entries are
+   * ignored here — the native lane is not a provider candidate). Entries
+   * listed earlier outrank learned signals but never explicit per-call values
+   * or persistent task-tag overrides (those win before ranking runs).
+   */
+  routeOrder?: readonly string[];
 }
 
 /**
@@ -117,19 +124,21 @@ export function crossagentRankingPreferences(
   settings: Partial<
     Pick<
       SharedSettings,
-      | "crossagentSelectionUsage"
-      | "crossagentRoutingOverrides"
+      | "ownSubagentSelectionUsage"
+      | "ownSubagentRoutingOverrides"
       | "agentSelectionUsage"
       | "favoriteModels"
+      | "ownSubagentsRouteOrder"
     >
   >,
   contextTags: readonly string[] = [],
 ): CrossagentRankingPreferences {
   return {
-    crossagentSelectionUsage: settings.crossagentSelectionUsage ?? [],
-    routingOverrides: settings.crossagentRoutingOverrides ?? [],
+    ownSubagentSelectionUsage: settings.ownSubagentSelectionUsage ?? [],
+    routingOverrides: settings.ownSubagentRoutingOverrides ?? [],
     agentSelectionUsage: settings.agentSelectionUsage ?? [],
     favoriteModels: settings.favoriteModels ?? [],
+    routeOrder: settings.ownSubagentsRouteOrder ?? [],
     contextTags,
   };
 }
@@ -380,7 +389,7 @@ function buildRankingIndex(preferences: CrossagentRankingPreferences): Crossagen
     favoriteModelsByProvider: new Map(),
     favoritePairs: new Set(),
   };
-  for (const entry of preferences.crossagentSelectionUsage) {
+  for (const entry of preferences.ownSubagentSelectionUsage) {
     pushBucket(index.crossByProvider, entry.agentKind, entry);
     pushBucket(index.crossByModel, usageKey(entry.agentKind, entry.modelId), entry);
   }
@@ -681,7 +690,7 @@ function crossagentPreferredSelection(
 function selectionWithOverride(
   candidate: CrossagentRankingCandidate,
   base: RankedCrossagentCandidate["preferredSelection"],
-  override: SharedSettings["crossagentRoutingOverrides"][number],
+  override: SharedSettings["ownSubagentRoutingOverrides"][number],
 ): RankedCrossagentCandidate["preferredSelection"] | undefined {
   const modelIds = override.modelId
     ? [override.modelId]
@@ -717,7 +726,7 @@ function matchingManualOverride(
   base: RankedCrossagentCandidate["preferredSelection"],
 ):
   | {
-      override: SharedSettings["crossagentRoutingOverrides"][number];
+      override: SharedSettings["ownSubagentRoutingOverrides"][number];
       selection: RankedCrossagentCandidate["preferredSelection"];
       tags: string[];
     }
@@ -821,7 +830,7 @@ export function rankCrossagentCandidates(
 ): RankedCrossagentCandidate[] {
   const usageIndex = buildRankingIndex(preferences);
   const contextTags = normalizeCrossagentTags(preferences.contextTags);
-  return candidates
+  const scored = candidates
     .map((candidate, builtInIndex) => ({
       ...providerPreference(candidate, preferences, usageIndex, contextTags),
       learnedTags: providerLearnedTags(candidate.provider, usageIndex),
@@ -829,7 +838,8 @@ export function rankCrossagentCandidates(
     }))
     .toSorted(
       (left, right) => compareRankedScores(left, right) || left.builtInIndex - right.builtInIndex,
-    )
+    );
+  return applyOwnSubagentsRouteOrder(scored, preferences.routeOrder)
     .map(
       (
         {
@@ -842,6 +852,34 @@ export function rankCrossagentCandidates(
         index,
       ) => ({ ...entry, rank: index + 1 }),
     );
+}
+
+/**
+ * Stable user-order pass over learned ranking: providers listed earlier in
+ * the user's Own Subagents route come first (keeping their learned sources
+ * and relative order otherwise). `"native"` is a lane, not a provider, and
+ * is skipped here — selection consults it separately. An empty order keeps
+ * learned ranking untouched.
+ */
+export function applyOwnSubagentsRouteOrder<
+  T extends { provider: string },
+>(entries: readonly T[], routeOrder: readonly string[] | undefined): T[] {
+  if (!routeOrder || routeOrder.length === 0) return [...entries];
+  const position = new Map<string, number>();
+  for (const raw of routeOrder) {
+    const key = raw.trim().toLowerCase();
+    if (!key || key === "native" || position.has(key)) continue;
+    position.set(key, position.size);
+  }
+  if (position.size === 0) return [...entries];
+  return [...entries]
+    .map((entry, index) => ({ entry, index }))
+    .toSorted((left, right) => {
+      const leftPos = position.get(left.entry.provider) ?? Number.POSITIVE_INFINITY;
+      const rightPos = position.get(right.entry.provider) ?? Number.POSITIVE_INFINITY;
+      return leftPos - rightPos || left.index - right.index;
+    })
+    .map(({ entry }) => entry);
 }
 
 /** One globally ranked (provider, model) pair. */

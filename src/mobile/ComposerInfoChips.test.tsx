@@ -41,6 +41,7 @@ const contextSummary: ThreadContextUsageSummary = {
   remainingTokens: 150_000,
   percent: 25,
   breakdown: [{ id: "used", label: "Used", tokens: 50_000 }],
+  occupancy: [],
   usedLabel: "50K",
   maxLabel: "200K",
   remainingLabel: "150K",

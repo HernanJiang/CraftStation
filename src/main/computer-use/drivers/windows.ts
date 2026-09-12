@@ -78,6 +78,13 @@ public static class CraftStationComputerUseNative {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+  [StructLayout(LayoutKind.Sequential)]
+  public struct POINT {
+    public int X;
+    public int Y;
+  }
+
+  [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT lpPoint);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
   [DllImport("user32.dll")] public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
@@ -141,6 +148,12 @@ public static class CraftStationComputerUseNative {
     }
     var arr = inputs.ToArray();
     if (arr.Length > 0) SendInput((uint)arr.Length, arr, Marshal.SizeOf(typeof(INPUT)));
+  }
+
+  public static POINT CursorPos() {
+    POINT p;
+    GetCursorPos(out p);
+    return p;
   }
 
   public static void Key(ushort vk, bool up) {
@@ -608,6 +621,17 @@ function Press-Chord($key) {
   }
 }
 
+function Invoke-StealingMouse([scriptblock]$body) {
+  # Steal the real cursor only for the duration of the click/drag/scroll, then
+  # put the user's pointer back so they keep a separate mouse from the overlay.
+  $saved = [CraftStationComputerUseNative]::CursorPos()
+  try {
+    & $body
+  } finally {
+    [void][CraftStationComputerUseNative]::SetCursorPos($saved.X, $saved.Y)
+  }
+}
+
 function Mouse-Click($button, $count) {
   $down = [CraftStationComputerUseNative]::MOUSEEVENTF_LEFTDOWN
   $up = [CraftStationComputerUseNative]::MOUSEEVENTF_LEFTUP
@@ -655,7 +679,7 @@ switch ([string]$request.action) {
   "get_window_state" {
     $window = Require-Window $request.input.window
     $screenshots = @()
-    $notes = @("Window listing and screenshots are passive and do not steal focus. Input actions switch to interactive mode, bring the target window to the foreground, and take exclusive control of the mouse/keyboard.")
+    $notes = @("Window listing and screenshots are passive and do not steal focus. Input actions switch to interactive mode, bring the target window to the foreground, and briefly drive the real mouse before restoring the user's cursor.")
     if ($request.input.include_screenshot -ne $false) {
       $maxDimension = if ($null -ne $request.input.max_dimension) { [int]$request.input.max_dimension } else { 1280 }
       $format = if ($request.input.format) { [string]$request.input.format } else { "jpeg" }
@@ -704,8 +728,10 @@ switch ([string]$request.action) {
     $window = Activate-Window $window
     $x = [int]$request.input.x
     $y = [int]$request.input.y
-    [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + $x, [int]$window.y + $y)
-    Mouse-Click $request.input.mouse_button $request.input.click_count
+    Invoke-StealingMouse {
+      [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + $x, [int]$window.y + $y)
+      Mouse-Click $request.input.mouse_button $request.input.click_count
+    }
     $result = [pscustomobject]@{
       ok = $true
       mode = "interactive"
@@ -735,12 +761,14 @@ switch ([string]$request.action) {
   "scroll" {
     $window = Require-Window $request.input.window
     $window = Activate-Window $window
-    [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + [int]$request.input.x, [int]$window.y + [int]$request.input.y)
-    if ([int]$request.input.scrollY -ne 0) {
-      [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_WHEEL, 0, 0, [uint32](-1 * [int]$request.input.scrollY), [UIntPtr]::Zero)
-    }
-    if ([int]$request.input.scrollX -ne 0) {
-      [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_HWHEEL, 0, 0, [uint32]([int]$request.input.scrollX), [UIntPtr]::Zero)
+    Invoke-StealingMouse {
+      [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + [int]$request.input.x, [int]$window.y + [int]$request.input.y)
+      if ([int]$request.input.scrollY -ne 0) {
+        [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_WHEEL, 0, 0, [uint32](-1 * [int]$request.input.scrollY), [UIntPtr]::Zero)
+      }
+      if ([int]$request.input.scrollX -ne 0) {
+        [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_HWHEEL, 0, 0, [uint32]([int]$request.input.scrollX), [UIntPtr]::Zero)
+      }
     }
     $result = [pscustomobject]@{
       ok = $true
@@ -752,19 +780,21 @@ switch ([string]$request.action) {
     $window = Require-Window $request.input.window
     $window = Activate-Window $window
     $downSent = $false
-    try {
-      [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + [int]$request.input.from_x, [int]$window.y + [int]$request.input.from_y)
-      [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
-      $downSent = $true
-      Start-Sleep -Milliseconds 40
-      [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + [int]$request.input.to_x, [int]$window.y + [int]$request.input.to_y)
-      Start-Sleep -Milliseconds 40
-      [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
-      $downSent = $false
-    } finally {
-      # Never leave the mouse button physically down if we threw mid-drag.
-      if ($downSent) {
-        try { [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero) } catch {}
+    Invoke-StealingMouse {
+      try {
+        [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + [int]$request.input.from_x, [int]$window.y + [int]$request.input.from_y)
+        [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+        $downSent = $true
+        Start-Sleep -Milliseconds 40
+        [void][CraftStationComputerUseNative]::SetCursorPos([int]$window.x + [int]$request.input.to_x, [int]$window.y + [int]$request.input.to_y)
+        Start-Sleep -Milliseconds 40
+        [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+        $downSent = $false
+      } finally {
+        # Never leave the mouse button physically down if we threw mid-drag.
+        if ($downSent) {
+          try { [CraftStationComputerUseNative]::mouse_event([CraftStationComputerUseNative]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero) } catch {}
+        }
       }
     }
     $result = [pscustomobject]@{

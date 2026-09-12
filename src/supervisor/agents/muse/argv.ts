@@ -1,4 +1,5 @@
 import type { ThreadConfig } from "@/shared/contracts";
+import { stripModelProviderPrefix } from "@/shared/harnessCompatibility";
 
 /**
  * Flag references — verified against Muse Code 0.1.0 (0.1.0-R708.1):
@@ -29,7 +30,7 @@ export function buildMuseConfigFlags(config: ThreadConfig): string[] {
   const args: string[] = ["--trust-workspace"];
 
   if (config.model) {
-    args.push("--model", config.model);
+    args.push("--model", stripModelProviderPrefix(config.model));
   }
   if (config.effort) {
     args.push("--reasoning-effort", config.effort);

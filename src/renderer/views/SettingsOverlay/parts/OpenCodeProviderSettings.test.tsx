@@ -219,23 +219,23 @@ describe("OpenCodeProviderSettings", () => {
     expect(saveButton).toBeEnabled();
   });
 
-  it("enables Crossagents by default for OpenCode", () => {
+  it("enables Own Subagents by default for OpenCode", () => {
     render(
       <OpenCodeProviderSettings agentKind="opencode" statuses={[makeStatus()]} wslDistros={[]} />,
     );
 
-    expect(screen.getByRole("switch", { name: "Crossagents" })).toHaveAttribute(
+    expect(screen.getByRole("switch", { name: "Own Subagents" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
   });
 
-  it("saves a Crossagents opt-out for OpenCode", async () => {
+  it("saves an Own Subagents opt-out for OpenCode", async () => {
     render(
       <OpenCodeProviderSettings agentKind="opencode" statuses={[makeStatus()]} wslDistros={[]} />,
     );
 
-    fireEvent.click(screen.getByRole("switch", { name: "Crossagents" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Own Subagents" }));
     fireEvent.click(screen.getByRole("button", { name: "Save MCP servers" }));
 
     await vi.waitFor(() => {

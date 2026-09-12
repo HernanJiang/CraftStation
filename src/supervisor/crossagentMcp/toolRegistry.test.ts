@@ -8,6 +8,9 @@ import {
   classifyModelTier,
   CROSSAGENT_MCP_INSTRUCTIONS_BASE,
   dispatchTool,
+  nativeHarnessDirective,
+  nativeSubagentToolFor,
+  resolveOwnSubagentRoute,
   TOOLS,
 } from "./toolRegistry";
 import type { SubagentToolContext } from "./toolRegistry";
@@ -174,7 +177,7 @@ describe("buildSpawnableAgents", () => {
     ).toEqual([]);
   });
 
-  it("excludes providers paused only for Crossagents", () => {
+  it("excludes providers paused only for Own Subagents", () => {
     const adapters = new Map<AgentKind, AgentAdapter>([
       [
         "claude" as AgentKind,
@@ -185,7 +188,7 @@ describe("buildSpawnableAgents", () => {
       buildSpawnableAgents(adapters, [makeStatus()], {
         disabledAgents: [],
         hiddenModels: {},
-        crossagentPausedProviders: ["claude"],
+        ownSubagentPausedProviders: ["claude"],
       }),
     ).toEqual([]);
   });
@@ -201,8 +204,8 @@ describe("buildSpawnableAgents", () => {
       listCrossagentEligibleProviders(adapters, [makeStatus()], {
         disabledAgents: [],
         hiddenModels: {},
-        crossagentPausedProviders: ["claude"],
-        crossagentHiddenModels: {
+        ownSubagentPausedProviders: ["claude"],
+        ownSubagentHiddenModels: {
           claude: ["claude-haiku-4", "claude-sonnet-4.5", "claude-opus-4"],
         },
       }),
@@ -230,7 +233,7 @@ describe("buildSpawnableAgents", () => {
     expect(agent?.defaultModel).toBe("claude-opus-4");
   });
 
-  it("applies Crossagents-only model visibility on top of global visibility", () => {
+  it("applies Own-Subagents-only model visibility on top of global visibility", () => {
     const adapters = new Map<AgentKind, AgentAdapter>([
       [
         "claude" as AgentKind,
@@ -240,7 +243,7 @@ describe("buildSpawnableAgents", () => {
     const [agent] = buildSpawnableAgents(adapters, [makeStatus()], {
       disabledAgents: [],
       hiddenModels: { claude: ["claude-haiku-4"] },
-      crossagentHiddenModels: { claude: ["claude-sonnet-4.5"] },
+      ownSubagentHiddenModels: { claude: ["claude-sonnet-4.5"] },
     });
     expect(agent?.models.map((model) => model.value)).toEqual(["claude-opus-4"]);
     expect(agent?.defaultModel).toBe("claude-opus-4");
@@ -288,7 +291,7 @@ describe("buildSpawnableAgents", () => {
         hiddenModels: {},
         favoriteModels: [],
         agentSelectionUsage: [],
-        crossagentSelectionUsage: [
+        ownSubagentSelectionUsage: [
           {
             agentKind: "claude",
             modelId: "claude-opus-4",
@@ -589,11 +592,18 @@ describe("subagent tool registration", () => {
     );
   });
 
-  it("tells namespacing hosts to resolve bare tool names against the crossagents server", () => {
-    expect(CROSSAGENT_MCP_INSTRUCTIONS_BASE).toContain("crossagents__list_agents");
+  it("tells namespacing hosts to resolve bare tool names against the own_subagents server", () => {
+    expect(CROSSAGENT_MCP_INSTRUCTIONS_BASE).toContain("own_subagents__list_agents");
     expect(CROSSAGENT_MCP_INSTRUCTIONS_BASE).toContain(
       "never the same bare name under another server",
     );
+    expect(CROSSAGENT_MCP_INSTRUCTIONS_BASE).not.toContain("crossagents__list_agents");
+  });
+
+  it("documents the native-harness lane as the default route", () => {
+    expect(CROSSAGENT_MCP_INSTRUCTIONS_BASE).toContain("route=native-harness");
+    expect(CROSSAGENT_MCP_INSTRUCTIONS_BASE).toContain("native subagent tool");
+    expect(CROSSAGENT_MCP_INSTRUCTIONS_BASE).toContain("do NOT call spawn_agent again");
   });
 
   it("requires an explicit user ask in the thread before delegating", () => {
@@ -773,6 +783,71 @@ describe("subagent tool registration", () => {
     expect(recorded).toEqual([]);
   });
 
+  it("defaults an unspecified dispatch to the parent thread's own entity", async () => {
+    const { ctx } = makeToolContext();
+    let spawnedRequest: unknown;
+    const recorded: unknown[] = [];
+    ctx.runManager = {
+      spawn: (_parentThreadId: string, request: unknown) => {
+        spawnedRequest = request;
+        return { runId: "run-parent" };
+      },
+      waitFor: async () => ({ status: "completed" as const, output: "done" }),
+    } as unknown as SubagentRunManager;
+    ctx.recordExplicitSelections = (selections) => recorded.push(...selections);
+    ctx.parentEntity = { agentKind: "claude", model: "sonnet", effort: "high" };
+
+    await dispatchTool("spawn_agent", { prompt: "follow up" }, ctx);
+
+    // Same harness + model + effort as the caller, not ranked-best (codex).
+    expect(spawnedRequest).toMatchObject({
+      agent: "claude",
+      model: "sonnet",
+      effort: "high",
+      prompt: "follow up",
+    });
+    // AUTO default: must not reinforce learned affinity.
+    expect(recorded).toEqual([]);
+  });
+
+  it("falls back to ranked-best when the parent entity is off-roster", async () => {
+    const { ctx } = makeToolContext();
+    let spawnedRequest: unknown;
+    ctx.runManager = {
+      spawn: (_parentThreadId: string, request: unknown) => {
+        spawnedRequest = request;
+        return { runId: "run-fallback" };
+      },
+      waitFor: async () => ({ status: "completed" as const, output: "done" }),
+    } as unknown as SubagentRunManager;
+    ctx.parentEntity = { agentKind: "muse", model: "nope", effort: "high" };
+
+    await dispatchTool("spawn_agent", { prompt: "choose for me" }, ctx);
+
+    expect(spawnedRequest).toMatchObject({ agent: "codex", model: "gpt-5.5" });
+  });
+
+  it("keeps an explicit selection ahead of the parent entity", async () => {
+    const { ctx } = makeToolContext();
+    let spawnedRequest: unknown;
+    ctx.runManager = {
+      spawn: (_parentThreadId: string, request: unknown) => {
+        spawnedRequest = request;
+        return { runId: "run-explicit" };
+      },
+      waitFor: async () => ({ status: "completed" as const, output: "done" }),
+    } as unknown as SubagentRunManager;
+    ctx.parentEntity = { agentKind: "claude", model: "sonnet", effort: "high" };
+
+    await dispatchTool(
+      "spawn_agent",
+      { provider: "codex", model: "gpt-5.5", prompt: "do it" },
+      ctx,
+    );
+
+    expect(spawnedRequest).toMatchObject({ agent: "codex", model: "gpt-5.5" });
+  });
+
   it("records which selection fields were explicit without promoting filled defaults", async () => {
     const { ctx } = makeToolContext();
     const recorded: unknown[] = [];
@@ -802,8 +877,140 @@ describe("subagent tool registration", () => {
     ]);
   });
 
-  it("honors an explicit model by choosing the highest-ranked provider that offers it", async () => {
+  it("hands back to the native lane by default instead of spawning externally", async () => {
     const { ctx } = makeToolContext();
+    let spawned = false;
+    ctx.parentAgentKind = "codex";
+    ctx.runManager = {
+      spawn: () => {
+        spawned = true;
+        return { runId: "run-never" };
+      },
+      waitFor: async () => ({ status: "completed" as const, output: "never" }),
+    } as unknown as SubagentRunManager;
+
+    const result = await dispatchTool("spawn_agent", { prompt: "help me" }, ctx);
+
+    expect(spawned).toBe(false);
+    expect(JSON.parse(resultText(result))).toMatchObject({
+      route: "native-harness",
+      status: "native",
+      harness: "codex",
+      native_tool: "spawnAgent collaboration subagents",
+    });
+  });
+
+  it("lets an explicit provider override the first-ranked native lane", async () => {
+    const { ctx } = makeToolContext();
+    let spawnedRequest: unknown;
+    const recorded: unknown[] = [];
+    ctx.parentAgentKind = "codex";
+    ctx.runManager = {
+      spawn: (_parentThreadId: string, request: unknown) => {
+        spawnedRequest = request;
+        return { runId: "run-override" };
+      },
+      waitFor: async () => ({ status: "completed" as const, output: "done" }),
+    } as unknown as SubagentRunManager;
+    ctx.recordExplicitSelections = (selections) => recorded.push(...selections);
+
+    await dispatchTool("spawn_agent", { provider: "claude", prompt: "use Claude" }, ctx);
+
+    expect(spawnedRequest).toMatchObject({ agent: "claude" });
+    expect(recorded).toEqual([
+      expect.objectContaining({ explicitFields: expect.objectContaining({ provider: true }) }),
+    ]);
+  });
+
+  it("falls through to external routing when the parent harness has no native lane", async () => {
+    const { ctx } = makeToolContext();
+    let spawnedRequest: unknown;
+    ctx.parentAgentKind = "antigravity";
+    ctx.runManager = {
+      spawn: (_parentThreadId: string, request: unknown) => {
+        spawnedRequest = request;
+        return { runId: "run-fallback" };
+      },
+      waitFor: async () => ({ status: "completed" as const, output: "done" }),
+    } as unknown as SubagentRunManager;
+
+    const result = await dispatchTool("spawn_agent", { prompt: "help me" }, ctx);
+
+    expect(spawnedRequest).toMatchObject({ agent: "codex" });
+    expect(JSON.parse(resultText(result))).toMatchObject({ run_id: "run-fallback" });
+  });
+
+  it("follows a user-reordered route with kimi ahead of the native lane", async () => {
+    const { ctx } = makeToolContext();
+    let spawnedRequest: unknown;
+    const recorded: unknown[] = [];
+    ctx.parentAgentKind = "codex";
+    ctx.getRouteOrder = () => ["kimi", "native", "codex"];
+    ctx.listSpawnableAgents = async () => [
+      {
+        provider: { value: "kimi", label: "Kimi" },
+        models: [{ value: "k3", label: "K3", reasoning: { values: [] } }],
+        reasoningOptions: [],
+        defaultModel: "k3",
+        permissions: {
+          options: [{ value: "full-access", label: "Full access" }],
+          default: "full-access",
+        },
+        execution: "structured",
+      },
+      {
+        provider: { value: "codex", label: "Codex" },
+        models: [{ value: "gpt-5.5", label: "GPT-5.5", reasoning: { values: [] } }],
+        reasoningOptions: [],
+        defaultModel: "gpt-5.5",
+        permissions: {
+          options: [{ value: "full-access", label: "Full access" }],
+          default: "full-access",
+        },
+        execution: "structured",
+      },
+    ];
+    ctx.runManager = {
+      spawn: (_parentThreadId: string, request: unknown) => {
+        spawnedRequest = request;
+        return { runId: "run-kimi" };
+      },
+      waitFor: async () => ({ status: "completed" as const, output: "done" }),
+    } as unknown as SubagentRunManager;
+    ctx.recordExplicitSelections = (selections) => recorded.push(...selections);
+
+    await dispatchTool("spawn_agent", { prompt: "choose for me" }, ctx);
+
+    expect(spawnedRequest).toMatchObject({ agent: "kimi", model: "k3" });
+    // Route-order choices are AUTO: they must not reinforce learned affinity.
+    expect(recorded).toEqual([]);
+  });
+
+  it("mixes native directives and external runs in one parallel spawn", async () => {
+    const { ctx } = makeToolContext();
+    ctx.parentAgentKind = "codex";
+    ctx.runManager = {
+      spawnMany: () => [{ runId: "run-1" }],
+      waitForMany: async () => [{ status: "completed" as const, output: "external done" }],
+    } as unknown as SubagentRunManager;
+
+    const result = await dispatchTool(
+      "spawn_agent",
+      {
+        tasks: [{ prompt: "native subtask" }, { provider: "claude", prompt: "external subtask" }],
+      },
+      ctx,
+    );
+
+    expect(JSON.parse(resultText(result))).toEqual({
+      runs: [
+        expect.objectContaining({ route: "native-harness", status: "native" }),
+        expect.objectContaining({ run_id: "run-1", status: "completed" }),
+      ],
+    });
+  });
+
+  it("honors an explicit model by choosing the highest-ranked provider that offers it", async () => {    const { ctx } = makeToolContext();
     let spawnedRequest: unknown;
     ctx.runManager = {
       spawn: (_parentThreadId: string, request: unknown) => {
@@ -963,5 +1170,85 @@ describe("subagent tool registration", () => {
         { run_id: "run-2", status: "completed", output: "two" },
       ],
     });
+  });
+});
+
+describe("own-subagents route walk", () => {
+  const roster = new Set(["codex", "kimi"]);
+
+  it("defaults to the native lane first", () => {
+    expect(
+      resolveOwnSubagentRoute({ rosterProviders: roster, routeOrder: [], parentAgentKind: "codex" }),
+    ).toEqual({
+      kind: "native-harness",
+      harness: "codex",
+      nativeTool: "spawnAgent collaboration subagents",
+    });
+  });
+
+  it("yields nothing (no blind first-roster pick) for harnesses without a native lane", () => {
+    // The caller defaults to the parent thread's own entity next; only
+    // ranked-best remains after that. Blind first-roster dispatch is what
+    // made unspecified spawns look random.
+    expect(
+      resolveOwnSubagentRoute({
+        rosterProviders: roster,
+        routeOrder: [],
+        parentAgentKind: "antigravity",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("yields nothing when the parent harness is unknown", () => {
+    expect(
+      resolveOwnSubagentRoute({ rosterProviders: roster, routeOrder: [] }),
+    ).toBeUndefined();
+  });
+
+  it("honors a user order with an external provider ahead of native", () => {
+    expect(
+      resolveOwnSubagentRoute({
+        rosterProviders: roster,
+        routeOrder: ["kimi", "native", "codex"],
+        parentAgentKind: "codex",
+      }),
+    ).toEqual({ kind: "external", provider: "kimi" });
+  });
+
+  it("falls past unavailable providers to undefined (caller decides next)", () => {
+    expect(
+      resolveOwnSubagentRoute({
+        rosterProviders: roster,
+        routeOrder: ["removed", "native"],
+        parentAgentKind: "antigravity",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when nothing resolves", () => {
+    expect(
+      resolveOwnSubagentRoute({
+        rosterProviders: new Set<string>(),
+        routeOrder: ["native"],
+        parentAgentKind: "antigravity",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("maps native subagent tools per harness and nothing for unsupported ones", () => {
+    expect(nativeSubagentToolFor("codex")).toContain("spawnAgent");
+    expect(nativeSubagentToolFor("KIMI")).toContain("task");
+    expect(nativeSubagentToolFor("antigravity")).toBeUndefined();
+    expect(nativeSubagentToolFor(undefined)).toBeUndefined();
+  });
+
+  it("builds a native directive result without a run", () => {
+    const directive = nativeHarnessDirective("kimi", "Agent (task) tool");
+    expect(JSON.parse(directive.content[0]!.text)).toMatchObject({
+      route: "native-harness",
+      status: "native",
+      harness: "kimi",
+    });
+    expect(directive.isError).not.toBe(true);
   });
 });

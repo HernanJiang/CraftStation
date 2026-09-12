@@ -3,11 +3,14 @@ import { useLingui } from "@lingui/react/macro";
 import type { Thread } from "@/shared/contracts";
 import type { StatusTone } from "@/renderer/components/providers/statusTone";
 import { archiveThread, toggleStarThread } from "@/renderer/actions/threadActions";
+import { DraftIndicator } from "../../DraftIndicator";
 
 interface ThreadItemSuffixProps {
   thread: Thread;
   statusTone: StatusTone;
   isExperimentCandidate: boolean;
+  hasUnreadNotification?: boolean;
+  hasDraft?: boolean;
   onMore?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
@@ -19,7 +22,12 @@ function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   if (props.statusTone === "working") {
     return <Loader2 className="size-3 animate-spin text-accent" aria-label={t`Working`} />;
   }
-  if (props.thread.done || props.statusTone === "done" || props.statusTone === "finished") {
+  // A terminal parser can briefly report `finished` while the final turn
+  // record has not landed yet. Do not paint the tiny completed dot for that
+  // transient state; it falsely tells the user an unfinished task is done.
+  const hasSettledTurn =
+    props.thread.lastTurnEndedAt !== undefined && props.thread.activeTurnStartedAt === undefined;
+  if (props.thread.done || props.statusTone === "done" || (props.statusTone === "finished" && hasSettledTurn)) {
     return (
       <span
         aria-label={t`Completed`}
@@ -30,14 +38,25 @@ function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   return null;
 }
 
-/** Keep the row quiet: status is the only persistent suffix; actions appear on hover. */
+/** Keep the row quiet: status/unread sit on the far right; actions appear on hover. */
 export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
   const { t } = useLingui();
+  const marker = props.hasUnreadNotification ? (
+    <span
+      aria-label={t`Unread notification`}
+      data-testid="thread-unread-notification-dot"
+      className="size-1.5 shrink-0 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.55)]"
+    />
+  ) : props.hasDraft ? (
+    <DraftIndicator />
+  ) : (
+    <ThreadStatus thread={props.thread} statusTone={props.statusTone} />
+  );
 
   return (
-    <span className="relative flex w-[58px] shrink-0 items-center justify-end">
-      <span className="flex size-[18px] items-center justify-center transition-opacity group-hover:opacity-0">
-        <ThreadStatus thread={props.thread} statusTone={props.statusTone} />
+    <span className="relative ml-auto flex w-[58px] shrink-0 items-center justify-end">
+      <span className="flex size-[18px] items-center justify-end transition-opacity group-hover:opacity-0">
+        {marker}
       </span>
       {!props.isExperimentCandidate ? (
         <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-0.5 group-hover:pointer-events-auto">

@@ -13,6 +13,39 @@ export const CONTEXT_SIZE_PRESETS: ReadonlyArray<{ value: string; label: string 
   { value: "1M", label: "1M" },
 ];
 
+/**
+ * 各渠道实测思考强度档位（2026-09 实采：Codex/Grok/Kimi/Antigravity/
+ * OpenCode/Command Code 上报值）。自定义模型对话框用它做一键预设，
+ * 用户也可手写任意档位（各厂商文档为准）。
+ */
+export const VENDOR_EFFORT_PRESETS: Readonly<Record<string, { tiers: string[]; def: string }>> = {
+  codex: { tiers: ["low", "medium", "high", "xhigh", "max", "ultra"], def: "high" },
+  grok: { tiers: ["xhigh", "high", "medium", "low"], def: "xhigh" },
+  kimi: { tiers: ["low", "high", "max"], def: "high" },
+  antigravity: { tiers: ["Low", "Medium", "High"], def: "High" },
+  opencode: {
+    tiers: ["none", "minimal", "low", "medium", "high", "xhigh", "max", "thinking"],
+    def: "high",
+  },
+  commandcode: { tiers: ["low", "medium", "high", "xhigh", "max"], def: "high" },
+};
+
+export const DEFAULT_EFFORT_PRESET = { tiers: ["low", "medium", "high"], def: "high" };
+
+export function effortPresetForProvider(provider: string): { tiers: string[]; def: string } {
+  return VENDOR_EFFORT_PRESETS[provider] ?? DEFAULT_EFFORT_PRESET;
+}
+
+/** 解析逗号分隔的手写档位（去空、去重、保序）。 */
+export function parseEffortTiers(input: string): string[] {
+  const seen = new Set<string>();
+  for (const part of input.split(/[,，、\s]+/)) {
+    const tier = part.trim();
+    if (tier && !seen.has(tier)) seen.add(tier);
+  }
+  return [...seen];
+}
+
 /** 把档位字符串解析为 token 数；无法解析时返回 undefined（＝默认最高）。 */
 export function parseContextSizeTokens(value: string | undefined): number | undefined {
   const raw = value?.trim() ?? "";
@@ -37,7 +70,8 @@ function contextLabel(value: string): string {
 
 /**
  * 把「管理模型」页保存的自定义模型合并进某个 agent 的能力表：
- * 追加 models 条目；为带档位的模型补齐 contextSizes / modelContextSizes。
+ * 追加 models 条目；为带档位的模型补齐 contextSizes / modelContextSizes；
+ * 为自带思考档位的模型补齐 modelEfforts / modelDefaultEfforts。
  * 与内置 model id 冲突的自定义条目跳过（内置优先）。纯函数，供首页模型选择器使用。
  */
 export function mergeCustomModelsIntoCapabilities(
@@ -59,11 +93,14 @@ export function mergeCustomModelsIntoCapabilities(
     ...capabilities,
     models: [...capabilities.models, ...appended],
   };
+  const customEfforts = collectCustomModelEfforts(mine);
 
   const contextValues = [
     ...new Set(mine.map((model) => model.contextSize.trim()).filter((value) => value !== "")),
   ];
-  if (contextValues.length === 0) return withModels;
+  const noContextWork = contextValues.length === 0;
+  const noEffortWork = !customEfforts;
+  if (noContextWork && noEffortWork) return withModels;
 
   const baseSizes = withModels.contextSizes ?? [];
   const sizeIds = new Set(baseSizes.map((size) => size.id));
@@ -83,5 +120,38 @@ export function mergeCustomModelsIntoCapabilities(
     ...withModels,
     contextSizes: [...baseSizes, ...extraSizes],
     modelContextSizes,
+    // 自定义档位与内置档位合并（内置同名优先，自定义只补缺）。
+    ...(customEfforts
+      ? {
+          modelEfforts: { ...customEfforts.modelEfforts, ...withModels.modelEfforts },
+          modelDefaultEfforts: {
+            ...customEfforts.modelDefaultEfforts,
+            ...withModels.modelDefaultEfforts,
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * 自定义模型的思考档位合并：有档位的条目写入 modelEfforts（显示强度
+ * 下拉），带默认值的写入 modelDefaultEfforts。返回 undefined 表示无事可做。
+ */
+export function collectCustomModelEfforts(
+  models: readonly CustomModel[],
+): { modelEfforts: Record<string, string[]>; modelDefaultEfforts?: Record<string, string> } | undefined {
+  const modelEfforts: Record<string, string[]> = {};
+  const modelDefaultEfforts: Record<string, string> = {};
+  for (const model of models) {
+    const tiers = (model.efforts ?? []).map((tier) => tier.trim()).filter(Boolean);
+    if (tiers.length === 0) continue;
+    modelEfforts[model.modelId] = [...new Set(tiers)];
+    const def = model.defaultEffort?.trim();
+    if (def && tiers.includes(def)) modelDefaultEfforts[model.modelId] = def;
+  }
+  if (Object.keys(modelEfforts).length === 0) return undefined;
+  return {
+    modelEfforts,
+    ...(Object.keys(modelDefaultEfforts).length > 0 ? { modelDefaultEfforts } : {}),
   };
 }

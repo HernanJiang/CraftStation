@@ -205,7 +205,7 @@ describe("ComposerAddMenu", () => {
     expect(crossagentToggle).not.toHaveBeenCalled();
 
     // The submenu stays open so multiple toggles are possible.
-    expect(screen.getByText("Crossagents")).toBeInTheDocument();
+    expect(screen.getByText("Own Subagents")).toBeInTheDocument();
   });
 
   it("registers Chrome for native projects and hides it for WSL", () => {

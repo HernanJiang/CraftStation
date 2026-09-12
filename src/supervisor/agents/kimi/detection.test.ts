@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildKimiProbeCapabilities,
   hasKimiCredential,
   hasKimiOAuthCredential,
+  KIMI_FALLBACK_PROBE,
   kimiDefaultCapabilities,
   kimiDetectionSpec,
   kimiTerminalAuthMethod,
   normalizeKimiProbeEfforts,
+  resolveKimiAuthState,
+  resolveKimiProbeHome,
 } from "./detection";
 
 describe("hasKimiCredential", () => {
@@ -58,6 +64,19 @@ describe("hasKimiOAuthCredential", () => {
   it("rejects missing or malformed token data", () => {
     expect(hasKimiOAuthCredential("{}")).toBe(false);
     expect(hasKimiOAuthCredential("not-json")).toBe(false);
+  });
+
+  it("rejects an emptied host stub (blank access_token after profile isolation)", () => {
+    expect(
+      hasKimiOAuthCredential(
+        JSON.stringify({
+          access_token: "",
+          refresh_token: "",
+          expires_at: 0,
+          token_type: "Bearer",
+        }),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -116,13 +135,16 @@ describe("kimiDetectionSpec", () => {
 });
 
 describe("kimiDefaultCapabilities", () => {
-  it("advertises manual/auto/yolo approval policies with a yolo bypass posture", () => {
+  it("advertises manual/auto/yolo approval policies with an auto bypass posture", () => {
+    // Since kimi 0.42 `--yolo` is only Ask When Needed (risky actions,
+    // questions and plans still ask); `--auto` is the true Never Ask full
+    // access, so "完全访问权限" must resolve to `auto`.
     expect(kimiDefaultCapabilities.approvalPolicies?.map((p) => p.id)).toEqual([
       "default",
       "auto",
       "yolo",
     ]);
-    expect(kimiDefaultCapabilities.bypassPermissions).toEqual({ approvalPolicy: "yolo" });
+    expect(kimiDefaultCapabilities.bypassPermissions).toEqual({ approvalPolicy: "auto" });
     expect(kimiDefaultCapabilities.defaultApprovalPolicy).toBe("auto");
   });
 
@@ -278,6 +300,41 @@ describe("normalizeKimiProbeEfforts", () => {
   });
 });
 
+describe("KIMI_FALLBACK_PROBE", () => {
+  it("stays identical to the verified K3-probed payload shape", () => {
+    // The fallback feeds the same normalizer as a live probe, so it must
+    // produce the same verified capability shape (see "normalizes the same
+    // payload probed from a K3 model" above).
+    expect(KIMI_FALLBACK_PROBE.models?.map((model) => model.id).sort()).toEqual(
+      [
+        "kimi-code/k3",
+        "kimi-code/k3-256k",
+        "kimi-code/kimi-for-coding",
+        "kimi-code/kimi-for-coding-highspeed",
+      ].sort(),
+    );
+    expect(normalizeKimiProbeEfforts(KIMI_FALLBACK_PROBE)).toEqual({
+      efforts: ["low", "high", "max"],
+      defaultEffort: "high",
+      modelEfforts: {
+        "kimi-code/kimi-for-coding": ["on"],
+        "kimi-code/kimi-for-coding-highspeed": ["on"],
+      },
+      modelDefaultEfforts: {
+        "kimi-code/kimi-for-coding": "on",
+        "kimi-code/kimi-for-coding-highspeed": "on",
+        "kimi-code/k3": "high",
+        "kimi-code/k3-256k": "high",
+      },
+    });
+    const capabilities = buildKimiProbeCapabilities(KIMI_FALLBACK_PROBE, {
+      hasAnyCredential: false,
+      hasManagedOAuthCredential: false,
+    });
+    expect(capabilities.models).toHaveLength(4);
+  });
+});
+
 describe("buildKimiProbeCapabilities", () => {
   const noCredentials = { hasAnyCredential: false, hasManagedOAuthCredential: false };
 
@@ -313,6 +370,28 @@ describe("buildKimiProbeCapabilities", () => {
     ).toBe("authenticated");
   });
 
+  it("treats a CraftStation pool credential as authenticated even when the host ACP probe reports missing", () => {
+    // Host `kimi acp` looks at the wiped ~/.kimi-code stub and returns
+    // auth_required. Sessions spawn with KIMI_CODE_HOME on the pool profile,
+    // so the composer must not disable send.
+    expect(
+      buildKimiProbeCapabilities(
+        { authState: "missing" },
+        {
+          hasAnyCredential: true,
+          hasManagedOAuthCredential: true,
+          hasPoolOAuthCredential: true,
+        },
+      ).authState,
+    ).toBe("authenticated");
+    expect(
+      resolveKimiAuthState(
+        { authState: "missing" },
+        { hasAnyCredential: true, hasPoolOAuthCredential: true },
+      ),
+    ).toBe("authenticated");
+  });
+
   it("falls back to credential files when the probe could not decide", () => {
     expect(
       buildKimiProbeCapabilities(undefined, {
@@ -337,5 +416,56 @@ describe("buildKimiProbeCapabilities", () => {
     expect(
       buildKimiProbeCapabilities(undefined, noCredentials).authLogoutSupported,
     ).toBeUndefined();
+  });
+});
+
+describe("resolveKimiProbeHome", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  async function seedHomes(input: {
+    hostToken: string;
+    poolToken?: string;
+  }): Promise<{ hostHome: string; poolHome?: string }> {
+    const hostHome = await mkdtemp(join(tmpdir(), "kimi-host-"));
+    await mkdir(join(hostHome, "credentials"), { recursive: true });
+    await writeFile(
+      join(hostHome, "credentials", "kimi-code.json"),
+      JSON.stringify({ access_token: input.hostToken, refresh_token: "", expires_at: 0 }),
+      { encoding: "utf8" },
+    );
+    vi.stubEnv("KIMI_CODE_HOME", hostHome);
+
+    if (input.poolToken === undefined) {
+      const accounts = await mkdtemp(join(tmpdir(), "kimi-accounts-empty-"));
+      vi.stubEnv("CRAFTSTATION_ACCOUNTS_DIR", accounts);
+      return { hostHome };
+    }
+
+    const accounts = await mkdtemp(join(tmpdir(), "kimi-accounts-"));
+    const poolHome = join(accounts, "profile-test");
+    await mkdir(join(poolHome, "credentials"), { recursive: true });
+    await writeFile(
+      join(poolHome, "credentials", "kimi-code.json"),
+      JSON.stringify({ access_token: input.poolToken, refresh_token: "r", expires_at: 1 }),
+      { encoding: "utf8" },
+    );
+    vi.stubEnv("CRAFTSTATION_ACCOUNTS_DIR", accounts);
+    return { hostHome, poolHome };
+  }
+
+  it("prefers a live pool credential over an emptied host stub", async () => {
+    const { poolHome } = await seedHomes({ hostToken: "", poolToken: "pool-token" });
+    await expect(
+      resolveKimiProbeHome({ kind: "windows", path: "C:\\repo" }),
+    ).resolves.toBe(poolHome);
+  });
+
+  it("falls back to the host home when the pool has no live token", async () => {
+    const { hostHome } = await seedHomes({ hostToken: "host-token" });
+    await expect(
+      resolveKimiProbeHome({ kind: "windows", path: "C:\\repo" }),
+    ).resolves.toBe(hostHome);
   });
 });

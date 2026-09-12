@@ -1,14 +1,23 @@
 import { startTransition } from "react";
+import { msg as linguiMsg } from "@lingui/core/macro";
 import { toast } from "@heroui/react";
 import {
   isEphemeralSideChatThread,
   isProjectInWorkspace,
+  isThreadTurnActive,
   type Project,
   type RemoteThreadCommand,
   type Thread,
 } from "@/shared/contracts";
+import {
+  isArchiveExpired,
+  parseArchivedAtMs,
+  type ArchiveRetention,
+} from "@/shared/archiveRetention";
 import { isHomeProject } from "@/shared/homeScope";
 import { friendlyError } from "@/shared/messages";
+import { validateGoalPrompt, isCodexNativeGoalAgent } from "@/shared/threadGoal";
+import { i18n } from "@/renderer/i18n/i18n";
 import { isDraftPaneId, parseDraftProjectId } from "@/shared/paneId";
 import { shouldRelaunchThreadOnOpen } from "@/shared/threadRelaunch";
 import { readBridge } from "@/renderer/bridge";
@@ -28,10 +37,12 @@ import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { shouldConfirmThreadDelete } from "@/renderer/state/threadDeletePreference";
 import { getActiveWorkspaceId, getLastWorkspaceProjectId } from "@/renderer/state/workspaceStore";
 import { useWorktreeDeleteStore } from "@/renderer/state/worktreeDeleteStore";
+import { useNotificationStore } from "@/renderer/state/notificationStore";
 import { buildSidebarProjectRows } from "@/renderer/views/MainView/parts/Sidebar/parts/sidebarProjectRows";
 import { resolveWorktreeBranch } from "@/renderer/utils/gitHelpers";
 import { closeThreads } from "@/renderer/utils/shellUtils";
 import { closePanelsForUnloadedThread } from "./panelActions";
+import { selectFocusedThreadId } from "@/renderer/hooks/uiSelectors";
 import { getCurrentProjectId } from "./currentProject";
 import { switchWorkspaceForProject } from "./workspaceActions";
 import { deleteWorktreeGroup } from "./worktreeActions";
@@ -168,12 +179,25 @@ export function openThread(
   threadId: string,
   options?: { focusComposer?: boolean; standalone?: boolean; switchWorkspace?: boolean },
 ): void {
+  // Opening a conversation is the user's acknowledgement of that thread's
+  // completion/attention toast. Drop it from the bell list and sidebar dot.
+  useNotificationStore.getState().dismissThread(threadId);
   // Model usage is an inline workspace rather than a route. Close it at the
   // shared thread-navigation seam so every sidebar/thread entry point returns
   // to the conversation surface instead of changing an obscured view.
   usePanelStore.getState().closeModelUsageDialog();
   const store = useAppStore.getState();
   const thread = store.threads.find((item) => item.id === threadId);
+  // Per-thread right sidebar: park the previous thread's auxiliary shell and
+  // restore the target's (defaults when it has none). Same-thread refocus is
+  // a no-op so it never clobbers live state.
+  const previousThreadId = selectFocusedThreadId(store);
+  if (previousThreadId && previousThreadId !== threadId) {
+    usePanelStore.getState().captureThreadAuxiliaryPanel(previousThreadId);
+  }
+  if (!previousThreadId || previousThreadId !== threadId) {
+    usePanelStore.getState().restoreThreadAuxiliaryPanel(threadId);
+  }
   if (thread && options?.switchWorkspace) {
     switchWorkspaceForProject(thread.projectId);
   }
@@ -425,6 +449,12 @@ export function sweepStaleThreads(): void {
 
 export function archiveThread(threadId: string): void {
   if (findExperimentByThreadId(threadId)) return;
+  // Retention `immediate` = archive degrades to permanent-delete semantics
+  // (same path as the red trash action, including already-archived cleanup).
+  if (useSharedSettings.getState().archiveRetention === "immediate") {
+    deleteThread(threadId);
+    return;
+  }
   const thread = useAppStore.getState().threads.find((candidate) => candidate.id === threadId);
   if (
     thread &&
@@ -455,6 +485,34 @@ export function unarchiveThread(threadId: string): void {
   )
     return;
   store.unarchiveThread(threadId);
+}
+
+/**
+ * Archive-retention sweep. Finds archives expired strictly from `archivedAt`
+ * under `retention` and routes each through `deleteThread` — the exact same
+ * permanent-delete path as a manual archive delete (local projection removal
+ * + runtime close). Never widens native-thread destructive scope: whatever a
+ * manual red-trash delete does today is all this does. Idempotent: already
+ * gone rows are skipped. Changing the policy re-evaluates existing archives
+ * from their original `archivedAt` (no clock restart).
+ */
+export function cleanupExpiredArchives(retention: ArchiveRetention, nowMs?: number): void {
+  const now = nowMs ?? Date.now();
+  const expiredIds = useAppStore
+    .getState()
+    .threads.filter((thread) => {
+      if (!thread.archived) return false;
+      // Legacy rows predating `archivedAt` fall back to `updatedAt` once.
+      return isArchiveExpired(
+        parseArchivedAtMs(thread.archivedAt ?? thread.updatedAt),
+        retention,
+        now,
+      );
+    })
+    .map((thread) => thread.id);
+  for (const threadId of expiredIds) {
+    deleteThread(threadId);
+  }
 }
 
 export function unloadThread(threadId: string): void {
@@ -528,6 +586,92 @@ export function toggleMarkThreadDone(threadId: string, options?: { preservePane?
   } else {
     markThreadDone(threadId, options);
   }
+}
+
+/**
+ * Bind (or replace) the durable `/goal` prompt on a thread. Validates only —
+ * the caller owns composer bookkeeping. Never sends anything: the goal rides
+ * subsequent turns (native registration or fallback injection at submit).
+ */
+export function setThreadGoalPrompt(
+  threadId: string,
+  prompt: string,
+): { ok: true } | { ok: false; error: string } {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((t) => t.id === threadId);
+  if (!thread) return { ok: false, error: "线程不存在" };
+  const validated = validateGoalPrompt(prompt);
+  if (!validated.ok) return validated;
+  const now = new Date().toISOString();
+  store.setThreadGoal(threadId, {
+    prompt: validated.prompt,
+    createdAt: thread.goal?.createdAt ?? now,
+    updatedAt: now,
+    ...(thread.goal?.paused ? { paused: true } : {}),
+  });
+  return { ok: true };
+}
+
+export function pauseThreadGoal(threadId: string): void {
+  const thread = useAppStore.getState().threads.find((item) => item.id === threadId);
+  if (!thread?.goal || thread.goal.paused) return;
+  useAppStore.getState().setThreadGoal(threadId, {
+    ...thread.goal,
+    paused: true,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export function resumeThreadGoal(threadId: string): void {
+  const thread = useAppStore.getState().threads.find((item) => item.id === threadId);
+  if (!thread?.goal?.paused) return;
+  const { paused: _paused, ...rest } = thread.goal;
+  useAppStore.getState().setThreadGoal(threadId, {
+    ...rest,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Best-effort native goal registration for Codex threads
+ * (`thread/goal/*` on the official app-server). Returns false when there is
+ * no live session yet or the harness refuses — the caller falls back to the
+ * labeled text injection for that turn. Never throws.
+ */
+export async function registerNativeGoal(threadId: string, objective: string): Promise<boolean> {
+  try {
+    await readBridge().controlThreadGoal({ threadId, action: "edit", objective });
+    return true;
+  } catch (error) {
+    console.warn(`[goal] native registration failed for thread ${threadId}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Truly stop a thread goal: interrupt the in-flight turn (it may already
+ * carry the goal), clear a native registration when present, then delete the
+ * durable goal so later turns stop carrying it. UI derives from the deleted
+ * field, so the chip/row vanish with this call.
+ */
+export async function stopThreadGoal(threadId: string): Promise<void> {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((t) => t.id === threadId);
+  if (!thread?.goal) return;
+  const agentKind = thread.agentKind;
+  try {
+    await readBridge().interruptThread({ threadId });
+  } catch (error) {
+    console.warn(`[goal] interrupt during stop failed for thread ${threadId}:`, error);
+  }
+  if (isCodexNativeGoalAgent(agentKind)) {
+    try {
+      await readBridge().controlThreadGoal({ threadId, action: "clear" });
+    } catch (error) {
+      console.warn(`[goal] native clear failed for thread ${threadId}:`, error);
+    }
+  }
+  useAppStore.getState().setThreadGoal(threadId, undefined);
 }
 
 export function toggleStarThread(threadId: string): void {
@@ -735,6 +879,38 @@ export function requestDeleteThread(
     },
     ...(options?.returnFocusElement ? { returnFocusElement: options.returnFocusElement } : {}),
   });
+}
+
+/**
+ * Bind a thread to a project ("+ Add to project" on the composer strip).
+ * Only threads without a live or resumable session can move: the session's
+ * file tree, checkpoints and git scope all resolve through the project
+ * location, so rebinding mid-session would strand them. Worktree metadata is
+ * cleared with the move since it belongs to the previous project.
+ */
+export function moveThreadToProject(threadId: string, projectId: string): void {
+  const store = useAppStore.getState();
+  const thread = store.threads.find((candidate) => candidate.id === threadId);
+  const project = store.projects.find((candidate) => candidate.id === projectId);
+  if (!thread || !project) return;
+  if (thread.projectId === projectId) return;
+  if (isHomeProject(project)) return;
+  if (findExperimentByThreadId(threadId)) return;
+  if (isThreadTurnActive(thread.status) || thread.sessionRef) {
+    toast.danger(
+      i18n._(linguiMsg`This thread already has a session and cannot be moved to another project.`),
+    );
+    return;
+  }
+  useAppStore.setState((state) => ({
+    threads: state.threads.map((candidate) => {
+      if (candidate.id !== threadId) return candidate;
+      const { worktreePath: _worktreePath, worktreeBranch: _worktreeBranch, ...rest } = candidate;
+      return { ...rest, projectId };
+    }),
+  }));
+  useAppStore.getState().touchThread(threadId);
+  toast.success(i18n._(linguiMsg`Thread moved to project "${project.name}".`));
 }
 
 export function continueInProvider(threadId: string): void {

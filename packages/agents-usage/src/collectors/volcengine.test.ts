@@ -6,6 +6,7 @@ import {
   parseVolcengineCodingPlanUsage,
   signVolcengineRequest,
   VOLCENGINE_AGENT_PLAN_URL,
+  VOLCENGINE_ARK_CHAT_COMPLETIONS_URL,
   VOLCENGINE_CODING_PLAN_URL,
 } from "./volcengine";
 
@@ -104,5 +105,42 @@ describe("Volcengine Ark Token Plan", () => {
     });
     expect(JSON.stringify(snapshot)).not.toContain("super-secret");
     expect(JSON.stringify(snapshot)).not.toContain("AKLT-test");
+  });
+
+  it("uses AK/SK plan quota when an Ark API key is also stored", async () => {
+    const host = createFakeHost({
+      secrets: {
+        volcengine: {
+          apiKey: "ark-key",
+          accessKeyId: "AKLT-test",
+          secretAccessKey: "super-secret",
+          region: "cn-beijing",
+        },
+      },
+      routes: {
+        [VOLCENGINE_CODING_PLAN_URL]: {
+          body: JSON.stringify({
+            Result: { QuotaUsage: [{ Level: "weekly", Percent: 33 }] },
+          }),
+        },
+        [VOLCENGINE_AGENT_PLAN_URL]: {
+          body: JSON.stringify({
+            Result: { PlanType: "Pro", AFPDaily: { Quota: 100, Used: 10 } },
+          }),
+        },
+        [VOLCENGINE_ARK_CHAT_COMPLETIONS_URL]: {
+          body: JSON.stringify({ id: "chat_1" }),
+        },
+      },
+    });
+    const snapshot = await collectVolcengine(host);
+    expect(snapshot).toMatchObject({
+      status: "ok",
+      windows: [
+        { id: "volcengine:agent:daily", usedPercent: 10 },
+        { id: "volcengine:coding:weekly", usedPercent: 33 },
+      ],
+    });
+    expect(snapshot.error).toBeUndefined();
   });
 });

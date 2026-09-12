@@ -128,7 +128,10 @@ const RENDERER_META: Record<string, Omit<UsageProvider, "id" | "label">> = {
   },
   opencode: {
     supportsBrowserLogin: true,
-    externalBrowserLogin: true,
+    // Embedded overlay first: the in-app browser captures the opencode.ai
+    // session automatically ("Use detected session?", no paste needed). The
+    // login page stays as the cookie-paste source for the fallback path
+    // (e.g. if the embedded view ever fails the OAuth provider check).
     loginUrl: "https://opencode.ai/",
   },
   // z.ai authenticates with a pasted API key, not a browser session.
@@ -218,6 +221,15 @@ export function supportsBrowserLogin(providerId: string): boolean {
 export function externalBrowserLoginUrl(providerId: string): string | undefined {
   const meta = rendererMeta(providerId);
   return meta?.externalBrowserLogin === true ? meta.loginUrl : undefined;
+}
+
+/**
+ * Cookie-paste source page, independent of the primary login path. Embedded
+ * providers (e.g. OpenCode) still offer manual paste as a fallback when the
+ * overlay capture cannot complete.
+ */
+export function cookiePasteUrl(providerId: string): string | undefined {
+  return rendererMeta(providerId)?.loginUrl;
 }
 
 export function usesSystemBrowserOAuth(providerId: string): boolean {

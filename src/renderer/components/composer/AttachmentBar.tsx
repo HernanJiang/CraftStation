@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { Tooltip } from "@heroui/react";
-import { Monitor, X } from "lucide-react";
+import { Monitor, TriangleAlert, X } from "lucide-react";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { isRemoteSession } from "@/renderer/bridge";
 import { getEntryIconUrl } from "@/renderer/components/common/fileIcons";
-import { isPdfPath } from "@/shared/promptContent";
+import { isModelSupportedImagePath, isPdfPath } from "@/shared/promptContent";
 import type { ComposerMcpServerDescriptor } from "./composerMcpServers";
 import { attachmentImageUrl, type Attachment } from "./useAttachments";
 
@@ -134,6 +134,10 @@ function AttachmentChip(props: {
   const isPicked = !!att.selector;
   const labelText = isPicked ? att.selector! : att.name;
   const showLabel = isPicked || !att.isImage || !hideImageName;
+  // Side-pane preview supports more image formats than models accept — flag
+  // those so a successful preview is never mistaken for model support.
+  const showModelFormatWarning =
+    !isPicked && att.isImage && !isModelSupportedImagePath(att.name, att.mimeType);
   const tooltip = isPicked
     ? att.sourceUrl
       ? `${att.selector}\n${att.sourceUrl}`
@@ -164,6 +168,16 @@ function AttachmentChip(props: {
       {showLabel ? (
         <span className={labelClass} {...(tooltip ? { title: tooltip } : {})}>
           {labelText}
+        </span>
+      ) : null}
+      {showModelFormatWarning ? (
+        <span
+          className="shrink-0 text-amber-400"
+          title={t`Previewable here, but models may not accept this image format (use png, jpg, gif or webp)`}
+          aria-label={t`Image format may not be supported by the model`}
+          role="img"
+        >
+          <TriangleAlert className="size-3" aria-hidden="true" />
         </span>
       ) : null}
       {onRemove ? (

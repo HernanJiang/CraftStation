@@ -127,4 +127,36 @@ describe("OpenCode supervisor runtime binding resolver", () => {
     ).toContain("secret-access");
     expect(JSON.stringify(resolved)).not.toContain("secret-access");
   });
+
+  it("projects the third-party OpenCode provider config before starting the native server", async () => {
+    const root = mkdtempSync(join(tmpdir(), "opencode-binding-"));
+    roots.push(root);
+    const store = new AccountStore(root);
+    const account = store.add({ provider: "openai-compatible", label: "Relay" });
+    const binding: AccountBinding = {
+      accountId: account.accountId,
+      provider: "openai-compatible",
+      credentialScopeRef: account.credentialScopeRef,
+      reason: "explicit",
+      boundAt: 1,
+    };
+    const resolved = await new AccountStoreOpenCodeRuntimeBindingResolver(
+      store,
+      (_accountId, modelId) => ({
+        env: {
+          OPENCODE_CONFIG_DIR: `C:/private/${modelId}`,
+          CRAFTSTATION_OPENCODE_PROVIDER: "craftstation",
+        },
+      }),
+    ).resolve({
+      projectLocation: { kind: "windows", path: "C:/workspace" },
+      plan: plan("craftstation"),
+      accountBinding: binding,
+    });
+
+    expect(resolved.transportOptions.serverEnvironment).toEqual({
+      OPENCODE_CONFIG_DIR: "C:/private/gpt-4o",
+      CRAFTSTATION_OPENCODE_PROVIDER: "craftstation",
+    });
+  });
 });

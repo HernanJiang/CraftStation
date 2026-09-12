@@ -207,8 +207,7 @@ export class ExchangeRepository {
     return exchange;
   }
 
-  listForThread(threadId: string, limit = 30): ThreadExchange[] {
-    const rows = getSqlite()
+  listForThread(threadId: string, limit = 30): ThreadExchange[] {    const rows = getSqlite()
       .prepare(
         `SELECT * FROM thread_exchanges
          WHERE source_thread_id = ? OR target_thread_id = ?
@@ -218,8 +217,19 @@ export class ExchangeRepository {
     return rows.map(rowToExchange);
   }
 
-  countQueuedBySource(sourceThreadId: string): number {
-    const row = getSqlite()
+  /** Queued exchanges addressed to one target, oldest first (wake/retry surface). */
+  listQueuedForTarget(targetThreadId: string, limit = 50): ThreadExchange[] {
+    const rows = getSqlite()
+      .prepare(
+        `SELECT * FROM thread_exchanges
+         WHERE target_thread_id = ? AND status = 'queued'
+         ORDER BY sequence ASC LIMIT ?`,
+      )
+      .all(targetThreadId, limit) as ExchangeRow[];
+    return rows.map(rowToExchange);
+  }
+
+  countQueuedBySource(sourceThreadId: string): number {    const row = getSqlite()
       .prepare(
         `SELECT COUNT(*) AS count FROM thread_exchanges
          WHERE source_thread_id = ? AND status IN ('created', 'queued')`,

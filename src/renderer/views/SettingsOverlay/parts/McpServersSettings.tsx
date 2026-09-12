@@ -7,7 +7,7 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { isHomeProject } from "@/shared/homeScope";
 import { SettingsPage } from "./SettingsForm";
-import { CrossagentRoutingSection } from "./CrossagentRoutingSection";
+import { OwnSubagentsRoutingSection } from "./OwnSubagentsRoutingSection";
 
 export function McpServersSettings() {
   const { t } = useLingui();
@@ -66,10 +66,10 @@ export function McpServersSettings() {
           onBuiltInDisabledChange={setBuiltInDisabled}
           onBuiltInToolEnabledChange={setBuiltInToolEnabled}
           builtInSettings={{
-            crossagents: {
-              title: t`Crossagents`,
-              actionLabel: t`Crossagent routing and ranking`,
-              content: <CrossagentRoutingSection />,
+            "own-subagents": {
+              title: t`Own Subagents`,
+              actionLabel: t`Own Subagents routing and ranking`,
+              content: <OwnSubagentsRoutingSection />,
               dialogClassName: "sm:max-w-2xl",
             },
           }}

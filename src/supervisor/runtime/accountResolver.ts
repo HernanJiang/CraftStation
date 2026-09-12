@@ -27,6 +27,36 @@ function usableRecords(accounts: AccountRecord[]): AccountRecord[] {
   return accounts.filter(isUsable);
 }
 
+/**
+ * Actionable pool-exhaustion error: instead of a bare "No usable X account",
+ * name every account with its state and reason so the caller (agent or user)
+ * can act — wait for quota reset, re-enable, or add an account in 渠道与额度.
+ */
+function poolExhaustedError(
+  provider: string,
+  accounts: AccountRecord[],
+  candidates: AccountResolutionCandidate[],
+  suffix?: string,
+): AccountControlError {
+  const labels = new Map(accounts.map((account) => [account.accountId, account.label]));
+  const detail =
+    candidates.length > 0
+      ? candidates
+          .map(
+            (candidate) =>
+              `${labels.get(candidate.accountId) ?? candidate.accountId}（${candidate.status}：${candidate.reason}）`,
+          )
+          .join("；")
+      : "该厂商尚无账号";
+  return new AccountControlError(
+    "ACCOUNT_POOL_EXHAUSTED",
+    `No usable ${provider} account in the provider pool.（${detail}）` +
+      "去「渠道与额度」添加账号或等待额度恢复后再试。" +
+      (suffix ? ` ${suffix}` : ""),
+    { provider, candidates },
+  );
+}
+
 export class AccountResolver {
   constructor(
     private readonly store: AccountStore,
@@ -41,10 +71,40 @@ export class AccountResolver {
     const accounts = this.store.records(request.provider).sort((a, b) => a.order - b.order);
     const byId = new Map(accounts.map((account) => [account.accountId, account]));
     const candidates: AccountResolutionCandidate[] = [];
+    const excluded = new Set(request.excludedAccountIds ?? []);
 
     // Explicit per-session override: never silently falls back.
     if (request.mode === "explicit") {
       return this.resolveExplicit(request, byId, candidates, accounts);
+    }
+
+    // Preferred override (new-session launches): honour the user's pick while
+    // it is usable, but fall back to the provider pool when it is exhausted,
+    // disabled or missing credentials instead of failing the launch.
+    if (request.mode === "preferred" && request.explicitAccountId) {
+      const preferred = byId.get(request.explicitAccountId);
+      if (preferred && this.isUsable(preferred)) {
+        candidates.push(
+          candidate(preferred.accountId, preferred.status, true, "preferred account usable"),
+        );
+        return {
+          account: this.store.get(preferred.accountId)!,
+          reason: "explicit",
+          scheduling: this.poolMode(request, accounts),
+          candidates,
+        };
+      }
+      if (preferred) {
+        candidates.push(
+          candidate(
+            preferred.accountId,
+            preferred.status,
+            false,
+            "preferred account unavailable — falling back to the pool",
+          ),
+        );
+      }
+      // Fall through to pool scheduling below.
     }
 
     // Legacy "selected" mode: migrated to provider-pool scheduling. A legacy
@@ -68,28 +128,30 @@ export class AccountResolver {
     }
 
     const mode = this.poolMode(request, accounts);
-    const usable = usableRecords(accounts).filter((account) => this.credentialAvailable(account));
+    const usable = usableRecords(accounts).filter(
+      (account) => this.credentialAvailable(account) && !excluded.has(account.accountId),
+    );
     for (const account of usable) {
       candidates.push(candidate(account.accountId, account.status, true, `${mode} eligible`));
     }
     for (const account of accounts) {
-      if (!this.isUsable(account)) {
+      if (excluded.has(account.accountId)) {
+        candidates.push(
+          candidate(account.accountId, account.status, false, `${mode} excluded (tried this turn)`),
+        );
+      } else if (!this.isUsable(account)) {
         candidates.push(candidate(account.accountId, account.status, false, `${mode} skipped`));
       }
     }
 
     if (mode === "round-robin")
-      return this.resolveRoundRobin(request, usable, accounts, candidates);
-    if (mode === "random") return this.resolveRandom(request, usable, candidates);
+      return this.resolveRoundRobin(request, usable, accounts, candidates, excluded);
+    if (mode === "random") return this.resolveRandom(request, usable, accounts, candidates);
 
     // Priority (default): first usable account in Account Row order.
     const first = usable[0];
     if (!first) {
-      throw new AccountControlError(
-        "ACCOUNT_POOL_EXHAUSTED",
-        `No usable ${request.provider} account in the provider pool.`,
-        { provider: request.provider, candidates },
-      );
+      throw poolExhaustedError(request.provider, accounts, candidates);
     }
     return {
       account: this.store.get(first.accountId)!,
@@ -147,6 +209,7 @@ export class AccountResolver {
     usable: AccountRecord[],
     accounts: AccountRecord[],
     candidates: AccountResolutionCandidate[],
+    excluded: ReadonlySet<string>,
   ): AccountResolution {
     if (usable.length === 0) {
       throw new AccountControlError(
@@ -162,7 +225,7 @@ export class AccountResolver {
       // Walk forward from the cursor (excluding the cursor itself) wrapping around.
       for (let offset = 1; offset <= accounts.length; offset++) {
         const candidateAccount = accounts[(cursorIndex + offset) % accounts.length]!;
-        if (this.isUsable(candidateAccount)) {
+        if (this.isUsable(candidateAccount) && !excluded.has(candidateAccount.accountId)) {
           picked = candidateAccount;
           break;
         }
@@ -171,10 +234,11 @@ export class AccountResolver {
       picked = usable[0];
     }
     if (!picked) {
-      throw new AccountControlError(
-        "ACCOUNT_POOL_EXHAUSTED",
-        `No usable ${request.provider} account after the round-robin cursor.`,
-        { provider: request.provider, cursor, candidates },
+      throw poolExhaustedError(
+        request.provider,
+        accounts,
+        candidates,
+        `（round-robin 游标：${cursor ?? "无"}）`,
       );
     }
     this.store.advanceRoundRobinCursor(request.provider, picked.accountId);
@@ -189,14 +253,11 @@ export class AccountResolver {
   private resolveRandom(
     request: AccountResolutionRequest,
     usable: AccountRecord[],
+    accounts: AccountRecord[],
     candidates: AccountResolutionCandidate[],
   ): AccountResolution {
     if (usable.length === 0) {
-      throw new AccountControlError(
-        "ACCOUNT_POOL_EXHAUSTED",
-        `No usable ${request.provider} account in the provider pool.`,
-        { provider: request.provider, candidates },
-      );
+      throw poolExhaustedError(request.provider, accounts, candidates);
     }
     const picked = usable[randomInt(usable.length)]!;
     return {

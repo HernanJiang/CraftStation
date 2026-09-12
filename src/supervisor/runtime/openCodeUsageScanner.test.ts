@@ -9,6 +9,7 @@ import type { OpenCodeWebSession } from "./openCodeWebSession";
  */
 const goDb = vi.hoisted(() => ({
   hasOpenCodeGoAuth: vi.fn<() => boolean>(),
+  hasOpenCodeZenAuth: vi.fn<() => boolean>(),
 }));
 const web = vi.hoisted(() => ({
   fetchOpenCodeWeb: vi.fn<() => Promise<OpenCodeWebSession>>(),
@@ -25,6 +26,7 @@ const host = {} as HostPort;
 beforeEach(() => {
   vi.clearAllMocks();
   goDb.hasOpenCodeGoAuth.mockReturnValue(false);
+  goDb.hasOpenCodeZenAuth.mockReturnValue(false);
   web.fetchOpenCodeWeb.mockResolvedValue({ live: false });
 });
 
@@ -84,6 +86,24 @@ describe("scanOpenCodeUsage", () => {
     web.fetchOpenCodeWeb.mockResolvedValue({ live: false });
     const snap = await scanOpenCodeUsage(NOW, host);
     expect(snap.windows).toEqual([]);
+    expect(snap.plan).toBe("Go");
+  });
+
+  it("reports ok/Zen when only the local Zen key is present", async () => {
+    // `opencode auth login` for Zen stores the key under `opencode`, not
+    // `opencode-go` — a Zen-only user must not see auth-missing.
+    goDb.hasOpenCodeZenAuth.mockReturnValue(true);
+    const snap = await scanOpenCodeUsage(NOW, host);
+    expect(snap.status).toBe("ok");
+    expect(snap.plan).toBe("Zen");
+    expect(snap.windows).toEqual([]);
+  });
+
+  it("prefers the Go plan over a Zen key when both local keys exist", async () => {
+    goDb.hasOpenCodeGoAuth.mockReturnValue(true);
+    goDb.hasOpenCodeZenAuth.mockReturnValue(true);
+    const snap = await scanOpenCodeUsage(NOW, host);
+    expect(snap.status).toBe("ok");
     expect(snap.plan).toBe("Go");
   });
 

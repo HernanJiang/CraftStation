@@ -80,6 +80,8 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
   status: "NATIVE" | "CRAFTABLE" | "IMPOSSIBLE";
   internalStatus: "NATIVE" | "SUPPORTED" | "EXPERIMENTAL" | "INCOMPATIBLE" | "UNAVAILABLE";
   source: "native" | "compatibility-layer" | "unavailable";
+  /** Stable route reason for honest failure display (never a fake status). */
+  routeReason?: string | undefined;
 } {
   const { modelEntry, harnessRef, harnessReady, openCodeRouteReady, compatibilityBridgeReady } =
     input;
@@ -97,14 +99,25 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
       status: "IMPOSSIBLE",
       internalStatus: isOpencodeUnready ? "EXPERIMENTAL" : "UNAVAILABLE",
       source: isOpencodeUnready ? "compatibility-layer" : "unavailable",
+      ...(routeDecision.reason ? { routeReason: routeDecision.reason } : {}),
     };
   }
 
   if (routeDecision.routeType === "native") {
-    return { status: "NATIVE", internalStatus: "NATIVE", source: "native" };
+    return {
+      status: "NATIVE",
+      internalStatus: "NATIVE",
+      source: "native",
+      ...(routeDecision.reason ? { routeReason: routeDecision.reason } : {}),
+    };
   }
 
-  return { status: "CRAFTABLE", internalStatus: "SUPPORTED", source: "compatibility-layer" };
+  return {
+    status: "CRAFTABLE",
+    internalStatus: "SUPPORTED",
+    source: "compatibility-layer",
+    ...(routeDecision.reason ? { routeReason: routeDecision.reason } : {}),
+  };
 }
 
 /** Compose the full CapabilityResolution for a four-cell combination. */
@@ -135,17 +148,44 @@ export function resolveCompatibility(input: CompatibilityReadinessInput): Capabi
             {
               code: "RUNTIME_UNAVAILABLE",
               phase: "readiness",
-              message: !input.modelEntry
-                ? "缺少模型组件"
-                : !input.harnessRef
-                  ? "缺少 Harness 组件"
-                  : input.harnessRef.harnessKind === "opencode" && input.openCodeRouteReady !== true
-                    ? "OpenCode 路由 readiness 未验证"
-                    : "Harness 未就绪或不可用",
+              message: statusInfo.routeReason
+                ? translateRouteReason(statusInfo.routeReason)
+                : !input.modelEntry
+                  ? "缺少模型组件"
+                  : !input.harnessRef
+                    ? "缺少 Harness 组件"
+                    : input.harnessRef.harnessKind === "opencode" &&
+                        input.openCodeRouteReady !== true
+                      ? "OpenCode 路由 readiness 未验证"
+                      : "Harness 未就绪或不可用",
               remediation: "请安装/配置所选 Harness，或更换可用的模型/Harness 组合",
             },
           ]
         : [],
   };
   return resolution;
+}
+
+/**
+ * Map the stable English route reason to a user-facing message. Cross-vendor
+ * combinations name the missing Compatibility Bridge explicitly instead of a
+ * generic "不可合成".
+ */
+function translateRouteReason(reason: string): string {
+  if (reason.includes("Compatibility bridge is unavailable")) {
+    return "跨厂商组合需要 CLIProxyAPI 兼容桥，当前未就绪（未运行或未安装）";
+  }
+  if (reason.includes("does not support Compatibility Bridge")) {
+    return "目标 Harness 不支持兼容桥投影";
+  }
+  if (reason.includes("not installed, authenticated, or runtime ready")) {
+    return "Harness 未安装、未登录或运行环境未就绪";
+  }
+  if (reason.includes("OpenCode route is not ready")) {
+    return "OpenCode 路由 readiness 未验证";
+  }
+  if (reason.includes("has no verified OpenCode native route")) {
+    return "该模型厂商暂无已验证的 OpenCode 原生路由";
+  }
+  return reason;
 }

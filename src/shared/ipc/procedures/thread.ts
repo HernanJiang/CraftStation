@@ -20,6 +20,8 @@ import {
   stageThreadInputPayloadSchema,
   startShellPayloadSchema,
   startThreadPayloadSchema,
+  switchThreadProviderPayloadSchema,
+  nativeSessionPathQueryListSchema,
   updateAcpRegistryAgentPayloadSchema,
   updateAgentBinaryPayloadSchema,
   getLatestAgentVersionPayloadSchema,
@@ -56,6 +58,10 @@ import type {
   StartShellPayload,
   StartThreadPayload,
   StartThreadResult,
+  SwitchThreadProviderPayload,
+  SwitchThreadProviderResult,
+  NativeSessionPathQuery,
+  NativeSessionPathResult,
   TerminalSize,
   TerminalShellSnapshot,
   ThreadRuntimeSnapshot,
@@ -100,8 +106,8 @@ import {
 } from "../schemas";
 
 export const threadProcedures = {
-  getCrossagentRouting: defineNoArgProcedure<CrossagentRoutingState, "supervisor">(
-    "getCrossagentRouting",
+  getOwnSubagentsRouting: defineNoArgProcedure<CrossagentRoutingState, "supervisor">(
+    "getOwnSubagentsRouting",
     "supervisor",
   ),
   getAgentStatuses: defineIpcProcedure<
@@ -284,6 +290,16 @@ export const threadProcedures = {
     "supervisor",
     closeThreadPayloadSchema,
   ),
+  switchThreadProvider: definePayloadProcedure<
+    SwitchThreadProviderPayload,
+    SwitchThreadProviderResult,
+    "supervisor"
+  >("switchThreadProvider", "supervisor", switchThreadProviderPayloadSchema),
+  resolveNativeSessionPaths: definePayloadProcedure<
+    NativeSessionPathQuery[],
+    NativeSessionPathResult[],
+    "supervisor"
+  >("resolveNativeSessionPaths", "supervisor", nativeSessionPathQueryListSchema),
   startShell: definePayloadProcedure<StartShellPayload, void, "supervisor">(
     "startShell",
     "supervisor",

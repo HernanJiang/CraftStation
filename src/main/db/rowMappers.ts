@@ -2,6 +2,7 @@ import type { ProjectLocation, Project, Thread } from "@/shared/contracts";
 import * as schema from "../db.schema";
 import { compositionProvenanceSchema } from "@/shared/crafting/types";
 import { accountBindingSchema } from "@/shared/contracts/accountBinding";
+import { threadGoalSchema } from "@/shared/contracts/thread";
 
 // ── Converters ──────────────────────────────────────────────────────
 
@@ -77,6 +78,13 @@ export function rowToThread(row: typeof schema.threads.$inferSelect): Thread {
   const parsedAccountBinding = row.accountBinding
     ? accountBindingSchema.safeParse(safeParse(row.accountBinding))
     : undefined;
+  const parsedGoal = row.goal ? threadGoalSchema.safeParse(safeParse(row.goal)) : undefined;
+  // One-time legacy migration (idempotent): pre-pinnedAt starred rows and
+  // pre-archivedAt archived rows backfill from updatedAt so no user pin or
+  // archive timestamp is lost. New writes stamp both fields directly.
+  const migratedPinnedAt =
+    row.pinnedAt != null ? row.pinnedAt : row.starred ? Date.parse(row.updatedAt) : null;
+  const migratedArchivedAt = row.archivedAt ?? (row.archived ? row.updatedAt : undefined);
   return {
     id: row.id,
     projectId: row.projectId,
@@ -101,10 +109,15 @@ export function rowToThread(row: typeof schema.threads.$inferSelect): Thread {
     ...(row.groupId ? { groupId: row.groupId } : {}),
     ...(row.groupName ? { groupName: row.groupName } : {}),
     ...(row.parentThreadId ? { parentThreadId: row.parentThreadId } : {}),
+    ...(parsedGoal?.success ? { goal: parsedGoal.data } : {}),
     archived: row.archived,
+    ...(migratedArchivedAt ? { archivedAt: migratedArchivedAt } : {}),
     done: row.done,
     ...(row.doneAt ? { doneAt: row.doneAt } : {}),
     starred: row.starred,
+    ...(migratedPinnedAt != null && Number.isFinite(migratedPinnedAt)
+      ? { pinnedAt: migratedPinnedAt }
+      : {}),
     presentationMode: (row.presentationMode === "gui"
       ? "gui"
       : "terminal") as Thread["presentationMode"],

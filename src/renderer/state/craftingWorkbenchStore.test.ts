@@ -25,6 +25,7 @@ describe("craftingWorkbenchStore", () => {
       recipes: [],
       selectedInspectorRef: undefined,
       pendingRecipeIntent: undefined,
+      cpaHelper: { present: false, selected: false },
     });
   });
 
@@ -76,6 +77,42 @@ describe("craftingWorkbenchStore", () => {
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(1);
   });
 
+  it("toggles homepage visibility per recipe and preserves it across re-saves", () => {
+    const { recipe } = useCraftingWorkbenchStore.getState().saveRecipe({
+      modelEntryRef: "agent:codex:gpt-5.3",
+      harnessRef: "harness:codex",
+      modelName: "GPT-5.3",
+      harnessName: "Codex Harness",
+      resolution: resolution("NATIVE"),
+    });
+    expect(recipe.homepageVisible).toBeUndefined();
+
+    useCraftingWorkbenchStore.getState().setRecipeHomepageVisible(recipe.id, true);
+    expect(
+      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)
+        ?.homepageVisible,
+    ).toBe(true);
+
+    // Re-saving the same pair keeps the flag.
+    useCraftingWorkbenchStore.getState().saveRecipe({
+      modelEntryRef: "agent:codex:gpt-5.3",
+      harnessRef: "harness:codex",
+      modelName: "GPT-5.3",
+      harnessName: "Codex Harness",
+      resolution: resolution("NATIVE"),
+    });
+    expect(
+      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)
+        ?.homepageVisible,
+    ).toBe(true);
+
+    useCraftingWorkbenchStore.getState().setRecipeHomepageVisible(recipe.id, false);
+    expect(
+      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)
+        ?.homepageVisible,
+    ).toBeUndefined();
+  });
+
   it("deleting a recipe never touches other state", () => {
     const { recipe } = useCraftingWorkbenchStore.getState().saveRecipe({
       modelEntryRef: "agent:codex:gpt-5.3",
@@ -119,5 +156,28 @@ describe("craftingWorkbenchStore", () => {
     expect(useCraftingWorkbenchStore.getState().efficientDraft.modelEntryRef).toBe(
       "agent:codex:gpt-5.3",
     );
+  });
+
+  it("ensureCliProxyApiItem is idempotent: reuse, never duplicate", () => {
+    const store = () => useCraftingWorkbenchStore.getState();
+    expect(store().cpaHelper).toEqual({ present: false, selected: false });
+
+    store().ensureCliProxyApiItem();
+    expect(store().cpaHelper).toEqual({ present: true, selected: true });
+
+    // Second ensure reuses the same singleton entry (no duplicate state).
+    store().ensureCliProxyApiItem();
+    expect(store().cpaHelper).toEqual({ present: true, selected: true });
+  });
+
+  it("native routes clear the CPA selection without removing the helper", () => {
+    const store = () => useCraftingWorkbenchStore.getState();
+    store().ensureCliProxyApiItem();
+    store().clearCliProxyApiSelection();
+    expect(store().cpaHelper).toEqual({ present: true, selected: false });
+
+    // Clearing twice stays a no-op.
+    store().clearCliProxyApiSelection();
+    expect(store().cpaHelper).toEqual({ present: true, selected: false });
   });
 });

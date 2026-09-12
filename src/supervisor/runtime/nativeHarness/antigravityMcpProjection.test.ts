@@ -177,4 +177,36 @@ describe("Antigravity selected MCP projection", () => {
       ]),
     ).toThrow("conflicting values");
   });
+
+  it("carries distinct per-worker filter configs inline instead of conflicting", () => {
+    const temporary = temporaryProjectionRoot();
+    let projection: AntigravityMcpProjection | undefined;
+    try {
+      projection = createAntigravityMcpProjection(
+        [
+          stdioServer("first", { CRAFTSTATION_MCP_FILTER_CONFIG: "ZmlsdGVyLWE=" }),
+          stdioServer("second", { CRAFTSTATION_MCP_FILTER_CONFIG: "ZmlsdGVyLWI=" }),
+        ],
+        temporary.options,
+      );
+      expect(projection).toBeDefined();
+      if (!projection) throw new Error("Projection was not created.");
+
+      // Each worker reads its own config from its own entry; the shared
+      // session env cannot hold two values for one key, so it holds none.
+      const config = JSON.parse(readFileSync(projection.configPath, "utf8")) as {
+        mcpServers: Record<string, { env?: Record<string, string> }>;
+      };
+      expect(config.mcpServers["first"]?.env).toEqual({
+        CRAFTSTATION_MCP_FILTER_CONFIG: "ZmlsdGVyLWE=",
+      });
+      expect(config.mcpServers["second"]?.env).toEqual({
+        CRAFTSTATION_MCP_FILTER_CONFIG: "ZmlsdGVyLWI=",
+      });
+      expect(projection.env.CRAFTSTATION_MCP_FILTER_CONFIG).toBeUndefined();
+    } finally {
+      projection?.dispose();
+      rmSync(temporary.root, { recursive: true, force: true });
+    }
+  });
 });

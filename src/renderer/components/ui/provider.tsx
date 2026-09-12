@@ -92,6 +92,7 @@ export function AppProvider(props: {
   });
   const sidebarTranslucency = useSharedSettings((state) => state.sidebarTranslucency);
   const sidebarGlassTint = useSharedSettings((state) => state.sidebarGlassTint);
+  const zoomFactor = useSharedSettings((state) => state.zoomFactor);
   const [reducedTransparency, setReducedTransparency] = useState(systemPrefersReducedTransparency);
   const syncReducedTransparency = useEffectEvent((matches: boolean) => {
     setReducedTransparency(matches);
@@ -161,6 +162,17 @@ export function AppProvider(props: {
     document.documentElement.dataset.sidebarGlass =
       effectiveGlassEnabled && contentReady ? "on" : "off";
   }, [effectiveGlassEnabled, contentReady]);
+
+  // Whole-app UI zoom (Ctrl +/-/0): a single CSS `zoom` on the document
+  // element scales fonts, icons, panels, chat, Side Panel and settings
+  // together. Chromium honors it; persisted via sharedSettings. `--app-zoom`
+  // mirrors the factor for the overlay counter-zoom layer (styles.css).
+  useEffect(() => {
+    const factor =
+      typeof zoomFactor === "number" && Number.isFinite(zoomFactor) ? zoomFactor : 1;
+    document.documentElement.style.zoom = factor === 1 ? "" : String(factor);
+    document.documentElement.style.setProperty("--app-zoom", String(factor));
+  }, [zoomFactor]);
 
   useEffect(() => {
     if (remoteSession) {

@@ -31,6 +31,13 @@ const CLIENT_OPTIMIZED_DEPS = [
   "@lingui/react/macro",
   "@monaco-editor/react",
   "@sentry/electron/renderer",
+  // ItemMarkdownInner (lazy chat-render chunk) pulls @streamdown/mermaid ->
+  // mermaid -> dayjs (CJS `dayjs.min.js` main) plus @streamdown/math -> katex.
+  // With noDiscovery any of them served raw crashes every message render with
+  // `dayjs.min.js does not provide an export named 'default'` (the
+  // "Conversation view failed to render" card). Keep the whole chain here.
+  "@streamdown/math",
+  "@streamdown/mermaid",
   "@tanstack/react-virtual",
   "@tiptap/extensions",
   "@tiptap/react",
@@ -43,7 +50,10 @@ const CLIENT_OPTIMIZED_DEPS = [
   "@xterm/addon-unicode11",
   "@xterm/addon-webgl",
   "@xterm/xterm",
+  "dayjs",
+  "katex",
   "lucide-react",
+  "mermaid",
   "qrcode",
   "react",
   "react-dom",

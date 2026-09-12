@@ -28,6 +28,12 @@ const GROK_APPROVAL_POLICIES = [
   { id: "bypassPermissions", label: "Bypass Approvals" },
 ] as const;
 
+const GROK_COMPACT_COMMAND = {
+  id: "compact",
+  label: "compact — Compact older conversation history",
+  description: "Compact older conversation history",
+} as const;
+
 // Plan mode is intentionally omitted from the composer surface: it cannot be
 // force-activated at launch on either Grok surface — `--permission-mode plan`
 // is silently ignored (verified live on 0.2.118). Plan mode is entered in the
@@ -53,8 +59,18 @@ export const grokDefaultCapabilities: AgentCapability = {
   presentationModes: ["gui"],
   defaultApprovalPolicy: "bypassPermissions",
   bypassPermissions: { approvalPolicy: "bypassPermissions" },
+  slashCommands: [GROK_COMPACT_COMMAND],
   settingDefs: [],
 };
+
+function mergeCompactSlashCommands(
+  reported: AgentCapability["slashCommands"] | undefined,
+  fallback: NonNullable<AgentCapability["slashCommands"]>,
+): NonNullable<AgentCapability["slashCommands"]> {
+  const have = new Set((reported ?? []).map((command) => command.id.toLowerCase()));
+  const extra = fallback.filter((command) => !have.has(command.id.toLowerCase()));
+  return [...(reported ?? []), ...extra];
+}
 
 export function buildGrokCommand(location: ProjectLocation, args: string[], wslExecPath?: string) {
   return buildAgentCommand(location, "grok", args, wslExecPath);
@@ -124,7 +140,7 @@ async function probeCapabilities(
     ...(probe?.thinkingModels ? { thinkingModels: probe.thinkingModels } : {}),
     ...(probe?.modes?.length ? { modes: probe.modes } : {}),
     ...(probe?.approvalPolicies?.length ? { approvalPolicies: probe.approvalPolicies } : {}),
-    ...(probe?.slashCommands?.length ? { slashCommands: probe.slashCommands } : {}),
+    slashCommands: mergeCompactSlashCommands(probe?.slashCommands, [GROK_COMPACT_COMMAND]),
     ...contextCaps,
     ...(dedupedAuth?.length ? { authMethods: dedupedAuth } : {}),
     // Grok always supports `grok logout` when the binary is present (CLI + ACP path).

@@ -7,6 +7,7 @@ import {
   dbDeleteThreadPayloadSchema,
   dbGetCompletedTurnsPayloadSchema,
   dbGetProjectNotesPayloadSchema,
+  dbInsertThreadNativeSessionPayloadSchema,
   dbPersistExperimentStatePayloadSchema,
   dbGetRuntimeItemsPayloadSchema,
   dbGetRuntimeItemsPagePayloadSchema,
@@ -21,6 +22,8 @@ import {
   dbSyncAllPayloadSchema,
   persistedThreadSchema,
   type DbPersistExperimentStatePayload,
+  type DbInsertThreadNativeSessionPayload,
+  type ThreadNativeSession,
   type PersistedCompletedTurn,
   type PersistedRuntimeItem,
   type PersistedRuntimePage,
@@ -130,6 +133,19 @@ export const dbProcedures = {
     "main-local"
   >("dbGetThreadContextUsage", "main-local", dbGetThreadContextUsagePayloadSchema, (threadId) =>
     dbGetThreadContextUsagePayloadSchema.parse({ threadId }),
+  ),
+  dbInsertThreadNativeSession: definePayloadProcedure<
+    DbInsertThreadNativeSessionPayload,
+    ThreadNativeSession,
+    "main-local"
+  >("dbInsertThreadNativeSession", "main-local", dbInsertThreadNativeSessionPayloadSchema),
+  dbListThreadNativeSessions: defineIpcProcedure<
+    [string],
+    z.infer<typeof dbDeleteThreadPayloadSchema>,
+    ThreadNativeSession[],
+    "main-local"
+  >("dbListThreadNativeSessions", "main-local", dbDeleteThreadPayloadSchema, (threadId) =>
+    dbDeleteThreadPayloadSchema.parse({ threadId }),
   ),
   dbGetProjectNotes: defineIpcProcedure<
     [string],

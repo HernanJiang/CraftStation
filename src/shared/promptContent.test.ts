@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildPromptContentBlocks,
   formatDiffCommentPrompt,
+  isAudioPath,
+  isCsvPath,
+  isModelSupportedImagePath,
+  isNotebookPath,
+  isOfficePath,
   isPdfPath,
+  isVideoPath,
   resolveLocalFileUrlPath,
   toFileUrl,
   toLocalFileUrl,
@@ -202,6 +208,42 @@ describe("toLocalFileUrl", () => {
     const path =
       "C:/Users/me/.grok/sessions/E%3A%5Cwork%5C.craftstation%5Cworktrees%5Crepo/assets/img.png";
     expect(resolveLikeProtocolHandler(toLocalFileUrl(path), "win32")).toBe(path);
+  });
+});
+
+describe("media path helpers", () => {
+  it("maps audio attachments to audio blocks", () => {
+    expect(buildPromptContentBlocks("", [{ kind: "attachment", path: "C:\\tmp\\note.mp3" }])).toEqual(
+      [
+        {
+          kind: "audio",
+          mimeType: "audio/mpeg",
+          dataUrl: toLocalFileUrl("C:\\tmp\\note.mp3"),
+          path: "C:\\tmp\\note.mp3",
+          name: "note.mp3",
+          source: "attachment",
+        },
+      ],
+    );
+  });
+
+  it("classifies audio, model-image, video, office, csv and notebook paths", () => {
+    expect(isAudioPath("a/meeting.WAV")).toBe(true);
+    expect(isAudioPath("a/song.txt", "audio/mpeg")).toBe(true);
+    expect(isAudioPath("a/song.mp4")).toBe(false);
+    expect(isModelSupportedImagePath("a/photo.webp")).toBe(true);
+    expect(isModelSupportedImagePath("a/diagram.svg")).toBe(false);
+    expect(isModelSupportedImagePath("a/icon.bmp")).toBe(false);
+    expect(isModelSupportedImagePath("a/photo.avif")).toBe(false);
+    expect(isModelSupportedImagePath("a/photo.png")).toBe(true);
+    expect(isVideoPath("a/clip.mp4")).toBe(true);
+    expect(isVideoPath("a/clip.mkv")).toBe(false);
+    expect(isOfficePath("a/report.docx")).toBe(true);
+    expect(isOfficePath("a/book.xlsx")).toBe(true);
+    expect(isOfficePath("a/deck.pptx")).toBe(true);
+    expect(isOfficePath("a/legacy.doc")).toBe(false);
+    expect(isCsvPath("a/data.csv")).toBe(true);
+    expect(isNotebookPath("a/analysis.ipynb")).toBe(true);
   });
 });
 

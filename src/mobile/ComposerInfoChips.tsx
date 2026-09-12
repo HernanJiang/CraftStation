@@ -78,7 +78,7 @@ export function ComposerInfoChips(props: {
     chips.push({
       key: "crossagent",
       icon: Users,
-      label: t`Crossagents`,
+      label: t`Own Subagents`,
       count: String(agentCounts.crossagent),
       active: true,
     });

@@ -23,8 +23,11 @@ const TRANSIENT_NETWORK_CODES = new Set([
   "ECONNREFUSED",
   "ETIMEDOUT",
 ]);
+const TRANSIENT_HTTP_STATUSES = new Set([403, 408, 425, 429, 500, 502, 503, 504]);
 const DISK_ERROR_CODES = new Set(["ENOSPC", "EACCES", "EPERM", "EROFS"]);
 const UPDATE_MANIFEST_PATTERN = /(?:latest|nightly)(?:-[a-z0-9]+)?\.ya?ml/i;
+const MISSING_RELEASE_PATTERN =
+  /unable to find latest version|no published versions|releases\/latest/i;
 const INTEGRITY_PATTERN =
   /(?:artifact[^.]*\b(?:corrupt|invalid|missing)|checksum|code signature|hash mismatch|integrity|sha512|signature)/i;
 
@@ -71,11 +74,19 @@ function errorStatus(error: unknown): number | null {
   return null;
 }
 
-function isManifest404(error: unknown, operation: UpdateOperation): boolean {
+function isTransientHttp(error: unknown): boolean {
+  const status = errorStatus(error);
+  if (status !== null && TRANSIENT_HTTP_STATUSES.has(status)) return true;
+  return /net::ERR_/i.test(errorMessage(error));
+}
+
+function isMissingUpdateFeed(error: unknown, operation: UpdateOperation): boolean {
   if (operation !== "check") return false;
   const message = errorMessage(error);
   const is404 = errorStatus(error) === 404 || /\b404\b/.test(message);
-  return is404 && UPDATE_MANIFEST_PATTERN.test(message);
+  if (is404 && UPDATE_MANIFEST_PATTERN.test(message)) return true;
+  if (MISSING_RELEASE_PATTERN.test(message)) return true;
+  return is404 && /github/i.test(message);
 }
 
 export function classifyUpdateFailure(
@@ -89,10 +100,10 @@ export function classifyUpdateFailure(
   if (code && TRANSIENT_NETWORK_CODES.has(code)) {
     return { kind: "transient-network", retryable: true };
   }
-  if (hasTimeoutName(error)) {
+  if (hasTimeoutName(error) || isTransientHttp(error)) {
     return { kind: "transient-network", retryable: true };
   }
-  if (isManifest404(error, operation)) {
+  if (isMissingUpdateFeed(error, operation)) {
     return {
       kind: channel === "nightly" ? "optional-manifest-missing" : "required-manifest-missing",
       retryable: false,

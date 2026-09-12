@@ -25,14 +25,25 @@ import {
   capabilitiesForPresentation,
   filterHiddenModels,
   modelSelectionFor,
+  resolveCompatibleEffort,
 } from "@/shared/agentSelection";
 import type { ComposerControl } from "./ThreadComposer";
-import { formatEffortLabel, supportsUsableFastMode } from "./threadDraftViewHelpers";
+import {
+  formatEffortLabel,
+  resolveKeptContextSize,
+  supportsUsableFastMode,
+} from "./threadDraftViewHelpers";
 import type { ProviderModelPreference } from "@/shared/settings";
+import { applyThirdPartyPickerSelection, sameComposerAccount } from "@/shared/thirdPartyRouting";
 
 export type ModelPickerConfigPatch = {
   model?: string;
-  effort?: string;
+  /**
+   * Present-with-undefined explicitly clears a stale effort (model switch to
+   * a tier-less model). Consumers spread the patch over config, so omission
+   * would keep the stale value — never omit here, never write "".
+   */
+  effort?: string | undefined;
   contextSize?: string;
   fast?: boolean;
   thinking?: boolean;
@@ -110,11 +121,17 @@ export function buildProviderModelMenuProviders(
     presentationMode?: ThreadPresentationMode;
     resolvePresentationMode?: (agent: AgentStatus) => ThreadPresentationMode;
     hiddenModelsByAgent?: Readonly<Record<string, readonly string[] | undefined>>;
+    shownModelsByAgent?: Readonly<Record<string, readonly string[] | undefined>>;
     filterAgent?: (agent: AgentStatus) => boolean;
   },
 ): ProviderModelMenuProvider[] {
-  const { presentationMode, resolvePresentationMode, hiddenModelsByAgent, filterAgent } =
-    options ?? {};
+  const {
+    presentationMode,
+    resolvePresentationMode,
+    hiddenModelsByAgent,
+    shownModelsByAgent,
+    filterAgent,
+  } = options ?? {};
 
   return agents
     .filter((agent) => (filterAgent ? filterAgent(agent) : true))
@@ -127,6 +144,7 @@ export function buildProviderModelMenuProviders(
         capabilities: filterHiddenModels(
           menuProvider.capabilities,
           hiddenModelsByAgent?.[providerVisibilityKey(menuProvider)],
+          shownModelsByAgent?.[providerVisibilityKey(menuProvider)],
         ),
       };
     });
@@ -174,14 +192,16 @@ export function patchConfigForModelChange(
     thinking?: boolean;
   },
 ): ModelPickerConfigPatch {
-  const nextReasoning = modelSelectionFor(capabilities, model).reasoning;
-  const effortValid = current.effort ? nextReasoning.values.includes(current.effort) : true;
-  const nextContextIds = capabilities.modelContextSizes?.[model];
-  const nextContextDefault = nextContextIds?.[0] ?? capabilities.defaultContextSize;
+  // Compatibility is resolved centrally (keep-if-unverifiable, declared
+  // defaults, highest compatible, omit) so UI, state and CLI never diverge.
+  const effort = resolveCompatibleEffort(capabilities, model, current.effort);
+  // 切换模型不断上下文：能沿用就保持，否则按 token 语义映射到新模型最接近
+  // 且不超过的档（默认 256K，超上限自动取模型最大档）。
+  const nextContextSize = resolveKeptContextSize(capabilities, model, current.contextSize);
   return {
     model,
-    effort: effortValid && current.effort ? current.effort : (nextReasoning.default ?? ""),
-    ...(nextContextDefault ? { contextSize: nextContextDefault } : {}),
+    effort,
+    ...(nextContextSize ? { contextSize: nextContextSize } : {}),
     fast: supportsUsableFastMode(capabilities, model) ? (current.fast ?? true) : false,
     thinking: capabilities.thinkingModels?.includes(model) ?? false,
   };
@@ -227,6 +247,8 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
     label: formatEffortLabel(id),
   }));
   const selectableEfforts = currentEfforts.length > 1 ? currentEfforts : [];
+  // 上下文窗口只给有多档位的模型展示（跟以前一致）：单档/无档位的模型
+  // 没有可调空间，不单独显示入口。
   const currentContextIds = filteredCaps.modelContextSizes?.[model];
   const currentContextSizes = currentContextIds
     ? (filteredCaps.contextSizes?.filter((c) => currentContextIds.includes(c.id)) ?? [])
@@ -367,11 +389,14 @@ export function buildControls(
   thread: Thread,
   agentStatus: AgentStatus | undefined,
   hiddenModelIds: readonly string[] | undefined,
+  shownModelIds: readonly string[] | undefined,
   onConfigChange: (config: ThreadConfig) => void,
   modelPreferences?: Record<string, ProviderModelPreference>,
   onModelPreferenceChange?: (model: string, preference: ProviderModelPreference) => void,
   options?: {
     providers?: ProviderModelMenuProvider[];
+    selectedAccountId?: string;
+    installedHarnesses?: readonly string[];
     onProviderChange?: (next: {
       agentKind: string;
       model: string;
@@ -389,7 +414,7 @@ export function buildControls(
     agentStatus.capabilities,
     presentationMode,
   );
-  const filteredCaps = filterHiddenModels(presentationCapabilities, hiddenModelIds);
+  const filteredCaps = filterHiddenModels(presentationCapabilities, hiddenModelIds, shownModelIds);
   const effectiveConfig = normalizeCursorComposerConfig(
     thread.agentKind,
     thread.config,
@@ -418,6 +443,7 @@ export function buildControls(
     buildModelPickerControls({
       providers,
       selectedAgentKind: thread.agentKind,
+      ...(options?.selectedAccountId ? { selectedAccountId: options.selectedAccountId } : {}),
       model: effectiveConfig.model,
       ...(effectiveConfig.effort ? { effort: effectiveConfig.effort } : {}),
       ...(effectiveConfig.contextSize ? { contextSize: effectiveConfig.contextSize } : {}),
@@ -428,13 +454,15 @@ export function buildControls(
       presentationMode,
       isDisabled,
       onProviderModelChange: (next) => {
-        if (next.agentKind !== thread.agentKind) {
-          options?.onProviderChange?.(next);
+        const resolved = applyThirdPartyPickerSelection(next, options?.installedHarnesses);
+        const accountChanged = !sameComposerAccount(options?.selectedAccountId, resolved.accountId);
+        if (resolved.agentKind !== thread.agentKind || accountChanged) {
+          options?.onProviderChange?.(resolved);
           return;
         }
-        const preference = modelPreferences?.[next.model];
+        const preference = modelPreferences?.[resolved.model];
         onPatch(
-          patchConfigForModelChange(filteredCaps, next.model, {
+          patchConfigForModelChange(filteredCaps, resolved.model, {
             ...(preference?.effort !== undefined ? { effort: preference.effort } : {}),
             ...(effectiveConfig.contextSize ? { contextSize: effectiveConfig.contextSize } : {}),
             ...(preference?.fast !== undefined ? { fast: preference.fast } : {}),

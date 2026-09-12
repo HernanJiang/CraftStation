@@ -274,7 +274,7 @@ export function OpenCodeProviderSettings(props: {
                     }
                   />
                   <McpToggleRow
-                    title={t`Crossagents`}
+                    title={t`Own Subagents`}
                     description={<Trans>Delegate work to other AI agents.</Trans>}
                     isSelected={draftMcp.crossagentMcp}
                     onChange={(value) =>

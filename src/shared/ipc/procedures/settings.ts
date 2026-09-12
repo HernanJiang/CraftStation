@@ -43,35 +43,36 @@ export const settingsProcedures = {
       value: z.string().max(16_384),
     }),
   ),
-  removeCrossagentRoutingOverride: definePayloadProcedure<
+  removeOwnSubagentsRoutingOverride: definePayloadProcedure<
     { tags: string[] },
     CrossagentRoutingOverride[],
     "main-local"
   >(
-    "removeCrossagentRoutingOverride",
+    "removeOwnSubagentsRoutingOverride",
     "main-local",
     z.object({
       tags: z.array(z.string().min(1).max(32)).min(1).max(5),
     }),
   ),
-  // Learned-memory edits from the Crossagents settings UI. `crossagentSelectionUsage`
-  // is supervisor-managed (renderer persists can't write it), so removals and tag
-  // edits round-trip through main like `removeCrossagentRoutingOverride`.
-  removeCrossagentMemoryEntry: definePayloadProcedure<
+  // Learned-memory edits from the Own Subagents settings UI.
+  // `ownSubagentSelectionUsage` is supervisor-managed (renderer persists can't
+  // write it), so removals and tag edits round-trip through main like
+  // `removeOwnSubagentsRoutingOverride`.
+  removeOwnSubagentsMemoryEntry: definePayloadProcedure<
     { entry: CrossagentSelectionUsageEntryKey },
     CrossagentSelectionUsageEntry[],
     "main-local"
   >(
-    "removeCrossagentMemoryEntry",
+    "removeOwnSubagentsMemoryEntry",
     "main-local",
     z.object({ entry: crossagentSelectionUsageEntryKeySchema }),
   ),
-  updateCrossagentMemoryEntryTags: definePayloadProcedure<
+  updateOwnSubagentsMemoryEntryTags: definePayloadProcedure<
     { entry: CrossagentSelectionUsageEntryKey; tags: string[] },
     CrossagentSelectionUsageEntry[],
     "main-local"
   >(
-    "updateCrossagentMemoryEntryTags",
+    "updateOwnSubagentsMemoryEntryTags",
     "main-local",
     z.object({
       entry: crossagentSelectionUsageEntryKeySchema,

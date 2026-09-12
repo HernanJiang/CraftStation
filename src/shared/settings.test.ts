@@ -1,16 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_TOP_SHORTCUT_ORDER,
   defaultSharedSettings,
   normalizeSharedSettings,
   normalizeSidebarShortcutOrder,
+  normalizeTopShortcutOrder,
 } from "./settings";
 
 describe("shared settings defaults", () => {
+  it("leaves the custom global prompt blank by default", () => {
+    expect(defaultSharedSettings.customGlobalPrompt).toBe("");
+    expect(normalizeSharedSettings({}).customGlobalPrompt).toBe("");
+    expect(
+      normalizeSharedSettings({ customGlobalPrompt: "be concise" }).customGlobalPrompt,
+    ).toBe("be concise");
+  });
+
   it("normalizes sidebar shortcut order without duplicates or omissions", () => {
     expect(normalizeSidebarShortcutOrder(["schedules", "schedules"])).toEqual([
       "schedules",
       "pullRequests",
       "githubActions",
+    ]);
+  });
+
+  it("defaults fresh installs to the crafting, MCP and settings pins", () => {
+    expect(normalizeTopShortcutOrder(undefined)).toEqual([...DEFAULT_TOP_SHORTCUT_ORDER]);
+    expect(DEFAULT_TOP_SHORTCUT_ORDER).toEqual(["crafting", "settings.mcpServers", "settingsHome"]);
+    expect(normalizeSharedSettings({}).topShortcutOrder).toBeUndefined();
+  });
+
+  it("dedupes top pins without resurrecting removed defaults", () => {
+    expect(
+      normalizeTopShortcutOrder(["settings.mcpServers", "settings.mcpServers", "crafting"]),
+    ).toEqual(["settings.mcpServers", "crafting"]);
+    expect(normalizeTopShortcutOrder([])).toEqual([]);
+    expect(normalizeTopShortcutOrder(["settings.unknownFuture", "crafting"])).toEqual([
+      "settings.unknownFuture",
+      "crafting",
     ]);
   });
 
@@ -23,6 +50,13 @@ describe("shared settings defaults", () => {
   it("defaults preventSleep to while-remote-access", () => {
     expect(defaultSharedSettings.preventSleep).toBe("while-remote-access");
     expect(normalizeSharedSettings({}).preventSleep).toBe("while-remote-access");
+  });
+
+  it("defaults the whole-app zoom to 100% and repairs foreign values", () => {
+    expect(defaultSharedSettings.zoomFactor).toBe(1);
+    expect(normalizeSharedSettings({}).zoomFactor).toBe(1);
+    expect(normalizeSharedSettings({ zoomFactor: 1.5 }).zoomFactor).toBe(1.5);
+    expect(normalizeSharedSettings({ zoomFactor: 99 }).zoomFactor).toBe(1);
   });
 
   it("preserves global provider and model effort/Fast preferences", () => {
@@ -122,13 +156,59 @@ describe("shared settings defaults", () => {
     expect(migrated).not.toHaveProperty("remoteAccessPreventSleep");
   });
 
-  it("enables Crossagents as the standing MCP default and preserves opt-outs", () => {
+  it("enables Own Subagents and Crossagents as standing MCP defaults and preserves opt-outs", () => {
+    expect(defaultSharedSettings.enabledMcpServers.own_subagents).toBe(true);
     expect(defaultSharedSettings.enabledMcpServers.crossagents).toBe(true);
-    expect(normalizeSharedSettings({}).enabledMcpServers.crossagents).toBe(true);
+    expect(normalizeSharedSettings({}).enabledMcpServers).toMatchObject({
+      own_subagents: true,
+      crossagents: true,
+    });
     expect(
-      normalizeSharedSettings({ enabledMcpServers: { crossagents: false } }).enabledMcpServers
-        .crossagents,
-    ).toBe(false);
+      normalizeSharedSettings({ enabledMcpServers: { crossagents: false } }).enabledMcpServers,
+    ).toMatchObject({ own_subagents: false, crossagents: false });
+  });
+
+  it("migrates legacy crossagent keys to ownSubagent keys without losing data", () => {
+    const migrated = normalizeSharedSettings({
+      crossagentSelectionUsage: [
+        { agentKind: "kimi", modelId: "k3", fast: false, count: 2, lastUsedAt: 1 },
+      ],
+      crossagentRoutingOverrides: [{ tags: ["review"], agentKind: "kimi", updatedAt: 2 }],
+      crossagentPausedProviders: ["grok"],
+      crossagentHiddenModels: { kimi: ["k3"] },
+      crossagentRoutingGuide: "prefer kimi",
+    });
+    expect(migrated.ownSubagentSelectionUsage).toEqual([
+      { agentKind: "kimi", modelId: "k3", fast: false, count: 2, lastUsedAt: 1 },
+    ]);
+    expect(migrated.ownSubagentRoutingOverrides).toEqual([
+      { tags: ["review"], agentKind: "kimi", updatedAt: 2 },
+    ]);
+    expect(migrated.ownSubagentPausedProviders).toEqual(["grok"]);
+    expect(migrated.ownSubagentHiddenModels).toEqual({ kimi: ["k3"] });
+    expect(migrated.ownSubagentRoutingGuide).toBe("prefer kimi");
+    expect(migrated).not.toHaveProperty("crossagentSelectionUsage");
+    expect(migrated).not.toHaveProperty("crossagentRoutingOverrides");
+    expect(migrated).not.toHaveProperty("crossagentPausedProviders");
+    expect(migrated).not.toHaveProperty("crossagentHiddenModels");
+    expect(migrated).not.toHaveProperty("crossagentRoutingGuide");
+  });
+
+  it("prefers new ownSubagent keys over legacy ones and pins the native lane", () => {
+    const migrated = normalizeSharedSettings({
+      ownSubagentSelectionUsage: [
+        { agentKind: "codex", modelId: "gpt", fast: false, count: 1, lastUsedAt: 1 },
+      ],
+      crossagentSelectionUsage: [
+        { agentKind: "kimi", modelId: "k3", fast: false, count: 9, lastUsedAt: 1 },
+      ],
+      ownSubagentsRouteOrder: ["kimi"],
+    });
+    expect(migrated.ownSubagentSelectionUsage).toEqual([
+      { agentKind: "codex", modelId: "gpt", fast: false, count: 1, lastUsedAt: 1 },
+    ]);
+    expect(migrated.ownSubagentsRouteOrder).toEqual(["kimi", "native"]);
+    expect(normalizeSharedSettings({}).ownSubagentsRouteOrder).toEqual(["native"]);
   });
 
   it("defaults to squash merging and preserves a valid selected merge method", () => {
@@ -180,7 +260,7 @@ describe("shared settings defaults", () => {
           lastUsedAt: 1,
         },
       ],
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "qwen",
           modelId: "qwen3.8-max-preview",
@@ -189,7 +269,7 @@ describe("shared settings defaults", () => {
           lastUsedAt: 1,
         },
       ],
-      crossagentRoutingOverrides: [
+      ownSubagentRoutingOverrides: [
         {
           tags: ["review"],
           agentKind: "qwen",
@@ -214,8 +294,8 @@ describe("shared settings defaults", () => {
       { agentKind: "claude:qwen", modelId: "qwen3.8-max-preview", presentationMode: "gui" },
     ]);
     expect(migrated.agentSelectionUsage).toEqual([]);
-    expect(migrated.crossagentSelectionUsage).toEqual([]);
-    expect(migrated.crossagentRoutingOverrides[0]?.modelId).toBe("qwen3.8-max");
+    expect(migrated.ownSubagentSelectionUsage).toEqual([]);
+    expect(migrated.ownSubagentRoutingOverrides[0]?.modelId).toBe("qwen3.8-max");
     expect(migrated.hiddenModels.qwen).toEqual(["qwen3.8-max"]);
   });
 });

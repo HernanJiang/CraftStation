@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
-import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
+import {
+  brandIdForVendorKind,
+  ProviderBrandBadge,
+} from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 
 /** Inventory-card sized slot used by both 2×2 efficient and 3×3 creative grids. */
 export const CRAFTING_SLOT_SIZE_CLASS = "size-[4.5rem]";
@@ -37,7 +40,11 @@ export function CraftingSlot(props: {
   const body = (
     <>
       {brandId ? (
-        <ProviderBrandBadge id={brandId} label={brandLabel ?? name ?? label} size="avatar" />
+        <ProviderBrandBadge
+          id={brandIdForVendorKind(brandId)}
+          label={brandLabel ?? name ?? label}
+          size="compact"
+        />
       ) : (
         (icon ?? <span className="text-[9px] text-neutral-600">{label}</span>)
       )}

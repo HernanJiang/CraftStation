@@ -1126,7 +1126,10 @@ describe("ClaudeSdkSession", () => {
         usage: {
           usedTokens: 238_000,
           maxTokens: 1_000_000,
-          breakdown: [{ id: "messages-0", label: "Messages", tokens: 238_000 }],
+          breakdown: [
+            { id: "messages-0", label: "Messages", tokens: 238_000 },
+            { id: "cache-read", label: "Cache read", tokens: 136_000 },
+          ],
         },
       });
       // The goal tick re-emits the dock state (objective/status/time)…

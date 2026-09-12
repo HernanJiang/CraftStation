@@ -21,6 +21,7 @@ import {
 import { isHomeProject, isHomeProjectId } from "@/shared/homeScope";
 import { resolveProjectLocation } from "@/shared/worktree";
 import { friendlyError } from "@/shared/messages";
+import { buildGoalContextText, isCodexNativeGoalAgent } from "@/shared/threadGoal";
 import { buildPromptContentBlocks } from "@/shared/promptContent";
 import { titlePromptFromSegments } from "@/shared/threadTitle";
 import { captureThreadPromptSubmitted, captureThreadStarted } from "@/renderer/analytics/posthog";
@@ -39,6 +40,7 @@ import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import type { RemoteThreadLaunchResult } from "@/renderer/state/remoteServers/types";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { resolveThirdPartyAccountForLaunch } from "@/shared/thirdPartyRouting";
 import { generateTitleAsync } from "@/renderer/utils/titleGen";
 import { buildProjectDraftConfig } from "@/renderer/views/MainView/parts/AppContent/draftConfig";
 import {
@@ -48,6 +50,7 @@ import {
 } from "./worktreeLaunchActions";
 import { performWorktreeRemoval } from "./worktreeActions";
 import { readSessionHandoffState } from "./sessionHandoffActions";
+import { setThreadGoalPrompt } from "./threadActions";
 
 export async function performInitialThreadLaunch(input: {
   thread: Thread;
@@ -140,6 +143,20 @@ export async function performInitialThreadLaunch(input: {
     );
 
   // Local and remote launches share one payload; only the transport differs.
+  // Third-party models carry their validated account binding explicitly so the
+  // supervisor bypasses the subscription pool (never "No usable X account").
+  const pendingAccountId = useUsageAccountsStore.getState().nextSessionAccountId ?? undefined;
+  const thirdPartyAccountId = resolveThirdPartyAccountForLaunch({
+    agentKind: effectiveThread.agentKind,
+    model: effectiveThread.config.model,
+    customModels: useSharedSettings.getState().customModels ?? [],
+    accounts: useUsageAccountsStore.getState().accounts ?? [],
+    ...(effectiveThread.accountBinding?.accountId
+      ? { explicitAccountId: effectiveThread.accountBinding.accountId }
+      : pendingAccountId
+        ? { explicitAccountId: pendingAccountId }
+        : {}),
+  });
   const startInput = {
     agentKind: effectiveThread.agentKind,
     ...(effectiveThread.agentInstanceId
@@ -152,6 +169,14 @@ export async function performInitialThreadLaunch(input: {
     ...(effectiveThread.sessionRef ? { sessionRef: effectiveThread.sessionRef } : {}),
     ...(effectiveThread.presentationMode ? { presentationMode: presentation } : {}),
     ...(optimisticUserMessageItemId ? { userMessageItemId: optimisticUserMessageItemId } : {}),
+    ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
+    // Launch-turn fallback goal (native-goal threads register separately
+    // once the session exists). Painted output stays the raw prompt.
+    ...(effectiveThread.goal &&
+    !effectiveThread.goal.paused &&
+    !isCodexNativeGoalAgent(effectiveThread.agentKind)
+      ? { goalContext: buildGoalContextText(effectiveThread.goal.prompt) }
+      : {}),
   };
 
   // Mirrored remote threads must launch on their host. Spawning locally would
@@ -175,6 +200,42 @@ export async function performInitialThreadLaunch(input: {
       ...startInput,
       ...mcpLaunchSnapshot,
     });
+    // A durable goal predating the first session still needs its native
+    // registration once the session exists (later submits re-assert anyway).
+    if (
+      effectiveThread.goal &&
+      !effectiveThread.goal.paused &&
+      isCodexNativeGoalAgent(effectiveThread.agentKind)
+    ) {
+      try {
+        await readBridge().controlThreadGoal({
+          threadId: effectiveThread.id,
+          action: "edit",
+          objective: effectiveThread.goal.prompt,
+        });
+      } catch (error) {
+        console.warn(`[goal] native registration after launch failed:`, error);
+      }
+    }
+  }
+  if (thirdPartyAccountId) {
+    const accountBinding = {
+      accountId: thirdPartyAccountId,
+      provider: "openai-compatible" as const,
+      credentialScopeRef: `managed:${thirdPartyAccountId}`,
+      reason: "explicit" as const,
+      boundAt: Date.now(),
+    };
+    useAppStore.setState((state) => ({
+      threads: state.threads.map((candidate) =>
+        candidate.id === effectiveThread.id ? { ...candidate, accountBinding } : candidate,
+      ),
+    }));
+    const stored = useAppStore.getState().threads.find((row) => row.id === effectiveThread.id);
+    if (stored) await readBridge().dbUpsertThread(stored);
+    if (thirdPartyAccountId === pendingAccountId) {
+      useUsageAccountsStore.getState().clearNextSessionAccount();
+    }
   }
   captureThreadStarted(effectiveThread);
   if (prompt.length > 0 || (segments?.length ?? 0) > 0) {
@@ -191,6 +252,8 @@ interface ThreadLaunchRequest {
   readonly config: ThreadConfig;
   readonly prompt: string;
   readonly compositionProvenance?: Thread["compositionProvenance"];
+  /** Durable `/goal` prompt to bind right after the thread row exists. */
+  readonly goal?: string;
   readonly segments?: PromptSegment[];
   readonly presentationMode?: ThreadPresentationMode;
   readonly worktreePath?: string;
@@ -230,6 +293,7 @@ export async function startThreadFromDraft(
     agentKind,
     config,
     prompt,
+    goal,
     segments,
     existingWorktreePath,
     worktreeBranch,
@@ -289,6 +353,15 @@ export async function startThreadFromDraft(
   const pendingUserMessageItemId = pendingThread
     ? appendOptimisticInitialUserMessage(pendingThread, prompt, segments)
     : undefined;
+  // A draft `/goal + Prompt` arrives here as `goal`: bind it the moment the
+  // row exists so first-turn goalContext/native registration (in
+  // performInitialThreadLaunch) already sees it. Plain-remote launches create
+  // no local row, so there is nothing to bind to — the session still starts
+  // with the clean prompt and the goal can be set inside the session.
+  if (goal && pendingThread) {
+    const bound = setThreadGoalPrompt(pendingThread.id, goal);
+    if (!bound.ok) toast.danger(bound.error);
+  }
   if (!isHomeScope && !worktreePath && worktreeBranch) {
     try {
       const transferUncommitted = worktreeTransferUncommitted ?? false;
@@ -421,6 +494,7 @@ export async function startThreadFromDraft(
       ...(presentationMode ? { presentationMode } : {}),
       ...(worktreePath ? { worktreePath } : {}),
       ...(worktreeBranch ? { worktreeBranch } : {}),
+      ...(goal ? { goal } : {}),
       isNewWorktree,
       options,
     });
@@ -483,6 +557,10 @@ function threadLaunchHost(project: Project): ThreadLaunchHostTransport {
     setupRunsOnHost: false,
     startThread: async (launch) => {
       const thread = createThreadRow(launch);
+      if (launch.goal) {
+        const bound = setThreadGoalPrompt(thread.id, launch.goal);
+        if (!bound.ok) toast.danger(bound.error);
+      }
       // Launch inline, never via the view-consumed launch queue — the launch
       // must not depend on which pane is mounted (see the worktree path above).
       try {
@@ -699,14 +777,17 @@ export async function startThreadFromCraft(
     await bridge.dbUpsertThread(thread);
     const store = configureProvenanceStore(bridge);
     await store.saveProvenanceAsync(threadId, craftResult.resultItem.provenance);
-    // Account-row selection is a one-shot explicit override for the next new
-    // Session. It is intentionally resolved here, at the product launch
-    // boundary, rather than inferred from the legacy `selected` marker in the
-    // Supervisor. An explicit caller option (including `auto`) wins over the
-    // pending UI choice.
+    // Account-row selection is a one-shot override for the next new Session.
+    // It is intentionally resolved here, at the product launch boundary, rather
+    // than inferred from the legacy `selected` marker in the Supervisor. An
+    // explicit caller option (including `auto`) wins over the pending UI
+    // choice. New launches use `preferred`: the pick is honoured while usable
+    // but an exhausted account falls back to the pool instead of failing the
+    // launch. (Resume keeps strict `explicit` for Session stickiness — see
+    // resumeCraftedThread.)
     const pendingAccountId = useUsageAccountsStore.getState().nextSessionAccountId;
     const accountMode =
-      options.accountMode ?? (options.accountId || pendingAccountId ? "explicit" : "auto");
+      options.accountMode ?? (options.accountId || pendingAccountId ? "preferred" : "auto");
     const accountId =
       options.accountId ??
       (options.accountMode === undefined ? (pendingAccountId ?? undefined) : undefined);
@@ -716,7 +797,7 @@ export async function startThreadFromCraft(
       prompt,
       accountMode,
       mcpServers: craftingMcpLaunchServers(plan, project.mcpServers),
-      ...(accountMode === "explicit" && accountId ? { accountId } : {}),
+      ...(accountId && accountMode !== "auto" ? { accountId } : {}),
     });
     if (craftAgentResult.accountBinding) {
       const boundThread = { ...thread, accountBinding: craftAgentResult.accountBinding };
@@ -727,7 +808,7 @@ export async function startThreadFromCraft(
       }));
       await bridge.dbUpsertThread(boundThread);
     }
-    if (accountMode === "explicit" && accountId === pendingAccountId) {
+    if (accountId === pendingAccountId) {
       useUsageAccountsStore.getState().clearNextSessionAccount();
     }
   } catch (error) {
@@ -738,6 +819,24 @@ export async function startThreadFromCraft(
     throw error;
   }
 }
+/**
+ * Channel-model repair: a thread whose model came from an OpenAI-compatible
+ * account channel (e.g. `glm-5.3-flash` via a Cavoti channel on the codex
+ * harness) must resume with that account's credentials. The launch-time
+ * account choice is one-shot (`nextSessionAccountId`) and only a persisted
+ * `accountBinding` survives restarts — threads launched before the binding
+ * was saved resume on the default account and 400 on every turn. Exact
+ * provider + modelId match only; never guess across channels.
+ */
+function resolveChannelAccountIdForThreadModel(thread: Thread): string | undefined {
+  const model = thread.config.model?.trim();
+  if (!model) return undefined;
+  const customModels = useSharedSettings.getState().customModels ?? [];
+  return customModels.find(
+    (entry) => entry.provider === thread.agentKind && entry.accountId && entry.modelId === model,
+  )?.accountId;
+}
+
 /**
  * Channel-model repair: a thread whose model came from an OpenAI-compatible
  * account channel (e.g. `glm-5.3-flash` via a Cavoti channel on the codex

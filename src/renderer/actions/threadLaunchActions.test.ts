@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => {
       >(),
     applyRuntimeEvent: vi.fn<(threadId: string, event: unknown) => void>(),
     updateThreadRuntime: vi.fn<(threadId: string, input: unknown) => void>(),
+    setThreadGoal: vi.fn<(threadId: string, goal: unknown) => void>(),
     setThreadMcpLaunchCustomServerNames:
       vi.fn<(threadId: string, names: readonly string[]) => void>(),
   };
@@ -388,7 +389,9 @@ describe("startThreadFromDraft host transport", () => {
     );
   });
 
-  it("passes an account-row choice as an explicit one-shot launch override", async () => {
+  it("passes an account-row choice as a preferred one-shot launch override", async () => {
+    // New launches use `preferred`: the pick is honoured while usable, but an
+    // exhausted account falls back to the pool instead of failing the launch.
     useUsageAccountsStore.getState().setNextSessionAccount("grok:account-a");
     const craftResult = new Crafter().compile(
       { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
@@ -400,7 +403,7 @@ describe("startThreadFromDraft host transport", () => {
     expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: "grok:account-a",
-        accountMode: "explicit",
+        accountMode: "preferred",
       }),
     );
     expect(useUsageAccountsStore.getState().nextSessionAccountId).toBeNull();
@@ -586,6 +589,25 @@ describe("startThreadFromDraft host transport", () => {
       canResumeWithConfig: false,
     });
     expect(mocks.performWorktreeRemoval).not.toHaveBeenCalled();
+  });
+
+  it("binds a draft /goal prompt to the new thread before launch", async () => {
+    await startThreadFromDraft(localProject, {
+      agentKind: "codex",
+      config: { model: "gpt-5.6" },
+      prompt: "fix auth",
+      goal: "fix auth",
+      presentationMode: "gui",
+    });
+
+    expect(mocks.appState.setThreadGoal).toHaveBeenCalledWith(
+      "local-thread",
+      expect.objectContaining({ prompt: "fix auth" }),
+    );
+    // The provider still gets the clean first message.
+    expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: "fix auth" }),
+    );
   });
 
   it("launches a local non-worktree thread inline over the bridge", async () => {

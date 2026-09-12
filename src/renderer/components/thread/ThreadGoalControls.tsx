@@ -2,9 +2,17 @@ import { useState } from "react";
 import { Label, Modal, TextField, toast } from "@heroui/react";
 import { Pause, Pencil, Play, X } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { MAX_GOAL_OBJECTIVE_LENGTH, type ThreadGoalControl } from "@/shared/contracts";
+import type { GoalControlAction, ThreadGoalControl } from "@/shared/contracts";
+import { isCodexNativeGoalAgent } from "@/shared/threadGoal";
 import { friendlyError } from "@/shared/messages";
 import { readBridge } from "@/renderer/bridge";
+import {
+  pauseThreadGoal,
+  resumeThreadGoal,
+  setThreadGoalPrompt,
+  stopThreadGoal,
+} from "@/renderer/actions/threadActions";
+import { useAppStore } from "@/renderer/state/appStore";
 import { Button, TextArea } from "@/renderer/components/common";
 import { ThreadDockIconButton } from "./ThreadDockUI";
 import type { ThreadGoalDockState } from "./threadGoalState";
@@ -19,13 +27,49 @@ export function ThreadGoalControls({ threadId, state, onDismiss }: ThreadGoalCon
   const { t } = useLingui();
   const [pendingAction, setPendingAction] = useState<ThreadGoalControl["action"] | null>(null);
   const [objectiveDraft, setObjectiveDraft] = useState<string | null>(null);
-  const availableActions = state.availableActions ?? [];
+  // Explicit element type: without it this is a union of array/tuple types and
+  // `.includes(...)` takes the INTERSECTION of their element types, which drops
+  // "pause"/"resume" and fails the calls below.
+  const availableActions: GoalControlAction[] =
+    state.availableActions && state.availableActions.length > 0
+      ? state.availableActions
+      : state.status === "paused"
+        ? ["edit", "resume", "clear"]
+        : ["edit", "pause", "clear"];
   const normalizedObjective = objectiveDraft?.trim() ?? "";
+
+  const applyDurable = async (control: ThreadGoalControl): Promise<void> => {
+    if (control.action === "edit" && control.objective) {
+      setThreadGoalPrompt(threadId, control.objective);
+      return;
+    }
+    if (control.action === "pause") {
+      pauseThreadGoal(threadId);
+      return;
+    }
+    if (control.action === "resume") {
+      resumeThreadGoal(threadId);
+      return;
+    }
+    if (control.action === "clear") {
+      await stopThreadGoal(threadId);
+    }
+  };
 
   const controlGoal = async (control: ThreadGoalControl): Promise<boolean> => {
     setPendingAction(control.action);
+    const agentKind = useAppStore.getState().threads.find((thread) => thread.id === threadId)
+      ?.agentKind;
     try {
-      await readBridge().controlThreadGoal({ threadId, ...control });
+      try {
+        await readBridge().controlThreadGoal({ threadId, ...control });
+      } catch (error) {
+        if (agentKind && isCodexNativeGoalAgent(agentKind) && control.action !== "clear") {
+          toast.danger(friendlyError(error));
+          return false;
+        }
+      }
+      await applyDurable(control);
       return true;
     } catch (error) {
       toast.danger(friendlyError(error));
@@ -110,7 +154,6 @@ export function ThreadGoalControls({ threadId, state, onDismiss }: ThreadGoalCon
                   </Label>
                   <TextArea
                     autoFocus // eslint-disable-line jsx-a11y/no-autofocus -- opened edit dialog, expected focus target
-                    maxLength={MAX_GOAL_OBJECTIVE_LENGTH}
                     rows={5}
                     value={objectiveDraft}
                     onChange={(event) => setObjectiveDraft(event.target.value)}

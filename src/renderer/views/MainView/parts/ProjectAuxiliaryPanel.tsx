@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
+import { toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { isHomeProjectId } from "@/shared/homeScope";
+import { readBridge } from "@/renderer/bridge";
 import {
   productSurfaceView,
   useProductViewTracking,
@@ -34,7 +36,7 @@ import { useFileEditorStore, type FileEditorRootContext } from "@/renderer/state
 import { usePanelStore, type GitReviewContext } from "@/renderer/state/panelStore";
 import { useThreadTodoDockStore } from "@/renderer/state/threadTodoDockStore";
 import { useSideChatStore } from "@/renderer/state/sideChatStore";
-import { closeSideChat } from "@/renderer/actions/sideChatActions";
+import { closeSideChat, openSideChatPanel } from "@/renderer/actions/sideChatActions";
 import { watchRemoteTerminal } from "@/renderer/state/remoteTerminalFeed";
 import { prefetchVisibleGitPanelPrData } from "@/renderer/state/gitRefresh";
 import {
@@ -299,6 +301,17 @@ export function ProjectAuxiliaryPanel(props: {
   useEffect(() => {
     if (!props.visible) return;
     let refreshTimer: number | undefined;
+    // Prune a subagent context whose item no longer exists (turn pruned,
+    // thread cleared): without this the tab fallback keeps offering a dead
+    // page that can neither open nor switch away. Contexts whose item still
+    // exists (e.g. another thread's agent opened via Side Chat) are kept.
+    const subAgentCtx = usePanelStore.getState().subAgentPanelContext;
+    if (subAgentCtx) {
+      const items = useAppStore.getState().runtimeItemsByIdByThread[subAgentCtx.threadId];
+      if (!items?.[subAgentCtx.parentItemId]) {
+        usePanelStore.getState().setSubAgentPanelContext(null);
+      }
+    }
     const frame = requestAnimationFrame(() => {
       // A new git context is an explicit target (for example, clicking thread
       // B's badge while thread A is focused). Let that open win; the follow
@@ -441,12 +454,32 @@ export function ProjectAuxiliaryPanel(props: {
     if (tab === "notes") setNotesPanelOpen(false);
     if (tab === "terminal") useDevTerminalStore.getState().closePanel();
     if (tab === "side-chat") closeSideChat();
+    // Closing the subagent tab must drop its context too, otherwise the tab
+    // fallback re-selects "subagent" (the context is still alive) and the
+    // closed tab immediately reappears.
+    if (tab === "subagent") usePanelStore.getState().setSubAgentPanelContext(null);
     closeAuxiliaryPanelTab(tab);
   }
 
   function handleAddTool(): void {
     setBrowserOverlayMaximized(false);
     setBrowserOverlayOpen(false);
+  }
+
+  /**
+   * The + menu ADDS a browser: always a fresh tab (activated), never a
+   * reveal of the current one. Header clicks keep the reveal-only path.
+   */
+  function handleAddBrowser(): void {
+    setBrowserOverlayMaximized(false);
+    setBrowserOverlayOpen(false);
+    setBrowserPanelOpen(true);
+    setRightPanelTab("browser");
+    void readBridge()
+      .browserCreateTab({ activate: true })
+      .catch((error: unknown) => {
+        toast.danger(error instanceof Error ? error.message : String(error));
+      });
   }
 
   // A bottom-docked tab renders in the bottom row; keep it out of this panel so
@@ -620,6 +653,8 @@ export function ProjectAuxiliaryPanel(props: {
           setRightPanelTab("browser");
         })
       }
+      onAddBrowser={handleAddBrowser}
+      onOpenSideChat={() => pressTab("side-chat", openSideChatPanel)}
       onOpenUsage={() =>
         pressTab("usage", () => {
           setUsagePanelOpen(true);

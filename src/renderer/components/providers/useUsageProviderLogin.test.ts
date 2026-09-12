@@ -209,18 +209,38 @@ describe("useUsageProviderLogin", () => {
     expect(result.current.signingIn).toBe(false);
   });
 
-  it("opens the system browser, not the overlay, for external-cookie providers", async () => {
+  it("opens the embedded overlay, not the system browser, for OpenCode sign-in", async () => {
+    let resolveLogin: ((value: { ok: boolean }) => void) | undefined;
+    bridgeMock.startUsageLogin.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLogin = resolve;
+        }),
+    );
+    bridgeMock.refreshProviderUsage.mockResolvedValue({
+      snapshots: [okSnapshot("opencode")],
+      fromCache: false,
+    });
     useProviderUsageStore.getState().mergeSnapshot(authMissingSnapshot("opencode"));
 
     const { result } = renderHook(() => useUsageProviderLogin("opencode"));
 
+    let signInDone: Promise<void> | undefined;
     await act(async () => {
-      await result.current.handleSignIn();
+      signInDone = result.current.handleSignIn();
     });
 
-    expect(result.current.externalLoginUrl).toBe("https://opencode.ai/");
-    expect(bridgeMock.openExternal).toHaveBeenCalledWith("https://opencode.ai/");
-    expect(bridgeMock.startUsageLogin).not.toHaveBeenCalled();
+    expect(result.current.externalLoginUrl).toBeUndefined();
+    expect(bridgeMock.openExternal).not.toHaveBeenCalled();
+    expect(usePanelStore.getState().browserOverlayOpen).toBe(true);
+    expect(bridgeMock.startUsageLogin).toHaveBeenCalledWith({ providerId: "opencode" });
+
+    await act(async () => {
+      resolveLogin?.({ ok: true });
+      await signInDone;
+    });
+
+    expect(useUsageLoginStateStore.getState().stored.opencode).toBe(true);
     expect(usePanelStore.getState().browserOverlayOpen).toBe(false);
     expect(result.current.signingIn).toBe(false);
   });

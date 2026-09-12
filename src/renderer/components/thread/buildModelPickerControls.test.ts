@@ -88,16 +88,17 @@ describe("patchConfigForModelChange", () => {
 
   // Kimi's K2.7 models advertise no tiers; keeping K3's tier would send an
   // effort the model does not support instead of letting the agent decide.
+  // The patch carries explicit undefined (never "") so live-thread spreads
+  // clear the stale value instead of keeping it.
   it("clears effort when the next model has no tiers of its own", () => {
     const untiered = {
       ...capabilities,
       efforts: [],
       modelEfforts: { ...capabilities.modelEfforts, b: [] },
     } as unknown as AgentCapability;
-    expect(patchConfigForModelChange(untiered, "b", { effort: "high" })).toMatchObject({
-      model: "b",
-      effort: "",
-    });
+    const patch = patchConfigForModelChange(untiered, "b", { effort: "high" });
+    expect(patch).toMatchObject({ model: "b" });
+    expect(patch).toHaveProperty("effort", undefined);
   });
 
   it("forces fast off when the account can't use fast mode", () => {
@@ -106,6 +107,129 @@ describe("patchConfigForModelChange", () => {
       model: "a",
       fast: false,
     });
+  });
+
+  it("keeps a context size the next model still supports", () => {
+    const tiered = {
+      ...capabilities,
+      modelContextSizes: { ...capabilities.modelContextSizes, c: ["256k", "512k"] },
+    } as AgentCapability;
+    expect(patchConfigForModelChange(tiered, "c", { contextSize: "256k" })).toMatchObject({
+      model: "c",
+      contextSize: "256k",
+    });
+  });
+
+  it("maps the kept context size down to the next model's nearest usable tier", () => {
+    const tiered = {
+      ...capabilities,
+      modelContextSizes: { ...capabilities.modelContextSizes, c: ["256k", "1m"] },
+    } as AgentCapability;
+    expect(patchConfigForModelChange(tiered, "c", { contextSize: "512k" })).toMatchObject({
+      model: "c",
+      contextSize: "256k",
+    });
+  });
+
+  it("defaults a model without a kept value to the 256K preset mapped onto its tiers", () => {
+    const tiered = {
+      ...capabilities,
+      modelContextSizes: { ...capabilities.modelContextSizes, c: ["512k", "1m"] },
+    } as AgentCapability;
+    expect(patchConfigForModelChange(tiered, "c", {})).toMatchObject({
+      model: "c",
+      contextSize: "512k",
+    });
+  });
+
+  it("falls back to the capability default when the next model has no tiers at all", () => {
+    const untiered = {
+      ...capabilities,
+      contextSizes: [],
+      modelContextSizes: {},
+    } as unknown as AgentCapability;
+    expect(patchConfigForModelChange(untiered, "b", { contextSize: "256k" })).toMatchObject({
+      model: "b",
+      contextSize: "128k",
+    });
+  });
+
+  it("omits the context size when the next model has neither tiers nor a default", () => {
+    const untiered = {
+      ...capabilities,
+      contextSizes: [],
+      modelContextSizes: {},
+      defaultContextSize: undefined,
+    } as unknown as AgentCapability;
+    const patch = patchConfigForModelChange(untiered, "b", { contextSize: "256k" });
+    expect(patch).toMatchObject({ model: "b" });
+    expect(patch).not.toHaveProperty("contextSize");
+  });
+});
+
+describe("buildModelPickerControls context window entry", () => {
+  const baseInput = {
+    providers: [],
+    selectedAgentKind: "kimi",
+    model: "m1",
+    onProviderModelChange: () => undefined,
+    onConfigPatch: () => undefined,
+  };
+  const baseCapabilities = {
+    models: [{ id: "m1", label: "M1" }],
+    efforts: [],
+    modelEfforts: {},
+    modes: ["agent"],
+    approvalPolicies: [],
+    sandboxModes: [],
+    supportsResume: true,
+    supportsDirectInput: true,
+    liveInputMode: "direct",
+    presentationMode: "gui",
+    settingDefs: [],
+  } as unknown as AgentCapability;
+
+  function contextSizesOf(input: { capabilities: AgentCapability }): unknown {
+    const controls = buildModelPickerControls({ ...baseInput, ...input });
+    const control = controls.find((c) => c.kind === "effort-context");
+    expect(control).toBeDefined();
+    return control && "contextSizes" in control ? control.contextSizes : undefined;
+  }
+
+  it("shows the model's real tiers when it has more than one", () => {
+    expect(
+      contextSizesOf({
+        capabilities: {
+          ...baseCapabilities,
+          contextSizes: [
+            { id: "128K", label: "128K" },
+            { id: "256K", label: "256K" },
+          ],
+          modelContextSizes: { m1: ["128K", "256K"] },
+        },
+      }),
+    ).toEqual([
+      { id: "128K", label: "128K" },
+      { id: "256K", label: "256K" },
+    ]);
+  });
+
+  it("hides the entry for single-tier models as before", () => {
+    const controls = buildModelPickerControls({
+      ...baseInput,
+      capabilities: {
+        ...baseCapabilities,
+        contextSizes: [{ id: "256K", label: "256K" }],
+        modelContextSizes: { m1: ["256K"] },
+      },
+    });
+    expect(controls.find((c) => c.kind === "effort-context")).toBeUndefined();
+  });
+
+  it("hides the entry when the model has no tiers at all", () => {
+    const controls = buildModelPickerControls({ ...baseInput, capabilities: baseCapabilities });
+    const control = controls.find((c) => c.kind === "effort-context");
+    expect(control).toBeUndefined();
   });
 });
 
@@ -150,6 +274,7 @@ describe("buildControls model preferences", () => {
     const controls = buildControls(
       thread,
       agent,
+      undefined,
       undefined,
       onConfigChange,
       {
@@ -196,7 +321,7 @@ describe("buildControls model preferences", () => {
       updatedAt: "2026-08-20T00:00:00.000Z",
     } as Thread;
 
-    const modelControl = buildControls(thread, agent, undefined, vi.fn()).find(
+    const modelControl = buildControls(thread, agent, undefined, undefined, vi.fn()).find(
       (control) => control.kind === "provider-model",
     );
 
@@ -326,11 +451,22 @@ describe("buildProviderModelMenuProviders", () => {
     });
     expect(defaultProviders[0]?.capabilities.models.map(({ id }) => id)).toEqual(["composer-2.5"]);
 
-    const explicitlyVisibleProviders = buildProviderModelMenuProviders([withDefaults], {
+    // An explicit hidden list alone never opts a default-hidden model back in.
+    const explicitlyHiddenProviders = buildProviderModelMenuProviders([withDefaults], {
       presentationMode: "terminal",
       hiddenModelsByAgent: { cursor: [] },
     });
-    expect(explicitlyVisibleProviders[0]?.capabilities.models.map(({ id }) => id)).toEqual([
+    expect(explicitlyHiddenProviders[0]?.capabilities.models.map(({ id }) => id)).toEqual([
+      "composer-2.5",
+    ]);
+
+    // Only an explicit "shown" entry opts it back in.
+    const explicitlyShownProviders = buildProviderModelMenuProviders([withDefaults], {
+      presentationMode: "terminal",
+      hiddenModelsByAgent: { cursor: [] },
+      shownModelsByAgent: { cursor: ["gpt-5"] },
+    });
+    expect(explicitlyShownProviders[0]?.capabilities.models.map(({ id }) => id)).toEqual([
       "composer-2.5",
       "gpt-5",
     ]);

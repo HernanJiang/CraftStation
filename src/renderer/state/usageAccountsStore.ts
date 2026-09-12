@@ -14,6 +14,22 @@ interface UsageAccountsStore {
   reset: () => void;
 }
 
+/**
+ * Replace the visible accounts unless the incoming list is empty while rows
+ * are shown. Polls and supervisor events cannot distinguish "everything was
+ * deleted" from transient failure (locked store, racing refresh, supervisor
+ * mid-restart), and blanking good authorizations is the worse failure: disk
+ * state is untouched, but the user perceives total auth loss and subsequent
+ * quota passes run against nothing. Genuine deletions propagate through
+ * explicit remove actions (which splice the store first) and non-empty
+ * listings, so nothing legitimate gets stuck.
+ */
+export function setAccountsUnlessEmptyWipe(accounts: AccountView[]): void {
+  const store = useUsageAccountsStore.getState();
+  if (accounts.length === 0 && store.accounts.length > 0) return;
+  store.setAccounts(accounts);
+}
+
 function sameAccount(left: AccountView, right: AccountView): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }

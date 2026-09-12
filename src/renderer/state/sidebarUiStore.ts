@@ -37,6 +37,12 @@ interface SidebarUiState {
   footerCollapsed: boolean;
   /** CraftStation project pins live entirely in presentation state. */
   pinnedProjectIds: string[];
+  /**
+   * Stable pin timestamps (epoch ms) keyed by project id. Array order of
+   * `pinnedProjectIds` is the legacy source; this map is the ordering truth
+   * for the global pinned section. Pin never changes workspace identity.
+   */
+  pinnedProjectAt: Record<string, number>;
   /** Inline project rename target; session-scoped. */
   editingProjectId: string | null;
   editingThreadId: string | null;
@@ -79,6 +85,7 @@ export const useSidebarUiStore = create<SidebarUiState>()(
       flatListProjectFilter: null,
       footerCollapsed: false,
       pinnedProjectIds: [],
+      pinnedProjectAt: {},
       editingProjectId: null,
       editingThreadId: null,
 
@@ -157,11 +164,19 @@ export const useSidebarUiStore = create<SidebarUiState>()(
         }),
       toggleFooterCollapsed: () => set((state) => ({ footerCollapsed: !state.footerCollapsed })),
       toggleProjectPinned: (projectId) =>
-        set((state) => ({
-          pinnedProjectIds: state.pinnedProjectIds.includes(projectId)
-            ? state.pinnedProjectIds.filter((id) => id !== projectId)
-            : [...state.pinnedProjectIds, projectId],
-        })),
+        set((state) => {
+          if (state.pinnedProjectIds.includes(projectId)) {
+            const { [projectId]: _dropped, ...rest } = state.pinnedProjectAt;
+            return {
+              pinnedProjectIds: state.pinnedProjectIds.filter((id) => id !== projectId),
+              pinnedProjectAt: rest,
+            };
+          }
+          return {
+            pinnedProjectIds: [...state.pinnedProjectIds, projectId],
+            pinnedProjectAt: { ...state.pinnedProjectAt, [projectId]: Date.now() },
+          };
+        }),
       setEditingProjectId: (editingProjectId) => set({ editingProjectId }),
       setEditingThreadId: (editingThreadId) => set({ editingThreadId }),
     }),
@@ -169,6 +184,16 @@ export const useSidebarUiStore = create<SidebarUiState>()(
       name: PERSIST_KEY,
       version: 1,
       storage: createJSONStorage(() => localStorage),
+      // Backfill `pinnedProjectAt` for payloads written before it existed.
+      merge: (persisted, current) => {
+        const incoming = (persisted ?? {}) as Partial<SidebarUiState>;
+        const merged = { ...current, ...incoming };
+        const migrated = migrateSidebarProjectPins({
+          pinnedProjectIds: merged.pinnedProjectIds,
+          pinnedProjectAt: merged.pinnedProjectAt,
+        });
+        return { ...merged, ...migrated };
+      },
       // Worktree collapse, "See more" limits, and inline rename are
       // session-scoped by design.
       partialize: (state) => ({
@@ -177,10 +202,32 @@ export const useSidebarUiStore = create<SidebarUiState>()(
         flatListProjectFilter: state.flatListProjectFilter,
         footerCollapsed: state.footerCollapsed,
         pinnedProjectIds: state.pinnedProjectIds,
+        pinnedProjectAt: state.pinnedProjectAt,
       }),
     },
   ),
 );
+
+/**
+ * Merge helper for rehydrated payloads predating `pinnedProjectAt`: backfill
+ * timestamps from legacy array order (pin order) without losing pins.
+ */
+export function migrateSidebarProjectPins(input: {
+  pinnedProjectIds?: readonly string[] | undefined;
+  pinnedProjectAt?: Readonly<Record<string, number>> | undefined;
+  now?: number | undefined;
+}): { pinnedProjectIds: string[]; pinnedProjectAt: Record<string, number> } {
+  const ids = [...(input.pinnedProjectIds ?? [])];
+  const base = input.now ?? Date.now();
+  const at: Record<string, number> = { ...(input.pinnedProjectAt ?? {}) };
+  ids.forEach((id, index) => {
+    if (typeof at[id] !== "number") at[id] = base + index;
+  });
+  for (const id of Object.keys(at)) {
+    if (!ids.includes(id)) delete at[id];
+  }
+  return { pinnedProjectIds: ids, pinnedProjectAt: at };
+}
 
 export function useIsProjectCollapsed(projectId: string): boolean {
   return useSidebarUiStore((s) => s.collapsedProjects[projectId] ?? false);

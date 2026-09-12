@@ -115,9 +115,10 @@ import { maybeCaptureAcpUpdate } from "./sessionDiagnostics";
 import { AcpTerminalManager } from "./terminalManager";
 import {
   appendInterruptAckTextTail,
-  createAcpPromptUsageEvent,
   createAcpPromptUsageSpentEvent,
   isAcpPromptCancellationError,
+  isGrokPoolQuotaError,
+  isKimiPoolQuotaError,
   normalizeAcpStopReason,
   resolveAcpPromptResponseUsage,
   resolveAcpPromptFailureMessage,
@@ -950,6 +951,11 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     this.agentSurfacedErrorMessage = undefined;
     this.currentTurnHadAgentActivity = false;
     this.stderrChunks.length = 0;
+    // A leftover awaiting-subagents flag from a previous turn (its bridge
+    // monitor died before emitting) must not complete THIS turn prematurely:
+    // handleSessionUpdate would see the flag with zero active subagents and
+    // settle the new turn against the old turn's bookkeeping.
+    this.foregroundTurnAwaitingSubagents = false;
 
     this.currentConfig = await this.sessionConfigSync.applyTurnConfig(
       this.sessionId,
@@ -1006,6 +1012,10 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       this.agentPromptCapabilities,
     );
 
+    // Set when the in-stream branch below rethrows: the failure events and
+    // the quota write-back are already done there, so the catch must not
+    // repeat them (duplicate error items) — only let the rejection through.
+    let inStreamQuotaError: Error | undefined;
     try {
       this.promptInFlight = true;
       // If `interruptTurn()` was called between `startTurn` entry and this
@@ -1022,10 +1032,9 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       });
       // ACP-standard bridges expose PromptResponse.usage. Native providers
       // may place the same real counters in response-level `_meta`; resolve
-      // once and feed that exact payload to both canonical usage projections.
+      // once for the cumulative billing ledger. PromptResponse usage is not
+      // current context occupancy, so it must never update the context bar.
       const promptUsage = resolveAcpPromptResponseUsage(result);
-      const usageEvent = createAcpPromptUsageEvent(this.threadId, promptUsage);
-      if (usageEvent) this.emitRuntimeEvents([usageEvent]);
       // The same prompt response also carries the session-cumulative counter
       // for the token ledger (absent on most bridges — then nothing is emitted
       // and the provider lands on the profile's unavailable list).
@@ -1074,11 +1083,43 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         // detached subagent tool calls in the mapper until their reports land.
         this.emitRuntimeEvents(closeOpenTurnItems(mapperState));
       } else {
+        // A provider can end the prompt "normally" while surfacing the real
+        // failure as an in-stream error message (Grok quota exhaustion does
+        // exactly this). Observers must still see it — otherwise pool quota
+        // write-back never fires for these turns.
+        if (turnState === "failed" && this.onPromptError) {
+          try {
+            await this.onPromptError(new Error(this.agentSurfacedErrorMessage));
+          } catch (callbackError) {
+            console.warn("[acp] prompt error observer failed:", callbackError);
+          }
+        }
         this.emitTurnStatusAfterPrompt(normalizedStopReason);
         this.completeTurn(mapperState, turnState);
+        // A pool-quota in-stream failure must reject like an RPC quota
+        // rejection: resolving here leaves the dead session current, so every
+        // later turn reuses the exhausted account forever while usable pool
+        // accounts wait. The failure events above are already emitted (same as
+        // the RPC-rejection path), so callers only gain the rejection — the
+        // supervisor's failover-or-fail machinery runs for both shapes.
+        // Gated on pool-quota shapes only (Grok/Kimi today): any other
+        // in-stream failure keeps resolving exactly as before.
+        if (
+          turnState === "failed" &&
+          this.agentSurfacedErrorMessage &&
+          (isGrokPoolQuotaError(new Error(this.agentSurfacedErrorMessage)) ||
+            isKimiPoolQuotaError(new Error(this.agentSurfacedErrorMessage)))
+        ) {
+          inStreamQuotaError = new Error(this.agentSurfacedErrorMessage);
+          throw inStreamQuotaError;
+        }
       }
     } catch (error) {
       if (this.isDisposed) return;
+      // The in-stream quota rethrow above already emitted its failure events
+      // and ran the quota write-back: don't duplicate them here, only let
+      // the rejection reach the supervisor's failover-or-fail machinery.
+      if (error === inStreamQuotaError) throw error;
       if (isAcpPromptCancellationError(error, this.currentTurnInterruptRequested)) {
         this.emitListenerUpdate({ status: "idle", attention: "none" });
         this.completeTurn(this.ensureMapperState(), "cancelled");
@@ -1091,6 +1132,17 @@ export class AcpStructuredSession implements StructuredSessionHandle {
           console.warn("[acp] prompt error observer failed:", callbackError);
         }
         this.emitPromptFailure(error);
+        // Mirror of the in-stream gate above: a pool-quota RPC rejection must
+        // reject (not resolve) so the supervisor's failover-or-fail machinery
+        // runs. Without this the dead session stays current and every later
+        // turn reuses the exhausted account forever. Gated on pool-quota
+        // shapes only (Grok/Kimi today) — every other rejection keeps
+        // resolving exactly as before. Rejects with the projected message
+        // (not the raw "Internal error") so downstream banners stay
+        // actionable.
+        if (isGrokPoolQuotaError(error) || isKimiPoolQuotaError(error)) {
+          throw new Error(resolveAcpPromptRpcErrorMessage(error), { cause: error });
+        }
       }
     } finally {
       this.promptInFlight = false;

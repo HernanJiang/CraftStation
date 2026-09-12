@@ -6,6 +6,7 @@ import type {
   RemoteGitSummariesEvent,
   RemoteGitStateEvent,
   RemoteProjectsChangedEvent,
+  RemoteSchedulesChangedEvent,
   RemoteThreadsChangedEvent,
   RemoteThreadCollaborationChangedEvent,
   RemoteWebSocketServerMessage,
@@ -24,6 +25,7 @@ export type RemoteBroadcastEvent =
   | RemoteGitSummariesEvent
   | RemoteGitStateEvent
   | RemoteProjectsChangedEvent
+  | RemoteSchedulesChangedEvent
   | RemoteThreadsChangedEvent
   | RemoteThreadCollaborationChangedEvent;
 

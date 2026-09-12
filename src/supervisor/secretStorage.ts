@@ -1,16 +1,27 @@
 import type { SharedSettings } from "@/shared/settings";
 import { sensitiveAgentSettingKeys } from "@/shared/agentSecrets";
 import {
+  configureSecretStorageFallbackKeys,
   configureSecretStorageKey,
   decryptSecret,
   encryptSecret,
   isEncryptedSecret,
+  parseSecretStorageFallbackKeys,
+  SECRET_STORAGE_KEY_FALLBACKS_ENV,
 } from "@/shared/secretStorage";
 
 // The sealing primitives are shared with the main process (so a value sealed in
 // either process unseals in the other). Re-exported here to keep existing
 // supervisor import sites stable.
-export { configureSecretStorageKey, decryptSecret, encryptSecret, isEncryptedSecret };
+export {
+  configureSecretStorageFallbackKeys,
+  configureSecretStorageKey,
+  decryptSecret,
+  encryptSecret,
+  isEncryptedSecret,
+  parseSecretStorageFallbackKeys,
+  SECRET_STORAGE_KEY_FALLBACKS_ENV,
+};
 
 export function transformSensitiveAgentSecrets(
   settings: SharedSettings,

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Button, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { ArrowUpRight } from "lucide-react";
 import type { ThreadExchangeView } from "@/shared/threadCollaboration";
@@ -9,18 +8,15 @@ import {
   CollaborationStatusIcon,
   collaborationCounterpart,
   collaborationStatusLabel,
-  collaborationStatusTone,
-  compositionLabel,
+  displayDialogueTitle,
 } from "./threadCollaborationUi";
 
-const MAX_VISIBLE_EXCHANGES = 3;
+export const MAX_VISIBLE_COLLABORATION_EXCHANGES = 3;
 
-export function ThreadCollaborationActivity(props: {
-  threadId: string;
-  refreshKey?: number;
-  onOpen: () => void;
-}) {
-  const { t } = useLingui();
+export function useThreadCollaborationExchanges(
+  threadId: string,
+  refreshKey?: number,
+): ThreadExchangeView[] {
   const [exchanges, setExchanges] = useState<ThreadExchangeView[]>([]);
 
   useEffect(() => {
@@ -35,14 +31,25 @@ export function ThreadCollaborationActivity(props: {
     const load = async () => {
       try {
         const next = await listThreadExchanges({
-          actorThreadId: props.threadId,
-          threadId: props.threadId,
-          limit: MAX_VISIBLE_EXCHANGES,
+          actorThreadId: threadId,
+          threadId,
+          limit: MAX_VISIBLE_COLLABORATION_EXCHANGES,
         });
-        if (active) setExchanges(next);
+        if (!active) return;
+        setExchanges((previous) =>
+          previous.length === next.length &&
+          previous.every(
+            (entry, index) =>
+              entry.id === next[index]?.id &&
+              entry.status === next[index]?.status &&
+              entry.updatedAt === next[index]?.updatedAt,
+          )
+            ? previous
+            : next,
+        );
       } catch {
-        // The full dialog owns actionable diagnostics. The compact timeline
-        // projection stays quiet when the host is temporarily unavailable.
+        // The full dialog owns actionable diagnostics. The compact projection
+        // stays quiet when the host is temporarily unavailable.
       }
     };
     void load();
@@ -51,67 +58,66 @@ export function ThreadCollaborationActivity(props: {
       active = false;
       window.clearInterval(timer);
     };
-  }, [props.threadId, props.refreshKey]);
+  }, [threadId, refreshKey]);
 
-  if (exchanges.length === 0) return null;
+  return exchanges;
+}
 
+export function CollaborationExchangeList(props: {
+  threadId: string;
+  exchanges: ThreadExchangeView[];
+  onOpen?: () => void;
+}) {
+  const { t } = useLingui();
   return (
-    <section
-      aria-label={t`Cross-thread dialogue activity`}
-      className="mx-auto flex w-full max-w-[920px] shrink-0 flex-col gap-1 border-b border-border/60 px-3 py-2"
-    >
-      {exchanges.map((exchange) => {
+    <div className="flex flex-col gap-0.5">
+      {props.exchanges.map((exchange) => {
         const counterpart = collaborationCounterpart(exchange, props.threadId);
+        const displayTitle = displayDialogueTitle(counterpart.provenance);
         return (
           <div
             key={exchange.id}
-            className="flex min-w-0 items-center gap-2 rounded-lg bg-surface-secondary/60 px-2.5 py-1.5 text-xs"
+            className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-xs"
           >
-            <Chip
-              color={collaborationStatusTone(exchange.status)}
-              size="sm"
-              variant="soft"
-              className="shrink-0"
-            >
-              <CollaborationStatusIcon status={exchange.status} className="size-3" />
-              <Chip.Label>{collaborationStatusLabel(exchange.status)}</Chip.Label>
-            </Chip>
+            <CollaborationStatusIcon status={exchange.status} className="size-3 shrink-0" />
             <span className="shrink-0 text-muted">
               {counterpart.direction === "outbound" ? <Trans>To</Trans> : <Trans>From</Trans>}
             </span>
-            <span className="min-w-0 truncate font-medium text-foreground">
-              {counterpart.provenance.title}
+            <span
+              className="min-w-0 flex-1 truncate font-medium text-foreground"
+              title={counterpart.provenance.title}
+            >
+              {displayTitle}
             </span>
-            <span className="hidden min-w-0 truncate text-muted @min-[620px]:inline">
-              {compositionLabel(counterpart.provenance)}
+            <span className="shrink-0 text-[11px] text-muted">
+              {collaborationStatusLabel(exchange.status)}
             </span>
-            {exchange.replyExcerpt ? (
-              <span className="hidden min-w-0 flex-1 truncate text-muted @min-[760px]:inline">
-                {exchange.replyExcerpt}
-              </span>
-            ) : (
-              <span className="flex-1" />
-            )}
-            <Button
-              isIconOnly
-              aria-label={t`Open ${counterpart.provenance.title}`}
-              size="sm"
-              variant="ghost"
-              onPress={() =>
+            <button
+              type="button"
+              aria-label={t`Open ${displayTitle}`}
+              title={counterpart.provenance.title}
+              onClick={() =>
                 openThread(counterpart.provenance.threadId, {
                   focusComposer: false,
                   switchWorkspace: true,
                 })
               }
+              className="shrink-0 rounded p-0.5 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
             >
-              <ArrowUpRight className="size-3.5" />
-            </Button>
+              <ArrowUpRight className="size-3.5" aria-hidden="true" />
+            </button>
           </div>
         );
       })}
-      <Button className="self-start px-2 text-xs" size="sm" variant="ghost" onPress={props.onOpen}>
-        <Trans>View cross-thread dialogue</Trans>
-      </Button>
-    </section>
+      {props.onOpen ? (
+        <button
+          type="button"
+          onClick={props.onOpen}
+          className="rounded-md px-1.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-hover)]"
+        >
+          <Trans>View cross-thread dialogue</Trans>
+        </button>
+      ) : null}
+    </div>
   );
 }

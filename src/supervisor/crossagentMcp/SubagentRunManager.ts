@@ -28,7 +28,7 @@ import type {
  * aborts the HTTP call and the caller sees an opaque transport error instead
  * of the graceful `status: "running"` re-poll result. Known ceilings: Codex
  * `tool_timeout_sec` and Gemini's per-server `timeout` (both set to 300s in
- * their `mcpCrossagent.ts` builders — keep in sync), and undici's 300s
+ * the own-subagents MCP projection — keep in sync), and undici's 300s
  * default headers timeout for fetch-based clients (Claude SDK).
  */
 export const DEFAULT_WAIT_TIMEOUT_MS = 120_000;
@@ -38,6 +38,17 @@ export const MAX_WAIT_TIMEOUT_MS = 240_000;
 export const MAX_CONCURRENT_CHILDREN_PER_PARENT = 4;
 /** Bound terminal result retention for long-lived parent threads. */
 const MAX_RETAINED_RUNS_PER_PARENT = 50;
+/**
+ * Grace window before a silent still-running child may be reaped at parent
+ * turn end. Session creation + first-token latency means a just-spawned child
+ * is always silent for a few seconds; reaping it immediately guarantees result
+ * loss when the parent ends its turn quickly (e.g. "spawned, waiting").
+ * Children older than this with no output/steps/approvals are still treated
+ * as stalled orphans.
+ */
+export const COMPLETE_TURN_SILENT_GRACE_MS = 30_000;
+/** Max chars of the task prompt exposed as `prompt_preview` in `list_runs`. */
+const PROMPT_PREVIEW_CHARS = 200;
 
 export interface SubagentRunManagerDeps {
   adapters: Map<AgentKind, AgentAdapter>;
@@ -85,6 +96,15 @@ interface RunRecord extends AttemptExecutionState {
   settled: boolean;
   settledPromise: Promise<void>;
   resolveSettled: () => void;
+  /** Wall-clock ms when the run reached a terminal status (if settled). */
+  settledAt: number | undefined;
+  /**
+   * Wall-clock ms when a terminal result was first handed to the parent via
+   * `wait_for_agent` / `get_status` after settling. Undefined until consumed —
+   * lets the UI (and the next turn) tell "finished" apart from "finished AND
+   * the parent actually read the result".
+   */
+  consumedAt: number | undefined;
 }
 
 export { SubagentSpawnError } from "./errors";
@@ -203,6 +223,8 @@ export class SubagentRunManager {
       settled: false,
       settledPromise,
       resolveSettled,
+      settledAt: undefined,
+      consumedAt: undefined,
     };
     this.runs.set(runId, record);
 
@@ -237,6 +259,7 @@ export class SubagentRunManager {
       return { status: "failed", output: `Unknown run_id: ${runId}` };
     }
     if (record.status !== "running") {
+      this.markConsumed(record);
       return this.waitResult(record);
     }
     const timedOut = Symbol("timeout");
@@ -251,6 +274,7 @@ export class SubagentRunManager {
     if (result === timedOut) {
       return this.waitResult(record);
     }
+    this.markConsumed(record);
     return this.waitResult(record);
   }
 
@@ -271,6 +295,7 @@ export class SubagentRunManager {
   getStatus(runId: string, parentThreadId?: string): SubagentWaitResult {
     const record = this.ownedRun(runId, parentThreadId);
     if (!record) return { status: "failed", output: `Unknown run_id: ${runId}` };
+    if (record.status !== "running") this.markConsumed(record);
     return this.waitResult(record);
   }
 
@@ -278,6 +303,7 @@ export class SubagentRunManager {
     const out: SubagentRunSummary[] = [];
     for (const record of this.runs.values()) {
       if (record.parentThreadId !== parentThreadId) continue;
+      const attempt = record.plan.attempts[record.attemptIndex];
       out.push({
         run_id: record.runId,
         name: record.label,
@@ -285,6 +311,13 @@ export class SubagentRunManager {
         background: record.background,
         attempt: record.attemptIndex + 1,
         attempt_count: record.plan.attempts.length,
+        ...(attempt ? { provider: attempt.provider, model: attempt.model } : {}),
+        steps: record.stepCount,
+        output_chars: record.output.length,
+        created_at: record.createdAt,
+        settled_at: record.settledAt ?? null,
+        consumed: record.consumedAt !== undefined,
+        prompt_preview: truncatePrompt(record.plan.prompt),
       });
     }
     return out;
@@ -331,6 +364,44 @@ export class SubagentRunManager {
     }
   }
 
+  /**
+   * End-of-turn reaping (user-mandated): when a parent turn finishes
+   * (completed/failed), still-running children that produced nothing — no
+   * streamed output, no tool steps, no pending approval — are cancelled, so a
+   * new turn never inherits silent orphans. Runs already producing output keep
+   * running: their information still has value and stays retrievable via
+   * get_status until the lifetime ceiling. Interrupted turns are excluded on
+   * purpose — steer-resume continues them, and the interrupt path already
+   * owns foreground cancellation. Returns the number of runs reaped.
+   *
+   * Silent children younger than {@link COMPLETE_TURN_SILENT_GRACE_MS} are
+   * spared: session creation + first-token latency means a just-spawned child
+   * is always silent for a few seconds, and reaping it the moment the parent
+   * ends its turn ("spawned, waiting") would guarantee result loss.
+   */
+  completeTurn(parentThreadId: string, now: number = Date.now()): number {
+    let reaped = 0;
+    for (const record of [...this.runs.values()]) {
+      if (record.parentThreadId !== parentThreadId || record.status !== "running") continue;
+      if (
+        record.output !== "" ||
+        record.stepCount > 0 ||
+        record.pendingRequestIds.size > 0
+      ) {
+        continue;
+      }
+      if (now - record.createdAt < COMPLETE_TURN_SILENT_GRACE_MS) continue;
+      record.cancelRequested = true;
+      this.settle(
+        record,
+        "cancelled",
+        "Parent turn ended before the subagent produced output.",
+      );
+      reaped += 1;
+    }
+    return reaped;
+  }
+
   /** Cancel turn-scoped runs while leaving explicitly detached background work alive. */
   cancelForegroundForThread(parentThreadId: string): void {
     for (const record of this.runs.values()) {
@@ -357,11 +428,17 @@ export class SubagentRunManager {
     return {
       status: record.status,
       output: record.output,
+      steps: record.stepCount,
       ...(record.error ? { error: record.error } : {}),
       ...(record.plan.attempts.length > 1
         ? { attempts: record.attemptResults.map((attempt) => ({ ...attempt })) }
         : {}),
     };
+  }
+
+  private markConsumed(record: RunRecord): void {
+    if (record.status === "running" || record.consumedAt !== undefined) return;
+    record.consumedAt = Date.now();
   }
 
   private requireParent(parentThreadId: string): {
@@ -619,6 +696,7 @@ export class SubagentRunManager {
     if (record.settled) return;
     record.settled = true;
     if (record.status === "running") record.status = status;
+    if (record.settledAt === undefined) record.settledAt = Date.now();
 
     this.drainPendingRequests(record);
     this.completeOpenForwardedItems(record);
@@ -691,4 +769,11 @@ export class SubagentRunManager {
       this.runs.delete(record.runId);
     }
   }
+}
+
+/** Truncated task prompt for `list_runs` traceability (never the full prompt). */
+function truncatePrompt(prompt: string): string {
+  const text = prompt.trim().replace(/\s+/g, " ");
+  if (text.length <= PROMPT_PREVIEW_CHARS) return text;
+  return `${text.slice(0, PROMPT_PREVIEW_CHARS)}…`;
 }

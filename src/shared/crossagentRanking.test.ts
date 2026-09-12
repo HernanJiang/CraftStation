@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyOwnSubagentsRouteOrder,
   crossagentSelectionUsageEntryKey,
   incrementAgentSelectionUsage,
   incrementCrossagentSelectionUsage,
@@ -35,7 +36,7 @@ const candidates: CrossagentRankingCandidate[] = [
 describe("rankCrossagentCandidates", () => {
   it("uses matching task affinity ahead of higher global Crossagents popularity", () => {
     const preferences = {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "claude",
           modelId: "sonnet",
@@ -90,7 +91,7 @@ describe("rankCrossagentCandidates", () => {
         },
       ],
       {
-        crossagentSelectionUsage: [
+        ownSubagentSelectionUsage: [
           {
             agentKind: "claude",
             modelId: "sonnet",
@@ -125,7 +126,7 @@ describe("rankCrossagentCandidates", () => {
 
   it("puts explicit Crossagents popularity ahead of favorites and normal usage", () => {
     const ranked = rankCrossagentCandidates(candidates, {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "kimi",
           modelId: "k3",
@@ -164,7 +165,7 @@ describe("rankCrossagentCandidates", () => {
 
   it("keeps provider votes but ignores unavailable model, reasoning, and Fast details", () => {
     const ranked = rankCrossagentCandidates(candidates.slice(0, 2), {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "removed-provider",
           modelId: "gone",
@@ -223,7 +224,7 @@ describe("rankCrossagentCandidates", () => {
         candidates[1]!,
       ],
       {
-        crossagentSelectionUsage: [
+        ownSubagentSelectionUsage: [
           {
             agentKind: "claude",
             modelId: "sonnet",
@@ -290,7 +291,7 @@ describe("rankCrossagentCandidates", () => {
 
   it("puts the most-specific available manual task route ahead of learned affinity", () => {
     const ranked = rankCrossagentCandidates(candidates, {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "codex",
           modelId: "gpt",
@@ -337,7 +338,7 @@ describe("rankCrossagentCandidates", () => {
 
   it("ignores manual routes whose provider or selection is unavailable", () => {
     const ranked = rankCrossagentCandidates(candidates.slice(0, 2), {
-      crossagentSelectionUsage: [],
+      ownSubagentSelectionUsage: [],
       routingOverrides: [
         {
           tags: ["review"],
@@ -364,7 +365,7 @@ describe("rankCrossagentCandidates", () => {
 
   it("falls back to a less-specific valid manual route", () => {
     const ranked = rankCrossagentCandidates(candidates.slice(0, 2), {
-      crossagentSelectionUsage: [],
+      ownSubagentSelectionUsage: [],
       routingOverrides: [
         {
           tags: ["frontend", "ui"],
@@ -411,7 +412,7 @@ describe("rankCrossagentCandidates", () => {
       ],
     };
     const basePreferences = {
-      crossagentSelectionUsage: [],
+      ownSubagentSelectionUsage: [],
       favoriteModels: [],
       agentSelectionUsage: [],
     };
@@ -448,7 +449,7 @@ describe("rankCrossagentCandidates", () => {
 
   it("keeps an explicit provider vote when its old model details are unavailable", () => {
     const ranked = rankCrossagentCandidates(candidates.slice(0, 2), {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "claude",
           modelId: "removed-model",
@@ -511,7 +512,7 @@ describe("rankCrossagentModels", () => {
 
   it("interleaves models across providers by their own usage", () => {
     const ranked = rankCrossagentModels(cursorAndClaude, {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         { agentKind: "cursor", modelId: "fable", fast: false, count: 9, lastUsedAt: 30 },
         { agentKind: "claude", modelId: "opus", fast: false, count: 5, lastUsedAt: 20 },
         { agentKind: "cursor", modelId: "grok", fast: false, count: 3, lastUsedAt: 10 },
@@ -537,14 +538,14 @@ describe("rankCrossagentModels", () => {
 
   it("keeps the global #1 aligned with the top provider's preferred selection", () => {
     const providerRanked = rankCrossagentCandidates(candidates, {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         { agentKind: "kimi", modelId: "k3", effort: "max", fast: false, count: 7, lastUsedAt: 20 },
       ],
       favoriteModels: [],
       agentSelectionUsage: [],
     });
     const modelRanked = rankCrossagentModels(candidates, {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         { agentKind: "kimi", modelId: "k3", effort: "max", fast: false, count: 7, lastUsedAt: 20 },
       ],
       favoriteModels: [],
@@ -561,7 +562,7 @@ describe("rankCrossagentModels", () => {
 
   it("ranks favorites and per-model learned tags on non-preferred models", () => {
     const ranked = rankCrossagentModels(cursorAndClaude, {
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "cursor",
           modelId: "grok",
@@ -919,5 +920,46 @@ describe("learned memory edits", () => {
     expect(next).toHaveLength(2);
     expect(next[0]).toMatchObject({ tags: ["frontend"], explicitFields: explicit });
     expect(next[1]).toEqual(implicitProvider);
+  });
+});
+
+describe("applyOwnSubagentsRouteOrder", () => {
+  const providers = [{ provider: "claude" }, { provider: "kimi" }, { provider: "codex" }];
+
+  it("reorders providers by user order, stably", () => {
+    expect(applyOwnSubagentsRouteOrder(providers, ["kimi", "native", "codex"]).map((p) => p.provider)).toEqual([
+      "kimi",
+      "codex",
+      "claude",
+    ]);
+  });
+
+  it("ignores the native sentinel and unknown entries", () => {
+    expect(
+      applyOwnSubagentsRouteOrder(providers, ["native", "removed", "codex"]).map((p) => p.provider),
+    ).toEqual(["codex", "claude", "kimi"]);
+  });
+
+  it("keeps learned ranking untouched when the order is empty", () => {
+    expect(applyOwnSubagentsRouteOrder(providers, []).map((p) => p.provider)).toEqual([
+      "claude",
+      "kimi",
+      "codex",
+    ]);
+    expect(applyOwnSubagentsRouteOrder(providers, undefined).map((p) => p.provider)).toEqual([
+      "claude",
+      "kimi",
+      "codex",
+    ]);
+  });
+
+  it("flows the persisted route order through candidate ranking", () => {
+    const ranked = rankCrossagentCandidates(candidates, {
+      ownSubagentSelectionUsage: [],
+      agentSelectionUsage: [],
+      favoriteModels: [],
+      routeOrder: ["kimi", "native"],
+    });
+    expect(ranked.map((entry) => entry.provider)).toEqual(["kimi", "claude", "codex"]);
   });
 });

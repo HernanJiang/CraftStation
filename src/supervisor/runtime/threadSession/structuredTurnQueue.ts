@@ -9,6 +9,18 @@ export interface StructuredTurnQueueContext {
   sessions: Map<string, SessionRuntime>;
   beginFailureEpisode(session: SessionRuntime): void;
   failStructuredSession(session: SessionRuntime, error: unknown): void;
+  /**
+   * Same-turn pool failover: when a turn dies on a pool-account quota error
+   * while usable pool accounts remain, dispose the dead session, rebuild on
+   * the next account and replay the turn. Returns true when it took over (the
+   * caller must not also fail the session); false to fall through to the
+   * normal failure path.
+   */
+  tryPoolFailover?(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+    error: unknown,
+  ): Promise<boolean>;
 }
 
 /**
@@ -44,21 +56,43 @@ export class StructuredTurnQueue {
             turnId,
           )
         : undefined;
+    // Failover/manual-switch context carry-over: prepend the stashed preface
+    // to the SENT prompt only (the optimistic paint below stays the raw
+    // prompt), then consume it so a later restart of this turn object cannot
+    // prepend it twice (failover rebuilds re-derive it fresh).
+    if (!turn.historyPreface && session.pendingHistoryPreface) {
+      turn.historyPreface = session.pendingHistoryPreface;
+      delete session.pendingHistoryPreface;
+    }
+    // Persistent fallback goal first (highest priority), then the failover
+    // preface, then the raw prompt. Painted output always stays the raw
+    // prompt (see the optimistic paint above).
+    const sendPrompt = [turn.goalContext, turn.historyPreface, turn.prompt]
+      .filter((part): part is string => typeof part === "string" && part.length > 0)
+      .join("\n\n");
+    delete turn.historyPreface;
     const startOptions = {
       ...(session.agentKind === "opencode" ? { turnId } : {}),
       ...(optimisticItemId ? { userMessageItemId: optimisticItemId } : {}),
       ...(turn.inlineInstructions ? { inlineInstructions: turn.inlineInstructions } : {}),
     };
+    // Failover replay reuses the already-painted turn/user-message ids so the
+    // rebuilt session cannot duplicate them (mirrors restartThread's contract).
+    const replayTurn: QueuedStructuredTurn = { ...turn, turnId };
+    if (optimisticItemId && !replayTurn.userMessageItemId) {
+      replayTurn.userMessageItemId = optimisticItemId;
+    }
     const startTurn = session.structuredSession.startTurn(
-      turn.prompt,
+      sendPrompt,
       turn.config,
       turn.segments,
       Object.keys(startOptions).length > 0 ? startOptions : undefined,
     );
-    void startTurn.catch((error) => {
+    void startTurn.catch(async (error) => {
       if (this.ctx.sessions.get(session.threadId)?.instanceId !== session.instanceId) {
         return;
       }
+      if (await this.ctx.tryPoolFailover?.(session, replayTurn, error)) return;
       this.ctx.failStructuredSession(session, error);
     });
   }
@@ -71,15 +105,26 @@ export class StructuredTurnQueue {
     this.ctx.beginFailureEpisode(session);
     const prompt = session.pendingLaunchPrompt;
     session.pendingLaunchPrompt = undefined;
+    // One-shot fallback goal for the launch turn (same paint/send split as
+    // regular turns; later turns re-assert via their own `goalContext`).
+    const launchGoal = session.pendingLaunchGoalContext;
+    session.pendingLaunchGoalContext = undefined;
+    const sendPrompt = launchGoal ? `${launchGoal}\n\n${prompt}` : prompt;
     const options =
       session.agentKind === "opencode" ? { turnId: `turn-${randomUUID()}` } : undefined;
     const startTurn = options
-      ? session.structuredSession.startTurn(prompt, session.config, undefined, options)
-      : session.structuredSession.startTurn(prompt, session.config);
-    void startTurn.catch((error) => {
+      ? session.structuredSession.startTurn(sendPrompt, session.config, undefined, options)
+      : session.structuredSession.startTurn(sendPrompt, session.config);
+    void startTurn.catch(async (error) => {
       if (this.ctx.sessions.get(session.threadId)?.instanceId !== session.instanceId) {
         return;
       }
+      const replayTurn: QueuedStructuredTurn = {
+        prompt,
+        config: session.config,
+        ...(options ? { turnId: options.turnId } : {}),
+      };
+      if (await this.ctx.tryPoolFailover?.(session, replayTurn, error)) return;
       this.ctx.failStructuredSession(session, error);
     });
   }

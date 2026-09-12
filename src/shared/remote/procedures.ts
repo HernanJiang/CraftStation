@@ -166,6 +166,8 @@ export const REMOTE_NOOP_PROCEDURES = {
   gitWatchWorktrees: "project",
   gitUnwatchProject: "project",
   revealProjectEntry: "projectLocation",
+  openProjectEntryWithSystem: "projectLocation",
+  extractOfficeDocumentText: "projectLocation",
 } as const satisfies Partial<Record<IpcProcedureName, RemoteProcedureOwner>>;
 
 export type RemoteNoopProcedureName = keyof typeof REMOTE_NOOP_PROCEDURES;

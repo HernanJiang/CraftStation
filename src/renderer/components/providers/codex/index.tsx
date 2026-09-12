@@ -166,6 +166,8 @@ function buildCodexPermissionControl(
     })),
     hideLabelOnWrap: true,
     value: current.id,
+    // The execution-mode menu resolves "完全访问权限" to this preset id.
+    fullAccessPolicyId: "full-access",
     isDisabled,
     onChange: (value: string) => {
       const preset = permissionPresets.find((option) => option.id === value);

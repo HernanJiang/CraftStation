@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AgentKind, ProjectLocation, RuntimeEvent } from "@/shared/contracts";
 import type { AgentAdapter } from "@/supervisor/agents/base";
 import { createAgentRegistry } from "@/supervisor/agents/registry";
-import { CrossagentMcpIngress } from "@/supervisor/crossagentMcp/CrossagentMcpIngress";
+import { OwnSubagentsMcpIngress } from "@/supervisor/crossagentMcp/CrossagentMcpIngress";
 import { SubagentRunManager } from "@/supervisor/crossagentMcp/SubagentRunManager";
 import type { SpawnableAgent } from "@/supervisor/crossagentMcp/types";
 import type { CrossagentMcpHttpConfig } from "@/supervisor/agents/crossagentMcp";
@@ -22,7 +22,7 @@ const ROUTING_GUIDE = "Prefer claude haiku for everything in this test.";
 
 describe("Crossagents MCP (live)", () => {
   let projectDir: string;
-  let ingress: CrossagentMcpIngress;
+  let ingress: OwnSubagentsMcpIngress;
   let runManager: SubagentRunManager;
   let mcp: CrossagentMcpHttpConfig;
   let claude: AgentAdapter | undefined;
@@ -78,7 +78,7 @@ describe("Crossagents MCP (live)", () => {
       });
     }
 
-    ingress = new CrossagentMcpIngress({
+    ingress = new OwnSubagentsMcpIngress({
       runManager,
       getSpawnableAgents: async () => spawnable,
       getRoutingGuide: () => ROUTING_GUIDE,

@@ -65,23 +65,78 @@ function envValue(
 /**
  * Resolve standard proxy env configuration. Returns undefined when no proxy is
  * configured at all, so callers can keep the zero-overhead global fetch path.
+ * `allowSystemProxyFallback` opts into the Windows WinINET registry fallback
+ * for processes launched without proxy env vars (tests keep it off).
  */
 export function resolveProxyConfig(
   env: Record<string, string | undefined>,
+  options?: { allowSystemProxyFallback?: boolean },
 ): ProxyEnvConfig | undefined {
   const allProxy = envValue(env, "all_proxy", "ALL_PROXY");
   const httpProxy = envValue(env, "http_proxy", "HTTP_PROXY") || allProxy;
   const httpsProxy = envValue(env, "https_proxy", "HTTPS_PROXY") || httpProxy;
-  if (!httpProxy && !httpsProxy) return undefined;
-  // An explicitly present (even empty) no_proxy must win over any ambient
-  // process-level NO_PROXY the agent would otherwise fall back to.
-  const hasNoProxy = "no_proxy" in env || "NO_PROXY" in env;
-  const noProxy = envValue(env, "no_proxy", "NO_PROXY");
-  return {
-    httpProxy,
-    httpsProxy,
-    ...(hasNoProxy ? { noProxy } : {}),
-  };
+  if (httpProxy || httpsProxy) {
+    // An explicitly present (even empty) no_proxy must win over any ambient
+    // process-level NO_PROXY the agent would otherwise fall back to.
+    const hasNoProxy = "no_proxy" in env || "NO_PROXY" in env;
+    const noProxy = envValue(env, "no_proxy", "NO_PROXY");
+    return {
+      httpProxy,
+      httpsProxy,
+      ...(hasNoProxy ? { noProxy } : {}),
+    };
+  }
+  if (options?.allowSystemProxyFallback) {
+    // Apps launched from Explorer/the taskbar inherit no proxy env vars, but the
+    // OS-level proxy (WinINET) is still configured — and provider endpoints like
+    // opencode.ai are unreachable from CN networks without it. Fall back to the
+    // Windows registry setting once per process.
+    if (env["PROCESSOR_ARCHITEW6432"] !== undefined || env["OS"] === "Windows_NT") {
+      return windowsSystemProxyConfig();
+    }
+  }
+  return undefined;
+}
+
+/** Cached WinINET proxy read (registry), resolved lazily on first request. */
+let cachedWindowsProxy: ProxyEnvConfig | undefined | null = null;
+
+function windowsSystemProxyConfig(): ProxyEnvConfig | undefined {
+  if (cachedWindowsProxy !== null) return cachedWindowsProxy;
+  cachedWindowsProxy = undefined;
+  try {
+    // spawnSync keeps this leaf module free of child-process imports at load.
+    const { spawnSync } = require("node:child_process") as {
+      spawnSync: (
+        cmd: string,
+        args: string[],
+        options?: { windowsHide?: boolean },
+      ) => { status: number | null; stdout: Buffer };
+    };
+    const query = spawnSync(
+      "reg",
+      ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"],
+      // No console window, ever: this probe fires lazily on first request and
+      // used to flash a terminal on every cold path that reached it.
+      { windowsHide: true },
+    );
+    if (query.status !== 0) return undefined;
+    const text = query.stdout.toString("utf8");
+    const enabled = /ProxyEnable\s+REG_DWORD\s+0x1/.test(text);
+    const server = /ProxyServer\s+REG_SZ\s+(\S+)/.exec(text)?.[1];
+    if (!enabled || !server) return undefined;
+    const proxyUrl = server.startsWith("http") ? server : `http://${server}`;
+    const noProxy = /ProxyOverride\s+REG_SZ\s+(.*)/.exec(text)?.[1];
+    cachedWindowsProxy = {
+      httpProxy: proxyUrl,
+      httpsProxy: proxyUrl,
+      // WinINET separates entries with ';'; EnvHttpProxyAgent expects ','.
+      ...(noProxy ? { noProxy: noProxy.split(";").join(",") } : {}),
+    };
+  } catch {
+    cachedWindowsProxy = undefined;
+  }
+  return cachedWindowsProxy;
 }
 
 function headersToRecord(headers: HeaderBag): Record<string, string> {
@@ -96,7 +151,9 @@ export function createNodeHttpClient(
   env: Record<string, string | undefined> = process.env,
 ): HttpClient {
   // One dispatcher per client; EnvHttpProxyAgent honors NO_PROXY per request.
-  const proxyConfig = resolveProxyConfig(env);
+  // The WinINET fallback opts in here (runtime), keeping resolveProxyConfig
+  // pure for tests.
+  const proxyConfig = resolveProxyConfig(env, { allowSystemProxyFallback: true });
   const dispatcher: Dispatcher | undefined = proxyConfig
     ? new EnvHttpProxyAgent(proxyConfig)
     : undefined;

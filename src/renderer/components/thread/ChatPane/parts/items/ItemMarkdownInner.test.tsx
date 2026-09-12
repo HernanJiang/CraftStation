@@ -46,7 +46,7 @@ describe("ItemMarkdownInner", () => {
       expect.objectContaining({
         text: ".animate-tool-call-enter {\n  animation: fade-in;\n}",
         lang: "css",
-        className: expect.stringContaining("not-prose"),
+        className: expect.stringContaining("lc-md-code-block"),
       }),
     );
   });
@@ -83,6 +83,45 @@ $$`}
     expect(container.querySelector(".katex-error")).toBeNull();
   });
 
+  it("renders classic \\[ ... \\] display delimiters through KaTeX", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"\\[\n\\Delta=b^2-4ac\n\\]"} />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')).toHaveTextContent(
+      "\\Delta=b^2-4ac",
+    );
+    expect(container.textContent).not.toContain("\\[");
+  });
+
+  it("renders classic \\( ... \\) inline delimiters through KaTeX", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"the root is \\(x=\\frac{-1}{2}\\) indeed"} />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.textContent).toContain("indeed");
+  });
+
+  it("keeps math-signal-less escaped brackets as literal text", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"see \\[appendix\\] and cite \\[1\\] please"} />
+      </AppProvider>,
+    );
+
+    expect(container.textContent).toContain("[appendix]");
+    expect(container.textContent).toContain("[1]");
+    expect(container.querySelectorAll(".katex")).toHaveLength(0);
+  });
+
   it("renders Mermaid flowcharts and normalizes diagram fence aliases", async () => {
     const { container } = render(
       <AppProvider>
@@ -108,8 +147,8 @@ flowchart TD
       </AppProvider>,
     );
 
-    const architectureBlock = container.querySelector('div[class~="bg-foreground/10"]');
-    expect(architectureBlock).toHaveClass("bg-foreground/10", "font-mono");
+    const architectureBlock = container.querySelector(".lc-md-code-block");
+    expect(architectureBlock).toHaveClass("lc-md-code-block", "font-mono");
     expect(architectureBlock).toHaveTextContent(
       "CLIP encoder -> Linear projection -> modality_router -> Qwen LoRA",
     );
@@ -126,7 +165,7 @@ flowchart TD
     expect(container.querySelector("p")).toHaveTextContent(
       "Open the menu -> choose Settings -> save your changes.",
     );
-    expect(container.querySelector('div[class~="bg-foreground/10"]')).toBeNull();
+    expect(container.querySelector(".lc-md-code-block")).toBeNull();
   });
 
   it("falls back to a plain pre/code block for language-less fences", () => {
@@ -138,6 +177,7 @@ flowchart TD
 
     expect(screen.queryByTestId("code-block")).not.toBeInTheDocument();
     expect(container.querySelector("pre > code")).toHaveTextContent("plain block");
+    expect(container.querySelector("pre")).toHaveClass("lc-md-code-block");
   });
 
   it("falls back to a plain pre/code block for unsupported fence languages", () => {
@@ -149,6 +189,24 @@ flowchart TD
 
     expect(screen.queryByTestId("code-block")).not.toBeInTheDocument();
     expect(container.querySelector("pre > code")).toHaveTextContent("plain block");
+    expect(container.querySelector("pre")).toHaveClass("lc-md-code-block");
+  });
+
+  it("styles architecture fences as gray diagram cards", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={
+            "```\nUI (IPC) → ScheduleCapability → ScheduleService → SQLite\n        ↓\nScheduleRunCoordinator\n```"
+          }
+        />
+      </AppProvider>,
+    );
+
+    const diagram = container.querySelector("pre.lc-md-code-block");
+    expect(diagram).toBeTruthy();
+    expect(diagram).toHaveTextContent("ScheduleCapability");
+    expect(diagram?.closest(".lc-chat-markdown")).toBeTruthy();
   });
 
   it("treats range/path fence info as a code fence header, not visible body text", () => {
@@ -517,6 +575,21 @@ flowchart TD
     expect(firstRowCells).toHaveLength(2);
     expect(firstRowCells[0]).toHaveTextContent("Alice");
     expect(firstRowCells[1]).toHaveTextContent("Engineer");
+  });
+
+  it("renders the table frame with square corners", () => {
+    const mdTable = ["| Name | Role |", "|------|------|", "| Alice | Engineer |"].join("\n");
+
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={mdTable} />
+      </AppProvider>,
+    );
+
+    const frame = container.querySelector("table")!.closest("div");
+    expect(frame).not.toBeNull();
+    expect(frame!.className).not.toMatch(/rounded/);
+    expect(frame!.className).toContain("border");
   });
 
   it("does not render incomplete absolute markdown hrefs as browser links", () => {

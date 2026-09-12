@@ -134,6 +134,16 @@ export function mapClaudeContextUsageResponse(
     rawUsedTokens !== undefined && (rawUsedTokens > 0 || breakdown.length > 0)
       ? rawUsedTokens
       : undefined;
+  const apiUsage =
+    response.apiUsage && typeof response.apiUsage === "object"
+      ? (response.apiUsage as Record<string, unknown>)
+      : undefined;
+  const cacheReadTokens =
+    readNonNegativeInteger(apiUsage?.cache_read_input_tokens) ??
+    readNonNegativeInteger(apiUsage?.cacheReadInputTokens);
+  if (cacheReadTokens !== undefined && cacheReadTokens > 0) {
+    breakdown.push({ id: "cache-read", label: "Cache read", tokens: cacheReadTokens });
+  }
 
   return createContextUsageEvent(threadId, {
     ...(usedTokens !== undefined ? { usedTokens } : {}),

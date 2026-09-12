@@ -5,6 +5,7 @@ import {
   type Thread,
   type ThreadAttention,
   type ThreadConfig,
+  type ThreadGoal,
   type ThreadPresentationMode,
   type ThreadRuntimeSnapshot,
   type ThreadServerRequestId,
@@ -13,6 +14,12 @@ import {
   areAgentSlashCommandsEqual,
   isThreadConfigEqual,
 } from "@/shared/contracts";
+import {
+  isArchiveExpired as isArchiveExpiredByPolicy,
+  parseArchivedAtMs,
+  type ArchiveRetention,
+} from "@/shared/archiveRetention";
+import { migrateThreadPinToTimestamp } from "@/shared/sidebarOrdering";
 import {
   reorderThreadBlockInProject,
   reorderThreadsInProject,
@@ -84,6 +91,8 @@ export interface ThreadSlice {
     focus?: boolean;
     /** Orchestrator thread that created this one (metadata only). */
     parentThreadId?: string;
+    /** Durable `/goal` snapshot inherited at Side Chat branch time. */
+    goal?: ThreadGoal;
     /**
      * Memory-only Side Chat branch: kept out of the sidebar and SQLite (see
      * `isEphemeralSideChatThread`). The caller owns its lifecycle (Side Chat
@@ -99,6 +108,12 @@ export interface ThreadSlice {
     worktreeBranch?: string,
     options?: { preserveProvisioning?: boolean },
   ) => void;
+  /**
+   * Bind/replace (`goal` set) or clear (`goal` undefined) the durable `/goal`
+   * prompt on a thread. Stamps updatedAt so the change rides the normal
+   * thread-row sync into SQLite.
+   */
+  setThreadGoal: (threadId: string, goal: ThreadGoal | undefined) => void;
   updateThreadConfig: (threadId: string, config: ThreadConfig) => void;
   updateThreadPresentationMode: (
     threadId: string,
@@ -127,7 +142,15 @@ export interface ThreadSlice {
   unmarkThreadDone: (threadId: string) => void;
   starThread: (threadId: string) => void;
   unstarThread: (threadId: string) => void;
-  purgeStaleArchivedThreads: (maxAgeDays: number) => void;
+  /**
+   * Retention-aware archive cleanup. Source of truth is `archivedAt` (legacy
+   * rows without it fall back to `updatedAt` once, then backfill). Reuses the
+   * existing permanent-delete path via the caller (see `cleanupExpiredArchives`
+   * in threadActions) — never widens native-thread destructive scope.
+   * REPLACES the old `purgeStaleArchivedThreads(maxAgeDays)` (deleted: it
+   * keyed off `updatedAt` with a hardcoded 30d window).
+   */
+  purgeExpiredArchives: (retention: ArchiveRetention, nowMs?: number) => void;
   archiveOldDoneThreads: (maxAgeDays: number) => void;
   markThreadExited: (threadId: string) => void;
   touchThread: (threadId: string) => void;
@@ -145,6 +168,31 @@ export function normalizeRuntimeSnapshotLaunchConfig<T extends ThreadRuntimeSnap
   snapshot: T,
 ): Omit<T, "launchConfig"> & { launchConfig: ThreadConfig | null } {
   return { ...snapshot, launchConfig: snapshot.launchConfig ?? null };
+}
+
+/**
+ * One-time migration for persisted threads predating `pinnedAt`/`archivedAt`:
+ * legacy `starred` → `pinnedAt`, legacy archived-without-`archivedAt` →
+ * `archivedAt` from `updatedAt`. Idempotent; never drops an existing pin.
+ */
+export function migrateStoredThreadPinArchive<T extends Thread>(thread: T, nowMs?: number): T {
+  const now = nowMs ?? Date.now();
+  const pinnedAt = migrateThreadPinToTimestamp({
+    starred: thread.starred,
+    pinnedAt: thread.pinnedAt ?? null,
+    updatedAt: thread.updatedAt,
+    now,
+  });
+  const archivedAt =
+    thread.archived && !thread.archivedAt
+      ? (thread.updatedAt ?? new Date(now).toISOString())
+      : thread.archivedAt;
+  if ((thread.pinnedAt ?? null) === pinnedAt && thread.archivedAt === archivedAt) return thread;
+  return {
+    ...thread,
+    ...(pinnedAt === null ? { pinnedAt: null } : { pinnedAt }),
+    ...(archivedAt ? { archivedAt } : {}),
+  };
 }
 
 export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
@@ -202,6 +250,7 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
     focus,
     parentThreadId,
     isEphemeral,
+    goal,
   }) => {
     const now = new Date().toISOString();
     const thread: Thread = {
@@ -228,6 +277,7 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
       ...(groupName ? { groupName } : {}),
       ...(parentThreadId ? { parentThreadId } : {}),
       ...(isEphemeral === true ? { isEphemeral: true } : {}),
+      ...(goal ? { goal } : {}),
       createdAt: now,
       updatedAt: now,
       activeTurnStartedAt: now,
@@ -358,6 +408,18 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
           : provisioningWorktreeThreadIds,
       };
     }),
+  setThreadGoal: (threadId, goal) =>
+    set((state) => ({
+      threads: state.threads.map((thread) => {
+        if (thread.id !== threadId) return thread;
+        const { goal: _droppedGoal, ...rest } = thread;
+        return {
+          ...rest,
+          ...(goal ? { goal } : {}),
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    })),
   updateThreadConfig: (threadId, config) =>
     set((state) => {
       let changed = false;
@@ -552,8 +614,9 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
       const thread = state.threads.find((t) => t.id === threadId);
       if (!thread || thread.archived) return {};
 
+      const nowIso = new Date().toISOString();
       const threads = state.threads.map((t) =>
-        t.id === threadId ? { ...t, archived: true, updatedAt: new Date().toISOString() } : t,
+        t.id === threadId ? { ...t, archived: true, archivedAt: nowIso, updatedAt: nowIso } : t,
       );
 
       let nextView = state.view;
@@ -572,7 +635,9 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
 
       return {
         threads: state.threads.map((t) =>
-          t.id === threadId ? { ...t, archived: false, updatedAt: new Date().toISOString() } : t,
+          t.id === threadId
+            ? { ...t, archived: false, archivedAt: undefined, updatedAt: new Date().toISOString() }
+            : t,
         ),
       };
     }),
@@ -583,7 +648,7 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
 
       const now = new Date().toISOString();
       const threads = state.threads.map((t) =>
-        t.id === threadId ? { ...t, done: true, doneAt: now, starred: false } : t,
+        t.id === threadId ? { ...t, done: true, doneAt: now, starred: false, pinnedAt: null } : t,
       );
 
       let nextView = state.view;
@@ -614,8 +679,12 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
     set((state) => {
       const thread = state.threads.find((t) => t.id === threadId);
       if (!thread || thread.starred) return {};
+      // Global pin: `starred` stays as the legacy mirror; `pinnedAt` is the
+      // stable ordering truth (presentation only — projectId untouched).
       return {
-        threads: state.threads.map((t) => (t.id === threadId ? { ...t, starred: true } : t)),
+        threads: state.threads.map((t) =>
+          t.id === threadId ? { ...t, starred: true, pinnedAt: Date.now() } : t,
+        ),
       };
     }),
   unstarThread: (threadId) =>
@@ -623,15 +692,20 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
       const thread = state.threads.find((t) => t.id === threadId);
       if (!thread || !thread.starred) return {};
       return {
-        threads: state.threads.map((t) => (t.id === threadId ? { ...t, starred: false } : t)),
+        threads: state.threads.map((t) =>
+          t.id === threadId ? { ...t, starred: false, pinnedAt: null } : t,
+        ),
       };
     }),
-  purgeStaleArchivedThreads: (maxAgeDays) =>
+  purgeExpiredArchives: (retention, nowMs) =>
     set((state) => {
-      const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
-      const nextThreads = state.threads.filter(
-        (t) => !t.archived || new Date(t.updatedAt).getTime() > cutoff,
-      );
+      const now = nowMs ?? Date.now();
+      const nextThreads = state.threads.filter((t) => {
+        if (!t.archived) return true;
+        // Legacy rows predating `archivedAt` fall back to `updatedAt` once.
+        const archivedMs = parseArchivedAtMs(t.archivedAt ?? t.updatedAt);
+        return !isArchiveExpiredByPolicy(archivedMs, retention, now);
+      });
       if (nextThreads.length === state.threads.length) return {};
       return { threads: nextThreads };
     }),
@@ -644,10 +718,12 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
         state.view.kind === "thread" ? new Set(state.view.panes) : new Set<string>();
 
       const threads = state.threads.map((t) => {
-        if (!t.done || t.archived || t.starred) return t;
+        // Globally pinned threads never auto-archive out from under the pin.
+        if (!t.done || t.archived || t.starred || t.pinnedAt != null) return t;
         if (new Date(t.doneAt ?? t.updatedAt).getTime() > cutoff) return t;
         changed = true;
-        return { ...t, archived: true };
+        const nowIso = new Date().toISOString();
+        return { ...t, archived: true, archivedAt: nowIso };
       });
 
       if (!changed) return {};

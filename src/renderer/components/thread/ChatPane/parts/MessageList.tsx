@@ -1,7 +1,9 @@
 import {
   memo,
   useCallback,
+  useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -13,7 +15,7 @@ import {
 } from "react";
 import { LegendList, type LegendListRef, type LegendListState } from "@legendapp/list/react";
 import { Surface } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import type {
   MessageItemPayload,
   ProjectLocation,
@@ -23,7 +25,12 @@ import type {
 import { threadProductProperties } from "@/renderer/analytics/posthog";
 import { captureProductEvent } from "@/renderer/analytics/productAnalytics";
 import { readBridge } from "@/renderer/bridge";
-import { formatElapsed } from "@/renderer/utils/formatTime";
+import { submitThreadInput } from "@/renderer/actions/threadRuntimeActions";
+import {
+  CONTINUE_INTERRUPTED_TASK_PROMPT,
+  continueInterruptedTaskSegments,
+} from "../../pausedTurn";
+import { formatElapsed, formatElapsedZh } from "@/renderer/utils/formatTime";
 import { useAppStore } from "@/renderer/state/appStore";
 import {
   getRuntimeItemPayload,
@@ -38,9 +45,13 @@ import {
 } from "./CheckpointRevertControls";
 import { useChatPaneActions } from "../chatPaneActionsContext";
 import {
+  getTurnStartRecordMap,
   growingStreamLength,
-  selectCompletedTurnForEntry,
+  selectLastUserMessageId,
+  selectMostRecentDisplayableCompletedTurn,
+  selectOrderedCompletedTurns,
   selectRuntimeItemById,
+  turnRangeHasError,
   type ChatTimelineEntry,
 } from "../chatPaneSelectors";
 import { ChatItemRow } from "./items/ChatItemRow";
@@ -98,11 +109,12 @@ interface MessageListProps {
   checkpointActions?: CheckpointRevertActions | undefined;
   projectLocation?: ProjectLocation | undefined;
   /**
-   * If set, the inline "Worked for X" indicator anchored to this item id is
-   * suppressed because the parent tail loader is already showing it (matches
-   * the most recent completed turn while the thread is idle).
+   * The turn-start status bar anchored to this item id is suppressed because a
+   * still-ticking live timer (detached background work) has subsumed that
+   * record — the footer owns the one honest readout in that state. Completed
+   * turns always render their inline "Completed in" bar at the anchor.
    */
-  suppressInlineTurnAnchorId?: string | null;
+  suppressTurnHeaderAnchorId?: string | null;
   /**
    * Lets the chat Find controller drive the virtualizer to scroll a matched
    * row into the rendered window before highlighting it. Registered with the
@@ -148,7 +160,7 @@ export function MessageList({
   checkpointGuard,
   checkpointActions,
   projectLocation,
-  suppressInlineTurnAnchorId = null,
+  suppressTurnHeaderAnchorId = null,
   registerScrollToIndex,
 }: MessageListProps) {
   const hasItems = entries.length > 0;
@@ -295,6 +307,37 @@ export function MessageList({
   );
   const lastLiveIndex = useAppStore(liveTailSelector);
 
+  // Turn-start records ("Worked for X" era headers now live below the turn's
+  // first row). The map is reference-stable per (entries, records) via the
+  // selector caches, so rows only re-render when grouping actually changes.
+  const orderedCompletedTurns = useAppStore((state) =>
+    selectOrderedCompletedTurns(state, threadId),
+  );
+  const turnStart = useMemo(() => {
+    const map = getTurnStartRecordMap(entries, orderedCompletedTurns);
+    let token = `${map.size}`;
+    for (const [entryId, record] of map) {
+      token += `|${entryId}>${record.anchorItemId}`;
+    }
+    return { map, token };
+  }, [entries, orderedCompletedTurns]);
+
+  // Live-turn status bar anchor: the latest user message's entry, only while
+  // the turn is actually open in the runtime (never from persisted timing —
+  // a reload must not resume ticking a finished task).
+  const runtimeOpenTurn = useAppStore((state) => state.runtimeOpenTurnByThread[threadId] ?? false);
+  const lastUserMessageId = useAppStore((state) => selectLastUserMessageId(state, threadId));
+  const liveTurnStartedAt = useAppStore(
+    (state) => state.threads.find((thread) => thread.id === threadId)?.activeTurnStartedAt,
+  );
+  const liveTurnStartEntryId = useMemo(() => {
+    if (!isTurnActive || !runtimeOpenTurn || !lastUserMessageId) return null;
+    const visible = entries.some(
+      (entry) => entry.kind === "item" && entry.id === lastUserMessageId,
+    );
+    return visible ? lastUserMessageId : null;
+  }, [isTurnActive, runtimeOpenTurn, lastUserMessageId, entries]);
+
   const remeasureRowElement = useCallback(
     (itemKey: string, element: HTMLDivElement | null, liveStreamGrowth = false) => {
       const instance = listRef.current;
@@ -421,7 +464,7 @@ export function MessageList({
         data={entries}
         dataKey={threadId}
         estimatedItemSize={DEFAULT_ROW_ESTIMATE_PX}
-        extraData={`${lastLiveIndex}:${isTurnActive}:${markTailAsLive}:${suppressInlineTurnAnchorId ?? ""}:${canRevertCheckpoints}`}
+        extraData={`${lastLiveIndex}:${isTurnActive}:${markTailAsLive}:${suppressTurnHeaderAnchorId ?? ""}:${canRevertCheckpoints}:${turnStart.token}:${liveTurnStartEntryId ?? ""}`}
         getFixedItemSize={(entry) =>
           getFixedTimelineEntrySize(entry, threadId, scrollElementRef.current?.clientWidth)
         }
@@ -431,7 +474,9 @@ export function MessageList({
             threadId,
             index,
             index === lastLiveIndex && isTurnActive,
-            suppressInlineTurnAnchorId,
+            suppressTurnHeaderAnchorId,
+            turnStart.map,
+            liveTurnStartEntryId,
           )
         }
         initialScrollAtEnd
@@ -453,7 +498,10 @@ export function MessageList({
             isTurnActive={isTurnActive}
             remeasureElement={remeasureRowElement}
             {...(onVirtualizerLayoutChange ? { onVirtualizerLayoutChange } : {})}
-            suppressInlineTurnAnchorId={suppressInlineTurnAnchorId}
+            turnStartRecord={turnStart.map.get(entry.id)}
+            isLiveTurnStart={liveTurnStartEntryId !== null && liveTurnStartEntryId === entry.id}
+            {...(liveTurnStartedAt ? { liveTurnStartedAt } : {})}
+            suppressTurnHeaderAnchorId={suppressTurnHeaderAnchorId}
             canRevertCheckpoints={canRevertCheckpoints}
             onRequestRevert={requestRevert}
           />
@@ -503,10 +551,16 @@ type VirtualChatListRowProps = {
     liveStreamGrowth?: boolean,
   ) => LegendListState | null;
   onVirtualizerLayoutChange?: () => void;
-  suppressInlineTurnAnchorId: string | null;
+  turnStartRecord?: CompletedTurnRecord | undefined;
+  /** True when this row starts the currently live turn (ticking status bar). */
+  isLiveTurnStart: boolean;
+  liveTurnStartedAt?: string | undefined;
+  suppressTurnHeaderAnchorId: string | null;
   canRevertCheckpoints: boolean;
   onRequestRevert: (itemId: string) => void;
 };
+
+const EMPTY_CANCELLED_MARKS: readonly number[] = [];
 
 const VirtualChatListRow = memo(function VirtualChatListRow({
   threadId,
@@ -516,7 +570,10 @@ const VirtualChatListRow = memo(function VirtualChatListRow({
   isTurnActive,
   remeasureElement,
   onVirtualizerLayoutChange,
-  suppressInlineTurnAnchorId,
+  turnStartRecord,
+  isLiveTurnStart,
+  liveTurnStartedAt,
+  suppressTurnHeaderAnchorId,
   canRevertCheckpoints,
   onRequestRevert,
 }: VirtualChatListRowProps) {
@@ -621,18 +678,62 @@ const VirtualChatListRow = memo(function VirtualChatListRow({
     return findCheckpointBeforeUserMessage(itemIds, itemsById, entry.id);
   });
   const showTurnGap = isUserMessage && index > 0;
-  const completedTurn = useAppStore((state) => selectCompletedTurnForEntry(state, threadId, entry));
-  const showInlineTurn =
-    completedTurn !== undefined &&
-    completedTurn.anchorItemId !== null &&
-    completedTurn.anchorItemId !== suppressInlineTurnAnchorId;
-  const inlineTurnVisibleRef = useRef(false);
+  const startItemId = entry.kind === "item" ? entry.id : (entry.itemIds[0] ?? entry.id);
+  const cancelledStarts = useAppStore(
+    (state) => state.userCancelledTurnStartsByThread[threadId] ?? EMPTY_CANCELLED_MARKS,
+  );
+  const mostRecentAnchor = useAppStore(
+    (state) => selectMostRecentDisplayableCompletedTurn(state, threadId)?.anchorItemId ?? null,
+  );
+  const threadStatus = useAppStore(
+    (state) => state.threads.find((thread) => thread.id === threadId)?.status,
+  );
+  const rangeHasError = useAppStore((state) =>
+    turnStartRecord?.anchorItemId
+      ? turnRangeHasError(state, threadId, startItemId, turnStartRecord.anchorItemId)
+      : false,
+  );
+
+  // Per-turn status bar below this row: live turns tick from the runtime's
+  // start timestamp; settled turns freeze their record window. Cancelled comes
+  // from the user's own Stop press (the only honest signal — turn records
+  // carry no end state); failed comes from error items in the turn's range.
+  type TurnBar =
+    | { state: "working"; startedAtMs: number; endedAtMs: null }
+    | { state: "completed" | "failed" | "paused"; startedAtMs: number; endedAtMs: number };
+  let turnBar: TurnBar | null = null;
+  if (isLiveTurnStart && isTurnActive) {
+    const startedAtMs = liveTurnStartedAt ? Date.parse(liveTurnStartedAt) : NaN;
+    if (Number.isFinite(startedAtMs)) {
+      turnBar = { state: "working", startedAtMs, endedAtMs: null };
+    }
+  } else if (
+    turnStartRecord !== undefined &&
+    turnStartRecord.anchorItemId !== null &&
+    turnStartRecord.anchorItemId !== suppressTurnHeaderAnchorId
+  ) {
+    const { startedAt, endedAt } = turnStartRecord;
+    if (
+      cancelledStarts.includes(startedAt) ||
+      (threadStatus === "error" && mostRecentAnchor === turnStartRecord.anchorItemId)
+    ) {
+      turnBar = { state: "paused", startedAtMs: startedAt, endedAtMs: endedAt };
+    } else if (rangeHasError) {
+      turnBar = { state: "failed", startedAtMs: startedAt, endedAtMs: endedAt };
+    } else {
+      turnBar = { state: "completed", startedAtMs: startedAt, endedAtMs: endedAt };
+    }
+  }
+  const turnBarKey = turnBar
+    ? `${turnBar.state}:${turnBar.startedAtMs}:${turnBar.endedAtMs ?? "live"}`
+    : null;
+  const turnBarVisibleRef = useRef<string | null>(null);
   useLayoutEffect(() => {
-    if (inlineTurnVisibleRef.current === showInlineTurn) return;
-    inlineTurnVisibleRef.current = showInlineTurn;
+    if (turnBarVisibleRef.current === turnBarKey) return;
+    turnBarVisibleRef.current = turnBarKey;
     onVirtualizerLayoutChange?.();
     scheduleLiveMeasure();
-  }, [onVirtualizerLayoutChange, scheduleLiveMeasure, showInlineTurn]);
+  }, [onVirtualizerLayoutChange, scheduleLiveMeasure, turnBarKey]);
 
   return (
     <div
@@ -656,28 +757,102 @@ const VirtualChatListRow = memo(function VirtualChatListRow({
             }
           />
         </div>
-        {showInlineTurn ? (
-          <CompletedTurnIndicator threadId={threadId} record={completedTurn} />
+        {turnBar ? (
+          <div
+            className="mb-1 mt-1.5 border-b border-white/[0.14] pb-2"
+            data-testid="turn-status-bar"
+            data-turn-state={turnBar.state}
+          >
+            <Surface variant="transparent" className={chatMessageSurfaceClass}>
+              <TurnStatusText
+                bar={turnBar}
+                threadId={threadId}
+                canContinue={
+                  turnBar.state === "paused" &&
+                  threadStatus !== "working" &&
+                  threadStatus !== "launching"
+                }
+              />
+            </Surface>
+          </div>
         ) : null}
       </div>
     </div>
   );
 });
 
-function CompletedTurnIndicator({ record }: { threadId: string; record: CompletedTurnRecord }) {
-  const elapsedSeconds = Math.max(0, Math.floor((record.endedAt - record.startedAt) / 1000));
-  if (elapsedSeconds < 1) return null;
-  const elapsed = formatElapsed(elapsedSeconds);
+function TurnStatusText({
+  bar,
+  threadId,
+  canContinue,
+}: {
+  bar:
+    | { state: "working"; startedAtMs: number; endedAtMs: null }
+    | { state: "completed" | "failed" | "paused"; startedAtMs: number; endedAtMs: number };
+  threadId: string;
+  canContinue: boolean;
+}) {
+  const { i18n, t } = useLingui();
+  const useZhUnits = (i18n.locale ?? "").startsWith("zh");
+  const formatDuration = (totalSeconds: number) =>
+    useZhUnits ? formatElapsedZh(totalSeconds) : formatElapsed(totalSeconds);
+  if (bar.state === "working") {
+    return <LiveTurnStatusText startedAtMs={bar.startedAtMs} formatDuration={formatDuration} />;
+  }
+  const elapsed = formatDuration(Math.max(0, Math.floor((bar.endedAtMs - bar.startedAtMs) / 1000)));
+  const label = useZhUnits
+    ? bar.state === "completed"
+      ? `已完成 ${elapsed}`
+      : bar.state === "failed"
+        ? `失败，耗时 ${elapsed}`
+        : `已暂停，耗时 ${elapsed}`
+    : bar.state === "completed"
+      ? <Trans>Completed in {elapsed}</Trans>
+      : bar.state === "failed"
+        ? <Trans>Failed after {elapsed}</Trans>
+        : <Trans>Paused after {elapsed}</Trans>;
+  if (bar.state === "paused" && canContinue) {
+    return (
+      <button
+        type="button"
+        className="text-[11px] text-muted underline-offset-2 [font-variant-numeric:tabular-nums] hover:text-foreground hover:underline"
+        aria-label={t`Continue paused task`}
+        onClick={() => {
+          void submitThreadInput(
+            threadId,
+            CONTINUE_INTERRUPTED_TASK_PROMPT,
+            continueInterruptedTaskSegments(),
+          );
+        }}
+      >
+        {label}
+      </button>
+    );
+  }
   return (
-    <Surface variant="transparent" className={chatMessageSurfaceClass}>
-      <div className="flex flex-col gap-0.5 text-[length:var(--lc-chat-font-size-meta)] text-foreground-muted">
-        {elapsedSeconds >= 1 ? (
-          <span className="text-muted">
-            <Trans>Worked for {elapsed}</Trans>
-          </span>
-        ) : null}
-      </div>
-    </Surface>
+    <span className="text-[11px] text-muted [font-variant-numeric:tabular-nums]" aria-live="polite">
+      {label}
+    </span>
+  );
+}
+
+function LiveTurnStatusText({
+  startedAtMs,
+  formatDuration,
+}: {
+  startedAtMs: number;
+  formatDuration: (totalSeconds: number) => string;
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const elapsed = formatDuration(Math.max(0, Math.round((nowMs - startedAtMs) / 1000)));
+  return (
+    <span className="text-[11px] text-muted [font-variant-numeric:tabular-nums]" aria-live="polite">
+      <Trans>Working {elapsed}</Trans>
+    </span>
   );
 }
 
@@ -722,15 +897,18 @@ function getTimelineEntryType(
   threadId: string,
   index: number,
   isLiveTail: boolean,
-  suppressInlineTurnAnchorId: string | null,
+  suppressTurnHeaderAnchorId: string | null,
+  turnStartRecords: ReadonlyMap<string, CompletedTurnRecord>,
+  liveTurnStartEntryId: string | null,
 ): string {
   const state = useAppStore.getState();
-  const completedTurn = selectCompletedTurnForEntry(state, threadId, entry);
-  const hasInlineTurn =
-    completedTurn !== undefined &&
-    completedTurn.anchorItemId !== null &&
-    completedTurn.anchorItemId !== suppressInlineTurnAnchorId;
-  const rowSuffix = hasInlineTurn ? ":turn" : "";
+  const turnStart = turnStartRecords.get(entry.id);
+  const hasFrozenBar =
+    turnStart !== undefined &&
+    turnStart.anchorItemId !== null &&
+    turnStart.anchorItemId !== suppressTurnHeaderAnchorId;
+  const hasTurnBar = hasFrozenBar || liveTurnStartEntryId === entry.id;
+  const rowSuffix = hasTurnBar ? ":turn" : "";
   if (entry.kind === "tool_call_group") {
     return `${isLiveTail ? "tool_call_group:live" : entry.kind}${rowSuffix}`;
   }
@@ -806,6 +984,7 @@ function isRemountStableSnapshotItem(item: RuntimeChatItem | undefined): boolean
     case "assistant_message":
     case "plan":
     case "question_answer":
+    case "model_switch":
     case "error":
       return true;
     default:

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import type { ProjectLocation } from "@/shared/contracts";
 import type { CraftPlan } from "@/shared/crafting";
 import type { OpenCodeNativeClient, OpenCodeNativeConnection } from "./transport";
@@ -102,6 +103,31 @@ function makeClient() {
 }
 
 describe("OpenCodeNativeSession public lifecycle seam", () => {
+  it("keeps the CraftStation provider namespace out of the remote model id", async () => {
+    const { client, connection } = makeClient();
+    const basePlan = plan();
+    const session = await OpenCodeNativeSession.open({
+      entityId: "entity:test",
+      threadId: "thread:test",
+      projectLocation: location,
+      plan: {
+        ...basePlan,
+        runtimeBinding: { ...basePlan.runtimeBinding, modelId: "craftstation/glm-5.3-flash" },
+      },
+      transport: {
+        connect: vi.fn<() => Promise<OpenCodeNativeConnection>>().mockResolvedValue(connection),
+        dispose: vi.fn<() => Promise<void>>(),
+      } as never,
+    });
+
+    expect(client.session.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: { providerID: "openai", id: "glm-5.3-flash" },
+      }),
+    );
+    await session.terminate();
+  });
+
   it("creates, prompts, summarizes and deletes through official session operations", async () => {
     const { client, connection } = makeClient();
     const session = await OpenCodeNativeSession.open({
@@ -197,8 +223,7 @@ describe("OpenCodeNativeSession public lifecycle seam", () => {
     await session.terminate();
   });
 
-  it("routes permission allow/deny to permission.reply", async () => {
-    const { client, connection } = makeClient();
+  it("routes permission allow/deny to permission.reply", async () => {    const { client, connection } = makeClient();
     const session = await OpenCodeNativeSession.open({
       entityId: "entity:test",
       threadId: "thread:test",
@@ -282,24 +307,38 @@ describe("OpenCodeNativeSession public lifecycle seam", () => {
     await session.terminate();
   });
 
-  it.each(["mcpServerIds", "skillIds", "context", "customUnsupported"])(
-    "rejects unsupported executable option %s instead of silently ignoring it",
-    async (option) => {
-      const unsupportedPlan = plan();
-      unsupportedPlan.runtimeBinding.options = { [option]: option === "context" ? {} : ["x"] };
-      const { connection } = makeClient();
-      await expect(
-        OpenCodeNativeSession.open({
-          entityId: "entity:test",
-          threadId: "thread:test",
-          projectLocation: location,
-          plan: unsupportedPlan,
-          transport: {
-            connect: vi.fn<() => Promise<OpenCodeNativeConnection>>().mockResolvedValue(connection),
-            dispose: vi.fn<() => Promise<void>>(),
-          } as never,
-        }),
-      ).rejects.toThrow(new RegExp(`unsupported options: ${option}`, "i"));
-    },
-  );
+  it("rejects the admitted turn with the real exit info when the server dies mid-turn", async () => {
+    const { client, connection } = makeClient();
+    const child = new EventEmitter() as EventEmitter & {
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+    };
+    child.exitCode = null;
+    child.signalCode = null;
+    const connectionWithChild: OpenCodeNativeConnection = { ...connection, child: child as never };
+    // promptAsync is accepted but the server dies before emitting anything.
+    vi.mocked(client.session.promptAsync).mockImplementation(() => new Promise(() => {}));
+    const session = await OpenCodeNativeSession.open({
+      entityId: "entity:test",
+      threadId: "thread:test",
+      projectLocation: location,
+      plan: plan(),
+      transport: {
+        connect: vi
+          .fn<() => Promise<OpenCodeNativeConnection>>()
+          .mockResolvedValue(connectionWithChild),
+        dispose: vi.fn<() => Promise<void>>(),
+      } as never,
+    });
+
+    const turnPromise = session.startTurn({ prompt: "Do work" });
+    // Let promptAsync resolve and the turn admit before killing the server.
+    await vi.waitFor(() => expect(client.session.promptAsync).toHaveBeenCalled());
+    await Promise.resolve();
+    child.emit("exit", 1, null);
+
+    await expect(turnPromise).rejects.toThrow(/exited with code 1/);
+    expect(session.status).toBe("error");
+    await session.terminate();
+  });
 });

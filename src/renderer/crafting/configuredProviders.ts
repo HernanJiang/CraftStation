@@ -40,9 +40,12 @@ export function resolveConfiguredProviderIds(input: {
   }
   for (const [id, snapshot] of Object.entries(input.usageSnapshots ?? {})) {
     if (!snapshot) continue;
-    if (snapshot.authenticatedAs?.trim()) ids.add(id);
-    const hasWindows = (snapshot.windows?.length ?? 0) > 0;
-    if (isAuthorizedUsageStatus(snapshot.status) && hasWindows) ids.add(id);
+    // Same identity bar as the 「模型与用量」 workspace cards: an authorized
+    // status or any plan label counts even when the provider exposes no quota
+    // windows (OpenCode tracks spend without windows). Otherwise a channel
+    // would be manageable in 管理模型 yet invisible in the composer picker.
+    if (snapshot.authenticatedAs?.trim() || snapshot.plan?.trim()) ids.add(id);
+    if (isAuthorizedUsageStatus(snapshot.status)) ids.add(id);
   }
   return [...ids];
 }

@@ -148,15 +148,17 @@ export const threadTargetSummarySchema = z.object({
   sameWorktree: z.boolean(),
   crossWorktreeWarning: z.string().optional(),
   available: z.boolean(),
-  /** True when the target's resolved Model AND Harness both match the source;
-   * such a target is not selectable for cross-thread dialogue. Defaults so a
+  /** True when the target's resolved Model AND Harness both match the source
+   * and the two sides are not provably distinct native threads; such a
+   * target is not selectable for cross-thread dialogue. Defaults so a
    * summary produced by an older host still parses on a newer client. */
   sameComposition: z.boolean().default(false),
 });
 export type ThreadTargetSummary = z.infer<typeof threadTargetSummarySchema>;
 
-/** A target is selectable iff it is runtime-ready and its resolved runtime
- * composition differs from the source thread's (different Model or Harness). */
+/** A target is selectable iff it is runtime-ready and not the same effective
+ * peer as the source (different Model, different Harness, or a provably
+ * distinct native session — see the service policy). */
 export function isSelectableThreadTarget(
   target: Pick<ThreadTargetSummary, "available" | "sameComposition">,
 ): boolean {

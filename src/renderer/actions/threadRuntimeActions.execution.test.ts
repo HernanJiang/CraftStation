@@ -155,6 +155,32 @@ describe("crafted active commands carry the runtime execution envelope", () => {
     });
   });
 
+  it("marks the displaced working turn cancelled when steering", async () => {
+    useAppStore.setState({
+      threads: [
+        thread({ status: "working", activeTurnStartedAt: "2026-09-08T20:00:00.000Z" }),
+      ],
+      userCancelledTurnStartsByThread: {},
+    });
+    await setThreadPendingSteer(thread(), "steer!", undefined);
+    expect(bridge.setPendingSteer).toHaveBeenCalledTimes(1);
+    expect(
+      useAppStore.getState().userCancelledTurnStartsByThread["thread-1"],
+    ).toEqual([Date.parse("2026-09-08T20:00:00.000Z")]);
+  });
+
+  it("does not mark anything when steering an idle thread", async () => {
+    useAppStore.setState({
+      threads: [thread({ status: "idle" })],
+      userCancelledTurnStartsByThread: {},
+    });
+    await setThreadPendingSteer(thread(), "steer!", undefined);
+    expect(bridge.setPendingSteer).toHaveBeenCalledTimes(1);
+    expect(
+      useAppStore.getState().userCancelledTurnStartsByThread["thread-1"] ?? [],
+    ).toEqual([]);
+  });
+
   it("never invents an envelope when the binding is missing or queued", () => {
     useSessionHandoffStore.getState().setState("thread-1", {
       requestId: "switch-1",

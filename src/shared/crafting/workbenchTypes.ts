@@ -143,6 +143,13 @@ export const storedRecipeSchema = z.object({
   authRef: z.string().optional(),
   runtimeProfileRef: z.string().optional(),
   packRef: z.string().optional(),
+  /**
+   * Homepage picker visibility for this recipe. Optional for backward
+   * compatibility — absent means hidden. Toggled from 管理模型 →
+   * 我的配方；visible recipes resolve to their underlying model in the
+   * homepage model picker.
+   */
+  homepageVisible: z.boolean().optional(),
   compatibility: z.object({
     uiStatus: workbenchUiStatusSchema,
     internalStatus: workbenchInternalStatusSchema.optional(),

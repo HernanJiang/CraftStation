@@ -3,6 +3,7 @@ import type { Thread } from "@/shared/contracts";
 import { Crafter, getDefaultRegistry } from "@/shared/crafting";
 import type { SessionSwitchState } from "@/shared/sessionHandoff";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useSessionHandoffStore } from "@/renderer/state/sessionHandoffStore";
 import {
   applySessionHandoffState,
@@ -10,6 +11,7 @@ import {
   compileHandoffTarget,
   readSessionHandoffState,
   requestSessionHandoff,
+  switchLiveThreadProvider,
 } from "./sessionHandoffActions";
 
 const bridge = vi.hoisted(() => ({
@@ -20,6 +22,8 @@ const bridge = vi.hoisted(() => ({
   closeThread: vi.fn<(...args: unknown[]) => Promise<void>>(),
   dbUpsertThread: vi.fn<(...args: unknown[]) => Promise<void>>(),
   dbSetState: vi.fn<(...args: unknown[]) => Promise<void>>(),
+  switchThreadProvider: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  dbInsertThreadNativeSession: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
 }));
 
 vi.mock("@/renderer/bridge", () => ({ readBridge: () => bridge }));
@@ -229,5 +233,160 @@ describe("session handoff renderer actions", () => {
       "craftstation:provenance:thread-1",
       expect.stringContaining("recipe:xai-grok-native"),
     );
+  });
+
+  it("rebuilds the supervisor session for non-native targets instead of rebinding the row", async () => {
+    const source = craftedThread();
+    delete (source as { compositionProvenance?: unknown }).compositionProvenance;
+    useAppStore.setState({ threads: [source] });
+    bridge.switchThreadProvider.mockResolvedValue({
+      threadId: source.id,
+      agentKind: "kimi",
+      sessionRef: { providerSessionId: "ses-kimi", discoveredAt: "2026-09-01T00:00:00.000Z" },
+      poolAccountId: "kimi:a",
+      poolProvider: "kimi",
+      canResumeWithConfig: true,
+    });
+
+    await switchLiveThreadProvider({
+      thread: source,
+      projectLocation,
+      targetAgentKind: "kimi",
+      targetConfig: { model: "kimi-k2" },
+    });
+
+    expect(bridge.switchThreadProvider).toHaveBeenCalledWith({
+      threadId: source.id,
+      agentKind: "kimi",
+      config: { model: "kimi-k2" },
+    });
+    expect(useAppStore.getState().threads[0]).toMatchObject({
+      id: source.id,
+      agentKind: "kimi",
+      config: { model: "kimi-k2" },
+      sessionRef: { providerSessionId: "ses-kimi" },
+      canResumeWithConfig: true,
+    });
+    expect(bridge.dbUpsertThread).toHaveBeenCalledWith(
+      expect.objectContaining({ id: source.id, agentKind: "kimi" }),
+    );
+    expect(bridge.dbInsertThreadNativeSession).toHaveBeenCalledWith({
+      threadId: source.id,
+      harness: "kimi",
+      model: "kimi-k2",
+      nativeSessionId: "ses-kimi",
+      poolAccountId: "kimi:a",
+    });
+  });
+
+  it("rewrites Grok bypassPermissions onto Codex never before spawning the new session", async () => {
+    const source = craftedThread();
+    delete (source as { compositionProvenance?: unknown }).compositionProvenance;
+    source.agentKind = "grok";
+    source.config = { model: "grok-4.6", approvalPolicy: "bypassPermissions" };
+    useAppStore.setState({ threads: [source] });
+    useAgentStatusesStore.setState({
+      agentStatuses: [
+        {
+          kind: "codex",
+          label: "Codex",
+          installed: true,
+          authState: "authenticated",
+          capabilities: {
+            models: [{ id: "gpt-5.6-sol", label: "5.6 Sol" }],
+            efforts: ["low", "medium", "high"],
+            modelEfforts: {},
+            modes: ["agent", "plan"],
+            approvalPolicies: [
+              { id: "on-request", label: "On Request" },
+              { id: "never", label: "Full Access" },
+            ],
+            sandboxModes: [
+              { id: "workspace-write", label: "Workspace Write" },
+              { id: "danger-full-access", label: "Full Access" },
+            ],
+            supportsResume: true,
+            supportsDirectInput: true,
+            liveInputMode: "server",
+            presentationMode: "gui",
+            settingDefs: [],
+            defaultApprovalPolicy: "on-request",
+            defaultSandboxMode: "workspace-write",
+            bypassPermissions: { approvalPolicy: "never", sandboxMode: "danger-full-access" },
+          },
+        },
+      ],
+      wslAgentStatuses: [],
+    });
+    bridge.switchThreadProvider.mockResolvedValue({
+      threadId: source.id,
+      agentKind: "codex",
+      sessionRef: { providerSessionId: "ses-codex", discoveredAt: "2026-09-01T00:00:00.000Z" },
+      canResumeWithConfig: true,
+    });
+
+    await switchLiveThreadProvider({
+      thread: source,
+      projectLocation,
+      targetAgentKind: "codex",
+      targetConfig: { model: "gpt-5.6-sol", approvalPolicy: "bypassPermissions" },
+    });
+
+    expect(bridge.switchThreadProvider).toHaveBeenCalledWith({
+      threadId: source.id,
+      agentKind: "codex",
+      config: expect.objectContaining({
+        model: "gpt-5.6-sol",
+        approvalPolicy: "never",
+        sandboxMode: "danger-full-access",
+      }),
+    });
+  });
+
+  it("marks the abandoned working turn cancelled and settles orphaned subagents on switch", async () => {
+    const source = {
+      ...craftedThread(),
+      status: "working" as const,
+      activeTurnStartedAt: "2026-09-08T20:00:00.000Z",
+    };
+    // No verified native recipe for the ad-hoc kimi target: forces the
+    // session-rebuild path (the only one that can abandon a working turn).
+    delete (source as { compositionProvenance?: unknown }).compositionProvenance;
+    useAppStore.setState({
+      threads: [source],
+      userCancelledTurnStartsByThread: {},
+      runtimeItemIdsByThread: { [source.id]: ["sub-1"] },
+      runtimeItemsByIdByThread: {
+        [source.id]: {
+          "sub-1": {
+            id: "sub-1",
+            type: "tool_call",
+            state: "updated",
+            payload: { name: "Task", status: "running", isSubAgent: true },
+            streams: {},
+          },
+        },
+      },
+    });
+    bridge.switchThreadProvider.mockResolvedValue({
+      threadId: source.id,
+      agentKind: "kimi",
+      sessionRef: { providerSessionId: "ses-kimi", discoveredAt: "2026-09-01T00:00:00.000Z" },
+      canResumeWithConfig: true,
+    });
+
+    await switchLiveThreadProvider({
+      thread: source,
+      projectLocation,
+      targetAgentKind: "kimi",
+      targetConfig: { model: "kimi-k2" },
+    });
+
+    expect(useAppStore.getState().userCancelledTurnStartsByThread[source.id]).toEqual([
+      Date.parse("2026-09-08T20:00:00.000Z"),
+    ]);
+    expect(
+      useAppStore.getState().runtimeItemsByIdByThread[source.id]?.["sub-1"],
+    ).toMatchObject({ state: "completed", payload: { status: "error" } });
   });
 });

@@ -15,6 +15,7 @@ import {
   type CrossagentVisibilitySettings,
 } from "./availability";
 import { MAX_CONCURRENT_CHILDREN_PER_PARENT, type SubagentRunManager } from "./SubagentRunManager";
+import { SubagentSpawnError } from "./errors";
 import { errorResult, jsonResult, parseWaitTimeoutMs, TIMEOUT_S_DESCRIPTION } from "./toolResult";
 import { parseRunIds, parseSpawnRequest, parseSpawnRequests } from "./toolRequests";
 import { rankingCandidateOf, resolveSubagentExecution } from "./types";
@@ -54,21 +55,22 @@ export function classifyModelTier(modelId: string, modelLabel: string): ModelTie
 
 /** Base routing guidance always included in the MCP `initialize` instructions. */
 export const CROSSAGENT_MCP_INSTRUCTIONS_BASE = [
-  "Use the Crossagents MCP server to delegate lightweight, ephemeral work to the other AI agents connected to this CraftStation session.",
-  "Every tool named below belongs to this server. Hosts that namespace MCP tools expose them under this server's name (for example `crossagents__list_agents` or `mcp__crossagents__list_agents`), so resolve each bare name against your own tool list and call the crossagents entry — never the same bare name under another server such as `craftstation`.",
-  "Delegate only once the user has explicitly asked you to involve another agent in this thread, for example via an @Crossagents mention or a direct request to delegate or get a second opinion. That ask authorizes delegation for the rest of the thread, so later turns may spawn as the work requires; until then, never spawn subagents on your own initiative.",
+  "Use the Own Subagents MCP server to get lightweight, ephemeral help for this thread.",
+  "Every tool named below belongs to this server. Hosts that namespace MCP tools expose them under this server's name (for example `own_subagents__list_agents` or `mcp__own_subagents__list_agents`), so resolve each bare name against your own tool list and call the own_subagents entry — never the same bare name under another server such as `craftstation`.",
+  "Delegate only once the user has explicitly asked you to involve another agent in this thread, for example via an @own_subagents mention or a direct request to delegate or get a second opinion. That ask authorizes delegation for the rest of the thread, so later turns may spawn as the work requires; until then, never spawn subagents on your own initiative.",
+  "When you omit provider, model, reasoning, and Fast, the user's routing order decides: by default your own harness's native subagent lane comes first. In that case spawn_agent returns route=native-harness with an instruction instead of a run_id — follow it immediately with your own harness's native subagent tool and do NOT call spawn_agent again for that subtask. Only pass an explicit provider/model when the user asked for another harness or you deliberately reordered past the native lane.",
   "Call list_agents when provider selection matters; call get_agent only when you need one provider's detailed models, reasoning options, Fast availability, or permissions preset.",
-  "Classify every task with 1-5 concise lowercase tags and pass the same tags to list_agents and spawn_agent. Prefer this vocabulary when applicable: frontend, ui, design, backend, mobile, simulator, implementation, bugfix, review, testing, research, refactor, docs, devops, data. Crossagents learns tag-to-selection affinity from user-explicit selection choices without an extra model call.",
-  "Explicit provider, model, reasoning, and Fast values always win. When the user does not specify them, omit those fields and Crossagents will resolve matching manual task routes first, then learned task tags, global explicit Crossagents usage, frequently used and favorite composer selections, then built-in order.",
+  "Classify every task with 1-5 concise lowercase tags and pass the same tags to list_agents and spawn_agent. Prefer this vocabulary when applicable: frontend, ui, design, backend, mobile, simulator, implementation, bugfix, review, testing, research, refactor, docs, devops, data. Own Subagents learns tag-to-selection affinity from user-explicit selection choices without an extra model call.",
+  "Explicit provider, model, reasoning, and Fast values always win. When the user does not specify them, omit those fields and Own Subagents will resolve the user route order first, then matching manual task routes, then learned task tags, global explicit usage, frequently used and favorite composer selections, then built-in order.",
   "When the user explicitly asks to always prefer a provider/model for a kind of task, call set_routing_preference with its tags and selection. This persistent manual override ranks before learned affinity. Use remove_routing_preference when the user asks to forget or reset it; do not create or remove persistent preferences without clear user intent.",
   "This server hosts one delegation lane: ephemeral subagent runs whose output streams into your own thread.",
-  "Use spawn_agent for delegation: it waits by default. Set background=true only when the parent has useful work to do before the result; this returns a run_id and never injects a new message into the parent thread. At the next synchronization point, call wait_for_agent for every background result the task requires. Each wait is bounded only to stay below the MCP client's transport timeout: status=running means the server kept the child active, and the elapsed wait does not by itself mean the run stalled. When its result is required, keep waiting across as many wait_for_agent calls as necessary. Never cancel or abandon a run solely because 180 seconds or any other wait duration elapsed, it has not produced a final answer yet, or it is still investigating. Cancel only when the user explicitly asks or the task is no longer needed for a reason unrelated to elapsed time.",
+  "Use spawn_agent for delegation: it waits by default. Set background=true only when the parent has useful work to do before the result; this returns a run_id and never injects a new message into the parent thread. At the next synchronization point, call wait_for_agent for every background result the task requires. Each wait is bounded only to stay below the MCP client's transport timeout: status=running means the server kept the child active, and the elapsed wait does not by itself mean the run stalled. When its result is required, keep waiting across as many wait_for_agent calls as necessary. Never cancel or abandon a run solely because 180 seconds or any other wait duration elapsed, it has not produced a final answer yet, or it is still investigating. Cancel only when the user explicitly asks or the task is no longer needed for a reason unrelated to elapsed time. When the parent turn finishes, background runs that produced no output, no tool steps, and no approval waits yet are cancelled as stalled; runs already producing output keep running so their result stays retrievable.",
   "Pass tasks=[...] to the same spawn_agent call to launch up to four independent agents in parallel.",
   "Use ordered fallbacks to retry startup failures on another model or provider. Retrying after a dispatched turn requires retry_on='any-failure' because it may repeat side effects.",
-  "Background runs also survive interruption of the current parent turn, but still stop when the parent thread closes.",
+  "Background runs survive parent-turn interruption, but when the parent turn finishes, background runs with no output, tool steps, or approval waits yet are cancelled as stalled — wait for every needed result before the turn ends. Runs also stop when the parent thread closes.",
   "Give each subagent a self-contained prompt — it does not share your conversation context.",
-  "Always set name on spawn_agent and on every tasks=[...] entry: a short, specific label describing what that subagent will do (for example `Review runtime findings`). Users see this label in the thread; do not omit it or repeat provider/model/reasoning values there — Crossagents appends those automatically.",
-  "For long-lived, first-class app threads the user sees in the sidebar (optionally in their own git worktree) — e.g. one ticket or feature per thread — use the always-on `craftstation` MCP server's thread tools (create_thread, list_threads, get_thread, read_thread, send_to_thread, wait_for_thread, interrupt_thread, stop_thread) instead.",
+  "Always set name on spawn_agent and on every tasks=[...] entry: a short, specific label describing what that subagent will do (for example `Review runtime findings`). Users see this label in the thread; do not omit it or repeat provider/model/reasoning values there — Own Subagents appends those automatically.",
+  "For long-lived, first-class app threads the user sees in the sidebar (optionally in their own git worktree) — e.g. one ticket or feature per thread — use the always-on `craftstation` MCP server's thread tools (create_thread, list_threads, get_thread, read_thread, send_to_thread, wait_for_thread, interrupt_thread, stop_thread) instead. For durable messaging between persistent native threads of different harnesses, use the separate `crossagents` MCP server (list_peers, send_message, ask, reply, inbox).",
 ].join(" ");
 
 export function buildSubagentInstructions(routingGuide?: string): string {
@@ -149,7 +151,7 @@ const SUBAGENT_REQUEST_PROPERTIES = {
   background: {
     type: "boolean",
     description:
-      "Return immediately with a run_id so the parent can continue useful work. The result is never injected as a message; call wait_for_agent at a synchronization point if it is required. Default false waits for completion. Background runs survive parent-turn interruption but stop when the parent thread closes.",
+      "Return immediately with a run_id so the parent can continue useful work. The result is never injected as a message; call wait_for_agent at a synchronization point if it is required. Default false waits for completion. Background runs survive parent-turn interruption, but when the parent turn finishes, background runs with no output, tool steps, or approval waits yet are cancelled as stalled — wait for every needed result before the turn ends. Runs also stop when the parent thread closes.",
   },
 } as const;
 
@@ -179,7 +181,7 @@ const RAW_TOOLS: ToolSpec[] = [
   {
     name: "spawn_agent",
     description:
-      "Call only after the user has explicitly asked to delegate work to another agent in this thread (for example via an @Crossagents mention); that ask covers the rest of the thread, but never spawn before it. Spawn one task-tagged agent and wait for its result by default. Omitted selection fields resolve from contextual rank. Set background=true to return a run_id immediately, or pass tasks=[...] to launch several agents in parallel.",
+      "Call only after the user has explicitly asked to delegate work to another agent in this thread (for example via an @own_subagents mention); that ask covers the rest of the thread, but never spawn before it. Spawn one task-tagged agent and wait for its result by default. Omitted selection fields resolve from the user route order (native-harness lane first by default: you may receive route=native-harness instead of a run, in which case use your own native subagent tool). Set background=true to return a run_id immediately, or pass tasks=[...] to launch several agents in parallel.",
     inputSchema: {
       type: "object",
       properties: {
@@ -345,10 +347,11 @@ export function buildSpawnableAgents(
     Partial<
       Pick<
         SharedSettings,
-        | "crossagentSelectionUsage"
-        | "crossagentRoutingOverrides"
+        | "ownSubagentSelectionUsage"
+        | "ownSubagentRoutingOverrides"
         | "agentSelectionUsage"
         | "favoriteModels"
+        | "ownSubagentsRouteOrder"
       >
     > = {
     disabledAgents: [],
@@ -467,10 +470,102 @@ export interface SubagentToolContext {
   parentThreadId: string;
   runManager: SubagentRunManager;
   listSpawnableAgents: (tags?: readonly string[]) => Promise<SpawnableAgent[]>;
+  /** Calling thread's harness kind; drives the native-harness lane. */
+  parentAgentKind?: string;
+  /**
+   * Calling thread's own entity. Subagent dispatch without an explicit
+   * provider/model defaults to it (same harness + model the user picked),
+   * ahead of ranked-best fallback — never "random".
+   */
+  parentEntity?: {
+    agentKind: string;
+    model?: string | undefined;
+    effort?: string | undefined;
+  };
+  /** User-ordered Own Subagents route (native lane + provider kinds). */
+  getRouteOrder?: () => readonly string[];
   recordExplicitSelections?: (selections: readonly ExplicitSpawnAgentSelection[]) => void;
   listRoutingOverrides?: () => readonly CrossagentRoutingOverride[];
   setRoutingOverride?: (override: CrossagentRoutingOverride) => void | Promise<void>;
   removeRoutingOverride?: (tags: readonly string[]) => void | Promise<void>;
+}
+
+/**
+ * Own-subagents route target: either back to the host harness's own native
+ * subagent loop, or out to an external provider. Never faked as
+ * `provider = native`.
+ */
+export type OwnSubagentRouteTarget =
+  | { kind: "native-harness"; harness: string; nativeTool: string }
+  | { kind: "external"; provider?: string };
+
+/**
+ * Official native subagent loops CraftStation can hand control back to, by
+ * harness kind. Absent = Native Unsupported for this lane (the route walk
+ * continues to the next external candidate; nothing is simulated).
+ */
+const NATIVE_SUBAGENT_LANES: Readonly<Record<string, string>> = {
+  codex: "spawnAgent collaboration subagents",
+  claude: "Task tool",
+  cursor: "cursor/task",
+  kimi: "Agent (task) tool",
+  opencode: "task tool",
+  grok: "spawn_subagent tool",
+};
+
+/** Native subagent tool hint for a harness, or undefined when unsupported. */
+export function nativeSubagentToolFor(harness: string | undefined): string | undefined {
+  if (!harness) return undefined;
+  return NATIVE_SUBAGENT_LANES[harness.toLowerCase()];
+}
+
+/**
+ * Walk the effective route order for a selection WITHOUT explicit
+ * provider/model/reasoning/fast values. Returns the first resolvable entry:
+ * the native lane (when the parent harness has a real native loop) or an
+ * explicitly ordered external provider. Returns undefined when nothing on
+ * the order resolves — deliberately NOT the first roster provider, so the
+ * caller can default to the parent thread's own entity before ranked-best.
+ * (Blind first-roster dispatch is what made unspecified spawns look random.)
+ */
+export function resolveOwnSubagentRoute(options: {
+  rosterProviders: ReadonlySet<string>;
+  routeOrder: readonly string[];
+  parentAgentKind?: string;
+}): OwnSubagentRouteTarget | undefined {
+  const seen = new Set<string>();
+  const order: string[] = [];
+  for (const raw of options.routeOrder) {
+    const key = raw.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    order.push(key);
+  }
+  if (!order.includes("native")) order.unshift("native");
+  for (const entry of order) {
+    if (entry === "native") {
+      const harness = options.parentAgentKind?.trim().toLowerCase();
+      const nativeTool = nativeSubagentToolFor(harness);
+      if (harness && nativeTool) return { kind: "native-harness", harness, nativeTool };
+      continue;
+    }
+    if (options.rosterProviders.has(entry)) return { kind: "external", provider: entry };
+  }
+  return undefined;
+}
+
+/** Directive payload returned instead of a run when the native lane wins. */
+export function nativeHarnessDirective(harness: string, nativeTool: string): McpToolResult {
+  return jsonResult({
+    route: "native-harness",
+    status: "native",
+    harness,
+    native_tool: nativeTool,
+    instruction:
+      `Route this subtask to the current harness's own native subagent loop: use your ` +
+      `${nativeTool} now. Do not call spawn_agent again for it; report its result as ` +
+      `your own tool result. No CraftStation child run was created.`,
+  });
 }
 
 interface ResolvedSelectionArgs {
@@ -482,17 +577,21 @@ interface ResolvedSelectionArgs {
 function resolveSelectionArgs(
   args: Record<string, unknown>,
   agents: readonly SpawnableAgent[],
+  forcedProvider?: string,
 ): ResolvedSelectionArgs {
   const requestedProvider =
-    typeof args.provider === "string" && args.provider.length > 0 ? args.provider : undefined;
+    forcedProvider ??
+    (typeof args.provider === "string" && args.provider.length > 0 ? args.provider : undefined);
   const requestedModel =
     typeof args.model === "string" && args.model.length > 0 ? args.model : undefined;
   const requestedReasoning =
     typeof args.reasoning === "string" && args.reasoning.length > 0 ? args.reasoning : undefined;
   const requestedFast = typeof args.fast === "boolean" ? args.fast : undefined;
   const tags = normalizeCrossagentTags(args.tags);
+  // A route-order-forced provider is an AUTO choice, never an explicit one:
+  // it must not reinforce learned affinity (only caller-supplied values count).
   const explicitFields = {
-    provider: requestedProvider !== undefined,
+    provider: forcedProvider === undefined && requestedProvider !== undefined,
     model: requestedModel !== undefined,
     effort: requestedReasoning !== undefined,
     fast: requestedFast !== undefined,
@@ -562,6 +661,58 @@ function resolveSelectionArgs(
   };
 }
 
+/** True when the caller explicitly pinned provider/model/reasoning/fast. */
+/**
+ * Resolve a subagent dispatch without explicit provider/model against the
+ * calling thread's own entity: same harness first, then same model, then
+ * same effort — degrading gracefully when the parent selection isn't on the
+ * roster (e.g. a custom third-party model). Returns undefined when even the
+ * parent harness is unavailable so the caller falls back to ranked-best.
+ * Forced this way, the choice stays AUTO (explicitFields all false) and never
+ * reinforces learned affinity.
+ */
+function resolveParentEntitySelection(
+  taskArgs: Record<string, unknown>,
+  agents: readonly SpawnableAgent[],
+  ctx: SubagentToolContext,
+): ResolvedSelectionArgs | undefined {
+  const parent = ctx.parentEntity;
+  if (!parent?.agentKind) return undefined;
+  if (!agents.some((agent) => agent.provider.value === parent.agentKind)) return undefined;
+  const attempt = (
+    extra: Record<string, unknown>,
+  ): ResolvedSelectionArgs | undefined => {
+    try {
+      const resolved = resolveSelectionArgs(
+        { ...taskArgs, provider: parent.agentKind, ...extra },
+        agents,
+        parent.agentKind,
+      );
+      resolved.explicitFields = { provider: false, model: false, effort: false, fast: false };
+      return resolved;
+    } catch {
+      return undefined;
+    }
+  };
+  return (
+    attempt({
+      ...(parent.model ? { model: parent.model } : {}),
+      ...(parent.effort ? { reasoning: parent.effort } : {}),
+    }) ??
+    attempt(parent.model ? { model: parent.model } : {}) ??
+    attempt({})
+  );
+}
+
+function hasExplicitSelection(taskArgs: Record<string, unknown>): boolean {
+  return (
+    (typeof taskArgs.provider === "string" && taskArgs.provider.length > 0) ||
+    (typeof taskArgs.model === "string" && taskArgs.model.length > 0) ||
+    (typeof taskArgs.reasoning === "string" && taskArgs.reasoning.length > 0) ||
+    typeof taskArgs.fast === "boolean"
+  );
+}
+
 async function spawnAgent(
   args: Record<string, unknown>,
   ctx: SubagentToolContext,
@@ -578,56 +729,109 @@ async function spawnAgent(
     rosterCache.set(key, pending);
     return pending;
   };
+  // AUTO route walk for one task: explicit per-call values always win (handled
+  // downstream); otherwise the user route order decides between the native
+  // lane and external providers. Returns a directive result for native wins.
+  const routeTask = async (
+    taskArgs: Record<string, unknown>,
+  ): Promise<
+    | { kind: "native"; result: McpToolResult }
+    | { kind: "external"; resolved: ResolvedSelectionArgs }
+  > => {
+    const agents = await agentsFor(taskArgs);
+    if (!hasExplicitSelection(taskArgs)) {
+      const route = resolveOwnSubagentRoute({
+        rosterProviders: new Set(agents.map((agent) => agent.provider.value)),
+        routeOrder: ctx.getRouteOrder?.() ?? [],
+        ...(ctx.parentAgentKind ? { parentAgentKind: ctx.parentAgentKind } : {}),
+      });
+      if (route?.kind === "native-harness") {
+        return {
+          kind: "native",
+          result: nativeHarnessDirective(route.harness, route.nativeTool),
+        };
+      }
+      if (route?.kind === "external" && route.provider) {
+        return { kind: "external", resolved: resolveSelectionArgs(taskArgs, agents, route.provider) };
+      }
+      // No explicit selection and no route-order hit: default to the calling
+      // thread's own entity (same harness + model the user picked) ahead of
+      // ranked-best fallback, so dispatch never looks "random".
+      const parentResolved = resolveParentEntitySelection(taskArgs, agents, ctx);
+      if (parentResolved) return { kind: "external", resolved: parentResolved };
+    }
+    return { kind: "external", resolved: resolveSelectionArgs(taskArgs, agents) };
+  };
 
   if (Array.isArray(args.tasks)) {
     const tasks = args.tasks;
     if (tasks.length > MAX_CONCURRENT_CHILDREN_PER_PARENT) {
       return errorResult(`tasks supports at most ${MAX_CONCURRENT_CHILDREN_PER_PARENT} entries`);
     }
-    const resolvedTasks: Array<ResolvedSelectionArgs | null> = await Promise.all(
+    const routed = await Promise.all(
       tasks.map(async (task) => {
         if (!task || typeof task !== "object" || Array.isArray(task)) {
           return null;
         }
-        const taskArgs = task as Record<string, unknown>;
-        return resolveSelectionArgs(taskArgs, await agentsFor(taskArgs));
+        return routeTask(task as Record<string, unknown>);
       }),
     );
-    const requests = parseSpawnRequests({
-      ...args,
-      tasks: resolvedTasks.map((entry, index) => entry?.args ?? tasks[index]),
-    }).map((request) => {
+    const invalidIndex = routed.findIndex((entry) => entry === null);
+    if (invalidIndex >= 0) {
+      // Same fail-closed shape as parseSpawnRequests for a malformed entry.
+      throw new SubagentSpawnError(`tasks[${invalidIndex}] must be an object`);
+    }
+    // Native-lane tasks never reach the run manager: only external tasks are
+    // parsed, spawned, and waited on. Positions merge back below.
+    const externalPositions: number[] = [];
+    const externalTaskArgs: Record<string, unknown>[] = [];
+    const externalResolved: ResolvedSelectionArgs[] = [];
+    routed.forEach((entry, index) => {
+      if (entry && entry.kind === "external") {
+        externalPositions.push(index);
+        externalTaskArgs.push(entry.resolved.args);
+        externalResolved.push(entry.resolved);
+      }
+    });
+    const requests = parseSpawnRequests({ ...args, tasks: externalTaskArgs }).map((request) => {
       const { background: _taskBackground, ...rest } = request;
       return background ? { ...rest, background: true as const } : rest;
     });
     const runs = ctx.runManager.spawnMany(ctx.parentThreadId, requests);
-    const explicitSelections = requests.flatMap((request, index) => {
-      const explicitFields = resolvedTasks[index]?.explicitFields;
-      const tags = resolvedTasks[index]?.tags ?? [];
+    const explicitSelections = requests.flatMap((request, requestIndex) => {
+      const resolved = externalResolved[requestIndex];
+      const explicitFields = resolved?.explicitFields;
+      const tags = resolved?.tags ?? [];
       return explicitFields && Object.values(explicitFields).some(Boolean)
         ? [{ selection: request, explicitFields, tags }]
         : [];
     });
     if (explicitSelections.length > 0) ctx.recordExplicitSelections?.(explicitSelections);
-    if (background) {
-      return jsonResult({
-        runs: runs.map(({ runId }) => ({
-          run_id: runId,
-          status: "running",
-          output: "",
-        })),
-      });
-    }
+    const externalResults = background
+      ? runs.map(({ runId }) => ({ run_id: runId, status: "running", output: "" }))
+      : await ctx.runManager.waitForMany(
+          runs.map(({ runId }) => runId),
+          timeoutMs,
+          ctx.parentThreadId,
+        );
+    const externalByPosition = new Map<number, number>();
+    externalPositions.forEach((position, cursor) => externalByPosition.set(position, cursor));
     return jsonResult({
-      runs: await ctx.runManager.waitForMany(
-        runs.map(({ runId }) => runId),
-        timeoutMs,
-        ctx.parentThreadId,
-      ),
+      runs: routed.map((entry, index) => {
+        if (entry?.kind === "native") {
+          // Native-lane task: no run exists; the parent harness handles it
+          // with its own native subagent loop.
+          return JSON.parse(entry.result.content[0]!.text);
+        }
+        const cursor = externalByPosition.get(index)!;
+        return { run_id: runs[cursor]?.runId, ...externalResults[cursor] };
+      }),
     });
   }
 
-  const resolved = resolveSelectionArgs(args, await agentsFor(args));
+  const single = await routeTask(args);
+  if (single.kind === "native") return single.result;
+  const resolved = single.resolved;
   const request = parseSpawnRequest(resolved.args);
   const { runId } = ctx.runManager.spawn(ctx.parentThreadId, request);
   if (Object.values(resolved.explicitFields).some(Boolean)) {

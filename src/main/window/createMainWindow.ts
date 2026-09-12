@@ -94,11 +94,13 @@ export interface CreateMainWindowOptions {
 function resolveWindowIconPath(channel: CraftStationChannel): string | undefined {
   const suffix = channel === "nightly" ? "-nightly" : "";
   const buildDir = join(__dirname, "..", "..", "build");
+  const repoRoot = join(__dirname, "..", "..");
   const candidates = [
-    join(buildDir, `icon${suffix}.ico`),
-    join(buildDir, "icon.ico"),
     join(buildDir, `icon${suffix}.png`),
     join(buildDir, "icon.png"),
+    join(buildDir, `icon${suffix}.ico`),
+    join(buildDir, "icon.ico"),
+    join(repoRoot, "CraftStation.ico"),
   ];
   return candidates.find((candidate) => existsSync(candidate));
 }

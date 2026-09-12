@@ -55,13 +55,22 @@ export type { PersistedRuntimeItem, PersistedCompletedTurn } from "./db/runtimeI
 export { dbAppendUsageEvents, dbGetAllUsageEvents } from "./db/usageEvents";
 export type { UsageEventRow } from "./db/usageEvents";
 
+export { dbInsertThreadNativeSession, dbListThreadNativeSessions } from "./db/threadNativeSessions";
+export type { ThreadNativeSessionRow } from "./db/threadNativeSessions";
+
 export {
   dbClaimRemoteCommand,
   dbCompleteRemoteCommand,
   dbFailRemoteCommand,
 } from "./db/remoteCommandReceipts";
 
-export { dbGetSchedules, dbGetSchedule, dbUpsertSchedule, dbDeleteSchedule } from "./db/schedules";
+export {
+  dbGetSchedules,
+  dbGetSchedule,
+  dbUpsertSchedule,
+  dbDeleteSchedule,
+  dbClaimScheduledOccurrence,
+} from "./db/schedules";
 
 export { dbGetPrWatches, dbGetPrWatch, dbUpsertPrWatch, dbDeletePrWatch } from "./db/prWatches";
 

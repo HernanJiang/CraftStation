@@ -102,11 +102,14 @@ export interface AccountCredentialProjection {
 
 /**
  * Resolution mode (v0.5): `explicit` honours an explicit account override and
- * never silently falls back; `auto` follows the provider-pool scheduling mode.
- * Legacy `selected` is accepted for compatibility but treated as auto+priority
- * with the legacy selected marker; new code should use auto or explicit.
+ * never silently falls back (Session-sticky resume); `auto` follows the
+ * provider-pool scheduling mode; `preferred` tries the explicit account first
+ * but falls back to the pool when it is exhausted/disabled (NEW session
+ * launches must not hard-fail on the user's stale pick). Legacy `selected` is
+ * accepted for compatibility but treated as auto+priority with the legacy
+ * selected marker; new code should use auto, explicit or preferred.
  */
-export const accountResolutionModeSchema = z.enum(["explicit", "selected", "auto"]);
+export const accountResolutionModeSchema = z.enum(["explicit", "selected", "auto", "preferred"]);
 export type AccountResolutionMode = z.infer<typeof accountResolutionModeSchema>;
 
 export const accountResolutionRequestSchema = z.object({
@@ -118,6 +121,13 @@ export const accountResolutionRequestSchema = z.object({
    * persisted mode from AccountStore is used.
    */
   scheduling: accountSchedulingModeSchema.optional(),
+  /**
+   * Pool accounts to skip for this resolution (same-turn failover's tried
+   * set). Applies to pool scheduling only — explicit/selected direct hits
+   * are never silently rerouted. When every usable account is excluded the
+   * pool honestly reports ACCOUNT_POOL_EXHAUSTED.
+   */
+  excludedAccountIds: z.array(z.string().min(1)).optional(),
   /** Deprecated since v0.5; kept for backward-compatible IPC reads. */
   selectedAccountId: z.string().min(1).optional(),
 });
@@ -148,7 +158,8 @@ export type AccountErrorCode =
   | "ACCOUNT_PROJECTION_FAILED"
   | "ACCOUNT_RUNTIME_UNSUPPORTED"
   | "PROFILE_IDENTITY_MISMATCH"
-  | "ACCOUNT_IDENTITY_UNAVAILABLE";
+  | "ACCOUNT_IDENTITY_UNAVAILABLE"
+  | "THIRD_PARTY_HARNESS_INCOMPATIBLE";
 
 export const accountProviderPayloadSchema = z.object({
   provider: accountProviderSchema.optional(),
@@ -188,6 +199,16 @@ export const accountReorderPayloadSchema = z.object({
   orderedAccountIds: z.array(z.string().min(1).max(160)).min(1),
 });
 export type AccountReorderPayload = z.infer<typeof accountReorderPayloadSchema>;
+
+/**
+ * Result of applying a pool Antigravity account as the host `agy` login.
+ * Renderer-safe: identity email at most, never credential material.
+ */
+export const antigravityHostLoginResultSchema = z.object({
+  applied: z.literal(true),
+  email: z.string().max(160).optional(),
+});
+export type AntigravityHostLoginResult = z.infer<typeof antigravityHostLoginResultSchema>;
 
 export class AccountControlError extends Error {
   readonly code: AccountErrorCode;

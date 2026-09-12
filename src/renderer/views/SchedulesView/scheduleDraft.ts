@@ -1,6 +1,7 @@
 import type { AgentStatus, ScheduledTask, ScheduledTaskInput } from "@/shared/contracts";
+import { resolveHighestCompatibleEffort } from "@/shared/agentSelection";
 
-export type RepeatMode = "hourly" | "daily" | "weekdays" | "weekly" | "custom" | "once";
+export type RepeatMode = "hourly" | "interval" | "daily" | "weekdays" | "weekly" | "custom" | "once";
 
 export interface ScheduleDraft {
   id?: string;
@@ -13,10 +14,21 @@ export interface ScheduleDraft {
   enabled: boolean;
   /** Target project for the run's thread; `null` = the built-in "Home" scope. */
   projectId: string | null;
+  /** IANA time zone for the recurrence wall-clock; empty = device-local. */
+  timezone: string;
+  /** Opaque recipe reference; empty = none. */
+  recipeId: string;
+  /**
+   * Existing thread to inherit context from; `null` = fresh thread per run.
+   * Only conversation text is inherited — the native session is always fresh.
+   */
+  targetThreadId: string | null;
   repeatMode: RepeatMode;
   days: number[];
   time: string;
   runAt: string;
+  /** Minutes between runs when repeatMode === "interval" (1–1440). */
+  everyMinutes: number;
 }
 
 function localDateTimeInputValue(date: Date): string {
@@ -44,14 +56,19 @@ export function newScheduleDraft(agent: AgentStatus | undefined): ScheduleDraft 
     prompt: "",
     agentKind: agent?.kind ?? "",
     model,
-    effort: agent?.capabilities.defaultEffort ?? efforts?.[0] ?? "",
+    effort:
+      agent?.capabilities.defaultEffort ?? resolveHighestCompatibleEffort(efforts ?? []) ?? "",
     fast: false,
     enabled: true,
     projectId: null,
+    timezone: "",
+    recipeId: "",
+    targetThreadId: null,
     repeatMode: "weekdays",
     days: [1, 2, 3, 4, 5],
     time: "08:00",
     runAt: localDateTimeInputValue(new Date(Date.now() + 60 * 60 * 1000)),
+    everyMinutes: 10,
   };
 }
 
@@ -59,15 +76,17 @@ export function taskScheduleDraft(task: ScheduledTask): ScheduleDraft {
   const repeatMode =
     task.recurrence.kind === "hourly"
       ? "hourly"
-      : task.recurrence.kind === "once"
-        ? "once"
-        : task.recurrence.days.length === 7
-          ? "daily"
-          : task.recurrence.days.join(",") === "1,2,3,4,5"
-            ? "weekdays"
-            : task.recurrence.days.length === 1
-              ? "weekly"
-              : "custom";
+      : task.recurrence.kind === "interval"
+        ? "interval"
+        : task.recurrence.kind === "once"
+          ? "once"
+          : task.recurrence.days.length === 7
+            ? "daily"
+            : task.recurrence.days.join(",") === "1,2,3,4,5"
+              ? "weekdays"
+              : task.recurrence.days.length === 1
+                ? "weekly"
+                : "custom";
   return {
     id: task.id,
     name: task.name,
@@ -78,8 +97,12 @@ export function taskScheduleDraft(task: ScheduledTask): ScheduleDraft {
     fast: task.config.fast ?? false,
     enabled: task.enabled,
     projectId: task.projectId ?? null,
+    timezone: task.timezone ?? "",
+    recipeId: task.recipeId ?? "",
+    targetThreadId: task.targetThreadId ?? null,
     repeatMode,
     days: task.recurrence.kind === "weekly" ? task.recurrence.days : [1, 2, 3, 4, 5],
+    everyMinutes: task.recurrence.kind === "interval" ? task.recurrence.everyMinutes : 10,
     time:
       task.recurrence.kind === "weekly"
         ? task.recurrence.time
@@ -106,6 +129,9 @@ export function scheduleDraftInput(draft: ScheduleDraft): ScheduledTaskInput {
     prompt: draft.prompt.trim(),
     agentKind: draft.agentKind,
     projectId: draft.projectId,
+    ...(draft.timezone.trim() ? { timezone: draft.timezone.trim() } : {}),
+    ...(draft.recipeId.trim() ? { recipeId: draft.recipeId.trim() } : {}),
+    ...(draft.targetThreadId ? { targetThreadId: draft.targetThreadId } : {}),
     config: {
       model: draft.model,
       ...(draft.effort ? { effort: draft.effort } : {}),
@@ -116,12 +142,24 @@ export function scheduleDraftInput(draft: ScheduleDraft): ScheduledTaskInput {
         ? { kind: "once", runAt: new Date(draft.runAt).toISOString() }
         : draft.repeatMode === "hourly"
           ? { kind: "hourly", minute: Number(draft.time.slice(3, 5)) }
-          : { kind: "weekly", days: daysForMode(draft), time: draft.time },
+          : draft.repeatMode === "interval"
+            ? {
+                kind: "interval",
+                everyMinutes: Math.min(1440, Math.max(1, Math.round(draft.everyMinutes) || 10)),
+              }
+            : { kind: "weekly", days: daysForMode(draft), time: draft.time },
     enabled: draft.enabled,
   };
 }
 
 export function scheduleDraftIsValid(draft: ScheduleDraft): boolean {
+  if (draft.timezone.trim()) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: draft.timezone.trim() }).format(new Date(0));
+    } catch {
+      return false;
+    }
+  }
   return Boolean(
     draft.name.trim() &&
     draft.prompt.trim() &&
@@ -129,9 +167,11 @@ export function scheduleDraftIsValid(draft: ScheduleDraft): boolean {
     draft.model &&
     (draft.repeatMode === "once"
       ? Number.isFinite(new Date(draft.runAt).getTime())
-      : draft.repeatMode === "custom" || draft.repeatMode === "weekly"
-        ? draft.days.length > 0 && draft.time
-        : draft.time),
+      : draft.repeatMode === "interval"
+        ? Number.isFinite(draft.everyMinutes) && draft.everyMinutes >= 1 && draft.everyMinutes <= 1440
+        : draft.repeatMode === "custom" || draft.repeatMode === "weekly"
+          ? draft.days.length > 0 && draft.time
+          : draft.time),
   );
 }
 

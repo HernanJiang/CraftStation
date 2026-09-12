@@ -295,6 +295,24 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
       ),
   },
   {
+    id: "deepseek",
+    description: msg`First-class DeepSeek Harness (dsh) integration using CraftStation's ACP runtime.`,
+    docsUrl: "https://github.com/deepseek-ai/deepseek-harness",
+    installCommand: (project) =>
+      nativeInstallCommand(project, {
+        mac:
+          "if command -v npm >/dev/null 2>&1; then npm install -g @deepseek-ai/dsh; else " +
+          POSIX_MISSING_NPM_MESSAGE +
+          "; fi",
+        posix:
+          "if command -v npm >/dev/null 2>&1; then npm install -g @deepseek-ai/dsh; else " +
+          POSIX_MISSING_NPM_MESSAGE +
+          "; fi",
+        windows:
+          "if (Get-Command npm -ErrorAction SilentlyContinue) { npm install -g @deepseek-ai/dsh } else { Write-Host 'No supported installer found. Install Node.js/npm first, then refresh detected agents.' }",
+      }),
+  },
+  {
     id: "muse",
     description: msg`First-class Muse Code CLI integration using CraftStation's native terminal runtime.`,
     docsUrl: "https://dev.meta.ai/docs/muse-code",

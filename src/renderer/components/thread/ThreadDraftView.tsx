@@ -13,6 +13,7 @@ import type {
   ThreadPresentationMode,
 } from "@/shared/contracts";
 import { HOME_PROJECT_NAME, isHomeProjectId } from "@/shared/homeScope";
+import { isComposerPickerExcludedAgent } from "@/renderer/components/thread/useManagedComposerProviders";
 import { readBridge } from "@/renderer/bridge";
 import { getComputerUseScope } from "@/renderer/components/composer/computerUseScope";
 import {
@@ -32,13 +33,22 @@ import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchSto
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
+import { recordCraftModeUse } from "@/renderer/state/usageRecorder";
+import { applyAutoMuseHarnessLaunch } from "@/shared/harnessCompatibility";
+import {
+  applyThirdPartyPickerSelection,
+  resolveThirdPartyHarnessForModel,
+} from "@/shared/thirdPartyRouting";
 import {
   isConfiguredComposerAgent,
   resolveConfiguredProviderIds,
 } from "@/renderer/crafting/configuredProviders";
 import { filterHiddenModels } from "@/shared/agentSelection";
 import type { ProviderModelPreference } from "@/shared/settings";
-import { mergeCustomModelsIntoCapabilities } from "./customModelCatalog";
+import {
+  collectCustomModelEfforts,
+  mergeCustomModelsIntoCapabilities,
+} from "./customModelCatalog";
 import {
   appendProviderComposerControls,
   buildModelPickerControls,
@@ -59,6 +69,7 @@ import {
   resolveSavedProviderDraftConfig,
   supportsUsableFastMode,
   resolveThinkingValue,
+  withPreferredModel,
 } from "./threadDraftViewHelpers";
 import { friendlyError } from "@/shared/messages";
 import { ProjectSwitchMenu } from "./ProjectSwitchMenu";
@@ -247,7 +258,9 @@ export function ThreadDraftView(props: {
   const selectedAgent =
     installedAgents.find((status) => status.kind === effectiveAgentKind) ?? installedAgents[0];
   const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("");
+  // Effort is absent (never "") when the model offers no tiers: every writer
+  // normalizes through resolveEffortValue, and argv guards omit it.
+  const [effort, setEffort] = useState<string | undefined>(undefined);
   const [contextSize, setContextSize] = useState<string | undefined>(() => {
     if (
       lastDraftConfig &&
@@ -296,8 +309,7 @@ export function ThreadDraftView(props: {
     const presentationAgent = agentWithCapabilities(selectedAgent, presentationMode);
     if (selectedAccountId) {
       const accountModels = customModels.filter(
-        (entry) =>
-          entry.provider === presentationAgent.kind && entry.accountId === selectedAccountId,
+        (entry) => entry.accountId === selectedAccountId,
       );
       if (accountModels.length > 0) {
         return {
@@ -455,7 +467,7 @@ export function ThreadDraftView(props: {
     );
     const resolved = resolveProviderDraftConfig(selectedAgentForConfig, saved);
     const nextModel = resolved.model;
-    const nextEffort = resolved.effort ?? "";
+    const nextEffort = resolved.effort;
     const nextContext = resolved.contextSize;
     const nextFast = resolved.fast ?? false;
     const nextThinking = resolved.thinking ?? false;
@@ -598,7 +610,7 @@ export function ThreadDraftView(props: {
       approvalsReviewer,
       sandboxMode,
     });
-    const nextEffort = resolved.effort ?? "";
+    const nextEffort = resolved.effort;
     const nextFast = resolved.fast ?? false;
     if (nextEffort === effort && nextFast === fast) return;
 
@@ -702,7 +714,7 @@ export function ThreadDraftView(props: {
     );
     const resolved = resolveProviderDraftConfig(selectedAgentForConfig, saved);
     const nextModel = resolved.model;
-    const nextEffort = resolved.effort ?? "";
+    const nextEffort = resolved.effort;
     const nextContext = resolved.contextSize;
     const nextFast = resolved.fast ?? false;
     const nextThinking = resolved.thinking ?? false;
@@ -796,7 +808,19 @@ export function ThreadDraftView(props: {
         ]
       : undefined,
   );
+  const shownModelIds = useSharedSettings((s) =>
+    selectedAgent
+      ? s.shownModels?.[
+          modelVisibilityKey(
+            selectedAgent.kind,
+            presentationMode,
+            selectedAgentForConfig?.capabilities.runtimeLabel,
+          )
+        ]
+      : undefined,
+  );
   const allHiddenModels = useSharedSettings((s) => s.hiddenModels);
+  const allShownModels = useSharedSettings((s) => s.shownModels);
   const usageAccounts = useUsageAccountsStore((s) => s.accounts);
   const storedLogin = useUsageLoginStateStore((s) => s.stored);
   const usageSnapshots = useProviderUsageStore((s) => s.snapshots);
@@ -816,9 +840,9 @@ export function ThreadDraftView(props: {
   const selectedAgentFilteredCapabilities = useMemo(
     () =>
       selectedAgentForConfig
-        ? filterHiddenModels(selectedAgentForConfig.capabilities, hiddenModelIds)
+        ? filterHiddenModels(selectedAgentForConfig.capabilities, hiddenModelIds, shownModelIds)
         : undefined,
-    [selectedAgentForConfig, hiddenModelIds],
+    [selectedAgentForConfig, hiddenModelIds, shownModelIds],
   );
   const providerModelProviders = useMemo(() => {
     const supportsGuiPicker = (agent: (typeof installedAgents)[number]) => {
@@ -826,7 +850,12 @@ export function ThreadDraftView(props: {
       const modes = agent.capabilities.presentationModes ?? [agent.capabilities.presentationMode];
       return modes.includes("gui");
     };
-    const allProviders = buildProviderModelMenuProviders(installedAgents, {
+    // DeepSeek 原生 Harness 只活在合成台（见 useManagedComposerProviders）：
+    // 同名模型在 Command Code / OpenCode 渠道已有稳定入口。
+    const pickerAgents = installedAgents.filter(
+      (agent) => !isComposerPickerExcludedAgent(agent.kind),
+    );
+    const allProviders = buildProviderModelMenuProviders(pickerAgents, {
       resolvePresentationMode: (agent) => {
         const supported = agent.capabilities.presentationModes ?? [
           agent.capabilities.presentationMode,
@@ -836,6 +865,7 @@ export function ThreadDraftView(props: {
           : resolveInitialPresentationMode(agent, lastPresentationModeByAgent);
       },
       hiddenModelsByAgent: allHiddenModels,
+      shownModelsByAgent: allShownModels,
       filterAgent: supportsGuiPicker,
     }).map((provider) => ({
       ...provider,
@@ -862,20 +892,57 @@ export function ThreadDraftView(props: {
           (provider) =>
             provider.kind === models[0]?.provider && provider.presentationMode === "gui",
         ) ?? allProviders.find((provider) => provider.kind === models[0]?.provider);
-      if (!source) return [];
+      // 与 useManagedComposerProviders 保持一致：源 adapter 缺席时用最小能力面
+      // 兜底，自定义渠道模型绝不整组丢弃。
+      const effectiveSource = source ?? {
+        kind:
+          models[0]?.provider ??
+          (models[0] ? resolveThirdPartyHarnessForModel(models[0].modelId) : "opencode"),
+        label: "第三方 API",
+        presentationMode: "gui" as const,
+        modelPickerKey: `openai-compatible:${accountId}`,
+        hiddenModelsKey: `openai-compatible:${accountId}`,
+        capabilities: {
+          models: [],
+          efforts: ["low", "medium", "high"],
+          modelEfforts: {},
+          defaultEffort: "high",
+          modes: ["agent"] as Array<"agent" | "plan" | "autopilot">,
+          approvalPolicies: [],
+          sandboxModes: [],
+          supportsResume: false,
+          supportsDirectInput: true,
+          liveInputMode: "server" as const,
+          presentationMode: "gui" as const,
+          settingDefs: [],
+        },
+      };
       const account = usageAccounts.find((candidate) => candidate.accountId === accountId);
       const label =
         models[0]?.channelLabel ?? account?.providerAccountId ?? account?.label ?? "第三方 API";
+      const customEfforts = collectCustomModelEfforts(models);
       return [
         {
-          ...source,
+          ...effectiveSource,
           label,
           accountId,
           modelPickerKey: `openai-compatible:${accountId}`,
           hiddenModelsKey: `openai-compatible:${accountId}`,
           capabilities: {
-            ...source.capabilities,
+            ...effectiveSource.capabilities,
             models: models.map((entry) => ({ id: entry.modelId, label: entry.displayName })),
+            ...(customEfforts
+              ? {
+                  modelEfforts: {
+                    ...customEfforts.modelEfforts,
+                    ...effectiveSource.capabilities.modelEfforts,
+                  },
+                  modelDefaultEfforts: {
+                    ...customEfforts.modelDefaultEfforts,
+                    ...effectiveSource.capabilities.modelDefaultEfforts,
+                  },
+                }
+              : {}),
           },
         },
       ];
@@ -886,6 +953,7 @@ export function ThreadDraftView(props: {
     presentationMode,
     lastPresentationModeByAgent,
     allHiddenModels,
+    allShownModels,
     customModels,
     usageAccounts,
     configuredProviderIds,
@@ -946,7 +1014,9 @@ export function ThreadDraftView(props: {
     const current = draftConfigRef.current;
     const resolved = resolveProviderDraftConfig(selectedAgentForConfig, {
       model: patch.model ?? current?.model ?? model,
-      effort: patch.effort ?? current?.effort ?? effort,
+      // An explicit undefined clears (model switch to a tier-less model);
+      // omission keeps the current value for unrelated patches.
+      ...("effort" in patch ? { effort: patch.effort } : { effort: current?.effort ?? effort }),
       ...(patch.contextSize !== undefined
         ? { contextSize: patch.contextSize }
         : { contextSize: current?.contextSize ?? contextSize }),
@@ -962,7 +1032,7 @@ export function ThreadDraftView(props: {
     draftConfigRef.current = resolved;
 
     setModel(resolved.model);
-    setEffort(resolved.effort ?? "");
+    setEffort(resolved.effort);
     setContextSize(resolved.contextSize);
     setFast(resolved.fast ?? false);
     setThinking(resolved.thinking ?? false);
@@ -995,15 +1065,17 @@ export function ThreadDraftView(props: {
   };
   latestConfigPatchRef.current = onConfigPatch;
 
-  latestProviderModelChangeRef.current = ({
-    agentKind: nextKind,
-    model: nextModel,
-    presentationMode: nextPresentationMode,
-    accountId: nextAccountId,
-  }) => {
+  latestProviderModelChangeRef.current = (picked) => {
     if (!selectedAgent || !selectedAgentForConfig) return;
     hasLocalConfigEditRef.current = true;
-    const targetPresentationMode = nextPresentationMode ?? presentationMode;
+    const remapped = applyThirdPartyPickerSelection(
+      picked,
+      installedAgents.map((agent) => agent.kind),
+    );
+    const nextKind = remapped.agentKind;
+    const nextModel = remapped.model;
+    const nextAccountId = remapped.accountId;
+    const targetPresentationMode = remapped.presentationMode ?? presentationMode;
     setSelectedAccountId(nextAccountId);
     if (nextAccountId) useUsageAccountsStore.getState().setNextSessionAccount(nextAccountId);
     else useUsageAccountsStore.getState().clearNextSessionAccount();
@@ -1011,17 +1083,35 @@ export function ThreadDraftView(props: {
       setPresentationMode(targetPresentationMode);
     }
     if (nextKind !== selectedAgent.kind) {
-      const targetAgent = installedAgents.find((agent) => agent.kind === nextKind);
+      const targetAgent =
+        installedAgents.find((agent) => agent.kind === nextKind) ??
+        installedAgents.find((agent) => agent.kind === "opencode") ??
+        installedAgents.find((agent) => agent.kind === "codex");
       if (!targetAgent) return;
-      const targetSurface = providerModelProviders.find(
-        (provider) =>
-          provider.kind === nextKind &&
-          provider.accountId === nextAccountId &&
-          provider.presentationMode === targetPresentationMode,
+      const actualKind = installedAgents.some((agent) => agent.kind === nextKind)
+        ? nextKind
+        : targetAgent.kind;
+      const targetSurface =
+        providerModelProviders.find(
+          (provider) =>
+            nextAccountId !== undefined &&
+            provider.accountId === nextAccountId &&
+            provider.presentationMode === targetPresentationMode,
+        ) ??
+        providerModelProviders.find(
+          (provider) =>
+            provider.kind === actualKind &&
+            provider.accountId === nextAccountId &&
+            provider.presentationMode === targetPresentationMode,
+        );
+      const surfaceCaps = withPreferredModel(
+        targetSurface?.capabilities ??
+          agentWithCapabilities(targetAgent, targetPresentationMode).capabilities,
+        nextAccountId ? nextModel : undefined,
       );
       const targetAgentForConfig = {
         ...agentWithCapabilities(targetAgent, targetPresentationMode),
-        ...(targetSurface ? { capabilities: targetSurface.capabilities } : {}),
+        capabilities: surfaceCaps,
       };
 
       if (effectiveAgentKind) {
@@ -1038,9 +1128,9 @@ export function ThreadDraftView(props: {
         };
         persistProviderConfig(effectiveAgentKind, snapshot);
       }
-      const targetSaved = isHomeScope ? undefined : providerConfigsRef.current[nextKind];
+      const targetSaved = isHomeScope ? undefined : providerConfigsRef.current[actualKind];
       const targetPreference = resolveProviderModelPreference(
-        nextKind as AgentStatus["kind"],
+        actualKind as AgentStatus["kind"],
         nextModel,
         providerConfigsRef.current,
         providerModelPreferencesRef.current,
@@ -1054,9 +1144,9 @@ export function ThreadDraftView(props: {
         ...(targetPreference?.effort !== undefined ? { effort: targetPreference.effort } : {}),
         ...(targetPreference?.fast !== undefined ? { fast: targetPreference.fast } : {}),
       });
-      persistProviderConfig(nextKind, resolved);
+      persistProviderConfig(actualKind, resolved);
       setModel(resolved.model);
-      setEffort(resolved.effort ?? "");
+      setEffort(resolved.effort);
       setContextSize(resolved.contextSize);
       setFast(resolved.fast ?? false);
       setThinking(resolved.thinking ?? false);
@@ -1064,10 +1154,10 @@ export function ThreadDraftView(props: {
       setApprovalPolicy(resolved.approvalPolicy ?? "");
       setApprovalsReviewer(resolved.approvalsReviewer ?? "");
       setSandboxMode(resolved.sandboxMode ?? "");
-      lastAppliedAgentKindRef.current = nextKind as AgentStatus["kind"];
-      setAgentKind(nextKind as AgentStatus["kind"]);
+      lastAppliedAgentKindRef.current = actualKind as AgentStatus["kind"];
+      setAgentKind(actualKind as AgentStatus["kind"]);
       persistProjectDraftConfig({
-        agentKind: nextKind as AgentStatus["kind"],
+        agentKind: actualKind as AgentStatus["kind"],
         model: resolved.model,
         effort: resolved.effort,
         ...(resolved.contextSize ? { contextSize: resolved.contextSize } : {}),
@@ -1080,10 +1170,17 @@ export function ThreadDraftView(props: {
         worktreeMode: effectiveWorktreeMode,
       });
     } else {
-      const targetCapabilities =
+      const targetCapabilities = withPreferredModel(
         providerModelProviders.find(
-          (provider) => provider.kind === nextKind && provider.accountId === nextAccountId,
-        )?.capabilities ?? selectedAgentForConfig.capabilities;
+          (provider) =>
+            nextAccountId !== undefined && provider.accountId === nextAccountId,
+        )?.capabilities ??
+          providerModelProviders.find(
+            (provider) => provider.kind === nextKind && provider.accountId === nextAccountId,
+          )?.capabilities ??
+          selectedAgentForConfig.capabilities,
+        nextAccountId ? nextModel : undefined,
+      );
       const modelPreference = resolveProviderModelPreference(
         effectiveAgentKind as AgentStatus["kind"],
         nextModel,
@@ -1104,7 +1201,7 @@ export function ThreadDraftView(props: {
       );
       draftConfigRef.current = resolved;
       setModel(resolved.model);
-      setEffort(resolved.effort ?? "");
+      setEffort(resolved.effort);
       setContextSize(resolved.contextSize);
       setFast(resolved.fast ?? false);
       setThinking(resolved.thinking ?? false);
@@ -1139,7 +1236,7 @@ export function ThreadDraftView(props: {
       selectedAgentKind: selectedAgent.kind,
       ...(selectedAccountId ? { selectedAccountId } : {}),
       model,
-      effort,
+      ...(effort ? { effort } : {}),
       ...(contextSize ? { contextSize } : {}),
       fast,
       thinking,
@@ -1297,6 +1394,26 @@ export function ThreadDraftView(props: {
     usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode: next });
   };
 
+  // Starting a draft thread consumes the currently selected CraftStation mode
+  // once, feeding the usage-stats mode breakdown (auto / efficient / creative).
+  const handleStartWithMode = (input: DraftStartInput) => {
+    recordCraftModeUse(craftMode, effectiveAgentKind ?? null, model || null);
+    if (craftMode !== "auto") return onStart(input);
+    const museInstalled = installedAgents.some((status) => status.kind === "muse");
+    const remapped = applyAutoMuseHarnessLaunch(
+      { agentKind: input.agentKind, model: input.config.model },
+      museInstalled,
+    );
+    if (remapped.agentKind === input.agentKind && remapped.model === input.config.model) {
+      return onStart(input);
+    }
+    return onStart({
+      ...input,
+      agentKind: remapped.agentKind,
+      config: { ...input.config, model: remapped.model },
+    });
+  };
+
   // Effective launch flag for each composer MCP: a per-draft `@`-mention OR a
   // persistent standing default whose scope the current provider/presentation
   // actually supports. A persistent enable with a "none" scope must NOT set the
@@ -1313,7 +1430,7 @@ export function ThreadDraftView(props: {
     browserMcpServer.getScope(selectedAgent.capabilities, presentationMode, project.location),
   );
   const effectiveCrossagentMcp = effectiveMcp(
-    "crossagents",
+    "own-subagents",
     crossagentMcpMention,
     crossagentMcpServer.getScope(selectedAgent.capabilities, presentationMode, project.location),
   );
@@ -1425,7 +1542,7 @@ export function ThreadDraftView(props: {
               onConfigChange={onConfigPatch}
               onWorktreeModeChange={setWorktreeMode}
               onSwitchBranch={handleSwitchBranch}
-              onStart={onStart}
+              onStart={handleStartWithMode}
             />
           ) : (
             <UniversalDockedChatInput
@@ -1479,7 +1596,7 @@ export function ThreadDraftView(props: {
                 onConfigChange={onConfigPatch}
                 onWorktreeModeChange={setWorktreeMode}
                 onSwitchBranch={handleSwitchBranch}
-                onStart={onStart}
+                onStart={handleStartWithMode}
               />
             </UniversalDockedChatInput>
           )}

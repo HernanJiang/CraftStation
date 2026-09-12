@@ -8,6 +8,7 @@ import { readBridge } from "@/renderer/bridge";
 import { i18n } from "@/renderer/i18n/i18n";
 import { captureThreadPromptSubmitted } from "@/renderer/analytics/posthog";
 import { addExistingProject } from "@/renderer/actions/createProjectActions";
+import { adjustAppZoom } from "@/renderer/actions/zoomActions";
 import { getCurrentProjectId, resolveActivePaneId } from "@/renderer/actions/currentProject";
 import {
   openChangelogSettings,
@@ -117,8 +118,39 @@ export function isCommandAvailable(command: AppCommand, context: CommandWhenCont
   return evaluateWhenClause(command.when, context);
 }
 
+const dynamicCommands = new Map<string, AppCommand>();
+
+/**
+ * Deepens the existing registry without a second command system.
+ * Dynamic owners (tests, future Provider contributions) register here;
+ * `buildCommandRegistry()` remains the single read path. Returns a
+ * Disposable so HMR/unmount can retract the registration.
+ */
+export function registerAppCommand(command: AppCommand): { dispose(): void } {
+  const existing = dynamicCommands.get(command.id);
+  if (existing) {
+    throw new Error(`Duplicate command registration: ${command.id}`);
+  }
+  dynamicCommands.set(command.id, command);
+  let active = true;
+  return {
+    dispose() {
+      if (!active) return;
+      active = false;
+      if (dynamicCommands.get(command.id) === command) {
+        dynamicCommands.delete(command.id);
+      }
+    },
+  };
+}
+
 export function buildCommandRegistry(): AppCommand[] {
-  return [...baseCommands(), ...projectScriptCommands(), ...activeChatCommands()];
+  return [
+    ...baseCommands(),
+    ...projectScriptCommands(),
+    ...activeChatCommands(),
+    ...dynamicCommands.values(),
+  ];
 }
 
 function baseCommands(): AppCommand[] {
@@ -163,6 +195,30 @@ function baseCommands(): AppCommand[] {
       title: msg`Toggle auxiliary panel`,
       group: "CraftStation",
       run: () => usePanelStore.getState().toggleAuxiliaryPanel("right"),
+    },
+    {
+      id: "view.zoom-in",
+      title: msg`Zoom in`,
+      subtitle: msg`Enlarge the whole app UI`,
+      group: "CraftStation",
+      keywords: ["zoom", "scale", "enlarge", "font size"],
+      run: () => adjustAppZoom("in"),
+    },
+    {
+      id: "view.zoom-out",
+      title: msg`Zoom out`,
+      subtitle: msg`Shrink the whole app UI`,
+      group: "CraftStation",
+      keywords: ["zoom", "scale", "shrink", "font size"],
+      run: () => adjustAppZoom("out"),
+    },
+    {
+      id: "view.zoom-reset",
+      title: msg`Reset zoom`,
+      subtitle: msg`Restore the whole app UI to 100%`,
+      group: "CraftStation",
+      keywords: ["zoom", "scale", "100%", "reset"],
+      run: () => adjustAppZoom("reset"),
     },
     {
       id: "project.add",

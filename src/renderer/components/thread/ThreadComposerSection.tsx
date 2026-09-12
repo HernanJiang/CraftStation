@@ -11,7 +11,14 @@ import type {
 } from "@/shared/contracts";
 import { supportsHeaderBearingHttpMcp, supportsMcpAtProjectLocation } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
-import { agentStatusForPresentation, hasSelectableReasoning } from "@/shared/agentSelection";
+import {
+  adaptThreadConfigForCapabilities,
+  agentStatusForPresentation,
+  capabilitiesForPresentation,
+  hasSelectableReasoning,
+} from "@/shared/agentSelection";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { continueInterruptedTaskSegments, isThreadTaskPaused } from "./pausedTurn";
 import {
   changeThreadConfig,
   clearThreadPendingSteer,
@@ -57,7 +64,7 @@ import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStor
 import { isDraftContentNonEmpty } from "@/renderer/state/slices/types";
 import { selectActiveSubAgentParentItemIds } from "@/renderer/state/subAgentSelectors";
 import { useThread } from "@/renderer/state/useThread";
-import { ThreadChangesBubble } from "./ThreadChangesBubble";
+import { recordCraftModeUse } from "@/renderer/state/usageRecorder";
 import { ThreadComposer, type ComposerControl } from "./ThreadComposer";
 import type { CraftMode } from "./CraftModeSwitch";
 import { UniversalDockedChatInput } from "./UniversalDockedChatInput";
@@ -68,6 +75,12 @@ import { hasReportedContextUsage, resolveThreadContextUsageSummary } from "./thr
 import { buildControls } from "./buildModelPickerControls";
 import { useManagedComposerProviders } from "./useManagedComposerProviders";
 import { switchLiveThreadProvider } from "@/renderer/actions/sessionHandoffActions";
+import { applyThirdPartyPickerSelection, isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
+import {
+  isPendingSwitchResolved,
+  shouldStageModelSwitch,
+  type PendingModelSwitch,
+} from "./pendingModelSwitch";
 import { submitComposerPrompt } from "./threadComposerSubmit";
 import {
   filterSlashCommands,
@@ -161,10 +174,6 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     goalDockState,
     errorDockStates,
   } = props;
-  const awaitingWorktree = useAppStore(
-    (state) =>
-      state.provisioningWorktreeThreadIds[thread.id] === true && thread.status === "launching",
-  );
   const isConnecting = useAppStore((state) => state.connectingThreadIds[thread.id] !== undefined);
   const { t } = useLingui();
   const [prompt, setPrompt] = useState("");
@@ -406,25 +415,38 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     thread.status !== "inactive" &&
     thread.status !== "launching";
   const hideInfoDocks = props.hideInfoDocks === true;
-  // GUI plans now live in the compact progress capsule inside DraftContextBar.
-  // Keep the legacy dock only for remote terminal surfaces, where that context
-  // bar is not the plan-progress interaction surface.
+  // GUI plans surface only in the top-right status capsule (single step entry).
+  // Keep the legacy dock only for remote terminal surfaces, where the capsule
+  // is not the plan interaction surface.
   const showTodoInComposer =
     !hideInfoDocks &&
     usesTerminalPresentation &&
     usesRemoteTransport &&
     todoDockState !== null &&
     todoDockPlacement === "composer";
-  const showGoalInComposer = !hideInfoDocks && canShowRuntimeChrome && goalDockState !== null;
+  // GUI goals live in the composer context bar (to the right of Local). Keep
+  // the legacy above-input dock only for remote terminal surfaces.
+  const showGoalInComposer =
+    !hideInfoDocks &&
+    canShowRuntimeChrome &&
+    goalDockState !== null &&
+    usesTerminalPresentation &&
+    usesRemoteTransport;
   const showErrorInComposer =
     !hideInfoDocks &&
     (!usesTerminalPresentation || usesRemoteTransport) &&
     errorDockStates.length > 0 &&
     !hasRuntimeAuthError;
+  // Sub-agent details surface only in the top-right status capsule on GUI
+  // surfaces (single step entry, same as plans). Keep the legacy
+  // above-composer tile only for remote terminal surfaces, where the capsule
+  // is not the agent interaction surface.
   const hasActiveSubAgent = useAppStore(
     (s) =>
       !hideInfoDocks &&
       canShowRuntimeChrome &&
+      usesTerminalPresentation &&
+      usesRemoteTransport &&
       selectActiveSubAgentParentItemIds(s, thread.id).length > 0,
   );
   const collapseTerminalComposerSetting = useSharedSettings((s) => s.collapseTerminalComposer);
@@ -451,32 +473,138 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
         )
       ],
   );
+  const shownModelIds = useSharedSettings(
+    (s) =>
+      s.shownModels?.[
+        modelVisibilityKey(
+          thread.agentKind,
+          presentationMode,
+          effectiveAgentStatus?.capabilities.runtimeLabel,
+        )
+      ],
+  );
   const modelPreferences = useSharedSettings((s) => s.providerModelPreferences[thread.agentKind]);
   const setProviderModelPreference = useSharedSettings((s) => s.setProviderModelPreference);
+  // Staged provider/model pick: selecting in the model selector must NOT
+  // switch immediately. The pick waits here until the user sends — the
+  // provider/harness switch then commits as part of that send (marker first,
+  // message delivered to the new session). Picking back to the live
+  // combination clears the stage.
+  const [pendingSwitch, setPendingSwitch] = useState<PendingModelSwitch | null>(null);
+  const liveAccountId = isThirdPartyAccountId(thread.accountBinding?.accountId)
+    ? thread.accountBinding?.accountId
+    : undefined;
+  useEffect(() => {
+    setPendingSwitch(null);
+  }, [thread.id]);
+  useEffect(() => {
+    if (
+      pendingSwitch &&
+      isPendingSwitchResolved(
+        { agentKind: thread.agentKind, model: thread.config.model, accountId: liveAccountId },
+        pendingSwitch,
+      )
+    ) {
+      setPendingSwitch(null);
+    }
+  }, [pendingSwitch, thread.agentKind, thread.config.model, liveAccountId]);
   const managedProviders = useManagedComposerProviders({
     presentationMode,
     includeAgentKind: thread.agentKind,
   });
+  const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
+  const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
+  const isStagingSwitch = Boolean(
+    pendingSwitch &&
+    shouldStageModelSwitch(
+      { agentKind: thread.agentKind, model: thread.config.model, accountId: liveAccountId },
+      pendingSwitch,
+    ),
+  );
+  const pendingAgentStatus =
+    isStagingSwitch && pendingSwitch
+      ? (agentStatuses.find((entry) => entry.kind === pendingSwitch.agentKind) ??
+        wslAgentStatuses.find((entry) => entry.kind === pendingSwitch.agentKind))
+      : undefined;
+  const displayAgentStatus =
+    isStagingSwitch && pendingAgentStatus
+      ? agentStatusForPresentation(
+          pendingAgentStatus,
+          pendingSwitch?.presentationMode ?? presentationMode,
+        )
+      : effectiveAgentStatus;
+  const displayConfig = (() => {
+    const base = {
+      ...thread.config,
+      ...(pendingSwitch ? { model: pendingSwitch.model, ...pendingSwitch.configPatch } : {}),
+    };
+    if (!isStagingSwitch || !displayAgentStatus) return base;
+    return adaptThreadConfigForCapabilities(
+      base,
+      capabilitiesForPresentation(
+        displayAgentStatus.capabilities,
+        pendingSwitch?.presentationMode ?? presentationMode,
+      ),
+    );
+  })();
+  // Picker display follows the staged pick. Permission / effort controls must
+  // also follow the target agent's capabilities, otherwise Grok's
+  // bypassPermissions is shown as Codex "Ask for approval" and cannot change.
+  const displayThread =
+    isStagingSwitch && pendingSwitch
+      ? {
+          ...thread,
+          agentKind: pendingSwitch.agentKind,
+          config: displayConfig,
+        }
+      : thread;
+  const displayAccountId = pendingSwitch?.accountId ?? liveAccountId;
   const controls = buildControls(
-    thread,
-    effectiveAgentStatus,
+    displayThread,
+    displayAgentStatus,
     hiddenModelIds,
-    (config) => changeThreadConfig(thread.id, config),
+    shownModelIds,
+    (config) => {
+      if (isStagingSwitch && pendingSwitch) {
+        const { model: _model, ...configPatch } = config;
+        setPendingSwitch({ ...pendingSwitch, configPatch });
+        return;
+      }
+      changeThreadConfig(thread.id, config);
+    },
     modelPreferences,
-    (model, preference) => setProviderModelPreference(thread.agentKind, model, preference),
+    (model, preference) => setProviderModelPreference(displayThread.agentKind, model, preference),
     {
       providers: managedProviders,
+      ...(displayAccountId ? { selectedAccountId: displayAccountId } : {}),
+      installedHarnesses: [...agentStatuses, ...wslAgentStatuses]
+        .filter((entry) => entry.installed)
+        .map((entry) => entry.kind),
       onProviderChange: (next) => {
-        void switchLiveThreadProvider({
-          thread,
-          projectLocation,
-          targetAgentKind: next.agentKind,
-          targetConfig: {
-            ...thread.config,
-            model: next.model,
-          },
-          ...(next.presentationMode ? { targetPresentationMode: next.presentationMode } : {}),
-        }).catch((error: unknown) => toast.danger(friendlyError(error)));
+        // Stage only: the switch commits on send (see submitPrompt). This
+        // keeps "pick model, tweak effort, send" as one atomic user action
+        // instead of tearing down the live session mid-thought.
+        const resolved = applyThirdPartyPickerSelection(
+          next,
+          [...agentStatuses, ...wslAgentStatuses]
+            .filter((entry) => entry.installed)
+            .map((entry) => entry.kind),
+        );
+        if (
+          !shouldStageModelSwitch(
+            { agentKind: thread.agentKind, model: thread.config.model, accountId: liveAccountId },
+            resolved,
+          )
+        ) {
+          setPendingSwitch(null);
+          return;
+        }
+        setPendingSwitch({
+          agentKind: resolved.agentKind,
+          model: resolved.model,
+          ...(resolved.presentationMode ? { presentationMode: resolved.presentationMode } : {}),
+          ...(resolved.accountId ? { accountId: resolved.accountId } : {}),
+        });
       },
     },
   );
@@ -492,6 +620,9 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const isCliThread = usesTerminalPresentation;
   const canSubmit =
     (canSubmitServerInput || canSubmitTerminalInput) && !isSubmitting && !authRequired;
+  const taskPaused = useAppStore((state) => isThreadTaskPaused(state, thread.id));
+  const canContinuePausedTask =
+    taskPaused && canSubmit && !hasContent && attachments.attachments.length === 0;
   const canInterruptStructuredTurn = canShowRuntimeChrome && thread.status === "working";
   const pendingSteer = useAppStore((s) => s.pendingSteerByThreadId[thread.id]);
   const visiblePendingSteer = useDelayedPendingSteer(pendingSteer);
@@ -550,6 +681,12 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     if (isInterrupting) return;
     setIsInterrupting(true);
     const execution = getRuntimeExecutionEnvelope(thread.id);
+    // Capture the live turn's start before the stop round-trips: a turn the
+    // user stops renders as 已取消 (matched by start timestamp), which is the
+    // only honest cancelled signal — turn records carry no end state.
+    const interruptedTurnStartedAt = thread.activeTurnStartedAt
+      ? Date.parse(thread.activeTurnStartedAt)
+      : NaN;
     void readBridge()
       .interruptThread({
         threadId: thread.id,
@@ -557,6 +694,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       })
       .then(() => {
         captureProductEvent("thread.interrupted", threadProductProperties(thread));
+        if (Number.isFinite(interruptedTurnStartedAt)) {
+          useAppStore.getState().markUserCancelledTurn(thread.id, interruptedTurnStartedAt);
+        }
+        // The stop round-trip finished — re-arm the button even if the turn
+        // status hasn't flipped yet (slow wind-down, follow-up turn). Without
+        // this the stop control stays disabled with a spinner forever.
+        setIsInterrupting(false);
       })
       .catch((error: unknown) => {
         setIsInterrupting(false);
@@ -569,15 +713,70 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     return readBridge().writeTerminal({ threadId: thread.id, data });
   }
 
-  function submitPrompt(segments: PromptSegment[]) {
+  async function submitPrompt(segments: PromptSegment[]) {
     const composerSession = composerSessionRef.current;
-    submitComposerPrompt(segments, {
-      thread,
+    const hasPromptText = segments.some(
+      (segment) => segment.kind !== "text" || segment.content.trim().length > 0,
+    );
+    const resumePausedTask =
+      !hasPromptText && isThreadTaskPaused(useAppStore.getState(), thread.id);
+    const submitSegments = resumePausedTask ? continueInterruptedTaskSegments() : segments;
+    // A staged provider/model pick commits here, not at pick time: switch
+    // first (marker lands, message goes to the NEW session), then send. A
+    // failed switch aborts the send — the draft and the stage are kept so the
+    // user can retry instead of firing into the wrong session.
+    let sendThread = useAppStore.getState().threads.find((item) => item.id === thread.id) ?? thread;
+    const staged = pendingSwitch;
+    let switchedForSend = false;
+    if (
+      staged &&
+      !isPendingSwitchResolved(
+        {
+          agentKind: sendThread.agentKind,
+          model: sendThread.config.model,
+          accountId: isThirdPartyAccountId(sendThread.accountBinding?.accountId)
+            ? sendThread.accountBinding?.accountId
+            : undefined,
+        },
+        staged,
+      )
+    ) {
+      setIsSubmitting(true);
+      try {
+        await switchLiveThreadProvider({
+          thread: sendThread,
+          projectLocation,
+          targetAgentKind: staged.agentKind,
+          targetConfig: {
+            ...sendThread.config,
+            model: staged.model,
+            ...staged.configPatch,
+          },
+          ...(staged.presentationMode ? { targetPresentationMode: staged.presentationMode } : {}),
+          ...(staged.accountId ? { targetAccountId: staged.accountId } : {}),
+        });
+      } catch (error: unknown) {
+        setIsSubmitting(false);
+        toast.danger(friendlyError(error));
+        return;
+      }
+      setPendingSwitch(null);
+      sendThread =
+        useAppStore.getState().threads.find((item) => item.id === thread.id) ?? sendThread;
+      setIsSubmitting(false);
+      // The fresh session is idle by construction: never steer into it.
+      switchedForSend = true;
+    }
+    // One prompt submit = one CraftStation mode use (auto / efficient /
+    // creative) for the usage-stats mode breakdown.
+    recordCraftModeUse(craftMode, sendThread.agentKind, sendThread.config?.model ?? null);
+    submitComposerPrompt(submitSegments, {
+      thread: sendThread,
       agentStatus: effectiveAgentStatus,
       presentationMode,
       usesTerminalPresentation,
       canSubmit,
-      usesPendingSteerPath,
+      usesPendingSteerPath: switchedForSend ? false : usesPendingSteerPath,
       needsFocusBeforeInput,
       activeRuntimeRequest,
       approvalDenyOption,
@@ -763,19 +962,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     <>
       {thread.status !== "launching" || !usesTerminalPresentation ? (
         <div className="relative">
-          {awaitingWorktree ? null : (
-            <ThreadChangesBubble
-              projectId={thread.projectId}
-              {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
-              {...(thread.worktreePath && branchName ? { worktreeName: branchName } : {})}
-            />
-          )}
           <UniversalDockedChatInput
             project={contextProject}
             placement="conversation"
             craftMode={craftMode}
             onCraftModeChange={handleCraftModeChange}
             threadId={thread.id}
+            showGoalStrip={!hideInfoDocks && !usesTerminalPresentation}
             {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
           >
             <div
@@ -810,6 +1003,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                               threadId={thread.id}
                               contextSummary={contextSummary}
                               quotaProviderId={thread.agentKind}
+                              {...(liveAccountId ? { quotaAccountId: liveAccountId } : {})}
                             />
                           ),
                         })}
@@ -904,7 +1098,9 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                         placeholder={
                           approvalDenyOption
                             ? t`Deny and tell the agent what to do differently…`
-                            : (props.composerPlaceholder ?? t`Send a message...`)
+                            : canContinuePausedTask
+                              ? t`Task paused. Click continue or send a new message.`
+                              : (props.composerPlaceholder ?? t`Send a message...`)
                         }
                         projectLocation={projectLocation}
                         submitOnEnter={props.submitOnEnter ?? !isRemoteSurface}
@@ -987,20 +1183,35 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                       />
                     }
                     controls={controlsWithOpenSignal}
-                    placeholder={t`Send a message...`}
+                    placeholder={
+                      canContinuePausedTask
+                        ? t`Task paused. Click continue or send a new message.`
+                        : t`Send a message...`
+                    }
                     prompt={prompt}
                     promptDisabled={!(showServerComposer || showTerminalComposer)}
                     stopPending={isInterrupting}
                     submitDisabled={
-                      !(hasContent || attachments.attachments.length > 0) || !canSubmit
+                      !(
+                        hasContent ||
+                        attachments.attachments.length > 0 ||
+                        canContinuePausedTask
+                      ) || !canSubmit
                     }
-                    submitLabel={t`Send message`}
+                    submitLabel={canContinuePausedTask ? t`Continue` : t`Send message`}
                     onStop={canInterruptStructuredTurn ? handleInterrupt : undefined}
                     {...(() => {
                       const renderExtras = () => (
                         <ComposerAddMenu
                           mcpServers={mcpServers}
                           customMcpServers={customMcpServers}
+                          workbench={{
+                            onOpen: () => {
+                              const entryMode = craftMode === "creative" ? "creative" : "efficient";
+                              useCraftingWorkbenchStore.getState().setCapabilityMode(craftMode);
+                              usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode });
+                            },
+                          }}
                           readOnly
                           computerUse={{
                             enabled: effectiveMcpConfig?.computerUse === true,

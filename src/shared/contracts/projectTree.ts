@@ -237,6 +237,12 @@ export const detectSetupScriptPayloadSchema = z.object({
 });
 export type DetectSetupScriptPayload = z.infer<typeof detectSetupScriptPayloadSchema>;
 
+/** Plain-text preview of an Office document (docx/xlsx/pptx). */
+export interface ExtractOfficeDocumentTextResult {
+  text: string;
+  truncated: boolean;
+}
+
 export interface DetectSetupScriptResult {
   setupScript?: string;
 }

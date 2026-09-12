@@ -1,30 +1,42 @@
 import { Plus } from "lucide-react";
+import type { ReactNode } from "react";
 import type { SelectedModelEntry } from "@/shared/crafting/workbenchTypes";
-import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
+import {
+  brandIdForVendorKind,
+  ProviderBrandBadge,
+} from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 
 /**
  * Models Inventory: square slots, one per user-selected model material. Only
  * models the user has actively made visible in the "管理模型" roster appear here
  * — never the full Crafting Registry catalog.
+ *
+ * The current selection summary stays pinned on top; candidates scroll below.
  */
 export function ModelsInventory(props: {
   entries: readonly SelectedModelEntry[];
   selectedEntryId?: string | undefined;
   onSelect: (entry: SelectedModelEntry) => void;
   onAdd: () => void;
+  /** Pinned current-selection summary row (first row of the column). */
+  summary?: ReactNode | undefined;
 }) {
-  const { entries, selectedEntryId, onSelect, onAdd } = props;
+  const { entries, selectedEntryId, onSelect, onAdd, summary } = props;
   return (
     <section
-      className="flex min-h-0 flex-col gap-2"
+      className="flex min-h-0 flex-1 flex-col gap-2"
       data-testid="models-inventory"
       aria-label="模型背包"
     >
-      <header className="flex items-center justify-between px-1">
+      <header className="flex shrink-0 items-center justify-between px-1">
         <h3 className="text-xs font-semibold text-neutral-300">模型</h3>
         <span className="text-[10px] text-neutral-500">{entries.length}</span>
       </header>
-      <div className="grid grid-cols-4 gap-1.5 overflow-y-auto pr-1">
+      {summary ? <div className="shrink-0">{summary}</div> : null}
+      <div
+        className="grid min-h-0 flex-1 grid-cols-4 content-start gap-1.5 overflow-y-auto pr-1"
+        data-testid="models-inventory-grid"
+      >
         {entries.map((entry) => {
           const selected = entry.entryId === selectedEntryId;
           return (
@@ -41,12 +53,21 @@ export function ModelsInventory(props: {
               }`}
             >
               <ProviderBrandBadge
-                id={entry.providerKind}
+                id={brandIdForVendorKind(entry.providerKind)}
                 label={entry.providerLabel}
-                size="avatar"
+                size="card"
               />
               <span className="w-full truncate text-[9px] leading-tight text-neutral-300">
                 {entry.displayName}
+              </span>
+              <span
+                className="w-full truncate text-[8px] leading-tight text-neutral-500"
+                title={entry.channelLabel}
+              >
+                {entry.channelLabel}
+              </span>
+              <span className="w-full truncate text-[8px] leading-tight text-neutral-500">
+                {entry.channelLabel}
               </span>
             </button>
           );

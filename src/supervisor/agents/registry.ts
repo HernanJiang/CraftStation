@@ -23,6 +23,7 @@ import { createCursorAdapter, createCursorProfileAdapter } from "./cursor";
 import { createFactoryAdapter } from "./factory";
 import { createGeminiAdapter } from "./gemini";
 import { createGrokAdapter } from "./grok";
+import { createDeepSeekAdapter } from "./deepseek";
 import { createKimiAdapter } from "./kimi";
 import { createMuseAdapter } from "./muse";
 import { createOpenCodeAdapter } from "./opencode";
@@ -49,6 +50,7 @@ export function buildAgentRegistry(userInstances: AgentInstanceConfig[]): AgentA
     createQoderAdapter(),
     createGrokAdapter(),
     createKimiAdapter(),
+    createDeepSeekAdapter(),
     createMuseAdapter(),
     createAntigravityAdapter(),
     createCommandCodeAdapter(),

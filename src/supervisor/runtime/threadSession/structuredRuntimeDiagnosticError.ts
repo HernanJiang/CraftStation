@@ -18,8 +18,17 @@ export class StructuredRuntimeDiagnosticError extends Error {
   readonly failureClass: StructuredRuntimeFailureClass;
   readonly diagnosticProvider: string | undefined;
 
-  constructor(failureClass: StructuredRuntimeFailureClass, diagnosticProvider?: string) {
-    super(STRUCTURED_RUNTIME_FAILURE_MESSAGES[failureClass]);
+  constructor(
+    failureClass: StructuredRuntimeFailureClass,
+    diagnosticProvider?: string,
+    /** Optional short cause tail for account-control style errors (no secrets). */
+    causeHint?: string,
+  ) {
+    super(
+      causeHint
+        ? `${STRUCTURED_RUNTIME_FAILURE_MESSAGES[failureClass]} 原因：${causeHint}`
+        : STRUCTURED_RUNTIME_FAILURE_MESSAGES[failureClass],
+    );
     this.failureClass = failureClass;
     this.diagnosticProvider = diagnosticProvider;
   }

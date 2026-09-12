@@ -6,10 +6,11 @@ import {
   StreamableHttpMcpIngress,
   type StreamableHttpMcpIngressInfo,
 } from "../mcp/StreamableHttpMcpIngress";
-import type { ScheduleService } from "../schedules/ScheduleService";
+import type { ScheduleCapability } from "../schedules/ScheduleCapability";
 import type { CreateAppThreadRequest, CreateAppThreadResult } from "../threads/appThreadLauncher";
 import { ThreadStateBroker } from "../threads/threadStateBroker";
 import { ThreadCollaborationService, ThreadControlAdapter } from "../thread-collaboration";
+import { InterHarnessMessageBus } from "../thread-messaging/interHarnessMessageBus";
 import {
   APP_CONTROLS_MCP_INSTRUCTIONS,
   APP_CONTROLS_MCP_SERVER_INFO,
@@ -29,7 +30,7 @@ export type AppControlsMcpIngressInfo = StreamableHttpMcpIngressInfo;
 
 /** Main-side seams the app-controls MCP server acts through. */
 export interface AppControlsMcpIngressDeps {
-  scheduleService: ScheduleService;
+  scheduleService: ScheduleCapability;
   getThread(threadId: string): Thread | null;
   getThreads(): Thread[];
   getProjects(): Project[];
@@ -56,6 +57,7 @@ export class AppControlsMcpIngress {
   private readonly threadStates = new ThreadStateBroker();
   private readonly threadControl: ThreadControlAdapter;
   private readonly threadCollaboration: ThreadCollaborationService;
+  private readonly messageBus: InterHarnessMessageBus;
 
   constructor(deps: AppControlsMcpIngressDeps) {
     this.threadControl = new ThreadControlAdapter({
@@ -69,6 +71,35 @@ export class AppControlsMcpIngress {
     this.threadCollaboration = new ThreadCollaborationService({
       control: this.threadControl,
       ...(deps.onExchangeChanged ? { onExchangeChanged: deps.onExchangeChanged } : {}),
+    });
+    // Thin native-thread bus over the same control plane and durable ledger:
+    // peer addresses, external-thread claims, and agent-facing messaging.
+    // Claimed rows are mirrored to the renderer without launching a runtime
+    // (launchRuntime:false) so binding never disturbs the real native thread.
+    this.messageBus = new InterHarnessMessageBus({
+      collaboration: this.threadCollaboration,
+      control: this.threadControl,
+      getProjectLocation: (projectId) => deps.getProject(projectId)?.location ?? null,
+      listProjectLocations: () =>
+        deps.getProjects().map((project) => ({ projectId: project.id, location: project.location })),
+      mirrorThreadToRenderer: (thread) => {
+        deps.emitRemoteThreadCommand({
+          kind: "start",
+          threadId: thread.id,
+          projectId: thread.projectId,
+          agentKind: thread.agentKind,
+          config: thread.config,
+          prompt: "",
+          title: thread.title,
+          presentationMode: "gui",
+          launchRuntime: false,
+          focus: false,
+        });
+      },
+      mirrorThreadDeletion: (threadId) => {
+        deps.emitRemoteThreadCommand({ kind: "delete", threadId });
+      },
+      createThread: (request) => deps.createThread(request),
     });
     this.ingress = new StreamableHttpMcpIngress<AppControlsToolContext>({
       serverInfo: { ...APP_CONTROLS_MCP_SERVER_INFO },
@@ -100,6 +131,10 @@ export class AppControlsMcpIngress {
 
   getThreadCollaborationService(): ThreadCollaborationService {
     return this.threadCollaboration;
+  }
+
+  getInterHarnessMessageBus(): InterHarnessMessageBus {
+    return this.messageBus;
   }
 
   start(): Promise<AppControlsMcpIngressInfo> {

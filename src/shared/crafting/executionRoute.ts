@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { HarnessReference, SelectedModelEntry } from "./workbenchTypes";
+import { canonicalModelVendor, isSameModelVendor } from "./vendors";
 
 export const executionRouteTypeSchema = z.enum(["native", "compatibility", "fail-closed"]);
 export type ExecutionRouteType = z.infer<typeof executionRouteTypeSchema>;
@@ -10,6 +11,21 @@ export const SUPPORTED_COMPATIBILITY_HARNESSES = [
   "kimi",
   "grok",
   "antigravity",
+] as const;
+
+/**
+ * Canonical model vendors the official OpenCode runtime can serve directly
+ * through its own provider/model adapters. Mirrors the `*-opencode-native`
+ * entries of `NATIVE_HARNESS_RECIPES` (registry.ts) — keep the two lists in
+ * sync when a vendor route is added or removed there.
+ */
+export const OPENCODE_NATIVE_MODEL_VENDORS = [
+  "openai",
+  "xai",
+  "google",
+  "deepseek",
+  "moonshot",
+  "moonshot-openai-compatible",
 ] as const;
 
 export interface ExecutionRouteResolutionInput {
@@ -60,7 +76,33 @@ export function resolveExecutionRoute(
     };
   }
 
-  const isNativePairing = modelEntry.providerKind === harnessRef.vendor;
+  // OpenCode is a universal router, not a single-vendor CLI: allowlisted model
+  // vendors are served by its own provider/model adapters through the official
+  // OpenCode runtime — never through the CLIProxyAPI Compatibility Bridge
+  // (the bridge exists for single-vendor harnesses that cannot reach foreign
+  // vendor endpoints on their own).
+  if (harnessRef.harnessKind === "opencode") {
+    const modelVendor = canonicalModelVendor(modelEntry.providerKind);
+    if ((OPENCODE_NATIVE_MODEL_VENDORS as readonly string[]).includes(modelVendor)) {
+      return {
+        routeType: "native",
+        reason: `OpenCode universal router serves '${modelVendor}' models through the official OpenCode runtime`,
+        isNative: true,
+        isCompatibility: false,
+      };
+    }
+    return {
+      routeType: "fail-closed",
+      reason: `Model vendor '${modelVendor || modelEntry.providerKind}' has no verified OpenCode native route`,
+      isNative: false,
+      isCompatibility: false,
+    };
+  }
+
+  // Native pairing compares canonical model vendors: the inventory reports
+  // models by agent kind (`codex`) while descriptors report the model vendor
+  // (`openai`). Raw string comparison can never match those pairs.
+  const isNativePairing = isSameModelVendor(modelEntry.providerKind, harnessRef.vendor);
 
   if (isNativePairing) {
     return {

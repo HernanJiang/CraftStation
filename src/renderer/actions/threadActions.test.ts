@@ -3,6 +3,7 @@ import { waitFor } from "@testing-library/react";
 import type { Project, RemoteThreadCommand, Thread, Workspace } from "@/shared/contracts";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
+import { useExperimentStore } from "@/renderer/state/experimentStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
@@ -12,12 +13,15 @@ import {
   archiveThread,
   deleteThread,
   requestDeleteThread,
+  moveThreadToProject,
   openNewThread,
   openThread,
   reopenPaneThreadsIfInactive,
   reopenStoredThread,
+  setThreadGoalPrompt,
   setThreadRuntimeReopenEnabled,
   setThreadWorktree,
+  stopThreadGoal,
   switchToAdjacentThread,
   toggleMarkThreadDone,
   toggleStarThread,
@@ -28,6 +32,8 @@ const { bridge } = vi.hoisted(() => ({
   bridge: {
     closeThread: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     appendUsageEvents: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    interruptThread: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    controlThreadGoal: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   },
 }));
 const { hasHydratedThreadRuntimeItems, hydrateThreadRuntimeItems } = vi.hoisted(() => ({
@@ -41,7 +47,10 @@ const { deleteWorktreeGroup } = vi.hoisted(() => ({
 const { refreshServer, sendThreadCommand, toast } = vi.hoisted(() => ({
   refreshServer: vi.fn<(desktopId: string) => Promise<void>>(),
   sendThreadCommand: vi.fn<(desktopId: string, command: RemoteThreadCommand) => Promise<void>>(),
-  toast: { danger: vi.fn<(message: string) => void>() },
+  toast: {
+    danger: vi.fn<(message: string) => void>(),
+    success: vi.fn<(message: string) => void>(),
+  },
 }));
 
 vi.mock("@heroui/react", async (importOriginal) => {
@@ -73,6 +82,7 @@ describe("threadActions", () => {
     refreshServer.mockReset().mockResolvedValue(undefined);
     sendThreadCommand.mockReset().mockResolvedValue(undefined);
     toast.danger.mockReset();
+    toast.success.mockReset();
     useRemoteServersStore.setState({ refreshServer, sendThreadCommand });
     useAppStore.setState((state) => ({
       ...state,
@@ -1113,3 +1123,154 @@ function configureCrossWorkspaceThread(): {
   useAppStore.setState((state) => ({ ...state, threads: [thread] }));
   return { currentWorkspace, threadWorkspace, thread };
 }
+
+describe("moveThreadToProject", () => {
+  // NOTE: this block lives outside describe("threadActions"), so the file's
+  // top-level beforeEach does not apply here — reset everything locally.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    useExperimentStore.setState({ experiments: {} });
+    useAppStore.setState((state) => ({
+      ...state,
+      projects: [],
+      threads: [],
+      view: { kind: "home" },
+      pendingThreadLaunches: {},
+      provisioningWorktreeThreadIds: {},
+      runtimeItemIdsByThread: {},
+      runtimeItemsByIdByThread: {},
+      runtimeCompletedTurnsByThread: {},
+      runtimeOpenTurnByThread: {},
+      userCancelledTurnStartsByThread: {},
+    }));
+  });
+
+  function seedProjects() {
+    const store = useAppStore.getState();
+    const home = store.addProject({ kind: "posix", path: "/repo-home" });
+    const alpha = store.addProject({ kind: "posix", path: "/repo-alpha" });
+    const beta = store.addProject({ kind: "posix", path: "/repo-beta" });
+    return { home, alpha, beta };
+  }
+
+  it("rebinds an idle session-less thread and clears stale worktree metadata", () => {
+    const { alpha, beta } = seedProjects();
+    const thread = makeThread({
+      projectId: alpha.id,
+      status: "idle",
+      worktreePath: "/wt/old",
+      worktreeBranch: "old-branch",
+    });
+    useAppStore.setState((state) => ({ ...state, threads: [thread] }));
+
+    moveThreadToProject(thread.id, beta.id);
+
+    const moved = useAppStore.getState().threads.find((t) => t.id === thread.id)!;
+    expect(moved.projectId).toBe(beta.id);
+    expect(moved.worktreePath).toBeUndefined();
+    expect(moved.worktreeBranch).toBeUndefined();
+    expect(toast.success).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses threads with a live turn or a resumable session", () => {
+    const { alpha, beta } = seedProjects();
+    const working = makeThread({ id: "t-working", projectId: alpha.id, status: "working" });
+    const resumable = makeThread({
+      id: "t-resumable",
+      projectId: alpha.id,
+      status: "idle",
+      sessionRef: { providerSessionId: "sess-1", discoveredAt: "2026-03-22T00:00:00.000Z" },
+    });
+    useAppStore.setState((state) => ({ ...state, threads: [working, resumable] }));
+
+    moveThreadToProject(working.id, beta.id);
+    moveThreadToProject(resumable.id, beta.id);
+
+    expect(useAppStore.getState().threads.find((t) => t.id === working.id)?.projectId).toBe(
+      alpha.id,
+    );
+    expect(useAppStore.getState().threads.find((t) => t.id === resumable.id)?.projectId).toBe(
+      alpha.id,
+    );
+    expect(toast.danger).toHaveBeenCalledTimes(2);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("ignores unknown threads, same-project moves, and experiment threads", () => {
+    const { alpha } = seedProjects();
+    const thread = makeThread({ projectId: alpha.id, status: "idle" });
+    useAppStore.setState((state) => ({ ...state, threads: [thread] }));
+
+    moveThreadToProject("missing", alpha.id);
+    moveThreadToProject(thread.id, alpha.id);
+    moveThreadToProject(thread.id, "missing-project");
+
+    expect(useAppStore.getState().threads).toHaveLength(1);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.danger).not.toHaveBeenCalled();
+  });
+});
+
+describe("thread goal lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState((state) => ({ ...state, threads: [] }));
+  });
+
+  function seedThread(agentKind: "codex" | "kimi" = "kimi") {
+    return useAppStore.getState().createThread({
+      projectId: "project-1",
+      agentKind,
+      config: { model: "m" },
+      prompt: "hi",
+      focus: false,
+    });
+  }
+
+  function goalOf(threadId: string) {
+    return useAppStore.getState().threads.find((thread) => thread.id === threadId)?.goal;
+  }
+
+  it("sets, replaces, and validates the durable goal", () => {
+    const thread = seedThread();
+    expect(setThreadGoalPrompt(thread.id, "  fix auth  ")).toEqual({ ok: true });
+    expect(goalOf(thread.id)?.prompt).toBe("fix auth");
+
+    expect(setThreadGoalPrompt(thread.id, "second")).toEqual({ ok: true });
+    expect(goalOf(thread.id)?.prompt).toBe("second");
+
+    expect(setThreadGoalPrompt(thread.id, "   ").ok).toBe(false);
+    expect(setThreadGoalPrompt("missing", "x").ok).toBe(false);
+    // Failed writes leave the stored goal untouched.
+    expect(goalOf(thread.id)?.prompt).toBe("second");
+  });
+
+  it("stop clears the goal and interrupts plus clears native for codex", async () => {
+    const thread = seedThread("codex");
+    setThreadGoalPrompt(thread.id, "goal");
+    await stopThreadGoal(thread.id);
+    expect(goalOf(thread.id)).toBeUndefined();
+    expect(bridge.interruptThread).toHaveBeenCalledWith({ threadId: thread.id });
+    expect(bridge.controlThreadGoal).toHaveBeenCalledWith({
+      threadId: thread.id,
+      action: "clear",
+    });
+  });
+
+  it("stop on non-codex skips the native clear but still interrupts", async () => {
+    const thread = seedThread("kimi");
+    setThreadGoalPrompt(thread.id, "goal");
+    await stopThreadGoal(thread.id);
+    expect(goalOf(thread.id)).toBeUndefined();
+    expect(bridge.interruptThread).toHaveBeenCalledWith({ threadId: thread.id });
+    expect(bridge.controlThreadGoal).not.toHaveBeenCalled();
+  });
+
+  it("stop without a goal is a no-op", async () => {
+    const thread = seedThread();
+    await stopThreadGoal(thread.id);
+    expect(bridge.interruptThread).not.toHaveBeenCalled();
+    expect(bridge.controlThreadGoal).not.toHaveBeenCalled();
+  });
+});

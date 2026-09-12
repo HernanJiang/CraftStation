@@ -2,15 +2,27 @@ import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHar
 import type { HarnessReference } from "@/shared/crafting/workbenchTypes";
 
 /**
+ * Harness kinds retired from the visible Workbench catalogue. The runtime
+ * adapters stay registered so saved recipes and old threads keep resolving;
+ * they just no longer show up as pickable materials. (`deepseek-api`: the
+ * native DSH harness supersedes the OpenAI-compatible API runtime.)
+ */
+export const RETIRED_HARNESS_KINDS: readonly string[] = ["deepseek-api"];
+
+export function isRetiredHarnessKind(harnessKind: string): boolean {
+  return RETIRED_HARNESS_KINDS.includes(harnessKind);
+}
+
+/**
  * Project the safe Native Harness control-plane into secret-free Workbench
  * Harness materials. A HarnessReference never carries a path, command or
  * credential — it references the descriptor/kind by stable id and reports a
- * safe status.
+ * safe status. Retired kinds are dropped from the pickable catalogue.
  */
 export function buildHarnessInventory(
   entries: readonly NativeHarnessControlPlaneEntry[],
 ): HarnessReference[] {
-  return entries.map((entry) => {
+  return entries.filter((entry) => !isRetiredHarnessKind(entry.descriptor.harnessKind)).map((entry) => {
     const descriptor = entry.descriptor;
     const ref: HarnessReference = {
       harnessItemId: `harness:${descriptor.harnessKind}`,

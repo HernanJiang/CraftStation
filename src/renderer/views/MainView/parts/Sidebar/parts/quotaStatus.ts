@@ -1,4 +1,5 @@
 import type { AccountStatus } from "@/shared/contracts/accounts";
+import type { TokenUsageSummary } from "@/shared/contracts";
 import type { UsageStatus, UsageWindow } from "@/shared/contracts/usage";
 
 export type QuotaDisplayState = "sufficient" | "low" | "unavailable";
@@ -91,4 +92,51 @@ export function userFacingTokenMessage(reason: string | undefined): string | und
     return "暂无精确 Token 用量";
   }
   return reason;
+}
+
+export type AccountTokenAttribution =
+  /** A non-estimated per-account breakdown entry pins usage to this account. */
+  | {
+      kind: "exact";
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      cacheReadTokens: number;
+      cacheWriteTokens: number;
+    }
+  /** Token data exists, but no breakdown entry pins it to this account. */
+  | { kind: "unattributable" }
+  /** No token data at all. */
+  | { kind: "none" };
+
+/**
+ * Attribute ledger token usage to one account (Provider → Account). An exact
+ * (or derived) `byAccount` entry keyed by this account id is real per-account
+ * usage. When the response carries token totals but nothing for this account,
+ * the usage genuinely cannot be attributed — report that instead of the
+ * blanket "暂无精确 Token 用量", which is reserved for having no data at all.
+ */
+export function resolveAccountTokenAttribution(
+  summaries: readonly TokenUsageSummary[] | undefined,
+  accountId: string,
+): AccountTokenAttribution {
+  const exact = summaries
+    ?.flatMap((summary) =>
+      summary.byAccount
+        .filter((entry) => entry.key === accountId)
+        .map((entry) => ({ summary, entry })),
+    )
+    .find(({ summary }) => summary.quality !== "estimated");
+  if (exact) {
+    return {
+      kind: "exact",
+      inputTokens: exact.entry.inputTokens,
+      outputTokens: exact.entry.outputTokens,
+      totalTokens: exact.entry.totalTokens,
+      cacheReadTokens: exact.entry.cacheReadTokens,
+      cacheWriteTokens: exact.entry.cacheWriteTokens,
+    };
+  }
+  const hasData = summaries?.some((summary) => summary.totalTokens > 0) ?? false;
+  return hasData ? { kind: "unattributable" } : { kind: "none" };
 }

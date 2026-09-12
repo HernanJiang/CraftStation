@@ -29,6 +29,32 @@ export type CodexSocketMessage =
       kind: "unknown";
     };
 
+export const CODEX_APPROVAL_POLICIES = [
+  "untrusted",
+  "on-request",
+  "granular",
+  "never",
+] as const;
+
+export type CodexApprovalPolicy = (typeof CODEX_APPROVAL_POLICIES)[number];
+
+const CODEX_APPROVAL_POLICY_SET = new Set<string>(CODEX_APPROVAL_POLICIES);
+
+/**
+ * Codex app-server rejects unknown approval-policy variants (e.g. Grok's
+ * `bypassPermissions`). Map the portable bypass ids onto `never` and drop
+ * anything else so `turn/start` / `thread/fork` stay on the protocol enum.
+ */
+export function toCodexApprovalPolicy(policy: string | undefined): CodexApprovalPolicy | undefined {
+  if (!policy) return undefined;
+  if (CODEX_APPROVAL_POLICY_SET.has(policy)) return policy as CodexApprovalPolicy;
+  if (policy === "bypassPermissions" || policy === "yolo" || policy === "dontAsk") {
+    return "never";
+  }
+  if (policy === "default") return "on-request";
+  return undefined;
+}
+
 export function toCodexSandboxPolicy(
   mode: string | undefined,
 ): { type: "readOnly" } | { type: "workspaceWrite" } | { type: "dangerFullAccess" } | undefined {
@@ -189,6 +215,7 @@ export function isRecoverableResumeError(message: string): boolean {
     lower.includes("no session") ||
     lower.includes("expired") ||
     lower.includes("invalid thread") ||
-    lower.includes("session not found")
+    lower.includes("session not found") ||
+    lower.includes("no rollout")
   );
 }

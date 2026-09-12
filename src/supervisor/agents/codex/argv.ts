@@ -22,6 +22,7 @@ import { resolveCodexWindowsLaunchBinary } from "./windowsExecutable";
 import { codexContextWindowOverrides } from "@/shared/agents/codexContextWindows";
 import { buildCodexMcp } from "../userMcp";
 import { buildCodexMcpSkillConflictArgs } from "./mcpSkillConflicts";
+import { toCodexApprovalPolicy } from "./acpProtocol";
 
 const CODEX_GOALS_FEATURE_FLAG = "goals";
 const codexGoalsSupportCache = new Map<string, boolean>();
@@ -73,8 +74,9 @@ function buildCodexArgs(opts: BuildCodexArgsOptions): string[] {
       "-c",
       `model_auto_compact_token_limit=${contextWindow.model_auto_compact_token_limit}`,
     );
-    if (config.approvalPolicy) {
-      args.push("-a", config.approvalPolicy);
+    const approvalPolicy = toCodexApprovalPolicy(config.approvalPolicy);
+    if (approvalPolicy) {
+      args.push("-a", approvalPolicy);
     }
     if (config.approvalsReviewer) {
       args.push("-c", `approvals_reviewer="${config.approvalsReviewer}"`);

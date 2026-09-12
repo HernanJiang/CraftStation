@@ -47,6 +47,58 @@ describe("notificationStore", () => {
     expect(selectHasUnread(useNotificationStore.getState().items)).toBe(true);
   });
 
+  it("replaces an existing notification for the same thread instead of stacking", () => {
+    useNotificationStore.getState().push({
+      tone: "success",
+      title: "first run",
+      status: "Done",
+      threadId: "thread-1",
+    });
+    useNotificationStore.getState().push({
+      tone: "warning",
+      title: "second run",
+      status: "Needs Attention · Reply required",
+      threadId: "thread-1",
+    });
+    useNotificationStore.getState().push({
+      tone: "success",
+      title: "other thread",
+      status: "Done",
+      threadId: "thread-2",
+    });
+
+    const items = useNotificationStore.getState().items;
+    expect(items.map((item) => item.title)).toEqual(["other thread", "second run"]);
+    expect(items.find((item) => item.threadId === "thread-1")?.status).toBe(
+      "Needs Attention · Reply required",
+    );
+  });
+
+  it("drops a thread's notifications when that conversation is opened", () => {
+    useNotificationStore.getState().push({
+      tone: "success",
+      title: "first",
+      status: "Done",
+      threadId: "thread-1",
+    });
+    useNotificationStore.getState().push({
+      tone: "warning",
+      title: "second",
+      status: "Needs Attention",
+      threadId: "thread-2",
+    });
+
+    useNotificationStore.getState().dismissThread("thread-1");
+
+    const items = useNotificationStore.getState().items;
+    expect(items.map((item) => item.title)).toEqual(["second"]);
+    expect(selectHasUnread(items)).toBe(true);
+
+    useNotificationStore.getState().dismissThread("thread-2");
+    expect(useNotificationStore.getState().items).toEqual([]);
+    expect(selectHasUnread(useNotificationStore.getState().items)).toBe(false);
+  });
+
   it("removes one item and clears everything", () => {
     push("first");
     push("second");

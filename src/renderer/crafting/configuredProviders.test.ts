@@ -19,7 +19,10 @@ describe("resolveConfiguredProviderIds", () => {
     ).toEqual(["antigravity", "codex", "grok"]);
   });
 
-  it("does not treat a plan-only OpenCode CLI snapshot as an added channel", () => {
+  it("treats a plan-only OpenCode snapshot as configured — same gate as 管理模型", () => {
+    // The usage workspace counts a snapshot with a plan label as an added
+    // channel (hasProviderIdentity). The composer must apply the identical bar,
+    // otherwise a channel is selectable in 管理模型 yet invisible in the picker.
     expect(
       resolveConfiguredProviderIds({
         accounts: [],
@@ -28,7 +31,18 @@ describe("resolveConfiguredProviderIds", () => {
           opencode: { status: "ok", plan: "Go", windows: [] },
         },
       }),
-    ).toEqual([]);
+    ).toEqual(["opencode"]);
+    // An authorized status without quota windows counts too (spend-only
+    // providers expose no windows).
+    expect(
+      resolveConfiguredProviderIds({
+        accounts: [],
+        storedLogin: {},
+        usageSnapshots: {
+          opencode: { status: "ok", windows: [] },
+        },
+      }),
+    ).toEqual(["opencode"]);
   });
 
   it("matches composer agents by base kind", () => {

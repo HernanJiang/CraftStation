@@ -153,3 +153,42 @@ export function resolveAiLanguageName(
   }
   return LOCALE_ENGLISH_NAMES[locale];
 }
+
+/**
+ * Preferred languages from a Node/Electron process. Walks POSIX locale env
+ * vars first, then the ICU default, so a `locale: "system"` setting can
+ * resolve on the supervisor side (no `navigator.languages`).
+ */
+export function detectProcessPreferredLanguages(
+  env: Record<string, string | undefined> = process.env,
+  intlLocale: string | undefined = Intl.DateTimeFormat().resolvedOptions().locale,
+): string[] {
+  const tags: string[] = [];
+  const push = (raw: string | undefined) => {
+    if (!raw) return;
+    for (const part of raw.split(/[:;]/)) {
+      const tag = part.trim().split(".")[0]?.replaceAll("_", "-");
+      if (tag) tags.push(tag);
+    }
+  };
+  push(env.LANGUAGE);
+  push(env.LC_ALL);
+  push(env.LC_MESSAGES);
+  push(env.LANG);
+  if (intlLocale?.trim()) tags.push(intlLocale.trim());
+  return tags;
+}
+
+/**
+ * Instruction appended to structured-turn prompts so chat follows the UI
+ * language. Returns `undefined` for English so the outbound prompt stays
+ * unchanged when the app is already in the source locale.
+ */
+export function chatLanguageDirective(
+  appLocale: LocaleSetting,
+  preferredLanguages: readonly string[],
+): string | undefined {
+  const name = resolveAiLanguageName("match-app", appLocale, preferredLanguages);
+  if (!name) return undefined;
+  return `Always reply in ${name} unless the user writes in a different language. Keep code, identifiers, file paths, and commands in their original form.`;
+}

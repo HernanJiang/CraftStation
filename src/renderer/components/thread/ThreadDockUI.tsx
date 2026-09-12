@@ -11,7 +11,7 @@ export function ThreadDockSection({
   ariaLabel,
 }: {
   children: ReactNode;
-  placement?: "composer" | "right";
+  placement?: "composer" | "right" | "context-bar";
   collapsed?: boolean;
   className?: string;
   ariaLabel?: string;
@@ -19,11 +19,13 @@ export function ThreadDockSection({
   const { t } = useLingui();
   const resolvedAriaLabel = ariaLabel ?? t`Thread dock`;
   const baseClass =
-    placement === "composer"
-      ? "flex flex-col border-b border-[color:var(--border)] bg-transparent text-xs"
-      : collapsed
-        ? "flex flex-col rounded-2xl border border-[color:var(--border)] bg-[var(--composer-surface)] text-xs"
-        : "flex h-full min-h-0 flex-col rounded-2xl border border-[color:var(--border)] bg-[var(--composer-surface)] text-xs";
+    placement === "context-bar"
+      ? "flex min-w-0 flex-1 items-center bg-transparent text-xs"
+      : placement === "composer"
+        ? "flex flex-col border-b border-[color:var(--border)] bg-transparent text-xs"
+        : collapsed
+          ? "flex flex-col rounded-2xl border border-[color:var(--border)] bg-[var(--composer-surface)] text-xs"
+          : "flex h-full min-h-0 flex-col rounded-2xl border border-[color:var(--border)] bg-[var(--composer-surface)] text-xs";
 
   return (
     <section

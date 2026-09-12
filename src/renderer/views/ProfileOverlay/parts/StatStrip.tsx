@@ -14,10 +14,14 @@ function Skeleton() {
  * sub row (h-3.5) so the strip never reflows when async token tiles resolve or
  * the peak-day sub-label appears. Numerals use tabular-nums for stable width.
  */
-function Tile(props: { value: ReactNode; label: string; sub?: string }) {
+function Tile(props: { value: ReactNode; label: string; sub?: string; compact?: boolean }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-1 bg-surface-secondary px-3 py-4">
-      <div className="flex h-7 items-center text-xl font-semibold tabular-nums text-foreground">
+    <div
+      className={`flex flex-col items-center justify-center gap-1 bg-surface-secondary px-3 ${props.compact ? "py-2.5" : "py-4"}`}
+    >
+      <div
+        className={`flex items-center font-semibold tabular-nums text-foreground ${props.compact ? "h-6 text-base" : "h-7 text-xl"}`}
+      >
         {props.value}
       </div>
       <div className="text-xs text-muted">{props.label}</div>
@@ -46,9 +50,11 @@ export function StatStrip(props: {
   tokens: ProfileTokenStats | null;
   tokensLoading: boolean;
   window: ProfileStatsWindow;
+  /** Tighter tiles for the 3-column usage-stats layout. */
+  compact?: boolean;
 }) {
   const { t } = useLingui();
-  const { core, tokens, tokensLoading, window } = props;
+  const { core, tokens, tokensLoading, window, compact = false } = props;
   const totals = core.totals;
   const pending = tokensLoading && !tokens;
 
@@ -74,15 +80,28 @@ export function StatStrip(props: {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-3 lg:grid-cols-5">
-        <Tile value={lifetime} label={window === "all" ? t`Lifetime tokens` : t`Total tokens`} />
+        <Tile
+          value={lifetime}
+          label={window === "all" ? t`Lifetime tokens` : t`Total tokens`}
+          compact={compact}
+        />
         <Tile
           value={peak}
           label={t`Peak day`}
+          compact={compact}
           {...(tokens?.peakDay ? { sub: formatDayLabel(tokens.peakDay) } : {})}
         />
-        <Tile value={formatDuration(totals.longestTaskMs)} label={t`Longest task`} />
-        <Tile value={formatDaysLabel(totals.currentStreakDays, t)} label={t`Current streak`} />
-        <Tile value={formatDaysLabel(totals.longestStreakDays, t)} label={t`Longest streak`} />
+        <Tile value={formatDuration(totals.longestTaskMs)} label={t`Longest task`} compact={compact} />
+        <Tile
+          value={formatDaysLabel(totals.currentStreakDays, t)}
+          label={t`Current streak`}
+          compact={compact}
+        />
+        <Tile
+          value={formatDaysLabel(totals.longestStreakDays, t)}
+          label={t`Longest streak`}
+          compact={compact}
+        />
       </div>
       {tokens && tokens.unavailableProviders.length > 0 ? (
         <p className="text-center text-[10px] text-muted/60">

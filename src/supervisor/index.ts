@@ -9,7 +9,12 @@ import { createUncaughtStormDetector } from "./devUncaughtStorm";
 import { handleSupervisorIpcFailure } from "./ipcFailure";
 import { createSupervisorIpcHandlers } from "./ipcHandlers";
 import { SupervisorRuntime } from "./supervisorRuntime";
-import { configureSecretStorageKey } from "./secretStorage";
+import {
+  configureSecretStorageFallbackKeys,
+  configureSecretStorageKey,
+  parseSecretStorageFallbackKeys,
+  SECRET_STORAGE_KEY_FALLBACKS_ENV,
+} from "./secretStorage";
 
 const isDev = process.env.CRAFTSTATION_IS_DEV === "1" || Boolean(process.env.VITE_DEV_SERVER_URL);
 
@@ -19,6 +24,12 @@ initializeSupervisorSentry({
 });
 configureSecretStorageKey(process.env.CRAFTSTATION_SECRET_STORAGE_KEY);
 delete process.env.CRAFTSTATION_SECRET_STORAGE_KEY;
+// Older-identity keys so sealed provider secrets stay readable across userData
+// identity switches; decryption-only, never used for sealing.
+configureSecretStorageFallbackKeys(
+  parseSecretStorageFallbackKeys(process.env[SECRET_STORAGE_KEY_FALLBACKS_ENV]),
+);
+delete process.env[SECRET_STORAGE_KEY_FALLBACKS_ENV];
 
 const runtime = new SupervisorRuntime((event) => {
   process.send?.(event);

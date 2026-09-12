@@ -118,6 +118,21 @@ describe("ensureKimiWorkspaceTrust (native)", () => {
     expect(readFileSync(markerPath, "utf8")).toBe('{"root":"sentinel","trustedAt":1}');
   });
 
+  it("writes the marker into an explicit kimiHome even when KIMI_CODE_HOME points elsewhere", async () => {
+    const envHome = makeTempDir("kimi-env-home-");
+    const poolHome = makeTempDir("kimi-pool-home-");
+    const project = makeTempDir("kimi-project-");
+    vi.stubEnv("KIMI_CODE_HOME", envHome);
+    const root = realpathSync(project);
+
+    await ensureKimiWorkspaceTrust({ kind: "posix", path: project }, undefined, {
+      kimiHome: poolHome,
+    });
+
+    expect(existsSync(join(poolHome, "workspace-trust", encodeKimiWorkDirKey(root)))).toBe(true);
+    expect(existsSync(join(envHome, "workspace-trust", encodeKimiWorkDirKey(root)))).toBe(false);
+  });
+
   it("honors an explicit workDir over the project path (the ACP probe's cwd)", async () => {
     const home = makeTempDir("kimi-home-");
     const project = makeTempDir("kimi-project-");

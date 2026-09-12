@@ -80,8 +80,7 @@ describe("OpenCodeNativeTransport", () => {
     ]);
   });
 
-  it("reports SSE reconnect through the unified readiness diagnostic", async () => {
-    async function* failingStream(): AsyncIterable<unknown> {
+  it("reports SSE reconnect through the unified readiness diagnostic", async () => {    async function* failingStream(): AsyncIterable<unknown> {
       yield await Promise.reject(new Error("Bearer private-token connection lost"));
     }
     const diagnostics: unknown[] = [];
@@ -177,6 +176,58 @@ describe("OpenCodeNativeTransport", () => {
     expect(env.GROK_HOME).toBeUndefined();
     expect(env.CRAFTSTATION_UNRELATED_ACCOUNT_MARKER).toBeUndefined();
     expect(Object.keys(env)).not.toContain("NODE_OPTIONS");
+    await transport.dispose();
+  });
+
+  it("stops the SSE reconnect loop when the server child exits mid-turn", async () => {
+    async function* failingStream(): AsyncIterable<unknown> {
+      yield await Promise.reject(new Error("connection lost"));
+    }
+    let spawnedChild!: EventEmitter & {
+      stdout: PassThrough;
+      stderr: PassThrough;
+      exitCode: number | null;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    const spawnProcess = vi.fn<
+      (command: string, args: readonly string[], options: unknown) => unknown
+    >(() => {
+      const child = new EventEmitter() as typeof spawnedChild;
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.exitCode = null;
+      child.killed = false;
+      child.kill = vi.fn<() => void>();
+      spawnedChild = child;
+      queueMicrotask(() => {
+        child.stdout.write("opencode server listening on http://127.0.0.1:43124\n");
+      });
+      return child;
+    });
+    const diagnostics: unknown[] = [];
+    const transport = new OpenCodeNativeTransport({
+      projectLocation: location,
+      executablePath: "C:/tools/opencode.exe",
+      spawnProcess: spawnProcess as never,
+      clientFactory: () => clientWithStream(failingStream()),
+      onDiagnostic: (record) => diagnostics.push(record),
+    });
+    const connection = await transport.connect();
+    const received: unknown[] = [];
+    const unsubscribe = connection.subscribe((event) => received.push(event));
+
+    // The stream fails → reconnect diagnostics accrue while subscribed.
+    await vi.waitFor(() => expect(diagnostics.length).toBeGreaterThanOrEqual(1));
+
+    // Server death is terminal: the loop stops instead of spinning forever.
+    spawnedChild.emit("exit", 1, null);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const countAfterExit = diagnostics.length;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(diagnostics.length).toBe(countAfterExit);
+
+    unsubscribe();
     await transport.dispose();
   });
 });

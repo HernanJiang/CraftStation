@@ -91,6 +91,8 @@ import type {
   StageThreadInputPayload,
   StartThreadPayload,
   StartThreadResult,
+  SwitchThreadProviderPayload,
+  SwitchThreadProviderResult,
   Thread,
   ThreadRuntimeSnapshot,
   TerminalShellSnapshot,
@@ -98,7 +100,7 @@ import type {
 import type { RemoteProjectCommand, RemoteProjectCommandResult } from "@/shared/remote";
 import type { SharedSettings } from "@/shared/settings";
 import type { StreamableHttpMcpToolSpec } from "../../../mcp/StreamableHttpMcpIngress";
-import type { ScheduleService } from "../../../schedules/ScheduleService";
+import type { ScheduleCapability } from "../../../schedules/ScheduleCapability";
 import type {
   CreateAppThreadRequest,
   CreateAppThreadResult,
@@ -122,6 +124,7 @@ export interface AppControlsSupervisorCaller {
   sendThreadInput(payload: SendThreadInputPayload): Promise<void>;
   interruptThread(payload: InterruptThreadPayload): Promise<void>;
   closeThread(payload: CloseThreadPayload): Promise<void>;
+  switchThreadProvider(payload: SwitchThreadProviderPayload): Promise<SwitchThreadProviderResult>;
   getProviderUsage(payload: ProviderUsagePayload): Promise<ProviderUsageResponse>;
   refreshProviderUsage(payload: ProviderUsagePayload): Promise<ProviderUsageResponse>;
   searchProjectFiles(payload: SearchProjectFilesPayload): Promise<SearchProjectFilesResult>;
@@ -282,7 +285,7 @@ export interface AppControlsSettingsGateway {
 export interface AppControlsToolContext {
   /** Calling thread + its task title, decoded from the MCP endpoint URL. */
   identity: McpThreadIdentity;
-  scheduleService: ScheduleService;
+  scheduleService: ScheduleCapability;
   getThread(threadId: string): Thread | null;
   getThreads(): Thread[];
   getProjects(): Project[];
@@ -333,7 +336,7 @@ export interface AppControlsToolContext {
   checkForUpdate(): Promise<AppControlsUpdateCheck>;
   /** Live status cache + event-driven wait surface (persistent, ingress-owned). */
   threadStates: ThreadStateBroker;
-  /** Shared long-lived thread control seam; never used for ephemeral Crossagents. */
+  /** Shared long-lived thread control seam; never used for ephemeral Own Subagents. */
   threadControl: ThreadControlAdapter;
   /** CraftStation-owned collaboration policy, ledger and reply-correlation module. */
   threadCollaboration: ThreadCollaborationService;

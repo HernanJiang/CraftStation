@@ -14,6 +14,11 @@ import { defineNoArgProcedure, definePayloadProcedure } from "../core";
 
 export const scheduleProcedures = {
   getSchedules: defineNoArgProcedure<ScheduledTask[], "main-local">("getSchedules", "main-local"),
+  getSchedule: definePayloadProcedure<ScheduledTaskIdPayload, ScheduledTask | null, "main-local">(
+    "getSchedule",
+    "main-local",
+    scheduledTaskIdPayloadSchema,
+  ),
   createSchedule: definePayloadProcedure<ScheduledTaskInput, ScheduledTask, "main-local">(
     "createSchedule",
     "main-local",
@@ -31,6 +36,16 @@ export const scheduleProcedures = {
   ),
   runScheduleNow: definePayloadProcedure<ScheduledTaskIdPayload, ScheduledTask, "main-local">(
     "runScheduleNow",
+    "main-local",
+    scheduledTaskIdPayloadSchema,
+  ),
+  pauseSchedule: definePayloadProcedure<ScheduledTaskIdPayload, ScheduledTask, "main-local">(
+    "pauseSchedule",
+    "main-local",
+    scheduledTaskIdPayloadSchema,
+  ),
+  resumeSchedule: definePayloadProcedure<ScheduledTaskIdPayload, ScheduledTask, "main-local">(
+    "resumeSchedule",
     "main-local",
     scheduledTaskIdPayloadSchema,
   ),

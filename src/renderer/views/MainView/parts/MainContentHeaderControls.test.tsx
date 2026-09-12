@@ -35,33 +35,47 @@ describe("MainContentHeaderControls", () => {
     });
   });
 
-  it("anchors the tools toggle to the chat header only while the tools panel is collapsed", () => {
+  it("keeps the sidebar toggle on the same row as the status capsule", () => {
     const { container } = render(<MainContentHeaderControls />);
 
-    const toggle = screen.getByRole("button", { name: "Toggle tools panel" });
+    const toggle = screen.getByRole("button", { name: "Show side panel" });
     const portal = container.querySelector("#craftstation-main-thread-header");
-    const positionedTrigger = toggle.parentElement;
-    expect(positionedTrigger?.className).toContain("absolute");
-    expect(positionedTrigger?.className).toContain("right-2.5");
-    expect(container.querySelector("#craftstation-main-thread-header")).toBeInTheDocument();
-    expect(container.querySelector("#craftstation-auxiliary-panel-header")).toBeNull();
+    // Static flex sibling — never an absolute overlay on another row.
+    expect(toggle.parentElement?.className ?? "").not.toContain("absolute");
+    expect(toggle).toHaveClass("size-7");
+    expect(portal).toBeInTheDocument();
+    expect(portal).toHaveClass("overflow-visible");
+    expect(portal).not.toHaveClass("overflow-hidden");
+    expect(portal).not.toHaveClass("pr-10");
     expect(toggle).toHaveAttribute("aria-pressed", "false");
-    expect(portal).toHaveClass("pr-10");
 
     fireEvent.click(toggle);
     expect(usePanelStore.getState().auxiliaryPanelPlacement).toBe("right");
-    expect(screen.queryByRole("button", { name: "Toggle tools panel" })).toBeNull();
-    expect(container.querySelector("#craftstation-main-thread-header")).not.toHaveClass("pr-10");
+    // Open state hides the header entry — the panel's own top-right close
+    // button takes over, so the two never appear at the same time.
+    expect(screen.queryByRole("button", { name: "Show side panel" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hide side panel" })).toBeNull();
   });
 
-  it("keeps the collapsed-panel toggle interactive when an existing thread owns the header", () => {
+  it("hides the header toggle while the side panel is open", () => {
+    usePanelStore.setState({
+      auxiliaryPanelPlacement: "right",
+      auxiliaryPanelTab: "git",
+      auxiliaryPanelMaximized: false,
+    });
+    render(<MainContentHeaderControls />);
+
+    expect(screen.queryByRole("button", { name: "Show side panel" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hide side panel" })).toBeNull();
+  });
+
+  it("keeps the toggle interactive when an existing thread owns the header", () => {
     headerState.projectId = "project-1";
     headerState.threadId = "thread-1";
     render(<MainContentHeaderControls />);
 
-    const toggle = screen.getByRole("button", { name: "Toggle tools panel" });
+    const toggle = screen.getByRole("button", { name: "Show side panel" });
     expect(toggle).toHaveClass("pointer-events-auto", "craftstation-overlay-header__controls");
-    expect(toggle.parentElement).toHaveClass("z-[60]", "pointer-events-auto");
 
     fireEvent.pointerDown(toggle);
     fireEvent.click(toggle);

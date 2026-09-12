@@ -242,7 +242,7 @@ describe("deriveToolDisplay", () => {
     expect(deriveToolDisplay(payload).title).toBe("Agent (general-purpose): probe worker alpha");
   });
 
-  it("keeps Crossagents distinct from native subagents", () => {
+  it("keeps Own Subagents distinct from native subagents", () => {
     const payload = makePayload({
       name: "Critiquing path fixes",
       isCrossagent: true,
@@ -256,7 +256,7 @@ describe("deriveToolDisplay", () => {
     expect(isSubAgentTool(payload)).toBe(false);
     expect(isDelegatedAgentTool(payload)).toBe(true);
     expect(deriveToolDisplay(payload).title).toBe(
-      "Crossagent (rubber-duck): Critiquing path fixes",
+      "Own subagent (rubber-duck): Critiquing path fixes",
     );
   });
 
@@ -303,17 +303,27 @@ describe("deriveToolDisplay", () => {
   it.each([
     ["mcp__crossagents__run_agent", undefined, true],
     ["mcp__crossagents__spawn_agent", undefined, true],
+    ["mcp__own_subagents__run_agent", undefined, true],
+    ["mcp__own_subagents__spawn_agent", undefined, true],
     ["crossagents-mcp-server-run_agent", undefined, true],
     ["crossagents-mcp-server-spawn_agent", undefined, true],
     ["crossagents__run_agent", undefined, true],
     ["crossagents__spawn_agent", undefined, true],
     ["crossagents_run_agent", undefined, true],
     ["crossagents_spawn_agent", undefined, true],
+    ["own_subagents__run_agent", undefined, true],
+    ["own_subagents__spawn_agent", undefined, true],
+    ["own_subagents_run_agent", undefined, true],
+    ["own_subagents_spawn_agent", undefined, true],
     ["run_agent", "crossagents", true],
     ["spawn_agent", "crossagents", true],
+    ["run_agent", "own_subagents", true],
+    ["spawn_agent", "own_subagents", true],
     ["mcp__other__run_agent", undefined, false],
     ["mcp__crossagents__list_agents", undefined, false],
-  ])("classifies the Crossagents spawn transport %s", (name, serverId, expected) => {
+    ["mcp__crossagents__ask", undefined, false],
+    ["mcp__own_subagents__list_agents", undefined, false],
+  ])("classifies the Own Subagents spawn transport %s", (name, serverId, expected) => {
     expect(
       isCrossagentSpawnAgentTool(makePayload({ name, ...(serverId ? { serverId } : {}) })),
     ).toBe(expected);

@@ -16,6 +16,24 @@
 
 :root {
   --craftstation-modal-radius: 0.7rem;
+  /* Whole-app UI zoom factor (Ctrl +/-). Mirrored from the persisted
+     `zoomFactor` setting by AppProvider, which also sets
+     `document.documentElement.style.zoom` to the same value. */
+  --app-zoom: 1;
+}
+
+/* Zoom-compensated overlay roots. HeroUI/React-Aria compute overlay geometry
+   in visual px but emit plain CSS px, which the root zoom then re-scales —
+   every popover/menu drifts by (zoom-1)×distance under Ctrl +/-. The root
+   layer counter-scales (1/Z) so the engine's coordinates land exactly, and
+   the content layer re-scales (Z) so menu text/icons keep whole-app zoom.
+   Applied centrally (ResponsiveMenuSurface + raw Dropdown popovers + the
+   capsule panel) — never per button, never JS-measured, no magic pixels. */
+.craftstation-overlay-zoom-root {
+  zoom: calc(1 / var(--app-zoom, 1));
+}
+.craftstation-overlay-zoom-content {
+  zoom: var(--app-zoom, 1);
 }
 
 .modal__dialog:not(.modal__dialog--cover):not(.modal__dialog--full),
@@ -670,6 +688,9 @@
   --lc-toast-swipe-y: 0px;
   --lc-toast-swipe-opacity: 1;
 
+  /* Opaque surface: chat text must never show through a toast. */
+  background-color: var(--composer-surface);
+
   max-height: calc(100dvh - 1rem);
   overflow: hidden;
   box-shadow:
@@ -1026,7 +1047,7 @@
        is the *wallpaper*, not the theme color, so higher alpha keeps the sidebar
        reading as the theme (less wallpaper/grey showing); lower alpha shows more
        wallpaper blur (more glassy, but tinted by whatever's on the desktop). */
-    --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 35%, transparent);
+    --sidebar-glass-tint: color-mix(in oklab, var(--sidebar-background) 35%, transparent);
     --content-background: var(--background);
     /* Floating chrome that hovers over the conversation — thread tool rail,
        changes bubble, scroll-to-bottom. One shared surface so the three read as
@@ -1164,7 +1185,7 @@
     --content-background: #17181c;
     /* Dark surfaces read muddier through heavy blur, so lean more on the theme
        color (higher alpha = less transparent) than the light default above. */
-    --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 65%, transparent);
+    --sidebar-glass-tint: color-mix(in oklab, var(--sidebar-background) 65%, transparent);
     --window-header-background: rgba(18, 18, 20, 0.82);
     --composer-surface: #2b2b2b;
   }
@@ -1618,17 +1639,19 @@ html[data-native-material="on"] .craftstation-sidebar-spacer {
    so the backdrop bleeds through the tint and drags the sidebar toward it: a dark
    theme over a bright window washes out toward grey, while a light theme over a
    dark backdrop goes too dark. Lean the tint more opaque on Windows so the sidebar
-   holds its own theme color regardless of what's behind. Dark remains denser
-   than macOS but now allows a little more material light through (72%); light
-   stays at 65%. macOS vibrancy composites its own adaptive material, so darwin
+   holds its own theme color regardless of what's behind. Light is denser (88%)
+   so a light app over a dark desktop still reads as the light sidebar; dark
+   stays at 72%. macOS vibrancy composites its own adaptive material, so darwin
    is left untouched; these rules are unlayered so they win over the @layer base
    token. */
-html[data-platform="win32"][data-native-material="on"] {
-  --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 65%, transparent);
+html[data-platform="win32"][data-native-material="on"],
+html[data-platform="win32"][data-native-material="on"].light,
+html[data-platform="win32"][data-native-material="on"][data-theme="light"] {
+  --sidebar-glass-tint: color-mix(in oklab, var(--sidebar-background) 88%, transparent);
 }
 html[data-platform="win32"][data-native-material="on"].dark,
 html[data-platform="win32"][data-native-material="on"][data-theme="dark"] {
-  --sidebar-glass-tint: color-mix(in oklab, var(--content-background) 72%, transparent);
+  --sidebar-glass-tint: color-mix(in oklab, var(--sidebar-background) 72%, transparent);
 }
 
 /* Platform frosting for the *floating chrome* (thread tool rail, changes bubble,
@@ -2378,6 +2401,20 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
   border-radius: 1rem;
   background: var(--composer-surface);
   transition: background-color 0.15s ease;
+  /* Own compositing layer + self-contained layout: caret placement and the
+     blinking caret repaint only this shell instead of invalidating the whole
+     transcript layer behind it. On long, busy threads that invalidation was
+     expensive enough to make composer clicks feel dead while a turn was
+     streaming. Layout containment is safe here — every overflow surface the
+     composer hosts (mention popover, dropdowns, menus) portals to body. */
+  contain: layout;
+  will-change: transform;
+}
+
+[data-draft-context-bar] {
+  /* Sit between the near-black pane and the lighter composer so the strip
+     reads as a header, not a second copy of the input card. */
+  background: color-mix(in oklab, var(--composer-surface) 58%, var(--content-background));
 }
 
 /* Draft-focus glow remains a cheap compositor-only affordance. */
@@ -2391,7 +2428,7 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
 }
 
 [data-draft-context-bar] + [data-craftstation-composer] .craftstation-composer-shell--draft {
-  background: #2b2b2b;
+  background: var(--composer-surface);
 }
 
 .craftstation-composer-drop-overlay {
@@ -2658,6 +2695,15 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
 
 .craftstation-context-dock__bar-fill--danger {
   background: var(--danger);
+}
+
+/* The quota/context detail surface is attached to the composer, so it shares
+   the same opaque gray surface as the chat input instead of the transcript
+   background. */
+.craftstation-context-quota-popover {
+  background: var(--composer-surface);
+  border-color: color-mix(in oklab, var(--foreground) 12%, transparent);
+  color: var(--foreground);
 }
 
 .craftstation-composer-toggle {
@@ -3765,6 +3811,20 @@ html[data-platform="darwin"] .craftstation-sidebar-project-nudge {
 .lc-chat-markdown > :last-child,
 .lc-chat-markdown > :last-child > :last-child {
   margin-bottom: 0;
+}
+
+/* Diagram / architecture / fenced blocks must read as gray cards, not the
+   same fill as the chat pane. Streamdown mermaid also paints `bg-background`
+   on the chart well, which would otherwise collapse into the page. */
+.lc-chat-markdown pre:not(.shiki),
+.lc-chat-markdown .lc-md-code-block,
+.lc-chat-markdown [data-streamdown="mermaid-block"],
+.lc-chat-markdown [data-streamdown="code-block"] {
+  background: color-mix(in oklab, var(--foreground) 12%, var(--background));
+}
+.lc-chat-markdown [data-streamdown="mermaid-block"] .bg-background,
+.lc-chat-markdown [data-streamdown="mermaid-block"] .bg-sidebar {
+  background: color-mix(in oklab, var(--foreground) 12%, var(--background));
 }
 
 /* Agent discovery screen — first-launch detection.

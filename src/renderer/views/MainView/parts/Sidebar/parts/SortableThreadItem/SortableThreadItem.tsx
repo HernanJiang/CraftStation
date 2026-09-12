@@ -7,7 +7,6 @@ import { SidebarButton } from "@/renderer/components/common/SidebarButton";
 import { getStatusTone } from "@/renderer/components/providers/statusTone";
 import { ThreadProviderIcon } from "@/renderer/components/providers/ThreadProviderIcon";
 import { ThreadContextMenu } from "@/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu";
-import { DraftIndicator } from "../DraftIndicator";
 import { InlineRenameInput } from "../InlineRenameInput";
 import { ThreadItemSuffix } from "./parts/ThreadItemSuffix";
 import type { ContextMenuOpenRequest } from "@/renderer/components/common/ContextMenu";
@@ -18,6 +17,10 @@ import {
   useThreadHasDraft,
 } from "@/renderer/hooks/uiSelectors";
 import { openThread, renameThread } from "@/renderer/actions/threadActions";
+import {
+  selectThreadHasUnreadNotification,
+  useNotificationStore,
+} from "@/renderer/state/notificationStore";
 
 export function SortableThreadItem(props: {
   thread: Thread;
@@ -38,6 +41,9 @@ export function SortableThreadItem(props: {
   );
   const isCurrentThread = useIsCurrentThread(thread.id);
   const hasDraft = useThreadHasDraft(thread.id);
+  const hasUnreadNotification = useNotificationStore((state) =>
+    selectThreadHasUnreadNotification(state.items, thread.id),
+  );
   const [contextMenuRequest, setContextMenuRequest] = useState<ContextMenuOpenRequest | null>(null);
 
   const { ref, handleRef } = useSortable({
@@ -75,6 +81,8 @@ export function SortableThreadItem(props: {
     thread,
     statusTone,
     isExperimentCandidate,
+    hasUnreadNotification,
+    hasDraft,
     onMore: (event: React.MouseEvent<HTMLButtonElement>) => {
       const rect = event.currentTarget.getBoundingClientRect();
       setContextMenuRequest({ x: rect.right, y: rect.bottom, nonce: Date.now() });
@@ -128,23 +136,21 @@ export function SortableThreadItem(props: {
             stacked ? (
               <span className="flex min-w-0 items-center gap-1.5 pr-0.5">
                 <span className="min-w-0 flex-1 truncate">{titleContent}</span>
-                {hasDraft && <DraftIndicator />}
               </span>
             ) : isEditing ? (
               titleContent
             ) : (
-              <span className="flex items-center gap-1.5">
-                <span className="min-w-0 truncate">{titleNode}</span>
-                {hasDraft && <DraftIndicator />}
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="min-w-0 flex-1 truncate">{titleNode}</span>
               </span>
             )
           }
           tooltip={isEditing ? undefined : hoverDetails}
           tooltipAlways={!isEditing}
           tooltipDelay={0}
-          tooltipClassName="pointer-events-none rounded-lg border border-white/10 bg-[#222329]/95 p-2 text-xs shadow-xl backdrop-blur-md"
+          tooltipClassName="pointer-events-none rounded-none border border-[var(--hairline)] bg-[var(--overlay)] p-2 text-xs shadow-xl backdrop-blur-md"
           isActive={isCurrentThread}
-          className={`craftstation-sidebar-thread-row !mx-2 !my-0.5 !min-h-8 !rounded-lg !border ${isCurrentThread ? "!border-white/[0.04]" : "!border-transparent"} !px-2.5 !py-1.5`}
+          className={`craftstation-sidebar-thread-row !mx-2 !my-0.5 !min-h-8 !rounded-none !border ${isCurrentThread ? "!border-white/[0.04]" : "!border-transparent"} !px-2.5 !py-1.5`}
           onPress={() => openThread(thread.id)}
           onDoubleClick={() => props.setEditingThreadId(thread.id)}
           isDragging={isDragging}

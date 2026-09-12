@@ -38,6 +38,7 @@ import { InlineFolderPathChip } from "./InlineFolderPathChip";
 import { LC_SELECTOR_LANG, tryParseSelectorPayload } from "./SelectorBadge";
 import {
   normalizeGfmTableSeparators,
+  normalizeLatexMathDelimiters,
   normalizeMermaidFenceLanguages,
   normalizeShortCodeFenceClosers,
 } from "./ItemMarkdown";
@@ -61,6 +62,9 @@ const markdownMermaidPlugin = createMermaidPlugin({
     startOnLoad: false,
     securityLevel: "strict",
     suppressErrorRendering: true,
+    themeVariables: {
+      background: "transparent",
+    },
   },
 });
 
@@ -128,7 +132,9 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
   const markdownText = rewriteMarkdownLocalImageUrls(
     normalizeIncompleteProjectLinkTail(
       normalizeMermaidFenceLanguages(
-        normalizeGfmTableSeparators(normalizeShortCodeFenceClosers(text)),
+        normalizeGfmTableSeparators(
+          normalizeLatexMathDelimiters(normalizeShortCodeFenceClosers(text)),
+        ),
       ),
     ),
     {
@@ -175,7 +181,7 @@ const MD_COMPONENTS: StreamdownComponents = {
     }
     return (
       <MdCodeBlockFrame text={flattenMdChildren(children).replace(/\r?\n$/, "")}>
-        <pre>{markCodeChildAsBlock(children)}</pre>
+        <pre className={markdownCodeBlockClass}>{markCodeChildAsBlock(children)}</pre>
       </MdCodeBlockFrame>
     );
   },
@@ -220,7 +226,7 @@ const MD_COMPONENTS: StreamdownComponents = {
   // elements so `<thead>`, `<tr>`, etc. compose correctly.
   table({ children }) {
     return (
-      <div className="not-prose my-4 min-w-0 max-w-full overflow-x-auto rounded-2xl border border-border bg-[var(--surface-secondary)]/50">
+      <div className="not-prose my-4 min-w-0 max-w-full overflow-x-auto border border-border bg-[var(--surface-secondary)]/50">
         <table className="w-full border-collapse text-[length:var(--lc-chat-font-size)] leading-snug">
           {children}
         </table>
@@ -251,7 +257,7 @@ const MD_COMPONENTS: StreamdownComponents = {
 const inlineCodeChipClass =
   "rounded border-0 bg-foreground/10 px-[0.35em] py-[0.1em] font-mono text-[0.875em] leading-none align-baseline text-foreground [overflow-wrap:anywhere]";
 const markdownCodeBlockClass =
-  "not-prose my-2 min-w-0 overflow-x-hidden rounded bg-foreground/10 px-[0.5em] py-[0.25em] font-mono text-[0.875em] leading-snug text-foreground";
+  "lc-md-code-block not-prose my-2 min-w-0 overflow-x-hidden rounded px-[0.75em] py-[0.5em] font-mono text-[0.875em] leading-snug text-foreground";
 const transformMarkdownUrl: UrlTransform = (url, key, node) =>
   key === "src" && node.tagName === "img" && url.startsWith("craftstation-local://")
     ? url

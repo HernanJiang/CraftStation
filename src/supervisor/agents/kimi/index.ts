@@ -128,7 +128,12 @@ export function createKimiAdapter(): AgentAdapter {
     },
 
     async createStructuredSession(input: CreateStructuredSessionInput) {
-      await ensureKimiWorkspaceTrust(input.projectLocation);
+      const kimiHome = input.baseSpawnEnv?.KIMI_CODE_HOME?.trim();
+      await ensureKimiWorkspaceTrust(
+        input.projectLocation,
+        undefined,
+        kimiHome ? { kimiHome } : undefined,
+      );
       const acpArgs = buildKimiAcpArgs(input.config);
       const command = buildKimiCommand(
         input.projectLocation,

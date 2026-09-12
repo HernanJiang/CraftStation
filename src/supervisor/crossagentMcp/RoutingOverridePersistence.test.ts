@@ -30,9 +30,9 @@ describe("RoutingOverridePersistence", () => {
         settled = true;
       });
     const event = events[0];
-    expect(event?.type).toBe("crossagent-routing-override-changed");
+    expect(event?.type).toBe("ownsubagents-routing-override-changed");
     expect(settled).toBe(false);
-    if (event?.type !== "crossagent-routing-override-changed") {
+    if (event?.type !== "ownsubagents-routing-override-changed") {
       throw new Error("Expected routing override event");
     }
 
@@ -48,7 +48,7 @@ describe("RoutingOverridePersistence", () => {
       const { events, invalidateSettings, persistence } = makePersistence(50);
       const pending = persistence.persist({ action: "remove", tags: ["review"] });
       const event = events[0];
-      if (event?.type !== "crossagent-routing-override-changed") {
+      if (event?.type !== "ownsubagents-routing-override-changed") {
         throw new Error("Expected routing override event");
       }
 

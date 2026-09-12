@@ -11,7 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { writeFileAtomic } from "@/shared/atomicFile";
 import {
@@ -288,8 +288,11 @@ export class AccountStore {
       }
       return account;
     });
-    const root = assertInside(this.managedRoot, removed.credentialRoot);
-    rmSync(root, { recursive: true, force: true });
+    const root = this.rebaseEscapedRoot(removed.credentialRoot);
+    // The metadata row is already deleted. Only delete a directory inside the
+    // managed root: a legacy absolute path that points elsewhere is never
+    // touched, and a missing directory is simply gone.
+    if (root) rmSync(root, { recursive: true, force: true });
   }
 
   setEnabled(accountId: string, enabled: boolean): AccountView {
@@ -378,14 +381,12 @@ export class AccountStore {
       account.quotaWindows = quotaWindows.map((window) => ({ ...window }));
     });
   }
-
   /**
    * Persist non-secret provider metadata learned during an identity/quota probe.
    * The renderer needs the provider's real identity and subscription tier on
    * the managed account row; the user-editable label remains independent.
    */
-  updateProviderMetadata(
-    accountId: string,
+  updateProviderMetadata(    accountId: string,
     metadata: { providerAccountId?: string; maskedIdentity?: string; plan?: string },
   ): AccountView {
     return this.update(accountId, (account) => {
@@ -513,7 +514,7 @@ export class AccountStore {
         "Credential provider does not match account provider.",
       );
     }
-    const root = assertInside(this.managedRoot, account.credentialRoot);
+    const root = this.resolveAccountRoot(account);
     // Home-var projections (CODEX_HOME, GROK_HOME) must always point back at
     // this account's managed scope — a managed account never gets a home that
     // aliases the host profile or another account's root.
@@ -567,7 +568,7 @@ export class AccountStore {
     const account = this.getRecord(accountId);
     if (!account)
       throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
-    const root = assertInside(this.managedRoot, account.credentialRoot);
+    const root = this.resolveAccountRoot(account);
     rmSync(root, { recursive: true, force: true });
   }
 
@@ -575,7 +576,79 @@ export class AccountStore {
     const account = this.getRecord(accountId);
     if (!account)
       throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
-    return assertInside(this.managedRoot, account.credentialRoot);
+    return this.resolveAccountRoot(account);
+  }
+
+  /**
+   * Resolve an account's managed credential directory, self-healing legacy
+   * rows whose stored absolute path escapes this store's root.
+   *
+   * Dev (`~/.craftstation-dev`) and prod (`~/.craftstation`) stores are
+   * separate roots, but a copied `accounts.json` keeps the other root's
+   * absolute `credentialRoot`. When the same profile directory name exists
+   * inside this root, the pointer is rebased and the repair persisted instead
+   * of failing every session with ACCOUNT_PATH_INVALID ("Account path escapes
+   * the managed root."). The security boundary still holds: the returned path
+   * is always inside this store's managed root, and directories outside it
+   * are never created, written, or deleted by this repair.
+   */
+  private resolveAccountRoot(account: AccountRecord): string {
+    const resolved = this.rebaseEscapedRoot(account.credentialRoot);
+    if (resolved === undefined) {
+      throw new AccountControlError(
+        "ACCOUNT_PATH_INVALID",
+        "Account path escapes the managed root.",
+        {
+          accountId: account.accountId,
+          provider: account.provider,
+          root: resolve(this.managedRoot),
+          candidate: resolve(account.credentialRoot),
+          remediation: `Re-login the ${account.provider} account to recreate its managed profile.`,
+        },
+      );
+    }
+    if (resolve(account.credentialRoot) !== resolved) {
+      const rebased = resolved;
+      this.withMetadataMutation((file) => {
+        const row = file.accounts.find((entry) => entry.accountId === account.accountId);
+        if (row) row.credentialRoot = rebased;
+      });
+      console.warn(
+        `[account] rebased escaped credential root: account=${account.accountId} provider=${account.provider} dir=${basename(account.credentialRoot)}`,
+      );
+    }
+    return resolved;
+  }
+
+  /**
+   * Return the safe managed-root directory for a stored credential root. A
+   * path already inside the root passes through; a legacy absolute path from
+   * a sibling store is rebased by profile directory name when that directory
+   * exists here. Returns undefined when no safe directory exists inside this
+   * root — callers must then fail closed without touching the outside path.
+   */
+  private rebaseEscapedRoot(storedRoot: string): string | undefined {
+    try {
+      return assertInside(this.managedRoot, storedRoot);
+    } catch (error) {
+      if (!(error instanceof AccountControlError) || error.code !== "ACCOUNT_PATH_INVALID") {
+        throw error;
+      }
+    }
+    const base = basename(storedRoot);
+    if (!base || base === "." || base === "..") return undefined;
+    const candidate = join(this.managedRoot, base);
+    try {
+      assertInside(this.managedRoot, candidate);
+    } catch {
+      return undefined;
+    }
+    try {
+      if (!existsSync(candidate) || !statSync(candidate).isDirectory()) return undefined;
+    } catch {
+      return undefined;
+    }
+    return resolve(candidate);
   }
 
   /**
@@ -648,7 +721,7 @@ export class AccountStore {
     const account = this.getRecord(accountId);
     if (!account)
       throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
-    const root = assertInside(this.managedRoot, account.credentialRoot);
+    const root = this.resolveAccountRoot(account);
     let recovered = false;
     for (const name of ["auth.json", "environment.json"]) {
       const target = join(root, name);
@@ -820,4 +893,37 @@ export class AccountStore {
     const { credentialRoot: _credentialRoot, ...view } = account;
     return view;
   }
+}
+
+/**
+ * How long an inference-proven `quota-exhausted` mark survives healthy quota
+ * polls. A real 402 means the inference budget (not the % windows) is empty,
+ * so the poller must not downgrade the row back to schedulable on %. Every
+ * fresh quota failure re-marks (refreshing the clock); recovery otherwise
+ * happens via newer quota evidence after the TTL. Six hours covers an evening
+ * of retries without bricking a row for a whole weekly period on a transient.
+ */
+export const QUOTA_INFERENCE_MARK_TTL_MS = 6 * 3_600_000;
+
+/**
+ * Whether a quota poll that derived a healthy status must keep a stored
+ * inference-exhaustion mark instead of recovering the row.
+ *
+ * The mark shape is exactly what the prompt-error write-back writes
+ * (`status: quota-exhausted` + `lastError` + `lastQuotaAt = mark time`): the
+ * healthy quota-poll path never sets `lastError`, so a present message means
+ * a real inference failure, not a window estimate. Callers still persist the
+ * fresh windows (bars stay truthful) and only skip the status downgrade.
+ */
+export function shouldPreserveInferenceExhaustion(
+  stored:
+    | Pick<AccountRecord, "status" | "lastError" | "lastQuotaAt">
+    | undefined,
+  now: number,
+): boolean {
+  if (!stored || stored.status !== "quota-exhausted") return false;
+  if (!stored.lastError) return false;
+  const markTime = stored.lastQuotaAt;
+  if (typeof markTime !== "number" || !Number.isFinite(markTime)) return false;
+  return now - markTime < QUOTA_INFERENCE_MARK_TTL_MS;
 }

@@ -51,11 +51,30 @@ export function createAutoUpdaterController(
   let downloadPromise: Promise<void> | null = null;
   let updateAvailable = false;
   let activeAttempt: { operation: UpdateOperation; eventError: unknown | null } | null = null;
+  // User-initiated checks/downloads toast; launch/hourly probes stay silent.
+  let notifyOnFailure = false;
   const transientReportTimes = new Map<string, number>();
 
+  function sendFailureStatus(failure: { kind: UpdateFailureKind }, notify: boolean): void {
+    if (!notify || failure.kind === "optional-manifest-missing") {
+      sendStatus({ type: "update-not-available" });
+      return;
+    }
+    sendStatus({
+      type: "error",
+      messageKey:
+        failure.kind === "transient-network"
+          ? "update.serviceUnavailable"
+          : "update.operationFailed",
+    });
+  }
+
   function reportClassifiedFailure(operation: UpdateOperation, outcome: UpdateFailureKind): void {
-    if (outcome === "optional-manifest-missing") {
-      console.warn("[craftstation] optional nightly update manifest is not available.");
+    if (
+      outcome === "optional-manifest-missing" ||
+      (outcome === "required-manifest-missing" && !notifyOnFailure)
+    ) {
+      console.warn("[craftstation] update manifest is not available.");
       return;
     }
     if (outcome === "transient-network") {
@@ -99,17 +118,11 @@ export function createAutoUpdaterController(
           continue;
         }
         reportClassifiedFailure(operation, failure.kind);
-        if (failure.kind === "optional-manifest-missing") {
-          sendStatus({ type: "update-not-available" });
+        const notify = operation === "download" || notifyOnFailure;
+        sendFailureStatus(failure, notify);
+        if (!notify || failure.kind === "optional-manifest-missing") {
           return;
         }
-        sendStatus({
-          type: "error",
-          messageKey:
-            failure.kind === "transient-network"
-              ? "update.serviceUnavailable"
-              : "update.operationFailed",
-        });
         throw error;
       } finally {
         if (activeAttempt === attemptState) {
@@ -122,16 +135,19 @@ export function createAutoUpdaterController(
   function beginDownload(): Promise<void> {
     if (downloadPromise) return downloadPromise;
     checkInFlight = true;
+    notifyOnFailure = true;
     downloadPromise = runOperation("download", () => autoUpdater.downloadUpdate()).finally(() => {
       downloadPromise = null;
+      notifyOnFailure = false;
       if (!updateReady) checkInFlight = false;
     });
     return downloadPromise;
   }
 
-  function beginCheck(): Promise<void> {
+  function beginCheck(notify: boolean): Promise<void> {
     if (checkPromise) return checkPromise;
     checkInFlight = true;
+    notifyOnFailure = notify;
     updateAvailable = false;
     checkPromise = runOperation("check", () => autoUpdater.checkForUpdates())
       .then(() => {
@@ -146,6 +162,7 @@ export function createAutoUpdaterController(
       })
       .finally(() => {
         checkPromise = null;
+        if (!downloadPromise) notifyOnFailure = false;
       });
     return checkPromise;
   }
@@ -156,7 +173,7 @@ export function createAutoUpdaterController(
     if (checkInFlight || updateReady) {
       return;
     }
-    void beginCheck();
+    void beginCheck(false);
   }
 
   function initialize(): void {
@@ -224,17 +241,7 @@ export function createAutoUpdaterController(
       const failure = classifyUpdateFailure(error, operation, channel);
       reportClassifiedFailure(operation, failure.kind);
       checkInFlight = false;
-      if (failure.kind === "optional-manifest-missing") {
-        sendStatus({ type: "update-not-available" });
-      } else {
-        sendStatus({
-          type: "error",
-          messageKey:
-            failure.kind === "transient-network"
-              ? "update.serviceUnavailable"
-              : "update.operationFailed",
-        });
-      }
+      sendFailureStatus(failure, operation === "download" || notifyOnFailure);
     });
 
     // First check ~30s after launch, then keep checking hourly so an app that
@@ -252,7 +259,7 @@ export function createAutoUpdaterController(
       return;
     }
     try {
-      await beginCheck();
+      await beginCheck(true);
     } catch {
       // beginCheck owns classification, reporting, and UI status. Keep this IPC
       // resolved because the renderer invokes it fire-and-forget.

@@ -92,6 +92,17 @@ function deps(overrides: Partial<AppControlsMcpIngressDeps> = {}): AppControlsMc
         async () => undefined,
       ),
       closeThread: vi.fn<(payload: CloseThreadPayload) => Promise<void>>(async () => undefined),
+      switchThreadProvider: vi.fn<
+        (payload: { threadId: string; agentKind: string }) => Promise<{
+          threadId: string;
+          agentKind: string;
+          canResumeWithConfig: boolean;
+        }>
+      >(async (payload) => ({
+        threadId: payload.threadId,
+        agentKind: payload.agentKind,
+        canResumeWithConfig: false,
+      })),
       getProviderUsage: vi.fn<(payload: ProviderUsagePayload) => Promise<ProviderUsageResponse>>(
         async () => ({ snapshots: [], fromCache: true }),
       ),
@@ -294,15 +305,19 @@ describe("AppControlsMcpIngress", () => {
     });
 
     expect(isError).toBe(false);
-    expect(d.scheduleService.create).toHaveBeenCalledWith({
-      name: "Daily brief",
-      prompt: "Summarize priorities",
-      recurrence: { kind: "hourly", minute: 15 },
-      enabled: true,
-      agentKind: "codex",
-      projectId: "project-1",
-      config: { model: "gpt-5.6", effort: "high" },
-    });
+    expect(d.scheduleService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Daily brief",
+        prompt: "Summarize priorities",
+        recurrence: { kind: "hourly", minute: 15 },
+        enabled: true,
+        agentKind: "codex",
+        projectId: "project-1",
+        sourceThreadId: null,
+        threadTarget: { kind: "new" },
+        config: { model: "gpt-5.6", effort: "high" },
+      }),
+    );
   });
 
   it("lists threads joined with live runtime snapshots", async () => {

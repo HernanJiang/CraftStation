@@ -12,6 +12,7 @@ const summary: ThreadContextUsageSummary = {
   remainingTokens: 129_000,
   percent: 36,
   breakdown: [{ id: "input", label: "Input", tokens: 71_000 }],
+  occupancy: [],
   usedLabel: "71K",
   maxLabel: "200K",
   remainingLabel: "129K",

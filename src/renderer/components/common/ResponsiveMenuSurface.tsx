@@ -1,8 +1,17 @@
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { Popover, useMediaQuery } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { isRemoteSession } from "@/renderer/bridge";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { overlayZoomClasses, withOverlayClass } from "./overlayZoom";
 import { SheetGrabber, useSheetGrabber } from "@/renderer/components/common/useSheetGrabber";
 import { lockMobileSheetViewport } from "./mobileSheetViewportLock";
 
@@ -55,11 +64,22 @@ export function ResponsiveMenuSurface(props: {
   readonly contentClassName?: string;
   /** Desktop `Popover.Dialog` className. */
   readonly dialogClassName?: string;
+  /** Mobile bottom-sheet className. */
+  readonly mobileSheetClassName?: string;
+  /** Mobile bottom-sheet inline styles for surfaces that must override shell defaults. */
+  readonly mobileSheetStyle?: CSSProperties;
   /** Applied to `Popover.Trigger` (desktop) / the trigger wrapper (mobile). */
   readonly triggerClassName?: string;
 }) {
   const { t } = useLingui();
   const mobile = useMobileMenuSurface();
+  // Whole-app zoom compensation for the desktop overlay engine (see
+  // overlayZoom.ts): at factor 1 the classes are empty, so default-state
+  // DOM stays untouched.
+  const zoomFactor = useSharedSettings((state) => state.zoomFactor);
+  const overlayZoom = overlayZoomClasses(zoomFactor);
+  const overlayRootClass = overlayZoom.root;
+  const overlayContentClass = overlayZoom.content;
 
   // Keep the drawer mounted through its slide-out. `rendered` stays true for
   // SHEET_EXIT_MS after `isOpen` goes false; `closing` toggles `data-closing`
@@ -140,11 +160,16 @@ export function ResponsiveMenuSurface(props: {
         </Popover.Trigger>
         {props.isOpen ? (
           <Popover.Content
+            key={`zoom-${zoomFactor ?? 1}`}
             placement={props.placement ?? "top start"}
-            {...(props.contentClassName ? { className: props.contentClassName } : {})}
+            {...(props.contentClassName || overlayRootClass
+              ? { className: withOverlayClass(props.contentClassName, overlayRootClass) }
+              : {})}
           >
             <Popover.Dialog
-              {...(props.dialogClassName ? { className: props.dialogClassName } : {})}
+              {...(props.dialogClassName || overlayContentClass
+                ? { className: withOverlayClass(props.dialogClassName, overlayContentClass) }
+                : {})}
             >
               {body}
             </Popover.Dialog>
@@ -176,7 +201,8 @@ export function ResponsiveMenuSurface(props: {
               />
               <div
                 ref={sheetRef}
-                className="m-sheet"
+                className={`m-sheet${props.mobileSheetClassName ? ` ${props.mobileSheetClassName}` : ""}`}
+                style={props.mobileSheetStyle}
                 data-expanded={expanded || undefined}
                 data-dragging={dragging || undefined}
                 role="dialog"

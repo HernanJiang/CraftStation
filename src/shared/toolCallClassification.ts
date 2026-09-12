@@ -7,6 +7,18 @@ export interface McpInfo {
 
 const CROSSAGENT_SPAWN_TOOL_NAMES = new Set(["spawn_agent", "run_agent"]);
 
+/**
+ * Provider-visible server names that host ephemeral subagent delegation:
+ * the current `own_subagents` server plus the legacy `crossagents` name kept
+ * for already-persisted transcripts (the peer-messaging server reuses the
+ * `crossagents` name but none of its tools overlap the spawn set, so history
+ * keeps classifying correctly).
+ */
+const OWN_SUBAGENT_SERVER_NAMES = new Set([
+  BUILT_IN_MCP_SERVER_NAMES.crossagents,
+  BUILT_IN_MCP_SERVER_NAMES["own-subagents"],
+]);
+
 export function parseMcpName(payload: ToolCallPayload): McpInfo | null {
   const m1 = /^mcp__(.+?)__(.+)$/.exec(payload.name);
   if (m1) return { server: m1[1]!, tool: m1[2]! };
@@ -58,18 +70,20 @@ export function isCrossagentTool(payload: ToolCallPayload | undefined): boolean 
 
 export function isCrossagentSpawnAgentTool(payload: ToolCallPayload | undefined): boolean {
   if (!payload?.name) return false;
-  const crossagentName = BUILT_IN_MCP_SERVER_NAMES.crossagents;
   const mcp = parseMcpName(payload);
   if (
-    mcp?.server.toLowerCase() === crossagentName &&
+    mcp &&
+    OWN_SUBAGENT_SERVER_NAMES.has(mcp.server.toLowerCase()) &&
     CROSSAGENT_SPAWN_TOOL_NAMES.has(mcp.tool.toLowerCase())
   ) {
     return true;
   }
   const name = payload.name.toLowerCase();
-  for (const tool of CROSSAGENT_SPAWN_TOOL_NAMES) {
-    if (name === `${crossagentName}__${tool}` || name === `${crossagentName}_${tool}`) {
-      return true;
+  for (const server of OWN_SUBAGENT_SERVER_NAMES) {
+    for (const tool of CROSSAGENT_SPAWN_TOOL_NAMES) {
+      if (name === `${server}__${tool}` || name === `${server}_${tool}`) {
+        return true;
+      }
     }
   }
   return false;

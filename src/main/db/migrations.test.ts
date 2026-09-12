@@ -66,8 +66,14 @@ describe("database migration registry", () => {
       [38, "conversation checkpoints"],
       [39, "session switch transactions"],
       [40, "thread collaboration ledger"],
+      [41, "native thread bindings"],
+      [42, "threads.pinned_at and threads.archived_at"],
+      [43, "thread_native_sessions switch history"],
+      [44, "threads.goal durable slash-goal"],
+      [45, "scheduled tasks unified schedule capability"],
+      [46, "scheduled tasks host capability provenance and occurrence claim"],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(40);
+    expect(LATEST_SCHEMA_VERSION).toBe(46);
     expect(() => validateMigrationRegistry()).not.toThrow();
   });
 
@@ -422,6 +428,13 @@ describe.skipIf(!sqliteAvailable)("migration v40 thread collaboration ledger", (
         )
         .get(),
     ).toMatchObject({ name: "thread_exchanges" });
+    expect(
+      isolated
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'native_thread_bindings'",
+        )
+        .get(),
+    ).toMatchObject({ name: "native_thread_bindings" });
     isolated.close();
   });
 

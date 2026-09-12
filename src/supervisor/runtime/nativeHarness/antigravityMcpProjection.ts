@@ -18,7 +18,19 @@ interface AntigravityMcpConfigEntry {
   command?: string;
   args?: string[];
   serverUrl?: string;
+  env?: Record<string, string>;
 }
+
+/**
+ * CraftStation's own per-worker filter config. Unlike ordinary server env
+ * (API keys and the like, which are genuinely shared session settings), this
+ * value embeds the individual server's filter spec, so two proxied workers
+ * ALWAYS carry different values. A single process environment cannot hold
+ * both — it travels inline in each server's config entry (Antigravity honors
+ * per-server `env` on stdio entries) and is excluded from the shared session
+ * merge below.
+ */
+const FILTER_CONFIG_ENV = "CRAFTSTATION_MCP_FILTER_CONFIG";
 
 export interface AntigravityMcpProjection {
   readonly env: Record<string, string>;
@@ -53,6 +65,9 @@ function configEntry(server: ResolvedMcpServer): AntigravityMcpConfigEntry {
       disabled: false,
       command: server.transport.command,
       args: [...server.transport.args],
+      ...(server.transport.env[FILTER_CONFIG_ENV] !== undefined
+        ? { env: { [FILTER_CONFIG_ENV]: server.transport.env[FILTER_CONFIG_ENV] } }
+        : {}),
     };
   }
   return { disabled: false, serverUrl: server.transport.url };
@@ -61,6 +76,10 @@ function configEntry(server: ResolvedMcpServer): AntigravityMcpConfigEntry {
 function mergeServerEnvironment(target: Record<string, string>, server: ResolvedMcpServer): void {
   if (server.transport.type !== "stdio") return;
   for (const [key, value] of Object.entries(server.transport.env)) {
+    // Per-worker filter configs ride inline in each server's own config
+    // entry (see above) — merging them into the single shared session env
+    // is what used to throw on every multi-server Antigravity launch.
+    if (key === FILTER_CONFIG_ENV) continue;
     const existing = target[key];
     if (existing !== undefined && existing !== value) {
       throw new Error(

@@ -1,12 +1,11 @@
 import {
   Archive,
-  ArrowDownToLine,
   ArrowRightLeft,
-  CircleCheck,
   Columns2,
   FileDiff,
   FlaskConical,
   GitFork,
+  Link2,
   Loader2,
   Pencil,
   Play,
@@ -21,7 +20,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
-import { Modal } from "@heroui/react";
+import { Modal, toast } from "@heroui/react";
 import type { Project, Thread } from "@/shared/contracts";
 import { isHomeProject } from "@/shared/homeScope";
 import { useAppStore } from "@/renderer/state/appStore";
@@ -34,6 +33,7 @@ import {
 } from "@/renderer/components/common/ContextMenu";
 import { readBridge } from "@/renderer/bridge";
 import { resolveActionIcon } from "@/renderer/utils/actionIcons";
+import { threadAbsolutePath } from "./threadAbsolutePath";
 import { useWorktreeGitItems } from "@/renderer/views/MainView/parts/Sidebar/parts/useWorktreeActions";
 import { gitMenuIcons } from "@/renderer/views/MainView/parts/Sidebar/parts/gitMenuIcons";
 import {
@@ -54,8 +54,6 @@ import {
 } from "@/renderer/actions/gitActions";
 import {
   archiveThread,
-  unloadThread,
-  toggleMarkThreadDone,
   toggleStarThread,
   requestDeleteThread,
   continueInProvider,
@@ -97,12 +95,6 @@ export function ThreadContextMenu(props: {
     thread.worktreePath ?? "",
     gitMenuIcons,
   );
-  const unloadDisabledReason =
-    thread.status === "inactive"
-      ? t`Thread is already unloaded.`
-      : thread.status === "launching"
-        ? t`Wait for the thread to finish starting.`
-        : undefined;
   // Home has no project menu even in the grouped layout (its sidebar section
   // is a plain header), so flat Home threads don't get project actions either.
   const showProjectActions = props.showProjectActions === true && !isHomeProject(project);
@@ -241,21 +233,10 @@ export function ThreadContextMenu(props: {
               ]
             : []),
           {
-            id: "unload",
-            label: t`Unload Thread`,
-            icon: <ArrowDownToLine className="size-3.5" />,
-            isDisabled: unloadDisabledReason !== undefined,
-            ...(unloadDisabledReason ? { disabledReason: unloadDisabledReason } : {}),
+            id: "copy-thread-address",
+            label: t`Copy Thread Address`,
+            icon: <Link2 className="size-3.5" />,
           },
-          ...(!isExperimentCandidate
-            ? [
-                {
-                  id: "mark-done",
-                  label: thread.done ? t`Unmark Done` : t`Mark Done`,
-                  icon: <CircleCheck className="size-3.5" />,
-                },
-              ]
-            : []),
           {
             id: "toggle-star",
             label: thread.starred ? t`Unpin` : t`Pin to top`,
@@ -404,8 +385,63 @@ export function ThreadContextMenu(props: {
           }
           if (key === "archive" && !isExperimentCandidate) archiveThread(thread.id);
           if (key === "rename") onRename?.();
-          if (key === "unload") unloadThread(thread.id);
-          if (key === "mark-done") toggleMarkThreadDone(thread.id);
+          if (key === "copy-thread-address") {
+            const copy = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+            if (!copy) {
+              toast.danger(t`Could not copy the thread path.`);
+              return;
+            }
+            void (async () => {
+              // Real native CLI session paths (one per harness the logical
+              // thread has used), resolved live supervisor-side from the
+              // recorded bindings. Falls back to the working directory when
+              // nothing resolves (e.g. terminal threads without bindings).
+              try {
+                const bindings = await readBridge().dbListThreadNativeSessions(thread.id);
+                const queries =
+                  bindings.length > 0
+                    ? bindings.map((binding) => ({
+                        harness: binding.harness,
+                        model: binding.model,
+                        ...(binding.nativeSessionId
+                          ? { nativeSessionId: binding.nativeSessionId }
+                          : {}),
+                        ...(binding.poolAccountId ? { poolAccountId: binding.poolAccountId } : {}),
+                      }))
+                    : [
+                        {
+                          harness: thread.agentKind,
+                          model: thread.config.model,
+                          ...(thread.sessionRef
+                            ? { nativeSessionId: thread.sessionRef.providerSessionId }
+                            : {}),
+                        },
+                      ];
+                const resolved = await readBridge().resolveNativeSessionPaths(queries);
+                const paths = resolved
+                  .map((entry) => entry.path)
+                  .filter((path): path is string => !!path);
+                if (paths.length > 0) {
+                  await copy(paths.join("\n"));
+                  toast.success(
+                    paths.length === 1
+                      ? t`Copied session path.`
+                      : t`Copied ${paths.length} session paths.`,
+                  );
+                  return;
+                }
+              } catch {
+                // Fall through to the working-directory fallback below.
+              }
+              const absolutePath = threadAbsolutePath(thread, project);
+              try {
+                await copy(absolutePath);
+                toast.success(t`Copied thread path.`);
+              } catch {
+                toast.danger(t`Could not copy the thread path.`);
+              }
+            })();
+          }
           if (key === "toggle-star") toggleStarThread(thread.id);
           if (key === "delete" && !isExperimentCandidate)
             requestDeleteThread(thread.id, thread.worktreePath, thread.projectId, {

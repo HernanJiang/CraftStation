@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { UsageSnapshot, UsageStatus, UsageWindow } from "@craftstation/agents-usage";
 import type { AgentInstanceConfigMap } from "@/shared/contracts";
 import {
+  cookiePasteUrl,
+  externalBrowserLoginUrl,
   hasRailUsage,
   isClaudeUsageProvider,
   needsBrowserSessionForUsage,
@@ -53,6 +55,15 @@ describe("usageProviders", () => {
   it("identifies providers whose empty local snapshot still needs browser usage auth", () => {
     expect(needsBrowserSessionForUsage("opencode")).toBe(true);
     expect(needsBrowserSessionForUsage("grok")).toBe(false);
+  });
+
+  it("routes OpenCode through the embedded capture with paste as fallback", () => {
+    // Embedded overlay is primary: no external-browser redirect.
+    expect(externalBrowserLoginUrl("opencode")).toBeUndefined();
+    expect(supportsBrowserLogin("opencode")).toBe(true);
+    // The login page stays as the manual paste source.
+    expect(cookiePasteUrl("opencode")).toBe("https://opencode.ai/");
+    expect(cookiePasteUrl("grok")).toBeUndefined();
   });
 
   it("adds Claude profile providers after the base Claude provider", () => {

@@ -3,6 +3,8 @@ import type {
   Project,
   StartThreadPayload,
   StartThreadResult,
+  SwitchThreadProviderPayload,
+  SwitchThreadProviderResult,
   Thread,
   ThreadRuntimeSnapshot,
   ThreadStatus,
@@ -42,6 +44,14 @@ export interface ThreadControlRuntime {
   }): Promise<void>;
   interruptThread(payload: InterruptThreadPayload): Promise<void>;
   closeThread(payload: { threadId: string }): Promise<void>;
+  /**
+   * Rebuild the live runtime on another harness/model. Optional so unit tests
+   * that only exercise send/resume can omit it; CrossAgents cross-harness
+   * switches fail closed when this is missing.
+   */
+  switchThreadProvider?(
+    payload: SwitchThreadProviderPayload,
+  ): Promise<SwitchThreadProviderResult>;
 }
 
 export interface ThreadControlAdapterDeps {
@@ -66,7 +76,7 @@ export type ThreadDeliveryResult =
 
 /**
  * CraftStation-owned façade over the existing long-lived thread controls.
- * It deliberately knows nothing about Crossagents: those remain ephemeral
+ * It deliberately knows nothing about Own Subagents: those remain ephemeral
  * subagents and never enter this adapter or the durable collaboration ledger.
  */
 export class ThreadControlAdapter {
@@ -97,8 +107,25 @@ export class ThreadControlAdapter {
     return THREAD_CONTROL_SETTLED_STATUSES.has(this.snapshot(threadId).status);
   }
 
-  async refreshSnapshot(threadId: string): Promise<ThreadControlSnapshot> {
-    const current = this.snapshot(threadId);
+  /**
+   * Read the LIVE native session id for a thread straight from the runtime
+   * snapshots, bypassing the possibly-stale persisted row (the row only
+   * learns a fresh sessionRef after a renderer/dbSync cycle). Returns
+   * undefined when no live session with a discovered id exists.
+   */
+  async liveSessionRef(threadId: string): Promise<string | undefined> {
+    this.require(threadId);
+    try {
+      const live = (await this.deps.runtime.getThreadSnapshots()).find(
+        (entry) => entry.threadId === threadId,
+      );
+      return live?.sessionRef?.providerSessionId?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async refreshSnapshot(threadId: string): Promise<ThreadControlSnapshot> {    const current = this.snapshot(threadId);
     try {
       const live = (await this.deps.runtime.getThreadSnapshots()).find(
         (entry) => entry.threadId === threadId,
@@ -117,8 +144,9 @@ export class ThreadControlAdapter {
   }
 
   /**
-   * Deliver only when the target is settled. A busy target is a policy error,
-   * never an implicit steer; callers must queue it in the collaboration ledger.
+   * Inject a prompt into the target immediately. A busy target still receives
+   * the message as the next turn (or a steer); collaboration must not wait in
+   * a queue and report success before the prompt is sent.
    */
   async deliverSettled(
     threadId: string,
@@ -126,24 +154,26 @@ export class ThreadControlAdapter {
     requestItemId?: string,
   ): Promise<ThreadDeliveryResult> {
     const thread = this.require(threadId);
-    const snapshot = await this.refreshSnapshot(threadId);
-    if (!THREAD_CONTROL_DELIVERY_STATUSES.has(snapshot.status)) {
-      throw controlError(
-        "THREAD_TARGET_BUSY",
-        `Thread ${threadId} is ${snapshot.status}; queue the request until its current turn settles.`,
-      );
-    }
+    const payload = {
+      threadId,
+      prompt,
+      config: thread.config,
+      ...(requestItemId ? { userMessageItemId: requestItemId } : {}),
+    };
 
     try {
-      await this.deps.runtime.sendThreadInput({
-        threadId,
-        prompt,
-        config: thread.config,
-        ...(requestItemId ? { userMessageItemId: requestItemId } : {}),
-      });
+      await this.deps.runtime.sendThreadInput(payload);
       return { kind: "delivered", resumed: false };
     } catch (error) {
-      if (!isUnknownThreadSessionError(error)) throw error;
+      if (!isUnknownThreadSessionError(error)) {
+        try {
+          await this.interruptAndWait(threadId);
+          await this.deps.runtime.sendThreadInput(payload);
+          return { kind: "delivered", resumed: false };
+        } catch {
+          throw error;
+        }
+      }
     }
 
     if (!thread.sessionRef && !thread.canResumeWithConfig) {
@@ -185,6 +215,27 @@ export class ThreadControlAdapter {
   stop(threadId: string): Promise<void> {
     this.require(threadId);
     return this.deps.runtime.closeThread({ threadId });
+  }
+
+  /**
+   * Switch the live runtime to another harness/model. Conversation history
+   * stays on the Thread; the native session is created fresh. Throws if the
+   * supervisor cannot host the switch (no live session, crafted-only path).
+   */
+  async switchProvider(
+    threadId: string,
+    agentKind: Thread["agentKind"],
+    config: Thread["config"],
+  ): Promise<SwitchThreadProviderResult> {
+    this.require(threadId);
+    const switchThreadProvider = this.deps.runtime.switchThreadProvider;
+    if (!switchThreadProvider) {
+      throw controlError(
+        "THREAD_SWITCH_UNAVAILABLE",
+        `Thread ${threadId} cannot switch harness: runtime switch is unavailable.`,
+      );
+    }
+    return switchThreadProvider({ threadId, agentKind, config });
   }
 
   async waitSettled(

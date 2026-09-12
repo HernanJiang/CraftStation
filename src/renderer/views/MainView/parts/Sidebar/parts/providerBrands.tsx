@@ -6,12 +6,15 @@ import cursorLogo from "@/renderer/assets/provider-logos/cursor.svg";
 import factoryDroidLogo from "@/renderer/assets/provider-logos/factory-droid.svg";
 import geminiLogo from "@/renderer/assets/provider-logos/gemini.svg";
 import githubCopilotLogo from "@/renderer/assets/provider-logos/github-copilot.svg";
+import grokLogo from "@/renderer/assets/provider-logos/grok.png";
 import kimiCodeLogo from "@/renderer/assets/provider-logos/kimi-code.png";
 import openAiLogo from "@/renderer/assets/provider-logos/openai.svg";
 import openCodeLogo from "@/renderer/assets/provider-logos/opencode.png";
 import qwenLogo from "@/renderer/assets/provider-logos/qwen.png";
 import zaiLogo from "@/renderer/assets/provider-logos/zai.svg";
 import volcengineLogo from "@/renderer/assets/provider-logos/volcengine.svg";
+import deepseekLogo from "@/renderer/assets/provider-logos/deepseek.png";
+import craftstationLogo from "@/renderer/assets/craftstation-logo.png";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 
 /**
@@ -35,6 +38,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
   commandcode: "Command Code",
   factory: "Droid",
   opencode: "OpenCode",
+  deepseek: "DeepSeek",
+  muse: "Muse",
   zai: "z.ai",
   qwen: "Alibaba Token Plan",
   volcengine: "Volcengine Ark Token Plan",
@@ -43,6 +48,30 @@ export const PROVIDER_LABELS: Record<string, string> = {
 
 export function providerLabel(id: string, fallback?: string): string {
   return PROVIDER_LABELS[id] ?? fallback ?? id;
+}
+
+/**
+ * Map an agent kind or model vendor id to its brand key. Inventory data
+ * reports models by agent kind (`kimi`) but harnesses by model vendor
+ * (`moonshot`, `xai`, `openai`); without this map every harness card falls
+ * back to a monochrome letter badge.
+ */
+const VENDOR_KIND_TO_BRAND: Record<string, string> = {
+  openai: "codex",
+  xai: "grok",
+  moonshot: "kimi",
+  google: "gemini",
+  deepseek: "deepseek",
+  "deepseek-api": "deepseek",
+  "opencode-go": "opencode",
+  meta: "muse",
+  recipes: "recipes",
+};
+
+export function brandIdForVendorKind(id: string | undefined): string {
+  const normalized = (id ?? "").trim().toLowerCase();
+  if (!normalized) return "";
+  return VENDOR_KIND_TO_BRAND[normalized] ?? normalized;
 }
 
 type ProviderBrand = {
@@ -83,9 +112,9 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
     logoClassName: "size-full",
   },
   grok: {
-    background: "#000000",
-    // Keep the original CraftStation Grok glyph instead of the x.ai favicon.
-    logo: "",
+    background: "#ffffff",
+    logo: grokLogo,
+    logoClassName: "size-full",
   },
   kimi: {
     background: "#f8f8f8",
@@ -112,6 +141,19 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
     logo: openCodeLogo,
     logoClassName: "size-full",
   },
+  deepseek: {
+    // Square whale glyph on white (same treatment as grok/kimi): the logo
+    // asset itself is blue, so a blue tile would swallow it.
+    background: "#ffffff",
+    logo: deepseekLogo,
+    logoClassName: "size-[78%]",
+  },
+  muse: {
+    // No licensed logo asset vendored: Meta-blue tile with the registered
+    // Muse infinity glyph.
+    background: "#0082FB",
+    logo: "",
+  },
   zai: {
     background: "#2d2d2f",
     logo: zaiLogo,
@@ -126,6 +168,12 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
     background: "#006eff",
     logo: volcengineLogo,
     logoClassName: "size-[78%]",
+  },
+  // 合成台「我的配方」：用 CraftStation 本体 logo（深色像素标，配深底）。
+  recipes: {
+    background: "#202126",
+    logo: craftstationLogo,
+    logoClassName: "size-full",
   },
 };
 

@@ -13,17 +13,23 @@ export function PluginUsage(props: {
   items: ProfileSkillUsage[];
   title?: string;
   emptyText?: string;
+  /** Denser typography/spacing for the 3-column usage-stats layout. */
+  compact?: boolean;
 }) {
   const { t } = useLingui();
-  const { items, title, emptyText } = props;
+  const { items, title, emptyText, compact = false } = props;
   const heading = title ?? t`Most used plugins`;
   const empty = emptyText ?? t`Nothing tracked yet. It'll appear here as you use it.`;
 
   return (
     <section className="flex flex-col gap-1">
-      <h2 className="mb-1 text-sm font-semibold text-foreground">{heading}</h2>
+      <h2
+        className={`mb-1 font-semibold text-foreground ${compact ? "text-xs" : "text-sm"}`}
+      >
+        {heading}
+      </h2>
       {items.length === 0 ? (
-        <p className="py-2 text-sm text-muted">{empty}</p>
+        <p className={`py-2 text-muted ${compact ? "text-xs" : "text-sm"}`}>{empty}</p>
       ) : (
         <div className="divide-y divide-separator">
           {items.map((item) => {
@@ -31,7 +37,7 @@ export function PluginUsage(props: {
             return (
               <div
                 key={`${item.kind}:${item.name}`}
-                className="flex items-center justify-between gap-4 py-2 text-sm"
+                className={`flex items-center justify-between gap-4 ${compact ? "py-1 text-xs" : "py-2 text-sm"}`}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Icon className="size-3.5 shrink-0 text-muted" />

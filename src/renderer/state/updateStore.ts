@@ -10,6 +10,32 @@ interface UpdateState {
   downloadTransferred: number | null;
   downloadTotal: number | null;
   downloadBytesPerSecond: number | null;
+  /**
+   * In-flight agent binary updates keyed by `${agentKind}:${envKind}:${distro}`.
+   * Agent installers (npm scripts, vendor updaters) stream no byte counts, so
+   * this tracks presence + start time only — surfaces render indeterminate
+   * progress, never a fabricated percentage. Session-scoped, never persisted.
+   */
+  agentUpdates: Record<string, AgentUpdateInFlight>;
+  /**
+   * Latest known CLI update availability, published by the titlebar check and
+   * read by the synthesis-bench Harness surfaces so both show the same state.
+   * Session-scoped, never persisted.
+   */
+  availableCliUpdates: CliUpdateAvailable[];
+}
+
+export interface CliUpdateAvailable {
+  /** `${agentKind}:${envKind}:${distro}` — same keying as `agentUpdates`. */
+  key: string;
+  /** Agent kind, e.g. `grok`. Matches bench `harnessKind` 1:1. */
+  agentKind: string;
+  /** Human label, e.g. `Grok Build`. */
+  label: string;
+  /** Installed version, e.g. `v1.0.13` (already includes any leading `v`). */
+  version: string;
+  /** Latest upstream version. */
+  latest: string;
 }
 
 export type DownloadProgressPayload = {
@@ -18,6 +44,13 @@ export type DownloadProgressPayload = {
   bytesPerSecond: number;
 };
 
+export interface AgentUpdateInFlight {
+  /** Human label painted next to the spinner (agent display name). */
+  label: string;
+  /** Wall-clock start; lets stale entries be swept if a caller forgets finish. */
+  startedAt: number;
+}
+
 interface UpdateActions {
   setChecking: () => void;
   beginUpdateDownload: (version: string) => void;
@@ -25,6 +58,9 @@ interface UpdateActions {
   setDownloading: (percent: number, progress?: DownloadProgressPayload) => void;
   setDownloaded: (version: string) => void;
   setError: (message: string) => void;
+  beginAgentUpdate: (key: string, label: string) => void;
+  finishAgentUpdate: (key: string) => void;
+  setAvailableCliUpdates: (updates: CliUpdateAvailable[]) => void;
 }
 
 const clearedDownloadFields = {
@@ -39,6 +75,8 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
   downloadPercent: 0,
   errorMessage: null,
   ...clearedDownloadFields,
+  agentUpdates: {},
+  availableCliUpdates: [],
 
   setChecking: () =>
     set({
@@ -91,4 +129,46 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
       downloadPercent: 0,
       ...clearedDownloadFields,
     }),
+  beginAgentUpdate: (key, label) =>
+    set((state) => ({
+      agentUpdates: { ...state.agentUpdates, [key]: { label, startedAt: Date.now() } },
+    })),
+  finishAgentUpdate: (key) =>
+    set((state) => {
+      if (!(key in state.agentUpdates)) return {};
+      const agentUpdates = { ...state.agentUpdates };
+      delete agentUpdates[key];
+      return { agentUpdates };
+    }),
+  setAvailableCliUpdates: (updates) => set({ availableCliUpdates: updates }),
 }));
+
+/**
+ * First available update for an agent kind (any env/distro). Bench harness
+ * kinds match agent kinds 1:1 (`grok`, `kimi`, `deepseek`, …), so Harness
+ * cards and rows resolve their badge through this.
+ */
+export function findCliUpdateForAgentKind(
+  updates: readonly CliUpdateAvailable[],
+  agentKind: string,
+): CliUpdateAvailable | undefined {
+  return updates.find((entry) => entry.agentKind === agentKind);
+}
+
+/**
+ * Runs an agent binary update while publishing its in-flight state for the
+ * sidebar progress entry and harness rows. Always settles the entry, so a
+ * crashed update can never strand a spinner.
+ */
+export async function trackAgentBinaryUpdate<T>(
+  key: string,
+  label: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  useUpdateStore.getState().beginAgentUpdate(key, label);
+  try {
+    return await run();
+  } finally {
+    useUpdateStore.getState().finishAgentUpdate(key);
+  }
+}

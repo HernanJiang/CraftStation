@@ -58,6 +58,12 @@ export interface CreateAppThreadRequest {
   effort?: string;
   fast?: boolean;
   title?: string;
+  /**
+   * Validated third-party (openai-compatible) account binding inherited from
+   * a custom-model calling thread. Bypasses the subscription pool exactly
+   * like renderer-initiated launches (see threadLaunchActions).
+   */
+  thirdPartyAccountId?: string;
   worktree?: { branch?: string };
   existingWorktree?: { path: string; branch: string };
   prNumber?: number;
@@ -173,6 +179,7 @@ export async function createAppThread(
     prompt: request.prompt,
     initialSize: DEFAULT_TERMINAL_SIZE,
     presentationMode: "gui",
+    ...(request.thirdPartyAccountId ? { thirdPartyAccountId: request.thirdPartyAccountId } : {}),
     ...resolveMcpLaunchSnapshot(settings, project.mcpServers ?? []),
   };
 

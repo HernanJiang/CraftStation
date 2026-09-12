@@ -107,6 +107,16 @@ function inferMimeFromPath(path: string): string {
       return "image/svg+xml";
     case "pdf":
       return "application/pdf";
+    case "wav":
+      return "audio/wav";
+    case "mp3":
+      return "audio/mpeg";
+    case "m4a":
+      return "audio/mp4";
+    case "webm":
+      return "audio/webm";
+    case "ogg":
+      return "audio/ogg";
     case "md":
     case "markdown":
     case "json":
@@ -131,6 +141,7 @@ function shouldSendFilePart(mime: string): boolean {
   return (
     mime.startsWith("image/") ||
     mime.startsWith("text/") ||
+    mime.startsWith("audio/") ||
     mime === "application/json" ||
     mime === "application/pdf"
   );

@@ -397,7 +397,7 @@ describe("MessageList", () => {
     expect(onContentHeightChange).toHaveBeenCalledOnce();
   });
 
-  it("remeasures the anchor row when a completed turn moves from the footer inline", async () => {
+  it("remeasures the start row when a completed turn status bar appears below it", async () => {
     vi.useFakeTimers();
     try {
       const threadId = "thread-1";
@@ -417,7 +417,7 @@ describe("MessageList", () => {
         <MessageList
           threadId={threadId}
           entries={entries}
-          suppressInlineTurnAnchorId={assistantItemId}
+          suppressTurnHeaderAnchorId={assistantItemId}
           onVirtualizerLayoutChange={beginVirtualizerLayoutChange}
         />,
       );
@@ -434,12 +434,12 @@ describe("MessageList", () => {
         <MessageList
           threadId={threadId}
           entries={entries}
-          suppressInlineTurnAnchorId={null}
+          suppressTurnHeaderAnchorId={null}
           onVirtualizerLayoutChange={beginVirtualizerLayoutChange}
         />,
       );
 
-      expect(screen.getByText("Worked for 1m 15s")).toBeInTheDocument();
+      expect(screen.getByText("Completed in 1m 15s")).toBeInTheDocument();
       expect(setItemSizeMock).not.toHaveBeenCalled();
       await act(async () => vi.advanceTimersByTimeAsync(16));
       expect(setItemSizeMock).toHaveBeenCalledWith(assistantItemId, { height: 91, width: 500 });

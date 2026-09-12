@@ -84,7 +84,7 @@ export function CodexProviderSettings(props: { agentKind: string; wslDistros: st
           <p className="text-xs text-muted">
             <Trans>
               Sizes shown in the Codex composer. Compaction starts automatically at 95% of the
-              selected window. New chats default to 400k when that size is in the list.
+              selected window. New chats default to 272k when that size is in the list.
             </Trans>
           </p>
         </div>

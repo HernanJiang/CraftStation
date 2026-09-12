@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountControlError } from "@/shared/contracts";
-import { AccountStore } from "./accountStore";
+import { AccountStore, QUOTA_INFERENCE_MARK_TTL_MS } from "./accountStore";
 import { collectGrok, type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
 import { parseGrokCookie } from "./grokCredentials";
 
@@ -253,6 +253,13 @@ describe("native Grok billing probe", () => {
       ],
     });
     expect(JSON.stringify(parsed)).not.toContain("must-not-be-projected");
+  });
+
+  it("treats usedPercent 1 as 1% used, not 100% exhausted", () => {
+    const parsed = parseNativeGrokBilling({
+      windows: [{ id: "weekly", label: "Weekly", usedPercent: 1 }],
+    });
+    expect(parsed?.windows).toEqual([{ id: "weekly", label: "Weekly", usedPercent: 1 }]);
   });
 
   it("uses managed GROK_HOME and x.ai/billing over official grok agent stdio", async () => {
@@ -692,5 +699,76 @@ describe("buildGrokLoginScript", () => {
       status: "auth-expired",
       lastError: "Grok authentication required",
     });
+  });
+});
+
+describe("Grok inference-exhaustion marks across quota polls", () => {
+  function markedService(): { store: AccountStore; service: GrokProfileService; accountId: string } {
+    const root = createRoot();
+    const store = new AccountStore(root);
+    const service = new GrokProfileService({
+      store,
+      nativeQuotaProbe: rejectNativeQuotaProbe,
+      tokenQuotaProbe: skipTokenQuotaProbe,
+    });
+    const pendingHome = createRoot();
+    writeFileSync(
+      join(pendingHome, "auth.json"),
+      officialAuthJson({ email: "marked@example.com", principal_id: "principal-marked" }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Marked", profileRoot: pendingHome });
+    removeManagedBearer(service, account.accountId, "marked@example.com");
+    return { store, service, accountId: account.accountId };
+  }
+
+  const host = {
+    now: () => Date.now(),
+    credentials: { getOAuthToken: async () => undefined, getSecret: async () => undefined },
+  };
+
+  it("keeps a fresh inference mark while persisting healthy windows", async () => {
+    const { store, service, accountId } = markedService();
+    // Simulate the prompt-error write-back landing just now.
+    store.updateStatus(accountId, "quota-exhausted", {
+      lastError: "Grok 额度已耗尽",
+      lastQuotaAt: Date.now(),
+    });
+    vi.mocked(collectGrok).mockClear();
+    vi.mocked(collectGrok).mockResolvedValueOnce({
+      providerId: "grok",
+      status: "ok",
+      windows: [{ id: "weekly", label: "Weekly", usedPercent: 46 }],
+      fetchedAt: Date.now(),
+    });
+
+    const result = await service.collectQuota(accountId, host as never);
+
+    // Scheduler state stays out; the bars still show the fresh 46%.
+    expect(result.status).toBe("quota-exhausted");
+    const record = store.getRecord(accountId)!;
+    expect(record.status).toBe("quota-exhausted");
+    expect(record.lastError).toBe("Grok 额度已耗尽");
+    expect(record.quotaWindows?.map((window) => window.usedPercent)).toEqual([46]);
+  });
+
+  it("recovers a stale inference mark on healthy quota evidence", async () => {
+    const { store, service, accountId } = markedService();
+    store.updateStatus(accountId, "quota-exhausted", {
+      lastError: "Grok 额度已耗尽",
+      lastQuotaAt: Date.now() - QUOTA_INFERENCE_MARK_TTL_MS - 60_000,
+    });
+    vi.mocked(collectGrok).mockClear();
+    vi.mocked(collectGrok).mockResolvedValueOnce({
+      providerId: "grok",
+      status: "ok",
+      windows: [{ id: "weekly", label: "Weekly", usedPercent: 46 }],
+      fetchedAt: Date.now(),
+    });
+
+    const result = await service.collectQuota(accountId, host as never);
+
+    expect(result.status).toBe("available");
+    expect(store.getRecord(accountId)!.status).toBe("available");
   });
 });

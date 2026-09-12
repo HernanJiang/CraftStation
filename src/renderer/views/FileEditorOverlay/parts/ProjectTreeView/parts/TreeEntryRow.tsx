@@ -1,6 +1,15 @@
 import { toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { ChevronRight, Copy, FilePlus, FolderOpen, FolderPlus, Pencil, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FilePlus,
+  FolderOpen,
+  FolderPlus,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import type { ProjectTreeEntry } from "@/shared/contracts";
 import { ContextMenu, PixelLoader } from "@/renderer/components/common";
 import { getEntryIconUrl } from "@/renderer/components/common/fileIcons";
@@ -63,6 +72,15 @@ export function TreeEntryRow(props: {
                   label: t`Reveal in File Explorer`,
                   icon: <FolderOpen className="size-3.5" />,
                 },
+                ...(!isDirectory
+                  ? [
+                      {
+                        id: "open-system",
+                        label: t`Open With System Default`,
+                        icon: <ExternalLink className="size-3.5" />,
+                      },
+                    ]
+                  : []),
               ]
             : []),
           ...(isDirectory

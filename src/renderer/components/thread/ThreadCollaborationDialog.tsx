@@ -16,6 +16,7 @@ import {
   collaborationStatusLabel,
   collaborationStatusTone,
   compositionLabel,
+  displayDialogueTitle,
   threadTargetStatusLabel,
 } from "./threadCollaborationUi";
 
@@ -276,6 +277,11 @@ export function ThreadCollaborationDialog(props: {
                           <span className="truncate text-xs text-muted">
                             {compositionLabel(target.provenance)}
                           </span>
+                          {target.provenance.nativeSessionId ? (
+                            <span className="truncate font-mono text-xs text-muted">
+                              {target.provenance.harnessId}:{target.provenance.nativeSessionId}
+                            </span>
+                          ) : null}
                           <span className="truncate text-xs text-muted">
                             {target.provenance.worktreePath ?? t`Project worktree`}
                           </span>
@@ -461,13 +467,16 @@ export function ThreadCollaborationDialog(props: {
                             <CollaborationStatusIcon status={exchange.status} className="size-3" />
                             <Chip.Label>{collaborationStatusLabel(exchange.status)}</Chip.Label>
                           </Chip>
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                          <span
+                            className="min-w-0 flex-1 truncate text-sm font-medium"
+                            title={counterpart.provenance.title}
+                          >
                             {counterpart.direction === "outbound" ? (
                               <Trans>To</Trans>
                             ) : (
                               <Trans>From</Trans>
                             )}{" "}
-                            {counterpart.provenance.title}
+                            {displayDialogueTitle(counterpart.provenance)}
                           </span>
                         </div>
                         <p className="truncate text-xs text-muted">
@@ -505,7 +514,7 @@ export function ThreadCollaborationDialog(props: {
                           ) : null}
                           <Button
                             isIconOnly
-                            aria-label={t`Open ${counterpart.provenance.title}`}
+                            aria-label={t`Open ${displayDialogueTitle(counterpart.provenance)}`}
                             size="sm"
                             variant="ghost"
                             onPress={() => {

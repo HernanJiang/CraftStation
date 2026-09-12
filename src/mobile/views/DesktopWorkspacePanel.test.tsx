@@ -269,7 +269,7 @@ describe("DesktopWorkspacePanel", () => {
         .some((element) => element instanceof HTMLButtonElement),
     ).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Hide panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide side panel" }));
     expect(useDesktopPanelStore.getState()).toMatchObject({
       open: false,
       subAgentThreadId: thread.id,

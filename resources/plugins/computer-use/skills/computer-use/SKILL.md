@@ -18,7 +18,7 @@ Use CraftStation's `computer_use` MCP for tasks that require interacting with de
 
 ## Boundaries
 
-- Interactive actions take control of the real mouse and keyboard and bring the target window to the foreground. Avoid unnecessary actions and do not operate a different application.
+- Interactive actions bring the target window to the foreground. The overlay shows a CraftStation-logo pointer for the agent's mouse; the user's cursor is restored after each click, scroll, or drag. Avoid moving the mouse during that instant and do not operate a different application.
 - Locked desktops, secure prompts, operating-system permission dialogs, passwords, and authentication surfaces require the user.
 - Do not type or expose secrets unless the user supplied them for that exact purpose.
 - Confirm before destructive changes or external communication unless the user already authorized the exact action.

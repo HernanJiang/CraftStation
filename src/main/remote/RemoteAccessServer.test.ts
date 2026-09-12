@@ -4476,6 +4476,16 @@ describe("RemoteAccessServer", () => {
           stored = [next];
           return next;
         },
+        pause: (id) => {
+          const next = { ...stored[0]!, id, enabled: false, nextRunAt: null };
+          stored = [next];
+          return next;
+        },
+        resume: (id) => {
+          const next = { ...stored[0]!, id, enabled: true };
+          stored = [next];
+          return next;
+        },
       },
     });
     servers.push(server);

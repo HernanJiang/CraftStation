@@ -129,7 +129,7 @@ describe("subagent panel lifecycle", () => {
     resetPanelStore();
   });
 
-  it("hides the temporary target without forgetting it, then closes it explicitly", () => {
+  it("closeAllPanels drops the subagent context so a dead page never resurrects", () => {
     const panel = usePanelStore.getState();
     panel.setSubAgentPanelContext({
       threadId: "thread-1",
@@ -150,13 +150,16 @@ describe("subagent panel lifecycle", () => {
     usePanelStore.getState().closeAllPanels();
     expect(usePanelStore.getState()).toMatchObject({
       subAgentPanelOpen: false,
-      subAgentPanelContext: {
-        threadId: "thread-1",
-        parentItemId: "parent-1",
-      },
+      subAgentPanelContext: null,
     });
+  });
 
-    usePanelStore.getState().setRightPanelTab("subagent");
+  it("closing the subagent tab explicitly still clears it", () => {
+    usePanelStore.getState().setSubAgentPanelContext({
+      threadId: "thread-1",
+      parentItemId: "parent-1",
+      projectLocation: { kind: "posix", path: "/repo" },
+    });
     expect(usePanelStore.getState().subAgentPanelOpen).toBe(true);
 
     usePanelStore.getState().setSubAgentPanelContext(null);
@@ -299,6 +302,38 @@ describe("auxiliary panel visibility", () => {
   });
 });
 
+describe("model usage workspace tabs", () => {
+  beforeEach(() => {
+    resetPanelStore();
+    usePanelStore.setState({ modelUsageWorkspaceTab: "usage" });
+  });
+
+  afterEach(() => {
+    resetPanelStore();
+    usePanelStore.setState({ modelUsageWorkspaceTab: "usage" });
+  });
+
+  it("keeps the last-visited tab on a plain sidebar open", () => {
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "models" });
+    usePanelStore.getState().openModelUsageDialog();
+    expect(usePanelStore.getState().modelUsageWorkspaceTab).toBe("models");
+  });
+
+  it("still jumps to an explicitly requested tab", () => {
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "models" });
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting" });
+    expect(usePanelStore.getState().modelUsageWorkspaceTab).toBe("crafting");
+  });
+
+  it("persists the last-visited tab for the next launch", () => {
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "stats" });
+    const stored = JSON.parse(localStorage.getItem("craftstation-panel") ?? "{}") as {
+      modelUsageWorkspaceTab?: unknown;
+    };
+    expect(stored.modelUsageWorkspaceTab).toBe("stats");
+  });
+});
+
 describe("create project modal", () => {
   beforeEach(() => {
     resetPanelStore();
@@ -374,5 +409,52 @@ describe("browserOverlayMaximized lifecycle", () => {
     expect(usePanelStore.getState().browserPanelOpen).toBe(false);
     expect(usePanelStore.getState().browserOverlayOpen).toBe(true);
     expect(usePanelStore.getState().browserOverlayMaximized).toBe(true);
+  });
+});
+
+describe("per-thread auxiliary panels", () => {
+  beforeEach(() => {
+    resetPanelStore();
+    usePanelStore.setState({ threadAuxiliaryPanels: {} });
+  });
+
+  it("captures and restores each thread's own right sidebar", () => {
+    const store = () => usePanelStore.getState();
+    // Thread A opens the browser on the right.
+    store().setAuxiliaryPanelPlacement("right");
+    store().setAuxiliaryPanelTab("browser");
+    store().setBrowserPanelOpen(true);
+    store().captureThreadAuxiliaryPanel("thread-a");
+
+    // Thread B has never opened anything: defaults (hidden/closed).
+    store().restoreThreadAuxiliaryPanel("thread-b");
+    expect(store().auxiliaryPanelPlacement).toBe("hidden");
+    expect(store().auxiliaryPanelTab).toBeNull();
+    expect(store().browserPanelOpen).toBe(false);
+
+    // Thread B opens usage instead; switching back restores A's browser.
+    store().setUsagePanelOpen(true);
+    store().captureThreadAuxiliaryPanel("thread-b");
+    store().restoreThreadAuxiliaryPanel("thread-a");
+    expect(store().auxiliaryPanelPlacement).toBe("right");
+    expect(store().auxiliaryPanelTab).toBe("browser");
+    expect(store().browserPanelOpen).toBe(true);
+    expect(store().usagePanelOpen).toBe(false);
+
+    // And back to B: usage, no browser.
+    store().restoreThreadAuxiliaryPanel("thread-b");
+    expect(store().usagePanelOpen).toBe(true);
+    expect(store().browserPanelOpen).toBe(false);
+  });
+
+  it("recapturing overwrites the previous snapshot", () => {
+    const store = () => usePanelStore.getState();
+    store().setAuxiliaryPanelPlacement("right");
+    store().captureThreadAuxiliaryPanel("thread-a");
+    store().setAuxiliaryPanelPlacement("hidden");
+    store().captureThreadAuxiliaryPanel("thread-a");
+    store().setAuxiliaryPanelPlacement("right");
+    store().restoreThreadAuxiliaryPanel("thread-a");
+    expect(store().auxiliaryPanelPlacement).toBe("hidden");
   });
 });

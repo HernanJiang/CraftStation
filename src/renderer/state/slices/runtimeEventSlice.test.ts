@@ -216,6 +216,31 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     });
   });
 
+  it("drops billed buckets when a later occupancy sample has no breakdown", () => {
+    apply("t1", {
+      type: "context.updated",
+      threadId: "t1",
+      usage: {
+        usedTokens: 4_800_000,
+        breakdown: [
+          { id: "input", label: "Input", tokens: 2_400_000 },
+          { id: "cache-read", label: "Cache read", tokens: 2_400_000 },
+        ],
+      },
+    });
+
+    apply("t1", {
+      type: "context.updated",
+      threadId: "t1",
+      usage: { usedTokens: 180_000, maxTokens: 1_000_000 },
+    });
+
+    expect(store.getState().runtimeContextByThread["t1"]).toEqual({
+      usedTokens: 180_000,
+      maxTokens: 1_000_000,
+    });
+  });
+
   it("keeps compacted usage when a later refresh reports only the context limit", () => {
     apply("t1", {
       type: "context.updated",

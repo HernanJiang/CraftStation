@@ -691,7 +691,7 @@ export function AppShell(props: {
         />
 
         <div
-          className={`craftstation-workspace-frame relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-tl-[20px] border-l border-t border-[rgba(255,255,255,0.05)] bg-[var(--content-background)] ${
+          className={`craftstation-workspace-frame relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-tl-[20px] border-l border-t border-[var(--hairline)] bg-[var(--content-background)] ${
             isSidebarHandleHovered ? "border-l-[color:var(--accent)]" : ""
           } ${
             isBottom ? "flex-col" : "flex-row"

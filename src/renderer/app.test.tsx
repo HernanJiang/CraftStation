@@ -404,8 +404,11 @@ vi.mock("./state/sharedSettingsStore", () => ({
 }));
 
 import { App, STARTUP_RECOVERY_TIMEOUT_MS } from "./app";
+import { createWindowWorkbench } from "./workbench/createWindowWorkbench";
+import type { Workbench } from "./workbench/lifecycle";
 
 describe("App", () => {
+  let workbench: Workbench;
   const originalHasHydrated = useAppStore.persist.hasHydrated;
   const originalOnHydrate = useAppStore.persist.onHydrate;
   const originalOnFinishHydration = useAppStore.persist.onFinishHydration;
@@ -424,6 +427,13 @@ describe("App", () => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.useRealTimers();
+    remoteThreadCommandListeners.length = 0;
+    quickComposerSubmitListeners.length = 0;
+    supervisorEventListeners.length = 0;
+    threadOpenRequestedListeners.length = 0;
+    projectStateChangedListeners.length = 0;
+    workbench?.dispose?.();
+    workbench = createWindowWorkbench();
     useAppStore.persist.hasHydrated = originalHasHydrated;
     useAppStore.persist.onHydrate = originalOnHydrate;
     useAppStore.persist.onFinishHydration = originalOnFinishHydration;
@@ -466,6 +476,7 @@ describe("App", () => {
   });
 
   afterEach(() => {
+    workbench?.dispose?.();
     vi.useRealTimers();
   });
 
@@ -475,7 +486,7 @@ describe("App", () => {
     useAppStore.persist.onHydrate = vi.fn<() => () => void>(() => () => undefined);
     useAppStore.persist.onFinishHydration = vi.fn<() => () => void>(() => () => undefined);
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     expect(screen.getByTestId("welcome-loading-status")).toBeInTheDocument();
 
     await act(async () => {
@@ -775,7 +786,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     const listener = remoteThreadCommandListeners.at(-1);
     expect(listener).toBeDefined();
 
@@ -829,7 +840,7 @@ describe("App", () => {
       createdAt: "2026-03-22T00:00:00.000Z",
     };
     useAppStore.setState({ projects: [project], view: { kind: "home" } });
-    render(<App />);
+    render(<App workbench={workbench} />);
 
     act(() => {
       remoteThreadCommandListeners.at(-1)?.({
@@ -864,7 +875,7 @@ describe("App", () => {
       createdAt: "2026-03-22T00:00:00.000Z",
     };
     useAppStore.setState({ projects: [project], view: { kind: "home" } });
-    render(<App />);
+    render(<App workbench={workbench} />);
 
     act(() => {
       remoteThreadCommandListeners.at(-1)?.({
@@ -892,7 +903,7 @@ describe("App", () => {
       createdAt: "2026-07-21T00:00:00.000Z",
     };
     useAppStore.setState({ projects: [] });
-    render(<App />);
+    render(<App workbench={workbench} />);
 
     act(() => {
       projectStateChangedListeners.at(-1)?.({ projects: [project] });
@@ -943,7 +954,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     const listener = quickComposerSubmitListeners.at(-1);
     expect(listener).toBeDefined();
 
@@ -1004,7 +1015,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     const listener = remoteThreadCommandListeners.at(-1);
     expect(listener).toBeDefined();
 
@@ -1073,7 +1084,7 @@ describe("App", () => {
       view: { kind: "thread", panes: ["thread-1"] },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("thread-view-thread-1")).toHaveAttribute(
@@ -1133,7 +1144,7 @@ describe("App", () => {
       view: { kind: "thread", panes: ["thread-visible-gui"] },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
 
     await waitFor(() => {
       expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenCalledWith({
@@ -1171,7 +1182,7 @@ describe("App", () => {
       return () => undefined;
     });
 
-    render(<App />);
+    render(<App workbench={workbench} />);
 
     expect(bridge.startThread).not.toHaveBeenCalled();
 
@@ -1266,7 +1277,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     fireEvent.click(await screen.findByText("open-thread-1"));
 
     await waitFor(() => {
@@ -1324,7 +1335,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     fireEvent.click(await screen.findByText("open-thread-1"));
 
     await waitFor(() => {
@@ -1378,7 +1389,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     fireEvent.click(await screen.findByText("open-thread-1"));
 
     await waitFor(() => {
@@ -1432,7 +1443,7 @@ describe("App", () => {
     vi.spyOn(Date, "now").mockReturnValue(new Date("2026-04-06T12:05:00.000Z").getTime());
     const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     await act(async () => {
       await Promise.resolve();
     });
@@ -1589,7 +1600,7 @@ describe("App", () => {
       view: { kind: "draft", projectId: "project-1" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     fireEvent.click(await screen.findByText("start-worktree"));
 
     await waitFor(() => {
@@ -1664,7 +1675,7 @@ describe("App", () => {
       view: { kind: "draft", projectId: "project-1" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     fireEvent.click(await screen.findByText("start-worktree"));
 
     await waitFor(() => {
@@ -1739,7 +1750,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
 
     await waitFor(() => {
       expect(bridge.gitWatchWorktrees).toHaveBeenCalledWith({
@@ -1800,7 +1811,7 @@ describe("App", () => {
       view: { kind: "draft", projectId: "project-1" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     fireEvent.click(await screen.findByText("attach-existing-worktree"));
 
     await waitFor(() => {
@@ -1872,7 +1883,7 @@ describe("App", () => {
       view: { kind: "home" },
     }));
 
-    render(<App />);
+    render(<App workbench={workbench} />);
     fireEvent.click(await screen.findByText("merge-remove-worktree"));
 
     await waitFor(() => {

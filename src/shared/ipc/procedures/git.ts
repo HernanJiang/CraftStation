@@ -79,6 +79,8 @@ import type {
   GitGetWorktreeOwnerResult,
   GitGetWorktreeSourceBranchPayload,
   GitGetWorktreeSourceBranchResult,
+  GitDescribePayload,
+  GitDescribeResult,
   GitInitPayload,
   GitListWorktreesPayload,
   GitMergeToSourcePayload,
@@ -196,6 +198,11 @@ export const gitProcedures = {
     "gitInit",
     "supervisor",
     gitInitPayloadSchema,
+  ),
+  gitDescribe: definePayloadProcedure<GitDescribePayload, GitDescribeResult, "supervisor">(
+    "gitDescribe",
+    "supervisor",
+    gitDescribePayloadSchema,
   ),
   gitAddRemote: definePayloadProcedure<GitAddRemotePayload, void, "supervisor">(
     "gitAddRemote",

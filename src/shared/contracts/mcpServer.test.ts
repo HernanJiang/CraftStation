@@ -17,7 +17,8 @@ import { TOOLS as browserTools } from "@/main/browser/mcp/tools/specs";
 import { CHROME_TOOLS as chromeTools } from "@/main/browser/external/chromeTools";
 import { TOOLS as computerUseTools } from "@/main/computer-use/mcp/toolRegistry";
 import { TOOLS as appControlsTools } from "@/main/app-controls/mcp/toolRegistry";
-import { TOOLS as crossagentTools } from "@/supervisor/crossagentMcp/toolRegistry";
+import { TOOLS as peerTools } from "@/main/crossagentsMcp/toolRegistry";
+import { TOOLS as ownSubagentsTools } from "@/supervisor/crossagentMcp/toolRegistry";
 
 function server(id: string, name: string, enabled = true): McpServer {
   return {
@@ -111,14 +112,16 @@ describe("mcpServerSchema", () => {
   it("keeps built-in tool counts aligned with the advertised catalogs", () => {
     expect(BUILT_IN_MCP_SERVER_TOOL_NAMES).toEqual({
       browser: browserTools.map((tool) => tool.name),
-      crossagents: crossagentTools.map((tool) => tool.name),
+      crossagents: peerTools.map((tool) => tool.name),
+      "own-subagents": ownSubagentsTools.map((tool) => tool.name),
       chrome: chromeTools.map((tool) => tool.name),
       "computer-use": computerUseTools.map((tool) => tool.name),
       "app-controls": appControlsTools.map((tool) => tool.name),
     });
     expect(BUILT_IN_MCP_SERVER_TOOL_COUNTS).toEqual({
       browser: browserTools.length,
-      crossagents: crossagentTools.length,
+      crossagents: peerTools.length,
+      "own-subagents": ownSubagentsTools.length,
       chrome: chromeTools.length,
       "computer-use": computerUseTools.length,
       "app-controls": appControlsTools.length,

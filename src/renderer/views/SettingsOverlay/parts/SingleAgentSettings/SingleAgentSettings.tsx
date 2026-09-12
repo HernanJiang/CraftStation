@@ -18,6 +18,7 @@ import { friendlyError } from "@/shared/messages";
 import { runAgentInstallCommand, runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { useUpdateStore } from "@/renderer/state/updateStore";
 import { buildWslProjectDistrosKey } from "@/renderer/state/projectKeys";
 import { useProviderUsage } from "@/renderer/state/providerUsageStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
@@ -536,7 +537,9 @@ export function SingleAgentSettings(props: {
     const envKey = statusEnvKey(status);
     const envName = envLabelForStatus(status);
     const previousVersion = status.version;
+    const progressKey = `${props.agentKind}:${scope.envKind}:${scope.wslDistro ?? ""}`;
     setBinaryUpdatePendingEnvKeys((current) => new Set(current).add(envKey));
+    useUpdateStore.getState().beginAgentUpdate(progressKey, agent.label);
     readBridge()
       .updateAgentBinary({
         agentKind: props.agentKind,
@@ -606,13 +609,14 @@ export function SingleAgentSettings(props: {
               : t`Unable to update ${agent.label}.`,
         ),
       )
-      .finally(() =>
+      .finally(() => {
+        useUpdateStore.getState().finishAgentUpdate(progressKey);
         setBinaryUpdatePendingEnvKeys((current) => {
           const next = new Set(current);
           next.delete(envKey);
           return next;
-        }),
-      );
+        });
+      });
   };
 
   const installAgentInEnvironment = (status: AgentStatus) => {

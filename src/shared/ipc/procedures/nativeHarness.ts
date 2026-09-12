@@ -13,6 +13,13 @@ import {
   type ResolveCompatibilityPayload,
   type ResolveCompatibilityResult,
 } from "../../crafting/compatibility";
+import {
+  compatibilityBridgeControlPayloadSchema,
+  type CompatibilityBridgeControlPayload,
+  compatibilityBridgeStatusPayloadSchema,
+  type CompatibilityBridgeStatusPayload,
+  type CompatibilityBridgeStatusView,
+} from "../../crafting/compatibilityBridge";
 import { definePayloadProcedure } from "../core";
 
 export const nativeHarnessProcedures = {
@@ -39,4 +46,30 @@ export const nativeHarnessProcedures = {
     ResolveCompatibilityResult,
     "supervisor"
   >("resolveCraftingCompatibility", "supervisor", resolveCompatibilityPayloadSchema),
+  /**
+   * Secret-free Compatibility Bridge (CLIProxyAPI sidecar) status for the
+   * Components inventory. Read-only; never starts the sidecar.
+   */
+  getCompatibilityBridgeStatus: definePayloadProcedure<
+    CompatibilityBridgeStatusPayload,
+    CompatibilityBridgeStatusView,
+    "supervisor"
+  >("getCompatibilityBridgeStatus", "supervisor", compatibilityBridgeStatusPayloadSchema),
+  /**
+   * One-click start for the CLIProxyAPI sidecar. Resolves the binary
+   * (env → PATH → bundled sidecar folder) and awaits the authenticated
+   * readiness probe; throws a remediation-carrying error when no binary is
+   * found or the sidecar never becomes ready.
+   */
+  startCompatibilityBridge: definePayloadProcedure<
+    CompatibilityBridgeControlPayload,
+    CompatibilityBridgeStatusView,
+    "supervisor"
+  >("startCompatibilityBridge", "supervisor", compatibilityBridgeControlPayloadSchema),
+  /** Idempotent stop for the CLIProxyAPI sidecar. */
+  stopCompatibilityBridge: definePayloadProcedure<
+    CompatibilityBridgeControlPayload,
+    CompatibilityBridgeStatusView,
+    "supervisor"
+  >("stopCompatibilityBridge", "supervisor", compatibilityBridgeControlPayloadSchema),
 } as const;

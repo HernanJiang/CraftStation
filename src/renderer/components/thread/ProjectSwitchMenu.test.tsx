@@ -191,4 +191,21 @@ describe("ProjectSwitchMenu", () => {
     const menu = await openMenu();
     expect(within(menu).getByRole("menuitemradio", { name: "Alpha" })).toBeInTheDocument();
   });
+
+  // The composer strip sits near the window bottom: both variants must open
+  // upward, otherwise long project lists run off-screen with no flip.
+  it.each(["compact", "hero"] as const)("opens the %s menu upward", async (variant) => {
+    render(<ProjectSwitchMenu currentProjectId="a" variant={variant} />);
+    await openMenu();
+
+    const popover = document.querySelector('[data-slot="dropdown-popover"]');
+    expect(popover?.getAttribute("data-placement")).toMatch(/^top/);
+  });
+
+  it("bounds a long project list inside the viewport", async () => {
+    render(<ProjectSwitchMenu currentProjectId="a" variant="compact" />);
+    const menu = await openMenu();
+
+    expect(menu.className).toMatch("max-h-80");
+  });
 });

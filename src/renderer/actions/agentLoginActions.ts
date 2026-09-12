@@ -586,6 +586,12 @@ async function runCodexProfileLoginInternal(input: {
 export async function createAndRunKimiProfileLogin(input?: {
   label?: string;
   project?: Project;
+  /**
+   * Fires with the new account id after a successful login. Lets callers
+   * prompt for a 备注 (Kimi's API exposes no account email, so the user-set
+   * label is the only human identity the row can show).
+   */
+  onCreated?: (accountId: string) => void;
 }): Promise<boolean> {
   if (useLoginTerminalStore.getState().active || kimiProfileLoginStartInFlight) {
     toast.info(i18n._(msg`A login terminal is already active.`));
@@ -613,6 +619,8 @@ export async function createAndRunKimiProfileLogin(input?: {
         .removeAccount({ accountId })
         .catch(() => undefined);
       useUsageAccountsStore.getState().removeAccount(accountId);
+    } else if (accountId) {
+      input?.onCreated?.(accountId);
     }
     return succeeded;
   } catch (error) {

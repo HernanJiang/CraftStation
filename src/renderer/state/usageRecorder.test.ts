@@ -9,7 +9,7 @@ vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridgeMock,
 }));
 
-import { recordRuntimeUsage } from "./usageRecorder";
+import { recordAiAction, recordCraftModeUse, recordRuntimeUsage } from "./usageRecorder";
 
 function makeThread(id: string, agentKind: string): Thread {
   return {
@@ -435,5 +435,40 @@ describe("usageRecorder item classification", () => {
     expect(emittedEvents("subagent")).toContainEqual(
       expect.objectContaining({ provider: "acp-generic:factory-droid", name: "worker" }),
     );
+  });
+});
+
+describe("usageRecorder craft mode + AI git actions", () => {
+  beforeEach(() => {
+    flushNow();
+    bridgeMock.appendUsageEvents.mockReset();
+    bridgeMock.appendUsageEvents.mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    flushNow();
+  });
+
+  it("records one craft_mode event per call with the selected mode", () => {
+    recordCraftModeUse("auto", "codex", "gpt-5.6");
+    recordCraftModeUse("efficient", "codex", "gpt-5.6");
+    recordCraftModeUse("creative", null, null);
+    flushNow();
+    expect(emittedEvents("craft_mode")).toEqual([
+      expect.objectContaining({ name: "auto", provider: "codex", model: "gpt-5.6", value: 1 }),
+      expect.objectContaining({ name: "efficient", provider: "codex", value: 1 }),
+      expect.objectContaining({ name: "creative", value: 1 }),
+    ]);
+  });
+
+  it("records AI git action kinds including push", () => {
+    recordAiAction("commit", "codex", "gpt-5.6");
+    recordAiAction("push", "codex", "gpt-5.6");
+    recordAiAction("pr", "codex", "gpt-5.6");
+    flushNow();
+    expect(emittedEvents("ai_commit")).toHaveLength(1);
+    expect(emittedEvents("ai_push")).toEqual([
+      expect.objectContaining({ provider: "codex", model: "gpt-5.6", value: 1 }),
+    ]);
+    expect(emittedEvents("ai_pr")).toHaveLength(1);
   });
 });

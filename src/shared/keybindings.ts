@@ -101,6 +101,9 @@ export const BACKFILL_COMMAND_IDS = [
   "tab.previous",
   "thread.recent.next",
   "thread.recent.previous",
+  "view.zoom-in",
+  "view.zoom-out",
+  "view.zoom-reset",
 ] as const;
 
 /**
@@ -148,6 +151,24 @@ export const DEFAULT_KEYBINDINGS: KeybindingsFile = {
       command: "auxiliary.toggle",
       key: "Ctrl+Alt+B",
       when: "!inputFocus && !editorFocus && !terminalFocus && !composerFocus && !browserFocus",
+    },
+    {
+      // No `when`: whole-app zoom works from anywhere (VS Code parity),
+      // including the composer and the terminal. Bind `Ctrl+=` ("=" shares
+      // the physical key with `+`) so both Ctrl++ and Ctrl+= match.
+      command: "view.zoom-in",
+      key: "Ctrl+=",
+      mac: "Meta+=",
+    },
+    {
+      command: "view.zoom-out",
+      key: "Ctrl+-",
+      mac: "Meta+-",
+    },
+    {
+      command: "view.zoom-reset",
+      key: "Ctrl+0",
+      mac: "Meta+0",
     },
     {
       command: "files.open",

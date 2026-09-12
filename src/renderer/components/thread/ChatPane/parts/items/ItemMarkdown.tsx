@@ -285,6 +285,83 @@ function isMermaidFenceLanguage(language: string | undefined): boolean {
   );
 }
 
+/**
+ * Models frequently emit LaTeX with the classic `\[ … \]` / `\( … \)`
+ * delimiters, but remark-math only recognizes `$$ … $$` / `$ … $`. Rewrite the
+ * classic delimiters (outside fenced code and inline code) so the math plugin
+ * renders them. A rewrite requires a math signal (LaTeX command, `^`, `_`,
+ * `=`) so backslash-escaped prose brackets like `\[1\]` and `\[text\](url)`
+ * links survive untouched.
+ */
+export function normalizeLatexMathDelimiters(text: string): string {
+  let changed = false;
+  const converted = splitSegmentsOutsideFences(text).map((segment) => {
+    if (segment.inFence) return segment.text;
+    const next = convertLatexDelimitersOutsideInlineCode(segment.text);
+    if (next !== segment.text) changed = true;
+    return next;
+  });
+  return changed ? converted.join("") : text;
+}
+
+interface FenceSegment {
+  inFence: boolean;
+  text: string;
+}
+
+function splitSegmentsOutsideFences(text: string): FenceSegment[] {
+  const segments: FenceSegment[] = [];
+  let inFence = false;
+  let buffer = "";
+  for (const line of text.match(/[^\r\n]*(?:\r\n|\n|\r|$)/g) ?? []) {
+    if (/^ {0,3}(?:```|~~~)/.test(line)) {
+      segments.push({ inFence, text: buffer });
+      buffer = line;
+      inFence = !inFence;
+      continue;
+    }
+    buffer += line;
+  }
+  segments.push({ inFence, text: buffer });
+  return segments;
+}
+
+const LATEX_DISPLAY_MATH_RE = /\\\[([\s\S]*?)\\\](?!\()/gu;
+const LATEX_INLINE_MATH_RE = /\\\(([\s\S]*?)\\\)/gu;
+const LATEX_MATH_SIGNAL_RE = /\\[a-zA-Z]|[=^_]/u;
+
+function convertLatexDelimitersOutsideInlineCode(text: string): string {
+  if (!text.includes("\\")) return text;
+  const parts = text.split(/(`[^`\n]*`)/);
+  let changed = false;
+  const converted = parts.map((part, index) => {
+    if (index % 2 === 1) return part;
+    const next = convertLatexDelimiters(part);
+    if (next !== part) changed = true;
+    return next;
+  });
+  return changed ? converted.join("") : text;
+}
+
+function convertLatexDelimiters(text: string): string {
+  let changed = false;
+  let out = text.replace(LATEX_DISPLAY_MATH_RE, (match, body: string) => {
+    if (!LATEX_MATH_SIGNAL_RE.test(body)) return match;
+    changed = true;
+    const math = body.trim();
+    // Bodies that span lines (delimiters on their own lines) become a display
+    // block; single-line ones stay inline (as `$$…$$`) so they don't break out
+    // of a surrounding paragraph/list.
+    return body.includes("\n") ? `\n$$\n${math}\n$$\n` : `$$${math}$$`;
+  });
+  out = out.replace(LATEX_INLINE_MATH_RE, (match, body: string) => {
+    if (!LATEX_MATH_SIGNAL_RE.test(body)) return match;
+    changed = true;
+    return `$${body.trim()}$`;
+  });
+  return changed ? out : text;
+}
+
 export function normalizeShortCodeFenceClosers(text: string): string {
   let inBacktickFence = false;
   let changed = false;

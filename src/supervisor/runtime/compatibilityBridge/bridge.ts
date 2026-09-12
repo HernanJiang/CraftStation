@@ -83,6 +83,20 @@ export class CompatibilityBridgeService extends EventEmitter {
     this.authDir = undefined;
   }
 
+  /**
+   * Point a stopped bridge at a resolved sidecar binary (and optionally an
+   * auth dir) before `start()`. Lets one-click start reuse the long-lived
+   * singleton the compatibility gate reads instead of spawning a detached
+   * instance whose `running` flag nobody observes.
+   */
+  configure(options: { binaryPath?: string | undefined; authDir?: string | undefined }): void {
+    if (this.running) {
+      throw new Error("Cannot reconfigure the Compatibility Bridge while it is running.");
+    }
+    if (options.binaryPath?.trim()) this.binaryPath = options.binaryPath.trim();
+    if (options.authDir !== undefined) this.authDir = options.authDir;
+  }
+
   private generateConfigFile(): string {
     const bridgeTempDir = join(tmpdir(), "craftstation-bridge");
     if (!existsSync(bridgeTempDir)) {

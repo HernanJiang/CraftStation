@@ -30,6 +30,10 @@ function seedStaging(cacheDir: string, providerName: string): void {
   setUsageSecret(cacheDir, "openai-compatible:pending", "providerName", providerName);
   setUsageSecret(cacheDir, "openai-compatible:pending", "model", "gpt-5.6-sol");
   setUsageSecret(cacheDir, "openai-compatible:pending", "displayName", "GPT-5.6");
+  // Real-probe outcome (Responses-first): importStaging rejects bundles
+  // without it — unverified providers must never enter the catalog.
+  setUsageSecret(cacheDir, "openai-compatible:pending", "validatedProtocol", "responses");
+  setUsageSecret(cacheDir, "openai-compatible:pending", "validatedAt", "1700000000000");
 }
 
 function hostWith(responder: (url: string) => HttpResponse | undefined): HostPort {
@@ -176,5 +180,111 @@ describe("OpenAiCompatibleProfileService", () => {
     expect(config).toContain('base_url = "https://relay.example.com/v1"');
     expect(config).not.toContain("sk-test");
     expect(runtime.env).toEqual({ CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY: "sk-test" });
+  });
+
+  it("prepares vendor CLI env for Kimi, Grok, and DeepSeek without writing the key to disk", () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Cavoti");
+    const account = service.importStaging();
+
+    expect(service.prepareVendorCompatRuntime(account.accountId, "kimi").env).toEqual({
+      KIMI_CODE_API_KEY: "sk-test",
+      KIMI_CODE_BASE_URL: "https://relay.example.com/v1",
+    });
+    expect(service.prepareVendorCompatRuntime(account.accountId, "grok").env).toMatchObject({
+      GROK_API_KEY: "sk-test",
+      GROK_API_BASE: "https://relay.example.com/v1",
+    });
+    expect(service.prepareVendorCompatRuntime(account.accountId, "deepseek").env).toMatchObject({
+      DEEPSEEK_API_KEY: "sk-test",
+      OPENAI_BASE_URL: "https://relay.example.com/v1",
+    });
+  });
+
+  it("prepares an isolated Muse child env without writing the API key to disk", () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Chiral-API");
+    const account = service.importStaging();
+
+    const runtime = service.prepareMuseRuntime(account.accountId);
+    expect(runtime.env.META_API_KEY).toBe("sk-test");
+    expect(runtime.env.CRAFTSTATION_MUSE_BASE_URL).toBe("https://relay.example.com/v1");
+    expect(runtime.isolationDir).toContain("openai-compatible-muse");
+    expect(runtime.isolationDir).not.toContain("sk-test");
+  });
+
+  it("rejects import when the staging bundle was never really verified", () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+
+    seedStaging(cacheDir, "Relay A");
+    clearUsageSecret(cacheDir, "openai-compatible:pending");
+    setUsageSecret(cacheDir, "openai-compatible:pending", "baseUrl", "https://relay.example.com/v1");
+    setUsageSecret(cacheDir, "openai-compatible:pending", "apiKey", "sk-test");
+    setUsageSecret(cacheDir, "openai-compatible:pending", "model", "gpt-5.6-sol");
+
+    expect(() => service.importStaging()).toThrow(/验证/);
+    expect(service.list()).toHaveLength(0);
+  });
+
+  it("exposes the verified protocol for routing without leaking the key", () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Relay A");
+    const account = service.importStaging();
+
+    expect(service.getConfig(account.accountId)).toMatchObject({ validatedProtocol: "responses" });
+    const descriptor = service.getDescriptor(account.accountId)!;
+    expect(descriptor.validatedProtocol).toBe("responses");
+    expect(descriptor.baseUrl).toBe("https://relay.example.com/v1");
+    expect("apiKey" in descriptor).toBe(false);
+  });
+
+  it("verifyModel probes the sealed key per model (responses wins, 401 never falls back)", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Relay A");
+    const account = service.importStaging();
+
+    const ok = await service.verifyModel(account.accountId, "gpt-5.6-sol", async (url) => {
+      if (url.endsWith("/v1/responses")) {
+        return { status: 200, bodyText: JSON.stringify({ id: "r", output: [{}] }) };
+      }
+      return { status: 200, bodyText: JSON.stringify({ data: [] }) };
+    });
+    expect(ok.validatedProtocol).toBe("responses");
+
+    await expect(
+      service.verifyModel(account.accountId, "gpt-5.6-sol", async () => ({
+        status: 401,
+        bodyText: JSON.stringify({ error: "bad key" }),
+      })),
+    ).rejects.toThrow(/API Key 无效/);
+  });
+
+  it("prepares an isolated OpenCode config for GLM without writing the key into CODEX_HOME", () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Cavoti");
+    const account = service.importStaging();
+    const runtime = service.prepareOpenCodeRuntime(account.accountId, "glm-5.3-flash");
+    expect(runtime.env.OPENCODE_CONFIG_DIR).toBe(runtime.configDir);
+    expect(runtime.env.CRAFTSTATION_OPENCODE_PROVIDER).toBe("craftstation");
+    const written = JSON.parse(readFileSync(join(runtime.configDir, "opencode.json"), "utf8")) as {
+      provider: Record<string, { options: { apiKey: string; baseURL: string }; models: Record<string, unknown> }>;
+    };
+    const provider = written.provider.craftstation;
+    expect(provider).toBeDefined();
+    expect(provider?.options.baseURL).toBe("https://relay.example.com/v1");
+    expect(provider?.options.apiKey).toBe("sk-test");
+    expect(provider?.models["glm-5.3-flash"]).toBeDefined();
   });
 });

@@ -2,6 +2,7 @@ import type { AccountBinding, ProjectLocation, PromptSegment } from "@/shared/co
 import type { HarnessRuntimeAdapter } from "@/shared/crafting";
 import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
+import { antigravitySessionEnvForLocation } from "@/supervisor/agents/antigravity/detection";
 import {
   ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   CODEX_NATIVE_HARNESS_DESCRIPTOR,
@@ -43,6 +44,24 @@ export {
   UnavailableNativeHarnessRuntimeAdapter,
   NativeProcessHarnessRuntimeAdapter,
 };
+export {
+  DEEPSEEK_ACP_UPSTREAM,
+  DEEPSEEK_ACP_UPSTREAM_LIMITS,
+  DEEPSEEK_EXECUTABLE_CANDIDATES,
+  DEEPSEEK_HARNESS_KINDS,
+  DEEPSEEK_PROFILE_NAMES,
+  DEEPSEEK_SDK_CLIENT_PACKAGE,
+  DEEPSEEK_TRANSPORT_PREFERENCE,
+  buildDeepSeekProfileArgs,
+  getDeepSeekCapabilitySummary,
+  isDeepSeekNativeHarnessKind,
+  normalizeDeepSeekProfileName,
+  resolveDeepSeekTransport,
+  type DeepSeekCapabilitySummary,
+  type DeepSeekHarnessKind,
+  type DeepSeekProfileName,
+  type DeepSeekTransportKind,
+} from "./deepseekCapabilityProfile";
 export type { PtyNativeHarnessRuntimeAdapterOptions, StructuredNativeHarnessRuntimeAdapterOptions };
 
 export interface NativeHarnessAdapterFactoryOptions {
@@ -122,6 +141,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
   antigravity: ({
     projectLocation,
+    baseSpawnEnv,
     profileRef,
     mcpServers,
     resolveExecutable = resolveExecutablePath,
@@ -136,11 +156,16 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
         "The official Antigravity CLI ('agy') is not installed on this machine.",
       );
     }
+    // Pool-account scope redirects (AGY_ADC_AUTH + GOOGLE_APPLICATION_
+    // CREDENTIALS) ride the adapter-level runtime env onto every spawn; the
+    // WSL boundary strips them — a distro agy cannot read a host credential.
+    const runtimeEnv = antigravitySessionEnvForLocation(baseSpawnEnv, projectLocation);
     return new NativeProcessHarnessRuntimeAdapter({
       descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
       mode: "antigravity",
       runtimeCommand: executable,
+      ...(runtimeEnv ? { runtimeEnv } : {}),
       ...(profileRef ? { profileRef } : {}),
       ...(spawnProcess ? { spawnProcess } : {}),
       ...(mcpServers !== undefined ? { mcpServers } : {}),
@@ -156,13 +181,20 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     skillSegments,
     inlineSkillInstructions,
   }) => {
-    // Official DeepSeek Harness stdio JSON-RPC agent binary lookup.
-    // Supports official 'dsh-jsonrpc-agent' and 'dsh' machine carriers.
+    // Official DeepSeek Harness carrier lookup. Launch preference (see
+    // deepseekCapabilityProfile.ts): the `dsh` CLI serves both the `sdk`
+    // profile (owned runs — same launch spec as the official TypeScript SDK
+    // `@deepseek-ai/dsh-sdk-client`: `dsh --profile sdk [--patch ...]`) and
+    // the ready-to-use `acp` automation profile (`dsh --profile acp`);
+    // `dsh-jsonrpc-agent` remains as the legacy raw-JSON-RPC carrier.
+    // User-configured executablePath (plan.runtimeBinding.options) wins inside
+    // NativeProcessHarnessRuntimeAdapter; PATH discovery here is only the
+    // default.
     const executable = resolveExecutable("dsh-jsonrpc-agent") ?? resolveExecutable("dsh");
     if (!executable) {
       return new UnavailableNativeHarnessRuntimeAdapter(
         DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
-        "The official DeepSeek Harness SDK runtime ('dsh-jsonrpc-agent') is not installed on this machine.",
+        "Not installed / executable not found: the official DeepSeek Harness runtime ('dsh-jsonrpc-agent' or 'dsh' on PATH) is not installed on this machine — install it, or use the '@deepseek-ai/dsh-sdk-client' launch spec (`dsh --profile sdk`) or the automation profile `dsh --profile acp`.",
       );
     }
     return new NativeProcessHarnessRuntimeAdapter({
@@ -175,6 +207,16 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
       ...(skillSegments ? { skillSegments } : {}),
       ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
     });
+  },
+  // Alias for the DeepSeek Harness first-class id requested by callers that
+  // use the fully-qualified `deepseek-harness` name. Same runtime, same
+  // descriptor identity (`harnessKind: deepseek`) — never a parallel runtime.
+  "deepseek-harness": (options) => {
+    const factory = FACTORIES.deepseek;
+    if (!factory) {
+      throw new Error("DeepSeek native harness factory is not registered.");
+    }
+    return factory(options);
   },
   "deepseek-api": ({ projectLocation, runtimeOptions, mcpServers, inlineSkillInstructions }) =>
     new DeepSeekApiRuntimeAdapter({

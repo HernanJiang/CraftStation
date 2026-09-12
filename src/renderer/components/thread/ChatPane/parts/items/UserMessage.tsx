@@ -605,6 +605,18 @@ function buildUserPromptAttachments(content: CanonicalContentBlock[]): Attachmen
         },
       ];
     }
+    if (block.kind === "audio" && block.source === "attachment" && block.path) {
+      return [
+        {
+          id: `audio-${index}-${block.path}`,
+          path: block.path,
+          name: block.name ?? fileNameFromPath(block.path),
+          mimeType: block.mimeType,
+          isImage: false,
+          isAudio: true,
+        },
+      ];
+    }
     if (block.kind === "file" && block.source === "attachment") {
       const isImage = isImagePath(block.path, block.mimeType);
       return [

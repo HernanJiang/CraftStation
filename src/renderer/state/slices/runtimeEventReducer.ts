@@ -436,11 +436,15 @@ function mergeContextUsage(
   prev: ThreadContextUsage | undefined,
   usage: ThreadContextUsage,
 ): ThreadContextUsage {
-  return {
-    ...(prev ?? {}),
-    ...usage,
-    ...(usage.breakdown ? { breakdown: usage.breakdown } : {}),
-  };
+  const next: ThreadContextUsage = { ...(prev ?? {}), ...usage };
+  if (usage.breakdown) {
+    next.breakdown = usage.breakdown;
+  } else if (usage.usedTokens !== undefined && prev?.breakdown) {
+    // Occupancy-only samples (ACP `used`/`size`) must not keep billed
+    // input/cache/output buckets from an earlier prompt payload.
+    delete next.breakdown;
+  }
+  return next;
 }
 
 function areContextUsagesEqual(

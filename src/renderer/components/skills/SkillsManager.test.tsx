@@ -23,6 +23,7 @@ const {
     listWslDistros: vi.fn<() => Promise<string[]>>().mockResolvedValue(["Ubuntu"]),
     setSkillEnabled: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     deleteSkill: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    importSkills: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     readExternalFile: vi
       .fn<(payload: ReadExternalFilePayload) => Promise<ReadExternalFileResult>>()
       .mockResolvedValue({
@@ -39,6 +40,19 @@ const {
   skillImportModalMock: vi.fn<(props: { isOpen: boolean }) => void>(),
   useSkillsMock: vi.fn<() => unknown>(),
 }));
+
+const { toast: herouiToast } = vi.hoisted(() => ({
+  toast: {
+    success: vi.fn<(message: string) => void>(),
+    danger: vi.fn<(message: string) => void>(),
+    warning: vi.fn<(message: string) => void>(),
+  },
+}));
+
+vi.mock("@heroui/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@heroui/react")>();
+  return { ...actual, toast: herouiToast };
+});
 
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridge,
@@ -493,5 +507,77 @@ describe("SkillsManager", () => {
       }),
     );
     expect(reload).toHaveBeenCalled();
+  });
+
+  it("adds an import-available external skill to Shared on click", async () => {
+    useSkillsMock.mockReturnValue({
+      scan: scan([
+        skill({
+          id: "global:codex:codex-review:on",
+          name: "codex-review",
+          absolutePath: "C:\\Users\\me\\.codex\\skills\\codex-review",
+          rootPath: "C:\\Users\\me\\.codex\\skills",
+          providerId: "codex",
+          providerLabel: "Codex",
+          origin: "external",
+          importState: "available",
+        }),
+      ]),
+      loading: false,
+      error: undefined,
+      reload,
+    });
+    renderManager();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add codex-review to Shared" }));
+    await waitFor(() =>
+      expect(bridge.importSkills).toHaveBeenCalledWith({
+        skills: [
+          {
+            sourcePath: "C:\\Users\\me\\.codex\\skills\\codex-review",
+            destinationScope: "global",
+            availability: "shared",
+            mode: "copy",
+            replace: false,
+          },
+        ],
+      }),
+    );
+    expect(herouiToast.success).toHaveBeenCalled();
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("hides Add to Shared once the skill is already imported or in conflict", () => {
+    useSkillsMock.mockReturnValue({
+      scan: scan([
+        skill({
+          id: "global:codex:codex-review:on",
+          name: "codex-review",
+          absolutePath: "C:\\Users\\me\\.codex\\skills\\codex-review",
+          rootPath: "C:\\Users\\me\\.codex\\skills",
+          providerId: "codex",
+          providerLabel: "Codex",
+          origin: "external",
+          importState: "already-imported",
+        }),
+        skill({
+          id: "global:codex:other:on",
+          name: "other",
+          absolutePath: "C:\\Users\\me\\.codex\\skills\\other",
+          rootPath: "C:\\Users\\me\\.codex\\skills",
+          providerId: "codex",
+          providerLabel: "Codex",
+          origin: "external",
+          importState: "conflict",
+        }),
+      ]),
+      loading: false,
+      error: undefined,
+      reload,
+    });
+    renderManager();
+
+    expect(screen.queryByRole("button", { name: /to Shared/u })).not.toBeInTheDocument();
+    expect(bridge.importSkills).not.toHaveBeenCalled();
   });
 });

@@ -24,6 +24,7 @@ const EXPECTED_PROVIDER_ORDER = [
   "qoder",
   "grok",
   "kimi",
+  "deepseek",
   "muse",
   "antigravity",
   "commandcode",
@@ -78,6 +79,12 @@ describe("renderer provider manifests", () => {
       "acp-generic:first",
       "acp-generic:second",
     ]);
+  });
+
+  it("declares renderer as the running location for every chat provider", () => {
+    for (const manifest of getProviderManifests()) {
+      expect(manifest.runningLocation).toBe("renderer");
+    }
   });
 
   it("bootstraps every provider-owned renderer registration", () => {

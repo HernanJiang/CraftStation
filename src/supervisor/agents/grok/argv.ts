@@ -32,12 +32,18 @@ import type { ThreadConfig } from "@/shared/contracts";
  *   • `--no-plan` is a hard restriction — passing it disables plan tooling
  *     entirely. CraftStation never sets it; plan mode is entered in the TUI
  *     (Shift+Tab or the model calling `enter_plan_mode`).
- *   • Grok ACP (`session/new`) still does not advertise `modes` / standard
- *     `configOptions`. Model + effort state ride vendor `_meta` extensions
- *     (`modelState`, `x.ai/sessionConfig`), live model switching works via
- *     the unstable `session/set_model` (the shared ACP session's fallback),
- *     and `session/set_config_option` returns method-not-found — so effort
- *     changes only apply at (re)spawn via `--reasoning-effort`.
+  *   • Grok ACP (`session/new`) still does not advertise `modes` / standard
+  *     `configOptions`. Model + effort state ride vendor `_meta` extensions
+  *     (`modelState`, `x.ai/sessionConfig`), and `session/set_config_option`
+  *     has no usable model path. Live-verified on grok 1.0.13 (2026-09-06):
+  *     the unstable `session/set_model` ({sessionId, modelId}) ACKS but is a
+  *     no-op — the next turn still runs on the launch model — and
+  *     `session/set_config_option` fails (Invalid params / Method not found
+  *     depending on shape), so mid-session model switch is natively
+  *     unsupported there. Effort changes only apply at (re)spawn via
+  *     `--reasoning-effort`. The serving model of a turn is authoritatively
+  *     observable in the prompt response `_meta.modelId` / `modelUsage` keys
+  *     (do NOT trust the model's self-report or the set_model ack).
  */
 
 /**

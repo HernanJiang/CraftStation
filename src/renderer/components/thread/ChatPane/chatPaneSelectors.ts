@@ -286,7 +286,10 @@ export function isVisibleRuntimeItem(item: RuntimeChatItem): boolean {
   if (item.type === "assistant_message" && item.state === "completed") {
     const payload = getRuntimeItemPayload<MessageItemPayload>(item, "assistant_message");
     const hasPayloadContent = payload?.content.some(
-      (block) => (block.kind === "text" && hasVisibleText(block.text)) || block.kind === "image",
+      (block) =>
+        (block.kind === "text" && hasVisibleText(block.text)) ||
+        block.kind === "image" ||
+        block.kind === "audio",
     );
     if (!(hasVisibleText(item.streams.assistant_text ?? "") || hasPayloadContent)) return false;
   }
@@ -457,6 +460,13 @@ export function getChildTimelineEntriesStoreSelector(
 interface ResolvedCompletedTurns {
   byAnchor: ReadonlyMap<string, CompletedTurnRecord>;
   mostRecentDisplayable: CompletedTurnRecord | null;
+  /**
+   * Chronological displayable records (sub-second turns excluded), reference-
+   * stable per cache entry. Powers the turn-start header map so the
+   * "Worked for X" line renders above a turn's first row instead of beneath
+   * its anchor row.
+   */
+  displayableOrdered: readonly CompletedTurnRecord[];
 }
 
 /**
@@ -473,6 +483,7 @@ const EMPTY_TURN_ANCHOR_MAP: ReadonlyMap<string, CompletedTurnRecord> = new Map(
 const EMPTY_RESOLVED_TURNS: ResolvedCompletedTurns = Object.freeze({
   byAnchor: EMPTY_TURN_ANCHOR_MAP,
   mostRecentDisplayable: null,
+  displayableOrdered: Object.freeze([]) as readonly CompletedTurnRecord[],
 });
 
 /** A turn shorter than a second has nothing worth showing. */
@@ -564,7 +575,9 @@ function buildResolvedCompletedTurns(
     }
   }
 
-  return { byAnchor, mostRecentDisplayable };
+  const displayableOrdered = records.filter(isDisplayableCompletedTurn);
+
+  return { byAnchor, mostRecentDisplayable, displayableOrdered };
 }
 
 /**
@@ -591,27 +604,162 @@ export function selectMostRecentDisplayableCompletedTurn(
 }
 
 /**
- * Lookup helper: given a timeline entry, return the frozen turn record (if
- * any) that should render its "Worked for X" line beneath this row. For
- * tool-call groups, any of the grouped item ids may be the anchor.
+ * Chronological displayable completed-turn records for a thread, reference-
+ * stable across content-only deltas (backed by the resolved-turns cache).
  */
-export function selectCompletedTurnForEntry(
+export function selectOrderedCompletedTurns(
   state: AppStoreState,
   threadId: string,
-  entry: ChatTimelineEntry,
-): CompletedTurnRecord | undefined {
-  const anchorMap = selectCompletedTurnsByAnchorItem(state, threadId);
-  if (anchorMap.size === 0) return undefined;
-  if (entry.kind === "item") return anchorMap.get(entry.id);
-  for (const itemId of entry.itemIds) {
-    const record = anchorMap.get(itemId);
-    if (record) return record;
+): readonly CompletedTurnRecord[] {
+  return selectResolvedCompletedTurns(state, threadId).displayableOrdered;
+}
+
+const turnStartMapCache = new WeakMap<
+  readonly ChatTimelineEntry[],
+  WeakMap<readonly CompletedTurnRecord[], ReadonlyMap<string, CompletedTurnRecord>>
+>();
+
+/**
+ * Maps a turn's first visible timeline entry id → its completed-turn record,
+ * so the "Worked for X" line renders above the turn's output instead of
+ * beneath its anchor row. A turn's rows are the visible entries after the
+ * previous turn's anchor (or from the thread start) up to and including its
+ * own anchor; anchor-less records stay tail-only (see the tail footer).
+ */
+export function getTurnStartRecordMap(
+  entries: readonly ChatTimelineEntry[],
+  orderedRecords: readonly CompletedTurnRecord[],
+): ReadonlyMap<string, CompletedTurnRecord> {
+  let byRecords = turnStartMapCache.get(entries);
+  const cached = byRecords?.get(orderedRecords);
+  if (cached) return cached;
+  const map = buildTurnStartRecordMap(entries, orderedRecords);
+  if (!byRecords) {
+    byRecords = new WeakMap();
+    turnStartMapCache.set(entries, byRecords);
   }
-  return undefined;
+  byRecords.set(orderedRecords, map);
+  return map;
+}
+
+function buildTurnStartRecordMap(
+  entries: readonly ChatTimelineEntry[],
+  orderedRecords: readonly CompletedTurnRecord[],
+): ReadonlyMap<string, CompletedTurnRecord> {
+  const map = new Map<string, CompletedTurnRecord>();
+  if (orderedRecords.length === 0 || entries.length === 0) return map;
+  // Every member item id resolves to its hosting entry index so a turn that
+  // starts inside a tool-call group still hangs its header on that group row.
+  const entryIndexByItemId = new Map<string, number>();
+  entries.forEach((entry, index) => {
+    if (entry.kind === "item") {
+      if (!entryIndexByItemId.has(entry.id)) entryIndexByItemId.set(entry.id, index);
+    } else {
+      for (const itemId of entry.itemIds) {
+        if (!entryIndexByItemId.has(itemId)) entryIndexByItemId.set(itemId, index);
+      }
+    }
+  });
+  let prevAnchorIndex = -1;
+  for (const record of orderedRecords) {
+    if (record.anchorItemId === null) continue;
+    const anchorIndex = entryIndexByItemId.get(record.anchorItemId);
+    if (anchorIndex === undefined) continue;
+    const startIndex = prevAnchorIndex + 1;
+    if (startIndex <= anchorIndex) {
+      const startEntry = entries[startIndex]!;
+      if (!map.has(startEntry.id)) map.set(startEntry.id, record);
+    }
+    prevAnchorIndex = Math.max(prevAnchorIndex, anchorIndex);
+  }
+  return map;
+}
+/**
+ * Id of the latest user message in store order, or null. Primitive and
+ * reference-stable, so chat rows can subscribe cheaply.
+ */
+export function selectLastUserMessageId(state: AppStoreState, threadId: string): string | null {
+  const itemIds = state.runtimeItemIdsByThread[threadId];
+  if (!itemIds) return null;
+  const items = state.runtimeItemsByIdByThread[threadId];
+  for (let index = itemIds.length - 1; index >= 0; index -= 1) {
+    const itemId = itemIds[index]!;
+    if (items?.[itemId]?.type === "user_message") return itemId;
+  }
+  return null;
+}
+
+/**
+ * Entry id anchoring the live turn's status bar (below its user bubble), or
+ * null when there is no live turn to show — thread idle, turn not open yet, or
+ * the latest prompt has no visible row. User messages are never folded into
+ * tool-call groups, so the item id doubles as the entry id.
+ */
+export function selectLiveTurnStartEntryId(
+  state: AppStoreState,
+  threadId: string,
+  entries: readonly ChatTimelineEntry[],
+  isTurnActive: boolean,
+): string | null {
+  if (!isTurnActive) return null;
+  if (!state.runtimeOpenTurnByThread[threadId]) return null;
+  const lastUserId = selectLastUserMessageId(state, threadId);
+  if (!lastUserId) return null;
+  const visible = entries.some((entry) => entry.kind === "item" && entry.id === lastUserId);
+  return visible ? lastUserId : null;
+}
+
+const turnRangeErrorCache = new Map<string, boolean>();
+
+/**
+ * True when an `error` item sits inside a closed turn's item range. Ranges
+ * close over history (items only append), so results are cached forever;
+ * error items are never folded into tool-call groups, keeping the scan exact.
+ */
+export function turnRangeHasError(
+  state: AppStoreState,
+  threadId: string,
+  startItemId: string,
+  anchorItemId: string,
+): boolean {
+  const key = `${threadId}\0${startItemId}\0${anchorItemId}`;
+  const cached = turnRangeErrorCache.get(key);
+  if (cached !== undefined) return cached;
+  let found = false;
+  const itemIds = state.runtimeItemIdsByThread[threadId] ?? EMPTY_THREAD_ITEM_IDS;
+  const items = state.runtimeItemsByIdByThread[threadId];
+  const startIndex = itemIds.indexOf(startItemId);
+  let endIndex = itemIds.indexOf(anchorItemId);
+  // Failure markers land right AFTER the anchor: the error event is appended
+  // once the turn already closed on its last rendered row. Error items never
+  // render, so trailing ones still belong to this turn.
+  while (
+    endIndex >= 0 &&
+    endIndex + 1 < itemIds.length &&
+    items?.[itemIds[endIndex + 1]!]?.type === "error"
+  ) {
+    endIndex += 1;
+  }
+  if (startIndex >= 0 && endIndex >= startIndex) {
+    for (let index = startIndex; index <= endIndex; index += 1) {
+      if (items?.[itemIds[index]!]?.type === "error") {
+        found = true;
+        break;
+      }
+    }
+  }
+  if (turnRangeErrorCache.size > 2000) turnRangeErrorCache.clear();
+  turnRangeErrorCache.set(key, found);
+  return found;
 }
 
 export function clearRuntimeItemStoreSelectorCacheForThread(threadId: string): void {
   const prefix = `${threadId}\0`;
+  for (const key of turnRangeErrorCache.keys()) {
+    if (key.startsWith(prefix)) {
+      turnRangeErrorCache.delete(key);
+    }
+  }
   for (const key of runtimeItemStoreSelectorCache.keys()) {
     if (key.startsWith(prefix)) {
       runtimeItemStoreSelectorCache.delete(key);

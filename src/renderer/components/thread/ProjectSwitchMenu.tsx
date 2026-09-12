@@ -1,5 +1,5 @@
 import { startTransition, useState } from "react";
-import { Check, ChevronDown, Folder, House } from "lucide-react";
+import { Check, ChevronDown, House, Plus } from "lucide-react";
 import { Description, Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import type { Project } from "@/shared/contracts";
@@ -7,6 +7,8 @@ import { HOME_PROJECT_NAME, isHomeProject, isHomeProjectId } from "@/shared/home
 import { makeDraftPaneId } from "@/shared/paneId";
 import { useAppStore } from "@/renderer/state/appStore";
 import { rememberWorkspaceProject } from "@/renderer/state/workspaceStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
 import {
   ResponsiveMenuSurface,
   useResponsiveMenu,
@@ -26,9 +28,24 @@ export function ProjectSwitchMenu(props: {
   onSelectProject?: (projectId: string) => void;
   /** Codex composer context strip names the Home scope as an unbound project. */
   homeAsNoProject?: boolean;
+  /**
+   * Emphasize the bound project (foreground text + subtle pill) instead of the
+   * default muted trigger. Used by the composer context strip so the current
+   * project reads as a first-class entry, never a disabled one.
+   */
+  strong?: boolean;
 }) {
-  const { currentProjectId, variant, paneId, onSelectProject, homeAsNoProject = false } = props;
+  const {
+    currentProjectId,
+    variant,
+    paneId,
+    onSelectProject,
+    homeAsNoProject = false,
+    strong = false,
+  } = props;
   const { t } = useLingui();
+  // Shared overlay zoom compensation (see overlayZoom.ts): empty at factor 1.
+  const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
   // Only the active workspace's projects: the composer matches the sidebar,
   // and reaching another workspace's projects goes through the workspace
   // switcher first.
@@ -45,15 +62,17 @@ export function ProjectSwitchMenu(props: {
   // outlived a workspace switch), so it resolves against the full list.
   const current = allProjects.find((project) => project.id === currentProjectId);
   const isHomeCurrent = isHomeProjectId(currentProjectId);
+  // An unbound (Home-scope) thread offers "+ Add to project", never a greyed
+  // "No project" dead end.
   const label = isHomeCurrent
     ? homeAsNoProject
-      ? t`No project`
+      ? t`Add to project`
       : HOME_PROJECT_NAME
     : (current?.name ?? t`Select project`);
   const currentRemote = remoteServerFor(current);
   const triggerIcon = isHomeCurrent ? (
     homeAsNoProject ? (
-      <Folder className="size-3.5 shrink-0 text-muted" />
+      <Plus className="size-3.5 shrink-0" aria-hidden="true" />
     ) : (
       <House className="size-3.5 shrink-0 text-muted" />
     )
@@ -182,7 +201,13 @@ export function ProjectSwitchMenu(props: {
       selectionMode="single"
       selectedKeys={[currentProjectId]}
       onAction={(key) => handleSelect(String(key))}
-      className="craftstation-menu min-w-56"
+      // Long project lists scroll in place instead of running past the
+      // window edge: the composer strip sits near the bottom, so the
+      // popover opens upward (see below) into bounded space.
+      className={withOverlayClass(
+        "craftstation-menu max-h-80 min-w-56 overflow-y-auto",
+        overlayZoom.content,
+      )}
     >
       {menuItems(projects)}
     </Dropdown.Menu>
@@ -203,7 +228,15 @@ export function ProjectSwitchMenu(props: {
             <ChevronDown className="size-3 shrink-0 text-muted/60 opacity-60 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
           ) : null}
         </Dropdown.Trigger>
-        <Dropdown.Popover placement="bottom">{menu}</Dropdown.Popover>
+        {/* The composer strip sits near the window bottom: the menu must
+            open upward, matching every other composer menu. `bottom` used to
+            run long project lists off-screen with no flip. */}
+        <Dropdown.Popover
+          placement="top"
+          {...(overlayZoom.root ? { className: overlayZoom.root } : {})}
+        >
+          {menu}
+        </Dropdown.Popover>
       </Dropdown>
     );
   }
@@ -211,18 +244,33 @@ export function ProjectSwitchMenu(props: {
   return (
     <Dropdown>
       <Dropdown.Trigger
-        aria-label={t`Switch project`}
+        aria-label={isHomeCurrent && homeAsNoProject ? t`Add to project` : t`Switch project`}
         isDisabled={isDisabled}
-        className="group inline-flex min-w-0 max-w-full items-center gap-1 rounded px-1 py-0.5 text-sm leading-tight text-muted/60 outline-none transition-colors hover:bg-[var(--row-hover)] hover:text-foreground focus-visible:bg-[var(--row-hover)] disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-muted/60"
+        className={
+          `group inline-flex min-w-0 max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-sm leading-tight outline-none transition-colors focus-visible:bg-[var(--row-hover)] disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-muted/60 ` +
+          (isHomeCurrent && homeAsNoProject
+            ? "text-foreground hover:bg-[var(--row-hover)]"
+            : strong
+              ? "bg-[var(--row-hover)] text-foreground hover:bg-[var(--row-active)]"
+              : "text-muted/60 hover:bg-[var(--row-hover)] hover:text-foreground")
+        }
       >
         {triggerIcon}
-        <span className="min-w-0 truncate">{label}</span>
+        <span className="min-w-0 truncate font-medium">{label}</span>
         {triggerMachine}
         {!isDisabled ? (
           <ChevronDown className="size-3 shrink-0 opacity-60 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
         ) : null}
       </Dropdown.Trigger>
-      <Dropdown.Popover placement="bottom end">{menu}</Dropdown.Popover>
+      {/* Same upward contract as the hero variant: `bottom end` used to
+          open the list underneath the composer and clip it at the window
+          edge. `start` keeps the left-anchored trigger's menu on-screen. */}
+      <Dropdown.Popover
+        placement="top start"
+        {...(overlayZoom.root ? { className: overlayZoom.root } : {})}
+      >
+        {menu}
+      </Dropdown.Popover>
     </Dropdown>
   );
 }

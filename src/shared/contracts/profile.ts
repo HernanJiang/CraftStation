@@ -148,10 +148,10 @@ export interface ProfileAccountRef {
   label: string;
 }
 
-export const aiActionTypeSchema = z.enum(["commit", "pr", "conflict"]);
+export const aiActionTypeSchema = z.enum(["commit", "push", "pr", "conflict", "branch", "other"]);
 export type AiActionType = z.infer<typeof aiActionTypeSchema>;
 
-/** AI-performed git actions (commits, PRs, conflict resolutions). */
+/** AI-performed git actions (commits, pushes, PRs, merges/conflicts, branches, other). */
 export interface ProfileAiAction {
   type: AiActionType;
   label: string;
@@ -202,13 +202,13 @@ export interface ProfileCoreStats {
   accounts: ProfileBreakdownEntry[];
   /** Turn-weighted model mix (label includes provider). */
   models: ProfileBreakdownEntry[];
-  /** Threads started by presentation mode (chat vs CLI). */
+  /** CraftStation mode mix (auto / efficient / creative), one use per prompt submit. */
   modes: ProfileBreakdownEntry[];
   /** Top skills by run count. */
   skills: ProfileSkillUsage[];
   /** Top MCP servers by tool-call count. */
   mcps: ProfileSkillUsage[];
-  /** AI-performed git actions (commits / PRs / conflict resolutions). */
+  /** AI-performed git actions (commits / pushes / PRs / merges / branches / other). */
   aiActions: ProfileAiAction[];
   /**
    * Distinct accounts seen in the (unfiltered) usage log, for the per-account

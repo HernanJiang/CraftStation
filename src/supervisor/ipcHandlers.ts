@@ -29,9 +29,9 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     userPluginsDir: pluginRegistry.ensureUserPluginsDir(),
   });
   return defineSupervisorIpcHandlers({
-    confirmCrossagentRoutingOverride: (payload) =>
-      runtime.confirmCrossagentRoutingOverride(payload),
-    getCrossagentRouting: () => runtime.getCrossagentRoutingSnapshot(),
+    confirmOwnSubagentsRoutingOverride: (payload) =>
+      runtime.confirmOwnSubagentsRoutingOverride(payload),
+    getOwnSubagentsRouting: () => runtime.getOwnSubagentsRoutingSnapshot(),
     listWslDistros: () => registry.listWslDistros(),
     getAgentStatuses: (payload) => registry.getAgentStatuses(payload),
     refreshAgentStatuses: (payload) => registry.refreshAgentStatuses(payload),
@@ -50,6 +50,12 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
         payload.accountId
           ? { provider: payload.provider, accountId: payload.accountId }
           : { provider: payload.provider },
+      ),
+    verifyChannelModel: (payload) =>
+      runtime.verifyChannelModel(
+        payload.accountId
+          ? { provider: payload.provider, accountId: payload.accountId, model: payload.model }
+          : { provider: payload.provider, model: payload.model },
       ),
     listAccounts: (payload) => runtime.listAccounts(payload),
     addAccount: (payload) => runtime.addAccount(payload),
@@ -78,9 +84,13 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     cancelGrokProfileLogin: (payload) => runtime.cancelGrokProfileLogin(payload),
     pollGrokProfileLogin: (payload) => runtime.pollGrokProfileLogin(payload),
     refreshAccountQuota: (payload) => runtime.refreshAccountQuota(payload.accountId),
+    applyAntigravityHostLogin: (payload) => runtime.applyAntigravityHostLogin(payload.accountId),
     getNativeHarnessControlPlane: (payload) => runtime.getNativeHarnessControlPlane(payload),
     getCraftingModelInventory: (payload) => runtime.getCraftingModelInventory(payload),
     resolveCraftingCompatibility: (payload) => runtime.resolveCraftingCompatibility(payload),
+    getCompatibilityBridgeStatus: () => runtime.getCompatibilityBridgeStatus(),
+    startCompatibilityBridge: () => runtime.startCompatibilityBridge(),
+    stopCompatibilityBridge: () => runtime.stopCompatibilityBridge(),
     getAgentHookPluginStatuses: (payload) => hookPlugins.getStatuses(payload),
     installAgentHookPlugin: (payload) => hookPlugins.installPlugin(payload),
     uninstallAgentHookPlugin: (payload) => hookPlugins.uninstallPlugin(payload),
@@ -116,6 +126,8 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     resolveThreadServerRequest: (payload) => runtime.resolveThreadServerRequest(payload),
     reloadAgentMcpServers: (payload) => threads.reloadAgentMcpServers(payload),
     closeThread: (payload) => runtime.closeThread(payload),
+    switchThreadProvider: (payload) => runtime.switchThreadProvider(payload),
+    resolveNativeSessionPaths: (payload) => runtime.resolveNativeSessionPaths(payload),
     startShell: (payload) => threads.startShell(payload),
     extractContext: (payload) => generation.extractContext(payload),
     cancelExtractContext: ({ threadId }) => generation.cancelExtractContext(threadId),
@@ -173,6 +185,7 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
       return { ...result, message: payload.message };
     },
     gitInit: (payload) => git.init(payload.projectLocation),
+    gitDescribe: (payload) => git.describe(payload.projectLocation),
     gitAddRemote: (payload) => git.addRemote(payload.projectLocation, payload.remote, payload.url),
     generateCommitMessage: (payload) => generation.generateCommitMessage(payload),
     generateTitle: (payload) => generation.generateTitle(payload),

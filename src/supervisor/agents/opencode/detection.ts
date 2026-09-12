@@ -35,10 +35,11 @@ export const OPENCODE_MIN_VERSION = "1.14.19";
 const CANONICAL_EFFORT_ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 // Per-model default — preferred when the model exposes it, falling back to
-// the highest-precedence available variant. Mirrors how Claude defaults to
-// `high`; OpenCode defaults to `medium` because several Zen models (GPT-5.5,
-// Sonnet) make `medium` their lowest paid-effort tier.
-const OPENCODE_PREFERRED_DEFAULT_EFFORT = "medium";
+// the highest-precedence available variant. Product default is `high`
+// everywhere (matching Claude/Codex/Grok); OpenCode Zen models that only
+// offer `medium` as their lowest paid tier still resolve to `medium` there
+// because no higher tier exists.
+const OPENCODE_PREFERRED_DEFAULT_EFFORT = "high";
 
 export const opencodeDefaultCapabilities: AgentCapability = {
   models: [],
@@ -602,6 +603,11 @@ export function buildCapabilityPartialFromProbedModels(
     modelEfforts,
     ...defaultEffortFor(ordered),
     ...buildContextSizeCapabilities(modelTokens),
+    // Available != selected: opencode reports every provider it has ever been
+    // configured with, so new discoveries stay out of the picker until the
+    // user explicitly checks them in 管理模型 (an explicit saved list overrides
+    // this default, matching cursor's behavior).
+    defaultHiddenModels: modelIds,
   };
 }
 
@@ -657,5 +663,7 @@ export function buildCapabilityPartialFromSdkInventory(
     modelEfforts,
     ...defaultEffortFor(ordered),
     ...buildContextSizeCapabilities(modelTokens),
+    // Available != selected — see buildCapabilityPartialFromProbedModels.
+    defaultHiddenModels: models.map((model) => model.id),
   };
 }

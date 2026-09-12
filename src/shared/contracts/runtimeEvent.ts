@@ -29,6 +29,14 @@ export const canonicalItemTypeSchema = z.enum([
   "question_answer",
   "runtime_segment",
   "error",
+  /**
+   * Model/harness switch divider inside one logical thread. Emitted by the
+   * supervisor after a successful provider switch (or pool failover across
+   * providers); payload carries { fromProvider, fromModel, toProvider,
+   * toModel, switchedAt }. Rendered as a light inline boundary, persisted
+   * like any other item so reopening the thread keeps every switch node.
+   */
+  "model_switch",
 ]);
 export type CanonicalItemType = z.infer<typeof canonicalItemTypeSchema>;
 
@@ -82,6 +90,14 @@ export const canonicalContentBlockSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("image"),
+    mimeType: z.string(),
+    dataUrl: z.string(),
+    path: z.string().optional(),
+    name: z.string().optional(),
+    source: z.enum(["attachment", "mention"]).optional(),
+  }),
+  z.object({
+    kind: z.literal("audio"),
     mimeType: z.string(),
     dataUrl: z.string(),
     path: z.string().optional(),
@@ -324,6 +340,19 @@ export const runtimeSegmentItemPayloadSchema = z.object({
   bindingEpoch: z.number().int().positive(),
 });
 export type RuntimeSegmentItemPayload = z.infer<typeof runtimeSegmentItemPayloadSchema>;
+
+export const modelSwitchItemPayloadSchema = z.object({
+  phase: z.enum(["handover", "done", "failed"]).default("done"),
+  fromProvider: z.string().min(1),
+  fromModel: z.string().min(1),
+  toProvider: z.string().min(1),
+  toModel: z.string().min(1),
+  switchedAt: z.number().int().nonnegative(),
+  fromAccountId: z.string().min(1).optional(),
+  toAccountId: z.string().min(1).optional(),
+  error: z.string().optional(),
+});
+export type ModelSwitchItemPayload = z.infer<typeof modelSwitchItemPayloadSchema>;
 
 /**
  * Provider-agnostic record of a user's reply to a structured user-input request

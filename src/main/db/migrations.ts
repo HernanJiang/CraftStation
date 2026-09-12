@@ -533,6 +533,180 @@ export const DATABASE_MIGRATIONS = [
           ON thread_exchanges (link_id, sequence);
       `),
   },
+  {
+    version: 41,
+    name: "native thread bindings",
+    migrate: (sqlite) =>
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS native_thread_bindings (
+          address TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+          harness TEXT NOT NULL,
+          native_id TEXT NOT NULL,
+          workspace TEXT NOT NULL,
+          origin TEXT NOT NULL DEFAULT 'craftstation',
+          bound_at TEXT NOT NULL,
+          UNIQUE(harness, native_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_native_thread_bindings_thread
+          ON native_thread_bindings (thread_id);
+        CREATE INDEX IF NOT EXISTS idx_native_thread_bindings_workspace
+          ON native_thread_bindings (workspace);
+      `),
+  },
+  {
+    version: 42,
+    name: "threads.pinned_at and threads.archived_at",
+    migrate: (sqlite) => {
+      addColumnIfMissing(sqlite, "threads", "pinned_at", "INTEGER");
+      addColumnIfMissing(sqlite, "threads", "archived_at", "TEXT");
+      const columns = columnNames(sqlite, "threads");
+      // Migrate legacy pins: starred=true without pinned_at → backfill from
+      // updated_at so no user pin is lost; global ordering then uses pinned_at.
+      // Guarded: minimal legacy schemas may predate the starred column.
+      if (columns.has("starred")) {
+        sqlite.exec(`
+        UPDATE threads SET pinned_at = CAST(strftime('%s', updated_at) AS INTEGER) * 1000
+        WHERE starred = 1 AND pinned_at IS NULL AND updated_at IS NOT NULL
+      `);
+      }
+      // Migrate legacy archives: archived without archived_at → archived_at
+      // from updated_at (one-time fallback; future archives stamp directly).
+      if (columns.has("archived")) {
+        sqlite.exec(`
+        UPDATE threads SET archived_at = updated_at
+        WHERE archived = 1 AND archived_at IS NULL AND updated_at IS NOT NULL
+      `);
+      }
+    },
+  },
+  {
+    version: 43,
+    name: "thread_native_sessions switch history",
+    migrate: (sqlite) => {
+      // One row per (logical thread × native session): every model/harness
+      // switch appends, never replaces — so archiving/copying a logical
+      // thread can enumerate ALL native sessions it ever used. Native
+      // session ids/paths resolve live at use time; only identity is stored.
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS thread_native_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+          harness TEXT NOT NULL,
+          model TEXT NOT NULL DEFAULT '',
+          native_session_id TEXT,
+          pool_account_id TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_thread_native_sessions_thread
+          ON thread_native_sessions (thread_id);
+      `);
+    },
+  },
+  {
+    version: 44,
+    name: "threads.goal durable slash-goal",
+    migrate: (sqlite) => addColumnIfMissing(sqlite, "threads", "goal", "TEXT"),
+  },
+  {
+    version: 45,
+    name: "scheduled tasks unified schedule capability",
+    migrate: (sqlite) => {
+      // CREATE first so minimal test baselines (or very old DBs) that lack the
+      // table still converge; existing tables keep their rows and only gain
+      // the new nullable columns below.
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS scheduled_tasks (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          agent_kind TEXT NOT NULL,
+          config TEXT NOT NULL,
+          recurrence TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          project_id TEXT,
+          timezone TEXT,
+          recipe_id TEXT,
+          target_thread_id TEXT,
+          next_run_at TEXT,
+          last_run_at TEXT,
+          last_completed_at TEXT,
+          last_status TEXT NOT NULL DEFAULT 'never',
+          last_result TEXT,
+          last_error TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next_run
+          ON scheduled_tasks (enabled, next_run_at);
+      `);
+      addColumnIfMissing(sqlite, "scheduled_tasks", "timezone", "TEXT");
+      addColumnIfMissing(sqlite, "scheduled_tasks", "recipe_id", "TEXT");
+      addColumnIfMissing(sqlite, "scheduled_tasks", "target_thread_id", "TEXT");
+    },
+  },
+  {
+    version: 46,
+    name: "scheduled tasks host capability provenance and occurrence claim",
+    migrate: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS scheduled_tasks (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          agent_kind TEXT NOT NULL,
+          config TEXT NOT NULL,
+          recurrence TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          project_id TEXT,
+          timezone TEXT,
+          recipe_id TEXT,
+          target_thread_id TEXT,
+          source_thread_id TEXT,
+          harness_item_id TEXT,
+          next_run_at TEXT,
+          last_run_at TEXT,
+          last_completed_at TEXT,
+          last_status TEXT NOT NULL DEFAULT 'never',
+          last_result TEXT,
+          last_error TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS scheduled_task_runs (
+          id TEXT PRIMARY KEY,
+          schedule_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+          thread_id TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          completed_at TEXT,
+          status TEXT NOT NULL,
+          summary TEXT,
+          error TEXT,
+          occurrence_at TEXT,
+          triggered_by TEXT NOT NULL DEFAULT 'scheduled',
+          queued_at TEXT,
+          execution_snapshot TEXT
+        );
+        CREATE TABLE IF NOT EXISTS scheduled_occurrences (
+          schedule_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+          occurrence_at TEXT NOT NULL,
+          claimed_at TEXT NOT NULL,
+          PRIMARY KEY (schedule_id, occurrence_at)
+        );
+      `);
+      addColumnIfMissing(sqlite, "scheduled_tasks", "source_thread_id", "TEXT");
+      addColumnIfMissing(sqlite, "scheduled_tasks", "harness_item_id", "TEXT");
+      addColumnIfMissing(sqlite, "scheduled_task_runs", "occurrence_at", "TEXT");
+      addColumnIfMissing(sqlite, "scheduled_task_runs", "triggered_by", "TEXT NOT NULL DEFAULT 'scheduled'");
+      addColumnIfMissing(sqlite, "scheduled_task_runs", "queued_at", "TEXT");
+      addColumnIfMissing(sqlite, "scheduled_task_runs", "execution_snapshot", "TEXT");
+      sqlite.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_task_runs_occurrence
+          ON scheduled_task_runs (schedule_id, occurrence_at)
+          WHERE triggered_by = 'scheduled' AND occurrence_at IS NOT NULL;
+      `);
+    },
+  },
 ] as const satisfies readonly DatabaseMigration[];
 
 export const LATEST_SCHEMA_VERSION = DATABASE_MIGRATIONS[DATABASE_MIGRATIONS.length - 1]!.version;
@@ -596,6 +770,8 @@ const SAFE_COLUMN_REPAIRS = [
   ["projects", "disabled", "INTEGER NOT NULL DEFAULT 0"],
   ["threads", "done", "INTEGER NOT NULL DEFAULT 0"],
   ["threads", "done_at", "TEXT"],
+  ["threads", "archived_at", "TEXT"],
+  ["threads", "pinned_at", "INTEGER"],
   ["threads", "group_id", "TEXT"],
   ["threads", "group_name", "TEXT"],
   ["threads", "starred", "INTEGER NOT NULL DEFAULT 0"],
@@ -608,12 +784,21 @@ const SAFE_COLUMN_REPAIRS = [
   ["threads", "last_turn_ended_at", "TEXT"],
   ["threads", "composition_provenance", "TEXT"],
   ["threads", "account_binding", "TEXT"],
+  ["threads", "goal", "TEXT"],
   ["usage_events", "project_id", "TEXT"],
   ["usage_events", "session_id", "TEXT"],
   ["usage_events", "tool", "TEXT"],
   ["usage_events", "account_id", "TEXT"],
   ["thread_runtime_items", "parent_item_id", "TEXT"],
   ["scheduled_tasks", "project_id", "TEXT"],
+  ["scheduled_tasks", "timezone", "TEXT"],
+  ["scheduled_tasks", "recipe_id", "TEXT"],
+  ["scheduled_tasks", "target_thread_id", "TEXT"],
+  ["scheduled_tasks", "source_thread_id", "TEXT"],
+  ["scheduled_tasks", "harness_item_id", "TEXT"],
+  ["scheduled_task_runs", "occurrence_at", "TEXT"],
+  ["scheduled_task_runs", "queued_at", "TEXT"],
+  ["scheduled_task_runs", "execution_snapshot", "TEXT"],
   ["pr_watches", "blocked_reason", "TEXT"],
 ] as const;
 
@@ -665,6 +850,7 @@ const REQUIRED_COLUMNS = {
     "session_ref",
     "composition_provenance",
     "account_binding",
+    "goal",
     "terminal_prompt",
     "worktree_path",
     "worktree_branch",
@@ -673,9 +859,11 @@ const REQUIRED_COLUMNS = {
     "group_name",
     "parent_thread_id",
     "archived",
+    "archived_at",
     "done",
     "done_at",
     "starred",
+    "pinned_at",
     "presentation_mode",
     "sort_order",
     "created_at",
@@ -718,6 +906,11 @@ const REQUIRED_COLUMNS = {
     "recurrence",
     "enabled",
     "project_id",
+    "timezone",
+    "recipe_id",
+    "target_thread_id",
+    "source_thread_id",
+    "harness_item_id",
     "next_run_at",
     "last_run_at",
     "last_completed_at",

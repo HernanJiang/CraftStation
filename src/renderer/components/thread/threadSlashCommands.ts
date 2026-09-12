@@ -42,6 +42,20 @@ function activeGuiSlashCommands(
 
 const EMPTY_SLASH_COMMANDS: AgentSlashCommand[] = [];
 
+const COMPACT_COMMAND_IDS = new Set(["compact", "compaction"]);
+
+function withProviderCompactCommands(
+  gui: readonly AgentSlashCommand[],
+  provider: readonly AgentSlashCommand[] | undefined,
+): AgentSlashCommand[] {
+  const have = new Set(gui.map((command) => command.id.toLowerCase()));
+  const extra = (provider ?? []).filter(
+    (command) =>
+      COMPACT_COMMAND_IDS.has(command.id.toLowerCase()) && !have.has(command.id.toLowerCase()),
+  );
+  return extra.length > 0 ? [...gui, ...extra] : [...gui];
+}
+
 function isSkillCommand(command: AgentSlashCommand): boolean {
   return command.section === "skills";
 }
@@ -229,11 +243,12 @@ export function resolveAvailableSlashCommands(
   if (context) {
     const registration = activeGuiSlashCommands(context);
     if (registration) {
+      const gui = registration.buildCommands({
+        hasEffort: context.hasEffort ?? false,
+        supportsFast: context.supportsFast ?? false,
+      });
       return [
-        ...registration.buildCommands({
-          hasEffort: context.hasEffort ?? false,
-          supportsFast: context.supportsFast ?? false,
-        }),
+        ...withProviderCompactCommands(gui, threadCommands ?? capabilityCommands),
         ...skills,
       ];
     }

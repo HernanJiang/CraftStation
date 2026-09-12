@@ -21,6 +21,7 @@ import {
   dbGetProjectNotes,
   dbGetProjects,
   dbGetThread,
+  dbGetThreadRuntimeItems,
   dbGetThreads,
   dbInsertScheduleRun,
   dbInterruptScheduleRuns,
@@ -74,7 +75,7 @@ import {
   upsertCrossagentRoutingOverride,
 } from "@/shared/crossagentRanking";
 import { getAppName } from "@/shared/appName";
-import { resolveCraftStationChannel } from "@/shared/channel";
+import { appIdFor, resolveCraftStationChannel } from "@/shared/channel";
 import {
   IPC_EVENT_CHANNELS,
   IPC_WINDOW_CHANNELS,
@@ -94,15 +95,20 @@ import {
   classifyRendererProcessGone,
   type RendererProcessGoneIntent,
 } from "./diagnostics/processGone";
-import { configureSecretStorageKey } from "@/shared/secretStorage";
-import { readOrCreateSafeStorageSecretKey } from "./secretStorageKey";
+import {
+  configureSecretStorageFallbackKeys,
+  configureSecretStorageKey,
+} from "@/shared/secretStorage";
+import { readSecretStorageKeychain } from "./secretStorageKey";
 import { createDesktopRemoteAccessController, type DesktopRemoteAccessController } from "./remote";
 import { readOrCreateRemoteAccessIdentity } from "./remote/identity";
 import { createGitStateExecutor, GitStateService } from "./gitState";
 import { SshConnectionManager } from "./ssh/SshConnectionManager";
 import {
+  buildScheduleThreadContextText,
   createDeviceScheduleService,
   ensureHomeProjectRow,
+  extractScheduleRunSummary,
   ScheduleRunCoordinator,
 } from "./schedules";
 import {
@@ -110,6 +116,7 @@ import {
   buildSharedAppControlsIngressDeps,
   createAppControlsSupervisorCaller,
 } from "./app-controls";
+import { CrossagentsMcpIngress } from "./crossagentsMcp";
 import { refreshMacDockIcon } from "./macDockIcon";
 import { persistSupervisorEvent } from "./remote/server/runtimePersistence";
 import {
@@ -121,12 +128,14 @@ import { shouldUseMockKeychain } from "./mockKeychain";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const channel = resolveCraftStationChannel();
-// Unpackaged Electron otherwise groups the dev window under electron.exe and
-// Windows may keep showing Electron's stock taskbar glyph even when the
-// BrowserWindow has a branded icon. Give the CraftStation dev shell its own
-// identity; the packaged app keeps its installer-managed AppUserModelId.
-if (isDev && process.platform === "win32") {
-  app.setAppUserModelId("com.craftstation.dev.v0.2.16");
+// Unpackaged Electron (dev server + `.cmd` launchers that run
+// `electron.exe <root>`) otherwise groups the window under electron.exe and
+// Windows keeps showing Electron's stock taskbar glyph even when the
+// BrowserWindow has a branded icon. Give every unpackaged Windows window its
+// own CraftStation identity; the packaged app keeps its installer-managed
+// AppUserModelId.
+if (process.platform === "win32" && (isDev || !app.isPackaged)) {
+  app.setAppUserModelId(isDev ? "com.craftstation.app.dev" : appIdFor(channel));
 }
 const baseDirOverride = process.env.CRAFTSTATION_BASE_DIR;
 
@@ -207,6 +216,7 @@ let browserPanelManager: BrowserPanelManager | null = null;
 let browserMcpIngress: BrowserMcpIngress | null = null;
 let computerUseMcpIngress: ComputerUseMcpIngress | null = null;
 let appControlsMcpIngress: AppControlsMcpIngress | null = null;
+let crossagentsMcpIngress: CrossagentsMcpIngress | null = null;
 let computerUseDesktopOverlay: ComputerUseDesktopOverlay | null = null;
 let chromeBridgeServer: ChromeBridgeServer | null = null;
 let chromeMcpIngress: ChromeMcpIngress | null = null;
@@ -313,15 +323,15 @@ function handleSharedSettingsChanged(settings: SharedSettings): void {
   syncStartupSettings(settings);
 }
 
-function recordCrossagentSelectionPreference(
-  event: Extract<SupervisorEvent, { type: "crossagent-selection-used" }>,
+function recordOwnSubagentsSelectionPreference(
+  event: Extract<SupervisorEvent, { type: "ownsubagents-selection-used" }>,
 ): void {
   const settingsPath = requireCraftStationPaths().settingsPath;
   const current = readSharedSettingsFile(settingsPath);
   const next = {
     ...current,
-    crossagentSelectionUsage: incrementCrossagentSelectionUsage(
-      current.crossagentSelectionUsage,
+    ownSubagentSelectionUsage: incrementCrossagentSelectionUsage(
+      current.ownSubagentSelectionUsage,
       event.selections,
     ),
   };
@@ -330,17 +340,20 @@ function recordCrossagentSelectionPreference(
   mainWindow?.webContents.send(IPC_EVENT_CHANNELS.sharedSettingsChanged, next);
 }
 
-function updateCrossagentRoutingOverride(
-  event: Extract<SupervisorEvent, { type: "crossagent-routing-override-changed" }>,
+function updateOwnSubagentsRoutingOverride(
+  event: Extract<SupervisorEvent, { type: "ownsubagents-routing-override-changed" }>,
 ): void {
   const settingsPath = requireCraftStationPaths().settingsPath;
   const current = readSharedSettingsFile(settingsPath);
   const next = {
     ...current,
-    crossagentRoutingOverrides:
+    ownSubagentRoutingOverrides:
       event.change.action === "set"
-        ? upsertCrossagentRoutingOverride(current.crossagentRoutingOverrides, event.change.override)
-        : removeCrossagentRoutingOverride(current.crossagentRoutingOverrides, event.change.tags),
+        ? upsertCrossagentRoutingOverride(
+            current.ownSubagentRoutingOverrides,
+            event.change.override,
+          )
+        : removeCrossagentRoutingOverride(current.ownSubagentRoutingOverrides, event.change.tags),
   };
   writeSharedSettingsFile(settingsPath, next);
   handleSharedSettingsChanged(next);
@@ -725,14 +738,16 @@ if (!hasSingleInstanceLock) {
       }
 
       initDatabase(paths.dbPath);
-      const secretStorageKey = readOrCreateSafeStorageSecretKey(
+      const secretStorageKeychain = readSecretStorageKeychain(
         paths.baseDir,
         process.platform,
         app.getPath("userData"),
       );
+      const secretStorageKey = secretStorageKeychain.current;
       // Configure the same key in main so it can seal captured secrets (e.g. usage
       // login cookies); the supervisor configures it from the env var it receives.
       configureSecretStorageKey(secretStorageKey);
+      configureSecretStorageFallbackKeys(secretStorageKeychain.fallbacks);
 
       const supervisorPath = join(__dirname, "supervisor.cjs");
       const wslHelpersDir = app.isPackaged
@@ -771,6 +786,7 @@ if (!hasSingleInstanceLock) {
         bundledSkillsDir,
         bundledPluginsDir,
         secretStorageKey,
+        secretStorageKeyFallbacks: secretStorageKeychain.fallbacks,
         resolveExtraEnv: () => {
           const env: Record<string, string> = {};
           const browserInfo = browserMcpIngress?.getInfo();
@@ -793,6 +809,11 @@ if (!hasSingleInstanceLock) {
             env.CRAFTSTATION_APP_CONTROLS_MCP_URL = appControlsInfo.url;
             env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = appControlsInfo.token;
           }
+          const crossagentsInfo = crossagentsMcpIngress?.getInfo();
+          if (crossagentsInfo) {
+            env.CRAFTSTATION_CROSSAGENTS_MCP_URL = crossagentsInfo.url;
+            env.CRAFTSTATION_CROSSAGENTS_MCP_TOKEN = crossagentsInfo.token;
+          }
           return env;
         },
         assignPid: async (pid) => {
@@ -802,31 +823,33 @@ if (!hasSingleInstanceLock) {
           captureMainException(error, tags);
         },
         onEvent: (event) => {
-          if (event.type === "crossagent-selection-used") {
+          if (event.type === "ownsubagents-selection-used") {
             try {
-              recordCrossagentSelectionPreference(event);
+              recordOwnSubagentsSelectionPreference(event);
             } catch (error) {
-              captureMainException(error, { "craftstation.feature_area": "crossagents-routing" });
+              captureMainException(error, { "craftstation.feature_area": "own-subagents-routing" });
             }
             return;
           }
-          if (event.type === "crossagent-routing-override-changed") {
+          if (event.type === "ownsubagents-routing-override-changed") {
             let errorMessage: string | undefined;
             try {
-              updateCrossagentRoutingOverride(event);
+              updateOwnSubagentsRoutingOverride(event);
             } catch (error) {
               errorMessage =
                 error instanceof Error ? error.message : "Unable to save the routing preference";
-              captureMainException(error, { "craftstation.feature_area": "crossagents-routing" });
+              captureMainException(error, { "craftstation.feature_area": "own-subagents-routing" });
             }
             void supervisorClient
-              .call("confirmCrossagentRoutingOverride", {
+              .call("confirmOwnSubagentsRoutingOverride", {
                 requestId: event.requestId,
                 ok: errorMessage === undefined,
                 ...(errorMessage ? { error: errorMessage } : {}),
               })
               .catch((error) => {
-                captureMainException(error, { "craftstation.feature_area": "crossagents-routing" });
+                captureMainException(error, {
+                  "craftstation.feature_area": "own-subagents-routing",
+                });
               });
             return;
           }
@@ -845,8 +868,26 @@ if (!hasSingleInstanceLock) {
           updatePowerSaveBlocker();
         },
       });
+      let schedulesChangedTimer: ReturnType<typeof setTimeout> | null = null;
+      const broadcastSchedulesChanged = (): void => {
+        if (schedulesChangedTimer) return;
+        schedulesChangedTimer = setTimeout(() => {
+          schedulesChangedTimer = null;
+          mainWindow?.webContents.send(IPC_EVENT_CHANNELS.schedulesChanged);
+          remoteAccessController?.getServer()?.publishSupervisorEvent({
+            type: "remote-schedules-changed",
+          });
+        }, 50);
+      };
       const scheduleCoordinator = new ScheduleRunCoordinator({
         startThread: (payload) => supervisorClient.call("startThread", payload),
+        sendFollowUp: (input) =>
+          supervisorClient.call("sendThreadInput", {
+            threadId: input.threadId,
+            prompt: input.prompt,
+            config: input.config,
+          }),
+        craftAgent: (payload) => supervisorClient.call("craftAgent", payload),
         getAgentStatuses: (wslDistros) => supervisorClient.call("getAgentStatuses", { wslDistros }),
         sendThreadCommand: (command) => {
           if (!mainWindow) return false;
@@ -861,12 +902,28 @@ if (!hasSingleInstanceLock) {
         threadExists: (threadId) => dbGetThread(threadId) != null,
         insertRun: dbInsertScheduleRun,
         updateRun: dbUpdateScheduleRun,
+        getThread: dbGetThread,
+        getThreadContextText: (threadId) => {
+          try {
+            return buildScheduleThreadContextText(dbGetThreadRuntimeItems(threadId));
+          } catch {
+            return null;
+          }
+        },
+        getThreadTerminalResult: (threadId) => {
+          try {
+            return extractScheduleRunSummary(dbGetThreadRuntimeItems(threadId));
+          } catch {
+            return null;
+          }
+        },
       });
       scheduleRunCoordinator = scheduleCoordinator;
       const scheduleService = createDeviceScheduleService({
-        runTask: (task) => scheduleCoordinator.runScheduleAsThread(task),
+        runTask: (task, invocation) => scheduleCoordinator.runScheduleAsThread(task, invocation),
         onStartupInterrupted: (scheduleId) =>
           dbInterruptScheduleRuns(scheduleId, new Date().toISOString()),
+        onChanged: broadcastSchedulesChanged,
       });
       const emitRemoteThreadCommand = (command: RemoteThreadCommand): boolean => {
         if (!mainWindow) return false;
@@ -1061,16 +1118,20 @@ if (!hasSingleInstanceLock) {
         console.error("[craftstation] chrome MCP ingress failed to start:", err);
         return null;
       });
-      const appControlsMcpReady = appControlsMcpIngress
-        .start()
-        .then(async (info) => {
-          await appControlsMcpIngress?.recoverThreadCollaboration();
-          return info;
-        })
-        .catch((err) => {
-          console.error("[craftstation] app controls MCP ingress failed to start:", err);
-          return null;
-        });
+      const appControlsMcpReady = appControlsMcpIngress.start().catch((err) => {
+        console.error("[craftstation] app controls MCP ingress failed to start:", err);
+        return null;
+      });
+      // Independent persistent peer-messaging ingress over the same durable
+      // ledger. It shares the message bus with app-controls but owns its own
+      // endpoint, tool registry, and lifecycle.
+      crossagentsMcpIngress = new CrossagentsMcpIngress({
+        bus: appControlsMcpIngress.getInterHarnessMessageBus(),
+      });
+      const crossagentsMcpReady = crossagentsMcpIngress.start().catch((err) => {
+        console.error("[craftstation] crossagents MCP ingress failed to start:", err);
+        return null;
+      });
       chromeBridgeServer.start().catch((err) => {
         console.error("[craftstation] chrome bridge server failed to start:", err);
       });
@@ -1097,6 +1158,7 @@ if (!hasSingleInstanceLock) {
         });
         computerUseMcpIngress = new ComputerUseMcpIngress({
           onActivity: (event) => computerUseDesktopOverlay?.setActivity(event),
+          onPointer: (motion) => computerUseDesktopOverlay?.movePointer(motion),
         });
         computerUseMcpInfoReady = computerUseMcpIngress.start().catch((err) => {
           console.error("[craftstation] computer use MCP ingress failed to start:", err);
@@ -1269,8 +1331,20 @@ if (!hasSingleInstanceLock) {
         chromeMcpReady,
         computerUseMcpInfoReady,
         appControlsMcpReady,
+        crossagentsMcpReady,
       ]);
       supervisorClient.start(paths.baseDir);
+      // Durable thread-collaboration recovery re-delivers queued exchanges
+      // through the supervisor (snapshots / sendThreadInput), so it can only
+      // run after the supervisor starts — never inside the MCP boot gate
+      // above, where a single queued exchange deadlocks boot (the gate awaits
+      // recovery while recovery awaits the supervisor). Mirrors the headless
+      // host ordering in createHeadlessRemoteHost.
+      void appControlsMcpIngress
+        ?.recoverThreadCollaboration()
+        .catch((err) =>
+          console.error("[craftstation] thread collaboration recovery failed:", err),
+        );
       scheduleService.start();
       prWatchService.start();
       gitStateService.start();
@@ -1334,6 +1408,8 @@ if (!hasSingleInstanceLock) {
         computerUseMcpIngress = null;
         appControlsMcpIngress?.dispose();
         appControlsMcpIngress = null;
+        crossagentsMcpIngress?.dispose();
+        crossagentsMcpIngress = null;
         computerUseDesktopOverlay?.dispose();
         computerUseDesktopOverlay = null;
         chromeMcpIngress?.dispose();

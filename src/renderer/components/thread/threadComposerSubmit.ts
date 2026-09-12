@@ -10,6 +10,12 @@ import type {
 } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
 import {
+  buildGoalContextText,
+  isCodexNativeGoalAgent,
+  parseGoalSlashCommand,
+} from "@/shared/threadGoal";
+import { registerNativeGoal, setThreadGoalPrompt } from "@/renderer/actions/threadActions";
+import {
   changeThreadConfig,
   resolveThreadServerRequest,
   setThreadPendingSteer,
@@ -131,6 +137,28 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
     clearComposerText();
     return;
   }
+  // `/goal + Prompt` binds (or replaces) the durable thread goal and never
+  // sends anything — the goal rides subsequent turns natively or via the
+  // labeled fallback block. No user bubble is painted for the command itself.
+  const goalCommand = parseGoalSlashCommand(flat);
+  if (goalCommand.kind !== "not-goal") {
+    if (goalCommand.kind === "empty") {
+      toast.danger("用法：/goal + Prompt（Prompt 不能为空）");
+    } else {
+      const result = setThreadGoalPrompt(thread.id, goalCommand.prompt);
+      if (!result.ok) {
+        toast.danger(result.error);
+      } else if (isCodexNativeGoalAgent(thread.agentKind)) {
+        // Best-effort native registration; a missing session (idle thread)
+        // simply defers to the per-submit re-registration below.
+        void registerNativeGoal(thread.id, goalCommand.prompt);
+      }
+    }
+    mentionRef.current?.clear();
+    mentionRef.current?.focus();
+    clearComposerText();
+    return;
+  }
   const submittedInputSegments = segments;
   const submittedAttachments = attachments.attachments;
   const clearSubmittedComposer = () => {
@@ -193,8 +221,26 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
   // user_message item lands when the turn drains and starts.
   const submit =
     ctx.onSubmitInput ??
-    ((outgoingPrompt: string, outgoingSegments?: PromptSegment[]) =>
-      submitThreadInput(thread.id, outgoingPrompt, outgoingSegments));
+    (async (outgoingPrompt: string, outgoingSegments?: PromptSegment[]) => {
+      // Re-assert a durable goal on every submit: resume/switch rebuild
+      // sessions without server-side goal state. Codex registers natively;
+      // everyone else carries the labeled fallback block in the SENT prompt
+      // only (the painted user message stays the raw prompt).
+      const liveGoal = useAppStore.getState().threads.find((t) => t.id === thread.id)?.goal;
+      const useNative = isCodexNativeGoalAgent(thread.agentKind);
+      const activeGoal = liveGoal && !liveGoal.paused ? liveGoal : undefined;
+      if (activeGoal && useNative) {
+        await registerNativeGoal(thread.id, activeGoal.prompt);
+      }
+      const goalContext =
+        activeGoal && !useNative ? buildGoalContextText(activeGoal.prompt) : undefined;
+      await submitThreadInput(
+        thread.id,
+        outgoingPrompt,
+        outgoingSegments,
+        goalContext ? { goalContext } : undefined,
+      );
+    });
   const runSubmission = async () => {
     if (!ctx.usesPendingSteerPath) {
       await submit(flat, allSegments.length > 0 ? allSegments : undefined);

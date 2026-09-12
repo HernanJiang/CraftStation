@@ -51,7 +51,7 @@ describe("UnifiedRightPanel", () => {
     expect(screen.getByText("Review")).toBeTruthy();
     expect(screen.getByText("Example")).toBeTruthy();
     expect(screen.getByText("Docs")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Hide panel" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hide side panel" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Docs" }));
     expect(onActivateBrowserTab).toHaveBeenCalledWith("browser-2");
@@ -110,7 +110,13 @@ describe("UnifiedRightPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add tool" }));
     expect(onAddTool).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Maximize side panel" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hide panel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide side panel" })).toBeInTheDocument();
+    // Header buttons share the main header toggle's footprint and icon size.
+    for (const name of ["Maximize side panel", "Hide side panel"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveClass("size-7");
+      expect(button.querySelector("svg")).toHaveClass("size-4");
+    }
   });
 
   it("keeps add-tool interactive above an opened browser surface", () => {

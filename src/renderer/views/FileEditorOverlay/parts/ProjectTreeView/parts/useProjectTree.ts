@@ -302,6 +302,14 @@ export function useProjectTree(props: {
         });
         return;
       }
+      if (action === "open-system") {
+        if (remoteServerId || entry.type !== "file") return;
+        await readBridge().openProjectEntryWithSystem({
+          projectLocation: props.rootContext.projectLocation,
+          path: entry.path,
+        });
+        return;
+      }
       if (action === "copy-path") {
         await handleCopyAbsolutePath(entry.path);
         return;

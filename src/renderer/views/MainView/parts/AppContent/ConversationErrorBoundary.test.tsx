@@ -19,6 +19,9 @@ describe("ConversationErrorBoundary", () => {
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Conversation view failed to render.")).toBeInTheDocument();
+    // The fallback must surface the underlying error instead of a dead end.
+    expect(screen.getByText("conversation render failed")).toBeInTheDocument();
+    expect(screen.getByText("thread:one")).toBeInTheDocument();
 
     rerender(
       <ConversationErrorBoundary resetKey="thread:one">
@@ -31,7 +34,8 @@ describe("ConversationErrorBoundary", () => {
     consoleError.mockRestore();
   });
 
-  it("resets automatically when the active conversation changes", () => {
+    it("resets automatically when the active conversation changes", () => {
+
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { rerender } = render(
       <ConversationErrorBoundary resetKey="thread:one">
@@ -46,6 +50,39 @@ describe("ConversationErrorBoundary", () => {
     );
 
     expect(screen.getByText("conversation-content")).toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
+  it("surfaces non-Error render failures as text", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    function ThrowString(): never {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw "plain render failure";
+    }
+    render(
+      <ConversationErrorBoundary resetKey="thread:one">
+        <ThrowString />
+      </ConversationErrorBoundary>,
+    );
+
+    expect(screen.getByText("plain render failure")).toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
+  it("truncates very long render error messages", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    function ThrowLong(): never {
+      throw new Error("x".repeat(500));
+    }
+    render(
+      <ConversationErrorBoundary resetKey="thread:one">
+        <ThrowLong />
+      </ConversationErrorBoundary>,
+    );
+
+    const message = screen.getByTestId("conversation-error-message");
+    expect(message.textContent).toMatch(/…$/);
+    expect(message.textContent!.length).toBeLessThanOrEqual(301);
     consoleError.mockRestore();
   });
 });

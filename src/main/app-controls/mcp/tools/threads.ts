@@ -11,6 +11,7 @@ import type {
 } from "@/shared/contracts";
 import { agentKindSchema } from "@/shared/contracts";
 import { buildWorktreeLocation, normalizeWorktreePathForComparison } from "@/shared/worktree";
+import { resolveThirdPartyAccountForLaunch } from "@/shared/thirdPartyRouting";
 import { dbGetThreadRuntimeItemsPage } from "../../../db";
 import {
   assertNotSelf,
@@ -178,7 +179,7 @@ export const threadTools: ToolDomain = {
     {
       name: "create_thread",
       description:
-        "Create and launch a new app thread in a project (visible in the user's sidebar). The calling thread's agent and model are used unless overridden. Optionally run it in a fresh git worktree.",
+        "Create and launch a new app thread in a project (visible in the user's sidebar). The calling thread's agent and model are used unless overridden — third-party (custom-model) callers also propagate their validated account binding. Optionally run it in a fresh git worktree.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -490,6 +491,18 @@ export const threadTools: ToolDomain = {
         );
       }
       const effort = parsed.effort ?? sourceThread?.config.effort;
+      // Third-party (custom-model) calling threads must propagate their
+      // validated account binding — otherwise the child launches the native
+      // CLI with a custom model id it cannot resolve (e.g. a Muse Spark runs
+      // on openai-compatible, not native commandcode). Main-side has no
+      // account roster, so resolve against the persisted custom catalog with
+      // trustAccountChannel (the supervisor re-validates the record).
+      const thirdPartyAccountId = resolveThirdPartyAccountForLaunch({
+        agentKind,
+        model,
+        customModels: ctx.settings.read().customModels ?? [],
+        trustAccountChannel: true,
+      });
       return ctx.createThread({
         projectId: parsed.projectId,
         prompt: parsed.prompt,
@@ -498,6 +511,7 @@ export const threadTools: ToolDomain = {
         ...(effort ? { effort } : {}),
         ...(sourceThread?.config.fast !== undefined ? { fast: sourceThread.config.fast } : {}),
         ...(parsed.title ? { title: parsed.title } : {}),
+        ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
         ...(parsed.worktree?.enabled
           ? { worktree: parsed.worktree.branch ? { branch: parsed.worktree.branch } : {} }
           : {}),

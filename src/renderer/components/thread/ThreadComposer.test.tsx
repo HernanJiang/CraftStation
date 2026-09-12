@@ -582,6 +582,118 @@ describe("ThreadComposer", () => {
     expect(onPermissionChange).toHaveBeenCalledWith(true);
   });
 
+  it("selects the harness bypass policy directly for full access", async () => {
+    const onModeChange = vi.fn<(selected: boolean) => void>();
+    const onPermissionChange = vi.fn<(value: string) => void>();
+
+    render(
+      <ThreadComposer
+        controlsDisplay="menu"
+        controls={[
+          {
+            kind: "toggle",
+            label: "Work",
+            iconKind: "mode",
+            isSelected: false,
+            onChange: onModeChange,
+          },
+          {
+            iconKind: "permission",
+            options: [
+              { id: "default", label: "Default" },
+              { id: "yolo", label: "Bypass Permissions" },
+            ],
+            value: "default",
+            fullAccessPolicyId: "yolo",
+            onChange: onPermissionChange,
+          },
+        ]}
+        placeholder="Send a message..."
+        prompt=""
+        submitDisabled
+        submitLabel="Send message"
+        onPromptChange={vi.fn<(value: string) => void>()}
+        onSubmit={vi.fn<() => void>()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /完全访问权限/ }));
+
+    expect(onModeChange).toHaveBeenCalledWith(false);
+    expect(onPermissionChange).toHaveBeenCalledWith("yolo");
+  });
+
+  it("maps request-approval to the first non-bypass policy", async () => {
+    const onPermissionChange = vi.fn<(value: string) => void>();
+
+    render(
+      <ThreadComposer
+        controlsDisplay="menu"
+        controls={[
+          {
+            kind: "toggle",
+            label: "Work",
+            iconKind: "mode",
+            isSelected: false,
+            onChange: () => undefined,
+          },
+          {
+            iconKind: "permission",
+            options: [
+              { id: "default", label: "Default" },
+              { id: "yolo", label: "Bypass Permissions" },
+            ],
+            value: "yolo",
+            fullAccessPolicyId: "yolo",
+            onChange: onPermissionChange,
+          },
+        ]}
+        placeholder="Send a message..."
+        prompt=""
+        submitDisabled
+        submitLabel="Send message"
+        onPromptChange={vi.fn<(value: string) => void>()}
+        onSubmit={vi.fn<() => void>()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /请求批准/ }));
+
+    expect(onPermissionChange).toHaveBeenCalledWith("default");
+  });
+
+  it("hides plan mode when the harness has no mode control", async () => {
+    render(
+      <ThreadComposer
+        controlsDisplay="menu"
+        controls={[
+          {
+            iconKind: "permission",
+            options: [
+              { id: "default", label: "Default" },
+              { id: "yolo", label: "Bypass Permissions" },
+            ],
+            value: "default",
+            fullAccessPolicyId: "yolo",
+            onChange: () => undefined,
+          },
+        ]}
+        placeholder="Send a message..."
+        prompt=""
+        submitDisabled
+        submitLabel="Send message"
+        onPromptChange={vi.fn<(value: string) => void>()}
+        onSubmit={vi.fn<() => void>()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
+    expect(await screen.findByRole("menuitem", { name: /请求批准/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /计划模式/ })).not.toBeInTheDocument();
+  });
+
   it("shows an attachment drop target for supported files", () => {
     const { container } = renderComposerWithAttach(vi.fn());
     const shell = container.querySelector<HTMLElement>(".craftstation-composer-shell");

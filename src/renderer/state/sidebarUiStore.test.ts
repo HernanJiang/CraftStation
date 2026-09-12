@@ -11,6 +11,8 @@ beforeEach(() => {
     threadListLimits: {},
     flatListProjectFilter: null,
     footerCollapsed: false,
+    pinnedProjectIds: [],
+    pinnedProjectAt: {},
     editingThreadId: null,
   });
 });
@@ -124,5 +126,43 @@ describe("setFlatListProjectFilter", () => {
     const before = useSidebarUiStore.getState().flatListProjectFilter;
     useSidebarUiStore.getState().setFlatListProjectFilter(["a", "b"]);
     expect(useSidebarUiStore.getState().flatListProjectFilter).toBe(before);
+  });
+});
+
+describe("toggleProjectPinned (global pin timestamps)", () => {
+  it("stamps pinnedAt on pin and clears it on unpin", () => {
+    useSidebarUiStore.getState().toggleProjectPinned("pA");
+    const pinned = useSidebarUiStore.getState();
+    expect(pinned.pinnedProjectIds).toEqual(["pA"]);
+    expect(typeof pinned.pinnedProjectAt.pA).toBe("number");
+
+    useSidebarUiStore.getState().toggleProjectPinned("pA");
+    const unpinned = useSidebarUiStore.getState();
+    expect(unpinned.pinnedProjectIds).toEqual([]);
+    expect(unpinned.pinnedProjectAt.pA).toBeUndefined();
+  });
+
+  it("persists pinnedProjectAt via partialize", () => {
+    useSidebarUiStore.getState().toggleProjectPinned("pA");
+    const partialize =
+      useSidebarUiStore.persist.getOptions().partialize ?? ((state: State) => state);
+    const partialized = partialize(useSidebarUiStore.getState());
+    expect(partialized).toHaveProperty("pinnedProjectIds", ["pA"]);
+    expect(partialized).toHaveProperty("pinnedProjectAt");
+  });
+
+  it("backfills pinnedProjectAt for legacy payloads without losing pins", () => {
+    const merge =
+      useSidebarUiStore.persist.getOptions().merge ??
+      ((persisted: unknown, current: State) => ({ ...current, ...(persisted as object) }));
+    const current = useSidebarUiStore.getState();
+    const merged = merge(
+      { pinnedProjectIds: ["pB", "pA"], pinnedProjectAt: {} },
+      current,
+    ) as State;
+    expect(merged.pinnedProjectIds).toEqual(["pB", "pA"]);
+    expect(typeof merged.pinnedProjectAt.pB).toBe("number");
+    expect(typeof merged.pinnedProjectAt.pA).toBe("number");
+    expect(merged.pinnedProjectAt.pB).toBeLessThanOrEqual(merged.pinnedProjectAt.pA!);
   });
 });

@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AccountControlError } from "@/shared/contracts";
 import { AccountResolver } from "./accountResolver";
-import { AccountStore, maskIdentity } from "./accountStore";
+import { AccountStore, maskIdentity, QUOTA_INFERENCE_MARK_TTL_MS, shouldPreserveInferenceExhaustion } from "./accountStore";
 
 const roots: string[] = [];
 function createStore(): AccountStore {
@@ -432,5 +432,133 @@ describe("AccountStore", () => {
       status: "quota-exhausted",
     });
     expect(reopened.get(auth.accountId)).toMatchObject({ enabled: false, status: "auth-expired" });
+  });
+
+  describe("sibling-store credential root repair (dev vs prod copy)", () => {
+    function seedSiblingCopy(): {
+      prodRoot: string;
+      devRoot: string;
+      accountId: string;
+      profileDir: string;
+    } {
+      const prodRoot = mkdtempSync(join(tmpdir(), "craftstation-accounts-prod-"));
+      const devRoot = mkdtempSync(join(tmpdir(), "craftstation-accounts-dev-"));
+      roots.push(prodRoot, devRoot);
+      const prod = new AccountStore(prodRoot);
+      const account = prod.add({
+        provider: "grok",
+        label: "Grok 1",
+        providerAccountId: "user@example.com",
+      });
+      const prodProfile = prod.credentialRoot(account.accountId);
+      writeFileSync(join(prodProfile, "auth.json"), '{"access_token":"prod-token"}', "utf8");
+      // Simulate a copied accounts.json that still points at the sibling root.
+      writeFileSync(
+        join(devRoot, "accounts.json"),
+        readFileSync(join(prodRoot, "accounts.json"), "utf8"),
+        "utf8",
+      );
+      return {
+        prodRoot,
+        devRoot,
+        accountId: account.accountId,
+        profileDir: prodProfile.slice(prodRoot.length + 1),
+      };
+    }
+
+    it("rebases an escaped credential root when the profile directory exists in this root", () => {
+      const { devRoot, accountId, profileDir } = seedSiblingCopy();
+      mkdirSync(join(devRoot, profileDir), { recursive: true });
+      writeFileSync(join(devRoot, profileDir, "auth.json"), '{"access_token":"dev-token"}', "utf8");
+
+      const dev = new AccountStore(devRoot);
+      const resolved = dev.credentialRoot(accountId);
+      expect(resolved).toBe(join(devRoot, profileDir));
+      expect(readFileSync(join(resolved, "auth.json"), "utf8")).toContain("dev-token");
+      // The repair is persisted so the next session creation no longer fails.
+      const persisted = JSON.parse(readFileSync(join(devRoot, "accounts.json"), "utf8")) as {
+        accounts: Array<{ accountId: string; credentialRoot: string }>;
+      };
+      expect(
+        persisted.accounts.find((entry) => entry.accountId === accountId)?.credentialRoot,
+      ).toBe(join(devRoot, profileDir));
+    });
+
+    it("fails closed with account context when no matching profile directory exists", () => {
+      const { devRoot, accountId } = seedSiblingCopy();
+      const dev = new AccountStore(devRoot);
+      let thrown: unknown;
+      try {
+        dev.credentialRoot(accountId);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(AccountControlError);
+      expect((thrown as AccountControlError).code).toBe("ACCOUNT_PATH_INVALID");
+      expect((thrown as AccountControlError).details).toMatchObject({ accountId });
+    });
+
+    it("remove() deletes the rebased directory and never touches the outside path", () => {
+      const { prodRoot, devRoot, accountId, profileDir } = seedSiblingCopy();
+      mkdirSync(join(devRoot, profileDir), { recursive: true });
+      writeFileSync(join(devRoot, profileDir, "auth.json"), '{"access_token":"dev-token"}', "utf8");
+      const sentinel = join(prodRoot, profileDir, "sentinel.txt");
+      writeFileSync(sentinel, "prod-data", "utf8");
+
+      const dev = new AccountStore(devRoot);
+      dev.remove(accountId);
+
+      expect(dev.list("grok")).toEqual([]);
+      expect(existsSync(join(devRoot, profileDir))).toBe(false);
+      expect(readFileSync(sentinel, "utf8")).toBe("prod-data");
+    });
+  });
+
+  describe("shouldPreserveInferenceExhaustion", () => {
+    const mark = (overrides: object = {}) => ({
+      status: "quota-exhausted" as const,
+      lastError: "Grok 额度已耗尽",
+      lastQuotaAt: 1_000_000,
+      ...overrides,
+    });
+
+    it("preserves a fresh inference mark against healthy quota evidence", () => {
+      expect(shouldPreserveInferenceExhaustion(mark(), 1_000_000 + 60_000)).toBe(true);
+    });
+
+    it("releases the mark after the TTL so rows recover", () => {
+      expect(
+        shouldPreserveInferenceExhaustion(mark(), 1_000_000 + QUOTA_INFERENCE_MARK_TTL_MS),
+      ).toBe(false);
+      expect(
+        shouldPreserveInferenceExhaustion(mark(), 1_000_000 + QUOTA_INFERENCE_MARK_TTL_MS + 1),
+      ).toBe(false);
+    });
+
+    it("ignores rows without an inference mark", () => {
+      // Window-derived exhaustion carries no lastError: the poller owns it.
+      expect(
+        shouldPreserveInferenceExhaustion(
+          { status: "quota-exhausted", lastQuotaAt: 1_000_000 },
+          1_000_001,
+        ),
+      ).toBe(false);
+      expect(shouldPreserveInferenceExhaustion(undefined, 1_000_001)).toBe(false);
+      expect(
+        shouldPreserveInferenceExhaustion(
+          { status: "available", lastError: "stale", lastQuotaAt: 1_000_000 },
+          1_000_001,
+        ),
+      ).toBe(false);
+    });
+
+    it("ignores marks with an unusable timestamp", () => {
+      expect(
+        shouldPreserveInferenceExhaustion(
+          { status: "quota-exhausted", lastError: "x", lastQuotaAt: Number.NaN },
+          1_000_001,
+        ),
+      ).toBe(false);
+    });
   });
 });

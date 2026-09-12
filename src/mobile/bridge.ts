@@ -204,11 +204,17 @@ const remoteBridgeOverrides = {
   setProfileIdentity: (identity: ProfileIdentity) => requireClient().setProfileIdentity(identity),
 
   getSchedules: () => requireClient().schedules(),
+  getSchedule: ({ id }: { id: string }) =>
+    requireClient()
+      .schedules()
+      .then((schedules) => schedules.find((schedule) => schedule.id === id) ?? null),
   createSchedule: (task: ScheduledTaskInput) => requireClient().createSchedule(task),
   updateSchedule: ({ id, task }: { id: string; task: ScheduledTaskInput }) =>
     requireClient().updateSchedule(id, task),
   deleteSchedule: ({ id }: { id: string }) => requireClient().deleteSchedule(id),
   runScheduleNow: ({ id }: { id: string }) => requireClient().runScheduleNow(id),
+  pauseSchedule: ({ id }: { id: string }) => requireClient().pauseSchedule(id),
+  resumeSchedule: ({ id }: { id: string }) => requireClient().resumeSchedule(id),
 
   // Shared settings persist per device via the store's localStorage fallback.
   // Remote-editable keys (including persistent composer MCP enablement) are
@@ -217,11 +223,11 @@ const remoteBridgeOverrides = {
     pushDesktopSettingsDiff(activeClient, settings);
     return Promise.resolve();
   },
-  removeCrossagentRoutingOverride: () =>
+  removeOwnSubagentsRoutingOverride: () =>
     Promise.reject(new Error("Manual routing preferences can only be changed on desktop.")),
-  removeCrossagentMemoryEntry: () =>
+  removeOwnSubagentsMemoryEntry: () =>
     Promise.reject(new Error("Learned routing memory can only be changed on desktop.")),
-  updateCrossagentMemoryEntryTags: () =>
+  updateOwnSubagentsMemoryEntryTags: () =>
     Promise.reject(new Error("Learned routing memory can only be changed on desktop.")),
 
   // Shell conveniences with browser-native equivalents.
@@ -358,6 +364,7 @@ const remoteBridgeOverrides = {
   onRemoteAccessPairingChanged: () => () => undefined,
   onSharedSettingsChanged: () => () => undefined,
   onProjectStateChanged: () => () => undefined,
+  onSchedulesChanged: () => () => undefined,
   onThreadOpenRequested: () => () => undefined,
   onQuickComposerSubmit: () => () => undefined,
   onQuickComposerDismissRequested: () => () => undefined,

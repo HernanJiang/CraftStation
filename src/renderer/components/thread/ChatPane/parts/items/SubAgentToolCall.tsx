@@ -120,7 +120,7 @@ export const SubAgentToolCall = memo(function SubAgentToolCall({
         onClick={() => openSubAgent(threadId, item.id)}
         className={`group ${chatRowClass} gap-1.5 text-[length:var(--lc-chat-font-size-command)] leading-tight ${chatRowHoverClass}`}
         aria-label={
-          isCrossagent ? t`Open Crossagent: ${display.title}` : t`Open subagent: ${display.title}`
+          isCrossagent ? t`Open own subagent: ${display.title}` : t`Open subagent: ${display.title}`
         }
         {...(describesCancelledStatus ? { "aria-describedby": statusDescriptionId } : {})}
       >
@@ -200,7 +200,7 @@ function SubAgentResultDisclosure({ text, isCrossagent }: { text: string; isCros
       >
         <Bot className="size-3 shrink-0" />
         <span>
-          {isCrossagent ? <Trans>Crossagent Result</Trans> : <Trans>Subagent Result</Trans>}
+          {isCrossagent ? <Trans>Own Subagent Result</Trans> : <Trans>Subagent Result</Trans>}
         </span>
         <ChevronDown
           className={`size-3 shrink-0 opacity-100 transition-[transform,opacity] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-visible:opacity-100 ${isOpen ? "rotate-180" : ""}`}

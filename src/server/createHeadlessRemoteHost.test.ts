@@ -81,6 +81,7 @@ vi.mock("@/main/db", () => ({
   dbGetSchedule: vi.fn<() => unknown>(() => null),
   dbUpsertSchedule: vi.fn<() => void>(),
   dbDeleteSchedule: vi.fn<() => void>(),
+  dbClaimScheduledOccurrence: vi.fn<() => boolean>(() => true),
   dbInsertScheduleRun: vi.fn<() => void>(),
   dbUpdateScheduleRun: vi.fn<() => void>(),
   dbListScheduleRuns: vi.fn<() => unknown[]>(() => []),

@@ -147,7 +147,7 @@ export const requestSessionSwitchPayloadSchema = z.object({
   mode: sessionSwitchModeSchema,
   prompt: z.string().default(""),
   accountId: z.string().min(1).optional(),
-  accountMode: z.enum(["explicit", "selected", "auto"]).optional(),
+  accountMode: z.enum(["explicit", "preferred", "selected", "auto"]).optional(),
 });
 export type RequestSessionSwitchPayload = z.infer<typeof requestSessionSwitchPayloadSchema>;
 
