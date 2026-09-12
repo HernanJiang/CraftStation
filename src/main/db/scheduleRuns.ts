@@ -1,4 +1,8 @@
-import { scheduledTaskRunSchema, type ScheduledTaskRun } from "@/shared/contracts";
+import {
+  scheduleExecutionSnapshotSchema,
+  scheduledTaskRunSchema,
+  type ScheduledTaskRun,
+} from "@/shared/contracts";
 import { getSqlite } from "./connection";
 
 /** Keep at most this many run rows per schedule; older rows are pruned on insert. */
@@ -13,6 +17,20 @@ interface ScheduledTaskRunRow {
   status: string;
   summary: string | null;
   error: string | null;
+  occurrence_at: string | null;
+  triggered_by: string | null;
+  queued_at: string | null;
+  execution_snapshot: string | null;
+}
+
+function parseExecutionSnapshot(raw: string | null): ScheduledTaskRun["executionSnapshot"] {
+  if (!raw) return null;
+  try {
+    const parsed = scheduleExecutionSnapshotSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
 
 function fromRow(row: ScheduledTaskRunRow): ScheduledTaskRun {
@@ -20,11 +38,15 @@ function fromRow(row: ScheduledTaskRunRow): ScheduledTaskRun {
     id: row.id,
     scheduleId: row.schedule_id,
     threadId: row.thread_id,
+    occurrenceAt: row.occurrence_at,
+    triggeredBy: row.triggered_by === "manual" ? "manual" : "scheduled",
+    queuedAt: row.queued_at ?? row.started_at,
     startedAt: row.started_at,
     completedAt: row.completed_at,
     status: row.status,
     summary: row.summary,
     error: row.error,
+    executionSnapshot: parseExecutionSnapshot(row.execution_snapshot),
   });
 }
 
@@ -34,8 +56,9 @@ export function dbInsertScheduleRun(run: ScheduledTaskRun): void {
   sqlite
     .prepare(
       `INSERT INTO scheduled_task_runs (
-        id, schedule_id, thread_id, started_at, completed_at, status, summary, error
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, schedule_id, thread_id, started_at, completed_at, status, summary, error,
+        occurrence_at, triggered_by, queued_at, execution_snapshot
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       parsed.id,
@@ -46,6 +69,10 @@ export function dbInsertScheduleRun(run: ScheduledTaskRun): void {
       parsed.status,
       parsed.summary,
       parsed.error,
+      parsed.occurrenceAt ?? null,
+      parsed.triggeredBy ?? "scheduled",
+      parsed.queuedAt ?? parsed.startedAt,
+      parsed.executionSnapshot ? JSON.stringify(parsed.executionSnapshot) : null,
     );
   pruneScheduleRuns(parsed.scheduleId);
 }
@@ -55,6 +82,8 @@ export interface ScheduleRunPatch {
   status?: ScheduledTaskRun["status"];
   summary?: string | null;
   error?: string | null;
+  threadId?: string;
+  executionSnapshot?: ScheduledTaskRun["executionSnapshot"];
 }
 
 export function dbUpdateScheduleRun(id: string, patch: ScheduleRunPatch): void {
@@ -75,6 +104,14 @@ export function dbUpdateScheduleRun(id: string, patch: ScheduleRunPatch): void {
   if ("error" in patch) {
     sets.push("error = ?");
     values.push(patch.error ?? null);
+  }
+  if ("threadId" in patch && patch.threadId !== undefined) {
+    sets.push("thread_id = ?");
+    values.push(patch.threadId);
+  }
+  if ("executionSnapshot" in patch) {
+    sets.push("execution_snapshot = ?");
+    values.push(patch.executionSnapshot ? JSON.stringify(patch.executionSnapshot) : null);
   }
   if (sets.length === 0) return;
   values.push(id);

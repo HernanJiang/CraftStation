@@ -1,19 +1,33 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountStore } from "./accountStore";
+import {
+  collectCodex,
+  type HostPort,
+  type UsageSnapshot,
+} from "@craftstation/agents-usage";
 import {
   CodexProfileService,
   breakManagedStateSymlink,
   buildCodexLoginScript,
   ensureManagedCodexHome,
   managedCodexProcessEnvironment,
+  scrubManagedCodexConfig,
 } from "./codexProfiles";
 
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+vi.mock("@craftstation/agents-usage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@craftstation/agents-usage")>();
+  return {
+    ...actual,
+    collectCodex: vi.fn<(host: HostPort) => Promise<UsageSnapshot>>(),
+  };
 });
 
 describe("CodexProfileService", () => {
@@ -140,12 +154,49 @@ describe("CodexProfileService", () => {
     store.projectCredential = originalProject;
   });
 
-  it("builds PowerShell and POSIX login scripts without embedding managed CODEX_HOME", () => {
-    const token = "lc_test_completion";
+  it("keeps a fresh inference-exhaustion mark across a healthy quota poll", async () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-marked-"));
+    roots.push(root);
+    const sourceHome = join(root, "source");
+    const managed = join(root, "managed");
+    mkdirSync(sourceHome, { recursive: true });
+    const store = new AccountStore(managed);
+    const service = new CodexProfileService({ store });
+    writeFileSync(
+      join(sourceHome, "auth.json"),
+      JSON.stringify({ tokens: { access_token: "secret", account_id: "acct-1" } }),
+      "utf8",
+    );
+    const account = service.importAuthJson({ label: "Marked", profileRoot: sourceHome });
+    // Simulate the prompt-error write-back landing just now.
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError: "Codex 额度已耗尽",
+      lastQuotaAt: Date.now(),
+    });
+    vi.mocked(collectCodex).mockResolvedValueOnce({
+      providerId: "codex",
+      status: "ok",
+      windows: [{ id: "weekly", label: "Weekly", usedPercent: 46 }],
+      fetchedAt: Date.now(),
+    } satisfies UsageSnapshot);
+
+    const view = await service.collectQuota(account.accountId, {
+      now: () => Date.now(),
+    } as unknown as HostPort);
+
+    expect(view.status).toBe("quota-exhausted");
+    const record = store.getRecord(account.accountId)!;
+    expect(record.status).toBe("quota-exhausted");
+    expect(record.lastError).toBe("Codex 额度已耗尽");
+    expect(record.quotaWindows?.map((window) => window.usedPercent)).toEqual([46]);
+  });
+
+  it("builds PowerShell and POSIX login scripts without embedding managed CODEX_HOME", () => {    const token = "lc_test_completion";
 
     const winScript = buildCodexLoginScript("windows", token);
     expect(winScript).toContain("CraftStation CODEX_HOME=");
     expect(winScript).toContain("CraftStation CODEX_HOME=");
+    expect(winScript).toContain("OPENAI_CODEX_HOME");
     expect(winScript).toContain(
       "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
     );
@@ -154,6 +205,7 @@ describe("CodexProfileService", () => {
     const posixScript = buildCodexLoginScript("posix", token);
     expect(posixScript).toContain("CraftStation login cwd=");
     expect(posixScript).toContain("CraftStation CODEX_HOME=");
+    expect(posixScript).toContain("OPENAI_CODEX_HOME");
     expect(posixScript).toContain(
       "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
     );
@@ -246,5 +298,49 @@ describe("managedCodexProcessEnvironment", () => {
     const config = require("node:fs").readFileSync(join(home, "config.toml"), "utf8");
     expect(config).toContain('model_provider = "openai"');
     expect(require("node:fs").readFileSync(routerConfig, "utf8")).toContain("codex-router-overlay");
+  });
+});
+
+describe("scrubManagedCodexConfig", () => {
+  const ROUTER_POLLUTED_CONFIG = [
+    "# CraftStation managed Codex profile",
+    'model_provider = "codex_router"',
+    'model_catalog_json = "C:/Users/Haona/AppData/Local/Codex-Router/UserData/model-catalog.json"',
+    "",
+  ].join("\n");
+
+  it("rewrites a Router-polluted managed config to the canonical clean config", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-scrub-"));
+    roots.push(root);
+    const home = join(root, "profile");
+    mkdirSync(home, { recursive: true });
+    writeFileSync(join(home, "config.toml"), ROUTER_POLLUTED_CONFIG, "utf8");
+
+    expect(scrubManagedCodexConfig(home)).toBe(true);
+
+    const config = require("node:fs").readFileSync(join(home, "config.toml"), "utf8");
+    expect(config).toContain('model_provider = "openai"');
+    expect(config).not.toContain("model_catalog_json");
+    expect(config).not.toContain("codex_router");
+  });
+
+  it("leaves a clean managed config untouched", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-scrub-clean-"));
+    roots.push(root);
+    const home = join(root, "profile");
+    ensureManagedCodexHome(home);
+    const before = require("node:fs").readFileSync(join(home, "config.toml"), "utf8");
+
+    expect(scrubManagedCodexConfig(home)).toBe(false);
+    expect(require("node:fs").readFileSync(join(home, "config.toml"), "utf8")).toBe(before);
+  });
+
+  it("returns false when the managed home has no config file", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-scrub-missing-"));
+    roots.push(root);
+    const home = join(root, "profile");
+    mkdirSync(home, { recursive: true });
+
+    expect(scrubManagedCodexConfig(home)).toBe(false);
   });
 });

@@ -46,7 +46,7 @@ export interface SessionHandoffCoordinatorDependencies {
     plan: CraftPlan,
     projectLocation: ProjectLocation,
     accountId?: string,
-    accountMode?: "explicit" | "selected" | "auto",
+    accountMode?: "explicit" | "preferred" | "selected" | "auto",
   ): Promise<PreparedTargetRuntime>;
   activateTarget(threadId: string, target: PreparedTargetRuntime, segment: RuntimeSegment): void;
   restoreSource(

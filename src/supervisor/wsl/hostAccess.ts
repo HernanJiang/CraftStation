@@ -1,7 +1,8 @@
 /**
  * Resolve how a process running *inside* a WSL distro can reach a service bound
- * on the Windows host (the Crossagents MCP ingress binds `0.0.0.0` on Windows for
- * exactly this reason). The answer depends on the distro's networking mode:
+ * on the Windows host. Local MCP ingresses bind loopback to avoid the Windows
+ * Firewall dialog; mirrored WSL reaches `127.0.0.1` directly. The answer for
+ * any remaining host-bound service depends on the distro's networking mode:
  *
  * - NAT (classic WSL2 default): the host is reachable at the distro's default
  *   route gateway IP (e.g. `172.x.x.1`). Loopback (`127.0.0.1`) inside the

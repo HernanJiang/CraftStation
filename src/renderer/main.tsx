@@ -179,28 +179,66 @@ reactRoot = createRoot(root, {
   },
 });
 
-// Load the app, provider registrations, and cached locale in parallel. Provider
-// registration used to sit behind the app chunk as an eager dependency, adding
-// another transform waterfall before React could mount.
-logRendererBootstrap("starting app, provider, and locale imports");
+// Load the app, provider registrations, workbench composition, and cached
+// locale in parallel. Provider registration used to sit behind the app chunk
+// as an eager dependency, adding another transform waterfall before React
+// could mount; the workbench joins the same parallel batch so composing the
+// window scope adds no sequential round-trip before first render.
+logRendererBootstrap("starting app, provider, workbench, and locale imports");
+// Startup attribution: each parallel import stamps its own resolve time so a
+// future slow-start investigation can tell provider/bootstrap cost apart from
+// app/workbench/locale cost without guessing. Kept as data (not a gate).
+const bootstrapT0 = performance.now();
+const bootstrapAttribution: Record<string, number> = {};
+function stampBootstrapImport(name: string): void {
+  bootstrapAttribution[name] = Math.round((performance.now() - bootstrapT0) * 10) / 10;
+  logRendererBootstrap(`${name} module resolved`);
+}
+function publishBootstrapAttribution(): void {
+  bootstrapAttribution.totalMs = Math.round((performance.now() - bootstrapT0) * 10) / 10;
+  try {
+    (window as unknown as { __craftstationBootstrapAttribution?: Record<string, number> })
+      .__craftstationBootstrapAttribution = { ...bootstrapAttribution };
+  } catch {
+    // Attribution is best-effort; a hostile embedder must not break startup.
+  }
+  if (import.meta.env.DEV) {
+    console.log("[renderer-bootstrap] attribution (ms since bootstrap start)", {
+      ...bootstrapAttribution,
+    });
+  }
+}
 const appModulePromise = import("./app").then((module) => {
-  logRendererBootstrap("app module resolved");
+  stampBootstrapImport("app");
   return module;
 });
 const providerBootstrapPromise = import("./components/providers/bootstrap").then((module) => {
-  logRendererBootstrap("provider bootstrap resolved");
+  stampBootstrapImport("provider");
+  return module;
+});
+const workbenchModulePromise = import("./workbench/createWindowWorkbench").then((module) => {
+  stampBootstrapImport("workbench");
   return module;
 });
 const localeBootstrapPromise = bootstrapAppLocaleFromCache().then(() => {
-  logRendererBootstrap("locale bootstrap resolved");
+  stampBootstrapImport("locale");
 });
 
-void Promise.all([appModulePromise, providerBootstrapPromise, localeBootstrapPromise])
-  .then(([{ App }]) => {
+void Promise.all([appModulePromise, providerBootstrapPromise, workbenchModulePromise, localeBootstrapPromise])
+  .then(([{ App }, , { createWindowWorkbench }]) => {
+    publishBootstrapAttribution();
     logRendererBootstrap("rendering React app");
+    let workbench;
+    try {
+      workbench = createWindowWorkbench();
+    } catch (error: unknown) {
+      showCrash("bootstrap", error);
+      return;
+    }
+    window.addEventListener("pagehide", () => workbench.dispose(), { once: true });
     reactRoot?.render(
       <RendererErrorBoundary captureCaughtErrors={false}>
-        <App />
+        <App workbench={workbench} />
       </RendererErrorBoundary>,
     );
     requestAnimationFrame(() => {

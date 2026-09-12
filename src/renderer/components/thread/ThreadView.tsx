@@ -1,8 +1,8 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button, Tooltip } from "@heroui/react";
-import { ArrowRightLeft, Bug, CircleCheck, MessagesSquare, X } from "lucide-react";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { Tooltip } from "@heroui/react";
+import { Bug } from "lucide-react";
+import { useLingui } from "@lingui/react/macro";
 import type {
   AgentStatus,
   ProjectLocation,
@@ -16,7 +16,7 @@ import { DEFAULT_TERMINAL_SIZE as DEFAULT_HIDDEN_TERMINAL_SIZE } from "@/shared/
 import { resolveAgentPresentationMode } from "@/shared/agentStatus";
 
 import { useAppStore } from "@/renderer/state/appStore";
-import { TuxIcon } from "@/renderer/components/common/TuxIcon";
+import { usePanelStore } from "@/renderer/state/panelStore";
 import { performInitialThreadLaunch } from "@/renderer/actions/threadLaunchActions";
 import { macosTrafficLightPadClass } from "@/renderer/components/layout/sidebarChrome";
 import {
@@ -29,9 +29,10 @@ import type { SaveClipboardImage } from "../composer/useAttachments";
 import { ContinueInProviderDialog } from "./ContinueInProviderDialog";
 import { GuiThreadContent } from "./ThreadContent";
 import { TerminalThreadContent } from "./TerminalThreadContent";
-import { ThreadCollaborationActivity } from "./ThreadCollaborationActivity";
 import { ThreadCollaborationDialog } from "./ThreadCollaborationDialog";
 import { ThreadHeaderStatusButton } from "./ThreadHeaderStatus";
+import { ThreadScheduleIndicator } from "./ThreadScheduleIndicator";
+import { ThreadStatusCapsule } from "./ThreadStatusCapsule";
 
 /**
  * Strip Electron's `Error invoking remote method '<channel>': Error: ` prefix
@@ -77,7 +78,6 @@ function areThreadViewPropsEqual(prev: ThreadViewProps, next: ThreadViewProps): 
     (!configAffectsLaunch || prev.thread.config === next.thread.config) &&
     prev.agentStatus === next.agentStatus &&
     prev.projectLocation === next.projectLocation &&
-    prev.projectName === next.projectName &&
     prev.pendingLaunchPrompt === next.pendingLaunchPrompt &&
     prev.pendingLaunchSegments === next.pendingLaunchSegments &&
     prev.pendingLaunchUserMessageItemId === next.pendingLaunchUserMessageItemId &&
@@ -106,7 +106,6 @@ export type ThreadViewProps = {
   thread: Thread;
   agentStatus: AgentStatus | undefined;
   projectLocation: ProjectLocation;
-  projectName?: string;
   pendingLaunchPrompt?: string;
   pendingLaunchSegments?: PromptSegment[];
   pendingLaunchUserMessageItemId?: string;
@@ -135,7 +134,6 @@ export type ThreadViewProps = {
   dragHandleRef?: (element: Element | null) => void;
   droppableRef?: React.RefObject<HTMLDivElement | null>;
   onClose?: (() => void) | undefined;
-  onMarkDone?: (() => void) | undefined;
   installedAgents?: AgentStatus[];
   onContinueInProvider?:
     | ((
@@ -163,12 +161,9 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     thread,
     agentStatus,
     projectLocation,
-    projectName,
     pendingLaunchPrompt,
     pendingLaunchSegments,
     pendingLaunchUserMessageItemId,
-    isWsl,
-    showCloseButton,
     paneAlign = "center",
     isDragging,
     hidden = false,
@@ -178,8 +173,6 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     headerNeedsTrafficLightPad = false,
     dragHandleRef,
     droppableRef,
-    onClose,
-    onMarkDone,
     installedAgents,
     onContinueInProvider,
     onLaunchConsumed,
@@ -215,6 +208,28 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     [presentationMode, thread],
   );
   const launchTerminalSize = usesTerminalPresentation ? terminalSize : DEFAULT_HIDDEN_TERMINAL_SIZE;
+
+  // The capsule card always floats as an overlay anchored under the capsule;
+  // it never reserves width in the pane, so the transcript + composer stay
+  // put when the card opens.
+  // Right-edge occupancy: the auxiliary rail in any non-hidden placement, or
+  // any panel context that renders into the right dock (git panel included —
+  // it mounts outside the auxiliary placement flow).
+  const rightEdgeOccupied = usePanelStore(
+    (s) =>
+      s.auxiliaryPanelPlacement !== "hidden" ||
+      (s.gitReviewContext !== null && s.gitReviewAsPanel) ||
+      s.filesPanelContext !== null ||
+      s.auxiliaryPanelTab !== null ||
+      s.usagePanelOpen ||
+      s.notesPanelOpen ||
+      s.browserPanelOpen ||
+      s.subAgentPanelContext !== null,
+  );
+  // Overlay mode: with the edge occupied the capsule must not take part in
+  // the header layout at all — it floats top-right so Agents/Goal/Git growth
+  // can never re-squeeze the chat column. Visuals unchanged, only positioning.
+  const capsuleOverlay = rightEdgeOccupied;
 
   useEffect(() => {
     if (presentationMode !== thread.presentationMode) {
@@ -310,7 +325,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
       }`}
     >
       <div
-        className={`${dragHandleRef ? "craftstation-content-over-drag-region" : "craftstation-content-over-drag-region--drag"} @container ${
+        className={`${dragHandleRef ? "craftstation-content-over-drag-region" : "craftstation-content-over-drag-region--drag"} @container relative ${
           threadHeaderIsPortaled ? "" : alignClass
         } flex w-full min-w-0 ${threadHeaderIsPortaled ? "max-w-none" : "max-w-[920px]"} items-center gap-2 ${
           threadHeaderIsPortaled ? "h-full" : "py-1"
@@ -353,55 +368,25 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
               {thread.title}
             </Tooltip.Content>
           </Tooltip>
-          <div className="flex shrink-0 items-center">
-            {projectName ? (
-              <span className="px-1 text-sm leading-tight text-muted/60 @max-[560px]:text-xs @max-[360px]:text-[11px]">
-                {projectName}
-              </span>
-            ) : null}
-            {isWsl ? <TuxIcon className="h-3 w-auto shrink-0 px-1 text-muted/60" /> : null}
-            {thread.sessionRef || thread.canResumeWithConfig ? (
-              <Tooltip delay={0}>
-                <Tooltip.Trigger>
-                  <Button
-                    isIconOnly
-                    aria-label={t`Ask another thread`}
-                    className="craftstation-overlay-header__controls min-w-0 shrink-0 rounded p-1 text-muted/60 hover:bg-[var(--row-hover)] hover:text-foreground"
-                    size="sm"
-                    variant="ghost"
-                    onPress={() => setCollaborationDialogOpen(true)}
-                  >
-                    <MessagesSquare className="size-3.5" />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <Trans>Ask another thread</Trans>
-                </Tooltip.Content>
-              </Tooltip>
-            ) : null}
-            {onContinueInProvider &&
-            installedAgents &&
-            installedAgents.filter((a) => a.kind !== thread.agentKind).length > 0 &&
-            thread.sessionRef ? (
-              <Tooltip delay={0}>
-                <Tooltip.Trigger>
-                  <button
-                    type="button"
-                    aria-label={t`Continue in another provider`}
-                    className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setContinueDialogOpen(true);
-                    }}
-                  >
-                    <ArrowRightLeft className="size-3.5" />
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <Trans>Continue in another provider</Trans>
-                </Tooltip.Content>
-              </Tooltip>
-            ) : null}
+          <div
+            data-capsule-slot=""
+            className={`flex shrink-0 items-center gap-1 ${
+              capsuleOverlay ? "absolute top-1/2 right-2 z-30 -translate-y-1/2" : ""
+            }`}
+          >
+            {/* Project / Git status capsule replaces the previous scattered
+                Home / Provider icon row. Thread lifecycle actions (ask another,
+                continue in provider, close, mark-done) live in their own
+                surfaces. */}
+            <ThreadScheduleIndicator threadId={thread.id} />
+            <ThreadStatusCapsule
+              threadId={thread.id}
+              projectId={thread.projectId}
+              {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
+              projectLocation={projectLocation}
+              collaborationRefreshKey={collaborationRefreshKey}
+              onOpenCollaboration={() => setCollaborationDialogOpen(true)}
+            />
             {import.meta.env.DEV && !usesTerminalPresentation ? (
               <Tooltip delay={0}>
                 <Tooltip.Trigger>
@@ -421,39 +406,11 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  {runtimeDebugOpen ? (
-                    <Trans>Hide canonical runtime item inspector</Trans>
-                  ) : (
-                    <Trans>Inspect canonical runtime items</Trans>
-                  )}
+                  {runtimeDebugOpen
+                    ? t`Hide canonical runtime item inspector`
+                    : t`Inspect canonical runtime items`}
                 </Tooltip.Content>
               </Tooltip>
-            ) : null}
-            {onMarkDone ? (
-              <button
-                type="button"
-                aria-label={thread.done ? t`Unmark done` : t`Mark done`}
-                className={`craftstation-overlay-header__controls shrink-0 rounded p-1 transition-colors hover:bg-[var(--row-hover)] ${thread.done ? "text-[oklch(0.78_0.1_180)]" : "text-muted/60 hover:text-foreground"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMarkDone();
-                }}
-              >
-                <CircleCheck className="size-3.5" />
-              </button>
-            ) : null}
-            {showCloseButton ? (
-              <button
-                type="button"
-                aria-label={t`Close pane`}
-                className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose?.();
-                }}
-              >
-                <X className="size-3.5" />
-              </button>
             ) : null}
           </div>
         </div>
@@ -506,11 +463,6 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
           : threadHeader}
 
         <div className={contentShellClass}>
-          <ThreadCollaborationActivity
-            threadId={thread.id}
-            refreshKey={collaborationRefreshKey}
-            onOpen={() => setCollaborationDialogOpen(true)}
-          />
           <div className={contentBodyClass}>
             {usesTerminalPresentation ? (
               <TerminalThreadContent

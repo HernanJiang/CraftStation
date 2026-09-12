@@ -2,7 +2,8 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync, writeFileSy
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseCodexAuth, resolveCodexToken } from "./codexCredentials";
-import { AccountStore } from "./accountStore";
+import { isCodexRouterOverlayHome } from "../agents/codex/codexRouterOverlay";
+import { AccountStore, shouldPreserveInferenceExhaustion } from "./accountStore";
 import type { AccountView } from "@/shared/contracts";
 import { AccountControlError } from "@/shared/contracts";
 import { collectCodex, type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
@@ -16,6 +17,17 @@ const CODEX_ROUTER_ENV_KEYS = [
   "CODEX_ROUTER_HOME",
   "CODEX_ROUTER_USER_DATA",
   "OPENAI_CODEX_HOME",
+] as const;
+
+/**
+ * Compatibility-bridge endpoint keys. Native Codex runs must never inherit
+ * these: only a non-native model on the native vendor may go through CPA,
+ * everything else runs the official CLI against the account pool.
+ */
+export const CODEX_COMPATIBILITY_ENV_KEYS = [
+  "CODEX_BASE_URL",
+  "CODEX_MODEL_PROVIDER",
+  "OPENAI_API_KEY",
 ] as const;
 
 /**
@@ -39,6 +51,7 @@ export function managedCodexProcessEnvironment(
     const upper = key.toUpperCase();
     if (
       CODEX_ROUTER_ENV_KEYS.includes(key as (typeof CODEX_ROUTER_ENV_KEYS)[number]) ||
+      (CODEX_COMPATIBILITY_ENV_KEYS as readonly string[]).includes(upper) ||
       upper.includes("CODEX_ROUTER") ||
       upper.includes("MODEL_CATALOG") ||
       upper.includes("CLIPROXY")
@@ -54,9 +67,38 @@ export function managedCodexProcessEnvironment(
   return env;
 }
 
+/**
+ * Router/CLIProxy routing keys removed from probe spawn environments (without
+ * redirecting CODEX_HOME). Probes must not inherit the host Codex-Router
+ * overlay's catalog: its per-instance `cr_<instance>_…` model ids leak into
+ * CraftStation's model list and later fail with `unknown provider for model`.
+ * Unlike {@link managedCodexProcessEnvironment} this OMITS the keys instead of
+ * blanking them, so the result is a complete environment on its own.
+ */
+export function stripCodexRouterEnv(
+  baseEnv: Record<string, string | undefined> = process.env,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (value === undefined) continue;
+    const upper = key.toUpperCase();
+    if (
+      CODEX_ROUTER_ENV_KEYS.includes(key as (typeof CODEX_ROUTER_ENV_KEYS)[number]) ||
+      (CODEX_COMPATIBILITY_ENV_KEYS as readonly string[]).includes(upper) ||
+      upper.includes("CODEX_ROUTER") ||
+      upper.includes("MODEL_CATALOG") ||
+      upper.includes("CLIPROXY")
+    ) {
+      continue;
+    }
+    env[key] = value;
+  }
+  return env;
+}
+
 const MANAGED_CODEX_CONFIG = [
   "# CraftStation managed Codex profile",
-  "# Isolated from the host ~/.codex Codex-Router overlay.",
+  "# Isolated from the host ~/.codex overlay (official provider only).",
   'cli_auth_credentials_store = "file"',
   'mcp_oauth_credentials_store = "file"',
   'model_provider = "openai"',
@@ -66,6 +108,20 @@ const MANAGED_CODEX_CONFIG = [
   'sandbox = "unelevated"',
   "",
 ].join("\n");
+
+/**
+ * Map quota windows onto an account status. A fully-consumed window must mark
+ * the account `quota-exhausted` (unusable for new sessions) — capping at
+ * `quota-low` kept a 100%-used account eligible and silently defeated pool
+ * fallback.
+ */
+function quotaStatusForWindows(
+  windows: ReadonlyArray<{ usedPercent: number }>,
+): "available" | "quota-low" | "quota-exhausted" {
+  if (windows.some((window) => window.usedPercent >= 100)) return "quota-exhausted";
+  if (windows.some((window) => window.usedPercent >= 90)) return "quota-low";
+  return "available";
+}
 
 export function ensureManagedCodexHome(managedCodexHome: string): string {
   mkdirSync(managedCodexHome, { recursive: true });
@@ -92,6 +148,29 @@ export function breakManagedStateSymlink(targetPath: string): boolean {
   }
   if (!st.isSymbolicLink() && st.nlink <= 1) return false;
   unlinkSync(targetPath);
+  return true;
+}
+
+/**
+ * Scrub a Codex-Router overlay out of a CraftStation-managed Codex home.
+ *
+ * Managed homes are CraftStation-owned: Router keys (`model_catalog_json`
+ * pointing at the Router catalog, `codex-router` providers, local gateway
+ * ports) are never legitimate there, and official `codex login` dies parsing
+ * a stale Router catalog (e.g. missing `supports_reasoning_summaries`).
+ * Returns true when a polluted config was rewritten to the canonical managed
+ * config. A missing config needs no scrub: codex falls back to defaults.
+ */
+export function scrubManagedCodexConfig(managedCodexHome: string): boolean {
+  if (!isCodexRouterOverlayHome(managedCodexHome)) return false;
+  const configPath = join(managedCodexHome, "config.toml");
+  breakManagedStateSymlink(configPath);
+  writeFileSync(configPath, MANAGED_CODEX_CONFIG, { encoding: "utf8" });
+  console.warn(
+    "[account] scrubbed Codex-Router overlay from managed Codex home: " +
+      "phase=login operation=scrubManagedCodexConfig status=repaired " +
+      `code=ROUTER_OVERLAY_SCRUBBED home=${managedCodexHome}`,
+  );
   return true;
 }
 
@@ -123,7 +202,7 @@ export function buildCodexLoginScript(
   if (shellKind === "windows") {
     return [
       "Clear-Host",
-      "Remove-Item Env:CODEX_CONFIG_DIR,Env:CODEX_CONFIG_PATH,Env:CODEX_MODEL_CATALOG,Env:CODEX_MODEL_CATALOG_PATH,Env:CODEX_ROUTER_HOME,Env:CODEX_ROUTER_USER_DATA -ErrorAction SilentlyContinue",
+      "Remove-Item Env:CODEX_CONFIG_DIR,Env:CODEX_CONFIG_PATH,Env:CODEX_MODEL_CATALOG,Env:CODEX_MODEL_CATALOG_PATH,Env:CODEX_ROUTER_HOME,Env:CODEX_ROUTER_USER_DATA,Env:OPENAI_CODEX_HOME -ErrorAction SilentlyContinue",
       "if (-not $env:CODEX_HOME) { throw 'CODEX_HOME is missing from the isolated login shell.' }",
       "Write-Host ('CraftStation CODEX_HOME=' + $env:CODEX_HOME)",
       "Write-Host ('CraftStation login cwd=' + (Get-Location).Path)",
@@ -134,7 +213,7 @@ export function buildCodexLoginScript(
   }
   const bashCommand = [
     "clear",
-    "unset CODEX_CONFIG_DIR CODEX_CONFIG_PATH CODEX_MODEL_CATALOG CODEX_MODEL_CATALOG_PATH CODEX_ROUTER_HOME CODEX_ROUTER_USER_DATA",
+    "unset CODEX_CONFIG_DIR CODEX_CONFIG_PATH CODEX_MODEL_CATALOG CODEX_MODEL_CATALOG_PATH CODEX_ROUTER_HOME CODEX_ROUTER_USER_DATA OPENAI_CODEX_HOME",
     'if [ -z "$CODEX_HOME" ]; then echo "CODEX_HOME is missing from the isolated login shell." >&2; exit 1; fi',
     'echo "CraftStation CODEX_HOME=$CODEX_HOME"',
     'echo "CraftStation login cwd=$(pwd)"',
@@ -286,9 +365,7 @@ export class CodexProfileService {
     }
     const status =
       snapshot.status === "ok"
-        ? snapshot.windows.some((window) => window.usedPercent >= 90)
-          ? "quota-low"
-          : "available"
+        ? quotaStatusForWindows(snapshot.windows)
         : snapshot.status === "quota-hit"
           ? "quota-exhausted"
           : snapshot.status === "auth-missing"
@@ -325,6 +402,28 @@ export class CodexProfileService {
       ...(maskedIdentity ? { maskedIdentity } : {}),
       ...(snapshot.plan ? { plan: snapshot.plan } : {}),
     });
+    const quotaWindows = snapshot.windows.map((window) => ({
+      id: window.id,
+      label: window.label,
+      usedPercent: window.usedPercent,
+      ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
+    }));
+    if (
+      (status === "available" || status === "quota-low") &&
+      shouldPreserveInferenceExhaustion(this.options.store.getRecord(accountId), Date.now())
+    ) {
+      // A real inference failure outranks % windows (different budget): keep
+      // the row out of scheduling, but persist the fresh windows so the bars
+      // stay truthful. The mark expires via TTL; newer quota evidence after
+      // that recovers the row normally.
+      return (
+        this.options.store.updateQuota(
+          accountId,
+          quotaWindows,
+        ) ??
+        withMetadata
+      );
+    }
     const updated = this.options.store.updateStatus(accountId, status, {
       ...(snapshot.error ? { lastError: snapshot.error } : {}),
       lastQuotaAt: snapshot.fetchedAt,
@@ -332,12 +431,7 @@ export class CodexProfileService {
     return (
       this.options.store.updateQuota(
         accountId,
-        snapshot.windows.map((window) => ({
-          id: window.id,
-          label: window.label,
-          usedPercent: window.usedPercent,
-          ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
-        })),
+        quotaWindows,
       ) ??
       withMetadata ??
       updated

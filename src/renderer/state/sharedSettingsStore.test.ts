@@ -33,8 +33,8 @@ describe("sharedSettingsStore", () => {
       favoriteModels: [],
       recentModels: [],
       agentSelectionUsage: [],
-      crossagentSelectionUsage: [],
-      crossagentRoutingOverrides: [],
+      ownSubagentSelectionUsage: [],
+      ownSubagentRoutingOverrides: [],
       providerOrder: [],
       sidebarShortcutOrder: ["pullRequests", "githubActions", "schedules"],
       lastUsedProjectDirs: {},
@@ -115,6 +115,17 @@ describe("sharedSettingsStore", () => {
       "schedules",
       "pullRequests",
       "githubActions",
+    ]);
+  });
+
+  it("pins and unpins top shortcuts in order without duplicates", () => {
+    useSharedSettings
+      .getState()
+      .setTopShortcutOrder(["settings.appearance", "crafting", "settings.appearance"]);
+
+    expect(useSharedSettings.getState().topShortcutOrder).toEqual([
+      "settings.appearance",
+      "crafting",
     ]);
   });
 

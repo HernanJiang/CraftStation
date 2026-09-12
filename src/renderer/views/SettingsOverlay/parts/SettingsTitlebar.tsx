@@ -36,7 +36,7 @@ export function SettingsTitlebar(props: { onClose: () => void }) {
           type="button"
           disabled={phase !== "downloaded"}
           onClick={() => void readBridge().installUpdate()}
-          className="craftstation-titlebar-control mr-1 inline-flex h-6 items-center gap-1.5 rounded-lg bg-white/5 px-2 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-200 disabled:cursor-default"
+          className="craftstation-titlebar-control mr-1 inline-flex h-6 items-center gap-1.5 rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground disabled:cursor-default"
         >
           {phase === "downloaded" ? (
             <Download className="size-3.5" />

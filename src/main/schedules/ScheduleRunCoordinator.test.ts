@@ -192,7 +192,7 @@ describe("ScheduleRunCoordinator", () => {
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
 
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
     expect(runs.get("run-1")).toMatchObject({ status: "succeeded", summary: null });
     expect(runs.get("run-1")?.completedAt).not.toBeNull();
   });
@@ -220,7 +220,7 @@ describe("ScheduleRunCoordinator", () => {
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "finished"));
 
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
     expect(runs.get("run-1")?.status).toBe("succeeded");
   });
 
@@ -246,7 +246,7 @@ describe("ScheduleRunCoordinator", () => {
 
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
     expect(runs.get("run-1")?.status).toBe("succeeded");
   });
 
@@ -263,7 +263,7 @@ describe("ScheduleRunCoordinator", () => {
 
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
   });
 
   it("resolves global and project MCP settings for scheduled launches", async () => {
@@ -304,7 +304,7 @@ describe("ScheduleRunCoordinator", () => {
 
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
   });
 
   it("launches scheduled runs with the provider's most-permissive policy", async () => {
@@ -325,7 +325,7 @@ describe("ScheduleRunCoordinator", () => {
 
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
   });
 
   it("falls back to the declared bypass posture when no options are advertised", async () => {
@@ -348,7 +348,7 @@ describe("ScheduleRunCoordinator", () => {
 
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
   });
 
   it("keeps provider defaults when the capability lookup fails", async () => {
@@ -366,7 +366,7 @@ describe("ScheduleRunCoordinator", () => {
 
     coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
-    await expect(settled).resolves.toBe("");
+    await expect(settled).resolves.toBeNull();
   });
 
   it("fails the run when the task's project no longer exists", async () => {
@@ -378,5 +378,334 @@ describe("ScheduleRunCoordinator", () => {
     // No thread row or run row is created when the project can't be resolved.
     expect(threads.size).toBe(0);
     expect(runs.size).toBe(0);
+  });
+
+  it("inherits context text but mints a fresh thread and native session", async () => {
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const sourceThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Old discussion",
+      agentKind: "codex",
+      config: { model: "gpt-5.6" },
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: false,
+      archived: false,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: null,
+    } as unknown as Thread;
+    const { coordinator, threads, startThread } = makeHarness({
+      getThread: (id) => (id === sourceId ? sourceThread : null),
+      getThreadContextText: (id) =>
+        id === sourceId ? "User: remember BANANA42\n\nAssistant: noted BANANA42" : null,
+    });
+
+    const settled = coordinator.runScheduleAsThread({ ...task, targetThreadId: sourceId });
+    await flush();
+
+    // Fresh thread id: never reuses the source thread row or its native session.
+    expect(threads.has(sourceId)).toBe(false);
+    expect(threads.has("thread-1")).toBe(true);
+    expect(startThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-1",
+        agentKind: task.agentKind,
+        prompt: expect.stringContaining("BANANA42"),
+      }),
+    );
+    expect(startThread.mock.calls[0]?.[0]).not.toMatchObject({ threadId: sourceId });
+    expect(startThread.mock.calls[0]?.[0]).not.toHaveProperty("sessionRef");
+
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toBeNull();
+  });
+
+  it("reuses the bound idle thread as a follow-up instead of minting a new one", async () => {
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const sourceThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Baseline monitoring",
+      agentKind: task.agentKind,
+      config: { model: "claude-fable-5", effort: "high" },
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      archived: false,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: null,
+    } as unknown as Thread;
+    const sendFollowUp = vi
+      .fn<(input: { threadId: string; prompt: string }) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const { coordinator, threads, runs, sent, startThread } = makeHarness({
+      getThread: (id) => (id === sourceId ? sourceThread : null),
+      threadExists: (id) => id === sourceId || threads.has(id),
+      sendFollowUp,
+    });
+
+    const settled = coordinator.runScheduleAsThread({
+      ...task,
+      targetThreadId: sourceId,
+      threadTarget: { kind: "existing", threadId: sourceId },
+    });
+    await flush();
+
+    // Same thread reused: no new thread row, no start command, one follow-up.
+    expect(threads.has("thread-1")).toBe(false);
+    expect(threads.get(sourceId)?.title).toBe("Baseline monitoring");
+    expect(startThread).not.toHaveBeenCalled();
+    expect(sent.some((command) => command.kind === "start")).toBe(false);
+    expect(sendFollowUp).toHaveBeenCalledTimes(1);
+    expect(sendFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: sourceId, prompt: task.prompt }),
+    );
+    expect([...runs.values()]).toHaveLength(1);
+    expect([...runs.values()][0]).toMatchObject({
+      scheduleId: task.id,
+      threadId: sourceId,
+      status: "running",
+    });
+
+    coordinator.observeSupervisorEvent(threadState(sourceId, "working"));
+    coordinator.observeSupervisorEvent(threadState(sourceId, "idle"));
+    await expect(settled).resolves.toBeNull();
+    expect([...runs.values()][0]).toMatchObject({ status: "succeeded" });
+  });
+
+  it("falls back to a fresh thread when the bound thread is busy", async () => {
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const sourceThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Busy thread",
+      agentKind: task.agentKind,
+      config: { model: "claude-fable-5" },
+      status: "working",
+      attention: "none",
+      canResumeWithConfig: true,
+      archived: false,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: "2026-07-10T00:00:00.000Z",
+    } as unknown as Thread;
+    const sendFollowUp = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const { coordinator, threads, startThread } = makeHarness({
+      getThread: (id) => (id === sourceId ? sourceThread : null),
+      sendFollowUp,
+    });
+
+    const settled = coordinator.runScheduleAsThread({
+      ...task,
+      targetThreadId: sourceId,
+      threadTarget: { kind: "existing", threadId: sourceId },
+    });
+    await flush();
+
+    expect(sendFollowUp).not.toHaveBeenCalled();
+    expect(threads.has("thread-1")).toBe(true);
+    expect(startThread).toHaveBeenCalledWith(expect.objectContaining({ threadId: "thread-1" }));
+
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toBeNull();
+  });
+
+  it("falls back to a fresh thread when the follow-up delivery fails", async () => {
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const sourceThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Stale session thread",
+      agentKind: task.agentKind,
+      config: { model: "claude-fable-5" },
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      archived: false,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: null,
+    } as unknown as Thread;
+    const sendFollowUp = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("unknown thread session"))
+      .mockResolvedValue(undefined);
+    const seq = ["follow-run-1", "fresh-thread-1", "fresh-run-1"];
+    let seqIdx = 0;
+    const { coordinator, threads, startThread, runs } = makeHarness({
+      getThread: (id) => (id === sourceId ? sourceThread : (threads.get(id) ?? null)),
+      threadExists: (id) => id === sourceId || threads.has(id),
+      sendFollowUp,
+      newId: () => seq[seqIdx++] ?? `id-${seqIdx}`,
+    });
+
+    const settled = coordinator.runScheduleAsThread({
+      ...task,
+      targetThreadId: sourceId,
+      threadTarget: { kind: "existing", threadId: sourceId },
+    });
+    await flush();
+
+    // First attempt interrupted, second attempt mints a fresh thread.
+    expect(sendFollowUp).toHaveBeenCalledTimes(1);
+    expect(startThread).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "fresh-thread-1" }),
+    );
+
+    coordinator.observeSupervisorEvent(threadState("fresh-thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("fresh-thread-1", "idle"));
+    await expect(settled).resolves.toBeNull();
+    const statuses = [...runs.values()].map((run) => run.status).sort();
+    expect(statuses).toEqual(["interrupted", "succeeded"]);
+  });
+
+  it("fails clearly when the continuation thread is gone", async () => {
+    const { coordinator, threads, runs } = makeHarness({
+      getThread: () => null,
+    });
+
+    await expect(
+      coordinator.runScheduleAsThread({
+        ...task,
+        targetThreadId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      }),
+    ).rejects.toThrow("Schedule target thread no longer exists.");
+    expect(threads.size).toBe(0);
+    expect(runs.size).toBe(0);
+  });
+
+  it("uses the schedule harness, not the source thread native session, across harnesses", async () => {
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const sourceThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Codex thread",
+      agentKind: "codex",
+      config: { model: "gpt-5.6" },
+      sessionRef: { providerSessionId: "ses_old", discoveredAt: "2026-01-01T00:00:00.000Z" },
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      archived: false,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: null,
+    } as unknown as Thread;
+    const { coordinator, threads, startThread } = makeHarness({
+      getThread: (id) => (id === sourceId ? sourceThread : null),
+      getThreadContextText: () => "User: keep going",
+    });
+
+    const settled = coordinator.runScheduleAsThread({
+      ...task,
+      agentKind: "opencode",
+      targetThreadId: sourceId,
+    });
+    await flush();
+
+    expect(threads.get("thread-1")?.agentKind).toBe("opencode");
+    expect(threads.get("thread-1")?.sessionRef).toBeUndefined();
+    expect(startThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-1",
+        agentKind: "opencode",
+        prompt: expect.stringContaining("keep going"),
+      }),
+    );
+    expect(startThread.mock.calls[0]?.[0]).not.toHaveProperty("sessionRef");
+
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toBeNull();
+  });
+
+  it("captures the persisted assistant summary when the turn settles", async () => {
+    const { coordinator } = makeHarness({
+      getThreadTerminalResult: () => "Reviewed the week.",
+    });
+    const settled = coordinator.runScheduleAsThread(task);
+    await flush();
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toBe("Reviewed the week.");
+  });
+
+  it("launches a native CraftPlan through craftAgent without startThread", async () => {
+    const craftAgent = vi.fn<() => Promise<{
+      threadId: string;
+      entityId: string;
+      sessionId: string;
+      response: string;
+    }>>().mockResolvedValue({
+      threadId: "thread-1",
+      entityId: "entity-1",
+      sessionId: "session-1",
+      response: "Native summary",
+    });
+    const { coordinator, startThread, runs } = makeHarness({
+      craftAgent,
+      resolveExecution: () => ({
+        kind: "native",
+        prompt: task.prompt,
+        craftPlan: {
+          id: "plan-1",
+          recipeId: "recipe:codex",
+          resultItemId: "result-1",
+          ingredients: {},
+          runtimeBinding: {
+            harnessKind: "codex",
+            modelId: "gpt-5.6",
+            vendor: "openai",
+            runtimeAdapterId: "codex",
+          },
+          createdAt: "2026-01-01T00:00:00.000Z",
+          threadId: "thread-1",
+        },
+        snapshot: {
+          recipeId: "recipe:codex",
+          model: "gpt-5.6",
+          harnessItemId: "harness:codex",
+          agentKind: task.agentKind,
+          threadTarget: { kind: "new" },
+          sourceThreadId: null,
+        },
+        contextSnapshot: null,
+      }),
+    });
+
+    await expect(coordinator.runScheduleAsThread(task)).resolves.toBe("Native summary");
+    expect(craftAgent).toHaveBeenCalledTimes(1);
+    expect(startThread).not.toHaveBeenCalled();
+    expect(runs.get("run-1")).toMatchObject({ status: "succeeded", summary: "Native summary" });
+    expect(craftAgent).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        craftPlan: expect.objectContaining({ sessionRef: expect.anything() }),
+      }),
+    );
   });
 });

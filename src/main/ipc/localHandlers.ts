@@ -1,5 +1,7 @@
-import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { mkdir, readFile, stat } from "node:fs/promises";
+import { appendFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { clipboard, dialog, nativeImage, shell, type BrowserWindow } from "electron";
 import type { BrowserPanelManager } from "../browser";
 import { openMicrophoneSettings } from "../browser/permissions";
@@ -10,10 +12,13 @@ import {
   dbGetProjectNotes,
   dbGetProjects,
   dbGetState,
+  dbGetThread,
   dbGetThreadCompletedTurns,
   dbGetThreadContextUsage,
   dbGetThreadRuntimeItems,
   dbGetThreadRuntimeItemsPage,
+  dbInsertThreadNativeSession,
+  dbListThreadNativeSessions,
   dbTruncateThreadRuntimeAfter,
   dbGetThreads,
   dbPersistExperimentState,
@@ -38,7 +43,34 @@ import {
 } from "../attachments/localFiles";
 import { createProjectDirectory } from "../projectDirectory";
 import { detectProjectIconFile, listProjectIconFiles } from "../projectIconDetect";
-import { diffSyncedThreads, syncedProjectsChanged } from "./threadSyncBroadcast";
+import { diffSyncedThreads, archiveFlips, syncedProjectsChanged } from "./threadSyncBroadcast";
+import type { ArchiveFlip } from "./threadSyncBroadcast";
+import { extractOfficeText } from "../officeText";
+import { isOfficePath } from "@/shared/promptContent";
+
+/**
+ * Tripwire for bulk-archive incidents (threads flipping to archived without
+ * an explicit user action). Every visible→archived flip through either
+ * thread-write path appends one line: time, path (single upsert vs bulk
+ * sync), thread, and the main-side stack. Single UI archives show up as
+ * lone `dbUpsertThread` lines; a stale-state bulk sync shows up as a
+ * clustered `dbSyncAll` burst. Best-effort: never breaks the write path.
+ */
+function traceArchiveFlips(source: "dbUpsertThread" | "dbSyncAll", flips: ArchiveFlip[]): void {
+  if (flips.length === 0) return;
+  try {
+    const tracePath =
+      process.env.CRAFTSTATION_ARCHIVE_TRACE ?? join(tmpdir(), "craftstation-archive-trace.log");
+    const stack = (new Error("archive-trace").stack ?? "").split("\n").slice(2, 8).join(" | ");
+    const lines = flips.map(
+      (flip) =>
+        `${new Date().toISOString()} ${source} thread=${flip.threadId} title=${JSON.stringify(flip.title)} archivedAt=${flip.archivedAt ?? "?"} stack=${stack}`,
+    );
+    appendFileSync(tracePath, `${lines.join("\n")}\n`, "utf8");
+  } catch {
+    // Diagnostics must never break the write path.
+  }
+}
 import { showAndFocusWindow } from "../window/showAndFocusWindow";
 import {
   getProfileCoreStats,
@@ -395,6 +427,24 @@ export function createLocalIpcHandlers(
     revealProjectEntry: async (payload) => {
       shell.showItemInFolder(resolveProjectFsPath(payload));
     },
+    openProjectEntryWithSystem: async (payload) => {
+      // `shell.openPath` delegates to the OS default handler for the file
+      // type (empty string = success, otherwise the failure reason).
+      const failure = await shell.openPath(resolveProjectFsPath(payload));
+      if (failure) throw new Error(failure);
+    },
+    extractOfficeDocumentText: async (payload) => {
+      const absPath = resolveProjectFsPath(payload);
+      if (!isOfficePath(payload.path)) {
+        throw new Error(`Not a supported Office document: ${payload.path}`);
+      }
+      const size = (await stat(absPath)).size;
+      if (size > 64 * 1024 * 1024) {
+        throw new Error("Office document is too large to preview (over 64 MB).");
+      }
+      const { text, truncated } = extractOfficeText(absPath, await readFile(absPath));
+      return { text, truncated };
+    },
     openPluginsFolder: async () => {
       // Created on demand so the folder is always there to drop a package into,
       // even on a fresh install that has never loaded a user plugin.
@@ -423,33 +473,33 @@ export function createLocalIpcHandlers(
         const { settings: next, storedValue } = applyAgentSecretSetting(settings, payload, baseDir);
         return { settings: next, result: { storedValue } };
       }),
-    removeCrossagentRoutingOverride: ({ tags }) => {
+    removeOwnSubagentsRoutingOverride: ({ tags }) => {
       const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
-      const overrides = removeCrossagentRoutingOverride(current.crossagentRoutingOverrides, tags);
-      const settings = { ...current, crossagentRoutingOverrides: overrides };
+      const overrides = removeCrossagentRoutingOverride(current.ownSubagentRoutingOverrides, tags);
+      const settings = { ...current, ownSubagentRoutingOverrides: overrides };
       writeSharedSettingsFile(settingsPath, settings);
       options.onSharedSettingsChanged?.(settings);
       return overrides;
     },
-    removeCrossagentMemoryEntry: ({ entry }) => {
+    removeOwnSubagentsMemoryEntry: ({ entry }) => {
       const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
-      const usage = removeCrossagentSelectionUsageEntry(current.crossagentSelectionUsage, entry);
-      const settings = { ...current, crossagentSelectionUsage: usage };
+      const usage = removeCrossagentSelectionUsageEntry(current.ownSubagentSelectionUsage, entry);
+      const settings = { ...current, ownSubagentSelectionUsage: usage };
       writeSharedSettingsFile(settingsPath, settings);
       options.onSharedSettingsChanged?.(settings);
       return usage;
     },
-    updateCrossagentMemoryEntryTags: ({ entry, tags }) => {
+    updateOwnSubagentsMemoryEntryTags: ({ entry, tags }) => {
       const settingsPath = options.requireCraftStationPaths().settingsPath;
       const current = readSharedSettingsFile(settingsPath);
       const usage = retagCrossagentSelectionUsageEntry(
-        current.crossagentSelectionUsage,
+        current.ownSubagentSelectionUsage,
         entry,
         tags,
       );
-      const settings = { ...current, crossagentSelectionUsage: usage };
+      const settings = { ...current, ownSubagentSelectionUsage: usage };
       writeSharedSettingsFile(settingsPath, settings);
       options.onSharedSettingsChanged?.(settings);
       return usage;
@@ -501,6 +551,10 @@ export function createLocalIpcHandlers(
       publishProjectsChanged();
     },
     dbUpsertThread: (thread) => {
+      if (thread.archived) {
+        const current = dbGetThread(thread.id);
+        traceArchiveFlips("dbUpsertThread", archiveFlips(current ? [current] : [], [thread]));
+      }
       dbUpsertThread(thread, 0);
       publishThreadsChanged([thread.id]);
     },
@@ -509,6 +563,8 @@ export function createLocalIpcHandlers(
       deleteThreadAttachments(options.requireCraftStationPaths(), threadId);
       publishThreadsChanged([threadId]);
     },
+    dbInsertThreadNativeSession: (payload) => dbInsertThreadNativeSession(payload),
+    dbListThreadNativeSessions: ({ threadId }) => dbListThreadNativeSessions(threadId),
     dbDeleteProject: ({ projectId }) => {
       const threadIds = dbGetThreads()
         .filter((thread) => thread.projectId === projectId)
@@ -522,7 +578,9 @@ export function createLocalIpcHandlers(
       // this persist. Diff before writing, then publish the same events remote
       // commands send; the remote's debounced refresh reads the post-write state.
       const projectsChanged = syncedProjectsChanged(dbGetProjects(), projects);
-      const { changedThreadIds, viewedThreadIds } = diffSyncedThreads(dbGetThreads(), threads);
+      const currentThreads = dbGetThreads();
+      const { changedThreadIds, viewedThreadIds } = diffSyncedThreads(currentThreads, threads);
+      traceArchiveFlips("dbSyncAll", archiveFlips(currentThreads, threads));
       dbSyncAll(projects, threads, viewJson);
       if (projectsChanged) publishProjectsChanged(projects);
       publishThreadsChanged(changedThreadIds, viewedThreadIds);
@@ -554,10 +612,13 @@ export function createLocalIpcHandlers(
     dbGetProjectNotes: ({ projectId }) => dbGetProjectNotes(projectId),
     dbSetProjectNotes: (notes) => dbSetProjectNotes(notes),
     getSchedules: () => options.scheduleService.list(),
+    getSchedule: ({ id }) => options.scheduleService.get(id),
     createSchedule: (task) => options.scheduleService.create(task),
     updateSchedule: ({ id, task }) => options.scheduleService.update(id, task),
     deleteSchedule: ({ id }) => options.scheduleService.delete(id),
     runScheduleNow: ({ id }) => options.scheduleService.runNow(id),
+    pauseSchedule: ({ id }) => options.scheduleService.pause(id),
+    resumeSchedule: ({ id }) => options.scheduleService.resume(id),
     getScheduleRuns: ({ id }) => dbListScheduleRuns(id),
     getPrWatch: ({ projectId, prNumber }) => options.prWatchService.get(projectId, prNumber),
     checkPrWatch: ({ projectId, prNumber }) =>

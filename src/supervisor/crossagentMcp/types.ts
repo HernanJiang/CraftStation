@@ -68,7 +68,7 @@ export function resolveSubagentExecution(adapter: {
  * advertised policy, falling back to its declared bypass posture when the
  * probe exposes no choices. Subagents must not inherit a potentially
  * incompatible or supervised parent policy. Browser, Computer Use, and Chrome
- * MCP choices are inherited; Crossagents MCP is deliberately excluded so a child
+ * MCP choices are inherited; Own Subagents MCP is deliberately excluded so a child
  * cannot spawn grandchildren. One-shot-only providers already enforce the
  * permission rule in `buildSubagentOneShotCommand`.
  */
@@ -200,6 +200,8 @@ export interface SubagentAttemptResult {
 export interface SubagentWaitResult {
   status: SubagentRunStatus;
   output: string;
+  /** Direct child tool steps observed under the synthetic tile (progress signal). */
+  steps?: number;
   error?: {
     message: string;
     may_have_side_effects: boolean;
@@ -216,6 +218,24 @@ export interface SubagentRunSummary {
   background: boolean;
   attempt: number;
   attempt_count: number;
+  /** Resolved primary provider/model for the current attempt (traceability). */
+  provider?: string;
+  model?: string;
+  /** Direct child tool steps observed so far. */
+  steps?: number;
+  /** Accumulated assistant-text chars (lets callers distinguish empty vs silent). */
+  output_chars?: number;
+  created_at?: number;
+  settled_at?: number | null;
+  /**
+   * Whether a terminal result was already consumed via `wait_for_agent` /
+   * `get_status` after settling — i.e. the parent was handed the result and
+   * can continue from it. `false` on a settled run means the output is still
+   * waiting to be picked up.
+   */
+  consumed?: boolean;
+  /** Truncated task prompt preview (first 200 chars) for parent/child tracing. */
+  prompt_preview?: string;
 }
 
 /**

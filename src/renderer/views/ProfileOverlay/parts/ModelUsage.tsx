@@ -10,9 +10,11 @@ export function ModelUsage(props: {
   coreModels: ProfileBreakdownEntry[];
   tokensLoading: boolean;
   metric: ActivityMetric;
+  /** Denser typography/spacing for the 3-column usage-stats layout. */
+  compact?: boolean;
 }) {
   const { t } = useLingui();
-  const { tokens, coreModels, tokensLoading, metric } = props;
+  const { tokens, coreModels, tokensLoading, metric, compact = false } = props;
 
   // Follow the Prompts/Tokens toggle: token-weighted when "tokens" is active and
   // token data exists, otherwise the prompt-weighted core mix.
@@ -39,6 +41,7 @@ export function ModelUsage(props: {
       entries={models}
       loading={pending}
       loadingRows={Math.min(4, Math.max(1, coreModels.length || 4))}
+      compact={compact}
       {...(byTokens ? { formatValue: formatCompact } : {})}
       {...(footer ? { footer } : {})}
     />

@@ -27,8 +27,8 @@ describe("buildCodexThreadOverrides", () => {
     expect(overrides.cwd).toBe("C:\\repo");
     expect(overrides.config).toMatchObject({
       model_reasoning_effort: "high",
-      model_context_window: 400_000,
-      model_auto_compact_token_limit: 380_000,
+      model_context_window: 272_000,
+      model_auto_compact_token_limit: 258_400,
       "mcp_servers.browser": {
         url: "http://127.0.0.1:9000/mcp?thread=local-thread",
         bearer_token_env_var: codexMcpTokenEnvVar(browser),
@@ -58,6 +58,22 @@ describe("buildCodexThreadOverrides", () => {
 
     expect(overrides.cwd).toBe("C:\\Users\\Haona/.craftstation/workspace-home/thread-7");
     expect(overrides.cwd).not.toBe("C:\\Users\\Haona");
+  });
+
+  it("maps Grok bypassPermissions onto Codex never instead of forwarding the unknown variant", () => {
+    const overrides = buildCodexThreadOverrides({
+      model: "gpt-5.6-sol",
+      approvalPolicy: "bypassPermissions",
+    });
+    expect(overrides.approvalPolicy).toBe("never");
+  });
+
+  it("drops approval policies Codex does not understand", () => {
+    const overrides = buildCodexThreadOverrides({
+      model: "gpt-5.6-sol",
+      approvalPolicy: "not-a-codex-policy",
+    });
+    expect(overrides.approvalPolicy).toBeUndefined();
   });
 
   it("keeps the project cwd for real projects when a threadId is present", () => {

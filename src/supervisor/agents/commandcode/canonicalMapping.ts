@@ -1,5 +1,6 @@
 import type { RuntimeEvent, TurnState } from "@/shared/contracts";
 import type { NativeWireEvent } from "@/supervisor/runtime/nativeHarness/nativeTransport";
+import { createContextUsageEvent, usageFromProviderRecord } from "../contextUsage";
 
 export interface CommandCodeMapperState {
   assistantItemId?: string;
@@ -193,6 +194,7 @@ function usageEvents(
     numberValue(usage.output) ??
     0;
   if (inputTokens + outputTokens === 0) return [];
+  const contextEvent = createContextUsageEvent(threadId, usageFromProviderRecord(usage));
   return [
     {
       type: "usage.spent",
@@ -206,6 +208,7 @@ function usageEvents(
         turnId,
       },
     },
+    ...(contextEvent ? [contextEvent] : []),
   ];
 }
 

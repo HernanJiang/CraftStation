@@ -25,10 +25,23 @@ import { useMergeConflictContribution } from "./parts/mergeConflict/useMergeConf
 import { useGitDiffContribution } from "./parts/gitDiff/useGitDiffContribution";
 import { setActiveFindEditor } from "@/renderer/components/find/editorFindBridge";
 import { openPdfPreview } from "@/renderer/components/pdf";
-import { isImagePath, isPdfPath, toLocalFileUrl } from "@/shared/promptContent";
+import {
+  isAudioPath,
+  isCsvPath,
+  isImagePath,
+  isNotebookPath,
+  isOfficePath,
+  isPdfPath,
+  isVideoPath,
+  toFileUrl,
+  toLocalFileUrl,
+} from "@/shared/promptContent";
 import { resolveLocalImageDisplayUrl } from "@/shared/localImageDisplay";
 import { resolveAbsolutePath } from "@/renderer/utils/resolveAbsolutePath";
-import { readBridge } from "@/renderer/bridge";
+import { isRemoteSession, readBridge } from "@/renderer/bridge";
+import { CsvPreview } from "./parts/CsvPreview";
+import { NotebookPreview } from "./parts/NotebookPreview";
+import { OfficePreview } from "./parts/OfficePreview";
 
 export { getLanguageFromPath } from "./parts/langMap";
 
@@ -285,6 +298,11 @@ function EditorBody(props: {
   });
   const isPdf = isPdfPath(activePath);
   const isImage = isImagePath(activePath);
+  const isVideo = isVideoPath(activePath);
+  const isAudio = isAudioPath(activePath);
+  const isCsv = isCsvPath(activePath);
+  const isNotebook = isNotebookPath(activePath);
+  const isOffice = isOfficePath(activePath);
 
   useMergeConflictContribution({ editor: editorInstance, monaco: monacoInstance });
   useGitDiffContribution({ editor: editorInstance, gitDiff, bufferStatus });
@@ -337,6 +355,16 @@ function EditorBody(props: {
         <PdfBrowserPlaceholder path={activePath} projectLocation={projectLocation} />
       ) : isImage && projectLocation ? (
         <ImagePreviewPlaceholder path={activePath} projectLocation={projectLocation} />
+      ) : isVideo ? (
+        <VideoPreview path={activePath} projectLocation={projectLocation} />
+      ) : isAudio ? (
+        <AudioPreview path={activePath} projectLocation={projectLocation} />
+      ) : isCsv && bufferStatus === "ready" ? (
+        <CsvPreview content={content ?? ""} />
+      ) : isNotebook && bufferStatus === "ready" ? (
+        <NotebookPreview content={content ?? ""} />
+      ) : isOffice && projectLocation ? (
+        <OfficePreview path={activePath} projectLocation={projectLocation} />
       ) : bufferStatus === "ready" && showPreview && isMarkdown ? (
         <MarkdownPreview content={content ?? ""} />
       ) : bufferStatus === "ready" ? (
@@ -412,26 +440,109 @@ function ImagePreviewPlaceholder(props: { path: string; projectLocation: Project
   );
 }
 
+function mediaSourceUrl(path: string, projectLocation: ProjectLocation | null): string | null {
+  if (!projectLocation) return null;
+  return resolveLocalImageDisplayUrl(
+    toLocalFileUrl(resolveAbsolutePath(projectLocation, path)),
+  );
+}
+
+function VideoPreview(props: { path: string; projectLocation: ProjectLocation | null }) {
+  const mediaUrl = mediaSourceUrl(props.path, props.projectLocation);
+  if (!mediaUrl) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-xs text-muted">
+        <Trans>No project location available to load video.</Trans>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full w-full items-center justify-center overflow-auto bg-black p-4">
+      {/* Range seeking on the local-file protocol is best-effort; progressive playback works. */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-provided local media ships no caption track */}
+      <video
+        key={mediaUrl}
+        src={mediaUrl}
+        title={getBasename(props.path)}
+        controls
+        preload="metadata"
+        className="max-h-full max-w-full"
+      />
+    </div>
+  );
+}
+
+function AudioPreview(props: { path: string; projectLocation: ProjectLocation | null }) {
+  const mediaUrl = mediaSourceUrl(props.path, props.projectLocation);
+  if (!mediaUrl) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-xs text-muted">
+        <Trans>No project location available to load audio.</Trans>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8">
+      <p className="max-w-full truncate text-sm text-foreground">{getBasename(props.path)}</p>
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-provided local media ships no caption track */}
+      <audio key={mediaUrl} src={mediaUrl} title={getBasename(props.path)} controls preload="metadata" className="w-full max-w-md" />
+    </div>
+  );
+}
+
 function PdfBrowserPlaceholder(props: { path: string; projectLocation: ProjectLocation | null }) {
   const { t } = useLingui();
-  const location = props.projectLocation ?? undefined;
-
-  useEffect(() => {
-    openPdfPreview(props.path, location);
-  }, [props.path, location]);
+  const location = props.projectLocation;
+  if (!location) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-xs text-muted">
+        <Trans>No project location available to load PDF.</Trans>
+      </div>
+    );
+  }
+  if (isRemoteSession()) {
+    // file:// URLs resolve on the viewer's machine, so a remote session
+    // cannot preview inline — the desktop opens it in a browser tab instead.
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-sm text-muted">
+        <p>
+          <Trans>PDF preview opens in the browser.</Trans>
+        </p>
+        <button
+          type="button"
+          className="rounded-md border border-[color:var(--border)] px-3 py-1.5 text-foreground transition-colors hover:bg-[var(--row-hover)]"
+          onClick={() => openPdfPreview(props.path, location)}
+        >
+          {t`Open in browser`}
+        </button>
+      </div>
+    );
+  }
+  // Inline preview in a <webview> guest over a file:// URL: the exact
+  // rendering path the in-app browser tabs use for PDFs (verified working).
+  // An <iframe> cannot be used here — the PDF viewer refuses to load inside
+  // a sandboxed frame (opaque origin), which painted the blank page. A
+  // <webview> paints over normal DOM, so the fallback action lives in the
+  // header row above it instead of overlaying it.
+  const fileUrl = toFileUrl(resolveAbsolutePath(location, props.path));
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-sm text-muted">
-      <p>
-        <Trans>PDF preview opens in the browser.</Trans>
-      </p>
-      <button
-        type="button"
-        className="rounded-md border border-[color:var(--border)] px-3 py-1.5 text-foreground transition-colors hover:bg-[var(--row-hover)]"
-        onClick={() => openPdfPreview(props.path, location)}
-      >
-        {t`Open in browser`}
-      </button>
+    <div className="flex h-full w-full flex-col bg-white">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--border)] bg-[var(--content-background)] px-3 py-1.5">
+        <span className="min-w-0 flex-1 truncate text-xs text-muted">
+          {getBasename(props.path)}
+        </span>
+        <button
+          type="button"
+          aria-label={t`Open in browser`}
+          title={t`Open in browser`}
+          className="shrink-0 rounded-md border border-[color:var(--border)] px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-[var(--row-hover)]"
+          onClick={() => openPdfPreview(props.path, location)}
+        >
+          {t`Open in browser`}
+        </button>
+      </div>
+      <webview key={fileUrl} src={fileUrl} title={getBasename(props.path)} className="min-h-0 w-full flex-1" />
     </div>
   );
 }

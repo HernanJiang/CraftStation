@@ -4,11 +4,7 @@
 
 import type { ContentBlock, SessionNotification, SessionUpdate } from "@agentclientprotocol/sdk";
 import type { CanonicalContentBlock, RuntimeEvent } from "@/shared/contracts";
-import {
-  createContextUsageEvent,
-  readNonNegativeInteger,
-  usageFromTokenCounts,
-} from "../../contextUsage";
+import { createContextUsageEvent, usageFromProviderRecord } from "../../contextUsage";
 import { parseAcpAgentMessageApiError } from "../acpUserVisibleErrors";
 import {
   classifyToolCallItemType,
@@ -101,7 +97,28 @@ export function mapAcpSessionUpdate(
       if (messageMeta?.[CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY] === true) {
         events.push(...closeAllOpenContentItems(state));
       }
-      const content = (update as { content?: ContentBlock }).content;
+      let content = (update as { content?: ContentBlock }).content;
+      const embedded = extractEmbeddedReasoning(update);
+      if (embedded.reasoningText) {
+        // A few ACP bridges (notably DeepSeek/OpenAI-compatible ones) carry
+        // reasoning in agent_message_chunk instead of the standard
+        // agent_thought_chunk. Project it into the same live reasoning item so
+        // the renderer can stream it immediately and keep it out of the final
+        // assistant bubble.
+        if (contentState.openAssistantItemId) {
+          events.push({ type: "item.completed", threadId, itemId: contentState.openAssistantItemId });
+          delete contentState.openAssistantItemId;
+        }
+        if (!contentState.openReasoningItemId) {
+          contentState.openReasoningItemId = newItemId("reason");
+          events.push({ type: "item.started", threadId, itemId: contentState.openReasoningItemId, itemType: "reasoning" });
+        }
+        events.push({ type: "content.delta", threadId, itemId: contentState.openReasoningItemId, stream: "reasoning_text", delta: embedded.reasoningText });
+      }
+      if (embedded.assistantText !== undefined) {
+        content = embedded.assistantText.length > 0 ? { type: "text", text: embedded.assistantText } : undefined;
+      }
+      if (embedded.reasoningOnly) break;
       // Some ACP agents emit a blank text chunk after every tool call — empty
       // for most, newline-only for Factory Droid on DeepSeek models. It is only
       // a stream boundary, not an assistant message; opening an item for it
@@ -590,13 +607,9 @@ export function mapAcpSessionUpdate(
     }
 
     case "usage_update": {
-      const usageUpdate = update as { used?: unknown; size?: unknown };
       const event = createContextUsageEvent(
         threadId,
-        usageFromTokenCounts({
-          usedTokens: readNonNegativeInteger(usageUpdate.used),
-          maxTokens: readNonNegativeInteger(usageUpdate.size),
-        }),
+        usageFromProviderRecord(update as Record<string, unknown>),
       );
       if (event) events.push(event);
       break;
@@ -619,6 +632,33 @@ export function mapAcpSessionUpdate(
     state.activeSubAgents.push(pendingSubAgent);
   }
   return events;
+}
+
+/** Normalize provider-specific thought fields/tags into the ACP reasoning stream. */
+function extractEmbeddedReasoning(update: SessionUpdate): {
+  reasoningText?: string;
+  assistantText?: string;
+  reasoningOnly: boolean;
+} {
+  const raw = update as unknown as Record<string, unknown>;
+  const content = raw.content;
+  const meta = raw._meta;
+  const metaRecord = meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>) : undefined;
+  const direct = [raw.reasoning_content, raw.reasoningContent, raw.thought, raw.thinking, raw.analysis]
+    .find((value) => typeof value === "string" && value.length > 0);
+  const markedThought = metaRecord && [metaRecord.reasoning, metaRecord.thinking, metaRecord.thought, metaRecord.isThought]
+    .some((value) => value === true || typeof value === "string");
+  const contentText = content && typeof content === "object" && !Array.isArray(content) && (content as Record<string, unknown>).type === "text"
+    ? String((content as Record<string, unknown>).text ?? "")
+    : undefined;
+  if (typeof direct === "string") return { reasoningText: direct, reasoningOnly: true };
+  if (markedThought && contentText) return { reasoningText: contentText, reasoningOnly: true };
+  if (!contentText) return { reasoningOnly: false };
+  const match = /(?:<think(?:ing)?\s*>|<analysis\s*>)([\s\S]*?)(?:<\/(?:think(?:ing)?|analysis)>|$)/i.exec(contentText);
+  if (!match) return { reasoningOnly: false };
+  const reasoningText = match[1] ?? "";
+  const assistantText = contentText.replace(match[0], "");
+  return { reasoningText, assistantText, reasoningOnly: assistantText.length === 0 };
 }
 
 /**

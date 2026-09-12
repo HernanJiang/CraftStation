@@ -62,6 +62,11 @@ export async function performThreadInputSubmit(input: {
   segments?: PromptSegment[];
   transport: ThreadInputTransport;
   /**
+   * Fallback goal block for THIS turn only. Prepended to the SENT prompt by
+   * the supervisor; the optimistic paint below stays the raw prompt.
+   */
+  goalContext?: string;
+  /**
    * Active Runtime execution envelope for crafted threads (v0.9 F1). The
    * supervisor fails closed when a crafted active command omits it; legacy
    * threads send none. Resolved by the desktop caller via
@@ -136,6 +141,7 @@ export async function performThreadInputSubmit(input: {
       config: thread.config,
       ...(optimisticUserMessageItemId ? { userMessageItemId: optimisticUserMessageItemId } : {}),
       ...(input.execution ? { execution: input.execution } : {}),
+      ...(input.goalContext ? { goalContext: input.goalContext } : {}),
     });
   } catch (error) {
     // The host session is gone (thread unloaded, supervisor restarted) but the
@@ -180,6 +186,7 @@ export async function submitThreadInput(
   threadId: string,
   prompt: string,
   segments?: PromptSegment[],
+  options?: { goalContext?: string },
 ): Promise<void> {
   const resolved = resolveThreadProjectLocation(threadId);
   if (!resolved) return;
@@ -190,6 +197,7 @@ export async function submitThreadInput(
     thread,
     prompt,
     ...(segments ? { segments } : {}),
+    ...(options?.goalContext ? { goalContext: options.goalContext } : {}),
     ...(execution ? { execution } : {}),
     transport: readBridge(),
     resumeLaunch: async (resume) => {
@@ -300,6 +308,18 @@ export async function setThreadPendingSteer(
   prompt: string,
   segments: PromptSegment[] | undefined,
 ): Promise<void> {
+  // A pending steer displaces the working turn (replace-latest: the
+  // supervisor cancels the in-flight turn when it drains the slot). Record
+  // the displacement up front so the abandoned turn renders 已取消 instead
+  // of a misleading empty 已完成. Re-reads the live row: the passed snapshot
+  // may predate the turn start.
+  const live = useAppStore.getState().threads.find((item) => item.id === thread.id);
+  const displacedStartedAt = live?.activeTurnStartedAt
+    ? Date.parse(live.activeTurnStartedAt)
+    : NaN;
+  if (live?.status === "working" && Number.isFinite(displacedStartedAt)) {
+    useAppStore.getState().markUserCancelledTurn(thread.id, displacedStartedAt);
+  }
   const execution = getRuntimeExecutionEnvelope(thread.id);
   await readBridge().setPendingSteer({
     threadId: thread.id,

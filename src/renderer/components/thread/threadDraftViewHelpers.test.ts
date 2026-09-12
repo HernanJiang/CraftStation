@@ -7,6 +7,7 @@ import {
   resolveProviderDraftConfig,
   resolveSavedProviderDraftConfig,
   resolveThinkingValue,
+  withPreferredModel,
 } from "./threadDraftViewHelpers";
 
 const capabilities = {
@@ -117,6 +118,16 @@ describe("resolveProviderDraftConfig thinking mode", () => {
     expect(
       resolveProviderDraftConfig(thinkingAgent(), { model: "fast-capable" }).thinking,
     ).toBeUndefined();
+  });
+});
+
+describe("withPreferredModel", () => {
+  it("keeps a third-party custom model id that the target harness catalog lacks", () => {
+    const injected = withPreferredModel(capabilities, "glm-5.3-flash-C");
+    expect(injected.models[0]).toEqual({ id: "glm-5.3-flash-C", label: "glm-5.3-flash-C" });
+    expect(
+      resolveProviderDraftConfig(agentWith(injected), { model: "glm-5.3-flash-C" }).model,
+    ).toBe("glm-5.3-flash-C");
   });
 });
 

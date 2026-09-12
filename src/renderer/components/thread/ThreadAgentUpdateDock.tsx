@@ -10,6 +10,7 @@ import {
 } from "@/shared/agents/updateResolver";
 import { readBridge } from "@/renderer/bridge";
 import { runAgentInstallCommand } from "@/renderer/actions/agentLoginActions";
+import { useUpdateStore } from "@/renderer/state/updateStore";
 import { Button } from "@/renderer/components/common/Button";
 import { PixelLoader } from "@/renderer/components/common/PixelLoader";
 import { getComposerRuntimeUpdate } from "@/renderer/components/providers/providerComposer";
@@ -139,6 +140,11 @@ export function ThreadAgentUpdateDock(props: {
     if (pending) return;
     setPending(true);
     onUpdatingChange?.(true);
+    // Publish the in-flight update for the sidebar progress entry and the
+    // harness rows; installers stream no byte counts, so those surfaces stay
+    // indeterminate rather than fabricating a percentage.
+    const progressKey = `${agentStatus.kind}:${scope.envKind}:${scope.wslDistro ?? ""}`;
+    useUpdateStore.getState().beginAgentUpdate(progressKey, agentStatus.label);
     try {
       const runtimeCommand = runtimeUpdate?.command;
       if (runtimeCommand) {
@@ -181,6 +187,7 @@ export function ThreadAgentUpdateDock(props: {
     } finally {
       setPending(false);
       onUpdatingChange?.(false);
+      useUpdateStore.getState().finishAgentUpdate(progressKey);
     }
   }
 

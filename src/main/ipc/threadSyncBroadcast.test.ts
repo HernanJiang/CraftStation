@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project, Thread } from "@/shared/contracts";
 import {
+  archiveFlips,
   diffSyncedThreadIds,
   diffSyncedThreads,
   syncedProjectsChanged,
@@ -126,5 +127,23 @@ describe("syncedProjectsChanged", () => {
         ],
       ),
     ).toBe(false);
+  });
+});
+
+describe("archiveFlips", () => {
+  it("reports only visible-to-archived transitions", () => {
+    const before = [testThread(), testThread({ id: "thread-2", archived: true })];
+    const after = [
+      testThread({ archived: true, archivedAt: "2026-09-06T00:00:00.000Z" }),
+      testThread({ id: "thread-2", archived: true }),
+    ];
+    expect(archiveFlips(before, after)).toEqual([
+      { threadId: "thread-1", title: "Test thread", archivedAt: "2026-09-06T00:00:00.000Z" },
+    ]);
+  });
+
+  it("returns nothing when nothing newly archives", () => {
+    expect(archiveFlips([testThread()], [testThread()])).toEqual([]);
+    expect(archiveFlips([], [testThread({ archived: true })])).toEqual([]);
   });
 });

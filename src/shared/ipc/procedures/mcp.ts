@@ -22,24 +22,24 @@ import {
 import { z } from "zod";
 import { definePayloadProcedure } from "../core";
 
-export const confirmCrossagentRoutingOverridePayloadSchema = z.object({
+export const confirmOwnSubagentsRoutingOverridePayloadSchema = z.object({
   requestId: z.string().uuid(),
   ok: z.boolean(),
   error: z.string().optional(),
 });
-export type ConfirmCrossagentRoutingOverridePayload = z.infer<
-  typeof confirmCrossagentRoutingOverridePayloadSchema
+export type ConfirmOwnSubagentsRoutingOverridePayload = z.infer<
+  typeof confirmOwnSubagentsRoutingOverridePayloadSchema
 >;
 
 export const mcpProcedures = {
-  confirmCrossagentRoutingOverride: definePayloadProcedure<
-    ConfirmCrossagentRoutingOverridePayload,
+  confirmOwnSubagentsRoutingOverride: definePayloadProcedure<
+    ConfirmOwnSubagentsRoutingOverridePayload,
     void,
     "supervisor"
   >(
-    "confirmCrossagentRoutingOverride",
+    "confirmOwnSubagentsRoutingOverride",
     "supervisor",
-    confirmCrossagentRoutingOverridePayloadSchema,
+    confirmOwnSubagentsRoutingOverridePayloadSchema,
   ),
   discoverExternalMcpServers: definePayloadProcedure<
     DiscoverExternalMcpServersPayload,

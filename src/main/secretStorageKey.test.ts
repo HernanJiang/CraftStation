@@ -12,7 +12,7 @@ const safeStorageMock = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({ safeStorage: safeStorageMock }));
 
-import { readOrCreateSafeStorageSecretKey } from "./secretStorageKey";
+import { readOrCreateSafeStorageSecretKey, readSecretStorageKeychain } from "./secretStorageKey";
 
 describe("readOrCreateSafeStorageSecretKey", () => {
   let dir: string;
@@ -176,5 +176,33 @@ describe("readOrCreateSafeStorageSecretKey", () => {
     expect(first).not.toBe(second);
     const scoped = readdirSync(dir).filter((name) => /^secret-key\.[0-9a-f]{12}\.safe$/.test(name));
     expect(scoped).toHaveLength(2);
+  });
+
+  it("exposes other identities' keys as decryption-only fallbacks", () => {
+    safeStorageMock.encryptString.mockImplementation((value) => Buffer.from(value));
+    safeStorageMock.decryptString.mockImplementation((value) => value.toString());
+
+    const keyA = readOrCreateSafeStorageSecretKey(dir, "win32", "C:/Users/x/scope-A");
+    const chainB = readSecretStorageKeychain(dir, "win32", "C:/Users/x/scope-B");
+
+    expect(Buffer.from(chainB.current, "base64")).toHaveLength(32);
+    expect(chainB.current).not.toBe(keyA);
+    // Identity B can unseal identity A's vault entries without adopting A's key.
+    expect(chainB.fallbacks).toEqual([keyA]);
+  });
+
+  it("backs up an undecryptable key file instead of overwriting it", () => {
+    writeFileSync(join(dir, "secret-key.safe"), Buffer.from("old-sealed-key").toString("base64"));
+    safeStorageMock.decryptString.mockImplementation(() => {
+      throw new Error("os keychain changed");
+    });
+
+    const key = readOrCreateSafeStorageSecretKey(dir, "linux");
+
+    expect(Buffer.from(key, "base64")).toHaveLength(32);
+    const names = readdirSync(dir);
+    expect(names.filter((name) => name.startsWith("secret-key.safe.bak-"))).toHaveLength(1);
+    // The rotated file no longer holds the undecryptable blob.
+    expect(readFileSync(join(dir, "secret-key.safe"), "utf8")).not.toContain("old-sealed-key");
   });
 });

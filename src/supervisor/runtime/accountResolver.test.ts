@@ -60,6 +60,41 @@ describe("AccountResolver", () => {
     ).toThrow(AccountControlError);
   });
 
+  it("preferred honours a usable pick but falls back to the pool when exhausted", () => {
+    const store = createStore();
+    const first = store.add({ provider: "grok", label: "first" });
+    const second = store.add({ provider: "grok", label: "second" });
+    store.updateStatus(first.accountId, "quota-exhausted");
+    store.updateStatus(second.accountId, "available");
+    const resolver = new AccountResolver(store);
+
+    // Usable pick wins.
+    expect(
+      resolver.resolve({
+        provider: "grok",
+        mode: "preferred",
+        explicitAccountId: second.accountId,
+      }).account.accountId,
+    ).toBe(second.accountId);
+    // Exhausted pick falls back to the pool instead of failing the launch.
+    const fallback = resolver.resolve({
+      provider: "grok",
+      mode: "preferred",
+      explicitAccountId: first.accountId,
+    });
+    expect(fallback.account.accountId).toBe(second.accountId);
+    expect(fallback.reason).toBe("priority");
+    // An all-exhausted pool still surfaces the pool error.
+    store.updateStatus(second.accountId, "quota-exhausted");
+    expect(() =>
+      resolver.resolve({
+        provider: "grok",
+        mode: "preferred",
+        explicitAccountId: first.accountId,
+      }),
+    ).toThrow(AccountControlError);
+  });
+
   it("keeps quota-low usable and skips hard error while preserving diagnostics", () => {
     const store = createStore();
     const first = store.add({ provider: "codex", label: "first" });
@@ -90,6 +125,67 @@ describe("AccountResolver", () => {
       scheduling: "priority",
       account: { accountId: first!.accountId },
     });
+  });
+
+  it("skips excluded accounts and reports them in candidates", () => {
+    const store = createStore();
+    const [first, second] = seed(store, "grok", 2);
+    const resolver = new AccountResolver(store);
+
+    const resolution = resolver.resolve({
+      provider: "grok",
+      mode: "auto",
+      excludedAccountIds: [first!.accountId],
+    });
+    expect(resolution.account.accountId).toBe(second!.accountId);
+    expect(
+      resolution.candidates.find((candidate) => candidate.accountId === first!.accountId),
+    ).toMatchObject({ eligible: false });
+  });
+
+  it("reports pool exhausted when every usable account is excluded", () => {
+    const store = createStore();
+    const accounts = seed(store, "grok", 2);
+    const resolver = new AccountResolver(store);
+
+    expect(() =>
+      resolver.resolve({
+        provider: "grok",
+        mode: "auto",
+        excludedAccountIds: accounts.map((account) => account.accountId),
+      }),
+    ).toThrowError(expect.objectContaining({ code: "ACCOUNT_POOL_EXHAUSTED" }));
+  });
+
+  it("never reroutes an explicit pin through exclusions", () => {
+    const store = createStore();
+    const [first] = seed(store, "grok", 2);
+    const resolver = new AccountResolver(store);
+
+    expect(
+      resolver.resolve({
+        provider: "grok",
+        mode: "explicit",
+        explicitAccountId: first!.accountId,
+        excludedAccountIds: [first!.accountId],
+      }).account.accountId,
+    ).toBe(first!.accountId);
+  });
+
+  it("round-robin walks past excluded accounts", () => {
+    const store = createStore();
+    const accounts = seed(store, "grok", 3);
+    const resolver = new AccountResolver(store);
+    // Prime the cursor to the first account: the next pick must skip the
+    // excluded second account and land on the third.
+    resolver.resolve({ provider: "grok", mode: "auto", scheduling: "round-robin" });
+    const resolution = resolver.resolve({
+      provider: "grok",
+      mode: "auto",
+      scheduling: "round-robin",
+      excludedAccountIds: [accounts[1]!.accountId],
+    });
+    expect(resolution.account.accountId).toBe(accounts[2]!.accountId);
   });
 
   it("round-robins across usable accounts and persists the cursor", () => {
@@ -166,6 +262,10 @@ describe("AccountResolver", () => {
     })();
     expect(error).toBeInstanceOf(AccountControlError);
     expect(error.code).toBe("ACCOUNT_POOL_EXHAUSTED");
+    // Actionable: names the account + state and tells where to recover.
+    expect(error.message).toContain("first");
+    expect(error.message).toContain("quota-exhausted");
+    expect(error.message).toContain("渠道与额度");
   });
 
   it("treats an account without its required credential as ineligible", () => {

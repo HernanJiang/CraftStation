@@ -14,6 +14,8 @@ interface ThreadGoalDockProps {
   threadId: string;
   state: ThreadGoalDockState;
   onDismiss: () => void;
+  /** Compact strip for the composer context bar (to the right of Local). */
+  placement?: "composer" | "context-bar";
 }
 
 const localGoalTimingByItemId = new Map<
@@ -21,7 +23,12 @@ const localGoalTimingByItemId = new Map<
   { timeUsedSeconds: number; anchorSeconds: number }
 >();
 
-export function ThreadGoalDock({ threadId, state, onDismiss }: ThreadGoalDockProps) {
+export function ThreadGoalDock({
+  threadId,
+  state,
+  onDismiss,
+  placement = "composer",
+}: ThreadGoalDockProps) {
   const { t } = useLingui();
   const [localAnchorSeconds, setLocalAnchorSeconds] = useState(() =>
     resolveLocalGoalAnchorSeconds(state, Date.now() / 1000),
@@ -63,9 +70,17 @@ export function ThreadGoalDock({ threadId, state, onDismiss }: ThreadGoalDockPro
       : isActive
         ? "text-white"
         : "text-foreground-muted";
+  const isContextBar = placement === "context-bar";
   return (
-    <ThreadDockSection ariaLabel={t`Thread goal dock`} className="px-2 py-1">
-      <div className="flex min-w-0 items-center gap-2 leading-5">
+    <ThreadDockSection
+      ariaLabel={t`Thread goal dock`}
+      placement={placement}
+      className={isContextBar ? "min-w-0 py-0" : "px-2 py-1"}
+    >
+      <div
+        data-testid={isContextBar ? "goal-chip" : undefined}
+        className={`flex min-w-0 items-center ${isContextBar ? "flex-1 gap-1.5 leading-4" : "gap-2 leading-5"}`}
+      >
         {isActive ? (
           <span className="craftstation-goal-active-icon shrink-0" aria-hidden="true">
             <span className="craftstation-goal-active-icon__ring" />

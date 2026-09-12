@@ -1,13 +1,23 @@
 import { clipboard } from "electron";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { BrowserPanelManager } from "../browser";
 import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import type { UsageLoginStateResponse } from "@/shared/contracts";
 import {
-  collectOpenAiCompatible,
   createCredentialProbeHost,
-  normalizeOpenAiCompatibleBaseUrl,
   validateVolcengineCredentials,
 } from "@craftstation/agents-usage";
+import {
+  buildProbeUrls,
+  normalizeApiRoot,
+  openAiCompatibleApiBase,
+  probeThirdPartyProvider,
+  type ProbeFetch,
+  type ThirdPartyProtocol,
+  type ThirdPartyValidationErrorCode,
+} from "@/shared/thirdPartyValidation";
 import { clearUsageSecret, hasUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import {
   PROVIDER_CONFIGS,
@@ -33,6 +43,18 @@ export interface UsageLoginResult {
   cancelled?: boolean;
   code?: string;
   error?: string;
+  /**
+   * Third-party OpenAI-compatible validation outcome (present only for the
+   * openai-compatible form). The renderer gates Add/Save on `ok === true` and
+   * surfaces the protocol badge from this field.
+   */
+  validatedProtocol?: ThirdPartyProtocol | undefined;
+  /**
+   * Volcengine Ark logins with an API key: the Ark model that passed the
+   * credential probe. The renderer uses it to auto-provision a runnable
+   * OpenAI-compatible channel (quota alone never needs it).
+   */
+  arkModel?: string | undefined;
 }
 
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
@@ -90,7 +112,8 @@ export class UsageLoginManager {
     // Official CLI homes are independent import sources. Signing out of a
     // CraftStation provider clears only CraftStation-owned staging/session
     // state and must never log the user out of Grok, Command Code, or another
-    // vendor CLI.
+    // vendor CLI — with one deliberate exception below.
+    if (providerId === "opencode") this.clearOpenCodeAuth();
     const config = PROVIDER_CONFIGS[providerId];
     if (config?.kind === "cookie") {
       await this.getBrowserPanel()
@@ -103,6 +126,56 @@ export class UsageLoginManager {
         });
     }
     return { ok: true };
+  }
+
+  /**
+   * OpenCode's authorization lives ONLY in the official CLI home
+   * (`auth.json`): the Go subscription under the `opencode-go` entry and the
+   * Zen login under the `opencode` entry — CraftStation keeps no separate
+   * copy of either, so "delete authorization" must remove both entries or
+   * the card resurrects on the next refresh. Other providers' entries in
+   * the same file are preserved; the spend database (`opencode.db`) is
+   * untouched. Candidate directories mirror `openCodeGoDb` (supervisor
+   * side); this file stays `node:fs`-only so the main process never loads
+   * the sqlite binding.
+   */
+  private clearOpenCodeAuth(): void {
+    const home = homedir();
+    const candidates: string[] = [];
+    const xdgData = process.env.XDG_DATA_HOME?.trim();
+    if (xdgData) candidates.push(join(xdgData, "opencode"));
+    candidates.push(join(home, ".local", "share", "opencode"));
+    if (process.platform === "darwin") {
+      candidates.push(join(home, "Library", "Application Support", "opencode"));
+    }
+    if (process.platform === "win32") {
+      for (const envVar of ["APPDATA", "LOCALAPPDATA"] as const) {
+        const base = process.env[envVar]?.trim();
+        if (base) candidates.push(join(base, "opencode"));
+      }
+    }
+    for (const dir of [...new Set(candidates)]) {
+      const authPath = join(dir, "auth.json");
+      let parsed: unknown;
+      try {
+        if (!existsSync(authPath)) continue;
+        parsed = JSON.parse(readFileSync(authPath, "utf8"));
+      } catch {
+        continue;
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+      const record = parsed as Record<string, unknown>;
+      const hasGo = Object.prototype.hasOwnProperty.call(record, "opencode-go");
+      const hasZen = Object.prototype.hasOwnProperty.call(record, "opencode");
+      if (!hasGo && !hasZen) continue;
+      delete record["opencode-go"];
+      delete record["opencode"];
+      try {
+        writeFileSync(authPath, JSON.stringify(record, null, 2), "utf8");
+      } catch (error) {
+        console.warn("[usage-login] failed to clear OpenCode auth:", error);
+      }
+    }
   }
 
   /**
@@ -135,21 +208,21 @@ export class UsageLoginManager {
     const accessKeyId = input.accessKeyId?.trim();
     const secretAccessKey = input.secretAccessKey?.trim();
     const region = input.region?.trim() || "cn-beijing";
-    if (!apiKey && !(accessKeyId && secretAccessKey)) {
-      return {
-        ok: false,
-        code: "credentials_missing",
-        error: "请输入 Ark API Key，或同时输入 AK 与 SK。",
-      };
-    }
     if ((accessKeyId && !secretAccessKey) || (!accessKeyId && secretAccessKey)) {
       return { ok: false, code: "credentials_incomplete", error: "AK 与 SK 必须同时填写。" };
     }
-    if (apiKey && (accessKeyId || secretAccessKey)) {
+    if ((accessKeyId || secretAccessKey) && !apiKey) {
       return {
         ok: false,
-        code: "credentials_conflict",
-        error: "Ark API Key 与 AK/SK 请选择一种方式填写。",
+        code: "model_key_required",
+        error: "填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。",
+      };
+    }
+    if (!apiKey) {
+      return {
+        ok: false,
+        code: "credentials_missing",
+        error: "请输入 Ark API Key；如填写 AK/SK，三项凭据必须同时填写。",
       };
     }
     if (accessKeyId && !/^AKLT[\w-]+$/iu.test(accessKeyId)) {
@@ -175,7 +248,9 @@ export class UsageLoginManager {
         code: validation.code === "rejected" ? "credentials_rejected" : "probe_failed",
         error:
           validation.code === "rejected"
-            ? "Ark 凭据不可用，请检查 API Key 或 AK/SK。"
+            ? apiKey && accessKeyId
+              ? "Ark API Key 或 AK/SK 验证失败。Key 用于调用模型，AK/SK 用于显示额度，请分别检查。"
+              : "Ark 凭据不可用，请检查 API Key 或 AK/SK。"
             : "无法连接 Ark 验证接口，请检查网络与 Region 后重试。",
       };
     }
@@ -189,13 +264,18 @@ export class UsageLoginManager {
       setUsageSecret(this.paths.cacheDir, "volcengine", "secretAccessKey", secretAccessKey);
       setUsageSecret(this.paths.cacheDir, "volcengine", "region", region);
     }
-    return { ok: true };
+    return { ok: true, ...(validation.model ? { arkModel: validation.model } : {}) };
   }
 
   /**
-   * OpenAI 兼容 API 表单：验证 Base URL + Key 可用（/models 探测）后，把整套
-   * 配置写入暂存桶，由 supervisor 的 importOpenAiCompatibleProfile 导入为号池
-   * 账号（支持多个提供商；API Key 永不回传渲染层）。
+   * OpenAI 兼容 API 表单：对 Base URL + Key + Model 执行一次真实的兼容性探测
+   * （Responses 优先，不支持时才回退 Chat Completions；401/403/429/5xx 与超时
+   * 永不伪装成 protocol 回退），通过后把整套配置（含已验证 protocol 与验证
+   * 时间）写入暂存桶，由 supervisor 的 importOpenAiCompatibleProfile 导入为号池
+   * 账号（支持多个提供商；API Key 永不回传渲染层、不写日志）。
+   *
+   * 注意：`GET /v1/models` 只做连通性/auth 提示（见 probeThirdPartyProvider），
+   * 最终通过条件永远是一次最小真实 inference 探测。
    */
   async submitOpenAiCompatibleCredentials(input: {
     baseUrl: string;
@@ -204,27 +284,61 @@ export class UsageLoginManager {
     model?: string;
     displayName?: string;
   }): Promise<UsageLoginResult> {
-    const baseUrl = normalizeOpenAiCompatibleBaseUrl(input.baseUrl);
-    const apiKey = input.apiKey.trim();
-    if (!baseUrl) {
-      return { ok: false, code: "base_url_invalid", error: "OpenAI 兼容 API Base URL 无效。" };
+    const apiRoot = normalizeApiRoot(input.baseUrl);
+    if (!apiRoot) {
+      return { ok: false, code: "invalid_base_url", error: "OpenAI 兼容 API Base URL 无效。" };
     }
+    const apiKey = input.apiKey.trim();
     if (!apiKey) return { ok: false, code: "api_key_empty", error: "API Key 不能为空。" };
-    const snapshot = await collectOpenAiCompatible(
-      createCredentialProbeHost(fetchHttpClient, {
-        "openai-compatible": { baseUrl, apiKey },
-      }),
-    ).catch(() => undefined);
-    if (!snapshot || snapshot.status !== "ok") {
+    const model = input.model?.trim() ?? "";
+    if (!model) {
       return {
         ok: false,
-        code: snapshot?.status === "auth-missing" ? "credentials_rejected" : "probe_failed",
-        error: snapshot?.error ?? "Base URL 或 API Key 不可用，请检查后重试。",
+        code: "model_not_found",
+        error: "请填写 Model Name 并通过验证后才能添加。",
+      };
+    }
+    const probe: ProbeFetch = async (url, init, timeoutMs) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, {
+          method: init.method,
+          headers: init.headers,
+          ...(init.body ? { body: init.body } : {}),
+          signal: controller.signal,
+        });
+        return { status: res.status, bodyText: await res.text().catch(() => "") };
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    // Secrets never enter logs: only the normalized root + model id are diagnosable.
+    const validation = await probeThirdPartyProvider({
+      baseUrl: apiRoot,
+      apiKey,
+      model,
+      fetchImpl: probe,
+    }).catch(() => undefined);
+    if (!validation || !validation.ok) {
+      const failure = validation as
+        | { code: ThirdPartyValidationErrorCode; message: string }
+        | undefined;
+      return {
+        ok: false,
+        code: failure?.code ?? "probe_failed",
+        error: failure?.message ?? "Base URL 或 API Key 不可用，请检查后重试。",
       };
     }
     // 验证通过再整体替换暂存桶：失败的提交不会破坏已暂存内容。
+    // Canonical `baseUrl` keeps the existing convention: bare roots get `/v1`
+    // appended (quota collector's `openAiCompatibleModelsUrl` adds `/models`),
+    // while already-versioned roots (Volcengine Ark `/api/v3`) stay intact.
+    const canonicalBaseUrl = openAiCompatibleApiBase(apiRoot);
+    // Touch the probe-URL builder so a future convention drift fails loudly here.
+    void buildProbeUrls(apiRoot);
     clearUsageSecret(this.paths.cacheDir, "openai-compatible:pending");
-    setUsageSecret(this.paths.cacheDir, "openai-compatible:pending", "baseUrl", baseUrl);
+    setUsageSecret(this.paths.cacheDir, "openai-compatible:pending", "baseUrl", canonicalBaseUrl);
     setUsageSecret(this.paths.cacheDir, "openai-compatible:pending", "apiKey", apiKey);
     const providerName = input.providerName?.trim();
     if (providerName)
@@ -234,12 +348,25 @@ export class UsageLoginManager {
         "providerName",
         providerName,
       );
-    const model = input.model?.trim();
-    if (model) setUsageSecret(this.paths.cacheDir, "openai-compatible:pending", "model", model);
+    setUsageSecret(this.paths.cacheDir, "openai-compatible:pending", "model", model);
     const displayName = input.displayName?.trim();
     if (displayName)
       setUsageSecret(this.paths.cacheDir, "openai-compatible:pending", "displayName", displayName);
-    return { ok: true };
+    // Persist the verified protocol + timestamp: downstream routing must use
+    // the probed protocol instead of re-guessing per prompt.
+    setUsageSecret(
+      this.paths.cacheDir,
+      "openai-compatible:pending",
+      "validatedProtocol",
+      validation.validatedProtocol,
+    );
+    setUsageSecret(
+      this.paths.cacheDir,
+      "openai-compatible:pending",
+      "validatedAt",
+      String(validation.validatedAt),
+    );
+    return { ok: true, validatedProtocol: validation.validatedProtocol };
   }
 
   /**

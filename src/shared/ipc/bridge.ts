@@ -65,6 +65,8 @@ export type CraftStationBridge = CraftStationInvokeBridge & {
   /** Shared settings rewritten outside this renderer (e.g. by a remote client). */
   onSharedSettingsChanged(listener: (settings: SharedSettings) => void): () => void;
   onProjectStateChanged(listener: (event: ProjectStateChangedEvent) => void): () => void;
+  /** Unified schedule store changed (create/update/pause/resume/delete/run/settle). */
+  onSchedulesChanged(listener: () => void): () => void;
   onGitStateChanged(listener: (patch: GitStatePatch) => void): () => void;
   onPrWatchMerged(listener: (event: PrWatchMergedEvent) => void): () => void;
   /** Live PR state observed by the PR-watch loop, so watched PRs stay fresh. */
@@ -141,6 +143,7 @@ export const IPC_EVENT_CHANNELS = {
   remoteAccessPairingChanged: createChannel("remoteAccessPairingChanged"),
   sharedSettingsChanged: createChannel("sharedSettingsChanged"),
   projectStateChanged: createChannel("projectStateChanged"),
+  schedulesChanged: createChannel("schedulesChanged"),
   gitStateChanged: createChannel("gitStateChanged"),
   prWatchMerged: createChannel("prWatchMerged"),
   prWatchStatus: createChannel("prWatchStatus"),

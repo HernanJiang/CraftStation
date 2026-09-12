@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CROSSAGENT_PROVIDER_SESSION_ID_ARG, CrossagentMcpIngress } from "./CrossagentMcpIngress";
+import { CROSSAGENT_PROVIDER_SESSION_ID_ARG, OwnSubagentsMcpIngress } from "./CrossagentMcpIngress";
 import type { SubagentRunManager } from "./SubagentRunManager";
 import { CROSSAGENT_MCP_INSTRUCTIONS_BASE } from "./toolRegistry";
 import type { SpawnableAgent, SpawnAgentRequest } from "./types";
@@ -79,8 +79,8 @@ function makeRunManager(): {
   };
 }
 
-describe("CrossagentMcpIngress", () => {
-  let ingress: CrossagentMcpIngress;
+describe("OwnSubagentsMcpIngress", () => {
+  let ingress: OwnSubagentsMcpIngress;
   let token: string;
   let mcpUrl: string;
   let providerToken: string;
@@ -92,7 +92,7 @@ describe("CrossagentMcpIngress", () => {
     const rm = makeRunManager();
     spawned = rm.spawned;
     setWaitFor = rm.setWaitFor;
-    ingress = new CrossagentMcpIngress({
+    ingress = new OwnSubagentsMcpIngress({
       runManager: rm.runManager,
       getSpawnableAgents: async () => AGENTS,
       resolveProviderSessionThreadId: (sessionId) => PROVIDER_SESSION_THREADS[sessionId],
@@ -111,6 +111,11 @@ describe("CrossagentMcpIngress", () => {
 
   afterEach(() => {
     ingress.dispose();
+  });
+
+  it("binds loopback so Windows Firewall is not prompted at launch", () => {
+    const info = ingress.getInfo();
+    expect(info?.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
   });
 
   async function rpc(method: string, params?: unknown, bearer = token): Promise<Response> {
@@ -178,7 +183,7 @@ describe("CrossagentMcpIngress", () => {
 
   it("invalidates the shared provider credential when the ingress restarts", async () => {
     const rm = makeRunManager();
-    const restarted = new CrossagentMcpIngress({
+    const restarted = new OwnSubagentsMcpIngress({
       runManager: rm.runManager,
       getSpawnableAgents: async () => AGENTS,
       resolveProviderSessionThreadId: (sessionId) => PROVIDER_SESSION_THREADS[sessionId],
@@ -256,7 +261,7 @@ describe("CrossagentMcpIngress", () => {
   it("returns instructions with the routing guide on initialize", async () => {
     const res = await rpc("initialize");
     const body = await res.json();
-    expect(body.result.serverInfo.name).toBe("crossagents");
+    expect(body.result.serverInfo.name).toBe("own_subagents");
     expect(body.result.instructions).toContain(CROSSAGENT_MCP_INSTRUCTIONS_BASE);
     expect(body.result.instructions).toContain("PREFER codex for search.");
   });

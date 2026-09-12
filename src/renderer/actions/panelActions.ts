@@ -204,7 +204,15 @@ export function showSubAgentPanel(
     parentItemId,
     ...(projectLocation ? { projectLocation } : {}),
   });
-  panelStore.setRightPanelTab("subagent");
+  // The detail must land on the auxiliary panel tab as well: `rightPanelTab`
+  // alone leaves `auxiliaryPanelTab === null`, which keeps the launcher
+  // covering the content (header shows the agent name, body shows the
+  // "need a project scope" launcher) — the click looks like a no-op.
+  undockPanelTab("subagent");
+  panelStore.setAuxiliaryPanelTab("subagent");
+  if (panelStore.auxiliaryPanelPlacement === "hidden") {
+    panelStore.setAuxiliaryPanelPlacement("right");
+  }
 }
 
 /** Dismiss every panel that can occupy the right edge — used by the overlay backdrop. */

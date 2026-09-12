@@ -18,12 +18,25 @@ import {
   builtInMcpDisabledToolsSchema,
   mcpServerListSchema,
 } from "./mcpServer";
-import { goalControlActionSchema } from "./runtimeEvent";
 import { runtimeExecutionEnvelopeSchema } from "../sessionHandoff";
 
 /** How thread status/attention is derived for terminal agents (supervisor → renderer). */
 export const threadStatusSourceSchema = z.enum(["cli_hook", "terminal_parse", "server"]);
 export type ThreadStatusSource = z.infer<typeof threadStatusSourceSchema>;
+
+/**
+ * Durable `/goal` prompt bound to a thread. Presence means active; absence
+ * means no goal. Stopped goals are deleted, never tombstoned.
+ * Deliberately no length cap — goals carry full task context.
+ */
+export const threadGoalSchema = z.object({
+  prompt: z.string().trim().min(1),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  /** Fallback/local pause. Native Codex pause is owned by the harness goal item. */
+  paused: z.boolean().optional(),
+});
+export type ThreadGoal = z.infer<typeof threadGoalSchema>;
 
 export const threadSchema = z.object({
   id: z.string().min(1),
@@ -53,9 +66,26 @@ export const threadSchema = z.object({
   groupId: z.string().optional(),
   groupName: z.string().optional(),
   archived: z.boolean().default(false),
+  /**
+   * When the thread entered the archive (ISO). Source of truth for
+   * archive-retention cleanup — never derived from updatedAt. Set on archive,
+   * cleared on unarchive; legacy archived rows backfill from updatedAt on load.
+   */
+  archivedAt: z.string().min(1).optional(),
   done: z.boolean().default(false),
   doneAt: z.string().min(1).optional(),
+  /**
+   * Legacy section-local pin flag. Maintained as a mirror of `pinnedAt` for
+   * backward compatibility; new code orders by `pinnedAt`.
+   * @deprecated Use `pinnedAt` (null = unpinned).
+   */
   starred: z.boolean().default(false),
+  /**
+   * Global pin time (epoch ms). Null/undefined = not pinned. Pin only changes
+   * sidebar presentation priority — never projectId/workspace identity.
+   * Sorted ascending so multiple pins order stably.
+   */
+  pinnedAt: z.number().int().nonnegative().nullable().optional(),
   /** "terminal" → xterm-backed PTY (current default); "gui" → renderer-native chat. */
   presentationMode: threadPresentationModeSchema.optional(),
   createdAt: z.string().min(1),
@@ -86,6 +116,15 @@ export const threadSchema = z.object({
    * existing rows and all existing parsers are unaffected.
    */
   isEphemeral: z.boolean().optional(),
+  /**
+   * Durable `/goal` prompt bound to this thread (CraftStation fallback goal).
+   * Set/replaced only by an explicit `/goal + Prompt` submit, cleared only by
+   * the Goal × stop. Survives reload, resume and model/provider/harness
+   * switches because it rides the synced thread row (not any live session).
+   * Native runtimes (Codex `thread/goal/*`) are registered separately per
+   * session; this field is the fallback source of truth.
+   */
+  goal: threadGoalSchema.optional(),
 });
 export type Thread = z.infer<typeof threadSchema>;
 
@@ -173,6 +212,14 @@ export const startThreadPayloadSchema = z.object({
   initialSize: terminalSizeSchema,
   sessionRef: sessionRefSchema.optional(),
   presentationMode: threadPresentationModeSchema.optional(),
+  /**
+   * Launch-time explicit third-party account (an `openai-compatible` usage
+   * account id validated through the real Responses/Chat probe). The
+   * supervisor MUST bypass the subscription Account Pool for it and project
+   * the third-party credential into the harness instead. Absent = legacy
+   * pool/ambient path, unchanged. Never a subscription account id.
+   */
+  thirdPartyAccountId: z.string().min(1).optional(),
   /** Enabled custom MCP servers resolved by the renderer at launch time. */
   mcpServers: mcpServerListSchema.optional(),
   /** Built-in MCP ids hard-disabled when this launch snapshot was created. */
@@ -187,6 +234,11 @@ export const startThreadPayloadSchema = z.object({
    * the duplicate. Only set for GUI threads with a fresh prompt.
    */
   userMessageItemId: z.string().min(1).optional(),
+  /**
+   * Fallback goal block for the launch turn only. Same semantics as
+   * {@link sendThreadInputPayloadSchema.goalContext}.
+   */
+  goalContext: z.string().min(1).optional(),
 });
 export type StartThreadPayload = z.infer<typeof startThreadPayloadSchema>;
 
@@ -202,6 +254,13 @@ export const sendThreadInputPayloadSchema = z.object({
   /** See {@link startThreadPayloadSchema.userMessageItemId}. */
   userMessageItemId: z.string().min(1).optional(),
   execution: runtimeExecutionEnvelopeSchema.optional(),
+  /**
+   * Fallback goal block for THIS turn only, prepended to the SENT prompt
+   * (never painted as a user message — mirrors `historyPreface`). The
+   * renderer re-sends it every turn while `thread.goal` is active; the
+   * supervisor keeps no goal state. Omitted for native-goal threads.
+   */
+  goalContext: z.string().min(1).optional(),
 });
 export type SendThreadInputPayload = z.infer<typeof sendThreadInputPayloadSchema>;
 
@@ -211,13 +270,13 @@ export const interruptThreadPayloadSchema = z.object({
 });
 export type InterruptThreadPayload = z.infer<typeof interruptThreadPayloadSchema>;
 
-export const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
-
-const goalObjectiveSchema = z.string().trim().min(1).max(MAX_GOAL_OBJECTIVE_LENGTH);
+const goalObjectiveSchema = z.string().trim().min(1);
 
 export const threadGoalControlSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("edit"), objective: goalObjectiveSchema }),
-  z.object({ action: goalControlActionSchema.exclude(["edit"]) }),
+  z.object({ action: z.literal("pause") }),
+  z.object({ action: z.literal("resume") }),
+  z.object({ action: z.literal("clear") }),
 ]);
 export type ThreadGoalControl = z.infer<typeof threadGoalControlSchema>;
 
@@ -410,6 +469,56 @@ export const closeThreadPayloadSchema = z.object({
   execution: runtimeExecutionEnvelopeSchema.optional(),
 });
 export type CloseThreadPayload = z.infer<typeof closeThreadPayloadSchema>;
+
+/**
+ * Switch a live logical thread to another harness/model without creating a
+ * new user-visible thread. The supervisor prepares the new provider runtime
+ * first, then replaces the active binding (never resumes the old sessionRef
+ * cross-harness). Failure leaves the original session in place. The next
+ * user turn carries the transcript preface. Returns the new binding so the
+ * renderer can update the Thread row and record history.
+ */
+export const switchThreadProviderPayloadSchema = z.object({
+  threadId: z.string().min(1),
+  agentKind: agentKindSchema,
+  config: threadConfigSchema,
+  execution: runtimeExecutionEnvelopeSchema.optional(),
+  /**
+   * Launch-time explicit third-party account (same semantics as
+   * {@link startThreadPayloadSchema.thirdPartyAccountId}). Model switches
+   * onto a custom third-party model must carry it, or the rebuilt session
+   * falls back to the native pool with an unresolvable custom model id.
+   */
+  thirdPartyAccountId: z.string().min(1).optional(),
+});
+export type SwitchThreadProviderPayload = z.infer<typeof switchThreadProviderPayloadSchema>;
+
+export const switchThreadProviderResultSchema = z.object({
+  threadId: z.string(),
+  agentKind: agentKindSchema,
+  sessionRef: sessionRefSchema.optional(),
+  poolAccountId: z.string().min(1).optional(),
+  poolProvider: z.string().min(1).optional(),
+  canResumeWithConfig: z.boolean(),
+});
+export type SwitchThreadProviderResult = z.infer<typeof switchThreadProviderResultSchema>;
+
+/** One native-session path lookup (copy menu / archive audit). */
+export const nativeSessionPathQuerySchema = z.object({
+  harness: z.string().min(1),
+  model: z.string().optional(),
+  nativeSessionId: z.string().min(1).optional(),
+  poolAccountId: z.string().min(1).optional(),
+});
+export type NativeSessionPathQuery = z.infer<typeof nativeSessionPathQuerySchema>;
+
+export const nativeSessionPathResultSchema = nativeSessionPathQuerySchema.extend({
+  path: z.string().nullable(),
+});
+export type NativeSessionPathResult = z.infer<typeof nativeSessionPathResultSchema>;
+
+export const nativeSessionPathQueryListSchema = z.array(nativeSessionPathQuerySchema);
+export const nativeSessionPathResultListSchema = z.array(nativeSessionPathResultSchema);
 
 export const threadServerRequestIdSchema = z.union([z.string().min(1), z.number()]);
 export type ThreadServerRequestId = z.infer<typeof threadServerRequestIdSchema>;

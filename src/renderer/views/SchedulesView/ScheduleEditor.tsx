@@ -13,7 +13,10 @@ import { useProjectIconNode } from "@/renderer/components/common/ProjectIcon";
 import { ProjectLocationIcon } from "@/renderer/components/common/ProjectRemoteServer";
 import { useAppStore } from "@/renderer/state/appStore";
 import { HOME_PROJECT_ID, isHomeProject } from "@/shared/homeScope";
-import { capabilitiesForPresentation } from "@/shared/agentSelection";
+import {
+  capabilitiesForPresentation,
+  resolveHighestCompatibleEffort,
+} from "@/shared/agentSelection";
 import { resolveFastValue } from "@/renderer/components/thread/threadDraftViewHelpers";
 import {
   buildModelPickerControls,
@@ -77,6 +80,7 @@ function FieldRow(props: { label: ReactNode; description?: ReactNode; children: 
 export function ScheduleEditor(props: ScheduleEditorProps) {
   const { t, i18n } = useLingui();
   const projects = useAppStore((state) => state.projects);
+  const threads = useAppStore((state) => state.threads);
   const draft = props.draft;
   const projectOptions = [
     {
@@ -163,7 +167,7 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
             const defaultEffort =
               caps.defaultEffort && efforts.includes(caps.defaultEffort)
                 ? caps.defaultEffort
-                : (efforts[0] ?? "");
+                : (resolveHighestCompatibleEffort(efforts) ?? "");
             set({
               agentKind: nextSelection.agentKind,
               model,
@@ -236,6 +240,55 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
                   />
                 </FieldRow>
 
+                <FieldRow
+                  label={<Trans>Time zone</Trans>}
+                  description={<Trans>IANA zone for the schedule time; empty uses this device.</Trans>}
+                >
+                  <TextField
+                    aria-label={t`Time zone`}
+                    className={CONTROL_WIDTH}
+                    value={draft.timezone}
+                    onChange={(timezone) => set({ timezone })}
+                  >
+                    <Input placeholder="Asia/Shanghai" />
+                  </TextField>
+                </FieldRow>
+
+                <FieldRow
+                  label={<Trans>Recipe</Trans>}
+                  description={<Trans>Opaque recipe reference resolved at run time.</Trans>}
+                >
+                  <TextField
+                    aria-label={t`Recipe`}
+                    className={CONTROL_WIDTH}
+                    value={draft.recipeId}
+                    onChange={(recipeId) => set({ recipeId })}
+                  >
+                    <Input placeholder={t`Optional recipe id`} />
+                  </TextField>
+                </FieldRow>
+
+                <FieldRow
+                  label={<Trans>Continue thread</Trans>}
+                  description={
+                    <Trans>Inherit context text only; the harness session stays fresh.</Trans>
+                  }
+                >
+                  <Select
+                    aria-label={t`Continue thread`}
+                    className={CONTROL_WIDTH}
+                    options={[
+                      { id: "new", label: t`New thread per run` },
+                      ...threads.slice(0, 100).map((thread) => ({
+                        id: thread.id,
+                        label: thread.title || thread.id.slice(0, 8),
+                      })),
+                    ]}
+                    value={draft.targetThreadId ?? "new"}
+                    onChange={(value) => set({ targetThreadId: value === "new" ? null : value })}
+                  />
+                </FieldRow>
+
                 <section className="space-y-2">
                   <h3 className="text-sm font-semibold text-foreground">
                     <Trans>Agent</Trans>
@@ -262,6 +315,7 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
                       aria-label={t`Repeat`}
                       className={CONTROL_WIDTH}
                       options={[
+                        { id: "interval", label: t`Every N minutes` },
                         { id: "hourly", label: t`Hourly` },
                         { id: "daily", label: t`Daily` },
                         { id: "weekdays", label: t`Weekdays` },
@@ -312,6 +366,28 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
                         onChange={(runAt) => set({ runAt })}
                       >
                         <Input />
+                      </TextField>
+                    </FieldRow>
+                  ) : draft.repeatMode === "interval" ? (
+                    <FieldRow
+                      label={<Trans>Every</Trans>}
+                      description={<Trans>Minutes between runs (1–1440).</Trans>}
+                    >
+                      <TextField
+                        aria-label={t`Every N minutes`}
+                        className={CONTROL_WIDTH}
+                        type="number"
+                        value={String(draft.everyMinutes)}
+                        onChange={(value) => {
+                          const parsed = Number.parseInt(value, 10);
+                          set({
+                            everyMinutes: Number.isFinite(parsed)
+                              ? Math.min(1440, Math.max(1, parsed))
+                              : draft.everyMinutes,
+                          });
+                        }}
+                      >
+                        <Input min={1} max={1440} placeholder="10" />
                       </TextField>
                     </FieldRow>
                   ) : (

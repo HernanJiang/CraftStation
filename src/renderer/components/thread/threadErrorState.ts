@@ -1,4 +1,4 @@
-import type { AuthState, ErrorItemPayload } from "@/shared/contracts";
+import type { AuthState, ErrorItemPayload, MessageItemPayload } from "@/shared/contracts";
 import type { AppStoreState } from "@/renderer/state/slices/shared";
 import {
   getRuntimeItemPayload,
@@ -40,12 +40,30 @@ export function selectThreadErrorDockStates(
 
   const itemsById = state.runtimeItemsByIdByThread[threadId];
   const sinceLastUser: ThreadErrorDockState[] = [];
+  // A turn that failed over to the next pool account answers AFTER its quota
+  // error item. Once a completed, non-empty assistant message follows, the
+  // older error is recovered history — not an actionable dock. (The walk
+  // runs newest-first, so "follows" means "seen before the error".)
+  let recovered = false;
+  // Pool failover retries can paint the identical quota banner several turns
+  // in a row (one error item per failed turn). Collapse consecutive duplicates
+  // so the dock shouts once; distinct messages still all surface.
+  let lastPushedMessage: string | null = null;
   for (let index = itemIds.length - 1; index >= 0; index -= 1) {
     const item = itemsById?.[itemIds[index]!];
     if (!item) continue;
     if (item.type === "user_message") break;
+    if (item.type === "assistant_message" && !recovered) {
+      recovered = hasAssistantAnswer(item);
+      continue;
+    }
+    if (item.type !== "error") continue;
+    if (recovered) continue;
     const dock = item.type === "error" ? getThreadErrorDockStateForItem(item) : null;
-    if (dock) sinceLastUser.push(dock);
+    if (!dock) continue;
+    if (dock.message === lastPushedMessage) continue;
+    lastPushedMessage = dock.message;
+    sinceLastUser.push(dock);
   }
   const result = sinceLastUser.length === 0 ? EMPTY_ERROR_DOCK_STATES : sinceLastUser.reverse();
   errorDockStatesCache.set(threadId, { itemIds, result });
@@ -67,6 +85,24 @@ export function getThreadErrorDockStateForItem(item: RuntimeChatItem): ThreadErr
 
 function isAbortOnlyErrorMessage(message: string): boolean {
   return /^(?:error:\s*)?(?:aborterror:\s*)?aborted\.?$/i.test(message.trim());
+}
+
+const NON_WHITESPACE = /\S/;
+
+/** A completed assistant row with visible text or image counts as an answer. */
+function hasAssistantAnswer(item: RuntimeChatItem): boolean {
+  if (item.type !== "assistant_message" || item.state !== "completed") return false;
+  const streams = (item as { streams?: Record<string, string | undefined> }).streams;
+  if (streams?.["assistant_text"] && NON_WHITESPACE.test(streams["assistant_text"])) return true;
+  const payload = getRuntimeItemPayload<MessageItemPayload>(item, "assistant_message");
+  return (
+    payload?.content.some(
+      (block) =>
+        (block.kind === "text" && NON_WHITESPACE.test(block.text)) ||
+        block.kind === "image" ||
+        block.kind === "audio",
+    ) ?? false
+  );
 }
 
 /**

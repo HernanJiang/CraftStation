@@ -11,6 +11,7 @@ import type {
 import type { NativeHarnessDiagnostic } from "@/shared/crafting";
 import { isHomeScopeLocation } from "@/shared/homeScope";
 import { inlinePromptSegmentText } from "@/shared/promptContent";
+import { antigravitySessionEnvForLocation } from "./detection";
 import { ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR } from "@/supervisor/runtime/nativeHarness/descriptors";
 import { canonicalizeNativeEvent } from "@/supervisor/runtime/nativeHarness/nativeEventCanonicalizer";
 import {
@@ -31,10 +32,13 @@ import {
   type StructuredSessionListener,
 } from "../base";
 import { resolveAgentBinaryPath } from "../binaryResolver";
-import { buildAntigravityArgs } from "./argv";
+import { explainNativeNetworkError } from "../nativeNetworkError";
+import { buildAntigravityArgs, buildAntigravityPrintTimeoutArgs } from "./argv";
 
 interface AntigravityStructuredSessionOptions {
   supportsSeparateModelEffort: boolean;
+  emitEffortFlag?: boolean;
+  supportsPrintTimeout?: boolean;
   defaultModel: string;
   spawnProcess?: typeof spawn;
 }
@@ -148,14 +152,39 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
   async openThread(config: ThreadConfig, sessionRef?: SessionRef): Promise<string | undefined> {
     if (this.transport) throw new Error("Antigravity session is already open.");
     if (this.disposed) throw new Error("Antigravity session was disposed before opening.");
+    if (sessionRef?.providerSessionId) {
+      this.providerSessionId = sessionRef.providerSessionId;
+    }
+    await this.spawnTransport(config);
+    this.emitUpdate({
+      status: "idle",
+      attention: "none",
+      ...(this.providerSessionId
+        ? { sessionRef: createKnownSessionRef(this.providerSessionId) }
+        : {}),
+    });
+    // Antigravity creates the canonical conversation id asynchronously and
+    // announces it in the first `init` frame. Keep the initial value absent so
+    // CraftStation never persists a fabricated provider id; the listener
+    // update below supplies the real id as soon as the provider emits it.
+    return this.providerSessionId;
+  }
 
-    this.providerSessionId = sessionRef?.providerSessionId;
+  /**
+   * (Re)spawn the underlying `agy` process for the retained conversation id.
+   * Shared by the initial open and by transparent recovery after the process
+   * exits mid-session (crash/OOM/killed): without this, every send after an
+   * exit fails permanently with "session is not open" and the thread can
+   * never continue.
+   */
+  private async spawnTransport(config: ThreadConfig): Promise<void> {
     const args = buildAntigravityArgs(
       config,
       "",
       this.providerSessionId,
       this.options.supportsSeparateModelEffort,
       this.options.defaultModel,
+      this.options.emitEffortFlag ?? false,
     );
     if (!this.providerSessionId && !isHomeScopeLocation(this.input.projectLocation)) {
       args.unshift("--new-project");
@@ -171,7 +200,8 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     }
     this.projection = createAntigravityMcpProjection(projectableMcpServers);
     const env = {
-      ...(this.input.baseSpawnEnv ?? {}),
+      ...(antigravitySessionEnvForLocation(this.input.baseSpawnEnv, this.input.projectLocation) ??
+        {}),
       ...(this.input.projectLocation.kind === "wsl" ? { BROWSER: "/bin/true" } : {}),
       ...(this.input.env ?? {}),
       ...(this.projection?.env ?? {}),
@@ -179,7 +209,10 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     const command = buildAgentCommand(
       this.input.projectLocation,
       "agy",
-      buildAntigravityStreamArgs(args),
+      buildAntigravityStreamArgs([
+        ...buildAntigravityPrintTimeoutArgs(this.options.supportsPrintTimeout ?? false),
+        ...args,
+      ]),
       resolveAgentBinaryPath(this.input.projectLocation, "agy"),
       env,
     );
@@ -207,19 +240,6 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       this.projection = undefined;
       throw error;
     }
-
-    this.emitUpdate({
-      status: "idle",
-      attention: "none",
-      ...(this.providerSessionId
-        ? { sessionRef: createKnownSessionRef(this.providerSessionId) }
-        : {}),
-    });
-    // Antigravity creates the canonical conversation id asynchronously and
-    // announces it in the first `init` frame. Keep the initial value absent so
-    // CraftStation never persists a fabricated provider id; the listener
-    // update below supplies the real id as soon as the provider emits it.
-    return this.providerSessionId;
   }
 
   async startTurn(
@@ -228,7 +248,17 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     segments?: PromptSegment[],
     options?: StartTurnOptions,
   ): Promise<void> {
-    if (this.disposed || !this.transport) throw new Error("Antigravity session is not open.");
+    if (this.disposed) throw new Error("Antigravity session was disposed and cannot be reused.");
+    if (!this.transport) {
+      // The process exited after open (crash/OOM/killed) while the session
+      // itself was never disposed: respawn transparently against the retained
+      // conversation id so the thread can continue instead of failing every
+      // subsequent send with "session is not open". A respawn failure throws
+      // here with the real spawn error — never a silent no-op.
+      await this.spawnTransport(_config);
+    }
+    const transport = this.transport;
+    if (!transport) throw new Error("Antigravity session is not open.");
     if (this.currentTurnId) throw new Error("An Antigravity turn is already active.");
     this.currentTurnId = `turn:${randomUUID()}`;
     this.emitRuntime({
@@ -252,7 +282,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       ? `${prompt}\n\n${additionalInstructions}`
       : prompt;
     try {
-      this.transport.send({ event: "user", message: { content: effectivePrompt } });
+      transport.send({ event: "user", message: { content: effectivePrompt } });
     } catch (error) {
       this.finishTurn(error instanceof Error ? error : new Error(String(error)));
     }
@@ -377,12 +407,28 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     this.resolveTurn = undefined;
     this.rejectTurn = undefined;
     if (error) {
+      // Chat-lane quota write-back (same seam as the ACP sessions): a quota
+      // or auth failure marks the BOUND pool row so the next resolution
+      // skips it. Guarded so bookkeeping can never replace the turn failure
+      // or break its rejection below.
+      try {
+        const observed = this.input.onPromptError?.(error);
+        if (observed && typeof (observed as Promise<void>).catch === "function") {
+          void (observed as Promise<void>).catch((callbackError) => {
+            console.warn("[antigravity] prompt error observer failed:", callbackError);
+          });
+        }
+      } catch (callbackError) {
+        console.warn("[antigravity] prompt error observer failed:", callbackError);
+      }
       if (turnId) {
         if (emitError) {
           this.emitRuntime({
             type: "error",
             threadId: this.input.threadId,
-            message: error.message,
+            // Display-only projection: the rejection below keeps the original
+            // error so quota/auth matching never sees rewritten text.
+            message: explainNativeNetworkError(error, "Antigravity") ?? error.message,
           });
         }
         this.emitRuntime({

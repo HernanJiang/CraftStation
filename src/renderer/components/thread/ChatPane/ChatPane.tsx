@@ -25,7 +25,7 @@ import { useProjectTreeStore } from "@/renderer/state/projectTreeStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import {
   buildFileEditorContext,
-  openFileInEditor,
+  openFileInRightPanel,
   resolveWorktreeBranch,
 } from "@/renderer/utils/gitHelpers";
 import { showSubAgentPanel } from "@/renderer/actions/panelActions";
@@ -40,8 +40,8 @@ import {
 } from "./ChatTurnElapsed";
 import {
   selectMostRecentDisplayableCompletedTurn,
+  selectLastUserMessageId,
   selectVisibleThreadTimelineEntries,
-  type ChatTimelineEntry,
 } from "./chatPaneSelectors";
 import { shouldMarkUserScrollIntentFromPointerTarget } from "./chatScrollGeometry";
 import { normalizeChatProjectPath } from "./chatPathUtils";
@@ -178,7 +178,10 @@ export function ChatPane(props: ChatPaneProps) {
           onOpenProjectRelativePath(resolvedPath, lineNumber);
           return;
         }
-        await openFileInEditor(project, worktreePath, branch, resolvedPath, lineNumber);
+        // Chat file clicks open as a new tab in the RIGHT sidebar Files
+        // workspace (rendered preview for markdown) — never the central
+        // overlay — so the chat stays visible and interactive.
+        await openFileInRightPanel(project, worktreePath, branch, resolvedPath, lineNumber);
       },
       revealProjectFolderInTree: (path) => {
         const normalized = normalizeChatProjectPath(path, targetContext.projectLocation);
@@ -320,6 +323,20 @@ export function ChatPane(props: ChatPaneProps) {
   const hasOpenRuntimeRequest = useAppStore(
     (s) => (s.runtimeRequestsByThread[threadId]?.length ?? 0) > 0,
   );
+  // Live-turn status bar anchor (below the latest user bubble). Only for a
+  // truly live foreground turn — detached background work keeps the legacy
+  // tail timer. When the inline bar exists it owns the live timer and the tail
+  // footer stays quiet; otherwise the tail keeps ticking (turn just started,
+  // no rows yet).
+  const runtimeOpenTurn = useAppStore((s) => s.runtimeOpenTurnByThread[threadId] ?? false);
+  const lastUserMessageId = useAppStore((s) => selectLastUserMessageId(s, threadId));
+  const liveTurnStartEntryId = useMemo(() => {
+    if (!isLive || !runtimeOpenTurn || !lastUserMessageId) return null;
+    const visible = timelineEntries.some(
+      (entry) => entry.kind === "item" && entry.id === lastUserMessageId,
+    );
+    return visible ? lastUserMessageId : null;
+  }, [isLive, runtimeOpenTurn, lastUserMessageId, timelineEntries]);
   // Anchor on thread.status alone — gating on item state caused the loader to
   // disappear in the gap between an item flipping to `completed` and the next
   // `item.started` arriving, even though the runtime was still working the
@@ -329,30 +346,7 @@ export function ChatPane(props: ChatPaneProps) {
     selectMostRecentDisplayableCompletedTurn(s, threadId),
   );
   const mostRecentCompletedTurnAnchor = mostRecentDisplayableCompletedTurn?.anchorItemId ?? null;
-  const completedTurnAnchorAtTail = isCompletedTurnAnchorAtTimelineTail(
-    mostRecentCompletedTurnAnchor,
-    timelineEntries,
-  );
-  const completedTurnCanRenderInTail =
-    !showWorkingTimer &&
-    (turn?.endedAt != null || mostRecentDisplayableCompletedTurn !== null) &&
-    completedTurnAnchorAtTail;
-  const tailTurn =
-    completedTurnCanRenderInTail && mostRecentDisplayableCompletedTurn
-      ? mostRecentDisplayableCompletedTurn
-      : turn;
-  const showTailLoader = showWorkingTimer || completedTurnCanRenderInTail;
-  // The agent is not actually working while it waits for a user answer, so the
-  // tail loader keeps rendering but its elapsed-time counter freezes for the
-  // duration of the wait and resumes once the user submits a response. Anchor
-  // on `hasOpenRuntimeRequest` (cleared optimistically by the request panel)
-  // rather than `thread.status`, which only flips back to `working` after the
-  // supervisor's round-trip — for plan approvals the agent often opens a new
-  // request before that round-trip completes, leaving status stuck at
-  // `needs_approval` even though the user has already answered.
-  const isTurnPaused = hasOpenRuntimeRequest;
-  const showEmptyHint = isEmpty && !isLive && !isConnecting;
-  // The tail loader displays the most recent completed turn's frozen elapsed
+  // The tail footer displays the most recent completed turn's frozen elapsed
   // time when the thread is idle and no newer timeline row exists. Once an
   // optimistic next prompt is appended, keep the completed indicator inline at
   // its anchor so the prompt does not briefly occupy the old footer position.
@@ -365,10 +359,42 @@ export function ChatPane(props: ChatPaneProps) {
     turn.endedAt === null &&
     mostRecentDisplayableCompletedTurn !== null &&
     turn.startedAt <= mostRecentDisplayableCompletedTurn.startedAt;
-  const suppressInlineTurnAnchorId =
-    completedTurnCanRenderInTail || liveTimerContinuesCompletedTurn
-      ? mostRecentCompletedTurnAnchor
-      : null;
+  // Completed durations live at the turn's anchor bar (the same inline position
+  // as the live "Working" bar, divider included) — never duplicated in the tail
+  // footer. Only the still-ticking background live timer suppresses its anchor
+  // bar, because the footer then owns the one honest "still working" readout.
+  const suppressTurnHeaderAnchorId = liveTimerContinuesCompletedTurn
+    ? mostRecentCompletedTurnAnchor
+    : null;
+  // The inline status bar under the live turn's user bubble owns the live
+  // timer once the turn has rows; the tail only ticks before the first row
+  // lands (or while detached background work runs after the turn settles).
+  // Completed turns render their frozen duration at the turn anchor — the
+  // tail footer remains only for legacy threads without a persisted turn
+  // record (no anchor row exists to attach the duration to), or when that
+  // anchor row is itself not rendered in the timeline.
+  const mostRecentCompletedAnchorRenderable =
+    mostRecentCompletedTurnAnchor !== null &&
+    timelineEntries.some((entry) =>
+      entry.kind === "item"
+        ? entry.id === mostRecentCompletedTurnAnchor
+        : entry.itemIds.includes(mostRecentCompletedTurnAnchor),
+    );
+  const showTailLoader =
+    (showWorkingTimer && liveTurnStartEntryId === null) ||
+    (!showWorkingTimer &&
+      turn?.endedAt != null &&
+      (mostRecentDisplayableCompletedTurn === null || !mostRecentCompletedAnchorRenderable));
+  // The agent is not actually working while it waits for a user answer, so the
+  // tail loader keeps rendering but its elapsed-time counter freezes for the
+  // duration of the wait and resumes once the user submits a response. Anchor
+  // on `hasOpenRuntimeRequest` (cleared optimistically by the request panel)
+  // rather than `thread.status`, which only flips back to `working` after the
+  // supervisor's round-trip — for plan approvals the agent often opens a new
+  // request before that round-trip completes, leaving status stuck at
+  // `needs_approval` even though the user has already answered.
+  const isTurnPaused = hasOpenRuntimeRequest;
+  const showEmptyHint = isEmpty && !isLive && !isConnecting;
   const checkpointGuard = useAppStore(
     useShallow((s) =>
       resolveCheckpointGuard({
@@ -426,8 +452,8 @@ export function ChatPane(props: ChatPaneProps) {
                   <ChatWorktreeProvisioningFooter />
                 ) : isConnecting ? (
                   <ChatConnectingFooter />
-                ) : showTailLoader && tailTurn ? (
-                  <ChatTurnElapsedFooter turn={tailTurn} isPaused={isTurnPaused} />
+                ) : showTailLoader && turn ? (
+                  <ChatTurnElapsedFooter turn={turn} isPaused={isTurnPaused} />
                 ) : null
               }
               onWheelCapture={(event) => {
@@ -466,7 +492,7 @@ export function ChatPane(props: ChatPaneProps) {
                 void loadOlderThreadRuntimeItems(threadId);
               }}
               registerScrollToIndex={registerScrollToIndex}
-              suppressInlineTurnAnchorId={suppressInlineTurnAnchorId}
+              suppressTurnHeaderAnchorId={suppressTurnHeaderAnchorId}
               canRevertCheckpoints={!isLive && !isHomeScope}
               checkpointGuard={checkpointGuard}
               checkpointActions={checkpointActions}
@@ -572,17 +598,6 @@ function collectPathAncestors(path: string): string[] {
     ancestors.push(segments.slice(0, i + 1).join("/"));
   }
   return ancestors;
-}
-
-function isCompletedTurnAnchorAtTimelineTail(
-  anchorItemId: string | null,
-  entries: readonly ChatTimelineEntry[],
-): boolean {
-  if (anchorItemId === null || entries.length === 0) return true;
-  const lastEntry = entries[entries.length - 1]!;
-  return lastEntry.kind === "item"
-    ? lastEntry.id === anchorItemId
-    : lastEntry.itemIds.includes(anchorItemId);
 }
 
 type CheckpointGuard = {

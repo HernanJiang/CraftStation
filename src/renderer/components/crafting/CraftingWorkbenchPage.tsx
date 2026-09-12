@@ -17,14 +17,18 @@ import {
   buildSelectedModelInventory,
   findSelectedModelEntry,
 } from "@/renderer/crafting/selectedModelInventory";
-import { buildHarnessInventory, findHarnessReference } from "@/renderer/crafting/harnessInventory";
+import {
+  buildHarnessInventory,
+  findHarnessReference,
+  isRetiredHarnessKind,
+} from "@/renderer/crafting/harnessInventory";
+import { openHarnessConfiguration } from "@/renderer/crafting/openHarnessConfiguration";
 import { ModelsInventory } from "./workbench/ModelsInventory";
 import { HarnessInventory } from "./workbench/HarnessInventory";
 import { ComponentsInventory } from "./workbench/ComponentsInventory";
 import { EfficientWorkbench } from "./workbench/EfficientWorkbench";
 import { CreativeWorkbenchShell } from "./workbench/CreativeWorkbenchShell";
 import { HarnessCliPanel } from "./workbench/HarnessCliPanel";
-import { SharedInspector } from "./workbench/SharedInspector";
 import { MyRecipesQuickList } from "./workbench/MyRecipesQuickList";
 import { RecipeSaveDialog } from "./workbench/RecipeSaveDialog";
 import { RecipeLoadConfirmDialog } from "./workbench/RecipeLoadConfirmDialog";
@@ -48,6 +52,7 @@ export function CraftingWorkbenchPage(props: {
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
   const hiddenModels = useSharedSettings((state) => state.hiddenModels);
+  const shownModels = useSharedSettings((state) => state.shownModels);
 
   const mode = useCraftingWorkbenchStore((state) => state.lastWorkbenchMode);
   const setMode = useCraftingWorkbenchStore((state) => state.setMode);
@@ -62,8 +67,12 @@ export function CraftingWorkbenchPage(props: {
   const updateRecipeAlias = useCraftingWorkbenchStore((state) => state.updateRecipeAlias);
   const loadRecipeToDraft = useCraftingWorkbenchStore((state) => state.loadRecipeToDraft);
   const setInspector = useCraftingWorkbenchStore((state) => state.setInspector);
-  const selectedInspectorRef = useCraftingWorkbenchStore((state) => state.selectedInspectorRef);
   const recipes = useCraftingWorkbenchStore((state) => state.recipes);
+  const cpaHelper = useCraftingWorkbenchStore((state) => state.cpaHelper);
+  const ensureCliProxyApiItem = useCraftingWorkbenchStore((state) => state.ensureCliProxyApiItem);
+  const clearCliProxyApiSelection = useCraftingWorkbenchStore(
+    (state) => state.clearCliProxyApiSelection,
+  );
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveDupCount, setSaveDupCount] = useState(0);
@@ -111,6 +120,7 @@ export function CraftingWorkbenchPage(props: {
         agentStatuses,
         wslAgentStatuses,
         hiddenModels,
+        shownModels,
         customModels,
         accounts,
         configuredProviderIds,
@@ -120,6 +130,7 @@ export function CraftingWorkbenchPage(props: {
       agentStatuses,
       wslAgentStatuses,
       hiddenModels,
+      shownModels,
       customModels,
       accounts,
       configuredProviderIds,
@@ -127,10 +138,24 @@ export function CraftingWorkbenchPage(props: {
     ],
   );
   const harnessEntries = useMemo(() => buildHarnessInventory(nativeEntries), [nativeEntries]);
+  // Retired catalogue entries (e.g. DeepSeek API Runtime) stay out of the
+  // sidebar list as well; the runtime remains for saved recipes/threads.
+  const visibleNativeEntries = useMemo(
+    () => nativeEntries.filter((entry) => !isRetiredHarnessKind(entry.descriptor.harnessKind)),
+    [nativeEntries],
+  );
 
   const selectedModel = findSelectedModelEntry(modelEntries, efficientDraft.modelEntryRef);
   const selectedHarness = findHarnessReference(harnessEntries, efficientDraft.harnessRef);
   const resolution = efficientDraft.resolution;
+  // Compatibility routes (gateway-direct / cpa-translate) require the
+  // CLIProxyAPI helper: ensure it is present + selected exactly then.
+  // Native routes must NOT auto-select CPA.
+  const cpaRequired = resolution?.source === "compatibility-layer";
+  useEffect(() => {
+    if (cpaRequired) ensureCliProxyApiItem();
+    else clearCliProxyApiSelection();
+  }, [cpaRequired, ensureCliProxyApiItem, clearCliProxyApiSelection]);
 
   const emptyResolution = (key: string, msg: string): CapabilityResolution => ({
     resolutionKey: key,
@@ -208,6 +233,7 @@ export function CraftingWorkbenchPage(props: {
     if (ref.status !== "ready") {
       setInspector(ref.harnessItemId);
       setHighlightedKind(ref.harnessKind);
+      openHarnessConfiguration(ref.harnessKind);
       return;
     }
     setEfficientHarness(ref.harnessItemId);
@@ -215,9 +241,12 @@ export function CraftingWorkbenchPage(props: {
   };
 
   const handleCraft = () => {
-    // Compatibility remains visible as a diagnostic state, but is not an
-    // executable/saveable recipe until the target runtime path is verified.
-    if (!resolution || resolution.status !== "NATIVE") return;
+    // NATIVE (direct official runtime) and bridge-verified CRAFTABLE are
+    // executable and saveable. CRAFTABLE only arises while the Compatibility
+    // Bridge reports running; spawn re-verifies the served-model contract.
+    // Anything else stays diagnostic-only.
+    if (!resolution || (resolution.status !== "NATIVE" && resolution.status !== "CRAFTABLE"))
+      return;
     const name =
       selectedModel && selectedHarness
         ? `${selectedHarness.displayName} · ${selectedModel.displayName}`
@@ -270,12 +299,14 @@ export function CraftingWorkbenchPage(props: {
 
   const openModelsTab = () => usePanelStore.getState().openModelUsageWorkspace({ tab: "models" });
 
-  const inspectorModel = selectedInspectorRef
-    ? findSelectedModelEntry(modelEntries, selectedInspectorRef)
-    : undefined;
-  const inspectorHarness = selectedInspectorRef
-    ? findHarnessReference(harnessEntries, selectedInspectorRef)
-    : undefined;
+  const resultName =
+    selectedModel && selectedHarness
+      ? `${selectedHarness.displayName} · ${selectedModel.displayName}`
+      : "";
+  const resolutionReason =
+    resolution && resolution.status !== "NATIVE" && resolution.status !== "CRAFTABLE"
+      ? (resolution.diagnostics[0]?.message ?? "")
+      : "";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3" data-testid="crafting-workbench-page">
@@ -292,67 +323,179 @@ export function CraftingWorkbenchPage(props: {
               mode === m ? "bg-white/10 text-white" : "text-neutral-400 hover:text-white"
             }`}
           >
-            {m === "efficient" ? "高效合成台" : "创造合成台"}
+            {m === "efficient" ? "合成" : "创造合成台"}
           </button>
         ))}
       </div>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
         {/* Main workbench area */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
           {mode === "efficient" ? (
-            <EfficientWorkbench
-              model={selectedModel}
-              harness={selectedHarness}
-              resolution={resolution}
-              onCraft={handleCraft}
-              onClear={clearEfficientDraft}
-            />
+            <>
+              {/* 顶部：合成台（主视觉） | 紧凑结果详情 | 已有配方 */}
+              <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-start gap-3">
+                <EfficientWorkbench
+                  model={selectedModel}
+                  harness={selectedHarness}
+                  resolution={resolution}
+                  cpa={cpaRequired ? { required: true, selected: cpaHelper.selected } : undefined}
+                  onCraft={handleCraft}
+                  onClear={clearEfficientDraft}
+                />
+
+                <div
+                  className="min-w-0 rounded-2xl border border-white/10 bg-black/25 px-3 py-2"
+                  data-testid="crafting-result-detail"
+                  aria-label="合成结果详情"
+                >
+                  <p className="text-[10px] font-medium text-neutral-500">合成结果</p>
+                  <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
+                    {resultName || "尚未放入模型与 Harness"}
+                  </p>
+                  {resolution ? (
+                    <p
+                      className={`mt-0.5 text-[10px] font-semibold ${
+                        resolution.status === "NATIVE"
+                          ? "text-emerald-400"
+                          : resolution.status === "CRAFTABLE"
+                            ? "text-amber-300"
+                            : "text-neutral-500"
+                      }`}
+                    >
+                      {resolution.status === "NATIVE"
+                        ? "原生可合成"
+                        : resolution.status === "CRAFTABLE"
+                          ? "兼容桥可合成"
+                          : "不可合成"}
+                    </p>
+                  ) : null}
+                  {resolutionReason ? (
+                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-neutral-400">
+                      {resolutionReason}
+                    </p>
+                  ) : null}
+                  {selectedModel ? (
+                    <p className="mt-1 truncate text-[10px] text-neutral-500">
+                      模型 · {selectedModel.displayName}（{selectedModel.modelId}）
+                    </p>
+                  ) : null}
+                  {selectedHarness ? (
+                    <p className="truncate text-[10px] text-neutral-500">
+                      Harness · {selectedHarness.displayName}（{selectedHarness.status}）
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex max-h-80 min-h-0 min-w-0 flex-col overflow-y-auto pr-1">
+                  <MyRecipesQuickList
+                    recipes={recipes}
+                    limit={100}
+                    onLoad={handleLoadRecipe}
+                    onViewAll={() =>
+                      usePanelStore.getState().openModelUsageWorkspace({ tab: "recipes" })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* 下方三列：填满剩余高度，各列内部滚动，不截断在半页 */}
+              <div
+                className="grid min-h-0 flex-1 grid-cols-3 gap-3 overflow-hidden border-t border-white/5 pt-3"
+                data-testid="crafting-inventory-columns"
+              >
+                <ModelsInventory
+                  entries={modelEntries}
+                  selectedEntryId={efficientDraft.modelEntryRef}
+                  onSelect={handleSelectModel}
+                  onAdd={openModelsTab}
+                  summary={
+                    selectedModel ? (
+                      <div
+                        className="rounded-lg border border-accent/40 bg-white/[0.05] px-2 py-1.5"
+                        data-testid="models-selection-summary"
+                      >
+                        <p className="truncate text-[11px] font-semibold text-foreground">
+                          {selectedModel.displayName}
+                        </p>
+                        <p className="truncate text-[9px] text-neutral-500">
+                          {selectedModel.modelId} · {selectedModel.channelLabel}
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
+                        data-testid="models-selection-summary"
+                      >
+                        未选择模型
+                      </div>
+                    )
+                  }
+                />
+                <HarnessInventory
+                  entries={harnessEntries}
+                  selectedRef={efficientDraft.harnessRef}
+                  onSelect={handleSelectHarness}
+                  onAdd={() => {
+                    document
+                      .querySelector('[data-testid="harness-cli-panel"]')
+                      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                  }}
+                  summary={
+                    selectedHarness ? (
+                      <div
+                        className="rounded-lg border border-accent/40 bg-white/[0.05] px-2 py-1.5"
+                        data-testid="harness-selection-summary"
+                      >
+                        <p className="truncate text-[11px] font-semibold text-foreground">
+                          {selectedHarness.displayName}
+                        </p>
+                        <p className="truncate text-[9px] text-neutral-500">
+                          {selectedHarness.harnessKind} · {selectedHarness.status}
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
+                        data-testid="harness-selection-summary"
+                      >
+                        未选择 Harness
+                      </div>
+                    )
+                  }
+                />
+                <ComponentsInventory
+                  onSelect={() => setInspector(undefined)}
+                  summary={
+                    <div
+                      className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
+                      data-testid="components-selection-summary"
+                    >
+                      暂无已选组件（可选）
+                    </div>
+                  }
+                />
+              </div>
+            </>
           ) : (
-            <CreativeWorkbenchShell draft={creativeDraft} onClear={clearCreativeDraft} />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <CreativeWorkbenchShell draft={creativeDraft} onClear={clearCreativeDraft} />
+            </div>
           )}
-
-          {/* Inventory */}
-          <div className="grid shrink-0 grid-cols-3 gap-3 border-t border-white/5 pt-3">
-            <ModelsInventory
-              entries={modelEntries}
-              selectedEntryId={efficientDraft.modelEntryRef}
-              onSelect={handleSelectModel}
-              onAdd={openModelsTab}
-            />
-            <HarnessInventory
-              entries={harnessEntries}
-              selectedRef={efficientDraft.harnessRef}
-              onSelect={handleSelectHarness}
-              onAdd={() => {
-                document
-                  .querySelector('[data-testid="harness-cli-panel"]')
-                  ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-              }}
-            />
-            <ComponentsInventory onSelect={() => setInspector(undefined)} />
-          </div>
-
-          {/* Lower section: quick list + inspector */}
-          <div className="grid shrink-0 grid-cols-2 gap-3">
-            <MyRecipesQuickList
-              recipes={recipes}
-              onLoad={handleLoadRecipe}
-              onViewAll={() => usePanelStore.getState().openModelUsageWorkspace({ tab: "recipes" })}
-            />
-            <SharedInspector model={inspectorModel} harness={inspectorHarness} />
-          </div>
         </div>
 
         {/* Right Harness/CLI panel */}
         <HarnessCliPanel
-          entries={nativeEntries}
+          entries={visibleNativeEntries}
           loading={nativeLoading}
           highlightedKind={highlightedKind}
           onRefresh={() => void refreshHarness()}
           onShowDetail={(entry) => {
             setHighlightedKind(entry.descriptor.harnessKind);
             setInspector(entry.descriptor.harnessKind);
+            if (entry.status !== "ready") {
+              openHarnessConfiguration(entry.descriptor.harnessKind);
+            }
           }}
         />
       </div>

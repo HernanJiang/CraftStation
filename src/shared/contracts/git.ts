@@ -210,6 +210,19 @@ export const gitInitPayloadSchema = z.object({
 });
 export type GitInitPayload = z.infer<typeof gitInitPayloadSchema>;
 
+/** Nearest reachable tag + short HEAD sha for the current checkout. */
+export const gitDescribePayloadSchema = z.object({
+  projectLocation: projectLocationSchema,
+});
+export type GitDescribePayload = z.infer<typeof gitDescribePayloadSchema>;
+
+export interface GitDescribeResult {
+  /** Nearest reachable tag (`git describe --tags --abbrev=0`); null when none. */
+  tag: string | null;
+  /** Short HEAD sha; null when unresolvable (e.g. fresh repo without commits). */
+  sha: string | null;
+}
+
 export const gitAddRemotePayloadSchema = z.object({
   projectLocation: projectLocationSchema,
   remote: z.string().min(1),

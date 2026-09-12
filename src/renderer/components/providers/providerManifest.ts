@@ -8,6 +8,20 @@ export interface RendererProviderManifest {
   order: number;
   /** Optional override for automatic utility tasks; otherwise `order` applies. */
   utilityOrder?: number;
+  /**
+   * Where this provider's renderer contribution runs. All current manifests
+   * are `renderer` (icons, composer controls, defaults). Kept explicit so a
+   * future Main/Supervisor-owned provider cannot silently slip into the
+   * renderer eager `index.tsx` glob. Defaults to `renderer` when omitted.
+   */
+  runningLocation?: "renderer";
+  /**
+   * Descriptive activation hints (e.g. `onProvider:codex`). Informational
+   * only: the renderer still eager-loads lightweight `manifest.ts` files and
+   * keeps heavy UI behind `bootstrap.ts`/`deferredFeatures`. No runtime
+   * lazy-loading behavior changes without measured startup evidence.
+   */
+  activationEvents?: string[];
 }
 
 const manifestModules = import.meta.glob<RendererProviderManifest>("./*/manifest.ts", {
@@ -31,7 +45,10 @@ function loadProviderManifests(): RendererProviderManifest[] {
     }
     assertRank("default", manifest.order);
     if (manifest.utilityOrder !== undefined) assertRank("utility", manifest.utilityOrder);
-    return Object.freeze({ ...manifest });
+    if (manifest.runningLocation !== undefined && manifest.runningLocation !== "renderer") {
+      throw new Error(`Unsupported provider runningLocation for ${manifest.kind}`);
+    }
+    return Object.freeze({ ...manifest, runningLocation: "renderer" as const });
   });
 
   const kinds = new Set<string>();

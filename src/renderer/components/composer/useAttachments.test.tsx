@@ -5,6 +5,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { storableAttachment, useAttachments, type SaveClipboardImage } from "./useAttachments";
 
 describe("useAttachments", () => {
+  it("marks audio files with inferred audio MIME types", () => {
+    const { result } = renderHook(() => useAttachments());
+    act(() => {
+      result.current.addFiles(["/tmp/standup.mp3", "/tmp/voice.ogg", "/tmp/photo.png"]);
+    });
+
+    expect(result.current.attachments).toEqual([
+      expect.objectContaining({
+        name: "standup.mp3",
+        mimeType: "audio/mpeg",
+        isImage: false,
+        isAudio: true,
+      }),
+      expect.objectContaining({
+        name: "voice.ogg",
+        mimeType: "audio/ogg",
+        isImage: false,
+        isAudio: true,
+      }),
+      expect.objectContaining({ name: "photo.png", isImage: true, isAudio: false }),
+    ]);
+    expect(result.current.toSegments()).toContainEqual({
+      kind: "attachment",
+      path: "/tmp/standup.mp3",
+      mimeType: "audio/mpeg",
+    });
+  });
+
   // jsdom does not implement object URLs.
   const createObjectURL = vi.fn<(source: File) => string>(() => "blob:app/pasted-1");
   const revokeObjectURL = vi.fn<(url: string) => void>();

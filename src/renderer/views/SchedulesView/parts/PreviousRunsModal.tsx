@@ -7,6 +7,7 @@ import { readBridge } from "@/renderer/bridge";
 import { ThreadProviderIcon } from "@/renderer/components/providers/ThreadProviderIcon";
 import { formatEffortLabel } from "@/renderer/components/thread/threadDraftViewHelpers";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { useAppStore } from "@/renderer/state/appStore";
 import { useThread } from "@/renderer/state/useThread";
 
 interface PreviousRunsModalProps {
@@ -93,6 +94,42 @@ function RunRow({
   );
 }
 
+function ScheduleDetail({ task, formatDateTime }: { task: ScheduledTask; formatDateTime: (iso: string) => string }) {
+  const projects = useAppStore((state) => state.projects);
+  const projectName = task.projectId
+    ? (projects.find((project) => project.id === task.projectId)?.name ?? task.projectId)
+    : "Home";
+  const rows: Array<[string, string]> = [
+    ["Instructions", task.prompt],
+    ["Harness", task.agentKind],
+    ["Model", task.config.model + (task.config.effort ? ` · ${task.config.effort}` : "")],
+    ["Workspace", projectName],
+    ["Target thread", task.targetThreadId ?? "New thread per run"],
+    ["Recipe", task.recipeId ?? "—"],
+    ["Time zone", task.timezone ?? "Device-local"],
+    [
+      "Next run",
+      task.lastStatus === "running"
+        ? "Running now"
+        : task.enabled && task.nextRunAt
+          ? formatDateTime(task.nextRunAt)
+          : "Paused",
+    ],
+  ];
+  return (
+    <dl className="space-y-1.5 rounded-lg border border-[var(--hairline)] px-3 py-2.5">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-start justify-between gap-3 text-xs">
+          <dt className="shrink-0 text-muted">{label}</dt>
+          <dd className="min-w-0 flex-1 truncate text-right text-foreground" title={value}>
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function PreviousRunsModal({
   task,
   formatDateTime,
@@ -167,6 +204,7 @@ export function PreviousRunsModal({
             <Modal.Heading>{task?.name ?? <Trans>Previous runs</Trans>}</Modal.Heading>
           </Modal.Header>
           <Modal.Body>
+            {task ? <ScheduleDetail task={task} formatDateTime={formatDateTime} /> : null}
             {runsError ? (
               <p className="text-xs whitespace-pre-wrap text-danger">{runsError}</p>
             ) : runs === null ? (

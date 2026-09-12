@@ -14,7 +14,8 @@ describe("SidebarCodexNav notification bell", () => {
     useNotificationStore.getState().clear();
   });
 
-  it("shows the unread dot only when a notification is unread, and clears it when the list opens", () => {
+  it("keeps the unread bell until the conversation is opened, then drops the row", async () => {
+    const { openThread } = await import("@/renderer/actions/threadActions");
     const { rerender } = renderWithI18n(<SidebarCodexNav />);
     expect(screen.queryByTestId("notification-unread-dot")).not.toBeInTheDocument();
 
@@ -28,13 +29,14 @@ describe("SidebarCodexNav notification bell", () => {
     rerender(<SidebarCodexNav />);
     expect(screen.getByTestId("notification-unread-dot")).toBeInTheDocument();
 
-    useNotificationStore.getState().markAllRead();
-    rerender(<SidebarCodexNav />);
-    expect(screen.queryByTestId("notification-unread-dot")).not.toBeInTheDocument();
-    // The list itself is kept for review until the user clears it.
     fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
     expect(screen.getByText("Refactor session")).toBeInTheDocument();
-    expect(screen.getByText("Clear all")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Refactor session"));
+    expect(openThread).toHaveBeenCalledWith("thread-1", {
+      focusComposer: true,
+      switchWorkspace: true,
+    });
+    expect(useNotificationStore.getState().items).toEqual([]);
   });
 
   it("shows an empty state and a clear action when there are no notifications", () => {

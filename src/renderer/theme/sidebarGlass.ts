@@ -4,7 +4,7 @@ import { isMac, isWindows } from "@/renderer/bridge";
  * User-tunable frosting for the translucent ("liquid glass") sidebar.
  *
  * The sidebar paints `var(--sidebar-glass-tint)` over the OS blur material; the
- * tint is `content-background` at a partial alpha. A higher alpha is more
+ * tint is `sidebar-background` at a partial alpha. A higher alpha is more
  * frosted (the sidebar holds its theme color), a lower one shows more of the
  * blurred backdrop. The Appearance slider overrides that alpha per light/dark.
  *
@@ -24,13 +24,13 @@ const CSS_VAR = "--sidebar-glass-tint";
  * Default mix percentage per appearance, by platform. Mirrors the
  * `--sidebar-glass-tint` rules in styles.css — keep the two in sync:
  *   - Windows: the `html[data-platform="win32"][data-native-material="on"]`
- *     overrides (65% light / 72% dark).
+ *     overrides (88% light / 72% dark).
  *   - macOS: the base `@layer` tokens, since no win32 override applies there —
  *     the `:root` light default (35%) and the `.dark` block default (65%).
  * Used to seed the slider when there is no override.
  */
 const WINDOWS_GLASS_TINT_DEFAULT: Record<Appearance, number> = {
-  light: 65,
+  light: 88,
   dark: 72,
 };
 const MACOS_GLASS_TINT_DEFAULT: Record<Appearance, number> = {
@@ -46,7 +46,7 @@ export function sidebarGlassTintDefault(appearance: Appearance): number {
 
 /** The `color-mix()` expression for a frosting percentage (0–100). */
 export function sidebarGlassTintExpr(pct: number): string {
-  return `color-mix(in oklab, var(--content-background) ${pct}%, transparent)`;
+  return `color-mix(in oklab, var(--sidebar-background) ${pct}%, transparent)`;
 }
 
 /**

@@ -73,6 +73,12 @@ export function approvalPolicyDropdown(input: {
   policies: AgentCapability["approvalPolicies"];
   currentPolicy: string;
   isDisabled: boolean;
+  /**
+   * The harness's full-access policy id (`capabilities.bypassPermissions`).
+   * Lets the execution-mode menu select "完全访问权限" directly instead of
+   * guessing from option labels.
+   */
+  fullAccessPolicyId?: string;
   onChange: (value: string) => void;
 }): ComposerControl {
   return {
@@ -81,6 +87,7 @@ export function approvalPolicyDropdown(input: {
     hideLabelOnWrap: true,
     value: input.currentPolicy,
     isDisabled: input.isDisabled,
+    ...(input.fullAccessPolicyId ? { fullAccessPolicyId: input.fullAccessPolicyId } : {}),
     onChange: input.onChange,
   };
 }
@@ -114,6 +121,9 @@ export function standardPlanApprovalControls(input: {
             policies: capabilities.approvalPolicies,
             currentPolicy:
               config.approvalPolicy ?? capabilities.approvalPolicies[0]?.id ?? "default",
+            ...(capabilities.bypassPermissions?.approvalPolicy
+              ? { fullAccessPolicyId: capabilities.bypassPermissions.approvalPolicy }
+              : {}),
             isDisabled,
             onChange: (value) => onConfigChange({ approvalPolicy: value }),
           }),
@@ -171,6 +181,9 @@ export function buildAcpComposerControls({
       approvalPolicyDropdown({
         policies: capabilities.approvalPolicies,
         currentPolicy: config.approvalPolicy ?? capabilities.approvalPolicies[0]?.id ?? "default",
+        ...(capabilities.bypassPermissions?.approvalPolicy
+          ? { fullAccessPolicyId: capabilities.bypassPermissions.approvalPolicy }
+          : {}),
         isDisabled,
         onChange: (value) => onConfigChange({ approvalPolicy: value }),
       }),

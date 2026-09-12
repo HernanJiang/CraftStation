@@ -5,7 +5,7 @@ import { isRemoteSession, isWindows } from "@/renderer/bridge";
 import type { AiContentLanguage, LocaleSetting } from "@/shared/locale";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { aiLanguageOptions, localeOptions } from "@/renderer/i18n/locales";
-import { LightballTabs, Select, ToggleSwitch } from "@/renderer/components/common";
+import { LightballTabs, Select, TextArea, ToggleSwitch } from "@/renderer/components/common";
 import type { PreventSleep } from "@/shared/settings";
 import { SettingRow, SettingsPage } from "./SettingsForm";
 import { newThreadModeOptions, useLocalizedOptions } from "./settingsOptions";
@@ -17,6 +17,8 @@ export function GeneralSettings() {
   const setLocale = useSharedSettings((state) => state.setLocale);
   const gitTextLanguage = useSharedSettings((state) => state.gitTextLanguage);
   const setGitTextLanguage = useSharedSettings((state) => state.setGitTextLanguage);
+  const customGlobalPrompt = useSharedSettings((state) => state.customGlobalPrompt);
+  const setCustomGlobalPrompt = useSharedSettings((state) => state.setCustomGlobalPrompt);
   const preventSleep = useSharedSettings((state) => state.preventSleep);
   const setPreventSleep = useSharedSettings((state) => state.setPreventSleep);
   const closeToTray = useSharedSettings((state) => state.closeToTray);
@@ -81,6 +83,26 @@ export function GeneralSettings() {
           options={resolvedAiLanguageOptions}
           value={gitTextLanguage}
           onChange={(value) => setGitTextLanguage(value as AiContentLanguage)}
+        />
+      </SettingRow>
+
+      <SettingRow
+        anchorId="general.customPrompt"
+        title={t`Custom prompt`}
+        description={
+          <Trans>
+            Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank
+            to disable. Always visible here — nothing is injected implicitly.
+          </Trans>
+        }
+      >
+        <TextArea
+          aria-label={t`Custom prompt`}
+          className="w-full max-w-[420px] shrink-0 text-xs"
+          rows={4}
+          placeholder={t`e.g. Always reply in Simplified Chinese. Prefer concise answers with code first.`}
+          value={customGlobalPrompt}
+          onChange={(e) => setCustomGlobalPrompt(e.target.value)}
         />
       </SettingRow>
 

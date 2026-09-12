@@ -259,6 +259,13 @@ const bridge: CraftStationBridge = {
       ipcRenderer.removeListener(IPC_EVENT_CHANNELS.quickComposerDismissRequested, handler);
     };
   },
+  onSchedulesChanged(listener) {
+    const handler = () => listener();
+    ipcRenderer.on(IPC_EVENT_CHANNELS.schedulesChanged, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_EVENT_CHANNELS.schedulesChanged, handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("craftstation", bridge);

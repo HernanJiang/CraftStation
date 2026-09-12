@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allUsageProviderDescriptors } from "@craftstation/agents-usage";
-import { hasUsageSecret } from "@/shared/usageSecretStore";
+import { hasUsageSecret, hasUsageSecretKey } from "@/shared/usageSecretStore";
 
 vi.mock("electron", () => ({ clipboard: { writeText: vi.fn<(text: string) => void>() } }));
 // Only the opencode cookie config references this; the device-flow tests don't.
@@ -294,6 +294,64 @@ describe("UsageLoginManager Volcengine and OpenAI-compatible flows", () => {
     expect(hasUsageSecret(cacheDir, "volcengine")).toBe(false);
   });
 
+  it("returns the probe-accepted Ark model on successful Volcengine API-key login", async () => {
+    const manager = newManager(makePanel());
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({
+      status: 200,
+      text: async () => JSON.stringify({ id: "chat_1" }),
+      headers: { forEach: () => undefined },
+    })) as unknown as typeof fetch;
+    try {
+      const result = await manager.submitVolcengineCredentials({ apiKey: "ark-ok" });
+      expect(result.ok).toBe(true);
+      expect(result.arkModel).toBe("doubao-seed-2.0-code");
+      expect(hasUsageSecret(cacheDir, "volcengine")).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("stores Ark API Key and AK/SK together and returns the probed model", async () => {
+    const manager = newManager(makePanel());
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "chat_1",
+          Result: { QuotaUsage: [{ Level: "session", Percent: 12 }] },
+        }),
+      headers: { forEach: () => undefined },
+    })) as unknown as typeof fetch;
+    try {
+      const result = await manager.submitVolcengineCredentials({
+        apiKey: "ark-ok",
+        accessKeyId: "AKLTabc",
+        secretAccessKey: "sk-test",
+      });
+      expect(result.ok).toBe(true);
+      expect(result.code).toBeUndefined();
+      expect(result.arkModel).toBe("doubao-seed-2.0-code");
+      expect(hasUsageSecretKey(cacheDir, "volcengine", "apiKey")).toBe(true);
+      expect(hasUsageSecretKey(cacheDir, "volcengine", "accessKeyId")).toBe(true);
+      expect(hasUsageSecretKey(cacheDir, "volcengine", "secretAccessKey")).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("requires the model API Key when Volcengine AK/SK are supplied", async () => {
+    const manager = newManager(makePanel());
+    const result = await manager.submitVolcengineCredentials({
+      accessKeyId: "AKLTabc",
+      secretAccessKey: "sk-test",
+    });
+    expect(result).toMatchObject({ ok: false, code: "model_key_required" });
+    expect(result.error).toContain("Ark API Key");
+    expect(hasUsageSecret(cacheDir, "volcengine")).toBe(false);
+  });
+
   it("fails closed on invalid OpenAI-compatible credentials without modifying stored secrets", async () => {
     const manager = newManager(makePanel());
     const result = await manager.submitOpenAiCompatibleCredentials({
@@ -301,6 +359,131 @@ describe("UsageLoginManager Volcengine and OpenAI-compatible flows", () => {
       apiKey: "sk-invalid",
     });
     expect(result.ok).toBe(false);
+    expect(result.code).toBe("model_not_found");
     expect(hasUsageSecret(cacheDir, "openai-compatible")).toBe(false);
+  });
+
+  it("rejects a wrong API key as unauthorized (never as protocol-unsupported)", async () => {
+    const manager = newManager(makePanel());
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({
+      status: 401,
+      text: async () => JSON.stringify({ error: "invalid api key" }),
+    })) as unknown as typeof fetch;
+    try {
+      const result = await manager.submitOpenAiCompatibleCredentials({
+        baseUrl: "https://api.example.com",
+        apiKey: "sk-wrong",
+        model: "gpt-5.6-sol",
+      });
+      expect(result.ok).toBe(false);
+      expect(result.code).toBe("unauthorized");
+      expect(hasUsageSecret(cacheDir, "openai-compatible:pending")).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("verifies Responses-first and stages the validated protocol (no double /v1)", async () => {
+    const manager = newManager(makePanel());
+    const seen: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: unknown) => {
+      const target = String(url);
+      seen.push(target);
+      if (target.endsWith("/v1/models")) {
+        return { status: 200, text: async () => JSON.stringify({ data: [{ id: "gpt-5.6-sol" }] }) };
+      }
+      if (target.endsWith("/v1/responses")) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({ id: "resp_1", output: [{ type: "message" }] }),
+        };
+      }
+      return { status: 404, text: async () => JSON.stringify({ error: "unknown endpoint" }) };
+    }) as unknown as typeof fetch;
+    try {
+      const result = await manager.submitOpenAiCompatibleCredentials({
+        baseUrl: "https://api.example.com/v1",
+        apiKey: "sk-ok",
+        model: "gpt-5.6-sol",
+      });
+      expect(result.ok).toBe(true);
+      expect(result.validatedProtocol).toBe("responses");
+      // No Chat fallback when Responses already passed.
+      expect(seen.some((url) => url.endsWith("/v1/chat/completions"))).toBe(false);
+      expect(seen.some((url) => url.includes("/v1/v1/"))).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("UsageLoginManager OpenCode sign-out", () => {
+  const ENV_KEYS = ["XDG_DATA_HOME", "APPDATA", "LOCALAPPDATA", "USERPROFILE"] as const;
+  const savedEnv: Record<(typeof ENV_KEYS)[number], string | undefined> = {
+    XDG_DATA_HOME: undefined,
+    APPDATA: undefined,
+    LOCALAPPDATA: undefined,
+    USERPROFILE: undefined,
+  };
+  const scratchDirs: string[] = [];
+
+  function isolateHomeEnv(): void {
+    for (const key of ENV_KEYS) savedEnv[key] = process.env[key];
+    // Point every host-home candidate at scratch dirs so the test can never
+    // touch the developer's real opencode auth.json.
+    const xdg = mkdtempSync(join(tmpdir(), "lc-opencode-xdg-"));
+    const appData = mkdtempSync(join(tmpdir(), "lc-opencode-appdata-"));
+    const home = mkdtempSync(join(tmpdir(), "lc-opencode-home-"));
+    scratchDirs.push(xdg, appData, home);
+    process.env.XDG_DATA_HOME = xdg;
+    process.env.APPDATA = appData;
+    process.env.LOCALAPPDATA = appData;
+    process.env.USERPROFILE = home;
+  }
+
+  function restoreHomeEnv(): void {
+    for (const key of ENV_KEYS) {
+      const value = savedEnv[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    for (const dir of scratchDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  }
+
+  it("removes the opencode-go and opencode entries from the CLI auth.json", async () => {
+    const { mkdirSync, readFileSync, writeFileSync } = await import("node:fs");
+    isolateHomeEnv();
+    try {
+      const authPath = join(process.env.XDG_DATA_HOME!, "opencode", "auth.json");
+      mkdirSync(join(process.env.XDG_DATA_HOME!, "opencode"), { recursive: true });
+      writeFileSync(
+        authPath,
+        JSON.stringify({
+          "opencode-go": { key: "go-key" },
+          opencode: { key: "zen-key" },
+          other: { name: "keep" },
+        }),
+        "utf8",
+      );
+      const manager = newManager(makePanel());
+      await expect(manager.clearLogin("opencode")).resolves.toEqual({ ok: true });
+      expect(JSON.parse(readFileSync(authPath, "utf8"))).toEqual({ other: { name: "keep" } });
+    } finally {
+      restoreHomeEnv();
+    }
+  });
+
+  it("succeeds when no CLI auth.json exists", async () => {
+    const { existsSync } = await import("node:fs");
+    isolateHomeEnv();
+    try {
+      const manager = newManager(makePanel());
+      await expect(manager.clearLogin("opencode")).resolves.toEqual({ ok: true });
+      expect(existsSync(join(process.env.XDG_DATA_HOME!, "opencode", "auth.json"))).toBe(false);
+    } finally {
+      restoreHomeEnv();
+    }
   });
 });

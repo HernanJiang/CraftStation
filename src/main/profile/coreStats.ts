@@ -116,10 +116,15 @@ function computeStreaks(
 }
 
 const AI_ACTION_LABELS: Record<AiActionType, string> = {
-  commit: "AI commits",
-  pr: "AI pull requests",
-  conflict: "Conflicts resolved",
+  commit: "Commit",
+  push: "Push",
+  pr: "PR",
+  conflict: "Merge / Conflict Resolve",
+  branch: "Branch",
+  other: "其他 Git Action",
 };
+
+const AI_ACTION_ORDER: readonly AiActionType[] = ["commit", "push", "pr", "conflict", "branch", "other"];
 
 function computeAiActions(rows: UsageEventRow[]): ProfileAiAction[] {
   const byType = new Map<
@@ -128,8 +133,13 @@ function computeAiActions(rows: UsageEventRow[]): ProfileAiAction[] {
   >();
   for (const row of rows) {
     if (!row.kind.startsWith("ai_")) continue;
-    const type = row.kind.slice(3) as AiActionType;
-    if (type !== "commit" && type !== "pr" && type !== "conflict") continue;
+    const raw = row.kind.slice(3) as AiActionType;
+    // Known git-action kinds keep their own row; any future `ai_*` kind lands
+    // in "other" instead of being silently dropped, so the section never
+    // fabricates numbers but also never loses real events.
+    const type: AiActionType = (AI_ACTION_ORDER as readonly string[]).includes(raw)
+      ? raw
+      : "other";
     let entry = byType.get(type);
     if (!entry) {
       entry = { count: 0, providers: new Map(), models: new Map() };
@@ -141,7 +151,7 @@ function computeAiActions(rows: UsageEventRow[]): ProfileAiAction[] {
     if (row.model) entry.models.set(row.model, (entry.models.get(row.model) ?? 0) + 1);
   }
   const out: ProfileAiAction[] = [];
-  for (const type of ["commit", "pr", "conflict"] as AiActionType[]) {
+  for (const type of AI_ACTION_ORDER) {
     const entry = byType.get(type);
     if (!entry) continue;
     const topProvider = topKey(entry.providers);
@@ -327,16 +337,42 @@ export function computeProfileCoreStats(req: ProfileStatsRequest): ProfileCoreSt
   const windowDays = statsWindowDays(req.window);
   const rows = filterRowsByWindow(providerRows, todayIndex, offset, windowDays);
 
-  // -- thread starts -> totals + mode breakdown --
-  const modeCounts = new Map<string, number>();
+  // -- CraftStation mode uses -> mode breakdown (auto / efficient / creative) --
+  // One `craft_mode` row is recorded per prompt submit. Legacy `thread_started`
+  // rows only know chat vs CLI presentation and are deliberately NOT counted
+  // here. No rows yet = honest empty state, never fabricated numbers.
+  const craftModeCounts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.kind !== "craft_mode") continue;
+    const mode = row.name?.trim().toLowerCase();
+    if (mode !== "auto" && mode !== "efficient" && mode !== "creative") continue;
+    craftModeCounts.set(mode, (craftModeCounts.get(mode) ?? 0) + 1);
+  }
+  const craftModeTotal = [...craftModeCounts.values()].reduce((sum, n) => sum + n, 0);
+  const CRAFT_MODE_META = [
+    { key: "auto", label: "自动模式" },
+    { key: "efficient", label: "高效模式" },
+    { key: "creative", label: "创造模式" },
+  ] as const;
+  const modes: ProfileBreakdownEntry[] = CRAFT_MODE_META.flatMap(({ key, label }) => {
+    const count = craftModeCounts.get(key) ?? 0;
+    if (count === 0) return [];
+    return [
+      {
+        key,
+        label,
+        count,
+        percent: craftModeTotal > 0 ? round1((count / craftModeTotal) * 100) : 0,
+      },
+    ];
+  });
+
+  // -- thread starts -> totals (mode presentation no longer feeds `modes`) --
   let totalThreads = 0;
   for (const row of rows) {
     if (row.kind !== "thread_started") continue;
     totalThreads++;
-    const mode = row.mode === "chat" ? "chat" : "cli";
-    modeCounts.set(mode, (modeCounts.get(mode) ?? 0) + 1);
   }
-  const modes = rank(modeCounts, (m) => (m === "chat" ? "Chat" : "CLI"), totalThreads);
 
   // -- turns -> activity, streaks, breakdowns, longest task --
   const countsByDay = new Map<string, number>();

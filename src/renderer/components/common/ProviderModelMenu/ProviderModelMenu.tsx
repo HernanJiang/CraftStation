@@ -299,7 +299,10 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
         p.kind === currentAgentKind &&
         p.accountId === currentAccountId &&
         (presentationMode === undefined || p.presentationMode === presentationMode),
-    ) ?? providers.find((p) => p.kind === currentAgentKind);
+    ) ??
+    (currentAccountId
+      ? undefined
+      : providers.find((p) => p.kind === currentAgentKind && !p.accountId));
   const currentProviderKey = currentProvider ? providerMenuKey(currentProvider) : currentAgentKind;
   const effectiveCurrentModel = normalizeCurrentModelForProvider(currentProvider, currentModel);
   const currentLabel =
@@ -419,7 +422,7 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
       isDisabled={(isDisabled ?? false) || providers.length === 0}
       size="sm"
       variant="ghost"
-      className="craftstation-composer-menu craftstation-composer-model-control min-w-0 px-2.5"
+      className="craftstation-composer-menu craftstation-composer-model-control shrink-0 px-2.5"
       {...(mobile ? { onPress: () => handleOpenChange(true) } : {})}
     >
       <ProviderIcon
@@ -433,15 +436,15 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
         data-collapse-tier={collapseTier}
         className={
           hideLabelOnWrap
-            ? `craftstation-composer-label-hideable flex min-w-0 flex-col items-start justify-center gap-0.5${forceHideLabel ? " is-hidden" : ""}`
-            : "flex min-w-0 flex-col items-start justify-center gap-0.5"
+            ? `craftstation-composer-label-hideable flex flex-col items-start justify-center gap-0.5${forceHideLabel ? " is-hidden" : ""}`
+            : "flex flex-col items-start justify-center gap-0.5"
         }
       >
-        <span className="max-w-full truncate leading-tight">
+        <span className="whitespace-nowrap leading-tight">
           {currentLabelParts.name || t`Select model`}
         </span>
         {currentSubProvider ? (
-          <span className="max-w-full truncate text-[10px] font-medium leading-tight text-muted/70">
+          <span className="whitespace-nowrap text-[10px] font-medium leading-tight text-muted/70">
             {currentSubProvider.label}
           </span>
         ) : null}
@@ -525,6 +528,7 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
         )
       }
       placement="top start"
+      triggerClassName="shrink-0"
       contentClassName="w-96 p-0"
       dialogClassName="flex max-h-[28rem] flex-col overflow-hidden !p-0"
     >

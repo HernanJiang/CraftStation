@@ -199,6 +199,8 @@ export interface StartRemoteThreadInput extends StartRemoteThreadCommon {
   readonly projectLocation: ProjectLocation;
   readonly initialSize?: TerminalSize | undefined;
   readonly sessionRef?: StartThreadPayload["sessionRef"] | undefined;
+  /** Forwarded launch-time third-party binding (pool bypass on the host). */
+  readonly thirdPartyAccountId?: StartThreadPayload["thirdPartyAccountId"] | undefined;
 }
 
 export interface StartRemoteNewThreadInput extends StartRemoteThreadCommon {
@@ -206,6 +208,8 @@ export interface StartRemoteNewThreadInput extends StartRemoteThreadCommon {
   readonly worktreePath?: string | undefined;
   readonly worktreeBranch?: string | undefined;
   readonly isNewWorktree?: boolean | undefined;
+  /** Forwarded launch-time third-party binding (pool bypass on the host). */
+  readonly thirdPartyAccountId?: StartThreadPayload["thirdPartyAccountId"] | undefined;
 }
 
 /**
@@ -472,6 +476,18 @@ export class RemoteDesktopClient {
   async runScheduleNow(id: string): Promise<ScheduledTask> {
     const schedule = await this.scheduleCommand({ kind: "run", id });
     if (!schedule) throw new Error("The desktop did not return the running schedule.");
+    return schedule;
+  }
+
+  async pauseSchedule(id: string): Promise<ScheduledTask> {
+    const schedule = await this.scheduleCommand({ kind: "pause", id });
+    if (!schedule) throw new Error("The desktop did not return the paused schedule.");
+    return schedule;
+  }
+
+  async resumeSchedule(id: string): Promise<ScheduledTask> {
+    const schedule = await this.scheduleCommand({ kind: "resume", id });
+    if (!schedule) throw new Error("The desktop did not return the resumed schedule.");
     return schedule;
   }
 

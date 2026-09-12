@@ -1432,8 +1432,8 @@ describe("CodexStructuredSession", () => {
           config: {
             model_reasoning_effort: "high",
             model_reasoning_summary: "auto",
-            model_context_window: 400_000,
-            model_auto_compact_token_limit: 380_000,
+            model_context_window: 272_000,
+            model_auto_compact_token_limit: 258_400,
           },
           threadId: "provider-thread",
           lastTurnId: "turn-2",
@@ -1732,6 +1732,120 @@ describe("CodexStructuredSession", () => {
     // Back off → force null again to clear the sticky server-side override.
     await structuredSession.startTurn("back to normal", { model: "gpt-5.4", fast: false });
     expect(requests[2]?.params?.serviceTier).toBeNull();
+  });
+
+  it("falls back to the last working model when turn/start rejects the model as unsupported", async () => {
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const structuredSession = makeStructuredSession(requests);
+    const sessionFields = structuredSession as unknown as Record<string, unknown>;
+    const innerRpc = sessionFields["rpc"] as {
+      request: (
+        method: string,
+        params: Record<string, unknown> | null,
+        timeoutMs?: number,
+      ) => Promise<unknown>;
+    };
+    const innerRequest = innerRpc.request.bind(innerRpc);
+    sessionFields["rpc"] = {
+      claimThread: () => {},
+      ownsThread: (threadId: string) => threadId === "provider-thread",
+      request: (method: string, params: Record<string, unknown>) => {
+        if (method === "turn/start" && params?.model === "glm-5.3-flash") {
+          // Record the rejected attempt (the inner mock only records successes).
+          requests.push({ method, params });
+          throw new Error(
+            "The 'glm-5.3-flash' model is not supported when using Codex with a ChatGPT account.",
+          );
+        }
+        return innerRequest(method, params);
+      },
+    };
+    const runtimeEvents: RuntimeEvent[] = [];
+    (structuredSession as unknown as Record<string, unknown>)["listener"] = {
+      onRuntimeEvent: (event: RuntimeEvent) => runtimeEvents.push(event),
+      onUpdate: () => {},
+    };
+
+    // First turn works → establishes the fallback model.
+    await structuredSession.startTurn("hello", { model: "gpt-5.4" });
+    // Stale thread config names an unsupported model (e.g. resend after interrupt).
+    await structuredSession.startTurn("again", { model: "glm-5.3-flash" });
+
+    expect(requests.map((request) => request.method)).toEqual([
+      "turn/start",
+      "turn/start",
+      "turn/start",
+    ]);
+    expect(requests[1]?.params).toMatchObject({ model: "glm-5.3-flash" });
+    expect(requests[2]?.params).toMatchObject({ model: "gpt-5.4" });
+    const warnings = runtimeEvents.filter((event) => event.type === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ threadId: "local-thread" });
+    expect(runtimeEvents.some((event) => event.type === "error")).toBe(false);
+    // The retried user message reuses the stable item id so it stays deduped.
+    const userItemIds = runtimeEvents
+      .filter((event) => event.type === "item.started" && event.itemType === "user_message")
+      .map((event) => (event as { itemId: string }).itemId);
+    expect(userItemIds).toHaveLength(3);
+    expect(userItemIds[1]).toBe(userItemIds[2]);
+  });
+
+  it("surfaces the model error without retry when no working model is known", async () => {
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const structuredSession = makeStructuredSession(requests);
+    const sessionFields = structuredSession as unknown as Record<string, unknown>;
+    sessionFields["rpc"] = {
+      claimThread: () => {},
+      ownsThread: (threadId: string) => threadId === "provider-thread",
+      request: (method: string, params: Record<string, unknown>) => {
+        requests.push({ method, params });
+        throw new Error("The 'glm-5.3-flash' model is not supported when using Codex.");
+      },
+    };
+    const runtimeEvents: RuntimeEvent[] = [];
+    (structuredSession as unknown as Record<string, unknown>)["listener"] = {
+      onRuntimeEvent: (event: RuntimeEvent) => runtimeEvents.push(event),
+      onUpdate: () => {},
+    };
+
+    await expect(
+      structuredSession.startTurn("hi", { model: "glm-5.3-flash" }),
+    ).rejects.toThrow(/not supported/);
+    expect(requests).toHaveLength(1);
+    expect(runtimeEvents.some((event) => event.type === "warning")).toBe(false);
+    expect(runtimeEvents.some((event) => event.type === "error")).toBe(true);
+  });
+
+  it("does not retry turn/start failures unrelated to model support", async () => {
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const structuredSession = makeStructuredSession(requests);
+    // Establish a working model first so the only missing piece is a match.
+    await structuredSession.startTurn("hello", { model: "gpt-5.4" });
+    const sessionFields = structuredSession as unknown as Record<string, unknown>;
+    const innerRpc = sessionFields["rpc"] as {
+      request: (
+        method: string,
+        params: Record<string, unknown> | null,
+        timeoutMs?: number,
+      ) => Promise<unknown>;
+    };
+    const innerRequest = innerRpc.request.bind(innerRpc);
+    sessionFields["rpc"] = {
+      claimThread: () => {},
+      ownsThread: (threadId: string) => threadId === "provider-thread",
+      request: (method: string, params: Record<string, unknown>) => {
+        requests.push({ method, params });
+        if (requests.length === 1) {
+          return innerRequest(method, params);
+        }
+        throw new Error("You've hit your usage limit.");
+      },
+    };
+
+    await expect(structuredSession.startTurn("again", { model: "gpt-5.4" })).rejects.toThrow(
+      /usage limit/,
+    );
+    expect(requests.map((request) => request.method)).toEqual(["turn/start", "turn/start"]);
   });
 
   it("steers the active turn without interrupting it", async () => {
@@ -2317,6 +2431,7 @@ describe("CodexStructuredSession", () => {
     onMessage: (message: unknown) => void;
     runtimeEvents: RuntimeEvent[];
     updates: Array<Record<string, unknown>>;
+    session: CodexStructuredSession;
   } {
     const session = Object.create(CodexStructuredSession.prototype) as Record<string, unknown>;
     const runtimeEvents: RuntimeEvent[] = [];
@@ -2341,6 +2456,7 @@ describe("CodexStructuredSession", () => {
       onMessage: (message) => dispatchNotification(structuredSession, message),
       runtimeEvents,
       updates,
+      session: structuredSession,
     };
   }
 
@@ -2938,6 +3054,100 @@ describe("CodexStructuredSession", () => {
     }
   });
 
+  it("reports a quota-shaped async failure for pool write-back and replay exactly once", () => {
+    const { onMessage, session } = makeNotificationSession();
+    const internals = session as unknown as Record<string, unknown>;
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    const onPoolQuotaTurnFailed = vi.fn<(failedTurn: unknown) => void>();
+    internals["onPromptError"] = onPromptError;
+    internals["onPoolQuotaTurnFailed"] = onPoolQuotaTurnFailed;
+    internals["activeTurnId"] = "turn-1";
+    internals["activeTurnIds"] = new Set(["turn-1"]);
+    internals["currentTurnPrompt"] = {
+      prompt: "hi",
+      config: { model: "gpt-5.4" },
+      userMessageItemId: "user-1",
+    };
+    const usageLimit =
+      "Error running remote compact task You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits.";
+
+    // Same multi-channel ordering as the collapse test: the duplicate must
+    // not double-report or double-replay.
+    onMessage({
+      jsonrpc: "2.0",
+      method: "turn/completed",
+      params: {
+        threadId: "provider-thread",
+        turn: { id: "turn-1", status: "failed", error: { message: usageLimit } },
+      },
+    });
+    onMessage({
+      jsonrpc: "2.0",
+      method: "thread/error",
+      params: { message: usageLimit },
+    });
+
+    expect(onPromptError).toHaveBeenCalledTimes(1);
+    expect(onPoolQuotaTurnFailed).toHaveBeenCalledTimes(1);
+    expect(onPoolQuotaTurnFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "hi",
+        userMessageItemId: "user-1",
+        error: expect.objectContaining({ message: usageLimit }),
+      }),
+    );
+  });
+
+  it("writes back quota failures without replaying when no live user turn is active", () => {
+    const { onMessage, session } = makeNotificationSession();
+    const internals = session as unknown as Record<string, unknown>;
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    const onPoolQuotaTurnFailed = vi.fn<(failedTurn: unknown) => void>();
+    internals["onPromptError"] = onPromptError;
+    internals["onPoolQuotaTurnFailed"] = onPoolQuotaTurnFailed;
+    internals["currentTurnPrompt"] = {
+      prompt: "stale",
+      config: { model: "gpt-5.4" },
+    };
+    const usageLimit =
+      "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage.";
+
+    onMessage({
+      jsonrpc: "2.0",
+      method: "turn/completed",
+      params: {
+        threadId: "provider-thread",
+        turn: { id: "turn-9", status: "failed", error: { message: usageLimit } },
+      },
+    });
+
+    // The dead account is still marked so the next submit re-resolves…
+    expect(onPromptError).toHaveBeenCalledTimes(1);
+    // …but a stale prompt is never replayed (that would answer twice).
+    expect(onPoolQuotaTurnFailed).not.toHaveBeenCalled();
+  });
+
+  it("ignores retryable shapes for pool failover", () => {
+    const { onMessage, session } = makeNotificationSession();
+    const internals = session as unknown as Record<string, unknown>;
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    const onPoolQuotaTurnFailed = vi.fn<(failedTurn: unknown) => void>();
+    internals["onPromptError"] = onPromptError;
+    internals["onPoolQuotaTurnFailed"] = onPoolQuotaTurnFailed;
+    internals["activeTurnId"] = "turn-1";
+    internals["activeTurnIds"] = new Set(["turn-1"]);
+    internals["currentTurnPrompt"] = { prompt: "hi", config: { model: "gpt-5.4" } };
+
+    onMessage({
+      jsonrpc: "2.0",
+      method: "thread/error",
+      params: { message: "rate limit exceeded, willRetry" },
+    });
+
+    expect(onPromptError).not.toHaveBeenCalled();
+    expect(onPoolQuotaTurnFailed).not.toHaveBeenCalled();
+  });
+
   it("still surfaces the generic system-error fallback when no specific error follows", () => {
     vi.useFakeTimers();
     try {
@@ -2975,8 +3185,8 @@ describe("mapCodexSlashCommands", () => {
     );
   });
 
-  it("advertises 272k, 400k, and 1M context windows with a 400k default", () => {
-    expect(codexDefaultCapabilities.defaultContextSize).toBe("400k");
+  it("advertises 272k, 400k, and 1M context windows with a 272k default", () => {
+    expect(codexDefaultCapabilities.defaultContextSize).toBe("272k");
     expect(codexDefaultCapabilities.contextSizes?.map((size) => size.id)).toEqual([
       "272k",
       "400k",
@@ -3392,6 +3602,30 @@ describe("codexIntentFor", () => {
 });
 
 describe("mapCodexModels", () => {
+  it("drops Codex-Router per-instance cr_* model ids", () => {
+    const result = mapCodexModels([
+      {
+        id: "cr_r4a61_openai/gpt-5.6-luna",
+        model: "cr_r4a61_openai/gpt-5.6-luna",
+        displayName: "gpt-5.6-luna",
+        hidden: false,
+        isDefault: true,
+        defaultReasoningEffort: "medium",
+        supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Medium" }],
+      },
+      {
+        id: "gpt-5.4",
+        model: "gpt-5.4",
+        displayName: "gpt-5.4",
+        hidden: false,
+        isDefault: false,
+        defaultReasoningEffort: "medium",
+        supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Medium" }],
+      },
+    ]);
+    expect(result.models?.map((model) => model.id)).toEqual(["gpt-5.4"]);
+  });
+
   it("promotes GPT-5.5 to the Codex default model when available", () => {
     expect(
       mapCodexModels([

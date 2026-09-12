@@ -9,7 +9,6 @@ export * from "./provenanceStore";
 export * from "./recipes/openaiCodexRecipe";
 export * from "./recipes/nativeHarnessRecipe";
 export * from "./recipes/compatibilityRecipe";
-export * from "./fakeCodexHarness";
 export * from "./executionRoute";
 export * from "./compatibility";
 export * from "./workbenchTypes";

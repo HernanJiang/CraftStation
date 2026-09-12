@@ -1,12 +1,19 @@
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  configureSecretStorageFallbackKeys,
+  configureSecretStorageKey,
+  resetSecretStorageKeysForTests,
+} from "./secretStorage";
+import {
   clearUsageSecret,
   getUsageSecret,
   hasUsageSecret,
   setUsageSecret,
+  usageDurableSecretsPath,
   usageSecretsPath,
 } from "./usageSecretStore";
 
@@ -17,6 +24,7 @@ describe("usageSecretStore", () => {
     cacheDir = mkdtempSync(join(tmpdir(), "lc-secrets-"));
   });
   afterEach(() => {
+    resetSecretStorageKeysForTests();
     rmSync(cacheDir, { recursive: true, force: true });
   });
 
@@ -27,6 +35,44 @@ describe("usageSecretStore", () => {
     expect(raw).not.toContain("session=abc123");
     expect(raw).toContain("lc-safe:v1:");
     expect(getUsageSecret(cacheDir, "grok", "cookie")).toBe("session=abc123");
+    const durable = readFileSync(usageDurableSecretsPath(cacheDir), "utf8");
+    expect(durable).not.toContain("session=abc123");
+    expect(durable).toContain("lc-safe:v1:");
+  });
+
+  it("recovers from the durable copy after the Electron-scoped key rotates", () => {
+    const keyA = randomBytes(32).toString("base64");
+    const keyB = randomBytes(32).toString("base64");
+    configureSecretStorageKey(keyA);
+    setUsageSecret(cacheDir, "volcengine", "apiKey", "ark-key-keep");
+    setUsageSecret(cacheDir, "opencode", "cookie", "opencode-session=keep");
+
+    // Rebuild / userData identity switch: the app key is new and no fallback
+    // can open the primary vault. The file-backed durable copy must still
+    // round-trip and re-seal the primary under the new key.
+    configureSecretStorageKey(keyB);
+    configureSecretStorageFallbackKeys([]);
+    expect(getUsageSecret(cacheDir, "volcengine", "apiKey")).toBe("ark-key-keep");
+    expect(getUsageSecret(cacheDir, "opencode", "cookie")).toBe("opencode-session=keep");
+
+    resetSecretStorageKeysForTests();
+    configureSecretStorageKey(keyB);
+    expect(getUsageSecret(cacheDir, "volcengine", "apiKey")).toBe("ark-key-keep");
+    expect(getUsageSecret(cacheDir, "opencode", "cookie")).toBe("opencode-session=keep");
+  });
+
+  it("does not report undecryptable when the durable copy still opens", () => {
+    const keyA = randomBytes(32).toString("base64");
+    const keyB = randomBytes(32).toString("base64");
+    configureSecretStorageKey(keyA);
+    setUsageSecret(cacheDir, "volcengine", "secretAccessKey", "sk-keep");
+    configureSecretStorageKey(keyB);
+    configureSecretStorageFallbackKeys([]);
+    const reports: Array<{ providerId: string; key: string }> = [];
+    expect(
+      getUsageSecret(cacheDir, "volcengine", "secretAccessKey", (info) => reports.push(info)),
+    ).toBe("sk-keep");
+    expect(reports).toEqual([]);
   });
 
   it("returns undefined for absent provider/key", () => {

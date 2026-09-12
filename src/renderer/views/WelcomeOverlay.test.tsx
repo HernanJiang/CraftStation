@@ -1,6 +1,8 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
+import { useAppStore } from "@/renderer/state/appStore";
+import { WELCOME_SEEN_STORAGE_KEY } from "@/renderer/state/welcomeGateStore";
 
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => ({
@@ -17,6 +19,7 @@ describe("WelcomeOverlay startup pipeline", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   it("covers background hydration with a spinning logo and loading copy", () => {
@@ -34,5 +37,25 @@ describe("WelcomeOverlay startup pipeline", () => {
     expect(screen.queryByTestId("welcome-loading-status")).not.toBeInTheDocument();
     expect(container.querySelector('[data-welcome-spinning="true"]')).toBeNull();
     expect(container.querySelector('[data-welcome-loading="true"]')).toBeNull();
+  });
+
+  it("enters the restored session instead of opening a new home draft", async () => {
+    const previousView = { kind: "thread" as const, panes: ["thread-1"] as [string, ...string[]] };
+    useAppStore.setState({ view: previousView });
+    const openDraft = vi.spyOn(useAppStore.getState(), "openDraft");
+    const openHome = vi.spyOn(useAppStore.getState(), "openHome");
+
+    const { container } = render(<WelcomeOverlay ready />);
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    expect(openDraft).not.toHaveBeenCalled();
+    expect(openHome).not.toHaveBeenCalled();
+    expect(useAppStore.getState().view).toEqual(previousView);
+    expect(localStorage.getItem(WELCOME_SEEN_STORAGE_KEY)).toBe("true");
+    await waitFor(() => {
+      expect(container.querySelector(".craftstation-welcome-page")?.className).toContain(
+        "opacity-0",
+      );
+    });
   });
 });

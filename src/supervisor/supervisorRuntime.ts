@@ -57,7 +57,12 @@ import type {
   SetPendingSteerPayload,
   ClearPendingSteerPayload,
   CloseThreadPayload,
+  SwitchThreadProviderPayload,
+  SwitchThreadProviderResult,
+  NativeSessionPathQuery,
+  NativeSessionPathResult,
 } from "@/shared/contracts";
+import { resolveNativeSessionPath } from "./runtime/nativeSessionPaths";
 import type {
   CraftRequestResolution,
   CraftSession,
@@ -74,6 +79,10 @@ import {
   type ResolveCompatibilityPayload,
   type ResolveCompatibilityResult,
 } from "@/shared/crafting/compatibility";
+import {
+  compatibilityBridgeStatusSchema,
+  type CompatibilityBridgeStatusView,
+} from "@/shared/crafting/compatibilityBridge";
 import { nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
 import {
   AccountControlError,
@@ -88,7 +97,7 @@ import type {
 } from "@/shared/ipc/schemas";
 import { crossagentRankingPreferences } from "@/shared/crossagentRanking";
 import type { CrossagentRoutingState } from "@/shared/crossagentRanking";
-import type { ConfirmCrossagentRoutingOverridePayload } from "@/shared/ipc/procedures/mcp";
+import type { ConfirmOwnSubagentsRoutingOverridePayload } from "@/shared/ipc/procedures/mcp";
 import { msg } from "@/shared/messages";
 import { resolveCraftStationBaseDir, resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { joinProjectPosixPath } from "@/shared/wsl";
@@ -99,6 +108,7 @@ import {
   type AgentAdapter,
   type AgentNativePlugin,
 } from "./agents/base";
+import { resolveCompatibilityBridgeBinary } from "./runtime/compatibilityBridge/binaryResolution";
 import { setWslAttachmentBridgeClient } from "./runtime/threadAttachments";
 import { FileIndexService } from "./fileIndex";
 import { GitService, resolveBuiltInWorktreeRoot, type CapturedExperimentSnapshot } from "./git";
@@ -129,7 +139,7 @@ import { GenerationService } from "./runtime/generationService";
 import { type SessionRuntime, type ShellSessionRuntime } from "./runtime/sessionTypes";
 import { ThreadSessionManager, writeSubmittedPrompt } from "./runtime/threadSessionManager";
 import { CliHookPluginCoordinator } from "./runtime/cliHookPluginCoordinator";
-import { CrossagentMcpIngress } from "./crossagentMcp/CrossagentMcpIngress";
+import { OwnSubagentsMcpIngress } from "./crossagentMcp/CrossagentMcpIngress";
 import { SubagentRunManager } from "./crossagentMcp/SubagentRunManager";
 import { RoutingOverridePersistence } from "./crossagentMcp/RoutingOverridePersistence";
 import {
@@ -170,9 +180,11 @@ import { AccountResolver } from "./runtime/accountResolver";
 import { AccountStore } from "./runtime/accountStore";
 import { createNativeHarnessRuntimeAdapter } from "./runtime/nativeHarness";
 import {
-  isAcpPromptQuotaExhaustedError,
+  isGrokPoolQuotaError,
+  isKimiPoolQuotaError,
   resolveAcpPromptRpcErrorMessage,
 } from "./agents/acp/sessionErrors";
+import { isCodexPoolQuotaError } from "./agents/codex/sessionErrors";
 import {
   createRuntimeLedgerTokenUsageScanner,
   TokenUsageAdapter,
@@ -188,6 +200,7 @@ import {
   buildCodexLoginScript,
   managedCodexLoginCwd,
   managedCodexProcessEnvironment,
+  scrubManagedCodexConfig,
 } from "./runtime/codexProfiles";
 import { prepareNativeProfile, verifyProfileIdentity } from "./runtime/nativeProfile";
 import {
@@ -199,6 +212,10 @@ import {
   grokAccountIdentityFromContainer,
 } from "./runtime/grokProfiles";
 import { AntigravityProfileService } from "./runtime/antigravityProfiles";
+import {
+  isAntigravityAuthError,
+  isAntigravityQuotaError,
+} from "./agents/antigravity/sessionErrors";
 import { OpenAiCompatibleProfileService } from "./runtime/openaiCompatibleProfiles";
 import { grokAuthContainer } from "./runtime/grokCredentials";
 import { NATIVE_HARNESS_DESCRIPTORS } from "./runtime/nativeHarness/descriptors";
@@ -243,6 +260,14 @@ function modelProviderFromEntryRef(entryRef: string): string | undefined {
  * locally so the renderer can never stay wedged in "working".
  */
 const CRAFTED_INTERRUPT_FORCE_STOP_MS = 3_000;
+
+/** Retry budget for a transiently all-unusable account pool (see resolveAccountSessionEnv). */
+const ACCOUNT_RESOLUTION_RETRIES = 3;
+const ACCOUNT_RESOLUTION_RETRY_DELAY_MS = 400;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((done) => setTimeout(done, ms));
+}
 
 function enrichCraftingError(
   error: CraftingError,
@@ -453,11 +478,17 @@ export class SupervisorRuntime {
     { label: string; home: string; createdAt: number }
   >();
   private readonly pluginDataDir: string;
-  private readonly crossagentMcpIngress: CrossagentMcpIngress;
+  private readonly ownSubagentsMcpIngress: OwnSubagentsMcpIngress;
   private readonly subagentRunManager: SubagentRunManager;
   private readonly routingOverridePersistence: RoutingOverridePersistence;
   private readonly disposeWslCredentialProjectScope: () => void;
   private readonly disposeWindowsPowerShellPreference: () => void;
+  /**
+   * In-flight host-follow writes per pool account (B-mode). Concurrent
+   * Antigravity session starts for the same row share one CredWrite; rows
+   * never interleave mid-write.
+   */
+  private readonly antigravityHostFollowInFlight = new Map<string, Promise<void>>();
   private wslHookBridge: WslBridgeServer | undefined;
 
   readonly sessions: Map<string, SessionRuntime>;
@@ -486,12 +517,21 @@ export class SupervisorRuntime {
     const emit = (event: SupervisorEvent): void => {
       emitToParent(event);
       if (event.type === "thread-runtime-event") {
+        this.observeParentTurnEnd(event.threadId, event.event);
         for (const listener of this.runtimeEventSubscribers) listener(event.threadId, event.event);
       } else if (event.type === "thread-runtime-events") {
+        for (const runtimeEvent of event.events) {
+          this.observeParentTurnEnd(event.threadId, runtimeEvent);
+        }
         for (const listener of this.runtimeEventSubscribers) {
           for (const runtimeEvent of event.events) listener(event.threadId, runtimeEvent);
         }
       } else if (event.type === "thread-runtime-events-multi") {
+        for (const batch of event.batches) {
+          for (const runtimeEvent of batch.events) {
+            this.observeParentTurnEnd(batch.threadId, runtimeEvent);
+          }
+        }
         for (const listener of this.runtimeEventSubscribers) {
           for (const batch of event.batches) {
             for (const runtimeEvent of batch.events) listener(batch.threadId, runtimeEvent);
@@ -711,12 +751,12 @@ export class SupervisorRuntime {
 
     this.cliHookPluginCoordinator.startIngress();
 
-    // Crossagents: an in-process MCP server (CrossagentMcpIngress)
-    // lets any agent spawn the other connected agents as subagents. The run
-    // manager owns child structured sessions; the ingress mints per-thread
-    // tokens and routes tools/call to the caller's parent thread. The run
-    // manager's host is the thread session manager (assigned just below — the
-    // closures resolve it lazily at call time).
+    // Own Subagents: an in-process MCP server (OwnSubagentsMcpIngress)
+    // lets any agent spawn the other connected agents as temporary subagents.
+    // The run manager owns child structured sessions; the ingress mints
+    // per-thread tokens and routes tools/call to the caller's parent thread.
+    // The run manager's host is the thread session manager (assigned just
+    // below — the closures resolve it lazily at call time).
     this.subagentRunManager = new SubagentRunManager({
       adapters: this.adapters,
       // Validate spawn selections against the persisted status pipeline — the
@@ -743,16 +783,28 @@ export class SupervisorRuntime {
           this.threadSessionManager.appendSubagentRuntimeEvent(parentThreadId, event),
       },
     });
-    this.crossagentMcpIngress = new CrossagentMcpIngress({
+    this.ownSubagentsMcpIngress = new OwnSubagentsMcpIngress({
       runManager: this.subagentRunManager,
-      getSpawnableAgents: (tags) => this.getCrossagentSpawnableAgents(tags),
+      getSpawnableAgents: (tags) => this.getOwnSubagentsSpawnableAgents(tags),
+      resolveParentAgentKind: (threadId) =>
+        this.threadSessionManager.sessions.get(threadId)?.agentKind,
+      resolveParentEntity: (threadId) => {
+        const session = this.threadSessionManager.sessions.get(threadId);
+        if (!session?.agentKind) return undefined;
+        return {
+          agentKind: session.agentKind,
+          ...(session.config.model ? { model: session.config.model } : {}),
+          ...(session.config.effort ? { effort: session.config.effort } : {}),
+        };
+      },
+      getRouteOrder: () => this.sharedSettingsCache.read().ownSubagentsRouteOrder,
       resolveProviderSessionThreadId: (sessionId) =>
         this.threadSessionManager.getThreadIdByProviderSessionId(sessionId),
       // User-configured routing guidance, read live from shared settings (the
       // cache invalidates on file change) so edits take effect on the next turn
       // without a supervisor restart. Empty/whitespace-only = no guidance.
       getRoutingGuide: () => {
-        const guide = this.sharedSettingsCache.read().crossagentRoutingGuide.trim();
+        const guide = this.sharedSettingsCache.read().ownSubagentRoutingGuide.trim();
         return guide.length > 0 ? guide : undefined;
       },
       recordExplicitSelections: (selections) => {
@@ -772,11 +824,11 @@ export class SupervisorRuntime {
         );
         if (validSelections.length === 0) return;
         emit({
-          type: "crossagent-selection-used",
+          type: "ownsubagents-selection-used",
           selections: validSelections,
         });
       },
-      listRoutingOverrides: () => this.sharedSettingsCache.read().crossagentRoutingOverrides,
+      listRoutingOverrides: () => this.sharedSettingsCache.read().ownSubagentRoutingOverrides,
       setRoutingOverride: (override) => {
         return this.routingOverridePersistence.persist({ action: "set", override });
       },
@@ -787,8 +839,8 @@ export class SupervisorRuntime {
         });
       },
     });
-    void this.crossagentMcpIngress.start().catch((error) => {
-      console.warn("[supervisor] Crossagents MCP ingress failed to start:", error);
+    void this.ownSubagentsMcpIngress.start().catch((error) => {
+      console.warn("[supervisor] Own Subagents MCP ingress failed to start:", error);
     });
 
     this.threadSessionManager = new ThreadSessionManager({
@@ -800,15 +852,68 @@ export class SupervisorRuntime {
       adapters: this.adapters,
       resolveWindowsShell: (runtime) => this.resolveWindowsShell(runtime),
       resolveAccountSessionEnv: (input) => this.resolveAccountSessionEnv(input),
+      // Submit-path usability probe (mirrors the scheduler's usable rule so
+      // a thread restarts onto the next usable pool row before burning a
+      // turn on a dead binding).
+      isPoolAccountUsable: (provider, accountId) => {
+        const record = this.accountStore.getRecord(accountId);
+        return (
+          !!record &&
+          record.provider === provider &&
+          record.enabled &&
+          (record.status === "available" || record.status === "quota-low")
+        );
+      },
+      hasUsablePoolAccount: (provider) =>
+        this.accountStore
+          .records(provider)
+          .some(
+            (account) =>
+              account.enabled &&
+              (account.status === "available" || account.status === "quota-low") &&
+              this.hasManagedCredential(provider, account),
+          ),
+      // Failover notice identities (providerAccountId → masked → label).
+      describePoolAccount: (provider, accountId) => {
+        const view = this.accountStore.get(accountId);
+        if (!view || view.provider !== provider) return undefined;
+        return (
+          view.providerAccountId?.trim() ||
+          view.maskedIdentity?.trim() ||
+          view.label.trim() ||
+          undefined
+        );
+      },
+      handleAccountPromptError: (input) => {
+        // Chat-lane quota write-back (mirrors the craftAgent lane): a prompt
+        // rejected for quota marks the bound account exhausted so the pool
+        // scheduler skips it on the next session.
+        // Third-party sessions stay out: their quota is probed via
+        // collectQuota, never via subscription pool write-back.
+        if (input.provider === "openai-compatible") return;
+        if (input.provider === "antigravity") {
+          this.handleAntigravityNativePromptError(input.accountId, input.error);
+          return;
+        }
+        if (input.provider === "kimi") {
+          this.handleKimiNativePromptError(input.accountId, input.error);
+          return;
+        }
+        if (input.provider === "codex") {
+          this.handleCodexNativePromptError(input.accountId, input.error);
+          return;
+        }
+        this.handleGrokNativePromptError(input.accountId, input.error);
+      },
       ...(this.wslHookBridge ? { wslBridge: this.wslHookBridge } : {}),
       resolvePluginEnvForSpawn: (input) =>
         this.cliHookPluginCoordinator.resolvePluginEnvForSpawn(input),
-      crossagentMcp: {
+      ownSubagentsMcp: {
         register: (threadId, disabledTools) =>
-          this.crossagentMcpIngress.registerThread(threadId, disabledTools),
+          this.ownSubagentsMcpIngress.registerThread(threadId, disabledTools),
         registerProviderSession: (threadId, disabledTools) =>
-          this.crossagentMcpIngress.registerProviderSessionThread(threadId, disabledTools),
-        unregister: (threadId) => this.crossagentMcpIngress.unregisterThread(threadId),
+          this.ownSubagentsMcpIngress.registerProviderSessionThread(threadId, disabledTools),
+        unregister: (threadId) => this.ownSubagentsMcpIngress.unregisterThread(threadId),
         cancelForeground: (threadId) => this.subagentRunManager.cancelForegroundForThread(threadId),
         cancelAll: (threadId) => this.subagentRunManager.cancelAllForThread(threadId),
         resolveChildRequest: (requestId, response) =>
@@ -899,13 +1004,9 @@ export class SupervisorRuntime {
       this.hasActiveWslContext(),
     );
     this.accountStore = new AccountStore(join(paths.baseDir, "craftstation-accounts"));
-    this.accountResolver = new AccountResolver(this.accountStore);
-    this.openCodeRuntimeBindingResolver = new AccountStoreOpenCodeRuntimeBindingResolver(
-      this.accountStore,
-    );
     this.openCodeServerPool = new OpenCodeNativeServerPool();
     this.accountResolver = new AccountResolver(this.accountStore, (account) =>
-      this.hasManagedCredential(account.provider, account.credentialRoot),
+      this.hasManagedCredential(account.provider, account),
     );
     this.tokenUsageAdapter = new TokenUsageAdapter(
       createRuntimeLedgerTokenUsageScanner(paths.dbPath),
@@ -921,6 +1022,15 @@ export class SupervisorRuntime {
       store: this.accountStore,
       cacheDir: paths.cacheDir,
     });
+    // The native OpenCode server has its own private XDG root. Third-party
+    // accounts must project their provider config into that root before the
+    // server starts; otherwise it receives `craftstation/model` but has no
+    // matching model definition.
+    this.openCodeRuntimeBindingResolver = new AccountStoreOpenCodeRuntimeBindingResolver(
+      this.accountStore,
+      (accountId, modelId) =>
+        this.openAiCompatibleProfileService.prepareOpenCodeRuntime(accountId, modelId),
+    );
     this.usageService = new UsageService({
       emit,
       cachePath: join(paths.cacheDir, "provider-usage.json"),
@@ -991,15 +1101,38 @@ export class SupervisorRuntime {
       );
     }
     const removed = this.accountStore.getRecord(accountId);
+    if (!removed) {
+      // Idempotent delete: the row is already gone (scrubbed/deduped after the
+      // UI listed it, or a double-click). The desired end state holds; still
+      // sweep any orphaned credential bucket and re-emit so ghost rows
+      // disappear instead of failing with Unknown account.
+      this.destroyAccountCredentialsForId(accountId);
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+      return;
+    }
     this.accountStore.remove(accountId);
-    if (removed?.provider === "antigravity") {
+    if (removed.provider === "antigravity") {
       // The sealed OAuth bundle lives outside the managed credential dir.
       this.antigravityProfileService.destroyCredentials(accountId);
     }
-    if (removed?.provider === "openai-compatible") {
+    if (removed.provider === "openai-compatible") {
       this.openAiCompatibleProfileService.destroyCredentials(accountId);
     }
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+  }
+
+  /** Best-effort credential sweep for an account row that no longer exists. Never throws. */
+  private destroyAccountCredentialsForId(accountId: string): void {
+    const provider = accountId.split(":", 1)[0]?.trim();
+    try {
+      if (provider === "antigravity") {
+        this.antigravityProfileService.destroyCredentials(accountId);
+      } else if (provider === "openai-compatible") {
+        this.openAiCompatibleProfileService.destroyCredentials(accountId);
+      }
+    } catch {
+      // The row is already gone; leftover secrets must not fail the delete.
+    }
   }
 
   /** Close either a crafted native session or a regular terminal/ACP thread. */
@@ -1020,6 +1153,52 @@ export class SupervisorRuntime {
       return;
     }
     await this.threadSessionManager.closeThread(payload);
+  }
+
+  /**
+   * Switch a live logical thread to another harness/model (renderer
+   * provider-menu action). Crafted sessions keep their own handoff path;
+   * plain threads go through the session manager rebuild.
+   */
+  async switchThreadProvider(
+    payload: SwitchThreadProviderPayload,
+  ): Promise<SwitchThreadProviderResult> {
+    if (this.craftedSessionsByThread.has(payload.threadId)) {
+      throw new Error("合成台会话请走会话交接流程切换模型。");
+    }
+    return this.threadSessionManager.switchThreadProvider(payload);
+  }
+
+  /**
+   * Resolve native CLI session paths for copy/archive audit. Best-effort
+   * per entry (unknown provider, missing home, or not-yet-created session
+   * files resolve to null) — never throws for a single bad entry.
+   */
+  async resolveNativeSessionPaths(
+    queries: NativeSessionPathQuery[],
+  ): Promise<NativeSessionPathResult[]> {
+    return queries.map((query) => {
+      let credentialRoot: string | undefined;
+      if (query.poolAccountId) {
+        try {
+          credentialRoot = this.accountStore.credentialRoot(query.poolAccountId);
+        } catch {
+          credentialRoot = undefined;
+        }
+      }
+      let path: string | null = null;
+      try {
+        path =
+          resolveNativeSessionPath({
+            provider: query.harness,
+            ...(credentialRoot ? { credentialRoot } : {}),
+            ...(query.nativeSessionId ? { nativeSessionId: query.nativeSessionId } : {}),
+          }) ?? null;
+      } catch {
+        path = null;
+      }
+      return { ...query, path };
+    });
   }
 
   async resolveThreadServerRequest(payload: ResolveThreadServerRequestPayload): Promise<void> {
@@ -1314,7 +1493,7 @@ export class SupervisorRuntime {
       );
       await this.threadSessionManager.writeTerminal({
         threadId: payload.shellId,
-        data: `${buildKimiLoginScript(hostShellKind, payload.completionToken)}\r`,
+        data: `${buildKimiLoginScript(hostShellKind, payload.completionToken, kimiHome)}\r`,
       });
     } catch (error) {
       await this.threadSessionManager
@@ -1348,6 +1527,18 @@ export class SupervisorRuntime {
     return account;
   }
 
+  /**
+   * Apply a pool Antigravity account as the host `agy` login. Overwrites the
+   * single OS-credential-store login (explicit opt-in per row); the pool rows
+   * themselves are untouched.
+   */
+  async applyAntigravityHostLogin(
+    accountId: string,
+  ): Promise<import("@/shared/contracts").AntigravityHostLoginResult> {
+    const result = await this.antigravityProfileService.applyAccountToHostLogin(accountId);
+    return { applied: true as const, ...result };
+  }
+
   /** 把表单验证通过的 OpenAI 兼容配置导入为号池账号（追加或编辑）。 */
   importOpenAiCompatibleProfile(payload: { accountId?: string }): AccountView {
     const account = this.openAiCompatibleProfileService.importStaging(payload.accountId);
@@ -1377,6 +1568,37 @@ export class SupervisorRuntime {
       return { models: await this.antigravityProfileService.listModels().catch(() => []) };
     }
     return { models: [] };
+  }
+
+  /**
+   * 管理模型页的模型加入门禁：用账号密封 Key 对单个模型做一次真实
+   * Responses-first 探测，通过才允许加入首页/已选名单。Key 永不离开
+   * supervisor；从不抛错，只返回 `{ok:false,…}` 供 UI 显示。
+   */
+  async verifyChannelModel(payload: {
+    provider: string;
+    accountId?: string | undefined;
+    model: string;
+  }): Promise<import("@/shared/contracts").VerifyChannelModelResponse> {
+    if (payload.provider !== "openai-compatible" || !payload.accountId) {
+      return { ok: false, code: "unsupported", error: "该渠道的模型无需验证即可使用。" };
+    }
+    try {
+      const result = await this.openAiCompatibleProfileService.verifyModel(
+        payload.accountId,
+        payload.model,
+      );
+      return { ok: true, validatedProtocol: result.validatedProtocol };
+    } catch (error) {
+      if (error instanceof AccountControlError) {
+        return {
+          ok: false,
+          code: error.code,
+          error: error.message,
+        };
+      }
+      return { ok: false, code: "probe_failed", error: "验证失败，请检查后重试。" };
+    }
   }
 
   async startCodexProfileLogin(
@@ -1425,6 +1647,12 @@ export class SupervisorRuntime {
         },
         managedCodexProcessEnvironment(codexHome),
       );
+      // The login cwd helper rewrites the canonical managed config, but a
+      // concurrent writer (e.g. a Router overlay sync) could re-pollute the
+      // managed home between that write and the spawn. Scrub immediately
+      // before handing the shell to the official CLI so `codex login` can
+      // never die parsing a stale Router catalog.
+      scrubManagedCodexConfig(codexHome);
       await this.threadSessionManager.writeTerminal({
         threadId: payload.shellId,
         data: `${script}\r`,
@@ -1457,6 +1685,7 @@ export class SupervisorRuntime {
           ? await this.grokProfileService.collectQuota(
               accountId,
               this.usageService.getHostForAccountAdapter(),
+              { recoverInferenceMark: true },
             )
           : provider === "antigravity"
             ? await this.antigravityProfileService.collectQuota(
@@ -1468,10 +1697,15 @@ export class SupervisorRuntime {
                   accountId,
                   this.usageService.getHostForAccountAdapter(),
                 )
-              : await this.codexProfileService.collectQuota(
-                  accountId,
-                  this.usageService.getHostForAccountAdapter(),
-                );
+              : provider === "kimi"
+                ? await this.kimiProfileService.collectQuota(
+                    accountId,
+                    this.usageService.getHostForAccountAdapter(),
+                  )
+                : await this.codexProfileService.collectQuota(
+                    accountId,
+                    this.usageService.getHostForAccountAdapter(),
+                  );
       this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
       return account;
     })().finally(() => {
@@ -1730,7 +1964,14 @@ export class SupervisorRuntime {
 
     // The renderer resolves the full SelectedModelEntry for its inventory; the
     // Supervisor only needs the provider kind to decide the compatibility tier.
-    const openCodeRouteReady = this.nativeHarnessAdapters.has("opencode");
+    // OpenCode route readiness is a discovery fact, not craft history: the
+    // control plane reports installed+authenticated as `ready`. (The previous
+    // `nativeHarnessAdapters.has("opencode")` signal could only turn true
+    // inside a successful craft, so the workbench gate deadlocked every
+    // OpenCode combination before the first craft.)
+    const openCodeRouteReady = entries.some(
+      (entry) => entry.descriptor.harnessKind === "opencode" && entry.status === "ready",
+    );
     const modelVendor = modelProviderFromEntryRef(payload.modelEntryRef);
     if (!modelVendor) {
       return resolveCompatibility({
@@ -1746,7 +1987,9 @@ export class SupervisorRuntime {
         },
         harnessRef,
         harnessReady: false,
-        compatibilityBridgeReady: false,
+        // Real chain: consult the bridge service instead of a hardcoded
+        // constant. A non-running bridge still fails closed below.
+        compatibilityBridgeReady: this.compatibilityBridgeService.getStatus().running,
       });
     }
 
@@ -1765,12 +2008,69 @@ export class SupervisorRuntime {
       harnessRef,
       harnessReady: harnessRef?.status === "ready",
       openCodeRouteReady,
-      // Resolution is a read-only query and never starts a sidecar. Until a
-      // runtime-scoped bridge has completed binary, config, auth, protocol and
-      // exporter verification, compatibility remains unavailable.
-      compatibilityBridgeReady: false,
+      // Resolution is a read-only query and never starts a sidecar: the
+      // service's own `running` state is the readiness signal. Until the
+      // bridge is actually running, compatibility remains unavailable.
+      compatibilityBridgeReady: this.compatibilityBridgeService.getStatus().running,
     });
     return result;
+  }
+
+  /** Safe Compatibility Bridge projection for the Components inventory. */
+  getCompatibilityBridgeStatus(): CompatibilityBridgeStatusView {
+    const status = this.compatibilityBridgeService.getStatus();
+    return compatibilityBridgeStatusSchema.parse({
+      running: status.running,
+      ...(status.endpoint ? { endpoint: status.endpoint } : {}),
+      ...(status.pid !== undefined ? { pid: status.pid } : {}),
+    });
+  }
+
+  /**
+   * One-click Compatibility Bridge start for the Components inventory.
+   * Resolves the sidecar binary (env → PATH → bundled `.tools/cpa/`), points
+   * the long-lived singleton the compatibility gate reads at it, and awaits
+   * the authenticated `/healthz` probe. Throws a remediation-carrying error
+   * when no binary is found or the sidecar never becomes ready — never a
+   * fake "running" state.
+   */
+  async startCompatibilityBridge(options?: {
+    cwd?: string;
+    existsSync?: (path: string) => boolean;
+    resolveOnPath?: (command: string) => string | undefined;
+  }): Promise<CompatibilityBridgeStatusView> {
+    const service = this.compatibilityBridgeService;
+    if (service.getStatus().running) return this.getCompatibilityBridgeStatus();
+    const resolution = resolveCompatibilityBridgeBinary({
+      envBinaryPath: process.env.CLIPROXY_BINARY_PATH,
+      platform: process.platform,
+      cwd: options?.cwd ?? process.cwd(),
+      existsSync: options?.existsSync ?? existsSync,
+      resolveOnPath: options?.resolveOnPath ?? ((command) => resolveExecutablePath(command)),
+    });
+    if (!resolution.binaryPath) {
+      throw new Error(
+        `CLIProxyAPI sidecar binary not found. Searched: ${resolution.searched.join(" · ")}. ` +
+          `Download an official CLIProxyAPI release (router-for-me/CLIProxyAPI) and place '${resolution.fileNames[0] ?? "cli-proxy-api"}' in '${resolution.bundledDir}', ` +
+          `or point CLIPROXY_BINARY_PATH at the executable, then retry.`,
+      );
+    }
+    service.configure({ binaryPath: resolution.binaryPath });
+    try {
+      await service.start();
+    } catch (error) {
+      throw new Error(
+        `Compatibility Bridge failed to start from '${resolution.binaryPath}': ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
+    return this.getCompatibilityBridgeStatus();
+  }
+
+  /** Stop the Compatibility Bridge sidecar; idempotent when already stopped. */
+  async stopCompatibilityBridge(): Promise<CompatibilityBridgeStatusView> {
+    await this.compatibilityBridgeService.stop();
+    return this.getCompatibilityBridgeStatus();
   }
 
   async craftAgent(payload: CraftAgentPayload): Promise<CraftAgentResult> {
@@ -1825,6 +2125,8 @@ export class SupervisorRuntime {
       // adapters and a first-turn rejection may bypass that callback.
       if (accountBinding?.provider === "grok") {
         this.handleGrokNativePromptError(accountBinding.accountId, error);
+      } else if (accountBinding?.provider === "antigravity") {
+        this.handleAntigravityNativePromptError(accountBinding.accountId, error);
       }
       if (craftedSession) {
         await craftedSession.terminate().catch(() => undefined);
@@ -1841,6 +2143,16 @@ export class SupervisorRuntime {
         );
       }
       throw error;
+    } finally {
+      // A craft call is exactly one turn: reap subagent children the turn
+      // leaves behind so the next call starts clean (see observeParentTurnEnd).
+      if (craftedThreadId) {
+        try {
+          this.subagentRunManager.completeTurn(craftedThreadId);
+        } catch {
+          // Reaping is best-effort; the turn result stays authoritative.
+        }
+      }
     }
   }
 
@@ -1887,6 +2199,8 @@ export class SupervisorRuntime {
     } catch (error) {
       if (accountBinding?.provider === "grok") {
         this.handleGrokNativePromptError(accountBinding.accountId, error);
+      } else if (accountBinding?.provider === "antigravity") {
+        this.handleAntigravityNativePromptError(accountBinding.accountId, error);
       }
       if (craftedSession) {
         await craftedSession.terminate().catch(() => undefined);
@@ -1901,6 +2215,14 @@ export class SupervisorRuntime {
         );
       }
       throw error;
+    } finally {
+      if (craftedThreadId) {
+        try {
+          this.subagentRunManager.completeTurn(craftedThreadId);
+        } catch {
+          // Reaping is best-effort; the turn result stays authoritative.
+        }
+      }
     }
   }
 
@@ -1909,7 +2231,7 @@ export class SupervisorRuntime {
     projectLocation: ProjectLocation,
     candidateMcpServers: McpServer[] | undefined,
     accountId?: string,
-    accountMode?: "explicit" | "selected" | "auto",
+    accountMode?: "explicit" | "selected" | "auto" | "preferred",
   ): Promise<{
     adapter: import("@/shared/crafting").HarnessRuntimeAdapter;
     plan: CraftAgentPayload["craftPlan"];
@@ -1956,7 +2278,9 @@ export class SupervisorRuntime {
     let accountBinding: AccountBinding | undefined;
     const explicitRecord = accountId ? this.accountStore.getRecord(accountId) : undefined;
     const managedProvider =
-      plan.runtimeBinding.harnessKind === "codex" &&
+      (plan.runtimeBinding.harnessKind === "codex" ||
+        plan.runtimeBinding.harnessKind === "opencode" ||
+        plan.runtimeBinding.harnessKind === "muse") &&
       explicitRecord?.provider === "openai-compatible"
         ? "openai-compatible"
         : plan.runtimeBinding.harnessKind === "codex"
@@ -1965,13 +2289,15 @@ export class SupervisorRuntime {
             ? "grok"
             : plan.runtimeBinding.harnessKind === "kimi"
               ? "kimi"
-              : plan.runtimeBinding.harnessKind === "opencode"
-                ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
-                : undefined;
+              : plan.runtimeBinding.harnessKind === "antigravity"
+                ? "antigravity"
+                : plan.runtimeBinding.harnessKind === "opencode"
+                  ? (plan.runtimeBinding.providerID ?? plan.runtimeBinding.vendor)
+                  : undefined;
     const hasCredentialedManagedAccount = managedProvider
       ? this.accountStore
           .records(managedProvider)
-          .some((account) => this.hasManagedCredential(account.provider, account.credentialRoot))
+          .some((account) => this.hasManagedCredential(managedProvider, account))
       : false;
     if (managedProvider && (accountId || hasCredentialedManagedAccount)) {
       // v0.5: provider-pool scheduling drives auto selection; the legacy
@@ -1982,6 +2308,15 @@ export class SupervisorRuntime {
         mode: accountMode ?? (accountId ? "explicit" : "auto"),
         ...(accountId ? { explicitAccountId: accountId } : {}),
       });
+      if (managedProvider === "antigravity") {
+        // B-mode (user-mandated): Antigravity sessions always execute on the
+        // shared host login, which follows the resolved pool row. No per-
+        // session ADC credential is published: the upstream CLI skips its
+        // model catalog for ADC sessions, so pool-bound spawns can never
+        // validate a model. accountBinding still records the followed row for
+        // display and quota attribution.
+        await this.ensureAntigravityHostFollowsPool(resolution.account.accountId);
+      }
       const profileSpec = prepareNativeProfile(managedProvider, {
         accountId: resolution.account.accountId,
         credentialRoot: this.accountStore.credentialRoot(resolution.account.accountId),
@@ -2001,11 +2336,40 @@ export class SupervisorRuntime {
           : {}),
       };
       if (managedProvider === "openai-compatible") {
-        const runtime = this.openAiCompatibleProfileService.prepareCodexRuntime(
-          resolution.account.accountId,
-        );
-        accountRoot = runtime.codexHome;
-        accountEnv = runtime.env;
+        if (plan.runtimeBinding.harnessKind === "opencode") {
+          const runtime = this.openAiCompatibleProfileService.prepareOpenCodeRuntime(
+            resolution.account.accountId,
+            plan.runtimeBinding.modelId,
+          );
+          accountRoot = runtime.configDir;
+          accountEnv = runtime.env;
+        } else if (plan.runtimeBinding.harnessKind === "muse") {
+          const runtime = this.openAiCompatibleProfileService.prepareMuseRuntime(
+            resolution.account.accountId,
+          );
+          accountRoot = runtime.isolationDir;
+          accountEnv = runtime.env;
+        } else if (
+          plan.runtimeBinding.harnessKind === "kimi" ||
+          plan.runtimeBinding.harnessKind === "grok" ||
+          plan.runtimeBinding.harnessKind === "deepseek"
+        ) {
+          const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
+            resolution.account.accountId,
+            plan.runtimeBinding.harnessKind,
+          );
+          accountEnv = runtime.env;
+        } else {
+          const runtime = this.openAiCompatibleProfileService.prepareCodexRuntime(
+            resolution.account.accountId,
+          );
+          accountRoot = runtime.codexHome;
+          accountEnv = runtime.env;
+        }
+      } else if (managedProvider === "antigravity") {
+        // B-mode: ambient host execution (see above). accountBinding was set
+        // from the followed row; no pool credential is projected and no
+        // profile identity is verified against an ADC file.
       } else {
         accountRoot = this.accountStore.credentialRoot(resolution.account.accountId);
         accountEnv = profileSpec.env;
@@ -2057,15 +2421,30 @@ export class SupervisorRuntime {
               ? {
                   openCodeRuntimeBindingResolver: this.openCodeRuntimeBindingResolver,
                   openCodeServerPool: this.openCodeServerPool,
-                  openCodeReadinessProvider: () => ({
-                    status: "unverified" as const,
-                    reason: "No provider assistant response evidence is registered for this route.",
-                  }),
+                  // Evidence-based readiness (replaces the permanent
+                  // "unverified" stub): reaching this point means the adapter
+                  // factory accepted the plan and any managed account already
+                  // passed identity verification upstream. A bound account is
+                  // cited by id; otherwise the route runs on the OpenCode
+                  // harness's own discovery-authenticated ambient auth, and
+                  // any live failure surfaces as the real server/CLI error at
+                  // spawn instead of a pre-emptive block here.
+                  openCodeReadinessProvider: ({ providerID, modelID }) =>
+                    accountBinding
+                      ? {
+                          status: "ready" as const,
+                          reason: `Managed ${accountBinding.provider} account ${accountBinding.accountId} credential verified for OpenCode route '${providerID}:${modelID}'.`,
+                        }
+                      : {
+                          status: "ready" as const,
+                          reason: `No managed account bound; OpenCode route '${providerID}:${modelID}' uses the harness ambient auth verified at discovery.`,
+                        },
                 }
               : {}),
             ...(accountRoot &&
             (plan.runtimeBinding.harnessKind === "grok" ||
-              plan.runtimeBinding.harnessKind === "kimi")
+              plan.runtimeBinding.harnessKind === "kimi" ||
+              plan.runtimeBinding.harnessKind === "antigravity")
               ? {
                   baseSpawnEnv:
                     accountEnv ??
@@ -2100,14 +2479,53 @@ export class SupervisorRuntime {
     return { adapter, plan, ...(accountBinding ? { accountBinding } : {}) };
   }
 
-  private hasManagedCredential(provider: string, credentialRoot: string): boolean {
+  private hasManagedCredential(
+    provider: string,
+    account: { accountId: string; credentialRoot: string },
+  ): boolean {
+    // Resolve through the store so legacy rows that escape the managed root
+    // self-heal (dev vs prod copy) instead of probing a foreign directory.
+    // An unrepairable row is not credentialed: the pool then reports an
+    // explicit pool error instead of failing mid-creation with a path error.
+    let root: string;
+    try {
+      root = this.accountStore.credentialRoot(account.accountId);
+    } catch {
+      return false;
+    }
     if (provider === "grok" || provider === "codex") {
-      return existsSync(join(credentialRoot, "auth.json"));
+      return existsSync(join(root, "auth.json"));
     }
     if (provider === "kimi") {
-      return existsSync(join(credentialRoot, "credentials", "kimi-code.json"));
+      return existsSync(join(root, "credentials", "kimi-code.json"));
+    }
+    if (provider === "antigravity") {
+      // Antigravity credentials live in the sealed vault, not in the profile
+      // directory; a refresh token is what makes the account schedulable.
+      return this.antigravityProfileService.hasRefreshToken(account.accountId);
     }
     return true;
+  }
+
+  /**
+   * B-mode host follow: serialize concurrent ensures per row and converge the
+   * host `agy` login on the resolved pool row. Throws when the row cannot be
+   * published (unknown row, missing credential, OS write failure) so the
+   * session start fails loud instead of sending as the wrong identity.
+   */
+  private ensureAntigravityHostFollowsPool(accountId: string): Promise<void> {
+    const inFlight = this.antigravityHostFollowInFlight.get(accountId);
+    if (inFlight) return inFlight;
+    const pending = this.antigravityProfileService
+      .ensureHostFollowsAccount(accountId)
+      .then(() => undefined)
+      .finally(() => {
+        if (this.antigravityHostFollowInFlight.get(accountId) === pending) {
+          this.antigravityHostFollowInFlight.delete(accountId);
+        }
+      });
+    this.antigravityHostFollowInFlight.set(accountId, pending);
+    return pending;
   }
 
   /**
@@ -2116,24 +2534,96 @@ export class SupervisorRuntime {
    * host CLI login: a resolvable pool returns the account's scope env, an
    * unusable pool throws, and only a provider with NO credentialed pool
    * accounts returns undefined (ambient fallback).
+   *
+   * Antigravity is the B-mode exception (user-mandated): sessions always run
+   * on the shared host login, which follows the resolved pool row (see
+   * ensureAntigravityHostFollowsPool). The returned binding still names the
+   * followed row; the env stays ambient (no ADC projection).
+   *
+   * Resolution retries briefly on a transient all-unusable pool: a running
+   * sibling session's CLI rewrites its credential file atomically (Kimi's
+   * rename cycle on `kimi-code.json`), which makes `credentialAvailable`
+   * flicker false for a few milliseconds and used to fail an unrelated
+   * session start with `Structured runtime session creation failed`.
    */
-  private resolveAccountSessionEnv(input: {
+  private async resolveAccountSessionEnv(input: {
     provider: string;
     threadId: string;
-  }): { accountId: string; reason: string; env: Record<string, string> } | undefined {
+    model?: string | undefined;
+    thirdPartyAccountId?: string | undefined;
+    excludedAccountIds?: readonly string[] | undefined;
+  }): Promise<{ accountId: string; reason: string; env: Record<string, string> } | undefined> {
+    // Third-party launches bypass the subscription pool entirely. A
+    // third-party model must NEVER fail with "No usable X account in the
+    // provider pool" — the pool is simply not consulted on this path.
+    if (input.thirdPartyAccountId) {
+      return this.resolveThirdPartySessionEnv(
+        input as {
+          provider: string;
+          threadId: string;
+          model?: string | undefined;
+          thirdPartyAccountId: string;
+        },
+      );
+    }
     const provider =
-      input.provider === "codex" || input.provider === "grok" || input.provider === "kimi"
+      input.provider === "codex" ||
+      input.provider === "grok" ||
+      input.provider === "kimi" ||
+      input.provider === "antigravity"
         ? input.provider
         : undefined;
     if (!provider) return undefined;
     const hasCredentialedManagedAccount = this.accountStore
       .records(provider)
-      .some((account) => this.hasManagedCredential(provider, account.credentialRoot));
+      .some((account) => this.hasManagedCredential(provider, account));
     if (!hasCredentialedManagedAccount) return undefined;
     // Throws ACCOUNT_POOL_EXHAUSTED when every account is unusable — that is
     // the explicit all-failed error, not a silent ambient fallback.
-    const resolution = this.accountResolver.resolve({ provider, mode: "auto" });
+    let resolution: AccountResolution | undefined;
+    try {
+      resolution = this.accountResolver.resolve({
+        provider,
+        mode: "auto",
+        ...(input.excludedAccountIds?.length
+          ? { excludedAccountIds: [...input.excludedAccountIds] }
+          : {}),
+      });
+    } catch (error) {
+      const retryable =
+        error instanceof AccountControlError &&
+        (error.code === "ACCOUNT_POOL_EXHAUSTED" || error.code === "ACCOUNT_UNAVAILABLE");
+      if (!retryable) throw error;
+      for (let attempt = 1; attempt <= ACCOUNT_RESOLUTION_RETRIES && !resolution; attempt += 1) {
+        await sleep(ACCOUNT_RESOLUTION_RETRY_DELAY_MS);
+        try {
+          resolution = this.accountResolver.resolve({
+            provider,
+            mode: "auto",
+            ...(input.excludedAccountIds?.length
+              ? { excludedAccountIds: [...input.excludedAccountIds] }
+              : {}),
+          });
+          console.warn(
+            `[account] pool resolution recovered after retry ${attempt}: provider=${provider} thread=${input.threadId}`,
+          );
+        } catch {
+          if (attempt === ACCOUNT_RESOLUTION_RETRIES) throw error;
+        }
+      }
+      if (!resolution) throw error;
+    }
     const root = this.accountStore.credentialRoot(resolution.account.accountId);
+    if (provider === "antigravity") {
+      // B-mode (user-mandated): the session executes on the shared host
+      // login, which follows the resolved pool row. Return the row for
+      // binding display with an ambient (credential-free) env.
+      await this.ensureAntigravityHostFollowsPool(resolution.account.accountId);
+      console.log(
+        `[account] pool account selected: provider=${provider} thread=${input.threadId} account=${resolution.account.accountId} reason=${resolution.reason}`,
+      );
+      return { accountId: resolution.account.accountId, reason: resolution.reason, env: {} };
+    }
     const profileSpec = prepareNativeProfile(provider, {
       accountId: resolution.account.accountId,
       credentialRoot: root,
@@ -2144,6 +2634,123 @@ export class SupervisorRuntime {
       `[account] pool account selected: provider=${provider} thread=${input.threadId} account=${resolution.account.accountId} reason=${resolution.reason}`,
     );
     return { accountId: resolution.account.accountId, reason: resolution.reason, env };
+  }
+
+  /**
+   * Chat-lane third-party credential projection (pool bypass).
+   *
+   * The launching harness keeps running its own official agent loop; only the
+   * credential source changes (third-party base URL + key + verified model +
+   * verified protocol projected through the harness's official custom-provider
+   * surface). Credential source stays sticky: callers record
+   * `provider: "openai-compatible"` on the session binding from the returned
+   * account id, so restarts/resumes re-enter this path instead of the pool.
+   *
+   * Implemented chat-lane projections: Codex+responses, Muse+responses,
+   * OpenCode (any protocol), and Kimi/Grok/DeepSeek via vendor CLI env
+   * (API key + Base URL). Anything else throws THIRD_PARTY_HARNESS_INCOMPATIBLE.
+   */
+  private resolveThirdPartySessionEnv(input: {
+    provider: string;
+    threadId: string;
+    model?: string | undefined;
+    thirdPartyAccountId: string;
+  }): { accountId: string; reason: string; env: Record<string, string> } {
+    const record = this.accountStore.getRecord(input.thirdPartyAccountId);
+    if (!record || record.provider !== "openai-compatible") {
+      throw new AccountControlError(
+        "ACCOUNT_NOT_FOUND",
+        "第三方 API 账号不存在或已删除，请重新选择模型。",
+        { accountId: input.thirdPartyAccountId, provider: input.provider },
+      );
+    }
+    const descriptor = this.openAiCompatibleProfileService.getDescriptor(record.accountId);
+    if (!descriptor?.validatedProtocol) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "该第三方 API 尚未通过真实兼容性验证，请先验证后再使用。",
+        { accountId: record.accountId, provider: input.provider },
+      );
+    }
+    const protocol = descriptor.validatedProtocol;
+    if (input.provider === "codex" && protocol === "responses") {
+      const runtime = this.openAiCompatibleProfileService.prepareCodexRuntime(record.accountId);
+      console.log(
+        `[account] third-party session bound: provider=codex thread=${input.threadId} account=${record.accountId} protocol=responses`,
+      );
+      return {
+        accountId: record.accountId,
+        reason: "third-party",
+        env: { ...runtime.env, CODEX_HOME: runtime.codexHome },
+      };
+    }
+    if (input.provider === "muse" && protocol === "responses") {
+      const runtime = this.openAiCompatibleProfileService.prepareMuseRuntime(record.accountId);
+      console.log(
+        `[account] third-party session bound: provider=muse thread=${input.threadId} account=${record.accountId} protocol=responses`,
+      );
+      return {
+        accountId: record.accountId,
+        reason: "third-party",
+        env: runtime.env,
+      };
+    }
+    if (
+      input.provider === "opencode" ||
+      (input.provider === "codex" && protocol === "chat_completions")
+    ) {
+      const runtime = this.openAiCompatibleProfileService.prepareOpenCodeRuntime(
+        record.accountId,
+        input.model,
+      );
+      console.log(
+        `[account] third-party session bound: provider=opencode thread=${input.threadId} account=${record.accountId} protocol=${protocol}`,
+      );
+      return {
+        accountId: record.accountId,
+        reason: "third-party",
+        env: runtime.env,
+      };
+    }
+    if (
+      input.provider === "kimi" ||
+      input.provider === "grok" ||
+      input.provider === "deepseek"
+    ) {
+      const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
+        record.accountId,
+        input.provider,
+      );
+      console.log(
+        `[account] third-party session bound: provider=${input.provider} thread=${input.threadId} account=${record.accountId} protocol=${protocol}`,
+      );
+      return {
+        accountId: record.accountId,
+        reason: "third-party",
+        env: runtime.env,
+      };
+    }
+    const wanted =
+      input.provider === "codex" ||
+      input.provider === "kimi" ||
+      input.provider === "grok" ||
+      input.provider === "antigravity" ||
+      input.provider === "opencode" ||
+      input.provider === "muse"
+        ? input.provider
+        : undefined;
+    throw new AccountControlError(
+      "THIRD_PARTY_HARNESS_INCOMPATIBLE",
+      wanted
+        ? `该第三方 API（${protocol === "responses" ? "Responses" : "Chat Completions"}）暂不支持直连 ${wanted} Harness；请选择 OpenCode、Codex 或 Muse Harness 或为该模型配置原生订阅账号。`
+        : `该第三方 API 暂不支持在 ${input.provider} 上运行；请选择 OpenCode、Codex 或 Muse Harness 或为该模型配置原生订阅账号。`,
+      {
+        accountId: record.accountId,
+        provider: input.provider,
+        protocol,
+        ...(input.model ? { model: input.model } : {}),
+      },
+    );
   }
 
   private async resolveCraftingMcpServers(
@@ -2327,7 +2934,7 @@ export class SupervisorRuntime {
     craftPlan: CraftAgentPayload["craftPlan"],
     projectLocation: ProjectLocation,
     accountId?: string,
-    accountMode?: "explicit" | "selected" | "auto",
+    accountMode?: "explicit" | "selected" | "auto" | "preferred",
   ): Promise<PreparedTargetRuntime> {
     let binding: AccountBinding | undefined;
     try {
@@ -2515,13 +3122,38 @@ export class SupervisorRuntime {
   }
 
   /**
+   * Turn-end reaping for subagent runs (user-mandated): when a parent turn
+   * finishes (completed/failed), its still-running children are cancelled so
+   * a new turn never inherits orphans. Interrupted turns are excluded on
+   * purpose — steer-resume continues them, and the interrupt path already
+   * owns foreground cancellation. No-op for threads without live runs.
+   */
+  private observeParentTurnEnd(
+    threadId: string,
+    event: import("@/shared/contracts").RuntimeEvent,
+  ): void {
+    if (event.type !== "turn.completed") return;
+    if (event.state !== "completed" && event.state !== "failed") return;
+    if (!threadId) return;
+    try {
+      this.subagentRunManager.completeTurn(threadId);
+    } catch (error) {
+      console.warn("[supervisor] failed to reap subagent runs on turn end:", error);
+    }
+  }
+
+  /**
    * A Grok ACP prompt can reject with a generic -32603 while carrying the
-   * provider's actionable quota signal in `data.message`. Keep the account
-   * pool's state tied to the session's immutable binding; never mark the
-   * selected account or another account just because the UI selection changed.
+   * provider's actionable quota signal in `data.message`, or end "normally"
+   * while streaming the exhaustion as an in-stream error message. Both shapes
+   * mark the account: without the write-back the pool keeps resolving the
+   * dead account and same-turn failover has nothing to advance to. Keep the
+   * account pool's state tied to the session's immutable binding; never mark
+   * the selected account or another account just because the UI selection
+   * changed.
    */
   private handleGrokNativePromptError(accountId: string, error: unknown): void {
-    if (!isAcpPromptQuotaExhaustedError(error)) return;
+    if (!isGrokPoolQuotaError(error)) return;
     const message = resolveAcpPromptRpcErrorMessage(error);
     try {
       this.accountStore.updateStatus(accountId, "quota-exhausted", {
@@ -2534,6 +3166,98 @@ export class SupervisorRuntime {
       // metadata lock/corruption must not replace it with bookkeeping noise.
       console.warn("[supervisor] failed to record Grok quota exhaustion:", statusError);
     }
+  }
+
+  /**
+   * Kimi counterpart to handleGrokNativePromptError: same contract (quota
+   * marks the BOUND account only; anything else leaves pool state alone).
+   * 429 rate-limiting and 401/403 auth failures never mark — the former
+   * recovers on its own, the latter needs a human re-login.
+   */
+  private handleKimiNativePromptError(accountId: string, error: unknown): void {
+    if (!isKimiPoolQuotaError(error)) return;
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    try {
+      this.accountStore.updateStatus(accountId, "quota-exhausted", {
+        lastError: message,
+        lastQuotaAt: Date.now(),
+      });
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    } catch (statusError) {
+      console.warn("[supervisor] failed to record Kimi quota exhaustion:", statusError);
+    }
+  }
+
+  /**
+   * Codex counterpart to handleGrokNativePromptError: same contract. Only
+   * the verified exhausted shape marks; rate-limit nudges and `willRetry`
+   * warnings never do.
+   */
+  private handleCodexNativePromptError(accountId: string, error: unknown): void {
+    if (!isCodexPoolQuotaError(error)) return;
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    try {
+      this.accountStore.updateStatus(accountId, "quota-exhausted", {
+        lastError: message,
+        lastQuotaAt: Date.now(),
+      });
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    } catch (statusError) {
+      console.warn("[supervisor] failed to record Codex quota exhaustion:", statusError);
+    }
+  }
+
+  /**
+   * Antigravity counterpart to handleGrokNativePromptError: the same
+   * rotate-after-failure contract the standalone switchers (agy-cli-manager /
+   * agm / agy-swap) implement externally. A first-turn quota or auth failure
+   * marks the BOUND account only, so the next session resolves a different
+   * pool row instead of retrying the dead one. Anything else — notably
+   * `invalid model selection` and project/API configuration errors — leaves
+   * pool state untouched.
+   */
+  private handleAntigravityNativePromptError(accountId: string, error: unknown): void {
+    const raw = error instanceof Error ? error.message : String(error ?? "");
+    const message = raw.trim().slice(0, 300);
+    const quota = isAntigravityQuotaError(message);
+    const auth = !quota && isAntigravityAuthError(message);
+    if (!quota && !auth) return;
+    try {
+      this.accountStore.updateStatus(accountId, quota ? "quota-exhausted" : "auth-expired", {
+        ...(message ? { lastError: message } : {}),
+        lastQuotaAt: Date.now(),
+      });
+      this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    } catch (statusError) {
+      // Same contract as Grok: bookkeeping must not replace the turn error.
+      console.warn("[supervisor] failed to record Antigravity account failure:", statusError);
+      return;
+    }
+    // Rotate-after-failure for the host login: when the failed row is also
+    // what the host currently holds, follow with the next usable pool row so
+    // ambient sessions keep working. Best-effort and silent: the turn error
+    // above stays authoritative.
+    void this.antigravityProfileService
+      .rotateHostAfterFailure(accountId, () => {
+        try {
+          return {
+            accountId: this.accountResolver.resolve({ provider: "antigravity", mode: "auto" })
+              .account.accountId,
+          };
+        } catch {
+          return undefined;
+        }
+      })
+      .then((rotation) => {
+        if (rotation.rotated) {
+          console.log(
+            `[account] antigravity host login rotated after failure: account=${rotation.accountId}`,
+          );
+        }
+      })
+      .catch((rotationError) => {
+        console.warn("[supervisor] failed to rotate Antigravity host login:", rotationError);
+      });
   }
 
   /**
@@ -2610,13 +3334,13 @@ export class SupervisorRuntime {
     return selectWindowsShell(settings, this.getCachedAvailableWindowsShells());
   }
 
-  async getCrossagentSpawnableAgents(contextTags: readonly string[] = []) {
+  async getOwnSubagentsSpawnableAgents(contextTags: readonly string[] = []) {
     const { windows } = await this.agentStatusService.getAgentStatuses({ wslDistros: [] });
     const settings: CrossagentVisibilitySettings = this.sharedSettingsCache.read();
     return buildSpawnableAgents(this.adapters, windows, settings, contextTags);
   }
 
-  async getCrossagentRoutingSnapshot(): Promise<CrossagentRoutingState> {
+  async getOwnSubagentsRoutingSnapshot(): Promise<CrossagentRoutingState> {
     const { windows } = await this.agentStatusService.getAgentStatuses({ wslDistros: [] });
     const settings = this.sharedSettingsCache.read();
     return {
@@ -2628,7 +3352,7 @@ export class SupervisorRuntime {
     };
   }
 
-  confirmCrossagentRoutingOverride(payload: ConfirmCrossagentRoutingOverridePayload): void {
+  confirmOwnSubagentsRoutingOverride(payload: ConfirmOwnSubagentsRoutingOverridePayload): void {
     this.routingOverridePersistence.confirm(payload);
   }
 
@@ -2989,7 +3713,7 @@ export class SupervisorRuntime {
     );
     this.nativeHarnessAdapters.clear();
     await this.threadSessionManager.dispose();
-    this.crossagentMcpIngress.dispose();
+    this.ownSubagentsMcpIngress.dispose();
     this.sharedSettingsCache.dispose();
     await this.cliHookPluginCoordinator.dispose().catch((error) => {
       console.warn("[supervisor] CLI hook plugin coordinator dispose failed:", error);

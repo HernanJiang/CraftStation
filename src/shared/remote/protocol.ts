@@ -100,6 +100,7 @@ export const remoteHostUpdateStatusSchema = z.discriminatedUnion("type", [
     type: z.literal("error"),
     message: z.string().optional(),
     messageKey: z.string().optional(),
+    notify: z.boolean().optional(),
   }),
 ]);
 export type RemoteHostUpdateStatus = z.infer<typeof remoteHostUpdateStatusSchema>;
@@ -316,6 +317,8 @@ export const remoteScheduleCommandSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("update"), id: z.string().uuid(), task: scheduledTaskInputSchema }),
   scheduledTaskIdPayloadSchema.extend({ kind: z.literal("delete") }),
   scheduledTaskIdPayloadSchema.extend({ kind: z.literal("run") }),
+  scheduledTaskIdPayloadSchema.extend({ kind: z.literal("pause") }),
+  scheduledTaskIdPayloadSchema.extend({ kind: z.literal("resume") }),
 ]);
 export type RemoteScheduleCommand = z.infer<typeof remoteScheduleCommandSchema>;
 
@@ -343,6 +346,12 @@ export const remoteThreadsChangedEventSchema = z.object({
   viewedThreadIds: z.array(z.string().min(1)).optional(),
 });
 export type RemoteThreadsChangedEvent = z.infer<typeof remoteThreadsChangedEventSchema>;
+
+/** Broadcast after the unified schedule store changes so clients refresh. */
+export const remoteSchedulesChangedEventSchema = z.object({
+  type: z.literal("remote-schedules-changed"),
+});
+export type RemoteSchedulesChangedEvent = z.infer<typeof remoteSchedulesChangedEventSchema>;
 
 /**
  * Port forwarding. Lets a paired client discover dev servers listening on the

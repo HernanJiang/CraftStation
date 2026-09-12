@@ -107,6 +107,58 @@ describe("AttachmentBar", () => {
     expect(imageUrlForPath).not.toHaveBeenCalled();
   });
 
+  it("warns on previewable images that models may not accept", () => {
+    render(
+      <AttachmentBar
+        attachments={[
+          {
+            id: "svg-1",
+            path: "/tmp/diagram.svg",
+            name: "diagram.svg",
+            mimeType: "image/svg+xml",
+            isImage: true,
+          },
+          {
+            id: "png-1",
+            path: "/tmp/photo.png",
+            name: "photo.png",
+            mimeType: "image/png",
+            isImage: true,
+          },
+        ]}
+      />,
+    );
+
+    // The svg chip warns; the model-native png chip (in the same bar) has no
+    // warning badge.
+    const warnings = screen.getAllByTitle(
+      "Previewable here, but models may not accept this image format (use png, jpg, gif or webp)",
+    );
+    expect(warnings).toHaveLength(1);
+  });
+
+  it("renders audio attachments as plain chips", () => {
+    render(
+      <AttachmentBar
+        attachments={[
+          {
+            id: "audio-1",
+            path: "/tmp/standup.mp3",
+            name: "standup.mp3",
+            mimeType: "audio/mpeg",
+            isImage: false,
+            isAudio: true,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("standup.mp3")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Image format may not be supported by the model" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders flush attachment bars for inline message attachments", () => {
     const { container } = render(
       <AttachmentBar

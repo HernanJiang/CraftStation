@@ -505,4 +505,71 @@ describe("Kimi background subagent bridge", () => {
       });
     },
   );
+
+  it("emits a synthetic failure when the session dir never resolves", async () => {
+    // Silent give-up on the session-dir lookup used to leave the subagent tile
+    // running forever; the monitor must fail the launch instead.
+    let clock = 1_000;
+    const readText = makeReadText({
+      wire: "",
+      task: "",
+      output: {},
+    });
+    const updates: SessionNotification[] = [];
+    const bridge = createKimiBackgroundBridge(
+      { kind: "posix", path: "/repo" },
+      (notification) => updates.push(notification),
+      {
+        readText,
+        resolveSessionDir: async () => {
+          clock = 1_000 + 30_000 + 1_000;
+          return undefined;
+        },
+        pollIntervalMs: 1,
+        now: () => clock,
+      },
+    );
+
+    bridge.onBackgroundLaunch({
+      sessionId: "session-1",
+      toolCallId: "tool-1",
+      taskId: "agent-task",
+    });
+    await vi.waitFor(() => expect(updates).toHaveLength(1));
+    bridge.dispose();
+
+    expect(updates[0]?.update).toMatchObject({
+      toolCallId: "tool-1",
+      status: "failed",
+    });
+  });
+
+  it("emits a synthetic failure when the task record never reaches a terminal status", async () => {
+    let clock = 1_000;
+    const readText = vi.fn<
+      (location: ProjectLocation, path: string, maxBytes?: number) => Promise<string | undefined>
+    >(async (_location, path) => {
+      if (path.endsWith(".json")) {
+        // Task record with no status — never terminal, so the poll budget is
+        // the only way out. Fast-forward the injected clock on the first read.
+        clock = 1_000 + 2 * 60 * 60 * 1_000 + 1_000;
+        return '{"endedAt":200}';
+      }
+      return undefined;
+    });
+    const { bridge, updates } = startBridge(readText, { now: () => clock });
+
+    bridge.onBackgroundLaunch({
+      sessionId: "session-1",
+      toolCallId: "tool-1",
+      taskId: "agent-task",
+    });
+    await vi.waitFor(() => expect(updates).toHaveLength(1));
+    bridge.dispose();
+
+    expect(updates[0]?.update).toMatchObject({
+      toolCallId: "tool-1",
+      status: "failed",
+    });
+  });
 });

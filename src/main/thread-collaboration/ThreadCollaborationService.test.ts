@@ -272,6 +272,40 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     expect(sendThreadInput).toHaveBeenCalledTimes(1);
   });
 
+  it("allows identical Model×Harness pairs when they are provably distinct native threads", async () => {
+    const ref = (nativeId: string) => ({
+      providerSessionId: nativeId,
+      discoveredAt: "2026-08-31T12:00:00.000Z",
+    });
+    threads[0] = thread("source", "project-1", {
+      agentKind: "codex",
+      config: { model: "gpt-5.6" },
+      sessionRef: ref("codex-C1"),
+    });
+    // Same native session on both sides → still blocked.
+    threads[1] = thread("target", "project-1", {
+      agentKind: "codex",
+      config: { model: "gpt-5.6" },
+      sessionRef: ref("codex-C1"),
+    });
+    await expect(request({ idempotencyKey: "same-native" })).rejects.toMatchObject({
+      code: "THREAD_COLLABORATION_SAME_COMPOSITION",
+    });
+
+    // Distinct native sessions (e.g. Kimi K1 vs Kimi K2 on one model) → allowed.
+    threads[1] = thread("target", "project-1", {
+      agentKind: "codex",
+      config: { model: "gpt-5.6" },
+      sessionRef: ref("codex-C2"),
+    });
+    const delivered = await request({ idempotencyKey: "distinct-native" });
+    expect(delivered.status).toBe("delivered");
+    expect(delivered.targetProvenance).toMatchObject({ nativeSessionId: "codex-C2" });
+    expect(sendThreadInput).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "target" }),
+    );
+  });
+
   it("resolves the composition policy from runtime provenance, not raw thread strings", async () => {
     threads[0] = thread("source", "project-1", {
       compositionProvenance: compositionProvenance("gpt-5.6", "codex"),
@@ -318,28 +352,24 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     expect(targets.some((target) => target.threadId === "other")).toBe(false);
   });
 
-  it("queues a busy target without steering and delivers once after it settles", async () => {
+  it("injects a prompt into a busy target immediately instead of queuing", async () => {
     statuses.set("target", "working");
-    const queued = await request();
-    expect(queued.status).toBe("queued");
-    expect(sendThreadInput).not.toHaveBeenCalled();
+    const delivered = await request();
+    expect(delivered.status).toBe("delivered");
+    expect(sendThreadInput).toHaveBeenCalledTimes(1);
     expect(interruptThread).not.toHaveBeenCalled();
-
-    statuses.set("target", "idle");
-    await service.recover();
-    expect(service.readExchange("source", queued.id).status).toBe("delivered");
-    expect(sendThreadInput).toHaveBeenCalledTimes(1);
-    await service.recover();
-    expect(sendThreadInput).toHaveBeenCalledTimes(1);
+    expect(sendThreadInput.mock.calls[0]?.[0]).toMatchObject({
+      threadId: "target",
+      prompt: expect.stringContaining("hello"),
+    });
   });
 
-  it("cancels before delivery and never sends the cancelled request", async () => {
-    statuses.set("target", "working");
-    const queued = await request();
-    expect(service.cancelExchange("source", queued.id).status).toBe("cancelled");
-    statuses.set("target", "idle");
-    await service.recover();
-    expect(sendThreadInput).not.toHaveBeenCalled();
+  it("cancels a not-yet-delivered exchange without sending a follow-up", async () => {
+    sendThreadInput.mockRejectedValueOnce(new Error("hold"));
+    interruptThread.mockRejectedValueOnce(new Error("hold"));
+    const failed = await request();
+    expect(failed.status).toBe("failed");
+    expect(sendThreadInput).toHaveBeenCalledTimes(1);
   });
 
   it("stops waiting after delivery without interrupting the target turn", async () => {
@@ -372,45 +402,20 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     expect(service.readExchange("source", delivered.id).status).toBe("replied");
   });
 
-  it("orders follow-ups on one conversation link and releases the next only after reply", async () => {
+  it("injects follow-ups on one conversation link immediately", async () => {
     const first = await request();
     const second = await request({ request: "follow-up", idempotencyKey: "key-2" });
     expect(first.status).toBe("delivered");
-    expect(second.status).toBe("queued");
+    expect(second.status).toBe("delivered");
     expect(second.linkId).toBe(first.linkId);
     expect(second.sequence).toBe(first.sequence + 1);
-    expect(sendThreadInput).toHaveBeenCalledTimes(1);
-
-    turns.set("target", [
-      {
-        startedAt: "2026-08-31T12:00:01.000Z",
-        endedAt: "2026-08-31T12:00:02.000Z",
-        anchorItemId: "first-reply",
-      },
-    ]);
-    items.set("target:first-reply", {
-      id: "first-reply",
-      type: "assistant_message",
-      state: "completed",
-      streams: { assistant_text: "first reply" },
-    });
-    await service.recover();
-
-    expect(service.readExchange("source", first.id).status).toBe("replied");
-    expect(service.readExchange("source", second.id).status).toBe("delivered");
     expect(sendThreadInput).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps target attention actionable and resumes delivery after attention clears", async () => {
+  it("injects into a target that needs a reply instead of parking the request", async () => {
     statuses.set("target", "needs_reply");
-    const attention = await request();
-    expect(attention.status).toBe("needs_attention");
-    expect(attention.deliveredAt).toBeNull();
-    expect(sendThreadInput).not.toHaveBeenCalled();
-
-    statuses.set("target", "idle");
-    await service.recover();
-    expect(service.readExchange("source", attention.id).status).toBe("delivered");
+    const delivered = await request();
+    expect(delivered.status).toBe("delivered");
     expect(sendThreadInput).toHaveBeenCalledTimes(1);
   });
 
@@ -421,6 +426,71 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     expect(failed.status).toBe("failed");
     expect(failed.error?.code).toBe("THREAD_COLLABORATION_INTERRUPT_FAILED");
     expect(sendThreadInput).not.toHaveBeenCalled();
+  });
+
+  it("interrupts a busy target then delivers interrupt-and-send as a new turn", async () => {
+    statuses.set("target", "working");
+    interruptThread.mockImplementation(async () => {
+      statuses.set("target", "idle");
+    });
+    const exchange = await request({
+      deliveryMode: "interrupt-and-send",
+      idempotencyKey: "stop-1",
+      request: "STOP. Do not submit jobs.",
+    });
+    expect(interruptThread).toHaveBeenCalledWith({ threadId: "target" });
+    expect(exchange.status).toBe("delivered");
+    expect(exchange.deliveredAt).not.toBeNull();
+    expect(sendThreadInput).toHaveBeenCalledTimes(1);
+    expect(sendThreadInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "target",
+        prompt: expect.stringContaining("STOP. Do not submit jobs."),
+      }),
+    );
+  });
+
+  it("treats interrupt-and-send on an idle target as a no-op interrupt", async () => {
+    const exchange = await request({
+      deliveryMode: "interrupt-and-send",
+      idempotencyKey: "idle-int",
+    });
+    expect(interruptThread).not.toHaveBeenCalled();
+    expect(exchange.status).toBe("delivered");
+    expect(exchange.deliveredAt).not.toBeNull();
+  });
+
+  it("does not queue interrupt-and-send against an error runtime", async () => {
+    statuses.set("target", "error");
+    const failed = await request({
+      deliveryMode: "interrupt-and-send",
+      idempotencyKey: "err-int",
+    });
+    expect(failed.status).toBe("failed");
+    expect(failed.error?.code).toBe("THREAD_COLLABORATION_RUNTIME_UNAVAILABLE");
+    expect(failed.error?.retryable).toBe(true);
+    expect(interruptThread).not.toHaveBeenCalled();
+    expect(sendThreadInput).not.toHaveBeenCalled();
+  });
+
+  it("lets interrupt-and-send still interrupt a busy target after an immediate inject", async () => {
+    statuses.set("target", "working");
+    const chatter = await request({
+      idempotencyKey: "chatter",
+      request: "when you have a moment",
+    });
+    expect(chatter.status).toBe("delivered");
+    interruptThread.mockImplementation(async () => {
+      statuses.set("target", "idle");
+    });
+    const stop = await request({
+      deliveryMode: "interrupt-and-send",
+      idempotencyKey: "stop-jump",
+      request: "STOP",
+    });
+    expect(stop.status).toBe("delivered");
+    expect(stop.deliveredAt).not.toBeNull();
+    expect(interruptThread).toHaveBeenCalledTimes(1);
   });
 
   it("captures only a completed assistant turn after the delivery baseline", async () => {

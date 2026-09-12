@@ -41,6 +41,33 @@ export interface SyncedThreadDiff {
   readonly viewedThreadIds: string[];
 }
 
+/**
+ * Threads flipped from visible to archived by this write. Used by the
+ * archive-tripwire log (see `traceArchiveFlips`): bulk flips with identical
+ * timestamps point at a stale-state sync, single flips at UI actions.
+ */
+export interface ArchiveFlip {
+  readonly threadId: string;
+  readonly title: string;
+  readonly archivedAt: string | null;
+}
+
+export function archiveFlips(before: readonly Thread[], after: readonly Thread[]): ArchiveFlip[] {
+  const beforeById = new Map(before.map((thread) => [thread.id, thread]));
+  const flips: ArchiveFlip[] = [];
+  for (const thread of after) {
+    const prior = beforeById.get(thread.id);
+    if (prior && !prior.archived && thread.archived) {
+      flips.push({
+        threadId: thread.id,
+        title: thread.title,
+        archivedAt: thread.archivedAt ?? null,
+      });
+    }
+  }
+  return flips;
+}
+
 export function diffSyncedThreads(
   before: readonly Thread[],
   after: readonly Thread[],

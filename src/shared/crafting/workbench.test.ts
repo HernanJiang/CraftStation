@@ -48,12 +48,28 @@ describe("workbench compatibility tiers", () => {
   it("cross-vendor ready harness is CRAFTABLE", () => {
     const resolution = resolveCompatibility({
       modelEntry: modelEntry({ providerKind: "openai" }),
-      harnessRef: harnessRef({ vendor: "codex", harnessKind: "codex", status: "ready" }),
+      harnessRef: harnessRef({
+        vendor: "xai",
+        harnessKind: "grok",
+        harnessItemId: "harness:grok",
+        displayName: "Grok Harness",
+        status: "ready",
+      }),
       harnessReady: true,
       compatibilityBridgeReady: true,
     });
     expect(resolution.status).toBe("CRAFTABLE");
     expect(resolution.source).toBe("compatibility-layer");
+  });
+
+  it("same-vendor agent kind and model vendor is NATIVE", () => {
+    const resolution = resolveCompatibility({
+      modelEntry: modelEntry({ providerKind: "codex" }),
+      harnessRef: harnessRef({ vendor: "openai", status: "ready" }),
+      harnessReady: true,
+    });
+    expect(resolution.status).toBe("NATIVE");
+    expect(resolution.source).toBe("native");
   });
 
   it("missing material fails closed to IMPOSSIBLE", () => {
@@ -90,16 +106,22 @@ describe("workbench compatibility tiers", () => {
       harnessRef: harnessRef({ harnessKind: "opencode", vendor: "opencode", status: "ready" }),
       harnessReady: true,
       openCodeRouteReady: true,
-      compatibilityBridgeReady: true,
+      compatibilityBridgeReady: false,
     });
-    expect(verified.status).toBe("CRAFTABLE");
-    expect(verified.source).toBe("compatibility-layer");
+    expect(verified.status).toBe("NATIVE");
+    expect(verified.source).toBe("native");
   });
 
   it("does not infer compatibility readiness when the supervisor omits it", () => {
     const resolution = resolveCompatibility({
       modelEntry: modelEntry({ providerKind: "openai" }),
-      harnessRef: harnessRef({ vendor: "codex", status: "ready" }),
+      harnessRef: harnessRef({
+        vendor: "xai",
+        harnessKind: "grok",
+        harnessItemId: "harness:grok",
+        displayName: "Grok Harness",
+        status: "ready",
+      }),
       harnessReady: true,
     });
     expect(resolution.status).toBe("IMPOSSIBLE");

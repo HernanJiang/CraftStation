@@ -29,6 +29,7 @@ import {
   openAiCompatibleProfileQueryPayloadSchema,
   openAiCompatibleProfileImportPayloadSchema,
   channelModelsPayloadSchema,
+  verifyChannelModelPayloadSchema,
   type AccountAddPayload,
   type AccountEnabledPayload,
   type AccountIdPayload,
@@ -68,11 +69,14 @@ import {
   type GrokProfilePollPayload,
   type GrokProfilePollResult,
   type AntigravityProfileImportPayload,
+  type AntigravityHostLoginResult,
   type OpenAiCompatibleProfileQueryPayload,
   type OpenAiCompatibleProfileConfig,
   type OpenAiCompatibleProfileImportPayload,
   type ChannelModelsPayload,
   type ChannelModelsResponse,
+  type VerifyChannelModelPayload,
+  type VerifyChannelModelResponse,
   type KimiProfileCreatePayload,
   type KimiProfileImportPayload,
   type KimiProfileLoginPayload,
@@ -171,6 +175,12 @@ export const usageProcedures = {
     ChannelModelsResponse,
     "supervisor"
   >("listChannelModels", "supervisor", channelModelsPayloadSchema),
+  // 管理模型页：把一个渠道模型加入首页前，先用密封 Key 做一次真实探测。
+  verifyChannelModel: definePayloadProcedure<
+    VerifyChannelModelPayload,
+    VerifyChannelModelResponse,
+    "supervisor"
+  >("verifyChannelModel", "supervisor", verifyChannelModelPayloadSchema),
   listAccounts: definePayloadProcedure<AccountProviderPayload, AccountView[], "supervisor">(
     "listAccounts",
     "supervisor",
@@ -301,4 +311,12 @@ export const usageProcedures = {
     "supervisor",
     accountIdPayloadSchema,
   ),
+  // Apply a pool Antigravity account as the host `agy` CLI login (mirrors
+  // `agm switch --target agy`): overwrites the single OS-credential-store
+  // login so host/ambient sessions run as this account with a full catalog.
+  applyAntigravityHostLogin: definePayloadProcedure<
+    AccountIdPayload,
+    AntigravityHostLoginResult,
+    "supervisor"
+  >("applyAntigravityHostLogin", "supervisor", accountIdPayloadSchema),
 } as const;

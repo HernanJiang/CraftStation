@@ -30,6 +30,7 @@ const bridge = vi.hoisted(() => ({
   deleteProjectEntry: vi.fn<(payload: unknown) => Promise<void>>(),
   searchProjectTree: vi.fn<(payload: unknown) => Promise<{ entries: ProjectTreeEntry[] }>>(),
   revealProjectEntry: vi.fn<(payload: unknown) => Promise<void>>(),
+  openProjectEntryWithSystem: vi.fn<(payload: unknown) => Promise<void>>(),
 }));
 
 vi.mock("@/renderer/bridge", () => ({
@@ -170,6 +171,64 @@ describe("ProjectTreeView", () => {
       expect(screen.getByText("M")).toBeInTheDocument();
       expect(screen.getByText("U")).toBeInTheDocument();
     });
+  });
+
+  it("opens a file with the OS default app from the context menu", async () => {
+    bridge.listProjectTree.mockResolvedValue({
+      directoryPath: "",
+      entries: [
+        { name: "src", path: "src", type: "directory", hasChildren: true },
+        { name: "resume.pdf", path: "docs/resume.pdf", type: "file" },
+      ] satisfies ProjectTreeEntry[],
+    });
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <ProjectTreeView
+          rootContext={rootContextA}
+          onSelectFile={vi.fn<(path: string) => void>()}
+        />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("resume.pdf")).toBeInTheDocument();
+    });
+    fireEvent.contextMenu(screen.getByRole("button", { name: "resume.pdf" }));
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open With System Default" }));
+    await waitFor(() => {
+      expect(bridge.openProjectEntryWithSystem).toHaveBeenCalledWith({
+        projectLocation: projectA.location,
+        path: "docs/resume.pdf",
+      });
+    });
+  });
+
+  it("does not offer the system-default open action for directories", async () => {
+    bridge.listProjectTree.mockResolvedValue({
+      directoryPath: "",
+      entries: [
+        { name: "src", path: "src", type: "directory", hasChildren: true },
+      ] satisfies ProjectTreeEntry[],
+    });
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <ProjectTreeView
+          rootContext={rootContextA}
+          onSelectFile={vi.fn<(path: string) => void>()}
+        />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("src")).toBeInTheDocument();
+    });
+    fireEvent.contextMenu(screen.getByRole("button", { name: "src" }));
+
+    expect(screen.getByRole("menuitem", { name: "Reveal in File Explorer" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Open With System Default" })).not.toBeInTheDocument();
   });
 
   it("supports fuzzy search and clearing search query", async () => {

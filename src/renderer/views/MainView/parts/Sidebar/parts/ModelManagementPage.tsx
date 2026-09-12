@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, Plus, RefreshCw, X } from "lucide-react";
+import { Check, Loader2, Plus, RefreshCw, Search, X } from "lucide-react";
+import { toast } from "@heroui/react";
 import type { AccountView, AgentCapability, LabeledOption } from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
@@ -10,8 +11,16 @@ import { getSettingsInstalledAgents } from "@/shared/agentStatus";
 import { resolveHiddenModelIds } from "@/shared/agentSelection";
 import { expandAgentToVisibilityProviders } from "@/renderer/components/thread/buildModelPickerControls";
 import { providerVisibilityKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
+import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
+import { runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
 import { customModelId, type CustomModel } from "@/renderer/components/thread/customModelCatalog";
+import {
+  CustomModelDialog,
+  type CustomModelDialogValues,
+} from "./CustomModelDialog";
 import type { SharedSettings } from "@/shared/settings";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
+import { resolveThirdPartyHarnessForModel } from "@/shared/thirdPartyRouting";
 
 const inputClass =
   "w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25";
@@ -29,6 +38,19 @@ type ChannelEntry = {
   accountId?: string;
 };
 
+/** 上下文徽标：纯数字按十进制缩写（1000000→1M），其余原样透出。 */
+export function formatContextBadge(value: string): string | undefined {
+  const raw = value.trim();
+  if (!raw) return undefined;
+  if (/^\d+$/.test(raw)) {
+    const tokens = Number(raw);
+    if (tokens >= 1_000_000 && tokens % 1_000_000 === 0) return `${tokens / 1_000_000}M`;
+    if (tokens >= 1_000 && tokens % 1_000 === 0) return `${tokens / 1_000}K`;
+    return raw;
+  }
+  return raw;
+}
+
 function CustomModelRow(props: {
   model: CustomModel;
   providerLabel: string;
@@ -36,6 +58,7 @@ function CustomModelRow(props: {
   onRemove: () => void;
 }) {
   const { model, providerLabel, onUpdate, onRemove } = props;
+  const contextBadge = formatContextBadge(model.contextSize);
   return (
     <li className="rounded-lg bg-black/20 p-2" data-testid={`custom-model-${model.id}`}>
       <div className="flex items-center gap-2">
@@ -45,6 +68,14 @@ function CustomModelRow(props: {
           onChange={(event) => onUpdate({ displayName: event.target.value })}
           className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1 text-[11px] text-foreground outline-none focus:border-white/25"
         />
+        {contextBadge ? (
+          <span
+            className="shrink-0 rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-neutral-300"
+            title={`上下文窗口 ${model.contextSize}`}
+          >
+            {contextBadge}
+          </span>
+        ) : null}
         <span className="shrink-0 text-[10px] text-neutral-500">{providerLabel}</span>
         <span className="shrink-0 text-[10px] text-neutral-500">{model.modelId}</span>
         <button
@@ -79,7 +110,13 @@ export function ModelManagementPage(props: {
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
   const hiddenModels = useSharedSettings((state) => state.hiddenModels);
   const setHiddenModels = useSharedSettings((state) => state.setHiddenModels);
+  const shownModels = useSharedSettings((state) => state.shownModels);
+  const setShownModels = useSharedSettings((state) => state.setShownModels);
   const providerOrder = useSharedSettings((state) => state.usage.providerOrder);
+  const recipes = useCraftingWorkbenchStore((state) => state.recipes);
+  const setRecipeHomepageVisible = useCraftingWorkbenchStore(
+    (state) => state.setRecipeHomepageVisible,
+  );
   const providerLabels = useMemo(
     () => new Map(resolveDisplayedProviders(providerOrder, []).map((p) => [p.id, p.label])),
     [providerOrder],
@@ -95,6 +132,8 @@ export function ModelManagementPage(props: {
   );
 
   // 与首页模型选择器同源的 agent 渠道（每个模型可见面一个条目）。
+  // 已配置（有账号/额度）的渠道即使暂时没有可用模型也保留：用户可以在此
+  // 「获取模型」或手动添加，而不是看着渠道凭空消失。
   const agentChannels = useMemo(() => {
     const installed = getSettingsInstalledAgents(agentStatuses, wslAgentStatuses);
     return installed
@@ -110,8 +149,7 @@ export function ModelManagementPage(props: {
           hiddenKey: providerVisibilityKey(provider),
           capabilities: provider.capabilities,
         };
-      })
-      .filter((channel) => channel.models.length > 0);
+      });
   }, [agentStatuses, wslAgentStatuses, configuredProviders]);
 
   const channels: ChannelEntry[] = useMemo(() => {
@@ -126,8 +164,18 @@ export function ModelManagementPage(props: {
         models: [],
       });
     }
+    // 合成台「我的配方」：存过的配方可在此勾选进首页模型选择器。
+    entries.push({
+      key: "recipes",
+      kind: "recipes",
+      label: "我的配方",
+      models: recipes.map((recipe) => ({
+        id: recipe.id,
+        label: recipe.alias?.trim() || recipe.systemName,
+      })),
+    });
     return entries;
-  }, [agentChannels, compatibleAccounts]);
+  }, [agentChannels, compatibleAccounts, recipes]);
 
   const [selectedKey, setSelectedKey] = useState<string>("");
   useEffect(() => {
@@ -138,20 +186,123 @@ export function ModelManagementPage(props: {
   }, [channels, selectedKey]);
 
   const selected = channels.find((channel) => channel.key === selectedKey);
-  const selectedAgentChannel =
-    selected && selected.hiddenKey && selected.capabilities
+  // Built inline (not memoized upstream) so the memo below can list it as a
+  // stable-primitive dependency instead of a fresh object identity per render.
+  const selectedAgentChannel = useMemo(() => {
+    const current = channels.find((channel) => channel.key === selectedKey);
+    return current && current.hiddenKey && current.capabilities
       ? {
-          hiddenKey: selected.hiddenKey,
-          capabilities: selected.capabilities,
-          models: selected.models,
+          hiddenKey: current.hiddenKey,
+          capabilities: current.capabilities,
+          models: current.models,
         }
       : undefined;
+  }, [channels, selectedKey]);
+
+  // —— 渠道内模型搜索 + 上游可用模型获取 ——
+  const [modelQuery, setModelQuery] = useState("");
+  const [refreshingKinds, setRefreshingKinds] = useState<Record<string, boolean>>({});
+  const [actionHint, setActionHint] = useState<string | null>(null);
+  useEffect(() => {
+    setModelQuery("");
+  }, [selectedKey]);
+  const filteredChannelModels = useMemo(() => {
+    if (!selectedAgentChannel) return [];
+    const query = modelQuery.trim().toLowerCase();
+    if (!query) return selectedAgentChannel.models;
+    return selectedAgentChannel.models.filter(
+      (model) =>
+        model.id.toLowerCase().includes(query) || model.label.toLowerCase().includes(query),
+    );
+  }, [selectedAgentChannel, modelQuery]);
+
+  const fetchChannelModels = async (kind: string, label?: string) => {
+    if (refreshingKinds[kind]) return;
+    setRefreshingKinds((current) => ({ ...current, [kind]: true }));
+    setActionHint(null);
+    // 本次拉取前已知的模型 id：拉取后新增的部分自动设为首页可见，
+    // 否则「获取成功」了新模型却依然藏在隐藏名单里（尤其 OpenCode 这类
+    // 默认全隐藏的渠道），看起来就像“显示成功但无法导入”。
+    const knownBefore = new Set(
+      [...agentStatuses, ...wslAgentStatuses]
+        .filter((status) => status.kind === kind)
+        .flatMap((status) => status.capabilities?.models?.map((model) => model.id) ?? []),
+    );
+    try {
+      // 直接从上游获取该渠道当前可用的模型列表：重新运行 adapter 的原生能力
+      // 探测（antigravity `agy models`、codex app-server `model/list`、
+      // command-code `--list-models`、opencode provider inventory ……），
+      // 用上游返回的最新目录替换渠道模型清单并列出来。
+      const response = await readBridge().refreshAgentStatuses?.(currentWslDistros(), {
+        agentKinds: [kind],
+      });
+      const statuses = [...(response?.windows ?? []), ...(response?.wsl ?? [])].filter(
+        (status) => status.kind === kind,
+      );
+      const freshIds = statuses.flatMap((status) =>
+        (status.capabilities?.models ?? [])
+          .filter((model) => model.id !== "auto")
+          .map((model) => model.id),
+      );
+      const modelCount = freshIds.length;
+      const delta = [...new Set(freshIds)].filter((id) => !knownBefore.has(id));
+      if (delta.length > 0) {
+        // 仅把本次新发现的模型加入显式可见名单：用户亲手点的「获取模型」，
+        // 新货就该直接出现在首页，而不是再藏一层。
+        const hiddenKey =
+          channels.find((channel) => channel.kind === kind)?.hiddenKey ??
+          providerVisibilityKey({ kind });
+        if (hiddenKey) {
+          const hidden = new Set(hiddenModels[hiddenKey] ?? []);
+          const shown = new Set(shownModels[hiddenKey] ?? []);
+          let changed = false;
+          for (const id of delta) {
+            if (hidden.delete(id)) changed = true;
+            if (!shown.has(id)) {
+              shown.add(id);
+              changed = true;
+            }
+          }
+          if (changed) {
+            setHiddenModels(hiddenKey, [...hidden]);
+            setShownModels(hiddenKey, [...shown]);
+          }
+        }
+      }
+      const channelName = label ?? kind;
+      setActionHint(
+        modelCount > 0
+          ? `已从上游获取 ${channelName} 的 ${modelCount} 个可用模型${delta.length > 0 ? `（${delta.length} 个新模型已加入首页）` : ""}`
+          : `已从上游获取 ${channelName} 模型列表，暂无可用模型`,
+      );
+    } catch {
+      setActionHint("获取模型列表失败，请重试");
+    } finally {
+      setRefreshingKinds((current) => ({ ...current, [kind]: false }));
+    }
+  };
+
+  const openOpencodeModelSelector = () => {
+    // Official OpenCode TUI as the selection surface — spawned by the supervisor
+    // through the shared login-terminal overlay, never by the renderer.
+    const opened = runAgentLoginCommand({
+      label: "OpenCode 模型选择",
+      command: "opencode",
+      subtitle: "在 OpenCode TUI 内选择模型（/models）；退出后 CraftStation 自动获取模型目录",
+      onCommandComplete: (exitCode) => {
+        if (exitCode === 0) void fetchChannelModels("opencode", "OpenCode");
+      },
+    });
+    if (!opened) setActionHint("请先添加一个项目，再打开 OpenCode 模型选择器。");
+  };
+
   // 与设置页一致：可见性 = capabilities 默认 + 用户显式 hidden 列表的并集的反面。
   const selectedHiddenSet = selectedAgentChannel
     ? new Set(
         resolveHiddenModelIds(
           selectedAgentChannel.capabilities,
           hiddenModels[selectedAgentChannel.hiddenKey],
+          shownModels[selectedAgentChannel.hiddenKey],
         ),
       )
     : new Set<string>();
@@ -159,16 +310,32 @@ export function ModelManagementPage(props: {
   const toggleChannelModelVisible = (channel: ChannelEntry, modelId: string) => {
     if (!channel.hiddenKey || !channel.capabilities) return;
     const current = new Set(
-      resolveHiddenModelIds(channel.capabilities, hiddenModels[channel.hiddenKey]),
+      resolveHiddenModelIds(
+        channel.capabilities,
+        hiddenModels[channel.hiddenKey],
+        shownModels[channel.hiddenKey],
+      ),
     );
-    if (current.has(modelId)) current.delete(modelId);
-    else current.add(modelId);
+    const shown = new Set(shownModels[channel.hiddenKey] ?? []);
+    if (current.has(modelId)) {
+      // Explicitly shown: on curated-discovery channels (defaultHiddenModels)
+      // visibility is driven by the shown set alone.
+      current.delete(modelId);
+      shown.add(modelId);
+    } else {
+      current.add(modelId);
+      shown.delete(modelId);
+    }
     setHiddenModels(channel.hiddenKey, [...current]);
+    setShownModels(channel.hiddenKey, [...shown]);
   };
 
   const setChannelModelsVisible = (channel: ChannelEntry, visible: boolean) => {
     if (!channel.hiddenKey || !channel.capabilities) return;
     setHiddenModels(channel.hiddenKey, visible ? [] : channel.models.map((model) => model.id));
+    // 全选 marks every catalog model as explicitly shown so future discoveries
+    // on curated-discovery channels stay hidden until the user picks them.
+    setShownModels(channel.hiddenKey, visible ? channel.models.map((model) => model.id) : []);
   };
 
   const setAllAgentModelsVisible = (visible: boolean) => {
@@ -189,8 +356,15 @@ export function ModelManagementPage(props: {
     displayName?: string,
     accountId?: string,
     channelLabel?: string,
-  ) => {
-    const trimmedId = modelId.trim();
+    extra?: {
+      contextSize?: string;
+      maxOutputTokens?: string;
+      inputModalities?: string[];
+      outputModalities?: string[];
+      efforts?: string[];
+      defaultEffort?: string;
+    },
+  ) => {    const trimmedId = modelId.trim();
     if (!trimmedId) return;
     const existing = customModels.find(
       (model) =>
@@ -200,7 +374,18 @@ export function ModelManagementPage(props: {
       onUpdateCustomModels(
         customModels.map((model) =>
           model.id === existing.id
-            ? { ...model, displayName: displayName?.trim() || model.displayName }
+            ? {
+                ...model,
+                displayName: displayName?.trim() || model.displayName,
+                ...(extra?.contextSize !== undefined ? { contextSize: extra.contextSize } : {}),
+                ...(extra?.maxOutputTokens !== undefined
+                  ? { maxOutputTokens: extra.maxOutputTokens }
+                  : {}),
+                ...(extra?.inputModalities ? { inputModalities: extra.inputModalities } : {}),
+                ...(extra?.outputModalities ? { outputModalities: extra.outputModalities } : {}),
+                ...(extra?.efforts?.length ? { efforts: extra.efforts } : {}),
+                ...(extra?.defaultEffort ? { defaultEffort: extra.defaultEffort } : {}),
+              }
             : model,
         ),
       );
@@ -213,13 +398,71 @@ export function ModelManagementPage(props: {
       ...(channelLabel ? { channelLabel } : {}),
       modelId: trimmedId,
       displayName: displayName?.trim() || trimmedId,
-      contextSize: "",
+      contextSize: extra?.contextSize ?? "",
+      ...(extra?.maxOutputTokens ? { maxOutputTokens: extra.maxOutputTokens } : {}),
+      ...(extra?.inputModalities ? { inputModalities: extra.inputModalities } : {}),
+      ...(extra?.outputModalities ? { outputModalities: extra.outputModalities } : {}),
+      ...(extra?.efforts?.length ? { efforts: extra.efforts } : {}),
+      ...(extra?.defaultEffort ? { defaultEffort: extra.defaultEffort } : {}),
     };
     onUpdateCustomModels([...customModels, entry]);
   };
 
   const removeCustomModel = (id: string) => {
     onUpdateCustomModels(customModels.filter((model) => model.id !== id));
+  };
+
+  // Third-party add gate: models on an openai-compatible account must pass a
+  // real Responses-first probe (sealed key, supervisor-side) before joining
+  // the homepage catalog. Native channel models come from official catalogs
+  // and skip the gate.
+  const [verifyingModelKey, setVerifyingModelKey] = useState<string | null>(null);
+  const verifiedAdd = async (
+    provider: string,
+    modelId: string,
+    displayName?: string,
+    accountId?: string,
+    channelLabel?: string,
+    extra?: {
+      contextSize?: string;
+      maxOutputTokens?: string;
+      inputModalities?: string[];
+      outputModalities?: string[];
+      efforts?: string[];
+      defaultEffort?: string;
+    },
+  ): Promise<boolean> => {
+    const trimmedId = modelId.trim();
+    if (!trimmedId || verifyingModelKey) return false;
+    if (!accountId) {
+      upsertCustomModel(provider, trimmedId, displayName, accountId, channelLabel, extra);
+      return true;
+    }
+    const key = `${accountId}:${trimmedId}`;
+    setVerifyingModelKey(key);
+    try {
+      const verdict = await readBridge().verifyChannelModel({
+        provider: "openai-compatible",
+        accountId,
+        model: trimmedId,
+      });
+      if (!verdict.ok) {
+        toast.danger(verdict.error ?? "模型验证失败，未加入首页。");
+        return false;
+      }
+      upsertCustomModel(provider, trimmedId, displayName, accountId, channelLabel, extra);
+      toast.success(
+        verdict.validatedProtocol === "chat_completions"
+          ? `已验证 · Chat Completions，已加入首页。`
+          : `已验证 · Responses API，已加入首页。`,
+      );
+      return true;
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : "模型验证失败，未加入首页。");
+      return false;
+    } finally {
+      setVerifyingModelKey(null);
+    }
   };
 
   const updateCustomModel = (id: string, patch: Partial<CustomModel>) => {
@@ -234,8 +477,11 @@ export function ModelManagementPage(props: {
     loading: false,
   });
   const [manualDraft, setManualDraft] = useState({ modelId: "", displayName: "" });
+  // 添加模型对话框：从手动添加栏/渠道模型列表进入，带上下文与模态默认值。
+  const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const fetchCompatibleModels = async (accountId = selected?.accountId) => {
-    setFetched((current) => ({ ...current, loading: true }));
+    // 直接从上游获取该自定义渠道当前可用的模型列表（/models），列出来供用户添加。
+    setFetched((current) => ({ models: current.models, loading: true }));
     try {
       const response = await readBridge().listChannelModels({
         provider: "openai-compatible",
@@ -270,6 +516,8 @@ export function ModelManagementPage(props: {
     : [];
 
   const totalVisible = channels.reduce((count, channel) => {
+    if (channel.kind === "recipes")
+      return count + recipes.filter((recipe) => recipe.homepageVisible === true).length;
     if (!channel.hiddenKey || !channel.capabilities)
       return (
         count +
@@ -280,7 +528,11 @@ export function ModelManagementPage(props: {
         ).length
       );
     const hidden = new Set(
-      resolveHiddenModelIds(channel.capabilities, hiddenModels[channel.hiddenKey]),
+      resolveHiddenModelIds(
+        channel.capabilities,
+        hiddenModels[channel.hiddenKey],
+        shownModels[channel.hiddenKey],
+      ),
     );
     return count + channel.models.filter((model) => !hidden.has(model.id)).length;
   }, 0);
@@ -290,7 +542,11 @@ export function ModelManagementPage(props: {
     const agentItems = channels.flatMap((channel) => {
       if (!channel.hiddenKey || !channel.capabilities) return [];
       const hidden = new Set(
-        resolveHiddenModelIds(channel.capabilities, hiddenModels[channel.hiddenKey]),
+        resolveHiddenModelIds(
+          channel.capabilities,
+          hiddenModels[channel.hiddenKey],
+          shownModels[channel.hiddenKey],
+        ),
       );
       return channel.models
         .filter((model) => !hidden.has(model.id))
@@ -303,6 +559,16 @@ export function ModelManagementPage(props: {
           label: model.label,
         }));
     });
+    const recipeItems = recipes
+      .filter((recipe) => recipe.homepageVisible === true)
+      .map((recipe) => ({
+        type: "recipe" as const,
+        id: recipe.id,
+        label: recipe.alias?.trim() || recipe.systemName,
+        sub: [recipe.lastKnownModel?.displayName, recipe.lastKnownHarness?.displayName]
+          .filter(Boolean)
+          .join(" · "),
+      }));
     const activeAccountIds = new Set(accounts.map((account) => account.accountId));
     const customItems = customModels
       .filter((model) =>
@@ -319,8 +585,17 @@ export function ModelManagementPage(props: {
         modelId: model.modelId,
         contextSize: model.contextSize,
       }));
-    return [...agentItems, ...customItems];
-  }, [channels, hiddenModels, customModels, providerLabels, accounts, configuredProviders]);
+    return [...agentItems, ...customItems, ...recipeItems];
+  }, [
+    channels,
+    hiddenModels,
+    shownModels,
+    customModels,
+    providerLabels,
+    accounts,
+    configuredProviders,
+    recipes,
+  ]);
 
   return (
     <div
@@ -357,19 +632,26 @@ export function ModelManagementPage(props: {
           </div>
         </div>
         {channels.map((channel) => {
-          const visibleCount = channel.hiddenKey
-            ? (() => {
-                if (!channel.capabilities) return 0;
-                const hidden = new Set(
-                  resolveHiddenModelIds(channel.capabilities, hiddenModels[channel.hiddenKey]),
-                );
-                return channel.models.filter((model) => !hidden.has(model.id)).length;
-              })()
-            : customModels.filter((model) =>
-                channel.accountId
-                  ? model.accountId === channel.accountId
-                  : model.provider === channel.kind && !model.accountId,
-              ).length;
+          const visibleCount =
+            channel.kind === "recipes"
+              ? recipes.filter((recipe) => recipe.homepageVisible === true).length
+              : channel.hiddenKey
+                ? (() => {
+                    if (!channel.capabilities) return 0;
+                    const hidden = new Set(
+                      resolveHiddenModelIds(
+                        channel.capabilities,
+                        hiddenModels[channel.hiddenKey],
+                        shownModels[channel.hiddenKey],
+                      ),
+                    );
+                    return channel.models.filter((model) => !hidden.has(model.id)).length;
+                  })()
+                : customModels.filter((model) =>
+                    channel.accountId
+                      ? model.accountId === channel.accountId
+                      : model.provider === channel.kind && !model.accountId,
+                  ).length;
           return (
             <button
               key={channel.key}
@@ -379,7 +661,7 @@ export function ModelManagementPage(props: {
               className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors ${
                 channel.key === selectedKey
                   ? "border-white/20 bg-white/10"
-                  : "border-white/5 bg-[#1c1d22] hover:bg-white/[0.08]"
+                  : "border-[var(--hairline)] bg-[var(--surface)] hover:bg-[var(--row-hover)]"
               }`}
             >
               <ProviderBrandBadge id={channel.kind} label={channel.label} size="compact" />
@@ -399,7 +681,7 @@ export function ModelManagementPage(props: {
       <div className="min-w-0 flex-1 overflow-y-auto pr-1" data-testid="model-channel-detail">
         {!selected ? (
           <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-neutral-400">
-            还没有可用渠道。请先在「添加渠道与查看用量」页添加并登录渠道账号。
+            还没有可用渠道。请先在「渠道与额度」页添加并登录渠道账号。
           </div>
         ) : (
           <section className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
@@ -415,6 +697,32 @@ export function ModelManagementPage(props: {
               </div>
               {selectedAgentChannel ? (
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                  {selected.kind === "opencode" ? (
+                    <button
+                      type="button"
+                      aria-label="在 OpenCode 中选择模型"
+                      title="打开官方 OpenCode TUI，用它自己的模型选择器选择模型"
+                      onClick={openOpencodeModelSelector}
+                      className="flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
+                    >
+                      在 OpenCode 中选择模型
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    aria-label={`获取 ${selected.label} 渠道上游可用模型列表`}
+                    title="直接从上游获取该渠道当前可用的模型列表"
+                    onClick={() => void fetchChannelModels(selected.kind, selected.label)}
+                    disabled={refreshingKinds[selected.kind] === true}
+                    className="flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {refreshingKinds[selected.kind] === true ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="size-3" />
+                    )}
+                    获取模型
+                  </button>
                   <button
                     type="button"
                     aria-label={`全选 ${selected.label} 渠道全部模型`}
@@ -435,9 +743,30 @@ export function ModelManagementPage(props: {
               ) : null}
             </div>
 
+            {actionHint ? <p className="mt-2 text-[11px] text-amber-400">{actionHint}</p> : null}
+
+            {selectedAgentChannel && selectedAgentChannel.models.length > 3 ? (
+              <div className="relative mt-2">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-500" />
+                <input
+                  aria-label={`搜索 ${selected.label} 渠道模型`}
+                  value={modelQuery}
+                  onChange={(event) => setModelQuery(event.target.value)}
+                  placeholder="搜索模型 ID 或名称…"
+                  className={`${inputClass} pl-8`}
+                />
+              </div>
+            ) : null}
+
+            {selectedAgentChannel && selectedAgentChannel.models.length === 0 ? (
+              <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-[11px] text-neutral-400">
+                该渠道暂无可用模型。点击右上「获取模型」直接从上游拉取，或在下方手动添加模型 ID。
+              </p>
+            ) : null}
+
             {selectedAgentChannel ? (
               <ul className="mt-3 flex flex-col gap-1" data-testid="agent-model-rows">
-                {selectedAgentChannel.models.map((model) => {
+                {filteredChannelModels.map((model) => {
                   const isVisible = !selectedHiddenSet.has(model.id);
                   return (
                     <li key={model.id}>
@@ -465,6 +794,62 @@ export function ModelManagementPage(props: {
                     </li>
                   );
                 })}
+                {filteredChannelModels.length === 0 ? (
+                  <li className="px-3 py-2 text-[11px] text-neutral-500">
+                    没有匹配「{modelQuery.trim()}」的模型。
+                  </li>
+                ) : null}
+              </ul>
+            ) : null}
+
+            {selected?.kind === "recipes" ? (
+              <ul className="mt-3 flex flex-col gap-1" data-testid="recipe-rows">
+                {recipes.map((recipe) => {
+                  const isVisible = recipe.homepageVisible === true;
+                  const name = recipe.alias?.trim() || recipe.systemName;
+                  const sub = [
+                    recipe.lastKnownModel?.displayName,
+                    recipe.lastKnownHarness?.displayName,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <li key={recipe.id}>
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={isVisible}
+                        onClick={() => setRecipeHomepageVisible(recipe.id, !isVisible)}
+                        className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-left hover:border-white/10 hover:bg-white/5"
+                      >
+                        <Check
+                          className={`size-4 shrink-0 ${
+                            isVisible ? "text-emerald-400" : "text-neutral-600"
+                          }`}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={`block truncate text-sm ${
+                              isVisible ? "text-foreground" : "text-neutral-500"
+                            }`}
+                          >
+                            {name}
+                          </span>
+                          {sub ? (
+                            <span className="block truncate text-[11px] text-neutral-500">
+                              {sub}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+                {recipes.length === 0 ? (
+                  <li className="px-3 py-2 text-[11px] text-neutral-500">
+                    还没有保存的配方。去「合成台」合成并保存后，可在这里勾选进首页模型选择器。
+                  </li>
+                ) : null}
               </ul>
             ) : null}
 
@@ -510,35 +895,51 @@ export function ModelManagementPage(props: {
                           <button
                             type="button"
                             onClick={() =>
-                              upsertCustomModel(
-                                "codex",
+                              void verifiedAdd(
+                                resolveThirdPartyHarnessForModel(modelId),
                                 modelId,
                                 undefined,
                                 selected.accountId,
                                 selected.label,
                               )
                             }
-                            className="flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-white/10 hover:text-white"
+                            disabled={verifyingModelKey === `${selected.accountId}:${modelId}`}
+                            className="flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-50"
                           >
-                            <Plus className="size-3" /> 添加
+                            {verifyingModelKey === `${selected.accountId}:${modelId}` ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Plus className="size-3" />
+                            )}{" "}
+                            添加
                           </button>
                         </li>
                       ))}
                     </ul>
                   </>
                 ) : null}
+                {!fetched.loading &&
+                !fetched.error &&
+                fetched.models.length === 0 ? (
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。
+                  </p>
+                ) : null}
                 {!fetched.loading ? (
                   <button
                     type="button"
+                    aria-label={`获取 ${selected.label} 上游可用模型列表`}
+                    title="直接从上游获取该渠道当前可用的模型列表"
                     onClick={() => void fetchCompatibleModels()}
                     className="mt-2 flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-300 hover:bg-white/10 hover:text-white"
                   >
-                    <RefreshCw className="size-3" /> 重新获取模型列表
+                    <RefreshCw className="size-3" /> 获取模型
                   </button>
                 ) : null}
               </div>
             ) : null}
 
+            {selected?.kind === "recipes" ? null : (
             <div className="mt-3 rounded-lg bg-black/20 p-2">
               <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
                 手动添加模型
@@ -564,23 +965,71 @@ export function ModelManagementPage(props: {
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    upsertCustomModel(
-                      selected.kind === "openai-compatible" ? "codex" : selected.kind,
-                      manualDraft.modelId,
-                      manualDraft.displayName,
-                      selected.accountId,
-                      selected.accountId ? selected.label : undefined,
-                    );
-                    setManualDraft({ modelId: "", displayName: "" });
-                  }}
-                  disabled={!manualDraft.modelId.trim()}
+                  aria-label="打开添加模型对话框"
+                  title="打开添加模型对话框，可设置上下文窗口与输入输出类型"
+                  onClick={() => setModelDialogOpen(true)}
+                  disabled={!manualDraft.modelId.trim() || verifyingModelKey !== null}
                   className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-[11px] text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
                 >
-                  <Plus className="size-3" /> 添加
+                  {verifyingModelKey !== null ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Plus className="size-3" />
+                  )}{" "}
+                  添加
                 </button>
               </div>
             </div>
+            )}
+            {selected && selected.kind !== "recipes" ? (
+              <CustomModelDialog
+                open={modelDialogOpen}
+                initialModelId={manualDraft.modelId}
+                initialDisplayName={manualDraft.displayName}
+                providerKind={
+                  selected.kind === "openai-compatible"
+                    ? resolveThirdPartyHarnessForModel(manualDraft.modelId || "custom")
+                    : selected.kind
+                }
+                {...(selected.kind === "openai-compatible" && selected.accountId
+                  ? {
+                      onFetchUpstreamModels: async () => {
+                        const response = await readBridge().listChannelModels({
+                          provider: "openai-compatible",
+                          accountId: selected.accountId!,
+                        });
+                        return response.models;
+                      },
+                    }
+                  : {})}
+                verifying={verifyingModelKey !== null}
+                onCancel={() => setModelDialogOpen(false)}
+                onSave={(values: CustomModelDialogValues) => {
+                  void verifiedAdd(
+                    selected.kind === "openai-compatible"
+                      ? resolveThirdPartyHarnessForModel(values.modelId)
+                      : selected.kind,
+                    values.modelId,
+                    values.displayName || undefined,
+                    selected.accountId,
+                    selected.accountId ? selected.label : undefined,
+                    {
+                      contextSize: values.contextSize,
+                      maxOutputTokens: values.maxOutputTokens,
+                      inputModalities: values.inputModalities,
+                      outputModalities: values.outputModalities,
+                      ...(values.efforts.length > 0 ? { efforts: values.efforts } : {}),
+                      ...(values.defaultEffort ? { defaultEffort: values.defaultEffort } : {}),
+                    },
+                  ).then((added) => {
+                    if (added) {
+                      setManualDraft({ modelId: "", displayName: "" });
+                      setModelDialogOpen(false);
+                    }
+                  });
+                }}
+              />
+            ) : null}
           </section>
         )}
       </div>
@@ -604,9 +1053,7 @@ export function ModelManagementPage(props: {
               全部取消
             </button>
           </div>
-          <p className="mt-1 text-[10px] text-neutral-500">
-            点击行首勾选可移出首页；自定义 API 模型需单独删除
-          </p>
+          <p className="mt-1 text-[10px] text-neutral-500">点击行首勾选可移出首页</p>
         </div>
         {roster.length === 0 ? (
           <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-[11px] text-neutral-400">
@@ -614,7 +1061,30 @@ export function ModelManagementPage(props: {
           </div>
         ) : null}
         {roster.map((item) =>
-          item.type === "agent" ? (
+          item.type === "recipe" ? (
+            <div
+              key={`roster:recipe:${item.id}`}
+              className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
+            >
+              <button
+                type="button"
+                aria-label={`移出 ${item.label}`}
+                title="从首页移除该配方"
+                onClick={() => setRecipeHomepageVisible(item.id, false)}
+                className="shrink-0"
+              >
+                <Check className="size-4 text-emerald-400 hover:text-red-400" />
+              </button>
+              <ProviderBrandBadge id="recipes" label="我的配方" size="compact" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-foreground">{item.label}</span>
+                {item.sub ? (
+                  <span className="block truncate text-[11px] text-neutral-500">{item.sub}</span>
+                ) : null}
+              </span>
+              <span className="shrink-0 text-xs text-neutral-400">我的配方</span>
+            </div>
+          ) : item.type === "agent" ? (
             <div
               key={`roster:${item.channelKey}:${item.modelId}`}
               className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
@@ -642,11 +1112,12 @@ export function ModelManagementPage(props: {
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  aria-label={`移除 ${item.displayName}`}
+                  aria-label={`移出 ${item.displayName}`}
+                  title="从首页移除该自定义模型"
                   onClick={() => removeCustomModel(item.id)}
-                  className="shrink-0 rounded-md p-0.5 text-neutral-400 hover:bg-white/10 hover:text-red-400"
+                  className="shrink-0"
                 >
-                  <X className="size-4" />
+                  <Check className="size-4 text-emerald-400 hover:text-red-400" />
                 </button>
                 <ProviderBrandBadge id={item.kind} label={item.channelLabel} size="compact" />
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">

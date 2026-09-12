@@ -1,6 +1,6 @@
 {
   "name": "craftstation",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "description": "The universal desktop orchestrator for AI agents. Run terminal-native and structured chat agents side-by-side.",
   "homepage": "https://github.com/SDSLeon/craftstation",
@@ -54,7 +54,7 @@
     "codex-protocol:gen": "pnpm --filter @craftstation/codex-protocol run generate",
     "dist": "node scripts/build-desktop-artifact.mjs",
     "dist:win": "node scripts/build-desktop-artifact.mjs --platform win --target nsis --arch x64",
-    "dist:win:portable": "node scripts/build-desktop-artifact.mjs --platform win --target portable --arch x64 --output-dir release-portable",
+    "dist:win:portable": "node scripts/build-desktop-artifact.mjs --platform win --target portable --arch x64 --output-dir release",
     "dist:win:all": "node scripts/build-desktop-artifact.mjs --platform win",
     "dist:linux": "node scripts/build-desktop-artifact.mjs --platform linux",
     "dist:mac": "node scripts/build-desktop-artifact.mjs --platform mac",

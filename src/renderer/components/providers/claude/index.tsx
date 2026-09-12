@@ -83,6 +83,9 @@ registerComposerControls(PROVIDER_KIND, ({ capabilities, config, isDisabled, onC
           approvalPolicyDropdown({
             policies: filteredPolicies,
             currentPolicy: effectivePolicy,
+            ...(capabilities.bypassPermissions?.approvalPolicy
+              ? { fullAccessPolicyId: capabilities.bypassPermissions.approvalPolicy }
+              : {}),
             isDisabled,
             onChange: (value) => onConfigChange({ approvalPolicy: value }),
           }),

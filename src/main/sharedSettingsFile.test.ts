@@ -40,10 +40,10 @@ afterEach(() => {
 });
 
 describe("sharedSettingsFile", () => {
-  it("preserves supervisor-managed Crossagents routing data during renderer writes", () => {
+  it("preserves supervisor-managed Own Subagents routing data during renderer writes", () => {
     const onDisk: SharedSettings = {
       ...defaultSharedSettings,
-      crossagentSelectionUsage: [
+      ownSubagentSelectionUsage: [
         {
           agentKind: "kimi",
           modelId: "k3",
@@ -54,7 +54,7 @@ describe("sharedSettingsFile", () => {
           lastUsedAt: 10,
         },
       ],
-      crossagentRoutingOverrides: [
+      ownSubagentRoutingOverrides: [
         {
           tags: ["frontend", "design"],
           agentKind: "claude",
@@ -67,23 +67,25 @@ describe("sharedSettingsFile", () => {
     };
     const {
       agentHookSupport: _agentHookSupport,
-      crossagentSelectionUsage: _crossagentSelectionUsage,
-      crossagentRoutingOverrides: _crossagentRoutingOverrides,
+      ownSubagentSelectionUsage: _ownSubagentSelectionUsage,
+      ownSubagentRoutingOverrides: _ownSubagentRoutingOverrides,
       ...incoming
     } = defaultSharedSettings;
 
     const merged = mergeManagedSharedSettings(onDisk, incoming);
-    expect(merged.crossagentSelectionUsage).toEqual(onDisk.crossagentSelectionUsage);
-    expect(merged.crossagentRoutingOverrides).toEqual(onDisk.crossagentRoutingOverrides);
+    expect(merged.ownSubagentSelectionUsage).toEqual(onDisk.ownSubagentSelectionUsage);
+    expect(merged.ownSubagentRoutingOverrides).toEqual(onDisk.ownSubagentRoutingOverrides);
   });
 
   it("writes and reads shared settings as readable JSON", () => {
     const settingsPath = join(makeTempDir(), "settings.json");
     writeSharedSettingsFile(settingsPath, {
+      shownModels: {},
       themeMode: "dark",
       themePreset: "default",
       locale: "system",
       gitTextLanguage: "en",
+      customGlobalPrompt: "",
       terminalPosition: "right",
       windowsShellPath: "auto",
       windowsInternalShellPath: "auto",
@@ -129,9 +131,11 @@ describe("sharedSettingsFile", () => {
       cliPickerTarget: "ask",
       staleThreadUnloadMinutes: 20,
       autoArchiveDoneAfterDays: 7,
+      archiveRetention: "7d",
       scrollSpeed: 2,
       agentTerminalFontSize: 12,
       guiChatFontSize: 13,
+      zoomFactor: 1,
       terminalPanelFontSize: 12,
       preventSleep: "while-remote-access",
       launchAtStartup: true,
@@ -177,10 +181,11 @@ describe("sharedSettingsFile", () => {
       favoriteModels: [],
       recentModels: [],
       agentSelectionUsage: [],
-      crossagentSelectionUsage: [],
-      crossagentRoutingOverrides: [],
-      crossagentPausedProviders: [],
-      crossagentHiddenModels: {},
+      ownSubagentSelectionUsage: [],
+      ownSubagentRoutingOverrides: [],
+      ownSubagentPausedProviders: [],
+      ownSubagentHiddenModels: {},
+      ownSubagentsRouteOrder: [],
       agentHookSupport: {},
       enabledMcpServers: {},
       mcpServers: [],
@@ -212,14 +217,16 @@ describe("sharedSettingsFile", () => {
         collapsedProviders: [],
         selectedRingGroups: {},
       },
-      crossagentRoutingGuide: "",
+      ownSubagentRoutingGuide: "",
     });
 
     expect(readSharedSettingsFile(settingsPath)).toEqual({
+      shownModels: {},
       themeMode: "dark",
       themePreset: "default",
       locale: "system",
       gitTextLanguage: "en",
+      customGlobalPrompt: "",
       terminalPosition: "right",
       windowsShellPath: "auto",
       windowsInternalShellPath: "auto",
@@ -265,9 +272,11 @@ describe("sharedSettingsFile", () => {
       cliPickerTarget: "ask",
       staleThreadUnloadMinutes: 20,
       autoArchiveDoneAfterDays: 7,
+      archiveRetention: "7d",
       scrollSpeed: 2,
       agentTerminalFontSize: 12,
       guiChatFontSize: 13,
+      zoomFactor: 1,
       terminalPanelFontSize: 12,
       preventSleep: "while-remote-access",
       launchAtStartup: true,
@@ -313,12 +322,14 @@ describe("sharedSettingsFile", () => {
       favoriteModels: [],
       recentModels: [],
       agentSelectionUsage: [],
-      crossagentSelectionUsage: [],
-      crossagentRoutingOverrides: [],
-      crossagentPausedProviders: [],
-      crossagentHiddenModels: {},
+      ownSubagentSelectionUsage: [],
+      ownSubagentRoutingOverrides: [],
+      ownSubagentPausedProviders: [],
+      ownSubagentHiddenModels: {},
+      // An empty persisted order normalizes to the native-first default.
+      ownSubagentsRouteOrder: ["native"],
       agentHookSupport: {},
-      enabledMcpServers: { crossagents: true },
+      enabledMcpServers: { own_subagents: true, crossagents: true },
       mcpServers: [],
       disabledBuiltInMcpServers: {},
       disabledBuiltInMcpTools: {},
@@ -348,9 +359,29 @@ describe("sharedSettingsFile", () => {
         collapsedProviders: [],
         selectedRingGroups: {},
       },
-      crossagentRoutingGuide: "",
+      ownSubagentRoutingGuide: "",
     });
     expect(readFileSync(settingsPath, "utf8")).toContain('"themeMode": "dark"');
+  });
+
+  it("migrates a legacy crossagents settings file to ownSubagent keys on read", () => {
+    const settingsPath = join(makeTempDir(), "settings.json");
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        crossagentPausedProviders: ["grok"],
+        crossagentRoutingGuide: "prefer kimi",
+        enabledMcpServers: { crossagents: false },
+      }),
+    );
+    const migrated = readSharedSettingsFile(settingsPath);
+    expect(migrated.ownSubagentPausedProviders).toEqual(["grok"]);
+    expect(migrated.ownSubagentRoutingGuide).toBe("prefer kimi");
+    expect(migrated.enabledMcpServers).toMatchObject({
+      own_subagents: false,
+      crossagents: false,
+    });
+    expect(migrated).not.toHaveProperty("crossagentPausedProviders");
   });
 
   it("returns defaults when the settings file does not exist", () => {

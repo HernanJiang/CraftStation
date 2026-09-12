@@ -12,7 +12,7 @@ import {
   dbListScheduleRuns,
   dbUpdateScheduleRun,
 } from "./scheduleRuns";
-import { dbDeleteSchedule, dbUpsertSchedule } from "./schedules";
+import { dbClaimScheduledOccurrence, dbDeleteSchedule, dbUpsertSchedule } from "./schedules";
 
 const serverNativeBinding = join(process.cwd(), "dist", "server-native", "better_sqlite3.node");
 let nativeBindingEnv: string | undefined;
@@ -60,6 +60,7 @@ function run(overrides: Partial<ScheduledTaskRun> = {}): ScheduledTaskRun {
     startedAt: `2026-07-10T00:00:${String(runSeq % 60).padStart(2, "0")}.000Z`,
     completedAt: null,
     status: "running",
+    triggeredBy: "scheduled",
     summary: null,
     error: null,
     ...overrides,
@@ -138,5 +139,18 @@ describe.skipIf(!sqliteAvailable)("scheduleRuns (real sqlite round-trip)", () =>
     dbInsertScheduleRun(run());
     dbDeleteScheduleRuns(SCHEDULE_ID);
     expect(dbListScheduleRuns(SCHEDULE_ID)).toHaveLength(0);
+  });
+
+  it("claims a scheduled occurrence only once", () => {
+    const occurrenceAt = "2026-07-10T08:00:00.000Z";
+    expect(dbClaimScheduledOccurrence(SCHEDULE_ID, occurrenceAt, "2026-07-10T08:00:01.000Z")).toBe(
+      true,
+    );
+    expect(dbClaimScheduledOccurrence(SCHEDULE_ID, occurrenceAt, "2026-07-10T08:00:02.000Z")).toBe(
+      false,
+    );
+    expect(
+      dbClaimScheduledOccurrence(SCHEDULE_ID, "2026-07-10T09:00:00.000Z", "2026-07-10T09:00:01.000Z"),
+    ).toBe(true);
   });
 });

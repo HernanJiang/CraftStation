@@ -181,7 +181,7 @@ describe("createCommandCodeAdapter", () => {
     ]);
     expect(adapter.capabilities.defaultApprovalPolicy).toBe("yolo");
     expect(adapter.capabilities.defaultEffort).toBe("high");
-    expect(adapter.capabilities.models).toHaveLength(50);
+    expect(adapter.capabilities.models).toHaveLength(72);
     expect(defaultCommandCodeCapabilities.presentationMode).toBe("gui");
     expect(defaultCommandCodeCapabilities.presentationModes).toEqual(["gui", "terminal"]);
     expect(adapter.createStructuredSession).toBeTypeOf("function");
@@ -433,7 +433,8 @@ describe("parseCommandCodeModels", () => {
       "gpt-5.5",
     ]);
     // The `Docs:  https://…` footer has a 2-space gap like a model row, so the
-    // id guard (no colon) is what keeps it out.
+    // noise-line guard (`Docs:` prefix) is what keeps it out — model ids may
+    // legitimately contain `:` for `:variant` suffixes (e.g. `:free`).
     expect(parsed.some((m) => m.id.startsWith("Docs"))).toBe(false);
   });
 
@@ -450,6 +451,13 @@ describe("parseCommandCodeModels", () => {
   it("returns an empty list for unparseable output", () => {
     expect(parseCommandCodeModels("")).toEqual([]);
     expect(parseCommandCodeModels("totally unrelated text\nno models here")).toEqual([]);
+  });
+
+  it("keeps `:variant`-suffixed upstream ids such as `:free`", () => {
+    const parsed = parseCommandCodeModels(
+      "meituan/longcat-2.0:free               FREE trillion-parameter agentic coding\n",
+    );
+    expect(parsed.map((m) => m.id)).toEqual(["meituan/longcat-2.0:free"]);
   });
 });
 

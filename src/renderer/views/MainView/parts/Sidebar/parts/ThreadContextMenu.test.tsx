@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { Project, Thread } from "@/shared/contracts";
@@ -7,8 +7,10 @@ import { resetDevTerminalStore, useDevTerminalStore } from "@/renderer/state/dev
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { ThreadContextMenu } from "./ThreadContextMenu";
 
+const bridgeMocks: Record<string, (...args: never[]) => unknown> = {};
+
 vi.mock("@/renderer/bridge", () => ({
-  readBridge: () => ({}),
+  readBridge: () => bridgeMocks,
 }));
 
 const project: Project = {
@@ -70,6 +72,7 @@ describe("ThreadContextMenu project actions", () => {
   beforeEach(() => {
     resetDevTerminalStore();
     usePanelStore.setState({ githubActionsContext: null });
+    for (const key of Object.keys(bridgeMocks)) delete bridgeMocks[key];
   });
 
   it("offers project Git and Run submenus on flat main-branch rows", async () => {
@@ -85,10 +88,91 @@ describe("ThreadContextMenu project actions", () => {
 
     expect(screen.getByRole("menuitem", { name: "Pin to top" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Copy Thread Address" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Archive Thread" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Git branch information" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Thread details" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Delete Thread" })).toBeInTheDocument();
+  });
+
+  it("omits the retired unload and mark-done actions", async () => {
+    await renderMenu(thread(), project, { onRename: vi.fn<() => void>() });
+
+    expect(screen.queryByRole("menuitem", { name: "Unload Thread" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Mark Done" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Unmark Done" })).not.toBeInTheDocument();
+  });
+
+  it("copies the thread working path to the clipboard (never the thread id)", async () => {
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    await renderMenu(thread({ id: "thread-abc" }), project, { onRename: vi.fn<() => void>() });
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy Thread Address" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("C:\\repo"));
+  });
+
+  it("copies the worktree directory for worktree threads", async () => {
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    await renderMenu(thread({ id: "thread-abc", worktreePath: "C:\\repo\\wt\\feature" }), project, {
+      onRename: vi.fn<() => void>(),
+    });
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy Thread Address" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("C:\\repo\\wt\\feature"));
+  });
+
+  it("copies resolved native session paths for threads with switch history", async () => {
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    bridgeMocks["dbListThreadNativeSessions"] = (async () => [
+      {
+        id: 1,
+        threadId: "thread-abc",
+        harness: "grok",
+        model: "grok-4.6",
+        nativeSessionId: "ses-grok",
+        poolAccountId: "grok:a",
+        createdAt: "2026-09-01T00:00:00.000Z",
+      },
+      {
+        id: 2,
+        threadId: "thread-abc",
+        harness: "kimi",
+        model: "kimi-k2",
+        nativeSessionId: "ses-kimi",
+        poolAccountId: null,
+        createdAt: "2026-09-02T00:00:00.000Z",
+      },
+    ]) as never;
+    bridgeMocks["resolveNativeSessionPaths"] = (async (queries: Array<{ harness: string }>) =>
+      queries.map((query) => ({
+        ...query,
+        path: query.harness === "grok" ? "C:\\Users\\me\\.grok\\s" : "C:\\Users\\me\\.kimi-code\\s",
+      }))) as never;
+    await renderMenu(thread({ id: "thread-abc", agentKind: "kimi" }), project, {
+      onRename: vi.fn<() => void>(),
+    });
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy Thread Address" }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        "C:\\Users\\me\\.grok\\s\nC:\\Users\\me\\.kimi-code\\s",
+      ),
+    );
+  });
+
+  it("falls back to the working path when no native session resolves", async () => {
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    bridgeMocks["dbListThreadNativeSessions"] = (async () => []) as never;
+    bridgeMocks["resolveNativeSessionPaths"] = (async (queries: Array<{ harness: string }>) =>
+      queries.map((query) => ({ ...query, path: null }))) as never;
+    await renderMenu(thread({ id: "thread-abc" }), project, { onRename: vi.fn<() => void>() });
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy Thread Address" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("C:\\repo"));
   });
 
   it("omits project actions without the flat-row flag (grouped layout)", async () => {

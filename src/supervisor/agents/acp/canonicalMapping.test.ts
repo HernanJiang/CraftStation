@@ -331,6 +331,47 @@ describe("mapAcpSessionUpdate", () => {
     expect(state.openReasoningItemId).toBeDefined();
   });
 
+  it("streams provider reasoning_content carried by agent_message_chunk", () => {
+    const state = createAcpMapperState("t-provider-reasoning");
+    const events = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "" },
+        reasoning_content: "先检查事件映射。\n",
+      } as Parameters<typeof mapAcpSessionUpdate>[0]["update"]),
+      state,
+    );
+
+    expect(events).toEqual([
+      expect.objectContaining({ type: "item.started", itemType: "reasoning" }),
+      expect.objectContaining({
+        type: "content.delta",
+        stream: "reasoning_text",
+        delta: "先检查事件映射。\n",
+      }),
+    ]);
+    expect(state.openAssistantItemId).toBeUndefined();
+    expect(state.openReasoningItemId).toBeDefined();
+  });
+
+  it("splits inline think tags from the visible assistant answer", () => {
+    const state = createAcpMapperState("t-inline-reasoning");
+    const events = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "<think>逐项检查。\n继续验证。</think>最终答案" },
+      }),
+      state,
+    );
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "content.delta", stream: "reasoning_text", delta: "逐项检查。\n继续验证。" }),
+        expect.objectContaining({ type: "content.delta", stream: "assistant_text", delta: "最终答案" }),
+      ]),
+    );
+  });
+
   it("starts a tool_call item, streams updates, and seals on terminal status", () => {
     const state = createAcpMapperState("t-3");
 

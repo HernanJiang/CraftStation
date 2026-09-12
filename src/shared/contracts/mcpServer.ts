@@ -15,6 +15,7 @@ export interface McpToolAnnotations {
 export const BUILT_IN_MCP_SERVER_IDS = [
   "browser",
   "crossagents",
+  "own-subagents",
   "chrome",
   "computer-use",
   "app-controls",
@@ -24,7 +25,11 @@ export type BuiltInMcpServerId = (typeof BUILT_IN_MCP_SERVER_IDS)[number];
 /** Provider-visible names used by the built-in servers. */
 export const BUILT_IN_MCP_SERVER_NAMES: Record<BuiltInMcpServerId, string> = {
   browser: "browser",
+  // Persistent native-peer messaging (long-lived threads across harnesses).
   crossagents: "crossagents",
+  // Ephemeral temporary subagent delegation (renamed from the old
+  // `crossagents` server; same tools, new namespace).
+  "own-subagents": "own_subagents",
   chrome: "chrome",
   "computer-use": "computer_use",
   "app-controls": "craftstation",
@@ -81,6 +86,18 @@ export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
     "addstyle",
   ],
   crossagents: [
+    "list_peers",
+    "send_message",
+    "ask",
+    "reply",
+    "inbox",
+    "get_peer_status",
+    "wake_peer",
+    "spawn_peer",
+    "switch_peer_model",
+    "stop_peer",
+  ],
+  "own-subagents": [
     "list_agents",
     "get_agent",
     "spawn_agent",
@@ -134,10 +151,23 @@ export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
   ],
   "app-controls": [
     "list_schedules",
+    "schedule.list",
+    "get_schedule",
+    "schedule.get",
     "create_schedule",
+    "schedule.create",
     "update_schedule",
+    "schedule.update",
+    "pause_schedule",
+    "schedule.pause",
+    "resume_schedule",
+    "schedule.resume",
     "run_schedule",
+    "schedule.run_now",
     "delete_schedule",
+    "schedule.delete",
+    "list_schedule_runs",
+    "schedule.list_runs",
     "get_current_thread",
     "list_threads",
     "get_thread",
@@ -201,6 +231,7 @@ export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
 export const BUILT_IN_MCP_SERVER_TOOL_COUNTS: Record<BuiltInMcpServerId, number> = {
   browser: BUILT_IN_MCP_SERVER_TOOL_NAMES.browser.length,
   crossagents: BUILT_IN_MCP_SERVER_TOOL_NAMES.crossagents.length,
+  "own-subagents": BUILT_IN_MCP_SERVER_TOOL_NAMES["own-subagents"].length,
   chrome: BUILT_IN_MCP_SERVER_TOOL_NAMES.chrome.length,
   "computer-use": BUILT_IN_MCP_SERVER_TOOL_NAMES["computer-use"].length,
   "app-controls": BUILT_IN_MCP_SERVER_TOOL_NAMES["app-controls"].length,

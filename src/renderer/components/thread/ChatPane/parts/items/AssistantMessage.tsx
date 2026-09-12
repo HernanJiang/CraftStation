@@ -4,13 +4,17 @@ import { useLingui } from "@lingui/react/macro";
 import type { MessageItemPayload } from "@/shared/contracts";
 import { PixelLoader } from "@/renderer/components/common/PixelLoader";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useExperimentStore } from "@/renderer/state/experimentStore";
 import {
   getRuntimeItemPayload,
   type RuntimeChatItem,
 } from "@/renderer/state/slices/runtimeEventSlice";
+import { selectCompletedTurnsByAnchorItem } from "../../chatPaneSelectors";
+import { formatClockTime } from "@/renderer/utils/formatTime";
 import { chatMessageSurfaceClass } from "./chatMessageSurface";
 import { useChatPaneActions } from "../../chatPaneActionsContext";
 import { CopyTextButton } from "./CopyTextButton";
+import { ForkTurnButton } from "./ForkTurnButton";
 import { ImageCard } from "./ImageCard";
 import { imageViewSourceFromImageBlock } from "./imageViewSource";
 import { SmoothItemMarkdown } from "./ItemMarkdown";
@@ -72,6 +76,25 @@ export const AssistantMessage = memo(function AssistantMessage({
     [actions?.remoteImageRefUrl, payload?.content],
   );
   const showCopyButton = finalAnswerStatus === "confirmed" && !isStreaming && rawText.length > 0;
+  // The fork + end-time affordances ride the same confirmed-final gate as copy:
+  // only a settled turn's last answer can anchor a branch. Remote threads are
+  // owned by their host desktop (a local fork row could neither open nor
+  // resume there) and experiment candidates are lifecycle-owned by their
+  // experiment, so both stay copy-only.
+  const turnRecord = useAppStore((state) =>
+    selectCompletedTurnsByAnchorItem(state, threadId).get(item.id),
+  );
+  const isRemoteThread = useAppStore(
+    (state) => state.threads.find((thread) => thread.id === threadId)?.remoteServerId !== undefined,
+  );
+  const isExperimentThread = useExperimentStore((state) =>
+    Object.values(state.experiments).some((experiment) =>
+      experiment.candidates.some((candidate) => candidate.threadId === threadId),
+    ),
+  );
+  const showFork = showCopyButton && !isRemoteThread && !isExperimentThread;
+  const endedClock = turnRecord ? formatClockTime(turnRecord.endedAt) : "";
+  const endedFull = turnRecord ? new Date(turnRecord.endedAt).toLocaleString() : "";
   // The tail answer's copy action becomes available only once its turn
   // settles. Reserve the same strip while the answer is still a candidate so
   // revealing the button cannot grow the virtual row and move the transcript
@@ -103,6 +126,15 @@ export const AssistantMessage = memo(function AssistantMessage({
           ) : (
             <span aria-hidden="true" className="block size-5" />
           )}
+          {showFork ? <ForkTurnButton threadId={threadId} itemId={item.id} /> : null}
+          {endedClock ? (
+            <span
+              title={endedFull}
+              className="px-1 text-[10px] text-muted/70 [font-variant-numeric:tabular-nums]"
+            >
+              {endedClock}
+            </span>
+          ) : null}
         </div>
       ) : null}
     </Surface>

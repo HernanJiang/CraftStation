@@ -6,6 +6,8 @@ import {
   type DetectionSpec,
   readAgentCommandOutput,
 } from "../base";
+import { buildContextSizeCapabilities } from "../contextWindowLabel";
+import { deepseekContextTokensForModel } from "../deepseek/detection";
 import { getAgentProbeCwd } from "../probeCwd";
 import { commandCodeHasStoredCredentials } from "./session";
 
@@ -42,11 +44,14 @@ const COMMANDCODE_SUB_PROVIDER_LABELS: Record<string, string> = {
   google: "Google",
   moonshotai: "Moonshot",
   deepseek: "DeepSeek",
+  "z-ai": "Z.ai",
   "zai-org": "Z.ai",
   minimaxai: "MiniMax",
+  minimax: "MiniMax",
   qwen: "Qwen",
   stepfun: "StepFun",
   xiaomi: "Xiaomi",
+  meituan: "Meituan",
   tencent: "Tencent",
   nvidia: "NVIDIA",
   thinkingmachines: "Thinking Machines",
@@ -63,11 +68,14 @@ const COMMANDCODE_SUB_PROVIDER_ORDER = [
   "google",
   "moonshotai",
   "deepseek",
+  "z-ai",
   "zai-org",
   "minimaxai",
+  "minimax",
   "qwen",
   "stepfun",
   "xiaomi",
+  "meituan",
   "tencent",
   "nvidia",
   "thinkingmachines",
@@ -87,11 +95,19 @@ const COMMANDCODE_SUB_PROVIDER_ORDER = [
 const COMMANDCODE_MODEL_LABELS: Record<string, string> = {
   "deepseek/deepseek-v4-pro": "DeepSeek V4 Pro",
   "deepseek/deepseek-v4-flash": "DeepSeek V4 Flash",
+  "deepseek/deepseek-v4-flash-vision-exp": "DeepSeek V4 Flash Vision",
+  "deepseek/deepseek-v4-flash-fast": "DeepSeek V4 Flash Fast",
+  "deepseek/deepseek-v4.1-pro": "DeepSeek V4.1 Pro",
+  "deepseek/deepseek-v4.1-flash": "DeepSeek V4.1 Flash",
+  "deepseek/deepseek-v4.1-flash-vision-exp": "DeepSeek V4.1 Flash Vision",
+  "deepseek/deepseek-v4.1-flash-fast": "DeepSeek V4.1 Flash Fast",
   "moonshotai/kimi-k3": "Kimi K3",
   "moonshotai/kimi-k2.7-code": "Kimi K2.7 Code",
   "moonshotai/kimi-k2.7-code-highspeed": "Kimi K2.7 Code Highspeed",
   "moonshotai/kimi-k2.6": "Kimi K2.6",
   "moonshotai/kimi-k2.5": "Kimi K2.5",
+  "z-ai/glm-5.3-flash": "GLM-5.3 Flash",
+  "zai-org/glm-5.3": "GLM-5.3",
   "zai-org/glm-5.2": "GLM-5.2",
   "zai-org/glm-5.2-fast": "GLM-5.2 Fast",
   "zai-org/glm-5.1": "GLM-5.1",
@@ -101,14 +117,20 @@ const COMMANDCODE_MODEL_LABELS: Record<string, string> = {
   "minimaxai/minimax-m2.5": "MiniMax M2.5",
   "xiaomi/mimo-v2.5-pro": "MiMo v2.5 Pro",
   "xiaomi/mimo-v2.5": "MiMo v2.5",
+  "qwen/qwen3.8-max-0902": "Qwen3.8 Max 0902",
+  "qwen/qwen3.8-max": "Qwen3.8 Max",
+  "qwen/qwen3.8-27b": "Qwen3.8 27B",
+  "qwen/qwen3.8-flash": "Qwen3.8 Flash",
   "qwen/qwen3.6-max-preview": "Qwen3.6 Max Preview",
   "qwen/qwen3.6-plus": "Qwen3.6 Plus",
   "qwen/qwen3.7-max": "Qwen3.7 Max",
   "qwen/qwen3.7-plus": "Qwen3.7 Plus",
   "qwen/qwen3.7-flash": "Qwen3.7 Flash",
+  "meituan/longcat-2.0:free": "Longcat 2.0 Free",
   "stepfun/step-3.7-flash": "Step 3.7 Flash",
   "stepfun/step-3.5-flash": "Step 3.5 Flash",
   "tencent/hy3-paid": "Hunyuan 3",
+  "tencent/hy4-preview": "Hunyuan 4 Preview",
   "nvidia/nemotron-3-ultra-550b-a55b": "Nemotron 3 Ultra",
   "thinkingmachines/inkling": "Inkling",
   "thinkingmachines/inkling-small": "Inkling Small",
@@ -116,11 +138,13 @@ const COMMANDCODE_MODEL_LABELS: Record<string, string> = {
   "inclusionai/ling-3.0-flash-free": "Ling 3.0 Flash",
   "claude-sonnet-5": "Claude Sonnet 5",
   "claude-sonnet-4-6": "Claude Sonnet 4.6",
+  "claude-fable-5-1": "Claude Fable 5.1",
   "claude-fable-5": "Claude Fable 5",
   "claude-opus-5": "Claude Opus 5",
   "claude-opus-4-8": "Claude Opus 4.8",
   "claude-opus-4-7": "Claude Opus 4.7",
   "claude-haiku-4-5": "Claude Haiku 4.5",
+  "gpt-6-astra": "GPT-6 Astra",
   "gpt-5.6-sol": "GPT-5.6 Sol",
   "gpt-5.6-terra": "GPT-5.6 Terra",
   "gpt-5.6-luna": "GPT-5.6 Luna",
@@ -128,13 +152,20 @@ const COMMANDCODE_MODEL_LABELS: Record<string, string> = {
   "gpt-5.4": "GPT-5.4",
   "gpt-5.3-codex": "GPT-5.3 Codex",
   "gpt-5.4-mini": "GPT-5.4 Mini",
+  "google/gemini-3.8-flash": "Gemini 3.8 Flash",
+  "google/gemini-3.7-flash": "Gemini 3.7 Flash",
   "google/gemini-3.6-flash": "Gemini 3.6 Flash",
   "google/gemini-3.5-flash": "Gemini 3.5 Flash",
   "google/gemini-3.5-flash-lite": "Gemini 3.5 Flash Lite",
   "google/gemini-3.1-flash-lite": "Gemini 3.1 Flash Lite",
   "sakana/fugu-ultra": "Fugu Ultra",
   "meta/muse-spark-1.1": "Muse Spark 1.1",
+  "meta/muse-spark-1.2": "Muse Spark 1.2",
+  "meta/muse-spark-1.2-contributor": "Muse Spark 1.2 Contributor",
+  "meta/muse-spark-1.3": "Muse Spark 1.3",
+  "meta/muse-spark-1.3-contributor": "Muse Spark 1.3 Contributor",
   "xai/grok-4.5": "Grok 4.5",
+  "xai/grok-4.6": "Grok 4.6",
 };
 
 // Offline fallback model ids (a known-good snapshot of `--list-models`). Used to
@@ -144,11 +175,19 @@ const COMMANDCODE_MODEL_LABELS: Record<string, string> = {
 const COMMANDCODE_FALLBACK_MODEL_IDS = [
   "deepseek/deepseek-v4-pro",
   COMMANDCODE_DEFAULT_MODEL_ID,
+  "deepseek/deepseek-v4-flash-vision-exp",
+  "deepseek/deepseek-v4-flash-fast",
+  "deepseek/deepseek-v4.1-pro",
+  "deepseek/deepseek-v4.1-flash",
+  "deepseek/deepseek-v4.1-flash-vision-exp",
+  "deepseek/deepseek-v4.1-flash-fast",
   "moonshotai/kimi-k3",
   "moonshotai/kimi-k2.7-code",
   "moonshotai/kimi-k2.7-code-highspeed",
   "moonshotai/kimi-k2.6",
   "moonshotai/kimi-k2.5",
+  "z-ai/glm-5.3-flash",
+  "zai-org/glm-5.3",
   "zai-org/glm-5.2",
   "zai-org/glm-5.2-fast",
   "zai-org/glm-5.1",
@@ -158,26 +197,33 @@ const COMMANDCODE_FALLBACK_MODEL_IDS = [
   "minimaxai/minimax-m2.5",
   "xiaomi/mimo-v2.5-pro",
   "xiaomi/mimo-v2.5",
-  "qwen/qwen3.6-max-preview",
-  "qwen/qwen3.6-plus",
+  "qwen/qwen3.8-max-0902",
+  "qwen/qwen3.8-max",
+  "qwen/qwen3.8-27b",
+  "qwen/qwen3.8-flash",
   "qwen/qwen3.7-max",
   "qwen/qwen3.7-plus",
   "qwen/qwen3.7-flash",
+  "qwen/qwen3.6-max-preview",
+  "qwen/qwen3.6-plus",
+  "meituan/longcat-2.0:free",
   "stepfun/step-3.7-flash",
   "stepfun/step-3.5-flash",
   "tencent/hy3-paid",
+  "tencent/hy4-preview",
   "nvidia/nemotron-3-ultra-550b-a55b",
   "thinkingmachines/inkling",
   "thinkingmachines/inkling-small",
   "poolside/laguna-s-2.1-free",
-  "inclusionai/ling-3.0-flash-free",
   "claude-sonnet-5",
   "claude-sonnet-4-6",
+  "claude-fable-5-1",
   "claude-fable-5",
   "claude-opus-5",
   "claude-opus-4-8",
   "claude-opus-4-7",
   "claude-haiku-4-5",
+  "gpt-6-astra",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
@@ -185,22 +231,31 @@ const COMMANDCODE_FALLBACK_MODEL_IDS = [
   "gpt-5.4",
   "gpt-5.3-codex",
   "gpt-5.4-mini",
+  "google/gemini-3.8-flash",
+  "google/gemini-3.7-flash",
   "google/gemini-3.6-flash",
   "google/gemini-3.5-flash",
   "google/gemini-3.5-flash-lite",
   "google/gemini-3.1-flash-lite",
   "sakana/fugu-ultra",
   "meta/muse-spark-1.1",
+  "meta/muse-spark-1.2",
+  "meta/muse-spark-1.2-contributor",
+  "meta/muse-spark-1.3",
+  "meta/muse-spark-1.3-contributor",
   "xai/grok-4.5",
+  "xai/grok-4.6",
 ];
 
 const COMMANDCODE_MODEL_EFFORTS: Record<string, string[]> = {
   "claude-sonnet-5": ["low", "medium", "high", "xhigh", "max"],
   "claude-sonnet-4-6": ["low", "medium", "high", "xhigh", "max"],
+  "claude-fable-5-1": ["low", "medium", "high", "xhigh", "max"],
   "claude-fable-5": ["low", "medium", "high", "xhigh", "max"],
   "claude-opus-5": ["low", "medium", "high", "xhigh", "max"],
   "claude-opus-4-8": ["low", "medium", "high", "xhigh", "max"],
   "claude-opus-4-7": ["low", "medium", "high", "xhigh", "max"],
+  "gpt-6-astra": ["low", "medium", "high", "xhigh", "max"],
   "gpt-5.6-sol": ["low", "medium", "high", "xhigh", "max"],
   "gpt-5.6-terra": ["low", "medium", "high", "xhigh", "max"],
   "gpt-5.6-luna": ["low", "medium", "high", "xhigh", "max"],
@@ -210,13 +265,24 @@ const COMMANDCODE_MODEL_EFFORTS: Record<string, string[]> = {
   "gpt-5.4-mini": ["low", "medium", "high"],
   "deepseek/deepseek-v4-pro": ["high", "max"],
   "deepseek/deepseek-v4-flash": ["high", "max"],
+  "deepseek/deepseek-v4-flash-vision-exp": ["high", "max"],
+  "deepseek/deepseek-v4-flash-fast": ["high", "max"],
+  "deepseek/deepseek-v4.1-pro": ["high", "max"],
+  "deepseek/deepseek-v4.1-flash": ["high", "max"],
+  "deepseek/deepseek-v4.1-flash-vision-exp": ["high", "max"],
+  "deepseek/deepseek-v4.1-flash-fast": ["high", "max"],
+  "z-ai/glm-5.3-flash": ["high", "max"],
+  "zai-org/glm-5.3": ["high", "max"],
   "zai-org/glm-5.2": ["high", "max"],
+  "google/gemini-3.8-flash": ["low", "medium", "high"],
+  "google/gemini-3.7-flash": ["low", "medium", "high"],
   "google/gemini-3.6-flash": ["low", "medium", "high"],
   "google/gemini-3.5-flash": ["low", "medium", "high"],
   "google/gemini-3.5-flash-lite": ["low", "medium", "high"],
   "google/gemini-3.1-flash-lite": ["low", "medium", "high"],
   "sakana/fugu-ultra": ["high", "xhigh"],
   "xai/grok-4.5": ["low", "medium", "high"],
+  "xai/grok-4.6": ["low", "medium", "high"],
 };
 
 export interface ParsedCommandCodeModel {
@@ -229,7 +295,9 @@ export interface ParsedCommandCodeModel {
 // "Anthropic") have no 2-space gap and so never match. The id guard rejects the
 // `Docs:`/usage footer lines (the leading prefix skip below covers them too).
 const COMMANDCODE_MODEL_LINE_RE = /^(\S+)\s{2,}(.+)$/;
-const COMMANDCODE_MODEL_ID_RE = /^[A-Za-z0-9][\w./-]*$/;
+// Model ids may carry a `:variant` suffix (e.g. `meituan/longcat-2.0:free`),
+// so `:` must be accepted here or fresh upstream models silently disappear.
+const COMMANDCODE_MODEL_ID_RE = /^[A-Za-z0-9][\w./:-]*$/;
 const COMMANDCODE_NOISE_LINE_RE = /^(?:Available\b|Pass\b|cmd\b|Docs:|Tip:|Loading\b|Usage:)/i;
 
 /**
@@ -286,6 +354,31 @@ function commandCodeModelSubProviderId(id: string): string | undefined {
 }
 
 /**
+ * Resolve thinking-intensity options for a Command Code model id.
+ *
+ * Exact curated entries win first (see COMMANDCODE_MODEL_EFFORTS). Unknown
+ * future ids fall back by vendor prefix so a newly shipped DeepSeek model
+ * (e.g. `deepseek/deepseek-v4.2-xxx`) still exposes the DeepSeek
+ * reasoning-effort range instead of losing the effort control entirely.
+ * Returns undefined when no family rule applies — the caller then omits
+ * `modelEfforts[id]` and the UI hides the effort picker for that model.
+ */
+export function resolveCommandCodeModelEfforts(modelId: string): string[] | undefined {
+  const normalized = modelId.trim().toLowerCase();
+  if (!normalized) return undefined;
+  const exact = COMMANDCODE_MODEL_EFFORTS[normalized];
+  if (exact) return [...exact];
+  // Vendor-prefix fallback: DeepSeek thinking models uniformly expose
+  // high/max (verified against dsh-llm-deepseek `reasoningEffort` + current
+  // Command Code catalog). Additional families intentionally have no fallback
+  // — unknown vendors must not gain a fabricated effort range.
+  if (normalized.startsWith("deepseek/") || normalized.startsWith("deepseek-")) {
+    return ["high", "max"];
+  }
+  return undefined;
+}
+
+/**
  * Turn parsed models into the picker's model capabilities: the labeled model
  * list plus the sub-provider grouping (labels + per-model mapping). Shared by
  * the static fallback and the live `--list-models` probe so labels and grouping
@@ -293,7 +386,15 @@ function commandCodeModelSubProviderId(id: string): string | undefined {
  */
 export function buildCommandCodeModelPickerCapabilities(
   parsed: ParsedCommandCodeModel[],
-): Pick<AgentCapability, "models" | "subProviders" | "modelSubProvider" | "modelEfforts"> {
+): Pick<
+  AgentCapability,
+  | "models"
+  | "subProviders"
+  | "modelSubProvider"
+  | "modelEfforts"
+  | "contextSizes"
+  | "modelContextSizes"
+> {
   const models: LabeledOption[] = [];
   const modelSubProvider: Record<string, string> = {};
   const modelEfforts: Record<string, string[]> = {};
@@ -313,7 +414,7 @@ export function buildCommandCodeModelPickerCapabilities(
     const desc = description?.trim();
     if (desc) model.description = desc;
     models.push(model);
-    const efforts = COMMANDCODE_MODEL_EFFORTS[id.toLowerCase()];
+    const efforts = resolveCommandCodeModelEfforts(id);
     if (efforts) modelEfforts[id] = efforts;
 
     const sub = commandCodeModelSubProviderId(id);
@@ -347,7 +448,18 @@ export function buildCommandCodeModelPickerCapabilities(
   // Any namespace the CLI introduced that we don't have a curated order for.
   for (const subId of usedSubProviders) pushSubProvider(subId);
 
-  return { models, subProviders, modelSubProvider, modelEfforts };
+  const tokenMap = new Map<string, number>();
+  for (const model of models) {
+    const tokens = deepseekContextTokensForModel(model.id);
+    if (tokens) tokenMap.set(model.id, tokens);
+  }
+  return {
+    models,
+    subProviders,
+    modelSubProvider,
+    modelEfforts,
+    ...buildContextSizeCapabilities(tokenMap),
+  };
 }
 
 export const defaultCommandCodeCapabilities: AgentCapability = {
@@ -427,7 +539,11 @@ export const commandCodeDetectionSpec: DetectionSpec = {
       ctx.executablePath,
       ["--list-models"],
       {
-        timeoutMs: 8_000,
+        // The CLI fetches its catalog over the network on every invocation
+        // (measured ~9.4s cold on 2026-09-10). An 8s budget killed it
+        // mid-output and the parser salvaged only the leading rows, so
+        // refreshes intermittently "lost" the trailing models.
+        timeoutMs: 30_000,
         wslLinuxCwd: "/tmp",
         posixCwd: getAgentProbeCwd(ctx.location),
         // Suppress the CLI's background self-updater (ctx.probeEnv is the

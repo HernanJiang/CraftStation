@@ -40,16 +40,37 @@ export function shouldUseAntigravityPrintPty(version: string | undefined): boole
   return !version || compareVersions(version, "1.1.1") < 0;
 }
 
+/**
+ * `agy` print-mode default is 5m and then returns a silent SUCCESS with a
+ * partial transcript. Help-probe misses (PTY timeout, spinner-only output)
+ * used to leave GUI sessions on that default. Current agy (1.1.1+) always
+ * accepts `--print-timeout`; honor a successful probe, otherwise trust the
+ * installed version rather than cutting the turn off mid-task.
+ */
+export function antigravityPrintTimeoutSupported(
+  probed: boolean,
+  version: string | undefined,
+): boolean {
+  if (probed) return true;
+  return Boolean(version && compareVersions(version, "1.1.1") >= 0);
+}
+
 export function createAntigravityAdapter(): AgentAdapter {
   let capabilities: AgentCapability = defaultAntigravityCapabilities;
   let preSpawnConversationIds = new Set<string>();
   let preSpawnLastConversationForCwd: string | undefined;
   let preSpawnStartedAt = 0;
   let supportsSeparateModelEffort = false;
+  let emitEffortFlag = false;
+  let probedSeparateModelEffort = false;
+  let supportsPrintTimeout = false;
   let usePtyForPrint = true;
   let defaultModel = ANTIGRAVITY_DEFAULT_MODEL_ID;
   const detectionSpec = createAntigravityDetectionSpec((probe) => {
+    probedSeparateModelEffort = probe.dialect.separateModelEffort;
     supportsSeparateModelEffort = probe.dialect.separateModelEffort;
+    emitEffortFlag = probe.dialect.emitEffortFlag;
+    supportsPrintTimeout = probe.dialect.supportsPrintTimeout;
     defaultModel = probe.capabilities?.models[0]?.id ?? ANTIGRAVITY_DEFAULT_MODEL_ID;
   });
 
@@ -105,7 +126,17 @@ export function createAntigravityAdapter(): AgentAdapter {
       supportsSeparateModelEffort ||= Boolean(
         status.version && compareVersions(status.version, "1.1.5") >= 0,
       );
+      // Auth-down catalog probes leave both dialect flags false. Current agy
+      // still requires `--effort low|medium|high` on bare family ids. Do NOT
+      // override a probe that saw baked catalog ids (older agy rejects --effort).
+      if (supportsSeparateModelEffort && !emitEffortFlag && !probedSeparateModelEffort) {
+        emitEffortFlag = true;
+      }
       usePtyForPrint = shouldUseAntigravityPrintPty(status.version);
+      supportsPrintTimeout = antigravityPrintTimeoutSupported(
+        supportsPrintTimeout,
+        status.version,
+      );
       return status;
     },
 
@@ -123,6 +154,8 @@ export function createAntigravityAdapter(): AgentAdapter {
     async createStructuredSession(input) {
       return createAntigravityStructuredSession(input, {
         supportsSeparateModelEffort,
+        emitEffortFlag,
+        supportsPrintTimeout,
         defaultModel,
       });
     },
@@ -151,6 +184,7 @@ export function createAntigravityAdapter(): AgentAdapter {
         undefined,
         supportsSeparateModelEffort,
         defaultModel,
+        emitEffortFlag,
       );
       // Keep file tools in the selected project. Home remains projectless so it
       // can continue to serve as an OS-level session spanning user folders.
@@ -165,6 +199,7 @@ export function createAntigravityAdapter(): AgentAdapter {
         sessionRef.providerSessionId,
         supportsSeparateModelEffort,
         defaultModel,
+        emitEffortFlag,
       );
       return { binary: "agy", args };
     },
@@ -269,7 +304,13 @@ export function createAntigravityAdapter(): AgentAdapter {
       return {
         command: "agy",
         args: [
-          ...buildAntigravityModelArgs(model, effort, supportsSeparateModelEffort, defaultModel),
+          ...buildAntigravityModelArgs(
+            model,
+            effort,
+            supportsSeparateModelEffort,
+            defaultModel,
+            emitEffortFlag,
+          ),
           "-p",
           prompt,
         ],
@@ -285,7 +326,13 @@ export function createAntigravityAdapter(): AgentAdapter {
         args: [
           "--conversation",
           sessionRef.providerSessionId,
-          ...buildAntigravityModelArgs(model, undefined, supportsSeparateModelEffort, defaultModel),
+          ...buildAntigravityModelArgs(
+            model,
+            undefined,
+            supportsSeparateModelEffort,
+            defaultModel,
+            emitEffortFlag,
+          ),
           "-p",
           EXTRACTION_PROMPT,
         ],
@@ -304,7 +351,13 @@ export function createAntigravityAdapter(): AgentAdapter {
         command: "agy",
         args: [
           ...(!isHomeScopeLocation(location) ? ["--new-project"] : []),
-          ...buildAntigravityModelArgs(model, effort, supportsSeparateModelEffort, defaultModel),
+          ...buildAntigravityModelArgs(
+            model,
+            effort,
+            supportsSeparateModelEffort,
+            defaultModel,
+            emitEffortFlag,
+          ),
           "--dangerously-skip-permissions",
           "-p",
           prompt,

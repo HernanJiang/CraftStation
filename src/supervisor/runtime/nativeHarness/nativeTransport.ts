@@ -519,6 +519,25 @@ export function buildDeepSeekJsonRpcArgs(
   return ["--profile", profileRef, ...extraArgs];
 }
 
+/**
+ * Profile-aware `dsh` argv mirroring the official SDK client's launch spec
+ * (`--profile <name>` + caller extras + ordered `--patch <cordis>`).
+ * The `acp` profile ships ready-to-use, so `configPath` is optional there;
+ * the `sdk` profile still requires the caller to supply it (fail-closed at
+ * the adapter layer, never invented here).
+ */
+export function buildDeepSeekProfileArgs(
+  profileRef: string = "sdk",
+  extraArgs: readonly string[] = [],
+  configPath?: string,
+): string[] {
+  const name = profileRef.trim().toLowerCase() === "acp" ? "acp" : "sdk";
+  const args = ["--profile", name, ...extraArgs];
+  const trimmed = (configPath ?? "").trim();
+  if (trimmed) args.push("--patch", trimmed);
+  return args;
+}
+
 export function createDeepSeekJsonRpcTransport(
   options: NativeProcessTransportOptions,
 ): NdjsonProcessTransport {

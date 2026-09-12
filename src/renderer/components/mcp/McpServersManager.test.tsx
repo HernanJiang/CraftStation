@@ -123,9 +123,9 @@ function managerElement(options: {
       {...(includeCrossagentsSettings
         ? {
             builtInSettings: {
-              crossagents: {
-                title: "Crossagents",
-                actionLabel: "Crossagent routing guide",
+              "own-subagents": {
+                title: "Own Subagents",
+                actionLabel: "Own Subagents routing guide",
                 content: <div>Routing settings</div>,
               },
             },
@@ -238,7 +238,7 @@ describe("McpServersManager", () => {
     expect(onBuiltInDisabledChange).toHaveBeenCalledWith("browser", true);
   });
 
-  it("opens Crossagents settings in a modal", () => {
+  it("opens Own Subagents settings in a modal", () => {
     render(
       managerElement({
         disabledBuiltIns: {},
@@ -246,19 +246,34 @@ describe("McpServersManager", () => {
       }),
     );
 
-    const row = document.querySelector('[data-built-in-mcp-server="crossagents"]');
+    const row = document.querySelector('[data-built-in-mcp-server="own-subagents"]');
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).queryByText("Routing settings")).not.toBeInTheDocument();
 
     fireEvent.click(
-      within(row as HTMLElement).getByRole("button", { name: "Crossagent routing guide" }),
+      within(row as HTMLElement).getByRole("button", { name: "Own Subagents routing guide" }),
     );
 
-    const dialog = screen.getByRole("dialog", { name: "Crossagents" });
+    const dialog = screen.getByRole("dialog", { name: "Own Subagents" });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText("Routing settings")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByText("Close"));
-    expect(screen.queryByRole("dialog", { name: "Crossagents" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Own Subagents" })).not.toBeInTheDocument();
+  });
+
+  it("renders the Crossagents peer row independently of Own Subagents", () => {
+    render(
+      managerElement({
+        disabledBuiltIns: {},
+      }),
+    );
+
+    const peerRow = document.querySelector('[data-built-in-mcp-server="crossagents"]');
+    expect(peerRow).not.toBeNull();
+    expect(within(peerRow as HTMLElement).getByText("Crossagents")).toBeInTheDocument();
+    const ownRow = document.querySelector('[data-built-in-mcp-server="own-subagents"]');
+    expect(ownRow).not.toBeNull();
+    expect(within(ownRow as HTMLElement).getByText("Own Subagents")).toBeInTheDocument();
   });
 
   it("probes an enabled server once and forwards the workspace location", async () => {

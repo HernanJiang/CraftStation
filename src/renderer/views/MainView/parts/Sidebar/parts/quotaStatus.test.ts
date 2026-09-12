@@ -5,6 +5,7 @@ import {
   quotaDisplayStateClass,
   quotaDisplayStateLabel,
   resolveAccountQuotaDisplayState,
+  resolveAccountTokenAttribution,
   resolveProviderQuotaDisplayState,
   userFacingTokenMessage,
 } from "./quotaStatus";
@@ -48,5 +49,110 @@ describe("quotaStatus", () => {
     expect(userFacingTokenMessage("Runtime ledger has no exact account usage.")).toBe(
       "暂无精确 Token 用量",
     );
+  });
+
+  it("attributes exact per-account token usage to the matching account", () => {
+    const summaries = [
+      {
+        period: "today",
+        source: "runtime-ledger",
+        quality: "exact",
+        observedAt: 1,
+        coverage: { from: 1, to: 1, complete: true },
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 150,
+        byTool: [],
+        byModel: [],
+        byProject: [],
+        bySession: [],
+        byAccount: [
+          {
+            key: "grok:mine",
+            label: "mine",
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            reasoningTokens: 0,
+            totalTokens: 150,
+          },
+        ],
+      },
+    ] as never;
+    expect(resolveAccountTokenAttribution(summaries, "grok:mine")).toEqual({
+      kind: "exact",
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 150,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    });
+  });
+
+  it("reports unattributable when data exists but not for this account", () => {
+    const summaries = [
+      {
+        period: "today",
+        source: "runtime-ledger",
+        quality: "exact",
+        observedAt: 1,
+        coverage: { from: 1, to: 1, complete: true },
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 150,
+        byTool: [],
+        byModel: [],
+        byProject: [],
+        bySession: [],
+        byAccount: [
+          {
+            key: "grok:other",
+            label: "other",
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            reasoningTokens: 0,
+            totalTokens: 150,
+          },
+        ],
+      },
+    ] as never;
+    expect(resolveAccountTokenAttribution(summaries, "grok:mine")).toEqual({
+      kind: "unattributable",
+    });
+  });
+
+  it("reports none when there is no token data at all", () => {
+    expect(resolveAccountTokenAttribution(undefined, "grok:mine")).toEqual({ kind: "none" });
+    expect(resolveAccountTokenAttribution([], "grok:mine")).toEqual({ kind: "none" });
+    const empty = [
+      {
+        period: "today",
+        source: "runtime-ledger",
+        quality: "exact",
+        observedAt: 1,
+        coverage: { from: 1, to: 1, complete: false },
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 0,
+        byTool: [],
+        byModel: [],
+        byProject: [],
+        bySession: [],
+        byAccount: [],
+      },
+    ] as never;
+    expect(resolveAccountTokenAttribution(empty, "grok:mine")).toEqual({ kind: "none" });
   });
 });

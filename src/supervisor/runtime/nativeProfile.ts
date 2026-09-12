@@ -12,6 +12,7 @@ import { AccountControlError, type NativeProfileSpec } from "@/shared/contracts"
 import { managedGrokProcessEnvironment, grokAccountIdentityFromContainer } from "./grokProfiles";
 import { managedCodexProcessEnvironment } from "./codexProfiles";
 import { managedKimiProcessEnvironment } from "./kimiProfiles";
+import { antigravityAdcCredentialPath } from "./antigravityCredentials";
 import { grokAuthContainer } from "./grokCredentials";
 import { parseCodexAuth } from "./codexCredentials";
 
@@ -74,6 +75,44 @@ export function prepareKimiProfile(
   };
 }
 
+/**
+ * Compatibility-bridge endpoint keys. Native Antigravity runs must never
+ * inherit these: only a non-native model on the native vendor may go through
+ * CPA, everything else runs the official CLI against the account pool. Blank
+ * (not omit): the child env is spread over `process.env`, so omission would
+ * leak the host value back in.
+ */
+export const ANTIGRAVITY_COMPATIBILITY_ENV_KEYS = [
+  "GOOGLE_GEMINI_BASE_URL",
+  "GEMINI_API_KEY",
+] as const;
+
+/**
+ * Antigravity has no home-dir redirect: `agy` consumes pool credentials only
+ * through Application Default Credentials. The ADC file itself is materialized
+ * from the account's sealed vault bucket before this spec is built (see
+ * `materializeAntigravityAdcCredential`); the env carries only scope redirects,
+ * never secret values.
+ */
+export function prepareAntigravityProfile(account: {
+  accountId: string;
+  credentialRoot: string;
+  credentialScopeRef?: string;
+}): NativeProfileLaunchSpec {
+  return {
+    providerId: "antigravity",
+    accountId: account.accountId,
+    profilePath: account.credentialRoot,
+    ...(account.credentialScopeRef ? { credentialScope: account.credentialScopeRef } : {}),
+    env: {
+      AGY_ADC_AUTH: "1",
+      GOOGLE_APPLICATION_CREDENTIALS: antigravityAdcCredentialPath(account.credentialRoot),
+      GOOGLE_GEMINI_BASE_URL: "",
+      GEMINI_API_KEY: "",
+    },
+  };
+}
+
 export function prepareNativeProfile(
   provider: string,
   account: { accountId: string; credentialRoot: string; credentialScopeRef?: string },
@@ -86,6 +125,8 @@ export function prepareNativeProfile(
       return prepareCodexProfile(account, baseEnv);
     case "kimi":
       return prepareKimiProfile(account, baseEnv);
+    case "antigravity":
+      return prepareAntigravityProfile(account);
     default:
       return {
         providerId: provider,
@@ -144,6 +185,28 @@ export function verifyProfileIdentity(
       const token = parseCodexAuth(raw);
       if (!token) throw identityUnavailable(provider, expectedAccount, "credential is malformed");
       assertIdentityMatch(provider, expectedAccount, [token.accountId, token.email]);
+    } catch (err) {
+      if (err instanceof AccountControlError) throw err;
+      throw identityUnavailable(provider, expectedAccount, "credential could not be read");
+    }
+  } else if (provider === "antigravity") {
+    // The authorized_user ADC file carries no identity claims — the email lives
+    // only in the sealed vault bucket keyed by the same accountId. Verify the
+    // credential is materially present instead of pretending to compare it.
+    const adcPath = antigravityAdcCredentialPath(profilePath);
+    if (!existsSync(adcPath)) {
+      throw identityUnavailable(provider, expectedAccount, "credential file is missing");
+    }
+    try {
+      const parsed = JSON.parse(readFileSync(adcPath, "utf8")) as unknown;
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        (parsed as Record<string, unknown>).type !== "authorized_user" ||
+        !String((parsed as Record<string, unknown>).refresh_token ?? "").trim()
+      ) {
+        throw identityUnavailable(provider, expectedAccount, "credential is malformed");
+      }
     } catch (err) {
       if (err instanceof AccountControlError) throw err;
       throw identityUnavailable(provider, expectedAccount, "credential could not be read");

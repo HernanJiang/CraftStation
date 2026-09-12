@@ -9,7 +9,6 @@ import type {
 } from "@/shared/contracts";
 import { resolveProjectLocation } from "@/shared/worktree";
 import { readBridge } from "@/renderer/bridge";
-import { toggleMarkThreadDone } from "@/renderer/actions/threadActions";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useExperimentStore } from "@/renderer/state/experimentStore";
 import { remoteOwner } from "@/renderer/state/remoteProjection";
@@ -137,7 +136,6 @@ export function ThreadPane(props: {
   return (
     <ThreadView
       thread={thread}
-      projectName={project.name}
       agentStatus={agentStatus}
       isWsl={project.location.kind === "wsl"}
       showCloseButton
@@ -149,13 +147,6 @@ export function ThreadPane(props: {
       {...(props.paneCount > 1 ? { dragHandleRef: handleRef } : {})}
       droppableRef={paneElementRef}
       onClose={props.onClose}
-      {...(!experiment
-        ? {
-            onMarkDone: () => {
-              toggleMarkThreadDone(props.threadId, { preservePane: true });
-            },
-          }
-        : {})}
       projectLocation={projectLocation}
       {...(props.hidden ? { hidden: true } : {})}
       onLaunchConsumed={() => consumeThreadLaunch(thread.id)}

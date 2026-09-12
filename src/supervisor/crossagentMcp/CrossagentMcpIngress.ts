@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomBytes, randomUUID } from "node:crypto";
+import { LOCAL_MCP_BIND_HOST } from "@/shared/localMcpBind";
 import type { CrossagentMcpHttpConfig } from "@/supervisor/agents/crossagentMcp";
 import type { CrossagentRoutingOverride } from "@/shared/settings";
 import type { SubagentRunManager } from "./SubagentRunManager";
@@ -7,17 +8,31 @@ import { buildSubagentInstructions, dispatchTool, isKnownToolName, TOOLS } from 
 import { errorResult } from "./toolResult";
 import type { ExplicitSpawnAgentSelection, SpawnableAgent } from "./types";
 
-export interface CrossagentMcpIngressInfo {
+export interface OwnSubagentsMcpIngressInfo {
   url: string;
   port: number;
 }
 
-export interface CrossagentMcpIngressDeps {
+export interface OwnSubagentsMcpIngressDeps {
   runManager: SubagentRunManager;
   /** Catalog of installed + authenticated agents the caller may spawn. */
   getSpawnableAgents: (tags?: readonly string[]) => Promise<SpawnableAgent[]>;
   /** Resolve a trusted provider-native session id to its live CraftStation parent. */
   resolveProviderSessionThreadId?: (sessionId: string) => string | undefined;
+  /** Resolve the calling thread's harness kind for the native-harness lane. */
+  resolveParentAgentKind?: (threadId: string) => string | undefined;
+  /**
+   * Resolve the calling thread's own entity (harness + model + effort) so
+   * subagent dispatch without an explicit selection defaults to what the
+   * user already picked, instead of ranked-best ("random") dispatch.
+   */
+  resolveParentEntity?:
+    | ((threadId: string) =>
+        | { agentKind: string; model?: string | undefined; effort?: string | undefined }
+        | undefined)
+    | undefined;
+  /** User-ordered Own Subagents route (native lane + provider kinds). */
+  getRouteOrder?: () => readonly string[];
   /** Optional user-provided routing guide appended to the MCP instructions (phase 3). */
   getRoutingGuide?: () => string | undefined;
   /** Report only caller-explicit selections; auto-ranked choices must not reinforce themselves. */
@@ -70,37 +85,31 @@ type CrossagentAuthContext = { mode: "thread"; threadId: string } | { mode: "pro
  * to a registered live thread at call time, so concurrent sessions never rely
  * on shared mutable "active thread" state.
  *
- * Bind address: `127.0.0.1` everywhere except Windows, where we bind `0.0.0.0`
- * so an agent launched inside a WSL distro can reach this host ingress over the
- * WSL2 NAT gateway IP (a distro's loopback can't hit the host's `127.0.0.1`).
- * This mirrors `BrowserMcpIngress`'s posture. Tradeoff: on Windows the port is
- * reachable from any interface, so the 256-bit bearer credential is the
- * security boundary. Provider-session calls additionally require a trusted
- * session id that resolves to a registered live thread. We keep the tighter
- * loopback bind on macOS/Linux since WSL only exists on Windows.
+ * Bind address: loopback only. A Windows wildcard bind (`0.0.0.0`) raises the
+ * "public and private networks" firewall dialog on every portable launch
+ * (unpack path changes, so Allow never sticks). WSL mirrored networking still
+ * reaches `127.0.0.1`; NAT-mode WSL does not get a wildcard host bind at
+ * startup. The 256-bit bearer credential remains the call-level boundary.
  */
-export class CrossagentMcpIngress {
+export class OwnSubagentsMcpIngress {
   private server: Server | null = null;
-  private info: CrossagentMcpIngressInfo | null = null;
+  private info: OwnSubagentsMcpIngressInfo | null = null;
   private readonly tokenToThread = new Map<string, string>();
   private readonly threadToToken = new Map<string, string>();
   private readonly providerSessionToken = randomBytes(32).toString("hex");
   private readonly providerSessionThreads = new Set<string>();
   private readonly disabledToolsByThread = new Map<string, Set<string>>();
 
-  constructor(private readonly deps: CrossagentMcpIngressDeps) {}
+  constructor(private readonly deps: OwnSubagentsMcpIngressDeps) {}
 
-  async start(): Promise<CrossagentMcpIngressInfo> {
+  async start(): Promise<OwnSubagentsMcpIngressInfo> {
     if (this.info) return this.info;
-    return await new Promise<CrossagentMcpIngressInfo>((resolve, reject) => {
+    return await new Promise<OwnSubagentsMcpIngressInfo>((resolve, reject) => {
       const server = createServer((req, res) => {
         void this.handle(req, res);
       });
       server.on("error", reject);
-      // See the class doc comment: 0.0.0.0 on Windows for WSL reach-through,
-      // loopback elsewhere. Bearer-token auth is the security boundary.
-      const bindHost = process.platform === "win32" ? "0.0.0.0" : "127.0.0.1";
-      server.listen(0, bindHost, () => {
+      server.listen(0, LOCAL_MCP_BIND_HOST, () => {
         const addr = server.address();
         const port = typeof addr === "object" && addr ? addr.port : 0;
         this.server = server;
@@ -110,7 +119,7 @@ export class CrossagentMcpIngress {
     });
   }
 
-  getInfo(): CrossagentMcpIngressInfo | null {
+  getInfo(): OwnSubagentsMcpIngressInfo | null {
     return this.info;
   }
 
@@ -324,7 +333,7 @@ export class CrossagentMcpIngress {
           result: {
             protocolVersion: MCP_PROTOCOL_VERSION,
             capabilities: { tools: {} },
-            serverInfo: { name: "crossagents", version: "1.0.0" },
+            serverInfo: { name: "own_subagents", version: "1.0.0" },
             instructions: buildSubagentInstructions(this.deps.getRoutingGuide?.()),
           },
         };
@@ -389,10 +398,15 @@ export class CrossagentMcpIngress {
         if (!isKnownToolName(name)) {
           return { jsonrpc: "2.0", id, result: errorResult(`Unknown tool: ${name}`) };
         }
+        const parentAgentKind = this.deps.resolveParentAgentKind?.(threadId);
+        const parentEntity = this.deps.resolveParentEntity?.(threadId);
         const result = await dispatchTool(name, args, {
           parentThreadId: threadId,
           runManager: this.deps.runManager,
           listSpawnableAgents: this.deps.getSpawnableAgents,
+          ...(parentAgentKind ? { parentAgentKind } : {}),
+          ...(parentEntity ? { parentEntity } : {}),
+          getRouteOrder: () => this.deps.getRouteOrder?.() ?? [],
           ...(this.deps.recordExplicitSelections
             ? { recordExplicitSelections: this.deps.recordExplicitSelections }
             : {}),

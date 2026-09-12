@@ -22,6 +22,7 @@ import type {
   DeleteProjectEntryPayload,
   DetectSetupScriptPayload,
   DetectSetupScriptResult,
+  ExtractOfficeDocumentTextResult,
   ListProjectTreePayload,
   ListProjectTreeResult,
   MoveProjectEntryPayload,
@@ -112,6 +113,24 @@ export const projectTreeProcedures = {
   ),
   revealProjectEntry: definePayloadProcedure<RevealProjectEntryPayload, void, "main-local">(
     "revealProjectEntry",
+    "main-local",
+    revealProjectEntryPayloadSchema,
+  ),
+  openProjectEntryWithSystem: definePayloadProcedure<
+    RevealProjectEntryPayload,
+    void,
+    "main-local"
+  >(
+    "openProjectEntryWithSystem",
+    "main-local",
+    revealProjectEntryPayloadSchema,
+  ),
+  extractOfficeDocumentText: definePayloadProcedure<
+    RevealProjectEntryPayload,
+    ExtractOfficeDocumentTextResult,
+    "main-local"
+  >(
+    "extractOfficeDocumentText",
     "main-local",
     revealProjectEntryPayloadSchema,
   ),

@@ -13,7 +13,6 @@ import {
   Crafter,
   BUILTIN_MODEL_ITEMS,
   CraftingError,
-  FakeCodexParityHarness,
   type HarnessRuntimeAdapter,
   type SessionEventListener,
 } from "@/shared/crafting";
@@ -3090,6 +3089,9 @@ describe("SupervisorRuntime craftAgent", () => {
   ] as const)(
     "routes %s through the native adapter factory from craftAgent",
     async (harnessKind, vendor) => {
+      // Isolate from the real user account store: pool membership and native
+      // identity checks must not depend on machine-local credentials.
+      process.env.CRAFTSTATION_DATA_DIR = makeTempDir();
       const runtime = makeRuntime(() => undefined);
       const adapter = routedAdapter(harnessKind);
       const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
@@ -3214,7 +3216,7 @@ describe("SupervisorRuntime craftAgent", () => {
     );
   });
 
-  it("filters MCP servers by HarnessProfile in Efficient mode", async () => {
+  it("injects all enabled MCP servers in Efficient mode (default-inject policy)", async () => {
     const runtime = makeRuntime(() => undefined);
     const adapter = routedAdapter("grok");
     const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
@@ -3248,11 +3250,14 @@ describe("SupervisorRuntime craftAgent", () => {
       prompt: "native Efficient MCP route",
     });
 
-    // Grok profile recommends browser, excluding other-mcp
+    // Default-inject policy: enabled means injected, regardless of harness.
     expect(factory).toHaveBeenCalledWith(
       "grok",
       expect.objectContaining({
-        mcpServers: [expect.objectContaining({ id: "browser" })],
+        mcpServers: [
+          expect.objectContaining({ id: "browser" }),
+          expect.objectContaining({ id: "other-mcp" }),
+        ],
       }),
     );
   });
@@ -3847,12 +3852,48 @@ describe("SupervisorRuntime craftAgent", () => {
 
   it("runs spawn/create/send through Native Codex adapter and returns composition identities", async () => {
     const runtime = makeRuntime(() => undefined);
-    runtime.setCustomCraftingAdapter(
-      () =>
-        new FakeCodexParityHarness({
-          responseGenerator: () => "real native seam response",
-        }),
-    );
+    // Inline stub of the adapter seam (the shared FakeCodexParityHarness was
+    // deleted: production must never import a fake runtime).
+    runtime.setCustomCraftingAdapter((plan) => ({
+      id: `stub-codex:${plan.runtimeBinding.harnessKind}`,
+      harnessKind: plan.runtimeBinding.harnessKind,
+      supports: () => true,
+      spawnEntity: async (resolvedPlan) => ({
+        id: `entity:stub-codex:${resolvedPlan.threadId ?? "craft-runtime-thread"}`,
+        resultItemId: resolvedPlan.resultItemId,
+        craftPlan: resolvedPlan,
+        status: "spawned",
+        createdAt: new Date(0).toISOString(),
+      }),
+      createSession: async (entity) => {
+        const threadId = entity.craftPlan.threadId ?? "craft-runtime-thread";
+        return {
+          id: `sess:stub-codex:${threadId}`,
+          threadId,
+          entityId: entity.id,
+          status: "idle" as const,
+          startTurn: async () => ({
+            turnId: "turn:stub",
+            status: "completed" as const,
+            events: [],
+          }),
+          interrupt: async () => undefined,
+          terminate: async () => undefined,
+          getSnapshot: () => ({
+            sessionId: `sess:stub-codex:${threadId}`,
+            threadId,
+            entityId: entity.id,
+            status: "idle" as const,
+            events: [],
+          }),
+          subscribe: () => () => undefined,
+          sendPrompt: async () => ({ response: "real native seam response", events: [] }),
+        };
+      },
+      resumeSession: async () => {
+        throw new Error("resume is not used by this seam test");
+      },
+    }));
 
     const result = await runtime.craftAgent({
       craftPlan: craftPlan(),
@@ -3862,10 +3903,10 @@ describe("SupervisorRuntime craftAgent", () => {
 
     expect(result).toMatchObject({
       threadId: "craft-runtime-thread",
-      sessionId: "sess:fake-codex:craft-runtime-thread",
+      sessionId: "sess:stub-codex:craft-runtime-thread",
       response: "real native seam response",
     });
-    expect(result.entityId).toMatch(/^entity:fake-codex:/);
+    expect(result.entityId).toMatch(/^entity:stub-codex:/);
   });
 
   it("keeps the CraftStation Thread identity stable when the native Session uses its own UUID", async () => {
@@ -3942,6 +3983,9 @@ describe("SupervisorRuntime craftAgent", () => {
     setUsageSecret(cacheDir, stagingBucket, "baseUrl", "https://relay.example.com/v1");
     setUsageSecret(cacheDir, stagingBucket, "apiKey", "sk-runtime-test");
     setUsageSecret(cacheDir, stagingBucket, "providerName", "Chiral-API");
+    setUsageSecret(cacheDir, stagingBucket, "model", "gpt-5.6-sol");
+    setUsageSecret(cacheDir, stagingBucket, "validatedProtocol", "responses");
+    setUsageSecret(cacheDir, stagingBucket, "validatedAt", "1700000000000");
 
     const runtime = makeRuntime(() => undefined);
     const account = runtime.importOpenAiCompatibleProfile({});
@@ -4905,6 +4949,291 @@ describe("SupervisorRuntime craftAgent", () => {
       runtime.removeAccount(account.accountId);
       expect(runtime.accountStore.get(account.accountId)).toBeUndefined();
     });
+
+    it("removes an already-gone account idempotently instead of Unknown account", () => {
+      const emitted: unknown[] = [];
+      const runtime = makeRuntime((event) => {
+        emitted.push(event);
+      });
+      const account = runtime.addAccount({ provider: "antigravity", label: "Ghost" });
+      runtime.removeAccount(account.accountId);
+      // Second delete (stale UI row, scrubbed/deduped row, double-click) must
+      // succeed so the ghost row disappears instead of erroring.
+      expect(() => runtime.removeAccount(account.accountId)).not.toThrow();
+      expect(() =>
+        runtime.removeAccount("antigravity:00000000-0000-0000-0000-000000000000"),
+      ).not.toThrow();
+      expect(
+        emitted.some(
+          (event) =>
+            typeof event === "object" &&
+            event !== null &&
+            (event as { type?: unknown }).type === "usage-accounts",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("Antigravity account control plane", () => {
+    beforeEach(() => {
+      process.env.CRAFTSTATION_DATA_DIR = makeTempDir();
+    });
+
+    async function addAntigravityAccount(
+      runtime: SupervisorRuntime,
+      label: string,
+      status: "available" | "quota-exhausted" = "available",
+      withCredential = true,
+    ) {
+      const account = runtime.addAccount({
+        provider: "antigravity",
+        label,
+        maskedIdentity: `${label}@example.com`,
+      });
+      if (withCredential) {
+        const cacheDir = resolveCraftStationPaths(process.env.CRAFTSTATION_DATA_DIR!).cacheDir;
+        const { providerCredentialBucket } = await import("./runtime/credentialVault");
+        setUsageSecret(
+          cacheDir,
+          providerCredentialBucket("antigravity", account.accountId),
+          "refreshToken",
+          `refresh-secret-${label}`,
+        );
+      }
+      runtime.accountStore.updateStatus(account.accountId, status);
+      return account;
+    }
+
+    /** Stub B-mode host-follow (never touch the real OS store in tests). */
+    function stubHostFollow(runtime: SupervisorRuntime) {
+      return vi
+        .spyOn(runtime.antigravityProfileService, "ensureHostFollowsAccount")
+        .mockResolvedValue({ applied: false, accountId: "antigravity:stub" });
+    }
+
+    it("binds a new Session to the first usable Antigravity account and follows it on the host", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const accountA = await addAntigravityAccount(runtime, "A");
+      await addAntigravityAccount(runtime, "B");
+      const ensureHost = stubHostFollow(runtime);
+
+      const adapter = routedAdapter("antigravity");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("antigravity", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("antigravity", "google", "ag-session-priority-a"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "bind A",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as {
+        accountBinding?: { accountId: string; provider: string; reason: string };
+        baseSpawnEnv?: Record<string, string>;
+      };
+      expect(options.accountBinding?.accountId).toBe(accountA.accountId);
+      expect(options.accountBinding?.provider).toBe("antigravity");
+      expect(options.accountBinding?.reason).toBe("priority");
+      // B-mode: host follows the bound row; the spawn itself stays ambient.
+      expect(ensureHost).toHaveBeenCalledWith(accountA.accountId);
+      expect(options.baseSpawnEnv?.AGY_ADC_AUTH).toBeUndefined();
+      expect(options.baseSpawnEnv?.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
+    });
+
+    it("binds a new Session to an explicitly overridden Antigravity account", async () => {
+      const runtime = makeRuntime(() => undefined);
+      await addAntigravityAccount(runtime, "A");
+      const accountB = await addAntigravityAccount(runtime, "B");
+      const ensureHost = stubHostFollow(runtime);
+
+      const adapter = routedAdapter("antigravity");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("antigravity", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("antigravity", "google", "ag-session-explicit-b"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        accountId: accountB.accountId,
+        accountMode: "explicit",
+        prompt: "bind B",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as {
+        accountBinding?: { accountId: string; reason: string };
+        baseSpawnEnv?: Record<string, string>;
+      };
+      expect(options.accountBinding?.accountId).toBe(accountB.accountId);
+      expect(options.accountBinding?.reason).toBe("explicit");
+      // B-mode: explicit choice is applied to the host; the spawn stays ambient.
+      expect(ensureHost).toHaveBeenCalledWith(accountB.accountId);
+      expect(options.baseSpawnEnv?.AGY_ADC_AUTH).toBeUndefined();
+      expect(options.baseSpawnEnv?.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
+    });
+
+    it("auto-picks the next Antigravity account in priority order when the first is exhausted", async () => {
+      const runtime = makeRuntime(() => undefined);
+      await addAntigravityAccount(runtime, "A", "quota-exhausted");
+      const accountB = await addAntigravityAccount(runtime, "B");
+      stubHostFollow(runtime);
+
+      const adapter = routedAdapter("antigravity");
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("antigravity", factory);
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("antigravity", "google", "ag-session-auto-fallback"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "auto fallback",
+      });
+
+      const options = factory.mock.calls[0]?.[1] as { accountBinding?: { accountId: string } };
+      expect(options.accountBinding?.accountId).toBe(accountB.accountId);
+      const resolved = runtime.accountResolver.resolve({
+        provider: "antigravity",
+        mode: "auto",
+      });
+      expect(resolved.account.accountId).toBe(accountB.accountId);
+      expect(resolved.reason).toBe("priority");
+    });
+
+    it("marks the bound Antigravity account quota-exhausted when the first turn fails with a quota error", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = await addAntigravityAccount(runtime, "A");
+      stubHostFollow(runtime);
+
+      const adapter = routedAdapter("antigravity");
+      const originalCreateSession = adapter.createSession.bind(adapter);
+      const quotaError = new Error("RESOURCE_EXHAUSTED (code 429): Individual quota reached");
+      adapter.createSession = async (entity) => {
+        const session = await originalCreateSession(entity);
+        session.sendPrompt = async () => {
+          throw quotaError;
+        };
+        return session;
+      };
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("antigravity", factory);
+
+      await expect(
+        runtime.craftAgent({
+          craftPlan: nativeCraftPlan("antigravity", "google", "ag-first-turn-quota"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          accountId: account.accountId,
+          accountMode: "explicit",
+          prompt: "first turn",
+        }),
+      ).rejects.toThrow(/Individual quota reached/);
+
+      expect(runtime.accountStore.get(account.accountId)).toMatchObject({
+        status: "quota-exhausted",
+        lastQuotaAt: expect.any(Number),
+      });
+      // The next auto session must rotate away from the exhausted row.
+      const accountB = await addAntigravityAccount(runtime, "B");
+      void accountB;
+      const resolved = runtime.accountResolver.resolve({
+        provider: "antigravity",
+        mode: "auto",
+      });
+      expect(resolved.account.maskedIdentity).toBe("B@example.com");
+    });
+
+    it("kicks host-login rotation after a bound Antigravity failure is recorded", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = await addAntigravityAccount(runtime, "A");
+      stubHostFollow(runtime);
+      const rotate = vi.spyOn(runtime.antigravityProfileService, "rotateHostAfterFailure");
+      rotate.mockResolvedValue({ rotated: false });
+
+      const adapter = routedAdapter("antigravity");
+      const originalCreateSession = adapter.createSession.bind(adapter);
+      adapter.createSession = async (entity) => {
+        const session = await originalCreateSession(entity);
+        session.sendPrompt = async () => {
+          throw new Error("RESOURCE_EXHAUSTED (code 429): Individual quota reached");
+        };
+        return session;
+      };
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("antigravity", factory);
+
+      await expect(
+        runtime.craftAgent({
+          craftPlan: nativeCraftPlan("antigravity", "google", "ag-first-turn-rotate"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          accountId: account.accountId,
+          accountMode: "explicit",
+          prompt: "first turn",
+        }),
+      ).rejects.toThrow(/Individual quota reached/);
+
+      // Marking is synchronous; rotation rides fire-and-forget behind it.
+      expect(runtime.accountStore.get(account.accountId)?.status).toBe("quota-exhausted");
+      await vi.waitFor(() => expect(rotate).toHaveBeenCalledTimes(1));
+      expect(rotate.mock.calls[0]?.[0]).toBe(account.accountId);
+    });
+
+    it("marks the bound Antigravity account auth-expired when the first turn fails with an auth error", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = await addAntigravityAccount(runtime, "A");
+      stubHostFollow(runtime);
+
+      const adapter = routedAdapter("antigravity");
+      const originalCreateSession = adapter.createSession.bind(adapter);
+      adapter.createSession = async (entity) => {
+        const session = await originalCreateSession(entity);
+        session.sendPrompt = async () => {
+          throw new Error("You are not logged into Antigravity.");
+        };
+        return session;
+      };
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("antigravity", factory);
+
+      await expect(
+        runtime.craftAgent({
+          craftPlan: nativeCraftPlan("antigravity", "google", "ag-first-turn-auth"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          accountId: account.accountId,
+          accountMode: "explicit",
+          prompt: "first turn",
+        }),
+      ).rejects.toThrow(/not logged into/);
+
+      expect(runtime.accountStore.get(account.accountId)?.status).toBe("auth-expired");
+    });
+
+    it("leaves Antigravity pool state untouched for non-quota failures like invalid model selection", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const account = await addAntigravityAccount(runtime, "A");
+      stubHostFollow(runtime);
+
+      const adapter = routedAdapter("antigravity");
+      const originalCreateSession = adapter.createSession.bind(adapter);
+      adapter.createSession = async (entity) => {
+        const session = await originalCreateSession(entity);
+        session.sendPrompt = async () => {
+          throw new Error(
+            'invalid model selection (--model "gemini-3.6-flash-medium" --effort ""): model gemini-3.6-flash-medium is not recognized as a known model or custom model in settings',
+          );
+        };
+        return session;
+      };
+      const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
+      nativeHarnessFactoryOverrides.set("antigravity", factory);
+
+      await expect(
+        runtime.craftAgent({
+          craftPlan: nativeCraftPlan("antigravity", "google", "ag-first-turn-model"),
+          projectLocation: { kind: "windows", path: "C:\\repo" },
+          accountId: account.accountId,
+          accountMode: "explicit",
+          prompt: "first turn",
+        }),
+      ).rejects.toThrow(/invalid model selection/);
+
+      expect(runtime.accountStore.get(account.accountId)?.status).toBe("available");
+    });
   });
 });
 
@@ -4915,7 +5244,7 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
 
   function addPoolAccount(
     runtime: SupervisorRuntime,
-    provider: "codex" | "grok",
+    provider: "codex" | "grok" | "kimi",
     label: string,
     withCredential = true,
   ) {
@@ -4935,12 +5264,12 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
     return account;
   }
 
-  it("falls back to ambient only when the provider has no credentialed pool accounts", () => {
+  it("falls back to ambient only when the provider has no credentialed pool accounts", async () => {
     const runtime = makeRuntime(() => undefined);
     // Metadata-only row: the pool exists but holds no usable credential.
     addPoolAccount(runtime, "codex", "stale", false);
     expect(
-      (
+      await (
         runtime as unknown as {
           resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => unknown;
         }
@@ -4948,7 +5277,7 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
     ).toBeUndefined();
     // Providers without a chat pool seam always use their ambient login.
     expect(
-      (
+      await (
         runtime as unknown as {
           resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => unknown;
         }
@@ -4956,54 +5285,355 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
     ).toBeUndefined();
   });
 
-  it("binds codex chat sessions to the pool account via CODEX_HOME", () => {
+  it("binds codex chat sessions to the pool account via CODEX_HOME", async () => {
     const runtime = makeRuntime(() => undefined);
     const account = addPoolAccount(runtime, "codex", "Pool A");
-    const resolved = (
+    const resolved = await (
       runtime as unknown as {
-        resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => {
-          accountId: string;
-          reason: string;
-          env: Record<string, string>;
-        };
+        resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => Promise<
+          | {
+              accountId: string;
+              reason: string;
+              env: Record<string, string>;
+            }
+          | undefined
+        >;
       }
     ).resolveAccountSessionEnv({ provider: "codex", threadId: "thread-2" });
-    expect(resolved.accountId).toBe(account.accountId);
-    expect(resolved.env.CODEX_HOME).toBe(runtime.accountStore.credentialRoot(account.accountId));
-    expect(JSON.stringify(resolved.env)).not.toContain("testCredential");
+    expect(resolved?.accountId).toBe(account.accountId);
+    expect(resolved?.env.CODEX_HOME).toBe(runtime.accountStore.credentialRoot(account.accountId));
+    expect(JSON.stringify(resolved?.env)).not.toContain("testCredential");
   });
 
-  it("binds grok chat sessions to the pool account via a pinned GROK_HOME", () => {
+  it("binds grok chat sessions to the pool account via a pinned GROK_HOME", async () => {
     const runtime = makeRuntime(() => undefined);
     const account = addPoolAccount(runtime, "grok", "Pool G");
-    const resolved = (
+    const resolved = await (
       runtime as unknown as {
-        resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => {
-          accountId: string;
-          env: Record<string, string>;
-        };
+        resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => Promise<
+          | {
+              accountId: string;
+              env: Record<string, string>;
+            }
+          | undefined
+        >;
       }
     ).resolveAccountSessionEnv({ provider: "grok", threadId: "thread-3" });
-    expect(resolved.accountId).toBe(account.accountId);
-    expect(resolved.env.GROK_HOME).toBe(runtime.accountStore.credentialRoot(account.accountId));
+    expect(resolved?.accountId).toBe(account.accountId);
+    expect(resolved?.env.GROK_HOME).toBe(runtime.accountStore.credentialRoot(account.accountId));
   });
 
-  it("throws when the pool exists but every account is unusable (no silent ambient fallback)", () => {
+  it("throws when the pool exists but every account is unusable (no silent ambient fallback)", async () => {
     const runtime = makeRuntime(() => undefined);
     const account = addPoolAccount(runtime, "grok", "Only", true);
     runtime.accountStore.updateStatus(account.accountId, "quota-exhausted");
-    expect(() =>
+    await expect(
       (
         runtime as unknown as {
           resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => unknown;
         }
       ).resolveAccountSessionEnv({ provider: "grok", threadId: "thread-4" }),
-    ).toThrowError(/No usable grok account/);
+    ).rejects.toThrowError(/No usable grok account/);
+  });
+
+  it("skips failover-tried accounts when re-resolving the pool", async () => {
+    // Same-turn failover records every account that died this turn; the
+    // re-resolution inside restartThread must never land back on one of them,
+    // even when its quota write-back hasn't landed yet.
+    const runtime = makeRuntime(() => undefined);
+    const first = addPoolAccount(runtime, "grok", "Dead");
+    const second = addPoolAccount(runtime, "grok", "Next");
+    const resolved = await (
+      runtime as unknown as {
+        resolveAccountSessionEnv: (input: {
+          provider: string;
+          threadId: string;
+          excludedAccountIds?: readonly string[];
+        }) => Promise<{ accountId: string } | undefined>;
+      }
+    ).resolveAccountSessionEnv({
+      provider: "grok",
+      threadId: "thread-5",
+      excludedAccountIds: [first.accountId],
+    });
+    expect(resolved?.accountId).toBe(second.accountId);
+  });
+
+  it("marks only the bound Kimi account quota-exhausted on a 402 prompt error", () => {
+    const runtime = makeRuntime(() => undefined);
+    const accountA = addPoolAccount(runtime, "kimi", "A");
+    const accountB = addPoolAccount(runtime, "kimi", "B");
+    const rt = runtime as unknown as {
+      handleKimiNativePromptError: (accountId: string, error: unknown) => void;
+    };
+    rt.handleKimiNativePromptError(accountA.accountId, {
+      code: -32603,
+      message: "Internal error",
+      data: { http_status: 402, message: "payment required" },
+    });
+    expect(runtime.accountStore.get(accountA.accountId)?.status).toBe("quota-exhausted");
+    expect(runtime.accountStore.get(accountB.accountId)?.status).toBe("available");
+    // Rate-limiting recovers on its own: never mark.
+    rt.handleKimiNativePromptError(accountB.accountId, {
+      data: { http_status: 429, message: "too many requests" },
+    });
+    expect(runtime.accountStore.get(accountB.accountId)?.status).toBe("available");
+    // Auth failures need a human re-login: never mark.
+    rt.handleKimiNativePromptError(accountB.accountId, {
+      data: { http_status: 401, message: "unauthorized" },
+    });
+    expect(runtime.accountStore.get(accountB.accountId)?.status).toBe("available");
+  });
+
+  it("marks only the bound Codex account quota-exhausted on the usage-limit shape", () => {
+    const runtime = makeRuntime(() => undefined);
+    const accountA = addPoolAccount(runtime, "codex", "A");
+    const accountB = addPoolAccount(runtime, "codex", "B");
+    const rt = runtime as unknown as {
+      handleCodexNativePromptError: (accountId: string, error: unknown) => void;
+    };
+    rt.handleCodexNativePromptError(
+      accountA.accountId,
+      new Error(
+        "Error running remote compact task You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits.",
+      ),
+    );
+    expect(runtime.accountStore.get(accountA.accountId)?.status).toBe("quota-exhausted");
+    expect(runtime.accountStore.get(accountB.accountId)?.status).toBe("available");
+    // willRetry warnings and rate-limit nudges never mark.
+    rt.handleCodexNativePromptError(
+      accountB.accountId,
+      new Error("Approaching rate limits, willRetry"),
+    );
+    expect(runtime.accountStore.get(accountB.accountId)?.status).toBe("available");
+  });
+
+  it("binds antigravity chat sessions to the followed pool row with ambient env", async () => {
+    const baseDir = makeTempDir();
+    process.env.CRAFTSTATION_DATA_DIR = baseDir;
+    const runtime = makeRuntime(() => undefined);
+    const account = runtime.addAccount({
+      provider: "antigravity",
+      label: "AG Pool",
+      maskedIdentity: "ag-pool@example.com",
+    });
+    const cacheDir = resolveCraftStationPaths(baseDir).cacheDir;
+    const { providerCredentialBucket } = await import("./runtime/credentialVault");
+    setUsageSecret(
+      cacheDir,
+      providerCredentialBucket("antigravity", account.accountId),
+      "refreshToken",
+      "refresh-secret",
+    );
+    runtime.accountStore.updateStatus(account.accountId, "available");
+    const ensure = vi
+      .spyOn(runtime.antigravityProfileService, "ensureHostFollowsAccount")
+      .mockResolvedValue({ applied: true, accountId: account.accountId });
+
+    const resolved = await (
+      runtime as unknown as {
+        resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => Promise<
+          | {
+              accountId: string;
+              env: Record<string, string>;
+            }
+          | undefined
+        >;
+      }
+    ).resolveAccountSessionEnv({ provider: "antigravity", threadId: "thread-ag-1" });
+
+    // B-mode: the binding names the followed row for display/quota, but the
+    // spawn env stays ambient (no ADC projection) so the host catalog applies.
+    expect(ensure).toHaveBeenCalledWith(account.accountId);
+    expect(resolved?.accountId).toBe(account.accountId);
+    expect(resolved?.env).toEqual({});
+    expect(resolved?.env.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
+    expect(resolved?.env.AGY_ADC_AUTH).toBeUndefined();
+  });
+
+  it("falls back to ambient when the antigravity pool holds no refresh token", async () => {
+    const baseDir = makeTempDir();
+    process.env.CRAFTSTATION_DATA_DIR = baseDir;
+    const runtime = makeRuntime(() => undefined);
+    const account = runtime.addAccount({
+      provider: "antigravity",
+      label: "AG Empty",
+      maskedIdentity: "ag-empty@example.com",
+    });
+    runtime.accountStore.updateStatus(account.accountId, "available");
+    // No sealed refresh token: the account is not schedulable, so the seam
+    // reports "no credentialed pool" and the session uses the ambient login —
+    // identical to a metadata-only codex/grok row.
+    expect(
+      await (
+        runtime as unknown as {
+          resolveAccountSessionEnv: (input: { provider: string; threadId: string }) => unknown;
+        }
+      ).resolveAccountSessionEnv({ provider: "antigravity", threadId: "thread-ag-2" }),
+    ).toBeUndefined();
+    expect(account.accountId).toBeTruthy();
+  });
+
+  describe("third-party chat launches bypass the subscription pool", () => {
+    function addThirdPartyAccount(
+      runtime: ReturnType<typeof makeRuntime>,
+      overrides?: { model?: string; protocol?: string },
+    ) {
+      const account = runtime.addAccount({
+        provider: "openai-compatible",
+        label: "Chiral-API",
+        maskedIdentity: "Chiral-API",
+        providerAccountId: "Chiral-API",
+      });
+      const bucket = (
+        runtime as unknown as {
+          openAiCompatibleProfileService: { bucketFor: (id: string) => string };
+        }
+      ).openAiCompatibleProfileService.bucketFor(account.accountId);
+      const cacheDir = resolveCraftStationPaths(process.env.CRAFTSTATION_DATA_DIR!).cacheDir;
+      setUsageSecret(cacheDir, bucket, "baseUrl", "https://relay.example.com/v1");
+      setUsageSecret(cacheDir, bucket, "apiKey", "sk-third-party");
+      setUsageSecret(cacheDir, bucket, "model", overrides?.model ?? "gpt-5.6-sol");
+      setUsageSecret(cacheDir, bucket, "validatedProtocol", overrides?.protocol ?? "responses");
+      setUsageSecret(cacheDir, bucket, "validatedAt", "1700000000000");
+      runtime.accountStore.updateStatus(account.accountId, "available");
+      return account;
+    }
+
+    async function resolveThirdParty(
+      runtime: ReturnType<typeof makeRuntime>,
+      input: { provider: string; threadId: string; model?: string; thirdPartyAccountId: string },
+    ) {
+      return (
+        runtime as unknown as {
+          resolveAccountSessionEnv: (
+            i: typeof input,
+          ) => Promise<
+            { accountId: string; reason: string; env: Record<string, string> } | undefined
+          >;
+        }
+      ).resolveAccountSessionEnv(input);
+    }
+
+    it("projects a validated third-party model to Codex without any pool account", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      const runtime = makeRuntime(() => undefined);
+      const thirdParty = addThirdPartyAccount(runtime);
+      // No codex/kimi pool rows at all: legacy code would fall to ambient or
+      // throw a pool error. The third-party path must succeed regardless.
+      const resolved = await resolveThirdParty(runtime, {
+        provider: "codex",
+        threadId: "thread-tp-1",
+        model: "gpt-5.6-sol",
+        thirdPartyAccountId: thirdParty.accountId,
+      });
+      expect(resolved?.accountId).toBe(thirdParty.accountId);
+      expect(resolved?.reason).toBe("third-party");
+      expect(resolved?.env.CODEX_HOME).toContain("openai-compatible-codex");
+      expect(resolved?.env.CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY).toBe("sk-third-party");
+      // The key travels only in the child-process env (projection), never on
+      // disk: the generated Codex home must not contain secret material.
+      expect(resolved?.env.CODEX_HOME).not.toContain("sk-third-party");
+    });
+
+    it("projects a validated GLM third-party model to OpenCode, never the Codex pool", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      const runtime = makeRuntime(() => undefined);
+      const thirdParty = addThirdPartyAccount(runtime, {
+        model: "glm-5.3-flash",
+        protocol: "chat_completions",
+      });
+      const resolved = await resolveThirdParty(runtime, {
+        provider: "opencode",
+        threadId: "thread-tp-glm",
+        model: "glm-5.3-flash",
+        thirdPartyAccountId: thirdParty.accountId,
+      });
+      expect(resolved?.accountId).toBe(thirdParty.accountId);
+      expect(resolved?.reason).toBe("third-party");
+      expect(resolved?.env.OPENCODE_CONFIG_DIR).toContain("openai-compatible-opencode");
+      expect(resolved?.env.CRAFTSTATION_OPENCODE_PROVIDER).toBe("craftstation");
+      expect(resolved?.env.CODEX_HOME).toBeUndefined();
+    });
+
+    it("projects a validated Responses third-party model to Muse Code", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      const runtime = makeRuntime(() => undefined);
+      const thirdParty = addThirdPartyAccount(runtime, { model: "muse-spark-1.3-contributor" });
+      const resolved = await resolveThirdParty(runtime, {
+        provider: "muse",
+        threadId: "thread-tp-muse",
+        model: "muse-spark-1.3-contributor",
+        thirdPartyAccountId: thirdParty.accountId,
+      });
+      expect(resolved?.accountId).toBe(thirdParty.accountId);
+      expect(resolved?.reason).toBe("third-party");
+      expect(resolved?.env.META_API_KEY).toBe("sk-third-party");
+      expect(resolved?.env.CRAFTSTATION_MUSE_BASE_URL).toBe("https://relay.example.com/v1");
+      expect(resolved?.env.XDG_CONFIG_HOME).toContain("openai-compatible-muse");
+    });
+
+    it("never reports a pool error for third-party launches, even with an exhausted kimi pool", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      const runtime = makeRuntime(() => undefined);
+      const thirdParty = addThirdPartyAccount(runtime, { model: "k3-256k" });
+      // Exhausted native kimi pool: must NOT surface as "No usable kimi
+      // account in the provider pool" for a third-party launch.
+      const dead = addPoolAccount(runtime, "kimi", "Dead", true);
+      runtime.accountStore.updateStatus(dead.accountId, "quota-exhausted");
+      await expect(
+        resolveThirdParty(runtime, {
+          provider: "kimi",
+          threadId: "thread-tp-2",
+          model: "k3-256k",
+          thirdPartyAccountId: thirdParty.accountId,
+        }),
+      ).rejects.toThrowError(/暂不支持直连 kimi Harness/);
+      await expect(
+        resolveThirdParty(runtime, {
+          provider: "kimi",
+          threadId: "thread-tp-2",
+          model: "k3-256k",
+          thirdPartyAccountId: thirdParty.accountId,
+        }),
+      ).rejects.not.toThrowError(/provider pool/);
+    });
+
+    it("fails closed on unknown or unverified third-party accounts", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      const runtime = makeRuntime(() => undefined);
+      await expect(
+        resolveThirdParty(runtime, {
+          provider: "codex",
+          threadId: "thread-tp-3",
+          thirdPartyAccountId: "openai-compatible:nope",
+        }),
+      ).rejects.toThrowError(/不存在或已删除/);
+
+      const unverified = runtime.addAccount({
+        provider: "openai-compatible",
+        label: "Unverified",
+        maskedIdentity: "Unverified",
+      });
+      await expect(
+        resolveThirdParty(runtime, {
+          provider: "codex",
+          threadId: "thread-tp-4",
+          thirdPartyAccountId: unverified.accountId,
+        }),
+      ).rejects.toThrowError(/尚未通过真实兼容性验证/);
+    });
   });
 });
 
 describe("SupervisorRuntime account refresh lock (v0.5 T09)", () => {
   it("coalesces concurrent per-account quota refreshes into one collector call", async () => {
+    process.env.CRAFTSTATION_DATA_DIR = makeTempDir();
     const runtime = makeRuntime(() => undefined);
     const account = runtime.addAccount({ provider: "codex", label: "A" });
     runtime.accountStore.updateStatus(account.accountId, "available");
@@ -5345,5 +5975,52 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
     // demand an execution envelope.
     await expect(runtime.closeThread({ threadId: "legacy-thread" })).resolves.toBeUndefined();
     await expect(runtime.interruptThread({ threadId: "legacy-thread" })).resolves.toBeUndefined();
+  });
+});
+
+describe("SupervisorRuntime compatibility bridge control", () => {
+  const cliproxyEnvBefore = process.env.CLIPROXY_BINARY_PATH;
+
+  afterEach(() => {
+    if (cliproxyEnvBefore === undefined) {
+      delete process.env.CLIPROXY_BINARY_PATH;
+    } else {
+      process.env.CLIPROXY_BINARY_PATH = cliproxyEnvBefore;
+    }
+  });
+
+  it("stops an idle bridge idempotently", async () => {
+    const runtime = makeRuntime(() => undefined);
+    await expect(runtime.stopCompatibilityBridge()).resolves.toMatchObject({ running: false });
+    expect(runtime.getCompatibilityBridgeStatus().running).toBe(false);
+  });
+
+  it("fails start with remediation when no sidecar binary exists", async () => {
+    delete process.env.CLIPROXY_BINARY_PATH;
+    const runtime = makeRuntime(() => undefined);
+    await expect(
+      runtime.startCompatibilityBridge({
+        cwd: makeTempDir(),
+        existsSync: () => false,
+        resolveOnPath: () => undefined,
+      }),
+    ).rejects.toThrow(/CLIProxyAPI sidecar binary not found/);
+    expect(runtime.getCompatibilityBridgeStatus().running).toBe(false);
+  });
+
+  it.runIf(
+    process.platform === "win32" &&
+      existsSync(join(process.cwd(), ".tools", "cpa", "cli-proxy-api.exe")),
+  )("starts and stops the real bundled sidecar end to end", async () => {
+    delete process.env.CLIPROXY_BINARY_PATH;
+    const runtime = makeRuntime(() => undefined);
+    try {
+      const started = await runtime.startCompatibilityBridge();
+      expect(started.running).toBe(true);
+      expect(started.endpoint).toBe("http://127.0.0.1:8317");
+    } finally {
+      await runtime.stopCompatibilityBridge();
+    }
+    expect(runtime.getCompatibilityBridgeStatus().running).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import {
   GitFork,
   Layers,
   Loader2,
+  Pin,
   Play,
   Power,
   PowerOff,
@@ -32,6 +33,7 @@ import {
 } from "@/renderer/components/workspace/workspaceMenuKeys";
 import { WorkspaceIcon } from "@/renderer/components/workspace/WorkspaceIcon";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { resolveActionIcon } from "@/renderer/utils/actionIcons";
@@ -51,6 +53,7 @@ export function useProjectMenu(
   const { t } = useLingui();
   const { isUnreachable } = options;
   const workspaces = useSharedSettings((s) => s.workspaces);
+  const isPinned = useSidebarUiStore((s) => s.pinnedProjectIds.includes(project.id));
   const setRemoteProjectSynced = useRemoteServersStore((state) => state.setRemoteProjectSynced);
   const isDisabled = !!project.disabled;
   const isRemote = project.remoteServerId !== undefined && project.remoteId !== undefined;
@@ -85,6 +88,11 @@ export function useProjectMenu(
       id: "project-settings",
       label: t`Project Settings`,
       icon: <Settings2 className="size-3.5" />,
+    },
+    {
+      id: "toggle-pinned",
+      label: isPinned ? t`Unpin project` : t`Pin to top`,
+      icon: <Pin className="size-3.5" />,
     },
     ...(isDisabled
       ? []
@@ -185,6 +193,8 @@ export function useProjectMenu(
 
   const onAction = (key: string) => {
     if (key === "project-settings") openProjectSettings(project.id);
+    // Global pin: presentation only — workspace/project identity untouched.
+    if (key === "toggle-pinned") useSidebarUiStore.getState().toggleProjectPinned(project.id);
     if (key === "open-terminal") showTerminalPanel(project.id);
     if (key === "stop-syncing" && project.remoteServerId && project.remoteId) {
       setRemoteProjectSynced(project.remoteServerId, project.remoteId, false);

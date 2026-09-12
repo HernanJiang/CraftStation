@@ -37,7 +37,7 @@ export function ComposerCompactSummary(props: {
   let controls: ComposerControl[] = [];
   if (effectiveAgentStatus) {
     if (presentationMode === "gui") {
-      controls = buildControls(thread, effectiveAgentStatus, undefined, () => undefined);
+      controls = buildControls(thread, effectiveAgentStatus, undefined, undefined, () => undefined);
     } else {
       const buildProviderControls = getComposerControls(thread.agentKind);
       if (buildProviderControls) {

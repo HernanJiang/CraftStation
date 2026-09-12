@@ -19,6 +19,11 @@ function textFromContentBlocks(payload: unknown): string {
         if (typeof record.name === "string") return `[image: ${record.name}]`;
         return "[image]";
       }
+      if (record.kind === "audio") {
+        if (typeof record.path === "string") return `@${record.path}`;
+        if (typeof record.name === "string") return `[audio: ${record.name}]`;
+        return "[audio]";
+      }
       return "";
     })
     .filter(Boolean)

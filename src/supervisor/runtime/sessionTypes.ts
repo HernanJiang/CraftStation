@@ -29,6 +29,33 @@ export interface QueuedStructuredTurn {
   userMessageItemId?: string;
   /** Inlined SKILL.md instructions for skills the provider can't load natively. */
   inlineInstructions?: string;
+  /**
+   * Same-turn pool-failover chain state. Incremented each time a quota-dead
+   * pool account is swapped for the next usable one within this turn; the
+   * tried ids bound the chain so a pool that never marks progress still
+   * terminates instead of respawning forever. The tried ids are also passed
+   * as resolution exclusions, so a re-resolution can never land back on an
+   * account that already died this turn even if its quota write-back hasn't
+   * landed (or failed to land) yet.
+   */
+  poolFailoverAttempt?: number;
+  poolTriedAccountIds?: string[];
+  /**
+   * Failover context carry-over ("前情提要"), rendered from the thread
+   * transcript at failover time. restartThread prepends it to the SENT
+   * prompt only — the painted user message stays the raw prompt.
+   */
+  historyPreface?: string;
+  /**
+   * Fallback `/goal` block for THIS turn only, prepended to the SENT prompt
+   * ahead of `historyPreface` — the painted user message stays the raw
+   * prompt, so a persistent goal never masquerades as user-typed text. The
+   * renderer re-sends it every turn while `thread.goal` is active (the
+   * supervisor keeps no goal state); native-goal threads omit it. Intentionally
+   * NOT consumed: the prepend is pure (turn.prompt is never mutated), so
+   * failover replays cannot double-prepend.
+   */
+  goalContext?: string;
 }
 
 /**
@@ -78,6 +105,14 @@ export interface SessionRuntime {
   ptyExited?: boolean;
   autoResponseEmitted?: boolean;
   sessionRefDiscoveryStarted?: boolean;
+  /**
+   * Set when the invalid-session recovery path replaced a dead provider-native
+   * session with a FRESH native session under the same thread id. The thread's
+   * UI history is retained, but provider-side context before this point is
+   * gone — readers must treat pre-recovery history as a fork marker, never as
+   * a live continuation.
+   */
+  recoveredFromInvalidRef?: boolean | undefined;
   stopSessionRefWatcher?: (() => void) | undefined;
   pendingLaunchPrompt?: string | undefined;
   pendingTerminalPreInputs?: string[][] | undefined;
@@ -165,6 +200,23 @@ export interface SessionRuntime {
    * Cleared by `applyCliHookPluginState`, PTY exit, and `clearSessionTimers`.
    */
   userInterruptRecoveryTimer?: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Pool account this session's spawn environment was bound to (set when the
+   * provider has a managed account pool; cleared for ambient sessions). Lets
+   * same-turn pool failover detect whether a re-resolution actually moved to
+   * a fresh account instead of respawning onto the same dead one.
+   */
+  poolAccountId?: string;
+  poolProvider?: string;
+  /**
+   * Transcript preface stashed by a manual provider switch, consumed by the
+   * next submitted turn (StructuredTurnQueue prepends it to the SENT prompt
+   * only). Lets the new harness continue with context without replaying
+   * anything. Cleared on consume; dropped with the thread.
+   */
+  pendingHistoryPreface?: string;
+  /** Queued-launch sibling of `QueuedStructuredTurn.goalContext` (one-shot). */
+  pendingLaunchGoalContext?: string | undefined;
 }
 
 export interface ShellSessionRuntime {

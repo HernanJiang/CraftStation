@@ -218,7 +218,7 @@ describe("SubAgentContent", () => {
     expect(await screen.findByText("Worked for 1m 15s")).toBeInTheDocument();
   });
 
-  it("splits a Crossagent name and model selection into a two-line route header", () => {
+  it("splits an Own Subagent name and model selection into a two-line route header", () => {
     const threadId = "thread-1";
     const parentItem: RuntimeChatItem = {
       id: "parent-1",
@@ -239,7 +239,7 @@ describe("SubAgentContent", () => {
 
     render(<SubAgentHeaderText threadId={threadId} parentItemId={parentItem.id} />);
 
-    expect(screen.getByText("Crossagent: dev-spa-rework")).toHaveClass("text-sm");
+    expect(screen.getByText("Own subagent: dev-spa-rework")).toHaveClass("text-sm");
     expect(screen.getByText("Codex · 5.6 Sol · High · Fast")).toHaveClass(
       "text-[0.6875rem]",
       "text-foreground-muted",
@@ -308,7 +308,7 @@ describe("SubAgentContent", () => {
     expect(row?.querySelector(".craftstation-pixel-loader")).toBeNull();
   });
 
-  it("renders Subagents and Crossagents in separate dock sections", () => {
+  it("renders Subagents and Own Subagents in separate dock sections", async () => {
     const threadId = "thread-1";
     const subagent = makeSubAgentItem("subagent-1");
     const crossagent: RuntimeChatItem = {
@@ -338,10 +338,10 @@ describe("SubAgentContent", () => {
     );
 
     expect(screen.getByText("Subagents")).toBeInTheDocument();
-    expect(screen.getByText("Crossagents")).toBeInTheDocument();
+    expect(screen.getByText("Own Subagents")).toBeInTheDocument();
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close subagents panel" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close Crossagents panel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close Own Subagents panel" })).toBeInTheDocument();
   });
 
   it("renders child messages through the main timeline parser", async () => {
@@ -447,7 +447,7 @@ describe("SubAgentContent", () => {
     );
   });
 
-  it("shows an explicit terminal status for a cancelled Crossagent", async () => {
+  it("shows an explicit terminal status for a cancelled Own Subagent", async () => {
     const threadId = "thread-1";
     const runningParent = makeSubAgentItem("parent-1");
     const parentItem: RuntimeChatItem = {
@@ -472,7 +472,7 @@ describe("SubAgentContent", () => {
     expect(await screen.findByText("Cancelled")).toBeInTheDocument();
   });
 
-  it("derives the terminal status for persisted Crossagents without the new status field", async () => {
+  it("derives the terminal status for persisted Own Subagents without the new status field", async () => {
     const threadId = "thread-1";
     const runningParent = makeSubAgentItem("parent-1");
     const parentItem: RuntimeChatItem = {

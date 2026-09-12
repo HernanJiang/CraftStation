@@ -100,6 +100,9 @@ export const openAiCompatibleProfileConfigSchema = z.object({
   model: z.string().optional(),
   displayName: z.string().optional(),
   providerName: z.string().optional(),
+  /** Real-probe outcome (Responses-first). Absent = never verified. */
+  validatedProtocol: z.enum(["responses", "chat_completions"]).optional(),
+  validatedAt: z.number().int().nonnegative().optional(),
 });
 export type OpenAiCompatibleProfileConfig = z.infer<typeof openAiCompatibleProfileConfigSchema>;
 
@@ -122,6 +125,22 @@ export const channelModelsResponseSchema = z.object({
 });
 export type ChannelModelsResponse = z.infer<typeof channelModelsResponseSchema>;
 
+/** Per-model add-time verification (real Responses-first probe, key stays sealed). */
+export const verifyChannelModelPayloadSchema = z.object({
+  provider: z.string().min(1),
+  accountId: z.string().min(1).max(160).optional(),
+  model: z.string().trim().min(1).max(200),
+});
+export type VerifyChannelModelPayload = z.infer<typeof verifyChannelModelPayloadSchema>;
+
+export const verifyChannelModelResponseSchema = z.object({
+  ok: z.boolean(),
+  validatedProtocol: z.enum(["responses", "chat_completions"]).optional(),
+  code: z.string().optional(),
+  error: z.string().optional(),
+});
+export type VerifyChannelModelResponse = z.infer<typeof verifyChannelModelResponseSchema>;
+
 export const usageCookiePayloadSchema = z.object({
   /** Provider whose pasted session cookie is being stored (e.g. "commandcode"). */
   providerId: z.string(),
@@ -141,6 +160,17 @@ export interface UsageLoginResult {
   /** Stable machine-readable failure code for native/provider login flows. */
   code?: string;
   error?: string;
+  /**
+   * Third-party OpenAI-compatible validation outcome (Responses-first real
+   * probe). Present on success; the renderer gates Add/Save on it.
+   */
+  validatedProtocol?: "responses" | "chat_completions" | undefined;
+  /**
+   * Volcengine Ark logins with an API key: the Ark model that passed the
+   * credential probe. The renderer uses it to auto-provision a runnable
+   * OpenAI-compatible channel (quota alone never needs it).
+   */
+  arkModel?: string | undefined;
 }
 
 export interface UsageLogoutResult {

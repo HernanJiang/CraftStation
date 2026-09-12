@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { SupervisorEvent } from "@/shared/ipc";
-import type { ConfirmCrossagentRoutingOverridePayload } from "@/shared/ipc/procedures/mcp";
+import type { ConfirmOwnSubagentsRoutingOverridePayload } from "@/shared/ipc/procedures/mcp";
 
 type RoutingOverrideChange = Extract<
   SupervisorEvent,
-  { type: "crossagent-routing-override-changed" }
+  { type: "ownsubagents-routing-override-changed" }
 >["change"];
 
 interface PendingChange {
@@ -33,14 +33,14 @@ export class RoutingOverridePersistence {
       }, this.deps.timeoutMs ?? 10_000);
       this.pending.set(requestId, { resolve, reject, timeout });
       this.deps.emit({
-        type: "crossagent-routing-override-changed",
+        type: "ownsubagents-routing-override-changed",
         requestId,
         change,
       });
     });
   }
 
-  confirm(payload: ConfirmCrossagentRoutingOverridePayload): void {
+  confirm(payload: ConfirmOwnSubagentsRoutingOverridePayload): void {
     // A late confirmation still means main touched the settings file. Refresh
     // even when the MCP caller already timed out and discarded its request.
     this.deps.invalidateSettings();

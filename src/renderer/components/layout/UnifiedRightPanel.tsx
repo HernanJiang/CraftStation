@@ -19,7 +19,6 @@ import { useSplitPercent } from "@/renderer/components/layout/PanelDock/useSplit
 import {
   panelHeaderIconButtonClass,
   panelHeaderRowClass,
-  panelHeaderTabIconButtonClass,
 } from "@/renderer/components/layout/sidebarChrome";
 import { type RightPanelTab } from "@/renderer/state/panelStore";
 
@@ -27,6 +26,14 @@ export type { RightPanelTab };
 
 const TOOL_MENU_WIDTH_PX = 176;
 const TOOL_MENU_VIEWPORT_MARGIN_PX = 8;
+
+/**
+ * Header icon buttons (lock / maximize / collapse) share the main header
+ * sidebar toggle's footprint: h-7 hit area, same icon size, same
+ * hover/active treatment, so neither side looks lighter than the other.
+ */
+const sidePanelHeaderButtonClass =
+  "flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground";
 
 export function UnifiedRightPanel(props: {
   activeTab: RightPanelTab;
@@ -77,6 +84,10 @@ export function UnifiedRightPanel(props: {
   onOpenTerminal?: () => void;
   onOpenFiles?: () => void;
   onOpenBrowser?: () => void;
+  /** + menu "Browser" creates a NEW tab (header clicks only reveal). */
+  onAddBrowser?: () => void;
+  /** + menu / header "Side Chat" entrypoint (opens the chooser). */
+  onOpenSideChat?: () => void;
   onOpenUsage?: () => void;
   onOpenNotes?: () => void;
   onOpenPorts?: () => void;
@@ -135,6 +146,8 @@ export function UnifiedRightPanel(props: {
     onOpenTerminal,
     onOpenFiles,
     onOpenBrowser,
+    onAddBrowser,
+    onOpenSideChat,
     onOpenUsage,
     onOpenNotes,
     onOpenPorts,
@@ -263,7 +276,7 @@ export function UnifiedRightPanel(props: {
       icon: PANEL_TAB_ICONS["side-chat"],
       content: sideChatContent,
       visible: showSideChatTab,
-      onOpen: undefined,
+      onOpen: onOpenSideChat,
     },
   ] as const;
 
@@ -296,8 +309,13 @@ export function UnifiedRightPanel(props: {
     ...tab,
     label: tab.title || tab.url,
   }));
-  const addableTabs = visibleTabs.filter((tab) =>
-    ["git", "terminal", "browser", "files", "side-chat"].includes(tab.id),
+  const addableTabs = tabs.filter(
+    (tab) =>
+      ["git", "terminal", "browser", "files"].includes(tab.id) ||
+      // Side Chat is a creation entry, not a visibility state: it must be
+      // listed even before the first panel opens (showSideChatTab is false
+      // until then, which used to hide the only way to create one).
+      tab.id === "side-chat",
   );
 
   const renderToolTab = (tab: (typeof tabs)[number]) => {
@@ -471,6 +489,10 @@ export function UnifiedRightPanel(props: {
               >
                 {addableTabs.map((tab) => {
                   const Icon = tab.icon;
+                  // The + menu ADDS: browser always opens a fresh tab (the
+                  // header tab click only reveals), everything else opens.
+                  const add =
+                    tab.id === "browser" && onAddBrowser ? onAddBrowser : tab.onOpen;
                   return (
                     <button
                       key={tab.id}
@@ -478,7 +500,7 @@ export function UnifiedRightPanel(props: {
                       role="menuitem"
                       className={`${dragCtl} flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 transition-colors hover:bg-white/[.07] hover:text-white`}
                       onClick={() => {
-                        if (tab.onOpen) tab.onOpen();
+                        if (add) add();
                         onTabChange(tab.id);
                         setToolMenuOpen(false);
                         setToolMenuPosition(null);
@@ -494,11 +516,13 @@ export function UnifiedRightPanel(props: {
             )
           : null}
         {activeTab === "usage" ? usageHeaderActions : null}
-        <div className="ml-auto flex shrink-0 items-center gap-0.5 pl-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1 pl-1">
           {onToggleFollowsThread ? (
             <button
               type="button"
-              className={`${dragCtl} ${panelHeaderTabIconButtonClass(followsThread)}`}
+              className={`${dragCtl} ${sidePanelHeaderButtonClass} ${
+                followsThread ? "bg-white/10 text-foreground" : ""
+              }`}
               title={
                 followsThread
                   ? t`Unlock panel from the open thread`
@@ -507,33 +531,33 @@ export function UnifiedRightPanel(props: {
               aria-pressed={followsThread}
               onClick={onToggleFollowsThread}
             >
-              {followsThread ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
+              {followsThread ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
             </button>
           ) : null}
           {onToggleMaximize ? (
             <button
               type="button"
               aria-label={isMaximized ? t`Restore side panel` : t`Maximize side panel`}
-              className={`${dragCtl} ${panelHeaderIconButtonClass}`}
+              className={`${dragCtl} ${sidePanelHeaderButtonClass}`}
               title={isMaximized ? t`Restore side panel` : t`Maximize side panel`}
               onClick={onToggleMaximize}
             >
               {isMaximized ? (
-                <Minimize2 className="size-3.5" />
+                <Minimize2 className="size-4" />
               ) : (
-                <Maximize2 className="size-3.5" />
+                <Maximize2 className="size-4" />
               )}
             </button>
           ) : null}
           {shouldShowPanelCloseButton ? (
             <button
               type="button"
-              aria-label={t`Hide panel`}
-              className={`${dragCtl} ${panelHeaderIconButtonClass}`}
-              title={t`Hide panel`}
+              aria-label={t`Hide side panel`}
+              className={`${dragCtl} ${sidePanelHeaderButtonClass}`}
+              title={t`Hide side panel`}
               onClick={onClose}
             >
-              <PanelRightClose className="size-3.5" />
+              <PanelRightClose className="size-4" />
             </button>
           ) : null}
         </div>

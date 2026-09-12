@@ -13,6 +13,7 @@ import type {
   StructuredSessionListener,
 } from "@/supervisor/agents/base";
 import {
+  COMPLETE_TURN_SILENT_GRACE_MS,
   MAX_CONCURRENT_CHILDREN_PER_PARENT,
   SubagentRunManager,
   SubagentSpawnError,
@@ -374,7 +375,7 @@ describe("SubagentRunManager", () => {
     handle.completeTurn("completed");
 
     const result = await h.manager.waitFor(runId, 1000);
-    expect(result).toEqual({ status: "completed", output: "Hello" });
+    expect(result).toEqual({ status: "completed", output: "Hello", steps: 0 });
 
     const completion = h.appended
       .map((a) => a.event)
@@ -400,6 +401,7 @@ describe("SubagentRunManager", () => {
     await expect(h.manager.waitFor(runId, 1000)).resolves.toEqual({
       status: "completed",
       output: "",
+      steps: 0,
     });
   });
 
@@ -674,8 +676,7 @@ describe("SubagentRunManager", () => {
     expect(h.inputs).toHaveLength(1);
   });
 
-  it("keeps background runs alive across foreground cancellation", async () => {
-    const h = makeHarness();
+  it("keeps background runs alive across foreground cancellation", async () => {    const h = makeHarness();
     const foreground = h.manager.spawn(PARENT, { agent: "codex", prompt: "foreground" });
     const background = h.manager.spawn(PARENT, {
       agent: "codex",
@@ -693,6 +694,81 @@ describe("SubagentRunManager", () => {
         expect.objectContaining({ run_id: background.runId, background: true, status: "running" }),
       ]),
     );
+  });
+
+  it("ends silent still-running runs when the parent turn finishes", async () => {
+    const h = makeHarness();
+    const foreground = h.manager.spawn(PARENT, { agent: "codex", prompt: "foreground" });
+    const background = h.manager.spawn(PARENT, {
+      agent: "codex",
+      prompt: "background",
+      background: true,
+    });
+    await flush();
+
+    // Fresh silent runs are spared: session creation + first-token latency
+    // means a just-spawned child is always silent for a few seconds.
+    expect(h.manager.completeTurn(PARENT)).toBe(0);
+    expect(h.manager.getStatus(foreground.runId).status).toBe("running");
+    expect(h.manager.getStatus(background.runId).status).toBe("running");
+
+    expect(h.manager.completeTurn(PARENT, Date.now() + COMPLETE_TURN_SILENT_GRACE_MS + 1)).toBe(
+      2,
+    );
+    expect(h.manager.getStatus(foreground.runId).status).toBe("cancelled");
+    expect(h.manager.getStatus(background.runId).status).toBe("cancelled");
+    // The child session is actually torn down, not just marked.
+    await flush();
+    expect(h.handles[0]!.disposed).toBe(true);
+    expect(h.manager.completeTurn(PARENT)).toBe(0);
+  });
+
+  it("leaves already-settled runs alone on completeTurn", async () => {
+    const h = makeHarness();
+    const background = h.manager.spawn(PARENT, {
+      agent: "codex",
+      prompt: "background",
+      background: true,
+    });
+    await flush();
+
+    h.handles[0]!.completeTurn("completed");
+    expect(h.manager.getStatus(background.runId).status).toBe("completed");
+    expect(h.manager.completeTurn(PARENT)).toBe(0);
+    expect(h.manager.getStatus(background.runId).status).toBe("completed");
+  });
+
+  it("spares running runs that already produced output, steps, or approval waits", async () => {
+    const h = makeHarness();
+    const streaming = h.manager.spawn(PARENT, { agent: "codex", prompt: "streams" });
+    const acting = h.manager.spawn(PARENT, { agent: "codex", prompt: "acts" });
+    const awaiting = h.manager.spawn(PARENT, { agent: "codex", prompt: "waits" });
+    const silent = h.manager.spawn(PARENT, { agent: "codex", prompt: "silent" });
+    await flush();
+
+    h.handles[0]!.emit({
+      type: "content.delta",
+      threadId: "child",
+      itemId: "answer",
+      stream: "assistant_text",
+      delta: "partial result",
+    });
+    h.handles[1]!.emit({
+      type: "item.started",
+      threadId: "child",
+      itemId: "tool-1",
+      itemType: "tool_call",
+      payload: { name: "read" },
+    });
+    h.handles[2]!.openRequest("perm-1");
+
+    expect(
+      h.manager.completeTurn(PARENT, Date.now() + COMPLETE_TURN_SILENT_GRACE_MS + 1),
+    ).toBe(1);
+    expect(h.manager.getStatus(streaming.runId).status).toBe("running");
+    expect(h.manager.getStatus(acting.runId).status).toBe("running");
+    expect(h.manager.getStatus(awaiting.runId).status).toBe("running");
+    expect(h.manager.getStatus(silent.runId).status).toBe("cancelled");
   });
 
   it("keeps a background result available for an explicit wait without injecting a message", async () => {
@@ -717,6 +793,7 @@ describe("SubagentRunManager", () => {
     await expect(h.manager.waitFor(background.runId, 1000, PARENT)).resolves.toEqual({
       status: "completed",
       output: "background result",
+      steps: 0,
     });
     expect(
       h.appended.some(
@@ -884,7 +961,7 @@ describe("SubagentRunManager", () => {
 
     const { runId } = manager.spawn(PARENT, { agent: "commandcode", prompt: "go" });
     const result = await manager.waitFor(runId, 5000);
-    expect(result).toEqual({ status: "completed", output: "done work" });
+    expect(result).toEqual({ status: "completed", output: "done work", steps: 1 });
 
     // The streamed text opened an assistant_message nested under the tile.
     const started = appended
@@ -1030,5 +1107,52 @@ describe("SubagentRunManager", () => {
       );
     expect(resolvedEvents).toHaveLength(1);
     expect(resolvedEvents[0]!.outcome).toBe("accepted");
+  });
+
+  it("exposes parent/child traceability via list_runs (provider/model/steps/prompt/consumed)", async () => {
+    const h = makeHarness();
+    const { runId } = h.manager.spawn(PARENT, {
+      agent: "codex",
+      prompt: "analyze the login issue and report findings",
+      background: true,
+    });
+    await flush();
+
+    const before = h.manager.listRuns(PARENT).find((run) => run.run_id === runId)!;
+    expect(before).toMatchObject({
+      status: "running",
+      background: true,
+      provider: "codex",
+      steps: 0,
+      output_chars: 0,
+      consumed: false,
+    });
+    expect(before.prompt_preview).toContain("analyze the login issue");
+    expect(before.created_at).toBeGreaterThan(0);
+    expect(before.settled_at).toBeNull();
+
+    h.handles[0]!.emit({
+      type: "content.delta",
+      threadId: "child",
+      itemId: "answer",
+      stream: "assistant_text",
+      delta: "login root cause: expired session cookie",
+    });
+    h.handles[0]!.completeTurn("completed");
+
+    // Settled but not yet consumed: the result is waiting for the parent.
+    const settled = h.manager.listRuns(PARENT).find((run) => run.run_id === runId)!;
+    expect(settled.status).toBe("completed");
+    expect(settled.consumed).toBe(false);
+
+    const waited = await h.manager.waitFor(runId, 1000, PARENT);
+    expect(waited).toMatchObject({ status: "completed", steps: 0 });
+    expect(waited.output).toContain("expired session cookie");
+
+    // After an explicit wait the parent was handed the result.
+    const consumed = h.manager.listRuns(PARENT).find((run) => run.run_id === runId)!;
+    expect(consumed.consumed).toBe(true);
+    expect(consumed.settled_at).toBeGreaterThan(0);
+    expect(consumed.output_chars).toBeGreaterThan(0);
   });
 });

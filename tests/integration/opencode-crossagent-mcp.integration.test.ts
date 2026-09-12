@@ -13,7 +13,7 @@ import {
 } from "@/supervisor/agents/opencode/sdkClient";
 import {
   CROSSAGENT_PROVIDER_SESSION_ID_ARG,
-  CrossagentMcpIngress,
+  OwnSubagentsMcpIngress,
 } from "@/supervisor/crossagentMcp/CrossagentMcpIngress";
 import { SubagentRunManager } from "@/supervisor/crossagentMcp/SubagentRunManager";
 
@@ -22,7 +22,7 @@ const PARENT_THREAD_ID = "oc-int-parent-thread";
 describe("opencode hosts Crossagents MCP on its shared server (live)", () => {
   let firstProjectDir: string;
   let secondProjectDir: string;
-  let ingress: CrossagentMcpIngress;
+  let ingress: OwnSubagentsMcpIngress;
   let runManager: SubagentRunManager;
   let mcp: CrossagentMcpHttpConfig;
   let opencode: AgentAdapter | undefined;
@@ -48,10 +48,10 @@ describe("opencode hosts Crossagents MCP on its shared server (live)", () => {
         appendRuntimeEvent: () => {},
       },
     });
-    ingress = new CrossagentMcpIngress({
+    ingress = new OwnSubagentsMcpIngress({
       runManager,
       getSpawnableAgents: async () => [],
-      resolveProviderSessionThreadId: (sessionId) => providerSessions.get(sessionId),
+      resolveProviderSessionThreadId: (sessionId: string) => providerSessions.get(sessionId),
     });
     await ingress.start();
     const registered = ingress.registerProviderSessionThread(PARENT_THREAD_ID);

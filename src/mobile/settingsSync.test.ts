@@ -47,7 +47,7 @@ describe("pushDesktopSettingsDiff push ordering", () => {
   it("hydrates the desktop's persistent composer MCP toggles", () => {
     const remote = {
       ...settings("v0"),
-      enabledMcpServers: { browser: true, crossagents: false, "computer-use": true },
+      enabledMcpServers: { browser: true, own_subagents: false, "computer-use": true },
       disabledBuiltInMcpServers: { chrome: true },
     } as RemoteSettings;
 
@@ -59,12 +59,12 @@ describe("pushDesktopSettingsDiff push ordering", () => {
   it("forwards a persistent composer MCP toggle change to the desktop", async () => {
     applyDesktopSettings({
       ...settings("v0"),
-      enabledMcpServers: { browser: true, crossagents: false },
+      enabledMcpServers: { browser: true, own_subagents: false },
       disabledBuiltInMcpServers: {},
     } as RemoteSettings);
     const committed = {
       ...settings("v0"),
-      enabledMcpServers: { browser: true, crossagents: true },
+      enabledMcpServers: { browser: true, own_subagents: true },
       disabledBuiltInMcpServers: {},
     } as RemoteSettings;
     const updateSettings = vi.fn<(patch: RemoteSettingsPatch) => Promise<RemoteSettings>>(
@@ -80,7 +80,7 @@ describe("pushDesktopSettingsDiff push ordering", () => {
     await flush();
 
     expect(updateSettings).toHaveBeenCalledWith({
-      enabledMcpServers: { browser: true, crossagents: true },
+      enabledMcpServers: { browser: true, own_subagents: true },
     });
   });
 

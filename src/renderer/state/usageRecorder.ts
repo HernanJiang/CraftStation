@@ -269,9 +269,31 @@ function readSkillNameFromPath(value: string | undefined): string | undefined {
   return skill && !skill.startsWith(".") ? skill : undefined;
 }
 
-/** Record an AI-performed git action (commit / PR / conflict) into the buffer. */
+/** Record an AI-performed git action (commit / push / PR / conflict / branch) into the buffer. */
 export function recordAiAction(type: AiActionType, provider: string, model: string): void {
   push({ ts: Date.now(), kind: `ai_${type}`, provider, model, value: 1 });
+}
+
+/**
+ * Record one use of a CraftStation mode (auto / efficient / creative) at
+ * prompt-submit time. Modes are a UI-level choice, not a provider fact, so
+ * they get their own `craft_mode` kind instead of overloading `thread_started`
+ * (which only knows chat vs CLI presentation). Provider/model are attached
+ * best-effort so the per-account filter keeps working.
+ */
+export function recordCraftModeUse(
+  mode: "auto" | "efficient" | "creative",
+  provider?: string | null,
+  model?: string | null,
+): void {
+  push({
+    ts: Date.now(),
+    kind: "craft_mode",
+    name: mode,
+    ...(provider ? { provider } : {}),
+    ...(model ? { model } : {}),
+    value: 1,
+  });
 }
 
 /** Record that a thread was started (provider/model/mode/fast/effort). */

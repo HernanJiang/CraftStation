@@ -198,6 +198,10 @@ describe("InvalidSessionRecoveryCoordinator", () => {
       launchPrompt: "",
       extraEnv: { CRAFTSTATION_HOOK_URL: "http://127.0.0.1/hook" },
     });
+    // Explicit fork marker: UI history is retained but the provider context
+    // is fresh, and the dead ref is cleared so nothing resumes it again.
+    expect(harness.session.recoveredFromInvalidRef).toBe(true);
+    expect("sessionRef" in harness.session).toBe(false);
   });
 
   it("returns the same in-flight recovery when the banner repeats", async () => {

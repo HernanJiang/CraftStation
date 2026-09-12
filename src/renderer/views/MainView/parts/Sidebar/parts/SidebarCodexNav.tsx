@@ -52,13 +52,13 @@ export function SidebarCodexNav() {
             type="button"
             aria-label={t`Home`}
             onClick={() => openNewThread()}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 text-left transition-colors hover:bg-[var(--row-hover)]"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-none px-1 py-1 text-left transition-colors hover:bg-[var(--row-hover)]"
           >
             <img
               src={brandLogoUrl}
               alt=""
               draggable={false}
-              className="size-5 shrink-0 rounded-[6px] object-contain"
+              className="size-5 shrink-0 rounded-none object-contain"
             />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
               CraftStation
@@ -75,7 +75,7 @@ export function SidebarCodexNav() {
             <Search className="size-4" />
           </button>
         </ControlTooltip>
-        <Dropdown onOpenChange={(open) => open && useNotificationStore.getState().markAllRead()}>
+        <Dropdown>
           <ControlTooltip label={t`Notifications`} placement="right">
             <Dropdown.Trigger
               aria-label={t`Notifications`}
@@ -91,7 +91,7 @@ export function SidebarCodexNav() {
               ) : null}
             </Dropdown.Trigger>
           </ControlTooltip>
-          <Dropdown.Popover placement="bottom end" className="min-w-[280px] rounded-[14px]">
+          <Dropdown.Popover placement="bottom end" className="min-w-[280px] rounded-none">
             <Dropdown.Menu
               aria-label={t`Notifications`}
               onAction={(key) => {
@@ -100,32 +100,39 @@ export function SidebarCodexNav() {
                   return;
                 }
                 const item = notifications.find((entry) => entry.id === key);
-                if (item) openNotificationThread(item.threadId);
+                if (!item) return;
+                openNotificationThread(item.threadId);
+                useNotificationStore.getState().remove(item.id);
               }}
             >
               {notifications.length === 0 ? (
-                <Dropdown.Item id="empty" textValue={t`No notifications`}>
-                  <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
+                <Dropdown.Item id="empty" textValue={t`No notifications`} className="rounded-none">
+                  <span className="min-w-0 flex-1 whitespace-normal break-words text-[11px] text-muted">
                     {t`No notifications`}
                   </span>
                 </Dropdown.Item>
               ) : (
                 notifications.map((item) => (
-                  <Dropdown.Item key={item.id} id={item.id} textValue={item.title}>
+                  <Dropdown.Item
+                    key={item.id}
+                    id={item.id}
+                    textValue={item.title}
+                    className="rounded-none"
+                  >
                     <span
                       aria-hidden="true"
                       className={`size-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[item.tone]}`}
                     />
                     <span className="min-w-0 flex-1">
                       <Label>
-                        <span className="block min-w-0 truncate text-xs font-medium text-foreground">
+                        <span className="block min-w-0 whitespace-normal break-words text-xs font-medium text-foreground">
                           {item.title}
                         </span>
                       </Label>
-                      <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted">
-                        <span className="min-w-0 truncate">{item.status}</span>
+                      <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-muted">
+                        <span className="min-w-0 whitespace-normal break-words">{item.status}</span>
                         {item.project ? (
-                          <span className="shrink-0 truncate opacity-70">{item.project}</span>
+                          <span className="shrink-0 opacity-70">{item.project}</span>
                         ) : null}
                       </span>
                     </span>
@@ -155,12 +162,12 @@ export function SidebarCodexNav() {
           placement="right"
           triggerClassName="w-full"
         >
-          <Dropdown.Trigger className="flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[var(--surface-secondary)] px-3 text-sm font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
+          <Dropdown.Trigger className="flex h-9 w-full items-center justify-center gap-2 rounded-none bg-[var(--surface-secondary)] px-3 text-sm font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
             <Plus className="size-4" />
             <span>{t`New chat / project`}</span>
           </Dropdown.Trigger>
         </ControlTooltip>
-        <Dropdown.Popover placement="bottom start" className="min-w-[250px] rounded-[14px]">
+        <Dropdown.Popover placement="bottom start" className="min-w-[250px] rounded-none">
           <Dropdown.Menu
             aria-label={t`New chat / project`}
             onAction={(key) => {
@@ -169,15 +176,15 @@ export function SidebarCodexNav() {
               if (key === "project") usePanelStore.getState().openCreateProjectModal();
             }}
           >
-            <Dropdown.Item id="thread" textValue={t`New chat`}>
+            <Dropdown.Item id="thread" textValue={t`New chat`} className="rounded-none">
               <MessageSquarePlus className="size-4 text-muted" />
               <Label>{t`New chat`}</Label>
             </Dropdown.Item>
-            <Dropdown.Item id="project-thread" textValue={t`New chat in project`}>
+            <Dropdown.Item id="project-thread" textValue={t`New chat in project`} className="rounded-none">
               <FolderPlus className="size-4 text-muted" />
               <Label>{t`New chat in project`}</Label>
             </Dropdown.Item>
-            <Dropdown.Item id="project" textValue={t`New project`}>
+            <Dropdown.Item id="project" textValue={t`New project`} className="rounded-none">
               <Plus className="size-4 text-muted" />
               <Label>{t`New project`}</Label>
             </Dropdown.Item>

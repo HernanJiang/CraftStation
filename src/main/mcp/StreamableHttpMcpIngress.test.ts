@@ -42,6 +42,29 @@ afterEach(() => {
 });
 
 describe("StreamableHttpMcpIngress auth + host guards", () => {
+  it("binds loopback by default so Windows Firewall is not prompted at launch", async () => {
+    ingress = new StreamableHttpMcpIngress({
+      serverInfo: { name: "test", version: "0.0.0" },
+      instructions: "test",
+      tools: [{ name: "noop", description: "noop", inputSchema: { type: "object" } }],
+      isKnownToolName: (name) => name === "noop",
+      buildContext: () => ({ ok: true }),
+      dispatchTool: () => Promise.resolve({}),
+      formatToolResult: () => ({ content: [{ type: "text", text: "ok" }] }),
+    });
+    const info = await ingress.start();
+    expect(info.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    const ok = await fetch(`${info.url}/mcp?thread=test`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${info.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    expect(ok.status).toBe(200);
+  });
+
   it("filters disabled tools from discovery and calls", async () => {
     ingress = makeIngress();
     const info = await ingress.start();

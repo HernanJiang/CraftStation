@@ -22,6 +22,8 @@ import {
 import { shouldSpawnAcpSession } from "./sessionFactory";
 import {
   isAcpPromptQuotaExhaustedError,
+  isGrokPoolQuotaError,
+  isKimiPoolQuotaError,
   resolveAcpPromptFailureMessage,
   resolveAcpPromptRpcErrorMessage,
   shouldEmitAcpPromptRpcErrorItem,
@@ -369,6 +371,48 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
 
     expect(resolveAcpPromptRpcErrorMessage(error)).toBe("Grok 额度已耗尽");
     expect(isAcpPromptQuotaExhaustedError(error)).toBe(true);
+    expect(isGrokPoolQuotaError(error)).toBe(true);
+  });
+
+  it("treats the in-stream surfaced Grok exhaustion message as a pool quota error", () => {
+    // Grok can end the prompt "normally" while streaming the real failure as
+    // an agent_message_chunk; the pool write-back and failover must still
+    // fire for this shape even though it is not a RequestError.
+    expect(isGrokPoolQuotaError(new Error("Grok Build usage balance exhausted"))).toBe(true);
+    expect(isGrokPoolQuotaError(new Error("Grok 额度已耗尽"))).toBe(true);
+    expect(isAcpPromptQuotaExhaustedError(new Error("Grok 额度已耗尽"))).toBe(false);
+  });
+
+  it("treats Kimi 402 failures as pool quota errors, never 429 or auth", () => {
+    // No repo sample of Kimi turn-level text exists yet, so the matcher is
+    // anchored on HTTP 402 (Payment Required) plus payment wording — 429
+    // rate-limiting and 401/403 auth stay fail-closed.
+    expect(
+      isKimiPoolQuotaError({
+        code: -32603,
+        message: "Internal error",
+        data: { http_status: 402, message: "payment required" },
+      }),
+    ).toBe(true);
+    expect(isKimiPoolQuotaError(new Error("payment required"))).toBe(true);
+    expect(isKimiPoolQuotaError({ data: { http_status: 429, message: "too many requests" } })).toBe(
+      false,
+    );
+    expect(isKimiPoolQuotaError({ data: { http_status: 401, message: "unauthorized" } })).toBe(
+      false,
+    );
+    expect(isKimiPoolQuotaError({ data: { http_status: 403, message: "forbidden" } })).toBe(false);
+    expect(isKimiPoolQuotaError(new Error("load balancing failed"))).toBe(false);
+    expect(isKimiPoolQuotaError(new Error("Internal error"))).toBe(false);
+    expect(isKimiPoolQuotaError(undefined)).toBe(false);
+  });
+
+  it("rejects non-quota errors as pool quota signals", () => {
+    expect(isGrokPoolQuotaError(new Error("Internal error"))).toBe(false);
+    expect(isGrokPoolQuotaError(new Error("401 invalid access token or token expired"))).toBe(
+      false,
+    );
+    expect(isGrokPoolQuotaError(undefined)).toBe(false);
   });
 
   it("suppresses a generic Internal error row when usage detail was already streamed", () => {
@@ -395,7 +439,11 @@ describe("ACP prompt error observer", () => {
     });
     connection.prompt.mockRejectedValueOnce(error);
 
-    await session.startTurn("quota", { model: "model-a" });
+    // A pool-quota RPC rejection rejects (not resolves) so the supervisor's
+    // failover-or-fail machinery runs; the failure events are unchanged.
+    await expect(session.startTurn("quota", { model: "model-a" })).rejects.toThrow(
+      "Grok 额度已耗尽",
+    );
 
     expect(onPromptError).toHaveBeenCalledWith(error);
     expect(listener.onUpdate).toHaveBeenLastCalledWith({
@@ -405,6 +453,86 @@ describe("ACP prompt error observer", () => {
     });
     expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
       expect.objectContaining({ type: "error", message: "Grok 额度已耗尽" }),
+    );
+  });
+
+  it("still resolves non-quota prompt rejections exactly as before", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    (session as unknown as Record<string, unknown>)["onPromptError"] = onPromptError;
+    connection.prompt.mockRejectedValueOnce(new Error("tunnel hiccup"));
+
+    await session.startTurn("hello", { model: "model-a" });
+
+    expect(onPromptError).toHaveBeenCalledOnce();
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "turn.completed", state: "failed" }),
+    );
+  });
+
+  it("rejects an in-stream surfaced Grok exhaustion without duplicating failure events", async () => {
+    // Grok's common shape: the prompt "succeeds" (end_turn) while the real
+    // failure arrived as an in-stream error message. Resolving here leaves
+    // the dead session current, so every later turn reuses the exhausted
+    // account forever — it must reject like the RPC shape.
+    const { connection, listener, session } = makeConfigSyncSession();
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    (session as unknown as Record<string, unknown>)["onPromptError"] = onPromptError;
+    connection.prompt.mockImplementationOnce(async () => {
+      (session as unknown as Record<string, unknown>)["agentSurfacedErrorMessage"] =
+        "Grok Build usage balance exhausted";
+      return { stopReason: "end_turn" };
+    });
+
+    await expect(session.startTurn("quota", { model: "model-a" })).rejects.toThrow(
+      "Grok Build usage balance exhausted",
+    );
+
+    // Write-back ran exactly once (no catch-path double report).
+    expect(onPromptError).toHaveBeenCalledOnce();
+    expect((onPromptError.mock.calls[0]?.[0] as Error | undefined)?.message).toBe(
+      "Grok Build usage balance exhausted",
+    );
+    // Failure events emitted exactly once (no catch-path duplication).
+    const failedTurns = listener.onRuntimeEvent.mock.calls.filter(
+      ([event]) =>
+        (event as { type?: string; state?: string }).type === "turn.completed" &&
+        (event as { type?: string; state?: string }).state === "failed",
+    );
+    expect(failedTurns).toHaveLength(1);
+  });
+
+  it("still resolves non-quota in-stream failures exactly as before", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    connection.prompt.mockImplementationOnce(async () => {
+      (session as unknown as Record<string, unknown>)["agentSurfacedErrorMessage"] =
+        "tunnel hiccup";
+      return { stopReason: "end_turn" };
+    });
+
+    await session.startTurn("hello", { model: "model-a" });
+
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "turn.completed", state: "failed" }),
+    );
+  });
+
+  it("rejects an in-stream surfaced Kimi 402 failure for pool failover", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    (session as unknown as Record<string, unknown>)["onPromptError"] = onPromptError;
+    connection.prompt.mockImplementationOnce(async () => {
+      (session as unknown as Record<string, unknown>)["agentSurfacedErrorMessage"] =
+        "payment required";
+      return { stopReason: "end_turn" };
+    });
+
+    await expect(session.startTurn("quota", { model: "model-a" })).rejects.toThrow(
+      "payment required",
+    );
+    expect(onPromptError).toHaveBeenCalledOnce();
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "turn.completed", state: "failed" }),
     );
   });
 });
@@ -541,10 +669,14 @@ describe("ACP prompt-response usage → usage.spent", () => {
         accountId: "grok:managed-account",
       },
     });
-    // The dock's context.updated is still emitted from the same payload.
-    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "context.updated" }),
-    );
+    // PromptResponse.usage is session-cumulative billing telemetry, not the
+    // provider's current context occupancy. Only ACP usage_update may update
+    // the context bar.
+    expect(
+      listener.onRuntimeEvent.mock.calls.some(
+        ([event]) => (event as { type?: string }).type === "context.updated",
+      ),
+    ).toBe(false);
 
     // Second turn: same scope, `fresh` consumed by the first sample.
     connection.prompt.mockResolvedValueOnce({
@@ -599,19 +731,11 @@ describe("ACP prompt-response usage → usage.spent", () => {
         accountId: "grok:managed-account",
       },
     });
-    expect(listener.onRuntimeEvent).toHaveBeenCalledWith({
-      type: "context.updated",
-      threadId: "thread-1",
-      usage: {
-        usedTokens: 2400,
-        breakdown: [
-          { id: "input", label: "Input", tokens: 2100 },
-          { id: "output", label: "Output", tokens: 300 },
-          { id: "reasoning", label: "Reasoning", tokens: 100 },
-          { id: "cache-read", label: "Cache read", tokens: 50 },
-        ],
-      },
-    });
+    expect(
+      listener.onRuntimeEvent.mock.calls.some(
+        ([event]) => (event as { type?: string }).type === "context.updated",
+      ),
+    ).toBe(false);
   });
 
   it("marks resumed sessions non-fresh and emits nothing without prompt usage", async () => {

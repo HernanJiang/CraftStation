@@ -1,4 +1,4 @@
-import type { AgentAuthMethod, AgentCapability } from "@/shared/contracts";
+import type { AgentAuthMethod, AgentCapability, ProjectLocation } from "@/shared/contracts";
 import { batchWslCommandsAsync, type AuthProbe, type DetectionSpec } from "../base";
 import {
   ANTIGRAVITY_KNOWN_MODEL_VARIANTS,
@@ -8,7 +8,7 @@ import {
 } from "./models";
 import { ANTIGRAVITY_CONFIG_SUBPATH, antigravityConfigDirExists } from "./session";
 
-export const ANTIGRAVITY_DEFAULT_MODEL_ID = "Gemini 3.5 Flash";
+export const ANTIGRAVITY_DEFAULT_MODEL_ID = "Gemini 3.6 Flash";
 
 // `agy` runs a detached background self-updater (`agy --bg-updater`, which then
 // shells out to `agy --version`) on its own rate-limited schedule — so it fires
@@ -23,6 +23,22 @@ export const ANTIGRAVITY_DEFAULT_MODEL_ID = "Gemini 3.5 Flash";
 export const ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV: Record<string, string> = {
   AGY_CLI_DISABLE_AUTO_UPDATE: "1",
 };
+
+/**
+ * Pool-account ADC scope redirects (`AGY_ADC_AUTH` +
+ * `GOOGLE_APPLICATION_CREDENTIALS`) name a host-side credential file that a WSL
+ * distro's `agy` cannot read — the distro keeps its own keyring login. Strip
+ * the redirects at the WSL boundary (same policy as the WSL MCP filtering);
+ * everything else, notably the auto-update kill switch, still applies.
+ */
+export function antigravitySessionEnvForLocation(
+  env: Record<string, string> | undefined,
+  location: ProjectLocation,
+): Record<string, string> | undefined {
+  if (location.kind !== "wsl" || !env) return env;
+  const { AGY_ADC_AUTH: _adcAuth, GOOGLE_APPLICATION_CREDENTIALS: _adcPath, ...rest } = env;
+  return rest;
+}
 
 const defaultModelCapabilities = buildAntigravityModelCapabilities(
   ANTIGRAVITY_KNOWN_MODEL_VARIANTS,

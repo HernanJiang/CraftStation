@@ -103,6 +103,8 @@ export interface RuntimeEventSlice {
   runtimeItemIdsByThread: Record<string, readonly string[]>;
   /** O(1) item lookup by id for each thread. */
   runtimeItemsByIdByThread: Record<string, Record<string, RuntimeChatItem>>;
+  /** Turn start timestamps (ms) the user cancelled via Stop, per thread. */
+  userCancelledTurnStartsByThread: Record<string, readonly number[]>;
   /** Open approval / user-input requests per thread. */
   runtimeRequestsByThread: Record<string, OpenRuntimeRequest[]>;
   /** Latest provider-reported context usage per GUI thread. */
@@ -163,6 +165,15 @@ export interface RuntimeEventSlice {
   /** Replace the persisted completed-turn list (used during DB hydration). */
   hydrateThreadCompletedTurns(threadId: string, turns: ReadonlyArray<CompletedTurnRecord>): void;
   /**
+   * Remember that the user pressed Stop during the turn that started at
+   * `startedAtMs`. Turn records carry no end-state, so this in-memory mark is
+   * the only honest "cancelled by user" signal — matched by start timestamp
+   * when rendering the per-turn status bar. Deliberately session-local: after
+   * a reload the turn falls back to its frozen completed rendering instead of
+   * inventing history.
+   */
+  markUserCancelledTurn(threadId: string, startedAtMs: number): void;
+  /**
    * Seed the latest persisted context-window usage for a thread. Skipped if a
    * fresher value already exists in the live store (the active provider stream
    * is the source of truth once it's flowing).
@@ -205,6 +216,7 @@ export function createInitialRuntimeEventState(): Pick<
   | "runtimeStructuralVersionByThread"
   | "runtimeCompletedTurnsByThread"
   | "runtimeOpenTurnByThread"
+  | "userCancelledTurnStartsByThread"
   | "fileCheckpointsByThread"
   | "fileCheckpointTurnsByThread"
 > {
@@ -216,6 +228,7 @@ export function createInitialRuntimeEventState(): Pick<
     runtimeStructuralVersionByThread: {},
     runtimeCompletedTurnsByThread: {},
     runtimeOpenTurnByThread: {},
+    userCancelledTurnStartsByThread: {},
     fileCheckpointsByThread: {},
     fileCheckpointTurnsByThread: {},
   };
@@ -419,6 +432,19 @@ export const createRuntimeEventSlice: SliceCreator<RuntimeEventSlice> = (set) =>
         runtimeCompletedTurnsByThread: {
           ...state.runtimeCompletedTurnsByThread,
           [threadId]: merged,
+        },
+      };
+    }),
+
+  markUserCancelledTurn: (threadId, startedAtMs) =>
+    set((state) => {
+      if (!Number.isFinite(startedAtMs)) return {};
+      const existing = state.userCancelledTurnStartsByThread[threadId] ?? [];
+      if (existing.includes(startedAtMs)) return {};
+      return {
+        userCancelledTurnStartsByThread: {
+          ...state.userCancelledTurnStartsByThread,
+          [threadId]: [...existing.slice(-99), startedAtMs],
         },
       };
     }),

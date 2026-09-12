@@ -221,6 +221,68 @@ describe("createAutoUpdaterController", () => {
     expect(reported.message).not.toContain("https://");
   });
 
+  it("does not toast a scheduled launch check when the GitHub feed is missing", async () => {
+    const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+    const reportError = vi.fn<(error: unknown, tags?: Record<string, string>) => void>();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const controller = createAutoUpdaterController(sendStatus, "stable", false, reportError);
+    controller.initialize();
+    const failure = Object.assign(
+      new Error(
+        "Unable to find latest version on GitHub (https://github.com/SDSLeon/craftstation/releases/latest), please ensure a production release exists: 404",
+      ),
+      { statusCode: 404 },
+    );
+    autoUpdaterMock.checkForUpdates.mockImplementation(async () => {
+      autoUpdaterMock.emit("error", failure);
+      throw failure;
+    });
+
+    await vi.advanceTimersByTimeAsync(INITIAL_CHECK_DELAY_MS);
+
+    expect(sendStatus).toHaveBeenCalledWith({ type: "update-not-available" });
+    expect(sendStatus).not.toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
+    expect(reportError).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("[craftstation] update manifest is not available.");
+    warn.mockRestore();
+  });
+
+  it("keeps unexpected scheduled check failures silent", async () => {
+    const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+    const controller = createAutoUpdaterController(sendStatus, "stable", false);
+    controller.initialize();
+    const failure = new Error("Updater emitted a non-Error failure.");
+    autoUpdaterMock.checkForUpdates.mockImplementation(async () => {
+      autoUpdaterMock.emit("error", failure);
+      throw failure;
+    });
+
+    await vi.advanceTimersByTimeAsync(INITIAL_CHECK_DELAY_MS);
+
+    expect(sendStatus).toHaveBeenCalledWith({ type: "update-not-available" });
+    expect(sendStatus).not.toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
+  });
+
+  it("still reports a user-initiated missing stable feed", async () => {
+    const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+    const reportError = vi.fn<(error: unknown, tags?: Record<string, string>) => void>();
+    const controller = createAutoUpdaterController(sendStatus, "stable", false, reportError);
+    controller.initialize();
+    const failure = Object.assign(new Error("latest.yml returned 404"), { statusCode: 404 });
+    autoUpdaterMock.checkForUpdates.mockImplementationOnce(async () => {
+      autoUpdaterMock.emit("error", failure);
+      throw failure;
+    });
+
+    await controller.checkForUpdate();
+
+    expect(sendStatus).toHaveBeenCalledWith({
+      type: "error",
+      messageKey: "update.operationFailed",
+    });
+    expect(reportError).toHaveBeenCalledOnce();
+  });
+
   it("runs an initial check after launch and then keeps checking on the hourly interval", async () => {
     const controller = createAutoUpdaterController(vi.fn(), "stable", false);
     controller.initialize();

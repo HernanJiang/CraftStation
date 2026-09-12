@@ -28,6 +28,8 @@ import { QWEN_DEFAULT_MODEL_ID, QWEN_RETIRED_PREVIEW_MODEL_ID } from "./agents/q
 
 export const WINDOWS_SHELL_AUTO = "auto";
 export const WINDOWS_SHELL_ARGUMENTS_MAX = 8_192;
+/** Max characters for the user-defined global prompt (global AGENTS.md equivalent). */
+export const CUSTOM_GLOBAL_PROMPT_MAX = 8_192;
 export type WindowsShellKind = "pwsh" | "powershell" | "cmd";
 
 export interface AvailableWindowsShell {
@@ -61,6 +63,9 @@ export type ProviderModelPreference = z.infer<typeof providerModelPreferenceSche
 
 export const MAX_CROSSAGENT_ROUTING_OVERRIDES = 100;
 export const MAX_CROSSAGENT_SELECTION_VALUE_LENGTH = 256;
+
+/** Sentinel entry pinning the native-harness lane in the user route order. */
+export const OWN_SUBAGENTS_NATIVE_ROUTE_ID = "native";
 
 export const crossagentSelectionUsageEntrySchema = agentSelectionUsageEntrySchema.extend({
   /** Normalized task classifications supplied by the calling agent. */
@@ -239,6 +244,26 @@ export function normalizeSidebarShortcutOrder(
   return normalized;
 }
 
+/**
+ * Top titlebar shortcut pins. `settings.<section>` deep-links a Settings page
+ * (see `SettingsSection`), `crafting` opens the Crafting Station workspace
+ * tab, `modelUsage` opens the model & usage dialog, `settingsHome` opens the
+ * Settings overlay itself. Free-form strings so future registry items need no
+ * schema bump; unknown ids are ignored at resolve time. Unlike the sidebar
+ * order, missing ids are never re-appended: removing a default pin must stick
+ * across restarts.
+ */
+export const DEFAULT_TOP_SHORTCUT_ORDER: readonly string[] = [
+  "crafting",
+  "settings.mcpServers",
+  "settingsHome",
+];
+
+export function normalizeTopShortcutOrder(order: readonly string[] | undefined): string[] {
+  const base = order ?? DEFAULT_TOP_SHORTCUT_ORDER;
+  return [...new Set(base.map((id) => id.trim()).filter((id) => id.length > 0))];
+}
+
 export const sharedSettingsSchema = z.object({
   themeMode: themeModeSchema,
   /**
@@ -262,6 +287,12 @@ export const sharedSettingsSchema = z.object({
    * governed by this setting.
    */
   gitTextLanguage: z.enum(AI_LANGUAGE_VALUES).default("en"),
+  /**
+   * User-defined global prompt, visible to every conversation like a global
+   * AGENTS.md. Empty (default) means no extra injection beyond the implicit
+   * language directive. Trimmed at read time; blank stays disabled.
+   */
+  customGlobalPrompt: z.string().max(CUSTOM_GLOBAL_PROMPT_MAX).default(""),
   terminalPosition: terminalPositionSchema,
   /** Absolute detected executable path, or "auto" for preferred-shell detection. */
   windowsShellPath: z.string(),
@@ -314,6 +345,13 @@ export const sharedSettingsSchema = z.object({
   /** Per-agent hidden model IDs keyed by agent kind. */
   hiddenModels: z.record(z.string(), z.array(z.string())),
   /**
+   * Per-agent explicitly-shown model IDs keyed by agent kind. For channels
+   * declaring `defaultHiddenModels` (curated-discovery, e.g. OpenCode) a model
+   * is visible only when listed here — freshly discovered models stay out of
+   * the picker until the user checks them in 管理模型.
+   */
+  shownModels: z.record(z.string(), z.array(z.string())),
+  /**
    * 用户在「管理模型」页添加的自定义模型：按渠道（agent kind）追加到首页模型
    * 选择器，并带用户选择的上下文档位（""＝默认最高，其余如 "128K"/"1M"）。
    */
@@ -329,6 +367,16 @@ export const sharedSettingsSchema = z.object({
         modelId: z.string().min(1),
         displayName: z.string().min(1),
         contextSize: z.string(),
+        /** 最大输出 Token（""＝默认）。 */
+        maxOutputTokens: z.string().optional(),
+        /** 思考强度档位（空＝跟随渠道默认；各厂商档位见 VENDOR_EFFORT_PRESETS）。 */
+        efforts: z.array(z.string().min(1)).optional(),
+        /** 默认思考强度（需在档位内）。 */
+        defaultEffort: z.string().min(1).optional(),
+        /** 输入模态（默认 ["text"]；"text" 恒选不可取消）。 */
+        inputModalities: z.array(z.string().min(1)).optional(),
+        /** 输出模态（默认 ["text"]）。 */
+        outputModalities: z.array(z.string().min(1)).optional(),
       }),
     )
     .default([]),
@@ -356,12 +404,20 @@ export const sharedSettingsSchema = z.object({
   staleThreadUnloadMinutes: z.number().int().min(0),
   /** Days a thread can stay marked done before it is auto-archived. 0 disables auto-archive. */
   autoArchiveDoneAfterDays: z.number().int().min(0),
+  /**
+   * Archived-thread auto-delete policy, evaluated strictly from `archivedAt`.
+   * `immediate` permanent-deletes on archive; `forever` (null window) never
+   * auto-deletes but still records `archivedAt`. Default `7d`.
+   */
+  archiveRetention: z.enum(["immediate", "3d", "7d", "15d", "30d", "forever"]).default("7d"),
   /** Terminal scrollback scroll speed multiplier. */
   scrollSpeed: z.number().int().min(1).max(10),
   /** Base font size for agent terminals. Auto-shrinks in narrow/short panes. */
   agentTerminalFontSize: z.number().int().min(8).max(20),
   /** Base font size for agent thread chat (GUI / ACP markdown surface), in px. */
   guiChatFontSize: z.number().int().min(8).max(20),
+  /** Whole-app UI zoom factor (Ctrl +/-), applied to the entire renderer. */
+  zoomFactor: z.number().min(0.5).max(2),
   /** Base font size for the dev terminal panel. Auto-shrinks in narrow/short panes. */
   terminalPanelFontSize: z.number().int().min(8).max(20),
   /**
@@ -414,6 +470,12 @@ export const sharedSettingsSchema = z.object({
   /** Display order for shortcuts in the expanded and collapsed sidebar footer. */
   sidebarShortcutOrder: z.array(z.enum(SIDEBAR_SHORTCUT_IDS)),
   /**
+   * Pinned shortcuts in the top titlebar, in display order. Absent = fresh
+   * install, resolved to {@link DEFAULT_TOP_SHORTCUT_ORDER}; an explicitly
+   * saved empty list stays empty (removed defaults never come back).
+   */
+  topShortcutOrder: z.array(z.string()).optional(),
+  /**
    * Translucent ("liquid glass") sidebar. When on, the window uses a
    * native blur material where supported (macOS vibrancy, Windows 11 acrylic)
    * and an in-app translucent fallback elsewhere. Default on.
@@ -421,7 +483,7 @@ export const sharedSettingsSchema = z.object({
   sidebarTranslucency: z.boolean(),
   /**
    * Per-appearance override for the translucent sidebar's frosting: the alpha
-   * (0–100) of the `--sidebar-glass-tint` content-background mix. Higher is more
+   * (0–100) of the `--sidebar-glass-tint` sidebar-background mix. Higher is more
    * frosted (holds the theme color); lower shows more of the blurred backdrop.
    * `null` keeps the built-in per-platform default (see styles.css). Applied
    * Windows-only — macOS vibrancy keeps its own tint.
@@ -545,33 +607,42 @@ export const sharedSettingsSchema = z.object({
   /** Popularity of user-launched provider/model configurations used as a Crossagents fallback. */
   agentSelectionUsage: z.array(agentSelectionUsageEntrySchema).default([]),
   /**
-   * Popularity of explicit Crossagents selections. Supervisor-managed so an
+   * Popularity of explicit Own Subagents selections. Supervisor-managed so an
    * automatic choice can never reinforce itself and renderer writes cannot
    * overwrite a selection recorded by the MCP ingress.
    */
-  crossagentSelectionUsage: z.array(crossagentSelectionUsageEntrySchema).default([]),
+  ownSubagentSelectionUsage: z.array(crossagentSelectionUsageEntrySchema).default([]),
   /**
-   * User-pinned task-tag routes managed by the Crossagents MCP. The most
+   * User-pinned task-tag routes managed by the Own Subagents MCP. The most
    * specific matching tag set wins before learned affinity.
    */
-  crossagentRoutingOverrides: z
+  ownSubagentRoutingOverrides: z
     .array(crossagentRoutingOverrideSchema)
     .max(MAX_CROSSAGENT_ROUTING_OVERRIDES)
     .default([]),
   /**
-   * Agent kinds temporarily excluded from the Crossagents routing rotation.
+   * Agent kinds temporarily excluded from the Own Subagents routing rotation.
    * Unlike `disabledAgents` (which hides a provider everywhere), pausing only
-   * affects Crossagents delegation — e.g. park a provider until its quota
+   * affects Own Subagents delegation — e.g. park a provider until its quota
    * resets while keeping it in the normal composer picker.
    */
-  crossagentPausedProviders: z.array(z.string()).default([]),
+  ownSubagentPausedProviders: z.array(z.string()).default([]),
   /**
    * Extra hidden model ids keyed by agent kind, applied on top of the global
-   * `hiddenModels` visibility filter but only for Crossagents routing. The
-   * Crossagents settings model dropdown lists already-globally-visible models
+   * `hiddenModels` visibility filter but only for Own Subagents routing. The
+   * Own Subagents settings model dropdown lists already-globally-visible models
    * and lets the user narrow them further here.
    */
-  crossagentHiddenModels: z.record(z.string(), z.array(z.string())).default({}),
+  ownSubagentHiddenModels: z.record(z.string(), z.array(z.string())).default({}),
+  /**
+   * User-ordered Own Subagents route. Entries are provider kinds with the
+   * special `"native"` entry for the current harness's own native subagent
+   * lane. The native entry is system-owned and non-removable (re-inserted on
+   * normalize when missing); an empty list means the default (native first,
+   * then ranked providers). Survives restarts; drives AUTO selection after
+   * explicit per-call values and persistent task routes.
+   */
+  ownSubagentsRouteOrder: z.array(z.string().min(1).max(64)).max(50).default([]),
   /**
    * Dev-only: force agents off the CLI hook plugin path (L1) so they fall back
    * to L2 terminal parsing. The UI toggle is only visible in the dev build;
@@ -584,7 +655,7 @@ export const sharedSettingsSchema = z.object({
   agentHookSupport: z.record(z.string(), agentHookSupportEntrySchema),
   /**
    * Composer MCP servers the user has turned on persistently, keyed by composer
-   * MCP id (`"browser"`, `"crossagents"`, `"chrome"`, `"computer-use"`). `true` means the
+   * MCP id (`"browser"`, `"own-subagents"`, `"chrome"`, `"computer-use"`). `true` means the
    * server is on for every *new* thread whose provider/presentation supports it
    * (baked into `thread.config` at launch) and shows no composer chip — it is a
    * standing default rather than a per-thread opt-in. Absent/`false` leaves the
@@ -612,15 +683,16 @@ export const sharedSettingsSchema = z.object({
   /** Provider usage tracking (auto-refresh cadence, per-provider opt-out, cost). */
   usage: usageSettingsSchema,
   /**
-   * Free-text routing instructions appended to the Crossagents MCP server
+   * Free-text routing instructions appended to the Own Subagents MCP server
    * `instructions`, guiding how an agent picks which connected agent/model to
    * delegate to when spawning subagents (e.g. "Codex GPT-5.5 fast for quick
    * lookups, Claude Opus for anything subtle"). Empty string = no guidance.
-   * Whether a thread gets the Crossagents MCP lives on `thread.config.crossagentMcp`
-   * (persistent default in `enabledMcpServers.crossagents` or a `@crossagents`
-   * mention); this is the global guidance text shared across every such thread.
+   * Whether a thread gets the Own Subagents MCP lives on
+   * `thread.config.crossagentMcp` (persistent default in
+   * `enabledMcpServers.own_subagents` or an `@own_subagents` mention); this is
+   * the global guidance text shared across every such thread.
    */
-  crossagentRoutingGuide: z.string(),
+  ownSubagentRoutingGuide: z.string(),
 });
 export type SharedSettings = z.infer<typeof sharedSettingsSchema>;
 
@@ -637,7 +709,7 @@ export type CliPickerTarget = SharedSettings["cliPickerTarget"];
  */
 export type SharedSettingsInput = Omit<
   SharedSettings,
-  "agentHookSupport" | "crossagentSelectionUsage" | "crossagentRoutingOverrides"
+  "agentHookSupport" | "ownSubagentSelectionUsage" | "ownSubagentRoutingOverrides"
 >;
 
 export const defaultSharedSettings: SharedSettings = {
@@ -645,6 +717,7 @@ export const defaultSharedSettings: SharedSettings = {
   themePreset: "default",
   locale: "system",
   gitTextLanguage: "en",
+  customGlobalPrompt: "",
   terminalPosition: "bottom",
   windowsShellPath: WINDOWS_SHELL_AUTO,
   windowsInternalShellPath: WINDOWS_SHELL_AUTO,
@@ -681,6 +754,7 @@ export const defaultSharedSettings: SharedSettings = {
   wslConflictResolverPresentationMode: "gui",
   agentSettings: {},
   hiddenModels: {},
+  shownModels: {},
   customModels: [],
   disabledAgents: [],
   providerOrder: [],
@@ -690,9 +764,11 @@ export const defaultSharedSettings: SharedSettings = {
   cliPickerTarget: "ask",
   staleThreadUnloadMinutes: 60,
   autoArchiveDoneAfterDays: 3,
+  archiveRetention: "7d",
   scrollSpeed: 2,
   agentTerminalFontSize: 12,
   guiChatFontSize: 13,
+  zoomFactor: 1,
   terminalPanelFontSize: 12,
   preventSleep: "while-remote-access",
   launchAtStartup: true,
@@ -736,14 +812,15 @@ export const defaultSharedSettings: SharedSettings = {
   favoriteModels: [],
   recentModels: [],
   agentSelectionUsage: [],
-  crossagentSelectionUsage: [],
-  crossagentRoutingOverrides: [],
-  crossagentPausedProviders: [],
-  crossagentHiddenModels: {},
+  ownSubagentSelectionUsage: [],
+  ownSubagentRoutingOverrides: [],
+  ownSubagentPausedProviders: [],
+  ownSubagentHiddenModels: {},
+  ownSubagentsRouteOrder: [OWN_SUBAGENTS_NATIVE_ROUTE_ID],
   disableCliHookPlugin: false,
   dismissedHookInstallProposals: {},
   agentHookSupport: {},
-  enabledMcpServers: { crossagents: true },
+  enabledMcpServers: { own_subagents: true, crossagents: true },
   mcpServers: [],
   disabledBuiltInMcpServers: {},
   disabledBuiltInMcpTools: {},
@@ -773,7 +850,7 @@ export const defaultSharedSettings: SharedSettings = {
     collapsedProviders: [],
     selectedRingGroups: {},
   },
-  crossagentRoutingGuide: "",
+  ownSubagentRoutingGuide: "",
 };
 
 function parseSettingOrDefault<T>(schema: z.ZodType<T>, value: unknown, fallback: T): T {
@@ -884,15 +961,117 @@ function migrateRetiredQwenPreviewModel(settings: SharedSettings): SharedSetting
     agentSelectionUsage: settings.agentSelectionUsage.filter(
       (entry) => !isRetiredQwenSelection(entry.agentKind, entry.modelId),
     ),
-    crossagentSelectionUsage: settings.crossagentSelectionUsage.filter(
+    ownSubagentSelectionUsage: settings.ownSubagentSelectionUsage.filter(
       (entry) => !isRetiredQwenSelection(entry.agentKind, entry.modelId),
     ),
-    crossagentRoutingOverrides: settings.crossagentRoutingOverrides.map((entry) =>
+    ownSubagentRoutingOverrides: settings.ownSubagentRoutingOverrides.map((entry) =>
       entry.agentKind === "qwen" && entry.modelId === QWEN_RETIRED_PREVIEW_MODEL_ID
         ? { ...entry, modelId: QWEN_DEFAULT_MODEL_ID }
         : entry,
     ),
   };
+}
+
+/**
+ * Normalize a persisted Own Subagents route order: dedupe, drop blanks, and
+ * re-insert the non-removable native lane when missing. An explicitly ordered
+ * non-empty list keeps its relative order (native appends at the end); only a
+ * missing/empty order defaults to native-first.
+ */
+export function normalizeOwnSubagentsRouteOrder(value: unknown): string[] {
+  const parsed = z.array(z.string()).safeParse(value);
+  const entries = (parsed.success ? parsed.data : [])
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0 && entry.length <= 64);
+  const deduped = [...new Set(entries)].slice(0, 50);
+  if (deduped.length === 0) return [OWN_SUBAGENTS_NATIVE_ROUTE_ID];
+  if (!deduped.includes(OWN_SUBAGENTS_NATIVE_ROUTE_ID)) {
+    deduped.push(OWN_SUBAGENTS_NATIVE_ROUTE_ID);
+  }
+  return deduped;
+}
+
+/**
+ * One-time migration: legacy `crossagent*` settings keys → `ownSubagent*`.
+ * New keys win when both exist. The legacy `enabledMcpServers.crossagents`
+ * flag splits: an explicit `false` turns BOTH new servers off (respecting the
+ * user's explicit intent over the new peer server's default-ON); otherwise
+ * both default on. Legacy keys are absent from the schema, so they drop out
+ * of the normalized object (and the next settings write) automatically.
+ */
+export function migrateCrossagentsToOwnSubagents(
+  normalized: SharedSettings,
+  raw: Record<string, unknown>,
+): SharedSettings {
+  const pick = <T>(current: T, legacyKey: string, schema: z.ZodType<T>): T => {
+    if (!isEmptyValue(current)) return current;
+    const migrated = schema.safeParse(raw[legacyKey]);
+    return migrated.success ? migrated.data : current;
+  };
+  const enabledRaw = z.record(z.string(), z.boolean()).safeParse(raw.enabledMcpServers);
+  const enabledMcpServers: Record<string, boolean> = { ...normalized.enabledMcpServers };
+  if (enabledRaw.success) {
+    const legacyFlag = enabledRaw.data.crossagents;
+    if (legacyFlag === false) {
+      // Explicit user opt-out of the old server: keep BOTH new servers off.
+      if (enabledRaw.data.own_subagents === undefined) enabledMcpServers.own_subagents = false;
+      enabledMcpServers.crossagents = false;
+    } else if (legacyFlag === true && enabledRaw.data.own_subagents === undefined) {
+      enabledMcpServers.own_subagents = true;
+    }
+    if (enabledMcpServers.crossagents === undefined) enabledMcpServers.crossagents = true;
+    if (enabledMcpServers.own_subagents === undefined) enabledMcpServers.own_subagents = true;
+  }
+  // Legacy hard-disables of the old `crossagents` id keep BOTH new servers
+  // off (explicit opt-out wins); per-tool disables copy over so ephemeral
+  // spawn tools stay gated exactly as before.
+  const disabledServers = { ...normalized.disabledBuiltInMcpServers };
+  if (disabledServers.crossagents === true && disabledServers["own-subagents"] === undefined) {
+    disabledServers["own-subagents"] = true;
+  }
+  const disabledTools = { ...normalized.disabledBuiltInMcpTools };
+  if (disabledTools.crossagents !== undefined && disabledTools["own-subagents"] === undefined) {
+    disabledTools["own-subagents"] = disabledTools.crossagents;
+  }
+  const guide =
+    normalized.ownSubagentRoutingGuide ||
+    (typeof raw.crossagentRoutingGuide === "string" ? raw.crossagentRoutingGuide : "");
+  return {
+    ...normalized,
+    ownSubagentSelectionUsage: pick(
+      normalized.ownSubagentSelectionUsage,
+      "crossagentSelectionUsage",
+      z.array(crossagentSelectionUsageEntrySchema),
+    ),
+    ownSubagentRoutingOverrides: pick(
+      normalized.ownSubagentRoutingOverrides,
+      "crossagentRoutingOverrides",
+      z.array(crossagentRoutingOverrideSchema).max(MAX_CROSSAGENT_ROUTING_OVERRIDES),
+    ),
+    ownSubagentPausedProviders: pick(
+      normalized.ownSubagentPausedProviders,
+      "crossagentPausedProviders",
+      z.array(z.string()),
+    ),
+    ownSubagentHiddenModels: pick(
+      normalized.ownSubagentHiddenModels,
+      "crossagentHiddenModels",
+      z.record(z.string(), z.array(z.string())),
+    ),
+    ownSubagentRoutingGuide: guide,
+    ownSubagentsRouteOrder: normalizeOwnSubagentsRouteOrder(normalized.ownSubagentsRouteOrder),
+    enabledMcpServers,
+    disabledBuiltInMcpServers: disabledServers,
+    disabledBuiltInMcpTools: disabledTools,
+  };
+}
+
+function isEmptyValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === "string") return value.length === 0;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.keys(value as Record<string, unknown>).length === 0;
+  return false;
 }
 
 export function normalizeSharedSettings(value: unknown): SharedSettings {
@@ -930,18 +1109,25 @@ export function normalizeSharedSettings(value: unknown): SharedSettings {
   const disabledProviders = usage.success
     ? z.array(z.string()).safeParse(usage.data.disabledProviders)
     : undefined;
-  return migrateRetiredQwenPreviewModel({
-    ...normalized,
-    sidebarShortcutOrder: normalizeSidebarShortcutOrder(normalized.sidebarShortcutOrder),
-    prAutomationDefault: hasAutomationMode ? normalized.prAutomationDefault : legacyAutomationMode,
-    preventSleep: migratedPreventSleep,
-    usage: {
-      ...normalized.usage,
-      disabledProviders: disabledProviders?.success ? disabledProviders.data : [],
-    },
-    enabledMcpServers: {
-      ...defaultSharedSettings.enabledMcpServers,
-      ...normalized.enabledMcpServers,
-    },
-  });
+  return migrateRetiredQwenPreviewModel(
+    migrateCrossagentsToOwnSubagents(
+      {
+        ...normalized,
+        sidebarShortcutOrder: normalizeSidebarShortcutOrder(normalized.sidebarShortcutOrder),
+        prAutomationDefault: hasAutomationMode
+          ? normalized.prAutomationDefault
+          : legacyAutomationMode,
+        preventSleep: migratedPreventSleep,
+        usage: {
+          ...normalized.usage,
+          disabledProviders: disabledProviders?.success ? disabledProviders.data : [],
+        },
+        enabledMcpServers: {
+          ...defaultSharedSettings.enabledMcpServers,
+          ...normalized.enabledMcpServers,
+        },
+      },
+      parsed.data,
+    ),
+  );
 }

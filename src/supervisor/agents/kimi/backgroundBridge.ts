@@ -99,7 +99,16 @@ interface MonitorBackgroundLaunchInput {
 async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Promise<void> {
   const startedAt = input.now();
   const sessionDir = await waitForSessionDir(input, startedAt);
-  if (!sessionDir || input.signal.aborted) return;
+  if (!sessionDir || input.signal.aborted) {
+    // A silently-missing session dir (home mismatch, journal layout drift) used
+    // to give up without any terminal event, leaving the subagent tile at
+    // "running 0/1" and the whole thread pinned at "working" forever. Fail the
+    // launch explicitly instead — the parent session stays alive.
+    if (sessionDir === undefined && !input.signal.aborted) {
+      emitBackgroundCompletion(input.emit, input.subagents, input.launch, "lost", undefined, undefined);
+    }
+    return;
+  }
 
   const wirePath = `${sessionDir}/agents/main/wire.jsonl`;
   const taskPath = `${sessionDir}/agents/main/tasks/${input.launch.taskId}`;
@@ -129,6 +138,11 @@ async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Pro
       emitAutomaticReply ? automaticTurn.text : undefined,
     );
     return;
+  }
+  // The task record never reached a terminal status within the poll budget and
+  // the monitor is expiring — surface a failure instead of vanishing.
+  if (!input.signal.aborted) {
+    emitBackgroundCompletion(input.emit, input.subagents, input.launch, "lost", undefined, undefined);
   }
 }
 

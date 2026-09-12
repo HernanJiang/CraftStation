@@ -141,18 +141,18 @@ function ActiveAgentSection({
       }).length,
   );
   const title =
-    kind === "workflow" ? t`Workflows` : kind === "crossagent" ? t`Crossagents` : t`Subagents`;
+    kind === "workflow" ? t`Workflows` : kind === "crossagent" ? t`Own Subagents` : t`Subagents`;
   const closePanelLabel =
     kind === "workflow"
       ? t`Close workflows panel`
       : kind === "crossagent"
-        ? t`Close Crossagents panel`
+        ? t`Close Own Subagents panel`
         : t`Close subagents panel`;
   const closeLabel =
     kind === "workflow"
       ? t`Close workflows`
       : kind === "crossagent"
-        ? t`Close Crossagents`
+        ? t`Close Own Subagents`
         : t`Close subagents`;
 
   return (

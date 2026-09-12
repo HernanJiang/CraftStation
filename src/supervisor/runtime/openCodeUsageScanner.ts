@@ -1,5 +1,5 @@
 import { type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
-import { hasOpenCodeGoAuth } from "./openCodeGoDb";
+import { hasOpenCodeGoAuth, hasOpenCodeZenAuth } from "./openCodeGoDb";
 import { fetchOpenCodeWeb, type OpenCodeWebSession } from "./openCodeWebSession";
 
 /**
@@ -12,9 +12,10 @@ import { fetchOpenCodeWeb, type OpenCodeWebSession } from "./openCodeWebSession"
  * window boundaries than the server — so falling back to it presents
  * confidently wrong headroom (e.g. 25% local vs 100% on the console).
  *
- * Local `auth.json` is still used as a "has a Go key" signal for the plan
- * badge when the web session is missing; meters stay empty until a cookie
- * session supplies real windows. Zen balance is web-only.
+ * Local `auth.json` is still used as a "has a Go key" / "has a Zen key"
+ * signal for the plan badge when the web session is missing; meters stay
+ * empty until a cookie session supplies real windows. Zen balance is
+ * web-only.
  */
 
 /** Build the OpenCode usage snapshot from Go subscription usage and optional Zen balance. */
@@ -64,6 +65,21 @@ export async function scanOpenCodeUsage(nowMs: number, host?: HostPort): Promise
   // so reverting to "auth-missing" here would wrongly drop the session the
   // moment the user pressed "Use session".
   if (web.live) {
+    return {
+      providerId: "opencode",
+      status: "ok",
+      plan: "Zen",
+      windows: [],
+      ...credits,
+      fetchedAt: nowMs,
+    };
+  }
+
+  // Zen-only CLI login: `opencode auth login` for Zen stores the key under the
+  // `opencode` auth.json entry, not `opencode-go`. The key is a valid login for
+  // running Zen models, so reflect "signed in" instead of a wrong auth-missing
+  // card. Meters stay empty — Zen balance is web-only.
+  if (hasOpenCodeZenAuth()) {
     return {
       providerId: "opencode",
       status: "ok",

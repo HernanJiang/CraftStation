@@ -2,7 +2,11 @@ import type { AccountView, UsageSnapshot } from "@/shared/contracts";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import type { AccountUsageQueryState } from "./AccountUsageGrid";
 import { accountQuotaFailureMessage, hasAccountQuotaValue } from "./AccountUsageGrid";
-import { formatUsedQuota, userFacingTokenMessage } from "./quotaStatus";
+import {
+  formatUsedQuota,
+  resolveAccountTokenAttribution,
+  userFacingTokenMessage,
+} from "./quotaStatus";
 
 function formatResetsAt(value: number | undefined): string {
   if (value == null || !Number.isFinite(value) || value <= 0) return "恢复时间未知";
@@ -169,16 +173,13 @@ export function AccountQuotaCard(props: {
     queryState?.quotaError ??
     (statusFailure || !hasQuota ? accountQuotaFailureMessage(account) : undefined);
   const showQuotaError = !hasQuota || statusFailure || queryState?.quota === "error";
-  const tokenEntry = tokenResponse?.summaries
-    ?.flatMap((summary) =>
-      summary.byAccount
-        .filter((entry) => entry.key === account.accountId)
-        .map((entry) => ({ summary, entry })),
-    )
-    .find(({ summary }) => summary.quality !== "estimated");
+  const tokenAttribution = resolveAccountTokenAttribution(
+    tokenResponse?.summaries,
+    account.accountId,
+  );
   const isTokenLoading = queryState?.token === "loading" || (!queryState && tokenLoading);
-  const tokenInput = tokenEntry?.entry.inputTokens;
-  const tokenOutput = tokenEntry?.entry.outputTokens;
+  const tokenInput = tokenAttribution.kind === "exact" ? tokenAttribution.inputTokens : undefined;
+  const tokenOutput = tokenAttribution.kind === "exact" ? tokenAttribution.outputTokens : undefined;
   const tokenInputLabel = isTokenLoading
     ? "加载中"
     : tokenInput != null
@@ -189,7 +190,8 @@ export function AccountQuotaCard(props: {
     : tokenOutput != null
       ? formatCompactToken(tokenOutput)
       : "—";
-  const tokenUnavailable = !tokenEntry && !isTokenLoading && tokenResponse !== null;
+  const tokenUnavailable =
+    tokenAttribution.kind !== "exact" && !isTokenLoading && tokenResponse !== null;
   const tokenUnavailableReason =
     tokenResponse?.summaries.find((summary) => summary.unavailableReason)?.unavailableReason ??
     tokenResponse?.sources.find((source) => !source.available && source.unavailableReason)
@@ -198,10 +200,17 @@ export function AccountQuotaCard(props: {
   const rows = hasQuota && !statusFailure ? quotaRows(windows) : [];
   const resetsText =
     rows.length > 0 ? formatWindowResetParts(rows) : formatQuotaResetParts(fast, long);
+  // Attribution-first copy: real per-account numbers when pinned, an honest
+  // "无法精确归因" when token data exists but not for this account, and the
+  // legacy "暂无精确 Token 用量" only when there is no data at all.
   const tokenText =
-    tokenUnavailable && tokenInput == null && tokenOutput == null
-      ? "暂无精确 Token 用量"
-      : "输入 " + tokenInputLabel + " · 输出 " + tokenOutputLabel;
+    tokenAttribution.kind === "exact"
+      ? "输入 " + tokenInputLabel + " · 输出 " + tokenOutputLabel
+      : tokenAttribution.kind === "unattributable" && !isTokenLoading
+        ? "无法精确归因"
+        : !isTokenLoading && tokenResponse !== null
+          ? "暂无精确 Token 用量"
+          : "输入 " + tokenInputLabel + " · 输出 " + tokenOutputLabel;
   const tokenReasonText = userFacingTokenMessage(tokenUnavailableReason);
   const tokenErrorText = userFacingTokenMessage(queryState?.tokenError);
   const failureText = showQuotaError && quotaError ? quotaError : null;
@@ -228,7 +237,10 @@ export function AccountQuotaCard(props: {
         <span className="font-semibold text-neutral-300">{resetsText}</span>
         <span className="mx-1">·</span>
         <span>{tokenText}</span>
-        {tokenUnavailable && tokenReasonText && tokenReasonText !== tokenText ? (
+        {tokenUnavailable &&
+        tokenAttribution.kind === "none" &&
+        tokenReasonText &&
+        tokenReasonText !== tokenText ? (
           <>
             <span className="mx-1">·</span>
             <span className="text-amber-300/80">{tokenReasonText}</span>
@@ -251,7 +263,25 @@ export function AccountQuotaCard(props: {
   );
 }
 
-export function ProviderQuotaCard(props: { providerId: string; snapshot: UsageSnapshot }) {
+export function ProviderQuotaCard(props: {
+  providerId: string;
+  snapshot: UsageSnapshot;
+  /**
+   * Offered only in the authorized-but-meterless state (e.g. OpenCode reports
+   * a local Go plan before its opencode.ai browser session is captured, and
+   * the meters exist only behind that session). When set, the empty-windows
+   * block renders this action instead of leaving the user with no path to
+   * real windows.
+   */
+  onConnectUsageSession?: () => void;
+  connectLabel?: string;
+  /**
+   * Manual paste escape hatch shown next to the connect action, for when the
+   * automatic capture cannot complete (e.g. the embedded view fails the OAuth
+   * provider check).
+   */
+  onPasteCookie?: () => void;
+}) {
   const { snapshot } = props;
   if (props.providerId === "volcengine" && snapshot.windows.length > 0) {
     return (
@@ -282,10 +312,17 @@ export function ProviderQuotaCard(props: { providerId: string; snapshot: UsageSn
         " · 输出 " +
         (tokenOutput == null ? "—" : formatCompactToken(tokenOutput));
   const failureText =
-    snapshot.error ?? (snapshot.status === "ok" && !hasQuota ? "暂无额度窗口" : undefined);
+    snapshot.error ??
+    (snapshot.status === "ok" && !hasQuota
+      ? "暂无额度窗口"
+      : props.providerId === "volcengine" && snapshot.status === "auth-missing"
+        ? "凭证不可用或已失效，请重新填写 AK/SK 或 API Key。"
+        : undefined);
   // Same honest-window contract as the account card: a Grok credits window is
   // "Monthly credits", not a fake "5h -- / 周月 --" pair.
   const rows = quotaRows(snapshot.windows);
+  const showConnectAction =
+    snapshot.status === "ok" && rows.length === 0 && props.onConnectUsageSession !== undefined;
 
   return (
     <div data-testid={"provider-quota-card-" + props.providerId} className="mt-2 space-y-2">
@@ -302,6 +339,26 @@ export function ProviderQuotaCard(props: { providerId: string; snapshot: UsageSn
           {failureText ?? "暂无可用额度数据，请先登录/授权。"}
         </p>
       )}
+      {showConnectAction ? (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={props.onConnectUsageSession}
+            className="rounded-lg bg-white/5 px-2 py-1.5 text-[10px] font-medium text-foreground hover:bg-white/10"
+          >
+            {props.connectLabel ?? "连接会话显示额度"}
+          </button>
+          {props.onPasteCookie ? (
+            <button
+              type="button"
+              onClick={props.onPasteCookie}
+              className="rounded-lg px-2 py-1.5 text-[10px] text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
+            >
+              改用粘贴 Cookie
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <p
         data-testid={"provider-meta-" + props.providerId}
         className="text-[10px] leading-relaxed text-neutral-500"

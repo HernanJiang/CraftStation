@@ -6,7 +6,7 @@ import type { RuntimeEvent } from "@/shared/contracts";
 import {
   createContextUsageEvent,
   readNonNegativeInteger,
-  usageFromTokenCounts,
+  usageFromProviderRecord,
 } from "../../contextUsage";
 import type { ThreadTokenUsage } from "../protocol";
 import { readRecord } from "./readers";
@@ -152,40 +152,5 @@ function createCodexUsageEvent(
   obj: Record<string, unknown>,
   options: { maxTokens?: number | undefined } = {},
 ): RuntimeEvent | undefined {
-  return createContextUsageEvent(
-    threadId,
-    usageFromTokenCounts({
-      usedTokens:
-        readNonNegativeInteger(obj.totalTokens) ??
-        readNonNegativeInteger(obj.total_tokens) ??
-        readNonNegativeInteger(obj.used),
-      maxTokens:
-        options.maxTokens ??
-        readNonNegativeInteger(obj.modelContextWindow) ??
-        readNonNegativeInteger(obj.model_context_window) ??
-        readNonNegativeInteger(obj.maxTokens) ??
-        readNonNegativeInteger(obj.max_tokens) ??
-        readNonNegativeInteger(obj.size),
-      inputTokens:
-        readNonNegativeInteger(obj.inputTokens) ?? readNonNegativeInteger(obj.input_tokens),
-      outputTokens:
-        readNonNegativeInteger(obj.outputTokens) ?? readNonNegativeInteger(obj.output_tokens),
-      thoughtTokens:
-        readNonNegativeInteger(obj.thoughtTokens) ??
-        readNonNegativeInteger(obj.reasoningTokens) ??
-        readNonNegativeInteger(obj.reasoningOutputTokens) ??
-        readNonNegativeInteger(obj.reasoning_output_tokens) ??
-        readNonNegativeInteger(obj.reasoning_tokens),
-      cachedReadTokens:
-        readNonNegativeInteger(obj.cachedInputTokens) ??
-        readNonNegativeInteger(obj.cachedReadTokens) ??
-        readNonNegativeInteger(obj.cacheReadTokens) ??
-        readNonNegativeInteger(obj.cached_input_tokens) ??
-        readNonNegativeInteger(obj.cache_read_tokens),
-      cachedWriteTokens:
-        readNonNegativeInteger(obj.cachedWriteTokens) ??
-        readNonNegativeInteger(obj.cacheWriteTokens) ??
-        readNonNegativeInteger(obj.cache_write_tokens),
-    }),
-  );
+  return createContextUsageEvent(threadId, usageFromProviderRecord(obj, options));
 }

@@ -4,14 +4,13 @@ import type { Thread } from "@/shared/contracts";
 import { createDbStorage } from "./dbStorage";
 import { createDraftSlice } from "./slices/draftSlice";
 import { normalizeStoredThreadStatus } from "./slices/helpers";
-import { createLaunchSlice } from "./slices/launchSlice";
-import { createPaneCacheSlice } from "./slices/paneCacheSlice";
+import { createLaunchSlice } from "./slices/launchSlice";import { createPaneCacheSlice } from "./slices/paneCacheSlice";
 import { createPendingSteerSlice } from "./slices/pendingSteerSlice";
 import { createProjectSlice } from "./slices/projectSlice";
 import { createRuntimeEventSlice } from "./slices/runtimeEventSlice";
 import type { AppStoreState } from "./slices/shared";
 import { createSubAgentOverlaySlice } from "./slices/subAgentOverlaySlice";
-import { createThreadSlice } from "./slices/threadSlice";
+import { createThreadSlice, migrateStoredThreadPinArchive } from "./slices/threadSlice";
 import { createViewSlice } from "./slices/viewSlice";
 
 export { makeThreadTitle } from "./slices/helpers";
@@ -41,11 +40,16 @@ export const useAppStore = create<AppStoreState>()(
             (persistedState as (Partial<AppStoreState> & { threads?: Thread[] }) | undefined) ??
             ({} as Partial<AppStoreState>);
 
-          const threads = (state.threads ?? currentState.threads).map((t) => ({
-            ...normalizeStoredThreadStatus(t),
-            done: t.done ?? false,
-            doneAt: t.done ? (t.doneAt ?? t.updatedAt) : undefined,
-          }));
+          const threads = (state.threads ?? currentState.threads).map((t) => {
+            const normalized = {
+              ...normalizeStoredThreadStatus(t),
+              done: t.done ?? false,
+              doneAt: t.done ? (t.doneAt ?? t.updatedAt) : undefined,
+            };
+            // Migrate legacy section-local pins / pre-archivedAt rows to the
+            // global-pin + archivedAt truth without losing user pins.
+            return migrateStoredThreadPinArchive(normalized);
+          });
           return {
             ...currentState,
             ...state,

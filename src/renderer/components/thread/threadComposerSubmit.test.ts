@@ -15,6 +15,11 @@ vi.mock("@/renderer/actions/threadRuntimeActions", () => ({
   submitThreadInput: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/renderer/actions/threadActions", () => ({
+  setThreadGoalPrompt: vi.fn<() => { ok: true }>().mockReturnValue({ ok: true }),
+  registerNativeGoal: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+}));
+
 vi.mock("@/renderer/analytics/posthog", () => ({
   captureThreadPromptSubmitted: vi.fn<() => void>(),
   captureProductEvent: vi.fn<() => void>(),
@@ -61,6 +66,8 @@ function workingGuiThread(): Thread {
 
 import { submitComposerPrompt } from "./threadComposerSubmit";
 import { setThreadPendingSteer, submitThreadInput } from "@/renderer/actions/threadRuntimeActions";
+import { registerNativeGoal, setThreadGoalPrompt } from "@/renderer/actions/threadActions";
+import { useAppStore } from "@/renderer/state/appStore";
 
 function makeCtx(
   thread: Thread,
@@ -129,9 +136,65 @@ describe("submitComposerPrompt steer routing", () => {
     const ctx = makeCtx(thread, { usesPendingSteerPath: false });
     submitComposerPrompt([{ kind: "text", content: "hello" }], ctx);
     await vi.waitFor(() => {
-      expect(submitThreadInput).toHaveBeenCalledWith("thread-steer", "hello", [
-        { kind: "text", content: "hello" },
-      ]);
+      expect(submitThreadInput).toHaveBeenCalledWith(
+        "thread-steer",
+        "hello",
+        [{ kind: "text", content: "hello" }],
+        undefined,
+      );
+    });
+  });
+
+  it("swallows /goal submits: binds the goal, clears the composer, sends nothing", () => {
+    const thread = { ...workingGuiThread(), agentKind: "kimi", status: "idle" } as Thread;
+    const ctx = makeCtx(thread, { usesPendingSteerPath: false });
+    submitComposerPrompt([{ kind: "text", content: "/goal fix auth" }], ctx);
+    expect(setThreadGoalPrompt).toHaveBeenCalledWith("thread-steer", "fix auth");
+    expect(submitThreadInput).not.toHaveBeenCalled();
+    expect(setThreadPendingSteer).not.toHaveBeenCalled();
+    expect(ctx.setPrompt).toHaveBeenCalledWith("");
+  });
+
+  it("carries the fallback goalContext beside the raw prompt for non-codex", async () => {
+    const goal = { prompt: "fix auth", createdAt: "t", updatedAt: "t" };
+    const thread = { ...workingGuiThread(), agentKind: "kimi", status: "idle", goal } as Thread;
+    vi.mocked(useAppStore.getState).mockReturnValue({
+      threads: [thread],
+      requestChatScrollToBottom: vi.fn<() => void>(),
+    } as never);
+    const ctx = makeCtx(thread, { usesPendingSteerPath: false });
+    submitComposerPrompt([{ kind: "text", content: "hello" }], ctx);
+    await vi.waitFor(() => {
+      expect(submitThreadInput).toHaveBeenCalledWith(
+        "thread-steer",
+        "hello",
+        [{ kind: "text", content: "hello" }],
+        { goalContext: expect.stringContaining("fix auth") },
+      );
+    });
+    // The painted/sent prompt stays raw: the goal rides the side channel.
+    const sentPrompt = vi.mocked(submitThreadInput).mock.calls[0]?.[1];
+    expect(sentPrompt).toBe("hello");
+    expect(registerNativeGoal).not.toHaveBeenCalled();
+  });
+
+  it("registers native goal without text injection for codex", async () => {
+    const goal = { prompt: "fix auth", createdAt: "t", updatedAt: "t" };
+    const thread = { ...workingGuiThread(), agentKind: "codex", status: "idle", goal } as Thread;
+    vi.mocked(useAppStore.getState).mockReturnValue({
+      threads: [thread],
+      requestChatScrollToBottom: vi.fn<() => void>(),
+    } as never);
+    const ctx = makeCtx(thread, { usesPendingSteerPath: false });
+    submitComposerPrompt([{ kind: "text", content: "hello" }], ctx);
+    await vi.waitFor(() => {
+      expect(registerNativeGoal).toHaveBeenCalledWith("thread-steer", "fix auth");
+      expect(submitThreadInput).toHaveBeenCalledWith(
+        "thread-steer",
+        "hello",
+        [{ kind: "text", content: "hello" }],
+        undefined,
+      );
     });
   });
 });

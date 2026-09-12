@@ -15,6 +15,18 @@ type AntigravityModelCapabilities = Pick<
 
 export interface AntigravityLaunchDialect {
   separateModelEffort: boolean;
+  /**
+   * Current `agy` lists bare family ids (`gemini-3.8-flash`) and requires a
+   * separate `--effort low|medium|high`. Older builds listed combined catalog
+   * ids (`gemini-3.8-flash-medium`) and rejected `--effort`.
+   */
+  emitEffortFlag: boolean;
+  /**
+   * `agy` lists `--print-timeout`, the only way to widen its 5m print-mode
+   * wait. Builds without the flag reject it outright ("flags provided but not
+   * defined") and exit on startup, so it must never be emitted unprobed.
+   */
+  supportsPrintTimeout: boolean;
 }
 
 export interface AntigravityProbeResult {
@@ -32,11 +44,53 @@ export interface AntigravityModelVariant {
 }
 
 export const ANTIGRAVITY_KNOWN_MODEL_VARIANTS: AntigravityModelVariant[] = [
+  // Fallback catalog mirroring the real `agy models` agent list (verified
+  // 2026-09-05 against agy 1.1.27 with a signed-in host: combined ids, no
+  // bare bases). The CLI resolves `--model` against full catalog ids and
+  // rejects a separate `--effort` for every entry
+  // ("--effort is not supported for model"), so each variant carries its
+  // complete cliSlug and argv never emits `--effort`. Ids absent here must NOT
+  // be fabricated: the CLI rejects them as unknown.
   {
-    model: "Gemini 3.6 Flash",
+    model: "Gemini 3.8 Flash",
+    effort: "High",
+    cliModel: "Gemini 3.8 Flash (High)",
+    cliSlug: "gemini-3.8-flash-high",
+    provider: "Google DeepMind",
+  },
+  {
+    model: "Gemini 3.8 Flash",
     effort: "Medium",
-    cliModel: "Gemini 3.6 Flash (Medium)",
-    cliSlug: "gemini-3.6-flash-medium",
+    cliModel: "Gemini 3.8 Flash (Medium)",
+    cliSlug: "gemini-3.8-flash-medium",
+    provider: "Google DeepMind",
+  },
+  {
+    model: "Gemini 3.8 Flash",
+    effort: "Low",
+    cliModel: "Gemini 3.8 Flash (Low)",
+    cliSlug: "gemini-3.8-flash-low",
+    provider: "Google DeepMind",
+  },
+  {
+    model: "Gemini 3.7 Flash",
+    effort: "High",
+    cliModel: "Gemini 3.7 Flash (High)",
+    cliSlug: "gemini-3.7-flash-high",
+    provider: "Google DeepMind",
+  },
+  {
+    model: "Gemini 3.7 Flash",
+    effort: "Medium",
+    cliModel: "Gemini 3.7 Flash (Medium)",
+    cliSlug: "gemini-3.7-flash-medium",
+    provider: "Google DeepMind",
+  },
+  {
+    model: "Gemini 3.7 Flash",
+    effort: "Low",
+    cliModel: "Gemini 3.7 Flash (Low)",
+    cliSlug: "gemini-3.7-flash-low",
     provider: "Google DeepMind",
   },
   {
@@ -48,37 +102,16 @@ export const ANTIGRAVITY_KNOWN_MODEL_VARIANTS: AntigravityModelVariant[] = [
   },
   {
     model: "Gemini 3.6 Flash",
+    effort: "Medium",
+    cliModel: "Gemini 3.6 Flash (Medium)",
+    cliSlug: "gemini-3.6-flash-medium",
+    provider: "Google DeepMind",
+  },
+  {
+    model: "Gemini 3.6 Flash",
     effort: "Low",
     cliModel: "Gemini 3.6 Flash (Low)",
     cliSlug: "gemini-3.6-flash-low",
-    provider: "Google DeepMind",
-  },
-  {
-    model: "Gemini 3.5 Flash",
-    effort: "Medium",
-    cliModel: "Gemini 3.5 Flash (Medium)",
-    cliSlug: "gemini-3.5-flash-medium",
-    provider: "Google DeepMind",
-  },
-  {
-    model: "Gemini 3.5 Flash",
-    effort: "High",
-    cliModel: "Gemini 3.5 Flash (High)",
-    cliSlug: "gemini-3.5-flash-high",
-    provider: "Google DeepMind",
-  },
-  {
-    model: "Gemini 3.5 Flash",
-    effort: "Low",
-    cliModel: "Gemini 3.5 Flash (Low)",
-    cliSlug: "gemini-3.5-flash-low",
-    provider: "Google DeepMind",
-  },
-  {
-    model: "Gemini 3.1 Pro",
-    effort: "Low",
-    cliModel: "Gemini 3.1 Pro (Low)",
-    cliSlug: "gemini-3.1-pro-low",
     provider: "Google DeepMind",
   },
   {
@@ -86,6 +119,13 @@ export const ANTIGRAVITY_KNOWN_MODEL_VARIANTS: AntigravityModelVariant[] = [
     effort: "High",
     cliModel: "Gemini 3.1 Pro (High)",
     cliSlug: "gemini-3.1-pro-high",
+    provider: "Google DeepMind",
+  },
+  {
+    model: "Gemini 3.1 Pro",
+    effort: "Low",
+    cliModel: "Gemini 3.1 Pro (Low)",
+    cliSlug: "gemini-3.1-pro-low",
     provider: "Google DeepMind",
   },
   {
@@ -147,6 +187,20 @@ function splitCliModel(
   effortSlugs: readonly string[] = DEFAULT_EFFORT_SLUGS,
 ): AntigravityModelVariant | undefined {
   const cleaned = cleanModelId(value);
+  // Known display ids round-trip even without an "(Effort)" suffix
+  // (e.g. the effort-less "Gemini 3 Flash").
+  const knownDisplay = ANTIGRAVITY_KNOWN_MODEL_VARIANTS.find(
+    (variant) => variant.cliModel === cleaned,
+  );
+  if (knownDisplay) {
+    return {
+      model: knownDisplay.model,
+      ...(knownDisplay.effort ? { effort: knownDisplay.effort } : {}),
+      cliModel: knownDisplay.cliModel,
+      ...(knownDisplay.cliSlug ? { cliSlug: knownDisplay.cliSlug } : {}),
+      ...(provider ?? knownDisplay.provider ? { provider: (provider ?? knownDisplay.provider)! } : {}),
+    };
+  }
   const parts = splitModelEffort(cleaned);
   if (!parts) return splitSlugModel(cleaned, provider, effortSlugs);
   return {
@@ -357,11 +411,11 @@ export function buildAntigravityModelCapabilities(
   for (const [model, efforts] of Object.entries(modelEfforts)) {
     modelEfforts[model] = sortEfforts(efforts);
   }
-  // Prefer "Medium" as the cross-model default when any model offers it; otherwise
-  // fall back to the lowest-ranked effort actually present so the default is never
-  // an effort no model supports.
+  // Product default is high everywhere: prefer "High" when any model offers
+  // it, otherwise fall back to the lowest-ranked effort actually present so
+  // the default is never an effort no model supports.
   const allEfforts = sortEfforts([...new Set(Object.values(modelEfforts).flat())]);
-  const defaultEffort = allEfforts.includes("Medium") ? "Medium" : allEfforts[0];
+  const defaultEffort = allEfforts.includes("High") ? "High" : allEfforts[0];
   return { models, efforts: [], modelEfforts, defaultEffort };
 }
 
@@ -393,10 +447,33 @@ export function detectAntigravityLaunchDialect(
       variant.cliModel === variant.cliModel.toLowerCase() &&
       /^[a-z0-9.]+(?:-[a-z0-9.]+)+$/.test(variant.cliModel),
   );
+  const bakesEffortIntoModelId = variants.some((variant) =>
+    /-(?:low|medium|high|balanced|extra-high|thinking)$/.test(
+      (variant.cliSlug ?? variant.cliModel).toLowerCase(),
+    ),
+  );
+  const hasModelFlag = /(?:^|\s)--model\b/m.test(help);
+  const hasEffortFlag = effortSlugs.length > 0;
+  const supportsPrintTimeout = /(?:^|\s)--print-timeout\b/m.test(help);
+  if (!hasModelFlag) {
+    return { separateModelEffort: false, emitEffortFlag: false, supportsPrintTimeout };
+  }
+  if (variants.length === 0) {
+    // Catalog probe empty (auth down, spinner-only output). Current `agy`
+    // lists bare family ids and requires `--effort low|medium|high`; assuming
+    // the older baked-id dialect here is what produced `--effort ""` on
+    // stale threads after a credential miss.
+    return {
+      separateModelEffort: hasEffortFlag,
+      emitEffortFlag: hasEffortFlag,
+      supportsPrintTimeout,
+    };
+  }
 
   return {
-    separateModelEffort:
-      /(?:^|\s)--model\b/m.test(help) && effortSlugs.length > 0 && emitsStableSlugs,
+    separateModelEffort: hasEffortFlag && emitsStableSlugs,
+    emitEffortFlag: hasEffortFlag && emitsStableSlugs && !bakesEffortIntoModelId,
+    supportsPrintTimeout,
   };
 }
 
@@ -435,7 +512,9 @@ export async function probeAntigravityRuntime(
   ctx: DetectProbeCtx,
 ): Promise<AntigravityProbeResult> {
   if (!ctx.executablePath) {
-    return { dialect: { separateModelEffort: false } };
+    return {
+      dialect: { separateModelEffort: false, emitEffortFlag: false, supportsPrintTimeout: false },
+    };
   }
   const executablePath = ctx.executablePath;
   const readProbe = async (args: string[]) => {

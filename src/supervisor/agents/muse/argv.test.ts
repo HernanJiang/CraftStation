@@ -16,6 +16,12 @@ describe("buildMuseConfigFlags", () => {
     ]);
   });
 
+  it("strips catalog provider prefixes from --model", () => {
+    expect(
+      buildMuseConfigFlags({ model: "opencode-go/muse-spark-1.3-contributor" } as any),
+    ).toEqual(["--trust-workspace", "--model", "muse-spark-1.3-contributor"]);
+  });
+
   it("maps untrusted / on-request / never approval modes", () => {
     for (const policy of ["untrusted", "on-request", "never"] as const) {
       const args = buildMuseConfigFlags({ approvalPolicy: policy } as any);

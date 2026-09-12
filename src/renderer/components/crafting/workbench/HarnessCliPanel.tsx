@@ -1,6 +1,19 @@
-import { AlertTriangle, CheckCircle2, RefreshCw, Settings2, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  RefreshCw,
+  Settings2,
+  XCircle,
+} from "lucide-react";
+import { useLingui } from "@lingui/react/macro";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
-import { ProviderBrandBadge } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
+import {
+  brandIdForVendorKind,
+  ProviderBrandBadge,
+} from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
+import { findCliUpdateForAgentKind, useUpdateStore } from "@/renderer/state/updateStore";
+import { runCliUpdateBinary } from "@/renderer/actions/runCliUpdate";
 
 const statusMeta: Record<
   NativeHarnessControlPlaneEntry["status"],
@@ -26,6 +39,13 @@ export function HarnessCliPanel(props: {
   onShowDetail: (entry: NativeHarnessControlPlaneEntry) => void;
 }) {
   const { entries, loading, highlightedKind, onRefresh, onShowDetail } = props;
+  const { t } = useLingui();
+  // In-flight agent binary updates keyed by `${agentKind}:${envKind}:${distro}`.
+  // Installer output streams no byte counts, so rows show an honest
+  // indeterminate state rather than a fabricated percentage.
+  const agentUpdates = useUpdateStore((s) => s.agentUpdates);
+  const availableCliUpdates = useUpdateStore((s) => s.availableCliUpdates);
+  const updatingKinds = new Set(Object.keys(agentUpdates).map((key) => key.split(":")[0] ?? ""));
   return (
     <aside
       className="flex min-h-0 w-64 shrink-0 flex-col border-l border-white/5"
@@ -51,10 +71,28 @@ export function HarnessCliPanel(props: {
           const meta = statusMeta[entry.status];
           const Icon = meta.icon;
           const highlighted = highlightedKind === entry.descriptor.harnessKind;
+          const updating = updatingKinds.has(entry.descriptor.harnessKind);
+          // Same availability the titlebar "Check all CLIs" menu shows.
+          const availableUpdate = updating
+            ? undefined
+            : findCliUpdateForAgentKind(
+                availableCliUpdates,
+                entry.descriptor.harnessKind,
+              );
           return (
             <button
               key={entry.descriptor.id}
               type="button"
+              data-testid={`harness-cli-row-${entry.descriptor.harnessKind}`}
+              title={
+                entry.status === "not-configured"
+                  ? "点击配置"
+                  : entry.status === "unavailable"
+                    ? "点击安装"
+                    : entry.status === "error"
+                      ? "点击查看并修复"
+                      : entry.descriptor.label
+              }
               onClick={() => onShowDetail(entry)}
               className={`flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors ${
                 highlighted
@@ -63,9 +101,9 @@ export function HarnessCliPanel(props: {
               }`}
             >
               <ProviderBrandBadge
-                id={entry.descriptor.vendor}
+                id={brandIdForVendorKind(entry.descriptor.vendor)}
                 label={entry.descriptor.label}
-                size="avatar"
+                size="compact"
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium text-foreground">
@@ -79,6 +117,48 @@ export function HarnessCliPanel(props: {
                 <Icon className="size-3" />
                 {meta.label}
               </span>
+              {availableUpdate ? (
+                // Span, not button: the row itself is a <button>, and nested
+                // buttons are invalid HTML (React hydration error).
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t`Update ${entry.descriptor.label || entry.descriptor.harnessKind} now`}
+                  onClick={(event) => {
+                    // Don't select the harness row underneath: the pill updates
+                    // the CLI in place through the same path as the titlebar.
+                    event.stopPropagation();
+                    void runCliUpdateBinary({
+                      key: availableUpdate.key,
+                      agentKind: availableUpdate.agentKind,
+                      label: availableUpdate.label,
+                      latest: availableUpdate.latest,
+                    });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void runCliUpdateBinary({
+                      key: availableUpdate.key,
+                      agentKind: availableUpdate.agentKind,
+                      label: availableUpdate.label,
+                      latest: availableUpdate.latest,
+                    });
+                  }}
+                  className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 transition-colors hover:bg-amber-400/30 focus-visible:outline-2 focus-visible:outline-amber-300"
+                  title={t`New version available: v${availableUpdate.version} → v${availableUpdate.latest}. Click to update now.`}
+                >
+                  <Download className="size-3" />
+                  {t`Update`}
+                </span>
+              ) : null}
+              {updating ? (
+                <span className="flex shrink-0 items-center gap-1 text-[10px] text-sky-300">
+                  <RefreshCw className="size-3 animate-spin" />
+                  更新中
+                </span>
+              ) : null}
             </button>
           );
         })}

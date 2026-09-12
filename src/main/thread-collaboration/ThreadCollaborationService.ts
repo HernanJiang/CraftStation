@@ -26,7 +26,6 @@ import {
   type ThreadContextProjection,
 } from "./provenance";
 import {
-  THREAD_CONTROL_DELIVERY_STATUSES,
   THREAD_CONTROL_SETTLED_STATUSES,
   ThreadControlAdapter,
 } from "./ThreadControlAdapter";
@@ -258,8 +257,7 @@ export class ThreadCollaborationService {
       });
   }
 
-  async recover(): Promise<void> {
-    for (const exchange of this.repository.failExpiredClaims()) this.publish(exchange);
+  async recover(): Promise<void> {    for (const exchange of this.repository.failExpiredClaims()) this.publish(exchange);
     for (let exchange of this.repository.listRecoverable()) {
       if (exchange.status === "created") {
         exchange = this.repository.markQueued(exchange.id);
@@ -279,6 +277,21 @@ export class ThreadCollaborationService {
         this.captureReply(exchange.id);
       }
     }
+  }
+
+  /**
+   * Re-drive delivery for one target's queued exchanges without interrupting
+   * it (wake_peer). Ordinary queued messages still wait for the target's
+   * current turn to settle; this only retries what is already deliverable.
+   * Returns the exchanges in their post-retry state.
+   */
+  async retryQueuedForTarget(targetThreadId: string): Promise<ThreadExchange[]> {
+    this.deps.control.require(targetThreadId);
+    const out: ThreadExchange[] = [];
+    for (const exchange of this.repository.listQueuedForTarget(targetThreadId)) {
+      out.push(await this.tryDeliver(exchange.id));
+    }
+    return out;
   }
 
   private async reconcileThread(threadId: string, status: ThreadStatus): Promise<void> {
@@ -328,18 +341,7 @@ export class ThreadCollaborationService {
   private async tryDeliver(exchangeId: string): Promise<ThreadExchange> {
     let exchange = this.repository.require(exchangeId);
     if (exchange.status !== "queued") return exchange;
-    if (this.repository.hasEarlierUnsettled(exchange.id)) return exchange;
-    // The persisted thread row can lag the live supervisor state during the
-    // small window in which a new turn starts. Always refresh before deciding
-    // whether a queued exchange may be delivered; otherwise an idle DB row can
-    // make a currently-working target look settled and turn a queue into a
-    // spurious THREAD_TARGET_BUSY failure.
     let target = await this.deps.control.refreshSnapshot(exchange.targetThreadId);
-    if (ATTENTION_STATUSES.has(target.status)) {
-      const attention = this.repository.markNeedsAttention(exchange.id);
-      this.publish(attention);
-      return attention;
-    }
     if (target.status === "error") {
       return this.fail(
         exchange.id,
@@ -350,31 +352,15 @@ export class ThreadCollaborationService {
         "THREAD_COLLABORATION_RUNTIME_UNAVAILABLE",
       );
     }
-    if (!THREAD_CONTROL_SETTLED_STATUSES.has(target.status)) {
-      if (exchange.deliveryMode === "after-current-turn") return exchange;
+    if (
+      exchange.deliveryMode === "interrupt-and-send" &&
+      !THREAD_CONTROL_SETTLED_STATUSES.has(target.status)
+    ) {
       try {
         target = await this.deps.control.interruptAndWait(exchange.targetThreadId);
       } catch (error) {
         return this.fail(exchange.id, error, "THREAD_COLLABORATION_INTERRUPT_FAILED");
       }
-    }
-    if (!THREAD_CONTROL_DELIVERY_STATUSES.has(target.status)) {
-      // A target may have changed state while the refresh/interrupt handshake
-      // was in flight. The adapter performs the authoritative second check;
-      // keep this branch explicit so no non-delivery-ready state is treated as
-      // an implicit send opportunity.
-      return this.fail(
-        exchange.id,
-        collaborationError(
-          target.status === "error"
-            ? "THREAD_COLLABORATION_RUNTIME_UNAVAILABLE"
-            : "THREAD_COLLABORATION_TARGET_NEEDS_ATTENTION",
-          `The target thread is ${target.status}; the request was not delivered.`,
-        ),
-        target.status === "error"
-          ? "THREAD_COLLABORATION_RUNTIME_UNAVAILABLE"
-          : "THREAD_COLLABORATION_TARGET_NEEDS_ATTENTION",
-      );
     }
 
     const claim = this.repository.claim(exchange.id);
@@ -511,19 +497,11 @@ export class ThreadCollaborationService {
 }
 
 function buildTargetEnvelope(exchange: ThreadExchange): string {
+  const from = exchange.sourceProvenance.title.trim() || exchange.sourceThreadId;
   const context = exchange.contextCapsule?.text
-    ? `\n\nExplicit portable context (redacted and bounded):\n${exchange.contextCapsule.text}`
+    ? `\n\n${exchange.contextCapsule.text}`
     : "";
-  return [
-    "[CraftStation cross-thread dialogue]",
-    `Exchange: ${exchange.id}`,
-    `From thread: ${exchange.sourceProvenance.title} (${exchange.sourceThreadId})`,
-    `Source composition: recipe=${exchange.sourceProvenance.recipeId ?? "unknown"}; model=${exchange.sourceProvenance.modelId}; harness=${exchange.sourceProvenance.harnessId}`,
-    "Reply normally in this thread. CraftStation will correlate the next completed assistant turn to this exchange.",
-    "",
-    exchange.request,
-    context,
-  ].join("\n");
+  return `来自「${from}」的任务：\n${exchange.request}${context}`;
 }
 
 function assistantText(item: PersistedRuntimeItem): string {
@@ -542,13 +520,20 @@ function normalizedWorktree(thread: Thread): string {
 }
 
 /** Cross-composition policy: identical resolved Model AND Harness pairs never
- * dialogue. Same harness with a different model is allowed, and so is the
- * reverse. */
+ * dialogue with each other — unless they are provably distinct native
+ * threads (both sides carry a native session id and the ids differ). Two
+ * live Kimi sessions on the same model are different peers and must be able
+ * to message each other; without native identities on both sides the check
+ * fails closed exactly as before. */
 function isSameRuntimeComposition(
   left: ThreadRuntimeProvenance,
   right: ThreadRuntimeProvenance,
 ): boolean {
-  return left.modelId === right.modelId && left.harnessId === right.harnessId;
+  if (left.modelId !== right.modelId || left.harnessId !== right.harnessId) return false;
+  const leftNative = left.nativeSessionId?.trim();
+  const rightNative = right.nativeSessionId?.trim();
+  if (leftNative && rightNative && leftNative !== rightNative) return false;
+  return true;
 }
 
 function classifyErrorCode(error: unknown, fallback: string): string {

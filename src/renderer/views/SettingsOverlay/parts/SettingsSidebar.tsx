@@ -1,36 +1,8 @@
-import {
-  Archive,
-  AlertTriangle,
-  Bell,
-  Bot,
-  Boxes,
-  Box,
-  Cable,
-  FlaskConical,
-  FolderGit2,
-  Gauge,
-  GitFork,
-  Globe,
-  Info,
-  Keyboard,
-  Layers,
-  Megaphone,
-  Mic,
-  MessageSquare,
-  Palette,
-  Puzzle,
-  QrCode,
-  RefreshCw,
-  Search,
-  Server,
-  Settings2,
-  Sparkles,
-  TerminalSquare,
-  UserRound,
-} from "lucide-react";
+import { AlertTriangle, Bell, Bot, Boxes, RefreshCw, Search, Settings2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 import { baseAgentKind, type AgentStatus } from "@/shared/contracts";
 import { useFindFocusStore } from "@/renderer/state/findFocusStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
@@ -46,23 +18,18 @@ import { isDevApp, isRemoteSession, isWindows } from "@/renderer/bridge";
 import brandLogoUrl from "@/renderer/assets/craftstation-logo.png";
 import { searchSettings } from "./settingsSearchIndex";
 import type { SettingsSection } from "./types";
+import { SETTINGS_NAVIGATION } from "./settingsNavigationRegistry";
 
 // Sections that only make sense on the desktop app; the remote (PWA) client
 // hides them and instead surfaces "Models" in place of the Agents tree. Single
 // source of truth for both the collapsed icon rail and the expanded list.
+// Derived from the shared navigation registry; "agents" is the tree root id
+// (not a plain registry row) and stays listed explicitly.
 const DESKTOP_ONLY_SECTIONS = new Set<SettingsSection>([
-  "search",
-  "threads",
-  "shortcuts",
-  "remoteAccess",
-  "remoteServers",
+  ...SETTINGS_NAVIGATION.flatMap((group) => group.items)
+    .filter((item) => item.desktopOnly)
+    .map((item) => item.id),
   "agents",
-  "skills",
-  "mcpServers",
-  "plugins",
-  "browser",
-  "archived",
-  "about",
 ]);
 
 function profileSidebarLabel(agent: AgentStatus): string {
@@ -221,85 +188,19 @@ export function SettingsSidebar(props: {
   // the expanded list (with group headers) and the collapsed icon rail. The
   // "agents" group is special: its first row is the expandable agents tree
   // (the "Models" stand-in on remote), followed by its plain sections.
-  const sectionGroups: { id: string; label: string; sections: SectionMeta[] }[] = [
-    {
-      id: "personal",
-      label: t`Personal`,
-      sections: [
-        { id: "profile", icon: <UserRound className="size-4" />, label: t`Profile` },
-        { id: "workspaces", icon: <Layers className="size-4" />, label: t`Workspaces` },
-        { id: "general", icon: <Settings2 className="size-4" />, label: t`General` },
-        { id: "appearance", icon: <Palette className="size-4" />, label: t`Appearance` },
-        { id: "audio", icon: <Mic className="size-4" />, label: t`Audio` },
-        { id: "notifications", icon: <Bell className="size-4" />, label: t`Notifications` },
-        { id: "shortcuts", icon: <Keyboard className="size-4" />, label: t`Shortcuts` },
-      ],
-    },
-    {
-      id: "workspace",
-      label: t`Workspace`,
-      sections: [
-        { id: "terminal", icon: <TerminalSquare className="size-4" />, label: t`Terminal` },
-        { id: "threads", icon: <MessageSquare className="size-4" />, label: t`Threads` },
-        { id: "git", icon: <GitFork className="size-4" />, label: t`Git` },
-        { id: "worktrees", icon: <FolderGit2 className="size-4" />, label: t`Worktrees` },
-        { id: "search", icon: <Search className="size-4" />, label: t`Search` },
-        { id: "browser", icon: <Globe className="size-4" />, label: t`Browser` },
-        { id: "archived", icon: <Archive className="size-4" />, label: t`Archived Threads` },
-      ],
-    },
-    {
-      id: "agents",
-      label: t`Agents`,
-      sections: [
-        {
-          id: "ai",
-          icon: <Sparkles className="size-4" />,
-          label: t({
-            message: "AI Helpers",
-            comment:
-              "Settings section: AI helper features (commit messages, thread titles, conflict resolution)",
-          }),
-        },
-        { id: "skills", icon: <Box className="size-4" />, label: t`Skills` },
-        { id: "mcpServers", icon: <Cable className="size-4" />, label: t`MCP Servers` },
-        { id: "plugins", icon: <Puzzle className="size-4" />, label: t`Plugins` },
-        {
-          id: "usage",
-          icon: <Gauge className="size-4" />,
-          label: t({
-            message: "Provider Usage",
-            comment: "Settings section: provider usage and quota dashboard",
-          }),
-        },
-      ],
-    },
-    {
-      id: "remote",
-      label: t`Remote`,
-      sections: [
-        { id: "remoteAccess", icon: <QrCode className="size-4" />, label: t`Remote Access` },
-        { id: "remoteServers", icon: <Server className="size-4" />, label: t`Remote Environments` },
-      ],
-    },
-    {
-      id: "about",
-      label: t`About`,
-      sections: [
-        { id: "changelog", icon: <Megaphone className="size-4" />, label: t`Changelog` },
-        { id: "about", icon: <Info className="size-4" />, label: t`About` },
-        ...(devMode
-          ? [
-              {
-                id: "dev" as SettingsSection,
-                icon: <FlaskConical className="size-4" />,
-                label: t({ message: "Dev", comment: "Settings section: developer/debug tools" }),
-              },
-            ]
-          : []),
-      ],
-    },
-  ];
+  // Plain rows come from the shared navigation registry so the sidebar, the
+  // top-bar shortcut picker, and search share one source of truth.
+  const sectionGroups: { id: string; label: string; sections: SectionMeta[] }[] =
+    SETTINGS_NAVIGATION.map((group) => ({
+      id: group.id,
+      label: i18n._(group.label),
+      sections: group.items
+        .filter((item) => devMode || !item.devOnly)
+        .map((item) => {
+          const Icon = item.icon;
+          return { id: item.id, icon: <Icon className="size-4" />, label: i18n._(item.label) };
+        }),
+    }));
 
   // Desktop-only sections drop out of their group on remote sessions; a group
   // whose rows are all hidden renders nothing at all, header included.

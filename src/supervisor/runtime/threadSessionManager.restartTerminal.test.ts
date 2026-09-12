@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -93,6 +93,7 @@ function createManager(
 ): ThreadSessionManager {
   const tempDir = mkdtempSync(join(tmpdir(), "craftstation-restart-term-"));
   tempDirs.push(tempDir);
+  writeFileSync(join(tempDir, "settings.json"), JSON.stringify({ locale: "en" }));
   const manager = new ThreadSessionManager({
     emit: vi.fn<() => void>(),
     isDev: false,

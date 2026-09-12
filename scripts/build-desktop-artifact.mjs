@@ -43,6 +43,7 @@ const RUNTIME_DEPS = [
   "@agentclientprotocol/sdk",
   "@anthropic-ai/claude-agent-sdk",
   "@modelcontextprotocol/sdk",
+  "@opencode-ai/sdk",
   "@sentry/electron",
   "@sentry/node",
   "better-sqlite3",
@@ -281,6 +282,67 @@ function ensureNativeBuildCollected(stageRoot) {
   }
 }
 
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function runWithRetry(runFn, attempts, label) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      runFn();
+      return;
+    } catch (error) {
+      lastError = error;
+      console.log(`[stage] ${label} failed (attempt ${attempt}/${attempts}), retrying…`);
+      sleepSync(10000);
+    }
+  }
+  throw lastError;
+}
+
+function copyWithRetry(from, to, options) {
+  // Freshly-signed binaries are briefly locked by on-access scanners on
+  // Windows; retry instead of failing the whole packaging run.
+  const attempts = 12;
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      cpSync(from, to, options);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) sleepSync(5000);
+    }
+  }
+  throw lastError;
+}
+
+function rmWithRetry(target) {
+  const attempts = 12;
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      rmSync(target, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) sleepSync(5000);
+    }
+  }
+  throw lastError;
+}
+
+function isLockError(error) {
+  const code = error && typeof error === "object" ? error.code : undefined;
+  return (
+    code === "EPERM" ||
+    code === "EBUSY" ||
+    code === "EPIPE" ||
+    /used by another process/i.test(String(error))
+  );
+}
+
 function copyArtifactsBack(stageReleaseDir, outputDir) {
   mkdirSync(outputDir, { recursive: true });
   const copied = [];
@@ -292,13 +354,22 @@ function copyArtifactsBack(stageReleaseDir, outputDir) {
     const stat = statSync(from);
     const to = join(outputDir, entry);
     if (stat.isFile()) {
-      cpSync(from, to);
+      try {
+        copyWithRetry(from, to);
+      } catch (error) {
+        if (!isLockError(error)) throw error;
+        const alt = join(outputDir, entry.replace(/(\.[^.]+)$/u, "-fix$1"));
+        console.log(`[stage] ${entry} is locked, writing ${basename(alt)}`);
+        copyWithRetry(from, alt);
+        copied.push(alt);
+        continue;
+      }
     } else if (stat.isDirectory()) {
-      rmSync(to, { recursive: true, force: true });
+      rmWithRetry(to);
       // verbatimSymlinks preserves the original (often relative) symlink
       // targets. Without it, macOS .framework bundles get their internal
       // symlinks rewritten to point back into the now-deleted stage tmpdir.
-      cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+      copyWithRetry(from, to, { recursive: true, verbatimSymlinks: true });
     } else {
       continue;
     }
@@ -385,7 +456,23 @@ async function main() {
     //    resolves, and electron-builder then uses its well-trodden npm collector.
     //    npm runs native build scripts by default, so electron/better-sqlite3/
     //    node-pty all build without pnpm's build-gating flags.
-    run("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"], { cwd: stageRoot });
+    // The registry TLS handshake flakes intermittently on some networks;
+    // npm's cache makes retries cheap, so retry the stage install instead of
+    // failing the whole packaging run.
+    // --legacy-peer-deps: the stage tree is pack-only (pnpm already validated
+    // the real tree). Strict peer resolution breaks on upstream-only drift
+    // such as drizzle-orm's optional `effect@>=4.0.0-beta.58` range, which npm
+    // cannot satisfy once only prereleases remain published.
+    runWithRetry(
+      () =>
+        run(
+          "npm",
+          ["install", "--no-audit", "--no-fund", "--loglevel=error", "--legacy-peer-deps"],
+          { cwd: stageRoot },
+        ),
+      4,
+      "stage npm install",
+    );
 
     pruneStageBinaries(stageRoot);
     ensureNativeBuildCollected(stageRoot);
@@ -474,7 +561,9 @@ async function main() {
       runElectronBuilder("dmg", "branded");
       restoreMacUpdaterManifests(join(stageRoot, "release"), updaterManifests);
     } else {
-      runElectronBuilder(target);
+      // External downloads (Electron dist, code-sign tools) flake on hostile
+      // networks; caches make retries cheap.
+      runWithRetry(() => runElectronBuilder(target), 4, "electron-builder");
     }
 
     // 8. Copy artifacts back to release/.
@@ -508,6 +597,7 @@ function buildElectronBuilderConfig(macArtifactKind = "branded") {
   const productName = channelTable.productNameFor(channel);
   const updaterChannel = channelTable.updaterChannelFor(channel);
   const prefix = channelTable.artifactPrefixFor(channel);
+  const appVersion = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")).version;
   const iconSuffix = channel === "nightly" ? "-nightly" : "";
   const runtimeIconSuffix = channel === "nightly" ? "-nightly-mac" : "-mac";
   const macExecutableName = channelTable.macExecutableNameFor(channel, macArtifactKind);
@@ -601,6 +691,11 @@ nsis:
 
 portable:
   artifactName: ${prefix}-Portable-\${version}-\${arch}.\${ext}
+  # Versioned unpack dir: a running older portable locks %TEMP%\\CraftStation
+  # (exe + asar), so a new portable with the same unpackDirName cannot extract
+  # and appears to "not open". Each version unpacks side-by-side; the app still
+  # uses requestSingleInstanceLock, so the old instance must be quit first.
+  unpackDirName: ${prefix}-${appVersion}
 
 linux:
   target:

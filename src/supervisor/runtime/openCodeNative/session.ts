@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ProjectLocation } from "@/shared/contracts";
+import { normalizeThirdPartyModelId } from "@/shared/thirdPartyRouting";
 import type {
   CraftPlan,
   CraftRequestResolution,
@@ -155,10 +156,86 @@ export class OpenCodeNativeSession implements CraftSession {
     this.sessionId = `sess:opencode:${providerSessionId}`;
     const binding = options.plan.runtimeBinding;
     this.effectiveProviderID = providerID(binding);
-    this.effectiveModelID = binding.modelId;
+    this.effectiveModelID = normalizeThirdPartyModelId(binding.modelId);
 
     this.unsubscribe = connection.subscribe((raw) => this.onNativeEvent(raw));
+    this.watchChildExit(connection);
     this.emit({ type: "session.started", threadId: options.threadId });
+  }
+
+  /**
+   * A dead server can never complete the admitted turn (no idle/error event
+   * will arrive and the transport stopped reconnecting): reject the pending
+   * turn with the real exit info so the timer stops and the error surfaces
+   * instead of ghost-running. No timeout fakery — this fires exactly once on
+   * the child `exit` event.
+   */
+  private unwatchChildExit: (() => void) | undefined;
+  /** Recorded child death; makes every later request fail fast (see below). */
+  private serverDeath: { code: number | null; signal: NodeJS.Signals | null } | null = null;
+  /** Rejectors for in-flight promptAsync calls, settled on child death. */
+  private readonly serverDeathRejects = new Set<(error: Error) => void>();
+  private watchChildExit(connection: OpenCodeNativeConnection): void {
+    const child = connection.child;
+    // Already-dead pooled connection: promptAsync fails fast honestly, so
+    // there is nothing to watch for.
+    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      this.failPendingOnServerExit(code, signal);
+    };
+    child.once("exit", onExit);
+    this.unwatchChildExit = () => {
+      child.off("exit", onExit);
+    };
+  }
+
+  private serverDeathError(): Error {
+    const death = this.serverDeath;
+    const detail =
+      !death || (death.code == null && death.signal == null)
+        ? "exited"
+        : death.signal != null
+          ? `killed by signal ${death.signal}`
+          : `exited with code ${String(death.code)}`;
+    return new Error(`opencode serve ${detail} before the request completed.`);
+  }
+
+  private failPendingOnServerExit(code: number | null, signal: NodeJS.Signals | null): void {
+    if (this._disposed) return;
+    this.serverDeath = { code, signal };
+    // Pre-admission requests racing promptAsync: fail them now instead of
+    // hanging on a half-open socket no one will ever answer.
+    for (const reject of this.serverDeathRejects) reject(this.serverDeathError());
+    this.serverDeathRejects.clear();
+    const pending = this.pendingTurn;
+    if (!pending) return;
+    this.pendingTurn = undefined;
+    this._activeTurnStatus = "failed";
+    this._status = "error";
+    pending.reject(this.serverDeathError());
+  }
+
+  /**
+   * Race an in-flight request against recorded server death: if the child
+   * already exited, fail fast instead of hanging. The race is honest — it
+   * only settles on the real `exit` event, never on a timer.
+   */
+  private withServerDeathRace<T>(work: Promise<T>): Promise<T> {
+    if (this.serverDeath) return Promise.reject(this.serverDeathError());
+    return new Promise<T>((resolve, reject) => {
+      const onDeath = (error: Error) => reject(error);
+      this.serverDeathRejects.add(onDeath);
+      work.then(
+        (value) => {
+          this.serverDeathRejects.delete(onDeath);
+          resolve(value);
+        },
+        (error) => {
+          this.serverDeathRejects.delete(onDeath);
+          reject(error);
+        },
+      );
+    });
   }
 
   static async open(options: OpenCodeNativeSessionOptions): Promise<OpenCodeNativeSession> {
@@ -197,7 +274,10 @@ export class OpenCodeNativeSession implements CraftSession {
           title: `craftstation/${options.threadId.slice(0, 12)}`,
           metadata: safeRuntimeMetadata(options.plan),
         };
-        createInput.model = { providerID: providerID(runtimeBinding), id: runtimeBinding.modelId };
+        createInput.model = {
+          providerID: providerID(runtimeBinding),
+          id: normalizeThirdPartyModelId(runtimeBinding.modelId),
+        };
         const configuredOptions = record(runtimeBinding.options);
         if (configuredOptions.permission !== undefined) {
           createInput.permission = configuredOptions.permission;
@@ -272,9 +352,12 @@ export class OpenCodeNativeSession implements CraftSession {
     }
 
     // F43: Validate sticky model identity. Model cannot be mutated per-turn within an established session.
-    if (command.overrides?.model && command.overrides.model !== this.effectiveModelID) {
+    const requestedModel = command.overrides?.model
+      ? normalizeThirdPartyModelId(command.overrides.model)
+      : undefined;
+    if (requestedModel && requestedModel !== this.effectiveModelID) {
       throw CraftingError.incompatibleCombination(
-        `Cannot override model to '${command.overrides.model}' in active session '${this.sessionId}'. Model identity '${this.effectiveModelID}' is sticky. Create a new session to switch models.`,
+        `Cannot override model to '${requestedModel}' in active session '${this.sessionId}'. Model identity '${this.effectiveModelID}' is sticky. Create a new session to switch models.`,
       );
     }
 
@@ -289,6 +372,10 @@ export class OpenCodeNativeSession implements CraftSession {
     const pending = new Promise<void>((resolve, reject) => {
       this.pendingTurn = { turnId, startIndex, resolve, reject };
     });
+    // The death race below can reject this promise while startTurn is still
+    // awaiting promptAsync: mark it handled so an abandoned rejection never
+    // surfaces as unhandled. The race's own throw still carries the error.
+    pending.catch(() => {});
 
     const abort = () => {
       void this.interrupt(turnId);
@@ -298,22 +385,25 @@ export class OpenCodeNativeSession implements CraftSession {
     try {
       const binding = this.options.plan.runtimeBinding;
       const configured = record(binding.options);
-      await this.connection.client.session.promptAsync({
-        directory: this.options.plan.workspace ?? projectPath(this.options.projectLocation),
-        sessionID: this._providerSessionId,
-        model: {
-          providerID: this.effectiveProviderID,
-          modelID: this.effectiveModelID,
-        },
-        ...(configured.agent ? { agent: configured.agent } : {}),
-        ...((command.overrides?.reasoningEffort ?? this.options.plan.overrides?.reasoningEffort)
-          ? {
-              variant:
-                command.overrides?.reasoningEffort ?? this.options.plan.overrides?.reasoningEffort,
-            }
-          : {}),
-        parts: [{ type: "text", text: command.prompt }],
-      });
+      await this.withServerDeathRace(
+        this.connection.client.session.promptAsync({
+          directory: this.options.plan.workspace ?? projectPath(this.options.projectLocation),
+          sessionID: this._providerSessionId,
+          model: {
+            providerID: this.effectiveProviderID,
+            modelID: this.effectiveModelID,
+          },
+          ...(configured.agent ? { agent: configured.agent } : {}),
+          ...((command.overrides?.reasoningEffort ?? this.options.plan.overrides?.reasoningEffort)
+            ? {
+                variant:
+                  command.overrides?.reasoningEffort ??
+                  this.options.plan.overrides?.reasoningEffort,
+              }
+            : {}),
+          parts: [{ type: "text", text: command.prompt }],
+        }),
+      );
       await pending;
     } catch (error) {
       this.pendingTurn = undefined;
@@ -501,6 +591,8 @@ export class OpenCodeNativeSession implements CraftSession {
     } finally {
       this.unsubscribe?.();
       this.unsubscribe = undefined;
+      this.unwatchChildExit?.();
+      this.unwatchChildExit = undefined;
       await this.connection.dispose();
       this._status = "terminated";
       this.emit({ type: "session.exited", threadId: this.threadId, reason: "normal" });

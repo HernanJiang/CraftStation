@@ -7,6 +7,7 @@ import { Button } from "@/renderer/components/common/Button";
 import type { ButtonProps } from "@/renderer/components/common/Button";
 import { EffortContextMenu } from "@/renderer/components/common/EffortContextMenu/EffortContextMenu";
 import { OptionMenu } from "@/renderer/components/common/OptionMenu";
+import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
 import { PixelLoader } from "@/renderer/components/common/PixelLoader";
 import {
   ProviderModelMenu,
@@ -16,6 +17,7 @@ import { TextArea } from "@/renderer/components/common/TextArea";
 import { EffortIcon } from "@/renderer/components/providers/EffortIcon";
 import { PermissionIcon } from "@/renderer/components/providers/PermissionIcon";
 import { isRemoteSession } from "@/renderer/bridge";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import type { LabeledOption, ThreadPresentationMode } from "@/shared/contracts";
 import { DraftParameterMenu } from "./DraftParameterMenu";
 
@@ -34,6 +36,14 @@ export type ComposerControl =
       value: string;
       options: readonly OptionMenuOption[];
       onChange?: (value: string) => void;
+      /**
+       * Explicit full-access option id for this harness (its
+       * `capabilities.bypassPermissions.approvalPolicy`), so the execution-mode
+       * menu resolves "完全访问权限" without guessing from labels. Absent for
+       * controls built before this field existed — those keep the legacy
+       * label heuristic.
+       */
+      fullAccessPolicyId?: string;
       icon?: ReactNode;
       iconKind?: ComposerIconKind;
       iconOnly?: boolean;
@@ -179,6 +189,21 @@ function isModeComposerControl(control: ComposerControl): control is ModeCompose
   return control.kind === "toggle" && control.iconKind === "mode";
 }
 
+type PermissionMenuControl = Extract<ComposerControl, { kind?: "menu" }>;
+
+function permissionMenuFullAccessId(
+  control: PermissionMenuControl | undefined,
+): string | undefined {
+  if (!control) return undefined;
+  const ids = control.options.map((option) => (typeof option === "string" ? option : option.id));
+  // Provider-declared full-access policy first (its own bypass id per CLI);
+  // legacy label heuristic only for controls built without the field.
+  if (control.fullAccessPolicyId && ids.includes(control.fullAccessPolicyId)) {
+    return control.fullAccessPolicyId;
+  }
+  return ids.find((id) => id === "never" || id === "full-access");
+}
+
 function permissionOptionIsFull(option: OptionMenuOption): boolean {
   const id = typeof option === "string" ? option : option.id;
   const label = getOptionLabel(option).toLowerCase();
@@ -193,6 +218,8 @@ function permissionOptionIsFull(option: OptionMenuOption): boolean {
 function permissionIsFull(control: PermissionComposerControl | undefined): boolean {
   if (!control) return false;
   if (control.kind === "toggle") return control.isSelected;
+  const fullId = permissionMenuFullAccessId(control);
+  if (fullId) return control.value === fullId;
   const selected = control.options.find(
     (option) => (typeof option === "string" ? option : option.id) === control.value,
   );
@@ -208,8 +235,23 @@ function setPermission(control: PermissionComposerControl | undefined, full: boo
     control.onChange?.(full);
     return;
   }
-  const option = full
-    ? control.options.find(permissionOptionIsFull)
+  const ids = control.options.map((option) => (typeof option === "string" ? option : option.id));
+  if (full) {
+    const fullId =
+      permissionMenuFullAccessId(control) ?? ids.find((id) => permissionOptionIsFull(id));
+    if (fullId) {
+      control.onChange?.(fullId);
+      return;
+    }
+    console.warn("[composer] no full-access approval policy advertised for this harness");
+    return;
+  }
+  const fullId = permissionMenuFullAccessId(control);
+  const option = fullId
+    ? control.options.find((candidate) => {
+        const id = typeof candidate === "string" ? candidate : candidate.id;
+        return id !== fullId;
+      })
     : control.options.find((candidate) => !permissionOptionIsFull(candidate));
   if (option) {
     control.onChange?.(typeof option === "string" ? option : option.id);
@@ -219,6 +261,9 @@ function setPermission(control: PermissionComposerControl | undefined, full: boo
 function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
   const modeControl = props.controls.find(isModeComposerControl);
   const permissionControl = props.controls.find(isPermissionComposerControl);
+  // Shared overlay zoom compensation (see overlayZoom.ts): empty at factor 1.
+  // Without it the menu drifts (zoom-1)×distance at zoom ≠ 1.
+  const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
   if (!modeControl && !permissionControl) return null;
 
   const planMode = modeControl?.isSelected === true;
@@ -238,10 +283,14 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
         <span>{label}</span>
         <ChevronDown className="size-3.5 text-muted" />
       </Dropdown.Trigger>
-      <Dropdown.Popover placement="top start" className="min-w-[210px] rounded-[14px]">
+      <Dropdown.Popover
+        placement="top start"
+        className={withOverlayClass("min-w-[210px] rounded-[14px]", overlayZoom.root)}
+      >
         <Dropdown.Menu
           aria-label="执行模式与权限"
           selectionMode="none"
+          className={overlayZoom.content}
           onAction={(key) => {
             const next = String(key);
             if (next === "plan") {
@@ -253,13 +302,15 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
             setPermission(permissionControl, next === "full");
           }}
         >
-          <Dropdown.Item id="plan" textValue="计划模式">
-            <ClipboardList className="size-4 text-sky-300" />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <Label>计划模式</Label>
-              <span className="text-[10px] text-muted">只生成计划，不执行写入或命令</span>
-            </span>
-          </Dropdown.Item>
+          {modeControl ? (
+            <Dropdown.Item id="plan" textValue="计划模式">
+              <ClipboardList className="size-4 text-sky-300" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <Label>计划模式</Label>
+                <span className="text-[10px] text-muted">只生成计划，不执行写入或命令</span>
+              </span>
+            </Dropdown.Item>
+          ) : null}
           <Dropdown.Item id="approve" textValue="请求批准">
             <ShieldCheck className="size-4 text-emerald-300" />
             <span className="flex min-w-0 flex-1 flex-col">

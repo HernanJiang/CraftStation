@@ -6,7 +6,12 @@ import {
   AppStateProvenanceDriver,
   ProvenanceStore,
 } from "./index";
-import { CodexHarnessRuntimeAdapter } from "@/supervisor/runtime/codexRuntimeAdapter";
+import type {
+  CraftPlan,
+  CraftSession,
+  Entity,
+  HarnessRuntimeAdapter,
+} from "./index";
 import type {
   RuntimeEvent,
   StartThreadPayload,
@@ -51,7 +56,10 @@ describe("Crafting runtime adapter seam", () => {
     const provenanceStore = new ProvenanceStore(registry, dbDriver);
     provenanceStore.saveProvenance(threadId, resultItem.provenance);
 
-    // 4. Spawning Entity via CodexHarnessRuntimeAdapter
+    // 4. Spawning Entity via an inline stub of the adapter seam. (The legacy
+    // CodexHarnessRuntimeAdapter over ThreadSessionManager was deleted: the
+    // production Codex path is the Supervisor-owned native app-server
+    // adapter. This test keeps proving the seam shape with a local stub.)
     let eventListener: ((threadId: string, event: RuntimeEvent) => void) | undefined;
     const mockThreadSessionManager = {
       startThread: async (payload: StartThreadPayload): Promise<StartThreadResult> => ({
@@ -78,15 +86,88 @@ describe("Crafting runtime adapter seam", () => {
       closeThread: async () => {},
     };
 
-    const adapter = new CodexHarnessRuntimeAdapter({
-      threadSessionManager: mockThreadSessionManager as any,
-      subscribeRuntimeEvents: (listener) => {
-        eventListener = listener;
-        return () => {
-          eventListener = undefined;
+    const adapter: HarnessRuntimeAdapter = {
+      id: "stub-codex-seam",
+      harnessKind: "codex",
+      supports: () => true,
+      spawnEntity: async (entityPlan: CraftPlan): Promise<Entity> => ({
+        id: `entity:codex:${entityPlan.id}`,
+        resultItemId: entityPlan.resultItemId,
+        craftPlan: entityPlan,
+        status: "spawned",
+        createdAt: new Date(0).toISOString(),
+      }),
+      createSession: async (entity: Entity): Promise<CraftSession> => {
+        await mockThreadSessionManager.startThread({
+          threadId,
+          projectLocation: { kind: "posix", path: entity.craftPlan.workspace ?? process.cwd() },
+          agentKind: "codex",
+          config: { model: entity.craftPlan.runtimeBinding.modelId },
+          prompt: "",
+          initialSize: { cols: 100, rows: 30 },
+        });
+        entity.status = "running";
+        let status: CraftSession["status"] = "active";
+        const listeners = new Set<(event: RuntimeEvent) => void>();
+        eventListener = (eventThreadId, event) => {
+          if (eventThreadId === threadId) {
+            for (const listener of listeners) listener(event);
+          }
+        };
+        return {
+          id: `sess:codex:${threadId}`,
+          entityId: entity.id,
+          get status() {
+            return status;
+          },
+          startTurn: async () => ({ turnId: "turn-101", status: "completed", events: [] }),
+          interrupt: async () => undefined,
+          terminate: async () => {
+            status = "terminated";
+            eventListener = undefined;
+          },
+          getSnapshot: () => ({
+            sessionId: `sess:codex:${threadId}`,
+            entityId: entity.id,
+            status,
+            events: [],
+          }),          subscribe: (listener) => {
+            const wrapped = (event: RuntimeEvent) =>
+              listener(event, {
+                sessionId: `sess:codex:${threadId}`,
+                entityId: entity.id,
+                status,
+                events: [],
+              });
+            listeners.add(wrapped);
+            return () => {
+              listeners.delete(wrapped);
+            };
+          },
+          sendPrompt: async (prompt: string, onEvent) => {
+            await mockThreadSessionManager.sendThreadInput({
+              threadId,
+              prompt,
+              config: { model: entity.craftPlan.runtimeBinding.modelId },
+            });
+            return await new Promise((resolve) => {
+              const events: RuntimeEvent[] = [];
+              const wrapped = (event: RuntimeEvent) => {
+                events.push(event);
+                onEvent?.(event);
+                if (event.type === "turn.completed") {
+                  listeners.delete(wrapped);
+                  resolve({ response: events.map((entry) => ("delta" in entry ? (entry.delta as string) : "")).join(""), events });
+                }
+              };
+              listeners.add(wrapped);
+            });
+          },
         };
       },
-    });
+      resumeSession: async (entity: Entity, sessionRef: string): Promise<CraftSession> =>
+        adapter.createSession({ ...entity, id: `${entity.id}:resumed:${sessionRef}` }),
+    };
 
     const entity = await adapter.spawnEntity(plan);
     expect(entity.id).toContain("entity:codex:");

@@ -12,7 +12,18 @@ const threadConfigShape = {
   approvalsReviewer: z.string().optional(),
   sandboxMode: z.string().optional(),
   browserMcp: z.boolean().optional(),
+  /**
+   * Ephemeral Own Subagents channel (temporary child subagents). Legacy rows
+   * predate the rename; new launches keep writing this key.
+   */
   crossagentMcp: z.boolean().optional(),
+  /**
+   * Persistent Crossagents peer channel (durable messaging between
+   * long-lived native threads). Absent means default-ON; only an explicit
+   * `false` (or a hard disable of the `crossagents` built-in server) opts a
+   * thread out.
+   */
+  crossagentsMcp: z.boolean().optional(),
   computerUse: z.boolean().optional(),
   chromeMcp: z.boolean().optional(),
 } as const;
@@ -58,6 +69,7 @@ export function isThreadConfigEqual(
     left.sandboxMode === right.sandboxMode &&
     left.browserMcp === right.browserMcp &&
     left.crossagentMcp === right.crossagentMcp &&
+    left.crossagentsMcp === right.crossagentsMcp &&
     left.computerUse === right.computerUse &&
     left.chromeMcp === right.chromeMcp
   );

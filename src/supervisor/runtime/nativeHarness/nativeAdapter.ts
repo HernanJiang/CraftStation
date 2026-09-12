@@ -1,6 +1,7 @@
 ﻿import { randomUUID } from "node:crypto";
 import { resolveExecutablePath } from "@/supervisor/agents/base";
 import { buildAntigravityModelArgs } from "@/supervisor/agents/antigravity/argv";
+import { ANTIGRAVITY_DEFAULT_MODEL_ID } from "@/supervisor/agents/antigravity/detection";
 import {
   CraftPlan,
   CraftSession,
@@ -675,11 +676,23 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
       );
     if (this.options.mode === "deepseek") {
       const options = objectOptions(plan);
+      const profile =
+        this.options.profileRef ??
+        (typeof options.profile === "string" ? options.profile : undefined) ??
+        "sdk";
       const configPath =
         typeof options.configPath === "string" && options.configPath.trim()
           ? options.configPath.trim()
           : process.env.DSH_CORDIS_CONFIG?.trim();
-      if (!configPath) {
+      // The `dsh` CLI's `acp` profile ships ready-to-use (persistence mounted
+      // by the profile itself); `sdk` and the legacy carrier still require an
+      // explicit Cordis config containing the JSON-RPC server plugin. When no
+      // explicit runtimeCommand is set the executable resolves later at
+      // openSession (which re-enforces the rule once the carrier is known).
+      const explicitCommand = this.options.runtimeCommand;
+      const acpWithoutPatchOk =
+        profile.trim().toLowerCase() === "acp" && (!explicitCommand || isDshCli(explicitCommand));
+      if (!configPath && !acpWithoutPatchOk) {
         const record = nativeProcessDiagnostic(
           this.harnessKind,
           "Official DSH runtime requires an explicit Cordis config path (no synthetic Entity created).",
@@ -730,7 +743,13 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
     const args: string[] = [];
     if (this.options.mode === "antigravity") {
       args.push(
-        ...buildAntigravityModelArgs(runtimeConfig.model, runtimeConfig.reasoningEffort),
+        ...buildAntigravityModelArgs(
+          runtimeConfig.model,
+          runtimeConfig.reasoningEffort,
+          true,
+          ANTIGRAVITY_DEFAULT_MODEL_ID,
+          true,
+        ),
         ...(runtimeConfig.approvalPolicy === "never" ? ["--dangerously-skip-permissions"] : []),
         ...(sessionRef ? ["--conversation", sessionRef] : []),
         ...(this.options.runtimeArgs ?? []),
@@ -740,9 +759,19 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
         typeof options.configPath === "string" && options.configPath.trim()
           ? options.configPath.trim()
           : process.env.DSH_CORDIS_CONFIG?.trim();
-      if (!configPath) {
-        // dsh-jsonrpc-agent and dsh JSON-RPC runtime strictly require an explicit Cordis configuration
-        // containing the JSON-RPC server plugin. Without it, fail-closed with RUNTIME_UNAVAILABLE.
+      const profile =
+        this.options.profileRef ??
+        (typeof options.profile === "string" ? options.profile : undefined) ??
+        "sdk";
+      // Only the `dsh` CLI's ready-to-use `acp` profile may boot without an
+      // explicit `--patch`; the legacy `dsh-jsonrpc-agent` carrier always
+      // takes the Cordis config as its positional arg.
+      const isAcpProfile = profile.trim().toLowerCase() === "acp" && isDshCli(command);
+      if (!configPath && !isAcpProfile) {
+        // dsh-jsonrpc-agent and the `sdk` profile strictly require an explicit
+        // Cordis configuration containing the JSON-RPC server plugin. Without
+        // it, fail-closed with RUNTIME_UNAVAILABLE. The ready-to-use `acp`
+        // profile mounts persistence itself, so it may boot without `--patch`.
         const record = nativeProcessDiagnostic(
           this.harnessKind,
           "Official DSH runtime requires an explicit Cordis config path (no synthetic Entity created).",
@@ -752,15 +781,15 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
         throw CraftingError.runtimeUnavailable(this.harnessKind, record.message);
       }
       if (isDshCli(command)) {
-        const profile =
-          this.options.profileRef ??
-          (typeof options.profile === "string" ? options.profile : undefined) ??
-          "sdk";
-        args.push(...buildDeepSeekJsonRpcArgs(profile, this.options.runtimeArgs ?? []));
-        args.push("--patch", configPath);
+        // Mirrors the official SDK client's launch spec (`--profile <name>` +
+        // ordered `--patch`); see deepseekCapabilityProfile.ts.
+        args.push(
+          ...buildDeepSeekJsonRpcArgs(profile, this.options.runtimeArgs ?? []),
+          ...(configPath ? ["--patch", configPath] : []),
+        );
       } else {
         args.push(...(this.options.runtimeArgs ?? []));
-        args.push(configPath);
+        if (configPath) args.push(configPath);
       }
     }
     let session: NativeProcessCraftSession | undefined;

@@ -6,6 +6,7 @@ import {
   dbGetProjectNotes,
   dbGetProjects,
   dbGetThread,
+  dbGetThreadRuntimeItems,
   dbGetThreads,
   dbInsertScheduleRun,
   dbInterruptScheduleRuns,
@@ -48,8 +49,10 @@ import {
 } from "@/shared/remote";
 import { configureSecretStorageKey } from "@/shared/secretStorage";
 import {
+  buildScheduleThreadContextText,
   createDeviceScheduleService,
   ensureHomeProjectRow,
+  extractScheduleRunSummary,
   ScheduleRunCoordinator,
 } from "@/main/schedules";
 import {
@@ -233,6 +236,13 @@ export async function createHeadlessRemoteHost(
   });
   const scheduleCoordinator = new ScheduleRunCoordinator({
     startThread: (payload) => supervisorClient.call("startThread", payload),
+    sendFollowUp: (input) =>
+      supervisorClient.call("sendThreadInput", {
+        threadId: input.threadId,
+        prompt: input.prompt,
+        config: input.config,
+      }),
+    craftAgent: (payload) => supervisorClient.call("craftAgent", payload),
     getAgentStatuses: (wslDistros) => supervisorClient.call("getAgentStatuses", { wslDistros }),
     // Headless has no desktop renderer to mirror to; the DB thread row (written
     // below) is the source of truth and connected remote clients pick it up.
@@ -245,12 +255,30 @@ export async function createHeadlessRemoteHost(
     threadExists: (threadId) => dbGetThread(threadId) != null,
     insertRun: dbInsertScheduleRun,
     updateRun: dbUpdateScheduleRun,
+    getThread: dbGetThread,
+    getThreadContextText: (threadId) => {
+      try {
+        return buildScheduleThreadContextText(dbGetThreadRuntimeItems(threadId));
+      } catch {
+        return null;
+      }
+    },
+    getThreadTerminalResult: (threadId) => {
+      try {
+        return extractScheduleRunSummary(dbGetThreadRuntimeItems(threadId));
+      } catch {
+        return null;
+      }
+    },
   });
   scheduleRunCoordinator = scheduleCoordinator;
   const scheduleService = createDeviceScheduleService({
-    runTask: (task) => scheduleCoordinator.runScheduleAsThread(task),
+    runTask: (task, invocation) => scheduleCoordinator.runScheduleAsThread(task, invocation),
     onStartupInterrupted: (scheduleId) =>
       dbInterruptScheduleRuns(scheduleId, new Date().toISOString()),
+    onChanged: () => {
+      serverRef?.publishSupervisorEvent({ type: "remote-schedules-changed" });
+    },
   });
   const publishHeadlessProjectsChanged = (): void => {
     serverRef?.publishSupervisorEvent({

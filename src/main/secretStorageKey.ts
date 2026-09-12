@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, renameSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { safeStorage } from "electron";
@@ -99,6 +99,34 @@ export function readOrCreateSafeStorageSecretKey(
   platform: NodeJS.Platform = process.platform,
   userDataScope?: string,
 ): string {
+  return readSecretStorageKeychain(baseDir, platform, userDataScope).current;
+}
+
+export interface SecretStorageKeychain {
+  /** Key for all new seals (this launch identity's scoped key). */
+  current: string;
+  /** Older-identity keys, for decryption only. Never used for sealing. */
+  fallbacks: string[];
+}
+
+/** Scoped key files created by {@link scopedKeyFileName} (excludes `.bak-*`). */
+const SCOPED_KEY_FILE_PATTERN = /^secret-key\.[0-9a-f]{12}\.safe$/;
+
+/**
+ * Read this identity's key plus every other identity key this OS user can
+ * unseal. Several userData identities can share one baseDir (packaged app,
+ * unpackaged `electron .` launches, update restarts); without the fallbacks,
+ * launching under a different identity than the one that sealed the vault
+ * silently orphaned every sealed provider secret (Antigravity pool,
+ * Volcengine, …) while file-based credentials like Grok's auth.json kept
+ * working. Fallback keys only ever decrypt — sealing stays on `current`, so a
+ * re-save naturally consolidates onto the active identity.
+ */
+export function readSecretStorageKeychain(
+  baseDir: string,
+  platform: NodeJS.Platform = process.platform,
+  userDataScope?: string,
+): SecretStorageKeychain {
   let encryptionAvailable: boolean;
   try {
     encryptionAvailable = safeStorage.isEncryptionAvailable();
@@ -117,31 +145,73 @@ export function readOrCreateSafeStorageSecretKey(
       "[credential-storage] secure OS encryption is unavailable; credentials are session-only.",
     );
     sessionOnlyKey ??= randomBytes(32).toString("base64");
-    return sessionOnlyKey;
+    return { current: sessionOnlyKey, fallbacks: [] };
   }
 
   const path = keyFilePath(baseDir, userDataScope);
   const stored = readKeyFromFile(path);
-  if ("key" in stored) return stored.key;
-  if ("failed" in stored) {
-    // Report the typed recovery without including the key file path or contents,
-    // then rotate ONLY this identity's scoped key file so the app remains usable.
-    reportKeyRecovery(stored.failed);
-    return createPersistentKey(path);
-  }
-
-  // No scoped key yet. A legacy unscoped `secret-key.safe` may hold a key
-  // sealed by this same identity from before scoping existed: migrate it
-  // verbatim so already-sealed provider secrets stay decryptable. A blob
-  // sealed by a different identity fails decryption and is left untouched for
-  // its owner.
-  if (userDataScope) {
-    const legacy = readKeyFromFile(legacyKeyFilePath(baseDir));
-    if ("key" in legacy) {
-      persistKey(path, legacy.key);
-      return legacy.key;
+  let current: string;
+  if ("key" in stored) {
+    current = stored.key;
+  } else {
+    if ("failed" in stored) {
+      // Report the typed recovery without including the key file path or contents,
+      // then rotate ONLY this identity's scoped key file so the app remains usable.
+      reportKeyRecovery(stored.failed);
+      backUpUndecryptableKeyFile(path);
+    } else if (userDataScope) {
+      // No scoped key yet. A legacy unscoped `secret-key.safe` may hold a key
+      // sealed by this same identity from before scoping existed: migrate it
+      // verbatim so already-sealed provider secrets stay decryptable. A blob
+      // sealed by a different identity fails decryption and is left untouched for
+      // its owner.
+      const legacy = readKeyFromFile(legacyKeyFilePath(baseDir));
+      if ("key" in legacy) {
+        persistKey(path, legacy.key);
+        return { current: legacy.key, fallbacks: collectFallbackKeys(baseDir, path, legacy.key) };
+      }
     }
+    current = createPersistentKey(path);
   }
+  return { current, fallbacks: collectFallbackKeys(baseDir, path, current) };
+}
 
-  return createPersistentKey(path);
+/**
+ * Move an undecryptable key file aside instead of overwriting it. Rotation
+ * used to destroy the only key material that could ever read the old sealed
+ * blobs; a backup keeps forensics (and a future OS-keychain recovery) possible
+ * while the `.bak-*` suffix keeps it out of the fallback scan.
+ */
+function backUpUndecryptableKeyFile(path: string): void {
+  try {
+    renameSync(path, `${path}.bak-${Date.now()}`);
+  } catch {
+    console.warn("[credential-storage] unable to back up the undecryptable key file.");
+  }
+}
+
+/** Every other scoped key (plus legacy) this OS user can unseal, deduplicated. */
+function collectFallbackKeys(baseDir: string, currentPath: string, current: string): string[] {
+  const fallbacks: string[] = [];
+  const consider = (candidate: string): void => {
+    if (candidate === currentPath) return;
+    let stored: KeyFileRead;
+    try {
+      stored = readKeyFromFile(candidate);
+    } catch {
+      return;
+    }
+    if ("key" in stored && stored.key !== current && !fallbacks.includes(stored.key)) {
+      fallbacks.push(stored.key);
+    }
+  };
+  try {
+    for (const name of readdirSync(baseDir)) {
+      if (SCOPED_KEY_FILE_PATTERN.test(name)) consider(join(baseDir, name));
+    }
+  } catch {
+    return fallbacks;
+  }
+  consider(legacyKeyFilePath(baseDir));
+  return fallbacks;
 }

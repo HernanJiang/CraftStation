@@ -51,7 +51,7 @@ function finiteNumber(value: unknown): number | undefined {
 function percent(value: unknown): number | undefined {
   const numeric = finiteNumber(value);
   if (numeric === undefined) return undefined;
-  const result = numeric >= 0 && numeric <= 1 ? numeric * 100 : numeric;
+  const result = numeric > 0 && numeric < 1 ? numeric * 100 : numeric;
   return result >= 0 && result <= 100 ? result : undefined;
 }
 

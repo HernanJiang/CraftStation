@@ -58,6 +58,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
   },
   {
     section: "general",
+    anchor: "general.customPrompt",
+    title: msg`Custom prompt`,
+    description: msg`Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to disable.`,
+    keywords: "prompt instruction custom global personal agents.md system persona directives",
+  },
+  {
+    section: "general",
     anchor: "general.defaultNewThread",
     title: msg`Default new thread`,
     description: msg`Open new threads as a full page or a side-by-side panel.`,
@@ -329,6 +336,16 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     title: msg`Confirm before deleting threads`,
     description: msg`Show a confirmation before permanently deleting a thread.`,
     keywords: "confirm delete thread worktree remove ask warning",
+    desktopOnly: true,
+  },
+
+  // Archived threads
+  {
+    section: "archived",
+    anchor: "threads.archiveRetention",
+    title: msg`Auto-delete archived threads`,
+    description: msg`Archived threads are permanently deleted after this long, counted strictly from when each thread was archived.`,
+    keywords: "auto delete archive retention cleanup expire days never immediate",
     desktopOnly: true,
   },
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RuntimeEvent } from "@/shared/contracts";
 import type { CreateStructuredSessionInput, StructuredSessionListener } from "../base";
 import { AntigravityStructuredSession } from "./structuredSession";
+import { ANTIGRAVITY_PRINT_WAIT_TIMEOUT } from "./argv";
 
 type EmitFrame = (frame: Record<string, unknown>) => void;
 
@@ -72,6 +73,7 @@ class AntigravityFixture extends EventEmitter {
 function createFixtureSession(
   fixture: AntigravityFixture,
   inputOverrides: Partial<CreateStructuredSessionInput> = {},
+  optionOverrides: { supportsPrintTimeout?: boolean } = {},
 ) {
   const spawnProcess = vi.fn<() => ChildProcessWithoutNullStreams>(
     () => fixture as unknown as ChildProcessWithoutNullStreams,
@@ -89,6 +91,7 @@ function createFixtureSession(
       supportsSeparateModelEffort: true,
       defaultModel: "Gemini 3.5 Flash",
       spawnProcess,
+      ...optionOverrides,
     },
   );
   return { session, spawnProcess };
@@ -152,6 +155,113 @@ describe("AntigravityStructuredSession", () => {
 
     await session.dispose();
     expect(fixture.killed).toBe(true);
+  });
+
+  it("widens the print wait so a long turn is not cut off mid-task", async () => {
+    const fixture = new AntigravityFixture();
+    const { session, spawnProcess } = createFixtureSession(fixture, {}, {
+      supportsPrintTimeout: true,
+    });
+
+    await session.activate();
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+
+    expect(JSON.stringify(vi.mocked(spawnProcess).mock.calls[0])).toContain(
+      `--print-timeout=${ANTIGRAVITY_PRINT_WAIT_TIMEOUT}`,
+    );
+    await session.dispose();
+  });
+
+  it("omits --print-timeout for agy builds whose probed help does not list it", async () => {
+    const fixture = new AntigravityFixture();
+    const { session, spawnProcess } = createFixtureSession(fixture);
+
+    await session.activate();
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+
+    expect(JSON.stringify(vi.mocked(spawnProcess).mock.calls[0])).not.toContain("--print-timeout");
+    await session.dispose();
+  });
+
+  it("respawns transparently after the process exits mid-session", async () => {
+    const fixture = new AntigravityFixture();
+    const { session, spawnProcess } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: () => undefined,
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.activate();
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    expect(spawnProcess).toHaveBeenCalledTimes(1);
+
+    // The process dies with no turn active (crash/OOM/killed). The next send
+    // must transparently reopen against the retained conversation instead of
+    // failing forever with "session is not open".
+    fixture.emit("exit", 1, null);
+    await session.startTurn("hello again", { model: "Gemini 3.5 Flash" });
+
+    expect(spawnProcess).toHaveBeenCalledTimes(2);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "completed" }),
+      ]),
+    );
+  });
+
+  it("passes pool ADC scope env through on native projects", async () => {
+    const fixture = new AntigravityFixture();
+    const { session, spawnProcess } = createFixtureSession(fixture, {
+      baseSpawnEnv: {
+        AGY_CLI_DISABLE_AUTO_UPDATE: "1",
+        AGY_ADC_AUTH: "1",
+        GOOGLE_APPLICATION_CREDENTIALS: "D:\\managed\\profile\\adc\\authorized_user.json",
+      },
+    });
+
+    await session.activate();
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+
+    const spawnOptions = (spawnProcess as ReturnType<typeof vi.fn>).mock.calls[0]?.[2] as
+      | { env: Record<string, string> }
+      | undefined;
+    expect(spawnOptions?.env.AGY_ADC_AUTH).toBe("1");
+    expect(spawnOptions?.env.GOOGLE_APPLICATION_CREDENTIALS).toBe(
+      "D:\\managed\\profile\\adc\\authorized_user.json",
+    );
+    await session.dispose();
+  });
+
+  it("strips host-side ADC scope env at the WSL boundary", async () => {
+    const fixture = new AntigravityFixture();
+    const { session, spawnProcess } = createFixtureSession(fixture, {
+      projectLocation: {
+        kind: "wsl",
+        distro: "Ubuntu",
+        linuxPath: "/home/user/repo",
+        uncPath: "\\\\wsl.localhost\\Ubuntu\\home\\user\\repo",
+      },
+      baseSpawnEnv: {
+        AGY_CLI_DISABLE_AUTO_UPDATE: "1",
+        AGY_ADC_AUTH: "1",
+        GOOGLE_APPLICATION_CREDENTIALS: "D:\\managed\\profile\\adc\\authorized_user.json",
+      },
+    });
+
+    await session.activate();
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+
+    // WSL launches through `bash -l -i -c` with the env baked into the script,
+    // so inspect the exported script rather than the spawn options env.
+    const call = JSON.stringify((spawnProcess as ReturnType<typeof vi.fn>).mock.calls[0!]);
+    expect(call).not.toContain("AGY_ADC_AUTH");
+    expect(call).not.toContain("authorized_user.json");
+    // Non-credential spawn env still crosses the boundary.
+    expect(call).toContain("AGY_CLI_DISABLE_AUTO_UPDATE");
+    await session.dispose();
   });
 
   it("filters app-controls headers before spawn instead of failing openThread or leaking its token", async () => {
@@ -285,6 +395,34 @@ describe("AntigravityStructuredSession", () => {
       expect.arrayContaining([
         expect.objectContaining({ type: "turn.completed", state: "interrupted" }),
       ]),
+    );
+  });
+
+  it("observes turn failures for pool quota write-back without changing the rejection", async () => {
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "result",
+        result: { status: "ERROR", error: "RESOURCE_EXHAUSTED: Individual quota reached" },
+      });
+    });
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    const { session } = createFixtureSession(fixture, { onPromptError });
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: vi.fn<(event: RuntimeEvent) => void>(),
+    });
+
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    // The turn still rejects with the provider error; the observer is additive.
+    await expect(session.startTurn("hi", { model: "Gemini 3.5 Flash" })).rejects.toThrow(
+      "RESOURCE_EXHAUSTED: Individual quota reached",
+    );
+    expect(onPromptError).toHaveBeenCalledOnce();
+    expect((onPromptError.mock.calls[0]?.[0] as Error | undefined)?.message).toBe(
+      "RESOURCE_EXHAUSTED: Individual quota reached",
     );
   });
 });

@@ -24,7 +24,7 @@ D:\Work\CraftStation\              # Product Git Root；main 源码、测试、�
 - 产品源码、测试、配置与 `main` 分支直接位于 `D:\Work\CraftStation`，不再增加 `craftstation/` 包装层。
 - Git 拓扑：`D:\Work\CraftStation` = Product Git Root / `main`；所有并行版本开发工作树直接位于 `D:\Work\CraftStation\.worktrees\<version-feature>`，对应分支统一为 `dev/<version-feature>`。本项目不维护共享 `dev` 分支或共享 Dev 工作树；该结构与 `my-workflow` 的默认拓扑一致。
 - 一个版本 Feature 对应一个 `dev/<version-feature>` 分支与一个 `.worktrees/<version-feature>` 工作树。该版本的 Manager Plan、Coder 实现、Fix Cycle、Debugger 验收和用户候选试用均在同一工作树完成；不同版本可以并行，禁止跨 Feature worktree 写入。
-- 已立项的版本 Feature 仍走独立 worktree。用户确认要修的问题、缺陷、hotfix 与 main 上的治理约定，默认直接在 Product Git Root 的 `main` 修改与验证，不为此新建 Feature worktree。
+- 已立项的版本 Feature 仍走独立 worktree；但本项目当前由用户明确覆盖：Bug、缺陷、hotfix 与可用性修复默认直接在 Product Git Root 的 `main` 修改与验证，不新建 Feature worktree。只有用户明确恢复 Feature 开发时，才使用独立 worktree。
 - Debugger PASS 后在当前版本开发分支完成候选收口并通知 Manager，不再执行 Feature → 共享 Dev 合并。只有用户完成验收并明确授权后，Manager 才把该 `dev/<version-feature>` 分支收口到 `main`；Coder / Debugger 不得 merge main、打正式 tag 或 push `origin/main`。
 - 旧 `D:\Work\CraftStation\dev`、`craftstation-dev` 与其中的工作树均为迁移残留，统一归档到仓库外备份；旧 `D:\Work\CraftStation\craftstation` 仅允许暂存被既有运行中产物占用的迁移残留。新开发不得使用这些旧路径。
 - `reference/` 与 `学习材料/` 不进入产品构建、测试或 Product Git 的上游源码历史。
@@ -113,9 +113,10 @@ Auto-Crafting、Model Fingerprint、Active Probing、Compatibility Prediction、
   - **终极攻坚与阻断**：若 3 轮后仍有未能解决的 bug，由 Debugger 和 Coder 启动 Matt 的 `diagnosing-bugs` 与 `tdd` 技能进行最后一轮终极联合攻坚修复，再修不好则标记 `BLOCKED` 上报用户；若遇到**需要用户配合才能解决**的问题（缺少凭据/配置/权限/需人工决策），**立即标记 `BLOCKED` 直接上报用户**，严禁空耗互审轮次。
   - **双向 PASS 收尾**：当 Coder 与 Debugger 在互审中均判定 0 Findings（达成双向 PASS）时，由 Debugger 在当前版本 Dev 分支完成候选收口（状态进入 `DEV PASS / USER ACCEPTANCE PENDING`），生成 `report_X.Y.md`，并启动产物引导用户进行 Smoke 验收。
 - 配对规则：每个 Feature 的 Coder 必须在完成全部 Ticket 与 Stage 2 自查自修后，自动创建并交接一个对应的 Debugger 任务；Manager 不预先创建 Debugger。Debugger 只验收其绑定 Coder 的同一 Feature worktree。
-- 角色默认模型：Coder 默认使用 `muse-spark-1.3-contributor` (Muse-Spark-1.3-Contributor)、推理强度 `xhigh`；Debugger 默认使用 `gpt-5.6-sol` (ChatGPT 5.6 sol)、推理强度 `high`。创建或继续 Coder / Debugger 会话时使用上述默认值，不要覆盖为其他模型，除非用户当次明确指定。
-- 问题修复分流：版本 Feature 仍在独立 worktree 开发；用户确认的问题、缺陷与 hotfix 默认由 Manager / Coder 直接在 `main` 修改，不另开 Feature worktree。
+- 角色默认模型：Coder 默认使用 `gpt-6-astra`（ChatGPT-6 Astra），推理强度 `medium`；Debugger 默认使用 `grok-4.6`（Grok 4.6），推理强度 `high`。创建或继续角色线程时使用上述配置，除非用户另行指定。
+- 问题修复分流：本项目当前默认直接在 `main` 修复用户确认的问题、缺陷与 hotfix；Coder 与 Debugger 使用独立线程，但按批次串行操作同一 main 工作区，避免并发写冲突。
 - Manager：每项目唯一，标题固定 `Manager`，不绑 Feature 版本；负责与用户讨论并下发计划，跨 Feature 复用同一会话。Plan 发布并完成 Coder 派发后立即收口本轮，不持续等待、轮询或查看 Coder 进度；Coder 连续执行全部 Tickets 并自行创建 Debugger。仅当用户明确要求查看进度、出现阻塞/Re-plan，或用户授权 Dev → Main 收口时，Manager 才再介入。
+- 线程隔离：每个 Coder、其配对 Debugger，以及 Assistant 都必须是独立线程；每个 Coder 只配对一个 Debugger，Debugger 不预先复用其他 Feature 的线程。main 修复批次完成后再进入下一批，确保同一工作区只有一个写入者。
 - Coder / Debugger / Assistant 会话命名：`{Role}-{Version}-{ShortDesc}`，例如 `Coder-0.7-OpenCode Native`、`Debugger-0.6-Provider Auth`。`Version` 用 Feature `X.Y`，不要加 `v`。
 - 新建角色会话必须绑定本项目（`projectId` `16cc8579-4db8-4ce6-89c3-a12a48187705` / `D:\\Work\\CraftStation`），禁止 projectless 会话。同一角色多个 Feature 会话时按版本匹配，不得复用其他版本的 Debugger，也不得新建第二个 Manager。
 - 双向 PASS 达成后，由 Debugger 在当前 `dev/<version-feature>` 分支完成候选收口，通知 Manager，并打开该版本工作树产物给用户看；不再合入共享 Dev。用户验收并明确授权后，版本开发分支 → `main` 由 Manager 执行；发生冲突时保留现场并向用户说明，不强制覆盖。
@@ -144,6 +145,12 @@ GitHub CLI 仓库检索使用 `fullName`：
 gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt,pushedAt,stargazersCount,isFork,visibility
 ```
 
+## Portable Release
+
+- 便携版默认输出到 `D:\Work\CraftStation\release\`（`pnpm dist:win:portable` 的 `--output-dir` 即此目录，不再使用 `release-portable*` 系列目录）。
+- `release\` 下仅保留最新便携版 exe 和上一个版本稳定的便携版 exe 共两份备份；旧版本目录（`release-portable*`）、中间产物（`win-unpacked/`、`builder-debug.yml` 等）打包完成后即删除。
+- NSIS 安装包（`CraftStation-Setup-*.exe`）不属于便携版备份，不在此规则内，不得顺手删除。
+
 ## Assistant Knowledge Capture
 
 仅在用户指定 Assistant 角色并要求知识沉淀时应用：
@@ -151,3 +158,6 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 - 通用知识写入 `D:\Apps\Obsidian\Hernan\知识库\` 下对应领域文档。
 - CraftStation 架构、实现、Bug、配置和决策写入 `D:\Apps\Obsidian\Hernan\科研和项目\CraftStation\`。
 - 对应分类或项目文档不存在时，先提醒用户确认，再协助创建。
+
+
+

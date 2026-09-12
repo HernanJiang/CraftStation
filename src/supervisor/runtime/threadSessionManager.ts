@@ -16,11 +16,14 @@ import {
   type ResolveThreadServerRequestPayload,
   type RollbackThreadConversationPayload,
   type SendThreadInputPayload,
+  type SessionRef,
   type SetPendingSteerPayload,
   type StageThreadInputPayload,
   type StartShellPayload,
   type StartThreadPayload,
   type StartThreadResult,
+  type SwitchThreadProviderPayload,
+  type SwitchThreadProviderResult,
   type TerminalSize,
   type TerminalShellSnapshot,
   type ThreadConfig,
@@ -40,11 +43,19 @@ import {
   primeProjectShellEnv,
   resolveLaunchSpec,
 } from "../agents/base";
+import { isGrokPoolQuotaError, isKimiPoolQuotaError } from "../agents/acp/sessionErrors";
+import { isAntigravityQuotaError } from "../agents/antigravity/sessionErrors";
+import { isCodexPoolQuotaError } from "../agents/codex/sessionErrors";
 import { ensureNodePtySpawnHelperExecutable } from "../nodePty";
 import { BufferedLogWriter } from "./bufferedLogWriter";
 import type { QueuedStructuredTurn, SessionRuntime, ShellSessionRuntime } from "./sessionTypes";
 import { ThreadOutputPipeline, resolveThreadStatusSource } from "./threadOutputPipeline";
 import { rewriteSegmentsForWorkspace, rewriteSegmentsForWsl } from "./threadAttachments";
+import {
+  composeInlineTurnInstructions,
+  readChatLanguageDirective,
+  readCustomGlobalPrompt,
+} from "./chatLanguage";
 
 import {
   isInterruptibleBusyStatus,
@@ -70,6 +81,7 @@ import {
   type SpawnThreadInput,
 } from "./threadSession/spawnPipeline";
 import { StructuredTurnQueue } from "./threadSession/structuredTurnQueue";
+import { buildHistoryPreface, ThreadTranscriptTracker } from "./threadSession/threadTranscript";
 import { StructuredFailureReporter } from "./threadSession/structuredFailureReporter";
 import { readSupervisorSharedSettings } from "./supervisorSharedSettings";
 
@@ -78,12 +90,66 @@ export type { ThreadSessionManagerOptions };
 
 const RECENTLY_REMOVED_THREAD_LIMIT = 256;
 
+/**
+ * Same-turn pool-failover budget: one turn may walk at most this many pool
+ * accounts before the original quota error surfaces. Progress is normally
+ * bounded earlier by the tried-account set (each attempt marks its account
+ * exhausted); the cap only backstops pools whose marks never stick.
+ */
+const MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN = 6;
+
+/**
+ * Subscription pool providers whose quota exhaustion may trigger same-turn
+ * failover. Third-party (`openai-compatible`) sessions never walk the pool:
+ * their credential source is a single validated endpoint, not a pool
+ * account. Auth failures stay fail-closed everywhere — only quota may move
+ * a thread to the next row automatically.
+ */
+const POOL_FAILOVER_PROVIDERS: ReadonlySet<string> = new Set([
+  "grok",
+  "kimi",
+  "codex",
+  "antigravity",
+]);
+
+/** Provider-dispatched pool-quota matcher for same-turn failover. */
+function isPoolQuotaError(provider: string, error: unknown): boolean {
+  switch (provider) {
+    case "grok":
+      return isGrokPoolQuotaError(error);
+    case "kimi":
+      return isKimiPoolQuotaError(error);
+    case "codex":
+      return isCodexPoolQuotaError(error);
+    case "antigravity": {
+      const message = error instanceof Error ? error.message : String(error ?? "");
+      return isAntigravityQuotaError(message);
+    }
+    default:
+      return false;
+  }
+}
+
 export class ThreadSessionManager {
   readonly sessions = new Map<string, SessionRuntime>();
   readonly shellSessions = new Map<string, ShellSessionRuntime>();
   /** Reverse index: agent-native session id → SessionRuntime, for CLI hook routing fallback. */
   readonly sessionsBySessionId = new Map<string, SessionRuntime>();
   private readonly startLocks = new Map<string, Promise<void>>();
+  /**
+   * Per-thread tried-account accumulator for pool failover. Turn objects
+   * carry the chain within one turn; this map carries it ACROSS turns built
+   * fresh per trigger (e.g. Codex async quota notifications) so the chain
+   * still terminates even when the quota write-back fails to land. Reset on
+   * every new user submit; dropped with the thread.
+   */
+  private readonly poolTriedByThread = new Map<string, Set<string>>();
+  /**
+   * Rolling text tail per thread (user prompts + assistant replies) feeding
+   * the failover context preface ("前情提要"). Fed from the canonical
+   * runtime events the lifecycle already routes; dropped with the thread.
+   */
+  private readonly transcripts = new ThreadTranscriptTracker();
   private readonly pendingStartInterrupts = new Set<string>();
   private readonly pendingStartAborts = new Set<string>();
   private readonly ptyLifecycle = new PtyLifecycle();
@@ -128,6 +194,7 @@ export class ThreadSessionManager {
       sessions: this.sessions,
       beginFailureEpisode: (session) => this.structuredFailureReporter.beginEpisode(session),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
+      tryPoolFailover: (session, turn, error) => this.tryPoolFailover(session, turn, error),
     });
     this.steerCoordinator = new SteerCoordinator({
       emit: options.emit,
@@ -159,6 +226,7 @@ export class ThreadSessionManager {
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
       indexSessionRef: (session, prevId) => this.indexSessionRef(session, prevId),
       pollSessionRefDiscovery: (session) => this.pollSessionRefDiscovery(session),
+      observeTranscriptEvent: (threadId, event) => this.transcripts.observe(threadId, event),
     });
     this.spawnPipeline = new SpawnPipeline({
       options: this.options,
@@ -173,6 +241,7 @@ export class ThreadSessionManager {
       closeThread: (payload) => this.closeThread(payload),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
       failThreadLaunch: (threadId, error) => this.failThreadLaunch(threadId, error),
+      tryPoolFailover: (session, turn, error) => this.tryPoolFailover(session, turn, error),
       isCurrentSession: (session) => this.isCurrentSession(session),
       resolveAgentSettings: (adapter) => this.resolveAgentSettings(adapter),
       emitOptimisticUserMessage: (threadId, prompt, segments, requestedItemId, requestedTurnId) =>
@@ -264,6 +333,301 @@ export class ThreadSessionManager {
       threadId: session.threadId,
       message,
     });
+    // The optimistic turn paint (`turn.started` from the queue) may never see a
+    // native terminal event when the session itself fails to start or dies.
+    // Synthesize `turn.completed` so the renderer closes the open turn instead
+    // of leaving the thread in a phantom "working" state.
+    this.enqueueRuntimeEvent(session.threadId, {
+      type: "turn.completed",
+      threadId: session.threadId,
+      turnId: `turn-${randomUUID()}`,
+      state: "failed",
+    });
+  }
+
+  /**
+   * Stash the thread transcript tail on a turn that is about to rebuild the
+   * session, so a FRESH session (new account, lost ref) still answers with
+   * context. restartThread drops it again when the old session resumes
+   * natively, so it can never duplicate history — only fresh sessions send
+   * it. No-op when there is nothing to carry or the turn already has one.
+   */
+  private attachHistoryPreface(session: SessionRuntime, turn: QueuedStructuredTurn): void {
+    if (turn.historyPreface !== undefined) return;
+    const preface = buildHistoryPreface(
+      this.transcripts.take(session.threadId),
+      turn.prompt,
+      this.transcripts.wasTruncated(session.threadId),
+    );
+    if (preface !== undefined) turn.historyPreface = preface;
+  }
+
+  /**
+   * Proactive pool re-resolution for the submit path (provider-agnostic).
+   * Same-turn failover only runs when a turn FAILS on a quota error; a
+   * session whose bound account died earlier (or whose failover was declined)
+   * would otherwise burn every new turn on the dead account. When the bound
+   * account is no longer scheduler-usable, restart first — restartThread
+   * re-resolves via normal pool rules and replays the turn there. Returns
+   * true when a restart was kicked (the caller must not also start the turn
+   * on the old session). Never throws: any restart/resolution failure
+   * resolves to false so the turn falls through to the bound session and
+   * its failure surfaces honestly.
+   */
+  private async restartForDeadPoolBinding(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+  ): Promise<boolean> {
+    const accountId = session.poolAccountId;
+    const provider = session.poolProvider;
+    // Ambient sessions (no pool binding) and sticky third-party sessions
+    // never walk the subscription pool.
+    if (!accountId || !provider || provider === "openai-compatible") return false;
+    if (!session.sessionRef) return false;
+    if (this.options.isPoolAccountUsable?.(provider, accountId) ?? true) return false;
+    if (!this.isCurrentSession(session)) return false;
+    this.attachHistoryPreface(session, turn);
+    try {
+      await this.spawnPipeline.restartThread(session, turn);
+    } catch (restartError) {
+      // Same observability contract as tryPoolFailover: the turn falls
+      // through to the bound session, so log why the proactive restart died.
+      console.warn(
+        `[account] dead-binding restart declined: provider=${provider} thread=${session.threadId} account=${accountId} reason=${restartError instanceof Error ? restartError.message : String(restartError)}`,
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Switch a live logical thread to another harness/model without creating a
+   * new user-visible thread. Rebuilds the session on the new provider with a
+   * FRESH native session, stashes the transcript preface for the next user
+   * turn, and paints a persisted model-switch divider at the switch point.
+   * Same-harness calls only update the model config on the live session.
+   * Throws honest errors (unknown thread/session, unsupported adapter,
+   * terminal threads) — the renderer surfaces them and changes nothing.
+   */
+  async switchThreadProvider(
+    payload: SwitchThreadProviderPayload,
+  ): Promise<SwitchThreadProviderResult> {
+    const session = this.sessions.get(payload.threadId);
+    if (!session) {
+      throw new Error(`Unknown thread session: ${payload.threadId}`);
+    }
+    const liveThirdPartyAccountId =
+      session.poolProvider === "openai-compatible" ? session.poolAccountId : undefined;
+    const nextThirdPartyAccountId = payload.thirdPartyAccountId;
+    // Same harness + same credential source can just retarget the model.
+    // A third-party channel pick (Chiral GPT) vs the native Codex subscription
+    // is a real session rebuild even when agentKind stays "codex".
+    if (
+      session.agentKind === payload.agentKind &&
+      (liveThirdPartyAccountId ?? "") === (nextThirdPartyAccountId ?? "")
+    ) {
+      session.config = payload.config;
+      return {
+        threadId: session.threadId,
+        agentKind: session.agentKind,
+        ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
+        ...(session.poolAccountId ? { poolAccountId: session.poolAccountId } : {}),
+        ...(session.poolProvider ? { poolProvider: session.poolProvider } : {}),
+        canResumeWithConfig: session.canResumeWithConfig,
+      };
+    }
+    const adapter = this.options.adapters.get(payload.agentKind);
+    if (!adapter) {
+      throw new Error(`Unsupported agent adapter: ${payload.agentKind}`);
+    }
+    const fromProvider = session.agentKind;
+    const fromModel = session.config.model;
+    const fromAccountId = session.poolAccountId;
+    const historyPreface = buildHistoryPreface(
+      this.transcripts.take(session.threadId),
+      "",
+      this.transcripts.wasTruncated(session.threadId),
+    );
+    // Handover marker first: the rebuild below can take seconds (new CLI
+    // process, MCP, hooks), and without it the thread sits in silent
+    // "working" with no visible explanation. Flipped to done/failed below.
+    const itemId = `model-switch-${randomUUID()}`;
+    const switchedAt = Date.now();
+    const handoverPayload = {
+      phase: "handover" as const,
+      fromProvider,
+      fromModel,
+      toProvider: payload.agentKind,
+      toModel: payload.config.model,
+      switchedAt,
+      ...(fromAccountId ? { fromAccountId } : {}),
+    };
+    this.enqueueRuntimeEvent(session.threadId, {
+      type: "item.started",
+      threadId: session.threadId,
+      itemId,
+      itemType: "model_switch",
+      payload: handoverPayload,
+    });
+    this.runtimeEventRouter.flush();
+    let switched: {
+      poolAccount?: { accountId: string; provider: string };
+      sessionRef?: SessionRef;
+    };
+    try {
+      switched = await this.spawnPipeline.switchThreadProvider(
+        session,
+        payload.agentKind,
+        adapter,
+        payload.config,
+        { thirdPartyAccountId: payload.thirdPartyAccountId },
+      );
+    } catch (error) {
+      this.enqueueRuntimeEvent(session.threadId, {
+        type: "item.updated",
+        threadId: session.threadId,
+        itemId,
+        payload: {
+          ...handoverPayload,
+          phase: "failed" as const,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+      this.enqueueRuntimeEvent(session.threadId, {
+        type: "item.completed",
+        threadId: session.threadId,
+        itemId,
+      });
+      this.runtimeEventRouter.flush();
+      throw error;
+    }
+    const restarted = this.sessions.get(payload.threadId);
+    if (restarted && historyPreface !== undefined) {
+      restarted.pendingHistoryPreface = historyPreface;
+    }
+    this.enqueueRuntimeEvent(session.threadId, {
+      type: "item.updated",
+      threadId: session.threadId,
+      itemId,
+      payload: {
+        ...handoverPayload,
+        phase: "done" as const,
+        ...(switched.poolAccount?.accountId ? { toAccountId: switched.poolAccount.accountId } : {}),
+      },
+    });
+    this.enqueueRuntimeEvent(session.threadId, {
+      type: "item.completed",
+      threadId: session.threadId,
+      itemId,
+    });
+    this.runtimeEventRouter.flush();
+    console.log(
+      `[account] thread provider switched: thread=${payload.threadId} ${fromProvider}/${fromModel} -> ${payload.agentKind}/${payload.config.model}`,
+    );
+    return {
+      threadId: payload.threadId,
+      agentKind: payload.agentKind,
+      ...(switched.sessionRef ? { sessionRef: switched.sessionRef } : {}),
+      ...(switched.poolAccount
+        ? {
+            poolAccountId: switched.poolAccount.accountId,
+            poolProvider: switched.poolAccount.provider,
+          }
+        : {}),
+      canResumeWithConfig: !!switched.sessionRef,
+    };
+  }
+
+  /**
+   * Same-turn pool failover for quota-dead pool accounts.
+   *
+   * A structured session is bound to its pool account at creation and never
+   * re-resolves: without this, a thread whose account dies mid-conversation
+   * banners "quota exhausted" on every turn forever while usable pool
+   * accounts wait. On a quota error we dispose the dead session, rebuild on
+   * the next usable account and replay the same turn (reusing its painted
+   * user-message id, so the chat never duplicates it). Only the truthfully
+   * empty pool still surfaces the quota banner.
+   *
+   * Open to every subscription pool (grok/kimi/codex/antigravity) with a
+   * provider-dispatched quota matcher; third-party sessions and auth
+   * failures stay fail-closed.
+   *
+   * Returns true when a rebuild was kicked (the caller must not also fail the
+   * session); false to fall through to the normal failure path. Never throws:
+   * restart failures resolve to false so the original quota error stays the
+   * banner instead of bookkeeping noise.
+   */
+  private async tryPoolFailover(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+    error: unknown,
+  ): Promise<boolean> {
+    // Per-account isolated credential homes make a fresh session on the next
+    // account safe. Third-party sessions never walk the subscription pool:
+    // their credential source is a single validated endpoint, not a pool
+    // account.
+    if (!POOL_FAILOVER_PROVIDERS.has(session.agentKind)) return false;
+    if (session.poolProvider === "openai-compatible") return false;
+    if (!isPoolQuotaError(session.agentKind, error)) return false;
+    if (!this.isCurrentSession(session)) return false;
+    // Sessions bound before pool adoption (or via ambient login) carry no
+    // pool account id. When the provider HAS a usable pool row, resolve fresh
+    // instead of failing the turn on the dead ambient binding; true ambient
+    // users (no pool at all) stay fail-closed with the original error.
+    const failedAccountId = session.poolAccountId;
+    if (!failedAccountId && this.options.hasUsablePoolAccount?.(session.agentKind) !== true) {
+      return false;
+    }
+    const tried = new Set([
+      ...(this.poolTriedByThread.get(session.threadId) ?? []),
+      ...(turn.poolTriedAccountIds ?? []),
+      ...(failedAccountId ? [failedAccountId] : []),
+    ]);
+    const attempt = (turn.poolFailoverAttempt ?? 0) + 1;
+    if (attempt > MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN) return false;
+    turn.poolFailoverAttempt = attempt;
+    turn.poolTriedAccountIds = [...tried];
+    this.poolTriedByThread.set(session.threadId, tried);
+    this.attachHistoryPreface(session, turn);
+    // The quota write-back (session onPromptError) runs before the turn
+    // promise rejects, so the failed account is usually already marked
+    // exhausted — and the tried set below is additionally passed as a
+    // resolution exclusion, so re-resolution skips it even when the
+    // write-back hasn't landed (or failed to land) yet.
+    try {
+      await this.spawnPipeline.restartThread(session, turn);
+    } catch (restartError) {
+      // Never silent: a declined failover surfaces the original quota error,
+      // so without this line a broken restart looks exactly like "no failover".
+      console.warn(
+        `[account] pool failover declined: provider=${session.agentKind} thread=${session.threadId} attempt=${attempt} from=${failedAccountId ?? "ambient"} reason=${restartError instanceof Error ? restartError.message : String(restartError)}`,
+      );
+      return false;
+    }
+    const landedAccountId = this.sessions.get(session.threadId)?.poolAccountId;
+    console.log(
+      `[account] pool failover: provider=${session.agentKind} thread=${session.threadId} attempt=${attempt} from=${failedAccountId} to=${landedAccountId ?? "unknown"}`,
+    );
+    // Success notice (not an error): the dead-account banner already
+    // painted in chat history, but the composer dock must not keep shouting
+    // — the selector drops errors superseded by the follow-up answer, and
+    // this toast tells the actual story (who died, who took over).
+    const describe = this.options.describePoolAccount;
+    this.options.emit({
+      type: "thread-pool-failover",
+      threadId: session.threadId,
+      provider: session.agentKind,
+      fromAccount:
+        (failedAccountId && describe?.(session.agentKind, failedAccountId)) ||
+        failedAccountId ||
+        "ambient",
+      toAccount:
+        (landedAccountId && describe?.(session.agentKind, landedAccountId)) ||
+        landedAccountId ||
+        "",
+    });
+    return true;
   }
 
   private failThreadLaunch(threadId: string, error: unknown): void {
@@ -303,6 +667,7 @@ export class ThreadSessionManager {
     );
     const turn: QueuedStructuredTurn = { ...pending, turnId, userMessageItemId };
     clearPendingSteerSlot(session, this.options.emit);
+    this.attachHistoryPreface(session, turn);
     void this.spawnPipeline.restartThread(session, turn).catch((error) => {
       if (!this.isCurrentSession(session)) return;
       this.failStructuredSession(session, error);
@@ -582,9 +947,15 @@ export class ThreadSessionManager {
       ...(effectiveSegments ? { segments: effectiveSegments } : {}),
       ...(payload.userMessageItemId ? { userMessageItemId: payload.userMessageItemId } : {}),
       ...(inlineInstructions ? { inlineInstructions } : {}),
+      ...(payload.goalContext ? { goalContext: payload.goalContext } : {}),
     };
+    // A new user submit starts a fresh failover chain: drop any tried-account
+    // accumulation from earlier triggers so recovered accounts are eligible
+    // again (per-turn attempt budget still bounds each chain).
+    this.poolTriedByThread.delete(session.threadId);
     if (session.status === "inactive") {
       // Guaranteed to have a sessionRef here — the no-ref case threw above.
+      this.attachHistoryPreface(session, turn);
       await this.spawnPipeline.restartThread(session, turn);
       return;
     }
@@ -594,6 +965,7 @@ export class ThreadSessionManager {
       (session.status === "error" || session.status === "idle") &&
       session.sessionRef
     ) {
+      this.attachHistoryPreface(session, turn);
       await this.spawnPipeline.restartThread(session, turn);
       return;
     }
@@ -624,6 +996,14 @@ export class ThreadSessionManager {
         this.steerCoordinator.maybeDrainPendingSteer(session);
         return;
       }
+      // Proactive pool re-resolution (provider-agnostic): when the session's
+      // bound pool account has died since the session was created
+      // (quota-exhausted / auth-expired / disabled), restart onto the next
+      // usable pool row BEFORE sending instead of burning the turn on an
+      // account the scheduler would no longer pick. restartThread replays
+      // the turn on the fresh session; a resolution failure falls through
+      // to the bound session so the failure surfaces honestly.
+      if (await this.restartForDeadPoolBinding(session, turn)) return;
       this.structuredTurnQueue.start(session, turn);
       return;
     }
@@ -697,8 +1077,22 @@ export class ThreadSessionManager {
       });
       return;
     }
-    this.options.crossagentMcp?.cancelForeground(payload.threadId);
+    this.options.ownSubagentsMcp?.cancelForeground(payload.threadId);
     await this.structuredInterruptWatchdog.interruptStructuredTurn(session);
+    // Escape hatch: a GUI session whose structured handle is gone (or never
+    // had an interrupt path) would otherwise ignore Stop forever with the
+    // thread bricked in "working". Drive it idle and close the open turn —
+    // the next submit rebuilds via the normal restart path.
+    if (
+      session.presentationMode === "gui" &&
+      !session.structuredSession?.interruptTurn &&
+      isInterruptibleBusyStatus(session.status)
+    ) {
+      this.outputPipeline.updateState(session, "idle", "none", undefined, {
+        forceCloseActiveTurn: true,
+      });
+      return;
+    }
     // Terminal-PTY threads have no structured interrupt. The real Stop for
     // them is Ctrl+C in the PTY — the same keystroke the user would press —
     // plus the hook-plugin recovery timer that flips the local state to idle
@@ -839,13 +1233,19 @@ export class ThreadSessionManager {
     session: SessionRuntime,
     segments: readonly PromptSegment[] | undefined,
   ): Promise<string | undefined> {
-    if (!segments?.some((segment) => segment.kind === "skill")) return undefined;
-    return this.options.buildSkillTurnInjection?.({
-      agentKind: session.agentKind,
-      projectLocation: session.projectLocation,
-      ...(session.nativePlugins ? { nativePlugins: session.nativePlugins } : {}),
-      segments,
-    });
+    const skillInstructions = segments?.some((segment) => segment.kind === "skill")
+      ? await this.options.buildSkillTurnInjection?.({
+          agentKind: session.agentKind,
+          projectLocation: session.projectLocation,
+          ...(session.nativePlugins ? { nativePlugins: session.nativePlugins } : {}),
+          segments,
+        })
+      : undefined;
+    return composeInlineTurnInstructions(
+      readChatLanguageDirective(this.options.settingsPath),
+      readCustomGlobalPrompt(this.options.settingsPath),
+      skillInstructions,
+    );
   }
 
   /** Portable-skills fallback for a terminal (PTY) prompt (see managerOptions).
@@ -983,12 +1383,14 @@ export class ThreadSessionManager {
       forceCloseActiveTurn: true,
     });
     this.sessions.delete(payload.threadId);
+    this.poolTriedByThread.delete(payload.threadId);
+    this.transcripts.drop(payload.threadId);
     if (existing.sessionRef?.providerSessionId) {
       this.sessionsBySessionId.delete(existing.sessionRef.providerSessionId);
     }
     this.runtimeEventRouter.clearAllForThread(payload.threadId);
-    this.options.crossagentMcp?.cancelAll(payload.threadId);
-    this.options.crossagentMcp?.unregister(payload.threadId);
+    this.options.ownSubagentsMcp?.cancelAll(payload.threadId);
+    this.options.ownSubagentsMcp?.unregister(payload.threadId);
     await existing.structuredSession?.dispose();
     if (existing.structuredSession) {
       await sleep(150);
@@ -1135,7 +1537,7 @@ export class ThreadSessionManager {
     // Forwarded subagent requests carry a run-namespaced id; route them to the
     // owning child handle first and only fall through to the parent session
     // when the id isn't a subagent request.
-    if (this.options.crossagentMcp?.resolveChildRequest(payload.requestId, payload.response)) {
+    if (this.options.ownSubagentsMcp?.resolveChildRequest(payload.requestId, payload.response)) {
       return;
     }
     const session = this.requireSession(payload.threadId);
@@ -1181,6 +1583,8 @@ export class ThreadSessionManager {
     );
     this.sessions.clear();
     this.sessionsBySessionId.clear();
+    this.poolTriedByThread.clear();
+    this.transcripts.clear();
 
     for (const shell of this.shellSessions.values()) {
       shell.ignoreExit = true;

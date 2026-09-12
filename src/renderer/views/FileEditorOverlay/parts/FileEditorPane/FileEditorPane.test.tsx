@@ -10,10 +10,15 @@ import { FileEditorPane } from "./FileEditorPane";
 const bridge = vi.hoisted(() => ({
   revealProjectEntry: vi.fn<(payload: unknown) => Promise<void>>(),
   browserCreateTab: vi.fn<(payload: unknown) => Promise<void>>(),
+  extractOfficeDocumentText: vi.fn<(payload: unknown) => Promise<{ text: string; truncated: boolean }>>(),
+  openProjectEntryWithSystem: vi.fn<(payload: unknown) => Promise<void>>(),
 }));
+
+const isRemoteSession = vi.hoisted(() => vi.fn<() => boolean>(() => false));
 
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridge,
+  isRemoteSession: () => isRemoteSession(),
 }));
 
 vi.mock("@monaco-editor/react", () => ({
@@ -97,6 +102,159 @@ describe("FileEditorPane", () => {
     const img = screen.getByRole("img", { name: "logo.png" });
     expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute("src", expect.stringContaining("craftstation-local://"));
+  });
+
+  it("renders PDF files inline without opening a browser tab", () => {
+    useFileEditorStore.setState({
+      activePath: "docs/resume.pdf",
+      tabs: ["docs/resume.pdf"],
+      buffers: {
+        "docs/resume.pdf": makeBuffer({
+          path: "docs/resume.pdf",
+          status: "ready",
+          content: "",
+        }),
+      },
+    });
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+
+    const frame = screen.getByTitle("resume.pdf");
+    expect(frame.tagName).toBe("WEBVIEW");
+    expect(frame).toHaveAttribute("src", expect.stringContaining("file://"));
+    expect(frame.getAttribute("src")).toContain(".pdf");
+    expect(screen.getByRole("button", { name: "Open in browser" })).toBeInTheDocument();
+    expect(bridge.browserCreateTab).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the browser tab for PDFs in remote sessions", () => {
+    isRemoteSession.mockReturnValueOnce(true);
+    useFileEditorStore.setState({
+      activePath: "docs/resume.pdf",
+      tabs: ["docs/resume.pdf"],
+      buffers: {
+        "docs/resume.pdf": makeBuffer({
+          path: "docs/resume.pdf",
+          status: "binary",
+        }),
+      },
+    });
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText("PDF preview opens in the browser.")).toBeInTheDocument();
+    expect(screen.queryByTitle("resume.pdf")).not.toBeInTheDocument();
+  });
+
+  it("renders video and audio files with native players", () => {
+    useFileEditorStore.setState({
+      activePath: "media/clip.mp4",
+      tabs: ["media/clip.mp4"],
+      buffers: {
+        "media/clip.mp4": makeBuffer({ path: "media/clip.mp4", status: "binary" }),
+      },
+    });
+
+    const { unmount } = render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+    const video = screen.getByTitle("clip.mp4");
+    expect(video.tagName).toBe("VIDEO");
+    expect(video).toHaveAttribute("src", expect.stringContaining("craftstation-local://"));
+    unmount();
+
+    useFileEditorStore.setState({
+      activePath: "media/voice.mp3",
+      tabs: ["media/voice.mp3"],
+      buffers: {
+        "media/voice.mp3": makeBuffer({ path: "media/voice.mp3", status: "binary" }),
+      },
+    });
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+    const audio = screen.getByTitle("voice.mp3");
+    expect(audio.tagName).toBe("AUDIO");
+    expect(audio).toHaveAttribute("src", expect.stringContaining("craftstation-local://"));
+  });
+
+  it("renders CSV files as tables and notebooks as cells", () => {
+    useFileEditorStore.setState({
+      activePath: "data/scores.csv",
+      tabs: ["data/scores.csv"],
+      buffers: {
+        "data/scores.csv": makeBuffer({
+          path: "data/scores.csv",
+          status: "ready",
+          content: "name,age\nAda,36\n",
+        }),
+      },
+    });
+
+    const { unmount } = render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.queryByTestId("monaco-editor")).not.toBeInTheDocument();
+    unmount();
+
+    useFileEditorStore.setState({
+      activePath: "notes/analysis.ipynb",
+      tabs: ["notes/analysis.ipynb"],
+      buffers: {
+        "notes/analysis.ipynb": makeBuffer({
+          path: "notes/analysis.ipynb",
+          status: "ready",
+          content: JSON.stringify({
+            nbformat: 4,
+            cells: [{ cell_type: "markdown", source: ["# Hello"] }],
+          }),
+        }),
+      },
+    });
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+  });
+
+  it("renders Office documents through text extraction", async () => {
+    bridge.extractOfficeDocumentText.mockResolvedValue({ text: "Quarterly results", truncated: false });
+    useFileEditorStore.setState({
+      activePath: "docs/report.docx",
+      tabs: ["docs/report.docx"],
+      buffers: {
+        "docs/report.docx": makeBuffer({ path: "docs/report.docx", status: "binary" }),
+      },
+    });
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("Quarterly results")).toBeInTheDocument();
+    expect(bridge.extractOfficeDocumentText).toHaveBeenCalledWith({
+      projectLocation: projectA.location,
+      path: "docs/report.docx",
+    });
   });
 
   it("renders unsupported binary file warning and action", () => {

@@ -118,6 +118,22 @@ export function collaborationCounterpart(
     : { direction: "inbound", provenance: exchange.sourceProvenance };
 }
 
+/**
+ * Raw short ids (e.g. `nQV8lQ`) sometimes land in exchange provenance titles
+ * when the counterpart thread never got a real title. Showing the bare id in
+ * the Git capsule / dialogue list reads as garbled text, so display a friendly
+ * fallback and keep the raw value in tooltips / aria labels for traceability.
+ * Deliberately narrow (mixed case + digit, no spaces/CJK): plain words like
+ * `Assistant` must keep rendering verbatim.
+ */
+const ID_LIKE_TITLE_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9_-]{4,12}$/u;
+
+export function displayDialogueTitle(provenance: ThreadRuntimeProvenance): string {
+  const title = provenance.title?.trim() ?? "";
+  if (title && !ID_LIKE_TITLE_RE.test(title)) return title;
+  return "跨线程对话";
+}
+
 export function compositionLabel(provenance: ThreadRuntimeProvenance): string {
   return [provenance.recipeId, provenance.modelId, provenance.harnessId]
     .filter((value): value is string => Boolean(value))

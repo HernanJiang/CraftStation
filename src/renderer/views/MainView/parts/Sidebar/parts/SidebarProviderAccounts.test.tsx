@@ -43,6 +43,7 @@ const bridge = vi.hoisted(() => ({
   refreshAccountQuota: vi.fn<() => Promise<unknown>>(),
   refreshTokenUsage: vi.fn<() => Promise<unknown>>(),
   removeAccount: vi.fn<() => Promise<void>>(),
+  applyAntigravityHostLogin: vi.fn<() => Promise<unknown>>(),
   forgetProviderUsage: vi.fn<() => Promise<void>>(),
   reorderAccounts: vi.fn<() => Promise<void>>(),
   renameAccount: vi.fn<() => Promise<void>>(),
@@ -50,6 +51,9 @@ const bridge = vi.hoisted(() => ({
   setAccountEnabled: vi.fn<() => Promise<void>>(),
   getAccountPoolScheduling:
     vi.fn<() => Promise<{ scheduling: "priority" | "round-robin" | "random" }>>(),
+  getProfileDevices: vi.fn<() => Promise<unknown>>(),
+  getProfileCoreStats: vi.fn<() => Promise<unknown>>(),
+  getProfileTokenStats: vi.fn<() => Promise<unknown>>(),
   setAccountPoolScheduling:
     vi.fn<
       (payload: {
@@ -63,6 +67,7 @@ vi.mock("@/renderer/actions/agentLoginActions", () => actions);
 
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridge,
+  isRemoteSession: () => false,
 }));
 
 const usageProvidersMock = vi.hoisted(() => ({
@@ -82,6 +87,8 @@ const usageProvidersMock = vi.hoisted(() => ({
 
 vi.mock("@/renderer/components/providers/usageProviders", () => ({
   USAGE_PROVIDERS: usageProvidersMock.providers,
+  cookiePasteUrl: () => undefined,
+  needsBrowserSessionForUsage: () => false,
   resolveDisplayedProviders: (
     providerOrder: readonly string[] = [],
     disabledProviders: readonly string[] = [],
@@ -144,6 +151,9 @@ describe("SidebarProviderAccounts", () => {
     bridge.refreshAccountQuota.mockReset().mockResolvedValue(undefined);
     bridge.refreshTokenUsage.mockReset().mockResolvedValue({ summaries: [], sources: [] });
     bridge.removeAccount.mockReset().mockResolvedValue(undefined);
+    bridge.applyAntigravityHostLogin
+      .mockReset()
+      .mockResolvedValue({ applied: true, email: "a@example.com" });
     bridge.forgetProviderUsage.mockReset().mockResolvedValue(undefined);
     bridge.reorderAccounts.mockReset().mockResolvedValue(undefined);
     bridge.renameAccount.mockReset().mockResolvedValue(undefined);
@@ -203,8 +213,9 @@ describe("SidebarProviderAccounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace = await screen.findByTestId("model-usage-workspace");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(workspace).toHaveTextContent("添加渠道与查看用量");
+    expect(workspace).toHaveTextContent("渠道与额度");
     expect(workspace).toHaveTextContent("管理模型");
+    expect(workspace).toHaveTextContent("用量统计");
     expect(workspace).toHaveTextContent("ChatGPT");
     expect(workspace).toHaveTextContent("Claude");
     expect(workspace).toHaveTextContent("Gemini");
@@ -540,11 +551,11 @@ describe("SidebarProviderAccounts", () => {
         .getByTestId("provider-badge-openai-compatible")
         .querySelector('[data-provider-logo="openai-compatible"]'),
     ).toBeInTheDocument();
-    // Grok keeps the CraftStation glyph (brand has no colored asset).
+    // Grok renders the vendored brand asset on a white tile.
     expect(
       within(workspace)
         .getByTestId("provider-badge-grok")
-        .querySelector(".craftstation-provider-icon"),
+        .querySelector('[data-provider-logo="grok"]'),
     ).toBeInTheDocument();
     expect(within(workspace).queryByText("Gr")).not.toBeInTheDocument();
     expect(within(workspace).queryByText("Op")).not.toBeInTheDocument();
@@ -769,6 +780,48 @@ describe("SidebarProviderAccounts", () => {
     expect(
       within(row as HTMLElement).queryByTestId("account-status-grok:header-actions"),
     ).not.toBeInTheDocument();
+  });
+
+  it("applies an Antigravity pool row as the host agy login", async () => {
+    const first = {
+      accountId: "antigravity:first",
+      provider: "antigravity",
+      label: "First AG",
+      providerAccountId: "first@example.com",
+      createdAt: 1,
+      enabled: true,
+      selected: true,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:antigravity:first",
+    };
+    const second = {
+      ...first,
+      accountId: "antigravity:second",
+      label: "Second AG",
+      providerAccountId: "second@example.com",
+      selected: false,
+      order: 1,
+      credentialScopeRef: "managed:antigravity:second",
+    };
+    bridge.listAccounts.mockResolvedValue([first, second]);
+    useUsageAccountsStore.getState().setAccounts([first, second]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const row = within(workspace)
+      .getByTestId(`account-identity-${first.accountId}`)
+      .closest("[data-account-id]");
+    expect(row).not.toBeNull();
+
+    fireEvent.click(within(row as HTMLElement).getByLabelText("First AG 设为本机登录"));
+
+    await waitFor(() =>
+      expect(bridge.applyAntigravityHostLogin).toHaveBeenCalledWith({
+        accountId: first.accountId,
+      }),
+    );
   });
 
   it("deletes only the managed API account, its models, and its pending session binding", async () => {
@@ -1210,5 +1263,160 @@ describe("SidebarProviderAccounts", () => {
       expect(meta3).not.toHaveTextContent("Runtime ledger");
       expect(meta3).not.toHaveTextContent("—");
     });
+  });
+
+  it("shows 无法精确归因 when token data exists but not for this account", async () => {
+    const account = {
+      accountId: "grok:unattributed",
+      provider: "grok",
+      label: "Grok Account 1",
+      maskedIdentity: "her***g01@gmail.com",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available" as const,
+      credentialScopeRef: "managed:grok:unattributed",
+    };
+    const tokenWithOtherAccount = {
+      summaries: [
+        {
+          period: "today",
+          source: "runtime-ledger",
+          quality: "exact",
+          observedAt: 1,
+          coverage: { from: 1, to: 1, complete: true },
+          inputTokens: 1000,
+          outputTokens: 500,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 1500,
+          byTool: [],
+          byModel: [],
+          byProject: [],
+          bySession: [],
+          byAccount: [
+            {
+              key: "grok:someone-else",
+              label: "someone-else",
+              inputTokens: 1000,
+              outputTokens: 500,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              reasoningTokens: 0,
+              totalTokens: 1500,
+            },
+          ],
+        },
+      ],
+      sources: [{ source: "runtime-ledger", quality: "exact", available: true }],
+    };
+    bridge.listAccounts.mockReset().mockResolvedValue([account]);
+    bridge.refreshAccountQuota.mockResolvedValue(account);
+    bridge.refreshTokenUsage.mockResolvedValue(tokenWithOtherAccount);
+    useUsageAccountsStore.getState().setAccounts([account]);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const dialog = await screen.findByTestId("model-usage-workspace");
+    const meta = await within(dialog).findByTestId("account-meta-grok:unattributed");
+
+    await waitFor(() => {
+      expect(meta).toHaveTextContent("无法精确归因");
+      expect(meta).not.toHaveTextContent("暂无精确 Token 用量");
+    });
+  });
+
+  it("restores the last-visited tab when reopened from the sidebar", async () => {
+    usePanelStore.getState().openModelUsageWorkspace({ tab: "models" });
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    expect(within(workspace).getByRole("tab", { name: "管理模型" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭模型与用量" }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("model-usage-workspace")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const reopened = await screen.findByTestId("model-usage-workspace");
+    // The plain sidebar open keeps the last tab instead of forcing usage.
+    expect(within(reopened).getByRole("tab", { name: "管理模型" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("renders the reused usage-stats page on the 用量统计 tab", async () => {
+    const device = { id: "d1", label: "PC", platform: "win32", isCurrent: true };
+    bridge.getProfileDevices.mockResolvedValue({ devices: [device], currentDeviceId: "d1" });
+    bridge.getProfileCoreStats.mockResolvedValue({
+      scope: "device",
+      device,
+      generatedAt: 1,
+      timezoneOffsetMinutes: 0,
+      identity: { name: "T", handle: "t", avatarColor: "#fff" },
+      totals: {
+        totalThreads: 1,
+        totalPrompts: 2,
+        messagesSent: 2,
+        goalsSet: 0,
+        longestTaskMs: 61000,
+        currentStreakDays: 1,
+        longestStreakDays: 1,
+        activeDays: 1,
+      },
+      promptHeatmap: { metric: "prompts", windowDays: 7, cells: [], max: 0 },
+      insights: {
+        fastModePercent: 0,
+        skillsExplored: 0,
+        totalSkillsUsed: 0,
+        workflowRuns: 0,
+        subagentRuns: 0,
+        mcpToolCalls: 0,
+      },
+      providers: [{ key: "grok", label: "Grok", count: 2, percent: 100 }],
+      accounts: [],
+      models: [],
+      modes: [],
+      skills: [],
+      mcps: [],
+      aiActions: [],
+      availableAccounts: [],
+    });
+    bridge.getProfileTokenStats.mockResolvedValue({
+      available: true,
+      scope: "device",
+      device,
+      generatedAt: 1,
+      timezoneOffsetMinutes: 0,
+      windowDays: 7,
+      lifetimeTokens: 5400000,
+      peakDayTokens: 1800000,
+      peakDay: "2026-09-01",
+      providers: [],
+      accounts: [],
+      models: [{ key: "grok:grok-4", label: "grok-4", count: 100, percent: 100 }],
+      tokenHeatmap: { metric: "tokens", windowDays: 7, cells: [], max: 0 },
+      unavailableProviders: [],
+    });
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    fireEvent.click(within(workspace).getByRole("tab", { name: "用量统计" }));
+
+    const page = await within(workspace).findByTestId("usage-stats-page");
+    expect(page).toHaveTextContent("Lifetime tokens");
+    expect(page).toHaveTextContent("Providers");
+    // The usage-stats page reuses the Settings profile header (avatar, name,
+    // device, Share/Edit) above the compact stats body.
+    expect(within(page).getByRole("button", { name: "Share" })).toBeInTheDocument();
+    expect(within(page).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(page).toHaveTextContent("Model usage");
   });
 });

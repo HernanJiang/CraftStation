@@ -14,7 +14,7 @@ export function sidebarRowClass(
 ): string {
   const compact = options.density === "compact";
   const sizeClass = options.size === "xs" ? "text-xs" : "text-sm";
-  return `flex w-full shrink-0 cursor-default items-center gap-2 rounded-lg px-2 ${
+  return `flex w-full shrink-0 cursor-default items-center gap-2 rounded-none px-2 ${
     compact ? "py-1" : "py-1.5"
   } text-left ${sizeClass} text-muted outline-none transition-colors hover:bg-[var(--row-hover)] hover:text-foreground focus-visible:focus-ring`;
 }
@@ -158,7 +158,7 @@ export function SidebarButton(props: {
       tabIndex={isDisabled ? -1 : 0}
       aria-disabled={isDisabled || undefined}
       aria-grabbed={isDragging}
-      className={`group relative flex w-full shrink-0 cursor-default items-center gap-2 ${compact ? "py-1" : "py-1.5"} rounded-lg px-2 text-left ${sizeClass} outline-none transition-colors ${stateClass}${dragRowDim} ${className ?? ""}`}
+      className={`group relative flex w-full shrink-0 cursor-default items-center gap-2 ${compact ? "py-1" : "py-1.5"} rounded-none px-2 text-left ${sizeClass} outline-none transition-colors ${stateClass}${dragRowDim} ${className ?? ""}`}
       onClick={isDisabled ? undefined : onPress}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
@@ -175,11 +175,13 @@ export function SidebarButton(props: {
     >
       {icon}
       <div className="min-w-0 flex-1">
-        <span ref={labelRef} className="block truncate">
+        <span ref={labelRef} className="block min-w-0 truncate">
           {label}
         </span>
       </div>
-      {suffix && <div className="flex shrink-0 items-center gap-[3px]">{suffix}</div>}
+      {suffix && (
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-[3px]">{suffix}</div>
+      )}
     </div>
   );
 

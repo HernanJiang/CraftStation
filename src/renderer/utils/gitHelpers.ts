@@ -7,6 +7,8 @@ import { captureRendererException } from "@/renderer/diagnostics/sentry";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
 import { useGitStore } from "@/renderer/state/gitStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
+import { isMarkdownFile } from "@/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/langMap";
 import type { FileEditorRootContext } from "@/renderer/state/fileEditorStore";
 
 interface GitDiffEditorRequest {
@@ -126,6 +128,48 @@ export async function openFileInEditor(
   };
   try {
     await fileEditor.openFile(path, "modal", false, editorOptions);
+  } catch (error) {
+    captureRendererException(error, { featureArea: "file-editor" });
+    toast.danger(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Open a file as a new tab in the RIGHT sidebar Files workspace instead of
+ * the central overlay, so the chat underneath stays visible and interactive.
+ * Markdown files open directly in rendered preview mode (editable via the
+ * existing preview/source toggle). Never touches `overlayMode`: an open
+ * central editor, if any, is left exactly as it was.
+ */
+export async function openFileInRightPanel(
+  project: Project,
+  worktreePath: string | undefined,
+  worktreeBranch: string | undefined,
+  path: string,
+  options?: number | { lineNumber?: number },
+): Promise<void> {
+  if (project.remoteServerId && (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path))) return;
+  const fileEditor = useFileEditorStore.getState();
+  const targetContext = buildFileEditorContext(project, worktreePath, worktreeBranch);
+  const currentRoot = fileEditor.rootContext;
+  const isSameContext =
+    currentRoot?.projectId === targetContext.projectId &&
+    currentRoot?.worktreePath === targetContext.worktreePath;
+  if (!isSameContext) {
+    fileEditor.setRootContext(targetContext);
+  }
+  const panel = usePanelStore.getState();
+  if (panel.auxiliaryPanelPlacement === "hidden") {
+    panel.setAuxiliaryPanelPlacement("right");
+  }
+  panel.setFilesPanelContext(targetContext);
+  panel.setRightPanelTab("files");
+  const openOptions = typeof options === "number" ? { lineNumber: options } : options;
+  try {
+    await fileEditor.openFile(path, null, false, {
+      ...(openOptions?.lineNumber !== undefined ? { lineNumber: openOptions.lineNumber } : {}),
+      ...(isMarkdownFile(path) ? { markdownPreview: true } : {}),
+    });
   } catch (error) {
     captureRendererException(error, { featureArea: "file-editor" });
     toast.danger(error instanceof Error ? error.message : String(error));

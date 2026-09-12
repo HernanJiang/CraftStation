@@ -10,9 +10,11 @@ export function MyRecipesQuickList(props: {
   recipes: readonly StoredRecipe[];
   onLoad: (recipe: StoredRecipe) => void;
   onViewAll: () => void;
+  /** Max recipes to show (default 5 recent). Pass a large number for a full list. */
+  limit?: number | undefined;
 }) {
-  const { recipes, onLoad, onViewAll } = props;
-  const recent = [...recipes].slice(-5).reverse();
+  const { recipes, onLoad, onViewAll, limit = 5 } = props;
+  const recent = [...recipes].slice(-limit).reverse();
   return (
     <section
       className="flex min-h-0 flex-col gap-2"
@@ -34,7 +36,12 @@ export function MyRecipesQuickList(props: {
           还没有保存的配方
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-1">
+        // 单个配方占满整列宽度，不留一半空白。
+        <div
+          className={`grid gap-2 overflow-y-auto pr-1 ${
+            recent.length === 1 ? "grid-cols-1" : "grid-cols-2"
+          }`}
+        >
           {recent.map((recipe) => (
             <button
               key={recipe.id}

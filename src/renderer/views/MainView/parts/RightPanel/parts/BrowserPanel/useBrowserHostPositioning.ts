@@ -125,7 +125,23 @@ export function useBrowserHostPositioning(input: {
       activeTransitions = 0;
       observedSlot = nextSlot;
       observedAside = nextSlot?.closest("aside") ?? null;
-      if (!nextSlot) return;
+      if (!nextSlot) {
+        // Slot unmounted (e.g. 模型与用量 replaced the workspace). Park the
+        // portaled webview off-screen instead of leaving it at the last rect.
+        last = "";
+        lastOverlay = null;
+        Object.assign(wrapper.style, {
+          top: "0px",
+          left: "0px",
+          right: "auto",
+          bottom: "auto",
+          width: `${HEADLESS_WIDTH}px`,
+          height: `${HEADLESS_HEIGHT}px`,
+          maxWidth: "",
+        });
+        wrapper.style.zIndex = HEADLESS_Z;
+        return;
+      }
       resizeObserver.observe(nextSlot);
       observedAside?.addEventListener("transitionrun", onTransitionRun);
       observedAside?.addEventListener("transitionend", onTransitionDone);

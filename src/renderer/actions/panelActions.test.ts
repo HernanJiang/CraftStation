@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
-import { dockPanelTab, openGitReview, openUsagePanel, undockPanelTab } from "./panelActions";
+import {
+  dockPanelTab,
+  openGitReview,
+  openUsagePanel,
+  showSubAgentPanel,
+  undockPanelTab,
+} from "./panelActions";
 
 function resetDockState() {
   useSharedSettings.setState({ terminalPosition: "bottom", gitReviewMode: "panel" });
@@ -196,5 +202,54 @@ describe("undockPanelTab", () => {
     undockPanelTab("notes");
 
     expect(usePanelStore.getState().bottomPanelDocks).toEqual({ left: "usage", right: null });
+  });
+});
+
+describe("showSubAgentPanel", () => {
+  beforeEach(() => {
+    resetDockState();
+    usePanelStore.setState({
+      auxiliaryPanelPlacement: "hidden",
+      auxiliaryPanelTab: null,
+      auxiliaryPanelTabs: [],
+      rightPanelTab: "git",
+      subAgentPanelContext: null,
+      subAgentPanelOpen: false,
+    });
+  });
+  afterEach(() => {
+    resetDockState();
+    usePanelStore.setState({
+      auxiliaryPanelPlacement: "hidden",
+      auxiliaryPanelTab: null,
+      auxiliaryPanelTabs: [],
+      subAgentPanelContext: null,
+      subAgentPanelOpen: false,
+    });
+  });
+
+  it("opens the subagent detail on the auxiliary tab and unhides the right rail", () => {
+    showSubAgentPanel("thread-1", "item-1");
+
+    expect(usePanelStore.getState()).toMatchObject({
+      subAgentPanelContext: { threadId: "thread-1", parentItemId: "item-1" },
+      subAgentPanelOpen: true,
+      rightPanelTab: "subagent",
+      auxiliaryPanelTab: "subagent",
+      auxiliaryPanelPlacement: "right",
+    });
+    expect(usePanelStore.getState().auxiliaryPanelTabs).toContain("subagent");
+  });
+
+  it("keeps an existing non-hidden placement instead of forcing the right rail", () => {
+    usePanelStore.setState({ auxiliaryPanelPlacement: "bottom" });
+
+    showSubAgentPanel("thread-1", "item-1");
+
+    expect(usePanelStore.getState()).toMatchObject({
+      auxiliaryPanelPlacement: "bottom",
+      auxiliaryPanelTab: "subagent",
+      rightPanelTab: "subagent",
+    });
   });
 });

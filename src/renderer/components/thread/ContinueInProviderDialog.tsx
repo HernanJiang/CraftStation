@@ -347,15 +347,18 @@ export function ContinueInProviderDialog(props: {
   }
 
   const allHiddenModels = useSharedSettings((s) => s.hiddenModels);
+  const allShownModels = useSharedSettings((s) => s.shownModels);
   const selectedTargetCapabilities = selectedAgent
     ? filterHiddenModels(
         capabilitiesForPresentation(selectedAgent.capabilities, targetPresentationMode),
         allHiddenModels[modelVisibilityKey(selectedAgent.kind, targetPresentationMode)],
+        allShownModels[modelVisibilityKey(selectedAgent.kind, targetPresentationMode)],
       )
     : undefined;
   const providerModelProviders = buildProviderModelMenuProviders(otherAgents, {
     presentationMode: targetPresentationMode,
     hiddenModelsByAgent: allHiddenModels,
+    shownModelsByAgent: allShownModels,
     filterAgent: (agent) => supportsPresentation(agent, targetPresentationMode),
   });
   const targetControls: ComposerControl[] = selectedAgent
@@ -414,8 +417,11 @@ export function ContinueInProviderDialog(props: {
   const hiddenModelIds = useSharedSettings(
     (s) => s.hiddenModels[modelVisibilityKey(thread.agentKind, sourcePresentationMode)],
   );
+  const shownModelIds = useSharedSettings(
+    (s) => s.shownModels?.[modelVisibilityKey(thread.agentKind, sourcePresentationMode)],
+  );
   const filteredSourceCaps = sourceRuntimeStatus
-    ? filterHiddenModels(sourceRuntimeStatus.capabilities, hiddenModelIds)
+    ? filterHiddenModels(sourceRuntimeStatus.capabilities, hiddenModelIds, shownModelIds)
     : undefined;
   const models = filteredSourceCaps?.models ?? [];
   const extractModel = thread.config.model || models[0]?.id || "";

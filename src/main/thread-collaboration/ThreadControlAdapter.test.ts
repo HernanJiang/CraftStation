@@ -63,23 +63,29 @@ function makeAdapter(status: Thread["status"]) {
 }
 
 describe("ThreadControlAdapter", () => {
-  it("rejects delivery to a working target instead of steering it", async () => {
+  it("injects a prompt into a working target instead of waiting in a queue", async () => {
     const { adapter, runtime } = makeAdapter("working");
 
-    await expect(adapter.deliverSettled("target-thread", "request")).rejects.toMatchObject({
-      code: "THREAD_TARGET_BUSY",
+    await expect(adapter.deliverSettled("target-thread", "request")).resolves.toEqual({
+      kind: "delivered",
+      resumed: false,
     });
-    expect(runtime.sendThreadInput).not.toHaveBeenCalled();
+    expect(runtime.sendThreadInput).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "target-thread", prompt: "request" }),
+    );
     expect(runtime.interruptThread).not.toHaveBeenCalled();
   });
 
-  it("rejects delivery to an attention target even though generic waits treat it as settled", async () => {
+  it("injects a prompt into an attention target instead of failing closed", async () => {
     const { adapter, runtime } = makeAdapter("needs_approval");
 
-    await expect(adapter.deliverSettled("target-thread", "request")).rejects.toMatchObject({
-      code: "THREAD_TARGET_BUSY",
+    await expect(adapter.deliverSettled("target-thread", "request")).resolves.toEqual({
+      kind: "delivered",
+      resumed: false,
     });
-    expect(runtime.sendThreadInput).not.toHaveBeenCalled();
+    expect(runtime.sendThreadInput).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "target-thread", prompt: "request" }),
+    );
   });
 
   it("delivers to an idle target through the adapter seam", async () => {

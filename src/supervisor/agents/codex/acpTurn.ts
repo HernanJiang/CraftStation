@@ -50,6 +50,9 @@ export function buildCodexTurnInput(
       if (isImagePath(seg.path)) {
         input.push({ type: "localImage", path: seg.path });
       } else {
+        // The app-server `UserInput` union has no audio variant, so audio
+        // (like any other non-image attachment) rides along as a file
+        // mention the agent can read.
         input.push({
           type: "mention",
           path: seg.path,

@@ -44,12 +44,27 @@ interface CraftingWorkbenchActions {
   }) => { recipe: StoredRecipe; duplicateCount: number };
   updateRecipeAlias: (id: string, alias?: string) => void;
   deleteRecipe: (id: string) => void;
+  /** Toggle homepage model-picker visibility for a saved recipe. */
+  setRecipeHomepageVisible: (id: string, visible: boolean) => void;
   /** Load a recipe's materials into the current-mode draft (replacing it). */
   loadRecipeToDraft: (recipe: StoredRecipe, mode: WorkbenchMode) => void;
   setPendingRecipeIntent: (intent?: PendingRecipeIntent) => void;
   clearPendingRecipeIntent: () => void;
   /** v1.2 capability resolution policy selected from the composer craft switch. */
   setCapabilityMode: (mode: CapabilityMode) => void;
+  /**
+   * CLIProxyAPI helper item for compatibility routes (gateway-direct /
+   * cpa-translate). Singleton by design: `ensureCliProxyApiItem` reuses the
+   * existing entry (present + selected) instead of creating duplicates, and
+   * native routes must clear the selection via `clearCliProxyApiSelection`.
+   */
+  ensureCliProxyApiItem: () => void;
+  clearCliProxyApiSelection: () => void;
+}
+
+export interface CliProxyApiHelperState {
+  present: boolean;
+  selected: boolean;
 }
 
 export interface CraftingWorkbenchStore extends CraftingWorkbenchActions {
@@ -60,6 +75,7 @@ export interface CraftingWorkbenchStore extends CraftingWorkbenchActions {
   selectedInspectorRef?: string | undefined;
   pendingRecipeIntent?: PendingRecipeIntent | undefined;
   capabilityMode: CapabilityMode;
+  cpaHelper: CliProxyApiHelperState;
 }
 
 function invalidate(draft: EfficientDraft): EfficientDraft {
@@ -83,6 +99,7 @@ export const useCraftingWorkbenchStore = create<CraftingWorkbenchStore>()(
       selectedInspectorRef: undefined,
       pendingRecipeIntent: undefined,
       capabilityMode: "auto",
+      cpaHelper: { present: false, selected: false },
 
       setMode: (mode) =>
         set((state) => (state.lastWorkbenchMode === mode ? {} : { lastWorkbenchMode: mode })),
@@ -168,9 +185,14 @@ export const useCraftingWorkbenchStore = create<CraftingWorkbenchStore>()(
         };
         // Replace-by-same-component keeps the recipe list free of duplicates for the
         // same material pair while still allowing multiple aliases under different refs.
+        // Preserve homepage visibility across re-saves.
         set((state) => ({
           recipes: state.recipes.some((r) => r.id === id)
-            ? state.recipes.map((r) => (r.id === id ? recipe : r))
+            ? state.recipes.map((r) =>
+                r.id === id
+                  ? { ...recipe, ...(r.homepageVisible ? { homepageVisible: true } : {}) }
+                  : r,
+              )
             : [...state.recipes, recipe],
         }));
         return { recipe, duplicateCount };
@@ -191,6 +213,19 @@ export const useCraftingWorkbenchStore = create<CraftingWorkbenchStore>()(
 
       deleteRecipe: (id) =>
         set((state) => ({ recipes: state.recipes.filter((recipe) => recipe.id !== id) })),
+
+      setRecipeHomepageVisible: (id, visible) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+          recipes: state.recipes.map((recipe) => {
+            if (recipe.id !== id) return recipe;
+            const next: StoredRecipe = { ...recipe, updatedAt: now };
+            if (visible) next.homepageVisible = true;
+            else delete next.homepageVisible;
+            return next;
+          }),
+        }));
+      },
 
       loadRecipeToDraft: (recipe, mode) =>
         set(() => {
@@ -217,6 +252,18 @@ export const useCraftingWorkbenchStore = create<CraftingWorkbenchStore>()(
       setPendingRecipeIntent: (intent) => set({ pendingRecipeIntent: intent }),
 
       clearPendingRecipeIntent: () => set({ pendingRecipeIntent: undefined }),
+
+      ensureCliProxyApiItem: () =>
+        set((state) =>
+          state.cpaHelper.present && state.cpaHelper.selected
+            ? {}
+            : { cpaHelper: { present: true, selected: true } },
+        ),
+
+      clearCliProxyApiSelection: () =>
+        set((state) =>
+          state.cpaHelper.selected ? { cpaHelper: { ...state.cpaHelper, selected: false } } : {},
+        ),
     }),
     {
       name: STORE_KEY,

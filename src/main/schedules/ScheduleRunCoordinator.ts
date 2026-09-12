@@ -14,8 +14,16 @@ import type {
 import type { SharedSettings } from "@/shared/settings";
 import { DEFAULT_TERMINAL_SIZE, resolveMcpLaunchSnapshot } from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
+import type { CraftAgentPayload, CraftAgentResult } from "@/shared/ipc/schemas";
 import type { ScheduleRunPatch } from "../db/scheduleRuns";
 import { resolveUnrestrictedThreadPermissions } from "../threads/threadLaunchConfig";
+import type { ScheduleRunInvocation } from "./ScheduleCapability";
+import {
+  resolveScheduleExecution,
+  type ScheduleLaunchMode,
+  type ThreadContextSnapshot,
+} from "./ScheduleExecutionResolver";
+import { scheduleThreadTarget } from "@/shared/schedules";
 
 /**
  * A `thread-state` transition ends the run only once the turn fully settles.
@@ -30,6 +38,9 @@ const TERMINAL_STATUSES: ReadonlySet<ThreadStatus> = new Set<ThreadStatus>([
   "inactive",
   "error",
 ]);
+
+/** Max inherited context characters prepended to a scheduled prompt. */
+const MAX_INHERITED_CONTEXT_CHARS = 4_000;
 
 export interface ScheduleRunCoordinatorDeps {
   /** Launch the child session in the supervisor (main → supervisor request). */
@@ -49,6 +60,35 @@ export interface ScheduleRunCoordinatorDeps {
   threadExists(threadId: string): boolean;
   insertRun(run: ScheduledTaskRun): void;
   updateRun(id: string, patch: ScheduleRunPatch): void;
+  /** Read a thread row for continuation; required only when schedules use targetThreadId. */
+  getThread?(threadId: string): Thread | null;
+  /**
+   * Summarized conversation context of an existing thread (user/assistant text,
+   * newest-last, already truncated). When absent the coordinator falls back to
+   * the source thread's title only. The harness native session is NEVER reused:
+   * this text is the only thing carried over.
+   */
+  getThreadContextText?(threadId: string): string | null;
+  /** Last assistant text for the run's thread; null when the runtime has none. */
+  getThreadTerminalResult?(threadId: string): string | null;
+  /**
+   * Follow-up turn on an already-persisted thread (same-thread schedule
+   * continuation). Wired to the supervisor's `sendThreadInput` seam. When
+   * absent — or when the bound thread is missing/busy/archived — the run
+   * falls back to a fresh thread with inherited context text.
+   */
+  sendFollowUp?(input: { threadId: string; prompt: string; config: ThreadConfig }): Promise<void>;
+  /**
+   * Native CraftPlan launcher. When omitted, even a native-resolved plan falls
+   * back to the isolated legacy startThread path.
+   */
+  craftAgent?(payload: CraftAgentPayload): Promise<CraftAgentResult>;
+  resolveExecution?(input: {
+    task: ScheduledTask;
+    runThreadId: string;
+    workspace?: string;
+    contextSnapshot: ThreadContextSnapshot | null;
+  }): ScheduleLaunchMode;
   now?: () => number;
   newId?: () => string;
 }
@@ -56,7 +96,7 @@ export interface ScheduleRunCoordinatorDeps {
 interface PendingRun {
   runId: string;
   sawActive: boolean;
-  resolve: (summary: string) => void;
+  resolve: (summary: string | null) => void;
   reject: (error: Error) => void;
 }
 
@@ -70,6 +110,14 @@ interface PendingRun {
  * `focus: false`), then call the supervisor's `startThread`. The returned
  * promise settles when the thread's turn ends (observed via `thread-state`),
  * so the caller's `ScheduleService.settle` keeps working unchanged.
+ *
+ * Thread continuation: when the task targets an existing thread and that
+ * thread is idle, the run continues INSIDE the same thread as a follow-up
+ * turn (same native session via `sendFollowUp`) — no new sidebar thread, no
+ * new schedule. Otherwise the run falls back to a FRESH thread id with only
+ * conversation history/context text inherited into the new prompt; Codex
+ * sessions, OpenCode SDK sessions, ACP connections and process handles are
+ * never reused across runs or across harnesses on that path.
  */
 export class ScheduleRunCoordinator {
   private readonly pending = new Map<string, PendingRun>();
@@ -102,17 +150,36 @@ export class ScheduleRunCoordinator {
       run.reject(new Error(error));
       return;
     }
-    this.deps.updateRun(run.runId, { completedAt, status: "succeeded" });
-    // Final assistant text is not captured in main without heavy runtime-event
-    // plumbing, so the summary stays null and the schedule's quick-glance
-    // lastResult resolves to an empty string.
-    run.resolve("");
+    const summary = this.deps.getThreadTerminalResult?.(event.threadId) ?? null;
+    this.deps.updateRun(run.runId, { completedAt, status: "succeeded", summary });
+    run.resolve(summary);
   }
 
-  async runScheduleAsThread(task: ScheduledTask): Promise<string> {
+  async runScheduleAsThread(
+    task: ScheduledTask,
+    invocation: ScheduleRunInvocation = { triggeredBy: "scheduled", occurrenceAt: null },
+  ): Promise<string | null> {
     const project = this.resolveProject(task);
+    const contextSnapshot = this.resolveContextSnapshot(task);
+    // Thread-bound schedules (threadTarget existing) continue in the SAME
+    // thread when it still exists, is idle, and the follow-up seam is wired.
+    // Otherwise fall back to the historical fresh-thread + inherited-text path
+    // so a busy/missing/archived thread never drops the run.
+    const reuseThreadId = this.resolveReusableThreadId(task);
+    if (reuseThreadId) {
+      const reused = await this.runScheduleAsFollowUp(task, reuseThreadId, invocation, project);
+      if (reused.handled) return reused.summary;
+    }
     const threadId = (this.deps.newId ?? randomUUID)();
     const nowIso = this.nowIso();
+    const workspace = projectLocationWorkspace(project.location);
+    const launch = (this.deps.resolveExecution ?? resolveScheduleExecution)({
+      task,
+      runThreadId: threadId,
+      ...(workspace ? { workspace } : {}),
+      contextSnapshot,
+    });
+    const prompt = launch.prompt;
 
     const config = await this.buildThreadConfig(task, project.location);
     const thread: Thread = {
@@ -132,6 +199,17 @@ export class ScheduleRunCoordinator {
       createdAt: nowIso,
       updatedAt: nowIso,
       activeTurnStartedAt: nowIso,
+      ...(launch.kind === "native"
+        ? {
+            compositionProvenance: {
+              recipeId: launch.craftPlan.recipeId,
+              recipeVersion: "1.0.0",
+              craftedAt: launch.craftPlan.createdAt,
+              ingredients: launch.craftPlan.ingredients,
+              runtimeBinding: launch.craftPlan.runtimeBinding,
+            },
+          }
+        : {}),
     };
 
     const existed = this.deps.threadExists(threadId);
@@ -148,7 +226,7 @@ export class ScheduleRunCoordinator {
       projectId: project.id,
       agentKind: task.agentKind,
       config,
-      prompt: task.prompt,
+      prompt,
       title: task.name,
       presentationMode: "gui",
       launchRuntime: false,
@@ -159,15 +237,56 @@ export class ScheduleRunCoordinator {
       id: (this.deps.newId ?? randomUUID)(),
       scheduleId: task.id,
       threadId,
+      occurrenceAt: invocation.occurrenceAt,
+      triggeredBy: invocation.triggeredBy,
+      queuedAt: nowIso,
       startedAt: nowIso,
       completedAt: null,
-      status: "running",
+      status: "queued",
       summary: null,
       error: null,
+      executionSnapshot: launch.snapshot,
     };
     this.deps.insertRun(run);
+    this.deps.updateRun(run.id, { status: "running" });
 
-    const settled = new Promise<string>((resolve, reject) => {
+    const mcpSnapshot = resolveMcpLaunchSnapshot(
+      this.deps.getSharedSettings(),
+      project.mcpServers ?? [],
+    );
+
+    if (launch.kind === "native" && this.deps.craftAgent) {
+      try {
+        const result = await this.deps.craftAgent({
+          craftPlan: launch.craftPlan,
+          projectLocation: project.location,
+          prompt,
+          ...(mcpSnapshot.mcpServers ? { mcpServers: mcpSnapshot.mcpServers } : {}),
+        });
+        const summary =
+          result.response.trim() || this.deps.getThreadTerminalResult?.(threadId) || null;
+        this.deps.updateRun(run.id, {
+          completedAt: this.nowIso(),
+          status: "succeeded",
+          summary,
+        });
+        return summary;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.deps.updateRun(run.id, {
+          completedAt: this.nowIso(),
+          status: "failed",
+          error: message,
+        });
+        if (!existed) {
+          this.deps.deleteThread(threadId);
+          this.deps.sendThreadCommand({ kind: "delete", threadId });
+        }
+        throw error instanceof Error ? error : new Error(message);
+      }
+    }
+
+    const settled = new Promise<string | null>((resolve, reject) => {
       this.pending.set(threadId, { runId: run.id, sawActive: false, resolve, reject });
     });
 
@@ -176,10 +295,10 @@ export class ScheduleRunCoordinator {
       projectLocation: project.location,
       agentKind: task.agentKind,
       config,
-      prompt: task.prompt,
+      prompt,
       initialSize: DEFAULT_TERMINAL_SIZE,
       presentationMode: "gui",
-      ...resolveMcpLaunchSnapshot(this.deps.getSharedSettings(), project.mcpServers ?? []),
+      ...mcpSnapshot,
     };
 
     try {
@@ -202,6 +321,144 @@ export class ScheduleRunCoordinator {
     }
 
     return settled;
+  }
+
+  /**
+   * Thread id to reuse when the schedule is bound to an existing thread AND
+   * that thread can take a follow-up turn right now. Returns null for fresh-
+   * thread runs (detached schedules, missing/busy/archived threads, no
+   * follow-up seam, or a colliding in-flight run on the same thread).
+   */
+  private resolveReusableThreadId(task: ScheduledTask): string | null {
+    if (!this.deps.sendFollowUp) return null;
+    const target = scheduleThreadTarget(task);
+    if (target.kind !== "existing") return null;
+    if (this.pending.has(target.threadId)) return null;
+    const existing = this.deps.getThread?.(target.threadId) ?? null;
+    if (!existing) return null;
+    if (existing.archived || existing.done) return null;
+    if (!TERMINAL_STATUSES.has(existing.status)) return null;
+    return existing.id;
+  }
+
+  /**
+   * Run one occurrence as a follow-up turn inside the bound thread. Returns
+   * `{handled:false}` when the follow-up could not be delivered so the caller
+   * falls back to a fresh thread; otherwise the run row is fully settled here.
+   */
+  private async runScheduleAsFollowUp(
+    task: ScheduledTask,
+    threadId: string,
+    invocation: ScheduleRunInvocation,
+    project: Project,
+  ): Promise<{ handled: boolean; summary: string | null }> {
+    const nowIso = this.nowIso();
+    const workspace = projectLocationWorkspace(project.location);
+    const launch = (this.deps.resolveExecution ?? resolveScheduleExecution)({
+      task,
+      runThreadId: threadId,
+      ...(workspace ? { workspace } : {}),
+      contextSnapshot: null,
+    });
+    const config = await this.buildThreadConfig(task, project.location);
+    const run: ScheduledTaskRun = {
+      id: (this.deps.newId ?? randomUUID)(),
+      scheduleId: task.id,
+      threadId,
+      occurrenceAt: invocation.occurrenceAt,
+      triggeredBy: invocation.triggeredBy,
+      queuedAt: nowIso,
+      startedAt: nowIso,
+      completedAt: null,
+      status: "queued",
+      summary: null,
+      error: null,
+      executionSnapshot: launch.snapshot,
+    };
+    this.deps.insertRun(run);
+    this.deps.updateRun(run.id, { status: "running" });
+    // Bump the bound thread to the top without touching its title/config.
+    const existing = this.deps.getThread?.(threadId);
+    if (existing) {
+      this.deps.upsertThread({ ...existing, updatedAt: nowIso }, -Date.now());
+    }
+
+    if (launch.kind === "native" && this.deps.craftAgent) {
+      try {
+        const mcpSnapshot = resolveMcpLaunchSnapshot(
+          this.deps.getSharedSettings(),
+          project.mcpServers ?? [],
+        );
+        const result = await this.deps.craftAgent({
+          craftPlan: launch.craftPlan,
+          projectLocation: project.location,
+          prompt: launch.prompt,
+          ...(mcpSnapshot.mcpServers ? { mcpServers: mcpSnapshot.mcpServers } : {}),
+        });
+        const summary =
+          result.response.trim() || this.deps.getThreadTerminalResult?.(threadId) || null;
+        this.deps.updateRun(run.id, {
+          completedAt: this.nowIso(),
+          status: "succeeded",
+          summary,
+        });
+        return { handled: true, summary };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.deps.updateRun(run.id, {
+          completedAt: this.nowIso(),
+          status: "failed",
+          error: message,
+        });
+        throw error instanceof Error ? error : new Error(message);
+      }
+    }
+
+    const settled = new Promise<string | null>((resolve, reject) => {
+      this.pending.set(threadId, { runId: run.id, sawActive: false, resolve, reject });
+    });
+    try {
+      await this.deps.sendFollowUp!({ threadId, prompt: launch.prompt, config });
+    } catch (error) {
+      this.pending.delete(threadId);
+      // Delivery failed (unknown/stale session, busy runtime, ...): let the
+      // caller retry as a fresh thread with inherited context instead of
+      // failing the occurrence outright. Mark this attempt interrupted.
+      this.deps.updateRun(run.id, {
+        completedAt: this.nowIso(),
+        status: "interrupted",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { handled: false, summary: null };
+    }
+    return { handled: true, summary: await settled };
+  }
+
+  /**
+   * Fresh-thread fallback inherits persisted conversation text only. Native
+   * session ids, ACP connections, and process handles stay behind. (The
+   * same-thread follow-up path needs no snapshot — it continues the live
+   * session directly.)
+   */
+  private resolveContextSnapshot(task: ScheduledTask): ThreadContextSnapshot | null {
+    const target = scheduleThreadTarget(task);
+    if (target.kind !== "existing") return null;
+    const source = this.deps.getThread?.(target.threadId) ?? null;
+    if (!source) {
+      throw new Error("Schedule target thread no longer exists.");
+    }
+    const rawContext = this.deps.getThreadContextText?.(target.threadId) ?? null;
+    const conversationText =
+      rawContext != null && rawContext.length > MAX_INHERITED_CONTEXT_CHARS
+        ? `${rawContext.slice(0, MAX_INHERITED_CONTEXT_CHARS)}…`
+        : rawContext;
+    return {
+      threadId: source.id,
+      title: source.title,
+      projectId: source.projectId,
+      sourceAgentKind: source.agentKind,
+      conversationText,
+    };
   }
 
   /**
@@ -237,4 +494,9 @@ export class ScheduleRunCoordinator {
   private nowIso(): string {
     return new Date((this.deps.now ?? Date.now)()).toISOString();
   }
+}
+
+function projectLocationWorkspace(location: ProjectLocation): string | undefined {
+  if (location.kind === "wsl") return location.linuxPath;
+  return location.path;
 }

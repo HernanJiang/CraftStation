@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ScheduledTask } from "@/shared/contracts";
-import { newScheduleDraft, scheduleDraftInput, taskScheduleDraft } from "./scheduleDraft";
+import {
+  newScheduleDraft,
+  scheduleDraftInput,
+  scheduleDraftIsValid,
+  taskScheduleDraft,
+} from "./scheduleDraft";
 
 const baseTask: ScheduledTask = {
   id: "d2ac39e9-14ac-4776-9279-37a1e455a5db",
@@ -37,5 +42,44 @@ describe("scheduleDraft projectId", () => {
     const draft = taskScheduleDraft(baseTask);
     expect(draft.projectId).toBeNull();
     expect(scheduleDraftInput(draft).projectId).toBeNull();
+  });
+
+  it("round-trips timezone/recipe/target-thread through the draft", () => {
+    const draft = taskScheduleDraft({
+      ...baseTask,
+      timezone: "Asia/Shanghai",
+      recipeId: "recipe-morning",
+      targetThreadId: "aa11bb22-cc33-4d44-9e55-6f77aa88bb99",
+    });
+    expect(draft.timezone).toBe("Asia/Shanghai");
+    expect(draft.recipeId).toBe("recipe-morning");
+    expect(draft.targetThreadId).toBe("aa11bb22-cc33-4d44-9e55-6f77aa88bb99");
+    expect(scheduleDraftInput(draft)).toMatchObject({
+      timezone: "Asia/Shanghai",
+      recipeId: "recipe-morning",
+      targetThreadId: "aa11bb22-cc33-4d44-9e55-6f77aa88bb99",
+    });
+  });
+
+  it("rejects an invalid time zone", () => {
+    const draft = { ...newScheduleDraft(undefined), timezone: "Not/AZone" };
+    expect(scheduleDraftIsValid(draft)).toBe(false);
+  });
+
+  it("round-trips an every-N-minutes interval recurrence", () => {
+    const draft = taskScheduleDraft({
+      ...baseTask,
+      recurrence: { kind: "interval", everyMinutes: 10 },
+    });
+    expect(draft.repeatMode).toBe("interval");
+    expect(draft.everyMinutes).toBe(10);
+    expect(scheduleDraftInput(draft).recurrence).toEqual({
+      kind: "interval",
+      everyMinutes: 10,
+    });
+    expect(scheduleDraftIsValid(draft)).toBe(true);
+    expect(
+      scheduleDraftIsValid({ ...draft, everyMinutes: 0 }),
+    ).toBe(false);
   });
 });

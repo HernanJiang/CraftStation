@@ -156,7 +156,7 @@ vi.mock("@/renderer/state/gitStore", () => {
   };
 });
 
-function makeThread(): Thread {
+function makeThread(overrides: Partial<Thread> = {}): Thread {
   return {
     id: "thread-1",
     projectId: "project-1",
@@ -171,6 +171,7 @@ function makeThread(): Thread {
     starred: false,
     createdAt: "2026-03-21T10:00:00.000Z",
     updatedAt: "2026-03-21T10:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -182,7 +183,9 @@ const project: Project = {
 };
 
 describe("SortableThreadItem", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { useNotificationStore } = await import("@/renderer/state/notificationStore");
+    useNotificationStore.getState().clear();
     sortableRefMock.mockClear();
     sortableHandleRefMock.mockClear();
     sortableOptionsMock.mockClear();
@@ -216,7 +219,25 @@ describe("SortableThreadItem", () => {
     expect(getStatusToneMock).toHaveBeenCalledWith(thread, { hasBackgroundActivity: true });
   });
 
-  it("shows the draft dot after the title when the thread has an unsent draft", () => {
+  it("keeps the thread title on a single truncated line", () => {
+    const { getByText } = render(
+      <SortableThreadItem
+        thread={makeThread({ title: "统一 Schedule Capability 与线程 Schedule 指示器" })}
+        threadIndex={1}
+        project={project}
+        showWorktreeBadge={false}
+        editingThreadId={null}
+        setEditingThreadId={vi.fn<(id: string | null) => void>()}
+        group="project-entries:project-1"
+      />,
+    );
+
+    const title = getByText("统一 Schedule Capability 与线程 Schedule 指示器");
+    expect(title.className).toContain("truncate");
+    expect(title.className).not.toContain("whitespace-normal");
+  });
+
+  it("shows the draft dot in the far-right suffix when the thread has an unsent draft", () => {
     useThreadHasDraftMock.mockReturnValue(true);
 
     const { getByLabelText } = render(
@@ -231,7 +252,34 @@ describe("SortableThreadItem", () => {
       />,
     );
 
-    expect(getByLabelText("Has unsent draft")).toBeInTheDocument();
+    const draft = getByLabelText("Has unsent draft");
+    expect(draft.parentElement?.className).toContain("justify-end");
+  });
+
+  it("shows an unread notification dot on the far right of the row", async () => {
+    const { useNotificationStore } = await import("@/renderer/state/notificationStore");
+    useNotificationStore.getState().clear();
+    useNotificationStore.getState().push({
+      tone: "success",
+      title: "Assistant",
+      status: "Done",
+      threadId: "thread-1",
+    });
+
+    const { getByTestId } = render(
+      <SortableThreadItem
+        thread={makeThread()}
+        threadIndex={1}
+        project={project}
+        showWorktreeBadge={false}
+        editingThreadId={null}
+        setEditingThreadId={vi.fn<(id: string | null) => void>()}
+        group="project-entries:project-1"
+      />,
+    );
+
+    const dot = getByTestId("thread-unread-notification-dot");
+    expect(dot.parentElement?.className).toContain("justify-end");
   });
 
   it("hides the draft dot when the thread has no draft", () => {

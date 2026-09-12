@@ -188,7 +188,10 @@ async function createLegacySdkClient(
   });
 }
 
-async function spawnAndWire(projectLocation: ProjectLocation): Promise<ServerSnapshot> {
+async function spawnAndWire(
+  projectLocation: ProjectLocation,
+  serverEnvironment?: Record<string, string>,
+): Promise<ServerSnapshot> {
   // The shared process must load the CraftStation plugin before it starts. Besides
   // lifecycle hooks for terminal launches, the plugin injects the trusted
   // provider session id used to route Crossagents calls from pooled GUI
@@ -203,6 +206,7 @@ async function spawnAndWire(projectLocation: ProjectLocation): Promise<ServerSna
     OPENCODE_SERVER_USERNAME: username,
     OPENCODE_SERVER_PASSWORD: password,
     CRAFTSTATION_OPENCODE_SESSION_ROUTING: "1",
+    ...(serverEnvironment ?? {}),
   });
   const handle = spawnOpenCodeServer(command);
 
@@ -236,6 +240,13 @@ export interface AcquireOpenCodeServerInput {
    */
   directory?: string;
   mcpServers?: readonly ResolvedMcpServer[];
+  /**
+   * Partition the shared `opencode serve` pool. Third-party OpenAI-compatible
+   * accounts must not share a process with the native OpenCode subscription.
+   */
+  isolationKey?: string;
+  /** Extra child env (OPENCODE_CONFIG_DIR, provider id, ...). */
+  serverEnvironment?: Record<string, string>;
 }
 
 async function addMcpServers(
@@ -312,11 +323,11 @@ async function acquireOpenCodeServerInner(
   input: AcquireOpenCodeServerInput,
   retryMcpConnectionLoss: boolean,
 ): Promise<AcquiredOpenCodeServer> {
-  const key = poolKey(input.projectLocation);
+  const key = `${poolKey(input.projectLocation)}:${input.isolationKey ?? "default"}`;
   let entry = pool.get(key);
 
   if (!entry) {
-    const ready = spawnAndWire(input.projectLocation);
+    const ready = spawnAndWire(input.projectLocation, input.serverEnvironment);
     const createdEntry: PoolEntry = {
       ready,
       directoryMcp: new Map(),

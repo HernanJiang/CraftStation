@@ -450,4 +450,31 @@ describe("SplitPaneContainer", () => {
 
     expect(parseFloat(divider!.style.left)).toBeCloseTo(347.2);
   });
+
+  it("writes unscaled CSS px when the root is zoomed (no double scaling)", () => {
+    // getBoundingClientRect reports zoom-scaled px; ResizeObserver reports
+    // unscaled layout px. Panes must be laid out in unscaled units or the
+    // browser scales them a second time (at 1.5x the thread pane renders
+    // 2.25x tall and the composer drops below the fold).
+    document.documentElement.style.zoom = "1.5";
+    try {
+      // Container really occupies 1000x600 CSS px; rect reads come back scaled.
+      setElementRect(1500, 900);
+      const renderPane = (paneId: string) => React.createElement("div", { "data-pane-id": paneId });
+      const { container } = render(
+        React.createElement(SplitPaneContainer, {
+          layout: { kind: "leaf", paneId: "only" },
+          renderPane,
+        }),
+      );
+      const pane = container.querySelector<HTMLElement>("[data-pane-id='only']")?.parentElement;
+      // The convergence pass re-reads on every render: force one and confirm
+      // the rects stay unscaled instead of compounding.
+      expect(pane?.style.width).toBe("1000px");
+      expect(pane?.style.height).toBe("600px");
+    } finally {
+      document.documentElement.style.zoom = "";
+      setElementRect(1000, 600);
+    }
+  });
 });

@@ -66,8 +66,14 @@ describe("database migration registry", () => {
       [38, "conversation checkpoints"],
       [39, "session switch transactions"],
       [40, "thread collaboration ledger"],
+      [41, "native thread bindings"],
+      [42, "threads.pinned_at and threads.archived_at"],
+      [43, "thread_native_sessions switch history"],
+      [44, "threads.goal durable slash-goal"],
+      [45, "scheduled tasks unified schedule capability"],
+      [46, "scheduled tasks host capability provenance and occurrence claim"],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(40);
+    expect(LATEST_SCHEMA_VERSION).toBe(46);
     expect(() => validateMigrationRegistry()).not.toThrow();
   });
 
@@ -414,7 +420,7 @@ describe.skipIf(!sqliteAvailable)("migration v40 thread collaboration ledger", (
     runDatabaseMigrations(isolated, 39);
     expect(
       isolated.prepare("SELECT value FROM app_state WHERE key = 'schema_version'").get(),
-    ).toMatchObject({ value: "40" });
+    ).toMatchObject({ value: String(LATEST_SCHEMA_VERSION) });
     expect(
       isolated
         .prepare(
@@ -422,6 +428,13 @@ describe.skipIf(!sqliteAvailable)("migration v40 thread collaboration ledger", (
         )
         .get(),
     ).toMatchObject({ name: "thread_exchanges" });
+    expect(
+      isolated
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'native_thread_bindings'",
+        )
+        .get(),
+    ).toMatchObject({ name: "native_thread_bindings" });
     isolated.close();
   });
 
@@ -434,7 +447,7 @@ describe.skipIf(!sqliteAvailable)("migration v40 thread collaboration ledger", (
     });
     expect(
       sqlite.prepare("SELECT value FROM app_state WHERE key = 'schema_version'").get(),
-    ).toMatchObject({ value: "40" });
+    ).toMatchObject({ value: String(LATEST_SCHEMA_VERSION) });
 
     // Re-running the migration (as a retry after a partial failure would) is a
     // no-op that keeps the ledger usable and the data intact.

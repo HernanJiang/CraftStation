@@ -13,6 +13,25 @@ import { mkdir } from "node:fs/promises";
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Decode git child output robustly on Windows: git usually emits UTF-8, but
+ * localized messages (and misconfigured repos) on a zh-CN system codepage
+ * come out as GBK, which Node's default utf8 decoding turns into mojibake
+ * (branch / commit / remote text). Strict UTF-8 wins when valid; otherwise
+ * fall back to GBK so Chinese text survives either way.
+ */
+export function decodeGitOutput(buffer: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    try {
+      return new TextDecoder("gbk").decode(buffer);
+    } catch {
+      return new TextDecoder("utf-8").decode(buffer);
+    }
+  }
+}
+
 function execFileWithInput(
   command: string,
   args: string[],
@@ -29,8 +48,8 @@ function execFileWithInput(
       else resolve(result!);
     };
     const child = execFile(command, args, options, (error, stdout, stderr) => {
-      const stdoutText = typeof stdout === "string" ? stdout : stdout.toString("utf8");
-      const stderrText = typeof stderr === "string" ? stderr : stderr.toString("utf8");
+      const stdoutText = typeof stdout === "string" ? stdout : decodeGitOutput(stdout);
+      const stderrText = typeof stderr === "string" ? stderr : decodeGitOutput(stderr);
       if (error) {
         Object.assign(error, { stdout: stdoutText, stderr: stderrText });
         settle(error);
@@ -169,12 +188,14 @@ export async function execGit(
       timeout,
       maxBuffer,
       windowsHide: true,
+      // Decode manually so GBK output from zh-CN Windows consoles survives.
+      encoding: "buffer" as const,
     };
     const { stdout } =
       options?.input !== undefined
         ? await execFileWithInput("git", withQuotePathDisabled(args), execOptions, options.input)
         : await execFileAsync("git", withQuotePathDisabled(args), execOptions);
-    return stdout;
+    return typeof stdout === "string" ? stdout : decodeGitOutput(stdout);
   } catch (error: unknown) {
     if (
       options?.acceptedExitCodes &&
@@ -184,10 +205,10 @@ export async function execGit(
       typeof error.code === "number" &&
       options.acceptedExitCodes.includes(error.code)
     ) {
-      return "stdout" in error ? String(error.stdout ?? "") : "";
+      return "stdout" in error ? decodeExecOutput(error.stdout) : "";
     }
     if (options?.allowNonZeroExit && error && typeof error === "object" && "stdout" in error) {
-      const stdout = String((error as { stdout: unknown }).stdout);
+      const stdout = decodeExecOutput((error as { stdout: unknown }).stdout);
       if (stdout) {
         return stdout;
       }
@@ -245,10 +266,16 @@ function buildGitCommandError(command: string, error: unknown): Error {
   return new Error(message, { cause: error });
 }
 
+function decodeExecOutput(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Uint8Array) return decodeGitOutput(value);
+  return String(value ?? "");
+}
+
 function extractStderr(error: unknown): string {
   if (!error || typeof error !== "object" || !("stderr" in error)) return "";
   const raw = (error as { stderr: unknown }).stderr;
-  return typeof raw === "string" ? raw.trim() : "";
+  return decodeExecOutput(raw).trim();
 }
 
 export function toForwardSlash(path: string): string {

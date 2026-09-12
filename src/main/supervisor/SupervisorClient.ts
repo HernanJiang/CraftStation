@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import type { CraftStationDiagnosticTags } from "@/shared/diagnostics/sentryPrivacy";
 import { terminateChildProcessTree } from "@/shared/processTree";
+import { serializeSecretStorageFallbackKeys } from "@/shared/secretStorage";
 import type { StartThreadPayload } from "@/shared/contracts";
 import type {
   IpcProcedurePayload,
@@ -68,6 +69,13 @@ export interface SupervisorClientOptions {
    */
   bundledPluginsDir?: string;
   secretStorageKey: string;
+  /**
+   * Older-identity keys for decryption only, forwarded to the supervisor via
+   * `CRAFTSTATION_SECRET_STORAGE_KEY_FALLBACKS` so sealed provider secrets
+   * survive userData identity switches (packaged app vs unpackaged launches
+   * vs update restarts sharing one baseDir).
+   */
+  secretStorageKeyFallbacks?: string[];
   /**
    * Optional resolver invoked at every supervisor spawn, returning extra env
    * vars to merge into the child env. Used by the in-app browser MCP wiring
@@ -135,6 +143,13 @@ export class SupervisorClient {
         CRAFTSTATION_IS_DEV: this.options.isDev ? "1" : "0",
         CRAFTSTATION_DATA_DIR: baseDir,
         CRAFTSTATION_SECRET_STORAGE_KEY: this.options.secretStorageKey,
+        ...(this.options.secretStorageKeyFallbacks?.length
+          ? {
+              CRAFTSTATION_SECRET_STORAGE_KEY_FALLBACKS: serializeSecretStorageFallbackKeys(
+                this.options.secretStorageKeyFallbacks,
+              ),
+            }
+          : {}),
         CRAFTSTATION_WSL_HELPERS_DIR: this.options.wslHelpersDir,
         // Back-compat for one release; older supervisor builds still read
         // the legacy var. Safe to drop once min supported supervisor knows

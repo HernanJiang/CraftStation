@@ -47,6 +47,37 @@ export function resolveContextPresetValue(
   return nearest?.id;
 }
 
+/**
+ * 统一的上下文窗口保留/校验规则（所有 Provider 共用）：
+ * 1. 当前值仍在新模型档位里 → 原样沿用；
+ * 2. 否则按 token 语义映射到新模型最接近且不超过的档（超上限自动取模型最大档）；
+ * 3. 仍无解 → 映射 256K 默认档；
+ * 4. 模型完全没有可解析档位 → 能力声明的默认档；
+ * 5. 都没有 → undefined（不写非法值）。
+ */
+export function resolveKeptContextSize(
+  capabilities: AgentCapability,
+  model: string,
+  current?: string,
+): string | undefined {
+  const trimmed = current?.trim();
+  if (trimmed) {
+    const realIds =
+      capabilities.modelContextSizes?.[model] ??
+      capabilities.contextSizes?.map((size) => size.id) ??
+      [];
+    if (realIds.includes(trimmed)) return trimmed;
+    const mapped = resolveContextPresetValue(capabilities, model, trimmed);
+    if (mapped) return mapped;
+  }
+  const defaultMapped = resolveContextPresetValue(capabilities, model, DEFAULT_CONTEXT_PRESET);
+  if (defaultMapped) return defaultMapped;
+  if (capabilities.defaultContextSize) return capabilities.defaultContextSize;
+  const fallback =
+    capabilities.modelContextSizes?.[model] ?? capabilities.contextSizes?.map((size) => size.id);
+  return fallback?.[0];
+}
+
 export function resolveProviderModelPreference(
   agentKind: AgentStatus["kind"],
   model: string,
@@ -126,7 +157,24 @@ export function resolveModelValue(agent: AgentStatus, preferred?: string): strin
   return resolveModelSelection(agent.capabilities, preferred);
 }
 
-export function resolveEffortValue(agent: AgentStatus, model: string, preferred?: string): string {
+/** Keep a third-party custom model id visible when remapping Harness. */
+export function withPreferredModel(
+  capabilities: AgentStatus["capabilities"],
+  modelId: string | undefined,
+): AgentStatus["capabilities"] {
+  if (!modelId) return capabilities;
+  if (capabilities.models.some((model) => model.id === modelId)) return capabilities;
+  return {
+    ...capabilities,
+    models: [{ id: modelId, label: modelId }, ...capabilities.models],
+  };
+}
+
+export function resolveEffortValue(
+  agent: AgentStatus,
+  model: string,
+  preferred?: string,
+): string | undefined {
   return resolveReasoningSelection(agent.capabilities, model, preferred);
 }
 
@@ -135,15 +183,7 @@ export function resolveContextSizeValue(
   model: string,
   preferred?: string,
 ): string | undefined {
-  const allowed = agent.capabilities.modelContextSizes?.[model];
-  if (!allowed?.length) return agent.capabilities.defaultContextSize;
-  if (preferred && allowed.includes(preferred)) return preferred;
-  // 无用户偏好时默认 256K 档（映射到该模型真实档位，超出上限自动取模型最大档）。
-  if (!preferred) {
-    const mapped = resolveContextPresetValue(agent.capabilities, model, DEFAULT_CONTEXT_PRESET);
-    if (mapped) return mapped;
-  }
-  return allowed[0];
+  return resolveKeptContextSize(agent.capabilities, model, preferred);
 }
 
 export function resolveFastValue(agent: AgentStatus, model: string, preferred?: boolean): boolean {
@@ -280,7 +320,7 @@ export function resolveProviderDraftConfig(
 
   return {
     model: nextModel,
-    effort: nextEffort,
+    ...(nextEffort ? { effort: nextEffort } : {}),
     ...(nextContext ? { contextSize: nextContext } : {}),
     ...(supportsFast ? { fast: nextFast } : {}),
     ...(supportsThinking ? { thinking: nextThinking } : {}),

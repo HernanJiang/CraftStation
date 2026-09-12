@@ -38,6 +38,30 @@ describe("ScheduleService", () => {
     expect(task.lastStatus).toBe("never");
   });
 
+  it("lists run history from the store after requiring the schedule", () => {
+    const store = memoryStore();
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => new Date(2026, 6, 6, 7, 0).getTime(),
+    });
+    const task = service.create(input);
+    const run = {
+      id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      scheduleId: task.id,
+      threadId: "ffffffff-0000-4111-8222-333333333333",
+      triggeredBy: "manual" as const,
+      startedAt: "2026-09-09T12:11:50.541Z",
+      completedAt: "2026-09-09T12:11:58.242Z",
+      status: "succeeded" as const,
+      summary: "SCHEDULE_SCHEMA_OK",
+      error: null,
+    };
+    store.listRuns = () => [run];
+    expect(service.listRuns(task.id)).toEqual([run]);
+    expect(() => service.listRuns("00000000-0000-4000-8000-000000000000")).toThrow(/not found/i);
+  });
+
   it("coalesces overlapping due runs and advances to the next occurrence", async () => {
     const store = memoryStore();
     let now = new Date(2026, 6, 6, 7, 0).getTime();
@@ -83,7 +107,7 @@ describe("ScheduleService", () => {
     restarted.start();
 
     expect(onStartupInterrupted).toHaveBeenCalledWith(task.id);
-    expect(store.get(task.id)?.lastStatus).toBe("failed");
+    expect(store.get(task.id)?.lastStatus).toBe("interrupted");
     restarted.dispose();
   });
 
@@ -124,5 +148,92 @@ describe("ScheduleService", () => {
     resolveRun("Late result");
     await Promise.resolve();
     expect(store.get(task.id)).toBeNull();
+  });
+
+  it("pauses and resumes through one unified store", () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+    });
+    const task = service.create(input);
+    expect(task.enabled).toBe(true);
+
+    const paused = service.pause(task.id);
+    expect(paused.enabled).toBe(false);
+    expect(paused.nextRunAt).toBeNull();
+
+    const resumed = service.resume(task.id);
+    expect(resumed.enabled).toBe(true);
+    expect(resumed.nextRunAt).toBe(new Date(2026, 6, 6, 8, 0).toISOString());
+  });
+
+  it("computes the next run in the schedule time zone", () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+    });
+    const task = service.create({ ...input, timezone: "Asia/Shanghai" });
+    expect(task.timezone).toBe("Asia/Shanghai");
+    expect(task.nextRunAt).not.toBeNull();
+  });
+
+  it("runNow does not consume the next scheduled occurrence", async () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const runTask = vi.fn<() => Promise<string>>().mockResolvedValue("ok");
+    const service = new ScheduleService({ store, runTask, now: () => now });
+    const task = service.create(input);
+    const nextRunAt = task.nextRunAt;
+    service.runNow(task.id);
+    await vi.waitFor(() => expect(store.get(task.id)?.lastStatus).toBe("succeeded"));
+    expect(store.get(task.id)?.nextRunAt).toBe(nextRunAt);
+  });
+
+  it("does not re-run a claimed occurrence after a process restart", () => {
+    const claims = new Set<string>();
+    const store = memoryStore();
+    store.claimOccurrence = (scheduleId, occurrenceAt) => {
+      const key = `${scheduleId}:${occurrenceAt}`;
+      if (claims.has(key)) return false;
+      claims.add(key);
+      return true;
+    };
+    const runTask = vi.fn<() => Promise<string>>().mockResolvedValue("ok");
+    let now = new Date(2026, 6, 6, 7, 0).getTime();
+    const first = new ScheduleService({ store, runTask, now: () => now });
+    const task = first.create(input);
+    now = new Date(2026, 6, 6, 8, 0).getTime();
+    first.tick();
+    expect(runTask).toHaveBeenCalledTimes(1);
+
+    const restarted = new ScheduleService({ store, runTask, now: () => now });
+    restarted.tick();
+    expect(runTask).toHaveBeenCalledTimes(1);
+    expect(store.get(task.id)?.nextRunAt).not.toBe(task.nextRunAt);
+    first.dispose();
+    restarted.dispose();
+  });
+
+  it("notifies listeners after every mutation", async () => {
+    const store = memoryStore();
+    const onChanged = vi.fn<() => void>();
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>().mockResolvedValue("ok"),
+      onChanged,
+      now: () => new Date(2026, 6, 6, 7, 0).getTime(),
+    });
+    const task = service.create(input);
+    service.pause(task.id);
+    service.resume(task.id);
+    service.runNow(task.id);
+    await vi.waitFor(() => expect(store.get(task.id)?.lastStatus).toBe("succeeded"));
+    expect(onChanged.mock.calls.length).toBeGreaterThanOrEqual(4);
   });
 });

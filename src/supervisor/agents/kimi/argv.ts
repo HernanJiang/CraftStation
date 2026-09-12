@@ -10,9 +10,11 @@ import type { ThreadConfig } from "@/shared/contracts";
  *     one at launch — so resume always targets an id discovered post-spawn.
  *   • `-m, --model <model>` selects the model.
  *   • `--plan` starts the TUI in Plan mode.
- *   • `--auto` enables the auto permission mode; `-y, --yolo` auto-approves
- *     everything. The two are mutually exclusive, and neither may be combined
- *     with the one-shot `-p, --prompt` path.
+ *   • `--auto` enables Never Ask mode (no interruptions at all). `-y, --yolo`
+ *     is only Ask When Needed (risky actions, questions and plans still ask
+ *     since 0.42.0) — never use it for full access. The two are mutually
+ *     exclusive, and neither may be combined with the one-shot `-p, --prompt`
+ *     path.
  *
  * Kimi exposes no `--reasoning-effort` flag; effort tiers (when a model has
  * them) are driven through the ACP protocol, not argv.

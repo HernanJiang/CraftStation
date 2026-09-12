@@ -30,6 +30,8 @@ interface NotificationStore {
   }) => void;
   /** Clears the unread dot; keeps the list for review. */
   markAllRead: () => void;
+  /** Opening a conversation is viewing it: drop that thread's bell rows. */
+  dismissThread: (threadId: string) => void;
   remove: (id: string) => void;
   clear: () => void;
 }
@@ -49,7 +51,12 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
         createdAt: Date.now(),
         read: false,
       };
-      return { items: [item, ...state.items].slice(0, MAX_NOTIFICATION_ITEMS) };
+      // One row per thread: a later completion replaces the earlier one
+      // instead of stacking duplicates in the bell list.
+      const rest = input.threadId
+        ? state.items.filter((existing) => existing.threadId !== input.threadId)
+        : state.items;
+      return { items: [item, ...rest].slice(0, MAX_NOTIFICATION_ITEMS) };
     }),
   markAllRead: () =>
     set((state) =>
@@ -57,10 +64,22 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
         ? { items: state.items.map((item) => (item.read ? item : { ...item, read: true })) }
         : state,
     ),
+  dismissThread: (threadId) =>
+    set((state) => {
+      if (!threadId || !state.items.some((item) => item.threadId === threadId)) return state;
+      return { items: state.items.filter((item) => item.threadId !== threadId) };
+    }),
   remove: (id) => set((state) => ({ items: state.items.filter((item) => item.id !== id) })),
   clear: () => set({ items: [] }),
 }));
 
 export function selectHasUnread(items: NotificationItem[]): boolean {
   return items.some((item) => !item.read);
+}
+
+export function selectThreadHasUnreadNotification(
+  items: NotificationItem[],
+  threadId: string,
+): boolean {
+  return items.some((item) => item.threadId === threadId && !item.read);
 }

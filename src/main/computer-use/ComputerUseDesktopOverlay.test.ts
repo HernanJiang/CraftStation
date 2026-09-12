@@ -22,6 +22,9 @@ const electronMock = vi.hoisted(() => {
       this.handlers.get("closed")?.();
     });
     loadURL = vi.fn<(url: string) => Promise<void>>(async () => undefined);
+    webContents = {
+      executeJavaScript: vi.fn<(code: string) => Promise<unknown>>(async () => undefined),
+    };
 
     constructor(options: Record<string, unknown>) {
       this.options = options;
@@ -111,6 +114,9 @@ describe("ComputerUseDesktopOverlay", () => {
       expect(overlayHtml).toContain("inset 0 0 0 2px rgba(92, 167, 255, 0.6)");
       expect(overlayHtml).toContain("inset 0 0 48px rgba(92, 167, 255, 0.08)");
       expect(overlayHtml).toContain("CraftStation using your computer | Esc to Exit");
+      expect(overlayHtml).toContain("window.__csPointer");
+      expect(overlayHtml).toContain("M352,300 H556");
+      expect(overlayHtml).toContain('id="trail"');
       expect(overlayHtml).not.toContain("<button");
     }
     expect(electronMock.globalShortcut.register).toHaveBeenCalledWith(
@@ -261,6 +267,57 @@ describe("ComputerUseDesktopOverlay", () => {
     expect(electronMock.shortcuts.has("Escape")).toBe(true);
     vi.advanceTimersByTime(COMPUTER_USE_OVERLAY_RELEASE_DELAY_MS);
     expect(windows.every((window) => !window.visible)).toBe(true);
+
+    overlay.dispose();
+  });
+
+  it("draws the CraftStation pointer on the display that contains the target", async () => {
+    const overlay = new ComputerUseDesktopOverlay({
+      onExit: vi.fn<(threadIds: string[]) => void>(),
+    });
+    overlay.setActivity({ kind: "session", threadId: "thread-1", active: true });
+    await Promise.resolve();
+
+    await overlay.movePointer({ kind: "click", x: 2000, y: 80 });
+
+    const payloads = electronMock.BrowserWindow.instances.map((window) => {
+      const code = window.webContents.executeJavaScript.mock.calls[0]?.[0] as string;
+      return JSON.parse(code.slice("window.__csPointer(".length, -1)) as {
+        kind: string;
+        x?: number;
+        y?: number;
+      };
+    });
+    expect(payloads).toEqual(
+      expect.arrayContaining([
+        { kind: "hide" },
+        { kind: "click", x: 80, y: 80, durationMs: 0 },
+      ]),
+    );
+
+    overlay.dispose();
+  });
+
+  it("animates subsequent pointer moves before the click lands", async () => {
+    const overlay = new ComputerUseDesktopOverlay({
+      onExit: vi.fn<(threadIds: string[]) => void>(),
+    });
+    overlay.setActivity({ kind: "session", threadId: "thread-1", active: true });
+    await Promise.resolve();
+
+    await overlay.movePointer({ kind: "click", x: 100, y: 100 });
+    const second = overlay.movePointer({ kind: "click", x: 500, y: 400 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await second;
+
+    const last = electronMock.BrowserWindow.instances[0]!.webContents.executeJavaScript.mock
+      .calls.at(-1)?.[0] as string;
+    const payload = JSON.parse(last.slice("window.__csPointer(".length, -1)) as {
+      kind: string;
+      durationMs: number;
+    };
+    expect(payload.kind).toBe("click");
+    expect(payload.durationMs).toBeGreaterThan(0);
 
     overlay.dispose();
   });

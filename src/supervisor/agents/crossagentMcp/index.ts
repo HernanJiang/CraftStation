@@ -1,9 +1,9 @@
 /**
- * Shared helper for injecting the CraftStation Crossagents MCP server
+ * Shared helper for injecting the CraftStation Own Subagents MCP server
  * into agent runtimes. The supervisor hosts a single in-process Streamable-HTTP
- * MCP endpoint (`CrossagentMcpIngress`); each thread that opts in receives a URL +
- * bearer credential at launch so the agent can discover and spawn the other
- * connected agents as subagents. Most providers receive a per-thread token;
+ * MCP endpoint (`OwnSubagentsMcpIngress`); each thread that opts in receives a URL +
+ * bearer credential at launch so the agent can delegate ephemeral subtasks to
+ * temporary subagents. Most providers receive a per-thread token;
  * pooled runtimes can share one credential and route calls by a trusted native
  * session id.
  *
@@ -12,16 +12,15 @@
  *
  * WSL reachability: unlike the browser MCP — which tunnels through the in-WSL
  * `bridge.mjs` reverse proxy (its `/mcp` route is hard-wired to the browser
- * upstream with a fixed env token) — the Crossagents ingress uses PER-THREAD
- * bearer tokens that can't be baked into a shared per-distro proxy. Instead we
- * mirror `BrowserMcpIngress`'s network posture: the supervisor ingress binds
- * `0.0.0.0` on Windows so an agent inside a WSL distro can reach the host. HOW
- * it reaches the host depends on the distro's networking mode (resolved by the
- * host-side `WslHostAccessResolver`): in NAT mode we rewrite the
- * loopback URL host to the distro's default-route gateway IP; in mirrored mode
- * the native `127.0.0.1` URL works as-is and is passed through unchanged. The
- * per-thread bearer token stays the security boundary — see
- * `resolveCrossagentMcpHttpConfigForLaunch` and `CrossagentMcpIngress.start`.
+ * upstream with a fixed env token) — the Own Subagents ingress uses PER-THREAD
+ * bearer tokens that can't be baked into a shared per-distro proxy. The
+ * supervisor ingress binds loopback so Windows Firewall is not prompted at
+ * launch. HOW a WSL agent reaches the host depends on the distro's networking
+ * mode (resolved by the host-side `WslHostAccessResolver`): in mirrored mode
+ * the native `127.0.0.1` URL works as-is; in NAT mode a gateway rewrite is
+ * only useful for services that actually listen off-loopback, so Own Subagents
+ * stays on loopback. The per-thread bearer token stays the call-level
+ * boundary — see `resolveCrossagentMcpHttpConfigForLaunch`.
  */
 
 import type { ProjectLocation } from "@/shared/contracts";
@@ -48,12 +47,12 @@ export type CrossagentMcpLocation =
   | { kind: "wsl"; distro: string };
 
 /**
- * Resolve the Crossagents MCP http config for a given project location.
+ * Resolve the Own Subagents MCP http config for a given project location.
  *
  * - Native (windows/posix): the native loopback config is returned unchanged.
  * - WSL, NAT mode (`gateway`): the loopback host in `native.url` is rewritten
- *   to the distro's default-route gateway IP so the in-distro agent can reach
- *   the `0.0.0.0`-bound ingress. Token + headers are preserved verbatim.
+ *   to the distro's default-route gateway IP for host-bound services that
+ *   listen off-loopback. Token + headers are preserved verbatim.
  * - WSL, mirrored mode (`loopback`): the native config is returned unchanged —
  *   `localhost` inside the distro reaches the host directly.
  *

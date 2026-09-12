@@ -75,6 +75,7 @@ export type {
   FindBestHintOptions,
   HintEntry,
   OneShotChildCommand,
+  PoolQuotaFailedTurn,
   ResolveExecutablePath,
   RunOneShotInput,
   SubagentOneShotCommandInput,

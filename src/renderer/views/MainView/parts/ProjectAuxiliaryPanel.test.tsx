@@ -3,8 +3,10 @@ import { I18nProvider } from "@lingui/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project, Thread } from "@/shared/contracts";
 import { i18n } from "@/renderer/i18n/i18n";
+import { showSubAgentPanel } from "@/renderer/actions/panelActions";
 import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import type { RuntimeChatItem } from "@/renderer/state/slices/runtimeEventSlice";
 import { ProjectAuxiliaryPanel } from "./ProjectAuxiliaryPanel";
 
 vi.mock("@/renderer/analytics/useProductViewTracking", () => ({
@@ -258,6 +260,33 @@ describe("ProjectAuxiliaryPanel", () => {
         projectId: threadA.projectId,
         worktreePath: threadA.worktreePath,
       });
+    });
+  });
+
+  it("shows the subagent detail instead of the launcher when opened from the status capsule", async () => {
+    const subAgentItem: RuntimeChatItem = {
+      id: "sub-1",
+      type: "tool_call",
+      state: "completed",
+      streams: {},
+    };
+    useAppStore.setState({
+      runtimeItemIdsByThread: { [threadA.id]: [subAgentItem.id] },
+      runtimeItemsByIdByThread: { [threadA.id]: { [subAgentItem.id]: subAgentItem } },
+    });
+    // The top-right capsule funnels through the same action as the in-chat
+    // rows: the detail must land on the auxiliary tab, not under the launcher.
+    showSubAgentPanel(threadA.id, subAgentItem.id);
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <ProjectAuxiliaryPanel includeTerminal visible />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(unifiedRightPanelProps.current?.activeTab).toBe("subagent");
+      expect(unifiedRightPanelProps.current?.launcherOpen).toBe(false);
     });
   });
 });

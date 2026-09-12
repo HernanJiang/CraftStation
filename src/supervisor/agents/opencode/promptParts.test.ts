@@ -14,6 +14,21 @@ import {
 const posixProject: ProjectLocation = { kind: "posix", path: "/repo" };
 
 describe("buildOpenCodePromptParts", () => {
+  it("sends audio attachments as audio file parts", () => {
+    const parts = buildOpenCodePromptParts(
+      "transcribe this",
+      [{ kind: "attachment", path: "/tmp/standup.mp3", mimeType: "audio/mpeg" }],
+      posixProject,
+    );
+
+    expect(parts).toContainEqual({
+      type: "file",
+      mime: "audio/mpeg",
+      filename: "standup.mp3",
+      url: expect.stringContaining("standup.mp3"),
+    });
+  });
+
   it("resolves Windows relative file mentions against the project root", () => {
     const parts = buildOpenCodePromptParts(
       "inspect file",

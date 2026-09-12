@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { resolveAiLanguageName, resolveLocale } from "./locale";
+import {
+  chatLanguageDirective,
+  detectProcessPreferredLanguages,
+  resolveAiLanguageName,
+  resolveLocale,
+} from "./locale";
 
 describe("resolveLocale", () => {
   it("returns an explicit supported locale", () => {
@@ -47,5 +52,29 @@ describe("resolveAiLanguageName", () => {
   it("returns undefined when match-app resolves to English", () => {
     expect(resolveAiLanguageName("match-app", "system", ["en-US"])).toBeUndefined();
     expect(resolveAiLanguageName("match-app", "en", ["de-DE"])).toBeUndefined();
+  });
+});
+
+describe("detectProcessPreferredLanguages", () => {
+  it("parses POSIX locale env vars before the ICU default", () => {
+    expect(
+      detectProcessPreferredLanguages({ LANGUAGE: "zh_CN:en_US", LANG: "en_US.UTF-8" }, "de-DE"),
+    ).toEqual(["zh-CN", "en-US", "en-US", "de-DE"]);
+  });
+
+  it("falls back to the ICU locale when env vars are empty", () => {
+    expect(detectProcessPreferredLanguages({}, "zh-CN")).toEqual(["zh-CN"]);
+  });
+});
+
+describe("chatLanguageDirective", () => {
+  it("omits a directive when the UI language is English", () => {
+    expect(chatLanguageDirective("en", ["zh-CN"])).toBeUndefined();
+    expect(chatLanguageDirective("system", ["en-US"])).toBeUndefined();
+  });
+
+  it("instructs the model to match a non-English UI locale", () => {
+    expect(chatLanguageDirective("system", ["zh-CN"])).toContain("Simplified Chinese");
+    expect(chatLanguageDirective("ja", ["en-US"])).toContain("Japanese");
   });
 });

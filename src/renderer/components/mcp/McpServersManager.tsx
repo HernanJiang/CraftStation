@@ -204,15 +204,23 @@ export function McpServersManager(props: {
       icon: <Globe className="size-4" />,
     },
     {
+      id: "own-subagents",
+      name: BUILT_IN_MCP_SERVER_NAMES["own-subagents"],
+      tools: BUILT_IN_MCP_SERVER_TOOL_NAMES["own-subagents"],
+      label: t`Own Subagents`,
+      description: t`Temporary subagents. Prefers this harness's own native subagent, or delegates to another harness.`,
+      icon: <Users className="size-4" />,
+      ...(props.builtInSettings?.["own-subagents"] !== undefined
+        ? { settingsLabel: props.builtInSettings["own-subagents"].actionLabel }
+        : {}),
+    },
+    {
       id: "crossagents",
       name: BUILT_IN_MCP_SERVER_NAMES.crossagents,
       tools: BUILT_IN_MCP_SERVER_TOOL_NAMES.crossagents,
       label: t`Crossagents`,
-      description: builtInDescription,
+      description: t`Durable messaging between long-lived native threads across harnesses.`,
       icon: <Users className="size-4" />,
-      ...(props.builtInSettings?.crossagents !== undefined
-        ? { settingsLabel: props.builtInSettings.crossagents.actionLabel }
-        : {}),
     },
     {
       id: "chrome",

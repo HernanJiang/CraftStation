@@ -111,8 +111,8 @@ msgstr "{0, plural, one {# 个工具} other {# 个工具}}"
 
 #. placeholder {0}: entry.count
 #. placeholder {0}: entry.usageCount
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "{0, plural, one {# use} other {# uses}}"
 msgstr "{0, plural, other {使用 # 次}}"
 
@@ -161,6 +161,22 @@ msgstr "{0}({envName}) 更新为 v{newVersion}。"
 msgid "{0} ({envName}) updated."
 msgstr "{0}({envName}) 已更新。"
 
+#. placeholder {0}: agentCounts.total
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} Agents ended"
+msgstr "{0} 个 Agent 已结束"
+
+#. placeholder {0}: agentCounts.completed + agentCounts.cancelled
+#. placeholder {1}: agentCounts.failed
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} Agents ended · {1} error"
+msgstr "{0} 个 Agent 已结束 · {1} 个错误"
+
+#. placeholder {0}: agentCounts.running
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} Agents working"
+msgstr "{0} 个 Agent 工作中"
+
 #. placeholder {0}: days.map((day) => weekdayNames[day]).join(", ")
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "{0} at {time}"
@@ -172,6 +188,16 @@ msgstr "{0} {time}"
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "{0} authenticated."
 msgstr "{0}已验证。"
+
+#. placeholder {0}: gitSummary.changedFiles
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} changed files. Show git status."
+msgstr "{0} 个已更改文件。显示 Git 状态。"
+
+#. placeholder {0}: gitSummary.changedFiles
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} changes"
+msgstr "{0} 处更改"
 
 #. placeholder {0}: agent.label
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
@@ -187,6 +213,17 @@ msgstr "{0}凭据已保存。"
 #: src/renderer/views/ProfileOverlay/parts/ProfileHeader.tsx
 msgid "{0} devices"
 msgstr "{0}台设备"
+
+#. placeholder {0}: agentCounts.total
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} ended"
+msgstr "{0} 个已结束"
+
+#. placeholder {0}: agentCounts.completed + agentCounts.cancelled
+#. placeholder {1}: agentCounts.failed
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} ended · {1} error"
+msgstr "{0} 个已结束 · {1} 个错误"
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/HookPluginSettings.tsx
@@ -269,12 +306,22 @@ msgstr "{0}条提示 - {when}"
 msgid "{0} run"
 msgstr "运行{0}次"
 
+#. placeholder {0}: agentCounts.running
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{0} running"
+msgstr "{0} 个运行中"
+
 #. placeholder {0}: item.runCount.toLocaleString()
 #. placeholder {0}: runs.length
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 #: src/renderer/views/ProfileOverlay/parts/PluginUsage.tsx
 msgid "{0} runs"
 msgstr "运行{0}次"
+
+#. placeholder {0}: related.length
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
+msgid "{0} schedules"
+msgstr "{0} 个计划"
 
 #. placeholder {0}: threads.length
 #: src/mobile/views/ThreadsView.tsx
@@ -369,6 +416,18 @@ msgstr "{agentLabel}：{statusLabel}。将鼠标悬停以查看状态详细信�
 msgid "{agentLead} needs your input to continue."
 msgstr "{agentLead} 需要你的输入才能继续。"
 
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{agentsSummary}. Show agents."
+msgstr "{agentsSummary}。显示代理。"
+
+#: src/renderer/actions/forkThreadActions.ts
+msgid "{baseTitle}（分叉）"
+msgstr ""
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "{changedFiles} 个文件"
+msgstr "{changedFiles} 个文件"
+
 #: src/mobile/views/pr/PrOverviewPage.tsx
 msgid "{commitsCount, plural, one {# commit} other {# commits}}"
 msgstr "{commitsCount, plural, one {# 个提交} other {# 个提交}}"
@@ -437,6 +496,10 @@ msgstr "{label} API 密钥"
 msgid "{label} auto-refresh interval in minutes"
 msgstr "{label} 自动刷新间隔（分钟）"
 
+#: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
+msgid "{label} Cookie"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "{label} copied."
 msgstr "已复制{label}。"
@@ -452,6 +515,10 @@ msgstr "{label}用量"
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 msgid "{label} usage — open usage panel"
 msgstr "{label}用法 — 打开用法面板"
+
+#: src/renderer/components/thread/ComposerPlanChip.tsx
+msgid "{label}. Show plan."
+msgstr ""
 
 #. placeholder {0}: method.name
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -539,6 +606,10 @@ msgstr "{serverCount, plural, one {# 个服务器} other {# 个服务器}}"
 msgid "{serverName} from {providerLabel}: {disabledLabel}"
 msgstr "{providerLabel} 的 {serverName}：{disabledLabel}"
 
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "{taskFraction}. Show task."
+msgstr "{taskFraction}。显示任务。"
+
 #: src/renderer/components/thread/ThreadGoalDock.tsx
 msgid "{used} tokens"
 msgstr "{used} 令牌"
@@ -612,11 +683,11 @@ msgstr "1 个线程"
 msgid "22"
 msgstr "22"
 
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "30d"
 msgstr "30天"
 
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "7d"
 msgstr "7天"
 
@@ -661,12 +732,16 @@ msgstr "支持的编码代理"
 msgid "A worktree owner requires a frozen branch source"
 msgstr "工作树所有者需要冻结的源分支"
 
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Abort current turn and switch"
+msgstr ""
+
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/ConflictResolutionActions.tsx
 msgid "Abort Merge"
 msgstr "中止合并"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "About"
 msgstr "关于"
 
@@ -690,8 +765,8 @@ msgstr "帐户"
 msgid "Account options"
 msgstr "账户选项"
 
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 #: src/renderer/views/PullRequestsView/PullRequestsView.tsx
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "Accounts"
 msgstr "账户"
 
@@ -774,6 +849,15 @@ msgstr "活动指标"
 msgid "Add"
 msgstr "添加"
 
+#. placeholder {0}: skill.name
+#: src/renderer/components/skills/SkillsManager.tsx
+msgid "Add {0} to Shared"
+msgstr ""
+
+#: src/renderer/components/skills/SkillsManager.tsx
+#~ msgid "Add {name} to Shared"
+#~ msgstr "将 {name} 加入到共享"
+
 #: src/renderer/commands/registry.ts
 msgid "Add a local project"
 msgstr "添加本地项目"
@@ -804,9 +888,9 @@ msgstr "请先添加项目，再更新智能体。"
 msgid "Add a project to see pull requests."
 msgstr "添加项目以查看拉取请求。"
 
-#: src/renderer/app.tsx
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
 #: src/renderer/views/QuickComposerOverlay/QuickComposerOverlay.tsx
+#: src/renderer/workbench/contributions/threadRequests.ts
 msgid "Add a project to start"
 msgstr "添加一个项目来启动"
 
@@ -899,11 +983,11 @@ msgstr "添加技能"
 msgid "Add skill destination"
 msgstr "新技能目标位置"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Add tag"
 msgstr "添加标签"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Add tag..."
 msgstr "添加标签..."
 
@@ -919,6 +1003,14 @@ msgstr "添加到收藏夹"
 msgid "Add to Home Screen"
 msgstr "添加到主屏幕"
 
+#: src/renderer/components/thread/ProjectSwitchMenu.tsx
+msgid "Add to project"
+msgstr ""
+
+#: src/renderer/components/skills/SkillsManager.tsx
+msgid "Add to Shared"
+msgstr "加入到共享"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
 msgid "Add to-do"
 msgstr "添加待办事项"
@@ -931,6 +1023,10 @@ msgstr "添加工具"
 msgid "Add workspace"
 msgstr "添加工作区"
 
+#: src/renderer/components/skills/SkillsManager.tsx
+msgid "Added to Shared."
+msgstr "已加入到共享。"
+
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
 msgid "Additional arguments passed to each new Terminal-panel shell. Quote values containing spaces."
@@ -939,6 +1035,26 @@ msgstr "传递给每个新终端面板 shell 的附加参数。包含空格的�
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Advertise a custom base URL, e.g. a reverse proxy or tunnel. Leave empty for automatic."
 msgstr "公布自定义基础 URL，例如反向代理或隧道。留空则自动设置。"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
+msgid "After 15 days"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
+msgid "After 3 days"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
+msgid "After 30 days"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
+msgid "After 7 days"
+msgstr ""
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "After current turn"
+msgstr ""
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
@@ -1001,7 +1117,7 @@ msgstr "代理终端字体大小"
 msgid "Agent update available"
 msgstr "代理更新可用"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "Agent usage"
 msgstr "智能体使用情况"
 
@@ -1018,6 +1134,8 @@ msgid "Agent: {subagent}"
 msgstr "代理：{subagent}"
 
 #: src/mobile/settingsSections.ts
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "Agents"
@@ -1028,9 +1146,13 @@ msgstr "智能体"
 msgid "Agents · General"
 msgstr "代理·一般"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
-msgid "Agents classify delegated work with task tags. Manual task routes rank first, followed by matching learned routes, global Crossagents usage, normal agent usage and favorites, and built-in order."
-msgstr "代理使用任务标签对委派的工作进行分类。手动任务路由排在首位，其次是匹配的已学习路由、全局 Crossagents 使用情况、常规代理使用情况和收藏，最后是内置顺序。"
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Agents classify delegated work with task tags. Explicit per-call values and manual task routes rank first, followed by this order, then matching learned routes, global usage, normal agent usage and favorites, and built-in order. Drag rows or use the arrows to reorder; the native lane cannot be removed."
+msgstr ""
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Agents. Show agents."
+msgstr "代理。显示代理。"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "AI agent orchestrator — manage coding agents via Terminal and Native ACP."
@@ -1043,7 +1165,7 @@ msgstr "AI git操作"
 #. Settings section: AI helper features (commit messages, thread titles, conflict resolution)
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/AISettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "AI Helpers"
 msgstr "AI 助手"
 
@@ -1062,9 +1184,9 @@ msgstr "线程需要你时提醒"
 
 #: src/renderer/commands/shortcutCatalog.ts
 #: src/renderer/components/skills/SkillsManager.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 #: src/renderer/views/PullRequestsView/PullRequestsView.tsx
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "All"
 msgstr "全部"
 
@@ -1194,7 +1316,7 @@ msgstr "此实验的另一个操作仍在运行。"
 msgid "Antigravity"
 msgstr "Antigravity"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Anything currently unavailable — a provider, model, reasoning level, or Fast mode — is skipped automatically. Unchecked providers and models are skipped until re-checked."
 msgstr "当前不可用的任何内容 — 提供商、模型、推理级别或 Fast 模式 — 都会被自动跳过。未选中的提供商和模型将被跳过，直到重新选中。"
 
@@ -1220,7 +1342,7 @@ msgstr "应用控制"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Appearance"
 msgstr "外观"
 
@@ -1294,9 +1416,17 @@ msgstr "存档线程"
 #: src/mobile/settingsSections.ts
 #: src/mobile/views/SettingsView.tsx
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Archived Threads"
 msgstr "已存档的线程"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Archived threads are permanently deleted after this long, counted strictly from when each thread was archived."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
+msgid "Archived threads are permanently deleted after this long, counted strictly from when each thread was archived. Changing this re-evaluates existing archives immediately."
+msgstr ""
 
 #. placeholder {0}: file.path
 #: src/renderer/views/GitReviewOverlay/parts/GitStackedDiff.tsx
@@ -1320,9 +1450,9 @@ msgstr "参数"
 msgid "Ask {0} anything about this workspace"
 msgstr "向{0}询问有关此工作区的任何信息"
 
-#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
-msgid "Ask about this conversation…"
-msgstr ""
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Ask another thread"
+msgstr "询问另一个线程"
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Ask anything"
@@ -1336,6 +1466,10 @@ msgstr "每次都询问"
 msgid "Ask for approval"
 msgstr "请求批准"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Ask the target thread a specific question or task…"
+msgstr "向目标线程询问一个具体的问题或任务…"
+
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "At"
 msgstr "时间"
@@ -1347,6 +1481,10 @@ msgstr "必须至少创建两个工作树。已清理部分创建的实验。"
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Attach"
 msgstr "附加"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Attach an explicit portable context summary"
+msgstr "附加一份明确的可携带上下文摘要"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Attach files"
@@ -1369,7 +1507,7 @@ msgid "Attempt"
 msgstr "尝试次数"
 
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Audio"
 msgstr "音频"
 
@@ -1451,6 +1589,11 @@ msgstr "之后自动存档已完成的线程"
 msgid "Auto-archive done threads after (days)"
 msgstr "自动存档已完成线程的等待天数"
 
+#: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Auto-delete archived threads"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Auto-generate"
 msgstr "自动生成"
@@ -1464,7 +1607,7 @@ msgstr "自动刷新间隔以分钟为单位，0为关闭"
 msgid "Auto-review"
 msgstr "自动审核"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentProviderModelFilter.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsProviderModelFilter.tsx
 msgid "Auto-selection"
 msgstr "自动选择"
 
@@ -1509,6 +1652,10 @@ msgstr "可用"
 #: src/renderer/views/SettingsOverlay/parts/AcpRegistrySettings.tsx
 msgid "Available ACP Agents"
 msgstr "可用的 ACP 代理"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Available target threads"
+msgstr "可用的目标线程"
 
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Avatar color"
@@ -1650,6 +1797,12 @@ msgstr "分支"
 msgid "Branch '{branch}' has uncommitted changes in '{path}' — commit or stash them before merging"
 msgstr "分支“{branch}”在“{path}”中有未提交的更改 - 在合并之前提交或隐藏它们"
 
+#. placeholder {0}: effectiveStatus.branch || "—"
+#. placeholder {0}: gitSummary.branch || "—"
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Branch {0}. Show branches."
+msgstr "分支 {0}。显示分支。"
+
 #: src/renderer/i18n/sharedMessages.ts
 msgid "branch {branch}: {detail}"
 msgstr "分支 {branch}：{detail}"
@@ -1726,7 +1879,7 @@ msgstr "在 CraftStation 隔离的内置浏览器中浏览、检查并测试网�
 #: src/renderer/views/MainView/parts/SidebarHeaderControls.tsx
 #: src/renderer/views/SettingsOverlay/parts/BrowserSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Browser"
 msgstr "浏览器"
 
@@ -1790,7 +1943,7 @@ msgstr "内置"
 msgid "Built-in MCP servers"
 msgstr "内置 MCP 服务器"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "Built-in order"
 msgstr "内置顺序"
 
@@ -1815,12 +1968,12 @@ msgid "by <0>{author}</0>"
 msgstr "由 <0>{author}</0>"
 
 #: src/renderer/views/ProfileOverlay/parts/ModelUsage.tsx
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "by prompts"
 msgstr "按提示数"
 
 #: src/renderer/views/ProfileOverlay/parts/ModelUsage.tsx
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "by tokens"
 msgstr "按token数"
 
@@ -1897,6 +2050,14 @@ msgstr "取消待发送的引导消息"
 msgid "Cancel picker"
 msgstr "取消选择器"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Cancel queued request"
+msgstr "取消排队中的请求"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Cancel queued switch"
+msgstr ""
+
 #: src/mobile/views/ManageProjectsView.tsx
 msgid "Cancel removing project"
 msgstr "取消移除项目"
@@ -1912,11 +2073,25 @@ msgid "cancelled"
 msgstr "已取消"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadGoalDock.tsx
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #: src/renderer/utils/prStatus.ts
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Cancelled"
 msgstr "已取消"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Cancelled after {elapsed}"
+msgstr ""
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Paused after {elapsed}"
+msgstr "已暂停 {elapsed}"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "Cancelling"
+msgstr "取消中"
 
 #: src/renderer/views/ExperimentView/parts/ExperimentCandidateCard.tsx
 msgid "Candidate actions"
@@ -1957,7 +2132,7 @@ msgstr "更改用户"
 #. Link to the list of release notes
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/ChangelogSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Changelog"
 msgstr "变更日志"
 
@@ -2161,10 +2336,6 @@ msgstr "选择登录 {env} 的方式。"
 msgid "Choose how to sign in."
 msgstr "选择登录方式。"
 
-#: src/renderer/views/WelcomeOverlay.tsx
-msgid "Choose how you want to enter CraftStation."
-msgstr "选择进入方式"
-
 #: src/renderer/components/mcp/McpExternalImportModal.tsx
 msgid "Choose import destination"
 msgstr "选择导入目标"
@@ -2181,6 +2352,10 @@ msgstr "选择 SSH 身份文件"
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Choose the display language for CraftStation's interface."
 msgstr "选择 CraftStation 界面的显示语言。"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Choose the GUI presentation to switch in place."
+msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "Choose thread to attach to"
@@ -2250,15 +2425,27 @@ msgstr "Claude 配置文件配置目录"
 msgid "Claude profile name"
 msgstr "Claude 配置文件名称"
 
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "clean"
+msgstr "干净"
+
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Clean Worktree"
 msgstr "干净的工作树"
 
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Clean. Show git status."
+msgstr "干净。显示 Git 状态。"
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/ScriptsSection.tsx
 msgid "Cleanup script"
 msgstr "清理脚本"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
+msgid "Clear all"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "Clear browsing history"
@@ -2342,6 +2529,7 @@ msgstr "克隆…"
 #: src/renderer/components/common/ResponsiveMenuSurface.tsx
 #: src/renderer/components/mcp/McpServersManager.tsx
 #: src/renderer/components/skills/SkillViewModal.tsx
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 #: src/renderer/views/ExperimentView/parts/ExperimentJudgeRunDialog.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 #: src/renderer/views/QuickComposerOverlay/QuickComposerOverlay.tsx
@@ -2370,8 +2558,8 @@ msgid "Close browser"
 msgstr "关闭浏览器"
 
 #: src/renderer/components/thread/ThreadChangesBubble.tsx
-msgid "Close changes"
-msgstr "关闭更改"
+#~ msgid "Close changes"
+#~ msgstr "关闭更改"
 
 #: src/mobile/views/QuickCompose.tsx
 #: src/mobile/views/ThreadView.tsx
@@ -2381,18 +2569,6 @@ msgstr "关闭输入框"
 #: src/mobile/views/DesktopsView.tsx
 msgid "Close connection actions"
 msgstr "关闭连接操作"
-
-#: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
-msgid "Close Crossagent"
-msgstr "关闭 Crossagent"
-
-#: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
-msgid "Close Crossagents"
-msgstr "关闭 Crossagents"
-
-#: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
-msgid "Close Crossagents panel"
-msgstr "关闭 Crossagents 面板"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/EditorToolbar.tsx
 msgid "Close editor"
@@ -2449,12 +2625,23 @@ msgstr "关闭合并选项"
 msgid "Close overlay"
 msgstr "关闭覆盖层"
 
+#: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+msgid "Close own subagent"
+msgstr ""
+
+#: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
+msgid "Close Own Subagents"
+msgstr ""
+
+#: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
+msgid "Close Own Subagents panel"
+msgstr ""
+
 #: src/mobile/views/DesktopsView.tsx
 msgid "Close pairing"
 msgstr "关闭配对"
 
 #: src/renderer/components/thread/ThreadDraftChrome.tsx
-#: src/renderer/components/thread/ThreadView.tsx
 msgid "Close pane"
 msgstr "关闭窗格"
 
@@ -2763,10 +2950,19 @@ msgid "completed"
 msgstr "已完成"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #: src/renderer/utils/prStatus.ts
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Completed"
 msgstr "已完成"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Completed in {elapsed}"
+msgstr "已完成 {elapsed}"
+
+#: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
+msgid "Component stack"
+msgstr ""
 
 #: src/renderer/commands/shortcutCatalog.ts
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
@@ -2809,10 +3005,22 @@ msgstr "配置 CraftStation 在受支持的代理启动时添加的服务器。"
 msgid "Configured MCP servers"
 msgstr "已配置的 MCP 服务器"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Confirm again to interrupt the target's active turn. If stop confirmation fails, the request will not be delivered."
+msgstr "再次确认以中断目标正在进行的轮次。若停止确认失败，请求将不会被投递。"
+
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
 msgid "Confirm before deleting threads"
 msgstr "删除线程前确认"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Confirm interrupt and send"
+msgstr "确认中断并发送"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Confirm the source turn stopped before activating a new Runtime Segment."
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/AISettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -2952,6 +3160,10 @@ msgstr "从{before}标记手动压缩上下文"
 msgid "Context manually compacted: {before} → {after} tokens"
 msgstr "手动压缩上下文：{before}→{after}标记"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Context summary"
+msgstr "上下文摘要"
+
 #: src/renderer/views/MainView/parts/AppContent/AppContent.tsx
 msgid "Context transferred to {targetLabel}"
 msgstr "上下文转移到{targetLabel}"
@@ -2969,7 +3181,6 @@ msgid "Continue"
 msgstr "继续"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
-#: src/renderer/components/thread/ThreadView.tsx
 #: src/renderer/views/MainView/parts/AppContent/parts/Thread/parts/ContinueInProviderDialog.tsx
 msgid "Continue in another provider"
 msgstr "继续使用另一个提供商"
@@ -2981,6 +3192,14 @@ msgstr "在其他工具中继续..."
 #: src/mobile/views/DesktopsView.tsx
 msgid "Continue on the desktop address"
 msgstr "在桌面地址上继续"
+
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Continue thread"
+msgstr "继续线程"
+
+#: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
+msgid "Continues thread"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Control an external Chrome browser."
@@ -3008,6 +3227,10 @@ msgstr "代理点击或输入时控制已配对的桌面"
 msgid "Conversation"
 msgstr "对话"
 
+#: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
+msgid "Conversation quick navigation"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
 msgid "Conversation view failed to render."
 msgstr ""
@@ -3019,6 +3242,19 @@ msgstr ""
 #: src/renderer/RendererCrashScreen.tsx
 msgid "Copied"
 msgstr "已复制"
+
+#. placeholder {0}: paths.length
+#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+msgid "Copied {0} session paths."
+msgstr ""
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+msgid "Copied session path."
+msgstr ""
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+msgid "Copied thread path."
+msgstr ""
 
 #: src/renderer/views/ProfileOverlay/parts/ShareDialog.tsx
 msgid "Copied to clipboard"
@@ -3102,6 +3338,10 @@ msgstr "复制选区"
 msgid "Copy Tailscale URL"
 msgstr "复制 Tailscale URL"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+msgid "Copy Thread Address"
+msgstr ""
+
 #: src/renderer/components/thread/WorktreeModeSelect.tsx
 msgid "Copy uncommitted changes here (keeps them on this branch)"
 msgstr "将未提交的更改复制到此处（将它们保留在此分支上）"
@@ -3117,6 +3357,10 @@ msgstr "无法中止合并：{detail}"
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Could not complete the merge"
 msgstr "无法完成合并"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+msgid "Could not copy the thread path."
+msgstr ""
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Could not create the project folder."
@@ -3135,6 +3379,10 @@ msgstr "无法生成提交消息：{detail}"
 #: src/renderer/views/PullRequestsView/PullRequestsView.tsx
 msgid "Could not load pull requests for {0}."
 msgstr "无法加载 {0} 的拉取请求。"
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
+msgid "Could not parse this notebook — open it as text instead."
+msgstr ""
 
 #: src/renderer/components/thread/ChatPane/parts/items/useReadAbsoluteFile.tsx
 msgid "Could not read file."
@@ -3207,6 +3455,10 @@ msgstr "无法加载技能。"
 msgid "Couldn't load your profile stats."
 msgstr "无法加载你的资料统计。"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/UsageStatsPage.tsx
+msgid "Couldn't load your usage stats."
+msgstr ""
+
 #: src/mobile/useRemoteDesktop.ts
 msgid "Couldn't move the thread to a worktree."
 msgstr "无法将线程移至工作树。"
@@ -3235,10 +3487,8 @@ msgstr "无法启动摄像头"
 msgid "Couldn't update the skill."
 msgstr "无法更新技能。"
 
-#: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/components/thread/DraftContextBar.tsx
-#: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+#: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
 msgstr "合成台"
 
@@ -3283,6 +3533,10 @@ msgstr "仅限 CraftStation"
 #: src/renderer/i18n/sharedMessages.ts
 msgid "CraftStation SSH runtime manifest is missing or invalid: {path}"
 msgstr "CraftStation SSH 运行时清单缺失或无效：{path}"
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "CraftStation version"
+msgstr ""
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
@@ -3374,6 +3628,10 @@ msgstr "创建任务"
 msgid "Create with Agent"
 msgstr "使用代理创建"
 
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "Created"
+msgstr "已创建"
+
 #: src/renderer/actions/moveThreadToWorktreeActions.ts
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
 msgid "Created a worktree on \"{newBranch}\", but the changes conflicted and remain in a git stash — resolve them in the worktree."
@@ -3401,56 +3659,29 @@ msgstr "凭证已配置。"
 msgid "Credits"
 msgstr "鸣谢"
 
-#: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
-#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
-msgid "Crossagent"
-msgstr "Crossagent"
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Cross-thread dialogue"
+msgstr "跨线程对话"
 
-#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
-msgid "Crossagent ({subagent}): {description}"
-msgstr "Crossagent（{subagent}）：{description}"
+#: src/renderer/components/thread/ThreadCollaborationActivity.tsx
+#~ msgid "Cross-thread dialogue activity"
+#~ msgstr "跨线程对话活动"
 
-#: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
-msgid "Crossagent Result"
-msgstr "Crossagent 结果"
+#~ msgid "Cross-thread dialogue with {0}. Show details."
+#~ msgstr "与 {0} 的跨线程对话。显示详情。"
 
-#: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
-msgid "Crossagent routing and ranking"
-msgstr "Crossagents 路由和排名"
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Cross-thread dialogue with {dialogueTitle}. Show details."
+msgstr ""
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
-msgid "Crossagent routing guide"
-msgstr "Crossagents 路由指南"
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Cross-thread dialogue. Show details."
+msgstr "跨线程对话。显示详情。"
 
-#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
-msgid "Crossagent: {description}"
-msgstr "Crossagent：{description}"
-
-#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
-msgid "Crossagent: {subagent}"
-msgstr "Crossagent：{subagent}"
-
-#: src/mobile/ComposerInfoChips.tsx
-#: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 #: src/renderer/components/plugins/pluginCopy.ts
-#: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
-#: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Crossagents"
 msgstr "Crossagents"
-
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentProviderModelFilter.tsx
-msgid "Crossagents auto-selection"
-msgstr "Crossagents 自动选择"
-
-#: src/renderer/components/composer/composerMcpServers.ts
-msgid "Crossagents enabled for this thread"
-msgstr "已为此线程启用 Crossagents"
-
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
-msgid "Crossagents usage"
-msgstr "Crossagents 使用情况"
 
 #: src/renderer/views/ExperimentView/parts/ExperimentCandidateCard.tsx
 msgid "Crown"
@@ -3470,13 +3701,13 @@ msgstr "已选为优胜者"
 msgid "Current"
 msgstr "最近"
 
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Current harness native subagent"
+msgstr ""
+
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Current project"
 msgstr "当前项目"
-
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
-msgid "Current routing order"
-msgstr "当前路由顺序"
 
 #: src/renderer/views/ProfileOverlay/parts/ShareCard.tsx
 msgid "current streak"
@@ -3488,7 +3719,14 @@ msgstr "当前连续天数"
 
 #. placeholder {0}: activeStep.text
 #: src/renderer/components/thread/ComposerStatusRow.tsx
-msgid "Current: {0}"
+#~ msgid "Current: {0}"
+#~ msgstr ""
+
+#. placeholder {0}: activeSegment?.recipeId ?? thread.compositionProvenance?.recipeId
+#. placeholder {1}: activeSegment?.runtimeBinding.modelId ?? thread.config.model
+#. placeholder {2}: activeSegment?.runtimeBinding.harnessKind ?? thread.agentKind
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Current: {0} · {1} · {2}"
 msgstr ""
 
 #: src/renderer/components/providers/cursor/manifest.ts
@@ -3569,11 +3807,16 @@ msgstr "自定义上下文窗口"
 msgid "custom path"
 msgstr "自定义路径"
 
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Custom prompt"
+msgstr "自定义提示词"
+
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Customize Model and Harness ingredients"
 msgstr "自定义模型与 Harness 原料"
 
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+#: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "Customize shortcuts"
 msgstr ""
 
@@ -3613,6 +3856,10 @@ msgstr "拒绝"
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettingsModel.ts
 msgid "DeepSeek"
 msgstr "DeepSeek"
+
+#: src/renderer/components/providers/deepseek/manifest.ts
+msgid "DeepSeek Harness"
+msgstr ""
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
@@ -3669,6 +3916,7 @@ msgstr "将工作委派给其他 AI 智能体。"
 #: src/mobile/views/FilesView.tsx
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
 #: src/renderer/components/skills/SkillsManager.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/FileChange.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/parts/TreeEntryRow.tsx
@@ -3715,6 +3963,7 @@ msgid "Delete <0>{0}</0>? This cannot be undone."
 msgstr "删除 <0>{0}</0>？此操作无法撤销。"
 
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "Delete branch?"
 msgstr "删除分支？"
 
@@ -3725,6 +3974,10 @@ msgstr "删除已完成的线程"
 #: src/renderer/components/thread/ChatPane/parts/items/FileChange.tsx
 msgid "Delete file"
 msgstr "删除文件"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
+msgid "Delete immediately"
+msgstr ""
 
 #. Tooltip: permanently delete the archived thread
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -3801,6 +4054,22 @@ msgstr "删除工作树{0}"
 msgid "Deleting"
 msgstr "正在删除"
 
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "Delivered"
+msgstr "已送达"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "Delivering"
+msgstr "投递中"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Delivery"
+msgstr "投递"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Delivery waits for the target to confirm it has stopped."
+msgstr "投递前会等待目标确认已停止。"
+
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/helpers.ts
 msgid "Deny"
 msgstr "拒绝"
@@ -3872,7 +4141,7 @@ msgstr "正在检测代理……"
 
 #. Settings section: developer/debug tools
 #: src/renderer/views/SettingsOverlay/parts/DevSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Dev"
 msgstr "开发"
 
@@ -3904,6 +4173,10 @@ msgstr "设备与工具"
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Devices can pair while this desktop is reachable."
 msgstr "当此桌面可访问时，设备可以配对。"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Dialogue exchanges"
+msgstr "对话往来"
 
 #. placeholder {0}: server.name
 #. placeholder {0}: skill.name
@@ -3946,8 +4219,8 @@ msgid "Disable Computer Use"
 msgstr "禁用计算机操作"
 
 #: src/renderer/components/composer/composerMcpServers.ts
-msgid "Disable Crossagents"
-msgstr "禁用 Crossagents"
+msgid "Disable Own Subagents"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Disable Project"
@@ -4075,6 +4348,7 @@ msgstr "完成"
 
 #. Notification status: thread is done
 #: src/mobile/views/ThreadsView.tsx
+#: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarProjectRows.ts
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4152,6 +4426,10 @@ msgstr "在监管进程上丢弃传入的挂钩信封，以便代理回退到 L2
 msgid "Duplicate server name in scan"
 msgstr "扫描结果中存在重复的服务器名称"
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Durable messaging between long-lived native threads across harnesses."
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
 msgid "e.g. -NoProfile"
 msgstr "例如 -NoProfile"
@@ -4160,7 +4438,11 @@ msgstr "例如 -NoProfile"
 msgid "e.g. 512k or 1m"
 msgstr "例如 512k 或 1m"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "e.g. Always reply in Simplified Chinese. Prefer concise answers with code first."
+msgstr "例如：始终用简体中文回复。回答简洁，优先给代码。"
+
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "e.g. Codex GPT-5.5 fast for quick lookups, OpenCode GLM for bulk refactors, Claude Opus for anything subtle."
 msgstr "例如：Codex GPT-5.5 fast 用于快速查询，OpenCode GLM 用于批量重构，Claude Opus 用于任何微妙的任务。"
 
@@ -4170,6 +4452,7 @@ msgstr "例如工作"
 
 #: src/renderer/components/thread/ChatPane/parts/items/FileChange.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+#: src/renderer/views/MainView/parts/Sidebar/parts/UsageStatsPage.tsx
 #: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "Edit"
 msgstr "编辑"
@@ -4199,7 +4482,7 @@ msgstr "编辑资料"
 msgid "Edit schedule"
 msgstr "编辑计划"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Edit tags for {label}"
 msgstr "编辑 {label} 的标签"
 
@@ -4242,6 +4525,14 @@ msgstr "{modelName} 的思考级别"
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Electron"
 msgstr "Electron"
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/CsvPreview.tsx
+msgid "Empty CSV file."
+msgstr ""
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
+msgid "Empty notebook."
+msgstr ""
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Empty workspace"
@@ -4330,6 +4621,10 @@ msgstr "端点，例如 http://192.168.1.20:49152/"
 msgid "Enhanced (Hooks)"
 msgstr "增强型（挂钩）"
 
+#: src/renderer/commands/registry.ts
+msgid "Enlarge the whole app UI"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Enter a full origin URL like https://code.example.com, with no path."
 msgstr "输入完整的来源 URL，例如 https://code.example.com，不含路径。"
@@ -4370,10 +4665,6 @@ msgstr "请输入有效的项目名称。"
 msgid "Enter a valid SSH target and port."
 msgstr "请输入有效的 SSH 目标和端口。"
 
-#: src/renderer/views/WelcomeOverlay.tsx
-msgid "Enter Chat"
-msgstr "进入对话"
-
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "请输入一个 MCP 服务器配置。"
@@ -4381,10 +4672,6 @@ msgstr "请输入一个 MCP 服务器配置。"
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Enter plan mode"
 msgstr "进入计划模式"
-
-#: src/renderer/views/WelcomeOverlay.tsx
-msgid "Enter Project"
-msgstr "进入项目"
 
 #: src/mobile/views/PortsView.tsx
 msgid "Enter the port a dev server on your desktop is listening on."
@@ -4397,6 +4684,11 @@ msgstr "请输入 SSH 密码。"
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter valid JSON."
 msgstr "请输入有效的 JSON。"
+
+#. placeholder {0}: shortId(payload.entityId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Entity {0}"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/AISettings.tsx
 msgid "Environment"
@@ -4432,6 +4724,7 @@ msgstr "错误"
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
 #: src/renderer/components/thread/ChatPane/parts/items/ErrorItem.tsx
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
 #: src/renderer/components/ui/toastContent.ts
@@ -4453,6 +4746,15 @@ msgstr "错误"
 msgid "Event"
 msgstr "事件"
 
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Every"
+msgstr ""
+
+#. placeholder {0}: task.recurrence.everyMinutes
+#: src/renderer/views/SchedulesView/SchedulesView.tsx
+msgid "Every {0} minutes"
+msgstr ""
+
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Every day at {time}"
 msgstr "每天 {time}"
@@ -4469,6 +4771,10 @@ msgstr "每小时"
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Every hour at {0} minutes past"
 msgstr "每小时过 {0} 分钟"
+
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Every N minutes"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServerProjectList.tsx
 msgid "Exclude from sync"
@@ -4618,7 +4924,7 @@ msgstr "实验评审的获胜者编号必须介于 1 和 {candidateCount} 之间
 msgid "Experiment prompt must not be blank"
 msgstr "实验提示词不能为空"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Explicit selections recorded from past delegations — they feed the routing order above. Edit the tags or remove entries to reshape it."
 msgstr "从过去的委派中记录的明确选择 — 它们构成上方的路由顺序。编辑标签或删除条目以调整路由。"
 
@@ -4649,6 +4955,10 @@ msgstr "超高"
 msgid "Extracting context from {0}..."
 msgstr "从{0}中提取上下文 ..."
 
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
+msgid "Extracting document text…"
+msgstr ""
+
 #: src/renderer/components/providers/factory/manifest.ts
 msgid "Factory Droid"
 msgstr "Factory Droid"
@@ -4659,12 +4969,18 @@ msgid "failed"
 msgstr "失败了"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadGoalDock.tsx
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #: src/renderer/utils/prStatus.ts
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 #: src/renderer/views/SchedulesView/parts/PreviousRunsModal.tsx
 msgid "Failed"
 msgstr "失败"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Failed after {elapsed}"
+msgstr ""
 
 #: src/renderer/views/GitHubActionsView/useGitHubActionsViewModel.ts
 msgid "Failed jobs queued to run again."
@@ -4705,9 +5021,9 @@ msgstr "记录已标记所有者的分支元数据失败：{detail}。回滚后�
 #: src/renderer/components/experiment/ExperimentDraftTargets.tsx
 #: src/renderer/components/providers/modelDisplay.ts
 #: src/renderer/components/thread/buildModelPickerControls.tsx
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Fast"
 msgstr "快"
 
@@ -4725,7 +5041,7 @@ msgstr "最快（Whisper tiny）"
 msgid "Fastest uses Whisper tiny; Better uses Whisper base."
 msgstr "“最快”使用 Whisper tiny；“更好”使用 Whisper base。"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "Favorite"
 msgstr "收藏"
 
@@ -4834,6 +5150,10 @@ msgstr "筛选条件"
 msgid "Find"
 msgstr "查找"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Find a target thread"
+msgstr "查找目标线程"
+
 #: src/renderer/components/find/ChatFindBar.tsx
 msgid "Find in chat"
 msgstr "在聊天中查找"
@@ -4851,6 +5171,7 @@ msgid "Finish your review"
 msgstr "完成您的审查"
 
 #: src/mobile/presentation.ts
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
 msgid "Finished"
 msgstr "完成"
@@ -4878,6 +5199,10 @@ msgstr "使用 CraftStation 的本机运行时实现一流的 Command Code CLI �
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Cursor integration using ACP or the public SDK runtime."
 msgstr "使用 ACP 或公共 SDK 运行时的一流 Cursor 集成。"
+
+#: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
+msgid "First-class DeepSeek Harness (dsh) integration using CraftStation's ACP runtime."
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
@@ -5000,6 +5325,10 @@ msgstr "强制重新加载浏览器页面"
 msgid "Fork"
 msgstr "派生"
 
+#: src/renderer/components/thread/ChatPane/parts/items/ForkTurnButton.tsx
+msgid "Fork from this turn"
+msgstr ""
+
 #. placeholder {0}: props.baseBranch
 #: src/renderer/views/ExperimentView/parts/ExperimentPromptSection.tsx
 msgid "Forked from <0>{0}</0>"
@@ -5048,6 +5377,11 @@ msgstr "频率"
 msgid "Friday at 4:00 PM"
 msgstr "星期五下午 4:00"
 
+#: src/renderer/components/thread/ThreadCollaborationActivity.tsx
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "From"
+msgstr "来自"
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "From this project"
 msgstr "来自本项目"
@@ -5090,6 +5424,7 @@ msgstr "Gemini"
 #: src/renderer/views/ProjectSettingsOverlay/parts/GeneralSection.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "General"
 msgstr "一般"
@@ -5140,13 +5475,12 @@ msgstr "获取任务"
 #: src/mobile/views/DesktopWorkspacePanel.tsx
 #: src/renderer/commands/shortcutCatalog.ts
 #: src/renderer/components/thread/ChatPane/parts/items/commandSummary.ts
-#: src/renderer/components/thread/DraftContextBar.tsx
 #: src/renderer/components/thread/ThreadToolRail.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorktreeGroup.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Git"
 msgstr "git"
 
@@ -5184,6 +5518,10 @@ msgstr "{0}的 Git 状态"
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
 msgid "Git status for {0}: not a Git repository"
 msgstr "{0}的 Git 状态：不是 Git 存储库"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Git 工具"
+msgstr "Git 工具"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "GitHub"
@@ -5274,6 +5612,10 @@ msgstr "目标"
 #: src/renderer/components/thread/ThreadGoalControls.tsx
 msgid "Goal objective"
 msgstr "目标内容"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+#~ msgid "Goal. Show task."
+#~ msgstr ""
 
 #: src/renderer/views/ProfileOverlay/parts/ActivityInsights.tsx
 msgid "Goals set"
@@ -5366,6 +5708,10 @@ msgstr "十六进制颜色"
 msgid "Hidden resumable threads are swept every 5 minutes and unloaded after this idle age."
 msgstr "隐藏的可恢复线程每 5 分钟清理一次，并在此空闲期限后卸载。"
 
+#: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
+msgid "Hidden shortcuts"
+msgstr ""
+
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewPanel.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/WhatsNewButton.tsx
 msgid "Hide"
@@ -5405,13 +5751,13 @@ msgstr "隐藏 {providerLabel} 的 MCP 服务器"
 msgid "Hide models you don't use from the model picker across every provider."
 msgstr "从每个提供商的模型选择器中隐藏您不使用的模型。"
 
-#: src/renderer/components/layout/UnifiedRightPanel.tsx
-msgid "Hide panel"
-msgstr "隐藏面板"
-
 #: src/renderer/components/thread/ThreadView.tsx
 msgid "Hide runtime debug panel"
 msgstr "隐藏运行时调试面板"
+
+#: src/renderer/components/layout/UnifiedRightPanel.tsx
+msgid "Hide side panel"
+msgstr ""
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
@@ -5487,6 +5833,10 @@ msgstr "https://example.com/mcp"
 msgid "Hue"
 msgstr "色调"
 
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "IANA zone for the schedule time; empty uses this device."
+msgstr "计划时间所用的 IANA 时区；留空则使用本机时区。"
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "Icon color"
 msgstr "图标颜色"
@@ -5518,6 +5868,7 @@ msgstr "身份文件路径"
 
 #. Microphone input level when not testing
 #: src/mobile/presentation.ts
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
 msgid "Idle"
@@ -5531,6 +5882,10 @@ msgstr "已忽略 plugin.json 中一个无法识别的字段。"
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Image"
 msgstr "图片"
+
+#: src/renderer/components/composer/AttachmentBar.tsx
+msgid "Image format may not be supported by the model"
+msgstr ""
 
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Image preview"
@@ -5581,6 +5936,15 @@ msgstr "导入到 {destinationProjectName}"
 msgid "Import to Global"
 msgstr "导入到全局"
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Imported"
+msgstr ""
+
+#. placeholder {0}: server.sourceProviderLabel
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Imported ({0})"
+msgstr ""
+
 #. placeholder {0}: selectedSkills.length
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "Imported {0} skills."
@@ -5603,6 +5967,7 @@ msgid "In-app camera scanning only works over HTTPS. Use your phone's camera app
 msgstr "应用内摄像头扫描仅支持 HTTPS。请使用手机相机应用扫描桌面的二维码，或在下方输入端点和令牌。"
 
 #: src/mobile/presentation.ts
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
 msgid "Inactive"
 msgstr "不活跃"
@@ -5614,6 +5979,10 @@ msgstr "加入同步"
 #: src/renderer/components/plugins/PluginDetail.tsx
 msgid "Information"
 msgstr "信息"
+
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Inherit context text only; the harness session stays fresh."
+msgstr "只继承上下文文本；Harness 会话始终全新创建。"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "Inherit global"
@@ -5800,7 +6169,7 @@ msgstr "在此终端中安装。完成后关闭。"
 msgid "Instructions"
 msgstr "指令"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Instructions agents follow when choosing which agent or model to delegate to."
 msgstr "代理在选择要委派给哪个代理或模型时遵循的说明。"
 
@@ -5808,6 +6177,10 @@ msgstr "代理在选择要委派给哪个代理或模型时遵循的说明。"
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
 msgid "Internal commands and agents"
 msgstr "内部命令和代理"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Interrupt the target, then send"
+msgstr "先中断目标，再发送"
 
 #: src/renderer/views/SchedulesView/parts/PreviousRunsModal.tsx
 msgid "Interrupted"
@@ -5922,6 +6295,7 @@ msgid "Launch thread"
 msgstr "启动线程"
 
 #: src/mobile/presentation.ts
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Launching"
 msgstr "正在启动"
 
@@ -5929,7 +6303,7 @@ msgstr "正在启动"
 msgid "Launching…"
 msgstr "正在启动…"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Learned selections"
 msgstr "已学习的选择"
 
@@ -5968,10 +6342,6 @@ msgstr "累计token数"
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Light"
 msgstr "浅色"
-
-#: src/renderer/components/skills/SkillImportModal.tsx
-msgid "Link to source"
-msgstr "链接到源"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Linked"
@@ -6070,6 +6440,10 @@ msgstr "正在加载技能…"
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Loading skills…"
 msgstr "正在加载技能…"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Loading target threads…"
+msgstr "正在加载目标线程…"
 
 #: src/mobile/views/ThreadView.tsx
 msgid "Loading thread"
@@ -6213,14 +6587,6 @@ msgstr "将侧边栏设为半透明——在Windows 11上使用系统模糊材�
 msgid "Manage"
 msgstr "管理"
 
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
-msgid "Manage agent skills"
-msgstr "管理 Agent 技能"
-
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
-msgid "Manage extensions and plugins"
-msgstr "管理扩展与插件"
-
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/SkillsSettings.tsx
 msgid "Manage shared skills across global and project scopes."
@@ -6230,6 +6596,10 @@ msgstr "管理全局和项目范围内的共享技能。"
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Manage the MCP server configurations CraftStation adds when starting supported agents. Workspace servers can be configured in each project's settings."
 msgstr "管理 CraftStation 在启动受支持的代理时添加的 MCP 服务器配置。工作区服务器可在各项目的设置中配置。"
+
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Managed"
+msgstr ""
 
 #. placeholder {0}: props.managedByPlugin
 #: src/renderer/components/mcp/McpServersManager.tsx
@@ -6252,11 +6622,11 @@ msgstr "由提供商托管"
 msgid "Manual order"
 msgstr "手动排序"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "Manual override"
 msgstr "手动覆盖"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Manual routes override learned routing whenever all of their task tags match."
 msgstr "当所有任务标签均匹配时，手动路由会覆盖已学习的路由。"
 
@@ -6278,14 +6648,9 @@ msgstr "标记为已完成"
 msgid "Mark as not done"
 msgstr "标记为未完成"
 
-#: src/renderer/components/thread/ThreadView.tsx
-msgid "Mark done"
-msgstr "标记完成"
-
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
-#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Mark Done"
 msgstr "标记完成"
 
@@ -6386,17 +6751,16 @@ msgstr "MCP 服务器 URL"
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "MCP servers"
 msgstr "MCP服务器"
 
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/McpSection.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "MCP Servers"
 msgstr "MCP 服务器"
 
@@ -6579,6 +6943,10 @@ msgstr "最小化到面板"
 msgid "Minute"
 msgstr "分钟"
 
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Minutes between runs (1–1440)."
+msgstr ""
+
 #: src/mobile/views/BrowserView.tsx
 msgid "Mirrored desktop browser tab"
 msgstr "镜像的桌面浏览器标签页"
@@ -6634,8 +7002,8 @@ msgstr "模型用量"
 msgid "Models"
 msgstr "模型"
 
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 #: src/renderer/views/SettingsOverlay/parts/CursorProviderSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "Modes"
 msgstr "模式"
 
@@ -6687,6 +7055,10 @@ msgstr "更多拉取请求选项"
 msgid "More schedule options"
 msgstr "更多计划选项"
 
+#: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
+msgid "More shortcuts"
+msgstr ""
+
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/CommitSyncPanel.tsx
 msgid "More sync options"
 msgstr "更多同步选项"
@@ -6721,6 +7093,16 @@ msgstr "最常用思考级别"
 msgid "Move"
 msgstr "移动"
 
+#. placeholder {0}: providerLabelFor(slot.id)
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Move {0} down"
+msgstr ""
+
+#. placeholder {0}: providerLabelFor(slot.id)
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Move {0} up"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Move browser back to main window"
 msgstr "将浏览器移回主窗口"
@@ -6732,6 +7114,14 @@ msgstr "将浏览器移到窗口"
 #: src/renderer/components/common/BranchSelector/parts/BranchFooterActions.tsx
 msgid "Move changes to a new worktree"
 msgstr "将更改移至新工作树"
+
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Move native lane down"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Move native lane up"
+msgstr ""
 
 #: src/renderer/components/layout/PanelDock/PanelSectionHeader.tsx
 msgid "Move panel"
@@ -6812,6 +7202,10 @@ msgstr "为您的项目命名并选择创建位置。"
 msgid "Native"
 msgstr "原生"
 
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Native · Default — hands back to this harness's own subagent loop"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Native Harness status"
 msgstr "Native Harness 状态"
@@ -6833,9 +7227,14 @@ msgid "Navigate, inspect, and test pages with the in-app Browser MCP."
 msgstr "使用内置 Browser MCP 浏览、检查并测试页面。"
 
 #: src/mobile/presentation.ts
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
 msgid "Needs approval"
 msgstr "需要批准"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "Needs attention"
+msgstr "需要关注"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -6851,6 +7250,7 @@ msgid "Needs Attention · Reply required"
 msgstr "需要关注 · 需要回复"
 
 #: src/mobile/presentation.ts
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
 msgid "Needs reply"
 msgstr "需要回复"
@@ -6858,6 +7258,10 @@ msgstr "需要回复"
 #: src/renderer/utils/prStatus.ts
 msgid "Neutral"
 msgstr "中立"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
+msgid "Never"
+msgstr ""
 
 #: src/renderer/components/changelog/ChangelogView.tsx
 msgid "New"
@@ -6986,13 +7390,13 @@ msgstr "在分组中新建标签页"
 #: src/mobile/chrome.ts
 #: src/mobile/views/QuickCompose.tsx
 #: src/mobile/WideShell.tsx
-#: src/renderer/app.tsx
 #: src/renderer/components/thread/ThreadDraftChrome.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/NotesEditor.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/NewThreadButton.tsx
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
 #: src/renderer/views/QuickComposerOverlay/QuickComposerOverlay.tsx
+#: src/renderer/workbench/contributions/remoteCommands.ts
 msgid "New thread"
 msgstr "新线程"
 
@@ -7018,6 +7422,16 @@ msgstr "在 worktree 中新建线程"
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "New Thread in Worktree"
 msgstr "工作树中的新线程"
+
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "New thread per run"
+msgstr "每次运行新建线程"
+
+#. placeholder {0}: availableUpdate.version
+#. placeholder {1}: availableUpdate.latest
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
+msgstr "有新版本：v{0} → v{1}，请从标题栏下载菜单更新。"
 
 #: src/renderer/components/workspace/WorkspaceNameDialog.tsx
 msgid "New workspace"
@@ -7068,7 +7482,7 @@ msgstr "未找到活动的工作流。"
 msgid "No active workflows in this repository."
 msgstr "此仓库中没有活动的工作流。"
 
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No activity yet."
 msgstr "暂无活动。"
 
@@ -7093,8 +7507,8 @@ msgid "No agents installed."
 msgstr "没有安装代理。"
 
 #: src/renderer/views/ProfileOverlay/parts/AiActions.tsx
-msgid "No AI commits, PRs, or conflict resolutions tracked yet."
-msgstr "暂未记录任何AI提交、PR或冲突解决。"
+msgid "No AI commits, pushes, PRs, merges, or branch operations tracked yet."
+msgstr ""
 
 #: src/mobile/views/SettingsView.tsx
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -7171,6 +7585,10 @@ msgstr "没有内容流。"
 msgid "No conversation yet. Be the first to comment."
 msgstr "还没有对话。成为第一个发表评论的人。"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "No cross-thread exchanges yet."
+msgstr "暂无跨线程对话往来。"
+
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
 msgid "No data yet"
@@ -7210,6 +7628,10 @@ msgstr "{visiblePath}没有差异"
 msgid "No external skills were found in this scope."
 msgstr "在此范围内未找到外部技能。"
 
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
+msgid "No extractable text in this document."
+msgstr ""
+
 #: src/renderer/components/thread/ChatPane/parts/CheckpointRevertControls.tsx
 msgid "No file checkpoint is stored for this message."
 msgstr "没有为此消息存储文件检查点。"
@@ -7239,7 +7661,7 @@ msgstr "未找到图标"
 msgid "No jobs reported for this run."
 msgstr "此次运行未报告任何作业。"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "No learned selections yet."
 msgstr "尚无已学习的选择。"
 
@@ -7271,6 +7693,10 @@ msgstr "没有匹配的配方"
 msgid "No matching schedules."
 msgstr "没有匹配的计划。"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "No matching target threads."
+msgstr "没有匹配的目标线程。"
+
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/views/ThreadSearchOverlay/ThreadSearchOverlay.tsx
 msgid "No matching threads"
@@ -7288,7 +7714,7 @@ msgstr "在此范围内未找到 MCP 服务器。"
 msgid "No MCP servers match your search."
 msgstr "没有符合搜索条件的 MCP 服务器。"
 
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No MCP tools used yet."
 msgstr "暂未使用任何MCP工具。"
 
@@ -7300,11 +7726,19 @@ msgstr "还没有消息"
 msgid "No microphone found."
 msgstr "找不到麦克风。"
 
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
+msgid "No mode usage yet."
+msgstr ""
+
 #: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
 #: src/renderer/views/SettingsOverlay/parts/ModelVisibilityPopover.tsx
 #: src/renderer/views/SettingsOverlay/parts/ModelVisibilitySection.tsx
 msgid "No models found"
 msgstr "未找到模型"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
+msgid "No notifications"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "No other agents installed"
@@ -7327,12 +7761,23 @@ msgid "No plugins match your search."
 msgstr "没有与搜索匹配的插件。"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
-#: src/renderer/components/thread/ProjectSwitchMenu.tsx
 msgid "No project"
 msgstr "无项目"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
+msgid "No project location available to load audio."
+msgstr ""
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load image."
+msgstr ""
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
+msgid "No project location available to load PDF."
+msgstr ""
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
+msgid "No project location available to load video."
 msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
@@ -7420,9 +7865,13 @@ msgstr "未找到技能"
 msgid "No skills match your search and filter."
 msgstr "没有技能与搜索和筛选条件匹配。"
 
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No skills used yet."
 msgstr "暂未使用任何技能。"
+
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "No spawnable providers right now — the native lane still applies."
+msgstr ""
 
 #: src/renderer/components/composer/VoiceInputButton.tsx
 msgid "No speech detected."
@@ -7437,7 +7886,7 @@ msgstr "没有暂存的更改"
 msgid "No supported agents detected"
 msgstr "未检测到支持的代理"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "No tags — the entry stops influencing tag affinity."
 msgstr "无标签 - 此条目不再影响标签亲和性。"
 
@@ -7457,10 +7906,6 @@ msgstr "此项目中没有线程"
 #: src/mobile/views/ThreadsView.tsx
 msgid "No threads yet"
 msgstr "还没有线程"
-
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
-msgid "No threads yet."
-msgstr "暂无对话。"
 
 #: src/renderer/components/providers/usageFormat.ts
 msgid "No windows reported"
@@ -7491,6 +7936,10 @@ msgstr "不是 git 存储库"
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
 msgid "Not a Git repository"
 msgstr "不是 Git 存储库"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "not a repo"
+msgstr "不是仓库"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Not configured"
@@ -7542,6 +7991,7 @@ msgstr "暂无记录。使用过程中将在此显示。"
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "Notifications"
 msgstr "通知"
@@ -7629,11 +8079,18 @@ msgstr "仅一次"
 msgid "Online"
 msgstr "在线"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Only include context the target is allowed to receive"
+msgstr "只包含目标允许接收的上下文"
+
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 msgid "Only when unfocused"
 msgstr "仅当窗口失去焦点时"
 
-#: src/renderer/notifications.ts
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Opaque recipe reference resolved at run time."
+msgstr "运行时再解析的不透明 Recipe 引用。"
+
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrSection.tsx
 #: src/renderer/views/PrReviewOverlay/parts/PrMetaRow.tsx
 #: src/renderer/views/PullRequestsView/PullRequestsView.tsx
@@ -7641,10 +8098,16 @@ msgstr "仅当窗口失去焦点时"
 msgid "Open"
 msgstr "打开"
 
+#. placeholder {0}: displayDialogueTitle(counterpart.provenance)
 #. placeholder {0}: entry.name
 #: src/renderer/components/plugins/PluginMarketplace.tsx
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Open {0}"
 msgstr "打开 {0}"
+
+#: src/renderer/components/thread/ThreadCollaborationActivity.tsx
+msgid "Open {displayTitle}"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/AgentProfileList.tsx
 msgid "Open {label}"
@@ -7665,6 +8128,10 @@ msgstr "打开终端"
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Open a thread first to attach to it."
 msgstr "首先打开一个线程以附加到它。"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Open agent conversation"
+msgstr "打开代理对话"
 
 #: src/renderer/views/ExperimentView/ExperimentView.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ExperimentGroupHeader.tsx
@@ -7714,11 +8181,6 @@ msgstr "在 GitHub 上打开提交"
 msgid "Open conflict resolver in"
 msgstr "在以下位置打开冲突解决器"
 
-#. placeholder {0}: display.title
-#: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
-msgid "Open Crossagent: {0}"
-msgstr "打开 Crossagent：{0}"
-
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Open dialog"
 msgstr "打开对话框"
@@ -7755,10 +8217,6 @@ msgstr "全屏打开"
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
 msgid "Open Git panel"
 msgstr "打开 Git 面板"
-
-#: src/renderer/components/thread/DraftContextBar.tsx
-msgid "Open Git review"
-msgstr ""
 
 #: src/renderer/commands/registry.ts
 msgid "Open Git Review"
@@ -7802,7 +8260,7 @@ msgstr "在以下位置打开链接"
 msgid "Open model picker"
 msgstr "打开模型选择器"
 
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+#: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "Open more features"
 msgstr "打开更多功能"
 
@@ -7824,6 +8282,11 @@ msgstr "在 GitHub 上打开"
 #: src/renderer/views/MainView/parts/CreateProject/CreateProjectMenu.tsx
 msgid "Open over SSH"
 msgstr "通过 SSH 打开"
+
+#. placeholder {0}: display.title
+#: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
+msgid "Open own subagent: {0}"
+msgstr ""
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/ThreadRuntimeRequestPanel.tsx
 msgid "Open plan"
@@ -7906,6 +8369,11 @@ msgstr "打开工作量选择器"
 msgid "Open the model picker"
 msgstr "打开模型选择器"
 
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
+#: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/parts/TreeEntryRow.tsx
+msgid "Open With System Default"
+msgstr ""
+
 #: src/renderer/components/providers/opencode/manifest.ts
 msgid "OpenCode"
 msgstr "OpenCode"
@@ -7932,6 +8400,10 @@ msgstr "通过 CraftStation 的桌面控制工具操作桌面应用。"
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Optional"
 msgstr "可选"
+
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Optional recipe id"
+msgstr "可选 Recipe ID"
 
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/HookPluginSettings.tsx
 msgid "Optional status hooks. Installed hooks update automatically; missing hooks are never installed automatically."
@@ -7987,6 +8459,57 @@ msgstr "覆盖 {conflict}"
 #: src/renderer/views/ProjectSettingsOverlay/parts/SearchSection.tsx
 msgid "Overriding the global setting for this project."
 msgstr "覆盖该项目的全局设置。"
+
+#: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+msgid "Own subagent"
+msgstr ""
+
+#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+msgid "Own subagent ({subagent}): {description}"
+msgstr ""
+
+#: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
+msgid "Own Subagent Result"
+msgstr ""
+
+#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+msgid "Own subagent: {description}"
+msgstr ""
+
+#: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+msgid "Own subagent: {subagent}"
+msgstr ""
+
+#: src/mobile/ComposerInfoChips.tsx
+#: src/renderer/components/composer/composerMcpServers.ts
+#: src/renderer/components/mcp/McpServersManager.tsx
+#: src/renderer/components/plugins/pluginCopy.ts
+#: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
+#: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
+msgid "Own Subagents"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsProviderModelFilter.tsx
+msgid "Own Subagents auto-selection"
+msgstr ""
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "Own Subagents enabled for this thread"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
+msgid "Own Subagents routing and ranking"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Own Subagents routing guide"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
+msgid "Own Subagents usage"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 msgid "Package"
@@ -8106,6 +8629,10 @@ msgstr "粘贴"
 msgid "Paste {label} API key"
 msgstr "粘贴 {label} API 密钥"
 
+#: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
+msgid "Paste {label} Cookie"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
 msgid "Paste {label} session cookie"
 msgstr ""
@@ -8132,6 +8659,7 @@ msgstr "粘贴到输入中"
 msgid "Paste the SSH private key."
 msgstr "请粘贴 SSH 私钥。"
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 msgid "Pause"
 msgstr "暂停"
@@ -8142,6 +8670,7 @@ msgstr "暂停目标"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
 #: src/renderer/components/thread/ThreadGoalDock.tsx
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Paused"
 msgstr "已暂停"
@@ -8175,13 +8704,25 @@ msgstr "待审查"
 msgid "Pending steer"
 msgstr "等待引导"
 
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
+msgid "per prompt"
+msgstr ""
+
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/parts/PermissionDetailsLine.tsx
 msgid "permission"
 msgstr "权限"
 
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Personal"
 msgstr "个人"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to disable."
+msgstr "注入到每段对话的个人提示词，相当于全局 AGENTS.md。留空即关闭。"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to disable. Always visible here — nothing is injected implicitly."
+msgstr "注入到每段对话的个人提示词，相当于全局 AGENTS.md。留空即关闭。所有注入都在这里可见，不再隐式注入。"
 
 #: src/renderer/components/providers/pi/manifest.ts
 msgid "Pi"
@@ -8225,6 +8766,7 @@ msgstr ""
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Pin to top"
 msgstr "固定到顶部"
 
@@ -8237,10 +8779,12 @@ msgid "Pink"
 msgstr "粉色"
 
 #: src/mobile/views/ThreadsView.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/GlobalPinnedSection.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "Pinned"
 msgstr "已固定"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Pinned task routes"
 msgstr "已固定的任务路由"
 
@@ -8253,13 +8797,19 @@ msgstr "已固定的任务路由"
 msgid "Plan"
 msgstr "计划"
 
-#: src/renderer/components/thread/ComposerStatusRow.tsx
-msgid "Plan progress"
-msgstr ""
+#. placeholder {0}: stepCompletedCount(todoState)
+#. placeholder {1}: todoState.steps.length
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+#~ msgid "Plan {0}/{1}. Show task."
+#~ msgstr ""
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
-msgid "Plan progress {completed}/{total}"
-msgstr ""
+#~ msgid "Plan progress"
+#~ msgstr ""
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+#~ msgid "Plan progress {completed}/{total}"
+#~ msgstr ""
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
@@ -8301,9 +8851,8 @@ msgid "plugin.json targets an Agent Plugins version this build does not support.
 msgstr "plugin.json 指向此版本不支持的 Agent Plugins 版本。"
 
 #: src/renderer/components/plugins/PluginMarketplace.tsx
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "Plugins"
 msgstr "插件"
 
@@ -8422,6 +8971,22 @@ msgstr "阻止休眠"
 msgid "Preview {0}"
 msgstr "预览{0}"
 
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
+msgid "Preview truncated — open the file for all cells."
+msgstr ""
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/CsvPreview.tsx
+msgid "Preview truncated — open the file for the full table."
+msgstr ""
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
+msgid "Preview truncated — open the file for the full text."
+msgstr ""
+
+#: src/renderer/components/composer/AttachmentBar.tsx
+msgid "Previewable here, but models may not accept this image format (use png, jpg, gif or webp)"
+msgstr ""
+
 #: src/renderer/commands/registry.ts
 msgid "Previous chat"
 msgstr "上一个聊天"
@@ -8461,7 +9026,7 @@ msgstr "效率"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/CursorProfileIdentity.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Profile"
 msgstr "个人资料"
 
@@ -8477,7 +9042,7 @@ msgstr "已移除配置文件，但无法刷新状态。"
 msgid "Profile removed."
 msgstr "已移除配置文件。"
 
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "Profile stats range"
 msgstr "个人资料统计范围"
 
@@ -8486,8 +9051,8 @@ msgid "Profiles"
 msgstr "配置文件"
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
-msgid "Progress"
-msgstr ""
+#~ msgid "Progress"
+#~ msgstr ""
 
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/commands/registry.ts
@@ -8509,6 +9074,10 @@ msgstr ""
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectFilter.tsx
 msgid "Project actions for {0}"
 msgstr "{0}的项目操作"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Project and task status"
+msgstr "项目与任务状态"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Project default branch"
@@ -8560,6 +9129,16 @@ msgstr "项目设置"
 msgid "Project skills are available only when agents run in this project. Each provider applies its own precedence rules when names overlap."
 msgstr "只有当代理在此项目中运行时，项目技能才可用。名称重复时，每个提供商都会应用各自的优先级规则。"
 
+#. placeholder {0}: parts.join(" · ") || "…"
+#. placeholder {1}: open ? "Hide" : "Show"
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Project status: {0}. {1} details."
+msgstr "项目状态:{0}。{1}详情。"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Project worktree"
+msgstr "项目工作树"
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/SearchSection.tsx
 msgid "Project-specific overrides on top of the global search settings."
 msgstr "在全局搜索设置基础上的项目特定覆盖。"
@@ -8590,6 +9169,12 @@ msgstr "项目位于已连接的桌面端。开始线程前请先添加一个项
 #: src/renderer/views/ExperimentView/parts/ExperimentPromptSection.tsx
 msgid "Prompt"
 msgstr "提示"
+
+#. placeholder {0}: focusIndex + 1
+#. placeholder {0}: index + 1
+#: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
+msgid "Prompt #{0}"
+msgstr ""
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/views/ProfileOverlay/parts/ActivitySection.tsx
@@ -8629,7 +9214,7 @@ msgstr "服务商预设"
 
 #. Settings section: provider usage and quota dashboard
 #: src/mobile/settingsSections.ts
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Provider Usage"
 msgstr "提供商用量"
@@ -8639,7 +9224,7 @@ msgstr "提供商用量"
 msgid "providers"
 msgstr "提供商"
 
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Providers"
 msgstr "提供商"
@@ -8775,6 +9360,15 @@ msgstr "Qoder CLI"
 msgid "Questions"
 msgstr "问题"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Queue after the current turn"
+msgstr "在当前轮次后排队"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Queue request"
+msgstr "排队请求"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "已排队"
@@ -8877,6 +9471,8 @@ msgid "Recent threads"
 msgstr "最近的线程"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
+#: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Recipe"
 msgstr ""
 
@@ -8941,6 +9537,10 @@ msgstr "刷新{0}身份验证"
 msgid "Refresh {label}"
 msgstr "刷新 {label}"
 
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "Refresh component status"
+msgstr "刷新组件状态"
+
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "Refresh detected agents"
 msgstr "刷新检测到的代理"
@@ -8999,7 +9599,7 @@ msgid "Reload browser page"
 msgstr "重新加载浏览器页面"
 
 #: src/renderer/components/common/BranchSelector/parts/useBranchList.ts
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Remote"
 msgstr "远程"
 
@@ -9011,7 +9611,7 @@ msgstr "远程访问"
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarFooterNav.tsx
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Remote Access"
 msgstr "远程访问"
 
@@ -9024,7 +9624,7 @@ msgid "Remote access port {occupiedPort} is already in use. Stop the other serve
 msgstr "远程访问端口 {occupiedPort} 已被占用。请停止其他服务器，然后重试。"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Remote Environments"
 msgstr "远程环境"
 
@@ -9072,6 +9672,7 @@ msgid "Remote URL"
 msgstr "远程网址"
 
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 #: src/renderer/views/SettingsOverlay/parts/AgentProfileList.tsx
 msgid "Remove"
 msgstr "删除"
@@ -9137,7 +9738,7 @@ msgid "Remove from panel"
 msgstr "从面板上移除"
 
 #. placeholder {0}: providerLabel(entry.agentKind)
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Remove memory entry for {0}"
 msgstr "移除 {0} 的记忆条目"
 
@@ -9145,7 +9746,7 @@ msgstr "移除 {0} 的记忆条目"
 msgid "Remove model"
 msgstr "移除模型"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Remove pinned route for {tagLabel}"
 msgstr "移除 {tagLabel} 的固定路由"
 
@@ -9169,7 +9770,7 @@ msgstr "删除项目"
 msgid "Remove shortcut"
 msgstr "移除快捷键"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Remove tag {tag}"
 msgstr "移除标签 {tag}"
 
@@ -9183,6 +9784,7 @@ msgid "Remove the project's experiments before removing the project."
 msgstr "删除项目前，请先删除该项目的实验。"
 
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "Remove worktree?"
 msgstr "删除工作树？"
 
@@ -9281,6 +9883,10 @@ msgstr "重新排序{label}"
 msgid "Repeat"
 msgstr "重复"
 
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "Replied"
+msgstr "已回复"
+
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Report an Issue"
 msgstr "报告问题"
@@ -9304,6 +9910,10 @@ msgstr "存储库预接收挂钩正在阻止合并。"
 #: src/renderer/views/SettingsOverlay/parts/RemoteServersSettings.tsx
 msgid "Repository URL"
 msgstr "存储库网址"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Request"
+msgstr "请求"
 
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
 msgid "Request changes"
@@ -9347,6 +9957,10 @@ msgstr "将侧边栏磨砂效果重置为默认"
 msgid "Reset to default"
 msgstr "重置为默认"
 
+#: src/renderer/commands/registry.ts
+msgid "Reset zoom"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserHost.tsx
 msgid "Resize browser drawer"
 msgstr "调整浏览器抽屉的大小"
@@ -9354,6 +9968,10 @@ msgstr "调整浏览器抽屉的大小"
 #: src/renderer/components/layout/SplitPaneContainer.tsx
 msgid "Resize column"
 msgstr "调整列大小"
+
+#: src/renderer/views/FileEditorOverlay/parts/ProjectFilesPanel.tsx
+msgid "Resize file list"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/AppShell/AppShell.tsx
 msgid "Resize git panel"
@@ -9420,6 +10038,10 @@ msgstr "恢复或删除"
 msgid "Restore side panel"
 msgstr "还原侧边面板"
 
+#: src/renderer/commands/registry.ts
+msgid "Restore the whole app UI to 100%"
+msgstr ""
+
 #: src/mobile/views/SettingsView.tsx
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
 msgid "Restore thread"
@@ -9433,6 +10055,7 @@ msgstr "Result Item"
 msgid "Results"
 msgstr "结果"
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 msgid "Resume"
 msgstr "继续"
@@ -9526,7 +10149,6 @@ msgid "Revert to this checkpoint"
 msgstr "恢复到此检查点"
 
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
-#: src/renderer/components/thread/DraftContextBar.tsx
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Review"
 msgstr "审查"
@@ -9545,18 +10167,14 @@ msgid "Review candidate {0} ({label}) changes"
 msgstr "查看候选 {0}（{label}）的更改"
 
 #: src/renderer/components/thread/ThreadChangesBubble.tsx
-msgid "Review changes"
-msgstr "查看更改"
+#~ msgid "Review changes"
+#~ msgstr "查看更改"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/useWorktreeActions.ts
 msgid "Review Changes"
 msgstr "审查变更"
-
-#: src/renderer/components/thread/DraftContextBar.tsx
-msgid "Review changes, commit, and sync"
-msgstr ""
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 msgid "Review code and suggest changes"
@@ -9570,6 +10188,10 @@ msgstr "审查评论"
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
 msgid "Review decision"
 msgstr "审查决定"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Review interrupt"
+msgstr "确认中断"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Review my recent work and summarize today's priorities and next steps."
@@ -9665,6 +10287,7 @@ msgstr "在单独的工作树中运行"
 msgid "Run local transcription on the GPU when available."
 msgstr "如果可用，请在 GPU 上运行本地转录。"
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 msgid "Run now"
 msgstr "立即运行"
@@ -9696,6 +10319,8 @@ msgstr "运行工作流"
 msgid "running"
 msgstr "运行中"
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #: src/renderer/utils/prStatus.ts
 #: src/renderer/views/SchedulesView/parts/PreviousRunsModal.tsx
 msgid "Running"
@@ -9730,14 +10355,19 @@ msgstr "运行时"
 msgid "Runtime debug"
 msgstr "运行时调试"
 
-#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
-msgid "Runtime is ready"
-msgstr ""
-
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
 #: src/renderer/views/MainView/parts/CreateProject/CreateProjectModal.tsx
 msgid "Runtime options"
 msgstr "运行时选项"
+
+#. placeholder {0}: payload.ordinal + 1
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Runtime segment {0}"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Same Model and Harness as this thread — not selectable for cross-thread dialogue."
+msgstr "与本线程相同的 Model 和 Harness——不可用于跨线程对话。"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "Saturation and brightness"
@@ -9748,6 +10378,7 @@ msgstr "饱和度与亮度"
 #: src/renderer/components/thread/ThreadGoalControls.tsx
 #: src/renderer/components/workspace/WorkspaceNameDialog.tsx
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/EditorToolbar.tsx
+#: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
@@ -9801,6 +10432,10 @@ msgstr "保存的凭据在所有环境中共享。"
 msgid "Saved shell"
 msgstr "已保存的 shell"
 
+#: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
+msgid "Saving…"
+msgstr ""
+
 #: src/mobile/QrScanner.tsx
 msgid "Scan pairing QR code"
 msgstr "扫描配对二维码"
@@ -9837,6 +10472,12 @@ msgstr "计划名称"
 msgid "Schedule status"
 msgstr "计划状态"
 
+#. placeholder {0}: related[0]!.name
+#. placeholder {1}: scheduleStatusLabel(related[0]!, formatNext)
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
+msgid "Schedule: {0}. {1}"
+msgstr "计划：{0}。{1}"
+
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
 msgstr "计划任务"
@@ -9846,6 +10487,7 @@ msgid "Scheduled tasks on this desktop"
 msgstr "此桌面上的计划任务"
 
 #: src/mobile/settingsSections.ts
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarShortcuts.tsx
 #: src/renderer/views/SettingsOverlay/parts/SidebarShortcutsSelector.tsx
 msgid "Schedules"
@@ -9894,7 +10536,7 @@ msgstr "SDK 未安装"
 #: src/renderer/views/ProjectSettingsOverlay/parts/SearchSection.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Search"
 msgstr "搜索"
 
@@ -9978,6 +10620,7 @@ msgstr "搜索运行时项目..."
 msgid "Search scheduled tasks"
 msgstr "搜索计划任务"
 
+#: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "Search settings"
 msgstr "搜索设置"
@@ -10011,6 +10654,10 @@ msgstr "搜索线程"
 #: src/renderer/commands/registry.ts
 msgid "Search Threads"
 msgstr "搜索线程"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Search title, Model, Harness, status, or worktree"
+msgstr "搜索标题、Model、Harness、状态或工作树"
 
 #: src/renderer/views/ThreadSearchOverlay/ThreadSearchOverlay.tsx
 msgid "Search…"
@@ -10121,6 +10768,14 @@ msgstr "选择…"
 msgid "Send a message..."
 msgstr "发送消息..."
 
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Task paused. Click continue or send a new message."
+msgstr "任务已暂停，点击继续或发送新消息。"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Continue paused task"
+msgstr "继续已暂停的任务"
+
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Send generic text instead of conversation titles through Apple's push service."
 msgstr "通过 Apple 推送服务发送通用文本，而非对话标题。"
@@ -10129,10 +10784,6 @@ msgstr "通过 Apple 推送服务发送通用文本，而非对话标题。"
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Send message"
 msgstr "发送消息"
-
-#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
-msgid "Send side chat message"
-msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."
@@ -10162,6 +10813,11 @@ msgstr "服务器 {target} 在本机运行，WSL 项目无法使用。"
 msgid "Servers this plugin declares in mcp.json. CraftStation passes them to every supported agent."
 msgstr "此插件在 mcp.json 中声明的服务器。CraftStation 会将它们传递给所有受支持的代理。"
 
+#. placeholder {0}: shortId(payload.runtimeSessionId)
+#: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
+msgid "Session {0}"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Set group color"
 msgstr "设置分组颜色"
@@ -10182,11 +10838,11 @@ msgstr "在本会话启动时已固定 — 如需更改服务器，请开始新�
 #: src/mobile/NarrowShell.tsx
 #: src/mobile/WideShell.tsx
 #: src/renderer/components/thread/ThreadAuthRequiredDock.tsx
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarFooterNav.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
+#: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
 #: src/renderer/views/SettingsOverlay/SettingsOverlay.tsx
@@ -10201,6 +10857,7 @@ msgstr "设置脚本"
 msgid "Shapes & symbols"
 msgstr "形状与符号"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/UsageStatsPage.tsx
 #: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "Share"
 msgstr "分享"
@@ -10213,7 +10870,7 @@ msgstr "分享你的活动"
 msgid "Shared"
 msgstr "共享"
 
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Shortcuts"
 msgstr "快捷键"
@@ -10252,6 +10909,10 @@ msgstr "显示书签栏"
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "Show Bookmark Bar"
 msgstr "显示书签栏"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "Show changes in the Git panel"
+msgstr "在 Git 面板中查看更改"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
@@ -10326,6 +10987,10 @@ msgstr "显示预览"
 msgid "Show runtime debug panel"
 msgstr "显示运行时调试面板"
 
+#: src/renderer/views/MainView/parts/MainContentHeaderControls.tsx
+msgid "Show side panel"
+msgstr ""
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
@@ -10357,10 +11022,6 @@ msgstr "显示线程工具"
 msgid "Show voice input button"
 msgstr "显示语音输入按钮"
 
-#: src/renderer/views/MainView/parts/MainContentHeaderControls.tsx
-msgid "Show/hide side panel"
-msgstr "显示/隐藏侧边面板"
-
 #. placeholder {0}: displayedSkills.length
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "Showing {0, plural, one {# skill} other {# skills}}"
@@ -10379,17 +11040,13 @@ msgstr "显示在侧边栏和模型选择器中。"
 msgid "Shown next to the project name."
 msgstr "显示在项目名称旁。"
 
+#: src/renderer/commands/registry.ts
+msgid "Shrink the whole app UI"
+msgstr ""
+
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Side Chat"
-msgstr ""
-
-#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
-msgid "Side Chat is not available without an active conversation."
-msgstr ""
-
-#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
-msgid "Side Chat message"
 msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
@@ -10479,8 +11136,8 @@ msgid "Signing out. Detected agents will refresh when it finishes."
 msgstr "正在退出。检测到的代理将在完成后刷新。"
 
 #: src/renderer/views/SettingsOverlay/parts/CodexProviderSettings.tsx
-msgid "Sizes shown in the Codex composer. Compaction starts automatically at 95% of the selected window. New chats default to 400k when that size is in the list."
-msgstr "显示在 Codex Composer 中的大小。压缩会在所选窗口的 95% 时自动开始。当列表中包含 400k 时，新对话默认使用 400k。"
+msgid "Sizes shown in the Codex composer. Compaction starts automatically at 95% of the selected window. New chats default to 272k when that size is in the list."
+msgstr ""
 
 #: src/renderer/components/plugins/PluginDetail.tsx
 msgid "Skill"
@@ -10525,15 +11182,14 @@ msgstr "SKILL.md 过大。"
 #: src/renderer/components/plugins/PluginDetail.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 #: src/renderer/components/thread/ThreadCommandPanel.tsx
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+#: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/SkillsSection.tsx
-#: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/SkillsSettings.tsx
 msgid "Skills"
-msgstr "技能"
+msgstr "Skills"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "Skills Directory"
@@ -10569,9 +11225,9 @@ msgid "Skipped a file because it points outside the plugin folder."
 msgstr "已跳过一个文件，因为它指向插件文件夹之外。"
 
 #. placeholder {0}: skippedProviderNames.join(", ")
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
-msgid "Skipped by Crossagents: {0}"
-msgstr "被 Crossagents 跳过：{0}"
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Skipped by Own Subagents: {0}"
+msgstr ""
 
 #: src/renderer/components/thread/ThreadCommandPanel.tsx
 msgid "Slash commands"
@@ -10717,6 +11373,7 @@ msgstr "收藏或取消收藏当前聊天或模型"
 
 #. Button: start the microphone level test
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
+#: src/renderer/views/WelcomeOverlay.tsx
 msgid "Start"
 msgstr "开始"
 
@@ -10744,6 +11401,10 @@ msgstr "从此待办事项开始一个新线程"
 #: src/mobile/views/ThreadsView.tsx
 msgid "Start a new thread to put an agent to work from this device."
 msgstr "新建一个线程，从此设备让代理开始工作。"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "Start bridge"
+msgstr "启动桥"
 
 #: src/renderer/commands/composerCommands.ts
 msgid "Start dictation"
@@ -10826,6 +11487,10 @@ msgstr "开始语音输入"
 msgid "starting…"
 msgstr "开始…"
 
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "Starting…"
+msgstr "启动中…"
+
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
 msgid "Startup is taking longer than expected"
 msgstr "启动所需时间超出预期"
@@ -10865,6 +11530,10 @@ msgstr "状态："
 msgid "stdio (local command)"
 msgstr "stdio（本地命令）"
 
+#: src/renderer/components/thread/ComposerPlanChip.tsx
+msgid "Step {done}/{total}"
+msgstr ""
+
 #. Button: stop the microphone level test
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
 msgid "Stop"
@@ -10876,6 +11545,10 @@ msgstr "停止"
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Stop {0}"
 msgstr "停止 {0}"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "Stop bridge"
+msgstr "停止桥"
 
 #: src/mobile/views/PortsView.tsx
 msgid "Stop forwarding"
@@ -10902,6 +11575,14 @@ msgstr "在更改项目文件夹之前，请停止该项目正在运行的线程
 msgid "Stop voice input"
 msgstr "停止语音输入"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Stop waiting for reply"
+msgstr "停止等待回复"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "Stopping…"
+msgstr "停止中…"
+
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
 msgid "Storage location"
@@ -10922,6 +11603,10 @@ msgstr "存储在此设备上；桌面端保留自己的设置值。"
 #: src/renderer/views/SettingsOverlay/parts/CursorProviderSettings.tsx
 msgid "Structured runtime"
 msgstr "结构化运行时"
+
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
+msgid "Sub-agent route order"
+msgstr ""
 
 #: src/mobile/views/DesktopWorkspacePanel.tsx
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
@@ -11016,11 +11701,14 @@ msgid "Swap notes and to-dos"
 msgstr "切换笔记和待办事项"
 
 #: src/mobile/views/WorkspaceView.tsx
-#: src/renderer/components/thread/DraftContextBar.tsx
 #: src/renderer/views/GitReviewOverlay/GitReviewOverlay.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewPanel.tsx
 msgid "Switch branch"
 msgstr "切换分支"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch in this conversation"
+msgstr ""
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Switch mode"
@@ -11041,6 +11729,10 @@ msgstr "将此聊天切换到代理模式"
 #: src/renderer/components/providers/standardGuiSlashCommands.ts
 msgid "Switch this chat to plan mode"
 msgstr "将此聊天切换到计划模式"
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Switch timing"
+msgstr ""
 
 #: src/renderer/commands/registry.ts
 msgid "Switch to the next chat"
@@ -11153,11 +11845,20 @@ msgstr "目标分支"
 msgid "Target provider"
 msgstr "目标提供商"
 
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "Target working"
+msgstr "目标工作中"
+
+#. placeholder {0}: targetConfig.model
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Target: {0} · {selectedKind}"
+msgstr ""
+
 #: src/renderer/components/providers/qwen/index.tsx
 msgid "Task"
 msgstr "任务"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentRankedRow.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "Task match"
 msgstr "任务匹配"
 
@@ -11165,7 +11866,7 @@ msgstr "任务匹配"
 msgid "Task output"
 msgstr "任务输出"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Task tags"
 msgstr "任务标签"
 
@@ -11182,6 +11883,10 @@ msgstr "告诉{0}下一步该做什么..."
 msgid "Tell the target provider what to do next..."
 msgstr "告诉目标提供商下一步该做什么..."
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Temporary subagents. Prefers this harness's own native subagent, or delegates to another harness."
+msgstr ""
+
 #: src/mobile/settingsSections.ts
 #: src/mobile/views/DesktopWorkspacePanel.tsx
 #: src/renderer/commands/registry.ts
@@ -11192,7 +11897,7 @@ msgstr "告诉目标提供商下一步该做什么..."
 #: src/renderer/components/thread/ThreadToolRail.tsx
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
 msgid "Terminal"
 msgstr "终端"
@@ -11247,6 +11952,10 @@ msgstr "终端选项卡"
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Test microphone"
 msgstr "测试麦克风"
+
+#: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
+msgid "Text-only preview — formatting and images are omitted."
+msgstr ""
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "That conversation is no longer available."
@@ -11414,6 +12123,14 @@ msgstr "无法加载技能市场。"
 msgid "The SSH tunnel reached an incompatible CraftStation server."
 msgstr "SSH 隧道连接到了不兼容的 CraftStation 服务器。"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "The target is never silently steered or interrupted."
+msgstr "目标不会被静默引导或中断。"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "The target keeps its own Model, Harness, native session, and timeline."
+msgstr "目标保留自己的 Model、Harness、原生会话和时间线。"
+
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "the target provider"
 msgstr "目标提供商"
@@ -11508,11 +12225,13 @@ msgstr "这会从 GitHub 永久删除运行 #{0} 及其日志。"
 
 #. placeholder {0}: pendingDelete.branch.name
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "This permanently deletes the branch \"{0}\" from its remote."
 msgstr "这将从远程永久删除分支“{0}”。"
 
 #. placeholder {0}: pendingDelete?.branch.name ?? ""
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "This permanently deletes the branch \"{0}\"."
 msgstr "这将永久删除分支“{0}”。"
 
@@ -11552,11 +12271,13 @@ msgstr "这会从此设备中删除计划及其最新结果。"
 #. placeholder {0}: pendingDelete.branch.name
 #. placeholder {1}: pendingDelete.threadCount
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "This removes the worktree on \"{0}\" and closes {1, plural, one {# linked thread} other {# linked threads}}, then deletes the branch."
 msgstr "这将删除“{0}”上的工作树并关闭 {1, plural, other {# 个关联线程}}，然后删除分支。"
 
 #. placeholder {0}: pendingDelete.branch.name
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
+#: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "This removes the worktree on \"{0}\", then deletes the branch."
 msgstr "这将删除“{0}”上的工作树，然后删除分支。"
 
@@ -11571,6 +12292,18 @@ msgstr "此服务器在本机运行，WSL 项目无法使用。"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "This system-wide shortcut is unavailable. Choose another key combination."
 msgstr "此全局快捷键不可用。请选择其他按键组合。"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "This target uses another worktree. Messages do not synchronize files between worktrees."
+msgstr "该目标使用另一个工作树。消息不会在工作树之间同步文件。"
+
+#: src/renderer/actions/threadActions.ts
+msgid "This thread already has a session and cannot be moved to another project."
+msgstr ""
+
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "This transfers portable conversation context; it does not resume another provider's native Session. Attachments are not copied into the checkpoint."
+msgstr ""
 
 #. placeholder {0}: props.worktreeBranch
 #: src/renderer/views/MainView/parts/Sidebar/parts/DeleteThreadPopover.tsx
@@ -11606,6 +12339,10 @@ msgstr "线程"
 msgid "Thread actions"
 msgstr "线程操作"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Thread collaboration is not available on this host."
+msgstr "此主机不支持线程协作。"
+
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Thread context usage"
 msgstr "线程上下文使用"
@@ -11639,19 +12376,20 @@ msgstr "线程目标停靠栏"
 msgid "Thread ID"
 msgstr ""
 
-#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
-msgid "Thread is already unloaded."
-msgstr "线程已经卸载。"
-
 #: src/renderer/views/MainView/parts/SidebarHeaderControls.tsx
 msgid "Thread list options"
 msgstr "线程列表选项"
+
+#. placeholder {0}: project.name
+#: src/renderer/actions/threadActions.ts
+msgid "Thread moved to project \"{0}\"."
+msgstr ""
 
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Thread todo dock"
 msgstr "线程待办事项停靠栏"
 
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
 #: src/renderer/views/ThreadSearchOverlay/ThreadSearchOverlay.tsx
 msgid "Threads"
@@ -11666,6 +12404,11 @@ msgstr "标记为“已完成”且已多日未触及的线程将在应用程序
 msgid "Time"
 msgstr "时间"
 
+#: src/renderer/views/SchedulesView/ScheduleEditor.tsx
+msgid "Time zone"
+msgstr "时区"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Timed out"
 msgstr "已超时"
@@ -11690,6 +12433,11 @@ msgstr "标题生成"
 #: src/mobile/settingsSections.ts
 msgid "Title, commit, and conflict models"
 msgstr "标题、提交和冲突模型"
+
+#: src/renderer/components/thread/ThreadCollaborationActivity.tsx
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "To"
+msgstr "发给"
 
 #: src/mobile/TodoActionsSheet.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
@@ -11738,10 +12486,6 @@ msgstr "切换终端"
 #: src/renderer/commands/registry.ts
 msgid "Toggle the file tree panel"
 msgstr "切换文件树面板"
-
-#: src/renderer/views/MainView/parts/MainContentHeaderControls.tsx
-msgid "Toggle tools panel"
-msgstr "切换工具面板"
 
 #: src/renderer/commands/composerCommands.ts
 msgid "Toggle Work or Plan"
@@ -11914,6 +12658,10 @@ msgstr ""
 msgid "Unable to create a Grok account."
 msgstr ""
 
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Unable to create a Kimi account."
+msgstr ""
+
 #: src/renderer/actions/experimentActions.ts
 msgid "Unable to create the candidate worktree."
 msgstr "无法创建候选项工作树。"
@@ -11990,6 +12738,10 @@ msgstr "无法打开文件"
 msgid "Unable to open Grok login."
 msgstr ""
 
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Unable to open Kimi login."
+msgstr ""
+
 #: src/mobile/routeComponents.tsx
 #: src/mobile/useRemoteDesktop.ts
 msgid "Unable to pair with that desktop."
@@ -12041,11 +12793,11 @@ msgstr "无法刷新 Claude 配置文件。"
 msgid "Unable to remove {0} credentials."
 msgstr "无法删除{0}凭据。"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Unable to remove memory entry."
 msgstr "无法移除记忆条目。"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Unable to remove pinned route."
 msgstr "无法移除固定路由。"
 
@@ -12141,7 +12893,7 @@ msgstr "无法更新{0}：{detailText}"
 msgid "Unable to update {0}."
 msgstr "无法更新{0}。"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentMemorySection.tsx
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Unable to update learned tags."
 msgstr "无法更新已学习的标签。"
 
@@ -12166,6 +12918,7 @@ msgid "Unassigned"
 msgstr "未分配"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Unavailable"
 msgstr "不可用"
@@ -12179,7 +12932,7 @@ msgstr "此设备不可用"
 msgid "Unavailable project"
 msgstr "不可用的项目"
 
-#: src/renderer/views/SettingsOverlay/parts/CrossagentRoutingSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Unavailable provider"
 msgstr "提供商不可用"
 
@@ -12187,9 +12940,9 @@ msgstr "提供商不可用"
 msgid "Unchecked"
 msgstr "未选中"
 
-#: src/renderer/views/SettingsOverlay/parts/crossagent/CrossagentProviderModelFilter.tsx
-msgid "Unchecked providers and models are excluded from automatic Crossagents routing, but remain available for manual agent threads."
-msgstr "未选中的提供商和模型不会参与 Crossagents 自动路由，但仍可用于手动启动的智能体线程。"
+#: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsProviderModelFilter.tsx
+msgid "Unchecked providers and models are excluded from automatic Own Subagents routing, but remain available for manual agent threads."
+msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Ungroup"
@@ -12218,6 +12971,10 @@ msgstr "卸载"
 msgid "Unknown"
 msgstr "未知"
 
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "Unknown collaboration error"
+msgstr "未知的协作错误"
+
 #: src/renderer/notifications.ts
 msgid "Unknown project"
 msgstr "未知项目"
@@ -12236,10 +12993,6 @@ msgstr "在以下时间后卸载空闲线程"
 msgid "Unload idle threads after (minutes)"
 msgstr "在以下分钟数后卸载空闲线程"
 
-#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
-msgid "Unload Thread"
-msgstr "卸载线程"
-
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Unlock panel from the open thread"
 msgstr "解除面板与打开线程的锁定"
@@ -12249,14 +13002,9 @@ msgstr "解除面板与打开线程的锁定"
 msgid "Unmark all done"
 msgstr "取消全部完成标记"
 
-#: src/renderer/components/thread/ThreadView.tsx
-msgid "Unmark done"
-msgstr "取消标记完成"
-
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
-#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Unmark Done"
 msgstr "取消标记完成"
 
@@ -12280,9 +13028,17 @@ msgstr "取消固定"
 msgid "Unpin {0}"
 msgstr ""
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
+msgid "Unpin project"
+msgstr ""
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 msgid "Unpin workflow"
 msgstr "取消固定工作流"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
+msgid "Unread notification"
+msgstr ""
 
 #: src/mobile/views/GitActionSheet.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/FileRow.tsx
@@ -12312,6 +13068,7 @@ msgstr "上一级"
 msgid "update"
 msgstr "更新"
 
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/thread/ThreadAgentUpdateDock.tsx
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/HookPluginSettings.tsx
@@ -12323,10 +13080,17 @@ msgstr "更新"
 msgid "Update {0} to {updateLabel}"
 msgstr "将{0}更新为{updateLabel}"
 
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
 #: src/renderer/components/thread/ThreadAgentUpdateDock.tsx
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Update available"
 msgstr "可用更新"
+
+#. placeholder {0}: availableUpdate.version
+#. placeholder {1}: availableUpdate.latest
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "Update available: v{0} → v{1}"
+msgstr "有可用更新：v{0} → v{1}"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrSection.tsx
 msgid "Update branch"
@@ -12420,6 +13184,11 @@ msgstr "正在更新{0}"
 msgid "Updating {0} ({env})"
 msgstr "更新{0}({env})"
 
+#. placeholder {0}: entry.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/UpdateButtons.tsx
+msgid "Updating {0}…"
+msgstr ""
+
 #: src/renderer/views/LoginTerminalOverlay/LoginTerminalOverlay.tsx
 msgid "Updating in this terminal. Closes when finished."
 msgstr "正在此终端中更新。完成后将关闭。"
@@ -12444,8 +13213,8 @@ msgstr "URL 为必填项。"
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/thread/ThreadContextDock.tsx
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
 #: src/renderer/views/MainView/parts/ProjectAuxiliaryPanel.tsx
+#: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Usage"
 msgstr "用量"
 
@@ -12526,8 +13295,8 @@ msgid "Use workflow from"
 msgstr "使用以下来源的工作流"
 
 #: src/renderer/components/thread/threadContextUsage.ts
-msgid "Used"
-msgstr "已使用"
+#~ msgid "Used"
+#~ msgstr "已使用"
 
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Used by {conflict}"
@@ -12600,6 +13369,10 @@ msgstr "查看与审查拉取请求"
 msgid "View automated work"
 msgstr "查看自动化工作"
 
+#: src/renderer/components/thread/ThreadCollaborationActivity.tsx
+msgid "View cross-thread dialogue"
+msgstr "查看跨线程对话"
+
 #: src/mobile/views/GitActionSheet.tsx
 msgid "View diff"
 msgstr "查看 diff"
@@ -12607,10 +13380,6 @@ msgstr "查看 diff"
 #: src/renderer/views/WhatsNewOverlay.tsx
 msgid "View full changelog"
 msgstr "查看完整变更日志"
-
-#: src/renderer/views/MainView/parts/MainTitlebar.tsx
-msgid "View model authorization and usage"
-msgstr "查看模型授权与用量"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "View plans and scheduled tasks"
@@ -12661,6 +13430,10 @@ msgstr "语音输入语言"
 msgid "Voice input model"
 msgstr "语音输入模型"
 
+#: src/renderer/components/thread/ContinueInProviderDialog.tsx
+msgid "Wait for a completed-turn boundary, then create a portable checkpoint and a new native Session."
+msgstr ""
+
 #: src/renderer/actions/experimentDecisionActions.ts
 msgid "Wait for every candidate to finish before cleaning up."
 msgstr "请等待所有候选项完成后再清理。"
@@ -12685,10 +13458,6 @@ msgstr "请等待所有候选项完成后再创建拉取请求。"
 #: src/renderer/actions/moveThreadToWorktreeActions.ts
 msgid "Wait for the thread to finish starting before moving it to a worktree."
 msgstr "请等待线程启动完成，然后再将其移至工作树。"
-
-#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
-msgid "Wait for the thread to finish starting."
-msgstr "等待线程完成启动。"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Waiting"
@@ -12894,7 +13663,6 @@ msgid "Work with the pages and signed-in sessions already open in Chrome."
 msgstr "使用 Chrome 中已打开的页面和已登录会话。"
 
 #: src/renderer/components/thread/ChatPane/ChatTurnElapsed.tsx
-#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Worked for {elapsed}"
 msgstr "已工作 {elapsed}"
 
@@ -12959,10 +13727,16 @@ msgid "Workflows added under .github/workflows will appear here."
 msgstr "添加到 .github/workflows 的工作流将显示在此处。"
 
 #: src/mobile/presentation.ts
+#: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
+#: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Working"
 msgstr "工作中"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Working {elapsed}"
+msgstr "已工作 {elapsed}"
 
 #: src/renderer/components/thread/ChatPane/ChatTurnElapsed.tsx
 msgid "Working for {elapsed}"
@@ -12977,7 +13751,7 @@ msgid "Working…"
 msgstr "工作…"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/WorkspacesSettings.tsx
 msgid "Workspace"
 msgstr "工作区"
@@ -12991,7 +13765,7 @@ msgid "Workspace view"
 msgstr "工作区视图"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorkspaceSwitcher.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/WorkspacesSettings.tsx
 msgid "Workspaces"
 msgstr "工作区"
@@ -13052,7 +13826,7 @@ msgstr "工作树：{0}"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ScriptsSection.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/SettingsSidebar.tsx
-#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
 msgid "Worktrees"
 msgstr "工作树"
@@ -13117,22 +13891,233 @@ msgstr "您贮藏的本地更改已重新应用。"
 msgid "z.ai"
 msgstr "z.ai"
 
+#: src/renderer/commands/registry.ts
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom in"
 msgstr "放大"
 
+#: src/renderer/commands/registry.ts
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom out"
 msgstr "缩小"
 
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "不是 Git 仓库"
+msgstr "不是 Git 仓库"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
-msgid "同步最新上下文"
+msgid "临时分支"
 msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
-msgid "当前侧边聊天上下文已与主分支脱节，处于只读状态。"
+msgid "从当前线程分支"
 msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
-msgid "这是主会话的上下文快照。侧边聊天的消息不会写入主会话。"
+msgid "保存为正式线程"
+msgstr ""
+
+#: src/renderer/components/thread/DraftContextBar.tsx
+#~ msgid "停止 Goal"
+#~ msgstr ""
+
+#: src/renderer/components/thread/DraftContextBar.tsx
+#~ msgid "停止 Goal（终止底层任务）"
+#~ msgstr ""
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "兼容模式"
+msgstr "兼容模式"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
+msgid "创建临时分支，不会出现在左侧列表"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "初始化 Git 仓库"
+msgstr "初始化 Git 仓库"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "刷新状态"
+msgstr "刷新状态"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "包含未暂存的更改"
+msgstr "包含未暂存的更改"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "原生"
+msgstr "原生"
+
+#: src/renderer/components/thread/DraftContextBar.tsx
+msgid "取消配方"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "在 Git 面板中打开"
+msgstr "在 Git 面板中打开"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "处理中…"
+msgstr "处理中…"
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "实验线程不支持侧边分支。"
+msgstr ""
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "实验线程不支持在 Side Chat 中打开。"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "展开 Git 面板"
+msgstr "展开 Git 面板"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+#~ msgid "工作中"
+#~ msgstr ""
+
+#: src/renderer/components/thread/CapsuleBranchView.tsx
+msgid "工作区干净"
+msgstr "工作区干净"
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "已从当前线程创建临时分支（不会出现在左侧列表）。"
+msgstr ""
+
+#: src/renderer/actions/forkThreadActions.ts
+msgid "已从该轮分叉为新对话"
+msgstr ""
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "已保存为正式线程。"
+msgstr ""
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "当前没有可分支的正式会话。"
+msgstr ""
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "当前线程还没有可分支的上下文。"
+msgstr ""
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "推送"
+msgstr "推送"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "推送 {ahead} 个提交"
+msgstr "推送 {ahead} 个提交"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "推送中…"
+msgstr "推送中…"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "提交"
+msgstr "提交"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "提交 (Ctrl+Enter)"
+msgstr "提交 (Ctrl+Enter)"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "提交信息"
+msgstr "提交信息"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "提交并推送"
+msgstr "提交并推送"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "提交或推送"
+msgstr "提交或推送"
+
+#: src/renderer/components/thread/CapsuleBranchView.tsx
+msgid "搜索分支"
+msgstr "搜索分支"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "收起 Git 面板"
+msgstr "收起 Git 面板"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
+msgid "暂无正式线程。"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "更多操作"
+msgstr "更多操作"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "更改"
+msgstr "更改"
+
+#: src/renderer/components/thread/CapsuleBranchView.tsx
+msgid "未提交的更改：{changedFiles} 个文件（{stagedCount} staged · {unstagedCount} unstaged）"
+msgstr "未提交的更改：{changedFiles} 个文件（已暂存 {stagedCount} · 未暂存 {unstagedCount}）"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "正在初始化…"
+msgstr "正在初始化…"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "正在加载 Git 状态…"
+msgstr "正在加载 Git 状态…"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
+msgid "正在右侧查看正式线程，关闭不影响原线程"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
+msgid "没有可分支的正式会话"
+msgstr ""
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "没有可推送的提交"
+msgstr "没有可推送的提交"
+
+#: src/renderer/components/thread/DraftContextBar.tsx
+#~ msgid "状态：进行中"
+#~ msgstr ""
+
+#: src/renderer/components/thread/ComposerPlanChip.tsx
+msgid "计划进度"
+msgstr "计划进度"
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
+msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "目标"
+msgstr "目标"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+#~ msgid "计划"
+#~ msgstr ""
+
+#: src/renderer/components/thread/ComposerPlanChip.tsx
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+#~ msgid "计划进度"
+#~ msgstr "计划进度"
+
+#: src/renderer/components/thread/CapsuleCommitView.tsx
+msgid "请填写提交信息"
+msgstr "请填写提交信息"
+
+#: src/renderer/components/thread/ThreadStatusCapsule.tsx
+msgid "进程"
+msgstr "进程"
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "远程线程不支持侧边分支。"
+msgstr ""
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "远程线程不支持在 Side Chat 中打开。"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
+msgid "选择已有线程（右侧并行打开，原线程不受影响）"
 msgstr ""

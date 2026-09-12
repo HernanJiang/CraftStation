@@ -29,7 +29,6 @@ export type { ComposerMcpScope };
 
 /** `ThreadConfig` keys that hold the per-thread enable flag for each MCP. */
 export type ComposerMcpConfigKey = "browserMcp" | "crossagentMcp" | "chromeMcp";
-
 /**
  * Resolve an adapter-declared per-presentation scope pair to the active
  * presentation's scope. Absent values fall back to the generic behavior:
@@ -63,7 +62,7 @@ type ComposerMcpCapabilities = {
 } & McpRuntimeSupport;
 
 export interface ComposerMcpServerDescriptor {
-  id: "browser" | "crossagents" | "chrome";
+  id: "browser" | "own-subagents" | "chrome";
   configKey: ComposerMcpConfigKey;
   icon: LucideIcon;
   /** Menu row + chip label. */
@@ -106,12 +105,12 @@ export const browserMcpServer: ComposerMcpServerDescriptor = {
 };
 
 export const crossagentMcpServer: ComposerMcpServerDescriptor = {
-  id: "crossagents",
+  id: "own-subagents",
   configKey: "crossagentMcp",
   icon: Users,
-  label: msg`Crossagents`,
-  enabledTitle: msg`Crossagents enabled for this thread`,
-  disableLabel: msg`Disable Crossagents`,
+  label: msg`Own Subagents`,
+  enabledTitle: msg`Own Subagents enabled for this thread`,
+  disableLabel: msg`Disable Own Subagents`,
   requiresHttpHeaders: true,
   isAvailable: () => true,
   getScope: headerHttpMcpScope,

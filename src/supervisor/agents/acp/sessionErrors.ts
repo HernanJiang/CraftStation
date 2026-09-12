@@ -1,10 +1,7 @@
 import { RequestError } from "@agentclientprotocol/sdk";
+import { explainNativeNetworkError } from "../nativeNetworkError";
+import { readNonNegativeInteger } from "../contextUsage";
 import type { RuntimeEvent } from "@/shared/contracts";
-import {
-  createContextUsageEvent,
-  readNonNegativeInteger,
-  usageFromTokenCounts,
-} from "../contextUsage";
 
 /**
  * Resolve the token usage payload from an ACP prompt response.
@@ -62,28 +59,9 @@ export function resolveAcpPromptResponseUsage(
   };
 }
 
-export function createAcpPromptUsageEvent(
-  threadId: string,
-  usage: unknown,
-): RuntimeEvent | undefined {
-  if (!usage || typeof usage !== "object") return undefined;
-  const obj = usage as Record<string, unknown>;
-  return createContextUsageEvent(
-    threadId,
-    usageFromTokenCounts({
-      usedTokens: readNonNegativeInteger(obj.totalTokens),
-      inputTokens: readNonNegativeInteger(obj.inputTokens),
-      outputTokens: readNonNegativeInteger(obj.outputTokens),
-      thoughtTokens: readNonNegativeInteger(obj.thoughtTokens),
-      cachedReadTokens: readNonNegativeInteger(obj.cachedReadTokens),
-      cachedWriteTokens: readNonNegativeInteger(obj.cachedWriteTokens),
-    }),
-  );
-}
-
 /**
- * Cumulative `usage.spent` from the same `session/prompt` response usage the
- * context event above parses: per the ACP schema, `usage.totalTokens` is the
+ * Cumulative `usage.spent` from the same `session/prompt` response usage:
+ * per the ACP schema, `usage.totalTokens` is the
  * session-cumulative counter, so the ledger counts increases per
  * (provider, scopeId, epoch). `sampleId` folds the counter value in, which
  * makes replays of the same prompt response exact-once. When the agent
@@ -164,7 +142,12 @@ export function resolveAcpPromptFailureMessage(
   error: unknown,
   agentSurfacedMessage?: string,
 ): string {
-  if (agentSurfacedMessage) return agentSurfacedMessage;
+  if (agentSurfacedMessage) {
+    // Native-CLI transport failures (e.g. Grok reqwest) arrive here verbatim:
+    // project them before display so users see the native-route explanation
+    // instead of raw Rust transport text.
+    return explainNativeNetworkError(agentSurfacedMessage) ?? agentSurfacedMessage;
+  }
   return resolveAcpPromptRpcErrorMessage(error);
 }
 
@@ -229,10 +212,11 @@ export function resolveAcpPromptRpcErrorMessage(error: unknown): string {
             : undefined;
     const message = typeof candidate.message === "string" ? candidate.message.trim() : "";
     if (detail && isGenericAcpPromptRpcErrorMessage(message)) return detail;
-    if (message.length > 0) return message;
-    if (detail) return detail;
+    if (message.length > 0) return explainNativeNetworkError(message) ?? message;
+    if (detail) return explainNativeNetworkError(detail) ?? detail;
   }
-  return error instanceof Error ? error.message : String(error);
+  const fallback = error instanceof Error ? error.message : String(error);
+  return explainNativeNetworkError(fallback) ?? fallback;
 }
 
 /** True only for the official Grok Build usage-balance error shape. */
@@ -254,6 +238,58 @@ export function isAcpPromptQuotaExhaustedError(error: unknown): boolean {
     typeof data?.message === "string" &&
     /usage\s+balance\s+exhausted/i.test(data.message)
   );
+}
+
+/**
+ * Pool-scheduling quota signal for Grok: the strict RPC shape above plus the
+ * in-stream surfaced message (`agent_message_chunk` carrying "usage balance
+ * exhausted", later mapped to "Grok 额度已耗尽"). Both must mark the bound
+ * account exhausted and both may trigger same-turn pool failover — otherwise
+ * a thread sticks to a dead account forever while usable pool accounts wait.
+ */
+export function isGrokPoolQuotaError(error: unknown): boolean {
+  if (isAcpPromptQuotaExhaustedError(error)) return true;
+  const message = resolveAcpPromptRpcErrorMessage(error);
+  return message === "Grok 额度已耗尽" || /usage\s+balance\s+exhausted/i.test(message);
+}
+
+/**
+ * Pool-scheduling quota signal for Kimi (generic ACP session, same shapes as
+ * Grok: RPC `data.{http_status,message}` or a surfaced message string).
+ *
+ * Deliberately narrow: HTTP 402 (Payment Required) means the membership
+ * cannot pay for the turn — fail over. 429 is rate-limiting (recovers on its
+ * own — the quota poller already deprioritizes those rows); 401/403 is auth
+ * (fail closed, a human must re-login). Never match those.
+ */
+export function isKimiPoolQuotaError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return typeof error === "string" && /payment required/i.test(error);
+  }
+  const record = error as { data?: unknown; message?: unknown; status?: unknown };
+  const data =
+    record.data && typeof record.data === "object" ? (record.data as Record<string, unknown>) : {};
+  const httpStatus =
+    typeof data["http_status"] === "number"
+      ? data["http_status"]
+      : typeof data["http_status"] === "string"
+        ? Number(data["http_status"])
+        : typeof record.status === "number"
+          ? record.status
+          : undefined;
+  if (httpStatus === 429) return false;
+  if (httpStatus === 402) return true;
+  const message =
+    typeof data["message"] === "string"
+      ? data["message"]
+      : typeof record.message === "string"
+        ? record.message
+        : "";
+  if (!message) return false;
+  if (/too many requests|rate[\s_-]*limit|\b429\b/i.test(message)) return false;
+  if (/unauthorized|forbidden|\b401\b|\b403\b/i.test(message)) return false;
+  // Word-boundaried: must not catch "load balancing" and friends.
+  return /payment required|quota|insufficient|\bbalance\b/i.test(message);
 }
 
 /**

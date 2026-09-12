@@ -19,6 +19,16 @@ function errorItem(id: string, message: string): RuntimeChatItem {
   };
 }
 
+function assistantItem(id: string, text: string): RuntimeChatItem {
+  return {
+    id,
+    type: "assistant_message",
+    state: "completed",
+    payload: { content: [{ kind: "text", text }] },
+    streams: {},
+  };
+}
+
 describe("threadErrorState", () => {
   it("suppresses abort-only composer errors", () => {
     expect(getThreadErrorDockStateForItem(errorItem("err-1", "Aborted"))).toBeNull();
@@ -76,6 +86,105 @@ describe("threadErrorState", () => {
     expect(selectThreadErrorDockStates(state, "t-1")).toEqual([
       { sourceItemId: "err-a", message: "Usage limit reached." },
       { sourceItemId: "err-b", message: "Internal error" },
+    ]);
+  });
+
+  it("collapses consecutive identical errors into one dock row", () => {
+    const state = {
+      runtimeItemIdsByThread: {
+        "t-1": ["user-1", "err-1", "err-2", "err-3", "err-4"],
+      },
+      runtimeItemsByIdByThread: {
+        "t-1": {
+          "user-1": {
+            id: "user-1",
+            type: "user_message",
+            state: "completed",
+            payload: {},
+            streams: {},
+          },
+          "err-1": errorItem("err-1", "Grok 额度已耗尽"),
+          "err-2": errorItem("err-2", "Grok 额度已耗尽"),
+          "err-3": errorItem("err-3", "Something else broke"),
+          "err-4": errorItem("err-4", "Grok 额度已耗尽"),
+        },
+      },
+    } as unknown as AppStoreState;
+    // Newest occurrence wins per message; distinct messages still all show.
+    expect(selectThreadErrorDockStates(state, "t-1")).toEqual([
+      { sourceItemId: "err-2", message: "Grok 额度已耗尽" },
+      { sourceItemId: "err-3", message: "Something else broke" },
+      { sourceItemId: "err-4", message: "Grok 额度已耗尽" },
+    ]);
+  });
+
+  it("drops errors superseded by a follow-up answer (recovered failover)", () => {
+    const state = {
+      runtimeItemIdsByThread: {
+        "t-1": ["user-1", "err-quota", "answer-1"],
+      },
+      runtimeItemsByIdByThread: {
+        "t-1": {
+          "user-1": {
+            id: "user-1",
+            type: "user_message",
+            state: "completed",
+            payload: {},
+            streams: {},
+          },
+          "err-quota": errorItem("err-quota", "Grok 额度已耗尽"),
+          "answer-1": assistantItem("answer-1", "Here is the answer."),
+        },
+      },
+    } as unknown as AppStoreState;
+    expect(selectThreadErrorDockStates(state, "t-1")).toEqual([]);
+  });
+
+  it("keeps errors that arrive after the latest answer", () => {
+    const state = {
+      runtimeItemIdsByThread: {
+        "t-1": ["user-1", "answer-1", "err-late"],
+      },
+      runtimeItemsByIdByThread: {
+        "t-1": {
+          "user-1": {
+            id: "user-1",
+            type: "user_message",
+            state: "completed",
+            payload: {},
+            streams: {},
+          },
+          "answer-1": assistantItem("answer-1", "Here is the answer."),
+          "err-late": errorItem("err-late", "Internal error"),
+        },
+      },
+    } as unknown as AppStoreState;
+    expect(selectThreadErrorDockStates(state, "t-1")).toEqual([
+      { sourceItemId: "err-late", message: "Internal error" },
+    ]);
+  });
+
+  it("ignores blank assistant rows when judging recovery", () => {
+    const state = {
+      runtimeItemIdsByThread: {
+        "t-1": ["user-1", "err-quota", "answer-blank"],
+      },
+      runtimeItemsByIdByThread: {
+        "t-1": {
+          "user-1": {
+            id: "user-1",
+            type: "user_message",
+            state: "completed",
+            payload: {},
+            streams: {},
+          },
+          "err-quota": errorItem("err-quota", "Grok 额度已耗尽"),
+          "answer-blank": assistantItem("answer-blank", "  \n "),
+        },
+      },
+    } as unknown as AppStoreState;
+    expect(selectThreadErrorDockStates(state, "t-1")).toEqual([
+      { sourceItemId: "err-quota", message: "Grok 额度已耗尽" },
     ]);
   });
 });

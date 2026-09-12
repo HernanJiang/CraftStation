@@ -138,6 +138,9 @@ export function openSideChatBranch(sourceThreadId: string): boolean {
       ? { compositionProvenance: source.compositionProvenance }
       : {}),
     ...(source.presentationMode ? { presentationMode: source.presentationMode } : {}),
+    // Goal snapshot at branch time: the side chat starts with a copy and then
+    // evolves independently — it never writes back to the source thread.
+    ...(source.goal ? { goal: { ...source.goal } } : {}),
     parentThreadId: source.id,
     isEphemeral: true,
     focus: false,
@@ -233,9 +236,9 @@ export function saveSideChatAsFormal(): boolean {
 export function closeSideChat(): void {
   const selection = useSideChatStore.getState().selection;
   if (selection?.kind === "branch") {
-    const thread = useAppStore.getState().threads.find(
-      (candidate) => candidate.id === selection.threadId,
-    );
+    const thread = useAppStore
+      .getState()
+      .threads.find((candidate) => candidate.id === selection.threadId);
     if (thread && isEphemeralSideChatThread(thread)) {
       deleteThreadOnly(thread.id);
     }

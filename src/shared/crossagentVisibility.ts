@@ -5,10 +5,10 @@ import type { CrossagentExecution } from "./crossagentRanking";
 export interface CrossagentVisibilitySettings {
   disabledAgents: readonly string[];
   hiddenModels: Readonly<Record<string, readonly string[] | undefined>>;
-  /** Agent kinds paused from the Crossagents rotation (Crossagents-only). */
-  crossagentPausedProviders?: readonly string[];
-  /** Extra per-agent-kind model ids skipped by Crossagents only. */
-  crossagentHiddenModels?: Readonly<Record<string, readonly string[] | undefined>>;
+  /** Agent kinds paused from the Own Subagents rotation (Own Subagents-only). */
+  ownSubagentPausedProviders?: readonly string[];
+  /** Extra per-agent-kind model ids skipped by Own Subagents only. */
+  ownSubagentHiddenModels?: Readonly<Record<string, readonly string[] | undefined>>;
 }
 
 export function isCrossagentProviderEnabled(
@@ -17,7 +17,7 @@ export function isCrossagentProviderEnabled(
 ): boolean {
   return (
     !settings.disabledAgents.includes(kind) &&
-    !(settings.crossagentPausedProviders ?? []).includes(kind)
+    !(settings.ownSubagentPausedProviders ?? []).includes(kind)
   );
 }
 
@@ -50,10 +50,10 @@ export function globalVisibleCrossagentCapabilities(
 }
 
 /**
- * Apply the provider/model visibility settings the Crossagents roster and
+ * Apply the provider/model visibility settings the Own Subagents roster and
  * spawn validation share: the global `hiddenModels` surface plus the
- * Crossagents-only additions (`crossagentPausedProviders` is checked by
- * `isCrossagentProviderEnabled`; `crossagentHiddenModels` narrows models
+ * Own-Subagents-only additions (`ownSubagentPausedProviders` is checked by
+ * `isCrossagentProviderEnabled`; `ownSubagentHiddenModels` narrows models
  * further, keyed by plain agent kind).
  */
 export function filterCrossagentCapabilities(
@@ -68,7 +68,7 @@ export function filterCrossagentCapabilities(
     capabilities,
     settings,
   );
-  const extraHidden = settings.crossagentHiddenModels?.[kind];
+  const extraHidden = settings.ownSubagentHiddenModels?.[kind];
   if (!extraHidden || extraHidden.length === 0) return globallyVisible;
   const hidden = new Set(extraHidden);
   return { ...globallyVisible, models: globallyVisible.models.filter((m) => !hidden.has(m.id)) };

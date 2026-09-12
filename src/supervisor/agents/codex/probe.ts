@@ -12,6 +12,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import type { AgentSlashCommand, ProjectLocation } from "@/shared/contracts";
 import { terminateChildProcessTree } from "@/shared/processTree";
+import { stripCodexRouterEnv } from "../../runtime/codexProfiles";
 import { resolveNodeForDistro } from "../../wsl/runtime";
 import { resolveProbeSpawnCwd } from "../probeCwd";
 import { buildCodexAppServerCommand } from "./argv";
@@ -150,10 +151,24 @@ function codexModelSupportsFast(entry: CodexModelEntry): boolean {
   return Array.isArray(entry.serviceTiers) && entry.serviceTiers.length > 0;
 }
 
+/**
+ * Codex-Router catalogs prefix their per-instance model ids with
+ * `cr_<instance>_` (e.g. `cr_r4a61_openai/gpt-5.6-luna`). Those ids are
+ * internal to one Router process: they change when the Router restarts and a
+ * managed/isolated CODEX_HOME has no Router at all, so a persisted selection
+ * turns into `unknown provider for model …` at turn time. They are never
+ * safe to offer as selectable models.
+ */
+const CODEX_ROUTER_MODEL_ID_RE = /^cr_[a-z0-9]{2,12}_/i;
+
+export function isCodexRouterModelId(modelId: string): boolean {
+  return CODEX_ROUTER_MODEL_ID_RE.test(modelId);
+}
+
 export function mapCodexModels(
   models: CodexModelEntry[],
 ): Pick<CodexProbeResult, "models" | "efforts" | "defaultEffort" | "modelEfforts" | "fastModels"> {
-  const visible = models.filter((m) => !m.hidden);
+  const visible = models.filter((m) => !m.hidden && !isCodexRouterModelId(m.id));
   if (visible.length === 0) return {};
 
   const ordered = [...visible].sort((a, b) => {
@@ -462,7 +477,9 @@ async function runWithCodexAppServer<T>(
 
     appServer = spawn(cmd.command, cmd.args, {
       cwd: spawnCwd ?? undefined,
-      env: { ...process.env, ...cmd.env, TERM: "xterm-256color" },
+      // Strip Codex-Router / CLIProxy routing keys: a host Router overlay must
+      // not turn its per-instance `cr_*` catalog into CraftStation's model list.
+      env: { ...stripCodexRouterEnv(process.env), ...cmd.env, TERM: "xterm-256color" },
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
       windowsHide: true,

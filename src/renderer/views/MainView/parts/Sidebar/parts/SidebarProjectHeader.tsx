@@ -1,4 +1,4 @@
-import { Archive, ChevronRight, Ellipsis, Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ChevronRight, Ellipsis, Pencil, Pin, Plus, Trash2 } from "lucide-react";
 import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import type { Project } from "@/shared/contracts";
@@ -46,6 +46,7 @@ export function SidebarProjectHeader(props: {
   const isActiveGitPanel = useIsProjectGitPanelActive(project.id);
   const editingProjectId = useSidebarUiStore((s) => s.editingProjectId);
   const setEditingProjectId = useSidebarUiStore((s) => s.setEditingProjectId);
+  const isPinned = useSidebarUiStore((s) => s.pinnedProjectIds.includes(project.id));
   const quickButtonClass =
     "flex size-6 items-center justify-center rounded-lg text-muted opacity-0 transition-all hover:bg-[var(--row-active)] hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100";
 
@@ -74,6 +75,9 @@ export function SidebarProjectHeader(props: {
             ) : (
               <span className="truncate text-xs font-semibold text-foreground">{project.name}</span>
             )}
+            {isPinned ? (
+              <Pin className="size-3 shrink-0 fill-current text-muted" aria-label={t`Pinned`} />
+            ) : null}
             <ProjectRemoteServerIcon info={remote} />
             {/* Keep the host marker; the removed controls are the project-level
                 Files and CLI actions, not the location/status metadata. */}

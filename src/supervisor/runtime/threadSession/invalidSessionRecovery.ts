@@ -146,5 +146,10 @@ export class InvalidSessionRecoveryCoordinator {
       ...(session.nativePlugins ? { nativePlugins: session.nativePlugins } : {}),
       ...(Object.keys(cliHookExtras.env).length > 0 ? { extraEnv: cliHookExtras.env } : {}),
     });
+    // Explicit fork marker: the new native session does NOT continue the dead
+    // provider context. Callers (snapshots, diagnostics, collaboration policy)
+    // must not mistake retained UI history for a live native continuation.
+    session.recoveredFromInvalidRef = true;
+    delete session.sessionRef;
   }
 }

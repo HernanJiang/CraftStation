@@ -1,4 +1,5 @@
 import type { Project } from "@/shared/contracts";
+import { isThreadGloballyPinned } from "@/shared/sidebarOrdering";
 import { useLiveBackgroundThreadIds, useProjectThreads } from "@/renderer/hooks/uiSelectors";
 import { useSidebarUiStore, useThreadListLimit } from "@/renderer/state/sidebarUiStore";
 import { useExperimentCandidateOrder } from "@/renderer/state/experimentStore";
@@ -8,7 +9,10 @@ import { SeeMoreThreadsButton, SidebarThreadRow } from "./SidebarThreadRow";
 
 export function SidebarProjectThreadList(props: { project: Project; sortMode: ThreadSortMode }) {
   const { project, sortMode } = props;
-  const projectThreads = useProjectThreads(project.id);
+  const allProjectThreads = useProjectThreads(project.id);
+  // Global pins move to the top Pinned section (presentation only — the
+  // thread keeps its projectId; unpin returns it here).
+  const projectThreads = allProjectThreads.filter((thread) => !isThreadGloballyPinned(thread));
   const experimentCandidateOrder = useExperimentCandidateOrder(project.id);
   const collapsedWorktrees = useSidebarUiStore((s) => s.collapsedWorktrees);
   const editingThreadId = useSidebarUiStore((s) => s.editingThreadId);

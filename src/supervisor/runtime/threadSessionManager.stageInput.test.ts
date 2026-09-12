@@ -71,6 +71,7 @@ function createAdapter(
 function createManager(adapter: AgentAdapter): ThreadSessionManager {
   const tempDir = mkdtempSync(join(tmpdir(), "craftstation-stage-input-"));
   tempDirs.push(tempDir);
+  writeFileSync(join(tempDir, "settings.json"), JSON.stringify({ locale: "en" }));
   const manager = new ThreadSessionManager({
     emit: (_event: SupervisorEvent) => {},
     isDev: false,

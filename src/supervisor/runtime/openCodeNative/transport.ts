@@ -283,6 +283,13 @@ export class OpenCodeNativeTransport {
             `opencode serve exited before ready (code=${String(code)}, signal=${String(signal)}).`,
           );
         } else if (!this.disposed) {
+          // Terminal for this transport: the SSE stream will never produce
+          // completion events again, so stop the reconnect loop instead of
+          // spinning diagnostics forever. In-flight turns are failed by their
+          // sessions watching the same exit; a future subscribe() restarts
+          // the loop (and fails fast with honest connection errors).
+          this.eventAbort?.abort();
+          this.eventAbort = undefined;
           this.options.onDiagnostic?.(
             diagnostic(
               this.correlationId,

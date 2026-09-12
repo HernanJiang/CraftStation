@@ -360,10 +360,10 @@ function formatAgentTitle(
   if (options?.isCrossagent) {
     if (description) {
       return subagent
-        ? i18n._(msg`Crossagent (${subagent}): ${description}`)
-        : i18n._(msg`Crossagent: ${description}`);
+        ? i18n._(msg`Own subagent (${subagent}): ${description}`)
+        : i18n._(msg`Own subagent: ${description}`);
     }
-    return subagent ? i18n._(msg`Crossagent: ${subagent}`) : i18n._(msg`Crossagent`);
+    return subagent ? i18n._(msg`Own subagent: ${subagent}`) : i18n._(msg`Own subagent`);
   }
   if (description) {
     return subagent

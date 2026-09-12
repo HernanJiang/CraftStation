@@ -1,11 +1,17 @@
 import { Dropdown, Label } from "@heroui/react";
 import { Check, ChevronDown, Gauge, Sparkles, WandSparkles } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
 
 export type CraftMode = "auto" | "efficient" | "creative";
 
 export function CraftModeSwitch(props: { value: CraftMode; onChange: (mode: CraftMode) => void }) {
   const { t } = useLingui();
+  // Shared overlay zoom compensation (see overlayZoom.ts): empty at factor 1.
+  // Without it the menu drifts (zoom-1)×distance at zoom ≠ 1 and clips past
+  // the window's right edge.
+  const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
   const modes = [
     {
       id: "auto",
@@ -40,16 +46,20 @@ export function CraftModeSwitch(props: { value: CraftMode; onChange: (mode: Craf
         aria-label={t`CraftStation mode`}
         className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)]"
       >
-        <ActiveIcon className="size-3.5 text-neutral-300" />
+        <ActiveIcon className="size-3.5 text-muted" />
         <span>{active.label}</span>
         <ChevronDown className="size-3 text-muted" />
       </Dropdown.Trigger>
-      <Dropdown.Popover placement="top end" className="min-w-[240px] rounded-[14px]">
+      <Dropdown.Popover
+        placement="top end"
+        className={withOverlayClass("min-w-[240px] rounded-[14px]", overlayZoom.root)}
+      >
         <Dropdown.Menu
           aria-label={t`CraftStation mode`}
           selectionMode="single"
           selectedKeys={[props.value]}
           onAction={(key) => props.onChange(String(key) as CraftMode)}
+          className={overlayZoom.content}
         >
           {modes.map((mode) => {
             const Icon = mode.icon;

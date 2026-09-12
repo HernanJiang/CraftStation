@@ -735,7 +735,11 @@ export async function handleHttp(
           ? schedules.create(command.task)
           : command.kind === "update"
             ? schedules.update(command.id, command.task)
-            : schedules.runNow(command.id);
+            : command.kind === "pause"
+              ? schedules.pause(command.id)
+              : command.kind === "resume"
+                ? schedules.resume(command.id)
+                : schedules.runNow(command.id);
       writeJson(res, 200, { schedule, schedules: schedules.list() });
       return;
     }

@@ -39,14 +39,14 @@ export type SupervisorReply =
 
 export type SupervisorEvent =
   | {
-      type: "crossagent-routing-override-changed";
+      type: "ownsubagents-routing-override-changed";
       requestId: string;
       change:
         | { action: "set"; override: CrossagentRoutingOverride }
         | { action: "remove"; tags: string[] };
     }
   | {
-      type: "crossagent-selection-used";
+      type: "ownsubagents-selection-used";
       selections: Array<{
         agentKind: string;
         modelId: string;
@@ -122,6 +122,13 @@ export type SupervisorEvent =
       threadId: string;
       title: string;
       body: string;
+    }
+  | {
+      type: "thread-pool-failover";
+      threadId: string;
+      provider: string;
+      fromAccount: string;
+      toAccount: string;
     }
   | {
       type: "thread-osc-shell";
@@ -227,5 +234,5 @@ export type UpdateStatus =
       total: number;
     }
   | { type: "downloaded"; version: string }
-  | { type: "error"; message: string; messageKey?: never }
-  | { type: "error"; messageKey: MessageKey; message?: never };
+  | { type: "error"; message: string; messageKey?: never; notify?: boolean }
+  | { type: "error"; messageKey: MessageKey; message?: never; notify?: boolean };

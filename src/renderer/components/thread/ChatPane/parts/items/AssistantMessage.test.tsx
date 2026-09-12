@@ -157,4 +157,118 @@ describe("AssistantMessage", () => {
       expect(container.querySelector(".craftstation-message-action-strip")).toBe(reservedStrip);
     });
   });
+
+  describe("fork and end time", () => {
+    const answer: RuntimeChatItem = {
+      id: "asst_answer",
+      type: "assistant_message",
+      state: "completed",
+      payload: { content: [{ kind: "text", text: "All done." }] },
+      streams: {},
+    };
+    const endedAt = new Date("2026-05-01T17:14:00.000Z").getTime();
+
+    function seed(items: RuntimeChatItem[]) {
+      useAppStore.setState({
+        runtimeItemIdsByThread: { "thread-1": items.map((entry) => entry.id) },
+        runtimeItemsByIdByThread: {
+          "thread-1": Object.fromEntries(items.map((entry) => [entry.id, entry])),
+        },
+      });
+    }
+
+    function seedTurnRecord() {
+      useAppStore.getState().hydrateThreadCompletedTurns("thread-1", [
+        {
+          startedAt: new Date("2026-05-01T17:11:31.000Z").getTime(),
+          endedAt,
+          anchorItemId: answer.id,
+        },
+      ]);
+    }
+
+    beforeEach(() => {
+      useAppStore.setState({
+        threads: [],
+        runtimeItemIdsByThread: {},
+        runtimeItemsByIdByThread: {},
+        runtimeCompletedTurnsByThread: {},
+      });
+    });
+
+    it("shows the fork action and end time on a settled turn's final answer", () => {
+      seed([answer]);
+      seedTurnRecord();
+      render(
+        <AppProvider>
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
+        </AppProvider>,
+      );
+      expect(screen.getByLabelText("Fork from this turn")).toBeTruthy();
+      const expectedClock = new Date(endedAt).toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      expect(screen.getByText(expectedClock)).toBeTruthy();
+    });
+
+    it("shows no end time when the turn record is missing", () => {
+      seed([answer]);
+      render(
+        <AppProvider>
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
+        </AppProvider>,
+      );
+      expect(screen.getByLabelText("Copy message")).toBeTruthy();
+      expect(screen.getByLabelText("Fork from this turn")).toBeTruthy();
+      expect(screen.queryByText(/\d{1,2}:\d{2}/u)).toBeNull();
+    });
+
+    it("hides the fork action while the turn is still active", () => {
+      seed([answer]);
+      seedTurnRecord();
+      render(
+        <AppProvider>
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={true} />
+        </AppProvider>,
+      );
+      expect(screen.queryByLabelText("Fork from this turn")).toBeNull();
+    });
+
+    it("hides the fork action for intermediate answers but keeps copy gating", () => {
+      seed([
+        answer,
+        { id: "tool_1", type: "tool_call", state: "completed", payload: {}, streams: {} },
+      ]);
+      seedTurnRecord();
+      render(
+        <AppProvider>
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
+        </AppProvider>,
+      );
+      expect(screen.queryByLabelText("Copy message")).toBeNull();
+      expect(screen.queryByLabelText("Fork from this turn")).toBeNull();
+    });
+
+    it("hides the fork action for remote threads while keeping copy", () => {
+      seed([answer]);
+      seedTurnRecord();
+      useAppStore.setState({
+        threads: [
+          {
+            id: "thread-1",
+            remoteServerId: "desktop-1",
+            remoteId: "remote-1",
+          },
+        ],
+      } as never);
+      render(
+        <AppProvider>
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
+        </AppProvider>,
+      );
+      expect(screen.getByLabelText("Copy message")).toBeTruthy();
+      expect(screen.queryByLabelText("Fork from this turn")).toBeNull();
+    });
+  });
 });

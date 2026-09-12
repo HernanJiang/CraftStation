@@ -4,7 +4,8 @@ import type { AgentStatus } from "@/shared/contracts";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import type { CustomModel } from "@/renderer/components/thread/customModelCatalog";
-import { ModelManagementPage } from "./ModelManagementPage";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
+import { formatContextBadge, ModelManagementPage } from "./ModelManagementPage";
 
 function makeStatus(kind: string, label: string, models: string[]): AgentStatus {
   return {
@@ -62,6 +63,15 @@ describe("ModelManagementPage bulk model visibility", () => {
       wslLoaded: true,
     });
     useSharedSettings.setState({ hiddenModels: {} });
+  });
+
+  it("formats context badges with decimal units", () => {
+    expect(formatContextBadge("")).toBeUndefined();
+    expect(formatContextBadge("  ")).toBeUndefined();
+    expect(formatContextBadge("1000000")).toBe("1M");
+    expect(formatContextBadge("128000")).toBe("128K");
+    expect(formatContextBadge("1500")).toBe("1500");
+    expect(formatContextBadge("1M")).toBe("1M");
   });
 
   it("selects or clears every model in the current channel", () => {
@@ -206,6 +216,59 @@ describe("ModelManagementPage bulk model visibility", () => {
     );
     expect(screen.queryByText("OpenAI 兼容 API")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("上下文大小")).not.toBeInTheDocument();
+  });
+
+  it("manages saved recipes through the 我的配方 channel", () => {
+    // Workbench store writes persist through dbStorage: stub the bridge for
+    // this case only, then restore so other cases keep a bridgeless env.
+    const previousBridge = (window as unknown as { craftstation?: unknown }).craftstation;
+    Object.assign(window, {
+      craftstation: {
+        ...((previousBridge ?? {}) as Record<string, unknown>),
+        dbGetState: vi.fn<() => Promise<null>>().mockResolvedValue(null),
+        dbSetState: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      },
+    });
+    try {
+    useCraftingWorkbenchStore.setState({
+      recipes: [
+        {
+          id: "recipe:harness:codex:agent:codex:gpt-5",
+          version: "1.0.0",
+          systemName: "Codex Harness · GPT-5",
+          modelEntryRef: "agent:codex:gpt-5",
+          harnessRef: "harness:codex",
+          compatibility: { uiStatus: "NATIVE" },
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    renderPage();
+    fireEvent.click(
+      within(screen.getByTestId("model-channel-rail")).getByRole("button", { name: /我的配方/u }),
+    );
+
+    const rows = within(screen.getByTestId("recipe-rows"));
+    const checkbox = rows.getByRole("checkbox");
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(checkbox);
+    expect(
+      useCraftingWorkbenchStore.getState().recipes[0]?.homepageVisible,
+    ).toBe(true);
+    // 右名单出现该配方。
+    expect(
+      within(screen.getByTestId("model-roster-panel")).getByText("Codex Harness · GPT-5"),
+    ).toBeInTheDocument();
+    } finally {
+      useCraftingWorkbenchStore.setState({ recipes: [] });
+      if (previousBridge === undefined) {
+        delete (window as unknown as { craftstation?: unknown }).craftstation;
+      } else {
+        (window as unknown as { craftstation?: unknown }).craftstation = previousBridge;
+      }
+    }
   });
 
   it("does not expose an installed provider until it is configured in the usage workspace", () => {

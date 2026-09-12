@@ -34,12 +34,16 @@ export function isTabBottomDocked(tab: RightPanelTab): boolean {
  * Surfaces positioned from the outside (the browser webview) key off this.
  */
 export function useIsPanelTabVisible(tab: RightPanelTab): boolean {
+  const modelUsageOpen = usePanelStore((s) => s.modelUsageDialogOpen);
   const auxiliaryPanelVisible = usePanelStore(
     (s) => s.auxiliaryPanelPlacement !== "hidden" && s.auxiliaryPanelTab !== null,
   );
   const isActiveTab = usePanelStore((s) => s.auxiliaryPanelTab === tab);
   const isSplitTab = usePanelStore((s) => s.rightPanelSplit?.tab === tab);
   const docks = useBottomDockedTabs();
+  // 模型与用量 replaces the workspace (including the right panel). Keep the
+  // body-portaled browser from sitting on the last dock rect with no chrome.
+  if (modelUsageOpen) return false;
   return (
     (auxiliaryPanelVisible && (isActiveTab || isSplitTab)) ||
     docks.left === tab ||

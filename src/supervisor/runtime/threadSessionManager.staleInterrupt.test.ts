@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -119,6 +119,7 @@ function createManager(adapter: AgentAdapter): {
 } {
   const tempDir = mkdtempSync(join(tmpdir(), "craftstation-stale-interrupt-"));
   tempDirs.push(tempDir);
+  writeFileSync(join(tempDir, "settings.json"), JSON.stringify({ locale: "en" }));
   const events: SupervisorEvent[] = [];
   const manager = new ThreadSessionManager({
     emit: (event: SupervisorEvent) => {

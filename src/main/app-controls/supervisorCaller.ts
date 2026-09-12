@@ -29,6 +29,7 @@ export function createAppControlsSupervisorCaller(
     sendThreadInput: (payload) => call("sendThreadInput", payload),
     interruptThread: (payload) => call("interruptThread", payload),
     closeThread: (payload) => call("closeThread", payload),
+    switchThreadProvider: (payload) => call("switchThreadProvider", payload),
     getProviderUsage: (payload) => call("getProviderUsage", payload),
     refreshProviderUsage: (payload) => call("refreshProviderUsage", payload),
     searchProjectFiles: (payload) => call("searchProjectFiles", payload),

@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { HostPort, Logger } from "@craftstation/agents-usage";
+import { getUsageSecret, reportUndecryptableSecret } from "@/shared/usageSecretStore";
 import { createNativeCredentialStore } from "./usageCredentials";
 import { createNodeHttpClient } from "./usageHttpClient";
 
@@ -29,9 +30,19 @@ function createDevFileLogger(cacheDir: string): Logger {
 export function createNodeUsageHost(cacheDir?: string, settingsPath?: string): HostPort {
   const devLog =
     process.env.CRAFTSTATION_IS_DEV === "1" && cacheDir ? createDevFileLogger(cacheDir) : undefined;
+  // Sealed secrets that no longer decrypt (no known app key opens them) would
+  // otherwise read as silent auth-missing. Log once per provider/key so the
+  // user learns the saved credential needs re-entry.
+  const watchUndecryptable = cacheDir ? reportUndecryptableSecret : undefined;
   return {
     http: createNodeHttpClient(),
-    credentials: createNativeCredentialStore(cacheDir, settingsPath),
+    credentials: {
+      ...createNativeCredentialStore(cacheDir, settingsPath),
+      // Wrap only getSecret with the undecryptable watch; the native store's
+      // getOAuthToken path is key-file based, not sealed-secret based.
+      getSecret: async (providerId, key) =>
+        cacheDir ? getUsageSecret(cacheDir, providerId, key, watchUndecryptable) : undefined,
+    },
     now: () => Date.now(),
     ...(devLog ? { log: devLog } : {}),
   };

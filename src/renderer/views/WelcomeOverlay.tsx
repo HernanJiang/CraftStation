@@ -1,9 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
-import { isHomeProject } from "@/shared/homeScope";
-import { loadHomeScopeLocation } from "@/renderer/actions/projectActions";
-import { useAppStore } from "@/renderer/state/appStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import {
   isWelcomeSeen,
@@ -52,7 +49,6 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
 
   const homeScopeEnabled = useSharedSettings((state) => state.homeScopeEnabled);
   const setHomeScopeEnabled = useSharedSettings((state) => state.setHomeScopeEnabled);
-  const openDraft = useAppStore((state) => state.openDraft);
 
   // `welcomeSeen` is resolved synchronously from localStorage (or the dev-only
   // manual-test bypass) so the overlay's open state is known on the very first
@@ -146,26 +142,12 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
     useWelcomeGateStore.getState().releaseBackgroundWork();
   }
 
-  function handleAskQuestion() {
+  function handleStart() {
     if (!homeScopeEnabled) {
       setHomeScopeEnabled(true);
     }
+    // Keep the restored view; Start must not open a new Home draft.
     dismissWelcome();
-
-    const existingHomeProject = useAppStore.getState().projects.find(isHomeProject);
-    if (existingHomeProject) {
-      openDraft(existingHomeProject.id);
-      return;
-    }
-
-    void loadHomeScopeLocation()
-      .then((location) => {
-        const project = useAppStore.getState().ensureHomeProject(location);
-        openDraft(project.id);
-      })
-      .catch(() => {
-        useAppStore.getState().openHome();
-      });
   }
 
   if (!mounted) return null;
@@ -270,7 +252,7 @@ export function WelcomeOverlay(props: { ready?: boolean } = {}) {
                 size="lg"
                 variant="tertiary"
                 className="craftstation-welcome-button h-12 justify-center gap-2 !text-white"
-                onPress={handleAskQuestion}
+                onPress={handleStart}
               >
                 <Trans>Start</Trans>
               </Button>

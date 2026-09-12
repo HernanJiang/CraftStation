@@ -11,9 +11,12 @@ export function ActivitySection(props: {
   tokensAvailable: boolean;
   metric: ActivityMetric;
   onMetricChange: (metric: ActivityMetric) => void;
+  /** Denser heading for the 3-column usage-stats layout. */
+  compact?: boolean;
 }) {
   const { t } = useLingui();
-  const { promptHeatmap, tokenHeatmap, tokensAvailable, metric, onMetricChange } = props;
+  const { promptHeatmap, tokenHeatmap, tokensAvailable, metric, onMetricChange, compact = false } =
+    props;
   const showTokens = metric === "tokens" && tokensAvailable && tokenHeatmap;
   const heatmap = showTokens ? tokenHeatmap : promptHeatmap;
 
@@ -23,9 +26,13 @@ export function ActivitySection(props: {
   ];
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className={`flex flex-col ${compact ? "gap-2" : "gap-3"}`}>
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">{t`Activity`}</h2>
+        <h2
+          className={`font-semibold text-foreground ${compact ? "text-xs" : "text-sm"}`}
+        >
+          {t`Activity`}
+        </h2>
         <LightballTabs
           tabs={tabs}
           active={metric}

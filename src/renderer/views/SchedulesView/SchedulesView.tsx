@@ -14,6 +14,7 @@ import { ensureHomeScopeProject } from "@/renderer/actions/projectActions";
 import { openThread } from "@/renderer/actions/threadActions";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useScheduleStore } from "@/renderer/state/scheduleStore";
 import { useProjectIdsHiddenByWorkspace } from "@/renderer/state/workspaceSelectors";
 import { SettingsPage } from "@/renderer/views/SettingsOverlay/parts/SettingsForm";
 import { ScheduleEditor } from "./ScheduleEditor";
@@ -69,6 +70,7 @@ export function SchedulesView() {
    * stay visible without needing their own special cases.
    */
   const hiddenProjectIds = useProjectIdsHiddenByWorkspace();
+  const focusedScheduleId = useScheduleStore((state) => state.focusedScheduleId);
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const agents = agentStatuses
     .filter((agent) => {
@@ -88,22 +90,39 @@ export function SchedulesView() {
 
   useEffect(() => {
     let cancelled = false;
-    void readBridge()
-      .getSchedules()
-      .then((next) => {
-        if (!cancelled) setTasks(next);
-      })
-      .catch((loadError: unknown) => {
-        if (!cancelled)
-          setError(loadError instanceof Error ? loadError.message : String(loadError));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const load = () => {
+      void readBridge()
+        .getSchedules()
+        .then((next) => {
+          if (!cancelled) setTasks(next);
+        })
+        .catch((loadError: unknown) => {
+          if (!cancelled)
+            setError(loadError instanceof Error ? loadError.message : String(loadError));
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    load();
+    // Unified store: Agent tools and this page share one ScheduleService, so
+    // refresh on host broadcast (agent create/update/pause/delete, run settle)
+    // and on window focus — the page never keeps a forked copy.
+    const unsubscribe = readBridge().onSchedulesChanged?.(() => load());
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
+      unsubscribe?.();
+      window.removeEventListener("focus", onFocus);
     };
   }, []);
+
+  useEffect(() => {
+    if (!focusedScheduleId) return;
+    const node = document.querySelector(`[data-schedule-id="${focusedScheduleId}"]`);
+    node?.scrollIntoView({ block: "nearest" });
+  }, [focusedScheduleId, tasks]);
 
   // Poll only while a run is active. Depend on the derived boolean (not the
   // whole `tasks` array) so the interval is recreated when the running state
@@ -153,6 +172,9 @@ export function SchedulesView() {
     if (task.recurrence.kind === "once") {
       return t`Once on ${dateTimeFormatter.format(new Date(task.recurrence.runAt))}`;
     }
+    if (task.recurrence.kind === "interval") {
+      return t`Every ${task.recurrence.everyMinutes} minutes`;
+    }
     if (task.recurrence.kind === "hourly") {
       return task.recurrence.minute === 0
         ? t`Every hour`
@@ -170,16 +192,6 @@ export function SchedulesView() {
     if (task.lastStatus === "running") return t`Running now`;
     if (!task.enabled || !task.nextRunAt) return t`Paused`;
     return t`Next run ${dateTimeFormatter.format(new Date(task.nextRunAt))}`;
-  }
-
-  function updateTask(task: ScheduledTask, input: ScheduledTaskInput) {
-    setError("");
-    void readBridge()
-      .updateSchedule({ id: task.id, task: input })
-      .then((next) => setTasks((current) => replaceTask(current, next)))
-      .catch((updateError: unknown) =>
-        setError(updateError instanceof Error ? updateError.message : String(updateError)),
-      );
   }
 
   function runNow(task: ScheduledTask) {
@@ -202,10 +214,15 @@ export function SchedulesView() {
   }
 
   function toggleEnabled(task: ScheduledTask) {
-    updateTask(task, {
-      ...scheduleDraftInput(taskScheduleDraft(task)),
-      enabled: !task.enabled,
-    });
+    setError("");
+    const request = task.enabled
+      ? readBridge().pauseSchedule({ id: task.id })
+      : readBridge().resumeSchedule({ id: task.id });
+    void request
+      .then((next) => setTasks((current) => replaceTask(current, next)))
+      .catch((toggleError: unknown) =>
+        setError(toggleError instanceof Error ? toggleError.message : String(toggleError)),
+      );
   }
 
   // Opening a run's linked GUI thread switches the app to the "thread" view,
@@ -475,6 +492,7 @@ export function SchedulesView() {
                 <ScheduleRow
                   key={task.id}
                   task={task}
+                  focused={task.id === focusedScheduleId}
                   recurrenceLabel={describeRecurrence(task)}
                   nextRunLabel={formatNextRun(task)}
                   onRunNow={runNow}

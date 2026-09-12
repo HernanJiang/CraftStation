@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { isIP } from "node:net";
 import { decodeThreadIdentity, type McpThreadIdentity } from "@/shared/browserMcpThread";
 import { isLocalhostOrigin, readBoundedNodeRequestBody, writeJsonResponse } from "@/shared/http";
+import { LOCAL_MCP_BIND_HOST } from "@/shared/localMcpBind";
 
 export interface StreamableHttpMcpIngressInfo {
   url: string;
@@ -30,10 +31,9 @@ export interface StreamableHttpMcpToolResult {
 
 export interface StreamableHttpMcpIngressOptions<TContext> {
   /**
-   * Network interface to bind. Defaults to `0.0.0.0` so WSL agents can reach the
-   * host-side endpoint via the gateway IP. Consumers whose surface must never be
-   * reachable off the host (e.g. computer-use input control) should pass
-   * `"127.0.0.1"` to bind loopback only.
+   * Network interface to bind. Defaults to loopback so Windows Firewall is not
+   * prompted at launch. Pass `"0.0.0.0"` only for a surface that must be
+   * reachable off-host (remote access), never for local MCP.
    */
   bindHost?: string;
   contextUnavailableMessage?: string;
@@ -85,7 +85,7 @@ export class StreamableHttpMcpIngress<TContext> {
 
   async start(): Promise<StreamableHttpMcpIngressInfo> {
     if (this.info) return this.info;
-    const bindHost = this.options.bindHost ?? "0.0.0.0";
+    const bindHost = this.options.bindHost ?? LOCAL_MCP_BIND_HOST;
     return await new Promise<StreamableHttpMcpIngressInfo>((resolve, reject) => {
       const server = createServer((req, res) => {
         void this.handle(req, res);
@@ -156,10 +156,9 @@ export class StreamableHttpMcpIngress<TContext> {
    * real DNS name rather than a loopback name or a raw IP literal. A rebinding
    * attack points an attacker-controlled hostname at the loopback address, so
    * the forged request carries that hostname in `Host`. Loopback (`localhost`)
-   * and IP literals are safe: the browser ingress binds `0.0.0.0` and WSL
-   * agents reach it via the host-gateway IP (an IP literal), so this stays
-   * compatible with every legitimate caller. The port, when present, must match
-   * the bound port.
+   * and IP literals are safe: local MCP binds loopback, and any remaining
+   * IP-literal callers (tests, WSL mirrored `127.0.0.1`) keep working. The
+   * port, when present, must match the bound port.
    */
   private isAllowedHost(req: IncomingMessage): boolean {
     const hostHeader = req.headers.host;

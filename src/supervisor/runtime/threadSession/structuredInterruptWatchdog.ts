@@ -26,9 +26,13 @@ export class StructuredInterruptWatchdog {
     if (session.presentationMode !== "gui") {
       return;
     }
-    if (!session.structuredSession?.interruptTurn || session.structuredTurnInterruptRequested) {
+    if (!session.structuredSession?.interruptTurn) {
       return;
     }
+    // A previous request may have left the flag set (the acked-cancel path
+    // never clears it); a new explicit Stop always deserves a fresh
+    // deadline — a stale flag must never neuter it into a silent no-op that
+    // bricks the thread in "working" with a dead stop button.
     session.structuredTurnInterruptRequested = true;
     this.armStructuredInterruptWatchdog(session);
     try {

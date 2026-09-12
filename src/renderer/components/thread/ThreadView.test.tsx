@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/renderer/components/providers/bootstrap";
 import type { Thread } from "@/shared/contracts";
@@ -1147,7 +1147,7 @@ describe("ThreadView", () => {
     expect(screen.getByRole("button", { name: "CraftStation mode" })).toBeInTheDocument();
   });
 
-  it("shows the pinned todo dock without duplicating the latest plan row or hiding the live timer", async () => {
+  it("surfaces the GUI plan only in the top-right capsule without duplicating the plan row or hiding the live timer", async () => {
     const now = Date.now();
     const activeTurnStartedAt = new Date(now - 70_000).toISOString();
     const createdAt = new Date(now - 80_000).toISOString();
@@ -1233,15 +1233,17 @@ describe("ThreadView", () => {
       },
     });
 
-    const progressButton = screen.getByRole("button", { name: "Plan progress 0/2" });
-    expect(progressButton).toBeInTheDocument();
+    // 计划进度唯一入口是右上角胶囊：composer 不再有 plan-progress 徽标。
+    expect(screen.queryByTestId("plan-progress-badge")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Thread todo dock")).not.toBeInTheDocument();
+    const capsule = screen.getByTestId("project-status-capsule");
+    expect(capsule).toHaveTextContent("Step 0/2");
     expect(screen.queryByText("Build ACP todo dock")).not.toBeInTheDocument();
-    fireEvent.click(progressButton);
-    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent("Build ACP todo dock");
-    expect(screen.getByTestId("plan-progress-popover")).toHaveTextContent(
-      "Current: Build ACP todo dock",
-    );
+
+    // 点击 Step segment 直接在胶囊旁展开任务卡。
+    fireEvent.click(within(capsule).getByRole("button", { name: "Step 0/2. Show task." }));
+    expect(screen.getByTestId("project-status-panel")).toBeInTheDocument();
+    expect(screen.getByText("Build ACP todo dock")).toBeInTheDocument();
     expect(screen.queryByText("Old inline todo")).not.toBeInTheDocument();
     expect(screen.queryByText("No messages yet")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/^Working for 1m/)).toBeInTheDocument());
@@ -1320,7 +1322,10 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(screen.getByLabelText("Thread goal dock")).toHaveAttribute("data-placement", "composer");
+    expect(screen.getByLabelText("Thread goal dock")).toHaveAttribute(
+      "data-placement",
+      "context-bar",
+    );
     expect(screen.getAllByText("Ship GUI goal dock")).toHaveLength(1);
     expect(screen.queryByText("Goal set")).not.toBeInTheDocument();
     expect(screen.queryByText("No messages yet")).not.toBeInTheDocument();
@@ -1399,7 +1404,10 @@ describe("ThreadView", () => {
       },
     });
 
-    expect(screen.getByLabelText("Thread goal dock")).toHaveAttribute("data-placement", "composer");
+    expect(screen.getByLabelText("Thread goal dock")).toHaveAttribute(
+      "data-placement",
+      "context-bar",
+    );
     expect(screen.getByText("Ship completed GUI goal dock")).toBeInTheDocument();
     expect(screen.getByText("Complete · 120 tokens")).toBeInTheDocument();
   });
@@ -1597,11 +1605,62 @@ describe("ThreadView", () => {
         path: "C:\\repo",
       },
       paneCount: 2,
-      onMarkDone: () => undefined,
     });
 
     expect(screen.queryByRole("button", { name: "Show thread tools" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Mark done" })).toBeInTheDocument();
+    // The scattered header icon row was replaced by the project status capsule;
+    // mark-done lives in the sidebar thread items, not in the capsule.
+    expect(screen.getByTestId("project-status-capsule")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "标记完成" })).toBeNull();
+    fireEvent.click(screen.getByTestId("project-status-capsule"));
+    expect(screen.queryByRole("button", { name: "标记完成" })).toBeNull();
+  });
+
+  it("floats the status capsule as an overlay when the right panel is open", () => {
+    act(() => {
+      usePanelStore.setState({ auxiliaryPanelPlacement: "hidden" });
+    });
+    renderThreadView({
+      thread: {
+        id: "thread-capsule-overlay",
+        projectId: "project-1",
+        title: "Overlay thread",
+        agentKind: "codex",
+        config: {
+          model: "gpt-5.4",
+        },
+        status: "idle",
+        attention: "none",
+        canResumeWithConfig: true,
+        archived: false,
+        done: false,
+        starred: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      agentStatus: undefined,
+      projectLocation: {
+        kind: "windows",
+        path: "C:\\repo",
+      },
+      paneCount: 1,
+    });
+
+    const wrapper = screen.getByTestId("project-status-capsule").closest("[data-capsule-slot]")!;
+    // Sidebar closed: the capsule takes part in the header layout.
+    expect(wrapper.className).not.toContain("absolute");
+
+    act(() => {
+      usePanelStore.setState({ auxiliaryPanelPlacement: "right" });
+    });
+    // Sidebar open: overlay floats top-right without layout width, so status
+    // growth can never re-squeeze the chat column.
+    expect(wrapper.className).toContain("absolute");
+
+    act(() => {
+      usePanelStore.setState({ auxiliaryPanelPlacement: "hidden" });
+    });
+    expect(wrapper.className).not.toContain("absolute");
   });
 
   it("hides base-checkout thread tools while a new worktree is provisioning", async () => {

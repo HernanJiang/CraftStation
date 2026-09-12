@@ -122,10 +122,10 @@ export function SubAgentContent({
   const display = payload ? deriveToolDisplay(payload) : null;
   const Icon = display?.Icon ?? Bot;
   const header = resolveSubAgentHeader(
-    display?.title ?? (isCrossagent ? t`Crossagent` : t`Subagent`),
+    display?.title ?? (isCrossagent ? t`Own subagent` : t`Subagent`),
     payload,
     isCrossagent,
-    t`Crossagent`,
+    t`Own subagent`,
   );
   const isRunning = item.state !== "completed" || payload?.status === "running";
   const workflow = payload && isWorkflowTool(payload) ? parseWorkflowInfo(payload) : null;
@@ -154,7 +154,7 @@ export function SubAgentContent({
       {...(header.description ? { description: header.description } : {})}
       icon={<Icon className="size-3.5 shrink-0 text-[color:var(--muted)]" />}
       {...(onClose ? { onClose } : {})}
-      closeLabel={isCrossagent ? t`Close Crossagent` : t`Close subagent`}
+      closeLabel={isCrossagent ? t`Close own subagent` : t`Close subagent`}
       hideTitleBorder={renderWorkflow}
       hideHeader={hideHeader}
     >
@@ -198,10 +198,10 @@ export function SubAgentHeaderText({
   const isCrossagent = isCrossagentTool(payload);
   const display = payload ? deriveToolDisplay(payload) : null;
   const header = resolveSubAgentHeader(
-    display?.title ?? (isCrossagent ? t`Crossagent` : t`Subagent`),
+    display?.title ?? (isCrossagent ? t`Own subagent` : t`Subagent`),
     payload,
     isCrossagent,
-    t`Crossagent`,
+    t`Own subagent`,
   );
   const title = (
     <span

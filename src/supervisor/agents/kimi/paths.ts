@@ -1,5 +1,7 @@
+import { existsSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /**
  * Native (non-WSL) Kimi Code home and credential paths.
@@ -17,4 +19,47 @@ export function nativeKimiHomePath(): string {
 
 export function nativeKimiOAuthCredentialPath(): string {
   return join(nativeKimiHomePath(), "credentials", "kimi-code.json");
+}
+
+/** Home directory that owns a `credentials/kimi-code.json` path. */
+export function kimiHomeFromOAuthCredentialPath(credentialPath: string): string {
+  return dirname(dirname(credentialPath));
+}
+
+/**
+ * CraftStation managed-account root. Detection and usage both scan
+ * profile directories for credentials/kimi-code.json here so a wiped host
+ * CLI home does not hide a logged-in pool account.
+ */
+export function craftstationAccountsRoot(): string {
+  const override = process.env["CRAFTSTATION_ACCOUNTS_DIR"]?.trim();
+  return override && override.length > 0
+    ? override
+    : join(homedir(), ".craftstation", "craftstation-accounts");
+}
+
+/**
+ * Every Kimi OAuth file CraftStation knows about: the host CLI home first,
+ * then each managed profile directory under the accounts root.
+ */
+export async function listKimiOAuthCredentialPaths(): Promise<string[]> {
+  const paths: string[] = [];
+  if (existsSync(nativeKimiOAuthCredentialPath())) paths.push(nativeKimiOAuthCredentialPath());
+  let entries: Array<{ name: string; isDirectory: () => boolean }> = [];
+  try {
+    entries = await readdir(craftstationAccountsRoot(), { withFileTypes: true });
+  } catch {
+    return paths;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith("profile-")) continue;
+    const candidate = join(
+      craftstationAccountsRoot(),
+      entry.name,
+      "credentials",
+      "kimi-code.json",
+    );
+    if (existsSync(candidate)) paths.push(candidate);
+  }
+  return paths;
 }

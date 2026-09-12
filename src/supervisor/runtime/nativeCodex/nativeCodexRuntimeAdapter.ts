@@ -26,6 +26,7 @@ import {
 } from "@/shared/contracts";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import { buildCodexMcp } from "@/supervisor/agents/userMcp";
+import { explainNativeNetworkError } from "@/supervisor/agents/nativeNetworkError";
 import { AppServerClient } from "./appServerClient";
 import { verifyProfileIdentity } from "../nativeProfile";
 import { AppServerProcessHost } from "./appServerProcessHost";
@@ -327,7 +328,10 @@ export class NativeCodexCraftSession implements CraftSession {
           sessionId: this.id,
         });
         this._diagnostics.push(diagnostic);
-        const errorMsg = error instanceof Error ? error.message : String(error);
+        const rawMsg = error instanceof Error ? error.message : String(error);
+        // Native-CLI transport failures (direct official endpoint unreachable)
+        // get an actionable explanation instead of raw transport text.
+        const errorMsg = explainNativeNetworkError(rawMsg, "Codex") ?? rawMsg;
         this.emitEvent(
           { type: "error", threadId: this.threadId, message: errorMsg },
           "turn/start",
@@ -362,7 +366,8 @@ export class NativeCodexCraftSession implements CraftSession {
           this._activeTurnStatus = event.state;
           if (event.state === "failed") {
             const errorEv = turnEvents.find((e) => e.type === "error") as any;
-            const errMsg = errorEv?.message || "Turn execution failed on app-server";
+            const rawMsg = errorEv?.message || "Turn execution failed on app-server";
+            const errMsg = explainNativeNetworkError(rawMsg, "Codex") ?? rawMsg;
             reject(CraftingError.executionFailed(errMsg, { turnId, sessionId: this.id }));
           } else {
             resolve({

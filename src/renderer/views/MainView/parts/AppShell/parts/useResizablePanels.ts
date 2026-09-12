@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readStoredNumber } from "@/renderer/utils/localStorage";
 import { beginPanelResize, endPanelResize } from "@/renderer/state/panelResizeSignal";
+import { rootZoomFactor } from "@/renderer/components/layout/rootZoom";
 
 // Wide enough to fit a Home-row suffix button (terminal icon) plus a few
 // characters of an active thread title without truncating to ellipses.
@@ -247,7 +248,9 @@ export function useResizablePanels(
       // mid-drag and the panel disappears under the cursor. A floating overlay
       // panel does not squeeze main at all, so the caller overrides the range.
       const limits = getResizeLimitsRef.current?.(target) ?? null;
-      const mainW = refs.mainRef.current?.getBoundingClientRect().width ?? 0;
+      // getBoundingClientRect reports zoom-scaled px; state widths are
+      // unscaled CSS px — normalize so the cap matches at any zoom.
+      const mainW = (refs.mainRef.current?.getBoundingClientRect().width ?? 0) / rootZoomFactor();
       const dockedMaxWidth =
         mainW > 0 ? mainW + startWidth - CONTENT_MIN_WIDTH : Number.POSITIVE_INFINITY;
       // Only meaningful for the "panel" / "git-panel" targets.
@@ -284,11 +287,15 @@ export function useResizablePanels(
         rafId = null;
         if (!hasPending) return;
         hasPending = false;
-        const x = pendingX;
-        const y = pendingY;
+        // Pointer coords are zoom-scaled px; sizes are unscaled CSS px.
+        const zoom = rootZoomFactor();
+        const x = pendingX / zoom;
+        const y = pendingY / zoom;
+        const sx = startX / zoom;
+        const sy = startY / zoom;
 
         if (target === "sidebar") {
-          const delta = x - startX;
+          const delta = x - sx;
           const next = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, startWidth + delta));
           if (next === sizeRef.current.sidebarWidth) return;
           sizeRef.current.sidebarWidth = next;
@@ -296,7 +303,7 @@ export function useResizablePanels(
         } else if (target === "panel" || target === "git-panel") {
           // Both right-side panels are anchored to the right edge and share the
           // same clamp; only the state field and DOM writer differ.
-          const delta = startX - x;
+          const delta = sx - x;
           const next = Math.min(
             sidePanelRange.max,
             Math.max(sidePanelRange.min, startWidth + delta),
@@ -311,7 +318,7 @@ export function useResizablePanels(
             applyGitPanelWidth(next);
           }
         } else if (target === "panel-bottom") {
-          const delta = startY - y;
+          const delta = sy - y;
           const next = Math.min(
             PANEL_BOTTOM_MAX_HEIGHT,
             Math.max(PANEL_BOTTOM_MIN_HEIGHT, startHeight + delta),

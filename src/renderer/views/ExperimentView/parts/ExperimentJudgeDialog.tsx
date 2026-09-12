@@ -34,7 +34,9 @@ export function resolveExperimentJudgeConfig(
   return {
     agentKind: agent.kind,
     model,
-    effort: resolveEffortValue(agent, model, useSavedConfig ? saved.effort : undefined),
+    // The judge contract keeps effort as a required string; an unresolvable
+    // model keeps the historical "" (judge-only, never sent to a CLI).
+    effort: resolveEffortValue(agent, model, useSavedConfig ? saved.effort : undefined) ?? "",
     fast: resolveFastValue(agent, model, useSavedConfig ? saved.fast : undefined),
     mode: saved.mode ?? "changes",
   };
@@ -67,7 +69,7 @@ export function ExperimentJudgeDialog(props: {
           props.onChange({
             agentKind: nextAgent.kind,
             model,
-            effort: resolveEffortValue(nextAgent, model, props.config.effort),
+            effort: resolveEffortValue(nextAgent, model, props.config.effort) ?? "",
             fast: resolveFastValue(nextAgent, model, props.config.fast),
             mode: props.config.mode,
           });

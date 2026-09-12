@@ -35,6 +35,12 @@ vi.mock("./ThreadComposer", () => ({
         <button type="button" onClick={() => props.onPromptChange("hello world")}>
           set-prompt
         </button>
+        <button type="button" onClick={() => props.onPromptChange("/goal fix auth")}>
+          set-goal-prompt
+        </button>
+        <button type="button" onClick={() => props.onPromptChange("/goal")}>
+          set-bare-goal-prompt
+        </button>
         <button type="button" onClick={props.onSubmit}>
           submit
         </button>
@@ -447,7 +453,7 @@ describe("ThreadDraftView", () => {
     expect(document.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
   });
 
-  it("keeps a single Branch/Worktree Git entry above the full draft input", () => {
+  it("keeps no Branch/Worktree Git entry above the draft input (the capsule owns git)", () => {
     useGitStore.setState({
       statuses: {
         [project.id]: {
@@ -470,9 +476,9 @@ describe("ThreadDraftView", () => {
     );
 
     const contextBar = container.querySelector("[data-draft-context-bar]");
-    expect(contextBar?.querySelector("[data-draft-worktree-row]")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Worktree mode" })).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: "Select branch" })).toHaveLength(1);
+    expect(contextBar?.querySelector("[data-draft-worktree-row]")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Worktree mode" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Select branch" })).toBeNull();
   });
 
   it("adds experiment candidates without a prompt and keeps the composer submit button", () => {
@@ -510,9 +516,10 @@ describe("ThreadDraftView", () => {
     };
     expect(composer.submitLabel).toBe("Run experiment");
     expect(composer.submitContent).toBeUndefined();
-    expect(screen.getByRole("button", { name: "Worktree mode" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Select branch" })).toBeEnabled();
-    expect(screen.getByText("from")).toBeInTheDocument();
+    // Branch/worktree selection left the composer strip: the experiment still
+    // runs against the default base, with no branch switcher above the input.
+    expect(screen.queryByRole("button", { name: "Worktree mode" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Select branch" })).toBeNull();
 
     let targets = findElementByTypeName(composer.fixedContent, "ExperimentDraftTargets");
     expect(targets?.props.isAddDisabled).toBe(false);
@@ -527,7 +534,7 @@ describe("ThreadDraftView", () => {
     expect(composer.submitDisabled).toBe(true);
   });
 
-  it("renders the quick-composer surface with new-thread project and worktree controls", () => {
+  it("renders the quick-composer surface without worktree controls", () => {
     useGitStore.setState({
       statuses: {
         [project.id]: {
@@ -564,10 +571,11 @@ describe("ThreadDraftView", () => {
     expect(props.placeholder).toBe("Ask Repo anything about this workspace");
     expect(container.querySelector(".quick-composer-control-surface")).toBeInTheDocument();
     expect(container.querySelector("[data-draft-controls]")).toBeInTheDocument();
-    expect(container.querySelector("[data-draft-worktree-row]")).toBeInTheDocument();
+    expect(container.querySelector("[data-draft-worktree-row]")).toBeNull();
   });
 
   it("defaults a new worktree to the tracking branch when local is in sync", () => {
+    const onStart = vi.fn<(input: unknown) => void>();
     useGitStore.setState({
       statuses: {
         [project.id]: {
@@ -586,57 +594,14 @@ describe("ThreadDraftView", () => {
       },
     });
 
-    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={() => {}} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Worktree mode" }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("origin/main");
-  });
-
-  it("keeps the origin worktree base after selecting the matching local branch", async () => {
-    const onStart = vi.fn<(input: unknown) => void>();
-    useGitStore.setState({
-      statuses: {
-        [project.id]: {
-          isRepo: true,
-          branch: "main",
-          tracking: "origin/main",
-          hasRemote: true,
-          remoteInfo: null,
-          ahead: 0,
-          behind: 4,
-          staged: [],
-          unstaged: [],
-          totalInsertions: 0,
-          totalDeletions: 0,
-        },
-      },
-      branches: {
-        [project.id]: {
-          current: "main",
-          branches: [
-            { name: "main", current: true, commit: "abc", isRemote: false },
-            { name: "develop", current: false, commit: "ghi", isRemote: false },
-            { name: "main", current: false, commit: "def", isRemote: true, remote: "origin" },
-            { name: "develop", current: false, commit: "jkl", isRemote: true, remote: "origin" },
-          ],
-        },
-      },
-    });
-
-    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Worktree mode" }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("origin/main");
-
-    fireEvent.click(screen.getByRole("button", { name: "Select branch" }));
-    fireEvent.click(await screen.findByRole("option", { name: "develop" }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent(
-      "origin/develop",
+    render(
+      <ThreadDraftView
+        project={project}
+        agentStatuses={[codexStatus]}
+        lastDraftConfig={{ ...legacyCodexProject.lastDraftConfig!, worktreeMode: true }}
+        onStart={onStart}
+      />,
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Select branch" }));
-    fireEvent.click(await screen.findByRole("option", { name: "main" }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("origin/main");
 
     fireEvent.click(screen.getByText("set-prompt"));
     fireEvent.click(screen.getByText("submit"));
@@ -647,6 +612,37 @@ describe("ThreadDraftView", () => {
         worktreeIsNewBranch: true,
       }),
     );
+  });
+
+  it("starts the session and binds the goal when the draft submits /goal + Prompt", async () => {
+    const onStart = vi.fn<(input: unknown) => void>();
+    render(
+      <ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />,
+    );
+
+    fireEvent.click(screen.getByText("set-goal-prompt"));
+    fireEvent.click(screen.getByText("submit"));
+
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
+    const input = onStart.mock.calls[0]?.[0] as Record<string, unknown>;
+    // The provider sees the clean prompt; the goal rides out-of-band.
+    expect(input).toMatchObject({ prompt: "fix auth", goal: "fix auth" });
+    for (const segment of (input.segments as Array<{ content?: string }> | undefined) ?? []) {
+      expect(segment.content ?? "").not.toContain("/goal");
+    }
+  });
+
+  it("keeps the text and starts nothing when the draft submits a bare /goal", async () => {
+    const onStart = vi.fn<(input: unknown) => void>();
+    render(
+      <ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />,
+    );
+
+    fireEvent.click(screen.getByText("set-bare-goal-prompt"));
+    fireEvent.click(screen.getByText("submit"));
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onStart).not.toHaveBeenCalled();
   });
 
   it("defaults a new worktree to the tracking branch when the local branch is behind", () => {
@@ -669,10 +665,14 @@ describe("ThreadDraftView", () => {
       },
     });
 
-    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Worktree mode" }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("origin/main");
+    render(
+      <ThreadDraftView
+        project={project}
+        agentStatuses={[codexStatus]}
+        lastDraftConfig={{ ...legacyCodexProject.lastDraftConfig!, worktreeMode: true }}
+        onStart={onStart}
+      />,
+    );
 
     fireEvent.click(screen.getByText("set-prompt"));
     fireEvent.click(screen.getByText("submit"));
@@ -681,106 +681,6 @@ describe("ThreadDraftView", () => {
       expect.objectContaining({
         worktreeBaseBranch: "origin/main",
         worktreeIsNewBranch: true,
-      }),
-    );
-  });
-
-  it("keeps the uncommitted-changes worktree option after selecting a tracking branch", async () => {
-    const onStart = vi.fn<(input: unknown) => void>();
-    useGitStore.setState({
-      statuses: {
-        [project.id]: {
-          isRepo: true,
-          branch: "main",
-          tracking: "origin/main",
-          hasRemote: true,
-          remoteInfo: null,
-          ahead: 0,
-          behind: 4,
-          staged: [],
-          unstaged: [
-            { path: "src/file.ts", status: "M", staged: false, insertions: 1, deletions: 0 },
-          ],
-          totalInsertions: 1,
-          totalDeletions: 0,
-        },
-      },
-    });
-
-    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Worktree mode" }));
-    fireEvent.click(await screen.findByRole("option", { name: /Run in a separate worktree/ }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("origin/main");
-
-    fireEvent.click(screen.getByRole("button", { name: "Worktree mode" }));
-    fireEvent.click(await screen.findByRole("option", { name: /Worktree \+ changes/ }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("main");
-
-    fireEvent.click(screen.getByText("set-prompt"));
-    fireEvent.click(screen.getByText("submit"));
-
-    expect(onStart).toHaveBeenCalledWith(
-      expect.objectContaining({
-        worktreeBaseBranch: "main",
-        worktreeIsNewBranch: true,
-        worktreeTransferUncommitted: true,
-      }),
-    );
-  });
-
-  it("keeps the local checkout after selecting the branch in worktree + changes", async () => {
-    const onStart = vi.fn<(input: unknown) => void>();
-    useGitStore.setState({
-      statuses: {
-        [project.id]: {
-          isRepo: true,
-          branch: "main",
-          tracking: "origin/main",
-          hasRemote: true,
-          remoteInfo: null,
-          ahead: 0,
-          behind: 4,
-          staged: [],
-          unstaged: [
-            { path: "src/file.ts", status: "M", staged: false, insertions: 1, deletions: 0 },
-          ],
-          totalInsertions: 1,
-          totalDeletions: 0,
-        },
-      },
-      branches: {
-        [project.id]: {
-          current: "main",
-          branches: [
-            { name: "main", current: true, commit: "abc", isRemote: false },
-            { name: "main", current: false, commit: "def", isRemote: true, remote: "origin" },
-          ],
-        },
-      },
-    });
-
-    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Worktree mode" }));
-    fireEvent.click(await screen.findByRole("option", { name: /Worktree \+ changes/ }));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("main");
-
-    fireEvent.click(screen.getByRole("button", { name: "Select branch" }));
-    const localMain = await screen.findByRole("option", { name: "main" });
-    expect(localMain).toHaveAttribute("aria-selected", "true");
-    fireEvent.click(localMain);
-    fireEvent.keyDown(screen.getByPlaceholderText("Search branches..."), { key: "Escape" });
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("main");
-
-    fireEvent.click(screen.getByText("set-prompt"));
-    fireEvent.click(screen.getByText("submit"));
-
-    expect(onStart).toHaveBeenCalledWith(
-      expect.objectContaining({
-        worktreeBaseBranch: "main",
-        worktreeIsNewBranch: true,
-        worktreeTransferUncommitted: true,
       }),
     );
   });
@@ -809,7 +709,9 @@ describe("ThreadDraftView", () => {
       leadingControls: ReactElement<{ experiment?: { onToggle: (enabled: boolean) => void } }>;
     };
     act(() => initialComposer.leadingControls.props.experiment?.onToggle(true));
-    expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("origin/main");
+    // No branch switcher above the composer anymore; the experiment falls back
+    // to the tracking branch as its base.
+    expect(screen.queryByRole("button", { name: "Select branch" })).toBeNull();
 
     for (let index = 0; index < 2; index += 1) {
       const composer = composerSpy.mock.lastCall?.[0] as { fixedContent: ReactNode };
@@ -837,6 +739,7 @@ describe("ThreadDraftView", () => {
   });
 
   it("restores the selection replaced by a targeted worktree when the inline composer collapses", async () => {
+    const onStart = vi.fn<(input: unknown) => void>();
     useGitStore.setState({
       statuses: {
         [project.id]: {
@@ -867,15 +770,13 @@ describe("ThreadDraftView", () => {
         agentStatuses={[codexStatus]}
         quickComposer
         restoreWorktreeSelectionToken={0}
-        onStart={() => {}}
+        onStart={onStart}
       />,
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent(
-        "craftstation/calm-viper",
-      );
-    });
+    // No branch switcher above the composer anymore; the restore still runs
+    // behind the scenes and is observable through the launch payload.
+    expect(screen.queryByRole("button", { name: "Select branch" })).toBeNull();
 
     rerender(
       <ThreadDraftView
@@ -883,13 +784,21 @@ describe("ThreadDraftView", () => {
         agentStatuses={[codexStatus]}
         quickComposer
         restoreWorktreeSelectionToken={1}
-        onStart={() => {}}
+        onStart={onStart}
       />,
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Select branch" })).toHaveTextContent("main");
-    });
+    fireEvent.click(screen.getByText("set-prompt"));
+    fireEvent.click(screen.getByText("submit"));
+
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
+    // The targeted worktree selection was restored to the previous (empty)
+    // one: the launch carries no worktree path.
+    expect(onStart).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        existingWorktreePath: "C:\\repo-worktrees\\calm-viper",
+      }),
+    );
   });
 
   afterEach(() => {

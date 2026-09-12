@@ -7,6 +7,7 @@ import { useIsInsertSplitHighlighted, useIsRootInsertHighlighted } from "@/rende
 import { i18n } from "@/renderer/i18n/i18n";
 import { beginPanelResize, endPanelResize } from "@/renderer/state/panelResizeSignal";
 import { paneInsertZoneId } from "./paneInsertZone";
+import { readUnscaledRect, rootZoomFactor } from "./rootZoom";
 import {
   MIN_PANE_PERCENT,
   readStoredSizes,
@@ -51,6 +52,10 @@ type RenderedDivider = Pick<ComputedDivider, "zoneId" | "path" | "parentAxis" | 
 
 function sameContainerSize(a: ContainerSize, b: ContainerSize): boolean {
   return a.width === b.width && a.height === b.height;
+}
+
+function readUnscaledContainerSize(element: HTMLElement): ContainerSize {
+  return readUnscaledRect(element);
 }
 
 function getContainerRect(size: ContainerSize): Rect {
@@ -309,51 +314,22 @@ export function SplitPaneContainer(props: {
     const element = containerRef.current;
     if (!element) return;
 
-    let resizeFrame: number | null = null;
-    function cancelPendingResizeWork() {
-      if (resizeFrame !== null) {
-        cancelAnimationFrame(resizeFrame);
-        resizeFrame = null;
-      }
-    }
-
-    function commitSize(next: ContainerSize) {
-      cancelPendingResizeWork();
-      if (sameContainerSize(containerSizeRef.current, next)) return;
-      containerSizeRef.current = next;
-      bumpLayoutTick();
-    }
-
-    function scheduleLiveLayout() {
-      if (resizeFrame !== null) return;
-      resizeFrame = requestAnimationFrame(() => {
-        resizeFrame = null;
-        applyLayoutForSize(containerSizeRef.current);
-      });
-    }
-
-    function applyObservedSize(next: ContainerSize) {
-      if (sameContainerSize(containerSizeRef.current, next)) return;
-      containerSizeRef.current = next;
-      if (paneElementRefs.current.size === 0) {
-        bumpLayoutTick();
-        return;
-      }
-      scheduleLiveLayout();
-    }
-
+    // ResizeObserver already coalesces deliveries to one per frame, so the
+    // observed size is applied synchronously. Routing the write through
+    // requestAnimationFrame made the pane rects depend on a *subsequent* frame
+    // being produced — when frames briefly stop (occluded window, native
+    // WebContentsView docking while the side browser panel animates open), the
+    // write never ran and panes kept the stale width with no recovery path.
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        applyObservedSize({ width, height });
+        syncContainerSize({ width, height });
       }
     });
     observer.observe(element);
-    const rect = element.getBoundingClientRect();
-    commitSize({ width: rect.width, height: rect.height });
+    syncContainerSize(readUnscaledContainerSize(element));
     return () => {
       observer.disconnect();
-      cancelPendingResizeWork();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- observer lifetime is fixed; resize work reads latest layout from refs
   }, []);
@@ -406,6 +382,33 @@ export function SplitPaneContainer(props: {
   const applyTransientLayout = useCallback(() => {
     applyLayoutForSize(containerSizeRef.current);
   }, [applyLayoutForSize]);
+
+  /** Commit an externally observed container size and re-apply pane rects. */
+  const syncContainerSize = useCallback(
+    (next: ContainerSize) => {
+      if (sameContainerSize(containerSizeRef.current, next)) return;
+      containerSizeRef.current = next;
+      if (paneElementRefs.current.size === 0) {
+        bumpLayoutTick();
+        return;
+      }
+      applyLayoutForSize(next);
+    },
+    [applyLayoutForSize],
+  );
+
+  // Convergence pass for missed ResizeObserver deliveries. RO callbacks run as
+  // part of the rendering steps, so a resize that happens while the renderer is
+  // not producing frames (occluded window, native browser view docking over the
+  // pane) can be missed with no later delivery, leaving pane rects at the stale
+  // width. Re-measure after every render: opening a docked panel always
+  // re-renders the shell, which then heals the rects even when the observer
+  // never fired.
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    syncContainerSize(readUnscaledContainerSize(element));
+  });
 
   useLayoutEffect(() => {
     for (const divider of computed.dividers) {
@@ -460,7 +463,9 @@ export function SplitPaneContainer(props: {
       let lastSizes = initialSizes;
 
       function onMouseMove(ev: MouseEvent) {
-        const deltaPx = (isVertical ? ev.clientX : ev.clientY) - startPos;
+        // Pointer coords are viewport (zoom-scaled) px; sizes below are
+        // unscaled layout px — normalize so drag distance matches at any zoom.
+        const deltaPx = ((isVertical ? ev.clientX : ev.clientY) - startPos) / rootZoomFactor();
         const deltaPercent = (deltaPx / availableDim) * 100;
         const newBefore = beforeStart + deltaPercent;
         const newAfter = afterStart - deltaPercent;

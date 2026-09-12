@@ -23,6 +23,11 @@ import { mergeMcpServers } from "@/shared/contracts/mcpServer";
 import { isHomeProjectId } from "@/shared/homeScope";
 import { skillSegmentFromSlashCommand } from "@/shared/promptContent";
 import { friendlyError } from "@/shared/messages";
+import {
+  parseGoalSlashCommand,
+  stripLeadingGoalCommand,
+  validateGoalPrompt,
+} from "@/shared/threadGoal";
 import { isQuickComposerWindow, isRemoteSession, readBridge } from "@/renderer/bridge";
 import {
   AttachmentBar,
@@ -60,7 +65,6 @@ import { useBrowserAttachInbox } from "@/renderer/state/browserAttachInbox";
 import { useComposerInputInbox } from "@/renderer/state/composerInputInbox";
 import { flattenSegments } from "@/renderer/components/composer/serializeMentions";
 import {
-  BranchSelector,
   generateWorktreeBranch,
   type BranchSelection,
 } from "@/renderer/components/common/BranchSelector/BranchSelector";
@@ -74,6 +78,8 @@ import {
   type ExperimentDraftCandidate,
 } from "@/renderer/components/experiment/ExperimentDraftTargets";
 import { useAppStore } from "@/renderer/state/appStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { useGitStore } from "@/renderer/state/gitStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
@@ -99,13 +105,7 @@ import {
 } from "./threadSlashCommands";
 import { useKeybindingStore } from "@/renderer/commands/keybindingStore";
 import { handleComposerControlShortcut } from "./threadComposerShortcuts";
-import { DraftGitLaunchPortal } from "./DraftGitLaunchSlot";
-import { WorktreeModeSelect, type WorktreeMode } from "./WorktreeModeSelect";
-import {
-  isCurrentCheckoutRef,
-  localBranchNameFromRef,
-  resolveWorktreeOriginRef,
-} from "@/renderer/components/common/BranchSelector/parts/worktreeBaseRef";
+import { resolveWorktreeOriginRef } from "@/renderer/components/common/BranchSelector/parts/worktreeBaseRef";
 
 const EMPTY_BRANCHES: GitBranchInfo[] = [];
 
@@ -117,6 +117,12 @@ export type DraftStartInput = {
   config: ThreadConfig;
   prompt: string;
   segments?: PromptSegment[] | undefined;
+  /**
+   * Durable `/goal` prompt to bind to the new thread. Lets a draft `/goal +
+   * Prompt` submit start the session AND set its goal in one gesture instead
+   * of dead-ending on "start a session first".
+   */
+  goal?: string | undefined;
   existingWorktreePath?: string | undefined;
   worktreeBranch?: string | undefined;
   worktreeBaseBranch?: string | undefined;
@@ -245,6 +251,7 @@ function DraftComposerAddControl(props: {
     disabled: boolean;
     onToggle: (next: boolean) => void;
   };
+  workbench?: { onOpen: () => void };
   computerUse: {
     enabled: boolean;
     visible: boolean;
@@ -255,6 +262,7 @@ function DraftComposerAddControl(props: {
     <ComposerAddMenu
       mcpServers={props.mcpServers}
       customMcpServers={props.customMcpServers}
+      {...(props.workbench ? { workbench: props.workbench } : {})}
       {...(props.readOnlyMcp
         ? {
             readOnly: true,
@@ -546,7 +554,6 @@ export function ThreadDraftComposerArea(props: {
       : undefined;
   const defaultWorktreeBase = trackingWorktreeBase ?? props.gitBranch;
   const selectedWorktreeBase = branchSelection?.baseBranch ?? branchSelection?.branch;
-  const worktreeBase = selectedWorktreeBase ?? defaultWorktreeBase;
   // The worktree dropdown's "+ changes" choice is offered whenever the current
   // (dirty) checkout would be the worktree's fork point — independent of whether
   // worktree mode is already on, since selecting it also turns worktree mode on.
@@ -560,68 +567,8 @@ export function ThreadDraftComposerArea(props: {
   const shouldTransferUncommitted =
     canTransferUncommitted && branchSelection?.transferUncommitted === true;
 
-  const worktreeSelected = branchSelection?.isWorktree ?? props.worktreeMode;
-  const worktreeMode: WorktreeMode = !worktreeSelected
-    ? "none"
-    : shouldTransferUncommitted
-      ? "new-with-changes"
-      : "new";
-
   function resolveOriginBase(branchName: string): string {
     return resolveWorktreeOriginRef(branchName, projectBranches, projectStatus?.tracking);
-  }
-
-  function selectNewWorktree(overrides?: Partial<BranchSelection>) {
-    const base = overrides?.baseBranch ?? worktreeBase ?? props.gitBranch ?? "";
-    setBranchSelection({ branch: base, baseBranch: base, isWorktree: true, ...overrides });
-  }
-
-  function handleWorktreeModeChange(mode: WorktreeMode) {
-    if (mode === "none") {
-      props.onWorktreeModeChange(false);
-      setBranchSelection(null);
-      return;
-    }
-    props.onWorktreeModeChange(true);
-    // Keep an existing worktree selection (e.g. a worktreePath from "New thread
-    // in worktree") intact rather than rebuilding it into a brand-new branch.
-    if (branchSelection?.worktreePath) return;
-    // Worktree + changes must fork from the local checkout so uncommitted
-    // files can be copied. Plain worktree uses the origin ref (T3-style).
-    const localBase = props.gitBranch;
-    const originBase = defaultWorktreeBase ? resolveOriginBase(defaultWorktreeBase) : localBase;
-    const baseBranch = mode === "new-with-changes" ? localBase : originBase;
-    selectNewWorktree({
-      ...(baseBranch ? { baseBranch } : {}),
-      transferUncommitted: mode === "new-with-changes",
-    });
-  }
-
-  function handleBranchSelect(selection: BranchSelection) {
-    if (selection.worktreePath || !selection.isWorktree) {
-      setBranchSelection(selection);
-      return;
-    }
-    const selected = selection.baseBranch ?? selection.branch;
-    const keepChanges =
-      (shouldTransferUncommitted || selection.transferUncommitted === true) &&
-      isCurrentCheckoutRef(selected, props.gitBranch, projectStatus?.tracking);
-    if (keepChanges) {
-      const localName = localBranchNameFromRef(selected, projectBranches);
-      setBranchSelection({
-        ...selection,
-        branch: localName,
-        baseBranch: localName,
-        transferUncommitted: true,
-      });
-      return;
-    }
-    const originBase = resolveOriginBase(selected);
-    setBranchSelection({
-      ...selection,
-      branch: originBase,
-      baseBranch: originBase,
-    });
   }
 
   const computerUseScope =
@@ -820,6 +767,29 @@ export function ThreadDraftComposerArea(props: {
       resetDraftRefs();
       return;
     }
+    // `/goal + Prompt` from a draft starts the session with the prompt as
+    // its first message AND binds it as the new thread's durable goal (via
+    // `DraftStartInput.goal`) — no "start a session first" dead end, and the
+    // provider never sees the command text. Usage errors keep the text so
+    // nothing the user typed is lost.
+    const goalCommand = parseGoalSlashCommand(flatPrompt);
+    let startPrompt = flatPrompt;
+    let startSegments = currentSegments;
+    let startGoal: string | undefined;
+    if (goalCommand.kind === "empty") {
+      toast.danger("用法：/goal + Prompt（Prompt 不能为空）");
+      return;
+    }
+    if (goalCommand.kind === "set") {
+      const validated = validateGoalPrompt(goalCommand.prompt);
+      if (!validated.ok) {
+        toast.danger(validated.error);
+        return;
+      }
+      startGoal = validated.prompt;
+      startSegments = stripLeadingGoalCommand(currentSegments);
+      startPrompt = flattenSegments(startSegments) || validated.prompt;
+    }
     if (authRequired) {
       return;
     }
@@ -831,8 +801,9 @@ export function ThreadDraftComposerArea(props: {
     const startResult = props.onStart({
       agentKind: props.selectedAgent.kind,
       config: props.config,
-      prompt: flatPrompt,
-      ...(currentSegments.length > 0 ? { segments: currentSegments } : {}),
+      prompt: startPrompt,
+      ...(startSegments.length > 0 ? { segments: startSegments } : {}),
+      ...(startGoal ? { goal: startGoal } : {}),
       presentationMode: props.presentationMode,
       ...(useWorktree
         ? branchSelection?.worktreePath
@@ -1274,6 +1245,12 @@ export function ThreadDraftComposerArea(props: {
                 .catch((error: unknown) => toast.danger(friendlyError(error)));
             }}
             customMcpServers={customMcpServers}
+            workbench={{
+              onOpen: () => {
+                useCraftingWorkbenchStore.getState().setCapabilityMode("efficient");
+                usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode: "efficient" });
+              },
+            }}
             readOnlyMcp={providerOwnsMcpForComposer}
             {...(!isHomeScope && !usesRemoteTransport && !isQuickComposer && props.gitBranch
               ? {
@@ -1326,61 +1303,6 @@ export function ThreadDraftComposerArea(props: {
           <ContextQuotaRing quotaProviderId={props.selectedAgent.kind} />
         }
       />
-      {props.gitBranch ? (
-        <DraftGitLaunchPortal>
-          <div
-            data-draft-worktree-row=""
-            className="flex min-w-0 flex-wrap items-center gap-1 px-1"
-          >
-            <WorktreeModeSelect
-              mode={experimentMode ? "new" : worktreeMode}
-              canBringChanges={experimentMode ? false : canBringChanges}
-              onChange={handleWorktreeModeChange}
-              isDisabled={experimentMode}
-              compact
-            />
-            <BranchSelector
-              projectId={props.project.id}
-              currentBranch={props.gitBranch}
-              value={
-                experimentMode
-                  ? (experimentBaseBranch ?? defaultWorktreeBase ?? props.gitBranch)
-                  : worktreeSelected
-                    ? (worktreeBase ?? props.gitBranch)
-                    : (branchSelection?.branch ?? props.gitBranch)
-              }
-              isWorktree={experimentMode ? true : branchSelection?.isWorktree}
-              baseBranch={
-                experimentMode
-                  ? (experimentBaseBranch ?? defaultWorktreeBase ?? props.gitBranch)
-                  : worktreeSelected
-                    ? worktreeBase
-                    : branchSelection?.baseBranch
-              }
-              worktreeMode={experimentMode || props.worktreeMode}
-              {...(!experimentMode ? { onWorktreeModeChange: props.onWorktreeModeChange } : {})}
-              onSelect={
-                experimentMode
-                  ? (selection) =>
-                      setExperimentBaseBranch(
-                        resolveOriginBase(selection.baseBranch ?? selection.branch),
-                      )
-                  : handleBranchSelect
-              }
-              onSwitchBranch={props.onSwitchBranch}
-              hideWorktreeToggle
-              hideTriggerIcon
-              compact
-              showMoveBranchAction={!experimentMode}
-              {...(props.project.scripts?.worktreeCopyPatterns
-                ? {
-                    moveBranchCopyIgnoredPatterns: props.project.scripts.worktreeCopyPatterns,
-                  }
-                : {})}
-            />
-          </div>
-        </DraftGitLaunchPortal>
-      ) : null}
     </>
   );
 }

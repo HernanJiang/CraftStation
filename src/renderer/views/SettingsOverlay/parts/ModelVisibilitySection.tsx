@@ -159,6 +159,8 @@ export function ModelVisibilitySection() {
   const wslAgentStatuses = useAgentStatusesStore((s) => s.wslAgentStatuses);
   const hiddenModels = useSharedSettings((s) => s.hiddenModels);
   const setHiddenModels = useSharedSettings((s) => s.setHiddenModels);
+  const shownModels = useSharedSettings((s) => s.shownModels);
+  const setShownModels = useSharedSettings((s) => s.setShownModels);
 
   const installedAgents = getSettingsInstalledAgents(agentStatuses, wslAgentStatuses);
   const providers = installedAgents.flatMap(expandAgentToVisibilityProviders);
@@ -177,7 +179,13 @@ export function ModelVisibilitySection() {
     const providerKey = providerVisibilityKey(provider);
     hiddenByProvider.set(
       providerKey,
-      new Set(resolveHiddenModelIds(provider.capabilities, hiddenModels[providerKey])),
+      new Set(
+        resolveHiddenModelIds(
+          provider.capabilities,
+          hiddenModels[providerKey],
+          shownModels[providerKey],
+        ),
+      ),
     );
   }
 
@@ -212,9 +220,16 @@ export function ModelVisibilitySection() {
 
   function toggleModel(providerKey: string, modelId: string) {
     const current = new Set(hiddenByProvider.get(providerKey) ?? []);
-    if (current.has(modelId)) current.delete(modelId);
-    else current.add(modelId);
+    const shown = new Set(shownModels[providerKey] ?? []);
+    if (current.has(modelId)) {
+      current.delete(modelId);
+      shown.add(modelId);
+    } else {
+      current.add(modelId);
+      shown.delete(modelId);
+    }
     setHiddenModels(providerKey, [...current]);
+    setShownModels(providerKey, [...shown]);
   }
 
   function toggleGroup(headerId: string) {
@@ -223,30 +238,58 @@ export function ModelVisibilitySection() {
     const state = groupStates.get(headerId) ?? "all";
     const hideAll = state === "all";
     const byProvider = new Map<string, Set<string>>();
+    const shownByProvider = new Map<string, Set<string>>();
     for (const entry of entries) {
       let set = byProvider.get(entry.hiddenModelsKey);
       if (!set) {
         set = new Set(hiddenByProvider.get(entry.hiddenModelsKey) ?? []);
         byProvider.set(entry.hiddenModelsKey, set);
       }
-      if (hideAll) set.add(entry.modelId);
-      else set.delete(entry.modelId);
+      let shownSet = shownByProvider.get(entry.hiddenModelsKey);
+      if (!shownSet) {
+        shownSet = new Set(shownModels[entry.hiddenModelsKey] ?? []);
+        shownByProvider.set(entry.hiddenModelsKey, shownSet);
+      }
+      if (hideAll) {
+        set.add(entry.modelId);
+        shownSet.delete(entry.modelId);
+      } else {
+        set.delete(entry.modelId);
+        shownSet.add(entry.modelId);
+      }
     }
     for (const [providerKey, set] of byProvider) {
       setHiddenModels(providerKey, [...set]);
+    }
+    for (const [providerKey, set] of shownByProvider) {
+      setShownModels(providerKey, [...set]);
     }
   }
 
   function setAllHidden(hideAll: boolean) {
     const byProvider = new Map<string, Set<string>>();
-    for (const provider of providers) byProvider.set(providerVisibilityKey(provider), new Set());
+    const shownByProvider = new Map<string, Set<string>>();
+    for (const provider of providers) {
+      const key = providerVisibilityKey(provider);
+      byProvider.set(key, new Set());
+      shownByProvider.set(key, new Set());
+    }
     if (hideAll) {
       for (const model of allModels) {
         byProvider.get(model.providerKey)?.add(model.modelId);
       }
+    } else {
+      // Showing everything marks every model explicitly shown so curated-
+      // discovery channels keep future discoveries out of the picker.
+      for (const model of allModels) {
+        shownByProvider.get(model.providerKey)?.add(model.modelId);
+      }
     }
     for (const [providerKey, set] of byProvider) {
       setHiddenModels(providerKey, [...set]);
+    }
+    for (const [providerKey, set] of shownByProvider) {
+      setShownModels(providerKey, [...set]);
     }
   }
 

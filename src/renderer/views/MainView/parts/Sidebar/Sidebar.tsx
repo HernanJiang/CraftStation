@@ -7,6 +7,7 @@ import { getAppName } from "@/shared/appName";
 import type { Thread } from "@/shared/contracts";
 import { isEphemeralSideChatThread } from "@/shared/contracts";
 import { isHomeProject, isHomeProjectId } from "@/shared/homeScope";
+import { orderProjectIdsPinnedFirst } from "@/shared/sidebarOrdering";
 import { SidebarButton } from "@/renderer/components/common/SidebarButton";
 import { ThreadProviderIcon } from "@/renderer/components/providers/ThreadProviderIcon";
 import {
@@ -47,6 +48,7 @@ import {
   useWorkspaceProjectIds,
 } from "@/renderer/state/workspaceSelectors";
 import { SidebarCodexNav } from "./parts/SidebarCodexNav";
+import { GlobalPinnedSection } from "./parts/GlobalPinnedSection";
 import { SidebarProviderAccounts } from "./parts/SidebarProviderAccounts";
 import { SidebarProjectThreadList } from "./parts/SidebarProjectThreadList";
 import { UpdateButtons } from "./parts/UpdateButtons";
@@ -211,7 +213,12 @@ export function Sidebar() {
     maxFadePx: 10,
   });
   const sidebarShortcuts = useSidebarShortcuts();
-  const orderedProjectIds = projectIds;
+  const pinnedProjectIds = useSidebarUiStore((s) => s.pinnedProjectIds);
+  const pinnedProjectAt = useSidebarUiStore((s) => s.pinnedProjectAt);
+  // Sidebar order: Global Pinned > Projects (pinned-first) > Home.
+  // Pin is presentation-only — project store order and thread projectId are
+  // never rewritten; unpin returns the item to its natural section.
+  const orderedProjectIds = orderProjectIdsPinnedFirst(projectIds, pinnedProjectIds, pinnedProjectAt);
 
   useEffect(() => {
     if (currentProjectId) {
@@ -379,6 +386,21 @@ export function Sidebar() {
             style={scrollFadeStyle}
           >
             <div className="space-y-4">
+              <GlobalPinnedSection />
+              {projectIds.length > 0 ? (
+                <p className="px-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted/65">
+                  <Trans>Projects</Trans>
+                </p>
+              ) : null}
+              {orderedProjectIds.map((projectId, projectIndex) => (
+                <div key={projectId}>
+                  <SidebarProjectSection
+                    projectId={projectId}
+                    projectIndex={projectIndex}
+                    sortMode={sortMode}
+                  />
+                </div>
+              ))}
               {homeScopeEnabled && homeProject ? (
                 <section className="space-y-0.5">
                   <SidebarButton
@@ -411,20 +433,6 @@ export function Sidebar() {
                   )}
                 </section>
               ) : null}
-              {projectIds.length > 0 ? (
-                <p className="px-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted/65">
-                  <Trans>Projects</Trans>
-                </p>
-              ) : null}
-              {orderedProjectIds.map((projectId, projectIndex) => (
-                <div key={projectId}>
-                  <SidebarProjectSection
-                    projectId={projectId}
-                    projectIndex={projectIndex}
-                    sortMode={sortMode}
-                  />
-                </div>
-              ))}
             </div>
           </div>
         )}

@@ -7,6 +7,7 @@ interface ScheduleRowProps {
   task: ScheduledTask;
   recurrenceLabel: string;
   nextRunLabel: string;
+  focused?: boolean;
   onRunNow: (task: ScheduledTask) => void;
   onToggleEnabled: (task: ScheduledTask) => void;
   onEdit: (task: ScheduledTask) => void;
@@ -18,6 +19,7 @@ export function ScheduleRow({
   task,
   recurrenceLabel,
   nextRunLabel,
+  focused = false,
   onRunNow,
   onToggleEnabled,
   onEdit,
@@ -28,15 +30,29 @@ export function ScheduleRow({
   const isRunning = task.lastStatus === "running";
 
   return (
-    <div className="group flex items-center gap-3 border-b border-[var(--hairline)] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-default-100/60 focus-within:bg-default-100/60">
+    <div
+      data-schedule-id={task.id}
+      data-focused={focused ? "true" : undefined}
+      className={`group flex items-center gap-3 border-b border-[var(--hairline)] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-default-100/60 focus-within:bg-default-100/60 ${
+        focused ? "bg-default-100/80 ring-1 ring-inset ring-accent/40" : ""
+      }`}
+    >
       <span
-        className={`size-1.5 shrink-0 rounded-full ${task.lastStatus === "failed" ? "bg-danger" : isRunning ? "bg-accent" : task.enabled ? "bg-success" : "bg-muted"}`}
+        className={`size-1.5 shrink-0 rounded-full ${task.lastStatus === "failed" ? "bg-danger" : task.lastStatus === "interrupted" ? "bg-warning" : isRunning ? "bg-accent" : task.enabled ? "bg-success" : "bg-muted"}`}
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{task.name}</p>
         <p className="truncate text-xs text-muted">
           {recurrenceLabel} · {nextRunLabel}
+          {task.timezone ? ` · ${task.timezone}` : null}
         </p>
+        {task.targetThreadId || task.recipeId ? (
+          <p className="truncate text-xs text-muted">
+            {task.targetThreadId ? t`Continues thread` : null}
+            {task.targetThreadId && task.recipeId ? " · " : null}
+            {task.recipeId ? `${t`Recipe`} ${task.recipeId}` : null}
+          </p>
+        ) : null}
       </div>
       <div
         className={`flex shrink-0 items-center gap-0.5 transition-opacity focus-within:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 ${isRunning ? "opacity-100" : "opacity-0"}`}

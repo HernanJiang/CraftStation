@@ -114,6 +114,24 @@ describe("projectsThreads (real sqlite round-trip)", () => {
     expect(dbGetThread("thread-1")?.threadStatusSource).toBeUndefined();
   });
 
+  it("persists agentKind on update so a cross-harness switch cannot leave a stale harness", () => {
+    dbUpsertThread(testThread({ agentKind: "grok", config: { model: "grok-4.6" } }), 0);
+    expect(dbGetThread("thread-1")?.agentKind).toBe("grok");
+
+    dbUpsertThread(
+      testThread({
+        agentKind: "antigravity",
+        config: { model: "gemini-3.8-flash" },
+        sessionRef: { providerSessionId: "agy-1", discoveredAt: "2026-01-01T00:00:00.000Z" },
+      }),
+      0,
+    );
+    const row = dbGetThread("thread-1");
+    expect(row?.agentKind).toBe("antigravity");
+    expect(row?.config.model).toBe("gemini-3.8-flash");
+    expect(row?.sessionRef?.providerSessionId).toBe("agy-1");
+  });
+
   it("round-trips composition provenance through the durable thread row across restart", () => {
     const compositionProvenance = {
       recipeId: "recipe:openai-codex-native",

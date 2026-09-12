@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { AgentCapability } from "@/shared/contracts";
 import {
+  collectCustomModelEfforts,
   CONTEXT_SIZE_PRESETS,
   customModelId,
+  effortPresetForProvider,
   mergeCustomModelsIntoCapabilities,
   parseContextSizeTokens,
+  parseEffortTiers,
 } from "./customModelCatalog";
 
 function baseCapabilities(): AgentCapability {
@@ -95,5 +98,55 @@ describe("mergeCustomModelsIntoCapabilities", () => {
     } as AgentCapability;
     const merged = mergeCustomModelsIntoCapabilities("codex", capabilities, custom);
     expect(merged.contextSizes).toHaveLength(1);
+  });
+
+  it("merges hand-written effort tiers without touching builtin entries", () => {
+    const custom = [
+      {
+        id: "custom:codex::my-model",
+        provider: "codex",
+        modelId: "my-model",
+        displayName: "My Model",
+        contextSize: "",
+        efforts: ["low", "high"],
+        defaultEffort: "low",
+      },
+    ];
+    const merged = mergeCustomModelsIntoCapabilities("codex", baseCapabilities(), custom);
+    expect(merged.modelEfforts?.["my-model"]).toEqual(["low", "high"]);
+    expect(merged.modelDefaultEfforts?.["my-model"]).toBe("low");
+    expect(merged.modelEfforts?.["builtin-1"]).toBeUndefined();
+  });
+});
+
+describe("effort presets", () => {
+  it("parses comma-separated tiers and resolves provider presets", () => {
+    expect(parseEffortTiers("low, medium,, high  low")).toEqual(["low", "medium", "high"]);
+    expect(parseEffortTiers("")).toEqual([]);
+    expect(effortPresetForProvider("codex").tiers).toContain("xhigh");
+    expect(effortPresetForProvider("unknown-kind").tiers).toEqual(["low", "medium", "high"]);
+  });
+
+  it("collects only entries with tiers, keeping valid defaults", () => {
+    expect(
+      collectCustomModelEfforts([
+        {
+          id: "a",
+          provider: "codex",
+          modelId: "m1",
+          displayName: "M1",
+          contextSize: "",
+          efforts: ["low"],
+          defaultEffort: "medium",
+        },
+        {
+          id: "b",
+          provider: "codex",
+          modelId: "m2",
+          displayName: "M2",
+          contextSize: "",
+        },
+      ]),
+    ).toEqual({ modelEfforts: { m1: ["low"] } });
   });
 });

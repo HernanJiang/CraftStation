@@ -29,7 +29,9 @@ export type {
 
 export const APP_CONTROLS_MCP_INSTRUCTIONS =
   "CraftStation app controls. Read and control the running app: device schedules " +
-  "(list/create/update/run/delete), app threads (current/list/get/read/create/send/interrupt/stop/wait/" +
+  "(schedule.create/list/get/update/pause/resume/run_now/list_runs/delete — list_runs is the " +
+  "ScheduledTaskRun history an agent must use to monitor firings; lastStatus on get is only a " +
+  "summary. once.runAt is ISO-8601, Z or offset like +08:00), app threads (current/list/get/read/create/send/interrupt/stop/wait/" +
   "update/open), projects (list/get/create/update), app settings (get/update), provider usage " +
   "(get_usage), cross-app search (search), and app info (get_app_info). You can also read a " +
   "running workspace terminal panes and their scrollback, queue steer guidance, stage composer " +

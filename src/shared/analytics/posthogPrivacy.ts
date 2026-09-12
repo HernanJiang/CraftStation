@@ -322,6 +322,7 @@ const ANALYTICS_PROVIDER_IDS = new Set([
   "commandcode",
   "copilot",
   "cursor",
+  "deepseek",
   "factory",
   "gemini",
   "grok",

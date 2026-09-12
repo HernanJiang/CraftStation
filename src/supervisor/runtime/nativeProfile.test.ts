@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { prepareNativeProfile, verifyProfileIdentity } from "./nativeProfile";
 import { AccountControlError } from "@/shared/contracts";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -46,6 +46,22 @@ describe("NativeProfileSpec preparation", () => {
     expect(spec.accountId).toBe("kimi-user-1");
     expect(spec.profilePath).toBe("D:\\test\\kimi-1");
     expect(spec.env.KIMI_CODE_HOME).toBe("D:\\test\\kimi-1");
+  });
+
+  it("prepares Antigravity profile with ADC scope redirects and no secret values", () => {
+    const spec = prepareNativeProfile("antigravity", {
+      accountId: "antigravity:acc-1",
+      credentialRoot: "D:\\test\\agy-1",
+      credentialScopeRef: "managed:antigravity:acc-1",
+    });
+
+    expect(spec.providerId).toBe("antigravity");
+    expect(spec.accountId).toBe("antigravity:acc-1");
+    expect(spec.profilePath).toBe("D:\\test\\agy-1");
+    expect(spec.env.AGY_ADC_AUTH).toBe("1");
+    expect(spec.env.GOOGLE_APPLICATION_CREDENTIALS).toBe(
+      join("D:\\test\\agy-1", "adc", "authorized_user.json"),
+    );
   });
 });
 
@@ -109,5 +125,41 @@ describe("verifyProfileIdentity", () => {
         providerAccountId: "acc-b",
       }),
     ).toThrowError(AccountControlError);
+  });
+
+  it("validates Antigravity ADC credential presence fail-closed", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agy-id-"));
+    const missing = () =>
+      verifyProfileIdentity("antigravity", dir, {
+        accountId: "antigravity:acc-1",
+        providerAccountId: "user-a@example.com",
+      });
+    expect(missing).toThrowError(AccountControlError);
+    expect(missing).toThrow(expect.objectContaining({ code: "ACCOUNT_IDENTITY_UNAVAILABLE" }));
+
+    mkdirSync(join(dir, "adc"), { recursive: true });
+    writeFileSync(
+      join(dir, "adc", "authorized_user.json"),
+      JSON.stringify({ type: "service_account" }),
+      "utf8",
+    );
+    const malformed = () =>
+      verifyProfileIdentity("antigravity", dir, {
+        accountId: "antigravity:acc-1",
+        providerAccountId: "user-a@example.com",
+      });
+    expect(malformed).toThrow(expect.objectContaining({ code: "ACCOUNT_IDENTITY_UNAVAILABLE" }));
+
+    writeFileSync(
+      join(dir, "adc", "authorized_user.json"),
+      JSON.stringify({ type: "authorized_user", refresh_token: "refresh-secret" }),
+      "utf8",
+    );
+    expect(() =>
+      verifyProfileIdentity("antigravity", dir, {
+        accountId: "antigravity:acc-1",
+        providerAccountId: "user-a@example.com",
+      }),
+    ).not.toThrow();
   });
 });

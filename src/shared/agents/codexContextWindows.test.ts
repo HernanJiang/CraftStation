@@ -58,7 +58,7 @@ describe("stored Codex context windows", () => {
     expect(parseStoredContextWindows(serializeContextWindows(windows))).toEqual(windows);
   });
 
-  it("reads the agent-settings key and keeps 400k as the default when present", () => {
+  it("reads the agent-settings key and keeps 272k as the default", () => {
     const windows = resolveCodexContextWindows({ contextWindows: '["1m","272k"]' });
     expect(windows.map((window) => window.id)).toEqual(["272k", "1m"]);
     expect(resolveDefaultCodexContextSize(windows)).toBe("272k");
@@ -69,10 +69,10 @@ describe("stored Codex context windows", () => {
 });
 
 describe("Codex context-window launch overrides", () => {
-  it("defaults to 400k with compaction at 95%", () => {
+  it("defaults to 272k with compaction at 95%", () => {
     expect(codexContextWindowOverrides()).toEqual({
-      model_context_window: 400_000,
-      model_auto_compact_token_limit: 380_000,
+      model_context_window: 272_000,
+      model_auto_compact_token_limit: 258_400,
     });
     expect(codexContextWindowOverrides("1m")).toEqual({
       model_context_window: 1_000_000,
@@ -83,16 +83,16 @@ describe("Codex context-window launch overrides", () => {
 });
 
 describe("buildCodexContextSizeCapabilities", () => {
-  it("puts 400k first on every model so new drafts default to it", () => {
+  it("puts 272k first on every model so new drafts default to it", () => {
     const caps = buildCodexContextSizeCapabilities(
       ["gpt-5.6-sol", "gpt-5.6-terra"],
       DEFAULT_CODEX_CONTEXT_WINDOWS,
     );
-    expect(caps.defaultContextSize).toBe("400k");
+    expect(caps.defaultContextSize).toBe("272k");
     expect(caps.contextSizes?.map((size) => size.id)).toEqual(["272k", "400k", "1m"]);
     expect(caps.modelContextSizes).toEqual({
-      "gpt-5.6-sol": ["400k", "272k", "1m"],
-      "gpt-5.6-terra": ["400k", "272k", "1m"],
+      "gpt-5.6-sol": ["272k", "400k", "1m"],
+      "gpt-5.6-terra": ["272k", "400k", "1m"],
     });
   });
 });

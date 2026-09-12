@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { readBridge } from "@/renderer/bridge";
 import type { PromptSegment } from "@/shared/contracts";
 import { resolveLocalImageDisplayUrl } from "@/shared/localImageDisplay";
-import { fileNameFromPath, isImagePath, toLocalFileUrl } from "@/shared/promptContent";
+import { fileNameFromPath, isAudioPath, isImagePath, toLocalFileUrl } from "@/shared/promptContent";
 
 export interface Attachment {
   id: string;
@@ -10,6 +10,8 @@ export interface Attachment {
   name: string;
   mimeType?: string;
   isImage: boolean;
+  /** Model audio input (wav/mp3/m4a/webm/ogg); played inline, sent as audio. */
+  isAudio?: boolean;
   /** Optional CSS selector when this attachment was produced by the browser element picker. */
   selector?: string;
   /** Optional source page URL for picker attachments. */
@@ -66,6 +68,11 @@ const MIME_BY_EXT: Record<string, string> = {
   txt: "text/plain",
   json: "application/json",
   md: "text/markdown",
+  wav: "audio/wav",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  webm: "audio/webm",
+  ogg: "audio/ogg",
 };
 
 function getExtension(name: string): string {
@@ -120,6 +127,7 @@ export function useAttachments(options: { saveClipboardImage?: SaveClipboardImag
         name,
         ...(mimeType ? { mimeType } : {}),
         isImage: isImagePath(name, mimeType),
+        isAudio: isAudioPath(name, mimeType),
       };
     });
     setAttachments((prev) => [...prev, ...newAttachments]);
@@ -180,6 +188,7 @@ export function useAttachments(options: { saveClipboardImage?: SaveClipboardImag
         name: input.name,
         mimeType: input.mimeType,
         isImage: isImagePath(input.name, input.mimeType),
+        isAudio: isAudioPath(input.name, input.mimeType),
         selector: input.selector,
         sourceUrl: input.sourceUrl,
       },

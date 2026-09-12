@@ -336,6 +336,61 @@ describe("OpencodeSdkSession", () => {
     expect(secondDispose).toHaveBeenCalledTimes(1);
   });
 
+  it("fails the admitted turn with the real exit info when the server dies mid-turn", async () => {
+    let notifyServerExit!: () => void;
+    const runtimeEvents: RuntimeEvent[] = [];
+    const errors: string[] = [];
+    mocks.acquireOpenCodeServer.mockResolvedValue({
+      eventClient: emptyEventClient(),
+      client: {
+        command: { list: vi.fn<() => Promise<{ data: [] }>>().mockResolvedValue({ data: [] }) },
+        session: {
+          create: vi
+            .fn<() => Promise<{ data: { id: string } }>>()
+            .mockResolvedValue({ data: { id: "ses_exit" } }),
+          promptAsync: vi.fn<() => Promise<unknown>>().mockResolvedValue({ data: {} }),
+        },
+      },
+      baseUrl: "http://127.0.0.1:3",
+      handle: { child: { exitCode: 1, signalCode: null } },
+      onServerExit: (callback: () => void) => {
+        notifyServerExit = callback;
+        return vi.fn<() => void>();
+      },
+      dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    });
+
+    const session = await OpencodeSdkSession.create({
+      threadId: "thread-exit",
+      projectLocation,
+      config,
+      presentationMode: "gui",
+    });
+    session.setListener({
+      onClose: () => {},
+      onError: (message) => errors.push(message),
+      onUpdate: () => {},
+      onRuntimeEvent: (event) => runtimeEvents.push(event),
+    });
+    await session.activate();
+    await session.openThread(config);
+
+    // promptAsync resolves (admitted) but the server dies before any event.
+    await session.startTurn("do work", config);
+    notifyServerExit();
+
+    // No timeout fakery: the exit itself settles the turn as failed with the
+    // real code, so the UI timer stops and the error surfaces.
+    expect(
+      runtimeEvents.some(
+        (event) => event.type === "turn.completed" && event.state === "failed",
+      ),
+    ).toBe(true);
+    expect(errors.some((message) => message.includes("exited with code 1"))).toBe(true);
+
+    await session.dispose();
+  });
+
   it("joins the shared pool and forwards the MCP set", async () => {
     const dispose = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     mocks.acquireOpenCodeServer.mockResolvedValue({

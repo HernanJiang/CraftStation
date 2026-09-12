@@ -19,12 +19,14 @@ import {
   createKnownSessionRef,
   type AgentLaunchOptions,
   type CreateStructuredSessionInput,
+  type PoolQuotaFailedTurn,
   type StartTurnOptions,
   type StructuredSessionHandle,
   type StructuredSessionListener,
   type StructuredSessionUpdate,
   type ThreadHistory,
 } from "../base";
+import { isCodexPoolQuotaError } from "./sessionErrors";
 import {
   createCodexMapperState,
   CodexUsageScopeTracker,
@@ -38,6 +40,7 @@ import {
   extractThreadField,
   extractTurnField,
   isRecoverableResumeError,
+  toCodexApprovalPolicy,
   toCodexSandboxPolicy,
   type CodexThreadStatus,
 } from "./acpProtocol";
@@ -84,6 +87,10 @@ function sleep(ms: number): Promise<void> {
 // user sees the generic notice *plus* the real error. The delay only postpones
 // an error message; the error status icon updates synchronously.
 const CODEX_SYSTEM_ERROR_FALLBACK_DELAY_MS = 250;
+// Bounded window for the app-server to follow a turn-level `error`
+// notification with a real `turn/completed`. If it doesn't, the turn is
+// force-settled locally (see `forceSettleErroredTurns`).
+const CODEX_TURN_ERROR_SETTLE_MS = 8_000;
 const CODEX_RESUME_STATUS_REPLAY_SUPPRESSION_MS = 500;
 const CODEX_FORK_NOTIFICATION_BUFFER_LIMIT = 100;
 const CODEX_DISPOSE_INTERRUPT_TIMEOUT_MS = 2_000;
@@ -119,6 +126,15 @@ function isPlainActiveStatus(status: CodexThreadStatus): boolean {
   }
   const flags = new Set(status.activeFlags ?? []);
   return !flags.has("waitingOnApproval") && !flags.has("waitingOnUserInput");
+}
+
+/**
+ * The app-server rejects a turn when its model is unusable with the current
+ * auth, e.g. `The 'glm-5.3-flash' model is not supported when using Codex
+ * with a ChatGPT account.` (status 400 / invalid_request_error).
+ */
+function isModelNotSupportedError(message: string): boolean {
+  return /model.+not supported|not supported.+model/i.test(message);
 }
 
 function readNotificationThreadId(
@@ -180,6 +196,15 @@ export class CodexStructuredSession implements StructuredSessionHandle {
   private wslDistro: string | undefined;
   private currentThreadStatus: CodexThreadStatus = { type: "idle" };
   private currentConfig: ThreadConfig | undefined;
+  /**
+   * Model of the most recently started turn (or the thread-open config once
+   * the remote thread exists). A stale thread config can name a model the
+   * current account cannot use (e.g. after a provider/model switch); without
+   * a fallback every resend 400s and the thread is bricked. `startTurn`
+   * retries once with this model when the server rejects the requested one
+   * as unsupported.
+   */
+  private lastWorkingModel: string | undefined;
   private activeTurnId: string | undefined;
   /**
    * Turn ids currently running on the remote thread. The app-server accepts a
@@ -206,10 +231,36 @@ export class CodexStructuredSession implements StructuredSessionHandle {
   // keeps the user from seeing the same error two or three times. Cleared on
   // the next user turn.
   private readonly seenErrorMessages = new Set<string>();
+  /**
+   * Pool observer callbacks, wired only for pool-bound sessions (the runtime
+   * passes them alongside `onPromptError`). `onPromptError` drives the quota
+   * write-back; `onPoolQuotaTurnFailed` replays the retained prompt on the
+   * next usable pool account. Both stay undefined for ambient sessions.
+   */
+  public onPromptError?: (error: unknown) => void | Promise<void>;
+  public onPoolQuotaTurnFailed?: (failedTurn: PoolQuotaFailedTurn) => void;
+  /**
+   * The live user turn's prompt context, retained so a quota-shaped async
+   * failure (which settles after `startTurn` returned) can still replay the
+   * turn on the next pool account. Cleared by overwriting on every new turn.
+   */
+  private currentTurnPrompt?: {
+    prompt: string;
+    config: ThreadConfig;
+    segments?: PromptSegment[];
+    userMessageItemId?: string;
+  };
   // Pending deferred generic system-error fallback (see
   // CODEX_SYSTEM_ERROR_FALLBACK_DELAY_MS). Cancelled if a specific error
   // arrives first, on the next user turn, or on dispose.
   private pendingSystemErrorFallback: ReturnType<typeof setTimeout> | undefined;
+  // Settles a turn that failed via a bare `error` notification but never
+  // received the matching `turn/completed` (seen with gateway-level failures
+  // like `unknown provider for model`). Without this watchdog the thread
+  // stays "working" forever: only `turn/completed` closes the renderer's
+  // open turn. Cancelled by the next `turn/started`, any completion, or
+  // dispose.
+  private turnErrorSettleTimer: ReturnType<typeof setTimeout> | undefined;
   private mapperState: CodexMapperState | undefined;
   private subAgentRouter: CodexSubAgentRouter | undefined;
   private forkNotificationBuffer:
@@ -285,6 +336,108 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     }
     for (const event of forwarded) {
       this.listener.onRuntimeEvent(event);
+    }
+    if (forwarded.some((event) => event.type === "error") && this.activeTurnIds.size > 0) {
+      this.armTurnErrorSettle();
+    }
+  }
+
+  /**
+   * A turn failure that only surfaces as an `error` notification may never be
+   * followed by `turn/completed` (gateway `model_not_found`, transport loss
+   * right after the error). Give the server a bounded window to settle, then
+   * synthesize the terminal events locally so the turn closes, the thread
+   * leaves "working", and the session stays alive for the next message.
+   */
+  private armTurnErrorSettle(): void {
+    this.clearTurnErrorSettle();
+    this.turnErrorSettleTimer = setTimeout(() => {
+      this.turnErrorSettleTimer = undefined;
+      this.forceSettleErroredTurns();
+    }, CODEX_TURN_ERROR_SETTLE_MS);
+  }
+
+  private clearTurnErrorSettle(): void {
+    if (this.turnErrorSettleTimer !== undefined) {
+      clearTimeout(this.turnErrorSettleTimer);
+      this.turnErrorSettleTimer = undefined;
+    }
+  }
+
+  private forceSettleErroredTurns(): void {
+    if (this.isDisposed || this.activeTurnIds.size === 0) return;
+    const failedTurnIds = [...this.activeTurnIds];
+    console.warn(
+      "[codex] turn error without turn/completed — force-settling turns: %s",
+      failedTurnIds.join(","),
+    );
+    this.activeTurnIds.clear();
+    this.activeTurnId = undefined;
+    this.pendingTurnInterrupt = false;
+    this.currentThreadStatus = { type: "idle" };
+    this.errorSticky = true;
+    this.emitRuntimeEvents(
+      failedTurnIds.map(
+        (turnId): RuntimeEvent => ({
+          type: "turn.completed",
+          threadId: this.threadId,
+          turnId,
+          state: "failed",
+        }),
+      ),
+    );
+    this.emitUpdate({ status: "error", attention: "error" });
+  }
+
+  /**
+   * Pool-quota observer for async failures. Codex quota failures settle via
+   * notifications (`turn/completed(failed)`, `error`, `thread/error`) long
+   * after `startTurn` returned, so no rejection can drive failover — this
+   * scan is the only trigger. Runs on the already-mapped main-thread events
+   * (child/fork/stale events never reach here):
+   * - every NEW quota-shaped message runs the quota write-back
+   *   (`onPromptError`, pool-bound sessions only);
+   * - a quota failure settling the LIVE user turn additionally replays the
+   *   retained prompt on the next usable pool account
+   *   (`onPoolQuotaTurnFailed`). Background-only failures (e.g. a compact
+   *   turn with no live user turn) write back but never replay a stale
+   *   prompt, which would answer twice.
+   * Newness is judged against `seenErrorMessages` BEFORE this batch is
+   * emitted, so one underlying failure firing through several channels
+   * triggers exactly once per turn.
+   */
+  private observePoolQuotaFailure(mappedEvents: RuntimeEvent[], settlesThread: boolean): void {
+    if (!this.onPromptError && !this.onPoolQuotaTurnFailed) return;
+    const fresh = new Set<string>();
+    for (const event of mappedEvents) {
+      if (event.type !== "error") continue;
+      const message = event.message;
+      if (!message || this.seenErrorMessages.has(message) || fresh.has(message)) continue;
+      if (!isCodexPoolQuotaError(message)) continue;
+      fresh.add(message);
+    }
+    if (fresh.size === 0) return;
+    const quotaError = new Error([...fresh][0]);
+    if (this.onPromptError) {
+      try {
+        const observed = this.onPromptError(quotaError);
+        if (observed && typeof (observed as Promise<void>).catch === "function") {
+          void (observed as Promise<void>).catch((callbackError) => {
+            console.warn("[codex] prompt error observer failed:", callbackError);
+          });
+        }
+      } catch (callbackError) {
+        console.warn("[codex] prompt error observer failed:", callbackError);
+      }
+    }
+    const retained = this.currentTurnPrompt;
+    if (!settlesThread || !this.activeTurnId || !retained || !this.onPoolQuotaTurnFailed) {
+      return;
+    }
+    try {
+      this.onPoolQuotaTurnFailed({ ...retained, error: quotaError });
+    } catch (callbackError) {
+      console.warn("[codex] pool quota failover observer failed:", callbackError);
     }
   }
 
@@ -449,6 +602,8 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       acquired.dispose,
       wslDistro,
     );
+    if (input.onPromptError) session.onPromptError = input.onPromptError;
+    if (input.onPoolQuotaTurnFailed) session.onPoolQuotaTurnFailed = input.onPoolQuotaTurnFailed;
     session.attachRpcHandlers();
 
     return session;
@@ -557,6 +712,9 @@ export class CodexStructuredSession implements StructuredSessionHandle {
 
     this.remoteThreadId = threadId;
     this.rpc.claimThread(threadId);
+    if (config.model) {
+      this.lastWorkingModel = config.model;
+    }
     this.ensureMapperState().usageScope = new CodexUsageScopeTracker(threadId, createdNewThread);
     this.launchOptions = { ...this.launchOptions, resumeThreadId: threadId };
     if (!createdNewThread) {
@@ -664,19 +822,41 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     segments?: PromptSegment[],
     options?: StartTurnOptions,
   ): Promise<void> {
+    return this.startTurnAttempt(prompt, config, segments, options, false, undefined);
+  }
+
+  private async startTurnAttempt(
+    prompt: string,
+    config: ThreadConfig,
+    segments: PromptSegment[] | undefined,
+    options: StartTurnOptions | undefined,
+    modelFallbackAttempted: boolean,
+    stableUserItemId: string | undefined,
+  ): Promise<void> {
     this.currentConfig = config;
     // New user turn clears any sticky error from a previous failed turn, along
     // with the per-turn error dedupe state and any pending fallback timer.
     this.errorSticky = false;
     this.seenErrorMessages.clear();
     this.clearPendingSystemErrorFallback();
+    this.clearTurnErrorSettle();
     const threadId = await this.waitForRemoteThreadId();
     this.ensureSubAgentRouter().setDefaultModelSettings(config.model, config.effort ?? "medium");
     this.resumeActiveStatusSuppressionUntil.delete(threadId);
 
     const turnId = `turn-${randomUUID()}`;
-    const userItemId = options?.userMessageItemId ?? `user-${turnId}`;
+    // Retries reuse the stable item id so the re-emitted user message stays
+    // deduped downstream (same contract as the steerTurn → startTurn fallback).
+    const userItemId = options?.userMessageItemId ?? stableUserItemId ?? `user-${turnId}`;
     const goalCommand = parseCodexGoalCommand(prompt);
+    // Retained for pool-quota failover: an async quota failure settles after
+    // startTurn returned, so the replay path needs the prompt context.
+    this.currentTurnPrompt = {
+      prompt,
+      config,
+      ...(segments ? { segments } : {}),
+      userMessageItemId: userItemId,
+    };
 
     const userEvents: RuntimeEvent[] = [
       {
@@ -727,6 +907,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
 
     const input = buildCodexTurnInput(prompt, segments, options?.inlineInstructions);
     const sandboxPolicy = toCodexSandboxPolicy(config.sandboxMode);
+    const approvalPolicy = toCodexApprovalPolicy(config.approvalPolicy);
     const collaborationMode = buildCodexCollaborationMode(config);
     try {
       const result = await this.rpc.request("turn/start", {
@@ -735,11 +916,9 @@ export class CodexStructuredSession implements StructuredSessionHandle {
         model: config.model,
         ...(config.effort ? { effort: config.effort } : {}),
         summary: "auto",
-        ...(config.approvalPolicy
+        ...(approvalPolicy
           ? {
-              approvalPolicy: config.approvalPolicy as NonNullable<
-                TurnStartParams["approvalPolicy"]
-              >,
+              approvalPolicy: approvalPolicy as NonNullable<TurnStartParams["approvalPolicy"]>,
             }
           : {}),
         ...(config.approvalsReviewer
@@ -761,11 +940,40 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       if (this.activeTurnId) {
         this.activeTurnIds.add(this.activeTurnId);
       }
+      if (config.model) {
+        this.lastWorkingModel = config.model;
+      }
       await this.flushPendingTurnInterrupt(threadId);
     } catch (error) {
       this.pendingTurnInterrupt = false;
       if (this.isDisposed) return;
       const message = error instanceof Error ? error.message : String(error);
+      const fallbackModel = this.lastWorkingModel;
+      if (
+        !modelFallbackAttempted &&
+        fallbackModel &&
+        config.model !== fallbackModel &&
+        isModelNotSupportedError(message)
+      ) {
+        // A stale thread config can name a model the current account cannot
+        // use; without a fallback every resend 400s and the thread is
+        // bricked. Retry this turn once with the last working model.
+        this.emitRuntimeEvents([
+          {
+            type: "warning",
+            threadId: this.threadId,
+            message: `模型 ${config.model} 不被当前 Codex 账号支持，已自动切回 ${fallbackModel} 继续本轮。如需更换，请在顶部模型菜单切换。`,
+          },
+        ]);
+        return this.startTurnAttempt(
+          prompt,
+          { ...config, model: fallbackModel },
+          segments,
+          { ...options, userMessageItemId: userItemId },
+          true,
+          userItemId,
+        );
+      }
       this.errorSticky = true;
       this.emitUpdate({ status: "error", attention: "error", errorMessage: message });
       this.emitRuntimeEvents([{ type: "error", threadId: this.threadId, message }]);
@@ -1013,6 +1221,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     this.isDisposed = true;
 
     this.clearPendingSystemErrorFallback();
+    this.clearTurnErrorSettle();
     const remoteThreadId = this.remoteThreadId;
     if (remoteThreadId) {
       const activeTurnIds = new Set(this.activeTurnIds);
@@ -1147,7 +1356,13 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       params,
       mappedRuntimeEvents,
     );
-    if (runtimeEvents.length > 0) this.emitRuntimeEvents(runtimeEvents);
+    if (runtimeEvents.length > 0) {
+      // Observe BEFORE emitting: emission records messages in the
+      // per-turn dedupe set, which is exactly what marks them "already
+      // seen" for the next notification of the same failure.
+      this.observePoolQuotaFailure(runtimeEvents, turnWillSettleThread);
+      this.emitRuntimeEvents(runtimeEvents);
+    }
 
     if (method === "thread/started" && params && "thread" in params) {
       const thread = params.thread;
@@ -1245,6 +1460,9 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       if (incomingThreadId && !this.isCurrentThreadNotification(incomingThreadId)) {
         return true;
       }
+      // A fresh turn means the user escaped the previous stuck state; a late
+      // settle timer from the old turn must not kill the new one.
+      this.clearTurnErrorSettle();
       this.activeTurnId = readTurnId(params) ?? this.activeTurnId;
       if (this.activeTurnId) {
         this.activeTurnIds.add(this.activeTurnId);
@@ -1276,8 +1494,12 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       completedTurnId !== undefined ? this.activeTurnIds.has(completedTurnId) : false;
     if (completedTurnId) {
       this.activeTurnIds.delete(completedTurnId);
+      // A real completion arrived for a turn the error watchdog may be
+      // watching — the server is settling normally, stand down.
+      this.clearTurnErrorSettle();
     } else {
       this.activeTurnIds.clear();
+      this.clearTurnErrorSettle();
     }
     if (this.activeTurnIds.size > 0) {
       // A sibling turn (auto-compact continuation, or an earlier
@@ -1303,6 +1525,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     this.pendingTurnInterrupt = false;
     this.activeTurnId = undefined;
     this.currentThreadStatus = { type: "idle" };
+    this.clearTurnErrorSettle();
     if (!this.errorSticky) {
       this.emitUpdate({ status: "idle", attention: "none" });
     }

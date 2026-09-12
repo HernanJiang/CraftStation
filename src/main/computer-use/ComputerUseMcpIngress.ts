@@ -15,6 +15,7 @@ import {
   normalizeToolName,
   type ToolContext,
 } from "./mcp/toolRegistry";
+import { pointerMotionForTool, type ComputerUsePointerMotion } from "./pointerMotion";
 
 export type ComputerUseMcpIngressInfo = StreamableHttpMcpIngressInfo;
 
@@ -25,6 +26,7 @@ export type ComputerUseActivityEvent =
 export interface ComputerUseMcpIngressOptions {
   driver?: ComputerUseDriver;
   onActivity?: (event: ComputerUseActivityEvent) => void;
+  onPointer?: (motion: ComputerUsePointerMotion) => void | Promise<void>;
 }
 
 export class ComputerUseMcpIngress {
@@ -34,9 +36,8 @@ export class ComputerUseMcpIngress {
   constructor(private readonly options: ComputerUseMcpIngressOptions = {}) {
     this.driver = options.driver ?? createComputerUseDriver();
     this.ingress = new StreamableHttpMcpIngress<ToolContext>({
-      // Computer-use drives the host's real mouse/keyboard/windows, so the ingress
-      // must never be reachable off the machine — bind loopback only (unlike the
-      // browser ingress, which binds 0.0.0.0 for WSL reachability).
+      // Computer-use drives the host's real mouse/keyboard/windows, so the
+      // ingress must never be reachable off the machine — loopback only.
       bindHost: "127.0.0.1",
       serverInfo: { name: "computer_use", version: "0.1.0" },
       instructions: COMPUTER_USE_MCP_INSTRUCTIONS,
@@ -96,6 +97,14 @@ export class ComputerUseMcpIngress {
     const event = { threadId: ctx.threadId, toolName: normalizeToolName(name) };
     this.options.onActivity?.({ kind: "action", ...event, active: true });
     try {
+      const motion = pointerMotionForTool(name, args);
+      if (motion && this.options.onPointer) {
+        try {
+          await this.options.onPointer(motion);
+        } catch {
+          // Overlay animation must never block or fail the real click.
+        }
+      }
       return await dispatchTool(name, args, ctx);
     } finally {
       this.options.onActivity?.({ kind: "action", ...event, active: false });

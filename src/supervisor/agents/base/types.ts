@@ -167,6 +167,20 @@ export interface StructuredSessionHandle {
 
 export type ResolveExecutablePath = (command: string) => string | undefined;
 
+/**
+ * A pool-bound turn that failed on quota after its turn promise already
+ * settled (Codex async completion failures). Carries everything the runtime
+ * needs to replay the turn on the next usable pool account without
+ * duplicating the already-painted user message.
+ */
+export interface PoolQuotaFailedTurn {
+  prompt: string;
+  config: ThreadConfig;
+  segments?: PromptSegment[];
+  userMessageItemId?: string;
+  error: unknown;
+}
+
 export interface CreateStructuredSessionInput {
   threadId: string;
   projectLocation: ProjectLocation;
@@ -195,6 +209,14 @@ export interface CreateStructuredSessionInput {
    * replace the original prompt failure.
    */
   onPromptError?: (error: unknown) => void | Promise<void>;
+  /**
+   * Pool-quota turn failure that cannot reject a turn promise (the turn
+   * already settled before the failure notification arrived — e.g. Codex
+   * async `turn/completed(failed)`). The runtime replays the carried prompt
+   * on the next usable pool account via the normal failover path. Only
+   * wired for pool-bound sessions; ignored otherwise.
+   */
+  onPoolQuotaTurnFailed?: (failedTurn: PoolQuotaFailedTurn) => void;
   /**
    * Provider-boundary guard for ACP agents that can incorrectly return a
    * successful `end_turn` without emitting any agent activity.

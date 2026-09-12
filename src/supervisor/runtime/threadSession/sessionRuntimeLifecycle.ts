@@ -33,6 +33,8 @@ export interface SessionRuntimeLifecycleContext {
   failStructuredSession(session: SessionRuntime, error: unknown): void;
   indexSessionRef(session: SessionRuntime, prevId: string | undefined): void;
   pollSessionRefDiscovery(session: SessionRuntime): void;
+  /** Feed canonical runtime events into the failover transcript tracker. */
+  observeTranscriptEvent?(threadId: string, event: RuntimeEvent): void;
 }
 
 /** Registers a newly-created runtime and owns its structured-session / PTY event bindings. */
@@ -172,6 +174,7 @@ export class SessionRuntimeLifecycle {
     ) {
       session.suppressInitialStructuredIdle = undefined;
     }
+    this.context.observeTranscriptEvent?.(session.threadId, event);
     this.context.runtimeEventRouter.append(session.threadId, event);
   }
 

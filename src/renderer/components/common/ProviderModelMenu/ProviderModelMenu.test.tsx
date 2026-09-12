@@ -128,6 +128,40 @@ describe("ProviderModelMenu", () => {
     });
   });
 
+  it("shows a long model name in full on the trigger instead of truncating", () => {
+    const provider: ProviderModelMenuProvider = {
+      kind: "muse",
+      label: "Muse",
+      capabilities: {
+        models: [{ id: "muse-spark-1.3-contributor", label: "Muse Spark 1.3 Contributor" }],
+        efforts: [],
+        modelEfforts: {},
+        modes: ["agent"],
+        approvalPolicies: [],
+        sandboxModes: [],
+        supportsResume: true,
+        supportsDirectInput: true,
+        liveInputMode: "terminal",
+        presentationMode: "terminal",
+        settingDefs: [],
+      },
+    };
+
+    render(
+      <ProviderModelMenu
+        providers={[provider]}
+        currentAgentKind="muse"
+        currentModel="muse-spark-1.3-contributor"
+        onChange={vi.fn<(next: { agentKind: string; model: string }) => void>()}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Select model" });
+    expect(trigger).toHaveTextContent("Muse Spark 1.3 Contributor");
+    expect(trigger.className).toContain("shrink-0");
+    expect(trigger.querySelector(".truncate")).toBeNull();
+  });
+
   it("uses a renamed Cursor profile label for the trigger badge", () => {
     const provider = makeCursorProvider();
     provider.kind = "cursor:work";

@@ -1,9 +1,44 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeGfmTableSeparators,
+  normalizeLatexMathDelimiters,
   normalizeMermaidFenceLanguages,
   normalizeShortCodeFenceClosers,
 } from "./ItemMarkdown";
+
+describe("normalizeLatexMathDelimiters", () => {
+  it("rewrites classic display delimiters to a $$ block", () => {
+    expect(normalizeLatexMathDelimiters("\\[\nE = mc^2\n\\]")).toBe("\n$$\nE = mc^2\n$$\n");
+  });
+
+  it("rewrites a single-line display span without breaking the paragraph", () => {
+    expect(normalizeLatexMathDelimiters("so \\[a^2+b^2=c^2\\] holds")).toBe(
+      "so $$a^2+b^2=c^2$$ holds",
+    );
+  });
+
+  it("rewrites an inline math span to a single-dollar span", () => {
+    expect(normalizeLatexMathDelimiters("the root is \\(x=\\frac{-1}{2}\\)")).toBe(
+      "the root is $x=\\frac{-1}{2}$",
+    );
+  });
+
+  it("leaves escaped prose brackets and escaped links untouched", () => {
+    const source = "see \\[appendix\\], cite \\[1\\], but not \\[link\\](https://example.test)";
+    expect(normalizeLatexMathDelimiters(source)).toBe(source);
+  });
+
+  it("does not rewrite inside fenced code or inline code", () => {
+    const fenced = "```\n\\[x=1\\]\n```\n";
+    expect(normalizeLatexMathDelimiters(fenced)).toBe(fenced);
+    expect(normalizeLatexMathDelimiters("`\\[x=1\\]`")).toBe("`\\[x=1\\]`");
+  });
+
+  it("preserves the text when nothing matches", () => {
+    const source = "plain text with $x$ math already using dollars";
+    expect(normalizeLatexMathDelimiters(source)).toBe(source);
+  });
+});
 
 describe("normalizeShortCodeFenceClosers", () => {
   it("treats a two-backtick line as a closer inside a triple-backtick fence", () => {

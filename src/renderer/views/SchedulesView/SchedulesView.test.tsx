@@ -29,6 +29,7 @@ const run: ScheduledTaskRun = {
   startedAt: "2026-07-10T09:00:00.000Z",
   completedAt: "2026-07-10T09:01:00.000Z",
   status: "succeeded",
+  triggeredBy: "scheduled",
   summary: "Reviewed priorities for today.",
   error: null,
 };
@@ -39,7 +40,10 @@ const bridge = vi.hoisted(() => ({
   updateSchedule: vi.fn<(input: { id: string; task: unknown }) => Promise<ScheduledTask>>(),
   deleteSchedule: vi.fn<() => Promise<void>>(),
   runScheduleNow: vi.fn<() => Promise<ScheduledTask>>(),
+  pauseSchedule: vi.fn<(input: { id: string }) => Promise<ScheduledTask>>(),
+  resumeSchedule: vi.fn<(input: { id: string }) => Promise<ScheduledTask>>(),
   getScheduleRuns: vi.fn<(input: { id: string }) => Promise<ScheduledTaskRun[]>>(),
+  onSchedulesChanged: vi.fn<(listener: () => void) => () => void>(),
 }));
 
 const agentCreation = vi.hoisted(() => ({
@@ -153,7 +157,10 @@ describe("SchedulesView", () => {
     }));
     bridge.deleteSchedule.mockReset().mockResolvedValue(undefined);
     bridge.runScheduleNow.mockReset().mockResolvedValue({ ...task, lastStatus: "running" });
+    bridge.pauseSchedule.mockReset().mockResolvedValue({ ...task, enabled: false, nextRunAt: null });
+    bridge.resumeSchedule.mockReset().mockResolvedValue({ ...task, enabled: true });
     bridge.getScheduleRuns.mockReset().mockResolvedValue([run]);
+    bridge.onSchedulesChanged.mockReset().mockReturnValue(() => undefined);
     agentCreation.ensureHomeScopeProject.mockReset().mockResolvedValue({ id: "home" });
     agentCreation.setComposerSeed.mockReset();
     agentCreation.openDraft.mockReset();
@@ -244,6 +251,21 @@ describe("SchedulesView", () => {
     expect(screen.getByRole("button", { name: "New schedule" })).toBeDisabled();
   });
 
+  it("refetches when the host broadcasts a change even if nothing is running", async () => {
+    let listener: (() => void) | undefined;
+    bridge.onSchedulesChanged.mockImplementation((cb: () => void) => {
+      listener = cb;
+      return () => undefined;
+    });
+    bridge.getSchedules
+      .mockResolvedValueOnce([task])
+      .mockResolvedValueOnce([{ ...task, name: "Created by agent" }]);
+    render(<SchedulesView />);
+    expect(await screen.findByText("Daily brief")).toBeInTheDocument();
+    listener?.();
+    expect(await screen.findByText("Created by agent")).toBeInTheDocument();
+  });
+
   it("loads a device schedule and exposes run and pause actions", async () => {
     render(<SchedulesView />);
 
@@ -252,12 +274,7 @@ describe("SchedulesView", () => {
     await waitFor(() => expect(bridge.runScheduleNow).toHaveBeenCalledWith({ id: task.id }));
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    await waitFor(() =>
-      expect(bridge.updateSchedule).toHaveBeenCalledWith({
-        id: task.id,
-        task: expect.objectContaining({ enabled: false, prompt: task.prompt }),
-      }),
-    );
+    await waitFor(() => expect(bridge.pauseSchedule).toHaveBeenCalledWith({ id: task.id }));
   });
 
   it("creates a Home-scoped schedule from the shared editor", async () => {

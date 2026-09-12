@@ -1,6 +1,15 @@
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { resolveThirdPartyAccountForLaunch } from "@/shared/thirdPartyRouting";
 import { useSessionHandoffStore } from "@/renderer/state/sessionHandoffStore";
+import { showTopStatusToast } from "@/renderer/components/ui/topStatusToast";
+import {
+  adaptThreadConfigForCapabilities,
+  capabilitiesForPresentation,
+} from "@/shared/agentSelection";
 import type { ProjectLocation, Thread, ThreadConfig } from "@/shared/contracts";
 import {
   Crafter,
@@ -211,41 +220,109 @@ export async function cancelSessionHandoff(threadId: string, requestId: string):
 /**
  * Switch the live thread to another model/provider while keeping the same
  * Thread identity. Prefers the native CraftPlan handoff when the target is a
- * verified GUI recipe; otherwise rebinds the durable Thread row so the next
- * send launches the new provider against the existing conversation timeline.
+ * verified GUI recipe; otherwise rebuilds the supervisor session on the new
+ * provider against the existing conversation timeline (fresh native session
+ * + transcript preface + persisted switch divider — never a store-only
+ * rebind, which used to fork the renderer row from the live session).
  */
+function adaptSwitchTargetConfig(input: {
+  thread: Thread;
+  targetAgentKind: string;
+  targetConfig: ThreadConfig;
+  targetPresentationMode?: Thread["presentationMode"];
+}): ThreadConfig {
+  const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
+  const status =
+    agentStatuses.find((entry) => entry.kind === input.targetAgentKind) ??
+    wslAgentStatuses.find((entry) => entry.kind === input.targetAgentKind);
+  if (!status) return input.targetConfig;
+  const presentation = input.targetPresentationMode ?? input.thread.presentationMode ?? "gui";
+  return adaptThreadConfigForCapabilities(
+    input.targetConfig,
+    capabilitiesForPresentation(status.capabilities, presentation),
+  );
+}
+
 export async function switchLiveThreadProvider(input: {
   thread: Thread;
   projectLocation: ProjectLocation;
   targetAgentKind: string;
   targetConfig: ThreadConfig;
   targetPresentationMode?: Thread["presentationMode"];
+  /** Sticky third-party account from the picker; never fall back to the native pool. */
+  targetAccountId?: string;
 }): Promise<void> {
+  const targetConfig = adaptSwitchTargetConfig(input);
   const compiled = compileHandoffTarget({
     thread: input.thread,
     projectLocation: input.projectLocation,
     targetAgentKind: input.targetAgentKind,
-    targetConfig: input.targetConfig,
+    targetConfig,
   });
   if (compiled.available && compiled.craftPlan && compiled.provenance) {
     await requestSessionHandoff({
       thread: input.thread,
       projectLocation: input.projectLocation,
       targetAgentKind: input.targetAgentKind,
-      targetConfig: input.targetConfig,
+      targetConfig,
       mode: "after-current-turn",
       prompt: "Continue this conversation with the newly selected model. Preserve prior context.",
     });
     return;
   }
 
+  // Third-party custom models carry their validated account binding across
+  // the switch — otherwise the rebuilt session falls back to the native pool
+  // with an unresolvable custom model id (e.g. a Cavoti GLM id on Codex).
+  const thirdPartyAccountId = resolveThirdPartyAccountForLaunch({
+    agentKind: input.targetAgentKind,
+    model: targetConfig.model,
+    customModels: useSharedSettings.getState().customModels ?? [],
+    accounts: useUsageAccountsStore.getState().accounts ?? [],
+    ...(input.targetAccountId ? { explicitAccountId: input.targetAccountId } : {}),
+  });
+  const result = await readBridge().switchThreadProvider({
+    threadId: input.thread.id,
+    agentKind: input.targetAgentKind,
+    config: targetConfig,
+    ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
+  });
+  // A switch committed while a turn was working abandons that turn on the
+  // disposed session. Mark it cancelled (same honesty rule as the stop
+  // button and pending-steer displacement) instead of letting it render an
+  // empty 已完成. Only on success: a failed switch rolls back and the old
+  // turn, if any, keeps running.
+  if (input.thread.status === "working" && input.thread.activeTurnStartedAt) {
+    const startedAt = Date.parse(input.thread.activeTurnStartedAt);
+    if (Number.isFinite(startedAt)) {
+      useAppStore.getState().markUserCancelledTurn(input.thread.id, startedAt);
+    }
+  }
+  // Sub-agents of the disposed session are orphaned by the switch: their
+  // completion events can no longer be routed. Settle their rows now so they
+  // cannot stick on working forever (cross-harness switches must not reuse
+  // the old native session, so adoption is never an option).
+  useAppStore.getState().reconcileStaleSubAgents(input.thread.id);
   const { sessionRef: _previous, accountBinding: _binding, ...stable } = input.thread;
+  const boundAccountId = thirdPartyAccountId ?? result.poolAccountId;
   const updatedThread: Thread = {
     ...stable,
     agentKind: input.targetAgentKind,
-    config: input.targetConfig,
+    config: targetConfig,
     ...(input.targetPresentationMode ? { presentationMode: input.targetPresentationMode } : {}),
-    canResumeWithConfig: false,
+    ...(result.sessionRef ? { sessionRef: result.sessionRef } : {}),
+    ...(boundAccountId
+      ? {
+          accountBinding: {
+            accountId: boundAccountId,
+            provider: thirdPartyAccountId ? "openai-compatible" : input.targetAgentKind,
+            credentialScopeRef: `managed:${boundAccountId}`,
+            reason: "explicit" as const,
+            boundAt: Date.now(),
+          },
+        }
+      : {}),
+    canResumeWithConfig: result.canResumeWithConfig,
     updatedAt: new Date().toISOString(),
   };
   useAppStore.setState((current) => ({
@@ -254,4 +331,16 @@ export async function switchLiveThreadProvider(input: {
     ),
   }));
   await readBridge().dbUpsertThread(updatedThread);
+  await readBridge().dbInsertThreadNativeSession({
+    threadId: input.thread.id,
+    harness: input.targetAgentKind,
+    model: targetConfig.model,
+    ...(result.sessionRef ? { nativeSessionId: result.sessionRef.providerSessionId } : {}),
+    ...(result.poolAccountId ? { poolAccountId: result.poolAccountId } : {}),
+  });
+  // The supervisor already painted a persisted model_switch divider at the
+  // switch point; the toast only confirms + warns about cross-model drift.
+  showTopStatusToast(`已切换至 ${targetConfig.model}`, {
+    description: "同一线程跨模型切换可能导致一定程度的性能下降",
+  });
 }
