@@ -837,24 +837,6 @@ function resolveChannelAccountIdForThreadModel(thread: Thread): string | undefin
   )?.accountId;
 }
 
-/**
- * Channel-model repair: a thread whose model came from an OpenAI-compatible
- * account channel (e.g. `glm-5.3-flash` via a Cavoti channel on the codex
- * harness) must resume with that account's credentials. The launch-time
- * account choice is one-shot (`nextSessionAccountId`) and only a persisted
- * `accountBinding` survives restarts — threads launched before the binding
- * was saved resume on the default account and 400 on every turn. Exact
- * provider + modelId match only; never guess across channels.
- */
-function resolveChannelAccountIdForThreadModel(thread: Thread): string | undefined {
-  const model = thread.config.model?.trim();
-  if (!model) return undefined;
-  const customModels = useSharedSettings.getState().customModels ?? [];
-  return customModels.find(
-    (entry) => entry.provider === thread.agentKind && entry.accountId && entry.modelId === model,
-  )?.accountId;
-}
-
 async function resumeCraftedThread(input: {
   thread: Thread;
   projectLocation: ProjectLocation;
