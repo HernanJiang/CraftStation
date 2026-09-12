@@ -1,10 +1,6 @@
 import { create } from "zustand";
 import { shallow } from "zustand/shallow";
-import {
-  WORKFLOW_STALE_PROGRESS_MS,
-  isWorkflowRunLive,
-  type ProjectLocation,
-} from "@/shared/contracts";
+import { isWorkflowRunLive, type ProjectLocation } from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
 
 /**
@@ -29,16 +25,6 @@ import { readBridge } from "@/renderer/bridge";
  */
 
 const POLL_MS = 4000;
-// A launched workflow writes its manifest within ~seconds, on its first
-// progress event (see workflowRunStore). Treat a never-seen manifest as a dead
-// launch only after this generous window, so a merely slow first phase isn't
-// mistaken for a failure. Once any manifest is seen, liveness follows the
-// manifest status (running until terminal) rather than this deadline.
-const LAUNCH_DEADLINE_MS = 10 * 60_000;
-// Backstop for a workflow whose manifest was seen but never reaches a terminal
-// status (e.g. the runtime crashed mid-run leaving it pinned "running"). Long
-// enough not to cut off legitimately long orchestrations.
-const MAX_ENTRY_AGE_MS = WORKFLOW_STALE_PROGRESS_MS;
 
 interface LiveWorkflowEntry {
   threadId: string;
@@ -46,8 +32,6 @@ interface LiveWorkflowEntry {
   manifestPath: string;
   transcriptDir: string | undefined;
   location: ProjectLocation;
-  registeredAt: number;
-  manifestSeen: boolean;
 }
 
 interface RegisterInput {
@@ -76,11 +60,6 @@ let ticking = false;
 
 function entryKey(threadId: string, itemId: string): string {
   return `${threadId} ${itemId}`;
-}
-
-function isExpired(entry: LiveWorkflowEntry): boolean {
-  const maxAge = entry.manifestSeen ? MAX_ENTRY_AGE_MS : LAUNCH_DEADLINE_MS;
-  return Date.now() - entry.registeredAt > maxAge;
 }
 
 export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, get) => {
@@ -134,22 +113,18 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
       const current = entries.get(key);
       if (!current) return;
       if (result.run) {
-        current.manifestSeen = true;
-        // Drop once the manifest reports a terminal status, or its `running`
-        // status has gone stale - a crashed runtime that never wrote a terminal
-        // manifest (see isWorkflowRunLive).
+        // Drop only once the manifest reports an explicit terminal status. A
+        // quiet running workflow remains visible until it says otherwise.
         if (!isWorkflowRunLive(result.run)) {
           removeEntry(key);
         }
         return;
       }
-      // No manifest on disk yet. Normal right after launch - keep showing
-      // "working" (mirrors the dock, which never drops on a null run). Only
-      // give up if one never appears within the launch window.
-      if (isExpired(current)) removeEntry(key);
+      // No manifest on disk yet. Keep showing "working" until the workflow
+      // reports a terminal state; launch latency is not task completion.
     } catch {
-      const current = entries.get(key);
-      if (current && isExpired(current)) removeEntry(key);
+      // A transient read/parse failure must not turn into an implicit task
+      // deadline. The next poll can recover the manifest.
     }
   }
 
@@ -160,7 +135,7 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
       const existing = entries.get(key);
       if (existing) {
         // Refresh mutable fields in case the manifest path/location resolved
-        // after the first registration; leave registeredAt/manifestSeen intact.
+        // after the first registration.
         existing.manifestPath = input.manifestPath;
         existing.location = input.location;
         existing.transcriptDir = input.transcriptDir;
@@ -172,8 +147,6 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
         manifestPath: input.manifestPath,
         transcriptDir: input.transcriptDir,
         location: input.location,
-        registeredAt: Date.now(),
-        manifestSeen: false,
       });
       // Light the spinner immediately - the dock only registers once it has
       // confirmed a background workflow, so we trust it until a poll says

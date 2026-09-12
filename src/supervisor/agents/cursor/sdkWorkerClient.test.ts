@@ -270,6 +270,25 @@ describe("spawnCursorSdkWorker", () => {
     await client.dispose();
   });
 
+  it("does not impose an implicit timeout on a delayed start request", async () => {
+    const fixture = makeDelayedMethodFixture("start", 100);
+    const client = await spawnCursorSdkWorker({
+      projectLocation: nativeProjectLocation(fixture.directory),
+      workerPath: fixture.path,
+    });
+    await client.initialize({
+      createOptions: {
+        model: { id: "fixture" },
+        local: { cwd: fixture.directory },
+      },
+    });
+
+    await expect(client.start({ message: "delayed without a host deadline" })).resolves.toEqual({
+      runId: "late-run",
+    });
+    await client.dispose();
+  });
+
   it("makes an initialize timeout fatal so a late create cannot orphan an agent", async () => {
     const fixture = makeDelayedMethodFixture("initialize", 250);
     const client = await spawnCursorSdkWorker({

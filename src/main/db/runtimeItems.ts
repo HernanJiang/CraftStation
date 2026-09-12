@@ -2,10 +2,13 @@ import Database from "better-sqlite3";
 import type { RuntimeEvent, ThreadContextUsage, ToolCallPayload } from "@/shared/contracts";
 import { RUNTIME_REQUEST_ITEM_TYPE } from "@/shared/contracts";
 import { inlineImagePayloadRenders } from "@/shared/inlineImagePayload";
+import { appendRuntimeStream } from "@/shared/runtimeStream";
 import type { PersistedRuntimePage } from "@/shared/ipc/schemas";
 import { isSubAgentTool } from "@/shared/toolCallClassification";
 import { getSqlite } from "./connection";
 import { safeParse } from "./rowMappers";
+
+export { dbCompactRuntimeOutputStreams } from "./runtimeOutputCompaction";
 
 /**
  * Persisted canonical chat items per thread. Stored as a flat table keyed by
@@ -81,14 +84,31 @@ function runtimeItemState(state: string): PersistedRuntimeItem["state"] {
 }
 
 function mapRuntimeItemRow(row: PersistedRuntimeItemRow): PersistedRuntimeItem {
+  const parsedStreams = row.streams ? safeParse(row.streams) : undefined;
   return {
     id: row.item_id,
     type: row.type,
     state: runtimeItemState(row.state),
     payload: row.payload ? safeParse(row.payload) : undefined,
-    streams: row.streams ? (safeParse(row.streams) as Record<string, string>) : {},
+    streams: normalizeRuntimeStreams(parsedStreams),
     ...(row.parent_item_id ? { parentItemId: row.parent_item_id } : {}),
   };
+}
+
+function normalizeRuntimeStreams(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const streams = { ...(value as Record<string, unknown>) };
+  for (const stream of ["command_output", "file_change_output"] as const) {
+    const content = streams[stream];
+    if (typeof content === "string") {
+      streams[stream] = appendRuntimeStream("", content, stream);
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(streams).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
 }
 
 function chunkValues<T>(values: readonly T[], size: number): T[][] {
@@ -474,7 +494,7 @@ export function dbApplyThreadRuntimeEvents(
         case "item.completed": {
           const row = readItem(event.itemId);
           if (!row) break;
-          const streams = row.streams ? (safeParse(row.streams) as Record<string, string>) : {};
+          const streams = normalizeRuntimeStreams(row.streams ? safeParse(row.streams) : undefined);
           if (row.type === "reasoning" && !(streams.reasoning_text ?? "").trim()) {
             deleteItem.run(threadId, event.itemId);
             break;
@@ -498,7 +518,11 @@ export function dbApplyThreadRuntimeEvents(
           const row = readItem(event.itemId);
           if (!row) break;
           const streams = row.streams ? (safeParse(row.streams) as Record<string, string>) : {};
-          streams[event.stream] = `${streams[event.stream] ?? ""}${event.delta}`;
+          streams[event.stream] = appendRuntimeStream(
+            streams[event.stream] ?? "",
+            event.delta,
+            event.stream,
+          );
           updateItem.run(
             row.state === "completed" ? "completed" : "updated",
             row.payload,

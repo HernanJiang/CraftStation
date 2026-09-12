@@ -23,8 +23,17 @@ import {
 
 const DEFAULT_API_BASE_URL = "https://api.deepseek.com/v1";
 const DEFAULT_API_KEY_ENV = "DEEPSEEK_API_KEY";
-const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
-const MAX_TOOL_ROUNDS = 8;
+// A model request can legitimately spend an unbounded amount of time in
+// reasoning or an MCP round-trip.  A timeout is therefore opt-in: `0` means
+// no host deadline and is the default.  Cancellation still uses the caller's
+// AbortSignal.
+const DEFAULT_REQUEST_TIMEOUT_MS = 0;
+// Tool rounds are also unbounded by default. A positive value is an explicit
+// safety ceiling supplied in the CraftPlan runtime options.
+const DEFAULT_MAX_TOOL_ROUNDS = 0;
+const MAX_TOKEN_FINISH_REASONS = new Set(["length", "max_tokens", "max-tokens"]);
+const MAX_TOKEN_CONTINUATION_PROMPT =
+  "Continue the task from the previous partial response. Do not repeat completed work; resume from where you stopped and finish the requested task.";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -39,9 +48,20 @@ function stringOption(options: Record<string, unknown>, key: string): string | u
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function numberOption(options: Record<string, unknown>, key: string): number | undefined {
+function nonNegativeNumberOption(
+  options: Record<string, unknown>,
+  key: string,
+): number | undefined {
   const value = options[key];
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function nonNegativeIntegerOption(
+  options: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const value = nonNegativeNumberOption(options, key);
+  return value !== undefined && Number.isInteger(value) ? value : undefined;
 }
 
 function errorMessage(value: unknown): string {
@@ -72,6 +92,8 @@ interface DeepSeekApiSessionOptions {
   baseUrl: string;
   apiKeyEnv: string;
   requestTimeoutMs: number;
+  maxTokenContinuations: number | undefined;
+  maxToolRounds: number;
   mcpRuntime?: DeepSeekApiMcpRuntime;
   inlineSkillInstructions?: string;
 }
@@ -87,6 +109,7 @@ interface StreamingTurnResult {
   reasoning: string;
   toolCalls: ApiToolCall[];
   promptTokens?: number;
+  finishReason?: string;
 }
 
 class DeepSeekApiCraftSession implements CraftSession {
@@ -207,6 +230,7 @@ class DeepSeekApiCraftSession implements CraftSession {
     let responseText = "";
     let reasoningText = "";
     let promptTokens: number | undefined;
+    let finishReason: string | undefined;
     const toolCalls = new Map<number, ApiToolCall>();
     const consume = (line: string) => {
       if (!line.startsWith("data: ")) return;
@@ -221,6 +245,7 @@ class DeepSeekApiCraftSession implements CraftSession {
       const choices = record(parsed)?.choices;
       const choice = Array.isArray(choices) ? record(choices[0]) : undefined;
       const delta = record(choice?.delta);
+      if (typeof choice?.finish_reason === "string") finishReason = choice.finish_reason;
       const text = typeof delta?.content === "string" ? delta.content : "";
       const reasoning = typeof delta?.reasoning_content === "string" ? delta.reasoning_content : "";
       const usage = record(record(parsed)?.usage);
@@ -286,6 +311,7 @@ class DeepSeekApiCraftSession implements CraftSession {
         .sort(([left], [right]) => left - right)
         .map(([, call]) => call),
       ...(promptTokens !== undefined ? { promptTokens } : {}),
+      ...(finishReason ? { finishReason } : {}),
     };
   }
 
@@ -375,11 +401,16 @@ class DeepSeekApiCraftSession implements CraftSession {
       const turnMessages: JsonRecord[] = [{ role: "user", content: command.prompt }];
       let finalReasoning = "";
       let promptTokens: number | undefined;
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-        const requestSignal = AbortSignal.any([
-          controller.signal,
-          AbortSignal.timeout(this.options.requestTimeoutMs),
-        ]);
+      let maxTokenContinuationsRemaining = this.options.maxTokenContinuations;
+      let toolRounds = 0;
+      while (true) {
+        const requestSignal =
+          this.options.requestTimeoutMs > 0
+            ? AbortSignal.any([
+                controller.signal,
+                AbortSignal.timeout(this.options.requestTimeoutMs),
+              ])
+            : controller.signal;
         const response = await fetch(`${this.options.baseUrl}/chat/completions`, {
           method: "POST",
           headers: {
@@ -416,6 +447,33 @@ class DeepSeekApiCraftSession implements CraftSession {
             content: result.response,
             ...(result.reasoning ? { reasoning_content: result.reasoning } : {}),
           });
+          if (MAX_TOKEN_FINISH_REASONS.has(result.finishReason ?? "")) {
+            if (
+              maxTokenContinuationsRemaining !== undefined &&
+              maxTokenContinuationsRemaining <= 0
+            ) {
+              this.diagnostic(
+                "NATIVE_EXECUTION_FAILED",
+                "DeepSeek API reached the output limit before the task was complete.",
+              );
+              throw CraftingError.executionFailed(
+                "DeepSeek API reached the output limit before the task was complete.",
+                {
+                  finishReason: result.finishReason,
+                  continuations: this.options.maxTokenContinuations,
+                },
+              );
+            }
+            if (maxTokenContinuationsRemaining !== undefined) maxTokenContinuationsRemaining -= 1;
+            this.diagnostic(
+              "NATIVE_EXECUTION_FAILED",
+              maxTokenContinuationsRemaining === undefined
+                ? "DeepSeek API reached the output limit; continuing the active task without a host continuation limit."
+                : `DeepSeek API reached the output limit; continuing the active task (${maxTokenContinuationsRemaining} continuation(s) remaining).`,
+            );
+            turnMessages.push({ role: "user", content: MAX_TOKEN_CONTINUATION_PROMPT });
+            continue;
+          }
           break;
         }
         turnMessages.push({
@@ -427,8 +485,9 @@ class DeepSeekApiCraftSession implements CraftSession {
         for (const call of result.toolCalls) {
           turnMessages.push(await this.executeToolCall(call, controller.signal, tools));
         }
-        if (round === MAX_TOOL_ROUNDS - 1) {
-          throw new Error(`DeepSeek API exceeded ${MAX_TOOL_ROUNDS} MCP tool rounds.`);
+        toolRounds += 1;
+        if (this.options.maxToolRounds > 0 && toolRounds >= this.options.maxToolRounds) {
+          throw new Error(`DeepSeek API exceeded ${this.options.maxToolRounds} MCP tool rounds.`);
         }
       }
       this._messages.push(...turnMessages);
@@ -581,7 +640,8 @@ export class DeepSeekApiRuntimeAdapter implements HarnessRuntimeAdapter {
       DEFAULT_API_BASE_URL;
     const apiKeyEnv = stringOption(runtimeOptions, "apiKeyEnv") ?? DEFAULT_API_KEY_ENV;
     const requestTimeoutMs =
-      numberOption(runtimeOptions, "requestTimeoutMs") ?? DEFAULT_REQUEST_TIMEOUT_MS;
+      nonNegativeNumberOption(runtimeOptions, "requestTimeoutMs") ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    const maxTokenContinuations = nonNegativeIntegerOption(runtimeOptions, "maxTokenContinuations");
     const session = new DeepSeekApiCraftSession(
       `sess:${this.harnessKind}:${randomUUID()}`,
       entity.id,
@@ -593,6 +653,9 @@ export class DeepSeekApiRuntimeAdapter implements HarnessRuntimeAdapter {
         baseUrl: baseUrl.replace(/\/$/u, ""),
         apiKeyEnv,
         requestTimeoutMs,
+        maxTokenContinuations,
+        maxToolRounds:
+          nonNegativeIntegerOption(runtimeOptions, "maxToolRounds") ?? DEFAULT_MAX_TOOL_ROUNDS,
         ...(this.options.mcpServers?.length
           ? {
               mcpRuntime: this.options.createMcpRuntime

@@ -5,6 +5,7 @@ import {
   composeResolvedMcpServers,
   effectiveLaunchConfig,
   resolveSupportedPresentationMode,
+  SpawnPipeline,
   usesProviderSessionCrossagentRouting,
   workspaceLaunchConfig,
 } from "./spawnPipeline";
@@ -230,5 +231,50 @@ describe("composeResolvedMcpServers", () => {
 
     expect(servers.map((server) => server.name)).toEqual(["custom", "browser", "crossagents"]);
     expect(servers[2]).toMatchObject({ timeoutMs: 300_000, approvalMode: "approve" });
+  });
+});
+
+describe("resolveMcpServersForLaunch", () => {
+  it("keeps the caller identity on app-controls for provider-level GUI MCP", async () => {
+    const previousUrl = process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL;
+    const previousToken = process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN;
+    process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL = "http://127.0.0.1:43123";
+    process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = "test-token";
+    try {
+      const pipeline = new SpawnPipeline({
+        options: { wslHostAccess: undefined, wslBridge: undefined } as never,
+        resolveAgentSettings: () => ({ crossagentMcp: true }),
+      } as never);
+      const servers = await pipeline.resolveMcpServersForLaunch({
+        location: { kind: "windows", path: "C:\\repo" },
+        config: { model: "test-model" },
+        mcpLaunchSnapshot: { mcpServers: [], disabledBuiltInMcpServerIds: [] },
+        identity: { threadId: "executor-thread", title: "Executor" },
+        adapter: {
+          capabilities: {
+            presentationMode: "gui",
+            mcpScope: { terminal: "none", gui: "always" },
+            mcpConfigSource: "agentSettings",
+            crossagentMcpRouting: "provider-session",
+            supportedMcpTransports: ["http"],
+            supportsMcpHttpHeaders: true,
+          },
+        } as never,
+        presentationMode: "gui",
+      });
+
+      expect(servers).toHaveLength(1);
+      expect(servers[0]).toMatchObject({
+        name: "craftstation",
+        transport: {
+          url: "http://127.0.0.1:43123/mcp?thread=executor-thread&title=Executor",
+        },
+      });
+    } finally {
+      if (previousUrl === undefined) delete process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL;
+      else process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL = previousUrl;
+      if (previousToken === undefined) delete process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN;
+      else process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = previousToken;
+    }
   });
 });

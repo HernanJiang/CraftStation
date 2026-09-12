@@ -31,7 +31,9 @@ import {
 } from "./sdkWorkerProtocol";
 
 const DEFAULT_BOOT_TIMEOUT_MS = 15_000;
-const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+// Worker RPC requests are not task deadlines. A provider may spend an
+// arbitrary amount of time creating a run, so request timeout is opt-in.
+const DEFAULT_REQUEST_TIMEOUT_MS = 0;
 const MAX_LINE_BYTES = 16 * 1024 * 1024;
 const FATAL_REQUEST_TIMEOUT_METHODS = new Set(["initialize", "start", "cancel", "reload"]);
 
@@ -87,7 +89,7 @@ export class CursorSdkWorkerRpcError extends Error {
 interface PendingRequest {
   resolve(value: unknown): void;
   reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
+  timeout?: ReturnType<typeof setTimeout>;
 }
 
 interface SpawnedWorker {
@@ -276,30 +278,33 @@ export class CursorSdkWorkerClient {
     }
     const id = randomUUID();
     return new Promise<Result>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        const error = new Error(`Cursor SDK worker request ${method} timed out.`);
-        if (FATAL_REQUEST_TIMEOUT_METHODS.has(method)) {
-          // Mutating SDK calls may still resolve after the caller's deadline.
-          // A fatal teardown prevents a late invisible agent/run or concurrent
-          // mutation of provider state after the host has already moved on.
-          this.fail(error);
-          return;
-        }
-        this.pending.delete(id);
-        reject(error);
-      }, this.requestTimeoutMs);
-      timeout.unref?.();
+      const timeout =
+        this.requestTimeoutMs > 0 && Number.isFinite(this.requestTimeoutMs)
+          ? setTimeout(() => {
+              const error = new Error(`Cursor SDK worker request ${method} timed out.`);
+              if (FATAL_REQUEST_TIMEOUT_METHODS.has(method)) {
+                // Mutating SDK calls may still resolve after an explicitly
+                // configured deadline. Tear down to prevent a late invisible
+                // agent/run or concurrent mutation of provider state.
+                this.fail(error);
+                return;
+              }
+              this.pending.delete(id);
+              reject(error);
+            }, this.requestTimeoutMs)
+          : undefined;
+      timeout?.unref?.();
       this.pending.set(id, {
         resolve: (value) => resolve(value as Result),
         reject,
-        timeout,
+        ...(timeout ? { timeout } : {}),
       });
       const payload = JSON.stringify({ type: "request", id, method, params });
       this.child.stdin!.write(`${payload}\n`, (error) => {
         if (!error) return;
         const pending = this.pending.get(id);
         if (!pending) return;
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         this.pending.delete(id);
         pending.reject(error);
       });
@@ -382,7 +387,7 @@ export class CursorSdkWorkerClient {
     if (message.type === "response") {
       const pending = this.pending.get(message.id);
       if (!pending) return;
-      clearTimeout(pending.timeout);
+      if (pending.timeout) clearTimeout(pending.timeout);
       this.pending.delete(message.id);
       if (message.ok) pending.resolve(message.result);
       else pending.reject(new CursorSdkWorkerRpcError(message.error));
@@ -423,7 +428,7 @@ export class CursorSdkWorkerClient {
 
   private rejectAll(error: Error): void {
     for (const pending of this.pending.values()) {
-      clearTimeout(pending.timeout);
+      if (pending.timeout) clearTimeout(pending.timeout);
       pending.reject(error);
     }
     this.pending.clear();

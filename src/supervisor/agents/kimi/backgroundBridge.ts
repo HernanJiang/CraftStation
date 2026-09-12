@@ -15,7 +15,12 @@ import {
 import { resolveKimiSessionDir } from "./sessionFiles";
 
 const POLL_INTERVAL_MS = 500;
-const SESSION_DIR_TIMEOUT_MS = 30_000;
+/**
+ * Session persistence can lag a provider launch by an arbitrary amount. A
+ * missing directory is not task completion, so the default is unbounded;
+ * callers that need a readiness ceiling may pass an explicit value.
+ */
+export const DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS = 0;
 /**
  * How long to poll the session's wire journal for the model's follow-up
  * reply turn after the task file reports a terminal status.
@@ -30,7 +35,15 @@ const SESSION_DIR_TIMEOUT_MS = 30_000;
  * without a parent reply.
  */
 const AUTOMATIC_TURN_GRACE_MS = 15 * 60 * 1_000;
-const TASK_TIMEOUT_MS = 2 * 60 * 60 * 1_000;
+/**
+ * A background task can legitimately outlive a workday.  A fixed two-hour
+ * deadline used to make the bridge silently abandon a still-running task,
+ * leaving the parent tool card in a misleading state.  Zero means no host
+ * deadline; an explicit positive value remains available for deployments that
+ * require one.
+ */
+export const DEFAULT_KIMI_BACKGROUND_TASK_TIMEOUT_MS = 0;
+export const KIMI_BACKGROUND_TASK_TIMEOUT_ENV = "CRAFTSTATION_KIMI_BACKGROUND_TASK_TIMEOUT_MS";
 
 export interface KimiBackgroundBridge {
   onBackgroundLaunch(launch: KimiBackgroundLaunch): void;
@@ -41,8 +54,32 @@ interface KimiBackgroundBridgeDependencies {
   readText?: typeof readSessionFileText;
   resolveSessionDir?: typeof resolveKimiSessionDir;
   pollIntervalMs?: number;
+  sessionDirTimeoutMs?: number;
+  taskTimeoutMs?: number;
   now?: () => number;
   subagents?: AcpSubagentCoordinator;
+}
+
+function parseTimeout(value: unknown): number | undefined {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value.trim())
+        : undefined;
+  return parsed !== undefined && Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+/** Resolve the optional host deadline without making it part of provider MCP payloads. */
+export function resolveKimiBackgroundTaskTimeoutMs(
+  agentSettings?: Readonly<Record<string, boolean | string>>,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return (
+    parseTimeout(agentSettings?.backgroundTaskTimeoutMs) ??
+    parseTimeout(env[KIMI_BACKGROUND_TASK_TIMEOUT_ENV]) ??
+    DEFAULT_KIMI_BACKGROUND_TASK_TIMEOUT_MS
+  );
 }
 
 export function createKimiBackgroundBridge(
@@ -53,6 +90,9 @@ export function createKimiBackgroundBridge(
   const readText = dependencies.readText ?? readSessionFileText;
   const resolveSessionDir = dependencies.resolveSessionDir ?? resolveKimiSessionDir;
   const pollIntervalMs = dependencies.pollIntervalMs ?? POLL_INTERVAL_MS;
+  const sessionDirTimeoutMs =
+    dependencies.sessionDirTimeoutMs ?? DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS;
+  const taskTimeoutMs = dependencies.taskTimeoutMs ?? resolveKimiBackgroundTaskTimeoutMs();
   const now = dependencies.now ?? Date.now;
   const subagents = dependencies.subagents ?? createAcpSubagentCoordinator();
   const abortController = new AbortController();
@@ -71,6 +111,8 @@ export function createKimiBackgroundBridge(
         readText,
         resolveSessionDir,
         pollIntervalMs,
+        sessionDirTimeoutMs,
+        taskTimeoutMs,
         now,
         signal: abortController.signal,
         claimedAutomaticTurns,
@@ -90,6 +132,8 @@ interface MonitorBackgroundLaunchInput {
   readText: typeof readSessionFileText;
   resolveSessionDir: typeof resolveKimiSessionDir;
   pollIntervalMs: number;
+  sessionDirTimeoutMs: number;
+  taskTimeoutMs: number;
   now: () => number;
   signal: AbortSignal;
   claimedAutomaticTurns: Set<string>;
@@ -104,7 +148,10 @@ async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Pro
   const wirePath = `${sessionDir}/agents/main/wire.jsonl`;
   const taskPath = `${sessionDir}/agents/main/tasks/${input.launch.taskId}`;
 
-  while (!input.signal.aborted && input.now() - startedAt < TASK_TIMEOUT_MS) {
+  while (
+    !input.signal.aborted &&
+    (input.taskTimeoutMs <= 0 || input.now() - startedAt < input.taskTimeoutMs)
+  ) {
     const task = parseKimiTaskRecord(
       await input.readText(input.location, `${taskPath}.json`, 256_000),
     );
@@ -130,13 +177,29 @@ async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Pro
     );
     return;
   }
+
+  // An explicit host deadline is a failure, never a successful completion.
+  // The default path has no deadline and therefore never reaches this branch.
+  if (!input.signal.aborted && input.taskTimeoutMs > 0) {
+    emitBackgroundCompletion(
+      input.emit,
+      input.subagents,
+      input.launch,
+      "timed_out",
+      undefined,
+      undefined,
+    );
+  }
 }
 
 async function waitForSessionDir(
   input: MonitorBackgroundLaunchInput,
   startedAt: number,
 ): Promise<string | undefined> {
-  while (!input.signal.aborted && input.now() - startedAt < SESSION_DIR_TIMEOUT_MS) {
+  while (
+    !input.signal.aborted &&
+    (input.sessionDirTimeoutMs <= 0 || input.now() - startedAt < input.sessionDirTimeoutMs)
+  ) {
     const sessionDir = await input.resolveSessionDir(input.location, input.launch.sessionId);
     if (sessionDir) return sessionDir;
     if (!(await waitForNextPoll(input.signal, input.pollIntervalMs))) return undefined;

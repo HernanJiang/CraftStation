@@ -204,6 +204,71 @@ describe.skipIf(!sqliteAvailable)("thread collaboration MCP tools", () => {
     expect(startThread).not.toHaveBeenCalled();
   });
 
+  it("delivers an Executor handoff that the Manager can read by exchange id", async () => {
+    const result = (await dispatchTool(
+      "send_thread_message",
+      {
+        thread_id: "target",
+        message: "实验完成：结果已写入临时测试记录。",
+        sender_role: "my-research Executor",
+        experiment_id: "integration-test",
+      },
+      ctx,
+    )) as {
+      delivered: boolean;
+      message_id: string;
+      target_thread_id: string;
+      error?: string;
+    };
+
+    expect(result).toMatchObject({
+      delivered: true,
+      target_thread_id: "target",
+    });
+    expect(result.message_id).toMatch(/^thread-exchange-/u);
+    expect(result.error).toBeUndefined();
+
+    identityThreadId = "target";
+    const exchange = await dispatchTool(
+      "read_thread_exchange",
+      { exchangeId: result.message_id },
+      ctx,
+    );
+    expect(exchange).toMatchObject({
+      id: result.message_id,
+      sourceThreadId: "source",
+      targetThreadId: "target",
+      status: "delivered",
+      request: expect.stringContaining("实验完成"),
+    });
+    expect((exchange as { request: string }).request).toContain(
+      "sender_role: my-research Executor",
+    );
+    expect((exchange as { request: string }).request).toContain("experiment_id: integration-test");
+  });
+
+  it("reuses the same durable handoff when an Executor retries an experiment", async () => {
+    const args = {
+      thread_id: "target",
+      message: "同一实验的收口消息。",
+      sender_role: "my-research Executor",
+      experiment_id: "retry-safe",
+    };
+
+    const first = (await dispatchTool("send_thread_message", args, ctx)) as {
+      delivered: boolean;
+      message_id: string;
+    };
+    const second = (await dispatchTool("send_thread_message", args, ctx)) as {
+      delivered: boolean;
+      message_id: string;
+    };
+
+    expect(first).toMatchObject({ delivered: true });
+    expect(second).toEqual(first);
+    expect(sendThreadInput).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps context empty by default and honors explicit context, idempotency key and causal parent", async () => {
     const parent = await ask({
       threadId: "target",
@@ -266,6 +331,28 @@ describe.skipIf(!sqliteAvailable)("thread collaboration MCP tools", () => {
     expect(exchange.status).toBe("queued");
     expect(sendThreadInput).not.toHaveBeenCalled();
     expect(interruptThread).not.toHaveBeenCalled();
+  });
+
+  it("does not claim delivery when the target needs attention before accepting the message", async () => {
+    statuses.set("target", "needs_approval");
+    const result = (await dispatchTool(
+      "send_thread_message",
+      {
+        thread_id: "target",
+        message: "等待目标批准后再交接。",
+        sender_role: "my-research Executor",
+        experiment_id: "attention-test",
+      },
+      ctx,
+    )) as { delivered: boolean; error?: string };
+
+    expect(result).toEqual({
+      delivered: false,
+      message_id: expect.stringMatching(/^thread-exchange-/u),
+      target_thread_id: "target",
+      error: "Message status: needs_attention",
+    });
+    expect(sendThreadInput).not.toHaveBeenCalled();
   });
 
   it("lets participants read an exchange and rejects non-participants", async () => {

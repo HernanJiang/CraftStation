@@ -136,16 +136,6 @@ import {
 export { normalizeAcpStopReason, rewriteLoadSessionError };
 
 /**
- * Grace period before a self-started ("orphan") turn counts as finished.
- *
- * These turns resolve no promise of ours, so silence is the only end signal we
- * get. The window only has to outlast model-latency gaps —
- * `armOrphanTurnIdleTimer` separately refuses to close while a tool call is
- * still open, which is what covers the multi-minute cases.
- */
-const ORPHAN_TURN_IDLE_MS = 20_000;
-
-/**
  * Old Droid builds reject `session/new` with JSON-RPC invalid-params or
  * internal-error when handed an HTTP MCP server. Retry only those protocol
  * compatibility failures; transport, auth, and other session-open failures
@@ -331,7 +321,6 @@ export class AcpStructuredSession implements StructuredSessionHandle {
    * `isOrphanTurnActivity` for why these exist.
    */
   private orphanTurnId: string | undefined;
-  private orphanTurnIdleTimer: ReturnType<typeof setTimeout> | undefined;
   private stableSessionRef: SessionRef | undefined;
   /**
    * usage.spent ledger scope: the ACP session id plus an epoch that bumps if
@@ -1178,10 +1167,6 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     for (const source of this.externalSessionUpdateSources ?? []) source.dispose();
     this.externalSessionUpdateSources?.clear();
 
-    if (this.orphanTurnIdleTimer) {
-      clearTimeout(this.orphanTurnIdleTimer);
-      this.orphanTurnIdleTimer = undefined;
-    }
     this.sessionRequests.cancelPending();
     this._terminalManager?.releaseAllAcpTerminals();
 
@@ -1733,9 +1718,10 @@ export class AcpStructuredSession implements StructuredSessionHandle {
 
   /**
    * Open (or keep alive) the synthetic turn that covers agent-initiated work.
-   * The first activity update paints `working` so the thread gets a spinner,
-   * a live timer, and a Stop button; every later one pushes the idle deadline
-   * out.
+   * There is deliberately no idle deadline: ACP providers may spend an
+   * arbitrary amount of time between notifications. The turn closes only on
+   * an explicit prompt handover, Stop/cancel, dispose, or a provider terminal
+   * event that owns the work.
    */
   private noteOrphanTurnActivity(): void {
     if (!this.orphanTurnId) {
@@ -1745,26 +1731,6 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       ]);
       this.emitListenerUpdate({ status: "working", attention: "working" });
     }
-    this.armOrphanTurnIdleTimer();
-  }
-
-  private armOrphanTurnIdleTimer(): void {
-    if (this.orphanTurnIdleTimer) clearTimeout(this.orphanTurnIdleTimer);
-    this.orphanTurnIdleTimer = setTimeout(() => {
-      this.orphanTurnIdleTimer = undefined;
-      if (this.isDisposed || !this.orphanTurnId) return;
-      // Sitting inside a long tool call is not idleness — a test run or build
-      // can go minutes without emitting anything. Detached subagent calls are
-      // held open on purpose, so they never count as "still running here".
-      const insideToolCall = [...this.ensureMapperState().toolCallItems.values()].some(
-        (item) => !item.detached,
-      );
-      if (insideToolCall) {
-        this.armOrphanTurnIdleTimer();
-        return;
-      }
-      this.completeOrphanTurn();
-    }, ORPHAN_TURN_IDLE_MS);
   }
 
   /**
@@ -1775,10 +1741,6 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     silent?: boolean;
     state?: "completed" | "cancelled";
   }): void {
-    if (this.orphanTurnIdleTimer) {
-      clearTimeout(this.orphanTurnIdleTimer);
-      this.orphanTurnIdleTimer = undefined;
-    }
     const turnId = this.orphanTurnId;
     if (!turnId) return;
     this.orphanTurnId = undefined;

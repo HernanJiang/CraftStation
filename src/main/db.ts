@@ -41,6 +41,7 @@ export {
   dbGetThreadRuntimeItemsPage,
   dbTruncateThreadRuntimeAfter,
   dbApplyThreadRuntimeEvents,
+  dbCompactRuntimeOutputStreams,
   dbReplaceThreadRuntimeItems,
   dbGetThreadCompletedTurns,
   dbAppendThreadCompletedTurn,

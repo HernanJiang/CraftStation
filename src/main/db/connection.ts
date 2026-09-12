@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "../db.schema";
 import { resetMainCreatedThreads } from "./mainCreatedThreads";
+import { dbCompactRuntimeOutputStreams } from "./runtimeOutputCompaction";
 import {
   assertRequiredDatabaseSchema,
   repairSafeSchemaDrift,
@@ -377,6 +378,9 @@ export function initDatabase(dbPath: string) {
   runDatabaseMigrations(sqlite, storedVersion);
   repairSafeSchemaDrift(sqlite);
   assertRequiredDatabaseSchema(sqlite);
+  // Older profiles may contain multi-megabyte command output rows. Compact
+  // them before any renderer hydration, regardless of schema version.
+  dbCompactRuntimeOutputStreams(sqlite);
 
   // Bound the durable usage log: drop events older than the retention window so
   // a long-lived install can't accumulate unboundedly (aggregation reads scan

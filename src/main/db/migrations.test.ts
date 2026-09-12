@@ -414,7 +414,7 @@ describe.skipIf(!sqliteAvailable)("migration v40 thread collaboration ledger", (
     runDatabaseMigrations(isolated, 39);
     expect(
       isolated.prepare("SELECT value FROM app_state WHERE key = 'schema_version'").get(),
-    ).toMatchObject({ value: "40" });
+    ).toMatchObject({ value: String(LATEST_SCHEMA_VERSION) });
     expect(
       isolated
         .prepare(
@@ -434,7 +434,7 @@ describe.skipIf(!sqliteAvailable)("migration v40 thread collaboration ledger", (
     });
     expect(
       sqlite.prepare("SELECT value FROM app_state WHERE key = 'schema_version'").get(),
-    ).toMatchObject({ value: "40" });
+    ).toMatchObject({ value: String(LATEST_SCHEMA_VERSION) });
 
     // Re-running the migration (as a retry after a partial failure would) is a
     // no-op that keeps the ledger usable and the data intact.

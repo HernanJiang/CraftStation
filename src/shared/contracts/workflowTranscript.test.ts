@@ -21,7 +21,7 @@ describe("isWorkflowRunLive", () => {
     expect(isWorkflowRunLive(run({ status: "completed" }))).toBe(false);
   });
 
-  it("uses workflow progress timestamps to reject stale running manifests", () => {
+  it("keeps quiet running manifests live by default", () => {
     const now = Date.parse("2026-06-01T12:00:00.000Z");
     expect(
       isWorkflowRunLive(
@@ -43,10 +43,10 @@ describe("isWorkflowRunLive", () => {
         }),
         { now },
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("keeps old runs live when they have recent progress", () => {
+  it("supports stale detection only when explicitly requested", () => {
     const now = Date.parse("2026-06-01T12:00:00.000Z");
     expect(
       isWorkflowRunLive(
@@ -66,8 +66,15 @@ describe("isWorkflowRunLive", () => {
             },
           ],
         }),
-        { now },
+        { now, staleAfterMs: WORKFLOW_STALE_PROGRESS_MS },
       ),
     ).toBe(true);
+
+    expect(
+      isWorkflowRunLive(run({ startTime: now - WORKFLOW_STALE_PROGRESS_MS - 1 }), {
+        now,
+        staleAfterMs: WORKFLOW_STALE_PROGRESS_MS,
+      }),
+    ).toBe(false);
   });
 });

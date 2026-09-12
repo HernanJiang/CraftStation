@@ -129,6 +129,9 @@ function handlePart(state: OpenCodeMapperState, part: Part, events: RuntimeEvent
         itemId,
         payload,
       });
+      // Keep toolItems as the set of genuinely open tools. A completed
+      // ordinary tool must not make a later session.idle look premature.
+      state.toolItems.delete(part.id);
       if (isTask) {
         state.taskToolPayloads.delete(part.id);
         // Drop the pending entry if it was never linked.

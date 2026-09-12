@@ -29,7 +29,7 @@ export type {
 
 export const APP_CONTROLS_MCP_INSTRUCTIONS =
   "CraftStation app controls. Read and control the running app: device schedules " +
-  "(list/create/update/run/delete), app threads (current/list/get/read/create/send/interrupt/stop/wait/" +
+  "(list/create/update/run/delete), app threads (current/list/get/read/create/send/send_thread_message/interrupt/stop/wait/" +
   "update/open), projects (list/get/create/update), app settings (get/update), provider usage " +
   "(get_usage), cross-app search (search), and app info (get_app_info). You can also read a " +
   "running workspace terminal panes and their scrollback, queue steer guidance, stage composer " +

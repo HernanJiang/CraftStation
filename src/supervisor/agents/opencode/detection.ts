@@ -64,12 +64,16 @@ export const opencodeDefaultCapabilities: AgentCapability = {
   defaultApprovalPolicy: "yolo",
   bypassPermissions: { approvalPolicy: "yolo" },
   // MCP is provider-level for OpenCode: the composer shows the effective set
-  // read-only, while changes stay on the provider settings page.
+  // read-only, while changes stay on the provider settings page.  The
+  // provider-level source still needs to be exposed to GUI sessions; `none`
+  // short-circuits the supervisor before it can inject the CraftStation
+  // app-controls server, which makes durable cross-thread messaging
+  // unavailable even when the provider setting is enabled.
   // built-in server flags come from the OpenCode settings page
   // (`agentSettings.opencode`) at launch. OpenCode applies that set to each
   // project directory inside the shared runtime server instead of hosting
   // per-thread MCP credentials.
-  mcpScope: { terminal: "none", gui: "none" },
+  mcpScope: { terminal: "none", gui: "always" },
   mcpConfigSource: "agentSettings",
   agentSettingsDefaults: { crossagentMcp: true },
   // The installed OpenCode plugin injects the trusted provider session id

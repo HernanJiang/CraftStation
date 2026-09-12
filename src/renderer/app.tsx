@@ -8,6 +8,7 @@ import { isWelcomeSeen } from "./state/welcomeGateStore";
 import { StartupRecoveryScreen } from "./components/startup/StartupRecoveryScreen";
 import { msg } from "@/shared/messages";
 import type { RuntimeEvent } from "@/shared/contracts";
+import { appendRuntimeStream } from "@/shared/runtimeStream";
 import {
   isAgentStatusSupervisorEvent,
   type SupervisorEvent,
@@ -164,10 +165,34 @@ function schedulePendingRuntimeEvents(): void {
 function appendRuntimeEvents(threadId: string, events: readonly RuntimeEvent[]): void {
   const existing = pendingRuntimeEvents.get(threadId);
   if (existing) {
-    for (const evt of events) existing.push(evt);
+    for (const evt of events) appendRuntimeEvent(existing, evt);
   } else {
-    pendingRuntimeEvents.set(threadId, [...events]);
+    const queued: RuntimeEvent[] = [];
+    for (const evt of events) appendRuntimeEvent(queued, evt);
+    pendingRuntimeEvents.set(threadId, queued);
   }
+}
+
+function appendRuntimeEvent(queue: RuntimeEvent[], event: RuntimeEvent): void {
+  const previous = queue[queue.length - 1];
+  if (
+    previous?.type === "content.delta" &&
+    event.type === "content.delta" &&
+    previous.itemId === event.itemId &&
+    previous.stream === event.stream
+  ) {
+    queue[queue.length - 1] = {
+      ...event,
+      delta: appendRuntimeStream(previous.delta, event.delta, event.stream),
+    };
+    return;
+  }
+  if (event.type !== "content.delta") {
+    queue.push(event);
+    return;
+  }
+  const delta = appendRuntimeStream("", event.delta, event.stream);
+  queue.push(delta === event.delta ? event : { ...event, delta });
 }
 
 function flushPendingRuntimeEventsSync(threadId: string): void {

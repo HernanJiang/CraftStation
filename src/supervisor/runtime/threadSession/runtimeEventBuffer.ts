@@ -1,4 +1,5 @@
 import type { RuntimeEvent } from "@/shared/contracts";
+import { appendRuntimeStream } from "@/shared/runtimeStream";
 import type { SupervisorEvent } from "@/shared/ipc";
 
 const RUNTIME_EVENT_BATCH_MS = 16;
@@ -18,9 +19,22 @@ export class RuntimeEventBuffer {
   append(threadId: string, event: RuntimeEvent): void {
     const pending = this.pending.get(threadId);
     if (pending) {
-      pending.push(event);
+      const previous = pending[pending.length - 1];
+      if (
+        previous?.type === "content.delta" &&
+        event.type === "content.delta" &&
+        previous.itemId === event.itemId &&
+        previous.stream === event.stream
+      ) {
+        pending[pending.length - 1] = {
+          ...event,
+          delta: appendRuntimeStream(previous.delta, event.delta, event.stream),
+        };
+      } else {
+        pending.push(boundRuntimeEvent(event));
+      }
     } else {
-      this.pending.set(threadId, [event]);
+      this.pending.set(threadId, [boundRuntimeEvent(event)]);
     }
     this.timer ??= setTimeout(() => {
       this.flush();
@@ -59,4 +73,10 @@ export class RuntimeEventBuffer {
     }
     this.pending.clear();
   }
+}
+
+function boundRuntimeEvent(event: RuntimeEvent): RuntimeEvent {
+  if (event.type !== "content.delta") return event;
+  const delta = appendRuntimeStream("", event.delta, event.stream);
+  return delta === event.delta ? event : { ...event, delta };
 }

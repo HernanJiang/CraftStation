@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isRemoteOmittedField, payloadHasOmittedField, readRemoteImageRef } from "@/shared/remote";
 import type { RuntimeEvent } from "@/shared/contracts";
+import { MAX_RUNTIME_OUTPUT_CHARS, RUNTIME_OUTPUT_TRUNCATION_MARKER } from "@/shared/runtimeStream";
 import { capBroadcastEvent, maxBroadcastEventBytes, trimEventBuffer } from "./eventSizeGuard";
 import type { BufferedSupervisorEvent, RemoteBroadcastEvent } from "./context";
 
@@ -53,6 +54,23 @@ describe("maxBroadcastEventBytes", () => {
 });
 
 describe("capBroadcastEvent", () => {
+  it("bounds an oversized content delta before broadcasting", () => {
+    const event = runtimeEvent({
+      type: "content.delta",
+      threadId: "thread-1",
+      itemId: "command-1",
+      stream: "command_output",
+      delta: "x".repeat(MAX_RUNTIME_OUTPUT_CHARS + 1),
+    });
+    const result = capBroadcastEvent(event, 2 * 1024 * 1024);
+    expect(result.kind).toBe("sendable");
+    if (result.kind !== "sendable") return;
+    const delta = (result.event as { event: Extract<RuntimeEvent, { type: "content.delta" }> })
+      .event.delta;
+    expect(delta).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS);
+    expect(delta.startsWith(RUNTIME_OUTPUT_TRUNCATION_MARKER)).toBe(true);
+  });
+
   it("passes a deliverable event through untouched", () => {
     const event = runtimeEvent(textItemEvent(100));
     const result = capBroadcastEvent(event, 1024 * 1024);

@@ -738,6 +738,23 @@ export async function startThreadFromCraft(
     throw error;
   }
 }
+/**
+ * Channel-model repair: a thread whose model came from an OpenAI-compatible
+ * account channel (e.g. `glm-5.3-flash` via a Cavoti channel on the codex
+ * harness) must resume with that account's credentials. The launch-time
+ * account choice is one-shot (`nextSessionAccountId`) and only a persisted
+ * `accountBinding` survives restarts — threads launched before the binding
+ * was saved resume on the default account and 400 on every turn. Exact
+ * provider + modelId match only; never guess across channels.
+ */
+function resolveChannelAccountIdForThreadModel(thread: Thread): string | undefined {
+  const model = thread.config.model?.trim();
+  if (!model) return undefined;
+  const customModels = useSharedSettings.getState().customModels ?? [];
+  return customModels.find(
+    (entry) => entry.provider === thread.agentKind && entry.accountId && entry.modelId === model,
+  )?.accountId;
+}
 
 async function resumeCraftedThread(input: {
   thread: Thread;
@@ -780,20 +797,28 @@ async function resumeCraftedThread(input: {
   const projectMcpServers = useAppStore
     .getState()
     .projects.find((project) => project.id === input.thread.projectId)?.mcpServers;
+  const storedAccountId =
+    activeHandoff?.activeAccountBinding?.accountId ?? input.thread.accountBinding?.accountId;
+  const accountId = storedAccountId ?? resolveChannelAccountIdForThreadModel(input.thread);
   const result = await bridge.resumeCraftAgent({
     craftPlan: recoveredCraftPlan,
     projectLocation: input.projectLocation,
     sessionRef: providerSessionId,
     mcpServers: craftingMcpLaunchServers(recoveredCraftPlan, projectMcpServers),
-    ...((activeHandoff?.activeAccountBinding?.accountId ?? input.thread.accountBinding?.accountId)
-      ? {
-          accountId:
-            activeHandoff?.activeAccountBinding?.accountId ??
-            input.thread.accountBinding!.accountId,
-        }
-      : {}),
+    ...(accountId ? { accountId } : {}),
     ...(input.prompt.length > 0 ? { prompt: input.prompt } : {}),
   });
+  if (result.accountBinding) {
+    // Persist the binding the resume actually used (mirror the launch path):
+    // without it the *next* resume falls back to the default account again.
+    const boundThread = { ...input.thread, accountBinding: result.accountBinding };
+    useAppStore.setState((state) => ({
+      threads: state.threads.map((candidate) =>
+        candidate.id === input.thread.id ? boundThread : candidate,
+      ),
+    }));
+    await bridge.dbUpsertThread(boundThread);
+  }
   if (result.threadId !== input.thread.id) {
     throw new Error(
       `Crafted thread resume returned mismatched thread id '${result.threadId}' for '${input.thread.id}'.`,

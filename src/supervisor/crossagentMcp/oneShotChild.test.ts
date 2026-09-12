@@ -14,7 +14,7 @@ vi.mock("@/supervisor/oneShotSpawn", () => ({
   ) => ({ command, args, ...(options?.env ? { env: options.env } : {}) }),
 }));
 
-const { runOneShotChild } = await import("./oneShotChild");
+const { ONE_SHOT_CHILD_MAX_LIFETIME_MS, runOneShotChild } = await import("./oneShotChild");
 
 const PROJECT: ProjectLocation = { kind: "posix", path: "/tmp/project" };
 
@@ -49,6 +49,10 @@ function run(adapter: AgentAdapter): Promise<{
 }
 
 describe("runOneShotChild", () => {
+  it("does not impose a default lifetime deadline on long tasks", () => {
+    expect(ONE_SHOT_CHILD_MAX_LIFETIME_MS).toBe(0);
+  });
+
   it("streams stdout and settles completed on exit 0", async () => {
     const adapter = nodeAdapter(() => ({
       command: process.execPath,

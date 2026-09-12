@@ -1140,6 +1140,11 @@ export class SpawnPipeline {
       presentationMode,
       crossagentThreadId,
     );
+    // App-controls is always thread-scoped: its ingress decodes `?thread=` to
+    // authorize calls such as send_thread_message. Provider-level MCPs may use
+    // a shared credential, but clearing the identity for all servers would
+    // leave the app-controls server unable to identify its caller.
+    const appControlsIdentity = identity;
     if (adapter?.capabilities.mcpConfigSource === "agentSettings") {
       // Provider-level MCP: flags come from the provider's settings page. Drop
       // the general MCP identity; GUI provider-session routing uses its own
@@ -1175,7 +1180,7 @@ export class SpawnPipeline {
     const appControlsMcp = await this.resolveAppControlsMcpForLaunch(
       location,
       mcpLaunchSnapshot,
-      identity,
+      appControlsIdentity,
     );
     const resolved = composeResolvedMcpServers(
       mcpLaunchSnapshot,

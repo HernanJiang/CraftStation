@@ -51,6 +51,11 @@ rl.on("line", (line) => {
       send({ type: "extension_ui_request", id: "dlg-1", method: "select", title: "Pick one", options: ["alpha", "beta"] });
       return;
     }
+    if (text.includes("NO_AGENT_START")) {
+      // Simulate a slow/quiet provider. The host must keep the turn open until
+      // an explicit provider terminal event or user cancellation arrives.
+      return;
+    }
     if (text.includes("FAIL")) {
       send({ type: "agent_start" });
       send({ type: "message_update", assistantMessageEvent: { type: "error", error: { errorMessage: "MOCK_PROVIDER_ERROR" } } });
@@ -234,6 +239,24 @@ describe("PiRpcSession (mock pi --mode rpc)", () => {
       expect.arrayContaining([
         expect.objectContaining({ type: "error", message: "MOCK_PROVIDER_ERROR" }),
         expect.objectContaining({ type: "turn.completed", state: "failed" }),
+      ]),
+    );
+    await disposeSettledSession(session, events, updates);
+  });
+
+  it("does not complete a quiet turn after the former 1.5s watchdog", async () => {
+    const { session, events, updates } = await createSession();
+    const turn = session.startTurn?.("NO_AGENT_START", { model: "mock/model", effort: "off" });
+
+    await new Promise((resolve) => setTimeout(resolve, 1_700));
+    expect(events.some((event) => event.type === "turn.completed")).toBe(false);
+    expect(updates.at(-1)?.status).toBe("working");
+
+    session.forceCompleteTurn();
+    await turn;
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "cancelled" }),
       ]),
     );
     await disposeSettledSession(session, events, updates);

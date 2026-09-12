@@ -9,6 +9,10 @@ export interface HarnessCapabilityProfile {
 }
 
 export const HARNESS_CAPABILITY_PROFILES: Record<string, HarnessCapabilityProfile> = {
+  // Default-inject policy: `resolveCapabilities` injects every enabled MCP
+  // server in Auto/Efficient modes; only `excludedMcpServerIds` removes one.
+  // `recommendedMcpServerIds/Names` are informational affinity data and are
+  // currently not enforced.
   codex: {
     harnessKind: "codex",
     recommendedMcpServerIds: ["browser", "chrome", "app-controls", "crossagents"],

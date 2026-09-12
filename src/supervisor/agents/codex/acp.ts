@@ -121,6 +121,15 @@ function isPlainActiveStatus(status: CodexThreadStatus): boolean {
   return !flags.has("waitingOnApproval") && !flags.has("waitingOnUserInput");
 }
 
+/**
+ * The app-server rejects a turn when its model is unusable with the current
+ * auth, e.g. `The 'glm-5.3-flash' model is not supported when using Codex
+ * with a ChatGPT account.` (status 400 / invalid_request_error).
+ */
+function isModelNotSupportedError(message: string): boolean {
+  return /model.+not supported|not supported.+model/i.test(message);
+}
+
 function readNotificationThreadId(
   params: Record<string, unknown> | undefined,
   fallbackThreadId: string | undefined,
@@ -180,6 +189,15 @@ export class CodexStructuredSession implements StructuredSessionHandle {
   private wslDistro: string | undefined;
   private currentThreadStatus: CodexThreadStatus = { type: "idle" };
   private currentConfig: ThreadConfig | undefined;
+  /**
+   * Model of the most recently started turn (or the thread-open config once
+   * the remote thread exists). A stale thread config can name a model the
+   * current account cannot use (e.g. after a provider/model switch); without
+   * a fallback every resend 400s and the thread is bricked. `startTurn`
+   * retries once with this model when the server rejects the requested one
+   * as unsupported.
+   */
+  private lastWorkingModel: string | undefined;
   private activeTurnId: string | undefined;
   /**
    * Turn ids currently running on the remote thread. The app-server accepts a
@@ -557,6 +575,9 @@ export class CodexStructuredSession implements StructuredSessionHandle {
 
     this.remoteThreadId = threadId;
     this.rpc.claimThread(threadId);
+    if (config.model) {
+      this.lastWorkingModel = config.model;
+    }
     this.ensureMapperState().usageScope = new CodexUsageScopeTracker(threadId, createdNewThread);
     this.launchOptions = { ...this.launchOptions, resumeThreadId: threadId };
     if (!createdNewThread) {
@@ -664,6 +685,17 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     segments?: PromptSegment[],
     options?: StartTurnOptions,
   ): Promise<void> {
+    return this.startTurnAttempt(prompt, config, segments, options, false, undefined);
+  }
+
+  private async startTurnAttempt(
+    prompt: string,
+    config: ThreadConfig,
+    segments: PromptSegment[] | undefined,
+    options: StartTurnOptions | undefined,
+    modelFallbackAttempted: boolean,
+    stableUserItemId: string | undefined,
+  ): Promise<void> {
     this.currentConfig = config;
     // New user turn clears any sticky error from a previous failed turn, along
     // with the per-turn error dedupe state and any pending fallback timer.
@@ -675,7 +707,9 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     this.resumeActiveStatusSuppressionUntil.delete(threadId);
 
     const turnId = `turn-${randomUUID()}`;
-    const userItemId = options?.userMessageItemId ?? `user-${turnId}`;
+    // Retries reuse the stable item id so the re-emitted user message stays
+    // deduped downstream (same contract as the steerTurn → startTurn fallback).
+    const userItemId = options?.userMessageItemId ?? stableUserItemId ?? `user-${turnId}`;
     const goalCommand = parseCodexGoalCommand(prompt);
 
     const userEvents: RuntimeEvent[] = [
@@ -761,11 +795,40 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       if (this.activeTurnId) {
         this.activeTurnIds.add(this.activeTurnId);
       }
+      if (config.model) {
+        this.lastWorkingModel = config.model;
+      }
       await this.flushPendingTurnInterrupt(threadId);
     } catch (error) {
       this.pendingTurnInterrupt = false;
       if (this.isDisposed) return;
       const message = error instanceof Error ? error.message : String(error);
+      const fallbackModel = this.lastWorkingModel;
+      if (
+        !modelFallbackAttempted &&
+        fallbackModel &&
+        config.model !== fallbackModel &&
+        isModelNotSupportedError(message)
+      ) {
+        // A stale thread config can name a model the current account cannot
+        // use; without a fallback every resend 400s and the thread is
+        // bricked. Retry this turn once with the last working model.
+        this.emitRuntimeEvents([
+          {
+            type: "warning",
+            threadId: this.threadId,
+            message: `模型 ${config.model} 不被当前 Codex 账号支持，已自动切回 ${fallbackModel} 继续本轮。如需更换，请在顶部模型菜单切换。`,
+          },
+        ]);
+        return this.startTurnAttempt(
+          prompt,
+          { ...config, model: fallbackModel },
+          segments,
+          { ...options, userMessageItemId: userItemId },
+          true,
+          userItemId,
+        );
+      }
       this.errorSticky = true;
       this.emitUpdate({ status: "error", attention: "error", errorMessage: message });
       this.emitRuntimeEvents([{ type: "error", threadId: this.threadId, message }]);

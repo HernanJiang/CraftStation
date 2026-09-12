@@ -13,7 +13,7 @@ import {
 import { resolveAgentBinaryPath } from "../binaryResolver";
 import { createKimiAcpSessionUpdateTransform } from "./acpTransform";
 import { buildKimiAcpArgs, buildKimiArgs, buildKimiContinueArgs } from "./argv";
-import { createKimiBackgroundBridge } from "./backgroundBridge";
+import { createKimiBackgroundBridge, resolveKimiBackgroundTaskTimeoutMs } from "./backgroundBridge";
 import { buildKimiCommand, kimiDefaultCapabilities, kimiDetectionSpec } from "./detection";
 import { buildKimiLogoutCommand } from "./kimiLogout";
 import { ensureKimiWorkspaceTrust } from "./kimiTrust";
@@ -140,7 +140,10 @@ export function createKimiAdapter(): AgentAdapter {
       const backgroundBridge = createKimiBackgroundBridge(
         input.projectLocation,
         (notification) => session?.ingestExternalSessionUpdate(notification),
-        { subagents },
+        {
+          subagents,
+          taskTimeoutMs: resolveKimiBackgroundTaskTimeoutMs(input.agentSettings),
+        },
       );
       session = createAcpStructuredSession(command, {
         ...input,

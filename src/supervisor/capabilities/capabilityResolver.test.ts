@@ -98,7 +98,7 @@ describe("CapabilityResolver", () => {
     expect(skippedHttp?.reason).toBe("incompatible");
   });
 
-  it("filters capabilities using HarnessProfile in Efficient mode", async () => {
+  it("keeps all enabled MCP servers in Efficient mode (default-inject policy)", async () => {
     const customMcp = createServer("extra-mcp", "extra-mcp");
     const result = await resolveCapabilities({
       harnessKind: "grok",
@@ -108,18 +108,10 @@ describe("CapabilityResolver", () => {
     });
 
     expect(result.mode).toBe("efficient");
-    // Grok recommended profile includes browser and app-controls
-    expect(result.mcpServers.map((s) => s.id)).toEqual(["browser"]);
-    expect(
-      result.diagnostics.skipped.some(
-        (d) => d.id === "chrome" && d.reason === "excluded-by-profile",
-      ),
-    ).toBe(true);
-    expect(
-      result.diagnostics.skipped.some(
-        (d) => d.id === "extra-mcp" && d.reason === "excluded-by-profile",
-      ),
-    ).toBe(true);
+    // Default-inject: enabled means injected, regardless of harness. Only an
+    // explicit profile exclusion (none defined here) would drop one.
+    expect(result.mcpServers.map((s) => s.id)).toEqual(["browser", "chrome", "extra-mcp"]);
+    expect(result.diagnostics.skipped.some((d) => d.reason === "excluded-by-profile")).toBe(false);
   });
 
   it("resolves explicit IDs in Creative mode", async () => {
@@ -153,8 +145,8 @@ describe("CapabilityResolver", () => {
     });
 
     expect(result.mode).toBe("efficient");
-    expect(result.mcpServers.map((s) => s.id)).toEqual(["browser"]);
-    expect(result.diagnostics.skipped.some((d) => d.id === "extra-mcp")).toBe(true);
+    expect(result.mcpServers.map((s) => s.id)).toEqual(["browser", "extra-mcp"]);
+    expect(result.diagnostics.skipped.some((d) => d.id === "extra-mcp")).toBe(false);
   });
 
   it("skips every MCP when the runtime cannot receive MCP at a WSL project location", async () => {
