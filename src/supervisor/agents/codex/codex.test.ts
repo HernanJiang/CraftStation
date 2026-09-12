@@ -1734,6 +1734,120 @@ describe("CodexStructuredSession", () => {
     expect(requests[2]?.params?.serviceTier).toBeNull();
   });
 
+  it("falls back to the last working model when turn/start rejects the model as unsupported", async () => {
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const structuredSession = makeStructuredSession(requests);
+    const sessionFields = structuredSession as unknown as Record<string, unknown>;
+    const innerRpc = sessionFields["rpc"] as {
+      request: (
+        method: string,
+        params: Record<string, unknown> | null,
+        timeoutMs?: number,
+      ) => Promise<unknown>;
+    };
+    const innerRequest = innerRpc.request.bind(innerRpc);
+    sessionFields["rpc"] = {
+      claimThread: () => {},
+      ownsThread: (threadId: string) => threadId === "provider-thread",
+      request: (method: string, params: Record<string, unknown>) => {
+        if (method === "turn/start" && params?.model === "glm-5.3-flash") {
+          // Record the rejected attempt (the inner mock only records successes).
+          requests.push({ method, params });
+          throw new Error(
+            "The 'glm-5.3-flash' model is not supported when using Codex with a ChatGPT account.",
+          );
+        }
+        return innerRequest(method, params);
+      },
+    };
+    const runtimeEvents: RuntimeEvent[] = [];
+    (structuredSession as unknown as Record<string, unknown>)["listener"] = {
+      onRuntimeEvent: (event: RuntimeEvent) => runtimeEvents.push(event),
+      onUpdate: () => {},
+    };
+
+    // First turn works → establishes the fallback model.
+    await structuredSession.startTurn("hello", { model: "gpt-5.4" });
+    // Stale thread config names an unsupported model (e.g. resend after interrupt).
+    await structuredSession.startTurn("again", { model: "glm-5.3-flash" });
+
+    expect(requests.map((request) => request.method)).toEqual([
+      "turn/start",
+      "turn/start",
+      "turn/start",
+    ]);
+    expect(requests[1]?.params).toMatchObject({ model: "glm-5.3-flash" });
+    expect(requests[2]?.params).toMatchObject({ model: "gpt-5.4" });
+    const warnings = runtimeEvents.filter((event) => event.type === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ threadId: "local-thread" });
+    expect(runtimeEvents.some((event) => event.type === "error")).toBe(false);
+    // The retried user message reuses the stable item id so it stays deduped.
+    const userItemIds = runtimeEvents
+      .filter((event) => event.type === "item.started" && event.itemType === "user_message")
+      .map((event) => (event as { itemId: string }).itemId);
+    expect(userItemIds).toHaveLength(3);
+    expect(userItemIds[1]).toBe(userItemIds[2]);
+  });
+
+  it("surfaces the model error without retry when no working model is known", async () => {
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const structuredSession = makeStructuredSession(requests);
+    const sessionFields = structuredSession as unknown as Record<string, unknown>;
+    sessionFields["rpc"] = {
+      claimThread: () => {},
+      ownsThread: (threadId: string) => threadId === "provider-thread",
+      request: (method: string, params: Record<string, unknown>) => {
+        requests.push({ method, params });
+        throw new Error("The 'glm-5.3-flash' model is not supported when using Codex.");
+      },
+    };
+    const runtimeEvents: RuntimeEvent[] = [];
+    (structuredSession as unknown as Record<string, unknown>)["listener"] = {
+      onRuntimeEvent: (event: RuntimeEvent) => runtimeEvents.push(event),
+      onUpdate: () => {},
+    };
+
+    await expect(structuredSession.startTurn("hi", { model: "glm-5.3-flash" })).rejects.toThrow(
+      /not supported/,
+    );
+    expect(requests).toHaveLength(1);
+    expect(runtimeEvents.some((event) => event.type === "warning")).toBe(false);
+    expect(runtimeEvents.some((event) => event.type === "error")).toBe(true);
+  });
+
+  it("does not retry turn/start failures unrelated to model support", async () => {
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const structuredSession = makeStructuredSession(requests);
+    // Establish a working model first so the only missing piece is a match.
+    await structuredSession.startTurn("hello", { model: "gpt-5.4" });
+    const sessionFields = structuredSession as unknown as Record<string, unknown>;
+    const innerRpc = sessionFields["rpc"] as {
+      request: (
+        method: string,
+        params: Record<string, unknown> | null,
+        timeoutMs?: number,
+      ) => Promise<unknown>;
+    };
+    const innerRequest = innerRpc.request.bind(innerRpc);
+    sessionFields["rpc"] = {
+      claimThread: () => {},
+      ownsThread: (threadId: string) => threadId === "provider-thread",
+      request: (method: string, params: Record<string, unknown>) => {
+        requests.push({ method, params });
+        if (requests.length === 1) {
+          return innerRequest(method, params);
+        }
+        throw new Error("You've hit your usage limit.");
+      },
+    };
+
+    await expect(structuredSession.startTurn("again", { model: "gpt-5.4" })).rejects.toThrow(
+      /usage limit/,
+    );
+    expect(requests.map((request) => request.method)).toEqual(["turn/start", "turn/start"]);
+  });
+
   it("steers the active turn without interrupting it", async () => {
     const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
     const structuredSession = makeStructuredSession(requests);

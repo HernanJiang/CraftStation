@@ -117,6 +117,10 @@ export async function resolveCapabilities(
     });
 
     if (mode === "efficient" && profile) {
+      // Default-inject policy: every enabled server rides along unless the
+      // harness profile explicitly excludes it. Transport / project-location
+      // compatibility is still enforced below, so "enabled" can never promise
+      // a capability the runtime cannot deliver.
       candidateServers = enabledServers.filter((s) => {
         const isExcluded = profile.excludedMcpServerIds?.includes(s.id);
         if (isExcluded) {
@@ -128,23 +132,6 @@ export async function resolveCapabilities(
             details: `Excluded by profile for ${harnessKind}`,
           });
           return false;
-        }
-
-        const isRecommended =
-          profile.recommendedMcpServerIds?.includes(s.id) ||
-          profile.recommendedMcpServerNames?.includes(s.name.toLowerCase());
-
-        if (profile.recommendedMcpServerIds || profile.recommendedMcpServerNames) {
-          if (!isRecommended) {
-            skipped.push({
-              id: s.id,
-              name: s.name,
-              kind: "mcp",
-              reason: "excluded-by-profile",
-              details: `Not in recommended list for ${harnessKind}`,
-            });
-            return false;
-          }
         }
         return true;
       });

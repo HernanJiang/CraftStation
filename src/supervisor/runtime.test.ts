@@ -3214,7 +3214,7 @@ describe("SupervisorRuntime craftAgent", () => {
     );
   });
 
-  it("filters MCP servers by HarnessProfile in Efficient mode", async () => {
+  it("injects all enabled MCP servers in Efficient mode (default-inject policy)", async () => {
     const runtime = makeRuntime(() => undefined);
     const adapter = routedAdapter("grok");
     const factory = vi.fn<(..._args: unknown[]) => HarnessRuntimeAdapter>(() => adapter);
@@ -3248,11 +3248,14 @@ describe("SupervisorRuntime craftAgent", () => {
       prompt: "native Efficient MCP route",
     });
 
-    // Grok profile recommends browser, excluding other-mcp
+    // Default-inject policy: enabled means injected, regardless of harness.
     expect(factory).toHaveBeenCalledWith(
       "grok",
       expect.objectContaining({
-        mcpServers: [expect.objectContaining({ id: "browser" })],
+        mcpServers: [
+          expect.objectContaining({ id: "browser" }),
+          expect.objectContaining({ id: "other-mcp" }),
+        ],
       }),
     );
   });

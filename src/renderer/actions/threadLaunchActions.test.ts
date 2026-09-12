@@ -72,11 +72,19 @@ const mocks = vi.hoisted(() => {
     dbGetState: vi.fn<(key: string) => Promise<string | null>>(),
     dbSetState: vi.fn<(key: string, value: string) => Promise<void>>(),
   };
+  const sharedSettings = {
+    pushRecentModel: vi.fn<(...args: unknown[]) => void>(),
+    mcpServers: [] as unknown[],
+    disabledBuiltInMcpServers: {},
+    disabledBuiltInMcpTools: {},
+    customModels: [] as Array<{ provider: string; accountId?: string; modelId: string }>,
+  };
   return {
     appState,
     remoteState,
     remoteClient,
     bridge,
+    sharedSettings,
     createWorktree:
       vi.fn<
         (
@@ -133,12 +141,7 @@ vi.mock("@/renderer/state/fileCheckpointActions", () => ({
 
 vi.mock("@/renderer/state/sharedSettingsStore", () => ({
   useSharedSettings: {
-    getState: () => ({
-      pushRecentModel: vi.fn<(...args: unknown[]) => void>(),
-      mcpServers: [],
-      disabledBuiltInMcpServers: {},
-      disabledBuiltInMcpTools: {},
-    }),
+    getState: () => mocks.sharedSettings,
   },
 }));
 
@@ -199,6 +202,7 @@ describe("startThreadFromDraft host transport", () => {
     mocks.appState.projects = [];
     mocks.appState.threads = [];
     mocks.appState.provisioningWorktreeThreadIds = {};
+    mocks.sharedSettings.customModels = [];
     useUsageAccountsStore.getState().reset();
     mocks.appState.createThread.mockImplementation((input) => {
       const values = input as Partial<Thread> & {
@@ -954,6 +958,7 @@ describe("performInitialThreadLaunch host transport", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.appState.projects = [];
+    mocks.sharedSettings.customModels = [];
     mocks.remoteState.withClient.mockImplementation((desktopId, invoke) =>
       invoke(mocks.remoteClient),
     );
@@ -1186,5 +1191,92 @@ describe("performInitialThreadLaunch host transport", () => {
       agentKind: "grok",
       sessionRef: { providerSessionId: "native-grok-current" },
     });
+  });
+
+  it("resumes a channel-model thread with its channel account and persists the binding", async () => {
+    mocks.sharedSettings.customModels = [
+      { provider: "codex", accountId: "openai-compatible:cavoti", modelId: "glm-5.3-flash" },
+    ];
+    const provenance = new Crafter().compile({
+      slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" },
+    }).resultItem!.provenance;
+    const thread = {
+      ...localThread,
+      id: "local-thread",
+      presentationMode: "gui",
+      agentKind: "codex",
+      config: { model: "glm-5.3-flash" },
+      compositionProvenance: provenance,
+      sessionRef: {
+        providerSessionId: "rollout-resume-1",
+        discoveredAt: "2026-08-23T00:00:00.000Z",
+      },
+    } as Thread;
+    mocks.bridge.resumeCraftAgent.mockResolvedValue({
+      threadId: "local-thread",
+      entityId: "entity:codex:resume",
+      sessionId: "sess:codex:local-thread",
+      response: "",
+      accountBinding: {
+        accountId: "openai-compatible:cavoti",
+        provider: "openai-compatible",
+        reason: "explicit",
+      },
+    });
+
+    await performInitialThreadLaunch({
+      thread,
+      projectLocation: localProject.location,
+      prompt: "",
+      initialSize,
+    });
+
+    // No stored binding: the channel owning this exact model is derived.
+    expect(mocks.bridge.resumeCraftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: "openai-compatible:cavoti" }),
+    );
+    // The binding the resume used is persisted so the next resume keeps it.
+    expect(mocks.bridge.dbUpsertThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountBinding: expect.objectContaining({ accountId: "openai-compatible:cavoti" }),
+      }),
+    );
+  });
+
+  it("prefers the stored accountBinding over the channel derivation on resume", async () => {
+    mocks.sharedSettings.customModels = [
+      { provider: "codex", accountId: "openai-compatible:cavoti", modelId: "glm-5.3-flash" },
+    ];
+    const provenance = new Crafter().compile({
+      slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" },
+    }).resultItem!.provenance;
+    const thread = {
+      ...localThread,
+      id: "local-thread",
+      presentationMode: "gui",
+      agentKind: "codex",
+      config: { model: "glm-5.3-flash" },
+      accountBinding: {
+        accountId: "openai-compatible:other",
+        provider: "openai-compatible",
+        reason: "explicit",
+      },
+      compositionProvenance: provenance,
+      sessionRef: {
+        providerSessionId: "rollout-resume-1",
+        discoveredAt: "2026-08-23T00:00:00.000Z",
+      },
+    } as Thread;
+
+    await performInitialThreadLaunch({
+      thread,
+      projectLocation: localProject.location,
+      prompt: "",
+      initialSize,
+    });
+
+    expect(mocks.bridge.resumeCraftAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: "openai-compatible:other" }),
+    );
   });
 });

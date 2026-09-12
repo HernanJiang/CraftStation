@@ -54,7 +54,6 @@ export function BrowserHost() {
   const setRightPanelTab = usePanelStore((s) => s.setRightPanelTab);
   const extracted = useBrowserPanelStore((s) => s.extracted);
   const hasTabs = useBrowserPanelStore((s) => s.tabs.length > 0);
-  const automationActive = useBrowserPanelStore((s) => s.automationActive);
 
   // The browser is painted wherever its dock slot lives: the right panel's
   // active layer, a right-panel split section, or a bottom dock slot. Keying
@@ -85,11 +84,12 @@ export function BrowserHost() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, browserPanelOpen]);
 
-  // Extracted → the standalone window owns the browser. Background renders the
-  // webviews off-screen ONLY while the agent is actively automating (and there
-  // are tabs); when idle it unmounts to free resources.
+  // Extracted → the standalone window owns the browser. Background keeps
+  // existing tabs mounted off-screen so switching threads or right-panel tabs
+  // never destroys a page (unmounting a <webview> drops its guest and forces
+  // a reload on return). Only mount nothing when there are no tabs at all.
   if (mode === "hidden") return null;
-  if (mode === "background" && (!hasTabs || !automationActive)) return null;
+  if (mode === "background" && !hasTabs) return null;
 
   function restoreOrCloseOverlay() {
     setBrowserOverlayMaximized(false);
