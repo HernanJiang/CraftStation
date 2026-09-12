@@ -18,6 +18,11 @@ import { logCraftingEvent } from "@/shared/crafting/logging";
 import type { ProjectLocation, RuntimeEvent, ThreadConfig } from "@/shared/contracts";
 import type { ThreadSessionManager } from "./threadSessionManager";
 
+// A provider turn may legitimately wait on reasoning or tools for longer than
+// one minute. Keep the legacy adapter consistent with the native paths: no
+// implicit deadline, while callers can still pass an explicit positive value.
+const DEFAULT_TURN_TIMEOUT_MS = 0;
+
 export interface CodexRuntimeAdapterOptions {
   threadSessionManager: ThreadSessionManager;
   defaultProjectLocation?: ProjectLocation | undefined;
@@ -130,7 +135,7 @@ export class CodexCraftSession implements CraftSession {
   async sendPrompt(
     prompt: string,
     onEvent?: (event: RuntimeEvent) => void,
-    timeoutMs = 60000,
+    timeoutMs = DEFAULT_TURN_TIMEOUT_MS,
   ): Promise<PromptResult> {
     if (this._status === "terminated") {
       throw CraftingError.executionFailed(
@@ -227,15 +232,17 @@ export class CodexCraftSession implements CraftSession {
         }
       });
 
-      timeoutTimer = setTimeout(() => {
-        reject(
-          CraftingError.executionFailed(
-            `Turn timed out after ${timeoutMs}ms without completion event.`,
-            { threadId: this.threadId, timeoutMs },
-            "Check Codex process status or increase timeout limit.",
-          ),
-        );
-      }, timeoutMs);
+      if (timeoutMs > 0) {
+        timeoutTimer = setTimeout(() => {
+          reject(
+            CraftingError.executionFailed(
+              `Turn timed out after ${timeoutMs}ms without completion event.`,
+              { threadId: this.threadId, timeoutMs },
+              "Check Codex process status or increase timeout limit.",
+            ),
+          );
+        }, timeoutMs);
+      }
     });
 
     try {

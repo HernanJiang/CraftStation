@@ -117,8 +117,6 @@ export class PiRpcSession implements StructuredSessionHandle {
   private currentTurnId: string | undefined;
   private turnCompletion: Promise<void> = Promise.resolve();
   private resolveTurnCompletion: (() => void) | undefined;
-  private turnWatchdog: ReturnType<typeof setTimeout> | undefined;
-  private agentStarted = false;
   private assistantItemId: string | undefined;
   private reasoningItemId: string | undefined;
   /** Canonical item mirroring the installed pi-goal extension's session state. */
@@ -222,10 +220,6 @@ export class PiRpcSession implements StructuredSessionHandle {
         this.failTurn(response.error ?? "Pi rejected the prompt.");
         return;
       }
-      // Extension commands and prompt handlers can complete without starting an
-      // agent run, so no agent_settled event follows them. If no agent run
-      // begins shortly after acceptance, settle the turn locally.
-      this.armTurnWatchdog();
       await completion;
     } catch (error) {
       if (this.interruptRequested) {
@@ -306,7 +300,6 @@ export class PiRpcSession implements StructuredSessionHandle {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.clearTurnWatchdog();
     this.cancelDialogs();
     this.unsubscribeEvents();
     this.unsubscribeExit();
@@ -349,7 +342,6 @@ export class PiRpcSession implements StructuredSessionHandle {
   private beginTurn(prompt: string, userMessageItemId?: string): void {
     this.currentTurnId = `pi-turn-${++this.turnSequence}`;
     this.interruptRequested = false;
-    this.agentStarted = false;
     this.turnErrorMessage = undefined;
     this.assistantItemId = undefined;
     this.reasoningItemId = undefined;
@@ -376,20 +368,6 @@ export class PiRpcSession implements StructuredSessionHandle {
     this.emit({ type: "item.completed", threadId: this.input.threadId, itemId: userItemId });
   }
 
-  private armTurnWatchdog(): void {
-    this.clearTurnWatchdog();
-    this.turnWatchdog = setTimeout(() => {
-      if (!this.agentStarted && this.currentTurnId) this.finishTurn("completed");
-    }, 1_500);
-  }
-
-  private clearTurnWatchdog(): void {
-    if (this.turnWatchdog) {
-      clearTimeout(this.turnWatchdog);
-      this.turnWatchdog = undefined;
-    }
-  }
-
   private handleEvent(event: PiRpcEvent): void {
     if (this.disposed) return;
     switch (event.type) {
@@ -406,8 +384,6 @@ export class PiRpcSession implements StructuredSessionHandle {
         this.handleToolEnd(event);
         break;
       case "agent_start":
-        this.agentStarted = true;
-        this.clearTurnWatchdog();
         break;
       case "compaction_start":
         this.publishUpdate("working", "none");
@@ -436,7 +412,6 @@ export class PiRpcSession implements StructuredSessionHandle {
         }
         break;
       case "agent_settled":
-        this.clearTurnWatchdog();
         this.finishTurn(this.interruptRequested ? "cancelled" : this.settleState());
         break;
       case "extension_ui_request":
@@ -813,7 +788,6 @@ export class PiRpcSession implements StructuredSessionHandle {
 
   private finishTurn(state: "completed" | "cancelled" | "failed" = "completed"): void {
     if (!this.currentTurnId) return;
-    this.clearTurnWatchdog();
     this.completeOpenItems();
     this.emit({
       type: "turn.completed",
@@ -833,7 +807,6 @@ export class PiRpcSession implements StructuredSessionHandle {
   private failTurn(message: string): void {
     this.emit({ type: "error", threadId: this.input.threadId, message });
     if (this.currentTurnId) {
-      this.clearTurnWatchdog();
       this.completeOpenItems();
       this.emit({
         type: "turn.completed",

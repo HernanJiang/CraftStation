@@ -1,5 +1,6 @@
 import type { RuntimeEvent, ThreadContextUsage, ToolCallPayload } from "@/shared/contracts";
 import { isDelegatedAgentTool } from "@/shared/toolCallClassification";
+import { appendRuntimeStream } from "@/shared/runtimeStream";
 import type { AppStoreState } from "./shared";
 import {
   type CompletedTurnRecord,
@@ -344,7 +345,10 @@ function applyRuntimeEventToRuntimeState(
       const next: RuntimeChatItem = {
         ...prev,
         state: prev.state === "completed" ? "completed" : "updated",
-        streams: { ...prev.streams, [event.stream]: prevStream + event.delta },
+        streams: {
+          ...prev.streams,
+          [event.stream]: appendRuntimeStream(prevStream, event.delta, event.stream),
+        },
       };
       items[event.itemId] = next;
       return {
@@ -476,8 +480,8 @@ function coalesceRuntimeEvents(events: RuntimeEvent[]): RuntimeEvent[] {
       pendingDelta.stream === event.stream
     ) {
       pendingDelta = {
-        ...pendingDelta,
-        delta: pendingDelta.delta + event.delta,
+        ...event,
+        delta: appendRuntimeStream(pendingDelta.delta, event.delta, event.stream),
       };
       continue;
     }

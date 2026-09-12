@@ -22,7 +22,11 @@ const UNCORROBORATED_EXTRA_DELAY: Partial<Record<ThreadStatus, number>> = {
   idle: 200,
 };
 
-const DEFAULT_WORKING_SILENCE_TIMEOUT = 2000;
+// Silence is not proof that a terminal task finished. Providers that do not
+// expose a reliable completion signal must remain working until their process
+// or an explicit status hint settles them; adapters may opt into a finite
+// fallback with `workingSilenceTimeoutMs`.
+const DEFAULT_WORKING_SILENCE_TIMEOUT: number | null = null;
 const CLI_HOOK_FIRST_EVENT_GRACE_MS = 600;
 
 function isCraftStationOscDebugEnabled(): boolean {

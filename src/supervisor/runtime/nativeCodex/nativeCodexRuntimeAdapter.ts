@@ -35,6 +35,10 @@ import type { JsonRpcRequest } from "./types";
 
 const DEFAULT_COLLABORATION_INSTRUCTIONS =
   "You are operating in default mode. You may use provider-native collaboration tools, including spawning and waiting for subagents, when the user explicitly requests delegation.";
+// Long model reasoning and tool calls are valid work, so a fixed default
+// deadline must not silently fail an unfinished turn. An explicit
+// `turnTimeoutMs` remains available for deployments that require one.
+const DEFAULT_TURN_TIMEOUT_MS = 0;
 
 function codexDiagnostic(
   phase: NativeHarnessDiagnostic["phase"],
@@ -63,6 +67,7 @@ export interface NativeCodexAdapterOptions {
   client?: AppServerClient | undefined;
   host?: AppServerProcessHost | undefined;
   approvalHandler?: ((request: JsonRpcRequest) => Promise<unknown>) | undefined;
+  /** Optional hard turn deadline. `0` (the default) disables it. */
   turnTimeoutMs?: number | undefined;
   accountBinding?: AccountBinding | undefined;
   /** Supervisor-resolved MCP servers selected by the CraftPlan. */
@@ -94,7 +99,7 @@ export class NativeCodexCraftSession implements CraftSession {
     private readonly client: AppServerClient,
     readonly sessionRef?: string | undefined,
     initialOverrides?: RuntimeOverrides | undefined,
-    private readonly turnTimeoutMs = 120000,
+    private readonly turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
     usageScopeFresh = true,
     accountId?: string,
     private readonly runtimeModelId = "unknown",

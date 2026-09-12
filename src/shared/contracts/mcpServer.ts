@@ -144,6 +144,7 @@ export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
     "read_thread",
     "create_thread",
     "send_to_thread",
+    "send_thread_message",
     "ask_thread",
     "read_thread_exchange",
     "wait_for_thread_reply",

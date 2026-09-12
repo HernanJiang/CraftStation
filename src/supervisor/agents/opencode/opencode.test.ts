@@ -409,6 +409,7 @@ describe("createOpenCodeAdapter", () => {
       liveInputMode: "server",
       presentationMode: "gui",
       presentationModes: ["gui"],
+      mcpScope: { terminal: "none", gui: "always" },
     });
   });
 

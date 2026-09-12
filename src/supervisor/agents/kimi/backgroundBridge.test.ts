@@ -6,7 +6,13 @@ import {
   CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY,
   CRAFTSTATION_ACP_PARENT_TOOL_CALL_ID_META_KEY,
 } from "../acp/canonicalMapping";
-import { createKimiBackgroundBridge } from "./backgroundBridge";
+import {
+  createKimiBackgroundBridge,
+  DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS,
+  DEFAULT_KIMI_BACKGROUND_TASK_TIMEOUT_MS,
+  KIMI_BACKGROUND_TASK_TIMEOUT_ENV,
+  resolveKimiBackgroundTaskTimeoutMs,
+} from "./backgroundBridge";
 import { parseCompletedKimiWireTurns, parseKimiTaskRecord } from "./kimiWireJournal";
 
 function wireLine(time: number, event: Record<string, unknown>): string {
@@ -49,7 +55,10 @@ function makeReadText({
 }
 
 /** Starts a bridge wired to `readText` and collects every emitted notification. */
-function startBridge(readText: ReadTextFake, overrides: { now?: () => number } = {}) {
+function startBridge(
+  readText: ReadTextFake,
+  overrides: { now?: () => number; taskTimeoutMs?: number } = {},
+) {
   const updates: SessionNotification[] = [];
   const bridge = createKimiBackgroundBridge(
     { kind: "posix", path: "/repo" },
@@ -58,6 +67,7 @@ function startBridge(readText: ReadTextFake, overrides: { now?: () => number } =
       readText,
       resolveSessionDir: async () => "/kimi/session",
       pollIntervalMs: 1,
+      ...(overrides.taskTimeoutMs !== undefined ? { taskTimeoutMs: overrides.taskTimeoutMs } : {}),
       ...(overrides.now ? { now: overrides.now } : {}),
     },
   );
@@ -65,6 +75,81 @@ function startBridge(readText: ReadTextFake, overrides: { now?: () => number } =
 }
 
 describe("Kimi background subagent bridge", () => {
+  it("defaults to no host deadline and accepts an explicit configured deadline", () => {
+    expect(DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS).toBe(0);
+    expect(DEFAULT_KIMI_BACKGROUND_TASK_TIMEOUT_MS).toBe(0);
+    expect(resolveKimiBackgroundTaskTimeoutMs()).toBe(0);
+    expect(resolveKimiBackgroundTaskTimeoutMs({ backgroundTaskTimeoutMs: "1234" })).toBe(1234);
+    expect(
+      resolveKimiBackgroundTaskTimeoutMs(undefined, {
+        [KIMI_BACKGROUND_TASK_TIMEOUT_ENV]: "5678",
+      }),
+    ).toBe(5678);
+  });
+
+  it("does not abandon a running task after the former two-hour deadline", async () => {
+    let clock = 1_000;
+    let reads = 0;
+    const readText = makeReadText({
+      wire: "",
+      task: '{"status":"running"}',
+      output: {},
+    });
+    readText.mockImplementation(async (_location, path) => {
+      if (path.endsWith(".json")) {
+        reads += 1;
+        clock = 1_000 + 2 * 60 * 60 * 1_000 + 1;
+        return '{"status":"running"}';
+      }
+      return undefined;
+    });
+    const { bridge, updates } = startBridge(readText, { now: () => clock });
+
+    bridge.onBackgroundLaunch({
+      sessionId: "session-1",
+      toolCallId: "tool-1",
+      taskId: "agent-task",
+    });
+    await vi.waitFor(() => expect(reads).toBeGreaterThan(0));
+    bridge.dispose();
+
+    expect(updates).toHaveLength(0);
+  });
+
+  it("reports an explicit host deadline as failed instead of claiming completion", async () => {
+    let clock = 1_000;
+    const readText = makeReadText({
+      wire: "",
+      task: '{"status":"running"}',
+      output: {},
+    });
+    readText.mockImplementation(async (_location, path) => {
+      if (path.endsWith(".json")) {
+        clock = 2_000;
+        return '{"status":"running"}';
+      }
+      return undefined;
+    });
+    const { bridge, updates } = startBridge(readText, {
+      now: () => clock,
+      taskTimeoutMs: 500,
+    });
+
+    bridge.onBackgroundLaunch({
+      sessionId: "session-1",
+      toolCallId: "tool-1",
+      taskId: "agent-task",
+    });
+    await vi.waitFor(() => expect(updates).toHaveLength(1));
+    bridge.dispose();
+
+    expect(updates[0]?.update).toMatchObject({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "tool-1",
+      status: "failed",
+    });
+  });
+
   it("parses terminal task metadata defensively", () => {
     expect(parseKimiTaskRecord('{"status":"completed","endedAt":42}')).toEqual({
       status: "completed",

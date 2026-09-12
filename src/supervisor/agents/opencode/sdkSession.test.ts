@@ -1219,6 +1219,94 @@ describe("OpencodeSdkSession", () => {
     await harness.session.dispose();
   });
 
+  it("does not complete a turn on idle while a command tool is still running", async () => {
+    const harness = await createTurnHarness();
+    await harness.session.startTurn("run a long command", config, undefined, {
+      turnId: "turn-long-command",
+    });
+    harness.updates.length = 0;
+
+    const toolPart = {
+      id: "part-command-1",
+      sessionID: "ses_turns",
+      messageID: "msg-assistant-1",
+      type: "tool" as const,
+      callID: "call-command-1",
+      tool: "bash",
+      state: {
+        status: "running" as const,
+        input: { command: "Start-Sleep -Seconds 900" },
+        time: { start: 1 },
+      },
+    };
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-command-running",
+        type: "message.part.updated",
+        properties: { sessionID: "ses_turns", time: 1, part: toolPart },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(harness.runtimeEvents).toContainEqual(
+        expect.objectContaining({ type: "item.started", itemType: "command_execution" }),
+      ),
+    );
+
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-command-idle-glitch",
+        type: "session.idle",
+        properties: { sessionID: "ses_turns" },
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(harness.updates).not.toContainEqual(expect.objectContaining({ status: "idle" }));
+    expect(harness.runtimeEvents).not.toContainEqual(
+      expect.objectContaining({ type: "turn.completed", turnId: "turn-long-command" }),
+    );
+
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-command-completed",
+        type: "message.part.updated",
+        properties: {
+          sessionID: "ses_turns",
+          time: 2,
+          part: {
+            ...toolPart,
+            state: {
+              status: "completed" as const,
+              input: { command: "Start-Sleep -Seconds 900" },
+              output: "done",
+              title: "bash",
+              metadata: {},
+              time: { start: 1, end: 2 },
+            },
+          },
+        },
+      },
+    });
+    harness.events.push({
+      directory: "/repo",
+      payload: {
+        id: "evt-command-idle-real",
+        type: "session.idle",
+        properties: { sessionID: "ses_turns" },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(harness.runtimeEvents).toContainEqual(
+        expect.objectContaining({ type: "turn.completed", turnId: "turn-long-command" }),
+      ),
+    );
+
+    harness.events.close();
+    await harness.session.dispose();
+  });
+
   it("fails a rejected prompt once and suppresses its derivative session.error", async () => {
     const harness = await createTurnHarness({
       promptAsync: () => Promise.reject(new Error("prompt rejected")),

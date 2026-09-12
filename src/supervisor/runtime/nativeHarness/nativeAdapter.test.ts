@@ -123,9 +123,14 @@ class JsonRpcFixture extends EventEmitter {
               chunk: { type: "usage", usage: { inputTokens: 3, outputTokens: 2 } },
             },
           });
+          const reason = this.terminalReasons?.[this.promptCount] ?? this.terminalReason;
+          this.promptCount += 1;
           emit({
             type: "turn/end",
-            data: { turn: 1, reason: this.terminalReason },
+            data: {
+              turn: 1,
+              reason,
+            },
           });
           this.stdout.write(
             JSON.stringify({
@@ -143,9 +148,11 @@ class JsonRpcFixture extends EventEmitter {
       callback();
     },
   });
+  private promptCount = 0;
   constructor(
     private readonly promptDelayMs = 0,
     private readonly terminalReason: Record<string, unknown> = { kind: "completed" },
+    private readonly terminalReasons?: readonly Record<string, unknown>[],
   ) {
     super();
   }
@@ -647,6 +654,64 @@ describe("Native process harness adapter", () => {
           expect.objectContaining({ type: "turn.completed", state: expectedState }),
         ]),
       );
+      await session.terminate();
+    });
+
+    it("continues a DeepSeek turn after max-tokens instead of closing it as completed", async () => {
+      const fixture = new JsonRpcFixture(0, { kind: "completed" }, [
+        { kind: "max-tokens" },
+        { kind: "completed" },
+      ]);
+      const spawnProcess = vi.fn<() => ChildProcessWithoutNullStreams>(() =>
+        fixtureProcess(fixture),
+      ) as unknown as typeof import("node:child_process").spawn;
+      const adapter = createNativeHarnessRuntimeAdapter("deepseek", {
+        projectLocation: location,
+        resolveExecutable: () => "C:\\bin\\dsh-jsonrpc-agent.exe",
+        spawnProcess,
+      }) as NativeProcessHarnessRuntimeAdapter;
+      const entity = await adapter.spawnEntity(plan());
+      const session = await adapter.createSession(entity);
+
+      await expect(session.startTurn({ prompt: "finish the long task" })).resolves.toMatchObject({
+        status: "completed",
+        response: "hellohello",
+      });
+      expect(fixture.methods.filter((method) => method === "session/prompt")).toHaveLength(2);
+      expect(session.getDiagnostics?.() ?? []).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ operation: "auto-continue-max-tokens" }),
+        ]),
+      );
+      expect(
+        session.getSnapshot().events.filter((event) => event.type === "turn.completed"),
+      ).toHaveLength(1);
+      await session.terminate();
+    });
+
+    it("respects maxTokenContinuations=0 and reports the provider limit", async () => {
+      const fixture = new JsonRpcFixture(0, { kind: "max-tokens" });
+      const spawnProcess = vi.fn<() => ChildProcessWithoutNullStreams>(() =>
+        fixtureProcess(fixture),
+      ) as unknown as typeof import("node:child_process").spawn;
+      const adapter = createNativeHarnessRuntimeAdapter("deepseek", {
+        projectLocation: location,
+        resolveExecutable: () => "C:\\bin\\dsh-jsonrpc-agent.exe",
+        spawnProcess,
+      }) as NativeProcessHarnessRuntimeAdapter;
+      const entity = await adapter.spawnEntity({
+        ...plan(),
+        runtimeBinding: {
+          ...plan().runtimeBinding,
+          options: { configPath: "C:\\repo\\cordis.yml", maxTokenContinuations: 0 },
+        },
+      });
+      const session = await adapter.createSession(entity);
+
+      await expect(session.startTurn({ prompt: "bounded task" })).rejects.toMatchObject({
+        code: "EXECUTION_FAILED",
+      });
+      expect(fixture.methods.filter((method) => method === "session/prompt")).toHaveLength(1);
       await session.terminate();
     });
 

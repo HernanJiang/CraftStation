@@ -104,6 +104,11 @@ interface PtyTurn {
   reject: (error: unknown) => void;
 }
 
+// A provider may spend more than two minutes reasoning or waiting on a tool.
+// Do not turn normal silence into a failed turn by default; callers that need
+// a hard bound can still pass `turnTimeoutMs` explicitly.
+const DEFAULT_TURN_TIMEOUT_MS = 0;
+
 class PtyNativeCraftSession implements CraftSession {
   private _status: CraftSessionStatus = "idle";
   private _providerSessionId: string | undefined;
@@ -414,6 +419,7 @@ export interface PtyNativeHarnessRuntimeAdapterOptions {
   projectLocation: ProjectLocation;
   accountBinding?: AccountBinding;
   profileRef?: string;
+  /** Optional hard turn deadline. `0` (the default) disables it. */
   turnTimeoutMs?: number;
   spawnPty?: (spec: CommandSpec, cwd: string) => IPty;
 }
@@ -509,7 +515,7 @@ export class PtyNativeHarnessRuntimeAdapter implements HarnessRuntimeAdapter {
         pty,
         config,
         providerSessionRef,
-        this.options.turnTimeoutMs ?? 120_000,
+        this.options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS,
       );
     } catch (error) {
       this.diagnostics.push(

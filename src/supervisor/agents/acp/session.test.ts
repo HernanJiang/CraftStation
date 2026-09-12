@@ -2871,8 +2871,6 @@ describe("ACP turn config sync", () => {
 });
 
 describe("ACP orphan turns — agent-initiated work after prompt() settled", () => {
-  const ORPHAN_TURN_IDLE_MS = 20_000;
-
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -2913,7 +2911,7 @@ describe("ACP orphan turns — agent-initiated work after prompt() settled", () 
     expect(runtimeEventTypes(listener)).not.toContain("turn.started");
   });
 
-  it("closes the orphan turn after the idle window, closing its open items", () => {
+  it("keeps a quiet orphan turn open until an explicit terminal action", () => {
     vi.useFakeTimers();
     const { listener, session } = makeConfigSyncSession();
 
@@ -2922,15 +2920,10 @@ describe("ACP orphan turns — agent-initiated work after prompt() settled", () 
     });
     expect(statusUpdates(listener)).toEqual(["working"]);
 
-    vi.advanceTimersByTime(ORPHAN_TURN_IDLE_MS + 1);
+    vi.advanceTimersByTime(20 * 60_000);
 
-    expect(statusUpdates(listener)).toEqual(["working", "idle"]);
-    // The streaming assistant item must not be left dangling in `updated`.
-    expect(runtimeEventTypes(listener)).toContain("item.completed");
-    expect(listener.onRuntimeEvent.mock.calls.at(-1)?.[0]).toMatchObject({
-      type: "turn.completed",
-      state: "completed",
-    });
+    expect(statusUpdates(listener)).toEqual(["working"]);
+    expect(runtimeEventTypes(listener)).not.toContain("turn.completed");
   });
 
   it("stays working past the idle window while a tool call is still open", () => {
@@ -2948,15 +2941,15 @@ describe("ACP orphan turns — agent-initiated work after prompt() settled", () 
       },
     });
     // A long test run emits nothing for minutes; that is not idleness.
-    vi.advanceTimersByTime(ORPHAN_TURN_IDLE_MS * 10);
+    vi.advanceTimersByTime(20 * 60_000);
     expect(statusUpdates(listener)).toEqual(["working"]);
 
     session.handleSessionUpdate({
       update: { sessionUpdate: "tool_call_update", toolCallId: "tc-1", status: "completed" },
     });
-    vi.advanceTimersByTime(ORPHAN_TURN_IDLE_MS + 1);
+    vi.advanceTimersByTime(20 * 60_000);
 
-    expect(statusUpdates(listener).at(-1)).toBe("idle");
+    expect(statusUpdates(listener).at(-1)).toBe("working");
   });
 
   it("sends session/cancel when Stop lands on an orphan turn", async () => {

@@ -84,14 +84,19 @@ export const workflowRunSchema = z.object({
 });
 export type WorkflowRun = z.infer<typeof workflowRunSchema>;
 
+/**
+ * Legacy opt-in stale window for callers that explicitly want crash detection.
+ * Runtime/UI liveness does not use it by default because a quiet workflow is
+ * still a live workflow until it reports a terminal state.
+ */
 export const WORKFLOW_STALE_PROGRESS_MS = 3 * 60 * 60 * 1000;
 
 /**
  * A workflow run reports a "live" status while its manifest says `running` - or
  * `unknown`, the pre-manifest / can't-parse state that precedes the first
  * on-disk write. Terminal states are `completed` / `failed` / `cancelled`.
- * Internal: callers should use `isWorkflowRunLive`, which also rejects stale
- * `running` manifests left behind by a crashed runtime.
+ * Internal: callers should use `isWorkflowRunLive`. A running manifest remains
+ * live by default; stale detection is opt-in via `staleAfterMs`.
  */
 function isLiveWorkflowRunStatus(status: WorkflowRunStatus): boolean {
   return status === "running" || status === "unknown";
@@ -128,16 +133,20 @@ function getWorkflowRunLastActivityAt(run: WorkflowRun): number | undefined {
 }
 
 /**
- * Status-only liveness is not enough: if a workflow process dies before writing
- * a terminal manifest, the persisted status remains `running` forever. Treat a
- * `running` manifest with no activity for `WORKFLOW_STALE_PROGRESS_MS` as dead.
+ * Status-only liveness is authoritative by default. Hosts that explicitly want
+ * crash recovery may provide `staleAfterMs`; it is never an implicit task
+ * deadline and does not terminate the underlying process.
  */
-export function isWorkflowRunLive(run: WorkflowRun, options: { now?: number } = {}): boolean {
+export function isWorkflowRunLive(
+  run: WorkflowRun,
+  options: { now?: number; staleAfterMs?: number } = {},
+): boolean {
   if (!isLiveWorkflowRunStatus(run.status)) return false;
+  if (!(options.staleAfterMs && options.staleAfterMs > 0)) return true;
 
   const lastActivityAt = getWorkflowRunLastActivityAt(run);
   if (lastActivityAt === undefined) return true;
 
   const now = options.now ?? Date.now();
-  return now - lastActivityAt <= WORKFLOW_STALE_PROGRESS_MS;
+  return now - lastActivityAt <= options.staleAfterMs;
 }

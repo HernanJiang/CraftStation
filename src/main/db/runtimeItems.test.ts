@@ -4,10 +4,12 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Thread } from "@/shared/contracts";
-import { closeDatabase, initDatabase } from "./connection";
+import { closeDatabase, getSqlite, initDatabase } from "./connection";
+import { MAX_RUNTIME_OUTPUT_CHARS, RUNTIME_OUTPUT_TRUNCATION_MARKER } from "@/shared/runtimeStream";
 import { dbUpsertProject, dbUpsertThread } from "./projectsThreads";
 import {
   dbApplyThreadRuntimeEvents,
+  dbCompactRuntimeOutputStreams,
   dbGetThreadContextUsage,
   dbGetLatestThreadRuntimeAnchorItemId,
   dbGetThreadRuntimeItems,
@@ -129,6 +131,85 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
       usedTokens: 125,
       maxTokens: 1000,
     });
+  });
+
+  it("bounds persisted command output to the newest content", () => {
+    dbApplyThreadRuntimeEvents("thread-1", [
+      {
+        type: "item.started",
+        threadId: "thread-1",
+        itemId: "command-1",
+        itemType: "command_execution",
+      },
+      {
+        type: "content.delta",
+        threadId: "thread-1",
+        itemId: "command-1",
+        stream: "command_output",
+        delta: "x".repeat(MAX_RUNTIME_OUTPUT_CHARS),
+      },
+      {
+        type: "content.delta",
+        threadId: "thread-1",
+        itemId: "command-1",
+        stream: "command_output",
+        delta: "tail-marker",
+      },
+    ]);
+
+    const output = dbGetThreadRuntimeItems("thread-1")[0]?.streams.command_output;
+    expect(output).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS);
+    expect(output?.startsWith(RUNTIME_OUTPUT_TRUNCATION_MARKER)).toBe(true);
+    expect(output?.endsWith("tail-marker")).toBe(true);
+  });
+
+  it("compacts oversized legacy output rows in place", () => {
+    const sqlite = getSqlite();
+    sqlite
+      .prepare(
+        "INSERT INTO thread_runtime_items (thread_id, item_id, position, type, state, streams) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "thread-1",
+        "legacy-command",
+        99,
+        "command_execution",
+        "completed",
+        JSON.stringify({ command_output: "x".repeat(MAX_RUNTIME_OUTPUT_CHARS + 1) }),
+      );
+
+    dbCompactRuntimeOutputStreams(sqlite);
+    const output = dbGetThreadRuntimeItems("thread-1").find((item) => item.id === "legacy-command")
+      ?.streams.command_output;
+    expect(output).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS);
+    expect(output?.startsWith(RUNTIME_OUTPUT_TRUNCATION_MARKER)).toBe(true);
+  });
+
+  it("compacts oversized legacy output rows during the next database startup", () => {
+    const databasePath = join(dir, "state.sqlite");
+    const sqlite = getSqlite();
+    sqlite
+      .prepare(
+        "INSERT INTO thread_runtime_items (thread_id, item_id, position, type, state, streams) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "thread-1",
+        "startup-legacy-command",
+        100,
+        "command_execution",
+        "completed",
+        JSON.stringify({ command_output: "x".repeat(MAX_RUNTIME_OUTPUT_CHARS + 1) }),
+      );
+
+    closeDatabase();
+    initDatabase(databasePath);
+
+    const compacted = getSqlite()
+      .prepare("SELECT streams FROM thread_runtime_items WHERE item_id = ?")
+      .get("startup-legacy-command") as { streams: string };
+    const output = (JSON.parse(compacted.streams) as { command_output: string }).command_output;
+    expect(output).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS);
+    expect(output.startsWith(RUNTIME_OUTPUT_TRUNCATION_MARKER)).toBe(true);
   });
 
   it("deduplicates repeated item starts and removes empty completed reasoning", () => {

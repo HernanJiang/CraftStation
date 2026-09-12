@@ -110,6 +110,8 @@ function context(
     probeResult?: McpProbeResult;
     authenticatedUrls?: string[];
     skillScan?: SkillScanResult;
+    dialogueStatus?: ThreadExchange["status"];
+    dialogueDeliveredAt?: string | null;
     requestDialogue?: (input: {
       actorThreadId: string;
       request: {
@@ -384,7 +386,7 @@ function context(
           targetThreadId: input.request.targetThreadId,
           sequence: 1,
           deliveryMode: input.request.deliveryMode,
-          status: "delivered",
+          status: options.dialogueStatus ?? "delivered",
           request: input.request.request,
           contextCapsule: null,
           sourceProvenance: {
@@ -417,7 +419,10 @@ function context(
           claimExpiresAt: null,
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
-          deliveredAt: "2026-01-01T00:00:00.000Z",
+          deliveredAt:
+            options.dialogueDeliveredAt === undefined
+              ? "2026-01-01T00:00:00.000Z"
+              : options.dialogueDeliveredAt,
           repliedAt: null,
         }) satisfies ThreadExchange),
   );
@@ -727,6 +732,81 @@ describe("CraftStation app control tools — threads", () => {
     expect(supervisor.interruptThread).not.toHaveBeenCalled();
     expect(supervisor.sendThreadInput).not.toHaveBeenCalled();
     expect(supervisor.startThread).not.toHaveBeenCalled();
+  });
+
+  it("send_thread_message returns a truthful delivery envelope for Executor handoff", async () => {
+    const threads = [makeThread({ id: "manager", title: "Manager" })];
+    const { ctx, requestDialogue } = context({ threads });
+    const result = await dispatchTool(
+      "send_thread_message",
+      {
+        thread_id: "manager",
+        message: "实验已完成，等待收口。",
+        sender_role: "my-research Executor",
+        experiment_id: "A.1",
+      },
+      ctx,
+    );
+
+    expect(result).toMatchObject({
+      delivered: true,
+      message_id: "exchange-1",
+      target_thread_id: "manager",
+    });
+    expect(requestDialogue).toHaveBeenCalledWith({
+      actorThreadId: "thread-1",
+      request: expect.objectContaining({
+        sourceThreadId: "thread-1",
+        targetThreadId: "manager",
+        deliveryMode: "after-current-turn",
+        request: expect.stringContaining("sender_role: my-research Executor"),
+      }),
+    });
+    expect(requestDialogue.mock.calls[0]?.[0].request.request).toContain("experiment_id: A.1");
+  });
+
+  it("does not report legacy send_to_thread as delivered before attention is resolved", async () => {
+    const { ctx } = context({
+      threads: [thread, makeThread({ id: "a" })],
+      dialogueStatus: "needs_attention",
+      dialogueDeliveredAt: null,
+    });
+    const result = await dispatchTool(
+      "send_to_thread",
+      { threadId: "a", message: "需要审批后才能接收" },
+      ctx,
+    );
+
+    expect(result).toMatchObject({
+      exchangeId: "exchange-1",
+      status: "needs_attention",
+      delivered: false,
+    });
+  });
+
+  it("send_thread_message reports delivery failure instead of pretending success", async () => {
+    const { ctx } = context({
+      requestDialogue: async () => {
+        throw new Error("Thread not found: manager");
+      },
+    });
+    await expect(
+      dispatchTool(
+        "send_thread_message",
+        {
+          thread_id: "manager",
+          message: "test",
+          sender_role: "Executor",
+          experiment_id: "dry-run",
+        },
+        ctx,
+      ),
+    ).resolves.toEqual({
+      delivered: false,
+      message_id: null,
+      target_thread_id: "manager",
+      error: "Thread not found: manager",
+    });
   });
 
   it("update_thread falls back to a direct DB row write when no renderer is connected", async () => {

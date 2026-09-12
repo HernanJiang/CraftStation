@@ -1354,6 +1354,7 @@ describe("SupervisorRuntime thread input", () => {
           presentationMode: "terminal",
         },
         detectTerminalStatus: () => null,
+        workingSilenceTimeoutMs: 2000,
       },
     });
 
@@ -1369,6 +1370,49 @@ describe("SupervisorRuntime thread input", () => {
     expect(
       emitted.filter((event) => event.type === "thread-state" && event.status === "idle"),
     ).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it("keeps an adapter working when no silence watchdog is declared", async () => {
+    vi.useFakeTimers();
+    const emitted: Array<Record<string, unknown>> = [];
+    const runtime = makeRuntime((event) => {
+      emitted.push(event as Record<string, unknown>);
+    });
+    const session = createRuntimeSession({
+      status: "working",
+      attention: "working",
+      prevChunk: "",
+      adapter: {
+        kind: "codex",
+        label: "Codex",
+        capabilities: {
+          models: [],
+          efforts: [],
+          modes: [],
+          approvalPolicies: [],
+          sandboxModes: [],
+          supportsResume: true,
+          supportsDirectInput: true,
+          liveInputMode: "server",
+          presentationMode: "terminal",
+        },
+        detectTerminalStatus: () => null,
+      },
+    });
+
+    (
+      runtime as unknown as {
+        handlePtyData: (session: Record<string, unknown>, data: string) => void;
+      }
+    ).handlePtyData(session, "Long-running provider task without a status marker");
+
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(session.status).toBe("working");
+    expect(
+      emitted.filter((event) => event.type === "thread-state" && event.status === "idle"),
+    ).toHaveLength(0);
     vi.useRealTimers();
   });
 
@@ -3252,10 +3296,13 @@ describe("SupervisorRuntime craftAgent", () => {
     expect(factory).toHaveBeenCalledWith(
       "grok",
       expect.objectContaining({
-        mcpServers: [
+        // Efficient mode may also include supervisor-owned built-ins such as
+        // app-controls; assert the user-configured servers without freezing
+        // the complete provider projection.
+        mcpServers: expect.arrayContaining([
           expect.objectContaining({ id: "browser" }),
           expect.objectContaining({ id: "other-mcp" }),
-        ],
+        ]),
       }),
     );
   });

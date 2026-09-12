@@ -851,20 +851,26 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
 
     if (event.type === "session.status") {
       const upd = mapStatusUpdate(event.properties);
+      const idleWhileToolRuns = upd.status === "idle" && this.hasOpenToolCall();
       this.listener?.onUpdate({
-        ...(this.pendingRequestStatus() ?? upd),
+        ...(this.pendingRequestStatus() ??
+          (idleWhileToolRuns ? { status: "working", attention: "working" } : upd)),
         ...this.sessionRefUpdate(),
       });
-      if (upd.status === "idle") this.observeTurnIdle();
+      if (upd.status === "idle" && !idleWhileToolRuns) this.observeTurnIdle();
       return;
     }
 
     if (event.type === "session.idle") {
+      const idleWhileToolRuns = this.hasOpenToolCall();
       this.listener?.onUpdate({
-        ...(this.pendingRequestStatus() ?? { status: "idle", attention: "none" }),
+        ...(this.pendingRequestStatus() ??
+          (idleWhileToolRuns
+            ? { status: "working", attention: "working" }
+            : { status: "idle", attention: "none" })),
         ...this.sessionRefUpdate(),
       });
-      this.observeTurnIdle();
+      if (!idleWhileToolRuns) this.observeTurnIdle();
       return;
     }
 
@@ -963,7 +969,15 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
       if (turn.admissionStarted) turn.idleObserved = true;
       return;
     }
+    // OpenCode can briefly report an idle session while a tool part is still
+    // running (notably for long commands). The tool lifecycle is authoritative
+    // for CraftStation: never close the turn until all tracked tools complete.
+    if (this.hasOpenToolCall()) return;
     this.completeTurn(turn, turn.interrupted ? "interrupted" : "completed");
+  }
+
+  private hasOpenToolCall(): boolean {
+    return (this.mapperState?.toolItems.size ?? 0) > 0;
   }
 
   private completeTurn(turn: OpenCodeActiveTurn, state: OpenCodeTurnState): void {

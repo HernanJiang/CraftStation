@@ -41,6 +41,10 @@ type NativeMode = "antigravity" | "deepseek";
 
 const DEFAULT_DEEPSEEK_READINESS_TIMEOUT_MS = 15_000;
 const DEFAULT_DEEPSEEK_SHUTDOWN_TIMEOUT_MS = 2_000;
+// Provider output limits must not become hidden task limits. `Infinity` keeps
+// continuing until DeepSeek emits a real terminal reason; a finite value is
+// only used when explicitly supplied in the CraftPlan.
+const DEFAULT_DEEPSEEK_MAX_TOKEN_CONTINUATIONS = Number.POSITIVE_INFINITY;
 
 function locationPath(location: ProjectLocation): string {
   return location.kind === "wsl" ? location.linuxPath : location.path;
@@ -121,16 +125,24 @@ function nativeTerminalError(event: NativeWireEvent): CraftingError | undefined 
   );
 }
 
-function deepSeekTerminalError(event: NativeWireEvent): CraftingError | undefined {
+function deepSeekReasonKind(event: NativeWireEvent): string | undefined {
   if (event.type !== "session.event") return undefined;
   const params = recordValue(event.payload.params) ?? event.payload;
   const nativeEvent = recordValue(params.event);
   if (nativeEvent?.type !== "turn/end") return undefined;
   const data = recordValue(nativeEvent.data);
   const reason = recordValue(data?.reason);
-  const reasonKind = typeof reason?.kind === "string" ? reason.kind : undefined;
+  return typeof reason?.kind === "string" ? reason.kind.replace(/_/gu, "-") : undefined;
+}
+
+function deepSeekTerminalError(event: NativeWireEvent): CraftingError | undefined {
+  const reasonKind = deepSeekReasonKind(event);
   if (!reasonKind || !["error", "failed", "max-tokens", "blocked"].includes(reasonKind))
     return undefined;
+  const params = recordValue(event.payload.params) ?? event.payload;
+  const nativeEvent = recordValue(params.event);
+  const data = recordValue(nativeEvent?.data);
+  const reason = recordValue(data?.reason);
 
   const providerError = recordValue(reason?.failure) ?? recordValue(reason?.error);
   const providerCode =
@@ -174,6 +186,8 @@ class NativeProcessCraftSession implements CraftSession {
   private _sessionExited = false;
   private _terminating = false;
   private _nativeSessionRef: string | undefined;
+  private _turnSignal: AbortSignal | undefined;
+  private _maxTokenContinuationsRemaining = DEFAULT_DEEPSEEK_MAX_TOKEN_CONTINUATIONS;
   private _abortCleanup: (() => void) | undefined;
   private _turnEventsStart = 0;
   private readonly _events: RuntimeEvent[] = [];
@@ -297,6 +311,35 @@ class NativeProcessCraftSession implements CraftSession {
     if (event.type === "jsonrpc.response") {
       return;
     }
+    // DeepSeek reports `max-tokens` as a terminal turn even when the requested
+    // task is only partially complete. Continue the same provider session
+    // until it emits a real terminal reason; an explicit finite option can
+    // still bound this behavior.
+    // This must happen before canonicalization: emitting turn.completed here
+    // would close the supervisor turn and cannot be undone.
+    if (
+      this.mode === "deepseek" &&
+      deepSeekReasonKind(event) === "max-tokens" &&
+      this._turnId &&
+      this._maxTokenContinuationsRemaining > 0 &&
+      !this._turnSignal?.aborted
+    ) {
+      this._maxTokenContinuationsRemaining -= 1;
+      this.addDiagnostic({
+        code: "NATIVE_EXECUTION_FAILED",
+        harnessKind: this.descriptor.harnessKind,
+        phase: "turn",
+        operation: "auto-continue-max-tokens",
+        message: "DeepSeek reached the provider output limit; continuing the active task.",
+        details: { remaining: this._maxTokenContinuationsRemaining },
+        occurredAt: new Date().toISOString(),
+      });
+      this.sendDeepSeek(
+        "Continue the task from the previous partial response. Do not repeat completed work; resume from where you stopped and finish the requested task.",
+        this._turnSignal,
+      );
+      return;
+    }
     if (
       this.mode === "antigravity" &&
       !this._explicitNativeSessionRef &&
@@ -379,6 +422,7 @@ class NativeProcessCraftSession implements CraftSession {
     this._abortCleanup = undefined;
     this._turnId = undefined;
     this._turnPromise = undefined;
+    this._turnSignal = undefined;
     if (this._status !== "terminated") {
       this._status = error ? "error" : "idle";
     }
@@ -487,6 +531,16 @@ class NativeProcessCraftSession implements CraftSession {
     this._turnEventsStart = this._events.length;
     this._response = "";
     this._streamedResponse = "";
+    this._turnSignal = command.signal;
+    this._maxTokenContinuationsRemaining =
+      this.mode === "deepseek"
+        ? (() => {
+            const value = objectOptions(this.plan).maxTokenContinuations;
+            return typeof value === "number" && Number.isInteger(value) && value >= 0
+              ? value
+              : DEFAULT_DEEPSEEK_MAX_TOKEN_CONTINUATIONS;
+          })()
+        : 0;
     this._status = "busy";
     this.emit({ type: "turn.started", threadId: this.threadId, turnId: this._turnId });
     this._turnPromise = new Promise<TurnResult>((resolve, reject) => {

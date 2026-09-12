@@ -73,6 +73,12 @@ const sendArgsSchema = z.object({
   message: z.string().trim().min(1).max(50_000),
   interruptFirst: z.boolean().optional(),
 });
+const sendThreadMessageArgsSchema = z.object({
+  thread_id: z.string().min(1),
+  message: z.string().trim().min(1).max(50_000),
+  sender_role: z.string().trim().min(1).max(100),
+  experiment_id: z.string().trim().min(1).max(200),
+});
 const askThreadArgsSchema = z.object({
   threadId: z.string().min(1),
   request: z.string().trim().min(1).max(50_000),
@@ -208,6 +214,25 @@ export const threadTools: ToolDomain = {
           threadId: threadIdProp,
           message: { type: "string", minLength: 1, maxLength: 50000 },
           interruptFirst: { type: "boolean" },
+        },
+      },
+    },
+    {
+      name: "send_thread_message",
+      description:
+        "Send a durable cross-thread message to an existing CraftStation thread. " +
+        "This is the explicit Executor-to-Manager path: thread_id must be the target " +
+        "CraftStation UUID (never a ses_ provider session id), and the result reports " +
+        "delivery truthfully.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["thread_id", "message", "sender_role", "experiment_id"],
+        properties: {
+          thread_id: threadIdProp,
+          message: { type: "string", minLength: 1, maxLength: 50000 },
+          sender_role: { type: "string", minLength: 1, maxLength: 100 },
+          experiment_id: { type: "string", minLength: 1, maxLength: 200 },
         },
       },
     },
@@ -493,18 +518,62 @@ export const threadTools: ToolDomain = {
           hopDepth: 0,
         },
       });
+      const delivered =
+        exchange.deliveredAt !== null || ["target_working", "replied"].includes(exchange.status);
       return {
         threadId,
         exchangeId: exchange.id,
         status: exchange.status,
-        delivered: ["delivered", "target_working", "needs_attention", "replied"].includes(
-          exchange.status,
-        ),
+        delivered,
         ...(exchange.deliveredAt && targetBeforeDelivery.status === "inactive"
           ? { resumed: true }
           : {}),
         interruptedFirst: interruptFirst === true,
       };
+    },
+    send_thread_message: async (args, ctx) => {
+      const parsed = sendThreadMessageArgsSchema.parse(args);
+      const sourceThreadId = requireCallerThreadId(ctx);
+      const request =
+        `[Cross-thread message]\n` +
+        `sender_role: ${parsed.sender_role}\n` +
+        `experiment_id: ${parsed.experiment_id}\n\n` +
+        parsed.message;
+      try {
+        const exchange = await ctx.threadCollaboration.requestDialogue({
+          actorThreadId: sourceThreadId,
+          request: {
+            sourceThreadId,
+            targetThreadId: parsed.thread_id,
+            request,
+            deliveryMode: "after-current-turn",
+            // The experiment id is the handoff identity. Retries after a
+            // transport timeout must return the original durable exchange,
+            // rather than enqueueing duplicate Manager messages.
+            idempotencyKey: `thread-message-${sourceThreadId}-${parsed.thread_id}-${parsed.experiment_id}`,
+            hopDepth: 0,
+          },
+        });
+        // `needs_attention` is ambiguous: before delivery it means approval or
+        // user input is required, while after delivery it is only a state
+        // transition on an already accepted exchange. `deliveredAt` is the
+        // durable acknowledgement that distinguishes those cases.
+        const delivered =
+          exchange.deliveredAt !== null || ["target_working", "replied"].includes(exchange.status);
+        return {
+          delivered,
+          message_id: exchange.id,
+          target_thread_id: parsed.thread_id,
+          ...(delivered ? {} : { error: exchange.error ?? `Message status: ${exchange.status}` }),
+        };
+      } catch (error) {
+        return {
+          delivered: false,
+          message_id: null,
+          target_thread_id: parsed.thread_id,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
     },
     ask_thread: async (args, ctx) => {
       const parsed = askThreadArgsSchema.parse(args);

@@ -1,6 +1,7 @@
 import { remoteOmittedField } from "@/shared/remote";
 import { projectPayloadImageRefs } from "./imageRefProjection";
 import type { RuntimeEvent } from "@/shared/contracts";
+import { appendRuntimeStream } from "@/shared/runtimeStream";
 import type { BufferedSupervisorEvent, RemoteBroadcastEvent } from "./context";
 
 /**
@@ -135,6 +136,46 @@ function mapRuntimePayloads(
   }
 }
 
+function boundRuntimeContentDeltas(event: RemoteBroadcastEvent): RemoteBroadcastEvent {
+  const bound = (runtimeEvent: RuntimeEvent): RuntimeEvent => {
+    if (runtimeEvent.type !== "content.delta") return runtimeEvent;
+    const delta = appendRuntimeStream("", runtimeEvent.delta, runtimeEvent.stream);
+    return delta === runtimeEvent.delta ? runtimeEvent : { ...runtimeEvent, delta };
+  };
+  switch (event.type) {
+    case "thread-runtime-event": {
+      const runtimeEvent = bound(event.event);
+      return runtimeEvent === event.event ? event : { ...event, event: runtimeEvent };
+    }
+    case "thread-runtime-events": {
+      let changed = false;
+      const events = event.events.map((runtimeEvent) => {
+        const next = bound(runtimeEvent);
+        if (next !== runtimeEvent) changed = true;
+        return next;
+      });
+      return changed ? { ...event, events } : event;
+    }
+    case "thread-runtime-events-multi": {
+      let changed = false;
+      const batches = event.batches.map((batch) => {
+        let batchChanged = false;
+        const events = batch.events.map((runtimeEvent) => {
+          const next = bound(runtimeEvent);
+          if (next !== runtimeEvent) batchChanged = true;
+          return next;
+        });
+        if (!batchChanged) return batch;
+        changed = true;
+        return { ...batch, events };
+      });
+      return changed ? { ...event, batches } : event;
+    }
+    default:
+      return event;
+  }
+}
+
 interface OmissionCandidate {
   readonly slot: string;
   readonly field: string;
@@ -186,7 +227,7 @@ export function capBroadcastEvent(
   original: RemoteBroadcastEvent,
   maxBytes: number,
 ): CappedBroadcastEvent {
-  const event = projectEventImageRefs(original);
+  const event = boundRuntimeContentDeltas(projectEventImageRefs(original));
   const json = JSON.stringify(event);
   const bytes = json === undefined ? 0 : Buffer.byteLength(json, "utf8");
   if (bytes <= maxBytes) {

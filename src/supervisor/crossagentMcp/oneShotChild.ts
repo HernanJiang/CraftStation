@@ -8,13 +8,12 @@ import { ensureNodePtySpawnHelperExecutable } from "@/supervisor/nodePty";
 import { processEnvRecord } from "@/supervisor/processEnv";
 
 /**
- * Hard ceiling on a one-shot child's process lifetime. Unlike a structured
- * child (which settles on its own turn.completed), a one-shot CLI could hang
- * indefinitely with no interactive channel to unblock it, so we cap it. The
- * caller's `run_agent`/`wait_for_agent` `timeout_s` governs how long a WAIT
- * blocks — this is a separate safety net for the underlying process.
+ * Default one-shot child lifetime. `0` means no deadline: a long-running
+ * provider task must be allowed to finish, and the caller can still cancel it
+ * explicitly. Deployments that need a process safety ceiling can pass an
+ * explicit `maxLifetimeMs` to `runOneShotChild`.
  */
-export const ONE_SHOT_CHILD_MAX_LIFETIME_MS = 20 * 60 * 1000;
+export const ONE_SHOT_CHILD_MAX_LIFETIME_MS = 0;
 
 /** Grace period between SIGTERM and SIGKILL when cancelling. */
 const KILL_GRACE_MS = 3_000;
@@ -37,7 +36,7 @@ export interface OneShotChildParams {
   model: string;
   effort: string | undefined;
   prompt: string;
-  /** Safety ceiling on process lifetime (ms). */
+  /** Safety ceiling on process lifetime (ms); `0` disables the deadline. */
   maxLifetimeMs?: number;
   /** Streamed stdout chunk (ANSI-stripped, micro-batched). */
   onTextDelta: (delta: string) => void;
@@ -132,9 +131,9 @@ export function runOneShotChild(params: OneShotChildParams): OneShotChildHandle 
 
 /**
  * The single settle/lifetime/cancel/kill-grace/delta-batch state machine shared
- * by both transports. Preserves exact semantics: exit-derived settle, unref'd
- * lifetime timer, SIGTERM→grace→SIGKILL cancel, timers cleared on settle, and a
- * pending stdout buffer that is always flushed before settling.
+ * by both transports. Preserves exact semantics: exit-derived settle, optional
+ * unref'd lifetime timer, SIGTERM→grace→SIGKILL cancel, timers cleared on
+ * settle, and a pending stdout buffer that is always flushed before settling.
  */
 function driveChild(
   transport: ChildTransport,
@@ -158,12 +157,13 @@ function driveChild(
     params.onTextDelta(text);
   };
 
-  const lifetimeTimer = armUnref(setTimeout(() => cancel(), maxLifetimeMs));
+  const lifetimeTimer =
+    maxLifetimeMs > 0 ? armUnref(setTimeout(() => cancel(), maxLifetimeMs)) : undefined;
 
   const settle = (result: SettleResult) => {
     if (settled) return;
     settled = true;
-    clearTimeout(lifetimeTimer);
+    if (lifetimeTimer) clearTimeout(lifetimeTimer);
     if (killTimer) clearTimeout(killTimer);
     flush();
     params.onSettle(

@@ -10,7 +10,7 @@ interface CommandOutputViewportProps {
   language?: ViewportLanguage;
 }
 
-/** Scrollable command / PTY text (full content; no line windowing). */
+/** Scrollable command / PTY text. Runtime command output is bounded upstream. */
 export function CommandOutputViewport({ text, language = "plain" }: CommandOutputViewportProps) {
   if (language === "plain") {
     return <pre className={`${viewportClass} text-foreground-muted`}>{text}</pre>;

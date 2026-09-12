@@ -52,6 +52,16 @@ function streamingResponse(content: string): Response {
   });
 }
 
+function streamingResponseWithFinishReason(content: string, finishReason: string): Response {
+  const payload = JSON.stringify({
+    choices: [{ delta: { content }, finish_reason: finishReason }],
+  });
+  return new Response(`data: ${payload}\n\ndata: [DONE]\n\n`, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" },
+  });
+}
+
 function toolCallResponse(): Response {
   const chunks = [
     {
@@ -167,6 +177,114 @@ describe("DeepSeek API native runtime adapter", () => {
       { role: "assistant", content: "FIRST_OK" },
       { role: "user", content: "third prompt" },
     ]);
+    await session.terminate();
+  });
+
+  it("continues an API turn after finish_reason=length instead of silently completing", async () => {
+    const requestBodies: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
+      requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return requestBodies.length === 1
+        ? streamingResponseWithFinishReason("PARTIAL", "length")
+        : streamingResponse("DONE");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    process.env[apiKeyEnv] = "test-only-key";
+    const adapter = new DeepSeekApiRuntimeAdapter({
+      descriptor: DEEPSEEK_API_HARNESS_DESCRIPTOR,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+    });
+    const entity = await adapter.spawnEntity({
+      ...plan(),
+      runtimeBinding: {
+        ...plan().runtimeBinding,
+        options: {
+          apiKeyEnv,
+          apiBaseUrl: "https://deepseek.test/v1",
+          maxTokenContinuations: 1,
+        },
+      },
+    });
+    const session = await adapter.createSession(entity);
+
+    await expect(session.startTurn({ prompt: "finish the long task" })).resolves.toMatchObject({
+      status: "completed",
+      response: "PARTIALDONE",
+    });
+    expect(requestBodies).toHaveLength(2);
+    expect(requestBodies[1]?.messages).toEqual([
+      { role: "user", content: "finish the long task" },
+      { role: "assistant", content: "PARTIAL" },
+      expect.objectContaining({
+        role: "user",
+        content: expect.stringContaining("Continue the task"),
+      }),
+    ]);
+    expect(session.getDiagnostics?.() ?? []).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining("output limit") }),
+      ]),
+    );
+    await session.terminate();
+  });
+
+  it("does not let the MCP tool-round ceiling truncate a larger continuation budget", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => {
+        calls += 1;
+        return calls <= 8
+          ? streamingResponseWithFinishReason(`PARTIAL${calls}`, "length")
+          : streamingResponse("DONE");
+      }),
+    );
+    process.env[apiKeyEnv] = "test-only-key";
+    const adapter = new DeepSeekApiRuntimeAdapter({
+      descriptor: DEEPSEEK_API_HARNESS_DESCRIPTOR,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+    });
+    const entity = await adapter.spawnEntity({
+      ...plan(),
+      runtimeBinding: {
+        ...plan().runtimeBinding,
+        options: { apiKeyEnv, apiBaseUrl: "https://deepseek.test/v1", maxTokenContinuations: 8 },
+      },
+    });
+    const session = await adapter.createSession(entity);
+
+    await expect(
+      session.startTurn({ prompt: "continue beyond the tool-round budget" }),
+    ).resolves.toMatchObject({
+      status: "completed",
+      response: "PARTIAL1PARTIAL2PARTIAL3PARTIAL4PARTIAL5PARTIAL6PARTIAL7PARTIAL8DONE",
+    });
+    expect(calls).toBe(9);
+    await session.terminate();
+  });
+
+  it("reports an unfinished API turn when continuation budget is exhausted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => streamingResponseWithFinishReason("PARTIAL", "length")),
+    );
+    process.env[apiKeyEnv] = "test-only-key";
+    const adapter = new DeepSeekApiRuntimeAdapter({
+      descriptor: DEEPSEEK_API_HARNESS_DESCRIPTOR,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+    });
+    const entity = await adapter.spawnEntity({
+      ...plan(),
+      runtimeBinding: {
+        ...plan().runtimeBinding,
+        options: { apiKeyEnv, apiBaseUrl: "https://deepseek.test/v1", maxTokenContinuations: 0 },
+      },
+    });
+    const session = await adapter.createSession(entity);
+
+    await expect(session.startTurn({ prompt: "bounded task" })).rejects.toMatchObject({
+      code: "EXECUTION_FAILED",
+    });
     await session.terminate();
   });
 

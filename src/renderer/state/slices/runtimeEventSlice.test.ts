@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { create } from "zustand";
 import type { RuntimeEvent } from "@/shared/contracts";
+import { MAX_RUNTIME_OUTPUT_CHARS, RUNTIME_OUTPUT_TRUNCATION_MARKER } from "@/shared/runtimeStream";
 import {
   createRuntimeEventSlice,
   type RuntimeChatItem,
@@ -114,6 +115,36 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     expect(store.getState().runtimeItemsByIdByThread["t1"]?.["i1"]?.streams.assistant_text).toBe(
       "Hello world",
     );
+  });
+
+  it("bounds large command output while preserving the newest bytes", () => {
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "command-1",
+      itemType: "command_execution",
+    });
+    const firstChunk = "x".repeat(MAX_RUNTIME_OUTPUT_CHARS);
+    apply("t1", {
+      type: "content.delta",
+      threadId: "t1",
+      itemId: "command-1",
+      stream: "command_output",
+      delta: firstChunk,
+    });
+    apply("t1", {
+      type: "content.delta",
+      threadId: "t1",
+      itemId: "command-1",
+      stream: "command_output",
+      delta: "tail-marker",
+    });
+
+    const output =
+      store.getState().runtimeItemsByIdByThread["t1"]?.["command-1"]?.streams.command_output;
+    expect(output).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS);
+    expect(output?.startsWith(RUNTIME_OUTPUT_TRUNCATION_MARKER)).toBe(true);
+    expect(output?.endsWith("tail-marker")).toBe(true);
   });
 
   it("updates the streamed item without cloning the whole thread item map", () => {

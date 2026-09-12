@@ -100,23 +100,25 @@ describe("threadLiveWorkflowStore", () => {
       markTerminal("slow", "i");
     });
 
-    it("clears a dead launch whose manifest never appears", async () => {
+    it("keeps a launch live while its manifest is still missing", async () => {
       workflowGetRun.mockResolvedValue({ run: null });
       register({ threadId: "dead", itemId: "i", manifestPath: "/never.json", location });
       expect(isLive("dead")).toBe(true);
 
-      // Past the 10-minute launch deadline with no manifest -> treated as failed.
+      // A missing manifest is not proof of completion or failure.
       await vi.advanceTimersByTimeAsync(11 * 60_000);
-      expect(isLive("dead")).toBe(false);
+      expect(isLive("dead")).toBe(true);
+      markTerminal("dead", "i");
     });
 
-    it("clears a dead launch whose manifest read keeps failing", async () => {
+    it("keeps a launch live while manifest reads keep failing", async () => {
       workflowGetRun.mockRejectedValue(new Error("parse failed"));
       register({ threadId: "error", itemId: "i", manifestPath: "/broken.json", location });
       expect(isLive("error")).toBe(true);
 
       await vi.advanceTimersByTimeAsync(11 * 60_000);
-      expect(isLive("error")).toBe(false);
+      expect(isLive("error")).toBe(true);
+      markTerminal("error", "i");
     });
 
     it("keeps polling a running manifest and never overlaps ticks", async () => {
@@ -131,7 +133,7 @@ describe("threadLiveWorkflowStore", () => {
       expect(isLive("live")).toBe(false);
     });
 
-    it("clears a running manifest when its own progress is stale", async () => {
+    it("keeps a running manifest when its own progress is quiet", async () => {
       workflowGetRun.mockResolvedValue({
         run: runningRun(Date.now() - WORKFLOW_STALE_PROGRESS_MS - 1),
       });
@@ -139,7 +141,8 @@ describe("threadLiveWorkflowStore", () => {
       expect(isLive("stale")).toBe(true);
 
       await vi.advanceTimersByTimeAsync(POLL_MS + 1);
-      expect(isLive("stale")).toBe(false);
+      expect(isLive("stale")).toBe(true);
+      markTerminal("stale", "i");
     });
   });
 });

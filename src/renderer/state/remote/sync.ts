@@ -1,4 +1,5 @@
 import { isThreadTurnActive, type RuntimeEvent, type Thread } from "@/shared/contracts";
+import { appendRuntimeStream } from "@/shared/runtimeStream";
 import type { SupervisorEvent } from "@/shared/ipc";
 import type { GitStatePatch } from "@/shared/gitState";
 import type { RemoteGitSummaries, RemoteThreadSnapshot } from "@/shared/remote";
@@ -414,12 +415,36 @@ function enqueueRuntimeEvents(threadId: string, events: readonly RuntimeEvent[])
   if (events.length === 0) return;
   const existing = pendingRuntimeEvents.get(threadId);
   if (existing) {
-    existing.push(...events);
+    for (const event of events) appendRuntimeEvent(existing, event);
   } else {
-    pendingRuntimeEvents.set(threadId, [...events]);
+    const queued: RuntimeEvent[] = [];
+    for (const event of events) appendRuntimeEvent(queued, event);
+    pendingRuntimeEvents.set(threadId, queued);
   }
   installRuntimeSchedulingListeners();
   schedulePendingRuntimeEvents();
+}
+
+function appendRuntimeEvent(queue: RuntimeEvent[], event: RuntimeEvent): void {
+  const previous = queue[queue.length - 1];
+  if (
+    previous?.type === "content.delta" &&
+    event.type === "content.delta" &&
+    previous.itemId === event.itemId &&
+    previous.stream === event.stream
+  ) {
+    queue[queue.length - 1] = {
+      ...event,
+      delta: appendRuntimeStream(previous.delta, event.delta, event.stream),
+    };
+    return;
+  }
+  if (event.type !== "content.delta") {
+    queue.push(event);
+    return;
+  }
+  const delta = appendRuntimeStream("", event.delta, event.stream);
+  queue.push(delta === event.delta ? event : { ...event, delta });
 }
 
 function flushPendingRuntimeEventsSync(threadId: string): void {
