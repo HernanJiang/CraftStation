@@ -140,6 +140,40 @@ describe("threadContextUsage", () => {
     expect(hasReportedContextUsage({ usedTokens: 1, maxTokens: 200_000 })).toBe(true);
   });
 
+  it("infers the configured window when the provider has not reported usage yet", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "grok",
+        config: { model: "grok-4.6" },
+      },
+      agentStatus: {
+        ...baseAgent,
+        kind: "grok",
+        capabilities: {
+          ...baseAgent.capabilities,
+          models: [{ id: "grok-4.6", label: "Grok 4.6" }],
+          contextSizes: [{ id: "500K", label: "500K" }],
+          modelContextSizes: { "grok-4.6": ["500K"] },
+          defaultContextSize: "500K",
+        },
+      },
+      reportedUsage: undefined,
+    });
+    expect(summary.maxTokens).toBe(500_000);
+    expect(summary.usedTokens).toBeUndefined();
+    expect(summary.headline).toBe("500K context");
+  });
+
+  it("parses a raw token-count context size", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: { ...baseThread, config: { model: "grok-4.6", contextSize: "256000" } },
+      agentStatus: undefined,
+      reportedUsage: undefined,
+    });
+    expect(summary.maxTokens).toBe(256_000);
+  });
+
   it("infers Cursor-style context suffixes from model ids", () => {
     const summary = resolveThreadContextUsageSummary({
       thread: {
@@ -186,7 +220,9 @@ describe("threadContextUsage", () => {
         { id: "cache-read", label: "Cache read", tokens: 50 },
       ]),
     ).toBe(50);
-    expect(resolveSessionCacheHitRate([{ id: "input", label: "Input", tokens: 80 }])).toBeUndefined();
+    expect(
+      resolveSessionCacheHitRate([{ id: "input", label: "Input", tokens: 80 }]),
+    ).toBeUndefined();
   });
 
   it("does not invent occupancy rows from a bare used-token total", () => {
@@ -195,9 +231,9 @@ describe("threadContextUsage", () => {
       agentStatus: baseAgent,
       reportedUsage: { usedTokens: 71_000 },
     });
-    expect(summary.occupancy.every((row) => row.tokens === 0) || summary.occupancy.length === 0).toBe(
-      true,
-    );
+    expect(
+      summary.occupancy.every((row) => row.tokens === 0) || summary.occupancy.length === 0,
+    ).toBe(true);
     expect(summary.cacheHitRate).toBeUndefined();
   });
 

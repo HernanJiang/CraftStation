@@ -59,9 +59,7 @@ describe("thirdPartyRouting", () => {
       resolveThirdPartyAccountForLaunch({
         agentKind: "commandcode",
         model: "deepseek-v4-flash",
-        customModels: [
-          { provider: "commandcode", modelId: "deepseek-v4-flash" },
-        ],
+        customModels: [{ provider: "commandcode", modelId: "deepseek-v4-flash" }],
         trustAccountChannel: true,
       }),
     ).toBeUndefined();
@@ -132,9 +130,7 @@ describe("thirdPartyRouting", () => {
       resolveThirdPartyAccountForLaunch({
         agentKind: "opencode",
         model: "glm-5.3-flash",
-        customModels: [
-          { provider: "codex", modelId: "glm-5.3-flash", accountId: "tp-1" },
-        ],
+        customModels: [{ provider: "codex", modelId: "glm-5.3-flash", accountId: "tp-1" }],
         accounts,
       }),
     ).toBe("tp-1");
@@ -145,9 +141,7 @@ describe("thirdPartyRouting", () => {
       resolveThirdPartyAccountForLaunch({
         agentKind: "codex",
         model: "glm-5.3-flash-C",
-        customModels: [
-          { provider: "opencode", modelId: "glm-5.3-flash-C", accountId: "tp-1" },
-        ],
+        customModels: [{ provider: "opencode", modelId: "glm-5.3-flash-C", accountId: "tp-1" }],
         accounts,
       }),
     ).toBe("tp-1");
@@ -240,7 +234,7 @@ describe("third-party picker harness", () => {
     });
   });
 
-  it("does not rewrite a native OpenCode catalog pick", () => {
+  it("does not rewrite a native OpenCode GLM catalog pick", () => {
     expect(
       applyThirdPartyPickerSelection({
         agentKind: "opencode",
@@ -250,6 +244,40 @@ describe("third-party picker harness", () => {
     ).toEqual({
       agentKind: "opencode",
       model: "glm-5.3-flash",
+      accountId: "opencode:zhipu",
+    });
+  });
+
+  it("rewrites an OpenCode catalog Muse Spark pick onto Muse Code when installed", () => {
+    expect(
+      applyThirdPartyPickerSelection(
+        {
+          agentKind: "opencode",
+          model: "opencode-go/muse-spark-1.3-contributor",
+          accountId: "opencode:zhipu",
+        },
+        ["opencode", "muse"],
+      ),
+    ).toEqual({
+      agentKind: "muse",
+      model: "opencode-go/muse-spark-1.3-contributor",
+      accountId: "opencode:zhipu",
+    });
+  });
+
+  it("keeps an OpenCode catalog Muse Spark pick on OpenCode when Muse is missing", () => {
+    expect(
+      applyThirdPartyPickerSelection(
+        {
+          agentKind: "opencode",
+          model: "opencode-go/muse-spark-1.3-contributor",
+          accountId: "opencode:zhipu",
+        },
+        ["opencode"],
+      ),
+    ).toEqual({
+      agentKind: "opencode",
+      model: "opencode-go/muse-spark-1.3-contributor",
       accountId: "opencode:zhipu",
     });
   });
@@ -268,10 +296,29 @@ describe("third-party picker harness", () => {
     });
   });
 
-  it("does not rewrite a native subscription pick", () => {
+  it("does not rewrite a native Command Code DeepSeek catalog pick", () => {
     expect(
-      applyThirdPartyPickerSelection({ agentKind: "codex", model: "gpt-5.6-sol" }),
-    ).toEqual({ agentKind: "codex", model: "gpt-5.6-sol" });
+      applyThirdPartyPickerSelection({ agentKind: "commandcode", model: "deepseek-v4.1-flash" }, [
+        "commandcode",
+        "deepseek",
+      ]),
+    ).toEqual({ agentKind: "commandcode", model: "deepseek-v4.1-flash" });
+  });
+
+  it("does not rewrite a native Command Code Muse catalog pick", () => {
+    expect(
+      applyThirdPartyPickerSelection({ agentKind: "commandcode", model: "meta/muse-spark-1.3" }, [
+        "commandcode",
+        "muse",
+      ]),
+    ).toEqual({ agentKind: "commandcode", model: "meta/muse-spark-1.3" });
+  });
+
+  it("does not rewrite a native subscription pick", () => {
+    expect(applyThirdPartyPickerSelection({ agentKind: "codex", model: "gpt-5.6-sol" })).toEqual({
+      agentKind: "codex",
+      model: "gpt-5.6-sol",
+    });
   });
 
   it("treats Chiral vs native Codex as different composer accounts", () => {

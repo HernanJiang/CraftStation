@@ -108,6 +108,19 @@ export const threadSchema = z.object({
    */
   parentThreadId: z.string().min(1).optional(),
   /**
+   * Set when this thread row was created by a Schedule firing (only
+   * `threadTarget {kind:"new"}` runs ever create threads). Marks the thread as
+   * an automated run session: cross-agent peer listing must not recommend it
+   * as a research peer, and it is eligible for schedule-orphan cleanup.
+   */
+  scheduleOrigin: z
+    .object({
+      scheduleId: z.string().min(1),
+      runId: z.string().min(1).optional(),
+      occurrenceAt: z.string().nullable().optional(),
+    })
+    .optional(),
+  /**
    * Memory-only Side Chat branch: a temporary fork that lives in the right
    * panel, never appears in the left sidebar, and is never written to SQLite
    * (see `dbStorage.saveAppStore`). Cleared when the user promotes the branch

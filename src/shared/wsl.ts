@@ -11,6 +11,17 @@ export function normalizeWslListOutput(raw: string): string[] {
     .filter((line) => line.length > 0);
 }
 
+/**
+ * `C:\a\b` → `/mnt/c/a/b`. Lexical only — no `wsl.exe` round-trip — so a
+ * Windows project can still be handed to an in-distro CLI.
+ */
+export function windowsPathToWslLinuxPath(windowsPath: string): string | undefined {
+  const match = /^([a-z]):[\\/](.*)$/iu.exec(windowsPath.trim());
+  if (!match) return undefined;
+  const rest = match[2]!.replace(/\\/gu, "/");
+  return `/mnt/${match[1]!.toLowerCase()}${rest ? `/${rest}` : ""}`;
+}
+
 export function toWslUncPath(distro: string, linuxPath: string): string {
   const normalizedLinuxPath = linuxPath.replace(/^\/+/, "").replace(/\//g, "\\");
   return `\\\\wsl.localhost\\${distro}\\${normalizedLinuxPath}`;

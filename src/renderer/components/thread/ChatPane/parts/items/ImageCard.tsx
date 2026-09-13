@@ -6,6 +6,7 @@ import { readBridge } from "@/renderer/bridge";
 import { openImageLightbox } from "@/renderer/components/composer/ImageLightbox";
 import { friendlyError } from "@/shared/messages";
 import { chatInlineImageClass, reserveInlineImageSlot } from "./chatImageClass";
+import { copyImageSourceToClipboard, fetchImageBytes } from "./imageClipboard";
 import type { ImageViewSource } from "./imageViewSource";
 
 interface ImageCardProps {
@@ -91,12 +92,8 @@ function CopyImageButton({ source }: { source: ImageViewSource }) {
 
   async function onCopy() {
     try {
-      const data = await toClipboardPngBytes(source);
-      const ok = await readBridge().copyImageToClipboard({ data });
-      if (!ok) {
-        console.warn("Clipboard rejected the image (unsupported format)");
-        return;
-      }
+      const ok = await copyImageSourceToClipboard(source);
+      if (!ok) return;
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch (err) {
@@ -154,41 +151,4 @@ function IconButton({
       {children}
     </button>
   );
-}
-
-async function fetchImageBytes(src: string): Promise<Uint8Array<ArrayBuffer>> {
-  if (/^(?:craftstation|craftstation)-local:\/\//.test(src)) {
-    return new Uint8Array(await readBridge().readLocalImageFile({ url: src }));
-  }
-  const response = await fetch(src);
-  if (!response.ok) throw new Error(`Failed to load image (${response.status})`);
-  return new Uint8Array(await response.arrayBuffer());
-}
-
-/**
- * Bytes to hand the OS clipboard. The native clipboard (Electron `nativeImage`)
- * only decodes PNG/JPEG, so those pass straight through; other raster formats
- * are decoded and re-encoded to PNG when possible.
- */
-async function toClipboardPngBytes(source: ImageViewSource) {
-  if (source.mime === "image/png" || source.mime === "image/jpeg") {
-    return fetchImageBytes(source.src);
-  }
-  try {
-    const blob = await (await fetch(source.src)).blob();
-    const bitmap = await createImageBitmap(blob);
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx || canvas.width === 0 || canvas.height === 0) return fetchImageBytes(source.src);
-    ctx.drawImage(bitmap, 0, 0);
-    const pngBlob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/png"),
-    );
-    if (!pngBlob) return fetchImageBytes(source.src);
-    return new Uint8Array(await pngBlob.arrayBuffer());
-  } catch {
-    return fetchImageBytes(source.src);
-  }
 }

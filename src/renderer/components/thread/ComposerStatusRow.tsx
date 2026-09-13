@@ -410,9 +410,11 @@ export function ContextQuotaRing(props: {
                 <span className="tabular-nums text-neutral-400">
                   {used !== undefined && max !== undefined
                     ? `${formatTokenCount(used)} / ${formatTokenCount(max)}`
-                    : used !== undefined
-                      ? formatTokenCount(used)
-                      : "--"}
+                    : max !== undefined
+                      ? `-- / ${formatTokenCount(max)}`
+                      : used !== undefined
+                        ? formatTokenCount(used)
+                        : "--"}
                   {percent !== undefined ? ` (${percent}%)` : ""}
                 </span>
               </div>

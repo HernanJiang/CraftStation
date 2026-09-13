@@ -3352,6 +3352,34 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
   text-align: center;
 }
 
+.craftstation-image-lightbox__context-menu {
+  position: fixed;
+  z-index: 3;
+  min-width: 9rem;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  background: var(--overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.craftstation-image-lightbox__context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  cursor: var(--interactive-cursor);
+}
+
+.craftstation-image-lightbox__context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 /* ── Mention Popover (file search dropdown) ──────────────── */
 
 .craftstation-mention-popover {

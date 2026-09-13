@@ -217,6 +217,94 @@ describe("CompatibilityRuntimeAdapter", () => {
     expect(calls[0]?.options.env?.OPENCODE_CONFIG).toBeTruthy();
     await adapter.dispose?.();
   });
+
+  it("launches official Muse Code against the CPA gateway, not OpenCode", async () => {
+    const fetchFn = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(
+      async (url) => {
+        const target = String(url);
+        if (target.endsWith("/healthz")) return new Response("ok", { status: 200 });
+        if (target.endsWith("/v1/models")) {
+          return new Response(JSON.stringify({ data: [{ id: "grok-4.3" }] }), { status: 200 });
+        }
+        throw new Error(`unexpected fetch ${target}`);
+      },
+    );
+    const { spawnFn, calls } = makeSpawnFn([
+      function (this: FakeChildProcess) {
+        this.stdout?.emit("data", "PONG\n");
+        this.exitCode = 0;
+        this.emit("exit", 0, null);
+      },
+    ]);
+    const { bridge } = makeBridge({ fetchFn: fetchFn as unknown as FetchFunction });
+    const adapter = new CompatibilityRuntimeAdapter("muse", {
+      bridge,
+      fetchFn: fetchFn as unknown as FetchFunction,
+      spawnFn,
+      resolveBinaryFn: (command) => (command === "muse" ? "muse" : undefined),
+    });
+    const musePlan = {
+      ...plan,
+      runtimeBinding: { ...plan.runtimeBinding, harnessKind: "muse", modelId: "grok-4.3" },
+    } as unknown as CraftPlan;
+
+    const entity = await adapter.spawnEntity(musePlan);
+    const session = await adapter.createSession(entity);
+    const turn = await session.startTurn({ prompt: "reply with PONG" });
+
+    expect(turn.status).toBe("completed");
+    expect(turn.response).toContain("PONG");
+    expect(calls[0]?.command).toBe("muse");
+    expect(calls[0]?.args).toContain("exec");
+    expect(calls[0]?.args).toContain("--provider");
+    expect(calls[0]?.options.env?.META_API_KEY).toBeTruthy();
+    expect(String(calls[0]?.options.env?.CRAFTSTATION_MUSE_BASE_URL ?? "")).toMatch(/^http:\/\//);
+    await session.terminate();
+    await adapter.dispose?.();
+  });
+
+  it("launches official DeepSeek Harness with CPA as DEEPSEEK_BASE_URL", async () => {
+    const fetchFn = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(
+      async (url) => {
+        const target = String(url);
+        if (target.endsWith("/healthz")) return new Response("ok", { status: 200 });
+        if (target.endsWith("/v1/models")) {
+          return new Response(JSON.stringify({ data: [{ id: "grok-4.3" }] }), { status: 200 });
+        }
+        throw new Error(`unexpected fetch ${target}`);
+      },
+    );
+    const { spawnFn, calls } = makeSpawnFn([
+      function (this: FakeChildProcess) {
+        this.stdout?.emit("data", "DSH_OK\n");
+        this.exitCode = 0;
+        this.emit("exit", 0, null);
+      },
+    ]);
+    const { bridge } = makeBridge({ fetchFn: fetchFn as unknown as FetchFunction });
+    const adapter = new CompatibilityRuntimeAdapter("deepseek", {
+      bridge,
+      fetchFn: fetchFn as unknown as FetchFunction,
+      spawnFn,
+      resolveBinaryFn: (command) => (command === "dsh" ? "dsh" : undefined),
+    });
+    const dshPlan = {
+      ...plan,
+      runtimeBinding: { ...plan.runtimeBinding, harnessKind: "deepseek", modelId: "grok-4.3" },
+    } as unknown as CraftPlan;
+
+    const entity = await adapter.spawnEntity(dshPlan);
+    const session = await adapter.createSession(entity);
+    const turn = await session.startTurn({ prompt: "say hi" });
+
+    expect(turn.status).toBe("completed");
+    expect(calls[0]?.command).toBe("dsh");
+    expect(calls[0]?.args).toEqual(["--profile", "acp"]);
+    expect(calls[0]?.options.env?.DEEPSEEK_BASE_URL).toBe("http://127.0.0.1:18399/v1");
+    expect(calls[0]?.options.env?.DEEPSEEK_API_KEY).toBeTruthy();
+    await session.terminate();
+    await adapter.dispose?.();
+  });
 });
 
 describe("writeOpenCodeConfigFile", () => {

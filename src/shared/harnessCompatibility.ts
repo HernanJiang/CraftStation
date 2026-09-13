@@ -120,9 +120,10 @@ function isForeignMuseChannel(providerId: string): boolean {
 }
 
 /**
- * Auto mode: Muse Spark (and other Muse-family models) run on Muse Code even
- * when the catalog/key comes from OpenCode Go or a third-party OpenAI-compatible
- * channel. Native `muse` launches are left alone.
+ * OpenCode is a catalog/carrier: Muse Spark (and other Muse-family models)
+ * run on Muse Code even when the catalog/key comes from OpenCode Go or a
+ * third-party OpenAI-compatible channel. Native `muse` launches are left
+ * alone. Command Code keeps its own process.
  */
 export function shouldAutoRemapToMuseHarness(input: {
   agentKind: string;
@@ -244,7 +245,11 @@ export const COMPATIBILITY_HARNESS_CAPABILITIES: readonly HarnessProtocolCapabil
     downstreamProtocols: ["responses", "chat-completions"],
     supportsCustomBaseUrl: true,
   },
-  { harnessId: "deepseek", downstreamProtocols: [], supportsCustomBaseUrl: false },
+  {
+    harnessId: "deepseek",
+    downstreamProtocols: ["chat-completions"],
+    supportsCustomBaseUrl: true,
+  },
   { harnessId: "muse", downstreamProtocols: ["responses"], supportsCustomBaseUrl: true },
 ];
 

@@ -758,6 +758,48 @@ describe("CraftStation app control tools — threads", () => {
     });
   });
 
+  it("send_thread_message keys idempotency per message: same-arm repeats deliver, retries dedupe", async () => {
+    const threads = [makeThread({ id: "executor", title: "F1" })];
+    const { ctx, requestDialogue } = context({ threads });
+    const base = {
+      thread_id: "executor",
+      sender_role: "Manager",
+      experiment_id: "F1",
+    };
+
+    const first = await dispatchTool(
+      "send_thread_message",
+      { ...base, message: "第一轮收口：请汇报当前分数。" },
+      ctx,
+    );
+    const second = await dispatchTool(
+      "send_thread_message",
+      { ...base, message: "第二轮升级：请汇报修复后的分数。" },
+      ctx,
+    );
+    const retry = await dispatchTool(
+      "send_thread_message",
+      { ...base, message: "第一轮收口：请汇报当前分数。" },
+      ctx,
+    );
+
+    expect(first).toMatchObject({ delivered: true });
+    expect(second).toMatchObject({ delivered: true });
+    expect(retry).toMatchObject({ delivered: true });
+    expect(requestDialogue).toHaveBeenCalledTimes(3);
+
+    const keyOf = (call: number) =>
+      (requestDialogue.mock.calls[call]?.[0] as { request: { idempotencyKey: string } }).request
+        .idempotencyKey;
+    // Distinct messages on the same arm no longer collide (P1-2)...
+    expect(keyOf(1)).not.toBe(keyOf(0));
+    // ...while an identical retry keeps the original key (transport dedupe).
+    expect(keyOf(2)).toBe(keyOf(0));
+    for (const call of [0, 1, 2]) {
+      expect(keyOf(call)).toMatch(/^thread-message-thread-1-executor-F1-[0-9a-f]{16}$/);
+    }
+  });
+
   it("send_thread_message reports delivery failure instead of pretending success", async () => {
     const { ctx } = context({
       requestDialogue: async () => {

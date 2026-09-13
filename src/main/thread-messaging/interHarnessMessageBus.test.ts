@@ -37,7 +37,12 @@ try {
 const PROJECT_LOCATION: ProjectLocation = { kind: "posix", path: "/tmp/proj" };
 
 function project(): Project {
-  return { id: "project-1", name: "project-1", location: PROJECT_LOCATION, createdAt: "2026-08-31T00:00:00.000Z" };
+  return {
+    id: "project-1",
+    name: "project-1",
+    location: PROJECT_LOCATION,
+    createdAt: "2026-08-31T00:00:00.000Z",
+  };
 }
 
 function thread(id: string, overrides: Partial<Thread> = {}): Thread {
@@ -74,15 +79,13 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
   let turns: Map<string, PersistedCompletedTurn[]>;
   let items: Map<string, PersistedRuntimeItem>;
   let sendThreadInput: ReturnType<typeof vi.fn<(payload: SendThreadInputPayload) => Promise<void>>>;
-  let startThread: ReturnType<typeof vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>>;
+  let startThread: ReturnType<
+    typeof vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>
+  >;
   let interruptThread: ReturnType<typeof vi.fn<(payload: InterruptThreadPayload) => Promise<void>>>;
   let switchThreadProvider: ReturnType<
     typeof vi.fn<
-      (payload: {
-        threadId: string;
-        agentKind: string;
-        config: { model: string };
-      }) => Promise<{
+      (payload: { threadId: string; agentKind: string; config: { model: string } }) => Promise<{
         threadId: string;
         agentKind: string;
         sessionRef?: { providerSessionId: string; discoveredAt: string };
@@ -173,17 +176,17 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
       sessionRefs.set(threadId, `native-${request.agentKind}-9`);
       return { threadId, title: request.title ?? threadId, projectId: request.projectId };
     });
-    sendThreadInput = vi.fn<(payload: SendThreadInputPayload) => Promise<void>>(async () => undefined);
+    sendThreadInput = vi.fn<(payload: SendThreadInputPayload) => Promise<void>>(
+      async () => undefined,
+    );
     startThread = vi.fn<(payload: StartThreadPayload) => Promise<StartThreadResult>>(async () => ({
       threadId: "resumed",
     }));
-    interruptThread = vi.fn<(payload: InterruptThreadPayload) => Promise<void>>(async () => undefined);
+    interruptThread = vi.fn<(payload: InterruptThreadPayload) => Promise<void>>(
+      async () => undefined,
+    );
     switchThreadProvider = vi.fn<
-      (payload: {
-        threadId: string;
-        agentKind: string;
-        config: { model: string };
-      }) => Promise<{
+      (payload: { threadId: string; agentKind: string; config: { model: string } }) => Promise<{
         threadId: string;
         agentKind: string;
         sessionRef?: { providerSessionId: string; discoveredAt: string };
@@ -214,7 +217,8 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
       getThread: (id) => dbGetThread(id),
       getThreads: () => dbGetThreads(),
       getProject: (id) => (id === "project-1" ? project() : null),
-      settings: () => ({ mcpServers: [], disabledBuiltInMcpServers: {}, disabledBuiltInMcpTools: {} }) as never,
+      settings: () =>
+        ({ mcpServers: [], disabledBuiltInMcpServers: {}, disabledBuiltInMcpTools: {} }) as never,
       runtime: {
         getThreadSnapshots: async () =>
           dbGetThreads().map((entry) => ({
@@ -244,7 +248,8 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
           status: statuses.get(id) ?? "inactive",
           attention: "none" as const,
         }),
-        waitUntil: async <T>(_ids: string[], _timeoutMs: number, poll: () => T | undefined) => poll(),
+        waitUntil: async <T>(_ids: string[], _timeoutMs: number, poll: () => T | undefined) =>
+          poll(),
       } as never,
     });
     service = new ThreadCollaborationService({
@@ -281,13 +286,18 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
 
     const { exchange } = await bus.ask("codex", "kimi:kimi-K1", "Analyze this race condition.");
     expect(exchange.status).toBe("delivered");
-    expect(sendThreadInput).toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: "kimi1" }),
-    );
+    expect(sendThreadInput).toHaveBeenCalledWith(expect.objectContaining({ threadId: "kimi1" }));
 
     // Kimi's next completed turn auto-settles the ask to replied with an excerpt.
     turn("kimi1", 0, "The race is a missing lock around the counter.");
-    service.observeSupervisorEvent({ type: "thread-state", threadId: "kimi1", status: "idle", attention: "none", canResumeWithConfig: true, forceCloseActiveTurn: false } as never);
+    service.observeSupervisorEvent({
+      type: "thread-state",
+      threadId: "kimi1",
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      forceCloseActiveTurn: false,
+    } as never);
     await new Promise((resolve) => setTimeout(resolve, 0));
     const settled = service.readExchange("codex", exchange.id);
     expect(settled.status).toBe("replied");
@@ -305,6 +315,15 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
     const exchanges = bus.inbox("kimi1");
     expect(exchanges).toHaveLength(0);
     expect(bus.inbox("kimi2")).toHaveLength(1);
+  });
+
+  it("listPeers excludes archived, done, and schedule firing threads", async () => {
+    dbUpsertThread(thread("ghost-schedule", { scheduleOrigin: { scheduleId: "sch-1" } }), 0);
+    dbUpsertThread(thread("archived-peer", { archived: true }), 0);
+    dbUpsertThread(thread("done-peer", { done: true }), 0);
+
+    const peers = bus.listPeers("codex");
+    expect(peers.map((peer) => peer.address).sort()).toEqual(["kimi:kimi-K1", "kimi:kimi-K2"]);
   });
 
   it("Test H: a busy target is queued, never force-interrupted", async () => {
@@ -341,7 +360,9 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
 
   it("Test C: an offline target queues and delivers on resume", async () => {
     statuses.set("kimi1", "inactive");
-    sendThreadInput.mockRejectedValueOnce(Object.assign(new Error("unknown thread session"), { code: "THREAD_UNKNOWN_SESSION" }));
+    sendThreadInput.mockRejectedValueOnce(
+      Object.assign(new Error("unknown thread session"), { code: "THREAD_UNKNOWN_SESSION" }),
+    );
     const exchange = await bus.send("codex", "kimi:kimi-K1", "When you are back.");
     // Unknown-session send falls back to resume-with-sessionRef inside deliverSettled.
     expect(exchange.status).toBe("delivered");
@@ -350,7 +371,9 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
 
   it("ask timeout stops waiting but keeps the message durable", async () => {
     statuses.set("kimi1", "working");
-    const { exchange, timedOut } = await bus.ask("codex", "kimi:kimi-K1", "Slow question.", { timeoutMs: 5 });
+    const { exchange, timedOut } = await bus.ask("codex", "kimi:kimi-K1", "Slow question.", {
+      timeoutMs: 5,
+    });
     // Busy target queues; the bounded wait stops with timedOut=true while the
     // message itself stays queued (a timeout never deletes anything).
     expect(exchange.status).toBe("queued");
@@ -360,7 +383,14 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
     statuses.set("kimi1", "idle");
     await service.recover();
     turn("kimi1", 0, "Late answer.");
-    service.observeSupervisorEvent({ type: "thread-state", threadId: "kimi1", status: "idle", attention: "none", canResumeWithConfig: true, forceCloseActiveTurn: false } as never);
+    service.observeSupervisorEvent({
+      type: "thread-state",
+      threadId: "kimi1",
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      forceCloseActiveTurn: false,
+    } as never);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(service.readExchange("codex", exchange.id).status).toBe("replied");
   });
@@ -397,7 +427,9 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
     const exchange = await bus.send("codex", "codex:C123", "Hello from C1.");
     expect(exchange.targetThreadId).toBe(claimed.threadId);
     expect(["delivered", "queued"]).toContain(exchange.status);
-    expect(dbGetThreads().filter((entry) => entry.sessionRef?.providerSessionId === "C123")).toHaveLength(1);
+    expect(
+      dbGetThreads().filter((entry) => entry.sessionRef?.providerSessionId === "C123"),
+    ).toHaveLength(1);
   });
 
   it("spawn_peer creates a real thread row and binds the discovered native session", async () => {

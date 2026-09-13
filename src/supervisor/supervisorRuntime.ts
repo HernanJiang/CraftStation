@@ -1021,6 +1021,7 @@ export class SupervisorRuntime {
     this.openAiCompatibleProfileService = new OpenAiCompatibleProfileService({
       store: this.accountStore,
       cacheDir: paths.cacheDir,
+      settingsPath: this.settingsPath,
     });
     // The native OpenCode server has its own private XDG root. Third-party
     // accounts must project their provider config into that root before the
@@ -2712,11 +2713,7 @@ export class SupervisorRuntime {
         env: runtime.env,
       };
     }
-    if (
-      input.provider === "kimi" ||
-      input.provider === "grok" ||
-      input.provider === "deepseek"
-    ) {
+    if (input.provider === "kimi" || input.provider === "grok" || input.provider === "deepseek") {
       const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
         record.accountId,
         input.provider,

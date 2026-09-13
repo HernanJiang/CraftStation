@@ -128,6 +128,46 @@ export function exportGrokCompatibility(
   };
 }
 
+export function exportMuseCompatibility(
+  status: CompatibilityBridgeStatus,
+  modelId: string,
+): TargetHarnessConfig {
+  const endpoint = status.endpoint ?? `http://${status.host}:${status.port}`;
+  const apiKey = requireRunningBridgeKey(status);
+  return {
+    harnessKind: "muse",
+    baseUrl: `${endpoint}/v1`,
+    apiKey,
+    model: modelId,
+    protocol: "responses",
+    customEnv: {
+      META_API_KEY: apiKey,
+      CRAFTSTATION_MUSE_BASE_URL: `${endpoint}/v1`,
+    },
+  };
+}
+
+export function exportDeepseekCompatibility(
+  status: CompatibilityBridgeStatus,
+  modelId: string,
+): TargetHarnessConfig {
+  const endpoint = status.endpoint ?? `http://${status.host}:${status.port}`;
+  const apiKey = requireRunningBridgeKey(status);
+  return {
+    harnessKind: "deepseek",
+    baseUrl: `${endpoint}/v1`,
+    apiKey,
+    model: modelId,
+    protocol: "openai-compatible",
+    customEnv: {
+      DEEPSEEK_API_KEY: apiKey,
+      DEEPSEEK_BASE_URL: `${endpoint}/v1`,
+      OPENAI_API_KEY: apiKey,
+      OPENAI_BASE_URL: `${endpoint}/v1`,
+    },
+  };
+}
+
 export function exportAntigravityCompatibility(
   status: CompatibilityBridgeStatus,
   modelId: string,
@@ -163,6 +203,10 @@ export function exportCompatibilityForHarness(
       return exportGrokCompatibility(status, modelId);
     case "antigravity":
       return exportAntigravityCompatibility(status, modelId);
+    case "muse":
+      return exportMuseCompatibility(status, modelId);
+    case "deepseek":
+      return exportDeepseekCompatibility(status, modelId);
     default:
       throw new Error(`Unsupported compatibility harness kind: ${harnessKind}`);
   }

@@ -12,6 +12,18 @@ export interface McpThreadIdentity {
   disabledTools?: readonly string[];
 }
 
+/**
+ * Private tool-arg key the OpenCode in-process plugin injects on every
+ * CraftStation-owned MCP tool call (`tool.execute.before`), carrying the REAL
+ * OpenCode session id of the calling session. Shared-`opencode serve` sidecars
+ * give every thread the same endpoint URL, so the URL `?thread=` identity is
+ * last-writer-wins and drifts; this arg is per-tool-call and therefore
+ * authoritative. The ingress strips it before arg validation and resolves the
+ * thread row bound to that session. Never model-supplied: the plugin always
+ * overwrites the field after model-argument validation.
+ */
+export const PROVIDER_SESSION_ID_ARG = "__craftstation_provider_session_id";
+
 const MAX_TITLE = 80;
 
 /** Append `?thread=&title=` to an MCP endpoint URL (no-op without a threadId). */

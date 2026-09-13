@@ -45,6 +45,29 @@ describe("workbench compatibility tiers", () => {
     expect(resolution.source).toBe("native");
   });
 
+  it.each([
+    ["muse", "muse"],
+    ["deepseek", "deepseek"],
+  ])(
+    "foreign model on %s is CRAFTABLE when the compatibility bridge is ready",
+    (harnessKind, vendor) => {
+      const resolution = resolveCompatibility({
+        modelEntry: modelEntry({ providerKind: "openai" }),
+        harnessRef: harnessRef({
+          vendor,
+          harnessKind,
+          harnessItemId: `harness:${harnessKind}`,
+          displayName: `${harnessKind} Harness`,
+          status: "ready",
+        }),
+        harnessReady: true,
+        compatibilityBridgeReady: true,
+      });
+      expect(resolution.status).toBe("CRAFTABLE");
+      expect(resolution.source).toBe("compatibility-layer");
+    },
+  );
+
   it("cross-vendor ready harness is CRAFTABLE", () => {
     const resolution = resolveCompatibility({
       modelEntry: modelEntry({ providerKind: "openai" }),

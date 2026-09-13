@@ -1021,12 +1021,30 @@ if (!hasSingleInstanceLock) {
       // the app-controls `check_for_update` tool can report the most recent
       // result (the check itself is fire-and-forget and event-driven).
       let lastUpdateStatus: UpdateStatus | null = null;
+      // OpenCode GUI threads share one `opencode serve` sidecar per workspace,
+      // so MCP endpoint URLs cannot carry a stable per-thread identity. The
+      // in-process plugin injects the real calling session per tool call;
+      // map it back to the owning thread row via the persisted sessionRef
+      // (latest row wins when a session moved between threads).
+      const resolveThreadIdBySessionId = (sessionId: string): string | null => {
+        try {
+          let best: { id: string; updatedAt: string } | null = null;
+          for (const thread of dbGetThreads()) {
+            if (thread.sessionRef?.providerSessionId !== sessionId) continue;
+            if (!best || thread.updatedAt > best.updatedAt) best = thread;
+          }
+          return best?.id ?? null;
+        } catch {
+          return null;
+        }
+      };
       appControlsMcpIngress = new AppControlsMcpIngress({
         getThread: dbGetThread,
         getThreads: dbGetThreads,
         getProjects: dbGetProjects,
         getProject: dbGetProject,
         getProjectNotes: dbGetProjectNotes,
+        resolveThreadIdBySessionId,
         ...sharedAppControlsDeps,
         settings: {
           read: () => readSharedSettingsFile(requireCraftStationPaths().settingsPath),
@@ -1131,6 +1149,7 @@ if (!hasSingleInstanceLock) {
       scheduleMcpIngress = new ScheduleMcpIngress({
         scheduleService,
         getThread: dbGetThread,
+        resolveThreadIdBySessionId,
       });
       const scheduleMcpReady = scheduleMcpIngress.start().catch((err) => {
         console.error("[craftstation] schedule MCP ingress failed to start:", err);

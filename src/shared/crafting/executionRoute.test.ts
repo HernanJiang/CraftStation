@@ -68,18 +68,22 @@ describe("ExecutionRouteResolver", () => {
     expect(decision.isCompatibility).toBe(false);
   });
 
-  it.each([["openai"], ["xai"], ["google"], ["deepseek"], ["moonshot"], ["moonshot-openai-compatible"]])(
-    "resolves canonical vendor %s on OpenCode to native",
-    (providerKind) => {
-      const decision = resolveExecutionRoute({
-        modelEntry: { ...openaiModel, providerKind },
-        harnessRef: opencodeHarness,
-        harnessReady: true,
-        openCodeRouteReady: true,
-      });
-      expect(decision.routeType).toBe("native");
-    },
-  );
+  it.each([
+    ["openai"],
+    ["xai"],
+    ["google"],
+    ["deepseek"],
+    ["moonshot"],
+    ["moonshot-openai-compatible"],
+  ])("resolves canonical vendor %s on OpenCode to native", (providerKind) => {
+    const decision = resolveExecutionRoute({
+      modelEntry: { ...openaiModel, providerKind },
+      harnessRef: opencodeHarness,
+      harnessReady: true,
+      openCodeRouteReady: true,
+    });
+    expect(decision.routeType).toBe("native");
+  });
 
   it("fails closed for a vendor with no verified OpenCode native route", () => {
     const decision = resolveExecutionRoute({
@@ -166,6 +170,26 @@ describe("ExecutionRouteResolver", () => {
     });
     expect(decision.routeType).toBe("native");
     expect(decision.isNative).toBe(true);
+  });
+
+  it.each([
+    ["muse", "muse"],
+    ["deepseek", "deepseek"],
+  ])("routes a foreign model onto %s through the compatibility bridge", (harnessKind, vendor) => {
+    const decision = resolveExecutionRoute({
+      modelEntry: openaiModel,
+      harnessRef: {
+        ...codexHarness,
+        harnessItemId: `harness:${harnessKind}`,
+        harnessKind,
+        vendor,
+        displayName: `${harnessKind} Harness`,
+      },
+      harnessReady: true,
+      compatibilityBridgeReady: true,
+    });
+    expect(decision.routeType).toBe("compatibility");
+    expect(decision.isNative).toBe(false);
   });
 
   it("keeps genuinely cross-vendor pairs out of native", () => {

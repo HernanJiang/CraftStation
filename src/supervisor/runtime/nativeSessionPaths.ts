@@ -1,6 +1,14 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { sessionNameMatches } from "@/shared/threadAddress";
+
+export {
+  formatThreadAddressClipboard,
+  isGenericSessionStore,
+  sessionNameMatches,
+  type ThreadAddressClipboardEntry,
+} from "@/shared/threadAddress";
 
 /**
  * Resolve a pool/native CLI session to its real on-disk session path for
@@ -15,11 +23,11 @@ import { join } from "node:path";
  */
 
 export interface NativeSessionPathInput {
-  /** Base provider kind: grok | kimi | codex | antigravity (others → null). */
+  /** Base provider kind: grok | kimi | codex | antigravity | opencode | … */
   provider: string;
   /** Managed account home; ambient host home when absent. */
   credentialRoot?: string | undefined;
-  /** Provider session id from the sessionRef; home dir fallback when absent. */
+  /** Provider session id from the sessionRef. Never invent a parent folder. */
   nativeSessionId?: string | undefined;
 }
 
@@ -38,6 +46,20 @@ function ambientHome(provider: string): string | undefined {
     }
     case "antigravity":
       return join(home, ".gemini", "antigravity-cli");
+    case "opencode":
+      return join(home, ".local", "share", "opencode");
+    case "claude":
+      return join(home, ".claude");
+    case "muse":
+      return process.env["XDG_CONFIG_HOME"]?.trim()
+        ? join(process.env["XDG_CONFIG_HOME"].trim(), "muse")
+        : join(home, ".config", "muse");
+    case "deepseek":
+      return join(home, ".dsh");
+    case "qwen":
+      return join(home, ".qwen");
+    case "commandcode":
+      return join(home, ".commandcode");
     default:
       return undefined;
   }
@@ -72,14 +94,41 @@ function childDirs(dir: string, limit = 200): string[] {
   return out;
 }
 
-/** Find `<root> / * / <sessionId>` two levels down (grok/kimi layout). */
-function findNestedSessionDir(root: string, sessionId: string): string | undefined {
+function tryMatch(path: string, sessionId: string): string | undefined {
+  const base = path.replace(/\\/g, "/").split("/").pop() ?? "";
+  if (!sessionNameMatches(base, sessionId)) return undefined;
+  try {
+    const st = statSync(path);
+    if (st.isDirectory() || st.isFile()) return path;
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Find the concrete session file/dir under `root`. Never returns the store
+ * root itself — a missing session is undefined, not `.../sessions`.
+ */
+export function findSessionEntry(root: string, sessionId: string): string | undefined {
+  const id = sessionId.trim();
+  if (!id) return undefined;
+  const direct = [id, `session_${id}`, `session-${id}`, `${id}.jsonl`, `${id}.json`, `${id}.pb`];
+  for (const name of direct) {
+    const hit = tryMatch(join(root, name), id);
+    if (hit) return hit;
+  }
   for (const level1 of childDirs(root)) {
-    const candidate = join(root, level1, sessionId);
-    try {
-      if (statSync(candidate).isDirectory()) return candidate;
-    } catch {
-      // Keep scanning.
+    const nested = join(root, level1);
+    const exact = tryMatch(join(nested, id), id);
+    if (exact) return exact;
+    for (const name of direct) {
+      const hit = tryMatch(join(nested, name), id);
+      if (hit) return hit;
+    }
+    for (const child of childNames(nested, 400)) {
+      const hit = tryMatch(join(nested, child), id);
+      if (hit) return hit;
     }
   }
   return undefined;
@@ -139,14 +188,6 @@ function findCodexRollout(home: string, sessionId: string): string | undefined {
   return undefined;
 }
 
-function dirIfExists(path: string): string | undefined {
-  try {
-    return statSync(path).isDirectory() ? path : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function fileIfExists(path: string): string | undefined {
   try {
     return statSync(path).isFile() ? path : undefined;
@@ -164,35 +205,37 @@ export function resolveNativeSessionPath(input: NativeSessionPathInput): string 
     return undefined;
   }
   const sessionId = input.nativeSessionId?.trim();
+  if (!sessionId) return undefined;
   switch (input.provider) {
     case "grok":
-    case "kimi": {
-      const sessionsRoot = join(home, "sessions");
-      if (sessionId) {
-        return findNestedSessionDir(sessionsRoot, sessionId) ?? dirIfExists(sessionsRoot);
-      }
-      return dirIfExists(sessionsRoot);
-    }
-    case "codex": {
-      const sessionsRoot = join(home, "sessions");
-      if (sessionId) {
-        return findCodexRollout(home, sessionId) ?? dirIfExists(sessionsRoot);
-      }
-      return dirIfExists(sessionsRoot);
-    }
+    case "kimi":
+    case "deepseek":
+    case "qwen":
+    case "commandcode":
+      return findSessionEntry(join(home, "sessions"), sessionId);
+    case "codex":
+      return (
+        findCodexRollout(home, sessionId) ?? findSessionEntry(join(home, "sessions"), sessionId)
+      );
     case "antigravity": {
-      // Host-global conversation store (no per-account redirection).
       const conversations = join(home, "conversations");
-      if (sessionId) {
-        return (
-          fileIfExists(join(conversations, `${sessionId}.pb`)) ??
-          fileIfExists(join(conversations, `${sessionId}.db`)) ??
-          dirIfExists(conversations)
-        );
-      }
-      return dirIfExists(conversations);
+      return (
+        fileIfExists(join(conversations, `${sessionId}.pb`)) ??
+        fileIfExists(join(conversations, `${sessionId}.db`)) ??
+        findSessionEntry(conversations, sessionId)
+      );
     }
+    case "claude":
+      return findSessionEntry(join(home, "projects"), sessionId);
+    case "opencode":
+      return (
+        findSessionEntry(join(home, "storage"), sessionId) ?? findSessionEntry(home, sessionId)
+      );
+    case "muse":
+      return findSessionEntry(home, sessionId);
     default:
-      return undefined;
+      return (
+        findSessionEntry(join(home, "sessions"), sessionId) ?? findSessionEntry(home, sessionId)
+      );
   }
 }

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import {
   applyMuseForeignLaunchArgs,
   buildMuseForeignChildEnv,
   museForeignProviderFromModel,
+  museForeignWslBootstrap,
   normalizeMuseResponsesBaseUrl,
   readOpenCodeGoApiKey,
 } from "./foreignEndpoint";
@@ -34,7 +35,7 @@ describe("muse foreignEndpoint", () => {
     expect(museForeignProviderFromModel("muse-spark-1.3-contributor")).toBeUndefined();
   });
 
-  it("injects --provider meta --base-url and strips the catalog prefix from --model", () => {
+  it("injects --provider meta, strips the catalog prefix, and does not pass --base-url", () => {
     const args = applyMuseForeignLaunchArgs(
       ["--trust-workspace", "--model", "opencode-go/muse-spark-1.3-contributor"],
       { CRAFTSTATION_MUSE_BASE_URL: OPENCODE_GO_RESPONSES_BASE_URL },
@@ -43,19 +44,18 @@ describe("muse foreignEndpoint", () => {
       "--trust-workspace",
       "--provider",
       "meta",
-      "--base-url",
-      OPENCODE_GO_RESPONSES_BASE_URL,
       "--model",
       "muse-spark-1.3-contributor",
     ]);
+    expect(args).not.toContain("--base-url");
   });
 
-  it("does not duplicate --base-url when already present", () => {
+  it("does not duplicate --provider when already present", () => {
     const args = applyMuseForeignLaunchArgs(
-      ["--trust-workspace", "--provider", "meta", "--base-url", "https://example.test/v1", "--model", "m"],
+      ["--trust-workspace", "--provider", "meta", "--model", "m"],
       { CRAFTSTATION_MUSE_BASE_URL: OPENCODE_GO_RESPONSES_BASE_URL },
     );
-    expect(args.filter((token) => token === "--base-url")).toHaveLength(1);
+    expect(args.filter((token) => token === "--provider")).toHaveLength(1);
   });
 
   it("reads the OpenCode Go key from auth.json without requiring other entries", () => {
@@ -84,5 +84,22 @@ describe("muse foreignEndpoint", () => {
     expect(env.XDG_CONFIG_HOME).toBe(isolationDir);
     expect(JSON.stringify(env)).toContain("sk-secret-key");
     expect(isolationDir).not.toContain("sk-secret-key");
+    const settings = JSON.parse(
+      readFileSync(join(isolationDir, "muse", "settings.json"), "utf8"),
+    ) as {
+      endpoint_transport: { base_url: string; auth: string };
+      model_catalog: unknown;
+      provider: string;
+    };
+    expect(settings.provider).toBe("meta");
+    expect(settings.endpoint_transport.auth).toBe("bearer");
+    expect(Array.isArray(settings.model_catalog)).toBe(true);
+    expect(JSON.stringify(settings)).not.toContain("sk-secret-key");
+    expect(env.CRAFTSTATION_MUSE_SHIM_UPSTREAM).toBe(OPENCODE_GO_RESPONSES_BASE_URL);
+    expect(env.CRAFTSTATION_MUSE_SHIM_PYTHON).toContain("muse-code/models");
+    const bootstrap = museForeignWslBootstrap(env);
+    expect(bootstrap).toContain("python3");
+    expect(bootstrap).toContain("shim.py");
+    expect(bootstrap).not.toContain("sk-secret-key");
   });
 });

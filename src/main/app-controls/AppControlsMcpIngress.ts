@@ -47,6 +47,12 @@ export interface AppControlsMcpIngressDeps {
   notifyUser(input: { title: string; body: string; threadId: string }): AppControlsNotifyResult;
   checkForUpdate(): Promise<AppControlsUpdateCheck>;
   onExchangeChanged?(exchange: ThreadExchange): void;
+  /**
+   * Resolve an OpenCode provider session id (injected per tool call by the
+   * in-process plugin) to its CraftStation thread row, so shared-sidecar
+   * threads keep a correct caller identity on cross-thread tools.
+   */
+  resolveThreadIdBySessionId?(sessionId: string): string | null;
 }
 
 export class AppControlsMcpIngress {
@@ -113,6 +119,9 @@ export class AppControlsMcpIngress {
         threadControl: this.threadControl,
         threadCollaboration: this.threadCollaboration,
       }),
+      ...(deps.resolveThreadIdBySessionId
+        ? { resolveThreadIdBySessionId: deps.resolveThreadIdBySessionId }
+        : {}),
       dispatchTool,
       formatToolResult,
     });

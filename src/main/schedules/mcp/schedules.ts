@@ -29,6 +29,21 @@ const callingThreadUuid = (threadId: string | undefined): string | null => {
   return z.string().uuid().safeParse(threadId).success ? threadId : null;
 };
 
+/**
+ * Some agent bridges serialize nested object params into JSON strings before
+ * sending them over MCP (observed with OpenCode threads passing
+ * `threadTarget`). Accept both shapes; a string that is not a JSON object
+ * still fails validation with a clear error instead of a cryptic type error.
+ */
+const threadTargetArgSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}, scheduleThreadTargetSchema);
+
 const createArgsSchema = z.object({
   name: z.string().trim().min(1).max(120),
   prompt: z.string().trim().min(1).max(50_000),
@@ -40,7 +55,7 @@ const createArgsSchema = z.object({
   timezone: timezoneSchema,
   recipeId: recipeIdSchema,
   targetThreadId: targetThreadIdSchema,
-  threadTarget: scheduleThreadTargetSchema.optional(),
+  threadTarget: threadTargetArgSchema.optional(),
   continueInCurrentThread: z.boolean().optional(),
   harnessItemId: harnessItemIdSchema,
   projectId: projectIdSchema,
@@ -58,7 +73,7 @@ const updateArgsSchema = z.object({
   timezone: timezoneSchema,
   recipeId: recipeIdSchema,
   targetThreadId: targetThreadIdSchema,
-  threadTarget: scheduleThreadTargetSchema.optional(),
+  threadTarget: threadTargetArgSchema.optional(),
   continueInCurrentThread: z.boolean().optional(),
   harnessItemId: harnessItemIdSchema,
   projectId: projectIdSchema,
@@ -136,11 +151,31 @@ function scheduleExtraJsonSchema(): Record<string, unknown> {
     targetThreadId: {
       type: ["string", "null"],
       format: "uuid",
-      description: "Existing thread to inherit context from; native session is always fresh.",
+      description:
+        "String alternative for threadTarget {kind:'existing',threadId}: bind future runs to this existing thread (same-thread follow-up; native session is always fresh).",
     },
     threadTarget: {
       description:
-        'Canonical target: {kind:"new"} or {kind:"existing",threadId}. Independent of source thread provenance.',
+        'Canonical target as an OBJECT (never a string): {kind:"new"} opens a fresh thread per run; ' +
+        '{kind:"existing",threadId:"<uuid>"} runs inside that thread (same-thread follow-up). ' +
+        "Independent of source thread provenance. A JSON-stringified object is also accepted.",
+      oneOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind"],
+          properties: { kind: { const: "new" } },
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind", "threadId"],
+          properties: {
+            kind: { const: "existing" },
+            threadId: { type: "string", format: "uuid" },
+          },
+        },
+      ],
     },
     continueInCurrentThread: {
       type: "boolean",
@@ -200,6 +235,13 @@ function createSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask 
     threadTarget: continueHere ? { kind: "existing", threadId: callingId } : parsed.threadTarget,
     targetThreadId: parsed.targetThreadId,
   });
+  // Thread-bound schedules (threadTarget existing, incl. the default
+  // continue-here binding) record source == target so run provenance, the
+  // sidebar schedule indicator, and any continuation stay on the TARGET
+  // thread — never on the creating thread. The creator is kept only in the
+  // audit field `createdByThreadId`; it is never a delivery destination.
+  const boundThreadId =
+    target.threadTarget.kind === "existing" ? target.threadTarget.threadId : null;
   const input: ScheduledTaskInput = {
     name: parsed.name,
     prompt: parsed.prompt,
@@ -211,7 +253,8 @@ function createSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask 
     ...(parsed.recipeId !== undefined ? { recipeId: parsed.recipeId } : {}),
     threadTarget: target.threadTarget,
     targetThreadId: target.targetThreadId,
-    sourceThreadId: callingId,
+    sourceThreadId: boundThreadId ?? callingId,
+    createdByThreadId: callingId,
     config: {
       model,
       ...((parsed.effort ?? sourceThread?.config.effort)
@@ -252,6 +295,7 @@ function updateSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask 
     threadTarget: target.threadTarget,
     targetThreadId: target.targetThreadId,
     sourceThreadId: current.sourceThreadId ?? null,
+    createdByThreadId: current.createdByThreadId ?? callingId,
     config: {
       model: parsed.model ?? current.config.model,
       ...(parsed.effort === null
@@ -322,8 +366,12 @@ export const scheduleTools: ScheduleToolDomain = {
         "Create a plan / monitor / daily routine / timed task (计划 / 监控 / 日常 / 定时任务). " +
         "Use this instead of polling, sleeping, or keeping a turn open while waiting " +
         "(training jobs, CI, later reminders, recurring checks). The current agent and model " +
-        "are used unless overridden. The schedule binds to the creating thread by default " +
-        "(future runs continue there). For sub-hourly repeats use recurrence " +
+        "are used unless overridden. The schedule binds to the calling thread by default " +
+        "(future runs continue there); pass threadTarget {kind:'existing',threadId} (or the " +
+        "top-level targetThreadId string) to bind another existing thread, or " +
+        "{kind:'new'} / continueInCurrentThread:false for a detached schedule. The returned " +
+        "task always carries sourceThreadId and targetThreadId — verify they match the " +
+        "intended thread. For sub-hourly repeats use recurrence " +
         "{kind:'interval',everyMinutes:N} (e.g. every 10 minutes). Never ask the scheduled " +
         "prompt to create its own next schedule via create — that multiplies schedules and threads.",
       inputSchema: {

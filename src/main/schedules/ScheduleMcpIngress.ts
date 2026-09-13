@@ -19,6 +19,12 @@ export type ScheduleMcpIngressInfo = StreamableHttpMcpIngressInfo;
 export interface ScheduleMcpIngressDeps {
   scheduleService: ScheduleCapability;
   getThread(threadId: string): Thread | null;
+  /**
+   * Resolve an OpenCode provider session id (injected per tool call by the
+   * in-process plugin) to its CraftStation thread row. Wired from the
+   * persisted sessionRef mapping; without it the URL identity is used.
+   */
+  resolveThreadIdBySessionId?(sessionId: string): string | null;
 }
 
 export class ScheduleMcpIngress {
@@ -35,6 +41,9 @@ export class ScheduleMcpIngress {
         scheduleService: deps.scheduleService,
         getThread: deps.getThread,
       }),
+      ...(deps.resolveThreadIdBySessionId
+        ? { resolveThreadIdBySessionId: deps.resolveThreadIdBySessionId }
+        : {}),
       dispatchTool,
       formatToolResult,
     });

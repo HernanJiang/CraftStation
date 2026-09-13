@@ -109,8 +109,17 @@ describe("harnessCompatibility", () => {
     });
 
     it("does not remap a native Muse launch", () => {
+      expect(shouldAutoRemapToMuseHarness({ agentKind: "muse", modelId: "muse-spark-1.2" })).toBe(
+        false,
+      );
+    });
+
+    it("does not remap a Command Code Muse catalog pick", () => {
       expect(
-        shouldAutoRemapToMuseHarness({ agentKind: "muse", modelId: "muse-spark-1.2" }),
+        shouldAutoRemapToMuseHarness({
+          agentKind: "commandcode",
+          modelId: "meta/muse-spark-1.3",
+        }),
       ).toBe(false);
     });
 

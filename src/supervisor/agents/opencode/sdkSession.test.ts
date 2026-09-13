@@ -140,6 +140,80 @@ describe("OpencodeSdkSession", () => {
     mocks.acquireOpenCodeServer.mockReset();
   });
 
+  describe("third-party model slug", () => {
+    async function createPromptSession(options: {
+      model: string;
+      baseSpawnEnv?: Record<string, string>;
+    }) {
+      const promptAsync = vi
+        .fn<(input: unknown) => Promise<unknown>>()
+        .mockResolvedValue({ data: {} });
+      mocks.acquireOpenCodeServer.mockResolvedValue({
+        eventClient: emptyEventClient(),
+        client: {
+          command: { list: vi.fn<() => Promise<{ data: [] }>>().mockResolvedValue({ data: [] }) },
+          session: {
+            create: vi
+              .fn<() => Promise<{ data: { id: string } }>>()
+              .mockResolvedValue({ data: { id: "ses_slug" } }),
+            promptAsync,
+          },
+        },
+        baseUrl: "http://127.0.0.1:0",
+        handle: {},
+        dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      });
+      const session = await OpencodeSdkSession.create({
+        threadId: "thread-slug",
+        projectLocation,
+        config: { model: options.model },
+        presentationMode: "gui",
+        ...(options.baseSpawnEnv ? { baseSpawnEnv: options.baseSpawnEnv } : {}),
+      });
+      session.setListener({
+        onClose: () => {},
+        onError: () => {},
+        onUpdate: () => {},
+        onRuntimeEvent: () => {},
+      });
+      await session.activate();
+      await session.openThread({ model: options.model });
+      await session.startTurn("hi", { model: options.model });
+      return { session, promptAsync };
+    }
+
+    it("binds a craftstation-prefixed slug to the injected isolated provider", async () => {
+      const { session, promptAsync } = await createPromptSession({
+        model: "craftstation/glm-5.3-flash",
+        baseSpawnEnv: { CRAFTSTATION_OPENCODE_PROVIDER: "craftstation" },
+      });
+      expect(promptAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: { providerID: "craftstation", modelID: "glm-5.3-flash" },
+        }),
+      );
+      await session.dispose();
+    });
+
+    it("drops the reserved prefix on the shared pool instead of binding a missing provider", async () => {
+      const { session, promptAsync } = await createPromptSession({
+        model: "craftstation/glm-5.3-flash",
+      });
+      expect(promptAsync).toHaveBeenCalledWith(
+        expect.not.objectContaining({ model: expect.anything() }),
+      );
+      await session.dispose();
+    });
+
+    it("passes ordinary provider slugs through unchanged", async () => {
+      const { session, promptAsync } = await createPromptSession({ model: "opencode/big-pickle" });
+      expect(promptAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ model: { providerID: "opencode", modelID: "big-pickle" } }),
+      );
+      await session.dispose();
+    });
+  });
+
   it("preserves a typed, actionable provider readiness timeout", async () => {
     mocks.acquireOpenCodeServer.mockRejectedValue(
       new OpenCodeReadinessTimeoutError("opencode serve: OpenCode server did not respond in time."),
@@ -382,9 +456,7 @@ describe("OpencodeSdkSession", () => {
     // No timeout fakery: the exit itself settles the turn as failed with the
     // real code, so the UI timer stops and the error surfaces.
     expect(
-      runtimeEvents.some(
-        (event) => event.type === "turn.completed" && event.state === "failed",
-      ),
+      runtimeEvents.some((event) => event.type === "turn.completed" && event.state === "failed"),
     ).toBe(true);
     expect(errors.some((message) => message.includes("exited with code 1"))).toBe(true);
 

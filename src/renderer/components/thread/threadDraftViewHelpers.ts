@@ -4,6 +4,7 @@ import type {
   AgentStatus,
   ProjectDraftConfig,
   ProviderDraftConfig,
+  Thread,
   ThreadPresentationMode,
 } from "@/shared/contracts";
 import { baseAgentKind } from "@/shared/contracts";
@@ -151,6 +152,34 @@ export function resolveSavedProviderDraftConfig(
     ...(modelPreference?.effort !== undefined ? { effort: modelPreference.effort } : {}),
     ...(modelPreference?.fast !== undefined ? { fast: modelPreference.fast } : {}),
   };
+}
+
+/**
+ * Model the user actually ran most recently in this project: newest thread
+ * (updatedAt desc, archived excluded) whose agentKind matches and whose model
+ * is still offered by the current capability table. Undefined when nothing
+ * usable is recorded — callers fall back to the provider default.
+ */
+export function resolveRecentThreadModel(
+  threads: readonly Thread[] | undefined,
+  projectId: string,
+  agentKind: string,
+  capabilities: AgentCapability,
+): string | undefined {
+  if (!threads) return undefined;
+  const usable = new Set(capabilities.models.map((model) => model.id));
+  const recent = threads
+    .filter(
+      (thread) =>
+        thread.projectId === projectId &&
+        thread.agentKind === agentKind &&
+        !thread.archived &&
+        typeof thread.config.model === "string" &&
+        thread.config.model.trim() !== "" &&
+        usable.has(thread.config.model),
+    )
+    .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  return recent[0]?.config.model;
 }
 
 export function resolveModelValue(agent: AgentStatus, preferred?: string): string {

@@ -1,19 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { AgentKind, ProjectLocation, Thread } from "@/shared/contracts";
-import type {
-  NativeThreadPeer,
-} from "@/shared/nativeThreads";
-import {
-  formatNativeAddress,
-  parseNativeAddress,
-} from "@/shared/nativeThreads";
+import type { NativeThreadPeer } from "@/shared/nativeThreads";
+import { formatNativeAddress, parseNativeAddress } from "@/shared/nativeThreads";
 import type { ThreadDialogueRequest, ThreadExchange } from "@/shared/threadCollaboration";
 import type { ThreadCollaborationService } from "../thread-collaboration/ThreadCollaborationService";
 import type { ThreadControlAdapter } from "../thread-collaboration/ThreadControlAdapter";
-import type {
-  CreateAppThreadRequest,
-  CreateAppThreadResult,
-} from "../threads/appThreadLauncher";
+import type { CreateAppThreadRequest, CreateAppThreadResult } from "../threads/appThreadLauncher";
 import { dbDeleteThread, dbGetThreads, dbUpsertThread } from "../db/projectsThreads";
 import { sortOrderForThread } from "../remote/server/snapshots";
 import {
@@ -85,6 +77,11 @@ export class InterHarnessMessageBus {
 
     for (const thread of this.deps.control.list()) {
       if (thread.id === source.id || thread.projectId !== source.projectId) continue;
+      // Archived/done rows and Schedule firing sessions (threadTarget
+      // kind:"new" runs, tagged scheduleOrigin) are not research peers:
+      // recommending them routes agent traffic into dead or automated
+      // one-shot run threads instead of the real executor threads.
+      if (thread.archived || thread.done || thread.scheduleOrigin) continue;
       const address = this.addressOfThread(thread);
       if (!address) continue;
       const snapshot = this.deps.control.snapshot(thread.id);
@@ -442,7 +439,6 @@ export class InterHarnessMessageBus {
     }
   }
 
-
   async send(
     sourceThreadId: string,
     targetAddress: string,
@@ -475,12 +471,7 @@ export class InterHarnessMessageBus {
   ): Promise<{ exchange: ThreadExchange; timedOut: boolean }> {
     const source = this.requireSource(sourceThreadId);
     const { threadId } = this.resolveAddress(targetAddress, source.projectId);
-    const exchange = await this.askRaw(
-      sourceThreadId,
-      threadId,
-      message,
-      options?.deliveryMode,
-    );
+    const exchange = await this.askRaw(sourceThreadId, threadId, message, options?.deliveryMode);
     if (options?.timeoutMs === undefined) return { exchange, timedOut: false };
     // A timeout only stops THIS wait: the message stays queued/delivered and
     // a late reply is still captured and readable afterwards.
@@ -592,7 +583,9 @@ export class InterHarnessMessageBus {
     return this.deps.collaboration.listExchanges(threadId, threadId, limit);
   }
 
-  private addressOfThread(thread: Thread): { address: string; harness: string; nativeId: string } | null {
+  private addressOfThread(
+    thread: Thread,
+  ): { address: string; harness: string; nativeId: string } | null {
     const harness = thread.agentKind?.trim();
     if (!harness) return null;
     try {
@@ -618,7 +611,9 @@ export class InterHarnessMessageBus {
     // External peers are only listed inside the source's own workspace scope,
     // so the source project is the honest claim target.
     if (!this.deps.getProjectLocation(sourceProjectId)) {
-      throw new Error(`Cannot resolve address: source project ${sourceProjectId} no longer exists.`);
+      throw new Error(
+        `Cannot resolve address: source project ${sourceProjectId} no longer exists.`,
+      );
     }
     return sourceProjectId;
   }

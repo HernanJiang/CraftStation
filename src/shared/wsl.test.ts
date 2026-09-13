@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { normalizeWslListOutput, parseWslUncPath, toWslUncPath } from "./wsl";
+import {
+  normalizeWslListOutput,
+  parseWslUncPath,
+  toWslUncPath,
+  windowsPathToWslLinuxPath,
+} from "./wsl";
 
 describe("wsl helpers", () => {
   it("normalizes WSL distro output that contains NUL characters", () => {
     expect(normalizeWslListOutput("U\u0000b\u0000u\u0000n\u0000t\u0000u\u0000\r\n\u0000")).toEqual([
       "Ubuntu",
     ]);
+  });
+
+  it("maps a Windows drive path onto the distro DrvFs mount", () => {
+    expect(windowsPathToWslLinuxPath("D:\\Work\\CraftStation")).toBe("/mnt/d/Work/CraftStation");
+    expect(windowsPathToWslLinuxPath("C:/Users/Haona")).toBe("/mnt/c/Users/Haona");
+    expect(windowsPathToWslLinuxPath("/home/not-windows")).toBeUndefined();
   });
 
   it("builds a UNC path for a WSL project", () => {

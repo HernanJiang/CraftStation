@@ -66,6 +66,7 @@ import {
   resolvePreferredAgentKind,
   resolveProviderDraftConfig,
   resolveProviderModelPreference,
+  resolveRecentThreadModel,
   resolveSavedProviderDraftConfig,
   supportsUsableFastMode,
   resolveThinkingValue,
@@ -465,7 +466,27 @@ export function ThreadDraftView(props: {
       isHomeScope ? {} : providerConfigsRef.current,
       providerModelPreferencesRef.current,
     );
-    const resolved = resolveProviderDraftConfig(selectedAgentForConfig, saved);
+    // No usable project memory → continue where this project actually left
+    // off: the most recent thread's model beats the provider's models[0]
+    // alphabetical default.
+    const lastDraftModelUsable = !!(
+      lastDraftConfig &&
+      lastDraftConfig.agentKind === effectiveAgentKind &&
+      lastDraftConfig.model.trim() &&
+      selectedAgentForConfig.capabilities.models.some((m) => m.id === lastDraftConfig.model)
+    );
+    const recentThreadModel = lastDraftModelUsable
+      ? undefined
+      : resolveRecentThreadModel(
+          useAppStore.getState().threads,
+          project.id,
+          effectiveAgentKind,
+          selectedAgentForConfig.capabilities,
+        );
+    const resolved = resolveProviderDraftConfig(
+      selectedAgentForConfig,
+      recentThreadModel ? { ...saved, model: recentThreadModel } : saved,
+    );
     const nextModel = resolved.model;
     const nextEffort = resolved.effort;
     const nextContext = resolved.contextSize;
@@ -487,21 +508,26 @@ export function ThreadDraftView(props: {
     setSandboxMode(nextSandbox);
     lastAppliedAgentKindRef.current = effectiveAgentKind;
 
-    // Persist per-provider config app-wide, last-used provider per project.
-    persistProviderConfigRef.current(effectiveAgentKind, resolved);
-    updateProjectDraftConfig(project.id, {
-      agentKind: effectiveAgentKind,
-      model: nextModel,
-      effort: nextEffort,
-      ...(nextContext ? { contextSize: nextContext } : {}),
-      ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
-      ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
-      mode: nextMode,
-      approvalPolicy: nextApproval,
-      approvalsReviewer: nextReviewer,
-      sandboxMode: nextSandbox,
-      worktreeMode: effectiveWorktreeMode,
-    });
+    // Persist per-provider config app-wide, last-used provider per project —
+    // but only when the resolution came from persisted memory or an explicit
+    // user pick. Pure provider defaults (models[0] fallbacks) must never be
+    // written back, or they become indistinguishable from a real choice.
+    if (saved !== undefined) {
+      persistProviderConfigRef.current(effectiveAgentKind, resolved);
+      updateProjectDraftConfig(project.id, {
+        agentKind: effectiveAgentKind,
+        model: nextModel,
+        effort: nextEffort,
+        ...(nextContext ? { contextSize: nextContext } : {}),
+        ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
+        ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
+        mode: nextMode,
+        approvalPolicy: nextApproval,
+        approvalsReviewer: nextReviewer,
+        sandboxMode: nextSandbox,
+        worktreeMode: effectiveWorktreeMode,
+      });
+    }
   }, [
     effectiveAgentKind,
     selectedAgentForConfig,
@@ -539,7 +565,13 @@ export function ThreadDraftView(props: {
       if (nextFast !== fast) setFast(nextFast);
       if (nextThinking !== thinking) setThinking(nextThinking);
 
-      // Persist the corrected values
+      // Persist the corrected values — same rule as the mount effect: never
+      // write back corrections when nothing was ever persisted for this
+      // provider (the correction is a default, not a user choice).
+      const hasPersistedSource =
+        providerConfigsRef.current?.[effectiveAgentKind] !== undefined ||
+        (lastDraftConfig?.agentKind === effectiveAgentKind && !!lastDraftConfig.model);
+      if (!hasPersistedSource) return;
       const corrected: ProviderDraftConfig = {
         ...providerConfigsRef.current?.[effectiveAgentKind],
         model: nextModel,
@@ -577,6 +609,7 @@ export function ThreadDraftView(props: {
     sandboxMode,
     effectiveWorktreeMode,
     isHomeScope,
+    lastDraftConfig,
     project.id,
     updateProjectDraftConfig,
     setProviderConfig,

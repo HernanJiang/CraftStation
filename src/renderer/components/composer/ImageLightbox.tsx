@@ -4,11 +4,15 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from "lucide-react";
+import { toast } from "@heroui/react";
+import { Check, ChevronLeft, ChevronRight, Copy, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
+import { friendlyError } from "@/shared/messages";
+import { copyImageSourceToClipboard } from "../thread/ChatPane/parts/items/imageClipboard";
 import { attachmentImageUrl, type Attachment } from "./useAttachments";
 
 /** A pre-resolved image for the lightbox: a renderable URL plus an accessible label. */
@@ -110,6 +114,8 @@ export function ImageLightboxView(props: {
   const [index, setIndex] = useState(initialIndex);
   const [scale, setScale] = useState(MIN_SCALE);
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
+  const [copied, setCopied] = useState(false);
+  const [menu, setMenu] = useState<Point | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<{
@@ -127,13 +133,19 @@ export function ImageLightboxView(props: {
   useEffect(() => {
     setScale(MIN_SCALE);
     setPan({ x: 0, y: 0 });
+    setCopied(false);
+    setMenu(null);
     dragRef.current = null;
   }, [index]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        onClose();
+        if (menu) {
+          setMenu(null);
+        } else {
+          onClose();
+        }
       } else if (e.key === "ArrowLeft") {
         setIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
       } else if (e.key === "ArrowRight") {
@@ -142,7 +154,7 @@ export function ImageLightboxView(props: {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, images.length]);
+  }, [onClose, images.length, menu]);
 
   useEffect(() => {
     function handleResize() {
@@ -151,6 +163,15 @@ export function ImageLightboxView(props: {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [scale]);
+
+  useEffect(() => {
+    if (!menu) return;
+    function dismiss() {
+      setMenu(null);
+    }
+    window.addEventListener("pointerdown", dismiss);
+    return () => window.removeEventListener("pointerdown", dismiss);
+  }, [menu]);
 
   if (!current) return null;
 
@@ -194,6 +215,28 @@ export function ImageLightboxView(props: {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     dragRef.current = null;
+  }
+
+  async function copyCurrentImage() {
+    if (!current) return;
+    try {
+      const ok = await copyImageSourceToClipboard({ src: current.src });
+      if (!ok) {
+        toast.danger(t`Clipboard rejected the image (unsupported format)`);
+        return;
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error("Failed to copy image to clipboard", err);
+      toast.danger(friendlyError(err));
+    }
+  }
+
+  function handleImageContextMenu(event: ReactMouseEvent<HTMLImageElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({ x: event.clientX, y: event.clientY });
   }
 
   return createPortal(
@@ -247,6 +290,7 @@ export function ImageLightboxView(props: {
             transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${scale})`,
           }}
           onClick={(event) => event.stopPropagation()}
+          onContextMenu={handleImageContextMenu}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
@@ -272,6 +316,22 @@ export function ImageLightboxView(props: {
 
       <div className="craftstation-image-lightbox__footer">
         <div className="craftstation-image-lightbox__zoom">
+          <button
+            type="button"
+            className="craftstation-image-lightbox__zoom-button"
+            aria-label={copied ? t`Copied` : t`Copy image`}
+            disabled={!current}
+            onClick={(event) => {
+              event.stopPropagation();
+              void copyCurrentImage();
+            }}
+          >
+            {copied ? (
+              <Check className="size-4 text-success" />
+            ) : (
+              <Copy className="size-4" />
+            )}
+          </button>
           <button
             type="button"
             className="craftstation-image-lightbox__zoom-button"
@@ -306,6 +366,29 @@ export function ImageLightboxView(props: {
           </span>
         ) : null}
       </div>
+
+      {menu ? (
+        <div
+          className="craftstation-image-lightbox__context-menu"
+          style={{ left: menu.x, top: menu.y }}
+          role="menu"
+          tabIndex={-1}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="craftstation-image-lightbox__context-menu-item"
+            onClick={() => {
+              setMenu(null);
+              void copyCurrentImage();
+            }}
+          >
+            <Copy className="size-4" />
+            {t`Copy image`}
+          </button>
+        </div>
+      ) : null}
     </div>,
     document.body,
   );

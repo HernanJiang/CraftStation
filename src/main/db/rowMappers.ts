@@ -109,6 +109,9 @@ export function rowToThread(row: typeof schema.threads.$inferSelect): Thread {
     ...(row.groupId ? { groupId: row.groupId } : {}),
     ...(row.groupName ? { groupName: row.groupName } : {}),
     ...(row.parentThreadId ? { parentThreadId: row.parentThreadId } : {}),
+    ...(row.scheduleOrigin
+      ? { scheduleOrigin: JSON.parse(row.scheduleOrigin) as Thread["scheduleOrigin"] }
+      : {}),
     ...(parsedGoal?.success ? { goal: parsedGoal.data } : {}),
     archived: row.archived,
     ...(migratedArchivedAt ? { archivedAt: migratedArchivedAt } : {}),

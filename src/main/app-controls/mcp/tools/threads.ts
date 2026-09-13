@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type {
   AgentKind,
@@ -561,10 +561,15 @@ export const threadTools: ToolDomain = {
             targetThreadId: parsed.thread_id,
             request,
             deliveryMode: "after-current-turn",
-            // The experiment id is the handoff identity. Retries after a
-            // transport timeout must return the original durable exchange,
-            // rather than enqueueing duplicate Manager messages.
-            idempotencyKey: `thread-message-${sourceThreadId}-${parsed.thread_id}-${parsed.experiment_id}`,
+            // Idempotency covers a TRANSPORT RETRY of the same message (same
+            // sender/target/experiment/content → same key → the original
+            // durable exchange is returned, no duplicate Manager message).
+            // Distinct messages on the same arm get distinct keys via the
+            // content hash, so repeated 收口/升级 deliveries are never
+            // rejected as "already bound".
+            idempotencyKey:
+              `thread-message-${sourceThreadId}-${parsed.thread_id}-${parsed.experiment_id}-` +
+              createHash("sha256").update(request).digest("hex").slice(0, 16),
             hopDepth: 0,
           },
         });

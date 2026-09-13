@@ -1,4 +1,5 @@
 import {
+  applyAutoMuseHarnessLaunch,
   preferredHarnessForCompatibilityFamily,
   resolveCompatibilityFamily,
   stripModelProviderPrefix,
@@ -36,10 +37,7 @@ export function isThirdPartyAccountId(accountId: string | undefined | null): boo
   return typeof accountId === "string" && accountId.startsWith(`${THIRD_PARTY_ACCOUNT_PROVIDER}:`);
 }
 
-function harnessIsInstalled(
-  kind: string,
-  installed: readonly string[] | undefined,
-): boolean {
+function harnessIsInstalled(kind: string, installed: readonly string[] | undefined): boolean {
   return installed === undefined || installed.includes(kind);
 }
 
@@ -73,19 +71,32 @@ export interface ThirdPartyPickerSelection {
 }
 
 /**
- * Picker onChange: a third-party openai-compatible pick is rewritten onto
- * the model-name Harness when that Harness is installed (ChatGPT → Codex,
- * Kimi/Grok/DeepSeek → their CLI, otherwise OpenCode). Native subscription
- * / OpenCode catalog picks pass through unchanged.
+ * Picker onChange.
+ *
+ * - Third-party openai-compatible picks rewrite onto the model's native
+ *   Harness when that Harness is installed (ChatGPT → Codex, Kimi/Grok/
+ *   DeepSeek → their CLI, Muse → Muse, otherwise OpenCode).
+ * - OpenCode catalog is a carrier, not a destination: Muse Spark (and other
+ *   vendor models whose native Harness can consume the OpenCode API) launch
+ *   that Harness. GLM / unknown stay on OpenCode.
+ * - Command Code / 方舟 coding-plan CLIs keep their own process — they carry
+ *   their own key and must not be rewritten onto DeepSeek Harness.
  */
 export function applyThirdPartyPickerSelection(
   next: ThirdPartyPickerSelection,
   installed?: readonly string[],
 ): ThirdPartyPickerSelection {
-  if (!isThirdPartyAccountId(next.accountId)) return next;
-  const harness = resolveThirdPartyHarnessForModel(next.model, installed);
-  if (harness === next.agentKind) return next;
-  return { ...next, agentKind: harness };
+  if (isThirdPartyAccountId(next.accountId)) {
+    const harness = resolveThirdPartyHarnessForModel(next.model, installed);
+    if (harness === next.agentKind) return next;
+    return { ...next, agentKind: harness };
+  }
+  const remapped = applyAutoMuseHarnessLaunch(
+    { agentKind: next.agentKind, model: next.model },
+    harnessIsInstalled("muse", installed),
+  );
+  if (remapped.agentKind === next.agentKind) return next;
+  return { ...next, agentKind: remapped.agentKind };
 }
 
 /**
@@ -158,15 +169,16 @@ export function resolveThirdPartyAccountForLaunch(input: {
   const isThirdPartyAccount = (accountId: string | undefined) =>
     Boolean(
       accountId &&
-        (isThirdPartyAccountId(accountId) ||
-          input.trustAccountChannel === true ||
-          byId.get(accountId)?.provider === THIRD_PARTY_ACCOUNT_PROVIDER),
+      (isThirdPartyAccountId(accountId) ||
+        input.trustAccountChannel === true ||
+        byId.get(accountId)?.provider === THIRD_PARTY_ACCOUNT_PROVIDER),
     );
   if (isThirdPartyAccount(input.explicitAccountId)) return input.explicitAccountId;
   const model = input.model.trim();
   if (!model) return undefined;
   const modelMatches = (entryModelId: string) =>
-    entryModelId === model || stripModelProviderPrefix(entryModelId) === stripModelProviderPrefix(model);
+    entryModelId === model ||
+    stripModelProviderPrefix(entryModelId) === stripModelProviderPrefix(model);
   const channelMatch = (input.customModels ?? []).find(
     (entry) =>
       modelMatches(entry.modelId) &&

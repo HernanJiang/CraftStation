@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { stripAnsi } from "@/shared/ansi";
+import { THIRD_PARTY_OPENCODE_PROVIDER_ID } from "@/shared/thirdPartyRouting";
 import {
   type AgentSlashCommand,
   compactAgentProviderMetadata,
@@ -639,6 +640,10 @@ export function buildCapabilityPartialFromSdkInventory(
     // `all`. The renderer's picker should only show models the user can
     // actually call right now, so filter to the `connected` set.
     if (!connected.has(provider.id)) continue;
+    // The third-party reserved provider only exists inside account-isolated
+    // opencode configs; its models already have their own catalog entry, so
+    // never surface them as `craftstation/<model>` here.
+    if (provider.id === THIRD_PARTY_OPENCODE_PROVIDER_ID) continue;
     subProviderIds.add(provider.id);
     for (const model of provider.models) {
       const slug = `${provider.id}/${model.id}`;

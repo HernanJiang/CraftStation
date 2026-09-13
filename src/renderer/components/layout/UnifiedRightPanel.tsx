@@ -290,14 +290,19 @@ export function UnifiedRightPanel(props: {
   // multi-tab state.  `openTabs` is authoritative when supplied; the fallback
   // keeps this low-level component backwards-compatible for existing callers.
   const visibleTabs = tabs.filter((tab) => tab.visible);
-  const openedTabIds = new Set(openTabs ?? visibleTabs.map((tab) => tab.id));
+  const tabById = new Map(visibleTabs.map((tab) => [tab.id, tab]));
+  // Follow insertion order from `openTabs`. Canonical `tabs` order puts
+  // `subagent` near the middle (after plan, before terminal), so filtering
+  // `visibleTabs` would jump a newly opened subagent into the center.
+  const orderedIds = openTabs !== undefined ? [...openTabs] : visibleTabs.map((tab) => tab.id);
   // Older persisted panel state may contain a selected tab but no entry in the
   // tab list. Keep that selected tab visible until the next store write; this
   // prevents a seemingly dead header after upgrading from the single-tool
   // panel implementation. The launcher intentionally has no selected tab.
-  if (!launcherOpen) openedTabIds.add(activeTab);
-  const headerTabs = visibleTabs
-    .filter((tab) => openedTabIds.has(tab.id))
+  if (!launcherOpen && !orderedIds.includes(activeTab)) orderedIds.push(activeTab);
+  const headerTabs = orderedIds
+    .map((id) => tabById.get(id))
+    .filter((tab): tab is (typeof tabs)[number] => tab !== undefined)
     .filter(
       (tab) =>
         tab.id !== "browser" ||
@@ -430,9 +435,6 @@ export function UnifiedRightPanel(props: {
         data-active-tab={activeTab}
         data-auxiliary-panel-header=""
       >
-        {hasSubagentModel ? (
-          <div className="flex min-w-0 flex-1 items-center">{subagentModel}</div>
-        ) : null}
         <div className="relative flex min-w-0 flex-1 items-center overflow-hidden">
           <div className="flex h-full min-w-0 flex-1 items-center overflow-x-auto">
             <div data-tool-tab-row="" className="flex h-full min-w-max items-center gap-0.5">
@@ -474,6 +476,14 @@ export function UnifiedRightPanel(props: {
               ) : null}
             </div>
           </div>
+          {hasSubagentModel ? (
+            <div
+              data-subagent-model=""
+              className="ml-1 min-w-0 max-w-[40%] shrink truncate text-xs text-muted"
+            >
+              {subagentModel}
+            </div>
+          ) : null}
         </div>
         {toolMenuOpen && toolMenuPosition
           ? createPortal(
@@ -491,8 +501,7 @@ export function UnifiedRightPanel(props: {
                   const Icon = tab.icon;
                   // The + menu ADDS: browser always opens a fresh tab (the
                   // header tab click only reveals), everything else opens.
-                  const add =
-                    tab.id === "browser" && onAddBrowser ? onAddBrowser : tab.onOpen;
+                  const add = tab.id === "browser" && onAddBrowser ? onAddBrowser : tab.onOpen;
                   return (
                     <button
                       key={tab.id}
@@ -542,11 +551,7 @@ export function UnifiedRightPanel(props: {
               title={isMaximized ? t`Restore side panel` : t`Maximize side panel`}
               onClick={onToggleMaximize}
             >
-              {isMaximized ? (
-                <Minimize2 className="size-4" />
-              ) : (
-                <Maximize2 className="size-4" />
-              )}
+              {isMaximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
             </button>
           ) : null}
           {shouldShowPanelCloseButton ? (

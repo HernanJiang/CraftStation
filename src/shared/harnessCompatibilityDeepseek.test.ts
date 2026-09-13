@@ -56,7 +56,7 @@ describe("deepseek default binding (DeepSeek model -> DeepSeek Harness)", () => 
     expect(result.requiresCPA).toBe(false);
   });
 
-  it("foreign provider through deepseek harness fails closed (native-only runtime)", () => {
+  it("foreign provider through deepseek harness uses CPA as an OpenAI-compatible gateway", () => {
     const result = resolveHarnessCompatibility({
       providerId: "vendor-a",
       modelId: "model-a",
@@ -65,7 +65,8 @@ describe("deepseek default binding (DeepSeek model -> DeepSeek Harness)", () => 
       upstreamProtocol: "chat-completions",
       cpaAvailable: true,
     });
-    expect(result.route).toBe("unsupported");
-    expect(result.requiresCPA).toBe(false);
+    expect(result.route).toBe("gateway-direct");
+    expect(result.requiresCPA).toBe(true);
+    expect(result.downstreamProtocol).toBe("chat-completions");
   });
 });

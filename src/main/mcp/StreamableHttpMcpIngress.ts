@@ -1,7 +1,11 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { isIP } from "node:net";
-import { decodeThreadIdentity, type McpThreadIdentity } from "@/shared/browserMcpThread";
+import {
+  decodeThreadIdentity,
+  PROVIDER_SESSION_ID_ARG,
+  type McpThreadIdentity,
+} from "@/shared/browserMcpThread";
 import { isLocalhostOrigin, readBoundedNodeRequestBody, writeJsonResponse } from "@/shared/http";
 import { LOCAL_MCP_BIND_HOST } from "@/shared/localMcpBind";
 
@@ -45,6 +49,16 @@ export interface StreamableHttpMcpIngressOptions<TContext> {
    * scoped/named; consumers that don't need it may ignore the argument.
    */
   buildContext(identity: McpThreadIdentity): TContext | null;
+  /**
+   * Optional per-request identity override for shared-agent MCP bridges (e.g.
+   * one `opencode serve` sidecar per workspace serves many threads through one
+   * endpoint URL, so the URL `?thread=` identity is whichever thread synced
+   * last). When set, a tool call carrying {@link PROVIDER_SESSION_ID_ARG} has
+   * that arg stripped and its value resolved through this function; a
+   * resolved id REPLACES the URL identity, and an unresolvable one fails the
+   * call closed instead of silently binding the wrong thread.
+   */
+  resolveThreadIdBySessionId?(sessionId: string): string | null;
   instructions: string;
   isKnownToolName(name: string): boolean;
   onBeforeToolCall?(name: string, ctx: TContext): void;
@@ -322,7 +336,38 @@ export class StreamableHttpMcpIngress<TContext> {
       if (method === "tools/call") {
         const p = (params ?? {}) as { name?: string; arguments?: Record<string, unknown> };
         const name = String(p.name ?? "");
-        const args = (p.arguments ?? {}) as Record<string, unknown>;
+        let args = (p.arguments ?? {}) as Record<string, unknown>;
+        // Shared-agent bridges (one `opencode serve` per workspace) cannot keep
+        // the URL `?thread=` identity per thread — the plugin inside the
+        // sidecar injects the real calling session per tool call. That value
+        // wins over the URL; when it cannot be resolved the call fails closed
+        // rather than binding (and possibly firing into) the wrong thread.
+        const routedSession =
+          this.options.resolveThreadIdBySessionId &&
+          typeof args[PROVIDER_SESSION_ID_ARG] === "string"
+            ? (args[PROVIDER_SESSION_ID_ARG] as string).trim()
+            : "";
+        if (routedSession) {
+          const resolved = this.options.resolveThreadIdBySessionId!(routedSession);
+          if (!resolved) {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                isError: true,
+                content: [
+                  {
+                    type: "text",
+                    text: `Cannot resolve CraftStation thread for calling session ${routedSession}. Refusing to bind this call to the endpoint thread.`,
+                  },
+                ],
+              },
+            };
+          }
+          const { [PROVIDER_SESSION_ID_ARG]: _dropped, ...rest } = args;
+          args = rest;
+          identity = { ...identity, threadId: resolved };
+        }
         if (identity.disabledTools?.includes(name)) {
           return {
             jsonrpc: "2.0",
