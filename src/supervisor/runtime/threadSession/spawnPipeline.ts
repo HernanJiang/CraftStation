@@ -71,6 +71,7 @@ import {
   createKnownSessionRef,
   defaultFormatPromptSegments,
   injectWslEnv,
+  prependWslLoginScript,
   primeProjectShellEnv,
   resolveLaunchSpec,
   mergeSpawnEnv,
@@ -92,9 +93,15 @@ import {
   OPENCODE_GO_RESPONSES_BASE_URL,
   applyMuseForeignLaunchArgs,
   buildMuseForeignChildEnv,
+  MUSE_FOREIGN_SETTINGS_JSON_ENV,
+  MUSE_FOREIGN_SHIM_PYTHON_ENV,
   museForeignProviderFromModel,
+  museForeignSettingsJson,
+  museForeignWslBootstrap,
   readOpenCodeGoApiKey,
 } from "../../agents/muse/foreignEndpoint";
+import { startMuseForeignGateway } from "../../agents/muse/foreignGateway";
+import { resolveWindowsMuseLaunchLocation } from "../../agents/muse/wslFallback";
 import { applyLaunchArgsConfigRewrite, mergeCliHookExtraArgs } from "./cliHookArgs";
 import type { CliHookSessionCoordinator } from "./cliHookPlugin";
 import { shouldPrimeNativeProjectShellEnv } from "./helpers";
@@ -817,18 +824,30 @@ export class SpawnPipeline {
       payload.config,
       payload.projectLocation,
     );
-    const museForeignEnv = await this.resolveMuseForeignExtraEnv({
+    const museCommandLocation = await this.resolveMuseCommandLocation(
+      payload.agentKind,
+      payload.projectLocation,
+    );
+    const musePrepared = await this.prepareMuseForeignLaunch({
       agentKind: payload.agentKind,
       threadId: payload.threadId,
       model: payload.config.model,
       thirdPartyAccountId: payload.thirdPartyAccountId,
-      projectLocation: payload.projectLocation,
+      projectLocation: museCommandLocation,
     });
+    const museForeignEnv = musePrepared.env;
     argv.args = applyMuseForeignLaunchArgs(argv.args, museForeignEnv);
     if (shouldPrimeNativeProjectShellEnv(payload.projectLocation)) {
       await primeProjectShellEnv(payload.projectLocation.path);
     }
-    const command = resolveLaunchSpec(payload.projectLocation, argv);
+    const command = resolveLaunchSpec(museCommandLocation, argv);
+    if (musePrepared.cleanup) {
+      const previousCleanup = command.cleanup;
+      command.cleanup = () => {
+        musePrepared.cleanup?.();
+        previousCleanup?.();
+      };
+    }
 
     const keepStructuredSession = structuredSession && useStructuredFlow;
     if (structuredSession && !keepStructuredSession) {
@@ -1124,14 +1143,19 @@ export class SpawnPipeline {
       config,
       session.projectLocation,
     );
-    const museForeignEnv = await this.resolveMuseForeignExtraEnv({
+    const museCommandLocation = await this.resolveMuseCommandLocation(
+      session.agentKind,
+      session.projectLocation,
+    );
+    const musePrepared = await this.prepareMuseForeignLaunch({
       agentKind: session.agentKind,
       threadId: session.threadId,
       model: config.model,
       thirdPartyAccountId:
         session.poolProvider === "openai-compatible" ? session.poolAccountId : undefined,
-      projectLocation: session.projectLocation,
+      projectLocation: museCommandLocation,
     });
+    const museForeignEnv = musePrepared.env;
     argv.args = applyMuseForeignLaunchArgs(argv.args, museForeignEnv);
     if (shouldPrimeNativeProjectShellEnv(session.projectLocation)) {
       await primeProjectShellEnv(session.projectLocation.path);
@@ -1139,9 +1163,17 @@ export class SpawnPipeline {
     if (!ctx.isCurrentSession(session)) {
       await structuredSession?.dispose();
       argv.cleanup?.();
+      musePrepared.cleanup?.();
       return;
     }
-    const command = resolveLaunchSpec(session.projectLocation, argv);
+    const command = resolveLaunchSpec(museCommandLocation, argv);
+    if (musePrepared.cleanup) {
+      const previousCleanup = command.cleanup;
+      command.cleanup = () => {
+        musePrepared.cleanup?.();
+        previousCleanup?.();
+      };
+    }
 
     const keepStructuredSession = structuredSession && useStructuredFlow;
     if (structuredSession && !keepStructuredSession) {
@@ -1375,7 +1407,10 @@ export class SpawnPipeline {
     const terminalEnv = resolveTerminalColorEnv(input.projectLocation);
     const terminalAgentEnv = { ...agentEnv, ...terminalEnv };
     const command = input.command
-      ? injectWslEnv(input.command, input.projectLocation, terminalAgentEnv)
+      ? prependWslLoginScript(
+          injectWslEnv(input.command, input.projectLocation, terminalAgentEnv),
+          museForeignWslBootstrap(terminalAgentEnv),
+        )
       : undefined;
     let pty;
     if (command) {
@@ -1776,6 +1811,75 @@ export class SpawnPipeline {
     return Object.keys(merged).length > 0 ? merged : undefined;
   }
 
+  /**
+   * Meta ships no Windows `muse` binary. Windows projects launch the WSL
+   * install against `/mnt/<drive>/...` so the third-party API env still
+   * reaches the official CLI.
+   */
+  private async resolveMuseCommandLocation(
+    agentKind: AgentKind,
+    location: ProjectLocation,
+  ): Promise<ProjectLocation> {
+    if (baseAgentKind(agentKind) !== "muse") return location;
+    if (location.kind !== "windows") return location;
+    const wsl = await resolveWindowsMuseLaunchLocation(location);
+    if (!wsl) {
+      throw new Error(
+        "Windows 没有 Muse Code 可执行文件，且没有可用的 WSL 发行版。请在 WSL 中安装 Muse Code，或改用 OpenCode。",
+      );
+    }
+    return wsl;
+  }
+
+  private async prepareMuseForeignLaunch(input: {
+    agentKind: AgentKind;
+    threadId: string;
+    model?: string | undefined;
+    thirdPartyAccountId?: string | undefined;
+    projectLocation?: ProjectLocation;
+  }): Promise<{ env?: Record<string, string>; cleanup?: () => void }> {
+    const env = await this.resolveMuseForeignExtraEnv(input);
+    if (!env) return {};
+    const location = input.projectLocation;
+    const model = env.CRAFTSTATION_MUSE_SHIM_MODEL || "muse-spark-1.3-contributor";
+    const upstream = env.CRAFTSTATION_MUSE_BASE_URL?.trim();
+    if (!upstream) return { env };
+    const wsl = location?.kind === "wsl";
+    const gateway = await startMuseForeignGateway({
+      upstreamBaseUrl: upstream,
+      model,
+      listenHost: wsl ? "0.0.0.0" : "127.0.0.1",
+    });
+    let origin = `http://127.0.0.1:${gateway.port}`;
+    if (wsl && location?.kind === "wsl") {
+      const access = await this.ctx.options.wslHostAccess?.resolveHostAccess(location.distro);
+      if (access?.kind === "gateway") origin = `http://${access.ip}:${gateway.port}`;
+    }
+    const next = { ...env };
+    next[MUSE_FOREIGN_SETTINGS_JSON_ENV] = museForeignSettingsJson(origin, model);
+    delete next[MUSE_FOREIGN_SHIM_PYTHON_ENV];
+    return { env: next, cleanup: gateway.close };
+  }
+
+  private museWslIsolationDir(threadId: string): string {
+    return `/tmp/craftstation-muse-go/${threadId}`;
+  }
+
+  private remapMuseEnvForWslLaunch(
+    env: Record<string, string>,
+    threadId: string,
+  ): Record<string, string> {
+    const isolationDir = this.museWslIsolationDir(threadId);
+    const baseUrl = env.CRAFTSTATION_MUSE_BASE_URL?.trim();
+    return buildMuseForeignChildEnv({
+      apiKey: env.META_API_KEY ?? "",
+      baseUrl: baseUrl && baseUrl.length > 0 ? baseUrl : OPENCODE_GO_RESPONSES_BASE_URL,
+      isolationDir,
+      createIsolationDir: false,
+      ...(env.CRAFTSTATION_MUSE_SHIM_MODEL ? { model: env.CRAFTSTATION_MUSE_SHIM_MODEL } : {}),
+    });
+  }
+
   private async resolveMuseForeignExtraEnv(input: {
     agentKind: AgentKind;
     threadId: string;
@@ -1784,6 +1888,7 @@ export class SpawnPipeline {
     projectLocation?: ProjectLocation;
   }): Promise<Record<string, string> | undefined> {
     if (baseAgentKind(input.agentKind) !== "muse") return undefined;
+    const wsl = input.projectLocation?.kind === "wsl";
     if (input.thirdPartyAccountId) {
       const accountEnv = await this.ctx.options.resolveAccountSessionEnv?.({
         provider: "muse",
@@ -1791,7 +1896,8 @@ export class SpawnPipeline {
         model: input.model,
         thirdPartyAccountId: input.thirdPartyAccountId,
       });
-      return accountEnv?.env;
+      if (!accountEnv?.env) return undefined;
+      return wsl ? this.remapMuseEnvForWslLaunch(accountEnv.env, input.threadId) : accountEnv.env;
     }
     if (museForeignProviderFromModel(input.model ?? "") !== "opencode-go") return undefined;
     const apiKey = readOpenCodeGoApiKey();
@@ -1802,14 +1908,14 @@ export class SpawnPipeline {
         { provider: "opencode-go" },
       );
     }
-    const wsl = input.projectLocation?.kind === "wsl";
     return buildMuseForeignChildEnv({
       apiKey,
       baseUrl: OPENCODE_GO_RESPONSES_BASE_URL,
       isolationDir: wsl
-        ? `/tmp/craftstation-muse-go/${input.threadId}`
+        ? this.museWslIsolationDir(input.threadId)
         : join(tmpdir(), "craftstation-muse-go", input.threadId),
       createIsolationDir: !wsl,
+      ...(input.model ? { model: input.model } : {}),
     });
   }
 

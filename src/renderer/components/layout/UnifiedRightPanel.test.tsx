@@ -234,4 +234,41 @@ describe("UnifiedRightPanel", () => {
     expect(screen.queryByRole("button", { name: "Maximize" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Move browser to window" })).toBeNull();
   });
+
+  it("appends a newly opened subagent tab after existing tools", () => {
+    const { container } = render(
+      <UnifiedRightPanel
+        activeTab="subagent"
+        onTabChange={() => {}}
+        gitContent={<div>review-content</div>}
+        filesContent={<div>files-content</div>}
+        browserContent={<div>browser-content</div>}
+        subagentContent={<div>subagent-content</div>}
+        subagentModel={<span>Grok 4.6</span>}
+        showTerminalTab={false}
+        showFilesTab
+        showGitTab
+        showUsageTab={false}
+        showNotesTab={false}
+        showBrowserTab={false}
+        showSubagentTab
+        openTabs={["git", "files", "subagent"]}
+        projectName="CraftStation"
+        onClose={() => {}}
+      />,
+    );
+
+    const tabRow = container.querySelector("[data-tool-tab-row]") as HTMLElement | null;
+    const labels = [...(tabRow?.querySelectorAll("button") ?? [])].map(
+      (el) => el.getAttribute("aria-label") ?? el.textContent,
+    );
+    expect(labels).toEqual(["Review", "Files", "Subagent"]);
+
+    const header = container.querySelector("[data-auxiliary-panel-header]");
+    const model = container.querySelector("[data-subagent-model]");
+    expect(header?.firstElementChild).toContainElement(tabRow);
+    expect(model).toBeTruthy();
+    expect(model?.className).not.toContain("flex-1");
+    expect(tabRow!.compareDocumentPosition(model!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

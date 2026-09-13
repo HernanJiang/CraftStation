@@ -56,6 +56,12 @@ export const threads = sqliteTable("threads", {
   groupName: text("group_name"),
   /** Orchestrator thread that created this one via the Crossagents MCP. */
   parentThreadId: text("parent_thread_id"),
+  /**
+   * JSON `{scheduleId, runId?, occurrenceAt?}` when this row was created by a
+   * Schedule firing (threadTarget kind:"new"). Keeps automated run sessions
+   * out of the cross-agent peer roster.
+   */
+  scheduleOrigin: text("schedule_origin"), // JSON
   /** Durable `/goal` prompt bound by an explicit `/goal + Prompt` submit. JSON */
   goal: text("goal"),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),

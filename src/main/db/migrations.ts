@@ -697,7 +697,12 @@ export const DATABASE_MIGRATIONS = [
       addColumnIfMissing(sqlite, "scheduled_tasks", "source_thread_id", "TEXT");
       addColumnIfMissing(sqlite, "scheduled_tasks", "harness_item_id", "TEXT");
       addColumnIfMissing(sqlite, "scheduled_task_runs", "occurrence_at", "TEXT");
-      addColumnIfMissing(sqlite, "scheduled_task_runs", "triggered_by", "TEXT NOT NULL DEFAULT 'scheduled'");
+      addColumnIfMissing(
+        sqlite,
+        "scheduled_task_runs",
+        "triggered_by",
+        "TEXT NOT NULL DEFAULT 'scheduled'",
+      );
       addColumnIfMissing(sqlite, "scheduled_task_runs", "queued_at", "TEXT");
       addColumnIfMissing(sqlite, "scheduled_task_runs", "execution_snapshot", "TEXT");
       sqlite.exec(`
@@ -779,6 +784,7 @@ const SAFE_COLUMN_REPAIRS = [
   ["threads", "agent_instance_id", "TEXT"],
   ["threads", "thread_status_source", "TEXT"],
   ["threads", "parent_thread_id", "TEXT"],
+  ["threads", "schedule_origin", "TEXT"],
   ["threads", "active_turn_started_at", "TEXT"],
   ["threads", "last_turn_started_at", "TEXT"],
   ["threads", "last_turn_ended_at", "TEXT"],
@@ -795,6 +801,7 @@ const SAFE_COLUMN_REPAIRS = [
   ["scheduled_tasks", "recipe_id", "TEXT"],
   ["scheduled_tasks", "target_thread_id", "TEXT"],
   ["scheduled_tasks", "source_thread_id", "TEXT"],
+  ["scheduled_tasks", "created_by_thread_id", "TEXT"],
   ["scheduled_tasks", "harness_item_id", "TEXT"],
   ["scheduled_task_runs", "occurrence_at", "TEXT"],
   ["scheduled_task_runs", "queued_at", "TEXT"],
@@ -858,6 +865,7 @@ const REQUIRED_COLUMNS = {
     "group_id",
     "group_name",
     "parent_thread_id",
+    "schedule_origin",
     "archived",
     "archived_at",
     "done",
@@ -910,6 +918,7 @@ const REQUIRED_COLUMNS = {
     "recipe_id",
     "target_thread_id",
     "source_thread_id",
+    "created_by_thread_id",
     "harness_item_id",
     "next_run_at",
     "last_run_at",

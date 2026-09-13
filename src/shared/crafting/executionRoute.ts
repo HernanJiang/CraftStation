@@ -11,6 +11,8 @@ export const SUPPORTED_COMPATIBILITY_HARNESSES = [
   "kimi",
   "grok",
   "antigravity",
+  "muse",
+  "deepseek",
 ] as const;
 
 /**

@@ -111,13 +111,17 @@ interface PendingRun {
  * promise settles when the thread's turn ends (observed via `thread-state`),
  * so the caller's `ScheduleService.settle` keeps working unchanged.
  *
- * Thread continuation: when the task targets an existing thread and that
- * thread is idle, the run continues INSIDE the same thread as a follow-up
- * turn (same native session via `sendFollowUp`) — no new sidebar thread, no
- * new schedule. Otherwise the run falls back to a FRESH thread id with only
- * conversation history/context text inherited into the new prompt; Codex
- * sessions, OpenCode SDK sessions, ACP connections and process handles are
- * never reused across runs or across harnesses on that path.
+ * Thread binding is strict, per `threadTarget`:
+ * - `{kind:"existing", threadId}` runs INSIDE the bound thread as a follow-up
+ *   turn (same native session via `sendFollowUp`) when that thread is idle.
+ *   When the thread is missing, archived/done, busy, delivery fails, or no
+ *   follow-up seam is wired, the occurrence FAILS with a clear error — a
+ *   thread-bound schedule NEVER silently falls back to a fresh thread (that
+ *   produced untitled-by-schedule "ghost" threads bound to drifting MCP
+ *   identities).
+ * - `{kind:"new"}` (or no target) creates one fresh GUI thread per run,
+ *   titled by the schedule name and tagged `scheduleOrigin` so peer listing
+ *   and cleanup can tell automated run sessions apart from research threads.
  */
 export class ScheduleRunCoordinator {
   private readonly pending = new Map<string, PendingRun>();
@@ -160,17 +164,16 @@ export class ScheduleRunCoordinator {
     invocation: ScheduleRunInvocation = { triggeredBy: "scheduled", occurrenceAt: null },
   ): Promise<string | null> {
     const project = this.resolveProject(task);
-    const contextSnapshot = this.resolveContextSnapshot(task);
-    // Thread-bound schedules (threadTarget existing) continue in the SAME
-    // thread when it still exists, is idle, and the follow-up seam is wired.
-    // Otherwise fall back to the historical fresh-thread + inherited-text path
-    // so a busy/missing/archived thread never drops the run.
-    const reuseThreadId = this.resolveReusableThreadId(task);
-    if (reuseThreadId) {
-      const reused = await this.runScheduleAsFollowUp(task, reuseThreadId, invocation, project);
-      if (reused.handled) return reused.summary;
+    const target = scheduleThreadTarget(task);
+    // Thread-bound schedules NEVER create a replacement thread: any obstacle
+    // fails the occurrence visibly instead of spawning a ghost thread that
+    // inherits nothing but the schedule name.
+    if (target.kind === "existing") {
+      return this.runBoundToExistingThread(task, target.threadId, invocation, project);
     }
+    const contextSnapshot = this.resolveContextSnapshot(task);
     const threadId = (this.deps.newId ?? randomUUID)();
+    const runId = (this.deps.newId ?? randomUUID)();
     const nowIso = this.nowIso();
     const workspace = projectLocationWorkspace(project.location);
     const launch = (this.deps.resolveExecution ?? resolveScheduleExecution)({
@@ -199,6 +202,7 @@ export class ScheduleRunCoordinator {
       createdAt: nowIso,
       updatedAt: nowIso,
       activeTurnStartedAt: nowIso,
+      scheduleOrigin: { scheduleId: task.id, runId },
       ...(launch.kind === "native"
         ? {
             compositionProvenance: {
@@ -234,7 +238,7 @@ export class ScheduleRunCoordinator {
     });
 
     const run: ScheduledTaskRun = {
-      id: (this.deps.newId ?? randomUUID)(),
+      id: runId,
       scheduleId: task.id,
       threadId,
       occurrenceAt: invocation.occurrenceAt,
@@ -324,27 +328,77 @@ export class ScheduleRunCoordinator {
   }
 
   /**
-   * Thread id to reuse when the schedule is bound to an existing thread AND
-   * that thread can take a follow-up turn right now. Returns null for fresh-
-   * thread runs (detached schedules, missing/busy/archived threads, no
-   * follow-up seam, or a colliding in-flight run on the same thread).
+   * Run one occurrence of a thread-bound schedule strictly inside the bound
+   * thread. Every obstacle (missing/archived/done/busy thread, missing
+   * follow-up seam, delivery failure) fails the occurrence with a clear error
+   * — NEVER creates a replacement thread, because a thread-bound schedule
+   * firing in a fresh thread produced untitled "ghost" sessions that other
+   * components then mis-bound to.
    */
-  private resolveReusableThreadId(task: ScheduledTask): string | null {
-    if (!this.deps.sendFollowUp) return null;
-    const target = scheduleThreadTarget(task);
-    if (target.kind !== "existing") return null;
-    if (this.pending.has(target.threadId)) return null;
-    const existing = this.deps.getThread?.(target.threadId) ?? null;
-    if (!existing) return null;
-    if (existing.archived || existing.done) return null;
-    if (!TERMINAL_STATUSES.has(existing.status)) return null;
-    return existing.id;
+  private async runBoundToExistingThread(
+    task: ScheduledTask,
+    threadId: string,
+    invocation: ScheduleRunInvocation,
+    project: Project,
+  ): Promise<string | null> {
+    const fail = (error: string): never => {
+      const nowIso = this.nowIso();
+      this.deps.insertRun({
+        id: (this.deps.newId ?? randomUUID)(),
+        scheduleId: task.id,
+        threadId,
+        occurrenceAt: invocation.occurrenceAt,
+        triggeredBy: invocation.triggeredBy,
+        queuedAt: nowIso,
+        startedAt: nowIso,
+        completedAt: nowIso,
+        status: "failed",
+        summary: null,
+        error,
+        executionSnapshot: null,
+      });
+      throw new Error(error);
+    };
+    if (this.pending.has(threadId)) {
+      return fail(`Schedule target thread ${threadId} already has an in-flight scheduled run.`);
+    }
+    const existing = this.deps.getThread?.(threadId) ?? null;
+    if (!existing) {
+      return fail(
+        `Schedule target thread ${threadId} no longer exists; refusing to create a replacement thread for a thread-bound schedule.`,
+      );
+    }
+    if (existing.archived || existing.done) {
+      return fail(
+        `Schedule target thread ${threadId} is ${existing.archived ? "archived" : "done"}; unarchive/reset it or retarget the schedule. Refusing to create a replacement thread.`,
+      );
+    }
+    if (!TERMINAL_STATUSES.has(existing.status)) {
+      return fail(
+        `Schedule target thread ${threadId} is busy (status ${existing.status}); the occurrence is skipped rather than diverted to another thread.`,
+      );
+    }
+    if (!this.deps.sendFollowUp) {
+      return fail(
+        "Schedule follow-up delivery is unavailable on this host; cannot run a thread-bound schedule.",
+      );
+    }
+    const reused = await this.runScheduleAsFollowUp(task, threadId, invocation, project);
+    if (reused.handled) return reused.summary;
+    // Delivery failed (unknown/stale session, busy runtime, ...). The failed
+    // attempt is already recorded by the follow-up path; fail the occurrence
+    // instead of diverting to a fresh thread.
+    throw new Error(
+      `Schedule follow-up delivery to thread ${threadId} failed; refusing to create a replacement thread for a thread-bound schedule.`,
+    );
   }
 
   /**
    * Run one occurrence as a follow-up turn inside the bound thread. Returns
-   * `{handled:false}` when the follow-up could not be delivered so the caller
-   * falls back to a fresh thread; otherwise the run row is fully settled here.
+   * `{handled:false}` only when the follow-up could not be delivered; callers
+   * running a thread-bound schedule must treat that as a failed occurrence
+   * (never a fresh-thread fallback), while detached schedules never reach
+   * this path at all.
    */
   private async runScheduleAsFollowUp(
     task: ScheduledTask,
@@ -421,9 +475,9 @@ export class ScheduleRunCoordinator {
       await this.deps.sendFollowUp!({ threadId, prompt: launch.prompt, config });
     } catch (error) {
       this.pending.delete(threadId);
-      // Delivery failed (unknown/stale session, busy runtime, ...): let the
-      // caller retry as a fresh thread with inherited context instead of
-      // failing the occurrence outright. Mark this attempt interrupted.
+      // Delivery failed (unknown/stale session, busy runtime, ...). Record the
+      // interrupted attempt; the caller decides — thread-bound schedules fail
+      // the occurrence, only detached schedules may still retry elsewhere.
       this.deps.updateRun(run.id, {
         completedAt: this.nowIso(),
         status: "interrupted",
@@ -435,19 +489,21 @@ export class ScheduleRunCoordinator {
   }
 
   /**
-   * Fresh-thread fallback inherits persisted conversation text only. Native
-   * session ids, ACP connections, and process handles stay behind. (The
-   * same-thread follow-up path needs no snapshot — it continues the live
-   * session directly.)
+   * Fresh-thread runs (threadTarget kind:"new", or a legacy detached task)
+   * inherit persisted conversation text from the task's context source: the
+   * bound thread for existing-target tasks, else the creating thread
+   * (`sourceThreadId`). Native session ids, ACP connections, and process
+   * handles stay behind — text only, and a missing source simply means no
+   * inherited context. Thread-bound schedules never reach the fresh path, so
+   * this snapshot never diverts a bound run.
    */
   private resolveContextSnapshot(task: ScheduledTask): ThreadContextSnapshot | null {
     const target = scheduleThreadTarget(task);
-    if (target.kind !== "existing") return null;
-    const source = this.deps.getThread?.(target.threadId) ?? null;
-    if (!source) {
-      throw new Error("Schedule target thread no longer exists.");
-    }
-    const rawContext = this.deps.getThreadContextText?.(target.threadId) ?? null;
+    const sourceId = target.kind === "existing" ? target.threadId : task.sourceThreadId;
+    if (!sourceId) return null;
+    const source = this.deps.getThread?.(sourceId) ?? null;
+    if (!source) return null;
+    const rawContext = this.deps.getThreadContextText?.(sourceId) ?? null;
     const conversationText =
       rawContext != null && rawContext.length > MAX_INHERITED_CONTEXT_CHARS
         ? `${rawContext.slice(0, MAX_INHERITED_CONTEXT_CHARS)}…`

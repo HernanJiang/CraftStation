@@ -256,7 +256,9 @@ export function readCommandOutput(
 ): { ok: boolean; stdout: string; stderr: string } {
   const result = spawnSync(command, args, {
     encoding: "utf8",
-    shell: process.platform === "win32",
+    // Never `shell: true` on Windows: cmd.exe flashes a visible console even
+    // when windowsHide is set, because the shell child is not the hidden hwnd.
+    shell: false,
     windowsHide: true,
   });
   return {

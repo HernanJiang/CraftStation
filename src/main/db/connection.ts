@@ -217,6 +217,8 @@ export function initDatabase(dbPath: string) {
       timezone TEXT,
       recipe_id TEXT,
       target_thread_id TEXT,
+      source_thread_id TEXT,
+      created_by_thread_id TEXT,
       next_run_at TEXT,
       last_run_at TEXT,
       last_completed_at TEXT,

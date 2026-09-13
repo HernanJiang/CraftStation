@@ -8,6 +8,8 @@ import {
   exportKimiCompatibility,
   exportGrokCompatibility,
   exportAntigravityCompatibility,
+  exportMuseCompatibility,
+  exportDeepseekCompatibility,
   exportCompatibilityForHarness,
 } from "./exporters";
 import type { SpawnFunction, FetchFunction } from "./types";
@@ -123,6 +125,20 @@ describe("CompatibilityBridgeService & Exporters", () => {
 
     const generic = exportCompatibilityForHarness("antigravity", status, "gpt-5");
     expect(generic.protocol).toBe("gemini-compatible");
+
+    const muse = exportMuseCompatibility(status, "grok-4.3");
+    expect(muse.harnessKind).toBe("muse");
+    expect(muse.protocol).toBe("responses");
+    expect(muse.baseUrl).toBe("http://127.0.0.1:8317/v1");
+    expect(muse.customEnv.CRAFTSTATION_MUSE_BASE_URL).toBe("http://127.0.0.1:8317/v1");
+
+    const deepseek = exportDeepseekCompatibility(status, "grok-4.3");
+    expect(deepseek.harnessKind).toBe("deepseek");
+    expect(deepseek.customEnv.DEEPSEEK_BASE_URL).toBe("http://127.0.0.1:8317/v1");
+    expect(exportCompatibilityForHarness("muse", status, "grok-4.3").harnessKind).toBe("muse");
+    expect(exportCompatibilityForHarness("deepseek", status, "grok-4.3").harnessKind).toBe(
+      "deepseek",
+    );
   });
 
   it("does not treat unauthorized or missing bridge state as executable", async () => {

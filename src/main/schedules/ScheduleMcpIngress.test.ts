@@ -12,6 +12,22 @@ const thread = {
   config: { model: "gpt-5.6", effort: "high" },
 } as Thread;
 
+/** The executor 正本 thread — the REAL caller behind the injected session id. */
+const executorThread = {
+  id: "d48b6841-b29c-476c-ab2d-85fe3145c7d8",
+  projectId: "project-1",
+  agentKind: "opencode",
+  config: { model: "opencode-go/muse-spark-1.3-contributor" },
+} as Thread;
+
+/** A drifted endpoint identity: the ghost thread the shared sidecar last wrote. */
+const ghostThread = {
+  id: "47dda834-aa35-4a34-9670-86e5df2b3b0e",
+  projectId: "project-1",
+  agentKind: "opencode",
+  config: { model: "opencode-go/muse-spark-1.3-contributor" },
+} as Thread;
+
 function service(): ScheduleCapability {
   return {
     create: vi.fn<(input: ScheduledTaskInput) => ScheduledTask>(
@@ -117,5 +133,103 @@ describe("ScheduleMcpIngress", () => {
         config: { model: "gpt-5.6", effort: "high" },
       }),
     );
+  });
+
+  it("plugin-injected session id overrides a drifted URL thread (P0-2)", async () => {
+    const scheduleService = service();
+    ingress = new ScheduleMcpIngress({
+      scheduleService,
+      getThread: (id) =>
+        [thread, executorThread, ghostThread].find((entry) => entry.id === id) ?? null,
+      resolveThreadIdBySessionId: (sessionId) =>
+        sessionId === "ses_f664b46cdffeCOeWvUONmTdrjp" ? executorThread.id : null,
+    });
+    const info = await ingress.start();
+
+    // The shared OpenCode sidecar's endpoint URL encodes the GHOST thread
+    // (last writer wins). The plugin injects the real calling session; the
+    // ingress must bind the executor thread, not the URL's ghost.
+    const response = await fetch(`${info.url}/mcp?thread=${encodeURIComponent(ghostThread.id)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${info.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "create",
+          arguments: {
+            name: "Executor self check 30min",
+            prompt: "Run the self check and report in this thread.",
+            recurrence: { kind: "interval", everyMinutes: 30 },
+            continueInCurrentThread: true,
+            __craftstation_provider_session_id: "ses_f664b46cdffeCOeWvUONmTdrjp",
+          },
+        },
+      }),
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      result?: { isError?: boolean; content?: Array<{ text?: string }> };
+    };
+    expect(body.result?.isError).not.toBe(true);
+
+    expect(scheduleService.create).toHaveBeenCalledTimes(1);
+    const input = (scheduleService.create as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Record<
+      string,
+      unknown
+    >;
+    expect(input).toEqual(
+      expect.objectContaining({
+        sourceThreadId: executorThread.id,
+        targetThreadId: executorThread.id,
+        threadTarget: { kind: "existing", threadId: executorThread.id },
+        // The private session arg never reaches the tool layer.
+      }),
+    );
+    expect(input).not.toHaveProperty("__craftstation_provider_session_id");
+  });
+
+  it("an unresolvable injected session fails closed instead of binding the URL thread", async () => {
+    const scheduleService = service();
+    ingress = new ScheduleMcpIngress({
+      scheduleService,
+      getThread: (id) =>
+        [thread, executorThread, ghostThread].find((entry) => entry.id === id) ?? null,
+      resolveThreadIdBySessionId: () => null,
+    });
+    const info = await ingress.start();
+
+    const response = await fetch(`${info.url}/mcp?thread=${encodeURIComponent(ghostThread.id)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${info.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "create",
+          arguments: {
+            name: "Executor self check 30min",
+            prompt: "Run the self check.",
+            recurrence: { kind: "interval", everyMinutes: 30 },
+            __craftstation_provider_session_id: "ses_unknown",
+          },
+        },
+      }),
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      result?: { isError?: boolean; content?: Array<{ text?: string }> };
+    };
+    expect(body.result?.isError).toBe(true);
+    expect(body.result?.content?.[0]?.text).toContain("Refusing to bind");
+    expect(scheduleService.create).not.toHaveBeenCalled();
   });
 });

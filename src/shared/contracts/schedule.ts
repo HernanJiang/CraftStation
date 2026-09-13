@@ -129,9 +129,19 @@ export const scheduledTaskInputSchema = z.object({
   threadTarget: scheduleThreadTargetSchema.optional(),
   /**
    * Host-recorded provenance: the chat thread that created this schedule.
-   * Agents must not set this; the Host overwrites it from the calling thread.
+   * For thread-bound schedules (threadTarget.kind === "existing") the host
+   * sets this to the TARGET thread so run provenance and continuation stay on
+   * the executor thread; the creating thread is kept only in
+   * {@link createdByThreadId}. Agents must not set this; the Host overwrites it.
    */
   sourceThreadId: z.string().uuid().nullable().optional(),
+  /**
+   * Audit-only provenance: the thread whose MCP call created (or last
+   * updated) this schedule. Never a run/delivery destination — creators watch
+   * history via list/list_runs instead of receiving fired output.
+   * Host-recorded; agents must not set it.
+   */
+  createdByThreadId: z.string().uuid().nullable().optional(),
 });
 export type ScheduledTaskInput = z.infer<typeof scheduledTaskInputSchema>;
 

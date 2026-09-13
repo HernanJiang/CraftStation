@@ -78,9 +78,19 @@ const PLUGIN_VERSION = readPluginVersionFromManifest();
 const PROTOCOL_VERSION = 1;
 const CROSSAGENT_SESSION_ID_ARG = "__craftstation_provider_session_id";
 
+// CraftStation-owned MCP servers whose thread identity MUST come from the
+// real calling session, not from the shared endpoint URL: OpenCode GUI
+// threads share one `opencode serve` sidecar per workspace, so the URL's
+// `?thread=` query is last-writer-wins across threads and drifts. The
+// ingress resolves the injected session id back to the caller's thread row.
+// ("craftstation" is the app-controls server name; "Schedule" and
+// "crossagents" are the other built-ins. Matched case-insensitively because
+// harnesses sanitize server names differently.)
+const SESSION_ROUTED_TOOL_PATTERN = /^(crossagents|craftstation|schedule)[_-]/i;
+
 function injectCrossagentSessionId(input, output) {
   if (process.env.CRAFTSTATION_OPENCODE_SESSION_ROUTING !== "1") return;
-  if (typeof input?.tool !== "string" || !input.tool.startsWith("crossagents_")) return;
+  if (typeof input?.tool !== "string" || !SESSION_ROUTED_TOOL_PATTERN.test(input.tool)) return;
   if (typeof input.sessionID !== "string" || input.sessionID.length === 0) return;
   if (!output?.args || typeof output.args !== "object" || Array.isArray(output.args)) return;
 

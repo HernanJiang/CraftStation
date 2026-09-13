@@ -40,6 +40,7 @@ function thread(overrides: Partial<Thread> = {}): Thread {
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",
     agentKind: "claude",
+    config: { model: "claude-opus-4-7" },
     ...overrides,
   } as unknown as Thread;
 }
@@ -103,13 +104,58 @@ describe("ThreadContextMenu project actions", () => {
     expect(screen.queryByRole("menuitem", { name: "Unmark Done" })).not.toBeInTheDocument();
   });
 
-  it("copies the thread working path to the clipboard (never the thread id)", async () => {
+  it("copies harness:sessionId plus the concrete session path", async () => {
     const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-    await renderMenu(thread({ id: "thread-abc" }), project, { onRename: vi.fn<() => void>() });
+    bridgeMocks["dbListThreadNativeSessions"] = (async () => []) as never;
+    bridgeMocks["resolveNativeSessionPaths"] = (async () => [
+      {
+        harness: "kimi",
+        nativeSessionId: "session_abc",
+        path: "C:\\Users\\me\\.kimi-code\\sessions\\wd_eq\\session_abc",
+      },
+    ]) as never;
+    await renderMenu(
+      thread({
+        id: "thread-abc",
+        agentKind: "kimi",
+        sessionRef: { providerSessionId: "session_abc", discoveredAt: "2026-09-01T00:00:00.000Z" },
+      }),
+      project,
+      { onRename: vi.fn<() => void>() },
+    );
 
     fireEvent.click(screen.getByRole("menuitem", { name: "Copy Thread Address" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("C:\\repo"));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        "kimi:session_abc\nC:\\Users\\me\\.kimi-code\\sessions\\wd_eq\\session_abc",
+      ),
+    );
+  });
+
+  it("copies harness:sessionId even when only the sessions store would resolve", async () => {
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    bridgeMocks["dbListThreadNativeSessions"] = (async () => []) as never;
+    bridgeMocks["resolveNativeSessionPaths"] = (async () => [
+      {
+        harness: "kimi",
+        nativeSessionId: "session_abc",
+        path: "C:\\Users\\me\\.kimi-code\\sessions",
+      },
+    ]) as never;
+    await renderMenu(
+      thread({
+        id: "thread-abc",
+        agentKind: "kimi",
+        sessionRef: { providerSessionId: "session_abc", discoveredAt: "2026-09-01T00:00:00.000Z" },
+      }),
+      project,
+      { onRename: vi.fn<() => void>() },
+    );
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy Thread Address" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("kimi:session_abc"));
   });
 
   it("copies the worktree directory for worktree threads", async () => {
@@ -156,11 +202,7 @@ describe("ThreadContextMenu project actions", () => {
     });
 
     fireEvent.click(screen.getByRole("menuitem", { name: "Copy Thread Address" }));
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith(
-        "C:\\Users\\me\\.grok\\s\nC:\\Users\\me\\.kimi-code\\s",
-      ),
-    );
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("grok:ses-grok\nkimi:ses-kimi"));
   });
 
   it("falls back to the working path when no native session resolves", async () => {

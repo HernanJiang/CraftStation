@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveNativeSessionPath } from "./nativeSessionPaths";
+import { formatThreadAddressClipboard, resolveNativeSessionPath } from "./nativeSessionPaths";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -69,7 +69,25 @@ describe("resolveNativeSessionPath", () => {
     ).toBe(join(home, "conversations", "conv-1.pb"));
   });
 
-  it("falls back to the sessions home dir when the session file is unknown", () => {
+  it("resolves a Kimi session_ prefixed dir from a bare uuid", () => {
+    const home = makeHome();
+    const sessionDir = join(
+      home,
+      "sessions",
+      "wd_eq-agent",
+      "session_9e226cdd-e252-4827-b074-ff3bc143be88",
+    );
+    mkdirSync(sessionDir, { recursive: true });
+    expect(
+      resolveNativeSessionPath({
+        provider: "kimi",
+        credentialRoot: home,
+        nativeSessionId: "9e226cdd-e252-4827-b074-ff3bc143be88",
+      }),
+    ).toBe(sessionDir);
+  });
+
+  it("does not fall back to the sessions store when the session is missing", () => {
     const home = makeHome();
     mkdirSync(join(home, "sessions", "work-1", "ses-9"), { recursive: true });
     expect(
@@ -78,11 +96,34 @@ describe("resolveNativeSessionPath", () => {
         credentialRoot: home,
         nativeSessionId: "ses-missing",
       }),
-    ).toBe(join(home, "sessions"));
+    ).toBeUndefined();
+  });
+
+  it("formats harness:sessionId plus the concrete path for the clipboard", () => {
+    expect(
+      formatThreadAddressClipboard([
+        {
+          harness: "kimi",
+          nativeSessionId: "session_abc",
+          path: "C:\\Users\\me\\.kimi-code\\sessions",
+        },
+      ]),
+    ).toBe("kimi:session_abc");
+    expect(
+      formatThreadAddressClipboard([
+        {
+          harness: "kimi",
+          nativeSessionId: "session_abc",
+          path: "C:\\Users\\me\\.kimi-code\\sessions\\wd_eq\\session_abc",
+        },
+      ]),
+    ).toBe("kimi:session_abc\nC:\\Users\\me\\.kimi-code\\sessions\\wd_eq\\session_abc");
   });
 
   it("returns null for unknown providers and missing homes", () => {
-    expect(resolveNativeSessionPath({ provider: "claude", nativeSessionId: "x" })).toBeUndefined();
+    expect(
+      resolveNativeSessionPath({ provider: "not-a-harness", nativeSessionId: "x" }),
+    ).toBeUndefined();
     expect(
       resolveNativeSessionPath({
         provider: "kimi",

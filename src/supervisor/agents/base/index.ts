@@ -115,21 +115,44 @@ export function buildWindowsCmdCommand(cwd: string, command: string, args: strin
  * For non-WSL commands, the env is stored on `CommandSpec.env` and merged
  * into the PTY spawn options by the caller — no script rewriting needed.
  */
+function isWslExecutable(command: string): boolean {
+  const normalized = command.replace(/\\/gu, "/").toLowerCase();
+  return (
+    normalized === "wsl" ||
+    normalized === "wsl.exe" ||
+    normalized.endsWith("/wsl") ||
+    normalized.endsWith("/wsl.exe")
+  );
+}
+
+/**
+ * Prepend a POSIX snippet to the login-shell `-c` script of a WSL CommandSpec.
+ * No-op when the prefix is empty or the spec has no args.
+ */
+export function prependWslLoginScript(spec: CommandSpec, prefix: string): CommandSpec {
+  if (!prefix || spec.args.length === 0) return spec;
+  const args = [...spec.args];
+  const scriptIdx = args.length - 1;
+  args[scriptIdx] = `${prefix}${args[scriptIdx]}`;
+  return { ...spec, args };
+}
+
 export function injectWslEnv(
   spec: CommandSpec,
   location: ProjectLocation,
   env: Record<string, string>,
 ): CommandSpec {
-  if (location.kind !== "wsl" || Object.keys(env).length === 0) return spec;
+  if (Object.keys(env).length === 0) return spec;
+  // A Windows project may still launch via `wsl.exe` (Muse has no native
+  // Windows binary). `wsl.exe` does not forward the host PTY env, so the
+  // exports must land in the distro script regardless of location.kind.
+  if (location.kind !== "wsl" && !isWslExecutable(spec.command)) return spec;
 
   const prefix = buildPosixExportPrefix(env);
   if (!prefix) return spec;
 
   // The script is always the last arg after "-c".
-  const args = [...spec.args];
-  const scriptIdx = args.length - 1;
-  args[scriptIdx] = `${prefix}${args[scriptIdx]}`;
-  return { ...spec, args };
+  return prependWslLoginScript(spec, prefix);
 }
 
 export function buildWslLoginShellCommand(

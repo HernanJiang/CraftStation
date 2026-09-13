@@ -86,6 +86,29 @@ describe("injectWslEnv", () => {
     expect(result).toBe(original);
   });
 
+  it("still injects exports when a Windows project launches via wsl.exe", () => {
+    const windowsProject: ProjectLocation = { kind: "windows", path: "D:\\Work\\CraftStation" };
+    const original = {
+      command: getWslCommand(),
+      args: [
+        "-d",
+        "Ubuntu",
+        "--cd",
+        "/mnt/d/Work/CraftStation",
+        "--exec",
+        "bash",
+        "-l",
+        "-i",
+        "-c",
+        "exec 'muse'",
+      ],
+    };
+    const patched = injectWslEnv(original, windowsProject, { META_API_KEY: "sk-test" });
+    const script = patched.args[patched.args.length - 1]!;
+    expect(script).toContain("export META_API_KEY='sk-test'");
+    expect(script).toContain("exec 'muse'");
+  });
+
   it("returns the spec unchanged when env is empty", () => {
     const original = buildAgentCommand(wslProject, "claude", ["--version"]);
     const result = injectWslEnv(original, wslProject, {});

@@ -20,6 +20,7 @@ interface ScheduledTaskRow {
   recipe_id: string | null;
   target_thread_id: string | null;
   source_thread_id: string | null;
+  created_by_thread_id: string | null;
   harness_item_id: string | null;
   next_run_at: string | null;
   last_run_at: string | null;
@@ -55,6 +56,7 @@ function fromRow(row: ScheduledTaskRow): ScheduledTask {
     targetThreadId: target.targetThreadId,
     threadTarget: target.threadTarget,
     sourceThreadId: row.source_thread_id,
+    createdByThreadId: row.created_by_thread_id,
     nextRunAt: row.next_run_at,
     lastRunAt: row.last_run_at,
     lastCompletedAt: row.last_completed_at,
@@ -87,10 +89,11 @@ export function dbUpsertSchedule(task: ScheduledTask): void {
     .prepare(
       `INSERT INTO scheduled_tasks (
         id, name, prompt, agent_kind, config, recurrence, enabled, project_id,
-        timezone, recipe_id, target_thread_id, source_thread_id, harness_item_id,
+        timezone, recipe_id, target_thread_id, source_thread_id, created_by_thread_id,
+        harness_item_id,
         next_run_at, last_run_at, last_completed_at, last_status,
         last_result, last_error, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         prompt = excluded.prompt,
@@ -103,6 +106,7 @@ export function dbUpsertSchedule(task: ScheduledTask): void {
         recipe_id = excluded.recipe_id,
         target_thread_id = excluded.target_thread_id,
         source_thread_id = excluded.source_thread_id,
+        created_by_thread_id = excluded.created_by_thread_id,
         harness_item_id = excluded.harness_item_id,
         next_run_at = excluded.next_run_at,
         last_run_at = excluded.last_run_at,
@@ -125,6 +129,7 @@ export function dbUpsertSchedule(task: ScheduledTask): void {
       parsed.recipeId ?? null,
       target.targetThreadId,
       parsed.sourceThreadId ?? null,
+      parsed.createdByThreadId ?? null,
       parsed.config.harnessItemId ?? null,
       parsed.nextRunAt,
       parsed.lastRunAt,

@@ -17,6 +17,14 @@ import type {
   TurnResult,
 } from "@/shared/crafting/runtimeInterface";
 import { resolveExecutablePath } from "@/supervisor/agents/base/processRuntime";
+import { getWslCommand } from "@/supervisor/agents/base/shellBasics";
+import { DEEPSEEK_ACP_ARGS } from "@/supervisor/agents/deepseek/detection";
+import {
+  applyMuseForeignLaunchArgs,
+  buildMuseForeignChildEnv,
+} from "@/supervisor/agents/muse/foreignEndpoint";
+import { startMuseForeignGateway } from "@/supervisor/agents/muse/foreignGateway";
+import { listWslDistroNames } from "@/supervisor/agents/muse/wslFallback";
 import { CompatibilityBridgeService } from "./bridge";
 import {
   exportCompatibilityForHarness,
@@ -115,7 +123,12 @@ export class CompatibilityRuntimeAdapter {
       createdAt: new Date().toISOString(),
       metadata: {
         routeType: "compatibility",
-        compatibilityProtocol: "openai-compatible",
+        compatibilityProtocol:
+          this.harnessKind === "muse"
+            ? "responses"
+            : this.harnessKind === "deepseek"
+              ? "openai-compatible"
+              : "openai-compatible",
         compatibilityBridgeEndpoint: status.endpoint,
         accountId: this.options.accountPin?.accountId,
         modelId,
@@ -240,6 +253,8 @@ class CompatibilitySession implements CraftSession {
   private activeTurn: { turnId: string; cancelled: boolean } | undefined;
   /** Stable per-session directory: isolated provider config + child cwd. */
   private readonly configDir: string;
+  private museGatewayClose: (() => void) | undefined;
+  private museGatewayOrigin: string | undefined;
 
   constructor(options: CompatibilitySessionOptions) {
     this.options = options;
@@ -262,31 +277,18 @@ class CompatibilitySession implements CraftSession {
     this.status = "busy";
     this.emit({ type: "turn.started", threadId: this.threadId ?? "", turnId });
 
-    const configPath = this.writeIsolatedConfig();
-    const executable = this.resolveOpencode();
-    const args = [
-      "run",
-      "-m",
-      `${COMPATIBILITY_PROVIDER_ID}/${this.options.targetConfig.model}`,
-      "--format",
-      "json",
-      command.prompt,
-    ];
-    if (this.nativeSessionRef) {
-      args.push("-s", this.nativeSessionRef);
-    }
-
+    const launch = await this.prepareTurnLaunch(command.prompt);
     const spawnFn = this.options.spawnFn ?? ((cmd, args_, opts) => spawn(cmd, args_, opts));
     const spawnOptions: SpawnOptions = {
       // stdin MUST be ignored: an open stdin pipe makes the headless CLI block
       // forever instead of running the prompt and exiting.
       stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
       cwd: this.configDir,
-      env: {
-        ...process.env,
-        OPENCODE_CONFIG: configPath,
-      },
+      env: launch.env,
     };
+    const executable = launch.executable;
+    const args = launch.args;
 
     const collected: string[] = [];
     const exitCode = await new Promise<number | null>((resolve, reject) => {
@@ -302,6 +304,7 @@ class CompatibilitySession implements CraftSession {
       let stdoutBuffer = "";
       child.stdout?.on("data", (chunk: Buffer | string) => {
         stdoutBuffer += chunk.toString();
+        if (!launch.parseOpenCodeJson) return;
         let newlineIndex = stdoutBuffer.indexOf("\n");
         while (newlineIndex >= 0) {
           const line = stdoutBuffer.slice(0, newlineIndex).trim();
@@ -310,12 +313,18 @@ class CompatibilitySession implements CraftSession {
           newlineIndex = stdoutBuffer.indexOf("\n");
         }
       });
+      child.on("exit", (code) => {
+        if (!launch.parseOpenCodeJson) {
+          const text = stdoutBuffer.trim();
+          if (text) collected.push(text);
+        }
+        resolve(code);
+      });
       child.stderr?.on("data", (chunk: Buffer | string) => {
         const text = chunk.toString().trim();
         if (text) this.emit({ type: "warning", threadId: this.threadId ?? "", message: text });
       });
       child.on("error", reject);
-      child.on("exit", (code) => resolve(code));
       if (command.signal) {
         command.signal.addEventListener(
           "abort",
@@ -348,7 +357,9 @@ class CompatibilitySession implements CraftSession {
       turnId,
       status: cancelled ? "cancelled" : failed ? "failed" : "completed",
       events: [...this.events],
-      ...(failed ? { error: `opencode exited with code ${exitCode}.` } : { response }),
+      ...(failed
+        ? { error: `${this.options.targetConfig.harnessKind} exited with code ${exitCode}.` }
+        : { response }),
     };
   }
 
@@ -381,6 +392,13 @@ class CompatibilitySession implements CraftSession {
     } catch {
       // already gone
     }
+    try {
+      this.museGatewayClose?.();
+    } catch {
+      // already gone
+    }
+    this.museGatewayClose = undefined;
+    this.museGatewayOrigin = undefined;
     this.emit({ type: "session.exited", threadId: this.threadId ?? "", reason: "terminated" });
   }
 
@@ -430,6 +448,104 @@ class CompatibilitySession implements CraftSession {
     }
   }
 
+  private async prepareTurnLaunch(prompt: string): Promise<{
+    executable: string;
+    args: string[];
+    env: NodeJS.ProcessEnv;
+    parseOpenCodeJson: boolean;
+  }> {
+    const kind = this.options.targetConfig.harnessKind;
+    if (kind === "muse") return this.prepareMuseLaunch(prompt);
+    if (kind === "deepseek") return this.prepareDeepseekLaunch();
+    const configPath = this.writeIsolatedConfig();
+    const args = [
+      "run",
+      "-m",
+      `${COMPATIBILITY_PROVIDER_ID}/${this.options.targetConfig.model}`,
+      "--format",
+      "json",
+      prompt,
+    ];
+    if (this.nativeSessionRef) args.push("-s", this.nativeSessionRef);
+    return {
+      executable: this.resolveHarnessBinary("opencode"),
+      args,
+      env: { ...process.env, OPENCODE_CONFIG: configPath },
+      parseOpenCodeJson: true,
+    };
+  }
+
+  private async prepareMuseLaunch(prompt: string): Promise<{
+    executable: string;
+    args: string[];
+    env: NodeJS.ProcessEnv;
+    parseOpenCodeJson: boolean;
+  }> {
+    mkdirSync(this.configDir, { recursive: true });
+    if (!this.museGatewayOrigin) {
+      const gateway = await startMuseForeignGateway({
+        upstreamBaseUrl: this.options.targetConfig.baseUrl,
+        model: this.options.targetConfig.model,
+      });
+      this.museGatewayClose = gateway.close;
+      this.museGatewayOrigin = `http://127.0.0.1:${gateway.port}`;
+    }
+    const origin = this.museGatewayOrigin;
+    const childEnv = buildMuseForeignChildEnv({
+      apiKey: this.options.targetConfig.apiKey,
+      baseUrl: origin,
+      isolationDir: this.configDir,
+      model: this.options.targetConfig.model,
+    });
+    const museArgs = applyMuseForeignLaunchArgs(
+      [
+        "exec",
+        "--no-session-log",
+        "--trust-workspace",
+        "--model",
+        this.options.targetConfig.model,
+        prompt,
+      ],
+      childEnv,
+    );
+    const { command, prefixArgs } = await this.resolveMuseCommand();
+    return {
+      executable: command,
+      args: [...prefixArgs, ...museArgs],
+      env: { ...process.env, ...childEnv, ...this.options.targetConfig.customEnv },
+      parseOpenCodeJson: false,
+    };
+  }
+
+  private prepareDeepseekLaunch(): {
+    executable: string;
+    args: string[];
+    env: NodeJS.ProcessEnv;
+    parseOpenCodeJson: boolean;
+  } {
+    mkdirSync(this.configDir, { recursive: true });
+    return {
+      executable: this.resolveHarnessBinary("dsh"),
+      args: [...DEEPSEEK_ACP_ARGS],
+      env: { ...process.env, ...this.options.targetConfig.customEnv },
+      parseOpenCodeJson: false,
+    };
+  }
+
+  private async resolveMuseCommand(): Promise<{ command: string; prefixArgs: string[] }> {
+    const resolved = this.resolveHarnessBinaryOptional("muse");
+    if (resolved) return { command: resolved, prefixArgs: [] };
+    if (process.platform === "win32") {
+      const distro = (await listWslDistroNames())[0];
+      if (distro) return { command: getWslCommand(), prefixArgs: ["-d", distro, "--", "muse"] };
+    }
+    throw CraftingError.runtimeUnavailable(
+      "muse",
+      "Official Muse Code CLI is unavailable on PATH.",
+      "Install Muse Code, or on Windows install it inside WSL.",
+    );
+  }
+
   private writeIsolatedConfig(): string {
     mkdirSync(this.configDir, { recursive: true });
     return writeOpenCodeConfigFile(
@@ -439,15 +555,19 @@ class CompatibilitySession implements CraftSession {
     );
   }
 
-  private resolveOpencode(): string {
-    const resolved = this.options.resolveBinaryFn
-      ? this.options.resolveBinaryFn("opencode")
-      : resolveExecutablePath("opencode");
+  private resolveHarnessBinaryOptional(command: string): string | undefined {
+    return this.options.resolveBinaryFn
+      ? this.options.resolveBinaryFn(command)
+      : resolveExecutablePath(command);
+  }
+
+  private resolveHarnessBinary(command: string): string {
+    const resolved = this.resolveHarnessBinaryOptional(command);
     if (!resolved) {
       throw CraftingError.runtimeUnavailable(
-        "opencode",
-        "Official OpenCode CLI is unavailable on PATH.",
-        "Install OpenCode (npm i -g opencode-ai) or point the adapter at its binary.",
+        command,
+        `Official ${command} CLI is unavailable on PATH.`,
+        `Install ${command} or point the adapter at its binary.`,
       );
     }
     return resolved;

@@ -76,6 +76,15 @@ export function buildGrokCommand(location: ProjectLocation, args: string[], wslE
   return buildAgentCommand(location, "grok", args, wslExecPath);
 }
 
+/** Grok ACP `_meta` and the CLI models cache both name the window. */
+export function readGrokContextTokens(meta: Record<string, unknown>): number | undefined {
+  for (const key of ["totalContextTokens", "context_window", "contextWindow", "maxContextTokens"]) {
+    const value = meta[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.trunc(value);
+  }
+  return undefined;
+}
+
 async function probeCapabilities(
   location: ProjectLocation,
   executablePath?: string,
@@ -107,8 +116,8 @@ async function probeCapabilities(
   if (probe?.modelMetadata) {
     const sizes = new Map<string, number>();
     for (const [modelId, meta] of Object.entries(probe.modelMetadata)) {
-      const tokens = (meta as { totalContextTokens?: unknown }).totalContextTokens;
-      if (typeof tokens === "number" && tokens > 0) sizes.set(modelId, tokens);
+      const tokens = readGrokContextTokens(meta as Record<string, unknown>);
+      if (tokens !== undefined) sizes.set(modelId, tokens);
     }
     if (sizes.size > 0) {
       contextCaps = buildContextSizeCapabilities(sizes);

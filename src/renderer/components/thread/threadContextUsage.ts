@@ -82,9 +82,7 @@ export function resolveThreadContextUsageSummary(input: {
       ? Math.max(0, maxTokens - usedTokens)
       : undefined;
   const breakdown =
-    reportedUsage?.breakdown && reportedUsage.breakdown.length > 0
-      ? reportedUsage.breakdown
-      : [];
+    reportedUsage?.breakdown && reportedUsage.breakdown.length > 0 ? reportedUsage.breakdown : [];
   const occupancy = resolveContextOccupancy(breakdown, usedTokens);
   const cacheHitRate = resolveSessionCacheHitRate(breakdown);
   const usedLabel = usedTokens === undefined ? i18n._(msg`Unknown`) : formatTokenCount(usedTokens);
@@ -204,10 +202,12 @@ function inferConfiguredContextLimit(
   const contextId =
     thread.config?.contextSize ??
     parseContextSizeParam(model) ??
-    (model ? capabilities?.modelContextSizes?.[model]?.[0] : undefined) ??
+    lookupModelContextSize(model, capabilities) ??
     capabilities?.defaultContextSize;
   const option = contextId
-    ? capabilities?.contextSizes?.find((candidate) => candidate.id === contextId)
+    ? capabilities?.contextSizes?.find(
+        (candidate) => candidate.id === contextId || candidate.label === contextId,
+      )
     : undefined;
 
   return (
@@ -215,6 +215,24 @@ function inferConfiguredContextLimit(
     parseContextTokenLimit(contextId) ??
     parseContextTokenLimit(model)
   );
+}
+
+function lookupModelContextSize(
+  model: string | undefined,
+  capabilities: AgentCapability | undefined,
+): string | undefined {
+  const sizes = capabilities?.modelContextSizes;
+  if (!model || !sizes) return undefined;
+  const direct = sizes[model]?.[0];
+  if (direct) return direct;
+  const needle = model.trim().toLowerCase();
+  for (const [id, list] of Object.entries(sizes)) {
+    const key = id.toLowerCase();
+    if (key === needle || key.endsWith(`/${needle}`) || needle.endsWith(`/${key}`)) {
+      return list[0];
+    }
+  }
+  return undefined;
 }
 
 function parseContextSizeParam(modelId: string | undefined): string | undefined {
@@ -229,10 +247,17 @@ function parseContextSizeParam(modelId: string | undefined): string | undefined 
 
 function parseContextTokenLimit(value: string | undefined): number | undefined {
   if (!value) return undefined;
-  const match = /(\d+(?:\.\d+)?)\s*([kKmM])\b/.exec(value);
-  if (!match) return undefined;
-  const amount = Number.parseFloat(match[1]!);
-  if (!Number.isFinite(amount) || amount <= 0) return undefined;
-  const multiplier = match[2]!.toLowerCase() === "m" ? 1_000_000 : 1_000;
-  return Math.round(amount * multiplier);
+  const trimmed = value.trim();
+  const match = /(\d+(?:\.\d+)?)\s*([kKmM])\b/.exec(trimmed);
+  if (match) {
+    const amount = Number.parseFloat(match[1]!);
+    if (!Number.isFinite(amount) || amount <= 0) return undefined;
+    const multiplier = match[2]!.toLowerCase() === "m" ? 1_000_000 : 1_000;
+    return Math.round(amount * multiplier);
+  }
+  if (/^\d+$/.test(trimmed)) {
+    const tokens = Number.parseInt(trimmed, 10);
+    if (tokens >= 1_000) return tokens;
+  }
+  return undefined;
 }

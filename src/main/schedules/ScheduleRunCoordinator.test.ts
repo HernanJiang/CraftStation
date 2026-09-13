@@ -406,12 +406,22 @@ describe("ScheduleRunCoordinator", () => {
         id === sourceId ? "User: remember BANANA42\n\nAssistant: noted BANANA42" : null,
     });
 
-    const settled = coordinator.runScheduleAsThread({ ...task, targetThreadId: sourceId });
+    // Detached schedule (kind:"new") seeded from the creating thread's context:
+    // fresh thread per run, no native-session reuse, inherited text only.
+    const settled = coordinator.runScheduleAsThread({
+      ...task,
+      threadTarget: { kind: "new" },
+      sourceThreadId: sourceId,
+    });
     await flush();
 
     // Fresh thread id: never reuses the source thread row or its native session.
     expect(threads.has(sourceId)).toBe(false);
     expect(threads.has("thread-1")).toBe(true);
+    expect(threads.get("thread-1")?.scheduleOrigin).toEqual({
+      scheduleId: task.id,
+      runId: "run-1",
+    });
     expect(startThread).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-1",
@@ -485,7 +495,7 @@ describe("ScheduleRunCoordinator", () => {
     expect([...runs.values()][0]).toMatchObject({ status: "succeeded" });
   });
 
-  it("falls back to a fresh thread when the bound thread is busy", async () => {
+  it("fails the occurrence when the bound thread is busy — never mints a replacement", async () => {
     const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
     const sourceThread = {
       id: sourceId,
@@ -506,28 +516,32 @@ describe("ScheduleRunCoordinator", () => {
       activeTurnStartedAt: "2026-07-10T00:00:00.000Z",
     } as unknown as Thread;
     const sendFollowUp = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
-    const { coordinator, threads, startThread } = makeHarness({
+    const { coordinator, threads, runs, startThread } = makeHarness({
       getThread: (id) => (id === sourceId ? sourceThread : null),
       sendFollowUp,
     });
 
-    const settled = coordinator.runScheduleAsThread({
-      ...task,
-      targetThreadId: sourceId,
-      threadTarget: { kind: "existing", threadId: sourceId },
-    });
-    await flush();
+    await expect(
+      coordinator.runScheduleAsThread({
+        ...task,
+        targetThreadId: sourceId,
+        threadTarget: { kind: "existing", threadId: sourceId },
+      }),
+    ).rejects.toThrow(/busy/);
 
+    // No ghost thread, no follow-up, and the failure is recorded on the run.
     expect(sendFollowUp).not.toHaveBeenCalled();
-    expect(threads.has("thread-1")).toBe(true);
-    expect(startThread).toHaveBeenCalledWith(expect.objectContaining({ threadId: "thread-1" }));
-
-    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
-    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
-    await expect(settled).resolves.toBeNull();
+    expect(startThread).not.toHaveBeenCalled();
+    expect(threads.has("thread-1")).toBe(false);
+    expect([...runs.values()]).toHaveLength(1);
+    expect([...runs.values()][0]).toMatchObject({
+      scheduleId: task.id,
+      threadId: sourceId,
+      status: "failed",
+    });
   });
 
-  it("falls back to a fresh thread when the follow-up delivery fails", async () => {
+  it("fails the occurrence when follow-up delivery fails — never mints a replacement", async () => {
     const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
     const sourceThread = {
       id: sourceId,
@@ -551,33 +565,62 @@ describe("ScheduleRunCoordinator", () => {
       .fn<() => Promise<void>>()
       .mockRejectedValueOnce(new Error("unknown thread session"))
       .mockResolvedValue(undefined);
-    const seq = ["follow-run-1", "fresh-thread-1", "fresh-run-1"];
-    let seqIdx = 0;
     const { coordinator, threads, startThread, runs } = makeHarness({
       getThread: (id) => (id === sourceId ? sourceThread : (threads.get(id) ?? null)),
       threadExists: (id) => id === sourceId || threads.has(id),
       sendFollowUp,
-      newId: () => seq[seqIdx++] ?? `id-${seqIdx}`,
     });
 
-    const settled = coordinator.runScheduleAsThread({
-      ...task,
-      targetThreadId: sourceId,
-      threadTarget: { kind: "existing", threadId: sourceId },
-    });
-    await flush();
+    await expect(
+      coordinator.runScheduleAsThread({
+        ...task,
+        targetThreadId: sourceId,
+        threadTarget: { kind: "existing", threadId: sourceId },
+      }),
+    ).rejects.toThrow(/refusing to create a replacement thread/);
 
-    // First attempt interrupted, second attempt mints a fresh thread.
+    // One interrupted attempt, NO fresh-thread diversion.
     expect(sendFollowUp).toHaveBeenCalledTimes(1);
-    expect(startThread).toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: "fresh-thread-1" }),
-    );
-
-    coordinator.observeSupervisorEvent(threadState("fresh-thread-1", "working"));
-    coordinator.observeSupervisorEvent(threadState("fresh-thread-1", "idle"));
-    await expect(settled).resolves.toBeNull();
+    expect(startThread).not.toHaveBeenCalled();
+    expect(threads.has("thread-1")).toBe(false);
     const statuses = [...runs.values()].map((run) => run.status).sort();
-    expect(statuses).toEqual(["interrupted", "succeeded"]);
+    expect(statuses).toEqual(["interrupted"]);
+  });
+
+  it("fails the occurrence when the bound thread is archived — never mints a replacement", async () => {
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const sourceThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Archived thread",
+      agentKind: task.agentKind,
+      config: { model: "claude-fable-5" },
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      archived: true,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: null,
+    } as unknown as Thread;
+    const { coordinator, threads, runs, startThread } = makeHarness({
+      getThread: (id) => (id === sourceId ? sourceThread : null),
+    });
+
+    await expect(
+      coordinator.runScheduleAsThread({
+        ...task,
+        threadTarget: { kind: "existing", threadId: sourceId },
+      }),
+    ).rejects.toThrow(/archived/);
+
+    expect(startThread).not.toHaveBeenCalled();
+    expect(threads.has("thread-1")).toBe(false);
+    expect([...runs.values()][0]).toMatchObject({ status: "failed", threadId: sourceId });
   });
 
   it("fails clearly when the continuation thread is gone", async () => {
@@ -590,9 +633,14 @@ describe("ScheduleRunCoordinator", () => {
         ...task,
         targetThreadId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       }),
-    ).rejects.toThrow("Schedule target thread no longer exists.");
+    ).rejects.toThrow(/Schedule target thread .* no longer exists/);
+    // No replacement thread is minted; the failed occurrence is recorded.
     expect(threads.size).toBe(0);
-    expect(runs.size).toBe(0);
+    expect([...runs.values()]).toHaveLength(1);
+    expect([...runs.values()][0]).toMatchObject({
+      status: "failed",
+      threadId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
   });
 
   it("uses the schedule harness, not the source thread native session, across harnesses", async () => {
@@ -624,7 +672,8 @@ describe("ScheduleRunCoordinator", () => {
     const settled = coordinator.runScheduleAsThread({
       ...task,
       agentKind: "opencode",
-      targetThreadId: sourceId,
+      threadTarget: { kind: "new" },
+      sourceThreadId: sourceId,
     });
     await flush();
 
@@ -656,17 +705,21 @@ describe("ScheduleRunCoordinator", () => {
   });
 
   it("launches a native CraftPlan through craftAgent without startThread", async () => {
-    const craftAgent = vi.fn<() => Promise<{
-      threadId: string;
-      entityId: string;
-      sessionId: string;
-      response: string;
-    }>>().mockResolvedValue({
-      threadId: "thread-1",
-      entityId: "entity-1",
-      sessionId: "session-1",
-      response: "Native summary",
-    });
+    const craftAgent = vi
+      .fn<
+        () => Promise<{
+          threadId: string;
+          entityId: string;
+          sessionId: string;
+          response: string;
+        }>
+      >()
+      .mockResolvedValue({
+        threadId: "thread-1",
+        entityId: "entity-1",
+        sessionId: "session-1",
+        response: "Native summary",
+      });
     const { coordinator, startThread, runs } = makeHarness({
       craftAgent,
       resolveExecution: () => ({

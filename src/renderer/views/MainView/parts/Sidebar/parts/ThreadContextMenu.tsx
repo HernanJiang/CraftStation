@@ -61,6 +61,8 @@ import {
 } from "@/renderer/actions/threadActions";
 import { runProjectAction, stopProjectAction } from "@/renderer/actions/terminalActions";
 import { resolveWorktreeBranch } from "@/renderer/utils/gitHelpers";
+import { formatThreadAddressClipboard } from "@/shared/threadAddress";
+import { baseAgentKind } from "@/shared/contracts";
 
 /**
  * Right-click menu shared by every sidebar surface that shows a thread —
@@ -392,16 +394,14 @@ export function ThreadContextMenu(props: {
               return;
             }
             void (async () => {
-              // Real native CLI session paths (one per harness the logical
-              // thread has used), resolved live supervisor-side from the
-              // recorded bindings. Falls back to the working directory when
-              // nothing resolves (e.g. terminal threads without bindings).
+              // Copy harness:sessionId (and the concrete session file/dir when
+              // it exists). Never a project cwd or a parent sessions folder.
               try {
                 const bindings = await readBridge().dbListThreadNativeSessions(thread.id);
                 const queries =
                   bindings.length > 0
                     ? bindings.map((binding) => ({
-                        harness: binding.harness,
+                        harness: baseAgentKind(binding.harness),
                         model: binding.model,
                         ...(binding.nativeSessionId
                           ? { nativeSessionId: binding.nativeSessionId }
@@ -410,7 +410,7 @@ export function ThreadContextMenu(props: {
                       }))
                     : [
                         {
-                          harness: thread.agentKind,
+                          harness: baseAgentKind(thread.agentKind),
                           model: thread.config.model,
                           ...(thread.sessionRef
                             ? { nativeSessionId: thread.sessionRef.providerSessionId }
@@ -418,16 +418,16 @@ export function ThreadContextMenu(props: {
                         },
                       ];
                 const resolved = await readBridge().resolveNativeSessionPaths(queries);
-                const paths = resolved
-                  .map((entry) => entry.path)
-                  .filter((path): path is string => !!path);
-                if (paths.length > 0) {
-                  await copy(paths.join("\n"));
-                  toast.success(
-                    paths.length === 1
-                      ? t`Copied session path.`
-                      : t`Copied ${paths.length} session paths.`,
-                  );
+                const text = formatThreadAddressClipboard(
+                  queries.map((query, index) => ({
+                    harness: query.harness,
+                    ...(query.nativeSessionId ? { nativeSessionId: query.nativeSessionId } : {}),
+                    path: resolved[index]?.path,
+                  })),
+                );
+                if (text) {
+                  await copy(text);
+                  toast.success(t`Copied session address.`);
                   return;
                 }
               } catch {
