@@ -24,15 +24,6 @@ function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   const hasSchedule = useScheduleStore((state) =>
     state.tasks.some((task) => scheduleRelatesToThread(task, props.thread.id)),
   );
-  if (hasSchedule) {
-    return (
-      <Clock
-        className="size-3 text-muted"
-        aria-label={t`Scheduled`}
-        data-testid="thread-schedule-clock"
-      />
-    );
-  }
   if (props.statusTone === "working") {
     return <Loader2 className="size-3 animate-spin text-accent" aria-label={t`Working`} />;
   }
@@ -41,11 +32,27 @@ function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   // transient state; it falsely tells the user an unfinished task is done.
   const hasSettledTurn =
     props.thread.lastTurnEndedAt !== undefined && props.thread.activeTurnStartedAt === undefined;
-  if (
+  const isComplete =
     props.thread.done ||
     props.statusTone === "done" ||
-    (props.statusTone === "finished" && hasSettledTurn)
+    (props.statusTone === "finished" && hasSettledTurn);
+  // Clock only for a settled thread that still has a bound schedule. Never
+  // replace the working spinner, and never compete with error/attention.
+  if (
+    hasSchedule &&
+    props.statusTone !== "error" &&
+    props.statusTone !== "attention" &&
+    (isComplete || props.statusTone === "active" || props.statusTone === "inactive")
   ) {
+    return (
+      <Clock
+        className="size-3 text-muted"
+        aria-label={t`Scheduled`}
+        data-testid="thread-schedule-clock"
+      />
+    );
+  }
+  if (isComplete) {
     return (
       <span
         aria-label={t`Completed`}

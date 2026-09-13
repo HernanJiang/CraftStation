@@ -2,8 +2,32 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import type { AgentStatus } from "@/shared/contracts";
 import type { ComposerControl } from "./ThreadComposer";
 import { DraftParameterMenu } from "./DraftParameterMenu";
+
+function installedStatus(kind: string, label: string): AgentStatus {
+  return {
+    kind,
+    label,
+    installed: true,
+    authState: "authenticated",
+    capabilities: {
+      models: [],
+      efforts: [],
+      modelEfforts: {},
+      modes: ["agent"],
+      approvalPolicies: [],
+      sandboxModes: [],
+      supportsResume: true,
+      supportsDirectInput: true,
+      liveInputMode: "terminal",
+      presentationMode: "gui",
+      settingDefs: [],
+    },
+  };
+}
 
 function makeEffortControl(overrides?: {
   efforts?: Array<{ id: string; label: string }>;
@@ -73,10 +97,12 @@ describe("DraftParameterMenu", () => {
   beforeEach(() => {
     localStorage.clear();
     useCraftingWorkbenchStore.setState({ capabilityMode: "auto" });
+    useAgentStatusesStore.setState({ agentStatuses: [], wslAgentStatuses: [] });
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    useAgentStatusesStore.setState({ agentStatuses: [], wslAgentStatuses: [] });
   });
 
   it("opens the model submenu immediately when its row is hovered", async () => {
@@ -161,6 +187,37 @@ describe("DraftParameterMenu", () => {
     expect(identity.getAttribute("title")).toContain("Route: Compatibility");
   });
 
+  it("submits an OpenCode Go Muse Spark pick through Muse Code when that Harness is installed", async () => {
+    vi.useFakeTimers();
+    useAgentStatusesStore.setState({
+      agentStatuses: [installedStatus("opencode", "OpenCode"), installedStatus("muse", "Muse")],
+    });
+    const control = makeModelControl({
+      kind: "opencode",
+      label: "OpenCode",
+      models: [
+        { id: "opencode-go/glm-5.3-flash", label: "GLM 5.3 Flash" },
+        {
+          id: "opencode-go/muse-spark-1.3-contributor",
+          label: "Muse Spark 1.3 Contributor",
+        },
+      ],
+    });
+    render(<DraftParameterMenu controls={[control]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /GLM 5.3 Flash/ }));
+    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /模型列表/ }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Muse Spark 1.3 Contributor/ }));
+
+    expect(control.kind === "provider-model" ? control.onChange : undefined).toHaveBeenCalledWith({
+      agentKind: "muse",
+      model: "opencode-go/muse-spark-1.3-contributor",
+    });
+  });
+
   it("shows the Harness prefix in every mode, never gated", () => {
     useCraftingWorkbenchStore.setState({ capabilityMode: "efficient" });
     render(<DraftParameterMenu controls={makeControls()} />);
@@ -221,6 +278,24 @@ describe("DraftParameterMenu", () => {
     });
     expect(screen.getByRole("menuitem", { name: /DeepSeek V4.1 Pro/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /推理强度/ })).toHaveTextContent("Max");
+  });
+
+  it("names Command Code as Command Code even when the model is a DeepSeek id", () => {
+    render(
+      <DraftParameterMenu
+        controls={[
+          makeModelControl({
+            kind: "commandcode",
+            label: "Command Code",
+            models: [{ id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash" }],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("auto-harness-name")).toHaveTextContent("Command Code");
+    expect(screen.getByTestId("auto-harness-name")).not.toHaveTextContent("DeepSeek Harness");
+    expect(screen.getByTestId("auto-harness-model")).toHaveTextContent("DeepSeek V4.1 Flash");
   });
 
   it("names a native Harness after its CLI product, not the model family", () => {

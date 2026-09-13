@@ -1,4 +1,4 @@
-import { nativeTheme } from "electron";
+import { nativeTheme, type BrowserWindow } from "electron";
 import { release } from "node:os";
 
 /**
@@ -41,4 +41,88 @@ export function supportsNativeWindowMaterial(): boolean {
  */
 export function syncNativeThemeForMaterial(appearance: "light" | "dark"): void {
   nativeTheme.themeSource = appearance;
+}
+
+const OPAQUE_WINDOW_BACKGROUND = {
+  dark: "#070709",
+  light: "#f1f1f4",
+} as const;
+
+export type WindowChromeMaterial = {
+  appearance: "light" | "dark";
+  sidebarTranslucency: boolean;
+};
+
+export function opaqueWindowBackground(appearance: "light" | "dark"): string {
+  return OPAQUE_WINDOW_BACKGROUND[appearance];
+}
+
+type AcrylicWindow = Pick<
+  BrowserWindow,
+  "isDestroyed" | "setBackgroundMaterial" | "setBackgroundColor" | "hide" | "on"
+> & {
+  webContents?: { invalidate?: () => void };
+};
+
+/**
+ * Windows 11 acrylic HWNDs lose their DWM backdrop after hide() (close-to-tray).
+ * The client area comes back fully transparent — wallpaper shows through and
+ * the UI is unusable. Drop the material to an opaque fill before hide, then
+ * re-apply it after the next show.
+ */
+export function prepareWindowsWindowForHide(
+  window: Pick<AcrylicWindow, "isDestroyed" | "setBackgroundMaterial" | "setBackgroundColor">,
+  appearance: "light" | "dark",
+): void {
+  if (process.platform !== "win32" || window.isDestroyed()) return;
+  window.setBackgroundMaterial("none");
+  window.setBackgroundColor(opaqueWindowBackground(appearance));
+}
+
+export function restoreWindowsWindowAfterShow(
+  window: Pick<
+    AcrylicWindow,
+    "isDestroyed" | "setBackgroundMaterial" | "setBackgroundColor" | "webContents"
+  >,
+  chrome: WindowChromeMaterial,
+): void {
+  if (process.platform !== "win32" || window.isDestroyed()) return;
+  window.setBackgroundMaterial("none");
+  window.setBackgroundColor(opaqueWindowBackground(chrome.appearance));
+  if (chrome.sidebarTranslucency && supportsNativeWindowMaterial()) {
+    syncNativeThemeForMaterial(chrome.appearance);
+    window.setBackgroundMaterial("acrylic");
+    window.setBackgroundColor("#00000000");
+  }
+  window.webContents?.invalidate?.();
+}
+
+/**
+ * Wrap hide() and subsequent show events so close-to-tray cannot leave a
+ * dead acrylic HWND. Restore only after a hide() we prepared — the first
+ * opening paint is already applied in createMainWindow.
+ */
+export function installWindowsAcrylicHideShowGuard(
+  window: AcrylicWindow,
+  readChrome: () => WindowChromeMaterial,
+): void {
+  if (process.platform !== "win32" || window.isDestroyed()) return;
+
+  const originalHide = window.hide.bind(window);
+  let pendingRestore = false;
+  Object.defineProperty(window, "hide", {
+    configurable: true,
+    writable: true,
+    value: () => {
+      prepareWindowsWindowForHide(window, readChrome().appearance);
+      pendingRestore = true;
+      originalHide();
+    },
+  });
+
+  window.on("show", () => {
+    if (!pendingRestore) return;
+    pendingRestore = false;
+    restoreWindowsWindowAfterShow(window, readChrome());
+  });
 }

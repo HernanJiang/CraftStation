@@ -4,7 +4,7 @@ const toast = vi.hoisted(() => vi.fn<(message: unknown, options?: unknown) => st
 
 vi.mock("@heroui/react", () => ({ toast }));
 
-import { showTopStatusToast } from "./topStatusToast";
+import { poolFailoverToastCopy, showTopStatusToast } from "./topStatusToast";
 
 describe("showTopStatusToast", () => {
   beforeEach(() => {
@@ -29,6 +29,13 @@ describe("showTopStatusToast", () => {
       description: "detail",
       variant: "default",
       timeout: 8000,
+    });
+  });
+
+  it("formats pool-failover notices in readable Chinese", () => {
+    expect(poolFailoverToastCopy("Grok", "a@x.com", "b@y.com")).toEqual({
+      title: "Grok账号a@x.com额度已耗尽",
+      description: "已切换到b@y.com继续作答",
     });
   });
 });

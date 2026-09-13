@@ -19,6 +19,7 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { toggleSidebar } from "@/renderer/state/sidebarOverlayStore";
 import { TopShortcutBar } from "./TopShortcuts/TopShortcutBar";
 import { useUpdateStore } from "@/renderer/state/updateStore";
+import { useScheduleStore } from "@/renderer/state/scheduleStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { envLabelForStatus } from "@/renderer/utils/acpRegistryAuth";
 import { extractAcpGenericInstanceId, type AgentStatus } from "@/shared/contracts";
@@ -214,6 +215,7 @@ export function MainTitlebar() {
   const updatePhase = useUpdateStore((state) => state.phase);
   const updateVersion = useUpdateStore((state) => state.version);
   const updatePercent = useUpdateStore((state) => state.downloadPercent);
+  const scheduleCount = useScheduleStore((state) => state.tasks.length);
 
   return (
     <header className="craftstation-titlebar flex h-[38px] min-w-0 items-center bg-[var(--window-header-background)] px-2 text-foreground">
@@ -269,6 +271,14 @@ export function MainTitlebar() {
           >
             <CalendarDays className="size-3.5" />
             <span>{t`Plan`}</span>
+            {scheduleCount > 0 ? (
+              <span
+                data-testid="titlebar-schedule-count"
+                className="min-w-3.5 rounded-full bg-foreground/12 px-1 text-[10px] font-medium leading-4 tabular-nums text-foreground/80"
+              >
+                {scheduleCount}
+              </span>
+            ) : null}
           </button>
         </ControlTooltip>
         <ControlTooltip label={t`Work`} detail={t`View automated work`}>

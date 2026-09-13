@@ -45,10 +45,7 @@ import {
 } from "@/renderer/crafting/configuredProviders";
 import { filterHiddenModels } from "@/shared/agentSelection";
 import type { ProviderModelPreference } from "@/shared/settings";
-import {
-  collectCustomModelEfforts,
-  mergeCustomModelsIntoCapabilities,
-} from "./customModelCatalog";
+import { collectCustomModelEfforts, mergeCustomModelsIntoCapabilities } from "./customModelCatalog";
 import {
   appendProviderComposerControls,
   buildModelPickerControls,
@@ -309,9 +306,7 @@ export function ThreadDraftView(props: {
     if (!selectedAgent) return undefined;
     const presentationAgent = agentWithCapabilities(selectedAgent, presentationMode);
     if (selectedAccountId) {
-      const accountModels = customModels.filter(
-        (entry) => entry.accountId === selectedAccountId,
-      );
+      const accountModels = customModels.filter((entry) => entry.accountId === selectedAccountId);
       if (accountModels.length > 0) {
         return {
           ...presentationAgent,
@@ -1205,8 +1200,7 @@ export function ThreadDraftView(props: {
     } else {
       const targetCapabilities = withPreferredModel(
         providerModelProviders.find(
-          (provider) =>
-            nextAccountId !== undefined && provider.accountId === nextAccountId,
+          (provider) => nextAccountId !== undefined && provider.accountId === nextAccountId,
         )?.capabilities ??
           providerModelProviders.find(
             (provider) => provider.kind === nextKind && provider.accountId === nextAccountId,
@@ -1431,7 +1425,6 @@ export function ThreadDraftView(props: {
   // once, feeding the usage-stats mode breakdown (auto / efficient / creative).
   const handleStartWithMode = (input: DraftStartInput) => {
     recordCraftModeUse(craftMode, effectiveAgentKind ?? null, model || null);
-    if (craftMode !== "auto") return onStart(input);
     const museInstalled = installedAgents.some((status) => status.kind === "muse");
     const remapped = applyAutoMuseHarnessLaunch(
       { agentKind: input.agentKind, model: input.config.model },

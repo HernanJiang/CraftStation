@@ -215,6 +215,7 @@ describe("CompatibilityRuntimeAdapter", () => {
     expect(calls[0]?.args).toContain("--format");
     expect(calls[0]?.args).toContain("craftstation-compat/grok-3-mini");
     expect(calls[0]?.options.env?.OPENCODE_CONFIG).toBeTruthy();
+    expect(calls[0]?.options.windowsHide).toBe(true);
     await adapter.dispose?.();
   });
 

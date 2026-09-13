@@ -62,6 +62,7 @@ export class CodexBinaryResolver {
       const stdout = execFileSync(cmd, ["codex"], {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
       }).trim();
       const lines = stdout
         .split(/\r?\n/)
@@ -117,6 +118,7 @@ export class CodexBinaryResolver {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 5000,
+      windowsHide: true,
     }).trim();
     return stdout;
   }

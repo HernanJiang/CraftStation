@@ -214,6 +214,24 @@ export function AccountQuotaCard(props: {
   const tokenReasonText = userFacingTokenMessage(tokenUnavailableReason);
   const tokenErrorText = userFacingTokenMessage(queryState?.tokenError);
   const failureText = showQuotaError && quotaError ? quotaError : null;
+  if (account.provider === "openai-compatible") {
+    const totalLabel =
+      tokenAttribution.kind === "exact"
+        ? formatCompactToken(tokenAttribution.totalTokens)
+        : isTokenLoading
+          ? "加载中"
+          : "—";
+    return (
+      <div data-testid={"account-quota-card-" + account.accountId} className="space-y-2">
+        <p
+          data-testid={"account-meta-" + account.accountId}
+          className="text-[10px] leading-relaxed text-neutral-500"
+        >
+          {`总用量 ${totalLabel} · 输入 ${tokenInputLabel} · 输出 ${tokenOutputLabel}`}
+        </p>
+      </div>
+    );
+  }
   return (
     <div data-testid={"account-quota-card-" + account.accountId} className="space-y-2">
       {rows.length > 0 ? (

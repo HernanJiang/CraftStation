@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
-import type { AgentCapability, AgentStatus } from "@/shared/contracts";
+import type { AgentCapability, AgentStatus, ScheduledTask } from "@/shared/contracts";
 
 const bridgeMock = vi.hoisted(() => ({
   appVersion: "1.0.1",
@@ -86,16 +86,13 @@ vi.mock("@/renderer/state/panelStore", () => ({
 }));
 
 vi.mock("@/renderer/state/updateStore", () => ({
-  useUpdateStore: Object.assign(
-    (selector: (state: unknown) => unknown) => selector(updateState),
-    {
-      getState: () => ({
-        setAvailableCliUpdates: vi.fn<() => void>(),
-        beginAgentUpdate: vi.fn<() => void>(),
-        finishAgentUpdate: vi.fn<() => void>(),
-      }),
-    },
-  ),
+  useUpdateStore: Object.assign((selector: (state: unknown) => unknown) => selector(updateState), {
+    getState: () => ({
+      setAvailableCliUpdates: vi.fn<() => void>(),
+      beginAgentUpdate: vi.fn<() => void>(),
+      finishAgentUpdate: vi.fn<() => void>(),
+    }),
+  }),
 }));
 
 vi.mock("@/renderer/state/sidebarOverlayStore", () => ({
@@ -155,6 +152,29 @@ vi.mock("@heroui/react", () => ({
 
 import { MainTitlebar } from "./MainTitlebar";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { useScheduleStore } from "@/renderer/state/scheduleStore";
+
+function scheduleTask(id: string): ScheduledTask {
+  return {
+    id,
+    name: id,
+    prompt: "x",
+    agentKind: "codex",
+    config: { model: "gpt-5.6" },
+    recurrence: { kind: "interval", everyMinutes: 10 },
+    enabled: true,
+    sourceThreadId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    threadTarget: { kind: "new" },
+    nextRunAt: null,
+    lastRunAt: null,
+    lastCompletedAt: null,
+    lastStatus: "never",
+    lastResult: null,
+    lastError: null,
+    createdAt: "2026-03-21T10:00:00.000Z",
+    updatedAt: "2026-03-21T10:00:00.000Z",
+  };
+}
 
 describe("MainTitlebar CLI 更新入口", () => {
   beforeEach(() => {
@@ -187,6 +207,29 @@ describe("MainTitlebar CLI 更新入口", () => {
 
     fireEvent.click(updateButton);
     await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("MainTitlebar 计划数量", () => {
+  beforeEach(() => {
+    useScheduleStore.setState({ tasks: [], loading: false, focusedScheduleId: null });
+  });
+
+  it("hides the count when there are no schedules", () => {
+    render(<MainTitlebar />);
+    expect(screen.queryByTestId("titlebar-schedule-count")).not.toBeInTheDocument();
+  });
+
+  it("shows how many scheduled tasks currently exist", () => {
+    useScheduleStore.setState({
+      tasks: [
+        scheduleTask("11111111-1111-4111-8111-111111111111"),
+        scheduleTask("22222222-2222-4222-8222-222222222222"),
+        scheduleTask("33333333-3333-4333-8333-333333333333"),
+      ],
+    });
+    render(<MainTitlebar />);
+    expect(screen.getByTestId("titlebar-schedule-count")).toHaveTextContent("3");
   });
 });
 

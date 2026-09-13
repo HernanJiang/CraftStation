@@ -1253,6 +1253,9 @@ describe("ThreadComposerSection", () => {
     });
     expect(bridgeMock.setPendingSteer).not.toHaveBeenCalled();
     expect(screen.getByTestId("thread-queued-follow-up")).toHaveValue("change direction");
+    expect(
+      screen.getByTestId("thread-queued-follow-up").closest("[data-thread-queued-follow-up]"),
+    ).toHaveClass("w-[calc(100%-32px)]");
     expect(analytics.captureThreadPromptSubmitted).not.toHaveBeenCalled();
   });
 

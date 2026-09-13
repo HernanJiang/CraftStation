@@ -44,8 +44,8 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
     (candidate) => candidate.id === modelControl?.currentModel,
   );
   const effortLabel =
-    effortControl?.efforts.find((candidate) => candidate.id === effortControl.effortValue)
-      ?.label ?? effortControl?.effortValue;
+    effortControl?.efforts.find((candidate) => candidate.id === effortControl.effortValue)?.label ??
+    effortControl?.effortValue;
   const [customEffortOpen, setCustomEffortOpen] = useState(false);
   const [customEffortDraft, setCustomEffortDraft] = useState("");
   const contextLabel =
@@ -125,232 +125,186 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
     modelControl !== undefined &&
     !thirdPartyPick &&
     isNativeModelHarnessPair({ providerId: modelControl.currentAgentKind, harnessId: autoHarness });
-  // Native: name the Harness after the CLI product the account belongs to
-  // (e.g. "Kimi Code", "Grok Build") — never the model family name, which is
-  // what made "Kimi · K3-256k" unreadable. Compatibility: affinity CLI name.
-  const autoHarnessName =
-    autoHarness !== undefined
-      ? autoNative && selectedProvider
-        ? selectedProvider.label
-        : COMPATIBILITY_HARNESS_LABELS[autoHarness]
-      : undefined;
+  // OpenCode is the catalog/carrier: keep naming the model's home Harness
+  // (Muse Spark → Muse) until the pick rewrites onto that Harness. Vendor
+  // CLIs must name themselves — Command Code serving DeepSeek V4.1 Flash is
+  // still Command Code, not DeepSeek Harness.
+  const isCompatibilityCarrier = modelControl?.currentAgentKind === "opencode";
+  const showAffinityHarness = Boolean(autoHarness) && !autoNative && isCompatibilityCarrier;
+  const autoHarnessName = showAffinityHarness
+    ? COMPATIBILITY_HARNESS_LABELS[autoHarness!]
+    : (selectedProvider?.label ??
+      (autoHarness !== undefined ? COMPATIBILITY_HARNESS_LABELS[autoHarness] : undefined));
+  const prefixKind = showAffinityHarness ? autoHarness : modelControl?.currentAgentKind;
   const autoTitle =
     autoHarness !== undefined && modelControl
       ? `Provider: ${selectedProvider?.label ?? modelControl.currentAgentKind} · Family: ${
           COMPATIBILITY_FAMILY_LABELS[resolveCompatibilityFamily(currentModelLabel ?? "")]
         } · Harness: ${autoHarnessName ?? COMPATIBILITY_HARNESS_LABELS[autoHarness]} · Route: ${
-          autoNative ? "Native" : "Compatibility"
+          autoNative ? "Native" : showAffinityHarness ? "Compatibility" : "Native"
         }`
       : undefined;
-  const nativeHarnessMatchesProvider =
-    autoNative && autoHarness !== undefined && autoHarness === modelControl?.currentAgentKind;
 
   return (
     <>
-    <Dropdown>
-      <Dropdown.Trigger className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
-        {modelControl ? (
-          <span
-            className="flex items-center gap-1 whitespace-nowrap leading-tight"
-            data-testid="auto-harness-model"
-            {...(autoTitle ? { title: autoTitle } : {})}
-          >
-            {autoHarness !== undefined && autoHarnessName !== undefined ? (
-              <>
+      <Dropdown>
+        <Dropdown.Trigger className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
+          {modelControl ? (
+            <span
+              className="flex items-center gap-1 whitespace-nowrap leading-tight"
+              data-testid="auto-harness-model"
+              {...(autoTitle ? { title: autoTitle } : {})}
+            >
+              {autoHarnessName !== undefined && prefixKind !== undefined ? (
+                <>
+                  <ProviderIcon
+                    kind={prefixKind}
+                    {...(!showAffinityHarness && selectedProvider?.icon
+                      ? { icon: selectedProvider.icon }
+                      : {})}
+                    fallbackLabel={autoHarnessName}
+                    tone="active"
+                    className="size-3.5 shrink-0"
+                  />
+                  <span className="shrink-0" data-testid="auto-harness-name">
+                    {autoHarnessName}
+                  </span>
+                  <span className="shrink-0 text-muted" aria-hidden="true">
+                    ·
+                  </span>
+                </>
+              ) : null}
+              {showAffinityHarness ? (
                 <ProviderIcon
-                  kind={autoHarness}
-                  fallbackLabel={autoHarnessName}
+                  kind={modelControl.currentAgentKind}
+                  {...(selectedProvider?.icon ? { icon: selectedProvider.icon } : {})}
+                  fallbackLabel={selectedProvider?.label}
                   tone="active"
                   className="size-3.5 shrink-0"
                 />
-                <span className="shrink-0" data-testid="auto-harness-name">
-                  {autoHarnessName}
-                </span>
-                <span className="shrink-0 text-muted" aria-hidden="true">
-                  ·
-                </span>
-              </>
-            ) : null}
-            {nativeHarnessMatchesProvider ? null : (
-              <ProviderIcon
-                kind={modelControl.currentAgentKind}
-                {...(selectedProvider?.icon ? { icon: selectedProvider.icon } : {})}
-                fallbackLabel={selectedProvider?.label}
-                tone="active"
-                className="size-3.5 shrink-0"
-              />
-            )}
-            <span className="whitespace-nowrap">{label}</span>
-          </span>
-        ) : (
-          <Sparkles className="size-3.5 text-violet-300" />
-        )}
-        <ChevronDown className="size-3.5 shrink-0 text-muted" />
-      </Dropdown.Trigger>
-      <Dropdown.Popover
-        placement="top end"
-        className={withOverlayClass(
-          "craftstation-composer-menu-surface w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
-          overlayZoom.root,
-        )}
-      >
-        <Dropdown.Menu
-          aria-label="模型与运行参数"
-          {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+              ) : null}
+              <span className="whitespace-nowrap">{label}</span>
+            </span>
+          ) : (
+            <Sparkles className="size-3.5 text-violet-300" />
+          )}
+          <ChevronDown className="size-3.5 shrink-0 text-muted" />
+        </Dropdown.Trigger>
+        <Dropdown.Popover
+          placement="top end"
+          className={withOverlayClass(
+            "craftstation-composer-menu-surface w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
+            overlayZoom.root,
+          )}
         >
-          {effortControl && effortControl.contextSizes.length > 0 ? (
-            <Dropdown.SubmenuTrigger>
-              <Dropdown.Item id="context" textValue="上下文窗口大小">
-                <Gauge className="size-4 text-muted" />
-                <Label>上下文窗口大小</Label>
-                <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                  {contextLabel}
-                </span>
-                <Dropdown.SubmenuIndicator />
-              </Dropdown.Item>
-              <Dropdown.Popover
-                placement="left top"
-                className={withOverlayClass(
-                  "craftstation-composer-menu-surface w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-[14px]",
-                  overlayZoom.root,
-                )}
-              >
-                <div className={withOverlayClass("flex flex-col", overlayZoom.content)}>
-                  <Dropdown.Menu
-                    aria-label="上下文窗口大小"
-                    onAction={(key) => handleContextAction(String(key))}
-                  >
-                    {CONTEXT_WINDOW_PRESETS.map((preset) => (
-                      <Dropdown.Item
-                        key={`preset:${preset}`}
-                        id={`preset:${preset}`}
-                        textValue={preset}
-                      >
-                        <Label>{preset}</Label>
-                        {preset === "256K" ? (
-                          <span className="ml-auto text-[10px] text-neutral-500">默认</span>
-                        ) : null}
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                  <div className="border-t border-white/10 p-2">
-                    <input
-                      aria-label="自定义上下文窗口大小"
-                      value={customContextDraft}
-                      onChange={(event) => setCustomContextDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          applyCustomContext();
-                        }
-                      }}
-                      placeholder="自定义，如 200K / 500000，回车应用"
-                      className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25"
-                    />
-                  </div>
-                </div>
-              </Dropdown.Popover>
-            </Dropdown.SubmenuTrigger>
-          ) : null}
-
-          {modelControl ? (
-            <Dropdown.SubmenuTrigger delay={0}>
-              <Dropdown.Item id="models" textValue="模型列表">
-                <Cpu className="size-4 text-muted" />
-                <Label>模型列表</Label>
-                <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                  {selectedModel?.label}
-                </span>
-                <Dropdown.SubmenuIndicator />
-              </Dropdown.Item>
-              <Dropdown.Popover
-                placement="left top"
-                className={withOverlayClass(
-                  "craftstation-composer-menu-surface max-h-[420px] w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
-                  overlayZoom.root,
-                )}
-              >
-                <Dropdown.Menu
-                  aria-label="模型列表"
-                  {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+          <Dropdown.Menu
+            aria-label="模型与运行参数"
+            {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+          >
+            {effortControl && effortControl.contextSizes.length > 0 ? (
+              <Dropdown.SubmenuTrigger>
+                <Dropdown.Item id="context" textValue="上下文窗口大小">
+                  <Gauge className="size-4 text-muted" />
+                  <Label>上下文窗口大小</Label>
+                  <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                    {contextLabel}
+                  </span>
+                  <Dropdown.SubmenuIndicator />
+                </Dropdown.Item>
+                <Dropdown.Popover
+                  placement="left top"
+                  className={withOverlayClass(
+                    "craftstation-composer-menu-surface w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-[14px]",
+                    overlayZoom.root,
+                  )}
                 >
-                  {recipeTargets.map(({ recipe, target }) => {
-                    const name = recipe.alias?.trim() || recipe.systemName;
-                    const recipeHarnessKind = recipe.harnessRef.replace(/^harness:/u, "");
-                    const isCurrent =
-                      recipeHarnessKind === modelControl.currentAgentKind &&
-                      target.model === modelControl.currentModel &&
-                      (target.accountId ?? undefined) ===
-                        (modelControl.currentAccountId ?? undefined) &&
-                      recipeHarnessKind === modelControl.currentAgentKind;
-                    return (
-                      <Dropdown.Item
-                        key={`recipe:${recipe.id}`}
-                        id={`recipe:${recipe.id}`}
-                        textValue={`${name} 我的配方`}
-                        onPress={() =>
-                          modelControl.onChange(
-                            applyThirdPartyPickerSelection(
-                              {
-                                // A saved recipe is an explicit composition.
-                                // Its Harness wins over model-name auto-routing;
-                                // otherwise an OpenCode Gemini recipe can be
-                                // silently reinterpreted as Antigravity.
-                                agentKind: recipeHarnessKind || target.agentKind,
-                                model: target.model,
-                                ...(target.presentationMode
-                                  ? { presentationMode: target.presentationMode }
-                                  : {}),
-                                ...(target.accountId ? { accountId: target.accountId } : {}),
-                              },
-                              installedHarnesses,
-                            ),
-                          )
-                        }
-                      >
-                        <ProviderIcon
-                          kind={target.agentKind}
-                          fallbackLabel={name}
-                          tone="active"
-                          className="size-4 shrink-0"
-                        />
-                        <Label className="whitespace-nowrap">{name}</Label>
-                        <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
-                          我的配方
-                        </span>
-                        {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
-                      </Dropdown.Item>
-                    );
-                  })}
-                  {modelControl.providers.flatMap((provider, providerIndex) =>
-                    provider.capabilities.models.map((model) => {
+                  <div className={withOverlayClass("flex flex-col", overlayZoom.content)}>
+                    <Dropdown.Menu
+                      aria-label="上下文窗口大小"
+                      onAction={(key) => handleContextAction(String(key))}
+                    >
+                      {CONTEXT_WINDOW_PRESETS.map((preset) => (
+                        <Dropdown.Item
+                          key={`preset:${preset}`}
+                          id={`preset:${preset}`}
+                          textValue={preset}
+                        >
+                          <Label>{preset}</Label>
+                          {preset === "256K" ? (
+                            <span className="ml-auto text-[10px] text-neutral-500">默认</span>
+                          ) : null}
+                        </Dropdown.Item>
+                      ))}
+                    </Dropdown.Menu>
+                    <div className="border-t border-white/10 p-2">
+                      <input
+                        aria-label="自定义上下文窗口大小"
+                        value={customContextDraft}
+                        onChange={(event) => setCustomContextDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            applyCustomContext();
+                          }
+                        }}
+                        placeholder="自定义，如 200K / 500000，回车应用"
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25"
+                      />
+                    </div>
+                  </div>
+                </Dropdown.Popover>
+              </Dropdown.SubmenuTrigger>
+            ) : null}
+
+            {modelControl ? (
+              <Dropdown.SubmenuTrigger delay={0}>
+                <Dropdown.Item id="models" textValue="模型列表">
+                  <Cpu className="size-4 text-muted" />
+                  <Label>模型列表</Label>
+                  <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                    {selectedModel?.label}
+                  </span>
+                  <Dropdown.SubmenuIndicator />
+                </Dropdown.Item>
+                <Dropdown.Popover
+                  placement="left top"
+                  className={withOverlayClass(
+                    "craftstation-composer-menu-surface max-h-[420px] w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
+                    overlayZoom.root,
+                  )}
+                >
+                  <Dropdown.Menu
+                    aria-label="模型列表"
+                    {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+                  >
+                    {recipeTargets.map(({ recipe, target }) => {
+                      const name = recipe.alias?.trim() || recipe.systemName;
+                      const recipeHarnessKind = recipe.harnessRef.replace(/^harness:/u, "");
                       const isCurrent =
-                        provider.kind === modelControl.currentAgentKind &&
-                        provider.accountId === modelControl.currentAccountId &&
-                        model.id === modelControl.currentModel &&
-                        !recipeTargets.some(
-                          ({ recipe: candidateRecipe, target: candidateTarget }) =>
-                            candidateRecipe.harnessRef.replace(/^harness:/u, "") ===
-                              modelControl.currentAgentKind &&
-                            candidateTarget.model === modelControl.currentModel &&
-                            (candidateTarget.accountId ?? undefined) ===
-                              (modelControl.currentAccountId ?? undefined),
-                        );
+                        recipeHarnessKind === modelControl.currentAgentKind &&
+                        target.model === modelControl.currentModel &&
+                        (target.accountId ?? undefined) ===
+                          (modelControl.currentAccountId ?? undefined) &&
+                        recipeHarnessKind === modelControl.currentAgentKind;
                       return (
                         <Dropdown.Item
-                          key={`${providerIndex}:${provider.kind}:${model.id}`}
-                          id={`${providerIndex}:${provider.kind}:${model.id}`}
-                          textValue={`${provider.label} ${model.label}`}
+                          key={`recipe:${recipe.id}`}
+                          id={`recipe:${recipe.id}`}
+                          textValue={`${name} 我的配方`}
                           onPress={() =>
                             modelControl.onChange(
                               applyThirdPartyPickerSelection(
                                 {
-                                  agentKind: provider.kind,
-                                  model: model.id,
-                                  ...(provider.presentationMode
-                                    ? { presentationMode: provider.presentationMode }
+                                  // A saved recipe is an explicit composition.
+                                  // Its Harness wins over model-name auto-routing;
+                                  // otherwise an OpenCode Gemini recipe can be
+                                  // silently reinterpreted as Antigravity.
+                                  agentKind: recipeHarnessKind || target.agentKind,
+                                  model: target.model,
+                                  ...(target.presentationMode
+                                    ? { presentationMode: target.presentationMode }
                                     : {}),
-                                  ...(provider.accountId ? { accountId: provider.accountId } : {}),
+                                  ...(target.accountId ? { accountId: target.accountId } : {}),
                                 },
                                 installedHarnesses,
                               ),
@@ -358,128 +312,179 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                           }
                         >
                           <ProviderIcon
-                            kind={provider.kind}
-                            {...(provider.icon ? { icon: provider.icon } : {})}
-                            fallbackLabel={provider.label}
+                            kind={target.agentKind}
+                            fallbackLabel={name}
                             tone="active"
                             className="size-4 shrink-0"
                           />
-                          <Label className="whitespace-nowrap">{model.label}</Label>
+                          <Label className="whitespace-nowrap">{name}</Label>
                           <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
-                            {provider.label}
+                            我的配方
                           </span>
                           {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
                         </Dropdown.Item>
                       );
-                    }),
-                  )}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown.SubmenuTrigger>
-          ) : null}
+                    })}
+                    {modelControl.providers.flatMap((provider, providerIndex) =>
+                      provider.capabilities.models.map((model) => {
+                        const isCurrent =
+                          provider.kind === modelControl.currentAgentKind &&
+                          provider.accountId === modelControl.currentAccountId &&
+                          model.id === modelControl.currentModel &&
+                          !recipeTargets.some(
+                            ({ recipe: candidateRecipe, target: candidateTarget }) =>
+                              candidateRecipe.harnessRef.replace(/^harness:/u, "") ===
+                                modelControl.currentAgentKind &&
+                              candidateTarget.model === modelControl.currentModel &&
+                              (candidateTarget.accountId ?? undefined) ===
+                                (modelControl.currentAccountId ?? undefined),
+                          );
+                        return (
+                          <Dropdown.Item
+                            key={`${providerIndex}:${provider.kind}:${model.id}`}
+                            id={`${providerIndex}:${provider.kind}:${model.id}`}
+                            textValue={`${provider.label} ${model.label}`}
+                            onPress={() =>
+                              modelControl.onChange(
+                                applyThirdPartyPickerSelection(
+                                  {
+                                    agentKind: provider.kind,
+                                    model: model.id,
+                                    ...(provider.presentationMode
+                                      ? { presentationMode: provider.presentationMode }
+                                      : {}),
+                                    ...(provider.accountId
+                                      ? { accountId: provider.accountId }
+                                      : {}),
+                                  },
+                                  installedHarnesses,
+                                ),
+                              )
+                            }
+                          >
+                            <ProviderIcon
+                              kind={provider.kind}
+                              {...(provider.icon ? { icon: provider.icon } : {})}
+                              fallbackLabel={provider.label}
+                              tone="active"
+                              className="size-4 shrink-0"
+                            />
+                            <Label className="whitespace-nowrap">{model.label}</Label>
+                            <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
+                              {provider.label}
+                            </span>
+                            {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
+                          </Dropdown.Item>
+                        );
+                      }),
+                    )}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown.SubmenuTrigger>
+            ) : null}
 
-          {effortControl ? (
-            <Dropdown.SubmenuTrigger>
-              <Dropdown.Item id="effort" textValue="推理强度">
-                <Sparkles className="size-4 text-muted" />
-                <Label>推理强度</Label>
-                <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                  {effortLabel}
-                </span>
-                <Dropdown.SubmenuIndicator />
-              </Dropdown.Item>
-              <Dropdown.Popover
-                placement="left top"
-                className={withOverlayClass(
-                  "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
-                  overlayZoom.root,
-                )}
-              >
-                <Dropdown.Menu
-                  aria-label="推理强度"
-                  onAction={(key) => {
-                    if (key === "__custom_effort__") {
-                      setCustomEffortDraft(effortControl.effortValue ?? "");
-                      setCustomEffortOpen(true);
-                      return;
-                    }
-                    effortControl.onEffortChange?.(String(key));
-                  }}
-                  {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+            {effortControl ? (
+              <Dropdown.SubmenuTrigger>
+                <Dropdown.Item id="effort" textValue="推理强度">
+                  <Sparkles className="size-4 text-muted" />
+                  <Label>推理强度</Label>
+                  <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                    {effortLabel}
+                  </span>
+                  <Dropdown.SubmenuIndicator />
+                </Dropdown.Item>
+                <Dropdown.Popover
+                  placement="left top"
+                  className={withOverlayClass(
+                    "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
+                    overlayZoom.root,
+                  )}
                 >
-                  {effortControl.efforts.map((effort) => (
-                    <Dropdown.Item key={effort.id} id={effort.id} textValue={effort.label}>
-                      <Label>{effort.label}</Label>
-                    </Dropdown.Item>
-                  ))}
-                  <Dropdown.Item
-                    key="__custom_effort__"
-                    id="__custom_effort__"
-                    textValue="自定义思考强度"
+                  <Dropdown.Menu
+                    aria-label="推理强度"
+                    onAction={(key) => {
+                      if (key === "__custom_effort__") {
+                        setCustomEffortDraft(effortControl.effortValue ?? "");
+                        setCustomEffortOpen(true);
+                        return;
+                      }
+                      effortControl.onEffortChange?.(String(key));
+                    }}
+                    {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
                   >
-                    <Label>自定义…</Label>
-                    <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                      手写档位
-                    </span>
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown.SubmenuTrigger>
-          ) : null}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
-    {effortControl ? (
-      <Modal.Backdrop
-        isOpen={customEffortOpen}
-        onOpenChange={(open) => !open && setCustomEffortOpen(false)}
-      >
-              <Modal.Container placement="center" size="sm">
-                <Modal.Dialog>
-                  <Modal.CloseTrigger />
-                  <Modal.Header>
-                    <Modal.Heading>自定义思考强度</Modal.Heading>
-                  </Modal.Header>
-                  <Modal.Body className="flex flex-col gap-2 p-4">
-                    <p className="text-[11px] text-neutral-400">
-                      手写档位直接透传给模型（如 low / high / xhigh，以各厂商文档为准）。
-                    </p>
-                    <TextField>
-                      <Label className="sr-only">思考强度</Label>
-                      <Input
-                        value={customEffortDraft}
-                        onChange={(event) => setCustomEffortDraft(event.target.value)}
-                        placeholder="如 high"
-                      />
-                    </TextField>
-                  </Modal.Body>
-                  <Modal.Footer>
-                    <Button
-                      slot="close"
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted"
-                      onPress={() => setCustomEffortOpen(false)}
+                    {effortControl.efforts.map((effort) => (
+                      <Dropdown.Item key={effort.id} id={effort.id} textValue={effort.label}>
+                        <Label>{effort.label}</Label>
+                      </Dropdown.Item>
+                    ))}
+                    <Dropdown.Item
+                      key="__custom_effort__"
+                      id="__custom_effort__"
+                      textValue="自定义思考强度"
                     >
-                      取消
-                    </Button>
-                    <Button
-                      variant="tertiary"
-                      size="sm"
-                      className="text-white"
-                      isDisabled={customEffortDraft.trim().length === 0}
-                      onPress={() => {
-                        effortControl.onEffortChange?.(customEffortDraft.trim());
-                        setCustomEffortOpen(false);
-                      }}
-                    >
-                      应用
-                    </Button>
-                  </Modal.Footer>
-                </Modal.Dialog>
-              </Modal.Container>
-            </Modal.Backdrop>
-          ) : null}
+                      <Label>自定义…</Label>
+                      <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                        手写档位
+                      </span>
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown.SubmenuTrigger>
+            ) : null}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+      {effortControl ? (
+        <Modal.Backdrop
+          isOpen={customEffortOpen}
+          onOpenChange={(open) => !open && setCustomEffortOpen(false)}
+        >
+          <Modal.Container placement="center" size="sm">
+            <Modal.Dialog>
+              <Modal.CloseTrigger />
+              <Modal.Header>
+                <Modal.Heading>自定义思考强度</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className="flex flex-col gap-2 p-4">
+                <p className="text-[11px] text-neutral-400">
+                  手写档位直接透传给模型（如 low / high / xhigh，以各厂商文档为准）。
+                </p>
+                <TextField>
+                  <Label className="sr-only">思考强度</Label>
+                  <Input
+                    value={customEffortDraft}
+                    onChange={(event) => setCustomEffortDraft(event.target.value)}
+                    placeholder="如 high"
+                  />
+                </TextField>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button
+                  slot="close"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted"
+                  onPress={() => setCustomEffortOpen(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  variant="tertiary"
+                  size="sm"
+                  className="text-white"
+                  isDisabled={customEffortDraft.trim().length === 0}
+                  onPress={() => {
+                    effortControl.onEffortChange?.(customEffortDraft.trim());
+                    setCustomEffortOpen(false);
+                  }}
+                >
+                  应用
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      ) : null}
     </>
   );
 }

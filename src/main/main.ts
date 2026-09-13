@@ -57,6 +57,7 @@ import {
 import { SupervisorClient } from "./supervisor/SupervisorClient";
 import { createAutoUpdaterController } from "./updates/autoUpdater";
 import { createMainWindow } from "./window/createMainWindow";
+import { installWindowsAcrylicHideShowGuard } from "./window/windowMaterial";
 import { requestTrackedRendererReload } from "./window/windowHardening";
 import {
   createQuickComposerWindow,
@@ -559,6 +560,7 @@ function createMainAppWindow(showOnReady = true): BrowserWindow {
   window.webContents.on("did-start-loading", () => {
     if (mainWindow === window) mainRendererReady = false;
   });
+  installWindowsAcrylicHideShowGuard(window, resolveWindowChromeOptions);
   return window;
 }
 
@@ -614,6 +616,7 @@ function createBrowserExtractWindow(): BrowserWindow {
       captureRendererProcessGone(details, "browser", intent);
     },
   });
+  installWindowsAcrylicHideShowGuard(window, resolveWindowChromeOptions);
   return window;
 }
 

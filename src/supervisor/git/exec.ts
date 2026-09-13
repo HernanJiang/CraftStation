@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, normalize, posix, win32 } from "node:path";
 import { promisify } from "node:util";
@@ -8,10 +10,48 @@ import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { attachErrorDetails, errorDetail, msg } from "@/shared/messages";
 import { getProjectName } from "@/shared/wsl";
 import { sanitizeWorktreeBranchName, sanitizeWorktreePathSegment } from "@/shared/worktree";
+import { resolveExecutablePath } from "../agents/base/processRuntime";
 import type { WslBridgeClient, WslGitExecResult } from "../wsl/bridge/client";
-import { mkdir } from "node:fs/promises";
 
 const execFileAsync = promisify(execFile);
+
+let cachedGitExecutable: string | undefined;
+
+/**
+ * Git for Windows ships `Git\cmd\git.exe` as a console-allocating launcher.
+ * Spawning that wrapper (or `git.cmd`) flashes a desktop terminal even when
+ * the parent uses `windowsHide: true`. Prefer the real MinGW binary.
+ */
+export function unwrapGitForWindowsConsoleWrapper(
+  resolved: string,
+  fileExists: (path: string) => boolean = existsSync,
+): string {
+  const normalized = resolved.replaceAll("/", "\\");
+  const cmdDir = /^(.*)\\cmd\\git(?:\.exe|\.cmd)?$/i.exec(normalized);
+  if (cmdDir) {
+    const root = cmdDir[1]!;
+    const candidates = [
+      win32.join(root, "mingw64", "bin", "git.exe"),
+      win32.join(root, "mingw32", "bin", "git.exe"),
+      win32.join(root, "bin", "git.exe"),
+    ];
+    const real = candidates.find((candidate) => fileExists(candidate));
+    if (real) return real;
+  }
+  if (/\.cmd$/i.test(normalized)) {
+    const exe = normalized.replace(/\.cmd$/i, ".exe");
+    if (fileExists(exe)) return exe;
+  }
+  return resolved;
+}
+
+export function resolveGitExecutable(): string {
+  if (process.platform !== "win32") return "git";
+  if (cachedGitExecutable) return cachedGitExecutable;
+  const resolved = resolveExecutablePath("git") ?? "git";
+  cachedGitExecutable = unwrapGitForWindowsConsoleWrapper(resolved);
+  return cachedGitExecutable;
+}
 
 /**
  * Decode git child output robustly on Windows: git usually emits UTF-8, but
@@ -191,10 +231,16 @@ export async function execGit(
       // Decode manually so GBK output from zh-CN Windows consoles survives.
       encoding: "buffer" as const,
     };
+    const gitCommand = resolveGitExecutable();
     const { stdout } =
       options?.input !== undefined
-        ? await execFileWithInput("git", withQuotePathDisabled(args), execOptions, options.input)
-        : await execFileAsync("git", withQuotePathDisabled(args), execOptions);
+        ? await execFileWithInput(
+            gitCommand,
+            withQuotePathDisabled(args),
+            execOptions,
+            options.input,
+          )
+        : await execFileAsync(gitCommand, withQuotePathDisabled(args), execOptions);
     return typeof stdout === "string" ? stdout : decodeGitOutput(stdout);
   } catch (error: unknown) {
     if (

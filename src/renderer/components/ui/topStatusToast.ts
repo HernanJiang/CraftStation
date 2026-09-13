@@ -9,6 +9,17 @@ import { toast } from "@heroui/react";
  * existing error toasts.
  */
 
+export function poolFailoverToastCopy(
+  provider: string,
+  fromAccount: string,
+  toAccount: string,
+): { title: string; description: string } {
+  return {
+    title: `${provider}账号${fromAccount}额度已耗尽`,
+    description: `已切换到${toAccount}继续作答`,
+  };
+}
+
 export function showTopStatusToast(
   title: string,
   options?: { description?: string; timeout?: number },

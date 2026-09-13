@@ -2418,10 +2418,17 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
   will-change: transform;
 }
 
-[data-draft-context-bar] {
+[data-draft-context-bar],
+[data-thread-queued-follow-up] {
   /* Sit between the near-black pane and the lighter composer so the strip
      reads as a header, not a second copy of the input card. */
   background: color-mix(in oklab, var(--composer-surface) 58%, var(--content-background));
+}
+
+[data-thread-queued-follow-up] {
+  /* Same inset as the Local context bar above the composer card. */
+  width: calc(100% - 32px);
+  margin-inline: auto;
 }
 
 /* Draft-focus glow remains a cheap compositor-only affordance. */
