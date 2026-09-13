@@ -69,7 +69,8 @@ describe("ThreadRuntimeStatusBar", () => {
     render(<ThreadRuntimeStatusBar threadId="thread-1" />);
 
     const chip = screen.getByTestId("thread-runtime-status");
-    expect(chip).toHaveTextContent("工作中");
+    expect(chip).toHaveTextContent("Working");
+    expect(chip).not.toHaveTextContent("FOC_t1");
     expect(chip).not.toHaveTextContent("84%");
     expect(chip).not.toHaveTextContent("上下文");
     expect(chip.textContent).not.toMatch(/218K/);
@@ -93,6 +94,8 @@ describe("ThreadRuntimeStatusBar", () => {
 
     fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
     const popover = screen.getByTestId("thread-runtime-status-popover");
+    expect(popover).toHaveTextContent("Completed");
+    expect(popover).not.toHaveTextContent("FOC_t1");
     expect(popover).toHaveTextContent("本轮 Token");
     expect(popover).toHaveTextContent("218K");
     expect(popover).toHaveTextContent("本轮耗时");

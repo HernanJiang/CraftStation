@@ -99,12 +99,12 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
     );
   const label =
     state === "working"
-      ? t`工作中`
+      ? t`Working`
       : state === "error"
-        ? t`错误`
+        ? t`Error`
         : state === "completed"
-          ? t`已完成`
-          : t`未开始`;
+          ? t`Completed`
+          : t`Idle`;
   const tone =
     state === "working"
       ? "text-sky-300"

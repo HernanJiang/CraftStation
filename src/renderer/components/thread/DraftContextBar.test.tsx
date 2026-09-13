@@ -150,7 +150,8 @@ describe("DraftContextBar subagent entry", () => {
     );
 
     const chip = screen.getByTestId("thread-runtime-status");
-    expect(chip).toHaveTextContent("工作中");
+    expect(chip).toHaveTextContent("Working");
+    expect(chip).not.toHaveTextContent("FOC_t1");
     expect(chip).not.toHaveTextContent("84%");
     expect(chip).not.toHaveTextContent("消息");
   });
@@ -339,4 +340,3 @@ describe("DraftContextBar composer plan chip", () => {
     expect(screen.getByRole("button", { name: "Clear goal" })).toBeInTheDocument();
   });
 });
-
