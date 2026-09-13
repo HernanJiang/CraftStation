@@ -3989,6 +3989,10 @@ msgstr ""
 msgid "Delete permanently"
 msgstr "永久删除"
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Delete queue"
+msgstr "删除队列"
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
 msgstr "删除运行"
@@ -8692,6 +8696,10 @@ msgstr "已暂停"
 msgid "Paused after {elapsed}"
 msgstr "已暂停 {elapsed}"
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "paused until you send"
+msgstr "已暂停，需手动发送"
+
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
 msgstr "PDF 预览会在浏览器中打开。"
@@ -8831,6 +8839,10 @@ msgstr "计划"
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
 msgstr "规划、提问、构建…"
+
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
+msgstr "计划、监控、日常与定时任务。需要等待时请创建计划，不要轮询消耗 token。"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9386,9 +9398,14 @@ msgid "Queue request"
 msgstr "排队请求"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "已排队"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Queued prompt"
+msgstr "排队中的提示"
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -10481,6 +10498,10 @@ msgstr "扫描 Windows 和 WSL 以查找已安装的 CLI。这通常需要几秒
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "扫描系统中已安装的 CLI。这通常需要几秒钟。"
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Schedule"
+msgstr "计划"
+
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
 msgstr "计划名称"
@@ -10494,6 +10515,10 @@ msgstr "计划状态"
 #: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 msgid "Schedule: {0}. {1}"
 msgstr "计划：{0}。{1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
+msgid "Scheduled"
+msgstr "已计划"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
@@ -10793,6 +10818,14 @@ msgstr "通过 Apple 推送服务发送通用文本，而非对话标题。"
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Send message"
 msgstr "发送消息"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Send now"
+msgstr "直接发送"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "sends when this turn finishes"
+msgstr "当前任务结束后自动发送"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."

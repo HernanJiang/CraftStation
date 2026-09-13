@@ -3985,6 +3985,10 @@ msgstr "Delete immediately"
 msgid "Delete permanently"
 msgstr "Delete permanently"
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Delete queue"
+msgstr "Delete queue"
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
 msgstr "Delete run"
@@ -8685,6 +8689,10 @@ msgstr "Paused"
 msgid "Paused after {elapsed}"
 msgstr "Paused after {elapsed}"
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "paused until you send"
+msgstr "paused until you send"
+
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
 msgstr "PDF preview opens in the browser."
@@ -8824,6 +8832,10 @@ msgstr "Plan"
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
 msgstr "Plan, ask, build…"
+
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
+msgstr "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9379,9 +9391,14 @@ msgid "Queue request"
 msgstr "Queue request"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "Queued"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Queued prompt"
+msgstr "Queued prompt"
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -10474,6 +10491,10 @@ msgstr "Scanning Windows and WSL for installed CLIs. This usually takes a couple
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Schedule"
+msgstr "Schedule"
+
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
 msgstr "Schedule name"
@@ -10487,6 +10508,10 @@ msgstr "Schedule status"
 #: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 msgid "Schedule: {0}. {1}"
 msgstr "Schedule: {0}. {1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
+msgid "Scheduled"
+msgstr "Scheduled"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
@@ -10786,6 +10811,14 @@ msgstr "Send generic text instead of conversation titles through Apple's push se
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Send message"
 msgstr "Send message"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Send now"
+msgstr "Send now"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "sends when this turn finishes"
+msgstr "sends when this turn finishes"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."

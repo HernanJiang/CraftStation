@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Input, Modal, Tooltip } from "@heroui/react";
 import {
   AppWindow,
+  Clock,
   Download,
   Globe,
   LogOut,
@@ -245,6 +246,14 @@ export function McpServersManager(props: {
       label: t`App Controls`,
       description: builtInDescription,
       icon: <Settings2 className="size-4" />,
+    },
+    {
+      id: "schedule",
+      name: BUILT_IN_MCP_SERVER_NAMES.schedule,
+      tools: BUILT_IN_MCP_SERVER_TOOL_NAMES.schedule,
+      label: t`Schedule`,
+      description: t`Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting.`,
+      icon: <Clock className="size-4" />,
     },
   ];
   const visibleBuiltIns = builtIns.filter((server) =>

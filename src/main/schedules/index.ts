@@ -47,3 +47,8 @@ export {
   type ThreadContextSnapshot,
 } from "./ScheduleExecutionResolver";
 export { ensureHomeProjectRow, homeScopeLocation } from "./homeProject";
+export {
+  ScheduleMcpIngress,
+  type ScheduleMcpIngressDeps,
+  type ScheduleMcpIngressInfo,
+} from "./ScheduleMcpIngress";

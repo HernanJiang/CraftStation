@@ -15,13 +15,12 @@ import {
   parseGoalSlashCommand,
 } from "@/shared/threadGoal";
 import { registerNativeGoal, setThreadGoalPrompt } from "@/renderer/actions/threadActions";
+import { enqueueThreadFollowUp } from "@/renderer/actions/queuedFollowUpActions";
 import {
   changeThreadConfig,
   resolveThreadServerRequest,
-  setThreadPendingSteer,
   submitThreadInput,
 } from "@/renderer/actions/threadRuntimeActions";
-import { captureThreadPromptSubmitted } from "@/renderer/analytics/posthog";
 import { useAppStore } from "@/renderer/state/appStore";
 import { buildLcSelectorFence, buildSelectorPlainText } from "@/renderer/state/browserAttachInbox";
 import { applyOptimisticRequestResolution } from "@/renderer/state/runtimeRequestActions";
@@ -211,14 +210,10 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
     });
   };
 
-  // GUI threads + working status → request a pending steer (replace-latest).
-  // This renderer status can be optimistic; the supervisor waits out a
-  // reconnect and drains the prompt as a normal turn when the live session is
-  // authoritatively idle.
-  // The supervisor fires the cancel and drains the slot when the in-flight
-  // turn returns with `cancelled` stopReason. No optimistic chat paint —
-  // the strip above the composer is the visual confirmation; the real
-  // user_message item lands when the turn drains and starts.
+  // GUI threads + working status → queue a follow-up that auto-sends when
+  // the in-flight turn finishes. Send now (interrupt) is a separate action
+  // on the queue strip. No optimistic chat paint — the strip above the
+  // composer is the visual confirmation.
   const submit =
     ctx.onSubmitInput ??
     (async (outgoingPrompt: string, outgoingSegments?: PromptSegment[]) => {
@@ -246,13 +241,7 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
       await submit(flat, allSegments.length > 0 ? allSegments : undefined);
       return;
     }
-    await setThreadPendingSteer(thread, flat, allSegments.length > 0 ? allSegments : undefined);
-    captureThreadPromptSubmitted(
-      thread,
-      flat,
-      allSegments.length > 0 ? allSegments : undefined,
-      "pending_steer",
-    );
+    enqueueThreadFollowUp(thread.id, flat, allSegments.length > 0 ? allSegments : undefined);
   };
 
   if (!usesTerminalPresentation) {

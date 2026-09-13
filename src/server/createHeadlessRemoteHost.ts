@@ -53,6 +53,7 @@ import {
   createDeviceScheduleService,
   ensureHomeProjectRow,
   extractScheduleRunSummary,
+  ScheduleMcpIngress,
   ScheduleRunCoordinator,
 } from "@/main/schedules";
 import {
@@ -194,6 +195,7 @@ export async function createHeadlessRemoteHost(
   // `serverRef` is assigned; the null-guard covers construction order only.
   let serverRef: RemoteAccessServer | null = null;
   let appControlsMcpIngress: AppControlsMcpIngress | null = null;
+  let scheduleMcpIngress: ScheduleMcpIngress | null = null;
   let prWatchService: PrWatchService | null = null;
   let gitStateService: GitStateService | null = null;
   // Assigned right after the supervisor client below; the `onEvent` tap only
@@ -208,13 +210,18 @@ export async function createHeadlessRemoteHost(
     ...(options.bundledPluginsDir ? { bundledPluginsDir: options.bundledPluginsDir } : {}),
     secretStorageKey: options.secretStorageKey,
     resolveExtraEnv: () => {
-      const info = appControlsMcpIngress?.getInfo();
-      return info
-        ? {
-            CRAFTSTATION_APP_CONTROLS_MCP_URL: info.url,
-            CRAFTSTATION_APP_CONTROLS_MCP_TOKEN: info.token,
-          }
-        : {};
+      const env: Record<string, string> = {};
+      const appControlsInfo = appControlsMcpIngress?.getInfo();
+      if (appControlsInfo) {
+        env.CRAFTSTATION_APP_CONTROLS_MCP_URL = appControlsInfo.url;
+        env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = appControlsInfo.token;
+      }
+      const scheduleInfo = scheduleMcpIngress?.getInfo();
+      if (scheduleInfo) {
+        env.CRAFTSTATION_SCHEDULE_MCP_URL = scheduleInfo.url;
+        env.CRAFTSTATION_SCHEDULE_MCP_TOKEN = scheduleInfo.token;
+      }
+      return env;
     },
     ...(options.reportError ? { reportError: (error) => options.reportError?.(error) } : {}),
     onEvent: (event) => {
@@ -340,7 +347,6 @@ export async function createHeadlessRemoteHost(
     },
   });
   appControlsMcpIngress = new AppControlsMcpIngress({
-    scheduleService,
     getThread: dbGetThread,
     getThreads: () => dbGetThreads(),
     getProjects: () => dbGetProjects(),
@@ -386,6 +392,10 @@ export async function createHeadlessRemoteHost(
         exchanges: [toRemoteThreadExchangeSummary(exchange)],
       });
     },
+  });
+  scheduleMcpIngress = new ScheduleMcpIngress({
+    scheduleService,
+    getThread: dbGetThread,
   });
 
   // In dev, advertise loopback by default so the iOS simulator's WebView can
@@ -453,6 +463,7 @@ export async function createHeadlessRemoteHost(
     async start() {
       if (!started) {
         await appControlsMcpIngress?.start();
+        await scheduleMcpIngress?.start();
         supervisorClient.start(paths.baseDir);
         await appControlsMcpIngress?.recoverThreadCollaboration();
         scheduleService.start();
@@ -501,6 +512,8 @@ export async function createHeadlessRemoteHost(
       gitStateService = null;
       appControlsMcpIngress?.dispose();
       appControlsMcpIngress = null;
+      scheduleMcpIngress?.dispose();
+      scheduleMcpIngress = null;
       portForwarding.dispose();
       supervisorClient.dispose();
       closeDatabase();

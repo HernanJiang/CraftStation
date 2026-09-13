@@ -18,6 +18,8 @@ import { ThreadContextDock } from "./ThreadContextDock";
 import { ThreadErrorDock } from "./ThreadErrorDock";
 import { ThreadGoalDock } from "./ThreadGoalDock";
 import { ThreadPendingSteerStrip } from "./ThreadPendingSteerStrip";
+import { ThreadQueuedFollowUpStrip } from "./ThreadQueuedFollowUpStrip";
+import type { QueuedFollowUp } from "@/renderer/state/slices/queuedFollowUpSlice";
 import { ThreadRuntimeRequestPanel } from "./ThreadRuntimeRequestPanel";
 import { ThreadAuthRequiredDock } from "./ThreadAuthRequiredDock";
 import { ThreadTodoDock } from "./ThreadTodoDock";
@@ -50,6 +52,7 @@ type ThreadComposerDocksProps = {
   todoDockCollapsed: boolean;
   todoDockPlacement: "composer" | "right";
   pendingSteer: PendingSteerState | undefined;
+  queuedFollowUp: QueuedFollowUp | undefined;
   activeRuntimeRequest: OpenRuntimeRequest | undefined;
   filteredCommands: AgentSlashCommand[];
   slashActiveIndex: number;
@@ -62,6 +65,9 @@ type ThreadComposerDocksProps = {
   onTodoDockPlacementChange: (placement: "composer" | "right") => void;
   onTodoDockRetire?: () => void;
   onCancelPendingSteer: () => void;
+  onSendQueuedFollowUpNow: () => void;
+  onDeleteQueuedFollowUp: () => void;
+  onQueuedFollowUpPromptChange: (prompt: string) => void;
   onOpenProjectRelativePath?: ((path: string, lineNumber?: number) => void) | undefined;
   onSlashActiveIndexChange: (index: number) => void;
   onSelectCommand: (command: AgentSlashCommand) => void;
@@ -96,6 +102,7 @@ export function ThreadComposerDocks(props: ThreadComposerDocksProps) {
     todoDockCollapsed,
     todoDockPlacement,
     pendingSteer,
+    queuedFollowUp,
     activeRuntimeRequest,
     filteredCommands,
     slashActiveIndex,
@@ -107,6 +114,9 @@ export function ThreadComposerDocks(props: ThreadComposerDocksProps) {
     onTodoDockPlacementChange,
     onTodoDockRetire,
     onCancelPendingSteer,
+    onSendQueuedFollowUpNow,
+    onDeleteQueuedFollowUp,
+    onQueuedFollowUpPromptChange,
     onOpenProjectRelativePath,
     onSlashActiveIndexChange,
     onSelectCommand,
@@ -144,6 +154,14 @@ export function ThreadComposerDocks(props: ThreadComposerDocksProps) {
       ) : null}
       {authRequired && agentStatus ? (
         <ThreadAuthRequiredDock agentStatus={agentStatus} {...(project ? { project } : {})} />
+      ) : null}
+      {queuedFollowUp ? (
+        <ThreadQueuedFollowUpStrip
+          queued={queuedFollowUp}
+          onSendNow={onSendQueuedFollowUpNow}
+          onDelete={onDeleteQueuedFollowUp}
+          onPromptChange={onQueuedFollowUpPromptChange}
+        />
       ) : null}
       {pendingSteer ? (
         <ThreadPendingSteerStrip pending={pendingSteer} onCancel={onCancelPendingSteer} />

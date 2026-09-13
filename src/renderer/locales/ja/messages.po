@@ -3984,6 +3984,10 @@ msgstr ""
 msgid "Delete permanently"
 msgstr "完全に削除"
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Delete queue"
+msgstr ""
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
 msgstr "実行を削除"
@@ -8683,6 +8687,10 @@ msgstr "一時停止中"
 msgid "Paused after {elapsed}"
 msgstr ""
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "paused until you send"
+msgstr ""
+
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
 msgstr "PDFプレビューはブラウザで開きます。"
@@ -8822,6 +8830,10 @@ msgstr "計画"
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
 msgstr "計画、質問、構築…"
+
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9377,9 +9389,14 @@ msgid "Queue request"
 msgstr ""
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "キュー待ち"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Queued prompt"
+msgstr ""
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -10472,6 +10489,10 @@ msgstr "Windows と WSL をスキャンして、インストールされてい�
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "システムをスキャンして、インストールされている CLI を探します。通常、これには数秒かかります。"
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Schedule"
+msgstr ""
+
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
 msgstr "スケジュール名"
@@ -10485,6 +10506,10 @@ msgstr "スケジュールの状態"
 #: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 msgid "Schedule: {0}. {1}"
 msgstr "スケジュール: {0}。{1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
+msgid "Scheduled"
+msgstr ""
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
@@ -10784,6 +10809,14 @@ msgstr "会話のタイトルの代わりに一般的なテキストを Apple �
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Send message"
 msgstr "メッセージを送信する"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Send now"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "sends when this turn finishes"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."

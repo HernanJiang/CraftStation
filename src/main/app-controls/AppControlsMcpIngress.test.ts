@@ -11,8 +11,6 @@ import type {
   ProviderUsageResponse,
   ReadProjectFileResult,
   RemoteThreadCommand,
-  ScheduledTask,
-  ScheduledTaskInput,
   SearchProjectFilesPayload,
   SearchProjectFilesResult,
   SearchProjectTreeResult,
@@ -25,7 +23,6 @@ import type {
 } from "@/shared/contracts";
 import type { RemoteProjectCommand, RemoteProjectCommandResult } from "@/shared/remote";
 import { defaultSharedSettings } from "@/shared/settings";
-import type { ScheduleService } from "../schedules/ScheduleService";
 import type { CreateAppThreadRequest, CreateAppThreadResult } from "../threads/appThreadLauncher";
 import { AppControlsMcpIngress, type AppControlsMcpIngressDeps } from "./AppControlsMcpIngress";
 
@@ -56,12 +53,6 @@ const thread = {
 
 function deps(overrides: Partial<AppControlsMcpIngressDeps> = {}): AppControlsMcpIngressDeps {
   return {
-    scheduleService: {
-      list: vi.fn<() => ScheduledTask[]>(() => []),
-      create: vi.fn<(input: ScheduledTaskInput) => ScheduledTask>(
-        (input) => ({ id: "created", ...input }) as ScheduledTask,
-      ),
-    } as unknown as ScheduleService,
     getThread: (id) => (id === thread.id ? thread : null),
     getThreads: () => [thread],
     getProjects: () => [{ id: "project-1", name: "Alpha" } as Project],
@@ -293,33 +284,6 @@ async function callTool(url: string, token: string, name: string, args: Record<s
 }
 
 describe("AppControlsMcpIngress", () => {
-  it("serves schedule tools and applies calling-thread defaults over Streamable HTTP", async () => {
-    const d = deps();
-    ingress = new AppControlsMcpIngress(d);
-    const info = await ingress.start();
-
-    const { isError } = await callTool(info.url, info.token, "create_schedule", {
-      name: "Daily brief",
-      prompt: "Summarize priorities",
-      recurrence: { kind: "hourly", minute: 15 },
-    });
-
-    expect(isError).toBe(false);
-    expect(d.scheduleService.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Daily brief",
-        prompt: "Summarize priorities",
-        recurrence: { kind: "hourly", minute: 15 },
-        enabled: true,
-        agentKind: "codex",
-        projectId: "project-1",
-        sourceThreadId: null,
-        threadTarget: { kind: "new" },
-        config: { model: "gpt-5.6", effort: "high" },
-      }),
-    );
-  });
-
   it("lists threads joined with live runtime snapshots", async () => {
     ingress = new AppControlsMcpIngress(deps());
     const info = await ingress.start();

@@ -6,7 +6,6 @@ import {
   StreamableHttpMcpIngress,
   type StreamableHttpMcpIngressInfo,
 } from "../mcp/StreamableHttpMcpIngress";
-import type { ScheduleCapability } from "../schedules/ScheduleCapability";
 import type { CreateAppThreadRequest, CreateAppThreadResult } from "../threads/appThreadLauncher";
 import { ThreadStateBroker } from "../threads/threadStateBroker";
 import { ThreadCollaborationService, ThreadControlAdapter } from "../thread-collaboration";
@@ -30,7 +29,6 @@ export type AppControlsMcpIngressInfo = StreamableHttpMcpIngressInfo;
 
 /** Main-side seams the app-controls MCP server acts through. */
 export interface AppControlsMcpIngressDeps {
-  scheduleService: ScheduleCapability;
   getThread(threadId: string): Thread | null;
   getThreads(): Thread[];
   getProjects(): Project[];
@@ -81,7 +79,9 @@ export class AppControlsMcpIngress {
       control: this.threadControl,
       getProjectLocation: (projectId) => deps.getProject(projectId)?.location ?? null,
       listProjectLocations: () =>
-        deps.getProjects().map((project) => ({ projectId: project.id, location: project.location })),
+        deps
+          .getProjects()
+          .map((project) => ({ projectId: project.id, location: project.location })),
       mirrorThreadToRenderer: (thread) => {
         deps.emitRemoteThreadCommand({
           kind: "start",

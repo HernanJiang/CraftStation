@@ -109,6 +109,7 @@ import {
   createDeviceScheduleService,
   ensureHomeProjectRow,
   extractScheduleRunSummary,
+  ScheduleMcpIngress,
   ScheduleRunCoordinator,
 } from "./schedules";
 import {
@@ -216,6 +217,7 @@ let browserPanelManager: BrowserPanelManager | null = null;
 let browserMcpIngress: BrowserMcpIngress | null = null;
 let computerUseMcpIngress: ComputerUseMcpIngress | null = null;
 let appControlsMcpIngress: AppControlsMcpIngress | null = null;
+let scheduleMcpIngress: ScheduleMcpIngress | null = null;
 let crossagentsMcpIngress: CrossagentsMcpIngress | null = null;
 let computerUseDesktopOverlay: ComputerUseDesktopOverlay | null = null;
 let chromeBridgeServer: ChromeBridgeServer | null = null;
@@ -809,6 +811,11 @@ if (!hasSingleInstanceLock) {
             env.CRAFTSTATION_APP_CONTROLS_MCP_URL = appControlsInfo.url;
             env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = appControlsInfo.token;
           }
+          const scheduleInfo = scheduleMcpIngress?.getInfo();
+          if (scheduleInfo) {
+            env.CRAFTSTATION_SCHEDULE_MCP_URL = scheduleInfo.url;
+            env.CRAFTSTATION_SCHEDULE_MCP_TOKEN = scheduleInfo.token;
+          }
           const crossagentsInfo = crossagentsMcpIngress?.getInfo();
           if (crossagentsInfo) {
             env.CRAFTSTATION_CROSSAGENTS_MCP_URL = crossagentsInfo.url;
@@ -1015,7 +1022,6 @@ if (!hasSingleInstanceLock) {
       // result (the check itself is fire-and-forget and event-driven).
       let lastUpdateStatus: UpdateStatus | null = null;
       appControlsMcpIngress = new AppControlsMcpIngress({
-        scheduleService,
         getThread: dbGetThread,
         getThreads: dbGetThreads,
         getProjects: dbGetProjects,
@@ -1120,6 +1126,14 @@ if (!hasSingleInstanceLock) {
       });
       const appControlsMcpReady = appControlsMcpIngress.start().catch((err) => {
         console.error("[craftstation] app controls MCP ingress failed to start:", err);
+        return null;
+      });
+      scheduleMcpIngress = new ScheduleMcpIngress({
+        scheduleService,
+        getThread: dbGetThread,
+      });
+      const scheduleMcpReady = scheduleMcpIngress.start().catch((err) => {
+        console.error("[craftstation] schedule MCP ingress failed to start:", err);
         return null;
       });
       // Independent persistent peer-messaging ingress over the same durable
@@ -1331,6 +1345,7 @@ if (!hasSingleInstanceLock) {
         chromeMcpReady,
         computerUseMcpInfoReady,
         appControlsMcpReady,
+        scheduleMcpReady,
         crossagentsMcpReady,
       ]);
       supervisorClient.start(paths.baseDir);
@@ -1342,9 +1357,7 @@ if (!hasSingleInstanceLock) {
       // host ordering in createHeadlessRemoteHost.
       void appControlsMcpIngress
         ?.recoverThreadCollaboration()
-        .catch((err) =>
-          console.error("[craftstation] thread collaboration recovery failed:", err),
-        );
+        .catch((err) => console.error("[craftstation] thread collaboration recovery failed:", err));
       scheduleService.start();
       prWatchService.start();
       gitStateService.start();
@@ -1408,6 +1421,8 @@ if (!hasSingleInstanceLock) {
         computerUseMcpIngress = null;
         appControlsMcpIngress?.dispose();
         appControlsMcpIngress = null;
+        scheduleMcpIngress?.dispose();
+        scheduleMcpIngress = null;
         crossagentsMcpIngress?.dispose();
         crossagentsMcpIngress = null;
         computerUseDesktopOverlay?.dispose();

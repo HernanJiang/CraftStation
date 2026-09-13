@@ -15,7 +15,11 @@ import { bootstrapWorkspaces } from "@/renderer/state/workspaceStore";
 import { startPrMergeAutoDone } from "@/renderer/state/prMergeAutoDone";
 import { startPrWatchStatusSync } from "@/renderer/state/prWatchStatusSync";
 import { startScheduleSync } from "@/renderer/state/scheduleStore";
-import { cleanupExpiredArchives, setThreadRuntimeReopenEnabled } from "@/renderer/actions/threadActions";
+import { startQueuedFollowUpFlush } from "@/renderer/actions/queuedFollowUpActions";
+import {
+  cleanupExpiredArchives,
+  setThreadRuntimeReopenEnabled,
+} from "@/renderer/actions/threadActions";
 
 interface IdleCallbackHandle {
   cancel: () => void;
@@ -234,17 +238,21 @@ export function useAppHydration(options: { runtimeOwner?: boolean } = {}) {
     const stopPrMergeAutoDone = startPrMergeAutoDone();
     const stopPrWatchStatusSync = startPrWatchStatusSync();
     const stopScheduleSync = startScheduleSync();
+    const stopQueuedFollowUpFlush = startQueuedFollowUpFlush();
 
     // Scheduled retention sweep (does not require the Archive page open):
     // every 6h re-evaluate expirations so policy changes and aging archives
     // converge without a restart. Inexact timing is fine.
-    const retentionTimer = window.setInterval(() => {
-      try {
-        cleanupExpiredArchives(useSharedSettings.getState().archiveRetention);
-      } catch {
-        // Best-effort background sweep; failures surface on next run.
-      }
-    }, 6 * 60 * 60 * 1000);
+    const retentionTimer = window.setInterval(
+      () => {
+        try {
+          cleanupExpiredArchives(useSharedSettings.getState().archiveRetention);
+        } catch {
+          // Best-effort background sweep; failures surface on next run.
+        }
+      },
+      6 * 60 * 60 * 1000,
+    );
 
     return () => {
       isActive = false;
@@ -254,6 +262,7 @@ export function useAppHydration(options: { runtimeOwner?: boolean } = {}) {
       stopPrMergeAutoDone();
       stopPrWatchStatusSync();
       stopScheduleSync();
+      stopQueuedFollowUpFlush();
     };
   }, [
     loadT0,

@@ -19,6 +19,7 @@ export const BUILT_IN_MCP_SERVER_IDS = [
   "chrome",
   "computer-use",
   "app-controls",
+  "schedule",
 ] as const;
 export type BuiltInMcpServerId = (typeof BUILT_IN_MCP_SERVER_IDS)[number];
 
@@ -33,6 +34,7 @@ export const BUILT_IN_MCP_SERVER_NAMES: Record<BuiltInMcpServerId, string> = {
   chrome: "chrome",
   "computer-use": "computer_use",
   "app-controls": "craftstation",
+  schedule: "Schedule",
 };
 
 /** Tool catalogs advertised by each CraftStation-owned MCP server. */
@@ -150,24 +152,6 @@ export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
     "drag",
   ],
   "app-controls": [
-    "list_schedules",
-    "schedule.list",
-    "get_schedule",
-    "schedule.get",
-    "create_schedule",
-    "schedule.create",
-    "update_schedule",
-    "schedule.update",
-    "pause_schedule",
-    "schedule.pause",
-    "resume_schedule",
-    "schedule.resume",
-    "run_schedule",
-    "schedule.run_now",
-    "delete_schedule",
-    "schedule.delete",
-    "list_schedule_runs",
-    "schedule.list_runs",
     "get_current_thread",
     "list_threads",
     "get_thread",
@@ -227,6 +211,17 @@ export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
     "list_skills",
     "set_skill_enabled",
   ],
+  schedule: [
+    "list",
+    "get",
+    "create",
+    "update",
+    "pause",
+    "resume",
+    "run_now",
+    "delete",
+    "list_runs",
+  ],
 } as const satisfies Record<BuiltInMcpServerId, readonly string[]>;
 
 export const BUILT_IN_MCP_SERVER_TOOL_COUNTS: Record<BuiltInMcpServerId, number> = {
@@ -236,6 +231,7 @@ export const BUILT_IN_MCP_SERVER_TOOL_COUNTS: Record<BuiltInMcpServerId, number>
   chrome: BUILT_IN_MCP_SERVER_TOOL_NAMES.chrome.length,
   "computer-use": BUILT_IN_MCP_SERVER_TOOL_NAMES["computer-use"].length,
   "app-controls": BUILT_IN_MCP_SERVER_TOOL_NAMES["app-controls"].length,
+  schedule: BUILT_IN_MCP_SERVER_TOOL_NAMES.schedule.length,
 };
 
 const RESERVED_MCP_SERVER_NAMES = new Set(

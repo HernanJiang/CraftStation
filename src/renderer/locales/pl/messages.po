@@ -3985,6 +3985,10 @@ msgstr ""
 msgid "Delete permanently"
 msgstr "Usuń trwale"
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Delete queue"
+msgstr ""
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
 msgstr "Usuń uruchomienie"
@@ -8685,6 +8689,10 @@ msgstr "Wstrzymano"
 msgid "Paused after {elapsed}"
 msgstr ""
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "paused until you send"
+msgstr ""
+
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
 msgstr "Podgląd PDF otwiera się w przeglądarce."
@@ -8824,6 +8832,10 @@ msgstr "Plan"
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
 msgstr "Planuj, pytaj, twórz…"
+
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9379,9 +9391,14 @@ msgid "Queue request"
 msgstr ""
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "W kolejce"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Queued prompt"
+msgstr ""
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -10474,6 +10491,10 @@ msgstr "Skanowanie systemu Windows i WSL w poszukiwaniu zainstalowanych interfej
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "Skanowanie systemu w poszukiwaniu zainstalowanych interfejsów CLI. Zwykle zajmuje to kilka sekund."
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Schedule"
+msgstr ""
+
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
 msgstr "Nazwa harmonogramu"
@@ -10487,6 +10508,10 @@ msgstr "Stan harmonogramu"
 #: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 msgid "Schedule: {0}. {1}"
 msgstr "Harmonogram: {0}. {1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
+msgid "Scheduled"
+msgstr ""
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
@@ -10786,6 +10811,14 @@ msgstr "Wysyłaj ogólny tekst zamiast tytułów rozmów przez usługę push fir
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Send message"
 msgstr "Wyślij wiadomość"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Send now"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "sends when this turn finishes"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."

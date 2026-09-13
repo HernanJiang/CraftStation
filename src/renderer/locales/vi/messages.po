@@ -3985,6 +3985,10 @@ msgstr ""
 msgid "Delete permanently"
 msgstr "Xóa vĩnh viễn"
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Delete queue"
+msgstr ""
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
 msgstr "Xóa lượt chạy"
@@ -8685,6 +8689,10 @@ msgstr "Đã tạm dừng"
 msgid "Paused after {elapsed}"
 msgstr ""
 
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "paused until you send"
+msgstr ""
+
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
 msgstr "Xem trước PDF mở trong trình duyệt."
@@ -8824,6 +8832,10 @@ msgstr "kế hoạch"
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
 msgstr "Lên kế hoạch, đặt câu hỏi, xây dựng…"
+
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9379,9 +9391,14 @@ msgid "Queue request"
 msgstr ""
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "Đã xếp hàng"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Queued prompt"
+msgstr ""
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -10474,6 +10491,10 @@ msgstr "Quét Windows và WSL để tìm CLI đã cài đặt. Việc này thư�
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "Đang quét hệ thống của bạn để tìm CLI đã cài đặt. Việc này thường mất vài giây."
 
+#: src/renderer/components/mcp/McpServersManager.tsx
+msgid "Schedule"
+msgstr ""
+
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
 msgstr "Tên lịch"
@@ -10487,6 +10508,10 @@ msgstr "Trạng thái lịch"
 #: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 msgid "Schedule: {0}. {1}"
 msgstr "Lịch: {0}. {1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
+msgid "Scheduled"
+msgstr ""
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
@@ -10786,6 +10811,14 @@ msgstr "Gửi văn bản chung chung thay vì tiêu đề cuộc trò chuyện q
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Send message"
 msgstr "Gửi tin nhắn"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Send now"
+msgstr ""
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "sends when this turn finishes"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."

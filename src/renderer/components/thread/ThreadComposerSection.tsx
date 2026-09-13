@@ -23,6 +23,10 @@ import {
   changeThreadConfig,
   clearThreadPendingSteer,
 } from "@/renderer/actions/threadRuntimeActions";
+import {
+  clearQueuedFollowUp,
+  sendQueuedFollowUpNow,
+} from "@/renderer/actions/queuedFollowUpActions";
 import { modelVisibilityKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
 import { AttachmentBar } from "../composer/AttachmentBar";
 import { ComposerAddMenu } from "../composer/ComposerAddMenu";
@@ -626,6 +630,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const canInterruptStructuredTurn = canShowRuntimeChrome && thread.status === "working";
   const pendingSteer = useAppStore((s) => s.pendingSteerByThreadId[thread.id]);
   const visiblePendingSteer = useDelayedPendingSteer(pendingSteer);
+  const queuedFollowUp = useAppStore((s) => s.queuedFollowUpByThreadId[thread.id]);
   const usesPendingSteerPath =
     !isConnecting && !usesTerminalPresentation && thread.status === "working";
   const runtimeRequests = useAppStore((s) => s.runtimeRequestsByThread[thread.id]);
@@ -639,6 +644,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const hideActionDocks = props.hideActionDocks === true;
   const composerRuntimeRequest = hideActionDocks ? undefined : activeRuntimeRequest;
   const composerPendingSteer = hideActionDocks ? undefined : visiblePendingSteer;
+  const composerQueuedFollowUp = hideActionDocks ? undefined : queuedFollowUp;
   const showAuthInComposer = authRequired && !hideActionDocks;
   const reportedContextUsage = useAppStore((s) =>
     canShowRuntimeChrome ? s.runtimeContextByThread[thread.id] : undefined,
@@ -687,6 +693,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     const interruptedTurnStartedAt = thread.activeTurnStartedAt
       ? Date.parse(thread.activeTurnStartedAt)
       : NaN;
+    useAppStore.getState().pauseQueuedFollowUp(thread.id);
     void readBridge()
       .interruptThread({
         threadId: thread.id,
@@ -1020,6 +1027,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                       showTodoInComposer ||
                       showAuthInComposer ||
                       composerPendingSteer ||
+                      composerQueuedFollowUp ||
                       composerRuntimeRequest ||
                       showCommandPanel ? (
                         <ThreadComposerDocks
@@ -1044,6 +1052,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                           todoDockCollapsed={todoDockCollapsed}
                           todoDockPlacement={todoDockPlacement}
                           pendingSteer={composerPendingSteer}
+                          queuedFollowUp={composerQueuedFollowUp}
                           activeRuntimeRequest={composerRuntimeRequest}
                           filteredCommands={filteredCommands}
                           slashActiveIndex={slashActiveIndex}
@@ -1057,6 +1066,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                             ? { onTodoDockRetire: props.onTodoDockRetire }
                             : {})}
                           onCancelPendingSteer={() => clearThreadPendingSteer(thread.id)}
+                          onSendQueuedFollowUpNow={() => {
+                            void sendQueuedFollowUpNow(thread);
+                          }}
+                          onDeleteQueuedFollowUp={() => clearQueuedFollowUp(thread.id)}
+                          onQueuedFollowUpPromptChange={(nextPrompt) =>
+                            useAppStore.getState().updateQueuedFollowUpPrompt(thread.id, nextPrompt)
+                          }
                           {...(props.onOpenProjectRelativePath
                             ? { onOpenProjectRelativePath: props.onOpenProjectRelativePath }
                             : {})}
@@ -1209,7 +1225,9 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                             onOpen: () => {
                               const entryMode = craftMode === "creative" ? "creative" : "efficient";
                               useCraftingWorkbenchStore.getState().setCapabilityMode(craftMode);
-                              usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode });
+                              usePanelStore
+                                .getState()
+                                .openModelUsageWorkspace({ tab: "crafting", entryMode });
                             },
                           }}
                           readOnly

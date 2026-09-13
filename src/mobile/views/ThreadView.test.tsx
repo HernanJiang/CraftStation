@@ -187,6 +187,7 @@ describe("mobile ThreadView", () => {
       runtimeStructuralVersionByThread: {},
       openSubAgentByThread: {},
       pendingSteerByThreadId: {},
+      queuedFollowUpByThreadId: {},
       pendingComposerFocusThreadId: null,
     });
   });

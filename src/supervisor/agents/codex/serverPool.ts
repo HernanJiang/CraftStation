@@ -26,7 +26,13 @@ export interface AcquiredCodexAppServer {
   dispose(): void;
 }
 
-const THREAD_SCOPED_MCP_SERVER_IDS = new Set(["app-controls", "browser", "chrome", "computer-use"]);
+const THREAD_SCOPED_MCP_SERVER_IDS = new Set([
+  "app-controls",
+  "schedule",
+  "browser",
+  "chrome",
+  "computer-use",
+]);
 const pool = new Map<string, PoolEntry>();
 const spawnedAppServers = new Set<ChildProcess>();
 const spawnedConnections = new Set<CodexAppServerConnection>();
