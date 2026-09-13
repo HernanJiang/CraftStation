@@ -30,6 +30,7 @@ import {
 import { createInitialRuntimeEventState } from "@/renderer/state/slices/runtimeEventSlice";
 import { createInitialSubAgentOverlayState } from "@/renderer/state/slices/subAgentOverlaySlice";
 import { createInitialPendingSteerState } from "@/renderer/state/slices/pendingSteerSlice";
+import { createInitialQueuedFollowUpState } from "@/renderer/state/slices/queuedFollowUpSlice";
 
 /**
  * Feeds remote snapshots and live WebSocket events into the same Zustand
@@ -132,6 +133,7 @@ export function resetRemoteStores(): void {
     ...createInitialRuntimeEventState(),
     ...createInitialSubAgentOverlayState(),
     ...createInitialPendingSteerState(),
+    ...createInitialQueuedFollowUpState(),
   });
 }
 

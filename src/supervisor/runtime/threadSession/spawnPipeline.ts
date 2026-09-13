@@ -60,6 +60,10 @@ import {
   type AppControlsMcpHttpConfig,
 } from "@/supervisor/agents/appControlsMcp";
 import {
+  resolveScheduleMcpHttpConfigForLaunch,
+  type ScheduleMcpHttpConfig,
+} from "@/supervisor/agents/scheduleMcp";
+import {
   type AgentAdapter,
   type AgentLaunchOptions,
   type CommandSpec,
@@ -276,6 +280,7 @@ export function composeResolvedMcpServers(
   computerUseMcp: ComputerUseMcpHttpConfig | undefined,
   chromeMcp: ChromeMcpHttpConfig | undefined,
   appControlsMcp: AppControlsMcpHttpConfig | undefined,
+  scheduleMcp?: ScheduleMcpHttpConfig | undefined,
   crossagentsPeerMcp?: CrossagentsPeerMcpHttpConfig | undefined,
 ): ResolvedMcpServer[] {
   const http = (
@@ -309,6 +314,7 @@ export function composeResolvedMcpServers(
     http("computer-use", computerUseMcp),
     http("chrome", chromeMcp),
     http("app-controls", appControlsMcp),
+    http("schedule", scheduleMcp),
     http("crossagents", crossagentsPeerMcp, 120_000, "approve"),
   ].filter((server): server is ResolvedMcpServer => server !== undefined);
 }
@@ -1504,10 +1510,11 @@ export class SpawnPipeline {
       presentationMode,
       crossagentThreadId,
     );
-    // App-controls is always thread-scoped: its ingress decodes `?thread=` to
-    // authorize calls such as send_thread_message. Provider-level MCPs may use
-    // a shared credential, but clearing the identity for all servers would
-    // leave the app-controls server unable to identify its caller.
+    // App-controls and Schedule are always thread-scoped: their ingress
+    // decodes `?thread=` (caller defaults, send_thread_message, etc.).
+    // Provider-level MCPs may use a shared credential, but clearing the
+    // identity for all servers would leave these servers unable to identify
+    // their caller.
     const appControlsIdentity = identity;
     if (adapter?.capabilities.mcpConfigSource === "agentSettings") {
       // Provider-level MCP: flags come from the provider's settings page. Drop
@@ -1555,6 +1562,11 @@ export class SpawnPipeline {
       mcpLaunchSnapshot,
       appControlsIdentity,
     );
+    const scheduleMcp = await this.resolveScheduleMcpForLaunch(
+      location,
+      mcpLaunchSnapshot,
+      appControlsIdentity,
+    );
     const resolved = composeResolvedMcpServers(
       mcpLaunchSnapshot,
       browserMcp,
@@ -1562,6 +1574,7 @@ export class SpawnPipeline {
       computerUseMcp,
       chromeMcp,
       appControlsMcp,
+      scheduleMcp,
       crossagentsPeerMcp,
     );
     if (!adapter) return resolved;
@@ -1679,6 +1692,20 @@ export class SpawnPipeline {
     return resolveAppControlsMcpHttpConfigForLaunch(location, this.ctx.options.wslHostAccess, {
       ...identity,
       disabledTools: mcpLaunchSnapshot.disabledBuiltInMcpTools?.["app-controls"] ?? [],
+    });
+  }
+
+  resolveScheduleMcpForLaunch(
+    location: ProjectLocation,
+    mcpLaunchSnapshot: McpLaunchSnapshot,
+    identity?: McpThreadIdentity,
+  ): Promise<ScheduleMcpHttpConfig | undefined> {
+    if (mcpLaunchSnapshot.disabledBuiltInMcpServerIds.includes("schedule")) {
+      return Promise.resolve(undefined);
+    }
+    return resolveScheduleMcpHttpConfigForLaunch(location, this.ctx.options.wslHostAccess, {
+      ...identity,
+      disabledTools: mcpLaunchSnapshot.disabledBuiltInMcpTools?.schedule ?? [],
     });
   }
 

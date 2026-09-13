@@ -267,6 +267,7 @@ describe("ThreadComposerSection", () => {
       runtimeItemsByIdByThread: {},
       runtimeRequestsByThread: {},
       pendingSteerByThreadId: {},
+      queuedFollowUpByThreadId: {},
       connectingThreadIds: {},
       pendingComposerFocusThreadId: null,
       threadDraftContents: {},
@@ -1235,7 +1236,7 @@ describe("ThreadComposerSection", () => {
     }
   });
 
-  it("counts a pending steer after it is successfully staged", async () => {
+  it("queues a follow-up above the composer while the GUI thread is working", async () => {
     renderComposer({
       thread: { ...guiThread, status: "working", attention: "working" },
     });
@@ -1246,6 +1247,33 @@ describe("ThreadComposerSection", () => {
     fireEvent.click(screen.getByText("send"));
 
     await waitFor(() => {
+      expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]?.prompt).toBe(
+        "change direction",
+      );
+    });
+    expect(bridgeMock.setPendingSteer).not.toHaveBeenCalled();
+    expect(screen.getByTestId("thread-queued-follow-up")).toHaveValue("change direction");
+    expect(analytics.captureThreadPromptSubmitted).not.toHaveBeenCalled();
+  });
+
+  it("sends a queued follow-up immediately when the user chooses Send now", async () => {
+    useAppStore.setState({
+      queuedFollowUpByThreadId: {
+        [guiThread.id]: {
+          prompt: "change direction",
+          segments: [{ kind: "text", content: "change direction" }],
+          queuedAt: Date.now(),
+          paused: false,
+        },
+      },
+    });
+    renderComposer({
+      thread: { ...guiThread, status: "working", attention: "working" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send now" }));
+
+    await waitFor(() => {
       expect(bridgeMock.setPendingSteer).toHaveBeenCalledWith({
         threadId: guiThread.id,
         prompt: "change direction",
@@ -1253,12 +1281,29 @@ describe("ThreadComposerSection", () => {
         config: guiThread.config,
       });
     });
-    expect(analytics.captureThreadPromptSubmitted).toHaveBeenCalledWith(
-      expect.objectContaining({ id: guiThread.id }),
-      "change direction",
-      [{ kind: "text", content: "change direction" }],
-      "pending_steer",
-    );
+    expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]).toBeUndefined();
+  });
+
+  it("removes the queued follow-up when the queue is deleted", async () => {
+    useAppStore.setState({
+      queuedFollowUpByThreadId: {
+        [guiThread.id]: {
+          prompt: "later",
+          queuedAt: Date.now(),
+          paused: false,
+        },
+      },
+    });
+    renderComposer({
+      thread: { ...guiThread, status: "working", attention: "working" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete queue" }));
+
+    await waitFor(() => {
+      expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]).toBeUndefined();
+    });
+    expect(screen.queryByTestId("thread-queued-follow-up")).not.toBeInTheDocument();
   });
 
   it("does not submit or steer while a stored GUI session is reconnecting", async () => {

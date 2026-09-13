@@ -9,16 +9,14 @@ import {
   type ScheduledTaskRun,
 } from "@/shared/contracts";
 import { normalizeScheduleThreadTarget } from "@/shared/schedules";
-import type { AppControlsToolContext, ToolDomain } from "./types";
+import type { ScheduleToolContext, ScheduleToolDomain } from "./types";
 
 /**
  * Unified Host schedule capability. One ScheduleService backs every harness:
- * Codex / OpenCode / Gemini / Kimi / … all reach these tools through the same
- * loopback app-controls MCP ingress (see `resolveAppControlsMcpForLaunch`), so
- * there is intentionally no per-harness schedule implementation. Underscore
- * names are the stable MCP surface; `schedule.*` aliases expose the exact
- * Agent-facing contract (`schedule.create/update/delete/list/get/pause/resume/
- * run_now/list_runs`) on the same handlers and the same store.
+ * Codex / OpenCode / Gemini / Kimi / … all reach these tools through the
+ * standalone Schedule MCP ingress (see `resolveScheduleMcpForLaunch`). Short
+ * names are the only MCP surface — hosts that namespace tools expose them as
+ * `Schedule.create`, `Schedule.list_runs`, and so on.
  */
 
 const timezoneSchema = z.string().trim().min(1).max(64).nullable().optional();
@@ -169,10 +167,7 @@ function idJsonSchema(): Record<string, unknown> {
   };
 }
 
-function createSchedule(
-  args: unknown,
-  ctx: AppControlsToolContext,
-): ScheduledTask {
+function createSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
   const parsed = createArgsSchema.parse(args);
   const sourceThread = ctx.identity.threadId ? ctx.getThread(ctx.identity.threadId) : null;
   const agentKind = parsed.agentKind ?? sourceThread?.agentKind;
@@ -202,9 +197,7 @@ function createSchedule(
     (parsed.continueInCurrentThread === true ||
       (parsed.threadTarget === undefined && parsed.targetThreadId == null));
   const target = normalizeScheduleThreadTarget({
-    threadTarget: continueHere
-      ? { kind: "existing", threadId: callingId }
-      : parsed.threadTarget,
+    threadTarget: continueHere ? { kind: "existing", threadId: callingId } : parsed.threadTarget,
     targetThreadId: parsed.targetThreadId,
   });
   const input: ScheduledTaskInput = {
@@ -231,10 +224,7 @@ function createSchedule(
   return ctx.scheduleService.create(input);
 }
 
-function updateSchedule(
-  args: unknown,
-  ctx: AppControlsToolContext,
-): ScheduledTask {
+function updateSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
   const parsed = updateArgsSchema.parse(args);
   const current = requireSchedule(ctx, parsed.id);
   const callingId = callingThreadUuid(ctx.identity.threadId);
@@ -246,7 +236,9 @@ function updateSchedule(
         ? parsed.threadTarget
         : current.threadTarget,
     targetThreadId:
-      parsed.targetThreadId !== undefined ? parsed.targetThreadId : (current.targetThreadId ?? null),
+      parsed.targetThreadId !== undefined
+        ? parsed.targetThreadId
+        : (current.targetThreadId ?? null),
   });
   return ctx.scheduleService.update(parsed.id, {
     name: parsed.name ?? current.name,
@@ -279,80 +271,61 @@ function updateSchedule(
   });
 }
 
-function getSchedule(args: unknown, ctx: AppControlsToolContext): ScheduledTask {
+function getSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
   return requireSchedule(ctx, idArgsSchema.parse(args).id);
 }
 
-function pauseSchedule(
-  args: unknown,
-  ctx: AppControlsToolContext,
-): ScheduledTask {
+function pauseSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
   const { id } = idArgsSchema.parse(args);
   requireSchedule(ctx, id);
   return ctx.scheduleService.pause(id);
 }
 
-function resumeSchedule(
-  args: unknown,
-  ctx: AppControlsToolContext,
-): ScheduledTask {
+function resumeSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
   const { id } = idArgsSchema.parse(args);
   requireSchedule(ctx, id);
   return ctx.scheduleService.resume(id);
 }
 
-function runSchedule(
-  args: unknown,
-  ctx: AppControlsToolContext,
-): ScheduledTask {
+function runSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
   return ctx.scheduleService.runNow(idArgsSchema.parse(args).id);
 }
 
-function deleteSchedule(
-  args: unknown,
-  ctx: AppControlsToolContext,
-): { deleted: boolean; id: string } {
+function deleteSchedule(args: unknown, ctx: ScheduleToolContext): { deleted: boolean; id: string } {
   const { id } = idArgsSchema.parse(args);
   requireSchedule(ctx, id);
   ctx.scheduleService.delete(id);
   return { deleted: true, id };
 }
 
-function listScheduleRuns(args: unknown, ctx: AppControlsToolContext): ScheduledTaskRun[] {
+function listScheduleRuns(args: unknown, ctx: ScheduleToolContext): ScheduledTaskRun[] {
   const parsed = listRunsArgsSchema.parse(args);
   requireSchedule(ctx, parsed.id);
   return ctx.scheduleService.listRuns(parsed.id, parsed.limit);
 }
 
-export const scheduleTools: ToolDomain = {
+export const scheduleTools: ScheduleToolDomain = {
   specs: [
     {
-      name: "list_schedules",
+      name: "list",
       description: "List the user's CraftStation schedules and their current status.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
-      name: "schedule.list",
-      description: "Alias of list_schedules: unified Agent schedule list.",
-      inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    },
-    {
-      name: "get_schedule",
+      name: "get",
       description: "Get one CraftStation schedule by id.",
       inputSchema: idJsonSchema(),
     },
     {
-      name: "schedule.get",
-      description: "Alias of get_schedule: unified Agent schedule get.",
-      inputSchema: idJsonSchema(),
-    },
-    {
-      name: "create_schedule",
+      name: "create",
       description:
-        "Create a device schedule. The current agent and model are used unless overridden. " +
-        "The schedule binds to the creating thread by default (future runs continue there). " +
-        "For sub-hourly repeats use recurrence {kind:'interval',everyMinutes:N} (e.g. every 10 minutes). " +
-        "Never ask the scheduled prompt to create its own next schedule via create_schedule — that multiplies schedules and threads.",
+        "Create a plan / monitor / daily routine / timed task (计划 / 监控 / 日常 / 定时任务). " +
+        "Use this instead of polling, sleeping, or keeping a turn open while waiting " +
+        "(training jobs, CI, later reminders, recurring checks). The current agent and model " +
+        "are used unless overridden. The schedule binds to the creating thread by default " +
+        "(future runs continue there). For sub-hourly repeats use recurrence " +
+        "{kind:'interval',everyMinutes:N} (e.g. every 10 minutes). Never ask the scheduled " +
+        "prompt to create its own next schedule via create — that multiplies schedules and threads.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -370,28 +343,7 @@ export const scheduleTools: ToolDomain = {
       },
     },
     {
-      name: "schedule.create",
-      description:
-        "Alias of create_schedule: unified Agent schedule create. Binds to the creating thread by default; " +
-        "use interval recurrence for minute-level repeats; never self-chain schedules from the prompt.",
-      inputSchema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["name", "prompt", "recurrence"],
-        properties: {
-          name: { type: "string", minLength: 1, maxLength: 120 },
-          prompt: { type: "string", minLength: 1, maxLength: 50000 },
-          recurrence: recurrenceJsonSchema(),
-          enabled: { type: "boolean" },
-          agentKind: { type: "string", minLength: 1 },
-          model: { type: "string", minLength: 1 },
-          effort: { type: "string", minLength: 1 },
-          ...scheduleExtraJsonSchema(),
-        },
-      },
-    },
-    {
-      name: "update_schedule",
+      name: "update",
       description: "Update selected fields on an existing CraftStation schedule.",
       inputSchema: {
         type: "object",
@@ -411,82 +363,29 @@ export const scheduleTools: ToolDomain = {
       },
     },
     {
-      name: "schedule.update",
-      description: "Alias of update_schedule: unified Agent schedule update.",
-      inputSchema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id"],
-        properties: {
-          id: { type: "string", format: "uuid" },
-          name: { type: "string", minLength: 1, maxLength: 120 },
-          prompt: { type: "string", minLength: 1, maxLength: 50000 },
-          recurrence: recurrenceJsonSchema(),
-          enabled: { type: "boolean" },
-          agentKind: { type: "string", minLength: 1 },
-          model: { type: "string", minLength: 1 },
-          effort: { type: ["string", "null"], minLength: 1 },
-          ...scheduleExtraJsonSchema(),
-        },
-      },
-    },
-    {
-      name: "pause_schedule",
+      name: "pause",
       description: "Pause a schedule without deleting its definition.",
       inputSchema: idJsonSchema(),
     },
     {
-      name: "schedule.pause",
-      description: "Alias of pause_schedule: unified Agent schedule pause.",
-      inputSchema: idJsonSchema(),
-    },
-    {
-      name: "resume_schedule",
+      name: "resume",
       description: "Resume a paused schedule and recompute its next run.",
       inputSchema: idJsonSchema(),
     },
     {
-      name: "schedule.resume",
-      description: "Alias of resume_schedule: unified Agent schedule resume.",
-      inputSchema: idJsonSchema(),
-    },
-    {
-      name: "run_schedule",
+      name: "run_now",
       description: "Run an existing schedule now without changing its next scheduled run.",
       inputSchema: idJsonSchema(),
     },
     {
-      name: "schedule.run_now",
-      description: "Alias of run_schedule: unified Agent schedule run-now.",
-      inputSchema: idJsonSchema(),
-    },
-    {
-      name: "delete_schedule",
+      name: "delete",
       description: "Permanently delete an existing schedule from this device.",
       inputSchema: idJsonSchema(),
     },
     {
-      name: "schedule.delete",
-      description: "Alias of delete_schedule: unified Agent schedule delete.",
-      inputSchema: idJsonSchema(),
-    },
-    {
-      name: "list_schedule_runs",
+      name: "list_runs",
       description:
-        "List recent executions of one schedule (newest first). Each row is a ScheduledTaskRun: id, scheduleId, threadId, triggeredBy (scheduled|manual), status (queued|running|succeeded|failed|interrupted — never 'never'), timestamps, summary/error, and executionSnapshot.",
-      inputSchema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id"],
-        properties: {
-          id: { type: "string", format: "uuid", description: "Schedule id from create/list/get." },
-          limit: { type: "integer", minimum: 1, maximum: 20, description: "Max rows, default 20." },
-        },
-      },
-    },
-    {
-      name: "schedule.list_runs",
-      description: "Alias of list_schedule_runs: unified Agent schedule run history.",
+        "List recent executions of one schedule (newest first). Each row is a ScheduledTaskRun: id, scheduleId, threadId, triggeredBy (scheduled|manual), status (queued|running|succeeded|failed|interrupted — never 'never'), timestamps, summary/error, and executionSnapshot. Use this to monitor firings instead of polling the original task.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -499,28 +398,19 @@ export const scheduleTools: ToolDomain = {
     },
   ],
   handlers: {
-    list_schedules: (_args, ctx) => ctx.scheduleService.list(),
-    "schedule.list": (_args, ctx) => ctx.scheduleService.list(),
-    get_schedule: getSchedule,
-    "schedule.get": getSchedule,
-    create_schedule: createSchedule,
-    "schedule.create": createSchedule,
-    update_schedule: updateSchedule,
-    "schedule.update": updateSchedule,
-    pause_schedule: pauseSchedule,
-    "schedule.pause": pauseSchedule,
-    resume_schedule: resumeSchedule,
-    "schedule.resume": resumeSchedule,
-    run_schedule: runSchedule,
-    "schedule.run_now": runSchedule,
-    delete_schedule: deleteSchedule,
-    "schedule.delete": deleteSchedule,
-    list_schedule_runs: listScheduleRuns,
-    "schedule.list_runs": listScheduleRuns,
+    list: (_args, ctx) => ctx.scheduleService.list(),
+    get: getSchedule,
+    create: createSchedule,
+    update: updateSchedule,
+    pause: pauseSchedule,
+    resume: resumeSchedule,
+    run_now: runSchedule,
+    delete: deleteSchedule,
+    list_runs: listScheduleRuns,
   },
 };
 
-function requireSchedule(ctx: AppControlsToolContext, id: string): ScheduledTask {
+function requireSchedule(ctx: ScheduleToolContext, id: string): ScheduledTask {
   const task = ctx.scheduleService.get(id);
   if (!task) throw new Error("Scheduled task not found.");
   return task;

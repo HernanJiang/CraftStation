@@ -2,7 +2,8 @@ import { forwardRef, type ReactNode } from "react";
 import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
-import type { Project, Thread } from "@/shared/contracts";
+import type { Project, ScheduledTask, Thread } from "@/shared/contracts";
+import { useScheduleStore } from "@/renderer/state/scheduleStore";
 import { SortableThreadItem } from "./SortableThreadItem";
 
 type MockContextMenuItem = {
@@ -198,6 +199,7 @@ describe("SortableThreadItem", () => {
     useThreadHasBackgroundActivityMock.mockReturnValue(false);
     useThreadHasDraftMock.mockReset();
     useThreadHasDraftMock.mockReturnValue(false);
+    useScheduleStore.setState({ tasks: [], loading: false, focusedScheduleId: null });
   });
 
   it("keeps the row visually working while the thread has background activity", () => {
@@ -296,6 +298,50 @@ describe("SortableThreadItem", () => {
     );
 
     expect(queryByLabelText("Has unsent draft")).not.toBeInTheDocument();
+  });
+
+  it("replaces the working spinner with a clock when the thread has a related schedule", () => {
+    getStatusToneMock.mockReturnValue("working");
+    useScheduleStore.setState({
+      tasks: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "Check training",
+          prompt: "x",
+          agentKind: "codex",
+          config: { model: "gpt-5.6" },
+          recurrence: { kind: "interval", everyMinutes: 10 },
+          enabled: true,
+          sourceThreadId: "thread-1",
+          threadTarget: { kind: "new" },
+          nextRunAt: null,
+          lastRunAt: null,
+          lastCompletedAt: null,
+          lastStatus: "never",
+          lastResult: null,
+          lastError: null,
+          createdAt: "2026-03-21T10:00:00.000Z",
+          updatedAt: "2026-03-21T10:00:00.000Z",
+        } as ScheduledTask,
+      ],
+      loading: false,
+      focusedScheduleId: null,
+    });
+
+    const { getByTestId, queryByLabelText } = render(
+      <SortableThreadItem
+        thread={makeThread()}
+        threadIndex={1}
+        project={project}
+        showWorktreeBadge={false}
+        editingThreadId={null}
+        setEditingThreadId={vi.fn<(id: string | null) => void>()}
+        group="project-entries:project-1"
+      />,
+    );
+
+    expect(getByTestId("thread-schedule-clock")).toBeInTheDocument();
+    expect(queryByLabelText("Working")).not.toBeInTheDocument();
   });
 
   it("keeps pin, more, and direct archive as the row hover actions", () => {

@@ -267,6 +267,7 @@ describe("composeResolvedMcpServers", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
       { url: "http://peers/mcp", token: "p", headers: { Authorization: "Bearer p" } },
     );
 
@@ -284,6 +285,7 @@ describe("composeResolvedMcpServers", () => {
         mcpServers: [],
         disabledBuiltInMcpServerIds: [],
       },
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -337,6 +339,60 @@ describe("resolveMcpServersForLaunch", () => {
       else process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL = previousUrl;
       if (previousToken === undefined) delete process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN;
       else process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = previousToken;
+    }
+  });
+
+  it("keeps the caller identity on Schedule for provider-level GUI MCP", async () => {
+    const previousUrl = process.env.CRAFTSTATION_SCHEDULE_MCP_URL;
+    const previousToken = process.env.CRAFTSTATION_SCHEDULE_MCP_TOKEN;
+    const previousAppUrl = process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL;
+    const previousAppToken = process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN;
+    process.env.CRAFTSTATION_SCHEDULE_MCP_URL = "http://127.0.0.1:43124";
+    process.env.CRAFTSTATION_SCHEDULE_MCP_TOKEN = "sched-token";
+    delete process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL;
+    delete process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN;
+    try {
+      const pipeline = new SpawnPipeline({
+        options: { wslHostAccess: undefined, wslBridge: undefined } as never,
+        resolveAgentSettings: () => ({ crossagentMcp: true }),
+      } as never);
+      const servers = await pipeline.resolveMcpServersForLaunch({
+        location: { kind: "windows", path: "C:\\repo" },
+        config: { model: "test-model" },
+        mcpLaunchSnapshot: {
+          mcpServers: [],
+          disabledBuiltInMcpServerIds: ["app-controls"],
+        },
+        identity: { threadId: "executor-thread", title: "Executor" },
+        adapter: {
+          capabilities: {
+            presentationMode: "gui",
+            mcpScope: { terminal: "none", gui: "always" },
+            mcpConfigSource: "agentSettings",
+            crossagentMcpRouting: "provider-session",
+            supportedMcpTransports: ["http"],
+            supportsMcpHttpHeaders: true,
+          },
+        } as never,
+        presentationMode: "gui",
+      });
+
+      expect(servers).toHaveLength(1);
+      expect(servers[0]).toMatchObject({
+        name: "Schedule",
+        transport: {
+          url: "http://127.0.0.1:43124/mcp?thread=executor-thread&title=Executor",
+        },
+      });
+    } finally {
+      if (previousUrl === undefined) delete process.env.CRAFTSTATION_SCHEDULE_MCP_URL;
+      else process.env.CRAFTSTATION_SCHEDULE_MCP_URL = previousUrl;
+      if (previousToken === undefined) delete process.env.CRAFTSTATION_SCHEDULE_MCP_TOKEN;
+      else process.env.CRAFTSTATION_SCHEDULE_MCP_TOKEN = previousToken;
+      if (previousAppUrl === undefined) delete process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL;
+      else process.env.CRAFTSTATION_APP_CONTROLS_MCP_URL = previousAppUrl;
+      if (previousAppToken === undefined) delete process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN;
+      else process.env.CRAFTSTATION_APP_CONTROLS_MCP_TOKEN = previousAppToken;
     }
   });
 });
@@ -494,9 +550,9 @@ describe("isStaleSessionRefError", () => {
     expect(isStaleSessionRefError(new Error("session not found"))).toBe(true);
     expect(isStaleSessionRefError(new Error("unknown session abc"))).toBe(true);
     expect(isStaleSessionRefError(new Error("invalid conversation id"))).toBe(true);
-    expect(
-      isStaleSessionRefError(new Error("no rollout found for thread id 01a0761e-1234")),
-    ).toBe(true);
+    expect(isStaleSessionRefError(new Error("no rollout found for thread id 01a0761e-1234"))).toBe(
+      true,
+    );
   });
 
   it("rejects auth, model, and transport failures", () => {
@@ -516,7 +572,9 @@ describe("openStructuredThreadWithRefFallback", () => {
   };
 
   function handle(openThread: (config: ThreadConfig, ref?: SessionRef) => unknown) {
-    return { openThread: vi.fn<typeof openThread>(openThread) } as unknown as StructuredSessionHandle;
+    return {
+      openThread: vi.fn<typeof openThread>(openThread),
+    } as unknown as StructuredSessionHandle;
   }
 
   it("resumes with the ref when healthy", async () => {
@@ -628,7 +686,8 @@ describe("switchThreadProvider transactional lifecycle", () => {
         resolveAccountSessionEnv,
       },
       sessions,
-      isCurrentSession: (session: { threadId: string }) => sessions.get(session.threadId) === session,
+      isCurrentSession: (session: { threadId: string }) =>
+        sessions.get(session.threadId) === session,
       resolveAgentSettings: () => ({}),
       outputPipeline: {
         clearSessionTimers: vi.fn<() => void>(),
@@ -640,19 +699,24 @@ describe("switchThreadProvider transactional lifecycle", () => {
       pendingStartInterrupts: new Set(),
       pendingStartAborts: new Set(),
     } as never);
-    return { pipeline, oldSession, oldDispose, attach, sessions, adapter, resolveAccountSessionEnv };
+    return {
+      pipeline,
+      oldSession,
+      oldDispose,
+      attach,
+      sessions,
+      adapter,
+      resolveAccountSessionEnv,
+    };
   }
 
   it("activates the new OpenCode session before openThread", async () => {
     const handle = makeHandle();
     const { pipeline, oldSession, adapter } = makePipeline(handle);
 
-    await pipeline.switchThreadProvider(
-      oldSession as never,
-      "opencode",
-      adapter as never,
-      { model: "opencode-go/muse-spark-1.3-contributor" },
-    );
+    await pipeline.switchThreadProvider(oldSession as never, "opencode", adapter as never, {
+      model: "opencode-go/muse-spark-1.3-contributor",
+    });
 
     expect(handle.activate.mock.invocationCallOrder[0]!).toBeLessThan(
       handle.openThread.mock.invocationCallOrder[0]!,
@@ -664,12 +728,9 @@ describe("switchThreadProvider transactional lifecycle", () => {
     const { pipeline, oldSession, oldDispose, sessions, adapter } = makePipeline(handle);
 
     await expect(
-      pipeline.switchThreadProvider(
-        oldSession as never,
-        "opencode",
-        adapter as never,
-        { model: "opencode-go/muse-spark-1.3-contributor" },
-      ),
+      pipeline.switchThreadProvider(oldSession as never, "opencode", adapter as never, {
+        model: "opencode-go/muse-spark-1.3-contributor",
+      }),
     ).rejects.toThrow("activate failed");
 
     expect(oldDispose).not.toHaveBeenCalled();
@@ -682,12 +743,9 @@ describe("switchThreadProvider transactional lifecycle", () => {
     const handle = makeHandle();
     const { pipeline, oldSession, adapter } = makePipeline(handle);
     await expect(
-      pipeline.switchThreadProvider(
-        oldSession as never,
-        "opencode",
-        adapter as never,
-        { model: "muse" },
-      ),
+      pipeline.switchThreadProvider(oldSession as never, "opencode", adapter as never, {
+        model: "muse",
+      }),
     ).resolves.toMatchObject({ sessionRef: { providerSessionId: "ses_new" } });
   });
 
@@ -695,16 +753,15 @@ describe("switchThreadProvider transactional lifecycle", () => {
     const handle = makeHandle();
     const { pipeline, oldSession, oldDispose, attach, adapter } = makePipeline(handle);
 
-    await pipeline.switchThreadProvider(
-      oldSession as never,
-      "opencode",
-      adapter as never,
-      { model: "muse" },
-    );
+    await pipeline.switchThreadProvider(oldSession as never, "opencode", adapter as never, {
+      model: "muse",
+    });
 
     expect(attach).toHaveBeenCalled();
     expect(oldDispose).toHaveBeenCalledTimes(1);
-    expect(oldDispose.mock.invocationCallOrder[0]!).toBeGreaterThan(attach.mock.invocationCallOrder[0]!);
+    expect(oldDispose.mock.invocationCallOrder[0]!).toBeGreaterThan(
+      attach.mock.invocationCallOrder[0]!,
+    );
     expect(handle.disposed).toBe(false);
   });
 
@@ -744,4 +801,3 @@ describe("switchThreadProvider transactional lifecycle", () => {
     expect(result.sessionRef?.providerSessionId).not.toBe("grok-old");
   });
 });
-

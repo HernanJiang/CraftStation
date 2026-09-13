@@ -3,9 +3,8 @@ import type { Thread } from "@/shared/contracts";
 
 /**
  * Send-while-running contract: on GUI threads a submit during a running turn
- * must route through the pending-steer path even when the thread has no
- * `sessionRef` (fresh crafted sessions never publish one). It must never be
- * silently dropped.
+ * must queue a follow-up even when the thread has no `sessionRef` (fresh
+ * crafted sessions never publish one). It must never be silently dropped.
  */
 
 vi.mock("@/renderer/actions/threadRuntimeActions", () => ({
@@ -13,6 +12,10 @@ vi.mock("@/renderer/actions/threadRuntimeActions", () => ({
   resolveThreadServerRequest: vi.fn<() => Promise<void>>(),
   setThreadPendingSteer: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   submitThreadInput: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/renderer/actions/queuedFollowUpActions", () => ({
+  enqueueThreadFollowUp: vi.fn<() => void>(),
 }));
 
 vi.mock("@/renderer/actions/threadActions", () => ({
@@ -65,6 +68,7 @@ function workingGuiThread(): Thread {
 }
 
 import { submitComposerPrompt } from "./threadComposerSubmit";
+import { enqueueThreadFollowUp } from "@/renderer/actions/queuedFollowUpActions";
 import { setThreadPendingSteer, submitThreadInput } from "@/renderer/actions/threadRuntimeActions";
 import { registerNativeGoal, setThreadGoalPrompt } from "@/renderer/actions/threadActions";
 import { useAppStore } from "@/renderer/state/appStore";
@@ -115,7 +119,7 @@ describe("submitComposerPrompt steer routing", () => {
     vi.clearAllMocks();
   });
 
-  it("routes a send on a running GUI thread through pending steer without a sessionRef", async () => {
+  it("queues a send on a running GUI thread without a sessionRef", async () => {
     const thread = workingGuiThread();
     const ctx = makeCtx(thread);
     // The GUI derivation after the fix: a working turn keeps canSubmit true.
@@ -124,11 +128,12 @@ describe("submitComposerPrompt steer routing", () => {
     submitComposerPrompt([{ kind: "text", content: "keep going" }], ctx);
 
     await vi.waitFor(() => {
-      expect(setThreadPendingSteer).toHaveBeenCalledWith(thread, "keep going", [
+      expect(enqueueThreadFollowUp).toHaveBeenCalledWith("thread-steer", "keep going", [
         { kind: "text", content: "keep going" },
       ]);
     });
     expect(submitThreadInput).not.toHaveBeenCalled();
+    expect(setThreadPendingSteer).not.toHaveBeenCalled();
   });
 
   it("routes a normal submit (idle thread) to submitThreadInput", async () => {

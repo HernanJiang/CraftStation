@@ -201,7 +201,7 @@ describe("McpServersManager", () => {
     render(
       managerElement({
         disabledBuiltIns: {},
-        disabledBuiltInTools: { "app-controls": ["delete_schedule"] },
+        disabledBuiltInTools: { "app-controls": ["update_settings"] },
         onBuiltInToolEnabledChange,
       }),
     );
@@ -215,12 +215,12 @@ describe("McpServersManager", () => {
     );
 
     const dialog = screen.getByRole("dialog", { name: "App Controls" });
-    expect(within(dialog).getByText("list_schedules")).toBeInTheDocument();
-    expect(within(dialog).getByText("delete_schedule")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("switch", { name: "Enable delete_schedule" }));
+    expect(within(dialog).getByText("list_threads")).toBeInTheDocument();
+    expect(within(dialog).getByText("update_settings")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Enable update_settings" }));
     expect(onBuiltInToolEnabledChange).toHaveBeenCalledWith(
       "app-controls",
-      "delete_schedule",
+      "update_settings",
       true,
     );
   });

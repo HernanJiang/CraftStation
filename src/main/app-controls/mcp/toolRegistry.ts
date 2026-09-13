@@ -9,7 +9,6 @@ import { gitTools } from "./tools/git";
 import { githubTools } from "./tools/github";
 import { mcpServerTools } from "./tools/mcpServers";
 import { projectTools } from "./tools/projects";
-import { scheduleTools } from "./tools/schedules";
 import { searchTools } from "./tools/search";
 import { settingsTools } from "./tools/settings";
 import { skillTools } from "./tools/skills";
@@ -28,10 +27,8 @@ export type {
 } from "./tools/types";
 
 export const APP_CONTROLS_MCP_INSTRUCTIONS =
-  "CraftStation app controls. Read and control the running app: device schedules " +
-  "(schedule.create/list/get/update/pause/resume/run_now/list_runs/delete — list_runs is the " +
-  "ScheduledTaskRun history an agent must use to monitor firings; lastStatus on get is only a " +
-  "summary. once.runAt is ISO-8601, Z or offset like +08:00), app threads (current/list/get/read/create/send/send_thread_message/interrupt/stop/wait/" +
+  "CraftStation app controls. Read and control the running app: " +
+  "app threads (current/list/get/read/create/send/send_thread_message/interrupt/stop/wait/" +
   "update/open), projects (list/get/create/update), app settings (get/update), provider usage " +
   "(get_usage), cross-app search (search), and app info (get_app_info). You can also read a " +
   "running workspace terminal panes and their scrollback, queue steer guidance, stage composer " +
@@ -54,7 +51,7 @@ export const APP_CONTROLS_MCP_INSTRUCTIONS =
   "confirmation for destructive actions and pull-request merges. update_settings changes apply " +
   "immediately app-wide. " +
   "Secrets are never exposed: get_settings redacts profile credentials and update_settings " +
-  "refuses to touch them. Schedules run only while the device is awake and CraftStation is open. " +
+  "refuses to touch them. " +
   "You cannot stop, interrupt, or wait on your own thread. Treat @Terminal, or its localized " +
   "equivalent inserted by the composer, as a request to inspect the integrated Terminal panel " +
   "the user opened for the caller's current worktree. It does not mean the agent's own TUI, an " +
@@ -72,7 +69,6 @@ export const APP_CONTROLS_MCP_INSTRUCTIONS =
   "is running but has not emitted output yet.";
 
 const DOMAINS: readonly ToolDomain[] = [
-  scheduleTools,
   threadTools,
   projectTools,
   settingsTools,

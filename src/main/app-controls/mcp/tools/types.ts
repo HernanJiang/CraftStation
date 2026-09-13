@@ -100,7 +100,6 @@ import type {
 import type { RemoteProjectCommand, RemoteProjectCommandResult } from "@/shared/remote";
 import type { SharedSettings } from "@/shared/settings";
 import type { StreamableHttpMcpToolSpec } from "../../../mcp/StreamableHttpMcpIngress";
-import type { ScheduleCapability } from "../../../schedules/ScheduleCapability";
 import type {
   CreateAppThreadRequest,
   CreateAppThreadResult,
@@ -285,7 +284,6 @@ export interface AppControlsSettingsGateway {
 export interface AppControlsToolContext {
   /** Calling thread + its task title, decoded from the MCP endpoint URL. */
   identity: McpThreadIdentity;
-  scheduleService: ScheduleCapability;
   getThread(threadId: string): Thread | null;
   getThreads(): Thread[];
   getProjects(): Project[];

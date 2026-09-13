@@ -16,8 +16,6 @@ import type {
   ProviderUsageResponse,
   ReadProjectFileResult,
   RemoteThreadCommand,
-  ScheduledTask,
-  ScheduledTaskInput,
   SearchProjectFilesPayload,
   SearchProjectFilesResult,
   SearchProjectTreeResult,
@@ -33,7 +31,6 @@ import type { RemoteProjectCommand, RemoteProjectCommandResult } from "@/shared/
 import { defaultSharedSettings, type SharedSettings } from "@/shared/settings";
 import type { ThreadExchange } from "@/shared/threadCollaboration";
 import { ThreadControlAdapter } from "../../thread-collaboration";
-import type { ScheduleService } from "../../schedules/ScheduleService";
 import type {
   CreateAppThreadRequest,
   CreateAppThreadResult,
@@ -78,7 +75,6 @@ function makeThread(overrides: Partial<Thread>): Thread {
 
 function context(
   options: {
-    tasks?: ScheduledTask[];
     threads?: Thread[];
     projects?: Project[];
     snapshots?: ThreadRuntimeSnapshot[];
@@ -125,30 +121,6 @@ function context(
     }) => Promise<ThreadExchange>;
   } = {},
 ) {
-  const tasks = options.tasks ?? [];
-  const service = {
-    list: vi.fn<() => ScheduledTask[]>(() => tasks),
-    get: vi.fn<(id: string) => ScheduledTask | null>(
-      (id) => tasks.find((task) => task.id === id) ?? null,
-    ),
-    create: vi.fn<(input: ScheduledTaskInput) => ScheduledTask>(
-      (input) => ({ id: "created", ...input }) as ScheduledTask,
-    ),
-    update: vi.fn<(id: string, input: ScheduledTaskInput) => ScheduledTask>(
-      (id, input) => ({ id, ...input }) as ScheduledTask,
-    ),
-    runNow: vi.fn<(id: string) => ScheduledTask>(
-      (id) => ({ id, lastStatus: "running" }) as ScheduledTask,
-    ),
-    pause: vi.fn<(id: string) => ScheduledTask>(
-      (id) => ({ id, enabled: false, nextRunAt: null }) as ScheduledTask,
-    ),
-    resume: vi.fn<(id: string) => ScheduledTask>(
-      (id) => ({ id, enabled: true }) as ScheduledTask,
-    ),
-    delete: vi.fn<(id: string) => void>(),
-    listRuns: vi.fn<(id: string, limit?: number) => []>(() => []),
-  } as unknown as ScheduleService;
   const threads = options.threads ?? [thread];
   const usageResponse = options.usageResponse ?? { snapshots: [], fromCache: true };
   const fileSearchResult = options.fileSearchResult ?? { entries: [], totalIndexed: 0 };
@@ -445,8 +417,7 @@ function context(
         }) satisfies ThreadExchange),
   );
   const ctx: AppControlsToolContext = {
-    identity: { threadId: thread.id, title: "Schedule this" },
-    scheduleService: service,
+    identity: { threadId: thread.id, title: "Caller" },
     getThread: (id) =>
       threads.find((entry) => entry.id === id) ?? (id === thread.id ? thread : null),
     getThreads: () => threads,
@@ -474,7 +445,6 @@ function context(
   };
   return {
     ctx,
-    service,
     supervisor,
     createThread,
     emitRemoteThreadCommand,
@@ -489,242 +459,6 @@ function context(
     requestDialogue,
   };
 }
-
-describe("CraftStation app control tools — schedules", () => {
-  it("creates a schedule with the calling thread's agent defaults", async () => {
-    const { ctx, service } = context();
-    await dispatchTool(
-      "create_schedule",
-      {
-        name: "Daily brief",
-        prompt: "Summarize priorities",
-        recurrence: { kind: "weekly", days: [1, 2, 3, 4, 5], time: "08:00" },
-      },
-      ctx,
-    );
-
-    expect(service.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Daily brief",
-        prompt: "Summarize priorities",
-        recurrence: { kind: "weekly", days: [1, 2, 3, 4, 5], time: "08:00" },
-        enabled: true,
-        agentKind: "codex",
-        projectId: "project-1",
-        sourceThreadId: null,
-        threadTarget: { kind: "new" },
-        config: { model: "gpt-5.6", effort: "high", fast: true },
-      }),
-    );
-  });
-
-  it("updates only the requested schedule fields", async () => {
-    const task = {
-      id: "d2ac39e9-14ac-4776-9279-37a1e455a5db",
-      name: "Old name",
-      prompt: "Keep this prompt",
-      agentKind: "claude:home",
-      config: { model: "claude-fable-5", effort: "medium" },
-      recurrence: { kind: "hourly", minute: 0 },
-      enabled: true,
-    } as ScheduledTask;
-    const { ctx, service } = context({ tasks: [task] });
-
-    await dispatchTool("update_schedule", { id: task.id, name: "New name", enabled: false }, ctx);
-
-    expect(service.update).toHaveBeenCalledWith(
-      task.id,
-      expect.objectContaining({
-        name: "New name",
-        prompt: "Keep this prompt",
-        enabled: false,
-        recurrence: { kind: "hourly", minute: 0 },
-      }),
-    );
-  });
-
-  it("advertises schedule.list_runs and list_schedule_runs on the MCP surface", () => {
-    const names = TOOLS.map((tool) => tool.name);
-    expect(names).toContain("schedule.list_runs");
-    expect(names).toContain("list_schedule_runs");
-  });
-
-  it("exposes the unified schedule.* aliases on the same service", async () => {
-    const task = {
-      id: "d2ac39e9-14ac-4776-9279-37a1e455a5db",
-      name: "Unified",
-      prompt: "Shared store",
-      agentKind: "codex",
-      config: { model: "gpt-5.6" },
-      recurrence: { kind: "hourly", minute: 0 },
-      enabled: true,
-    } as ScheduledTask;
-    const { ctx, service } = context({ tasks: [task] });
-
-    await dispatchTool("schedule.list", {}, ctx);
-    await dispatchTool("schedule.get", { id: task.id }, ctx);
-    await dispatchTool(
-      "schedule.create",
-      {
-        name: "Alias create",
-        prompt: "via dot name",
-        recurrence: { kind: "hourly", minute: 15 },
-        timezone: "Asia/Shanghai",
-        recipeId: "recipe-daily",
-        targetThreadId: null,
-      },
-      ctx,
-    );
-    await dispatchTool("schedule.update", { id: task.id, name: "Renamed" }, ctx);
-    await dispatchTool("schedule.pause", { id: task.id }, ctx);
-    await dispatchTool("schedule.resume", { id: task.id }, ctx);
-    await dispatchTool("schedule.run_now", { id: task.id }, ctx);
-    await dispatchTool("schedule.list_runs", { id: task.id, limit: 5 }, ctx);
-    await dispatchTool("schedule.delete", { id: task.id }, ctx);
-
-    expect(service.list).toHaveBeenCalled();
-    expect(service.get).toHaveBeenCalledWith(task.id);
-    expect(service.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Alias create", timezone: "Asia/Shanghai", recipeId: "recipe-daily" }),
-    );
-    expect(service.update).toHaveBeenCalledWith(task.id, expect.objectContaining({ name: "Renamed" }));
-    expect(service.pause).toHaveBeenCalledWith(task.id);
-    expect(service.resume).toHaveBeenCalledWith(task.id);
-    expect(service.runNow).toHaveBeenCalledWith(task.id);
-    expect(service.listRuns).toHaveBeenCalledWith(task.id, 5);
-    expect(service.delete).toHaveBeenCalledWith(task.id);
-  });
-
-  it("lists ScheduledTaskRun rows for monitoring", async () => {
-    const task = {
-      id: "d2ac39e9-14ac-4776-9279-37a1e455a5db",
-      name: "Probe",
-      prompt: "Ping",
-      agentKind: "codex",
-      config: { model: "gpt-5.6" },
-      recurrence: { kind: "hourly", minute: 0 },
-      enabled: true,
-    } as ScheduledTask;
-    const run = {
-      id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-      scheduleId: task.id,
-      threadId: "ffffffff-0000-4111-8222-333333333333",
-      triggeredBy: "manual" as const,
-      startedAt: "2026-09-09T12:11:50.541Z",
-      completedAt: "2026-09-09T12:11:58.242Z",
-      status: "succeeded" as const,
-      summary: "SCHEDULE_SCHEMA_OK",
-      error: null,
-      executionSnapshot: {
-        recipeId: null,
-        model: "gpt-5.6",
-        harnessItemId: null,
-        agentKind: "codex",
-        threadTarget: { kind: "new" as const },
-        sourceThreadId: "thread-1",
-      },
-    };
-    const { ctx, service } = context({ tasks: [task] });
-    service.listRuns = vi.fn().mockReturnValue([run]);
-
-    const rows = await dispatchTool("list_schedule_runs", { id: task.id }, ctx);
-    expect(service.listRuns).toHaveBeenCalledWith(task.id, undefined);
-    expect(rows).toEqual([run]);
-  });
-
-  it("accepts once.runAt with a timezone offset", async () => {
-    const { ctx, service } = context();
-    await dispatchTool(
-      "schedule.create",
-      {
-        name: "Offset once",
-        prompt: "Ping",
-        recurrence: { kind: "once", runAt: "2026-09-09T20:14:35.716+08:00" },
-        timezone: "Asia/Shanghai",
-      },
-      ctx,
-    );
-    expect(service.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        recurrence: { kind: "once", runAt: "2026-09-09T20:14:35.716+08:00" },
-        timezone: "Asia/Shanghai",
-      }),
-    );
-  });
-
-  it("passes timezone/recipe/target-thread through on create", async () => {
-    const { ctx, service } = context();
-    await dispatchTool(
-      "create_schedule",
-      {
-        name: "Morning summary",
-        prompt: "Summarize progress",
-        recurrence: { kind: "weekly", days: [1], time: "08:00" },
-        timezone: "Asia/Shanghai",
-        recipeId: "recipe-morning",
-        targetThreadId: "aa11bb22-cc33-4d44-9e55-6f77aa88bb99",
-      },
-      ctx,
-    );
-
-    expect(service.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        timezone: "Asia/Shanghai",
-        recipeId: "recipe-morning",
-        targetThreadId: "aa11bb22-cc33-4d44-9e55-6f77aa88bb99",
-        threadTarget: {
-          kind: "existing",
-          threadId: "aa11bb22-cc33-4d44-9e55-6f77aa88bb99",
-        },
-      }),
-    );
-  });
-
-  it("records calling-thread provenance without forcing existing-thread target", async () => {
-    const calling = makeThread({ id: "aa11bb22-cc33-4d44-9e55-6f77aa88bb99" });
-    const { ctx, service } = context({ threads: [calling] });
-    ctx.identity = { threadId: calling.id, title: "Caller" };
-    await dispatchTool(
-      "create_schedule",
-      {
-        name: "From chat",
-        prompt: "Ping me",
-        recurrence: { kind: "hourly", minute: 0 },
-      },
-      ctx,
-    );
-    expect(service.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceThreadId: calling.id,
-        threadTarget: { kind: "new" },
-        targetThreadId: null,
-      }),
-    );
-  });
-
-  it("continueInCurrentThread sets existing threadTarget independently of sourceThreadId", async () => {
-    const calling = makeThread({ id: "aa11bb22-cc33-4d44-9e55-6f77aa88bb99" });
-    const { ctx, service } = context({ threads: [calling] });
-    ctx.identity = { threadId: calling.id, title: "Caller" };
-    await dispatchTool(
-      "create_schedule",
-      {
-        name: "Stay here",
-        prompt: "Continue this chat",
-        recurrence: { kind: "hourly", minute: 0 },
-        continueInCurrentThread: true,
-      },
-      ctx,
-    );
-    expect(service.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceThreadId: calling.id,
-        threadTarget: { kind: "existing", threadId: calling.id },
-        targetThreadId: calling.id,
-      }),
-    );
-  });
-});
 
 describe("CraftStation app control tools — threads", () => {
   it("returns the calling thread with its project and worktree", async () => {

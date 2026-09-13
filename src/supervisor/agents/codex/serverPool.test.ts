@@ -266,7 +266,7 @@ describe("Codex app-server pool", () => {
     );
   });
 
-  it.each(["app-controls", "browser", "chrome", "computer-use"])(
+  it.each(["app-controls", "schedule", "browser", "chrome", "computer-use"])(
     "normalizes thread-scoped query values for %s",
     (id) => {
       const first = httpServer(

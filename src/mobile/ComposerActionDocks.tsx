@@ -5,8 +5,13 @@ import {
   clearThreadPendingSteer,
   resolveThreadServerRequest,
 } from "@/renderer/actions/threadRuntimeActions";
+import {
+  clearQueuedFollowUp,
+  sendQueuedFollowUpNow,
+} from "@/renderer/actions/queuedFollowUpActions";
 import { ThreadAuthRequiredDock } from "@/renderer/components/thread/ThreadAuthRequiredDock";
 import { ThreadPendingSteerStrip } from "@/renderer/components/thread/ThreadPendingSteerStrip";
+import { ThreadQueuedFollowUpStrip } from "@/renderer/components/thread/ThreadQueuedFollowUpStrip";
 import { ThreadRuntimeRequestPanel } from "@/renderer/components/thread/ThreadRuntimeRequestPanel";
 import { resolveThreadAuthState } from "@/renderer/components/thread/threadErrorState";
 import { useDelayedPendingSteer } from "@/renderer/components/thread/useDelayedPendingSteer";
@@ -46,12 +51,13 @@ export function ComposerActionDocks(props: {
   const pendingSteer = useDelayedPendingSteer(
     useAppStore((state) => state.pendingSteerByThreadId[thread.id]),
   );
+  const queuedFollowUp = useAppStore((state) => state.queuedFollowUpByThreadId[thread.id]);
   const { authRequired } = resolveThreadAuthState({
     authState: effectiveAgentStatus?.authState,
     errorDockStates: props.dockState.errorDockStates,
   });
   const showAuthDock = authRequired && effectiveAgentStatus !== undefined;
-  if (!showAuthDock && !pendingSteer && !request) return null;
+  if (!showAuthDock && !pendingSteer && !queuedFollowUp && !request) return null;
 
   return (
     <div className="m-thread-action-docks">
@@ -59,6 +65,18 @@ export function ComposerActionDocks(props: {
         <ThreadAuthRequiredDock
           agentStatus={effectiveAgentStatus}
           {...(project ? { project } : {})}
+        />
+      ) : null}
+      {queuedFollowUp ? (
+        <ThreadQueuedFollowUpStrip
+          queued={queuedFollowUp}
+          onSendNow={() => {
+            void sendQueuedFollowUpNow(thread);
+          }}
+          onDelete={() => clearQueuedFollowUp(thread.id)}
+          onPromptChange={(nextPrompt) =>
+            useAppStore.getState().updateQueuedFollowUpPrompt(thread.id, nextPrompt)
+          }
         />
       ) : null}
       {pendingSteer ? (

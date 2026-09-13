@@ -1,8 +1,10 @@
-import { Archive, Ellipsis, Loader2, Pin } from "lucide-react";
+import { Archive, Clock, Ellipsis, Loader2, Pin } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import type { Thread } from "@/shared/contracts";
 import type { StatusTone } from "@/renderer/components/providers/statusTone";
 import { archiveThread, toggleStarThread } from "@/renderer/actions/threadActions";
+import { scheduleRelatesToThread } from "@/shared/schedules";
+import { useScheduleStore } from "@/renderer/state/scheduleStore";
 import { DraftIndicator } from "../../DraftIndicator";
 
 interface ThreadItemSuffixProps {
@@ -19,6 +21,18 @@ const iconButtonClass =
 
 function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   const { t } = useLingui();
+  const hasSchedule = useScheduleStore((state) =>
+    state.tasks.some((task) => scheduleRelatesToThread(task, props.thread.id)),
+  );
+  if (hasSchedule) {
+    return (
+      <Clock
+        className="size-3 text-muted"
+        aria-label={t`Scheduled`}
+        data-testid="thread-schedule-clock"
+      />
+    );
+  }
   if (props.statusTone === "working") {
     return <Loader2 className="size-3 animate-spin text-accent" aria-label={t`Working`} />;
   }
@@ -27,7 +41,11 @@ function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   // transient state; it falsely tells the user an unfinished task is done.
   const hasSettledTurn =
     props.thread.lastTurnEndedAt !== undefined && props.thread.activeTurnStartedAt === undefined;
-  if (props.thread.done || props.statusTone === "done" || (props.statusTone === "finished" && hasSettledTurn)) {
+  if (
+    props.thread.done ||
+    props.statusTone === "done" ||
+    (props.statusTone === "finished" && hasSettledTurn)
+  ) {
     return (
       <span
         aria-label={t`Completed`}

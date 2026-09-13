@@ -17,6 +17,7 @@ import { TOOLS as browserTools } from "@/main/browser/mcp/tools/specs";
 import { CHROME_TOOLS as chromeTools } from "@/main/browser/external/chromeTools";
 import { TOOLS as computerUseTools } from "@/main/computer-use/mcp/toolRegistry";
 import { TOOLS as appControlsTools } from "@/main/app-controls/mcp/toolRegistry";
+import { TOOLS as scheduleTools } from "@/main/schedules/mcp/toolRegistry";
 import { TOOLS as peerTools } from "@/main/crossagentsMcp/toolRegistry";
 import { TOOLS as ownSubagentsTools } from "@/supervisor/crossagentMcp/toolRegistry";
 
@@ -93,6 +94,7 @@ describe("mcpServerSchema", () => {
   it("protects all provider-visible built-in names case-insensitively", () => {
     expect(isReservedMcpServerName("CraftStation")).toBe(true);
     expect(isReservedMcpServerName("computer_use")).toBe(true);
+    expect(isReservedMcpServerName("Schedule")).toBe(true);
     expect(isValidMcpServerName("browser")).toBe(false);
     expect(isValidMcpServerName("custom.server")).toBe(true);
     expect(
@@ -117,6 +119,7 @@ describe("mcpServerSchema", () => {
       chrome: chromeTools.map((tool) => tool.name),
       "computer-use": computerUseTools.map((tool) => tool.name),
       "app-controls": appControlsTools.map((tool) => tool.name),
+      schedule: scheduleTools.map((tool) => tool.name),
     });
     expect(BUILT_IN_MCP_SERVER_TOOL_COUNTS).toEqual({
       browser: browserTools.length,
@@ -125,6 +128,7 @@ describe("mcpServerSchema", () => {
       chrome: chromeTools.length,
       "computer-use": computerUseTools.length,
       "app-controls": appControlsTools.length,
+      schedule: scheduleTools.length,
     });
   });
 });

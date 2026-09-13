@@ -22,7 +22,7 @@ export const scheduleRecurrenceSchema = z.discriminatedUnion("kind", [
     /**
      * Repeat every N minutes (1–1440). Covers sub-hourly monitoring such as
      * "every 10 minutes" natively so agents never need to self-chain
-     * `once + create_schedule` prompts (which multiply schedules and threads).
+     * `once + create` prompts (which multiply schedules and threads).
      */
     everyMinutes: z.number().int().min(1).max(1440),
   }),

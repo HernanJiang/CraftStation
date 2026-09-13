@@ -4,8 +4,10 @@ import type { Thread } from "@/shared/contracts";
 import { createDbStorage } from "./dbStorage";
 import { createDraftSlice } from "./slices/draftSlice";
 import { normalizeStoredThreadStatus } from "./slices/helpers";
-import { createLaunchSlice } from "./slices/launchSlice";import { createPaneCacheSlice } from "./slices/paneCacheSlice";
+import { createLaunchSlice } from "./slices/launchSlice";
+import { createPaneCacheSlice } from "./slices/paneCacheSlice";
 import { createPendingSteerSlice } from "./slices/pendingSteerSlice";
+import { createQueuedFollowUpSlice } from "./slices/queuedFollowUpSlice";
 import { createProjectSlice } from "./slices/projectSlice";
 import { createRuntimeEventSlice } from "./slices/runtimeEventSlice";
 import type { AppStoreState } from "./slices/shared";
@@ -29,6 +31,7 @@ export const useAppStore = create<AppStoreState>()(
         ...createPaneCacheSlice(...a),
         ...createRuntimeEventSlice(...a),
         ...createPendingSteerSlice(...a),
+        ...createQueuedFollowUpSlice(...a),
         ...createSubAgentOverlaySlice(...a),
       }),
       {

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScheduledTask, ScheduledTaskRun, Thread } from "@/shared/contracts";
-import type { ScheduleCapability } from "../../../schedules/ScheduleCapability";
+import type { ScheduleCapability } from "../ScheduleCapability";
 import { scheduleTools } from "./schedules";
-import type { AppControlsToolContext } from "./types";
+import type { ScheduleToolContext } from "./types";
 
 const thread = {
   id: "cf26d9bf-8170-430a-ac4d-018ee67a3a1d",
@@ -11,16 +11,16 @@ const thread = {
   config: { model: "grok-4.6", effort: "high" },
 } as Thread;
 
-function ctx(service: ScheduleCapability): AppControlsToolContext {
+function ctx(service: ScheduleCapability): ScheduleToolContext {
   return {
     identity: { threadId: thread.id, title: "Caller" },
     scheduleService: service,
     getThread: (id) => (id === thread.id ? thread : null),
-  } as AppControlsToolContext;
+  };
 }
 
-describe("schedule MCP tools", () => {
-  it("lists ScheduledTaskRun rows through list_schedule_runs and schedule.list_runs", async () => {
+describe("Schedule MCP tools", () => {
+  it("lists ScheduledTaskRun rows through list_runs", async () => {
     const task = { id: "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150" } as ScheduledTask;
     const run = {
       id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
@@ -48,16 +48,10 @@ describe("schedule MCP tools", () => {
     } as unknown as ScheduleCapability;
     const context = ctx(service);
 
-    const viaCompat = await scheduleTools.handlers.list_schedule_runs!({ id: task.id }, context);
-    const viaAlias = await scheduleTools.handlers["schedule.list_runs"]!(
-      { id: task.id, limit: 5 },
-      context,
-    );
+    const rows = await scheduleTools.handlers.list_runs!({ id: task.id, limit: 5 }, context);
 
-    expect(viaCompat).toEqual([run]);
-    expect(viaAlias).toEqual([run]);
-    expect(listRuns).toHaveBeenNthCalledWith(1, task.id, undefined);
-    expect(listRuns).toHaveBeenNthCalledWith(2, task.id, 5);
+    expect(rows).toEqual([run]);
+    expect(listRuns).toHaveBeenCalledWith(task.id, 5);
     expect(run.status).not.toBe("never");
     expect(run.triggeredBy).toBe("manual");
     expect(run.threadId).not.toBe(thread.id);
@@ -68,7 +62,7 @@ describe("schedule MCP tools", () => {
       (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
     );
     const service = { create } as unknown as ScheduleCapability;
-    await scheduleTools.handlers["schedule.create"]!(
+    await scheduleTools.handlers.create!(
       {
         name: "schema-probe-once",
         prompt: "Reply with exactly: SCHEDULE_SCHEMA_OK",
@@ -84,6 +78,28 @@ describe("schedule MCP tools", () => {
         timezone: "Asia/Shanghai",
         sourceThreadId: thread.id,
         threadTarget: { kind: "new" },
+      }),
+    );
+  });
+
+  it("binds to the calling thread by default", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    await scheduleTools.handlers.create!(
+      {
+        name: "Wait for training",
+        prompt: "Check the training job and summarize.",
+        recurrence: { kind: "interval", everyMinutes: 10 },
+      },
+      ctx(service),
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceThreadId: thread.id,
+        threadTarget: { kind: "existing", threadId: thread.id },
+        targetThreadId: thread.id,
       }),
     );
   });
