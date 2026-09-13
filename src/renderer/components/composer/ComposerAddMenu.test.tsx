@@ -3,10 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import {
+  appControlsMcpServer,
   browserMcpServer,
   chromeMcpServer,
+  isAlwaysOnComposerMcp,
   mcpTogglePatch,
   crossagentMcpServer,
+  scheduleMcpServer,
 } from "./composerMcpServers";
 
 const bridgeMock = vi.hoisted(() => ({
@@ -298,6 +301,42 @@ describe("ComposerAddMenu", () => {
 
     expect(computerUseToggle).toHaveBeenCalledTimes(1);
     expect(computerUseToggle).toHaveBeenCalledWith(true);
+  });
+
+  it("treats Schedule and App Controls as default-on built-ins", () => {
+    expect(isAlwaysOnComposerMcp(scheduleMcpServer)).toBe(true);
+    expect(isAlwaysOnComposerMcp(appControlsMcpServer)).toBe(true);
+    expect(isAlwaysOnComposerMcp(browserMcpServer)).toBe(false);
+  });
+
+  it("lists default-on built-ins on a live thread without a per-thread flag", () => {
+    render(
+      <ComposerAddMenu
+        readOnly
+        mcpServers={[
+          {
+            descriptor: scheduleMcpServer,
+            enabled: true,
+            visible: true,
+            onToggle: vi.fn<(next: boolean) => void>(),
+          },
+          {
+            descriptor: appControlsMcpServer,
+            enabled: true,
+            visible: true,
+            onToggle: vi.fn<(next: boolean) => void>(),
+          },
+        ]}
+        showFileOption={false}
+        onPickFiles={vi.fn<() => void>()}
+      />,
+    );
+
+    openMenu();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    openMcpSubmenu();
+    expect(screen.getByText("Schedule")).toBeInTheDocument();
+    expect(screen.getByText("App Controls")).toBeInTheDocument();
   });
 
   it("shows read-only session bindings without firing toggles", () => {

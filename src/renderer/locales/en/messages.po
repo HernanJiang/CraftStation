@@ -1332,9 +1332,14 @@ msgstr "API_KEY=value"
 msgid "App Browser"
 msgstr "App Browser"
 
+#: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "App Controls"
 msgstr "App Controls"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "App Controls enabled for this thread"
+msgstr "App Controls enabled for this thread"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
@@ -4207,6 +4212,10 @@ msgid "Disable {tool}"
 msgstr "Disable {tool}"
 
 #: src/renderer/components/composer/composerMcpServers.ts
+msgid "Disable App Controls"
+msgstr "Disable App Controls"
+
+#: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Browser MCP"
 msgstr "Disable Browser MCP"
 
@@ -4230,6 +4239,10 @@ msgstr "Disable Own Subagents"
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Disable Project"
 msgstr "Disable Project"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "Disable Schedule MCP"
+msgstr "Disable Schedule MCP"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "Disable tiers an external provider collapses (e.g. keep only High and Max)."
@@ -10491,9 +10504,14 @@ msgstr "Scanning Windows and WSL for installed CLIs. This usually takes a couple
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 
+#: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Schedule"
 msgstr "Schedule"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "Schedule MCP enabled for this thread"
+msgstr "Schedule MCP enabled for this thread"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"

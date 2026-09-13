@@ -8,13 +8,16 @@ export { AttachmentBar, ComputerUseChip, McpChip } from "./AttachmentBar";
 export { ComposerAddMenu, type ComposerMcpMenuItem } from "./ComposerAddMenu";
 export { getComputerUseScope } from "./computerUseScope";
 export {
+  appControlsMcpServer,
   browserMcpServer,
   chromeMcpServer,
   composerMcpServers,
   COMPUTER_USE_MCP_ID,
+  isAlwaysOnComposerMcp,
   mcpTogglePatch,
   resolveMcpScope,
   crossagentMcpServer,
+  scheduleMcpServer,
   type ComposerMcpConfigKey,
   type ComposerMcpServerDescriptor,
 } from "./composerMcpServers";

@@ -43,6 +43,7 @@ import { ComposerVoiceInput } from "@/renderer/components/composer/ComposerVoice
 import {
   composerMcpServers,
   COMPUTER_USE_MCP_ID,
+  isAlwaysOnComposerMcp,
   mcpTogglePatch,
   providerMcpSettingEnabled,
   providerOwnsMcpConfig,
@@ -338,6 +339,7 @@ export function ThreadDraftComposerArea(props: {
   const persistentMcpServers = useSharedSettings((s) => s.enabledMcpServers);
   const disabledBuiltInMcpServers = useSharedSettings((s) => s.disabledBuiltInMcpServers);
   const setMcpServerEnabled = useSharedSettings((s) => s.setMcpServerEnabled);
+  const setBuiltInMcpServerDisabled = useSharedSettings((s) => s.setBuiltInMcpServerDisabled);
   const userCustomMcpServers = useSharedSettings((s) => s.mcpServers);
   const setUserCustomMcpServers = useSharedSettings((s) => s.setMcpServers);
   const providerMcpSettings = useSharedSettings((s) => s.agentSettings[props.selectedAgent.kind]);
@@ -447,7 +449,8 @@ export function ThreadDraftComposerArea(props: {
   // id — not the per-thread config flag. A new MCP server means adding one
   // descriptor to the registry.
   const availableComposerMcpServers = composerMcpServers.filter(
-    (descriptor) => disabledBuiltInMcpServers[descriptor.id] !== true,
+    (descriptor) =>
+      isAlwaysOnComposerMcp(descriptor) || disabledBuiltInMcpServers[descriptor.id] !== true,
   );
   const providerOwnsMcp = providerOwnsMcpConfig(props.selectedAgent.capabilities);
   // A desktop remote project launches on the paired host, whose provider
@@ -455,34 +458,51 @@ export function ThreadDraftComposerArea(props: {
   // hydrate the shared store from that same host, so it can still render the
   // provider-owned MCP set.
   const providerOwnsMcpForComposer = providerOwnsMcp && (!props.isRemote || isRemoteSurface);
-  const mcpServers = availableComposerMcpServers.map((descriptor) => ({
-    descriptor,
-    enabled: providerOwnsMcpForComposer
-      ? providerMcpSettingEnabled(
-          props.selectedAgent.capabilities,
-          providerMcpSettings,
-          descriptor.configKey,
-        )
-      : persistentMcpServers[descriptor.id] === true,
-    visible: providerOwnsMcp
-      ? providerOwnsMcpForComposer &&
-        descriptor.isAvailable(props.project.location) &&
-        providerMcpSettingEnabled(
-          props.selectedAgent.capabilities,
-          providerMcpSettings,
-          descriptor.configKey,
-        )
-      : descriptor.getScope(
-          props.selectedAgent.capabilities,
-          props.presentationMode,
-          props.project.location,
-        ) !== "none",
-    onToggle: (next: boolean) => {
-      if (!providerOwnsMcp) {
+  const mcpServers = availableComposerMcpServers.map((descriptor) => {
+    const alwaysOn = isAlwaysOnComposerMcp(descriptor);
+    const enabled = alwaysOn
+      ? disabledBuiltInMcpServers[descriptor.id] !== true
+      : providerOwnsMcpForComposer
+        ? Boolean(
+            descriptor.configKey &&
+            providerMcpSettingEnabled(
+              props.selectedAgent.capabilities,
+              providerMcpSettings,
+              descriptor.configKey,
+            ),
+          )
+        : persistentMcpServers[descriptor.id] === true;
+    return {
+      descriptor,
+      enabled,
+      visible: providerOwnsMcp
+        ? alwaysOn
+          ? providerOwnsMcpForComposer && descriptor.isAvailable(props.project.location) && enabled
+          : providerOwnsMcpForComposer &&
+            descriptor.isAvailable(props.project.location) &&
+            Boolean(
+              descriptor.configKey &&
+              providerMcpSettingEnabled(
+                props.selectedAgent.capabilities,
+                providerMcpSettings,
+                descriptor.configKey,
+              ),
+            )
+        : descriptor.getScope(
+            props.selectedAgent.capabilities,
+            props.presentationMode,
+            props.project.location,
+          ) !== "none",
+      onToggle: (next: boolean) => {
+        if (providerOwnsMcp) return;
+        if (alwaysOn) {
+          setBuiltInMcpServerDisabled(descriptor.id, !next);
+          return;
+        }
         setMcpServerEnabled(descriptor.id, next);
-      }
-    },
-  }));
+      },
+    };
+  });
   // User-configured MCP servers (global + this project's workspace scope).
   // Toggling flips the server's persistent `enabled` flag — the same switch as
   // the MCP Servers settings page — because custom servers bind at launch from
@@ -531,7 +551,8 @@ export function ThreadDraftComposerArea(props: {
   // enabled servers are on for every thread and show no chip.
   const mentionedMcpServers = availableComposerMcpServers.filter(
     (descriptor) =>
-      props.config[descriptor.configKey] === true &&
+      !isAlwaysOnComposerMcp(descriptor) &&
+      Boolean(descriptor.configKey && props.config[descriptor.configKey] === true) &&
       persistentMcpServers[descriptor.id] !== true &&
       (!providerOwnsMcp || providerOwnsMcpForComposer),
   );
@@ -615,27 +636,47 @@ export function ThreadDraftComposerArea(props: {
         ]
       : []),
     ...availableComposerMcpServers
-      .filter((descriptor) =>
-        providerOwnsMcp
+      .filter((descriptor) => {
+        if (descriptor.id === "app-controls") return false;
+        if (isAlwaysOnComposerMcp(descriptor)) {
+          return (
+            disabledBuiltInMcpServers[descriptor.id] !== true &&
+            (providerOwnsMcp
+              ? providerOwnsMcpForComposer && descriptor.isAvailable(props.project.location)
+              : descriptor.getScope(
+                  props.selectedAgent.capabilities,
+                  props.presentationMode,
+                  props.project.location,
+                ) !== "none")
+          );
+        }
+        return providerOwnsMcp
           ? providerOwnsMcpForComposer &&
-            descriptor.isAvailable(props.project.location) &&
-            providerMcpSettingEnabled(
-              props.selectedAgent.capabilities,
-              providerMcpSettings,
-              descriptor.configKey,
-            )
+              descriptor.isAvailable(props.project.location) &&
+              Boolean(
+                descriptor.configKey &&
+                providerMcpSettingEnabled(
+                  props.selectedAgent.capabilities,
+                  providerMcpSettings,
+                  descriptor.configKey,
+                ),
+              )
           : descriptor.getScope(
               props.selectedAgent.capabilities,
               props.presentationMode,
               props.project.location,
-            ) !== "none",
-      )
+            ) !== "none";
+      })
       .map((descriptor) => ({
         id: descriptor.id,
         name: t(descriptor.label),
         icon: descriptor.icon,
         detail: t`MCP server`,
-        enabled: providerOwnsMcp ? true : props.config[descriptor.configKey] === true,
+        enabled: isAlwaysOnComposerMcp(descriptor)
+          ? true
+          : providerOwnsMcp
+            ? true
+            : Boolean(descriptor.configKey && props.config[descriptor.configKey] === true),
       })),
     ...visibleCustomMcpServers
       .filter((server) => server.enabled)
@@ -668,7 +709,9 @@ export function ThreadDraftComposerArea(props: {
       return;
     }
     const descriptor = availableComposerMcpServers.find((server) => server.id === id);
-    if (descriptor) onConfigChange(mcpTogglePatch(descriptor.configKey, true));
+    if (descriptor && !isAlwaysOnComposerMcp(descriptor)) {
+      onConfigChange(mcpTogglePatch(descriptor.configKey, true));
+    }
   };
   const controls: ComposerControl[] = controlOpenRequest
     ? props.controls.map((control) => {
@@ -1248,7 +1291,9 @@ export function ThreadDraftComposerArea(props: {
             workbench={{
               onOpen: () => {
                 useCraftingWorkbenchStore.getState().setCapabilityMode("efficient");
-                usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting", entryMode: "efficient" });
+                usePanelStore
+                  .getState()
+                  .openModelUsageWorkspace({ tab: "crafting", entryMode: "efficient" });
               },
             }}
             readOnlyMcp={providerOwnsMcpForComposer}

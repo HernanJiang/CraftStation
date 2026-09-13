@@ -34,6 +34,7 @@ import { ComposerVoiceInput } from "../composer/ComposerVoiceInput";
 import {
   composerMcpServers,
   COMPUTER_USE_MCP_ID,
+  isAlwaysOnComposerMcp,
   providerOwnsMcpConfig,
 } from "../composer/composerMcpServers";
 import { openAttachmentLightbox } from "../composer/ImageLightbox";
@@ -255,8 +256,8 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     ? agentStatusForPresentation(agentStatus, presentationMode, thread.sessionRef)
     : undefined;
   const usesTerminalPresentation = presentationMode === "terminal";
-  const appControlsDisabled =
-    useSharedSettings((s) => s.disabledBuiltInMcpServers["app-controls"]) === true;
+  const disabledBuiltInMcpServers = useSharedSettings((s) => s.disabledBuiltInMcpServers);
+  const appControlsDisabled = disabledBuiltInMcpServers["app-controls"] === true;
   const appControlsEnabled =
     !appControlsDisabled &&
     Boolean(
@@ -277,10 +278,8 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const effectiveMcpConfig = providerOwnsMcp
     ? (runtimeLaunchConfig ?? thread.config)
     : thread.config;
-  const mcpServers = composerMcpServers.map((descriptor) => ({
-    descriptor,
-    enabled: effectiveMcpConfig?.[descriptor.configKey] === true,
-    visible:
+  const mcpServers = composerMcpServers.map((descriptor) => {
+    const scopeOk =
       descriptor.isAvailable(projectLocation) &&
       Boolean(
         effectiveAgentStatus &&
@@ -289,10 +288,19 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
           presentationMode,
           projectLocation,
         ) !== "none",
-      ) &&
-      effectiveMcpConfig?.[descriptor.configKey] === true,
-    onToggle: () => {},
-  }));
+      );
+    const enabled = isAlwaysOnComposerMcp(descriptor)
+      ? disabledBuiltInMcpServers[descriptor.id] !== true
+      : Boolean(descriptor.configKey && effectiveMcpConfig?.[descriptor.configKey] === true);
+    return {
+      descriptor,
+      enabled,
+      // Always-on built-ins inject on every launch unless the user disabled
+      // them, so they stay visible on live threads instead of looking absent.
+      visible: scopeOk && enabled,
+      onToggle: () => {},
+    };
+  });
   const launchCustomMcpNames = useAppStore(
     (s) => s.mcpLaunchCustomServerNamesByThreadId[thread.id],
   );
@@ -317,8 +325,9 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
         ]
       : []),
     ...composerMcpServers
-      .filter(
-        (descriptor) =>
+      .filter((descriptor) => {
+        if (descriptor.id === "app-controls") return false;
+        const scopeOk =
           descriptor.isAvailable(projectLocation) &&
           Boolean(
             effectiveAgentStatus &&
@@ -327,9 +336,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
               presentationMode,
               projectLocation,
             ) !== "none",
-          ) &&
-          effectiveMcpConfig?.[descriptor.configKey] === true,
-      )
+          );
+        if (!scopeOk) return false;
+        if (isAlwaysOnComposerMcp(descriptor)) {
+          return disabledBuiltInMcpServers[descriptor.id] !== true;
+        }
+        return Boolean(descriptor.configKey && effectiveMcpConfig?.[descriptor.configKey] === true);
+      })
       .map((descriptor) => ({
         id: descriptor.id,
         name: t(descriptor.label),

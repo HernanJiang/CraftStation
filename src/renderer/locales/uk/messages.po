@@ -1332,9 +1332,14 @@ msgstr "API_KEY=value"
 msgid "App Browser"
 msgstr "Браузер у програмі"
 
+#: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "App Controls"
 msgstr "Керування застосунком"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "App Controls enabled for this thread"
+msgstr ""
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
@@ -4207,6 +4212,10 @@ msgid "Disable {tool}"
 msgstr "Вимкнути {tool}"
 
 #: src/renderer/components/composer/composerMcpServers.ts
+msgid "Disable App Controls"
+msgstr ""
+
+#: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Browser MCP"
 msgstr "Вимкнути Browser MCP"
 
@@ -4230,6 +4239,10 @@ msgstr ""
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Disable Project"
 msgstr "Вимкнути проект"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "Disable Schedule MCP"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "Disable tiers an external provider collapses (e.g. keep only High and Max)."
@@ -10491,8 +10504,13 @@ msgstr "Сканування Windows та WSL на наявність встан
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "Сканування вашої системи на наявність встановлених CLI. Зазвичай це триває кілька секунд."
 
+#: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Schedule"
+msgstr ""
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "Schedule MCP enabled for this thread"
 msgstr ""
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx

@@ -1,6 +1,6 @@
 import { msg } from "@lingui/core/macro";
 import type { MessageDescriptor } from "@lingui/core";
-import { AppWindow, Globe, Users, type LucideIcon } from "lucide-react";
+import { AppWindow, Clock, Globe, Settings2, Users, type LucideIcon } from "lucide-react";
 import {
   resolveComposerMcpScope,
   supportsHeaderBearingHttpMcp,
@@ -62,8 +62,14 @@ type ComposerMcpCapabilities = {
 } & McpRuntimeSupport;
 
 export interface ComposerMcpServerDescriptor {
-  id: "browser" | "own-subagents" | "chrome";
-  configKey: ComposerMcpConfigKey;
+  id: "browser" | "own-subagents" | "chrome" | "schedule" | "app-controls";
+  /**
+   * Per-thread composer flag. Always-on built-ins omit this: they inject on
+   * every launch unless the user hard-disabled them in MCP settings.
+   */
+  configKey?: ComposerMcpConfigKey;
+  /** Default-on host servers (Schedule, App Controls). Not an opt-in chip. */
+  alwaysOn?: boolean;
   icon: LucideIcon;
   /** Menu row + chip label. */
   label: MessageDescriptor;
@@ -131,11 +137,41 @@ export const chromeMcpServer: ComposerMcpServerDescriptor = {
       : headerHttpMcpScope(capabilities, presentationMode),
 };
 
+export const scheduleMcpServer: ComposerMcpServerDescriptor = {
+  id: "schedule",
+  alwaysOn: true,
+  icon: Clock,
+  label: msg`Schedule`,
+  enabledTitle: msg`Schedule MCP enabled for this thread`,
+  disableLabel: msg`Disable Schedule MCP`,
+  requiresHttpHeaders: true,
+  isAvailable: () => true,
+  getScope: headerHttpMcpScope,
+};
+
+export const appControlsMcpServer: ComposerMcpServerDescriptor = {
+  id: "app-controls",
+  alwaysOn: true,
+  icon: Settings2,
+  label: msg`App Controls`,
+  enabledTitle: msg`App Controls enabled for this thread`,
+  disableLabel: msg`Disable App Controls`,
+  requiresHttpHeaders: true,
+  isAvailable: () => true,
+  getScope: headerHttpMcpScope,
+};
+
 export const composerMcpServers: readonly ComposerMcpServerDescriptor[] = [
   browserMcpServer,
   crossagentMcpServer,
   chromeMcpServer,
+  scheduleMcpServer,
+  appControlsMcpServer,
 ];
+
+export function isAlwaysOnComposerMcp(descriptor: ComposerMcpServerDescriptor): boolean {
+  return descriptor.alwaysOn === true;
+}
 
 /**
  * Persistent-enablement key for Computer Use. It is not a registry descriptor
@@ -149,9 +185,10 @@ export const COMPUTER_USE_MCP_ID = "computer-use";
  * config-key union so callers stay `exactOptionalPropertyTypes`-safe.
  */
 export function mcpTogglePatch(
-  configKey: ComposerMcpConfigKey,
+  configKey: ComposerMcpConfigKey | undefined,
   enabled: boolean,
 ): Partial<ThreadConfig> {
+  if (!configKey) return {};
   const patch: Partial<Record<ComposerMcpConfigKey, boolean>> = { [configKey]: enabled };
   return patch;
 }

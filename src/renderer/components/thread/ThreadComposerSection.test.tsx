@@ -543,7 +543,7 @@ describe("ThreadComposerSection", () => {
         menuProps.mcpServers
           .filter((server) => server.visible)
           .map((server) => server.descriptor.id),
-      ).toEqual(["own-subagents"]);
+      ).toEqual(["own-subagents", "schedule", "app-controls"]);
       expect(menuProps.customMcpServers).toEqual([
         expect.objectContaining({ name: "Vision-MCP", enabled: true }),
       ]);

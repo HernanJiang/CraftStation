@@ -1336,9 +1336,14 @@ msgstr "API_KEY=value"
 msgid "App Browser"
 msgstr "应用程序浏览器"
 
+#: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "App Controls"
 msgstr "应用控制"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "App Controls enabled for this thread"
+msgstr "此线程已启用应用控制"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
@@ -4211,6 +4216,10 @@ msgid "Disable {tool}"
 msgstr "禁用 {tool}"
 
 #: src/renderer/components/composer/composerMcpServers.ts
+msgid "Disable App Controls"
+msgstr "禁用应用控制"
+
+#: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Browser MCP"
 msgstr "禁用浏览器 MCP"
 
@@ -4234,6 +4243,10 @@ msgstr ""
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Disable Project"
 msgstr "禁用项目"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "Disable Schedule MCP"
+msgstr "禁用计划 MCP"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "Disable tiers an external provider collapses (e.g. keep only High and Max)."
@@ -10498,9 +10511,14 @@ msgstr "扫描 Windows 和 WSL 以查找已安装的 CLI。这通常需要几秒
 msgid "Scanning your system for installed CLIs. This usually takes a couple of seconds."
 msgstr "扫描系统中已安装的 CLI。这通常需要几秒钟。"
 
+#: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Schedule"
 msgstr "计划"
+
+#: src/renderer/components/composer/composerMcpServers.ts
+msgid "Schedule MCP enabled for this thread"
+msgstr "此线程已启用计划 MCP"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
