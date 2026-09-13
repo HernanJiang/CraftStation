@@ -529,8 +529,8 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
       }
       placement="top start"
       triggerClassName="shrink-0"
-      contentClassName="w-96 p-0"
-      dialogClassName="flex max-h-[28rem] flex-col overflow-hidden !p-0"
+      contentClassName="craftstation-composer-menu-surface w-96 p-0"
+      dialogClassName="craftstation-composer-menu-surface flex max-h-[28rem] flex-col overflow-hidden !p-0"
     >
       {renderContent}
     </ResponsiveMenuSurface>
@@ -969,7 +969,7 @@ function HeaderPlain(props: {
   return (
     <div
       role="presentation"
-      className={`${className} flex h-7 items-center border-b border-border/40 bg-overlay px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80`}
+      className={`${className} flex h-7 items-center border-b border-border/40 bg-[var(--composer-surface)] px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80`}
     >
       {t(item.label)}
     </div>
@@ -985,7 +985,7 @@ function HeaderProvider(props: {
   return (
     <div
       role="presentation"
-      className={`${className} flex h-7 items-center gap-1.5 border-b border-border/40 bg-overlay px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80`}
+      className={`${className} flex h-7 items-center gap-1.5 border-b border-border/40 bg-[var(--composer-surface)] px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80`}
     >
       <ProviderIcon
         kind={item.providerKind}
@@ -1013,7 +1013,7 @@ function HeaderSub(props: {
   return (
     <div
       role="presentation"
-      className={`${className} flex h-7 items-center border-b border-border/40 bg-overlay px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80`}
+      className={`${className} flex h-7 items-center border-b border-border/40 bg-[var(--composer-surface)] px-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80`}
     >
       {item.label}
     </div>

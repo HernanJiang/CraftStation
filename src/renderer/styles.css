@@ -936,6 +936,13 @@
   border-radius: 0.875rem;
 }
 
+/* Composer model/parameter menus: match the chat input card, not the darker overlay. */
+.dropdown__popover.craftstation-composer-menu-surface,
+.popover__dialog.craftstation-composer-menu-surface,
+.popover.craftstation-composer-menu-surface {
+  background: var(--composer-surface);
+}
+
 .craftstation-menu .list-box-item,
 .craftstation-menu-item,
 .list-box-item,

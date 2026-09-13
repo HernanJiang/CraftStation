@@ -93,6 +93,7 @@ describe("DraftParameterMenu", () => {
 
     expect(document.querySelector('[role="menu"][aria-label="模型列表"]')).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /ChatGPT-5.6-Luna/ })).toBeInTheDocument();
+    expect(document.querySelector(".craftstation-composer-menu-surface")).toBeInTheDocument();
   });
 
   it("shows Harness + Model identities in Auto Mode with a Native route tooltip", () => {

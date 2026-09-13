@@ -190,7 +190,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
       <Dropdown.Popover
         placement="top end"
         className={withOverlayClass(
-          "w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
+          "craftstation-composer-menu-surface w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
           overlayZoom.root,
         )}
       >
@@ -211,7 +211,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
               <Dropdown.Popover
                 placement="left top"
                 className={withOverlayClass(
-                  "w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-[14px]",
+                  "craftstation-composer-menu-surface w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-[14px]",
                   overlayZoom.root,
                 )}
               >
@@ -266,7 +266,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
               <Dropdown.Popover
                 placement="left top"
                 className={withOverlayClass(
-                  "max-h-[420px] w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
+                  "craftstation-composer-menu-surface max-h-[420px] w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
                   overlayZoom.root,
                 )}
               >
@@ -391,7 +391,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
               <Dropdown.Popover
                 placement="left top"
                 className={withOverlayClass(
-                  "w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
+                  "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
                   overlayZoom.root,
                 )}
               >
