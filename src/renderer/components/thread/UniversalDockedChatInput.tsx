@@ -27,6 +27,8 @@ export function UniversalDockedChatInput(props: {
   threadId?: string;
   /** GUI threads embed the goal dock in the context bar. Terminal/mobile keep it out. */
   showGoalStrip?: boolean;
+  /** One-line extension of the local context bar (queued follow-up, etc.). */
+  afterContextBar?: ReactNode;
 }) {
   return (
     <DraftGitLaunchSlotProvider>
@@ -51,6 +53,7 @@ export function UniversalDockedChatInput(props: {
             {...(props.showGoalStrip === false ? { showGoalStrip: false } : {})}
           />
         ) : null}
+        {props.afterContextBar}
         {props.children}
       </div>
     </DraftGitLaunchSlotProvider>

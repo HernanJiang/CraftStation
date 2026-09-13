@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
-import { ListTodo, Send, X } from "lucide-react";
-import { Trans, useLingui } from "@lingui/react/macro";
-import { Button } from "@/renderer/components/common";
+import { useEffect, useRef, useState } from "react";
+import { ListTodo, Pencil, Send, X } from "lucide-react";
+import { useLingui } from "@lingui/react/macro";
 import type { QueuedFollowUp } from "@/renderer/state/slices/queuedFollowUpSlice";
-import { ThreadDockHeader, ThreadDockIconButton, ThreadDockSection } from "./ThreadDockUI";
+import { ThreadDockIconButton } from "./ThreadDockUI";
 
 interface ThreadQueuedFollowUpStripProps {
   queued: QueuedFollowUp;
@@ -13,68 +12,95 @@ interface ThreadQueuedFollowUpStripProps {
 }
 
 /**
- * Queue card above the composer: a follow-up waiting for the current turn to
- * finish, with Send now / edit / delete. Mirrors the pending-steer dock chrome.
+ * One-line extension of the local context bar: queued follow-up text plus
+ * Send / Edit / Delete. The prompt is read-only until Edit is pressed.
  */
 export function ThreadQueuedFollowUpStrip(props: ThreadQueuedFollowUpStripProps) {
   const { queued, onSendNow, onDelete, onPromptChange } = props;
   const { t } = useLingui();
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(queued.prompt);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setDraft(queued.prompt);
+    setEditing(false);
   }, [queued.prompt, queued.queuedAt]);
 
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  function commit() {
+    const next = draft.trim();
+    if (next.length === 0) {
+      setDraft(queued.prompt);
+      setEditing(false);
+      return;
+    }
+    if (next !== queued.prompt) onPromptChange(next);
+    setEditing(false);
+  }
+
+  function cancel() {
+    setDraft(queued.prompt);
+    setEditing(false);
+  }
+
   return (
-    <div data-thread-queued-follow-up="" className="mx-auto w-[calc(100%-32px)]">
-      <ThreadDockSection placement="composer" collapsed={false} ariaLabel={t`Queued`}>
-        <ThreadDockHeader
-          icon={ListTodo}
-          title={t`Queued`}
-          countLabel={
-            queued.paused ? (
-              <Trans>paused until you send</Trans>
-            ) : (
-              <Trans>sends when this turn finishes</Trans>
-            )
-          }
-          actions={
-            <div className="flex items-center gap-0.5">
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={t`Send now`}
-                className="h-6 min-w-0 shrink-0 gap-1 px-1.5 text-[11px] text-muted/80 hover:bg-foreground/5 hover:text-foreground"
-                onPress={onSendNow}
-              >
-                <Send className="size-3" />
-                <Trans>Send now</Trans>
-              </Button>
-              <ThreadDockIconButton label={t`Delete queue`} danger onPress={onDelete}>
-                <X className="size-3.5" />
-              </ThreadDockIconButton>
-            </div>
-          }
+    <div
+      data-thread-queued-follow-up=""
+      className="relative z-[1] -mb-px mx-auto flex h-7 w-[calc(100%-32px)] items-center gap-2 border border-b-0 border-[var(--hairline)] px-3 text-xs text-muted"
+    >
+      <ListTodo className="size-3.5 shrink-0 text-foreground-muted" />
+      {editing ? (
+        <input
+          ref={inputRef}
+          data-testid="thread-queued-follow-up"
+          aria-label={t`Queued prompt`}
+          value={draft}
+          className="min-w-0 flex-1 bg-transparent text-foreground outline-none"
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              cancel();
+            }
+          }}
         />
-        <div className="px-2 pb-1.5">
-          <textarea
-            data-testid="thread-queued-follow-up"
-            aria-label={t`Queued prompt`}
-            value={draft}
-            rows={2}
-            className="w-full resize-none rounded-md border border-[color:var(--border)] bg-[var(--composer-surface)] px-2 py-1 text-xs leading-5 text-foreground outline-none focus:border-accent"
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={() => {
-              const next = draft.trim();
-              if (next.length === 0) {
-                setDraft(queued.prompt);
-                return;
-              }
-              if (next !== queued.prompt) onPromptChange(next);
-            }}
-          />
-        </div>
-      </ThreadDockSection>
+      ) : (
+        <span
+          data-testid="thread-queued-follow-up"
+          className="min-w-0 flex-1 truncate text-foreground"
+          title={queued.prompt}
+        >
+          {queued.prompt}
+        </span>
+      )}
+      <div className="flex shrink-0 items-center gap-0.5">
+        <ThreadDockIconButton label={t`Send now`} onPress={onSendNow}>
+          <Send className="size-3.5" />
+        </ThreadDockIconButton>
+        <ThreadDockIconButton
+          label={editing ? t`Done` : t`Edit queue`}
+          onMouseDown={(event) => {
+            if (editing) event.preventDefault();
+          }}
+          onPress={() => {
+            if (editing) commit();
+            else setEditing(true);
+          }}
+        >
+          <Pencil className="size-3.5" />
+        </ThreadDockIconButton>
+        <ThreadDockIconButton label={t`Delete queue`} danger onPress={onDelete}>
+          <X className="size-3.5" />
+        </ThreadDockIconButton>
+      </div>
     </div>
   );
 }

@@ -73,6 +73,7 @@ import { recordCraftModeUse } from "@/renderer/state/usageRecorder";
 import { ThreadComposer, type ComposerControl } from "./ThreadComposer";
 import type { CraftMode } from "./CraftModeSwitch";
 import { UniversalDockedChatInput } from "./UniversalDockedChatInput";
+import { ThreadQueuedFollowUpStrip } from "./ThreadQueuedFollowUpStrip";
 import { ContextQuotaRing } from "./ComposerStatusRow";
 import { supportsUsableFastMode } from "./threadDraftViewHelpers";
 import { getApprovalDenyOption } from "./ThreadRuntimeRequestPanel/helpers";
@@ -990,6 +991,22 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
             threadId={thread.id}
             showGoalStrip={!hideInfoDocks && !usesTerminalPresentation}
             {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
+            {...(composerQueuedFollowUp
+              ? {
+                  afterContextBar: (
+                    <ThreadQueuedFollowUpStrip
+                      queued={composerQueuedFollowUp}
+                      onSendNow={() => {
+                        void sendQueuedFollowUpNow(thread);
+                      }}
+                      onDelete={() => clearQueuedFollowUp(thread.id)}
+                      onPromptChange={(nextPrompt) =>
+                        useAppStore.getState().updateQueuedFollowUpPrompt(thread.id, nextPrompt)
+                      }
+                    />
+                  ),
+                }
+              : {})}
           >
             <div
               className={`grid transition-[grid-template-rows] ease-[cubic-bezier(0.16,1,0.3,1)] ${isComposerCollapsed ? "duration-300" : "duration-200"}`}
@@ -1040,7 +1057,6 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                       showTodoInComposer ||
                       showAuthInComposer ||
                       composerPendingSteer ||
-                      composerQueuedFollowUp ||
                       composerRuntimeRequest ||
                       showCommandPanel ? (
                         <ThreadComposerDocks
@@ -1065,7 +1081,6 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                           todoDockCollapsed={todoDockCollapsed}
                           todoDockPlacement={todoDockPlacement}
                           pendingSteer={composerPendingSteer}
-                          queuedFollowUp={composerQueuedFollowUp}
                           activeRuntimeRequest={composerRuntimeRequest}
                           filteredCommands={filteredCommands}
                           slashActiveIndex={slashActiveIndex}
@@ -1079,13 +1094,6 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                             ? { onTodoDockRetire: props.onTodoDockRetire }
                             : {})}
                           onCancelPendingSteer={() => clearThreadPendingSteer(thread.id)}
-                          onSendQueuedFollowUpNow={() => {
-                            void sendQueuedFollowUpNow(thread);
-                          }}
-                          onDeleteQueuedFollowUp={() => clearQueuedFollowUp(thread.id)}
-                          onQueuedFollowUpPromptChange={(nextPrompt) =>
-                            useAppStore.getState().updateQueuedFollowUpPrompt(thread.id, nextPrompt)
-                          }
                           {...(props.onOpenProjectRelativePath
                             ? { onOpenProjectRelativePath: props.onOpenProjectRelativePath }
                             : {})}

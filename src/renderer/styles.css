@@ -2425,10 +2425,8 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
   background: color-mix(in oklab, var(--composer-surface) 58%, var(--content-background));
 }
 
-[data-thread-queued-follow-up] {
-  /* Same inset as the Local context bar above the composer card. */
-  width: calc(100% - 32px);
-  margin-inline: auto;
+[data-draft-context-bar] + [data-thread-queued-follow-up] {
+  border-top-color: color-mix(in oklab, var(--hairline) 70%, transparent);
 }
 
 /* Draft-focus glow remains a cheap compositor-only affordance. */
@@ -2441,7 +2439,8 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
   animation: craftstation-composer-border-spin 1.2s ease-out 1 both;
 }
 
-[data-draft-context-bar] + [data-craftstation-composer] .craftstation-composer-shell--draft {
+[data-universal-docked-chat-input]:has([data-draft-context-bar])
+  .craftstation-composer-shell--draft {
   background: var(--composer-surface);
 }
 

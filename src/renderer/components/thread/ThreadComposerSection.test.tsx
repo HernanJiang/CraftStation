@@ -1252,11 +1252,40 @@ describe("ThreadComposerSection", () => {
       );
     });
     expect(bridgeMock.setPendingSteer).not.toHaveBeenCalled();
-    expect(screen.getByTestId("thread-queued-follow-up")).toHaveValue("change direction");
+    expect(screen.getByTestId("thread-queued-follow-up")).toHaveTextContent("change direction");
+    expect(screen.getByTestId("thread-queued-follow-up").tagName).toBe("SPAN");
     expect(
       screen.getByTestId("thread-queued-follow-up").closest("[data-thread-queued-follow-up]"),
     ).toHaveClass("w-[calc(100%-32px)]");
     expect(analytics.captureThreadPromptSubmitted).not.toHaveBeenCalled();
+  });
+
+  it("keeps a queued follow-up read-only until Edit is pressed", async () => {
+    useAppStore.setState({
+      queuedFollowUpByThreadId: {
+        [guiThread.id]: {
+          prompt: "later",
+          queuedAt: Date.now(),
+          paused: false,
+        },
+      },
+    });
+    renderComposer({
+      thread: { ...guiThread, status: "working", attention: "working" },
+    });
+
+    expect(screen.getByTestId("thread-queued-follow-up").tagName).toBe("SPAN");
+    fireEvent.click(screen.getByRole("button", { name: "Edit queue" }));
+    const input = screen.getByTestId("thread-queued-follow-up");
+    expect(input.tagName).toBe("INPUT");
+    fireEvent.change(input, { target: { value: "rewritten" } });
+    fireEvent.blur(input);
+    await waitFor(() => {
+      expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]?.prompt).toBe(
+        "rewritten",
+      );
+    });
+    expect(screen.getByTestId("thread-queued-follow-up").tagName).toBe("SPAN");
   });
 
   it("sends a queued follow-up immediately when the user chooses Send now", async () => {
