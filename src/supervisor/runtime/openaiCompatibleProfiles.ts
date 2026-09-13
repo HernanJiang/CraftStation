@@ -16,6 +16,7 @@ import {
   type HostPort,
 } from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
+import { readSupervisorSharedSettings } from "./supervisorSharedSettings";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CraftStationCredentialVault } from "./credentialVault";
@@ -47,6 +48,13 @@ const BUNDLE_KEYS = [
 export interface OpenAiCompatibleProfileServiceOptions {
   store: AccountStore;
   cacheDir: string;
+  /**
+   * Shared settings file (optional). When present, every custom-model catalog
+   * row bound to an account is projected into that account's isolated
+   * opencode.json, so a pooled `opencode serve` can serve any of the account's
+   * models without a config reload.
+   */
+  settingsPath?: string;
 }
 
 interface ProfileBundle {
@@ -92,7 +100,11 @@ function readBundle(cacheDir: string, bucket: string): ProfileBundle | undefined
       ? { displayName: getUsageSecret(cacheDir, bucket, "displayName")!.trim() }
       : {}),
     ...(readValidatedProtocol(getUsageSecret(cacheDir, bucket, "validatedProtocol"))
-      ? { validatedProtocol: readValidatedProtocol(getUsageSecret(cacheDir, bucket, "validatedProtocol"))! }
+      ? {
+          validatedProtocol: readValidatedProtocol(
+            getUsageSecret(cacheDir, bucket, "validatedProtocol"),
+          )!,
+        }
       : {}),
     ...(readValidatedAt(getUsageSecret(cacheDir, bucket, "validatedAt")) !== undefined
       ? { validatedAt: readValidatedAt(getUsageSecret(cacheDir, bucket, "validatedAt"))! }
@@ -123,6 +135,26 @@ export class OpenAiCompatibleProfileService {
     return this.vault.accountBucket(PROVIDER, accountId);
   }
 
+  /**
+   * Every custom-model catalog row bound to this account (id + display name),
+   * normalized to bare model ids. Returns an empty list when no settings file
+   * is wired (tests, legacy construction).
+   */
+  private listAccountModelEntries(accountId: string): Array<{ id: string; name: string }> {
+    const settingsPath = this.options.settingsPath;
+    if (!settingsPath) return [];
+    const settings = readSupervisorSharedSettings(settingsPath);
+    const entries = new Map<string, { id: string; name: string }>();
+    for (const row of settings.customModels) {
+      if (row.accountId !== accountId) continue;
+      const id = normalizeThirdPartyModelId(row.modelId);
+      if (!id) continue;
+      const name = row.displayName?.trim() || id;
+      if (!entries.has(id)) entries.set(id, { id, name });
+    }
+    return [...entries.values()];
+  }
+
   /** 编辑表单回填：只暴露非机密字段。 */
   getConfig(accountId: string): {
     baseUrl?: string;
@@ -151,13 +183,15 @@ export class OpenAiCompatibleProfileService {
    * the key stays in the sealed bucket and is only projected into the
    * harness child-process env at spawn time.
    */
-  getDescriptor(accountId: string): {
-    accountId: string;
-    baseUrl: string;
-    model?: string;
-    validatedProtocol?: "responses" | "chat_completions";
-    validatedAt?: number;
-  } | undefined {
+  getDescriptor(accountId: string):
+    | {
+        accountId: string;
+        baseUrl: string;
+        model?: string;
+        validatedProtocol?: "responses" | "chat_completions";
+        validatedAt?: number;
+      }
+    | undefined {
     const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
     if (!bundle) return undefined;
     return {
@@ -315,6 +349,18 @@ export class OpenAiCompatibleProfileService {
     mkdirSync(configDir, { recursive: true });
     const model = normalizeThirdPartyModelId(modelId ?? bundle.model ?? "default") || "default";
     const providerId = THIRD_PARTY_OPENCODE_PROVIDER_ID;
+    // The opencode serve pool reuses idle servers without reloading config, so
+    // the isolated config must list every model bound to this account, not
+    // only the one being launched right now.
+    const models: Record<string, { name: string }> = {};
+    for (const entry of this.listAccountModelEntries(accountId)) {
+      models[entry.id] = { name: entry.name };
+    }
+    const bundleModel = bundle.model ? normalizeThirdPartyModelId(bundle.model) : "";
+    if (bundleModel && !models[bundleModel]) {
+      models[bundleModel] = { name: bundle.displayName ?? bundleModel };
+    }
+    models[model] = models[model] ?? { name: bundle.displayName ?? model };
     const document = {
       $schema: "https://opencode.ai/config.json",
       provider: {
@@ -325,9 +371,7 @@ export class OpenAiCompatibleProfileService {
             baseURL: bundle.baseUrl,
             apiKey: bundle.apiKey,
           },
-          models: {
-            [model]: { name: bundle.displayName ?? model },
-          },
+          models,
         },
       },
     };
@@ -419,6 +463,7 @@ export class OpenAiCompatibleProfileService {
     return {
       env: {
         DEEPSEEK_API_KEY: bundle.apiKey,
+        DEEPSEEK_BASE_URL: bundle.baseUrl,
         OPENAI_API_KEY: bundle.apiKey,
         OPENAI_BASE_URL: bundle.baseUrl,
       },

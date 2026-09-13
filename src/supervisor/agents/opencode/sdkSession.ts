@@ -23,6 +23,7 @@ import type {
   ThreadServerRequestId,
   ThreadStatus,
 } from "@/shared/contracts";
+import { normalizeThirdPartyModelId } from "@/shared/thirdPartyRouting";
 import { areAgentSlashCommandsEqual } from "@/shared/contracts";
 import {
   createKnownSessionRef,
@@ -106,15 +107,20 @@ function parseModelSlug(
   thirdPartyProvider?: string,
 ): { providerID: string; modelID: string } | undefined {
   if (!modelSlug) return undefined;
-  const slash = modelSlug.indexOf("/");
+  // Strip the reserved third-party prefix first: on channels without the
+  // injected provider env (shared pool) it is stale transport metadata, not a
+  // real provider id. With the env present the slug degrades to the bare
+  // model name and still binds to the isolated provider below.
+  const normalized = normalizeThirdPartyModelId(modelSlug);
+  const slash = normalized.indexOf("/");
   if (slash > 0) {
     return {
-      providerID: modelSlug.slice(0, slash),
-      modelID: modelSlug.slice(slash + 1),
+      providerID: normalized.slice(0, slash),
+      modelID: normalized.slice(slash + 1),
     };
   }
   if (thirdPartyProvider) {
-    return { providerID: thirdPartyProvider, modelID: modelSlug };
+    return { providerID: thirdPartyProvider, modelID: normalized };
   }
   return undefined;
 }

@@ -5,6 +5,7 @@ import { createOpenCodeAdapter } from ".";
 import { buildOpenCodeArgs } from "./argv";
 import {
   attachOpenCodeProviderIds,
+  buildCapabilityPartialFromSdkInventory,
   buildOpenCodeStatusFromSdkInventory,
   humanizeOpenCodeModelId,
   mapOpenCodeSlashCommands,
@@ -220,6 +221,33 @@ describe("buildOpenCodeStatusFromSdkInventory", () => {
     expect(
       buildOpenCodeStatusFromSdkInventory({ providers: [], connected: [], agents: [] }),
     ).toEqual({ authState: "missing" });
+  });
+});
+
+describe("buildCapabilityPartialFromSdkInventory", () => {
+  it("never surfaces the reserved craftstation provider into the model catalog", () => {
+    const partial = buildCapabilityPartialFromSdkInventory({
+      providers: [
+        {
+          id: "craftstation",
+          name: "CraftStation",
+          models: [
+            { id: "glm-5.3-flash", name: "GLM Flash", variants: ["high"], contextLimit: 128_000 },
+          ],
+        },
+        {
+          id: "opencode",
+          name: "OpenCode Zen",
+          models: [{ id: "big-pickle", name: "Big Pickle", variants: [] }],
+        },
+      ],
+      connected: ["craftstation", "opencode"],
+      agents: [],
+    });
+
+    expect(partial.models?.map((model) => model.id)).toEqual(["opencode/big-pickle"]);
+    expect(partial.subProviders?.map((provider) => provider.id)).toEqual(["opencode"]);
+    expect(partial.defaultHiddenModels).toEqual(["opencode/big-pickle"]);
   });
 });
 

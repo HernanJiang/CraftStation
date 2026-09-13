@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -199,6 +199,7 @@ describe("OpenAiCompatibleProfileService", () => {
     });
     expect(service.prepareVendorCompatRuntime(account.accountId, "deepseek").env).toMatchObject({
       DEEPSEEK_API_KEY: "sk-test",
+      DEEPSEEK_BASE_URL: "https://relay.example.com/v1",
       OPENAI_BASE_URL: "https://relay.example.com/v1",
     });
   });
@@ -224,7 +225,12 @@ describe("OpenAiCompatibleProfileService", () => {
 
     seedStaging(cacheDir, "Relay A");
     clearUsageSecret(cacheDir, "openai-compatible:pending");
-    setUsageSecret(cacheDir, "openai-compatible:pending", "baseUrl", "https://relay.example.com/v1");
+    setUsageSecret(
+      cacheDir,
+      "openai-compatible:pending",
+      "baseUrl",
+      "https://relay.example.com/v1",
+    );
     setUsageSecret(cacheDir, "openai-compatible:pending", "apiKey", "sk-test");
     setUsageSecret(cacheDir, "openai-compatible:pending", "model", "gpt-5.6-sol");
 
@@ -279,12 +285,67 @@ describe("OpenAiCompatibleProfileService", () => {
     expect(runtime.env.OPENCODE_CONFIG_DIR).toBe(runtime.configDir);
     expect(runtime.env.CRAFTSTATION_OPENCODE_PROVIDER).toBe("craftstation");
     const written = JSON.parse(readFileSync(join(runtime.configDir, "opencode.json"), "utf8")) as {
-      provider: Record<string, { options: { apiKey: string; baseURL: string }; models: Record<string, unknown> }>;
+      provider: Record<
+        string,
+        { options: { apiKey: string; baseURL: string }; models: Record<string, unknown> }
+      >;
     };
     const provider = written.provider.craftstation;
     expect(provider).toBeDefined();
     expect(provider?.options.baseURL).toBe("https://relay.example.com/v1");
     expect(provider?.options.apiKey).toBe("sk-test");
     expect(provider?.models["glm-5.3-flash"]).toBeDefined();
+  });
+
+  it("merges every custom-model row bound to the account into the isolated opencode config", () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const settingsPath = join(cacheDir, "settings.json");
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir, settingsPath });
+    seedStaging(cacheDir, "Cavoti");
+    const account = service.importStaging();
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        customModels: [
+          {
+            id: `custom:opencode:${account.accountId}:glm-5.3-flash`,
+            provider: "opencode",
+            accountId: account.accountId,
+            modelId: "glm-5.3-flash",
+            displayName: "GLM Flash",
+            contextSize: "",
+          },
+          {
+            id: `custom:opencode:${account.accountId}:glm-5.4`,
+            provider: "opencode",
+            accountId: account.accountId,
+            modelId: "glm-5.4",
+            displayName: "GLM 5.4",
+            contextSize: "",
+          },
+          {
+            id: "custom:opencode:other:gpt-x",
+            provider: "opencode",
+            accountId: "other",
+            modelId: "gpt-x",
+            displayName: "GPT X",
+            contextSize: "",
+          },
+        ],
+      }),
+    );
+
+    const runtime = service.prepareOpenCodeRuntime(account.accountId, "glm-5.4");
+    const written = JSON.parse(readFileSync(join(runtime.configDir, "opencode.json"), "utf8")) as {
+      provider: Record<string, { models: Record<string, { name: string }> }>;
+    };
+    // The whole account catalog must be addressable: the pooled opencode serve
+    // reuses idle servers without reloading config.
+    expect(written.provider.craftstation?.models).toEqual({
+      "gpt-5.6-sol": { name: "GPT-5.6" },
+      "glm-5.3-flash": { name: "GLM Flash" },
+      "glm-5.4": { name: "GLM 5.4" },
+    });
   });
 });
