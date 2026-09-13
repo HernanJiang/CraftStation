@@ -2078,8 +2078,8 @@ msgid "Cancelled"
 msgstr "취소됨"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
-msgid "Cancelled after {elapsed}"
-msgstr ""
+#~ msgid "Cancelled after {elapsed}"
+#~ msgstr ""
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Cancelling"
@@ -2942,6 +2942,7 @@ msgid "completed"
 msgstr "완료"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #: src/renderer/utils/prStatus.ts
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
@@ -3168,6 +3169,7 @@ msgstr "컨텍스트 사용량"
 msgid "Context windows"
 msgstr "컨텍스트 창"
 
+#: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/structuredElicitation.tsx
 msgid "Continue"
 msgstr "계속"
@@ -3184,6 +3186,10 @@ msgstr "다음에서 계속..."
 #: src/mobile/views/DesktopsView.tsx
 msgid "Continue on the desktop address"
 msgstr "데스크톱 주소에서 계속"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Continue paused task"
+msgstr ""
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Continue thread"
@@ -3479,9 +3485,12 @@ msgstr "카메라를 시작할 수 없습니다"
 msgid "Couldn't update the skill."
 msgstr "스킬을 업데이트하지 못했습니다."
 
-#: src/renderer/components/thread/DraftContextBar.tsx
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
+msgstr ""
+
+#: src/renderer/components/composer/ComposerAddMenu.tsx
+msgid "Crafting Workbench"
 msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
@@ -4719,6 +4728,7 @@ msgstr "오류"
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/components/ui/toastContent.ts
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
@@ -5862,6 +5872,7 @@ msgstr "ID 파일 경로"
 #: src/mobile/presentation.ts
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
 msgid "Idle"
 msgstr "유휴"
@@ -7419,8 +7430,14 @@ msgstr "실행마다 새 스레드"
 #. placeholder {0}: availableUpdate.version
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
+msgid "New version available: v{0} → v{1}. Click to update now."
 msgstr ""
+
+#. placeholder {0}: availableUpdate.version
+#. placeholder {1}: availableUpdate.latest
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#~ msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
+#~ msgstr ""
 
 #: src/renderer/components/workspace/WorkspaceNameDialog.tsx
 msgid "New workspace"
@@ -8663,6 +8680,10 @@ msgstr "목표 일시 중지"
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Paused"
 msgstr "일시중지됨"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Paused after {elapsed}"
+msgstr ""
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -11847,6 +11868,10 @@ msgstr "작업 일치"
 msgid "Task output"
 msgstr "작업 출력"
 
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Task paused. Click continue or send a new message."
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Task tags"
 msgstr "작업 태그"
@@ -13056,6 +13081,11 @@ msgstr "업데이트"
 msgid "Update"
 msgstr "업데이트"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Update {0} now"
+msgstr ""
+
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
 msgid "Update {0} to {updateLabel}"
@@ -13711,6 +13741,7 @@ msgstr ".github/workflows에 추가된 워크플로가 여기에 표시됩니다
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Working"
 msgstr "작업 중"
@@ -14063,8 +14094,8 @@ msgstr ""
 #~ msgstr ""
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
-msgid "璁″垝杩涘害"
-msgstr ""
+#~ msgid "璁″垝杩涘害"
+#~ msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
@@ -14079,9 +14110,8 @@ msgstr ""
 #~ msgstr ""
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
-#: src/renderer/components/thread/ThreadStatusCapsule.tsx
-#~ msgid "计划进度"
-#~ msgstr ""
+msgid "计划进度"
+msgstr ""
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "请填写提交信息"

@@ -2082,12 +2082,8 @@ msgid "Cancelled"
 msgstr "已取消"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
-msgid "Cancelled after {elapsed}"
-msgstr ""
-
-#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
-msgid "Paused after {elapsed}"
-msgstr "已暂停 {elapsed}"
+#~ msgid "Cancelled after {elapsed}"
+#~ msgstr ""
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Cancelling"
@@ -2950,6 +2946,7 @@ msgid "completed"
 msgstr "已完成"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #: src/renderer/utils/prStatus.ts
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
@@ -3176,6 +3173,7 @@ msgstr "上下文使用"
 msgid "Context windows"
 msgstr "上下文窗口"
 
+#: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/structuredElicitation.tsx
 msgid "Continue"
 msgstr "继续"
@@ -3192,6 +3190,10 @@ msgstr "在其他工具中继续..."
 #: src/mobile/views/DesktopsView.tsx
 msgid "Continue on the desktop address"
 msgstr "在桌面地址上继续"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Continue paused task"
+msgstr "继续已暂停的任务"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Continue thread"
@@ -3487,9 +3489,12 @@ msgstr "无法启动摄像头"
 msgid "Couldn't update the skill."
 msgstr "无法更新技能。"
 
-#: src/renderer/components/thread/DraftContextBar.tsx
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
+msgstr "合成台"
+
+#: src/renderer/components/composer/ComposerAddMenu.tsx
+msgid "Crafting Workbench"
 msgstr "合成台"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
@@ -4727,6 +4732,7 @@ msgstr "错误"
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/components/ui/toastContent.ts
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
@@ -5870,6 +5876,7 @@ msgstr "身份文件路径"
 #: src/mobile/presentation.ts
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
 msgid "Idle"
 msgstr "空闲"
@@ -7430,8 +7437,14 @@ msgstr "每次运行新建线程"
 #. placeholder {0}: availableUpdate.version
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
-msgstr "有新版本：v{0} → v{1}，请从标题栏下载菜单更新。"
+msgid "New version available: v{0} → v{1}. Click to update now."
+msgstr "有新版本：v{0} → v{1}，点击立即更新。"
+
+#. placeholder {0}: availableUpdate.version
+#. placeholder {1}: availableUpdate.latest
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#~ msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
+#~ msgstr "有新版本：v{0} → v{1}，请从标题栏下载菜单更新。"
 
 #: src/renderer/components/workspace/WorkspaceNameDialog.tsx
 msgid "New workspace"
@@ -8674,6 +8687,10 @@ msgstr "暂停目标"
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Paused"
 msgstr "已暂停"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Paused after {elapsed}"
+msgstr "已暂停 {elapsed}"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -10768,14 +10785,6 @@ msgstr "选择…"
 msgid "Send a message..."
 msgstr "发送消息..."
 
-#: src/renderer/components/thread/ThreadComposerSection.tsx
-msgid "Task paused. Click continue or send a new message."
-msgstr "任务已暂停，点击继续或发送新消息。"
-
-#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
-msgid "Continue paused task"
-msgstr "继续已暂停的任务"
-
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Send generic text instead of conversation titles through Apple's push service."
 msgstr "通过 Apple 推送服务发送通用文本，而非对话标题。"
@@ -11865,6 +11874,10 @@ msgstr "任务匹配"
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Task output"
 msgstr "任务输出"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Task paused. Click continue or send a new message."
+msgstr "任务已暂停，点击继续或发送新消息。"
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Task tags"
@@ -13075,6 +13088,11 @@ msgstr "更新"
 msgid "Update"
 msgstr "更新"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Update {0} now"
+msgstr "立即更新 {0}"
+
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
 msgid "Update {0} to {updateLabel}"
@@ -13730,6 +13748,7 @@ msgstr "添加到 .github/workflows 的工作流将显示在此处。"
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Working"
 msgstr "工作中"
@@ -14081,10 +14100,6 @@ msgstr "没有可推送的提交"
 #~ msgid "状态：进行中"
 #~ msgstr ""
 
-#: src/renderer/components/thread/ComposerPlanChip.tsx
-msgid "计划进度"
-msgstr "计划进度"
-
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
 msgstr ""
@@ -14098,9 +14113,8 @@ msgstr "目标"
 #~ msgstr ""
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
-#: src/renderer/components/thread/ThreadStatusCapsule.tsx
-#~ msgid "计划进度"
-#~ msgstr "计划进度"
+msgid "计划进度"
+msgstr "计划进度"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "请填写提交信息"

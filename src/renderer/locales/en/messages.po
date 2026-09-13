@@ -2078,8 +2078,8 @@ msgid "Cancelled"
 msgstr "Cancelled"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
-msgid "Cancelled after {elapsed}"
-msgstr "Cancelled after {elapsed}"
+#~ msgid "Cancelled after {elapsed}"
+#~ msgstr "Cancelled after {elapsed}"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Cancelling"
@@ -2942,6 +2942,7 @@ msgid "completed"
 msgstr "completed"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #: src/renderer/utils/prStatus.ts
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
@@ -3168,6 +3169,7 @@ msgstr "Context usage"
 msgid "Context windows"
 msgstr "Context windows"
 
+#: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/structuredElicitation.tsx
 msgid "Continue"
 msgstr "Continue"
@@ -3184,6 +3186,10 @@ msgstr "Continue in..."
 #: src/mobile/views/DesktopsView.tsx
 msgid "Continue on the desktop address"
 msgstr "Continue on the desktop address"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Continue paused task"
+msgstr "Continue paused task"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Continue thread"
@@ -3479,10 +3485,13 @@ msgstr "Couldn't start the camera"
 msgid "Couldn't update the skill."
 msgstr "Couldn't update the skill."
 
-#: src/renderer/components/thread/DraftContextBar.tsx
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
 msgstr "Crafting Table"
+
+#: src/renderer/components/composer/ComposerAddMenu.tsx
+msgid "Crafting Workbench"
+msgstr "Crafting Workbench"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
@@ -4719,6 +4728,7 @@ msgstr "error"
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/components/ui/toastContent.ts
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
@@ -5862,6 +5872,7 @@ msgstr "Identity file path"
 #: src/mobile/presentation.ts
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
 msgid "Idle"
 msgstr "Idle"
@@ -7419,8 +7430,14 @@ msgstr "New thread per run"
 #. placeholder {0}: availableUpdate.version
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
-msgstr "New version available: v{0} → v{1}. Update from the title bar download menu."
+msgid "New version available: v{0} → v{1}. Click to update now."
+msgstr "New version available: v{0} → v{1}. Click to update now."
+
+#. placeholder {0}: availableUpdate.version
+#. placeholder {1}: availableUpdate.latest
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#~ msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
+#~ msgstr "New version available: v{0} → v{1}. Update from the title bar download menu."
 
 #: src/renderer/components/workspace/WorkspaceNameDialog.tsx
 msgid "New workspace"
@@ -8663,6 +8680,10 @@ msgstr "Pause goal"
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Paused"
 msgstr "Paused"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "Paused after {elapsed}"
+msgstr "Paused after {elapsed}"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -11847,6 +11868,10 @@ msgstr "Task match"
 msgid "Task output"
 msgstr "Task output"
 
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Task paused. Click continue or send a new message."
+msgstr "Task paused. Click continue or send a new message."
+
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Task tags"
 msgstr "Task tags"
@@ -13056,6 +13081,11 @@ msgstr "update"
 msgid "Update"
 msgstr "Update"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Update {0} now"
+msgstr "Update {0} now"
+
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
 msgid "Update {0} to {updateLabel}"
@@ -13711,6 +13741,7 @@ msgstr "Workflows added under .github/workflows will appear here."
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/components/thread/ThreadHeaderStatus.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Working"
 msgstr "Working"
@@ -14063,8 +14094,8 @@ msgstr "没有可推送的提交"
 #~ msgstr "状态：进行中"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
-msgid "璁″垝杩涘害"
-msgstr "璁″垝杩涘害"
+#~ msgid "璁″垝杩涘害"
+#~ msgstr "璁″垝杩涘害"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
@@ -14079,9 +14110,8 @@ msgstr "目标"
 #~ msgstr "计划"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
-#: src/renderer/components/thread/ThreadStatusCapsule.tsx
-#~ msgid "计划进度"
-#~ msgstr "计划进度"
+msgid "计划进度"
+msgstr "计划进度"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "请填写提交信息"
