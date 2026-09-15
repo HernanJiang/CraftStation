@@ -79,13 +79,14 @@ Skills, Git / worktrees, and MCP servers are not scattered across each CLI’s c
 
 ## Install
 
-Windows portable:
+Download the portable build from **GitHub Releases**, not from the source tree.
 
-1. Download `CraftStation-Portable-*.exe` from [Releases](https://github.com/HernanJiang/CraftStation/releases)
-2. Run it. No installer.
-3. Sign in to the agents you already use. Bring your own keys and subscriptions.
+**Current build: [CraftStation-Portable-1.2.5-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.2.5/CraftStation-Portable-1.2.5-x64.exe)**  
+([all Releases](https://github.com/HernanJiang/CraftStation/releases))
 
-Cross-vendor recipes need [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI). The 1.2.5 portable ships the official Windows amd64 sidecar; the workbench can also download and start it.
+1. Download the exe and run it. No installer. No extra Electron / Node setup.
+2. Runtime dependencies are inside the package: Chromium, native modules (`better-sqlite3` / `node-pty`), the peripheral sidecar, and the official Windows **CLIProxyAPI** sidecar (so cross-vendor recipes can start the compatibility bridge).
+3. Sign in to the agents you already use (Codex / Kimi Code / Antigravity / Grok CLIs still come from your local official installs and subscriptions).
 
 ## License
 

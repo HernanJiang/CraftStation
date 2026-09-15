@@ -79,13 +79,14 @@ Skills、Git / worktree、MCP 服务器不再散落在各家 CLI 的配置目录
 
 ## 安装
 
-Windows 便携版：
+请从 **GitHub Release** 下载便携版，不要用仓库里的源码目录当安装包。
 
-1. 从 [Releases](https://github.com/HernanJiang/CraftStation/releases) 下载 `CraftStation-Portable-*.exe`
-2. 直接运行，无需安装
-3. 登录你已有的 Agent 账号；自带 Key / 订阅即可
+**当前版本：[CraftStation-Portable-1.2.5-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.2.5/CraftStation-Portable-1.2.5-x64.exe)**  
+（[全部 Releases](https://github.com/HernanJiang/CraftStation/releases)）
 
-跨厂商配方需要 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)。1.2.5 便携版已内置官方 Windows amd64 sidecar；合成台也可以下载/启动它。
+1. 下载上述 exe，双击运行，无需安装、无需再装 Electron / Node
+2. 包内已带运行时依赖：Chromium、原生模块（better-sqlite3 / node-pty）、外设 sidecar，以及官方 Windows **CLIProxyAPI** sidecar（跨厂商配方可直接起兼容桥）
+3. 登录你已有的 Agent 账号（Codex / Kimi Code / Antigravity / Grok 等 CLI 仍使用你本机已安装的官方工具与订阅）
 
 ## 许可证
 
