@@ -15,7 +15,8 @@ import {
   parseAgentProfileKind,
 } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
-import { runAgentInstallCommand, runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
+import { runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
+import { runNativeAgentInstall } from "@/renderer/actions/installNativeAgent";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useUpdateStore } from "@/renderer/state/updateStore";
@@ -624,24 +625,12 @@ export function SingleAgentSettings(props: {
     const envKey = statusEnvKey(status);
     const project = findProjectForStatus(status, projects);
     setInstallPendingEnvKey(envKey);
-    const opened = runAgentInstallCommand({
+    const opened = runNativeAgentInstall({
+      agentKind: props.agentKind,
       label: agent.label,
-      command: nativeRegistryEntry.installCommand,
       ...(project ? { project } : {}),
-      onCommandComplete: (exitCode) => {
-        const clearPending = () =>
-          setInstallPendingEnvKey((current) => (current === envKey ? undefined : current));
-        if (exitCode !== 0) {
-          clearPending();
-          return;
-        }
-        void readBridge()
-          .refreshAgentStatuses(wslDistros, {
-            agentKinds: [props.agentKind],
-            envs: [scopeEnvForStatus(status)],
-          })
-          .catch(() => undefined)
-          .finally(clearPending);
+      onComplete: () => {
+        setInstallPendingEnvKey((current) => (current === envKey ? undefined : current));
       },
     });
     if (!opened) setInstallPendingEnvKey(undefined);

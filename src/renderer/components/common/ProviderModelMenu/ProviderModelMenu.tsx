@@ -1001,6 +1001,14 @@ function HeaderProvider(props: {
           <span className="min-w-0 truncate text-muted/70">{subProviderLabel}</span>
         </>
       ) : null}
+      {item.unconfigured ? (
+        <span
+          className="ml-auto shrink-0 rounded bg-amber-400/15 px-1 py-px text-[9px] font-medium tracking-normal normal-case text-amber-300"
+          title="已安装但尚未登录/配置，登录后即可正常使用"
+        >
+          未配置
+        </span>
+      ) : null}
     </div>
   );
 }

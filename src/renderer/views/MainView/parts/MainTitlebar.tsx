@@ -89,7 +89,17 @@ export function CliUpdateMenu() {
       ]);
       if (!settled) return;
       const found = settled.filter((entry): entry is CliUpdate => entry !== undefined);
-      setUpdates(found);
+      setUpdates((previous) => {
+        // Same availability → keep the previous array identity. Replacing the
+        // array on every check rebuilds the open menu's item collection around
+        // the user's pointer, which read as "click did nothing".
+        const signature = (list: CliUpdate[]) =>
+          list
+            .map((entry) => `${entry.key}@${entry.latest}`)
+            .sort()
+            .join("|");
+        return signature(previous) === signature(found) ? previous : found;
+      });
       // Publish for the synthesis-bench Harness surfaces so the titlebar menu
       // and the bench cards/rows always reflect the same availability.
       useUpdateStore.getState().setAvailableCliUpdates(
@@ -145,13 +155,17 @@ export function CliUpdateMenu() {
         label={updates.length > 0 ? `有 ${updates.length} 个 CLI 可更新` : t`Check for updates`}
         detail={t`Check all installed agent CLIs`}
       >
+        {/* Opening the menu must only open the menu. A forced check inside the
+              same press replaced `updates` mid-gesture, so the popover's item
+              collection rebuilt before the click landed — the reported
+              "single click does nothing, popover flashes" defect. Refreshes run
+              via the explicit menu action and the once-per-keyset auto check. */}
         <Dropdown.Trigger
           data-testid="titlebar-cli-update-button"
           aria-label={t`Check for CLI updates`}
           className={`${buttonClass} relative mr-1 px-1.5 ${
             updates.length > 0 ? "text-amber-300" : ""
           }`}
-          onPress={() => void runCheck({ force: true })}
         >
           {checking ? (
             <RefreshCw className="size-3.5 animate-spin" />

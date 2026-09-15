@@ -206,7 +206,12 @@ describe("MainTitlebar CLI 更新入口", () => {
     ).toBeTruthy();
 
     fireEvent.click(updateButton);
-    await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(2));
+    // Opening the menu must NOT force a re-check in the same press: the
+    // mid-open state churn rebuilt the popover's items around the pointer and
+    // read as "click does nothing / menu flashes" (GitHub issue #3). Refreshes
+    // run through the explicit "Check all CLIs" menu action instead.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(1);
   });
 });
 

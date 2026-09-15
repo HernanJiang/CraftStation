@@ -38,7 +38,12 @@ export async function fetchCliProxy(url: string, init?: RequestInit): Promise<Re
   const proxy = proxyUrl();
   if (!proxy) return fetch(url, init);
   const dispatcher = new ProxyAgent(proxy);
-  return undiciFetch(url, { ...(init ?? {}), dispatcher }) as unknown as Response;
+  // DOM `RequestInit.body` allows `null`; undici's does not, so the spread can
+  // never typecheck directly — narrow to the properties the caller provided.
+  const undiciInit = Object.fromEntries(
+    Object.entries(init ?? {}).filter(([, value]) => value !== undefined),
+  ) as Parameters<typeof undiciFetch>[1];
+  return undiciFetch(url, { ...undiciInit, dispatcher }) as unknown as Response;
 }
 
 export interface CliProxyReleaseAsset {
@@ -64,8 +69,7 @@ export function pickCliProxyReleaseAsset(
   platform: string,
   arch: string,
 ): CliProxyReleaseAsset | undefined {
-  const os =
-    platform === "win32" ? "windows" : platform === "darwin" ? "darwin" : "linux";
+  const os = platform === "win32" ? "windows" : platform === "darwin" ? "darwin" : "linux";
   const cpu = arch === "arm64" ? "arm64" : "amd64";
   const cpuTokens = cpu === "amd64" ? ["amd64", "x86_64", "x64"] : ["arm64", "aarch64"];
   const archives = assets.filter((asset) => {
@@ -254,9 +258,7 @@ export async function installCliProxyApiBinary(
     redirect: "follow",
   });
   if (!archiveResponse.ok || !archiveResponse.body) {
-    throw new Error(
-      `Failed to download ${asset.name} (${archiveResponse.status}).`,
-    );
+    throw new Error(`Failed to download ${asset.name} (${archiveResponse.status}).`);
   }
 
   const stamp = String(input.now ?? Date.now());

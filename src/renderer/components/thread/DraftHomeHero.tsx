@@ -1,56 +1,57 @@
-import { Bug, Hammer, RefreshCw, Rocket, type LucideIcon } from "lucide-react";
+import { Boxes, Hammer, PanelLeft, ScrollText, type LucideIcon } from "lucide-react";
 import { Trans } from "@lingui/react/macro";
+import { usePanelStore } from "@/renderer/state/panelStore";
+import { toggleSidebar } from "@/renderer/state/sidebarOverlayStore";
 import { CraftStationMascot } from "@/renderer/components/common/CraftStationMascot";
 
 /**
- * v0.2.3 — Codex-style home hero for the new-thread draft screen.
+ * v1.2.6 — home hero for the new-thread draft screen.
  *
- * 1:1 layout replica of the Codex Desktop home: mascot hero animation,
- * greeting line, and a row of four task-suggestion cards above the composer.
- * CraftStation keeps its own product name; suggestion cards are UI-only —
- * clicking one focuses the composer, it does not prefill or launch anything.
+ * Mascot hero animation, greeting line, and a row of four real entry cards
+ * above the composer. Every card navigates: 合成台 / 模型管理 / 配方管理 open
+ * the matching first-level tab of the model-usage workspace, 侧边栏 toggles
+ * the existing app sidebar (single source of truth in `sidebarOverlayStore`).
  *
  * Mascot motion assets are extracted from the installed Codex desktop app.
  */
 
-interface SuggestionCard {
+interface EntryCard {
   id: string;
   icon: LucideIcon;
   accentClass: string;
-  label: React.ReactNode;
-}
-
-function focusComposer(anchor: HTMLElement | null) {
-  const root = anchor?.closest("[data-draft-body]");
-  const editor = root?.querySelector<HTMLElement>('[contenteditable="true"]');
-  editor?.focus();
+  label: string;
+  action: () => void;
 }
 
 export function DraftHomeHero() {
-  const cards: SuggestionCard[] = [
+  const cards: EntryCard[] = [
     {
-      id: "explore",
-      icon: Rocket,
-      accentClass: "text-sky-400",
-      label: <Trans>Explore and understand code</Trans>,
-    },
-    {
-      id: "build",
+      id: "crafting",
       icon: Hammer,
+      accentClass: "text-sky-400",
+      label: "合成台 / Harness",
+      action: () => usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting" }),
+    },
+    {
+      id: "sidebar",
+      icon: PanelLeft,
       accentClass: "text-violet-400",
-      label: <Trans>Build new features, apps, or tools</Trans>,
+      label: "侧边栏",
+      action: () => toggleSidebar(),
     },
     {
-      id: "review",
-      icon: RefreshCw,
+      id: "models",
+      icon: Boxes,
       accentClass: "text-emerald-400",
-      label: <Trans>Review code and suggest changes</Trans>,
+      label: "模型管理",
+      action: () => usePanelStore.getState().openModelUsageWorkspace({ tab: "models" }),
     },
     {
-      id: "fix",
-      icon: Bug,
+      id: "recipes",
+      icon: ScrollText,
       accentClass: "text-orange-400",
-      label: <Trans>Fix bugs and failures</Trans>,
+      label: "配方管理",
+      action: () => usePanelStore.getState().openModelUsageWorkspace({ tab: "recipes" }),
     },
   ];
 
@@ -70,7 +71,9 @@ export function DraftHomeHero() {
             <button
               key={card.id}
               type="button"
-              onClick={(event) => focusComposer(event.currentTarget)}
+              data-testid={`home-entry-${card.id}`}
+              aria-label={card.label}
+              onClick={card.action}
               className="flex min-h-[108px] flex-col items-start justify-between rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-white/10 hover:bg-white/[0.04]"
             >
               <Icon className={`size-4.5 shrink-0 ${card.accentClass}`} />

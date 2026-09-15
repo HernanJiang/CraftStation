@@ -864,7 +864,6 @@ export function ThreadDraftView(props: {
   const usageAccounts = useUsageAccountsStore((s) => s.accounts);
   const storedLogin = useUsageLoginStateStore((s) => s.stored);
   const usageSnapshots = useProviderUsageStore((s) => s.snapshots);
-  const usageAccountsHydrated = useUsageAccountsStore((s) => s.hydrated);
   const configuredProviderIds = useMemo(
     () =>
       new Set(
@@ -876,7 +875,6 @@ export function ThreadDraftView(props: {
       ),
     [usageAccounts, storedLogin, usageSnapshots],
   );
-  const usageChannelsReady = usageAccountsHydrated || Object.values(storedLogin).some(Boolean);
   const selectedAgentFilteredCapabilities = useMemo(
     () =>
       selectedAgentForConfig
@@ -915,12 +913,10 @@ export function ThreadDraftView(props: {
         provider.capabilities,
         customModels,
       ),
+      // 与 useManagedComposerProviders 一致：未配置渠道保留并标记，不随
+      // usage/account hydrate 收缩。
+      unconfigured: !isConfiguredComposerAgent(provider.kind, configuredProviderIds),
     }));
-    const baseProviders = usageChannelsReady
-      ? allProviders.filter((provider) =>
-          isConfiguredComposerAgent(provider.kind, configuredProviderIds),
-        )
-      : allProviders;
     const accountGroups = new Map<string, typeof customModels>();
     for (const entry of customModels) {
       if (!entry.accountId) continue;
@@ -946,6 +942,7 @@ export function ThreadDraftView(props: {
           models: [],
           efforts: ["low", "medium", "high"],
           modelEfforts: {},
+          modelDefaultEfforts: {},
           defaultEffort: "high",
           modes: ["agent"] as Array<"agent" | "plan" | "autopilot">,
           approvalPolicies: [],
@@ -966,6 +963,8 @@ export function ThreadDraftView(props: {
           ...effectiveSource,
           label,
           accountId,
+          // 账号绑定渠道自带已配置账号，不继承源 adapter 的未配置标记。
+          unconfigured: false,
           modelPickerKey: `openai-compatible:${accountId}`,
           hiddenModelsKey: `openai-compatible:${accountId}`,
           capabilities: {
@@ -987,7 +986,7 @@ export function ThreadDraftView(props: {
         },
       ];
     });
-    return [...baseProviders, ...accountProviders];
+    return [...allProviders, ...accountProviders];
   }, [
     installedAgents,
     presentationMode,
@@ -997,7 +996,6 @@ export function ThreadDraftView(props: {
     customModels,
     usageAccounts,
     configuredProviderIds,
-    usageChannelsReady,
   ]);
   const latestConfigPatchRef = useRef<(patch: Partial<ThreadConfig>) => void>(() => undefined);
   const latestProviderModelChangeRef = useRef<
@@ -1461,7 +1459,8 @@ export function ThreadDraftView(props: {
     if (
       remapped.agentKind === withAccount.agentKind &&
       remapped.model === withAccount.config.model &&
-      (remapped.presentationMode ?? withAccount.presentationMode) === withAccount.presentationMode &&
+      (remapped.presentationMode ?? withAccount.presentationMode) ===
+        withAccount.presentationMode &&
       sourceProviderKind === withAccount.config.sourceProviderKind
     ) {
       return onStart(withAccount);

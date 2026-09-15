@@ -1122,8 +1122,8 @@ function ProviderCard(props: {
           }}
         >
           <p className="text-[10px] leading-4 text-neutral-400">
-            Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan /
-            Agent Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。
+            Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent
+            Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。
           </p>
           <input
             type="password"
@@ -2290,7 +2290,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             onAdd={() => void accountActions(createKimiProfile, "kimi")}
             onImport={() => void accountActions(importHostKimiLogin, "kimi")}
             importAriaLabel="导入本机 Kimi Code 登录"
-            onAddApiKey={() => setKimiApiKeyForm((open) => !open)}
+            onAddApiKey={() => setKimiApiKeyForm((current) => !current)}
             addApiKeyAriaLabel="使用 API Key 添加 Kimi Code 账号"
             onReauth={(a) =>
               void accountActions(
@@ -2371,7 +2371,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 ["usage", "渠道与额度"],
                 ["models", "管理模型"],
                 ["stats", "用量统计"],
-                ["crafting", "合成台"],
+                ["crafting", "合成台 / Harness"],
                 ["recipes", "我的配方"],
               ] as const
             ).map(([tab, label]) => (

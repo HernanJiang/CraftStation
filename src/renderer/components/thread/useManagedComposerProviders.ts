@@ -11,10 +11,7 @@ import {
   isConfiguredComposerAgent,
   resolveConfiguredProviderIds,
 } from "@/renderer/crafting/configuredProviders";
-import {
-  collectCustomModelEfforts,
-  mergeCustomModelsIntoCapabilities,
-} from "./customModelCatalog";
+import { collectCustomModelEfforts, mergeCustomModelsIntoCapabilities } from "./customModelCatalog";
 import { buildProviderModelMenuProviders } from "./buildModelPickerControls";
 import { resolveThirdPartyHarnessForModel } from "@/shared/thirdPartyRouting";
 import { resolveInitialPresentationMode } from "./threadDraftViewHelpers";
@@ -30,13 +27,14 @@ export function isComposerPickerExcludedAgent(kind: string): boolean {
   return base === "deepseek" || base === "deepseek-harness";
 }
 
-/** Composer model list = 模型管理 selected models for configured channels only. */
+/** Composer model list = 已检测安装的 Provider 目录 + 账号绑定的自定义渠道。 */
 export function useManagedComposerProviders(input?: {
   presentationMode?: ThreadPresentationMode;
   includeAgentKind?: string;
 }): ProviderModelMenuProvider[] {
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
+  const disabledAgents = useSharedSettings((state) => state.disabledAgents);
   const hiddenModels = useSharedSettings((state) => state.hiddenModels);
   const shownModels = useSharedSettings((state) => state.shownModels);
   const customModels = useSharedSettings((state) => state.customModels);
@@ -44,7 +42,6 @@ export function useManagedComposerProviders(input?: {
     (state) => state.lastPresentationModeByAgent,
   );
   const usageAccounts = useUsageAccountsStore((state) => state.accounts);
-  const usageAccountsHydrated = useUsageAccountsStore((state) => state.hydrated);
   const storedLogin = useUsageLoginStateStore((state) => state.stored);
   const usageSnapshots = useProviderUsageStore((state) => state.snapshots);
   const presentationMode = input?.presentationMode ?? "gui";
@@ -62,13 +59,12 @@ export function useManagedComposerProviders(input?: {
     [usageAccounts, storedLogin, usageSnapshots],
   );
 
-  const usageChannelsReady = usageAccountsHydrated || Object.values(storedLogin).some(Boolean);
-
   return useMemo(() => {
     const installed = getSettingsInstalledAgents(agentStatuses, wslAgentStatuses).filter(
       (agent) =>
-        !isComposerPickerExcludedAgent(agent.kind) ||
-        baseAgentKind(includeAgentKind ?? "") === "deepseek",
+        !disabledAgents.includes(agent.kind) &&
+        (!isComposerPickerExcludedAgent(agent.kind) ||
+          baseAgentKind(includeAgentKind ?? "") === "deepseek"),
     );
     const allProviders = buildProviderModelMenuProviders(installed, {
       resolvePresentationMode: (agent: AgentStatus) => {
@@ -93,14 +89,10 @@ export function useManagedComposerProviders(input?: {
         provider.capabilities,
         customModels,
       ),
+      // 已安装但未登录/未配置的渠道保留在目录中并明确标记，由选择器渲染
+      // 未配置提示；列表绝不因 usage/account hydrate 完成而收缩。
+      unconfigured: !isConfiguredComposerAgent(provider.kind, configuredProviderIds),
     }));
-    const baseProviders = usageChannelsReady
-      ? allProviders.filter(
-          (provider) =>
-            isConfiguredComposerAgent(provider.kind, configuredProviderIds) ||
-            provider.kind === includeAgentKind,
-        )
-      : allProviders;
     const accountGroups = new Map<string, typeof customModels>();
     for (const entry of customModels) {
       if (!entry.accountId) continue;
@@ -149,6 +141,8 @@ export function useManagedComposerProviders(input?: {
           ...effectiveSource,
           label,
           accountId,
+          // 账号绑定渠道自带已配置账号，不继承源 adapter 的未配置标记。
+          unconfigured: false,
           modelPickerKey: `openai-compatible:${accountId}`,
           hiddenModelsKey: `openai-compatible:${accountId}`,
           capabilities: {
@@ -170,10 +164,11 @@ export function useManagedComposerProviders(input?: {
         },
       ];
     });
-    return [...baseProviders, ...accountProviders];
+    return [...allProviders, ...accountProviders];
   }, [
     agentStatuses,
     wslAgentStatuses,
+    disabledAgents,
     presentationMode,
     lastPresentationModeByAgent,
     hiddenModels,
@@ -182,7 +177,6 @@ export function useManagedComposerProviders(input?: {
     usageAccounts,
     configuredProviderIds,
     includeAgentKind,
-    usageChannelsReady,
   ]);
 }
 

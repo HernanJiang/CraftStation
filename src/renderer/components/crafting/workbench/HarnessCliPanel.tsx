@@ -1,11 +1,4 @@
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Download,
-  RefreshCw,
-  Settings2,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, RefreshCw, Settings2, XCircle } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
 import {
@@ -35,10 +28,15 @@ export function HarnessCliPanel(props: {
   entries: readonly NativeHarnessControlPlaneEntry[];
   loading: boolean;
   highlightedKind?: string | undefined;
+  /** Harness kinds with a one-click install in flight (shows 安装中…). */
+  installingKinds?: ReadonlySet<string> | undefined;
   onRefresh: () => void;
+  /** One-click install through the shared Native Agent install seam. */
+  onInstall?: ((entry: NativeHarnessControlPlaneEntry) => void) | undefined;
   onShowDetail: (entry: NativeHarnessControlPlaneEntry) => void;
 }) {
-  const { entries, loading, highlightedKind, onRefresh, onShowDetail } = props;
+  const { entries, loading, highlightedKind, installingKinds, onRefresh, onInstall, onShowDetail } =
+    props;
   const { t } = useLingui();
   // In-flight agent binary updates keyed by `${agentKind}:${envKind}:${distro}`.
   // Installer output streams no byte counts, so rows show an honest
@@ -71,14 +69,15 @@ export function HarnessCliPanel(props: {
           const meta = statusMeta[entry.status];
           const Icon = meta.icon;
           const highlighted = highlightedKind === entry.descriptor.harnessKind;
+          const installing = installingKinds?.has(entry.descriptor.harnessKind) ?? false;
           const updating = updatingKinds.has(entry.descriptor.harnessKind);
           // Same availability the titlebar "Check all CLIs" menu shows.
-          const availableUpdate = updating
-            ? undefined
-            : findCliUpdateForAgentKind(
-                availableCliUpdates,
-                entry.descriptor.harnessKind,
-              );
+          const availableUpdate =
+            updating || installing
+              ? undefined
+              : findCliUpdateForAgentKind(availableCliUpdates, entry.descriptor.harnessKind);
+          const canInstall =
+            entry.status === "unavailable" && onInstall !== undefined && !installing;
           return (
             <button
               key={entry.descriptor.id}
@@ -151,6 +150,39 @@ export function HarnessCliPanel(props: {
                 >
                   <Download className="size-3" />
                   {t`Update`}
+                </span>
+              ) : null}
+              {canInstall ? (
+                // Span, not button: the row itself is a <button>, and nested
+                // buttons are invalid HTML (React hydration error). Installs go
+                // through the shared Native Agent install seam — no vendor
+                // commands are hardcoded here.
+                <span
+                  role="button"
+                  tabIndex={0}
+                  data-testid={`harness-cli-install-${entry.descriptor.harnessKind}`}
+                  aria-label={t`Install ${entry.descriptor.label || entry.descriptor.harnessKind}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onInstall?.(entry);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onInstall?.(entry);
+                  }}
+                  className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-amber-300"
+                  title={t`Install ${entry.descriptor.label || entry.descriptor.harnessKind} now`}
+                >
+                  <Download className="size-3" />
+                  {t`Install`}
+                </span>
+              ) : null}
+              {installing ? (
+                <span className="flex shrink-0 items-center gap-1 text-[10px] text-sky-300">
+                  <RefreshCw className="size-3 animate-spin" />
+                  {t`Installing…`}
                 </span>
               ) : null}
               {updating ? (

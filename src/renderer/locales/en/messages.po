@@ -1927,8 +1927,8 @@ msgid "Budget limit reached"
 msgstr "Budget limit reached"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Build new features, apps, or tools"
-msgstr "Build new features, apps, or tools"
+#~ msgid "Build new features, apps, or tools"
+#~ msgstr "Build new features, apps, or tools"
 
 #: src/renderer/components/diff/DiffCardList.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/InlineDiffView.tsx
@@ -2490,6 +2490,10 @@ msgstr "CLI updates"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Click a shortcut to record a new key, or ＋ to add another."
 msgstr "Click a shortcut to record a new key, or ＋ to add another."
+
+#: src/renderer/components/composer/ImageLightbox.tsx
+msgid "Clipboard rejected the image (unsupported format)"
+msgstr "Clipboard rejected the image (unsupported format)"
 
 #: src/mobile/views/ManageProjectsView.tsx
 #: src/renderer/views/MainView/parts/AppContent/parts/Thread/parts/ContinueInProviderDialog.tsx
@@ -3240,6 +3244,7 @@ msgstr "Conversation view failed to render."
 
 #: src/mobile/UserMessageActionsSheet.tsx
 #: src/mobile/views/PortsView.tsx
+#: src/renderer/components/composer/ImageLightbox.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/CopyTextButton.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 #: src/renderer/RendererCrashScreen.tsx
@@ -3248,12 +3253,16 @@ msgstr "Copied"
 
 #. placeholder {0}: paths.length
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
-msgid "Copied {0} session paths."
-msgstr "Copied {0} session paths."
+#~ msgid "Copied {0} session paths."
+#~ msgstr "Copied {0} session paths."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
-msgid "Copied session path."
-msgstr "Copied session path."
+msgid "Copied session address."
+msgstr "Copied session address."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+#~ msgid "Copied session path."
+#~ msgstr "Copied session path."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copied thread path."
@@ -3306,6 +3315,7 @@ msgstr "Copy failed"
 msgid "Copy ignored files"
 msgstr "Copy ignored files"
 
+#: src/renderer/components/composer/ImageLightbox.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 #: src/renderer/views/ProfileOverlay/parts/ShareDialog.tsx
 msgid "Copy image"
@@ -4367,6 +4377,7 @@ msgstr "done"
 #. Notification status: thread is done
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarProjectRows.ts
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4470,6 +4481,7 @@ msgstr "e.g. Work"
 
 #: src/renderer/components/thread/ChatPane/parts/items/FileChange.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/UsageStatsPage.tsx
 #: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "Edit"
@@ -4948,8 +4960,8 @@ msgid "Explicit selections recorded from past delegations — they feed the rout
 msgstr "Explicit selections recorded from past delegations — they feed the routing order above. Edit the tags or remove entries to reshape it."
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Explore and understand code"
-msgstr "Explore and understand code"
+#~ msgid "Explore and understand code"
+#~ msgstr "Explore and understand code"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Export MCP servers"
@@ -5264,8 +5276,8 @@ msgid "First-class Qwen Code integration using CraftStation's native terminal an
 msgstr "First-class Qwen Code integration using CraftStation's native terminal and ACP runtimes."
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Fix bugs and failures"
-msgstr "Fix bugs and failures"
+#~ msgid "Fix bugs and failures"
+#~ msgstr "Fix bugs and failures"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/ConflictResolutionActions.tsx
 msgid "Fix in Agent"
@@ -6018,6 +6030,10 @@ msgstr "inherited"
 msgid "Inheriting the global setting (currently {0})."
 msgstr "Inheriting the global setting (currently {0})."
 
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "Initialize Git and connect GitHub to see Actions workflows."
+msgstr "Initialize Git and connect GitHub to see Actions workflows."
+
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
 msgid "Initialize Repository"
 msgstr "Initialize Repository"
@@ -6042,6 +6058,7 @@ msgstr "Inspect canonical runtime items"
 msgid "install"
 msgstr "install"
 
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
@@ -6053,10 +6070,20 @@ msgstr "install"
 msgid "Install"
 msgstr "Install"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Install {0}"
+msgstr "Install {0}"
+
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
 msgid "Install {0} for {env}."
 msgstr "Install {0} for {env}."
+
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Install {0} now"
+msgstr "Install {0} now"
 
 #. placeholder {0}: formatAgentList(props.agentStatuses.map((s) => s.label))
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -6184,6 +6211,10 @@ msgstr "Installing"
 #: src/renderer/views/LoginTerminalOverlay/LoginTerminalOverlay.tsx
 msgid "Installing in this terminal. Closes when finished."
 msgstr "Installing in this terminal. Closes when finished."
+
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Installing…"
+msgstr "Installing…"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Instructions"
@@ -7505,14 +7536,6 @@ msgstr "No active workflows found."
 msgid "No active workflows in this repository."
 msgstr "No active workflows in this repository."
 
-#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
-msgid "This project is not a Git repository."
-msgstr "This project is not a Git repository."
-
-#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
-msgid "Initialize Git and connect GitHub to see Actions workflows."
-msgstr "Initialize Git and connect GitHub to see Actions workflows."
-
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No activity yet."
 msgstr "No activity yet."
@@ -8711,8 +8734,8 @@ msgid "Paused after {elapsed}"
 msgstr "Paused after {elapsed}"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "paused until you send"
-msgstr "paused until you send"
+#~ msgid "paused until you send"
+#~ msgstr "paused until you send"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -9412,7 +9435,6 @@ msgid "Queue request"
 msgstr "Queue request"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
-#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "Queued"
@@ -10225,8 +10247,8 @@ msgid "Review Changes"
 msgstr "Review Changes"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Review code and suggest changes"
-msgstr "Review code and suggest changes"
+#~ msgid "Review code and suggest changes"
+#~ msgstr "Review code and suggest changes"
 
 #: src/renderer/views/GitReviewOverlay/parts/DiffAnnotationView.tsx
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
@@ -10843,8 +10865,8 @@ msgid "Send now"
 msgstr "Send now"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "sends when this turn finishes"
-msgstr "sends when this turn finishes"
+#~ msgid "sends when this turn finishes"
+#~ msgstr "sends when this turn finishes"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."
@@ -12319,6 +12341,10 @@ msgstr "This plugin's skills could not be read."
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "this project"
 msgstr "this project"
+
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "This project is not a Git repository."
+msgstr "This project is not a Git repository."
 
 #: src/renderer/actions/threadLaunchActions.ts
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -14021,8 +14047,8 @@ msgid "原生"
 msgstr "原生"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
-msgid "取消配方"
-msgstr "取消配方"
+#~ msgid "取消配方"
+#~ msgstr "取消配方"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "在 Git 面板中打开"

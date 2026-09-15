@@ -15,6 +15,8 @@ export interface ProviderModelHeaderProvider {
   hiddenModelsKey: string;
   providerIcon?: string;
   label: string;
+  /** Installed but not yet configured (no login/channel) — renders the hint. */
+  unconfigured?: boolean;
 }
 
 export interface ProviderModelHeaderSubProvider {

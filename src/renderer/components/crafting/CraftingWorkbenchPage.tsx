@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@heroui/react";
 import type { AccountView } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
@@ -11,10 +11,12 @@ import type {
   StoredRecipe,
 } from "@/shared/crafting/workbenchTypes";
 import { readBridge } from "@/renderer/bridge";
+import { runNativeAgentInstall } from "@/renderer/actions/installNativeAgent";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
 import {
   buildSelectedModelInventory,
   findSelectedModelEntry,
@@ -23,6 +25,7 @@ import {
   buildHarnessInventory,
   findHarnessReference,
   isRetiredHarnessKind,
+  NATIVE_HARNESS_AGENT_KINDS,
 } from "@/renderer/crafting/harnessInventory";
 import { openHarnessConfiguration } from "@/renderer/crafting/openHarnessConfiguration";
 import { ModelsInventory } from "./workbench/ModelsInventory";
@@ -86,6 +89,7 @@ export function CraftingWorkbenchPage(props: {
   const [nativeLoading, setNativeLoading] = useState(true);
   const [highlightedKind, setHighlightedKind] = useState<string | undefined>(undefined);
   const [crafting, setCrafting] = useState(false);
+  const [installingKinds, setInstallingKinds] = useState<ReadonlySet<string>>(() => new Set());
 
   // Enter the requested mode once when opened from a chat entry.
   useEffect(() => {
@@ -93,15 +97,33 @@ export function CraftingWorkbenchPage(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryMode]);
 
-  const refreshHarness = async () => {
-    setNativeLoading(true);
+  // Projection read only. The control plane reshapes already-detected
+  // AgentStatuses — it never probes the machine, so supervisor detection
+  // events re-read this without re-triggering detection (no event loop).
+  const readControlPlane = useCallback(async () => {
     try {
       const entries = await readBridge().getNativeHarnessControlPlane({});
       setNativeEntries(entries);
+    } catch {
+      // Keep the previous projection; the next detection event retries.
+    }
+  }, []);
+
+  // Open and manual refresh: run real scoped agent detection first (this
+  // invalidates the executable-path cache and re-reads PATH supervisor-side,
+  // so a CLI installed while CraftStation was running is found without a
+  // restart), then project the fresh statuses into the control plane.
+  const refreshHarness = useCallback(async () => {
+    setNativeLoading(true);
+    try {
+      await readBridge().refreshAgentStatuses(currentWslDistros(), {
+        agentKinds: [...NATIVE_HARNESS_AGENT_KINDS],
+      });
+      await readControlPlane();
     } finally {
       setNativeLoading(false);
     }
-  };
+  }, [readControlPlane]);
   useEffect(() => {
     void refreshHarness();
     const unsubscribe = readBridge().onSupervisorEvent((event) => {
@@ -111,12 +133,41 @@ export function CraftingWorkbenchPage(props: {
         event.type === "windows-agent-statuses" ||
         event.type === "wsl-agent-statuses"
       ) {
-        void refreshHarness();
+        void readControlPlane();
       }
     });
     return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshHarness, readControlPlane]);
+
+  const handleInstallHarness = useCallback(
+    (entry: NativeHarnessControlPlaneEntry) => {
+      const kind = entry.descriptor.harnessKind;
+      setInstallingKinds((current) => new Set(current).add(kind));
+      const finish = () =>
+        setInstallingKinds((current) => {
+          if (!current.has(kind)) return current;
+          const next = new Set(current);
+          next.delete(kind);
+          return next;
+        });
+      const opened = runNativeAgentInstall({
+        agentKind: kind,
+        label: entry.descriptor.label,
+        onComplete: (ok) => {
+          if (!ok) {
+            finish();
+            return;
+          }
+          // The shared install action already refreshed agent statuses; the
+          // fresh detection events re-read the control plane, but read it once
+          // more here so the row settles even if an event was missed.
+          void readControlPlane().finally(finish);
+        },
+      });
+      if (!opened) finish();
+    },
+    [readControlPlane],
+  );
 
   const modelEntries = useMemo(
     () =>
@@ -532,7 +583,9 @@ export function CraftingWorkbenchPage(props: {
           entries={visibleNativeEntries}
           loading={nativeLoading}
           highlightedKind={highlightedKind}
+          installingKinds={installingKinds}
           onRefresh={() => void refreshHarness()}
+          onInstall={handleInstallHarness}
           onShowDetail={(entry) => {
             setHighlightedKind(entry.descriptor.harnessKind);
             setInspector(entry.descriptor.harnessKind);

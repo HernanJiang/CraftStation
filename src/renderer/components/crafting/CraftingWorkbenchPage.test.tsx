@@ -8,14 +8,23 @@ import { CraftingWorkbenchPage } from "./CraftingWorkbenchPage";
 
 const bridgeMock = vi.hoisted(() => ({
   getNativeHarnessControlPlane: vi.fn<() => Promise<NativeHarnessControlPlaneEntry[]>>(),
+  refreshAgentStatuses: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   resolveCraftingCompatibility: vi.fn<() => Promise<unknown>>(),
   onSupervisorEvent: vi.fn<(listener: (event: unknown) => void) => () => void>(
     () => () => undefined,
   ),
 }));
 
+const installMock = vi.hoisted(() => ({
+  runNativeAgentInstall: vi.fn<(input: { onComplete?: (ok: boolean) => void }) => boolean>(),
+}));
+
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridgeMock,
+}));
+
+vi.mock("@/renderer/actions/installNativeAgent", () => ({
+  runNativeAgentInstall: installMock.runNativeAgentInstall,
 }));
 
 function entry(
@@ -42,7 +51,6 @@ function entry(
 }
 
 const initialPanelState = usePanelStore.getState();
-const initialWorkbenchState = useCraftingWorkbenchStore.getState();
 
 function resetStores() {
   usePanelStore.setState({
@@ -68,9 +76,11 @@ describe("CraftingWorkbenchPage", () => {
     resetStores();
     vi.clearAllMocks();
     bridgeMock.onSupervisorEvent.mockReturnValue(() => undefined);
+    bridgeMock.refreshAgentStatuses.mockResolvedValue({ windows: [], wsl: [], fromCache: false });
     bridgeMock.getNativeHarnessControlPlane.mockResolvedValue([
       entry("codex", "Codex Native Harness", "ready"),
       entry("kimi", "Kimi Code Native Harness", "not-configured"),
+      entry("antigravity", "Antigravity Native Harness", "unavailable"),
       entry("deepseek-api", "DeepSeek API Runtime", "not-configured"),
     ]);
     bridgeMock.resolveCraftingCompatibility.mockResolvedValue({
@@ -174,10 +184,14 @@ describe("CraftingWorkbenchPage", () => {
       />,
     );
 
-    expect(await screen.findByText("OpenCode Native Harness · Gemini 3.8 Flash")).toBeInTheDocument();
+    expect(
+      await screen.findByText("OpenCode Native Harness · Gemini 3.8 Flash"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /删除配方/ }));
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
-    expect(screen.queryByText("OpenCode Native Harness · Gemini 3.8 Flash")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("OpenCode Native Harness · Gemini 3.8 Flash"),
+    ).not.toBeInTheDocument();
   });
 
   it("deletes a saved recipe from the workbench via context menu", async () => {
@@ -212,5 +226,139 @@ describe("CraftingWorkbenchPage", () => {
     fireEvent.contextMenu(card);
     fireEvent.click(screen.getByRole("menuitem", { name: "删除配方" }));
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
+  });
+
+  it("runs real scoped agent detection before reading the control plane on open", async () => {
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    await screen.findByTestId("harness-cli-row-kimi");
+    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
+    const [wslDistros, scope] = bridgeMock.refreshAgentStatuses.mock.calls[0] ?? [];
+    expect(wslDistros).toEqual([]);
+    expect(scope).toEqual({
+      agentKinds: expect.arrayContaining(["codex", "antigravity", "kimi", "muse"]),
+    });
+    // Detection happens first; the projection is read after it settles.
+    expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalled();
+  });
+
+  it("re-runs detection when the user clicks the Harness/CLI refresh button", async () => {
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    await screen.findByTestId("harness-cli-row-kimi");
+    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTitle("刷新状态"));
+    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(bridgeMock.getNativeHarnessControlPlane.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+  });
+
+  it("re-reads the control plane on detection events without re-detecting", async () => {
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    await screen.findByTestId("harness-cli-row-kimi");
+    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
+    const controlPlaneReads = bridgeMock.getNativeHarnessControlPlane.mock.calls.length;
+    const listener = bridgeMock.onSupervisorEvent.mock.calls[0]?.[0] as (event: unknown) => void;
+
+    listener({ type: "agent-status-updated", status: { kind: "antigravity" } });
+    await waitFor(() =>
+      expect(bridgeMock.getNativeHarnessControlPlane.mock.calls.length).toBeGreaterThan(
+        controlPlaneReads,
+      ),
+    );
+    // Projection events must not feed back into another detection sweep.
+    expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1);
+  });
+
+  it("installs an unavailable harness and refreshes status without a restart", async () => {
+    installMock.runNativeAgentInstall.mockImplementation(
+      (input: { onComplete?: (ok: boolean) => void }) => {
+        input.onComplete?.(true);
+        return true;
+      },
+    );
+    // After the install completes, the refreshed projection reports the CLI as
+    // installed-but-unconfigured — the row updates in place, no app restart.
+    bridgeMock.getNativeHarnessControlPlane.mockImplementation(async () => {
+      const calls = bridgeMock.getNativeHarnessControlPlane.mock.calls.length;
+      return calls > 1
+        ? [entry("antigravity", "Antigravity Native Harness", "not-configured")]
+        : [entry("antigravity", "Antigravity Native Harness", "unavailable")];
+    });
+
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("harness-cli-install-antigravity"));
+
+    await waitFor(() => expect(installMock.runNativeAgentInstall).toHaveBeenCalledTimes(1));
+    expect(installMock.runNativeAgentInstall).toHaveBeenCalledWith(
+      expect.objectContaining({ agentKind: "antigravity", label: "Antigravity Native Harness" }),
+    );
+    const row = await screen.findByTestId("harness-cli-row-antigravity");
+    await waitFor(() => expect(row.textContent).toContain("未配置"));
+    expect(row.textContent).not.toContain("未安装");
+  });
+
+  it("keeps the honest unavailable state after a failed install", async () => {
+    installMock.runNativeAgentInstall.mockImplementation(
+      (input: { onComplete?: (ok: boolean) => void }) => {
+        input.onComplete?.(false);
+        return true;
+      },
+    );
+
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("harness-cli-install-antigravity"));
+    await waitFor(() => expect(installMock.runNativeAgentInstall).toHaveBeenCalledTimes(1));
+
+    // The row stays honestly 未安装 (the shared action surfaces the real error
+    // toast); the install action is offered again for a retry.
+    const row = await screen.findByTestId("harness-cli-row-antigravity");
+    await waitFor(() => expect(row.textContent).toContain("未安装"));
+    await waitFor(() => expect(screen.queryByText("Installing…")).not.toBeInTheDocument());
   });
 });

@@ -14,6 +14,23 @@ export function isRetiredHarnessKind(harnessKind: string): boolean {
 }
 
 /**
+ * Agent kinds backing the supervisor's Native Harness control plane
+ * (`NATIVE_HARNESS_DESCRIPTORS`), minus the retired `deepseek-api` HTTP
+ * runtime which has no CLI agent kind. A control-plane refresh must run real
+ * agent detection for exactly these kinds first — the projection itself only
+ * reshapes already-detected AgentStatuses.
+ */
+export const NATIVE_HARNESS_AGENT_KINDS: readonly string[] = [
+  "codex",
+  "grok",
+  "kimi",
+  "antigravity",
+  "deepseek",
+  "muse",
+  "opencode",
+];
+
+/**
  * Project the safe Native Harness control-plane into secret-free Workbench
  * Harness materials. A HarnessReference never carries a path, command or
  * credential — it references the descriptor/kind by stable id and reports a
@@ -22,20 +39,22 @@ export function isRetiredHarnessKind(harnessKind: string): boolean {
 export function buildHarnessInventory(
   entries: readonly NativeHarnessControlPlaneEntry[],
 ): HarnessReference[] {
-  return entries.filter((entry) => !isRetiredHarnessKind(entry.descriptor.harnessKind)).map((entry) => {
-    const descriptor = entry.descriptor;
-    const ref: HarnessReference = {
-      harnessItemId: `harness:${descriptor.harnessKind}`,
-      harnessKind: descriptor.harnessKind,
-      descriptorId: descriptor.id,
-      displayName: descriptor.label,
-      vendor: descriptor.vendor,
-      official: descriptor.official,
-      status: entry.status,
-      transport: descriptor.transport,
-    };
-    return ref;
-  });
+  return entries
+    .filter((entry) => !isRetiredHarnessKind(entry.descriptor.harnessKind))
+    .map((entry) => {
+      const descriptor = entry.descriptor;
+      const ref: HarnessReference = {
+        harnessItemId: `harness:${descriptor.harnessKind}`,
+        harnessKind: descriptor.harnessKind,
+        descriptorId: descriptor.id,
+        displayName: descriptor.label,
+        vendor: descriptor.vendor,
+        official: descriptor.official,
+        status: entry.status,
+        transport: descriptor.transport,
+      };
+      return ref;
+    });
 }
 
 /** A Harness is a selectable material only when it is installed, configured and ready. */

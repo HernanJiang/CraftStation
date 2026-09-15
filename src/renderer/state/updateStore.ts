@@ -140,7 +140,20 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
       delete agentUpdates[key];
       return { agentUpdates };
     }),
-  setAvailableCliUpdates: (updates) => set({ availableCliUpdates: updates }),
+  setAvailableCliUpdates: (updates) =>
+    set((state) => {
+      // A re-check that finds the same availability must not publish a fresh
+      // array identity: the titlebar dropdown and the bench Harness rows build
+      // their item collections from this list, and pointless identity churn
+      // around a click is exactly what made the popover feel unstable.
+      const signature = (list: CliUpdateAvailable[]) =>
+        list
+          .map((entry) => `${entry.key}@${entry.latest}`)
+          .sort()
+          .join("|");
+      if (signature(state.availableCliUpdates) === signature(updates)) return {};
+      return { availableCliUpdates: updates };
+    }),
 }));
 
 /**

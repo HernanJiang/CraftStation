@@ -58,7 +58,13 @@ describe("HarnessCliPanel update progress", () => {
   it("shows an update chip mirroring the titlebar CLI check", () => {
     useUpdateStore.setState({
       availableCliUpdates: [
-        { key: "grok:windows:", agentKind: "grok", label: "Grok Build", version: "v1.0.13", latest: "v1.0.25" },
+        {
+          key: "grok:windows:",
+          agentKind: "grok",
+          label: "Grok Build",
+          version: "v1.0.13",
+          latest: "v1.0.25",
+        },
       ],
     });
     renderPanel();
@@ -68,7 +74,9 @@ describe("HarnessCliPanel update progress", () => {
   });
 
   it("runs the CLI update when the update chip is clicked", async () => {
-    const updateAgentBinary = vi.fn<() => Promise<{ ok: boolean }>>().mockResolvedValue({ ok: true });
+    const updateAgentBinary = vi
+      .fn<() => Promise<{ ok: boolean }>>()
+      .mockResolvedValue({ ok: true });
     Object.assign(window, {
       craftstation: {
         ...(window.craftstation ?? {}),
@@ -78,16 +86,24 @@ describe("HarnessCliPanel update progress", () => {
     });
     useUpdateStore.setState({
       availableCliUpdates: [
-        { key: "grok:windows:", agentKind: "grok", label: "Grok Build", version: "v1.0.13", latest: "v1.0.25" },
+        {
+          key: "grok:windows:",
+          agentKind: "grok",
+          label: "Grok Build",
+          version: "v1.0.13",
+          latest: "v1.0.25",
+        },
       ],
     });
     renderPanel();
 
     fireEvent.click(screen.getByRole("button", { name: /Update grok now/u }));
-    await waitFor(() => expect(updateAgentBinary).toHaveBeenCalledWith({
-      agentKind: "grok",
-      envKind: "windows",
-    }));
+    await waitFor(() =>
+      expect(updateAgentBinary).toHaveBeenCalledWith({
+        agentKind: "grok",
+        envKind: "windows",
+      }),
+    );
     useUpdateStore.setState({ availableCliUpdates: [] });
   });
 
@@ -95,7 +111,13 @@ describe("HarnessCliPanel update progress", () => {
     useUpdateStore.setState({
       agentUpdates: { "grok:windows:": { label: "Grok", startedAt: Date.now() } },
       availableCliUpdates: [
-        { key: "grok:windows:", agentKind: "grok", label: "Grok Build", version: "v1.0.13", latest: "v1.0.25" },
+        {
+          key: "grok:windows:",
+          agentKind: "grok",
+          label: "Grok Build",
+          version: "v1.0.13",
+          latest: "v1.0.25",
+        },
       ],
     });
     renderPanel();
@@ -118,5 +140,68 @@ describe("HarnessCliPanel update progress", () => {
     expect(onShowDetail).toHaveBeenCalledTimes(1);
     expect(onShowDetail.mock.calls[0]?.[0].descriptor.harnessKind).toBe("kimi");
     expect(onShowDetail.mock.calls[0]?.[0].status).toBe("not-configured");
+  });
+});
+
+describe("HarnessCliPanel one-click install", () => {
+  it("offers a direct install action on an unavailable row and runs it once", () => {
+    const onInstall = vi.fn<(entry: NativeHarnessControlPlaneEntry) => void>();
+    const onShowDetail = vi.fn<(entry: NativeHarnessControlPlaneEntry) => void>();
+    render(
+      <HarnessCliPanel
+        entries={[entry("antigravity", "unavailable"), entry("grok", "ready")]}
+        loading={false}
+        onRefresh={() => undefined}
+        onInstall={onInstall}
+        onShowDetail={onShowDetail}
+      />,
+    );
+
+    const installChip = screen.getByTestId("harness-cli-install-antigravity");
+    fireEvent.click(installChip);
+    expect(onInstall).toHaveBeenCalledTimes(1);
+    expect(onInstall.mock.calls[0]?.[0].descriptor.harnessKind).toBe("antigravity");
+    // The install chip must not fall through to the row's detail handler.
+    expect(onShowDetail).not.toHaveBeenCalled();
+  });
+
+  it("shows an honest installing state and hides the install chip while in flight", () => {
+    const installing = new Set(["antigravity"]);
+    render(
+      <HarnessCliPanel
+        entries={[entry("antigravity", "unavailable")]}
+        loading={false}
+        installingKinds={installing}
+        onRefresh={() => undefined}
+        onInstall={() => undefined}
+        onShowDetail={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Installing…")).toBeInTheDocument();
+    expect(screen.queryByTestId("harness-cli-install-antigravity")).not.toBeInTheDocument();
+  });
+
+  it("never offers install for ready harnesses or when no handler is wired", () => {
+    render(
+      <HarnessCliPanel
+        entries={[entry("grok", "ready")]}
+        loading={false}
+        onRefresh={() => undefined}
+        onInstall={() => undefined}
+        onShowDetail={() => undefined}
+      />,
+    );
+    expect(screen.queryByTestId("harness-cli-install-grok")).not.toBeInTheDocument();
+
+    render(
+      <HarnessCliPanel
+        entries={[entry("antigravity", "unavailable")]}
+        loading={false}
+        onRefresh={() => undefined}
+        onShowDetail={() => undefined}
+      />,
+    );
+    expect(screen.queryByTestId("harness-cli-install-antigravity")).not.toBeInTheDocument();
   });
 });

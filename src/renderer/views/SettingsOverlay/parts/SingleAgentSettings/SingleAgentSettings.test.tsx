@@ -1037,6 +1037,7 @@ describe("SingleAgentSettings", () => {
       command: expect.any(Function),
       onCommandComplete: expect.any(Function),
       project: windowsProject,
+      purpose: "install",
     });
   });
 
@@ -1087,6 +1088,7 @@ describe("SingleAgentSettings", () => {
       command: expect.any(Function),
       onCommandComplete: expect.any(Function),
       project: wslProject,
+      purpose: "install",
     });
   });
 

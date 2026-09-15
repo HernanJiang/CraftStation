@@ -14,10 +14,7 @@ import { providerVisibilityKey } from "@/renderer/components/common/ProviderMode
 import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
 import { runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
 import { customModelId, type CustomModel } from "@/renderer/components/thread/customModelCatalog";
-import {
-  CustomModelDialog,
-  type CustomModelDialogValues,
-} from "./CustomModelDialog";
+import { CustomModelDialog, type CustomModelDialogValues } from "./CustomModelDialog";
 import type { SharedSettings } from "@/shared/settings";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { resolveThirdPartyHarnessForModel } from "@/shared/thirdPartyRouting";
@@ -364,7 +361,8 @@ export function ModelManagementPage(props: {
       efforts?: string[];
       defaultEffort?: string;
     },
-  ) => {    const trimmedId = modelId.trim();
+  ) => {
+    const trimmedId = modelId.trim();
     if (!trimmedId) return;
     const existing = customModels.find(
       (model) =>
@@ -847,7 +845,8 @@ export function ModelManagementPage(props: {
                 })}
                 {recipes.length === 0 ? (
                   <li className="px-3 py-2 text-[11px] text-neutral-500">
-                    还没有保存的配方。去「合成台」合成并保存后，可在这里勾选进首页模型选择器。
+                    还没有保存的配方。去「合成台 /
+                    Harness」合成并保存后，可在这里勾选进首页模型选择器。
                   </li>
                 ) : null}
               </ul>
@@ -918,9 +917,7 @@ export function ModelManagementPage(props: {
                     </ul>
                   </>
                 ) : null}
-                {!fetched.loading &&
-                !fetched.error &&
-                fetched.models.length === 0 ? (
+                {!fetched.loading && !fetched.error && fetched.models.length === 0 ? (
                   <p className="mt-1 text-[11px] text-neutral-500">
                     上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。
                   </p>
@@ -940,46 +937,46 @@ export function ModelManagementPage(props: {
             ) : null}
 
             {selected?.kind === "recipes" ? null : (
-            <div className="mt-3 rounded-lg bg-black/20 p-2">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
-                手动添加模型
-              </p>
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <input
-                  aria-label="模型 ID"
-                  value={manualDraft.modelId}
-                  onChange={(event) =>
-                    setManualDraft({ ...manualDraft, modelId: event.target.value })
-                  }
-                  placeholder="模型 ID，如 gpt-5.3"
-                  className={inputClass}
-                />
-                <input
-                  aria-label="模型展示名称"
-                  value={manualDraft.displayName}
-                  onChange={(event) =>
-                    setManualDraft({ ...manualDraft, displayName: event.target.value })
-                  }
-                  placeholder="展示名称（可选）"
-                  className={inputClass}
-                />
-                <button
-                  type="button"
-                  aria-label="打开添加模型对话框"
-                  title="打开添加模型对话框，可设置上下文窗口与输入输出类型"
-                  onClick={() => setModelDialogOpen(true)}
-                  disabled={!manualDraft.modelId.trim() || verifyingModelKey !== null}
-                  className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-[11px] text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
-                >
-                  {verifyingModelKey !== null ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Plus className="size-3" />
-                  )}{" "}
-                  添加
-                </button>
+              <div className="mt-3 rounded-lg bg-black/20 p-2">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+                  手动添加模型
+                </p>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <input
+                    aria-label="模型 ID"
+                    value={manualDraft.modelId}
+                    onChange={(event) =>
+                      setManualDraft({ ...manualDraft, modelId: event.target.value })
+                    }
+                    placeholder="模型 ID，如 gpt-5.3"
+                    className={inputClass}
+                  />
+                  <input
+                    aria-label="模型展示名称"
+                    value={manualDraft.displayName}
+                    onChange={(event) =>
+                      setManualDraft({ ...manualDraft, displayName: event.target.value })
+                    }
+                    placeholder="展示名称（可选）"
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    aria-label="打开添加模型对话框"
+                    title="打开添加模型对话框，可设置上下文窗口与输入输出类型"
+                    onClick={() => setModelDialogOpen(true)}
+                    disabled={!manualDraft.modelId.trim() || verifyingModelKey !== null}
+                    className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-[11px] text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                  >
+                    {verifyingModelKey !== null ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Plus className="size-3" />
+                    )}{" "}
+                    添加
+                  </button>
+                </div>
               </div>
-            </div>
             )}
             {selected && selected.kind !== "recipes" ? (
               <CustomModelDialog

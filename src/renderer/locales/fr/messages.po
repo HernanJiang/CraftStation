@@ -1927,8 +1927,8 @@ msgid "Budget limit reached"
 msgstr "Limite budgétaire atteinte"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Build new features, apps, or tools"
-msgstr ""
+#~ msgid "Build new features, apps, or tools"
+#~ msgstr ""
 
 #: src/renderer/components/diff/DiffCardList.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/InlineDiffView.tsx
@@ -2490,6 +2490,10 @@ msgstr ""
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Click a shortcut to record a new key, or ＋ to add another."
 msgstr "Cliquez sur un raccourci pour enregistrer une nouvelle touche, ou sur ＋ pour en ajouter un autre."
+
+#: src/renderer/components/composer/ImageLightbox.tsx
+msgid "Clipboard rejected the image (unsupported format)"
+msgstr ""
 
 #: src/mobile/views/ManageProjectsView.tsx
 #: src/renderer/views/MainView/parts/AppContent/parts/Thread/parts/ContinueInProviderDialog.tsx
@@ -3240,6 +3244,7 @@ msgstr ""
 
 #: src/mobile/UserMessageActionsSheet.tsx
 #: src/mobile/views/PortsView.tsx
+#: src/renderer/components/composer/ImageLightbox.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/CopyTextButton.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 #: src/renderer/RendererCrashScreen.tsx
@@ -3248,12 +3253,16 @@ msgstr "Copié"
 
 #. placeholder {0}: paths.length
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
-msgid "Copied {0} session paths."
+#~ msgid "Copied {0} session paths."
+#~ msgstr ""
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
+msgid "Copied session address."
 msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
-msgid "Copied session path."
-msgstr ""
+#~ msgid "Copied session path."
+#~ msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copied thread path."
@@ -3306,6 +3315,7 @@ msgstr "Échec de la copie"
 msgid "Copy ignored files"
 msgstr "Copier les fichiers ignorés"
 
+#: src/renderer/components/composer/ImageLightbox.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 #: src/renderer/views/ProfileOverlay/parts/ShareDialog.tsx
 msgid "Copy image"
@@ -4367,6 +4377,7 @@ msgstr "fait"
 #. Notification status: thread is done
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarProjectRows.ts
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4470,6 +4481,7 @@ msgstr "par ex. Travail"
 
 #: src/renderer/components/thread/ChatPane/parts/items/FileChange.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/UsageStatsPage.tsx
 #: src/renderer/views/SettingsOverlay/parts/ProfileSettings.tsx
 msgid "Edit"
@@ -4948,8 +4960,8 @@ msgid "Explicit selections recorded from past delegations — they feed the rout
 msgstr "Sélections explicites enregistrées lors de délégations passées — elles alimentent l'ordre de routage ci-dessus. Modifiez les tags ou supprimez des entrées pour le remodeler."
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Explore and understand code"
-msgstr ""
+#~ msgid "Explore and understand code"
+#~ msgstr ""
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Export MCP servers"
@@ -5264,8 +5276,8 @@ msgid "First-class Qwen Code integration using CraftStation's native terminal an
 msgstr "Intégration de premier ordre de Qwen Code utilisant les environnements d’exécution natifs de terminal et ACP de CraftStation."
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Fix bugs and failures"
-msgstr ""
+#~ msgid "Fix bugs and failures"
+#~ msgstr ""
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/ConflictResolutionActions.tsx
 msgid "Fix in Agent"
@@ -6018,6 +6030,10 @@ msgstr "hérité"
 msgid "Inheriting the global setting (currently {0})."
 msgstr "Hérité du paramètre global (actuellement {0})."
 
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "Initialize Git and connect GitHub to see Actions workflows."
+msgstr ""
+
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
 msgid "Initialize Repository"
 msgstr "Initialiser le dépôt"
@@ -6042,6 +6058,7 @@ msgstr "Inspecter les éléments d'exécution canoniques"
 msgid "install"
 msgstr "installer"
 
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
@@ -6053,10 +6070,20 @@ msgstr "installer"
 msgid "Install"
 msgstr "Installer"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Install {0}"
+msgstr ""
+
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
 msgid "Install {0} for {env}."
 msgstr "Installez {0} pour {env}."
+
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Install {0} now"
+msgstr ""
 
 #. placeholder {0}: formatAgentList(props.agentStatuses.map((s) => s.label))
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -6184,6 +6211,10 @@ msgstr "Installation"
 #: src/renderer/views/LoginTerminalOverlay/LoginTerminalOverlay.tsx
 msgid "Installing in this terminal. Closes when finished."
 msgstr "Installation dans ce terminal. Se ferme une fois terminé."
+
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Installing…"
+msgstr ""
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Instructions"
@@ -8702,8 +8733,8 @@ msgid "Paused after {elapsed}"
 msgstr ""
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "paused until you send"
-msgstr ""
+#~ msgid "paused until you send"
+#~ msgstr ""
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -9403,7 +9434,6 @@ msgid "Queue request"
 msgstr ""
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
-#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
 msgid "Queued"
 msgstr "Dans la file d’attente"
@@ -10216,8 +10246,8 @@ msgid "Review Changes"
 msgstr "Examiner les modifications"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
-msgid "Review code and suggest changes"
-msgstr ""
+#~ msgid "Review code and suggest changes"
+#~ msgstr ""
 
 #: src/renderer/views/GitReviewOverlay/parts/DiffAnnotationView.tsx
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
@@ -10834,8 +10864,8 @@ msgid "Send now"
 msgstr ""
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "sends when this turn finishes"
-msgstr ""
+#~ msgid "sends when this turn finishes"
+#~ msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."
@@ -12310,6 +12340,10 @@ msgstr "Les compétences de ce plugin n'ont pas pu être lues."
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "this project"
 msgstr "ce projet"
+
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "This project is not a Git repository."
+msgstr ""
 
 #: src/renderer/actions/threadLaunchActions.ts
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -14012,8 +14046,8 @@ msgid "原生"
 msgstr ""
 
 #: src/renderer/components/thread/DraftContextBar.tsx
-msgid "取消配方"
-msgstr ""
+#~ msgid "取消配方"
+#~ msgstr ""
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "在 Git 面板中打开"

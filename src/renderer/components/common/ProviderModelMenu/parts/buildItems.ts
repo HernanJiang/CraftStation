@@ -35,6 +35,12 @@ export interface ProviderModelMenuProvider {
   /** Key/Base-URL account that must back this provider surface. */
   accountId?: string;
   capabilities: AgentCapability;
+  /**
+   * Installed CLI without a login/configured channel yet. Stays in the
+   * catalog with an explicit unconfigured hint instead of disappearing after
+   * the usage/accounts hydration lands.
+   */
+  unconfigured?: boolean;
 }
 
 export function statusToMenuProvider(agent: AgentStatus): ProviderModelMenuProvider {
@@ -539,6 +545,7 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
         providerKey: key,
         hiddenModelsKey: visibilityKey,
         ...(provider.icon ? { providerIcon: provider.icon } : {}),
+        ...(provider.unconfigured ? { unconfigured: true } : {}),
         label: providerLabelForPresentation(provider),
       });
     }
