@@ -1,3 +1,18 @@
+## Release 1.2.6 — 首页入口 / Harness 实时检测与安装 / CLI 更新交互 Hotfix（2026-09-16）
+
+- 对应 GitHub Issues：#3（CLI 更新指示显示但点击无效、双击时更新页瞬间开关）、#4（Harness/CLI 不支持直接安装）。基于 1.2.5 在 `main` 直接修复，commit `24701bb3`，tag `v1.2.6` 已 push，GitHub Release 已发布（`CraftStation-Portable-1.2.6-x64.exe`，131 MB，未签章问题无）。
+- 修复内容与根因：
+  - 首页四张 suggestion card 原为 UI-only（仅 `focusComposer()`），改为真实导航：合成台 / Harness → `openModelUsageWorkspace({tab:"crafting"})`、侧边栏 → 既有 `toggleSidebar()`、模型管理 → `{tab:"models"}`、配方管理 → `{tab:"recipes"}`（`DraftHomeHero.tsx`）。
+  - 「合成台」一级入口统一显示为「合成台 / Harness」：workspace tab、顶栏 pinned 快捷键（zh-CN `Crafting Table` msgstr）、管理模型帮助文案；内部 tab id 保持 `crafting`。
+  - 模型目录骤减根因：`useManagedComposerProviders` 与 `ThreadDraftView` 用 `usageChannelsReady`（accounts hydrate || storedLogin）翻转「全部已安装 / 仅已配置」两套列表。修复后目录恒等于真实检测结果（installed − disabled − deepseek 排除），已安装未配置渠道保留并带 `unconfigured` 标记，ProviderModelMenu provider header 渲染「未配置」徽标；账号绑定自定义渠道显式 `unconfigured:false`。
+  - 合成台 `refreshHarness()` 原来只读 control plane projection（supervisor 侧仅对既有 AgentStatus 做 projection，不探测机器）。现打开/手动刷新先 `refreshAgentStatuses(currentWslDistros, {agentKinds: NATIVE_HARNESS_AGENT_KINDS})`（7 类 native harness agent kinds，supervisor 侧自动 `invalidateExecutablePathCache` + Windows user/machine registry PATH 重读），再读 projection；supervisor 检测事件只触发 projection re-read，杜绝事件循环。real 验证：Muse 行刷新后 未安装→未配置（WSL 真实探测生效）。
+  - 一键安装：新增 `src/renderer/actions/installNativeAgent.ts`（`runNativeAgentInstall`，从 `NATIVE_AGENT_REGISTRY_ENTRIES` 取官方 installCommand 走 `runAgentInstallCommand`，exit 0 后 scoped `refreshAgentStatuses`）；`HarnessCliPanel` unavailable 行渲染「安装」chip + 「安装中…」状态，Settings `SingleAgentSettings` 的 per-env install 同步改用该 shared action。不 hardcode vendor installer。
+  - CliUpdateMenu 闪断根因：`Dropdown.Trigger onPress` 在同一次 press 里 `runCheck({force:true})`，`setUpdates` 替换数组导致 menu item collection 在 popover 建立过程中重建。修复：Trigger 只开菜单；显式「检查更新」菜单项与 mount keyset 自检执行 check；`setUpdates`/`setAvailableCliUpdates` 对相同 keyset+latest 保持数组身份。real 验证：单击 Kimi 更新项一次 → 恰好一次 `updateAgentBinary` → 真实升级 0.42.0→0.43.1 → agent status + availability 自动刷新 → 徽标 3→2，全程无闪动。
+- Antigravity（agy 1.2.3，`C:\Users\Haona\AppData\Local\agy\bin`）：Case A 真机验证 PASS（打开合成台即「就绪」，刷新后稳定）；Case B（运行中安装）与 Muse 同路径真机验证（未安装→未配置），未单独重装 agy。DetectionSpec 保持 `binary: "agy"`，无假 alias。
+- 测试：新增 `DraftHomeHero.test`（4 卡导航）、`useManagedComposerProviders.test`（hydrate 前后不收缩/Antigravity 未配置标记/disabled 消失）、`installNativeAgent.test`（未知 kind 拒绝/成功刷新/失败报错）、`CliUpdateMenu.test`（trigger 不触发 check/单击一次更新/数组身份稳定）、`HarnessCliPanel`+`CraftingWorkbenchPage` 扩展（真实 detection on open/refresh、事件仅 projection、安装成功/失败状态迁移）；`MainTitlebar.test` 按「trigger 不再强制 check」新契约改写。`pnpm typecheck` PASS（顺手修复既有 `ThreadDraftView` modelDefaultEfforts 与 `compatibilityBridge/install.ts` exactOptionalPropertyTypes 两个既有类型错）；触碰文件 `oxlint` 0 错误；全量 vitest 1070 文件，失败文件集与 HEAD 基线完全一致（19 个既有失败，含 provider-live/terminal-pty 等 smoke 门与 codex/runtime 等，均为并行批次/环境遗留，与本批无关）。
+- Smoke：`--scope changed/full --mode mock` 失败集与 HEAD 基线 full-scope 完全一致（provider-live、provider-skill-delivery、terminal-pty、schedules、github-actions、browser 六门为 main 既有失败）；managed real 会话 CDP 驱动验证：四卡导航、合成台 tab/面板、Antigravity 就绪、刷新真实探测、更新菜单稳定打开 3s+、Kimi 单击一次真实更新成功、模型目录多厂商全量可见，0 renderer console error。
+- 边界：Case B 未在本机重装 agy 复现（与 Muse 共享同一条 scoped refresh 链路）；smoke provider-live/terminal-pty 等六门为 main 既有失败未在本轮修复；CLI 一键安装依赖本机 curl/npm 等官方安装器存在。
+
 ## 当前用户覆盖约定 — 2026-09-05
 
 - 工作模式：用户已明确启用 `my-workflow`，目标是持续修复 CraftStation 的已知 bug，直到达到可用状态；具体完成度以可复现的测试、构建、运行 smoke 与外部依赖证据为准，不把未验证能力标为完成。
@@ -30,6 +45,7 @@
   - `src/renderer/state/slices/runtimeEventReducer.ts`：plan 项被 Claude 聚合器以同 id 重开（`item.started`）时允许复位为 `started`，避免 turn 末关闭后计划 dock 整会话无法回归。
 - 证据：新/改单测全过——`mspCanonicalMapping` 20/20（含 closeMusePlanItem、唯一 id）、`mspSession.test.ts` 新建 2/2（finishTurn 接线）、`threadTodoState` 15/15（含 completed 未全完成撤 dock、updated 跨轮保留两例）、`runtimeEventSlice` 36/36（含 plan reopen）；主+type-aware `oxlint --deny-warnings` 0 错误；邻居回归（acp canonicalMapping/session、claude、planAggregator、ThreadStatusCapsule、chatPaneSelectors 等）537 通过。`pnpm typecheck` 与 ThreadView.test 2 例、codex canonicalMapping 4 例失败均为并行批次未提交半成品所致，已用 stash 基线对比证实与本批无关。
 - 待用户：重启应用后用 Meta 模型跑一个多步任务目视验收（完成后 Step 段应消失而非卡住）；真实出流量验证受外部模型额度约束。
+
 # PROJECT_STATUS.md
 
 ## v0.7.0 Main Integration Record — 2026-09-01
@@ -259,7 +275,7 @@ Model Item + Harness Item
 - 2026-09-07 合成台微调（用户图注）：①底部胶囊改回单色（`DraftParameterMenu` 去掉彩色 badge，恢复 `ProviderIcon tone=active` 以往颜色；Harness·Model·Effort 单行与 tooltip 不变）。②彩色只用在合成台：库存卡/合成格/右侧 Harness 面板统一经 `brandIdForVendorKind` 取真彩标（合成格 avatar→compact，右侧面板 avatar→compact）。③合成按钮放大：`size=sm + text-base` 被 HeroUI 锁字号，改 `size=lg`（实测 16px）+ `h-12`（实测 48px），清空同高。④合成结果格改 `items-center`，落在左 2x2 中线延长线上。证据：单测 14/14（capsule/panel/slots），`tsc`/lint 0，隔离真应用双实测（面板彩色行/按钮 48px·16px）；`build` 全过，重启 dev（新主进程 `41436` + 4 子进程）。
 - 2026-09-07 Harness 显示 CLI 产品名：`Kimi · K3` 这类 family 名读不懂；`COMPATIBILITY_HARNESS_LABELS` 改为 CLI 产品名（Kimi→Kimi Code、Grok→Grok Build，其余 Codex/Antigravity/OpenCode/Muse 与原生 descriptor label 一致），且原生时直接取账号所属 provider 的真实 label（如 Kimi Code），兼容态取 affinity CLI 名。证据：单测（label 表断言 + Kimi Code 原生用例）23/23，`tsc`/lint 0，`build` 全过，重启 dev（新主进程 `34544` + 4 子进程）。
 - 2026-09-07 Ctrl +/- 后输入框卡出视口：根因是单位混用——RO `contentRect` 给未缩放 px，`getBoundingClientRect`/鼠标坐标给缩放后 px；`SplitPaneContainer` 的挂载 effect 与每次 render 的收敛 effect 直接把 gBCR 写成 CSS px，zoom 下二次放大（1.5x 时 pane 渲染 2.25x，composer 被顶出 390px），且切对话必 render 必 corrupt、RO 不回补（未缩放尺寸没变就不触发）。隔离真应用活体实证（RO 536.33 vs gBCR 804.49 vs computed 536px）。修：新 `layout/rootZoom.ts`（`rootZoomFactor` + `readUnscaledRect`），split 容器两处读取 + 分隔条拖拽 delta 归一化，`useResizablePanels` 三处拖拽 delta 与主区 cap 同理。证据：新 `rootZoom.test` 4/4 + 容器 zoom 回归（1.5x 下仍写 1000x600）18/18，layout+AppShell 52/52，`tsc`/主+type-aware lint 0；新构建隔离应用 zoom=1.5 下 pane 链最大比 1.5（单次正常缩放）、composer clip -12。`build` 全过，重启 dev（新主进程 `2044` + 4 子进程）。
-- 2026-09-07 右侧栏按线程绑定：`panelStore` 加 `threadAuxiliaryPanels` 快照（placement/tab/tabs/browser/usage/notes 开关；payload 上下文与布局 chrome  purposely 全局）+ `capture/restoreThreadAuxiliaryPanel`，`openThread` 入口处 park 旧线程、恢复目标线程（无快照则默认关闭；同线程 refocus 跳过）。证据：`panelStore.test` 36/36（含捕获/恢复/覆盖新断言），隔离真应用 live store 驱动验证（A right+browser ⇄ B hidden 互切正确），新构建启动截图正常。诚实边界：浏览器页内 URL/标签页仍全局（browser store 未动），多 pane 下以 focused 线程为准；从 home 进线程会恢复该线程快照（多为关闭态）。
+- 2026-09-07 右侧栏按线程绑定：`panelStore` 加 `threadAuxiliaryPanels` 快照（placement/tab/tabs/browser/usage/notes 开关；payload 上下文与布局 chrome purposely 全局）+ `capture/restoreThreadAuxiliaryPanel`，`openThread` 入口处 park 旧线程、恢复目标线程（无快照则默认关闭；同线程 refocus 跳过）。证据：`panelStore.test` 36/36（含捕获/恢复/覆盖新断言），隔离真应用 live store 驱动验证（A right+browser ⇄ B hidden 互切正确），新构建启动截图正常。诚实边界：浏览器页内 URL/标签页仍全局（browser store 未动），多 pane 下以 focused 线程为准；从 home 进线程会恢复该线程快照（多为关闭态）。
 
 ## Repository State
 
@@ -284,14 +300,3 @@ Model Item + Harness Item
 5. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
 6. v1.2.0 Coder 自检后创建一对一 `Debugger-1.2-MCP Skills Capability`（`gpt-5.6-sol / high`）；其他 Feature 的 Coder 完成后分别创建一对一 Debugger。Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
 7. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
-
-
-
-
-
-
-
-
-
-
-
