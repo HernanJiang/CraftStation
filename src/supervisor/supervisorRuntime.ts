@@ -117,6 +117,7 @@ import {
 import {
   compatibilityBridgeUserToolsDir,
   installCliProxyApiBinary,
+  isHostNativeCliProxyBinary,
 } from "./runtime/compatibilityBridge/install";
 import { setWslAttachmentBridgeClient } from "./runtime/threadAttachments";
 import { FileIndexService } from "./fileIndex";
@@ -411,7 +412,9 @@ export class SupervisorRuntime {
       envBinaryPath: process.env.CLIPROXY_BINARY_PATH,
       platform: process.platform,
       cwd: options?.cwd ?? process.cwd(),
-      existsSync: options?.existsSync ?? existsSync,
+      existsSync:
+        options?.existsSync ??
+        ((path) => existsSync(path) && isHostNativeCliProxyBinary(path, process.platform)),
       resolveOnPath: options?.resolveOnPath ?? ((command) => resolveExecutablePath(command)),
       extraSearchDirs,
     });

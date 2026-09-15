@@ -42,6 +42,7 @@ resources/wsl-helpers/cursor-sdk-worker.mjs
 resources/agent-plugins/
 resources/mobile-ssh-runtime/
 resources/peripheral-sidecar/
+resources/cpa/
 native/peripheral-sidecar/target/
 .envrc
 .envrc.local

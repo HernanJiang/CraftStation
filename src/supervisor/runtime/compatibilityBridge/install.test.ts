@@ -44,4 +44,39 @@ describe("pickCliProxyReleaseAsset", () => {
       "CLIProxyAPI_7.3.3_windows_amd64.zip",
     );
   });
+
+  it("does not treat the letters arm inside windows as an ARM build", () => {
+    const official = [
+      {
+        name: "CLIProxyAPI_7.3.3_darwin_amd64.tar.gz",
+        browser_download_url: "https://example.test/darwin.tar.gz",
+      },
+      {
+        name: "CLIProxyAPI_7.3.3_windows_aarch64.zip",
+        browser_download_url: "https://example.test/win-arm.zip",
+      },
+      {
+        name: "CLIProxyAPI_7.3.3_windows_amd64.zip",
+        browser_download_url: "https://example.test/win-amd.zip",
+      },
+    ];
+    expect(pickCliProxyReleaseAsset(official, "win32", "x64")?.name).toBe(
+      "CLIProxyAPI_7.3.3_windows_amd64.zip",
+    );
+  });
+
+  it("fails closed when only a foreign OS archive is listed", () => {
+    expect(
+      pickCliProxyReleaseAsset(
+        [
+          {
+            name: "CLIProxyAPI_7.3.3_darwin_amd64.tar.gz",
+            browser_download_url: "https://example.test/darwin.tar.gz",
+          },
+        ],
+        "win32",
+        "x64",
+      ),
+    ).toBeUndefined();
+  });
 });

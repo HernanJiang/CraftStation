@@ -1,148 +1,47 @@
 <p align="center">
-  <img src="build/icon.png" width="128" height="128" alt="CraftStation" />
+  <img src="figures/CraftStation_LOGO.png" width="128" height="128" alt="CraftStation" />
 </p>
 
 <h1 align="center">CraftStation</h1>
 
 <p align="center">
-  <strong>One window for all your AI coding agents.</strong><br />
-  Run Claude, Codex, OpenCode, Gemini, Grok, Kimi Code, Qwen Code, Pi, Qoder, Factory Droid, Antigravity, Cursor, Command Code, and Copilot side-by-side. Terminal and chat, any layout — with built-in MCP so agents can orchestrate each other and the app itself.
+  <strong>Agent Runtime Composition System</strong><br />
+  Compose Model × Harness into a running Session — not a multi-model GUI, not a CLI launcher.
 </p>
 
 <p align="center">
-  <a href="https://craftstation.com">Website</a> · <a href="https://github.com/SDSLeon/craftstation/releases">Download</a> · <a href="https://github.com/SDSLeon/craftstation/issues">Report a Bug</a> · <a href="https://github.com/SDSLeon/craftstation/issues">Request Feature</a>
+  <a href="./README.zh-CN.md">中文</a>
+  ·
+  <a href="https://github.com/HernanJiang/CraftStation/releases">Download</a>
+  ·
+  <a href="./LICENSE">Apache 2.0</a>
 </p>
 
-<p align="center">
-  <em>Bring your own agent subscriptions & API keys</em>
-</p>
+<p align="center"><em>HernanJIANG</em></p>
 
 ---
 
-<p align="center">
-  <img src="website/public/hero-screenshot.png" alt="CraftStation — AI agents running side-by-side" width="960" />
-</p>
+CraftStation treats an agent run as a **craft**: pick Items (model, harness, tools), form a Recipe, let the Crafter compile a plan, spawn an Entity, and work inside a Session.
 
-## Supported Agents
+**Auto** picks a native Harness for the model family. A Recipe you save on the workbench is an explicit composition and should spawn exactly that Harness + model.
 
-**Claude** · **Codex** · **OpenCode** · **Gemini** · **Grok** · **Kimi Code** · **Qwen Code** · **Pi** · **Qoder** · **Factory Droid** · **Antigravity** · **Cursor** · **Command Code** · **Copilot** and any agent from the [ACP registry](https://agentclientprotocol.com).
+## What it does
 
-## Why CraftStation?
-
-If you use more than one AI coding agent, you know the pain: separate terminals, separate apps, no shared context. CraftStation puts them all in one place.
-
-### Infinite Threads & Layouts
-
-Mix TUI and GUI agents in any configuration. Open as many threads as you need, arrange them in horizontal and vertical splits, and resize freely. The layout stays fast no matter how many sessions you have running.
-
-### Unified Protocol GUI
-
-A consistent chat interface for ACP and SDK agents — markdown, syntax highlighting, and tool call displays. Where a provider offers more than one runtime (for example Cursor ships CLI, ACP, and SDK), you pick which one a thread runs on.
-
-### Crossagents
-
-Let one agent delegate work to another across providers. Subagent output streams into the parent thread, background runs finish while the parent keeps working, and you can pin routing rules per task type.
-
-### Built-in MCP & App Controls
-
-CraftStation ships its own MCP servers. Point any agent at them to create and steer threads, organize projects, list and merge Git worktrees, commit and sync, open and merge pull requests, schedule runs, manage skills, and change settings — or add your own MCP servers over stdio, HTTP, or SSE.
-
-### Agent Experiments
-
-Run one prompt across several agents in parallel worktrees, then let an AI judge compare their code and answers, crown a winner, and merge it or open a PR.
-
-### Scheduled Runs
-
-Put recurring work on a schedule — nightly reviews, dependency sweeps, changelog drafts — and let CraftStation start the thread for you.
-
-### Skills & Marketplace
-
-Browse and install skills from public marketplaces, or import your own. One shared folder that every provider picks up automatically.
-
-### On-Device Voice Input
-
-Dictate a prompt with a keystroke. Whisper runs locally, with optional GPU acceleration, so your audio never leaves the machine.
-
-### Checkpoints & Rollback
-
-Rewind a conversation to any earlier message and restore the files with it, with a warning first when another thread shares the same tree.
-
-### Project Workspaces
-
-Group projects into workspaces and switch the whole sidebar between them, so dozens of repos stay one click apart.
-
-### Git Worktrees
-
-Group threads by worktree and drive parallel branches side by side, without leaving the app.
-
-### Live Usage & Limits
-
-See session and weekly quota for every provider — Claude Max, ChatGPT Pro, and more — at a glance.
-
-### Terminal Fidelity
-
-Run CLI agents in real terminal sessions, with the same output and controls you expect from your own shell.
-
-### Built for Speed
-
-Optimized to stay fast and responsive, even when you have lots of agent sessions running side by side.
-
-### Session Persistence
-
-Sessions are saved automatically, so you can close CraftStation and pick up right where you left off.
-
-### Built-in Browser
-
-Open web pages, attach browser context to agents, and keep research in the same workspace.
-
-### Remote Access
-
-Pair the CraftStation web app with your desktop to follow live threads, read terminal output, send messages, and receive notifications from your phone or browser.
-
-### Remote Machines over SSH
-
-Connect a server from your SSH config and CraftStation installs its runtime there, then runs agents on that machine — clone repos, open threads, and drive projects that never leave the box.
-
-### In-App PRs
-
-Review pull requests, browse diffs, stage changes, and generate AI commits — then let automation watch the PR, fix what fails, merge with your chosen method, and mark the thread done.
-
-### Code Editor
-
-Monaco-based editor with LSP support for quick edits without switching to your IDE.
-
-### Cross-Platform Desktop
-
-Run CraftStation on macOS, Windows, and Linux, with a polished interface that feels at home on both Mac and Windows.
-
-### WSL Support
-
-Use Windows and WSL projects side by side, with agent commands routed through the right environment automatically.
-
-### ACP Registry
-
-Install and run any agent from the [Agent Client Protocol](https://agentclientprotocol.com) registry directly from settings.
+- One desktop for Codex, OpenCode, Kimi Code, Antigravity / Gemini, Grok, DeepSeek, Muse, Claude, Cursor, and ACP agents
+- Native route when Model vendor and Harness vendor match
+- Compatibility route (CLIProxyAPI) when you project a subscription onto a different Harness — for example **Kimi Code key → Codex**
+- Shared workspace, MCP, skills, and a GUI that shows thinking, tools, and context usage
 
 ## Install
 
-Download the latest release for your platform from the [releases page](https://github.com/SDSLeon/craftstation/releases) or visit [craftstation.com](https://craftstation.com).
+Windows portable build:
 
-| Platform | Format                        |
-| -------- | ----------------------------- |
-| macOS    | DMG (Apple silicon or Intel)  |
-| Windows  | NSIS installer (x64 or Arm64) |
-| Linux    | AppImage or `.deb` (x64)      |
+1. Download `CraftStation-Portable-*.exe` from [Releases](https://github.com/HernanJiang/CraftStation/releases)
+2. Run it. No installer required.
+3. Sign in to the agents you already use. Bring your own keys and subscriptions.
 
-### Getting Started
-
-1. Install CraftStation for your platform.
-2. Install the AI agent CLIs you want to use (e.g., [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex](https://github.com/openai/codex)).
-3. Open CraftStation, add your project, and start orchestrating.
-
-## Contributing
-
-Contributions are welcome! Please open an [issue](https://github.com/SDSLeon/craftstation/issues) first to discuss what you'd like to change.
+Cross-vendor recipes need [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI). The workbench can download the official Windows amd64 build into `~/.craftstation/tools/cpa/`.
 
 ## License
 
-[Apache-2.0](LICENSE)
+Apache License 2.0. Copyright HernanJIANG.

@@ -1,9 +1,12 @@
 import { execFile } from "node:child_process";
 import {
+  closeSync,
   copyFileSync,
   createWriteStream,
   existsSync,
   mkdirSync,
+  openSync,
+  readSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -14,10 +17,29 @@ import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 import { Readable } from "node:stream";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const execFileAsync = promisify(execFile);
 const CPA_GITHUB_REPO = "router-for-me/CLIProxyAPI";
 const CPA_USER_AGENT = "CraftStation-CLIProxyAPI-installer";
+
+function proxyUrl(): string | undefined {
+  const value =
+    process.env.HTTPS_PROXY ??
+    process.env.https_proxy ??
+    process.env.HTTP_PROXY ??
+    process.env.http_proxy;
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** GitHub downloads must honor the user proxy; Node's built-in fetch does not. */
+export async function fetchCliProxy(url: string, init?: RequestInit): Promise<Response> {
+  const proxy = proxyUrl();
+  if (!proxy) return fetch(url, init);
+  const dispatcher = new ProxyAgent(proxy);
+  return undiciFetch(url, { ...(init ?? {}), dispatcher }) as unknown as Response;
+}
 
 export interface CliProxyReleaseAsset {
   name: string;
@@ -45,18 +67,86 @@ export function pickCliProxyReleaseAsset(
   const os =
     platform === "win32" ? "windows" : platform === "darwin" ? "darwin" : "linux";
   const cpu = arch === "arm64" ? "arm64" : "amd64";
-  const cpuAliases = cpu === "amd64" ? ["amd64", "x86_64", "x64"] : ["arm64", "aarch64"];
+  const cpuTokens = cpu === "amd64" ? ["amd64", "x86_64", "x64"] : ["arm64", "aarch64"];
   const archives = assets.filter((asset) => {
     const name = asset.name.toLowerCase();
+    if (name.includes("checksum") || name.startsWith("source")) return false;
     return name.endsWith(".zip") || name.endsWith(".tar.gz") || name.endsWith(".tgz");
   });
-  const matching = archives.filter((asset) => {
-    const name = asset.name.toLowerCase();
-    if (!name.includes(os) && !(os === "windows" && /win(32|64)?/.test(name))) return false;
-    if (cpu === "amd64" && /arm/.test(name)) return false;
-    return cpuAliases.some((alias) => name.includes(alias));
-  });
-  return matching[0] ?? archives.find((asset) => asset.name.toLowerCase().includes(os));
+  const matching = archives
+    .map((asset) => {
+      const name = asset.name.toLowerCase();
+      if (!assetMatchesOs(name, os)) return undefined;
+      if (!assetMatchesCpu(name, cpuTokens)) return undefined;
+      // `windows` contains the letters "arm" — never use a bare /arm/ test.
+      if (cpu === "amd64" && /(?:^|[_-])(?:arm64|aarch64)(?:[._-]|$)/.test(name)) {
+        return undefined;
+      }
+      const zipBonus = os === "windows" && name.endsWith(".zip") ? 2 : 0;
+      const pluginBonus = name.includes("no-plugin") ? 0 : 1;
+      return { asset, score: zipBonus + pluginBonus };
+    })
+    .filter((row): row is { asset: CliProxyReleaseAsset; score: number } => row !== undefined)
+    .sort((left, right) => right.score - left.score);
+  return matching[0]?.asset;
+}
+
+function assetMatchesOs(name: string, os: string): boolean {
+  if (name.includes(`_${os}_`) || name.includes(`-${os}-`) || name.includes(`_${os}.`)) {
+    return true;
+  }
+  return os === "windows" && /(?:^|[_-])win(?:dows|32|64)?(?:[._-]|$)/.test(name);
+}
+
+function assetMatchesCpu(name: string, tokens: readonly string[]): boolean {
+  return tokens.some(
+    (token) =>
+      name.includes(`_${token}`) ||
+      name.includes(`-${token}`) ||
+      name.includes(`_${token}.`) ||
+      name.includes(`-${token}.`) ||
+      name.endsWith(`_${token}`) ||
+      name.endsWith(`-${token}`),
+  );
+}
+
+/** True when `filePath` is a native executable for `platform` (PE/MZ, Mach-O, ELF). */
+export function isHostNativeCliProxyBinary(filePath: string, platform: string): boolean {
+  const magic = readFileMagic(filePath, 4);
+  if (!magic) return false;
+  if (platform === "win32") return magic[0] === 0x4d && magic[1] === 0x5a;
+  if (platform === "darwin") {
+    return (
+      (magic[0] === 0xcf && magic[1] === 0xfa && magic[2] === 0xed && magic[3] === 0xfe) ||
+      (magic[0] === 0xfe && magic[1] === 0xed && magic[2] === 0xfa && magic[3] === 0xce) ||
+      (magic[0] === 0xfe && magic[1] === 0xed && magic[2] === 0xfa && magic[3] === 0xcf) ||
+      (magic[0] === 0xca && magic[1] === 0xfe && magic[2] === 0xba && magic[3] === 0xbe)
+    );
+  }
+  return magic[0] === 0x7f && magic[1] === 0x45 && magic[2] === 0x4c && magic[3] === 0x46;
+}
+
+function readFileMagic(filePath: string, length: number): Buffer | undefined {
+  try {
+    const fd = openSync(filePath, "r");
+    try {
+      const buffer = Buffer.alloc(length);
+      const n = readSync(fd, buffer, 0, length, 0);
+      return n >= length ? buffer : undefined;
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+function assertHostNativeBinary(filePath: string, platform: string, assetName: string): void {
+  if (isHostNativeCliProxyBinary(filePath, platform)) return;
+  throw new Error(
+    `Downloaded ${assetName} but the extracted file is not a ${platform} executable. ` +
+      `The Windows installer must use CLIProxyAPI_*_windows_amd64.zip, not a macOS/Linux build.`,
+  );
 }
 
 export function compatibilityBridgeUserToolsDir(baseDir: string): string {
@@ -138,7 +228,7 @@ export async function installCliProxyApiBinary(
 ): Promise<string> {
   const platform = input.platform ?? process.platform;
   const arch = input.arch ?? process.arch;
-  const fetchImpl = input.fetchImpl ?? fetch;
+  const fetchImpl = input.fetchImpl ?? fetchCliProxy;
   const destDir = input.destDir;
   mkdirSync(destDir, { recursive: true });
 
@@ -187,6 +277,7 @@ export async function installCliProxyApiBinary(
     if (!found) {
       throw new Error(`Extracted ${asset.name} but no CLIProxyAPI executable was inside.`);
     }
+    assertHostNativeBinary(found, platform, asset.name);
     const target = join(destDir, installedBinaryName(platform));
     if (existsSync(target)) rmSync(target, { force: true });
     try {

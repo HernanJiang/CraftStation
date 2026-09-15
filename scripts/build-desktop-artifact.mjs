@@ -645,6 +645,10 @@ extraResources:
     to: peripheral-sidecar
     filter:
       - "**/*"
+  - from: resources/cpa
+    to: cpa
+    filter:
+      - "**/*"
   - from: build/icon${runtimeIconSuffix}.png
     to: app-icon.png
   - from: build/tray-icon${iconSuffix}.ico

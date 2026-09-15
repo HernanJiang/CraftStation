@@ -1,14 +1,14 @@
 {
   "name": "craftstation",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "private": true,
   "description": "The universal desktop orchestrator for AI agents. Run terminal-native and structured chat agents side-by-side.",
-  "homepage": "https://github.com/SDSLeon/craftstation",
+  "homepage": "https://github.com/HernanJiang/CraftStation",
   "license": "Apache-2.0",
-  "author": "SDSLeon",
+  "author": "HernanJIANG",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SDSLeon/craftstation"
+    "url": "https://github.com/HernanJiang/CraftStation"
   },
   "type": "module",
   "main": "dist/main/main.cjs",
