@@ -121,6 +121,17 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
   private streamedAssistantText = "";
   private pendingError: string | undefined;
   private pendingClose = false;
+  /**
+   * Tool step indexes currently ACTIVE on the wire. `agy` closes every tool
+   * step (DONE/ERROR) before a natural end of turn — including background
+   * run_command steps, which transition when the task finishes. A SUCCESS
+   * `result` with steps still ACTIVE means the print-mode wait was cut off
+   * mid-task (its 5m default) and the leftover steps are never reported; the
+   * session surfaces that instead of accepting the silent truncation.
+   */
+  private activeToolSteps = new Set<number>();
+  /** True while we killed the process to stop a turn; exit is not a crash. */
+  private ignoringProcessExit = false;
 
   constructor(
     private readonly input: CreateStructuredSessionInput,
@@ -249,6 +260,12 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     options?: StartTurnOptions,
   ): Promise<void> {
     if (this.disposed) throw new Error("Antigravity session was disposed and cannot be reused.");
+    if (this.currentTurnId) {
+      // Mid-turn inject: stop the live turn then send. Throwing here used to
+      // surface "An Antigravity turn is already active" and leave the process
+      // dying from the pending-steer interrupt.
+      await this.interruptTurn();
+    }
     if (!this.transport) {
       // The process exited after open (crash/OOM/killed) while the session
       // itself was never disposed: respawn transparently against the retained
@@ -272,6 +289,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     });
     const turnPromise = this.turnPromise;
     this.streamedAssistantText = "";
+    this.activeToolSteps.clear();
     const additionalInstructions = [
       ...(segments ?? []).map(inlinePromptSegmentText),
       ...(options?.inlineInstructions ? [options.inlineInstructions] : []),
@@ -290,15 +308,30 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
   }
 
   async interruptTurn(): Promise<void> {
-    if (!this.transport || !this.currentTurnId) return;
-    this.transport.interrupt();
-    this.emitRuntime({
-      type: "turn.completed",
-      threadId: this.input.threadId,
-      turnId: this.currentTurnId,
-      state: "interrupted",
-    });
+    if (this.disposed) return;
+    const turnId = this.currentTurnId;
+    const dying = this.transport;
+    if (!dying && !turnId) return;
+    this.ignoringProcessExit = true;
+    dying?.interrupt();
+    // Clear the active-turn guard before emitting interrupted. The idle
+    // update drains pending-steer into startTurn; emitting first used to
+    // re-enter startTurn while currentTurnId was still set.
     this.finishTurn();
+    this.currentTurnId = undefined;
+    if (this.transport === dying) {
+      this.transport = undefined;
+      this.projection?.dispose();
+      this.projection = undefined;
+    }
+    if (turnId) {
+      this.emitRuntime({
+        type: "turn.completed",
+        threadId: this.input.threadId,
+        turnId,
+        state: "interrupted",
+      });
+    }
   }
 
   async dispose(): Promise<void> {
@@ -350,6 +383,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         sessionRef: createKnownSessionRef(this.providerSessionId),
       });
     }
+    this.trackToolStep(event);
     const canonicalEvents = canonicalizeNativeEvent({
       descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
       threadId: this.input.threadId,
@@ -370,12 +404,38 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     }
     if (event.type === "result") {
       const failure = resultFailureMessage(event);
+      if (!failure && this.activeToolSteps.size > 0) {
+        this.emitRuntime({
+          type: "warning",
+          threadId: this.input.threadId,
+          message:
+            `Antigravity reported success but ended the turn with ` +
+            `${this.activeToolSteps.size} tool step(s) still running — a long ` +
+            `background wait was likely cut off mid-task. Background work may ` +
+            `still finish; send a message to continue.`,
+        });
+      }
+      this.activeToolSteps.clear();
       this.finishTurn(failure ? new Error(failure) : undefined, failure === undefined);
+    }
+  }
+
+  private trackToolStep(event: NativeWireEvent): void {
+    if (event.type !== "step_update") return;
+    const step = event.payload.step_update;
+    if (!step || typeof step !== "object" || Array.isArray(step)) return;
+    const record = step as Record<string, unknown>;
+    if (record.step_type !== "tool" || typeof record.step_index !== "number") return;
+    if (record.state === "ACTIVE") {
+      this.activeToolSteps.add(record.step_index);
+    } else if (record.state === "DONE" || record.state === "ERROR") {
+      this.activeToolSteps.delete(record.step_index);
     }
   }
 
   private handleDiagnostic(diagnostic: NativeHarnessDiagnostic): void {
     if (diagnostic.code === "NATIVE_STDERR") return;
+    if (this.ignoringProcessExit && diagnostic.code === "NATIVE_PROCESS_CRASHED") return;
     if (this.currentTurnId) this.finishTurn(new Error(diagnostic.message));
     else if (this.listener) this.listener.onError(diagnostic.message);
     else this.pendingError = diagnostic.message;
@@ -383,6 +443,11 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
 
   private handleProcessExit(event: NativeProcessExit): void {
     if (this.disposed) return;
+    if (this.ignoringProcessExit) {
+      this.ignoringProcessExit = false;
+      if (this.transport && !this.transport.isProcessRunning) this.transport = undefined;
+      return;
+    }
     if (this.currentTurnId) {
       this.finishTurn(
         new Error(

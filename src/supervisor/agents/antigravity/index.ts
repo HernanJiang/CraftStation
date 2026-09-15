@@ -46,13 +46,19 @@ export function shouldUseAntigravityPrintPty(version: string | undefined): boole
  * used to leave GUI sessions on that default. Current agy (1.1.1+) always
  * accepts `--print-timeout`; honor a successful probe, otherwise trust the
  * installed version rather than cutting the turn off mid-task.
+ *
+ * An UNKNOWN version must also keep the flag: a failed version probe is far
+ * more likely on a current agy than on a pinned pre-1.1.1 one, and a stale
+ * "unsupported" here silently inherits the 5m cutoff. The rare ancient agy
+ * rejects the unknown flag loudly at spawn instead — diagnosable, not silent.
  */
 export function antigravityPrintTimeoutSupported(
   probed: boolean,
   version: string | undefined,
 ): boolean {
   if (probed) return true;
-  return Boolean(version && compareVersions(version, "1.1.1") >= 0);
+  if (!version) return true;
+  return compareVersions(version, "1.1.1") >= 0;
 }
 
 export function createAntigravityAdapter(): AgentAdapter {
@@ -63,7 +69,11 @@ export function createAntigravityAdapter(): AgentAdapter {
   let supportsSeparateModelEffort = false;
   let emitEffortFlag = false;
   let probedSeparateModelEffort = false;
-  let supportsPrintTimeout = false;
+  // Optimistic default: sessions can spawn before the first detectInstall
+  // finishes, and a false here silently inherits agy's 5m print-mode cutoff
+  // (a silent SUCCESS result mid-task). Only a POSITIVE version <1.1.1 (or a
+  // --help probe miss on such a version) may turn the flag back off.
+  let supportsPrintTimeout = true;
   let usePtyForPrint = true;
   let defaultModel = ANTIGRAVITY_DEFAULT_MODEL_ID;
   const detectionSpec = createAntigravityDetectionSpec((probe) => {
@@ -133,10 +143,7 @@ export function createAntigravityAdapter(): AgentAdapter {
         emitEffortFlag = true;
       }
       usePtyForPrint = shouldUseAntigravityPrintPty(status.version);
-      supportsPrintTimeout = antigravityPrintTimeoutSupported(
-        supportsPrintTimeout,
-        status.version,
-      );
+      supportsPrintTimeout = antigravityPrintTimeoutSupported(supportsPrintTimeout, status.version);
       return status;
     },
 

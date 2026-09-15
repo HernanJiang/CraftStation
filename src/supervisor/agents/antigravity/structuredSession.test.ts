@@ -159,9 +159,13 @@ describe("AntigravityStructuredSession", () => {
 
   it("widens the print wait so a long turn is not cut off mid-task", async () => {
     const fixture = new AntigravityFixture();
-    const { session, spawnProcess } = createFixtureSession(fixture, {}, {
-      supportsPrintTimeout: true,
-    });
+    const { session, spawnProcess } = createFixtureSession(
+      fixture,
+      {},
+      {
+        supportsPrintTimeout: true,
+      },
+    );
 
     await session.activate();
     await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
@@ -180,6 +184,71 @@ describe("AntigravityStructuredSession", () => {
     await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
 
     expect(JSON.stringify(vi.mocked(spawnProcess).mock.calls[0])).not.toContain("--print-timeout");
+    await session.dispose();
+  });
+
+  it("warns when a success result leaves tool steps unfinished (print-mode cutoff)", async () => {
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: {
+          conversation_id: "agy-conversation-1",
+          step_index: 1,
+          step_type: "tool",
+          tool_name: "schedule",
+          state: "ACTIVE",
+        },
+      });
+      emit({ event: "result", result: { status: "SUCCESS", response: "waiting" } });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: () => undefined,
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.activate();
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("hello", { model: "Gemini 3.5 Flash" });
+
+    const warnings = events.filter((event) => event.type === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toEqual(
+      expect.objectContaining({
+        type: "warning",
+        message: expect.stringContaining("still running"),
+      }),
+    );
+    // The provider-reported success is preserved; the warning only makes the
+    // silent truncation visible.
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "completed" }),
+      ]),
+    );
+    await session.dispose();
+  });
+
+  it("does not warn when every tool step closes before the result", async () => {
+    const fixture = new AntigravityFixture();
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: () => undefined,
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.activate();
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("hello", { model: "Gemini 3.5 Flash" });
+
+    expect(events.filter((event) => event.type === "warning")).toHaveLength(0);
     await session.dispose();
   });
 
@@ -372,6 +441,44 @@ describe("AntigravityStructuredSession", () => {
       ]),
     );
     expect(updates.at(-1)).toMatchObject({ status: "error", attention: "none" });
+  });
+
+  it("starts a replacement turn after interrupt without reporting a crash", async () => {
+    const fixture = new AntigravityFixture(() => undefined);
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    const onError = vi.fn<(message: string) => void>();
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError,
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.8 Flash", approvalPolicy: "yolo" });
+    const first = session.startTurn("first", { model: "Gemini 3.8 Flash" });
+    await session.interruptTurn();
+    await first;
+
+    const second = session.startTurn("injected", { model: "Gemini 3.8 Flash" });
+    await Promise.race([
+      second.then(
+        () => undefined,
+        (error: unknown) => {
+          throw error;
+        },
+      ),
+      new Promise((resolve) => setTimeout(resolve, 30)),
+    ]);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(events.filter((event) => event.type === "turn.started")).toHaveLength(2);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "interrupted" }),
+      ]),
+    );
+    await session.dispose();
   });
 
   it("interrupts the official process and completes the active turn as interrupted", async () => {
