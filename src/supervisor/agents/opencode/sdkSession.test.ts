@@ -148,14 +148,15 @@ describe("OpencodeSdkSession", () => {
       const promptAsync = vi
         .fn<(input: unknown) => Promise<unknown>>()
         .mockResolvedValue({ data: {} });
+      const create = vi
+        .fn<() => Promise<{ data: { id: string } }>>()
+        .mockResolvedValue({ data: { id: "ses_slug" } });
       mocks.acquireOpenCodeServer.mockResolvedValue({
         eventClient: emptyEventClient(),
         client: {
           command: { list: vi.fn<() => Promise<{ data: [] }>>().mockResolvedValue({ data: [] }) },
           session: {
-            create: vi
-              .fn<() => Promise<{ data: { id: string } }>>()
-              .mockResolvedValue({ data: { id: "ses_slug" } }),
+            create,
             promptAsync,
           },
         },
@@ -179,7 +180,7 @@ describe("OpencodeSdkSession", () => {
       await session.activate();
       await session.openThread({ model: options.model });
       await session.startTurn("hi", { model: options.model });
-      return { session, promptAsync };
+      return { session, promptAsync, create };
     }
 
     it("binds a craftstation-prefixed slug to the injected isolated provider", async () => {
@@ -211,6 +212,44 @@ describe("OpencodeSdkSession", () => {
         expect.objectContaining({ model: { providerID: "opencode", modelID: "big-pickle" } }),
       );
       await session.dispose();
+    });
+
+    it("binds a bare Gemini recipe id to google instead of omitting the model", async () => {
+      const { session, promptAsync, create } = await createPromptSession({
+        model: "gemini-3.8-flash",
+      });
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: { providerID: "google", id: "gemini-3.8-flash" },
+        }),
+      );
+      expect(promptAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: { providerID: "google", modelID: "gemini-3.8-flash" },
+        }),
+      );
+      await session.dispose();
+    });
+
+    it("fails a silent Gemini turn instead of spinning forever", async () => {
+      vi.useFakeTimers();
+      try {
+        const errors: string[] = [];
+        const { session } = await createPromptSession({ model: "gemini-3.8-flash" });
+        session.setListener({
+          onClose: () => {},
+          onError: (message) => {
+            errors.push(message);
+          },
+          onUpdate: () => {},
+          onRuntimeEvent: () => {},
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(errors.join("\n")).toContain("长时间没有返回");
+        await session.dispose();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -1094,6 +1133,7 @@ describe("OpencodeSdkSession", () => {
     expect(create).toHaveBeenCalledWith({
       directory: "/repo",
       title: "craftstation/thread-o",
+      model: { providerID: "opencode", id: "big-pickle" },
     });
   });
 
@@ -1125,6 +1165,7 @@ describe("OpencodeSdkSession", () => {
     expect(create).toHaveBeenCalledWith({
       directory: "/repo",
       title: "craftstation/thread-o",
+      model: { providerID: "opencode", id: "big-pickle" },
       permission: [{ permission: "*", pattern: "*", action: "allow" }],
     });
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProbeUrls,
+  isVolcengineArkApiRoot,
   normalizeApiRoot,
   openAiCompatibleApiBase,
   probeThirdPartyProvider,
@@ -32,6 +33,30 @@ describe("thirdPartyValidation", () => {
     expect(urls.responses).toBe("https://example.com/v1/responses");
     expect(urls.chatCompletions).toBe("https://example.com/v1/chat/completions");
     expect(urls.models).toBe("https://example.com/v1/models");
+  });
+
+  it("probes Volcengine Ark coding hosts via Chat Completions even when /models is 403", async () => {
+    expect(isVolcengineArkApiRoot("https://ark.cn-beijing.volces.com/api/coding/v3")).toBe(true);
+    let responsesCalled = false;
+    const fetchImpl: ProbeFetch = async (url) => {
+      if (url.endsWith("/responses")) responsesCalled = true;
+      if (url.endsWith("/models")) {
+        return { status: 403, bodyText: JSON.stringify({ error: "catalog disabled" }) };
+      }
+      if (url.endsWith("/chat/completions")) {
+        return { status: 200, bodyText: JSON.stringify(OK_CHAT) };
+      }
+      return { status: 404, bodyText: "{}" };
+    };
+    const result = await probeThirdPartyProvider({
+      baseUrl: "https://ark.cn-beijing.volces.com/api/coding/v3",
+      apiKey: "ark-key",
+      model: "doubao-seed-2.0-code",
+      fetchImpl,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.validatedProtocol : undefined).toBe("chat_completions");
+    expect(responsesCalled).toBe(false);
   });
 
   it("keeps already-versioned API roots intact (Volcengine Ark /api/v3)", () => {

@@ -20,6 +20,7 @@ export const DEEPSEEK_SDK_ARGS = ["--profile", "sdk"] as const;
 export const DEEPSEEK_V4_CONTEXT_TOKENS = 1_000_000;
 
 export const DEEPSEEK_FALLBACK_MODELS = [
+  { id: "deepseek-flash", label: "DeepSeek Flash" },
   { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash" },
   { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
   { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash" },

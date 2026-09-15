@@ -55,6 +55,10 @@ export function ComposerActionDocks(props: {
   const { authRequired } = resolveThreadAuthState({
     authState: effectiveAgentStatus?.authState,
     errorDockStates: props.dockState.errorDockStates,
+    sourceProviderKind: thread.config.sourceProviderKind,
+    accountId: thread.accountBinding?.accountId,
+    agentKind: thread.agentKind,
+    model: thread.config.model,
   });
   const showAuthDock = authRequired && effectiveAgentStatus !== undefined;
   if (!showAuthDock && !pendingSteer && !queuedFollowUp && !request) return null;

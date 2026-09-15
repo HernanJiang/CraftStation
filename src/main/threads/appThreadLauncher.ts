@@ -64,6 +64,12 @@ export interface CreateAppThreadRequest {
    * like renderer-initiated launches (see threadLaunchActions).
    */
   thirdPartyAccountId?: string;
+  /**
+   * Catalog/channel that listed the model when it differs from the spawn
+   * Harness (Auto remap provenance). Without it the composer mistakes the
+   * thread for a native official-login thread and demands e.g. `muse login`.
+   */
+  sourceProviderKind?: string;
   worktree?: { branch?: string };
   existingWorktree?: { path: string; branch: string };
   prNumber?: number;
@@ -116,6 +122,7 @@ export async function createAppThread(
 
   const config: ThreadConfig = {
     model: request.model,
+    ...(request.sourceProviderKind ? { sourceProviderKind: request.sourceProviderKind } : {}),
     ...(request.effort ? { effort: request.effort } : {}),
     ...(request.fast !== undefined ? { fast: request.fast } : {}),
     ...(await resolveUnrestrictedThreadPermissions(

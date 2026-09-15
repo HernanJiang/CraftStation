@@ -27,8 +27,9 @@ export function createGrokAcpSessionUpdateTransform(): AcpSessionUpdateTransform
   const seenGoalIds = new Set<string>();
   let parentSessionId: string | undefined;
 
-  return (notification) => {
-    const update = plainRecord(notification.update);
+  return (rawNotification) => {
+    const update = mergeGrokNotificationMeta(rawNotification);
+    const notification = withUpdate(rawNotification, update);
     const sessionUpdate = readString(update, "sessionUpdate");
 
     if (sessionUpdate === "goal_updated") {
@@ -291,6 +292,22 @@ function findPendingToolCallId(
 function removePendingToolCallId(pendingToolCallIds: string[], toolCallId: string): void {
   const index = pendingToolCallIds.indexOf(toolCallId);
   if (index >= 0) pendingToolCallIds.splice(index, 1);
+}
+
+/**
+ * Grok Build streams window occupancy on `params._meta.totalTokens` of
+ * `session/update`, not always inside `update._meta`. Fold that envelope onto
+ * the update object so the generic ACP occupancy mapper can see it.
+ */
+function mergeGrokNotificationMeta(notification: SessionNotification): Record<string, unknown> {
+  const update = plainRecord(notification.update);
+  const envelope = plainRecord(notification as unknown as Record<string, unknown>);
+  const envelopeMeta = plainRecord(envelope._meta);
+  if (Object.keys(envelopeMeta).length === 0) return update;
+  return {
+    ...update,
+    _meta: { ...envelopeMeta, ...plainRecord(update._meta) },
+  };
 }
 
 function withGoalMeta(

@@ -18,7 +18,7 @@ import { SubAgentOpenController } from "@/renderer/components/thread/ChatPane/pa
 import { GuiThreadContent } from "@/renderer/components/thread/ThreadContent";
 import { ThreadComposerSection } from "@/renderer/components/thread/ThreadComposerSection";
 import {
-  hasReportedContextUsage,
+  shouldShowContextUsageDock,
   resolveThreadContextUsageSummary,
 } from "@/renderer/components/thread/threadContextUsage";
 import { useThreadDockState } from "@/renderer/components/thread/useThreadDockState";
@@ -205,7 +205,7 @@ export function ThreadView(props: ThreadViewProps) {
     reportedUsage: reportedContextUsage,
   });
   const externalContextSummary =
-    hasReportedContextUsage(reportedContextUsage) && contextSummary.maxTokens !== undefined
+    shouldShowContextUsageDock(contextSummary)
       ? contextSummary
       : null;
   const projectLocation = project

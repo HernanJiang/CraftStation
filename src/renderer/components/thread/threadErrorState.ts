@@ -4,6 +4,8 @@ import {
   getRuntimeItemPayload,
   type RuntimeChatItem,
 } from "@/renderer/state/slices/runtimeEventSlice";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
+import { isForeignCatalogModelForHarness, isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
 
 export interface ThreadErrorDockState {
   sourceItemId: string;
@@ -76,6 +78,7 @@ export function getThreadErrorDockStateForItem(item: RuntimeChatItem): ThreadErr
   const message = payload?.message?.trim();
   if (!message) return null;
   if (isAbortOnlyErrorMessage(message)) return null;
+  if (isRetryableCapacityError(message)) return null;
   const cached = errorDockStateByItem.get(item);
   if (cached && cached.message === message) return cached;
   const dock = { sourceItemId: item.id, message };
@@ -140,12 +143,27 @@ export function isAuthErrorMessage(message: string): boolean {
 export function resolveThreadAuthState(input: {
   readonly authState: AuthState | undefined;
   readonly errorDockStates: readonly ThreadErrorDockState[];
+  /** Catalog/channel that supplied credentials (OpenCode Go → Muse, etc.). */
+  readonly sourceProviderKind?: string | undefined;
+  /** Sticky third-party openai-compatible account, if the launch uses one. */
+  readonly accountId?: string | undefined;
+  /** Spawn Harness kind, used to derive the catalog channel from the model id
+   * when `sourceProviderKind` was never recorded. */
+  readonly agentKind?: string | undefined;
+  /** Catalog model id; a `channel/model` id on a different Harness proves a
+   * foreign serving channel even without a recorded `sourceProviderKind`. */
+  readonly model?: string | undefined;
 }): { readonly authRequired: boolean; readonly hasRuntimeAuthError: boolean } {
   const hasRuntimeAuthError =
     input.authState !== "authenticated" &&
     input.errorDockStates.some((state) => isAuthErrorMessage(state.message));
+  const foreignChannel =
+    Boolean(input.sourceProviderKind?.trim()) ||
+    isThirdPartyAccountId(input.accountId) ||
+    isForeignCatalogModelForHarness(input.model, input.agentKind);
   return {
-    authRequired: input.authState === "missing" || hasRuntimeAuthError,
+    authRequired:
+      !foreignChannel && (input.authState === "missing" || hasRuntimeAuthError),
     hasRuntimeAuthError,
   };
 }

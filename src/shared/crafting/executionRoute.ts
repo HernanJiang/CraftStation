@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type { HarnessReference, SelectedModelEntry } from "./workbenchTypes";
 import { canonicalModelVendor, isSameModelVendor } from "./vendors";
+import {
+  COMPATIBILITY_HARNESS_CAPABILITIES,
+  resolveCompatibilityFamily,
+  type CompatibilityHarnessId,
+} from "@/shared/harnessCompatibility";
+import { isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
 
 export const executionRouteTypeSchema = z.enum(["native", "compatibility", "fail-closed"]);
 export type ExecutionRouteType = z.infer<typeof executionRouteTypeSchema>;
@@ -29,6 +35,61 @@ export const OPENCODE_NATIVE_MODEL_VENDORS = [
   "moonshot",
   "moonshot-openai-compatible",
 ] as const;
+
+/**
+ * Installed subscription CLIs. A model listed under one of these, composed
+ * with a *different* Harness, is a subscription projection (CLIProxyAPI) —
+ * never that Harness's own vendor adapter. OpenCode catalog rows use
+ * `opencode` and stay on the official OpenCode runtime.
+ */
+export const SUBSCRIPTION_HARNESS_KINDS = new Set([
+  "codex",
+  "grok",
+  "kimi",
+  "antigravity",
+  "gemini",
+  "deepseek",
+  "muse",
+  "commandcode",
+]);
+
+function harnessSupportsCustomBaseUrl(harnessKind: string): boolean {
+  const cap = COMPATIBILITY_HARNESS_CAPABILITIES.find(
+    (entry) => entry.harnessId === (harnessKind as CompatibilityHarnessId),
+  );
+  return cap?.supportsCustomBaseUrl === true;
+}
+
+function sourceKind(modelEntry: SelectedModelEntry): string {
+  return (modelEntry.providerKind ?? "").trim().toLowerCase();
+}
+
+/**
+ * Canonical vendor OpenCode can bind through `parseOpenCodeModelSlug`.
+ * Catalog source (Antigravity / Codex / Command Code / …) does not matter:
+ * the official OpenCode runtime is the Harness, and the model id is bound
+ * explicitly so it cannot fall through to a leftover session default.
+ */
+function openCodeNativeVendorFor(modelEntry: SelectedModelEntry): string {
+  const fromKind = canonicalModelVendor(modelEntry.providerKind);
+  if ((OPENCODE_NATIVE_MODEL_VENDORS as readonly string[]).includes(fromKind)) {
+    return fromKind;
+  }
+  switch (resolveCompatibilityFamily(modelEntry.modelId)) {
+    case "gemini":
+      return "google";
+    case "openai":
+      return "openai";
+    case "grok":
+      return "xai";
+    case "kimi":
+      return "moonshot";
+    case "deepseek":
+      return "deepseek";
+    default:
+      return "";
+  }
+}
 
 export interface ExecutionRouteResolutionInput {
   modelEntry: SelectedModelEntry | undefined;
@@ -78,14 +139,42 @@ export function resolveExecutionRoute(
     };
   }
 
-  // OpenCode is a universal router, not a single-vendor CLI: allowlisted model
-  // vendors are served by its own provider/model adapters through the official
-  // OpenCode runtime — never through the CLIProxyAPI Compatibility Bridge
-  // (the bridge exists for single-vendor harnesses that cannot reach foreign
-  // vendor endpoints on their own).
+  // Third-party OpenAI-compatible accounts inject BaseURL/key into the target
+  // Harness. They never go through CLIProxyAPI (that path is for subscriptions).
+  if (isThirdPartyAccountId(modelEntry.accountId)) {
+    if (!harnessSupportsCustomBaseUrl(harnessRef.harnessKind)) {
+      return {
+        routeType: "fail-closed",
+        reason: `Harness '${harnessRef.harnessKind}' cannot consume a third-party OpenAI-compatible Base URL`,
+        isNative: false,
+        isCompatibility: false,
+      };
+    }
+    return {
+      routeType: "native",
+      reason: "Third-party OpenAI-compatible account launches directly on the selected Harness",
+      isNative: true,
+      isCompatibility: false,
+    };
+  }
+
+  // OpenCode is a universal native Harness for allowlisted vendors. Catalog
+  // source (Antigravity Gemini, Codex ChatGPT, Command Code DeepSeek, …) does
+  // not force CLIProxyAPI: `parseOpenCodeModelSlug` binds the exact model id
+  // onto OpenCode's vendor adapter. CPA stays for true cross-CLI projection
+  // (e.g. Gemini onto Codex) where OpenCode is not the target Harness.
   if (harnessRef.harnessKind === "opencode") {
-    const modelVendor = canonicalModelVendor(modelEntry.providerKind);
-    if ((OPENCODE_NATIVE_MODEL_VENDORS as readonly string[]).includes(modelVendor)) {
+    const kind = sourceKind(modelEntry);
+    if (kind === "opencode" || kind.startsWith("opencode")) {
+      return {
+        routeType: "native",
+        reason: "OpenCode catalog model runs on the official OpenCode runtime",
+        isNative: true,
+        isCompatibility: false,
+      };
+    }
+    const modelVendor = openCodeNativeVendorFor(modelEntry);
+    if (modelVendor) {
       return {
         routeType: "native",
         reason: `OpenCode universal router serves '${modelVendor}' models through the official OpenCode runtime`,
@@ -93,12 +182,14 @@ export function resolveExecutionRoute(
         isCompatibility: false,
       };
     }
-    return {
-      routeType: "fail-closed",
-      reason: `Model vendor '${modelVendor || modelEntry.providerKind}' has no verified OpenCode native route`,
-      isNative: false,
-      isCompatibility: false,
-    };
+    if (!SUBSCRIPTION_HARNESS_KINDS.has(kind)) {
+      return {
+        routeType: "fail-closed",
+        reason: `Model vendor '${canonicalModelVendor(modelEntry.providerKind) || modelEntry.providerKind}' has no verified OpenCode native route`,
+        isNative: false,
+        isCompatibility: false,
+      };
+    }
   }
 
   // Native pairing compares canonical model vendors: the inventory reports

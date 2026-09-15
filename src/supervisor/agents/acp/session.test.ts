@@ -395,6 +395,8 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
       }),
     ).toBe(true);
     expect(isKimiPoolQuotaError(new Error("payment required"))).toBe(true);
+    expect(isKimiPoolQuotaError(new Error("Kimi 额度已耗尽"))).toBe(true);
+    expect(isKimiPoolQuotaError(new Error("额度不足"))).toBe(true);
     expect(isKimiPoolQuotaError({ data: { http_status: 429, message: "too many requests" } })).toBe(
       false,
     );
@@ -916,6 +918,30 @@ describe("ACP resource path helpers", () => {
     ).toThrow("Invalid params");
   });
 
+  it("allows read-only access to CraftStation chat attachments outside the project", () => {
+    const screenshot =
+      "C:\\Users\\me\\.craftstation\\attachments\\6f9db30d-49f\\6f9db30d-1789454351081.png";
+    const nightly =
+      "C:\\Users\\me\\.craftstation-nightly\\attachments\\thread-1\\note.png";
+    expect(resolveAcpReadableHostFsPath(WINDOWS_LOCATION, screenshot)).toBe(screenshot);
+    expect(resolveAcpReadableHostFsPath(WINDOWS_LOCATION, nightly)).toBe(nightly);
+    expect(
+      resolveAcpReadableHostFsPath(
+        WSL_LOCATION,
+        "/home/me/.craftstation/attachments/thread-1/shot.png",
+      ),
+    ).toBe("\\\\wsl.localhost\\Ubuntu\\home\\me\\.craftstation\\attachments\\thread-1\\shot.png");
+    expect(() => resolveAcpWritableHostFsPath(WINDOWS_LOCATION, screenshot)).toThrow(
+      "Invalid params",
+    );
+    expect(() =>
+      resolveAcpReadableHostFsPath(
+        WINDOWS_LOCATION,
+        "C:\\Users\\me\\.craftstation\\settings.json",
+      ),
+    ).toThrow("Invalid params");
+  });
+
   it("maps a missing project skill path to the matching user-global skill file", () => {
     expect(
       resolveAcpGlobalSkillFallbackHostFsPath(
@@ -1328,6 +1354,51 @@ describe("ACP client protocol helpers", () => {
         { type: "text", text: "inspect" },
       ],
     });
+  });
+
+  it("does not send a Grok skill-catalog dump as the user prompt", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    const dump =
+      "/skill-creator-craftstation /ask-matt /ast-grep /code-review /diagnosing-bugs /my-workflow";
+    const chips = dump
+      .slice(1)
+      .split(" /")
+      .map((name) => ({
+        kind: "skill" as const,
+        name,
+        path: `/skills/${name}/SKILL.md`,
+        invocation: `/${name}`,
+        provider: "Grok",
+        scope: "global" as const,
+      }));
+
+    await session.startTurn(dump, { model: "model-a" }, chips);
+
+    expect(connection.prompt).not.toHaveBeenCalled();
+    expect(listener.onRuntimeEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ itemType: "user_message" }),
+    );
+    expect(listener.onUpdate).toHaveBeenCalledWith({ status: "idle", attention: "none" });
+  });
+
+  it("still sends a real prompt when skill chips ride beside it", async () => {
+    const { connection, session } = makeConfigSyncSession();
+    await session.startTurn(
+      "请根据当前 diff 做一次计划",
+      { model: "model-a" },
+      [
+        {
+          kind: "skill",
+          name: "code-review",
+          path: "/skills/code-review/SKILL.md",
+          invocation: "/code-review",
+          provider: "Grok",
+          scope: "global",
+        },
+        { kind: "text", content: "请根据当前 diff 做一次计划" },
+      ],
+    );
+    expect(connection.prompt).toHaveBeenCalled();
   });
 
   it("implements ACP terminal create/output/wait/release over a real PTY", async () => {

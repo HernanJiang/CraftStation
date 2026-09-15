@@ -59,6 +59,11 @@ export function hasReportedContextUsage(usage: ThreadContextUsage | undefined): 
   return usage.usedTokens !== undefined || (usage.breakdown?.length ?? 0) > 0;
 }
 
+/** Show the composer dock when the model window is known, even before occupancy. */
+export function shouldShowContextUsageDock(summary: ThreadContextUsageSummary): boolean {
+  return summary.maxTokens !== undefined;
+}
+
 export function resolveThreadContextUsageSummary(input: {
   thread: Thread;
   agentStatus: AgentStatus | undefined;
@@ -72,7 +77,7 @@ export function resolveThreadContextUsageSummary(input: {
     : undefined;
   const configuredMaxTokens = inferConfiguredContextLimit(thread, capabilities);
   const usedTokens = reportedUsage?.usedTokens;
-  const maxTokens = reportedUsage?.maxTokens ?? configuredMaxTokens;
+  const maxTokens = preferAdvertisedContextWindow(reportedUsage?.maxTokens, configuredMaxTokens);
   const percent =
     usedTokens !== undefined && maxTokens !== undefined && maxTokens > 0
       ? Math.max(0, Math.min(100, Math.round((usedTokens / maxTokens) * 100)))
@@ -189,9 +194,22 @@ export function resolveSessionCacheHitRate(
       return entry.id === "input" || /input/.test(entry.label.toLowerCase());
     })
     .reduce((sum, entry) => sum + entry.tokens, 0);
-  if (cacheRead <= 0 || input <= 0) return undefined;
+  if (input <= 0) return undefined;
+  if (cacheRead <= 0) return 0;
   const prompt = input > cacheRead ? input : input + cacheRead;
   return Math.round((cacheRead / prompt) * 100);
+}
+
+/** 256Ki/256K placeholders yield to a larger advertised model window (DeepSeek V4 = 1M). */
+function preferAdvertisedContextWindow(
+  reported: number | undefined,
+  advertised: number | undefined,
+): number | undefined {
+  if (reported === undefined) return advertised;
+  if (advertised === undefined) return reported;
+  const stock = reported === 262_144 || reported === 256_000 || reported === 128_000;
+  if (stock && advertised > reported) return advertised;
+  return reported;
 }
 
 function inferConfiguredContextLimit(
@@ -199,11 +217,14 @@ function inferConfiguredContextLimit(
   capabilities: AgentCapability | undefined,
 ): number | undefined {
   const model = thread.config?.model;
-  const contextId =
-    thread.config?.contextSize ??
-    parseContextSizeParam(model) ??
-    lookupModelContextSize(model, capabilities) ??
-    capabilities?.defaultContextSize;
+  const configured = thread.config?.contextSize;
+  const modelSize = lookupModelContextSize(model, capabilities);
+  const contextId = modelAllowsContextSize(model, configured, capabilities)
+    ? configured
+    : (parseContextSizeParam(model) ??
+      modelSize ??
+      capabilities?.defaultContextSize ??
+      (capabilities?.contextSizes?.length === 1 ? capabilities.contextSizes[0]?.id : undefined));
   const option = contextId
     ? capabilities?.contextSizes?.find(
         (candidate) => candidate.id === contextId || candidate.label === contextId,
@@ -217,22 +238,61 @@ function inferConfiguredContextLimit(
   );
 }
 
+function modelAllowsContextSize(
+  model: string | undefined,
+  contextId: string | undefined,
+  capabilities: AgentCapability | undefined,
+): boolean {
+  if (!contextId) return false;
+  const allowed = modelContextSizeList(model, capabilities);
+  if (allowed && allowed.length > 0) {
+    return allowed.some((id) => id === contextId);
+  }
+  if (capabilities?.contextSizes && capabilities.contextSizes.length > 0) {
+    return capabilities.contextSizes.some(
+      (candidate) => candidate.id === contextId || candidate.label === contextId,
+    );
+  }
+  return true;
+}
+
+function normalizeContextModelId(model: string): string {
+  return model
+    .trim()
+    .toLowerCase()
+    .replace(/^[^/]+\/(?=.+)/, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-(?:low|medium|high|balanced|extra-high|thinking)$/i, "");
+}
+
+function contextModelIdsMatch(left: string, right: string): boolean {
+  if (left === right) return true;
+  if (left.endsWith(`/${right}`) || right.endsWith(`/${left}`)) return true;
+  const a = normalizeContextModelId(left);
+  const b = normalizeContextModelId(right);
+  if (!a || !b) return false;
+  return a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`) || a.startsWith(`${b}-`) || b.startsWith(`${a}-`);
+}
+
+function modelContextSizeList(
+  model: string | undefined,
+  capabilities: AgentCapability | undefined,
+): string[] | undefined {
+  const sizes = capabilities?.modelContextSizes;
+  if (!model || !sizes) return undefined;
+  const direct = sizes[model];
+  if (direct && direct.length > 0) return direct;
+  for (const [id, list] of Object.entries(sizes)) {
+    if (list && list.length > 0 && contextModelIdsMatch(id, model)) return list;
+  }
+  return undefined;
+}
+
 function lookupModelContextSize(
   model: string | undefined,
   capabilities: AgentCapability | undefined,
 ): string | undefined {
-  const sizes = capabilities?.modelContextSizes;
-  if (!model || !sizes) return undefined;
-  const direct = sizes[model]?.[0];
-  if (direct) return direct;
-  const needle = model.trim().toLowerCase();
-  for (const [id, list] of Object.entries(sizes)) {
-    const key = id.toLowerCase();
-    if (key === needle || key.endsWith(`/${needle}`) || needle.endsWith(`/${key}`)) {
-      return list[0];
-    }
-  }
-  return undefined;
+  return modelContextSizeList(model, capabilities)?.[0];
 }
 
 function parseContextSizeParam(modelId: string | undefined): string | undefined {

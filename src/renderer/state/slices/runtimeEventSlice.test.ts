@@ -91,6 +91,43 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     expect(store.getState().runtimeItemIdsByThread["t1"]).toEqual(["i1"]);
   });
 
+  it("reopens a completed plan item when an aggregator restarts it for a new turn", () => {
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "plan-1",
+      itemType: "plan",
+      payload: { steps: [{ step: "Step one", status: "completed" }] },
+    });
+    apply("t1", {
+      type: "item.completed",
+      threadId: "t1",
+      itemId: "plan-1",
+      payload: { steps: [{ step: "Step one", status: "completed" }] },
+    });
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "plan-1",
+      itemType: "plan",
+      payload: {
+        steps: [
+          { step: "Step one", status: "completed" },
+          { step: "Step two", status: "in_progress" },
+        ],
+      },
+    });
+    const item = store.getState().runtimeItemsByIdByThread["t1"]?.["plan-1"];
+    expect(item?.state).toBe("started");
+    expect(item?.payload).toEqual({
+      steps: [
+        { step: "Step one", status: "completed" },
+        { step: "Step two", status: "in_progress" },
+      ],
+    });
+    expect(store.getState().runtimeItemIdsByThread["t1"]).toEqual(["plan-1"]);
+  });
+
   it("accumulates content.delta into the right stream bucket", () => {
     apply("t1", {
       type: "item.started",
@@ -759,6 +796,72 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     };
     store.getState().hydrateThreadRuntimeItems("t1", [seeded]);
     expect(store.getState().runtimeItemsByIdByThread["t1"]?.["i1"]?.observedLive).toBeUndefined();
+  });
+
+  it("prepends persisted history in front of live items instead of dropping it", () => {
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "live-cmd",
+      itemType: "command_execution",
+    });
+    store.getState().hydrateThreadRuntimeItems("t1", [
+      {
+        id: "user-1",
+        type: "user_message",
+        state: "completed",
+        streams: {},
+      },
+      {
+        id: "asst-1",
+        type: "assistant_message",
+        state: "completed",
+        streams: {},
+      },
+      {
+        id: "live-cmd",
+        type: "command_execution",
+        state: "completed",
+        streams: {},
+      },
+    ]);
+    expect(store.getState().runtimeItemIdsByThread["t1"]).toEqual(["user-1", "asst-1", "live-cmd"]);
+    expect(store.getState().runtimeItemsByIdByThread["t1"]?.["live-cmd"]?.observedLive).toBe(true);
+  });
+
+  it("restores persisted items on both sides of a live overlap instead of shuffling them", () => {
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "live-mid",
+      itemType: "command_execution",
+    });
+    store.getState().hydrateThreadRuntimeItems("t1", [
+      {
+        id: "user-1",
+        type: "user_message",
+        state: "completed",
+        streams: {},
+      },
+      {
+        id: "live-mid",
+        type: "command_execution",
+        state: "completed",
+        streams: {},
+      },
+      {
+        id: "asst-1",
+        type: "assistant_message",
+        state: "completed",
+        streams: {},
+      },
+    ]);
+    expect(store.getState().runtimeItemIdsByThread["t1"]).toEqual([
+      "user-1",
+      "live-mid",
+      "asst-1",
+    ]);
+    expect(store.getState().runtimeItemsByIdByThread["t1"]?.["live-mid"]?.observedLive).toBe(true);
   });
 
   it("prepends an older page without replacing newer or live items", () => {

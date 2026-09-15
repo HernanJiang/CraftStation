@@ -4,7 +4,17 @@
 
 import type { ContentBlock, SessionNotification, SessionUpdate } from "@agentclientprotocol/sdk";
 import type { CanonicalContentBlock, RuntimeEvent } from "@/shared/contracts";
-import { createContextUsageEvent, usageFromProviderRecord } from "../../contextUsage";
+import {
+  createContextUsageEvent,
+  isLikelyBillingAggregateUsage,
+  usageFromProviderRecord,
+} from "../../contextUsage";
+import {
+  classifySkillCatalogText,
+  isSkillCatalogDump,
+  shouldHoldSkillCatalogChunk,
+} from "@/shared/skillCatalogDump";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { parseAcpAgentMessageApiError } from "../acpUserVisibleErrors";
 import {
   classifyToolCallItemType,
@@ -43,9 +53,11 @@ import {
 import {
   closeAllOpenContentItems,
   closeOpenContentItems,
+  completeOpenContentItem,
   getContentItemState,
   hasOpenContentItems,
   newItemId,
+  snapshotOrDelta,
 } from "./state";
 import type { ActiveAcpSubAgent, AcpMapperState } from "./state";
 import {
@@ -102,18 +114,18 @@ export function mapAcpSessionUpdate(
       if (embedded.reasoningText) {
         // A few ACP bridges (notably DeepSeek/OpenAI-compatible ones) carry
         // reasoning in agent_message_chunk instead of the standard
-        // agent_thought_chunk. Project it into the same live reasoning item so
-        // the renderer can stream it immediately and keep it out of the final
-        // assistant bubble.
-        if (contentState.openAssistantItemId) {
-          events.push({ type: "item.completed", threadId, itemId: contentState.openAssistantItemId });
-          delete contentState.openAssistantItemId;
+        // agent_thought_chunk. Project it onto a reasoning item, using
+        // snapshot-vs-delta so cumulative replays do not concatenate twice.
+        const reasoningDelta = snapshotOrDelta(contentState.reasoningAccum, embedded.reasoningText);
+        if (reasoningDelta) {
+          events.push(...completeOpenContentItem(contentState, threadId, "assistant"));
+          if (!contentState.openReasoningItemId) {
+            contentState.openReasoningItemId = newItemId("reason");
+            events.push({ type: "item.started", threadId, itemId: contentState.openReasoningItemId, itemType: "reasoning" });
+          }
+          events.push({ type: "content.delta", threadId, itemId: contentState.openReasoningItemId, stream: "reasoning_text", delta: reasoningDelta });
+          contentState.reasoningAccum = (contentState.reasoningAccum ?? "") + reasoningDelta;
         }
-        if (!contentState.openReasoningItemId) {
-          contentState.openReasoningItemId = newItemId("reason");
-          events.push({ type: "item.started", threadId, itemId: contentState.openReasoningItemId, itemType: "reasoning" });
-        }
-        events.push({ type: "content.delta", threadId, itemId: contentState.openReasoningItemId, stream: "reasoning_text", delta: embedded.reasoningText });
       }
       if (embedded.assistantText !== undefined) {
         content = embedded.assistantText.length > 0 ? { type: "text", text: embedded.assistantText } : undefined;
@@ -140,7 +152,23 @@ export function mapAcpSessionUpdate(
       ) {
         break;
       }
+      // Grok sometimes echoes the local skill catalog as a standalone assistant
+      // chunk right before MCP/tool calls. The catalog often streams (header,
+      // then ids) so hold prefixes and drop the dump instead of painting it.
+      // Never prepend a held dump onto the next real sentence — that leaked
+      // the whole catalog into chat and into the following Grok turn.
+      if (content?.type === "text" && !contentState.openAssistantItemId) {
+        const combined = `${state.pendingSkillCatalogText ?? ""}${content.text}`;
+        if (shouldHoldSkillCatalogChunk(combined)) {
+          state.pendingSkillCatalogText = combined;
+          break;
+        }
+        if (state.pendingSkillCatalogText) {
+          delete state.pendingSkillCatalogText;
+        }
+      }
       if (content?.type === "text") {
+        if (isRetryableCapacityError(content.text)) break;
         const apiError = parseAcpAgentMessageApiError(content.text);
         if (apiError) {
           events.push(...closeOpenContentItems(state, parentToolCallId));
@@ -149,8 +177,36 @@ export function mapAcpSessionUpdate(
         }
       }
       // Open an assistant item on first chunk; emit deltas thereafter.
+      // Switching from thought → answer always seals the live reasoning item
+      // so the next thought round cannot append onto the previous chain, and
+      // the next answer cannot glue onto the previous bubble.
+      if (content?.type === "text") {
+        const assistantDelta = snapshotOrDelta(contentState.assistantAccum, content.text);
+        if (!assistantDelta) break;
+        events.push(...completeOpenContentItem(contentState, threadId, "reasoning"));
+        if (!contentState.openAssistantItemId) {
+          events.push(...closeOpenContentItems(state, parentToolCallId));
+          contentState.openAssistantItemId = newItemId("asst");
+          events.push({
+            type: "item.started",
+            threadId,
+            itemId: contentState.openAssistantItemId,
+            itemType: "assistant_message",
+          });
+        }
+        events.push({
+          type: "content.delta",
+          threadId,
+          itemId: contentState.openAssistantItemId,
+          stream: "assistant_text",
+          delta: assistantDelta,
+        });
+        contentState.assistantAccum = (contentState.assistantAccum ?? "") + assistantDelta;
+        break;
+      }
+      if (!content) break;
+      events.push(...completeOpenContentItem(contentState, threadId, "reasoning"));
       if (!contentState.openAssistantItemId) {
-        // Close any prior reasoning/user items — assistant is starting fresh.
         events.push(...closeOpenContentItems(state, parentToolCallId));
         contentState.openAssistantItemId = newItemId("asst");
         events.push({
@@ -160,31 +216,20 @@ export function mapAcpSessionUpdate(
           itemType: "assistant_message",
         });
       }
-      if (content) {
-        if (content.type === "text") {
-          events.push({
-            type: "content.delta",
-            threadId,
-            itemId: contentState.openAssistantItemId,
-            stream: "assistant_text",
-            delta: content.text,
-          });
-        } else {
-          const block = acpContentBlockToCanonical(content);
-          if (block) {
-            events.push({
-              type: "item.updated",
-              threadId,
-              itemId: contentState.openAssistantItemId,
-              payload: { content: [block] },
-            });
-          }
-        }
+      const block = acpContentBlockToCanonical(content);
+      if (block) {
+        events.push({
+          type: "item.updated",
+          threadId,
+          itemId: contentState.openAssistantItemId,
+          payload: { content: [block] },
+        });
       }
       break;
     }
 
     case "agent_thought_chunk": {
+      if (state.pendingSkillCatalogText) delete state.pendingSkillCatalogText;
       const parentToolCallId = activeSubAgent?.toolCallId;
       const contentState = getContentItemState(state, parentToolCallId);
       const thoughtMeta =
@@ -194,16 +239,22 @@ export function mapAcpSessionUpdate(
       if (thoughtMeta?.[CRAFTSTATION_ACP_NEW_ASSISTANT_ITEM_META_KEY] === true) {
         events.push(...closeAllOpenContentItems(state));
       }
+      const thoughtContent = (update as { content?: ContentBlock }).content;
+      if (
+        thoughtContent?.type === "text" &&
+        (isSkillCatalogDump(thoughtContent.text) ||
+          classifySkillCatalogText(thoughtContent.text) === "header")
+      ) {
+        break;
+      }
+      const thoughtText = thoughtContent?.type === "text" ? thoughtContent.text : "";
+      if (thoughtText && isRetryableCapacityError(thoughtText)) break;
+      const thoughtDelta = snapshotOrDelta(contentState.reasoningAccum, thoughtText);
+      if (!thoughtDelta) break;
+      // A new thought round always seals the live assistant bubble so later
+      // answer tokens cannot glue onto the previous paragraph.
+      events.push(...completeOpenContentItem(contentState, threadId, "assistant"));
       if (!contentState.openReasoningItemId) {
-        // Close any prior assistant — reasoning bracket starts.
-        if (contentState.openAssistantItemId) {
-          events.push({
-            type: "item.completed",
-            threadId,
-            itemId: contentState.openAssistantItemId,
-          });
-          delete contentState.openAssistantItemId;
-        }
         contentState.openReasoningItemId = newItemId("reason");
         events.push({
           type: "item.started",
@@ -212,16 +263,14 @@ export function mapAcpSessionUpdate(
           itemType: "reasoning",
         });
       }
-      const content = (update as { content?: ContentBlock }).content;
-      if (content && content.type === "text") {
-        events.push({
-          type: "content.delta",
-          threadId,
-          itemId: contentState.openReasoningItemId,
-          stream: "reasoning_text",
-          delta: content.text,
-        });
-      }
+      events.push({
+        type: "content.delta",
+        threadId,
+        itemId: contentState.openReasoningItemId,
+        stream: "reasoning_text",
+        delta: thoughtDelta,
+      });
+      contentState.reasoningAccum = (contentState.reasoningAccum ?? "") + thoughtDelta;
       break;
     }
 
@@ -238,6 +287,7 @@ export function mapAcpSessionUpdate(
     }
 
     case "tool_call": {
+      delete state.pendingSkillCatalogText;
       // First seal any open assistant/reasoning so the tool-call surfaces in order.
       events.push(...closeOpenContentItems(state, activeSubAgent?.toolCallId));
       const toolCall = update as {
@@ -607,11 +657,43 @@ export function mapAcpSessionUpdate(
     }
 
     case "usage_update": {
-      const event = createContextUsageEvent(
-        threadId,
-        usageFromProviderRecord(update as Record<string, unknown>),
-      );
+      const raw = update as Record<string, unknown>;
+      const meta = raw._meta;
+      const nested = raw.usage;
+      const merged: Record<string, unknown> = {
+        ...raw,
+        ...(nested && typeof nested === "object" && !Array.isArray(nested)
+          ? (nested as Record<string, unknown>)
+          : {}),
+        ...(meta && typeof meta === "object" && !Array.isArray(meta)
+          ? (meta as Record<string, unknown>)
+          : {}),
+      };
+      // ACP `used` is context occupancy. Promote it to Input when the
+      // provider did not send a separate prompt/input counter so the
+      // composer panel can show 输入 / 缓存命中率 instead of a blank row.
+      if (merged.inputTokens === undefined && merged.input_tokens === undefined && merged.prompt_tokens === undefined) {
+        const used = merged.used;
+        if (typeof used === "number") merged.inputTokens = used;
+      }
+      const usage = usageFromProviderRecord(merged);
+      const event = createContextUsageEvent(threadId, usage);
       if (event) events.push(event);
+      const input = usage?.breakdown?.find((entry) => entry.id === "input")?.tokens;
+      const output = usage?.breakdown?.find((entry) => entry.id === "output")?.tokens ?? 0;
+      if (input !== undefined && input + output > 0) {
+        events.push({
+          type: "usage.spent",
+          threadId,
+          usage: {
+            counterKind: "per-call",
+            counter: input + output,
+            scopeId: threadId,
+            epoch: 0,
+            sampleId: `acp-usage:${threadId}:${input}:${output}`,
+          },
+        });
+      }
       break;
     }
 
@@ -619,8 +701,12 @@ export function mapAcpSessionUpdate(
       // `session_info_update`, `config_option_update`, and
       // `available_commands_update` don't produce chat items — they flow
       // through the session layer's status/config/slash-command channels.
+      // Grok occupancy kinds (`tokens_used`, `auto_compact_started`, …) are
+      // collected below alongside stream `_meta.totalTokens`.
       break;
   }
+
+  events.push(...mapAcpContextOccupancy(update, state));
 
   // Consecutive sub-agent starts are ambiguous in ACP: the protocol carries no
   // parent id. Treat them as parallel siblings until the active agent has
@@ -632,6 +718,55 @@ export function mapAcpSessionUpdate(
     state.activeSubAgents.push(pendingSubAgent);
   }
   return events;
+}
+
+/**
+ * Grok Build (and a few other ACP CLIs) report window occupancy outside the
+ * standard `usage_update` shape:
+ *   - `sessionUpdate: "tokens_used" | "auto_compact_started"` with
+ *     `tokens_used` + `context_window`
+ *   - `_meta.totalTokens` on every thought / tool / message chunk
+ * Prompt-response `usage.totalTokens` is a billing aggregate and must not
+ * move the context bar (see `isLikelyBillingAggregateUsage`).
+ */
+const ACP_OCCUPANCY_SESSION_UPDATES = new Set([
+  "tokens_used",
+  "auto_compact_started",
+  "context_usage",
+  "contextUsage",
+  "token_usage",
+  "tokenUsage",
+  "usage",
+]);
+
+function mapAcpContextOccupancy(update: SessionUpdate, state: AcpMapperState): RuntimeEvent[] {
+  const rec = update as unknown as Record<string, unknown>;
+  const kind = typeof rec.sessionUpdate === "string" ? rec.sessionUpdate : "";
+  if (kind === "usage_update") return [];
+  const meta =
+    rec._meta && typeof rec._meta === "object" && !Array.isArray(rec._meta)
+      ? (rec._meta as Record<string, unknown>)
+      : {};
+  const occupancyKind = ACP_OCCUPANCY_SESSION_UPDATES.has(kind);
+  const source = occupancyKind ? { ...rec, ...meta } : { ...meta };
+  if (!occupancyKind && !hasStreamOccupancyMeta(meta)) return [];
+  if (isLikelyBillingAggregateUsage(source)) return [];
+  const usage = usageFromProviderRecord(source);
+  const event = createContextUsageEvent(state.threadId, usage);
+  if (!event || event.type !== "context.updated") return [];
+  const signature = JSON.stringify(event.usage);
+  if (state.lastContextOccupancySignature === signature) return [];
+  state.lastContextOccupancySignature = signature;
+  return [event];
+}
+
+function hasStreamOccupancyMeta(meta: Record<string, unknown>): boolean {
+  return ["totalTokens", "total_tokens", "tokens_used", "used", "context_window", "contextWindow"].some(
+    (key) => {
+      const value = meta[key];
+      return typeof value === "number" && Number.isFinite(value) && value >= 0;
+    },
+  );
 }
 
 /** Normalize provider-specific thought fields/tags into the ACP reasoning stream. */
@@ -651,7 +786,12 @@ function extractEmbeddedReasoning(update: SessionUpdate): {
   const contentText = content && typeof content === "object" && !Array.isArray(content) && (content as Record<string, unknown>).type === "text"
     ? String((content as Record<string, unknown>).text ?? "")
     : undefined;
-  if (typeof direct === "string") return { reasoningText: direct, reasoningOnly: true };
+  if (typeof direct === "string") {
+    if (contentText && contentText.length > 0 && contentText !== direct) {
+      return { reasoningText: direct, assistantText: contentText, reasoningOnly: false };
+    }
+    return { reasoningText: direct, reasoningOnly: true };
+  }
   if (markedThought && contentText) return { reasoningText: contentText, reasoningOnly: true };
   if (!contentText) return { reasoningOnly: false };
   const match = /(?:<think(?:ing)?\s*>|<analysis\s*>)([\s\S]*?)(?:<\/(?:think(?:ing)?|analysis)>|$)/i.exec(contentText);

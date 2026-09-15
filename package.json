@@ -1,6 +1,6 @@
 {
   "name": "craftstation",
-  "version": "1.0.4",
+  "version": "1.2.4",
   "private": true,
   "description": "The universal desktop orchestrator for AI agents. Run terminal-native and structured chat agents side-by-side.",
   "homepage": "https://github.com/SDSLeon/craftstation",
@@ -104,6 +104,7 @@
     "@lingui/react": "6.4.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.7.0",
+    "@muse-code/sdk": "^0.1.1",
     "@number-flow/react": "^0.6.2",
     "@opencode-ai/sdk": "^1.18.10",
     "@sentry/electron": "^7.15.0",

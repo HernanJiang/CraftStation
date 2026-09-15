@@ -156,7 +156,11 @@ export interface RuntimeEventSlice {
    * item and everything before it. Used by GUI chat checkpoints.
    */
   truncateThreadRuntimeAfter(threadId: string, checkpointItemId: string): void;
-  /** Replace the persisted item list for a thread (used during DB hydration). */
+  /**
+   * Merge a persisted page into a thread's transcript. Live payloads win on
+   * overlap; persisted ids keep their DB order; live-only ids append as a
+   * newer suffix.
+   */
   hydrateThreadRuntimeItems(threadId: string, items: RuntimeChatItem[]): void;
   /** Prepend an older persisted page while preserving newer live items. */
   prependThreadRuntimeItems(threadId: string, items: RuntimeChatItem[]): void;
@@ -354,19 +358,34 @@ export const createRuntimeEventSlice: SliceCreator<RuntimeEventSlice> = (set) =>
 
   hydrateThreadRuntimeItems: (threadId, items) =>
     set((state) => {
-      // Don't clobber items that already streamed in for an active thread —
-      // the live stream is the source of truth, the DB is only the seed.
-      if ((state.runtimeItemIdsByThread[threadId]?.length ?? 0) > 0) return {};
-      const itemIds = items.map((item) => item.id);
-      const itemsById = Object.fromEntries(items.map((item) => [item.id, item]));
+      if (items.length === 0) return {};
+      const existingIds = state.runtimeItemIdsByThread[threadId] ?? [];
+      const existingItems = state.runtimeItemsByIdByThread[threadId] ?? {};
+      // A working thread can already have live items (renderer remount, or
+      // ChatPane unmount/evict while supervisor events keep flowing). Skipping
+      // the DB seed in that case drops every persisted turn above the live
+      // suffix — the open transcript looks empty except the current turn.
+      // Keep DB order for persisted ids and append live-only ids as a newer
+      // suffix. Live payloads win on overlap so in-flight rows stay live.
+      const incomingIds = items.map((item) => item.id);
+      const incomingSet = new Set(incomingIds);
+      const newerLiveIds = existingIds.filter((id) => !incomingSet.has(id));
+      const mergedIds = [...incomingIds, ...newerLiveIds];
+      const idsUnchanged =
+        mergedIds.length === existingIds.length &&
+        mergedIds.every((id, index) => id === existingIds[index]);
+      if (idsUnchanged) return {};
       return {
         runtimeItemIdsByThread: {
           ...state.runtimeItemIdsByThread,
-          [threadId]: itemIds,
+          [threadId]: mergedIds,
         },
         runtimeItemsByIdByThread: {
           ...state.runtimeItemsByIdByThread,
-          [threadId]: itemsById,
+          [threadId]: {
+            ...Object.fromEntries(items.map((item) => [item.id, item])),
+            ...existingItems,
+          },
         },
         runtimeStructuralVersionByThread: {
           ...state.runtimeStructuralVersionByThread,

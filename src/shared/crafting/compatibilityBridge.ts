@@ -13,6 +13,8 @@ export type CompatibilityBridgeStatusPayload = z.infer<
  */
 export const compatibilityBridgeStatusSchema = z.object({
   running: z.boolean(),
+  /** True when a sidecar binary was resolved (idle or running). */
+  installed: z.boolean().default(false),
   endpoint: z.string().optional(),
   pid: z.number().optional(),
 });

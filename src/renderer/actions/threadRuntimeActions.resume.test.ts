@@ -147,7 +147,7 @@ describe("performThreadInputSubmit unknown-session resume", () => {
     expect(rollbackCalls()).toHaveLength(1);
   });
 
-  it("keeps the old failure behavior without a resume hook or a resumable thread", async () => {
+  it("keeps the old failure behavior without a resume hook", async () => {
     const thread = createThread();
     await expect(
       performThreadInputSubmit({
@@ -157,19 +157,30 @@ describe("performThreadInputSubmit unknown-session resume", () => {
       }),
     ).rejects.toThrow("Unknown thread session: x");
     expect(rollbackCalls()).toHaveLength(1);
+  });
 
-    vi.clearAllMocks();
+  it("relaunches a never-launched thread (no sessionRef, not resumable) instead of failing", async () => {
+    // Side Chat ephemeral branches start with no live session and no resume
+    // material; their first send must launch the thread, not toast an error.
+    const thread = createThread({ canResumeWithConfig: false, sessionRef: undefined });
     const resumeLaunch = vi.fn<(args: unknown) => Promise<void>>().mockResolvedValue(undefined);
+
     await expect(
       performThreadInputSubmit({
-        thread: createThread({ canResumeWithConfig: false, sessionRef: undefined }),
+        thread,
         prompt: "hello",
+        segments,
         transport: rejectingTransport("Unknown thread session: x"),
         resumeLaunch,
       }),
-    ).rejects.toThrow("Unknown thread session: x");
-    expect(resumeLaunch).not.toHaveBeenCalled();
-    expect(rollbackCalls()).toHaveLength(1);
+    ).resolves.toBeUndefined();
+
+    expect(resumeLaunch).toHaveBeenCalledExactlyOnceWith({
+      prompt: "hello",
+      segments,
+      userMessageItemId: expect.stringMatching(/^user-/),
+    });
+    expect(rollbackCalls()).toEqual([]);
   });
 });
 

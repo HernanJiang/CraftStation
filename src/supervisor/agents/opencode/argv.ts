@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { dirname as posixDirname } from "node:path/posix";
 import type { ProjectLocation, ThreadConfig } from "@/shared/contracts";
 import { buildAgentCommand, DEFAULT_WSL_EXEC_PATH, getWslCommand, type CommandSpec } from "../base";
+import { formatOpenCodeModelFlag } from "./modelSlug";
 
 // `opencode` (default TUI) only accepts `[project]` as a positional, so the
 // initial prompt must go through `--prompt` rather than a trailing arg.
@@ -16,8 +17,9 @@ export function buildOpenCodeArgs(
   if (resumeSessionId) {
     args.push("--session", resumeSessionId);
   }
-  if (config.model) {
-    args.push("--model", config.model);
+  const modelFlag = formatOpenCodeModelFlag(config.model);
+  if (modelFlag) {
+    args.push("--model", modelFlag);
   }
   // NOTE: `config.effort` (variant) is intentionally NOT forwarded here.
   // The opencode CLI (verified against 1.14.30) does not accept `--variant`;

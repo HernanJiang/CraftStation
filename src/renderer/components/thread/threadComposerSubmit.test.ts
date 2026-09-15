@@ -183,6 +183,32 @@ describe("submitComposerPrompt steer routing", () => {
     expect(registerNativeGoal).not.toHaveBeenCalled();
   });
 
+  it("swallows a Grok skill-catalog dump and sends nothing", () => {
+    const thread = { ...workingGuiThread(), agentKind: "grok", status: "idle" } as Thread;
+    const ctx = makeCtx(thread, { usesPendingSteerPath: false });
+    const chips = [
+      "skill-creator-craftstation",
+      "ask-matt",
+      "ast-grep",
+      "code-review",
+      "diagnosing-bugs",
+      "my-workflow",
+      "my-research",
+      "prototype",
+    ].map((name) => ({
+      kind: "skill" as const,
+      name,
+      path: `/skills/${name}/SKILL.md`,
+      invocation: `/${name}`,
+      provider: "Grok",
+      scope: "global" as const,
+    }));
+    submitComposerPrompt(chips, ctx);
+    expect(submitThreadInput).not.toHaveBeenCalled();
+    expect(enqueueThreadFollowUp).not.toHaveBeenCalled();
+    expect(ctx.setPrompt).toHaveBeenCalledWith("");
+  });
+
   it("registers native goal without text injection for codex", async () => {
     const goal = { prompt: "fix auth", createdAt: "t", updatedAt: "t" };
     const thread = { ...workingGuiThread(), agentKind: "codex", status: "idle", goal } as Thread;

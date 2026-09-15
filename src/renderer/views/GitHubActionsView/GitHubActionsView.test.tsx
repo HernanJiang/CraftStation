@@ -784,4 +784,20 @@ describe("GitHubActionsView", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Select a workflow to see its runs.")).not.toBeInTheDocument();
   });
+
+  it("shows a friendly empty state when the project is not a git repository", async () => {
+    bridge.ghListWorkflows.mockRejectedValue(
+      new Error(
+        "gh workflow list failed: failed to run git: fatal: not a git repository (or any parent): .git",
+      ),
+    );
+
+    render(<GitHubActionsView projectId={project.id} onClose={() => {}} />);
+
+    expect(await screen.findByText("This project is not a Git repository.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Initialize Git and connect GitHub to see Actions workflows."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

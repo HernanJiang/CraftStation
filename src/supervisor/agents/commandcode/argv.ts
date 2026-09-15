@@ -1,4 +1,5 @@
 import type { ThreadConfig } from "@/shared/contracts";
+import { normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
 
 /**
  * Assemble the `command-code` CLI argv for an interactive PTY launch (or a
@@ -39,7 +40,7 @@ export function buildCommandCodeArgs(
     args.push("--continue");
   }
   if (config.model) {
-    args.push("--model", config.model);
+    args.push("--model", normalizeCommandCodeModelId(config.model));
   }
   if (config.effort) {
     args.push("--effort", config.effort);
@@ -92,7 +93,7 @@ export function buildCommandCodePrintArgs(
     args.push("--resume", resumeSessionId);
   }
   if (config.model) {
-    args.push("--model", config.model);
+    args.push("--model", normalizeCommandCodeModelId(config.model));
   }
   if (config.effort) {
     args.push("--effort", config.effort);

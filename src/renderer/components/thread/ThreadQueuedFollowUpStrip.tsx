@@ -59,7 +59,7 @@ export function ThreadQueuedFollowUpStrip(props: ThreadQueuedFollowUpStripProps)
           data-testid="thread-queued-follow-up"
           aria-label={t`Queued prompt`}
           value={draft}
-          className="min-w-0 flex-1 bg-transparent text-foreground outline-none"
+          className="min-w-0 h-full flex-1 border-0 bg-transparent p-0 text-xs text-foreground outline-none [font:inherit]"
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {
@@ -86,7 +86,7 @@ export function ThreadQueuedFollowUpStrip(props: ThreadQueuedFollowUpStripProps)
           <Send className="size-3.5" />
         </ThreadDockIconButton>
         <ThreadDockIconButton
-          label={editing ? t`Done` : t`Edit queue`}
+          label={editing ? t`Done` : t`Edit`}
           onMouseDown={(event) => {
             if (editing) event.preventDefault();
           }}

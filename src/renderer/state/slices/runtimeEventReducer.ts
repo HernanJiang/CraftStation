@@ -251,7 +251,32 @@ function applyRuntimeEventToRuntimeState(
     case "item.started": {
       const existingIds = state.runtimeItemIdsByThread[threadId] ?? [];
       const existingItems = state.runtimeItemsByIdByThread[threadId] ?? {};
-      if (existingItems[event.itemId]) return {};
+      const existing = existingItems[event.itemId];
+      if (existing) {
+        // Plan aggregators (Claude SDK) reopen the same plan item id for a new
+        // turn after closing it at the previous turn boundary. Without the
+        // reopen the reducer would keep the stale "completed" state and the
+        // plan dock could never come back for the rest of the session.
+        if (existing.type === "plan" && existing.state === "completed") {
+          const { completedAt: _droppedCompletedAt, ...reopened } = existing;
+          return {
+            runtimeItemsByIdByThread: {
+              ...state.runtimeItemsByIdByThread,
+              [threadId]: {
+                ...existingItems,
+                [event.itemId]: {
+                  ...reopened,
+                  state: "started",
+                  payload: event.payload,
+                  streams: {},
+                  observedLive: true,
+                },
+              },
+            },
+          };
+        }
+        return {};
+      }
       const item: RuntimeChatItem = {
         id: event.itemId,
         type: event.itemType,

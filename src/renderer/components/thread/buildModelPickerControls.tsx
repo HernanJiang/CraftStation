@@ -34,7 +34,7 @@ import {
   supportsUsableFastMode,
 } from "./threadDraftViewHelpers";
 import type { ProviderModelPreference } from "@/shared/settings";
-import { applyThirdPartyPickerSelection, sameComposerAccount } from "@/shared/thirdPartyRouting";
+import { composerPickerAgentKind, sameComposerAccount } from "@/shared/thirdPartyRouting";
 
 export type ModelPickerConfigPatch = {
   model?: string;
@@ -397,6 +397,8 @@ export function buildControls(
     providers?: ProviderModelMenuProvider[];
     selectedAccountId?: string;
     installedHarnesses?: readonly string[];
+    /** Catalog/channel the user picked. Differs from spawn `thread.agentKind` after Auto remap. */
+    pickerAgentKind?: string;
     onProviderChange?: (next: {
       agentKind: string;
       model: string;
@@ -405,6 +407,13 @@ export function buildControls(
     }) => void;
   },
 ): ComposerControl[] {
+  const pickerAgentKind =
+    options?.pickerAgentKind ??
+    composerPickerAgentKind({
+      agentKind: thread.agentKind,
+      model: thread.config.model,
+      sourceProviderKind: thread.config.sourceProviderKind,
+    });
   const presentationMode =
     thread.presentationMode ?? agentStatus?.capabilities.presentationMode ?? "terminal";
   if (presentationMode === "terminal") return [];
@@ -442,7 +451,7 @@ export function buildControls(
   return appendProviderComposerControls(
     buildModelPickerControls({
       providers,
-      selectedAgentKind: thread.agentKind,
+      selectedAgentKind: pickerAgentKind,
       ...(options?.selectedAccountId ? { selectedAccountId: options.selectedAccountId } : {}),
       model: effectiveConfig.model,
       ...(effectiveConfig.effort ? { effort: effectiveConfig.effort } : {}),
@@ -454,15 +463,14 @@ export function buildControls(
       presentationMode,
       isDisabled,
       onProviderModelChange: (next) => {
-        const resolved = applyThirdPartyPickerSelection(next, options?.installedHarnesses);
-        const accountChanged = !sameComposerAccount(options?.selectedAccountId, resolved.accountId);
-        if (resolved.agentKind !== thread.agentKind || accountChanged) {
-          options?.onProviderChange?.(resolved);
+        const accountChanged = !sameComposerAccount(options?.selectedAccountId, next.accountId);
+        if (next.agentKind !== pickerAgentKind || accountChanged) {
+          options?.onProviderChange?.(next);
           return;
         }
-        const preference = modelPreferences?.[resolved.model];
+        const preference = modelPreferences?.[next.model];
         onPatch(
-          patchConfigForModelChange(filteredCaps, resolved.model, {
+          patchConfigForModelChange(filteredCaps, next.model, {
             ...(preference?.effort !== undefined ? { effort: preference.effort } : {}),
             ...(effectiveConfig.contextSize ? { contextSize: effectiveConfig.contextSize } : {}),
             ...(preference?.fast !== undefined ? { fast: preference.fast } : {}),

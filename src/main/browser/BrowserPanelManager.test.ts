@@ -214,4 +214,27 @@ describe("BrowserPanelManager", () => {
     expect(state.tabs.find((t) => t.tabId === "tab-a")?.groupId).toBeUndefined();
     expect(state.groups).toEqual([]);
   });
+
+  it("reuses an existing tab at the same URL instead of opening a duplicate", async () => {
+    const { BrowserPanelManager } = await import("./BrowserPanelManager");
+    const manager = new BrowserPanelManager(
+      { settingsPath: "settings.json" } as never,
+      "Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36",
+    );
+    const { host } = createManagerWithTab();
+    manager.bindHost(host as never);
+    const tabs = [createFakeTab("tab-a")];
+    (manager as unknown as { tabs: typeof tabs }).tabs = tabs;
+    const events: string[] = [];
+    manager.addEventListener((event) => {
+      if (event.type === "open-panel") events.push("open-panel");
+    });
+
+    const handled = await manager.openLink("https://tab-a.test/");
+
+    expect(handled).toBe(true);
+    expect(manager.snapshot().activeTabId).toBe("tab-a");
+    expect(events).toEqual(["open-panel"]);
+    expect((manager as unknown as { tabs: typeof tabs }).tabs).toHaveLength(1);
+  });
 });

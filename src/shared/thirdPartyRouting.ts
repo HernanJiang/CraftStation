@@ -1,10 +1,14 @@
 import {
+  applyAutoDeepseekHarnessLaunch,
   applyAutoMuseHarnessLaunch,
+  modelProviderPrefix,
   preferredHarnessForCompatibilityFamily,
   resolveCompatibilityFamily,
   stripModelProviderPrefix,
   type CompatibilityHarnessId,
 } from "./harnessCompatibility";
+import { baseAgentKind } from "./contracts";
+import { resolveCommandCodeNativeModelId } from "./commandCodeModelIds";
 
 /**
  * Third-party launch routing (chat lane).
@@ -33,7 +37,7 @@ export function normalizeThirdPartyModelId(modelId: string): string {
   return trimmed.startsWith(prefix) ? trimmed.slice(prefix.length).trim() : trimmed;
 }
 
-export function isThirdPartyAccountId(accountId: string | undefined | null): boolean {
+export function isThirdPartyAccountId(accountId: string | undefined | null): accountId is string {
   return typeof accountId === "string" && accountId.startsWith(`${THIRD_PARTY_ACCOUNT_PROVIDER}:`);
 }
 
@@ -59,6 +63,9 @@ export function resolveThirdPartyHarnessForModel(
   const family = resolveCompatibilityFamily(modelId);
   const preferred = preferredHarnessForCompatibilityFamily(family);
   if (preferred === "antigravity") return "opencode";
+  // Muse Code is WSL-only on Windows. Do not fall back to OpenCode just
+  // because `muse.exe` is missing from the native install list.
+  if (preferred === "muse") return "muse";
   if (harnessIsInstalled(preferred, installed)) return preferred;
   return harnessIsInstalled("opencode", installed) ? "opencode" : preferred;
 }
@@ -68,6 +75,137 @@ export interface ThirdPartyPickerSelection {
   model: string;
   presentationMode?: "terminal" | "gui";
   accountId?: string;
+  /** Catalog/channel that listed the model. Set when harness ≠ provider. */
+  sourceProviderKind?: string;
+}
+
+export interface AutoModelBinding {
+  /** Process that will actually spawn. */
+  harnessId: string;
+  /** Catalog/channel that listed the model. */
+  providerId: string;
+  /** Exact catalog model id. Never rewritten to a harness default. */
+  providerModelId: string;
+}
+
+/**
+ * Picker / composer identity is the catalog channel, not the spawn Harness.
+ * After Auto Mode remaps Command Code → DeepSeek Harness (or OpenCode → Muse),
+ * `sourceProviderKind` keeps the row the user actually picked.
+ */
+export function catalogProviderKind(input: {
+  agentKind: string;
+  sourceProviderKind?: string | undefined;
+}): string {
+  const source = input.sourceProviderKind?.trim();
+  return source && source.length > 0 ? source : input.agentKind;
+}
+
+/**
+ * Bottom-right composer identity.
+ *
+ * Auto remap (Command Code → DeepSeek, OpenCode Muse Spark → Muse) keeps the
+ * catalog row the user picked. An explicit recipe / 合成台 composition
+ * (Antigravity Gemini onto OpenCode) keeps the spawn Harness — that is the
+ * process the user composed, not the catalog the model card came from.
+ */
+export function composerPickerAgentKind(input: {
+  agentKind: string;
+  model: string;
+  sourceProviderKind?: string | undefined;
+  installed?: readonly string[] | undefined;
+}): string {
+  const source = input.sourceProviderKind?.trim();
+  if (!source || source === input.agentKind) return input.agentKind;
+  const auto = applyThirdPartyPickerSelection(
+    { agentKind: source, model: input.model },
+    input.installed,
+  );
+  if (auto.agentKind === input.agentKind) return source;
+  return input.agentKind;
+}
+
+/**
+ * Model-catalog channel aliases: the channel prefix embedded in a catalog
+ * model id does not always equal the serving Harness kind (`opencode-go/...`
+ * rows are served by the `opencode` Harness).
+ */
+const MODEL_CATALOG_CHANNEL_ALIASES: Record<string, string> = {
+  "opencode-go": "opencode",
+};
+
+/**
+ * Catalog/channel embedded in a `provider/model` id, normalized to the
+ * Harness kind that serves it. Bare model ids carry no channel provenance —
+ * undefined.
+ */
+export function modelCatalogChannel(modelId: string | undefined): string | undefined {
+  if (!modelId) return undefined;
+  const prefix = modelProviderPrefix(modelId)?.trim().toLowerCase();
+  if (!prefix) return undefined;
+  return MODEL_CATALOG_CHANNEL_ALIASES[prefix] ?? prefix;
+}
+
+/**
+ * Whether a persisted thread's model id names a catalog channel different
+ * from its spawn Harness. Threads created before `sourceProviderKind` was
+ * recorded (or via surfaces that never stamp it, e.g. App Controls MCP)
+ * still carry their provenance in the id: `opencode-go/muse-spark-…` on the
+ * `muse` Harness can only be served through the OpenCode channel, so the
+ * Harness's own official login must never gate it.
+ */
+export function isForeignCatalogModelForHarness(
+  model: string | undefined,
+  agentKind: string | undefined,
+): boolean {
+  if (!model || !agentKind) return false;
+  const channel = modelCatalogChannel(model);
+  if (!channel) return false;
+  return channel !== baseAgentKind(agentKind).trim().toLowerCase();
+}
+
+/**
+ * Command Code native ids are `vendor/model` (e.g. `deepseek/deepseek-v4-flash`).
+ * Catalog rows sometimes stamp the channel as `commandcode/<leaf>`, which the
+ * Command Code API then rejects as `anthropic:commandcode/<leaf>`.
+ * Lookup is exact against the known native set — never a guessed vendor.
+ */
+export function normalizeCommandCodeModelId(modelId: string): string {
+  return resolveCommandCodeNativeModelId(modelId);
+}
+
+/**
+ * dsh ACP model config values are JSON `[provider, model]` tuples.
+ * Command Code catalog ids must ride the `commandcode` route, not
+ * `deepseek-official`, or ACP falls back to api.deepseek.com.
+ */
+export function foreignAcpModelId(config: {
+  model: string;
+  sourceProviderKind?: string | undefined;
+}): string {
+  const model = config.model.trim();
+  const source =
+    config.sourceProviderKind?.trim().toLowerCase() || modelCatalogChannel(model) || "";
+  if (source === "commandcode" && model) {
+    return JSON.stringify(["commandcode", normalizeCommandCodeModelId(model)]);
+  }
+  return config.model;
+}
+
+/**
+ * Split catalog identity from spawn identity. The picker keeps `providerId`;
+ * launch uses `harnessId` + `providerModelId`.
+ */
+export function resolveAutoModelBinding(
+  pick: ThirdPartyPickerSelection,
+  installed?: readonly string[],
+): AutoModelBinding {
+  const remapped = applyThirdPartyPickerSelection(pick, installed);
+  return {
+    harnessId: remapped.agentKind,
+    providerId: catalogProviderKind(pick),
+    providerModelId: pick.model,
+  };
 }
 
 /**
@@ -76,27 +214,55 @@ export interface ThirdPartyPickerSelection {
  * - Third-party openai-compatible picks rewrite onto the model's native
  *   Harness when that Harness is installed (ChatGPT → Codex, Kimi/Grok/
  *   DeepSeek → their CLI, Muse → Muse, otherwise OpenCode).
- * - OpenCode catalog is a carrier, not a destination: Muse Spark (and other
- *   vendor models whose native Harness can consume the OpenCode API) launch
- *   that Harness. GLM / unknown stay on OpenCode.
- * - Command Code / 方舟 coding-plan CLIs keep their own process — they carry
- *   their own key and must not be rewritten onto DeepSeek Harness.
+ * - OpenCode catalog Muse Spark remaps onto Muse Code when installed.
+ * - Command Code DeepSeek remaps onto DeepSeek Harness when installed.
+ * 合成台 / explicit recipes skip this helper. The returned `agentKind` is
+ * the process that will actually spawn. UI must display that Harness, never
+ * a family-affinity label.
  */
 export function applyThirdPartyPickerSelection(
   next: ThirdPartyPickerSelection,
   installed?: readonly string[],
 ): ThirdPartyPickerSelection {
-  if (isThirdPartyAccountId(next.accountId)) {
-    const harness = resolveThirdPartyHarnessForModel(next.model, installed);
-    if (harness === next.agentKind) return next;
-    return { ...next, agentKind: harness };
+  const nativeCommandCodeModel =
+    next.agentKind === "commandcode" || modelCatalogChannel(next.model) === "commandcode"
+      ? normalizeCommandCodeModelId(next.model)
+      : next.model;
+  const pick =
+    nativeCommandCodeModel === next.model ? next : { ...next, model: nativeCommandCodeModel };
+  if (isThirdPartyAccountId(pick.accountId)) {
+    const harness = resolveThirdPartyHarnessForModel(pick.model, installed);
+    if (harness === pick.agentKind) return pick;
+    return {
+      ...pick,
+      agentKind: harness,
+      sourceProviderKind: pick.sourceProviderKind ?? pick.agentKind,
+      ...(harness === "muse" ? { presentationMode: "gui" as const } : {}),
+    };
   }
-  const remapped = applyAutoMuseHarnessLaunch(
-    { agentKind: next.agentKind, model: next.model },
+  const muse = applyAutoMuseHarnessLaunch(
+    { agentKind: pick.agentKind, model: pick.model },
     harnessIsInstalled("muse", installed),
   );
-  if (remapped.agentKind === next.agentKind) return next;
-  return { ...next, agentKind: remapped.agentKind };
+  if (muse.agentKind !== pick.agentKind) {
+    return {
+      ...pick,
+      agentKind: "muse",
+      sourceProviderKind: pick.sourceProviderKind ?? pick.agentKind,
+      presentationMode: "gui",
+    };
+  }
+  const deepseek = applyAutoDeepseekHarnessLaunch(
+    { agentKind: pick.agentKind, model: pick.model },
+    harnessIsInstalled("deepseek", installed),
+  );
+  if (deepseek.agentKind === pick.agentKind) return pick;
+  return {
+    ...pick,
+    agentKind: deepseek.agentKind,
+    model: deepseek.model,
+    sourceProviderKind: pick.sourceProviderKind ?? pick.agentKind,
+  };
 }
 
 /**
@@ -173,9 +339,27 @@ export function resolveThirdPartyAccountForLaunch(input: {
         input.trustAccountChannel === true ||
         byId.get(accountId)?.provider === THIRD_PARTY_ACCOUNT_PROVIDER),
     );
-  if (isThirdPartyAccount(input.explicitAccountId)) return input.explicitAccountId;
   const model = input.model.trim();
+  const family = model ? resolveCompatibilityFamily(model) : "unknown";
+  // Official ChatGPT ids collide with Chiral/custom GPT rows filed under Codex.
+  // Only honor a third-party account when THIS pick named it — never because a
+  // leftover next-session account or a catalog row happens to share the id.
+  const officialCodexOpenAI = input.agentKind === "codex" && family === "openai";
+  if (isThirdPartyAccount(input.explicitAccountId)) {
+    if (!officialCodexOpenAI) return input.explicitAccountId;
+    const explicit = input.explicitAccountId!;
+    const belongs = (input.customModels ?? []).some(
+      (entry) =>
+        entry.accountId === explicit &&
+        (entry.modelId.trim() === model ||
+          stripModelProviderPrefix(entry.modelId) === stripModelProviderPrefix(model)),
+    );
+    // Explicit Chiral pick of this GPT id is real; leftover account without a
+    // matching custom row must not steal a native ChatGPT subscription launch.
+    if (belongs) return explicit;
+  }
   if (!model) return undefined;
+  if (officialCodexOpenAI) return undefined;
   const modelMatches = (entryModelId: string) =>
     entryModelId === model ||
     stripModelProviderPrefix(entryModelId) === stripModelProviderPrefix(model);
@@ -190,7 +374,6 @@ export function resolveThirdPartyAccountForLaunch(input: {
   // (historically "codex", briefly "opencode" for GLM). Match the model id
   // against any openai-compatible account so the launch keeps the same key.
   // Never do this for native GPT ids on Codex: they collide with ChatGPT.
-  const family = resolveCompatibilityFamily(model);
   const allowCrossChannel =
     input.agentKind === "muse" ||
     input.agentKind === "opencode" ||
@@ -204,6 +387,7 @@ export function resolveThirdPartyAccountForLaunch(input: {
       // Leftover OpenCode / Codex GLM rows (filed under either channel) still bind.
       if (input.agentKind === "opencode") return true;
       if (input.agentKind === "codex" && family !== "openai") return true;
+      if (input.agentKind === "muse") return resolveCompatibilityFamily(entry.modelId) === "muse";
       return resolveThirdPartyHarnessForModel(entry.modelId) === input.agentKind;
     });
     return remapped?.accountId;

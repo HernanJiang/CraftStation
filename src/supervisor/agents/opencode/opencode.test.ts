@@ -28,6 +28,13 @@ describe("buildOpenCodeArgs", () => {
     ]);
   });
 
+  it("infers google/ for a bare Gemini recipe id instead of omitting the model", () => {
+    expect(buildOpenCodeArgs({ model: "gemini-3.8-flash" }, "")).toEqual([
+      "--model",
+      "google/gemini-3.8-flash",
+    ]);
+  });
+
   it("encodes initial prompt via --prompt instead of positional", () => {
     expect(buildOpenCodeArgs({ model: "" }, "hello world")).toEqual(["--prompt", "hello world"]);
   });

@@ -4,8 +4,14 @@ import type { StoredRecipe } from "@/shared/crafting/workbenchTypes";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { getCurrentProjectId } from "@/renderer/actions/currentProject";
 import { Button } from "@/renderer/components/common";
+import {
+  recipeLaunchHarnessKind,
+  recipeLaunchModelId,
+} from "@/renderer/crafting/recipePickerTarget";
+import { isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
 
 /**
  * My Recipes page: the "我的配方" first-level tab. Supports viewing, searching,
@@ -47,13 +53,17 @@ export function MyRecipesPage() {
       const project = useAppStore.getState().projects.find((p) => p.id === projectId);
       const draft = project?.lastDraftConfig;
       useAppStore.getState().updateProjectDraftConfig(projectId, {
-        ...(draft ?? { model: recipe.lastKnownModel?.modelId ?? "" }),
-        agentKind:
-          recipe.lastKnownHarness?.harnessKind ?? recipe.harnessRef.replace(/^harness:/, ""),
-        model: recipe.lastKnownModel?.modelId ?? draft?.model ?? "",
+        ...(draft ?? { model: recipeLaunchModelId(recipe) ?? "" }),
+        agentKind: recipeLaunchHarnessKind(recipe),
+        model: recipeLaunchModelId(recipe) ?? draft?.model ?? "",
       });
     }
     useCraftingWorkbenchStore.getState().setPendingRecipeIntent({ recipeId: recipe.id });
+    if (recipe.providerProfileRef && isThirdPartyAccountId(recipe.providerProfileRef)) {
+      useUsageAccountsStore.getState().setNextSessionAccount(recipe.providerProfileRef);
+    } else {
+      useUsageAccountsStore.getState().clearNextSessionAccount();
+    }
     usePanelStore.getState().closeModelUsageDialog();
   };
 

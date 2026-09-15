@@ -63,11 +63,13 @@ function makeStructuredHandle(
   options: {
     sessionId?: string;
     startTurn?: StructuredSessionHandle["startTurn"];
+    resolveServerRequest?: StructuredSessionHandle["resolveServerRequest"];
   } = {},
 ): StructuredSessionHandle & {
   listener?: StructuredSessionListener;
   openThread: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
+  resolveServerRequest: ReturnType<typeof vi.fn>;
 } {
   let listener: StructuredSessionListener | undefined;
   const openThread = vi.fn(async (_config, sessionRef) => {
@@ -78,6 +80,7 @@ function makeStructuredHandle(
     listener?: StructuredSessionListener;
     openThread: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
+    resolveServerRequest: ReturnType<typeof vi.fn>;
   } = {
     launchOptions: {},
     activate: vi.fn(async () => undefined),
@@ -96,6 +99,9 @@ function makeStructuredHandle(
         listener?.onUpdate({ status: "idle", attention: "none" });
       }),
     interruptTurn: vi.fn(async () => undefined),
+    resolveServerRequest: vi.fn(
+      options.resolveServerRequest ?? (async () => undefined),
+    ),
     setListener: vi.fn((next: StructuredSessionListener) => {
       listener = next;
       handle.listener = next;
@@ -234,6 +240,45 @@ describe("Native Harness runtime seam", () => {
     expect(events).toEqual([]);
     expect(session.getDiagnostics?.() ?? []).toEqual(
       expect.arrayContaining([expect.objectContaining({ operation: "interrupt" })]),
+    );
+  });
+
+  it("forwards allow-once permission replies onto the native ACP handle", async () => {
+    const handle = makeStructuredHandle();
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: makeStructuredAgent(handle),
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+    });
+    const session = await adapter.createSession(await adapter.spawnEntity(makePlan("grok", "xai")));
+
+    await session.respondToRequest?.("acp-perm-0", {
+      kind: "permission",
+      response: "once",
+      optionId: "allow-once",
+    });
+
+    expect(handle.resolveServerRequest).toHaveBeenCalledWith("acp-perm-0", {
+      optionId: "allow-once",
+    });
+  });
+
+  it("applies the adapter default approval policy so bypass sessions auto-approve", async () => {
+    const handle = makeStructuredHandle();
+    const agent = makeStructuredAgent(handle);
+    (agent.capabilities as { defaultApprovalPolicy?: string }).defaultApprovalPolicy =
+      "bypassPermissions";
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: agent,
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+    });
+
+    await adapter.createSession(await adapter.spawnEntity(makePlan("grok", "xai")));
+
+    expect(handle.openThread).toHaveBeenCalledWith(
+      expect.objectContaining({ approvalPolicy: "bypassPermissions" }),
+      undefined,
     );
   });
 

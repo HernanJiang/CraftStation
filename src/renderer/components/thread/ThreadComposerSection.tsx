@@ -77,11 +77,16 @@ import { ThreadQueuedFollowUpStrip } from "./ThreadQueuedFollowUpStrip";
 import { ContextQuotaRing } from "./ComposerStatusRow";
 import { supportsUsableFastMode } from "./threadDraftViewHelpers";
 import { getApprovalDenyOption } from "./ThreadRuntimeRequestPanel/helpers";
-import { hasReportedContextUsage, resolveThreadContextUsageSummary } from "./threadContextUsage";
+import { resolveThreadContextUsageSummary, shouldShowContextUsageDock } from "./threadContextUsage";
 import { buildControls } from "./buildModelPickerControls";
 import { useManagedComposerProviders } from "./useManagedComposerProviders";
 import { switchLiveThreadProvider } from "@/renderer/actions/sessionHandoffActions";
-import { applyThirdPartyPickerSelection, isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
+import { getLaunchableAgentStatuses } from "@/shared/agentStatus";
+import {
+  applyThirdPartyPickerSelection,
+  composerPickerAgentKind,
+  isThirdPartyAccountId,
+} from "@/shared/thirdPartyRouting";
 import {
   isPendingSwitchResolved,
   shouldStageModelSwitch,
@@ -401,6 +406,10 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const { authRequired, hasRuntimeAuthError } = resolveThreadAuthState({
     authState: effectiveAgentStatus?.authState,
     errorDockStates,
+    sourceProviderKind: thread.config.sourceProviderKind,
+    accountId: thread.accountBinding?.accountId,
+    agentKind: thread.agentKind,
+    model: thread.config.model,
   });
   const canShowRuntimeChrome = !usesTerminalPresentation || usesRemoteTransport;
   const isServerControlled =
@@ -481,11 +490,16 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
         ? s.worktreeStatuses[thread.worktreePath]?.branch
         : s.statuses[thread.projectId]?.branch),
   );
+  const catalogAgentKind = composerPickerAgentKind({
+    agentKind: thread.agentKind,
+    model: thread.config.model,
+    sourceProviderKind: thread.config.sourceProviderKind,
+  });
   const hiddenModelIds = useSharedSettings(
     (s) =>
       s.hiddenModels[
         modelVisibilityKey(
-          thread.agentKind,
+          catalogAgentKind,
           presentationMode,
           effectiveAgentStatus?.capabilities.runtimeLabel,
         )
@@ -495,13 +509,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     (s) =>
       s.shownModels?.[
         modelVisibilityKey(
-          thread.agentKind,
+          catalogAgentKind,
           presentationMode,
           effectiveAgentStatus?.capabilities.runtimeLabel,
         )
       ],
   );
-  const modelPreferences = useSharedSettings((s) => s.providerModelPreferences[thread.agentKind]);
+  const modelPreferences = useSharedSettings((s) => s.providerModelPreferences[catalogAgentKind]);
   const setProviderModelPreference = useSharedSettings((s) => s.setProviderModelPreference);
   // Staged provider/model pick: selecting in the model selector must NOT
   // switch immediately. The pick waits here until the user sends — the
@@ -519,23 +533,30 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     if (
       pendingSwitch &&
       isPendingSwitchResolved(
-        { agentKind: thread.agentKind, model: thread.config.model, accountId: liveAccountId },
+        { agentKind: catalogAgentKind, model: thread.config.model, accountId: liveAccountId },
         pendingSwitch,
       )
     ) {
       setPendingSwitch(null);
     }
-  }, [pendingSwitch, thread.agentKind, thread.config.model, liveAccountId]);
+  }, [pendingSwitch, catalogAgentKind, thread.config.model, liveAccountId]);
   const managedProviders = useManagedComposerProviders({
     presentationMode,
-    includeAgentKind: thread.agentKind,
+    includeAgentKind: catalogAgentKind,
   });
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
+  const launchableHarnesses = getLaunchableAgentStatuses(
+    projectLocation,
+    agentStatuses,
+    wslAgentStatuses,
+  )
+    .filter((entry) => entry.installed)
+    .map((entry) => entry.kind);
   const isStagingSwitch = Boolean(
     pendingSwitch &&
     shouldStageModelSwitch(
-      { agentKind: thread.agentKind, model: thread.config.model, accountId: liveAccountId },
+      { agentKind: catalogAgentKind, model: thread.config.model, accountId: liveAccountId },
       pendingSwitch,
     ),
   );
@@ -591,37 +612,35 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       changeThreadConfig(thread.id, config);
     },
     modelPreferences,
-    (model, preference) => setProviderModelPreference(displayThread.agentKind, model, preference),
+    (model, preference) =>
+      setProviderModelPreference(
+        isStagingSwitch && pendingSwitch ? pendingSwitch.agentKind : catalogAgentKind,
+        model,
+        preference,
+      ),
     {
       providers: managedProviders,
       ...(displayAccountId ? { selectedAccountId: displayAccountId } : {}),
-      installedHarnesses: [...agentStatuses, ...wslAgentStatuses]
-        .filter((entry) => entry.installed)
-        .map((entry) => entry.kind),
+      installedHarnesses: launchableHarnesses,
+      pickerAgentKind: isStagingSwitch && pendingSwitch ? pendingSwitch.agentKind : catalogAgentKind,
       onProviderChange: (next) => {
         // Stage only: the switch commits on send (see submitPrompt). This
         // keeps "pick model, tweak effort, send" as one atomic user action
         // instead of tearing down the live session mid-thought.
-        const resolved = applyThirdPartyPickerSelection(
-          next,
-          [...agentStatuses, ...wslAgentStatuses]
-            .filter((entry) => entry.installed)
-            .map((entry) => entry.kind),
-        );
         if (
           !shouldStageModelSwitch(
-            { agentKind: thread.agentKind, model: thread.config.model, accountId: liveAccountId },
-            resolved,
+            { agentKind: catalogAgentKind, model: thread.config.model, accountId: liveAccountId },
+            next,
           )
         ) {
           setPendingSwitch(null);
           return;
         }
         setPendingSwitch({
-          agentKind: resolved.agentKind,
-          model: resolved.model,
-          ...(resolved.presentationMode ? { presentationMode: resolved.presentationMode } : {}),
-          ...(resolved.accountId ? { accountId: resolved.accountId } : {}),
+          agentKind: next.agentKind,
+          model: next.model,
+          ...(next.presentationMode ? { presentationMode: next.presentationMode } : {}),
+          ...(next.accountId ? { accountId: next.accountId } : {}),
         });
       },
     },
@@ -669,10 +688,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     reportedUsage: reportedContextUsage,
   });
   const showContextIndicator =
-    !hideInfoDocks &&
-    canShowRuntimeChrome &&
-    hasReportedContextUsage(reportedContextUsage) &&
-    contextSummary.maxTokens !== undefined;
+    !hideInfoDocks && canShowRuntimeChrome && shouldShowContextUsageDock(contextSummary);
   const showContextInComposer = showContextIndicator && contextDockOpen;
   const project = useAppStore((s) =>
     s.projects.find((candidate) => candidate.id === thread.projectId),
@@ -753,7 +769,11 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       staged &&
       !isPendingSwitchResolved(
         {
-          agentKind: sendThread.agentKind,
+          agentKind: composerPickerAgentKind({
+            agentKind: sendThread.agentKind,
+            model: sendThread.config.model,
+            sourceProviderKind: sendThread.config.sourceProviderKind,
+          }),
           model: sendThread.config.model,
           accountId: isThirdPartyAccountId(sendThread.accountBinding?.accountId)
             ? sendThread.accountBinding?.accountId
@@ -764,17 +784,39 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     ) {
       setIsSubmitting(true);
       try {
+        const remapped =
+          craftMode === "auto" && !useCraftingWorkbenchStore.getState().pendingRecipeIntent
+            ? applyThirdPartyPickerSelection(
+                {
+                  agentKind: staged.agentKind,
+                  model: staged.model,
+                  ...(staged.presentationMode ? { presentationMode: staged.presentationMode } : {}),
+                  ...(staged.accountId ? { accountId: staged.accountId } : {}),
+                },
+                launchableHarnesses,
+              )
+            : staged;
         await switchLiveThreadProvider({
           thread: sendThread,
           projectLocation,
-          targetAgentKind: staged.agentKind,
+          targetAgentKind: remapped.agentKind,
           targetConfig: {
             ...sendThread.config,
-            model: staged.model,
+            model: remapped.model,
             ...staged.configPatch,
+            sourceProviderKind:
+              remapped.agentKind !== staged.agentKind ? staged.agentKind : undefined,
           },
-          ...(staged.presentationMode ? { targetPresentationMode: staged.presentationMode } : {}),
-          ...(staged.accountId ? { targetAccountId: staged.accountId } : {}),
+          ...(remapped.presentationMode
+            ? { targetPresentationMode: remapped.presentationMode }
+            : staged.presentationMode
+              ? { targetPresentationMode: staged.presentationMode }
+              : {}),
+          ...(remapped.accountId
+            ? { targetAccountId: remapped.accountId }
+            : staged.accountId
+              ? { targetAccountId: staged.accountId }
+              : {}),
         });
       } catch (error: unknown) {
         setIsSubmitting(false);
@@ -787,6 +829,55 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       setIsSubmitting(false);
       // The fresh session is idle by construction: never steer into it.
       switchedForSend = true;
+    } else if (
+      craftMode === "auto" &&
+      !useCraftingWorkbenchStore.getState().pendingRecipeIntent
+    ) {
+      const remapped = applyThirdPartyPickerSelection(
+        {
+          agentKind: sendThread.agentKind,
+          model: sendThread.config.model ?? "",
+          ...(presentationMode ? { presentationMode } : {}),
+          ...(liveAccountId ? { accountId: liveAccountId } : {}),
+          ...(sendThread.config.sourceProviderKind
+            ? { sourceProviderKind: sendThread.config.sourceProviderKind }
+            : {}),
+        },
+        launchableHarnesses,
+      );
+      if (
+        remapped.agentKind !== sendThread.agentKind ||
+        remapped.presentationMode !== presentationMode
+      ) {
+        setIsSubmitting(true);
+        try {
+          await switchLiveThreadProvider({
+            thread: sendThread,
+            projectLocation,
+            targetAgentKind: remapped.agentKind,
+            targetConfig: {
+              ...sendThread.config,
+              model: remapped.model,
+              sourceProviderKind:
+                remapped.agentKind !== sendThread.agentKind
+                  ? sendThread.agentKind
+                  : sendThread.config.sourceProviderKind,
+            },
+            ...(remapped.presentationMode
+              ? { targetPresentationMode: remapped.presentationMode }
+              : {}),
+            ...(remapped.accountId ? { targetAccountId: remapped.accountId } : {}),
+          });
+        } catch (error: unknown) {
+          setIsSubmitting(false);
+          toast.danger(friendlyError(error));
+          return;
+        }
+        sendThread =
+          useAppStore.getState().threads.find((item) => item.id === thread.id) ?? sendThread;
+        setIsSubmitting(false);
+        switchedForSend = true;
+      }
     }
     // One prompt submit = one CraftStation mode use (auto / efficient /
     // creative) for the usage-stats mode breakdown.

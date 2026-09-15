@@ -162,6 +162,17 @@ export function scheduleRelatesToThread(
   threadId: string,
 ): boolean {
   if (task.sourceThreadId === threadId) return true;
+  return scheduleContinuesThread(task, threadId);
+}
+
+/**
+ * Future runs inherit this thread (`Continues thread`). Detached
+ * `{kind:"new"}` schedules are independent and stay when the source is archived.
+ */
+export function scheduleContinuesThread(
+  task: Pick<ScheduledTask, "targetThreadId" | "threadTarget">,
+  threadId: string,
+): boolean {
   const target = scheduleThreadTarget(task);
   return target.kind === "existing" && target.threadId === threadId;
 }

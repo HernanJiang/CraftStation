@@ -56,8 +56,12 @@ website/out/
 .env*
 
 # 本地迁移、验证和过程产物
+.scratch/
 /ai_workspace/temp/
 /ai_workspace/validation/
+/ai_workspace/dsh-smoke/
+/ai_workspace/tmp_*
+/ai_workspace/tmp_screens/
 /.migration-backup-*/
 .DS_Store
 Thumbs.db

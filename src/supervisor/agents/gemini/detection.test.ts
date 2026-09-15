@@ -27,9 +27,29 @@ vi.mock("../acp", () => ({
   probeAcpCapabilities: probeAcpCapabilitiesMock,
 }));
 
-import { geminiDetectionSpec, parseGeminiGoogleAccountsJson } from "./detection";
+import {
+  geminiDetectionSpec,
+  geminiModelContextTokens,
+  parseGeminiGoogleAccountsJson,
+} from "./detection";
 
 describe("geminiDetectionSpec", () => {
+  it("forces production Cloud Code instead of the daily staging host", () => {
+    expect(geminiDetectionSpec.baseSpawnEnv?.CODE_ASSIST_ENDPOINT).toBe(
+      "https://cloudcode-pa.googleapis.com",
+    );
+    expect(geminiDetectionSpec.baseSpawnEnv?.BAICODE_ENDPOINT_URL).toBe(
+      "https://cloudcode-pa.googleapis.com",
+    );
+    expect(geminiDetectionSpec.baseSpawnEnv?.AICODE_ENDPOINT_URL).toBe(
+      "https://cloudcode-pa.googleapis.com",
+    );
+    expect(geminiDetectionSpec.baseSpawnEnv?.JETSKI_SERVICE_ENDPOINT_URL).toBe(
+      "https://cloudcode-pa.googleapis.com",
+    );
+    expect(geminiDetectionSpec.baseSpawnEnv?.CODE_ASSIST_ENDPOINT).not.toContain("daily-");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     buildAgentCommandMock.mockReturnValue({
@@ -74,6 +94,7 @@ describe("geminiDetectionSpec", () => {
       models: [
         { id: "auto-gemini-3", label: "Auto (Gemini 3)" },
         { id: "gemini-3.1-pro-preview", label: "3.1 Pro Preview" },
+        { id: "gemini-3.8-flash", label: "3.8 Flash" },
         { id: "gemini-2.5-flash", label: "2.5 Flash" },
         { id: "gemini-9-pro", label: "9 Pro" },
       ],
@@ -89,12 +110,22 @@ describe("geminiDetectionSpec", () => {
       contextSizes: [{ id: "1M", label: "1M" }],
       modelContextSizes: {
         "gemini-3.1-pro-preview": ["1M"],
+        "gemini-3.8-flash": ["1M"],
         "gemini-2.5-flash": ["1M"],
       },
     });
     expect(result?.modelContextSizes).not.toHaveProperty("auto-gemini-3");
     expect(result?.modelContextSizes).not.toHaveProperty("gemini-9-pro");
     expect(result?.thinkingModels).toEqual(["gemini-3.1-pro-preview"]);
+  });
+});
+
+describe("geminiModelContextTokens", () => {
+  it("advertises 1M for Gemini 3.8 family ids", () => {
+    expect(geminiModelContextTokens("gemini-3.8-flash")).toBe(1_048_576);
+    expect(geminiModelContextTokens("gemini-3.8-flash-high")).toBe(1_048_576);
+    expect(geminiModelContextTokens("auto-gemini-3")).toBeUndefined();
+    expect(geminiModelContextTokens("gemini-9-pro")).toBeUndefined();
   });
 });
 

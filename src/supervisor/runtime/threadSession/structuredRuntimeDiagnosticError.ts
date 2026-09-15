@@ -37,3 +37,12 @@ export class StructuredRuntimeDiagnosticError extends Error {
 export function structuredRuntimeFeatureArea(failureClass: StructuredRuntimeFailureClass): string {
   return `structured-runtime-${failureClass}`;
 }
+
+/** Short, secret-free cause for the GUI error strip. */
+export function structuredRuntimeCauseHint(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const line = error.message.split(/\r?\n/u, 1)[0]?.trim() ?? "";
+  if (!line || line.length > 220) return undefined;
+  if (/sk-[a-z0-9]|api[_-]?key|bearer |password|authorization:/iu.test(line)) return undefined;
+  return line;
+}

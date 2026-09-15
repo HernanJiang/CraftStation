@@ -4,6 +4,7 @@ import * as schema from "../db.schema";
 import { getDb } from "./connection";
 import { forgetMainCreatedThread, noteMainCreatedThread } from "./mainCreatedThreads";
 import { notifyProjectThreadDataChanged } from "./projectThreadChanges";
+import { notifyThreadBindingUnavailable } from "./threadBindingChanges";
 import { projectMutableRow, rowToProject, rowToThread } from "./rowMappers";
 
 // ── Public query functions (called from IPC handlers) ───────────────
@@ -88,12 +89,12 @@ export function dbUpsertThread(thread: Thread, sortOrder: number): void {
   // A row main inserts on its own is invisible to the renderer's store until the
   // forwarded command reaches it, so shield it from `dbSyncAll`'s delete pass
   // (see mainCreatedThreads).
-  const isNewRow =
-    db
-      .select({ id: schema.threads.id })
-      .from(schema.threads)
-      .where(eq(schema.threads.id, thread.id))
-      .get() === undefined;
+  const previous = db
+    .select({ id: schema.threads.id, archived: schema.threads.archived })
+    .from(schema.threads)
+    .where(eq(schema.threads.id, thread.id))
+    .get();
+  const isNewRow = previous === undefined;
   db.insert(schema.threads)
     .values({
       id: thread.id,
@@ -173,6 +174,9 @@ export function dbUpsertThread(thread: Thread, sortOrder: number): void {
     })
     .run();
   if (isNewRow) noteMainCreatedThread(thread.id);
+  if (thread.archived && previous && !previous.archived) {
+    notifyThreadBindingUnavailable(thread.id);
+  }
   notifyProjectThreadDataChanged();
 }
 
@@ -209,6 +213,7 @@ export function dbDeleteThread(threadId: string): void {
   const db = getDb();
   db.delete(schema.threads).where(eq(schema.threads.id, threadId)).run();
   forgetMainCreatedThread(threadId);
+  notifyThreadBindingUnavailable(threadId);
   notifyProjectThreadDataChanged();
 }
 

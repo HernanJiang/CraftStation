@@ -449,16 +449,24 @@ describe("AcpSessionRequests permissions", () => {
     },
   );
 
+  it("auto-approves bypass even when the agent advertises a native yolo mode", async () => {
+    const { emitRuntimeEvents, requests, setRequestAttention } = makeRequests({
+      config: { model: "model-a", mode: "agent", approvalPolicy: "never" },
+      availableModeIds: ["agent", "yolo"],
+    });
+
+    await expect(requests.requestPermission(permissionRequest())).resolves.toEqual({
+      outcome: { outcome: "selected", optionId: "always" },
+    });
+    expect(emitRuntimeEvents).not.toHaveBeenCalled();
+    expect(setRequestAttention).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       name: "an ordinary approval policy",
       config: { model: "model-a", mode: "agent", approvalPolicy: "default" },
       availableModeIds: ["agent"],
-    },
-    {
-      name: "a matching native permission mode",
-      config: { model: "model-a", mode: "agent", approvalPolicy: "never" },
-      availableModeIds: ["agent", "yolo"],
     },
     {
       name: "plan mode",

@@ -1,10 +1,17 @@
-/* CraftStation brand type — Geist (Vercel, SIL OFL), bundled for offline use. */
+/* CraftStation brand type — Geist (Vercel, SIL OFL), bundled for offline use.
+   Restrict unicode-range so CJK never selects Geist. Geist has no CJK glyphs;
+   in GPU-composited overlays (HeroUI tooltip zoom/fade) Chromium then fails
+   to fallback and rasterizes labels like "直接发送" as Latin garbage. */
 @font-face {
   font-family: "Geist";
   src: url("../renderer/fonts/Geist-Variable.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  unicode-range:
+    U+0000-024F, U+0250-02FF, U+0300-036F, U+0370-03FF, U+0400-04FF, U+1E00-1EFF,
+    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2200-22FF,
+    U+2C60-2C7F, U+A720-A7FF, U+FB00-FB06, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: "Geist Mono";
@@ -12,6 +19,10 @@
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  unicode-range:
+    U+0000-024F, U+0250-02FF, U+0300-036F, U+0370-03FF, U+0400-04FF, U+1E00-1EFF,
+    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2200-22FF,
+    U+2C60-2C7F, U+A720-A7FF, U+FB00-FB06, U+FEFF, U+FFFD;
 }
 
 :root {
@@ -1276,7 +1287,9 @@ body,
 }
 
 body {
-  font-family: "Geist", "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-family:
+    "Geist", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC",
+    "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif;
   background: var(--background);
   color: var(--foreground);
   overflow: hidden;
@@ -2427,6 +2440,18 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
 
 [data-draft-context-bar] + [data-thread-queued-follow-up] {
   border-top-color: color-mix(in oklab, var(--hairline) 70%, transparent);
+}
+
+[data-thread-queued-follow-up] input {
+  /* Native inputs ignore the page font unless forced. Inherit the CJK-safe
+     stack so Edit-mode Chinese matches the read-only span. */
+  font: inherit;
+  line-height: 1.25;
+  border: 0;
+  padding: 0;
+  height: 100%;
+  min-width: 0;
+  background: transparent;
 }
 
 /* Draft-focus glow remains a cheap compositor-only affordance. */
@@ -4101,8 +4126,12 @@ html[data-craftstation-drag-active="true"] [data-craftstation-chat-scroller="tru
 }
 
 /* HeroUI's `.tooltip` base sets `word-break: break-all`, which splits words
-   mid-word ("lis t/paragraph"). Break only tokens that cannot fit otherwise. */
+   mid-word ("lis t/paragraph"). Break only tokens that cannot fit otherwise.
+   Inherit the CJK-safe stack and keep a 1.25 line-height so "直接发送" /
+   "编辑" are not clipped into Latin-looking garbage. */
 .tooltip {
+  font-family: inherit;
+  line-height: 1.25;
   word-break: normal;
   overflow-wrap: break-word;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -4118,7 +4147,8 @@ html[data-craftstation-drag-active="true"] [data-craftstation-chat-scroller="tru
   z-index: 50;
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
-  line-height: 1rem;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 /* v0.2.4 — CraftStation mascot: surroundings rotate slowly while the center

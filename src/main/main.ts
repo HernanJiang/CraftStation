@@ -57,8 +57,14 @@ import {
 import { SupervisorClient } from "./supervisor/SupervisorClient";
 import { createAutoUpdaterController } from "./updates/autoUpdater";
 import { createMainWindow } from "./window/createMainWindow";
-import { installWindowsAcrylicHideShowGuard } from "./window/windowMaterial";
+import { installWindowsAcrylicHideShowGuard, restoreWindowsWindowAfterShow } from "./window/windowMaterial";
 import { requestTrackedRendererReload } from "./window/windowHardening";
+import { probeRendererContentHealth } from "./window/rendererHealth";
+import {
+  recoverRendererContent,
+  scheduleRendererContentCheck,
+} from "./window/rendererRecovery";
+import { installMainFileLogger } from "./diagnostics/mainFileLogger";
 import {
   createQuickComposerWindow,
   showQuickComposerWindow,
@@ -180,6 +186,9 @@ if (hasSingleInstanceLock) {
     baseDirOverride ??
       (isDev ? join(homedir(), ".craftstation-dev") : resolveCraftStationBaseDir(channel)),
   );
+  // Packaged builds have no console; mirror warnings/errors to disk so launch
+  // failures leave evidence. Must run before anything that can fail loudly.
+  if (craftstationPaths) installMainFileLogger(craftstationPaths.logsDir);
 }
 
 const sentryEnabled = initializeMainSentry({ appVersion: app.getVersion(), isDev, channel });
@@ -390,6 +399,48 @@ function ensureMainWindow(showOnReady = true): BrowserWindow {
   return mainWindow;
 }
 
+// A window whose renderer is dead or stuck shows an unusable dark surface. The
+// single-instance lock funnels every later exe launch into the same broken
+// window, so recovery has to be capped per run, not per window object.
+let mainWindowRecoveries = 0;
+const MAX_MAIN_WINDOW_RECOVERIES = 2;
+
+function recreateMainWindowForRecovery(): BrowserWindow | null {
+  if (mainWindowRecoveries >= MAX_MAIN_WINDOW_RECOVERIES) {
+    console.error(
+      "[craftstation] main window recovery exhausted for this run, not recreating again",
+    );
+    return null;
+  }
+  mainWindowRecoveries += 1;
+  const stale = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  stale?.destroy();
+  const fresh = ensureMainWindow(true);
+  showAndFocusWindow(fresh);
+  return fresh;
+}
+
+/**
+ * Bring the main window up for a user who just launched the exe again (tray
+ * click, second-instance). Re-apply the Windows acrylic material — the show
+ * guard only covers hides it wrapped — then verify the renderer actually has
+ * content and run the recovery ladder when it does not.
+ */
+async function revealAndVerifyMainWindow(): Promise<void> {
+  const window = ensureMainWindow();
+  showAndFocusWindow(window);
+  if (process.platform === "win32" && !window.isDestroyed()) {
+    restoreWindowsWindowAfterShow(window, resolveWindowChromeOptions());
+  }
+  const health = await probeRendererContentHealth(window);
+  if (health === "healthy" || window.isDestroyed()) return;
+  console.error(
+    `[craftstation] main window unhealthy on reveal (health=${health}), starting recovery`,
+  );
+  await recoverRendererContent({ window, label: "main", recreate: recreateMainWindowForRecovery });
+  if (mainWindow && !mainWindow.isDestroyed()) showAndFocusWindow(mainWindow);
+}
+
 function openThreadFromTray(threadId: string): void {
   pendingTrayThreadId = threadId;
   showAndFocusWindow(ensureMainWindow());
@@ -556,11 +607,29 @@ function createMainAppWindow(showOnReady = true): BrowserWindow {
       mainRendererReady = false;
       captureRendererProcessGone(details, "renderer", intent);
     },
+    onReloadExhausted: () => {
+      // The reload guard gave up; without a rebuild this window stays dark forever.
+      void recoverRendererContent({
+        window,
+        label: "main",
+        recreate: recreateMainWindowForRecovery,
+      });
+    },
   });
   window.webContents.on("did-start-loading", () => {
     if (mainWindow === window) mainRendererReady = false;
   });
   installWindowsAcrylicHideShowGuard(window, resolveWindowChromeOptions);
+  scheduleRendererContentCheck({
+    window,
+    delayMs: 20_000,
+    recover: (target) =>
+      recoverRendererContent({
+        window: target,
+        label: "main",
+        recreate: recreateMainWindowForRecovery,
+      }),
+  });
   return window;
 }
 
@@ -699,7 +768,9 @@ if (!hasSingleInstanceLock) {
     ) {
       return;
     }
-    showAndFocusWindow(ensureMainWindow());
+    // The user double-launched because the visible window is unusable — verify
+    // content health instead of only raising the same possibly-broken window.
+    void revealAndVerifyMainWindow();
   });
 
   void app

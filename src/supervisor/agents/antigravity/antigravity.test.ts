@@ -10,7 +10,13 @@ import {
   shouldUseAntigravityPrintPty,
 } from ".";
 import { buildAntigravityArgs } from "./argv";
-import { ANTIGRAVITY_DEFAULT_MODEL_ID, antigravityDetectionSpec } from "./detection";
+import {
+  ANTIGRAVITY_CLOUDCODE_PRODUCTION_URL,
+  ANTIGRAVITY_DEFAULT_MODEL_ID,
+  ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
+  antigravityDetectionSpec,
+  defaultAntigravityCapabilities,
+} from "./detection";
 import {
   ANTIGRAVITY_KNOWN_MODEL_VARIANTS,
   buildAntigravityModelCapabilities,
@@ -25,6 +31,17 @@ import {
   detectAntigravityTerminalStatus,
   syncAntigravityConfigFromTerminalState,
 } from "./terminal";
+
+describe("defaultAntigravityCapabilities", () => {
+  it("advertises Gemini 1M so the composer context dock can render", () => {
+    expect(defaultAntigravityCapabilities.defaultContextSize).toBe("1M");
+    expect(defaultAntigravityCapabilities.contextSizes?.some((size) => size.id === "1M")).toBe(true);
+    expect(defaultAntigravityCapabilities.modelContextSizes?.["Gemini 3.8 Flash"]).toEqual(["1M"]);
+    expect(defaultAntigravityCapabilities.modelContextSizes?.["gemini-3.8-flash-high"]).toEqual([
+      "1M",
+    ]);
+  });
+});
 
 describe("buildAntigravityArgs", () => {
   const config: ThreadConfig = { model: ANTIGRAVITY_DEFAULT_MODEL_ID };
@@ -220,6 +237,18 @@ describe("buildAntigravityArgs", () => {
       "--mode",
       "accept-edits",
     ]);
+  });
+});
+
+describe("Antigravity Cloud Code endpoint", () => {
+  it("forces production cloudcode-pa instead of the daily staging host", () => {
+    expect(ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV.BAICODE_ENDPOINT_URL).toBe(
+      ANTIGRAVITY_CLOUDCODE_PRODUCTION_URL,
+    );
+    expect(ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV.CODE_ASSIST_ENDPOINT).toBe(
+      "https://cloudcode-pa.googleapis.com",
+    );
+    expect(ANTIGRAVITY_CLOUDCODE_PRODUCTION_URL).not.toContain("daily-");
   });
 });
 
@@ -533,7 +562,10 @@ describe("Agy launch feature detection", () => {
     expect(antigravityPrintTimeoutSupported(false, "1.2.0")).toBe(true);
     expect(antigravityPrintTimeoutSupported(false, "1.1.1")).toBe(true);
     expect(antigravityPrintTimeoutSupported(false, "1.1.0")).toBe(false);
-    expect(antigravityPrintTimeoutSupported(false, undefined)).toBe(false);
+    // Unknown version keeps the flag: a failed version probe is far more likely
+    // on a current agy than on a pinned pre-1.1.1 one, and falling back to
+    // "unsupported" here silently inherits agy's 5m print-mode cutoff.
+    expect(antigravityPrintTimeoutSupported(false, undefined)).toBe(true);
   });
 
   it("keeps PTY compatibility only for pre-1.1.1 or unknown versions", () => {

@@ -246,6 +246,33 @@ export const DEEPSEEK_API_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   capabilities: DEEPSEEK_API_CAPABILITIES,
 };
 
+export const MUSE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:muse",
+  harnessKind: "muse",
+  label: "Muse Code Native Harness",
+  vendor: "muse",
+  official: true,
+  transport: "official-http-sse",
+  machineFacingBoundary: "muse serve (MSP)",
+  capabilities: capabilityMap(
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents", "context", "compaction"],
+    [],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "skills",
+      "cleanup",
+      "diagnostics",
+    ],
+  ),
+};
+
 export const OPENCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:opencode",
   harnessKind: "opencode",
@@ -286,5 +313,6 @@ export const NATIVE_HARNESS_DESCRIPTORS = {
   antigravity: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   deepseek: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
   "deepseek-api": DEEPSEEK_API_HARNESS_DESCRIPTOR,
+  muse: MUSE_NATIVE_HARNESS_DESCRIPTOR,
   opencode: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
 } as const;

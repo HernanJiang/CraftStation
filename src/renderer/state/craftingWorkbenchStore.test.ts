@@ -49,6 +49,8 @@ describe("craftingWorkbenchStore", () => {
       resolution: resolution("NATIVE"),
     });
     expect(recipe.systemName).toBe("Codex Harness · GPT-5.3");
+    expect(recipe.lastKnownModel?.modelId).toBe("gpt-5.3");
+    expect(recipe.lastKnownHarness?.harnessKind).toBe("codex");
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(1);
 
     useCraftingWorkbenchStore.getState().updateRecipeAlias(recipe.id, "日常编码");
@@ -85,7 +87,7 @@ describe("craftingWorkbenchStore", () => {
       harnessName: "Codex Harness",
       resolution: resolution("NATIVE"),
     });
-    expect(recipe.homepageVisible).toBeUndefined();
+    expect(recipe.homepageVisible).toBe(true);
 
     useCraftingWorkbenchStore.getState().setRecipeHomepageVisible(recipe.id, true);
     expect(
@@ -179,5 +181,20 @@ describe("craftingWorkbenchStore", () => {
     // Clearing twice stays a no-op.
     store().clearCliProxyApiSelection();
     expect(store().cpaHelper).toEqual({ present: true, selected: false });
+  });
+
+  it("stores the concrete launch model id rather than an agent entry ref", () => {
+    const { recipe } = useCraftingWorkbenchStore.getState().saveRecipe({
+      modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
+      harnessRef: "harness:opencode",
+      modelName: "Gemini 3.8 Flash",
+      harnessName: "OpenCode Native Harness",
+      resolution: resolution("CRAFTABLE"),
+      modelId: "gemini-3.8-flash",
+      harnessKind: "opencode",
+      providerLabel: "OpenCode",
+    });
+    expect(recipe.lastKnownModel?.modelId).toBe("gemini-3.8-flash");
+    expect(recipe.lastKnownHarness?.harnessKind).toBe("opencode");
   });
 });

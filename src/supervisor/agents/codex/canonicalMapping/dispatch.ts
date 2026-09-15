@@ -57,13 +57,10 @@ function isInternalCodexItem(item: unknown): boolean {
   const kind = normalizeItemType(
     (item as CodexItemPayload).type ?? (item as CodexItemPayload).kind,
   );
-  return (
-    kind === "context compaction" ||
-    kind === "compaction" ||
-    kind === "compaction trigger" ||
-    kind === "sleep"
-  );
+  return kind === "sleep";
 }
+
+
 
 export function mapCodexNotification(
   method: string,
@@ -232,8 +229,8 @@ export function mapCodexNotification(
     const item = readItem(params);
     const codexItemId = readItemId(params, item);
     if (!item || !codexItemId) return [];
-    // Internal lifecycle items (auto-compaction, `clock.sleep`) render no row
-    // and must not occupy per-item mapper state.
+    // `clock.sleep` is an internal lifecycle item with no chat row.
+    // Context compaction is surfaced as a ContextCompaction tool_call.
     if (isInternalCodexItem(item)) return [];
     if (state.itemIdMap.has(codexItemId)) return [];
     const itemType = canonicalTypeFor(item.type ?? item.kind);
@@ -271,9 +268,7 @@ export function mapCodexNotification(
     const item = readItem(params);
     const codexItemId = readItemId(params, item);
     if (!item || !codexItemId) return [];
-    // Same internal lifecycle items as `item/started` — skip without
-    // synthesizing a row (the completed-without-started path would otherwise
-    // recreate one).
+    // Same internal lifecycle items as `item/started`.
     if (isInternalCodexItem(item)) return [];
     const internalId = state.itemIdMap.get(codexItemId);
     if (!internalId) {

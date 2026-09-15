@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   COMPATIBILITY_HARNESS_LABELS,
+  applyAutoDeepseekHarnessLaunch,
   applyAutoMuseHarnessLaunch,
   isNativeModelHarnessPair,
   preferredHarnessForCompatibilityFamily,
   resolveAutoCompatibilityRoute,
   resolveCompatibilityFamily,
   resolveHarnessCompatibility,
+  shouldAutoRemapToDeepseekHarness,
   shouldAutoRemapToMuseHarness,
   stripModelProviderPrefix,
 } from "./harnessCompatibility";
@@ -72,6 +74,7 @@ describe("harnessCompatibility", () => {
       "MUSE-SPARK-1.3-CONTRIBUTOR",
       "muse/codex-task",
       "opencode-go/muse-spark-1.3-contributor",
+      "opencode-go/opencode-go/muse-spark-1.3-contributor",
       "openai-compatible/muse-spark-1.3",
     ])("classifies %s as muse family", (modelId) => {
       expect(resolveCompatibilityFamily(modelId)).toBe("muse");
@@ -87,7 +90,16 @@ describe("harnessCompatibility", () => {
       );
     });
 
-    it("remaps OpenCode Go Muse Spark onto Muse Code when the CLI is installed", () => {
+    it("remaps OpenCode Go Muse Spark onto Muse Code even when muse.exe is missing", () => {
+      expect(
+        applyAutoMuseHarnessLaunch(
+          { agentKind: "opencode", model: "opencode-go/muse-spark-1.3-contributor" },
+          false,
+        ),
+      ).toEqual({ agentKind: "muse", model: "opencode-go/muse-spark-1.3-contributor" });
+    });
+
+    it("remaps OpenCode Go Muse Spark onto Muse Code in Auto mode", () => {
       expect(
         shouldAutoRemapToMuseHarness({
           agentKind: "opencode",
@@ -100,12 +112,6 @@ describe("harnessCompatibility", () => {
           true,
         ),
       ).toEqual({ agentKind: "muse", model: "opencode-go/muse-spark-1.3-contributor" });
-      expect(
-        applyAutoMuseHarnessLaunch(
-          { agentKind: "opencode", model: "opencode-go/muse-spark-1.3-contributor" },
-          false,
-        ),
-      ).toEqual({ agentKind: "opencode", model: "opencode-go/muse-spark-1.3-contributor" });
     });
 
     it("does not remap a native Muse launch", () => {
@@ -114,11 +120,35 @@ describe("harnessCompatibility", () => {
       );
     });
 
-    it("does not remap a Command Code Muse catalog pick", () => {
+    it("does not remap Command Code Muse onto Muse Code (no Responses wire yet)", () => {
       expect(
         shouldAutoRemapToMuseHarness({
           agentKind: "commandcode",
           modelId: "meta/muse-spark-1.3",
+        }),
+      ).toBe(false);
+    });
+
+    it("remaps Command Code DeepSeek onto dsh in Auto mode", () => {
+      expect(
+        shouldAutoRemapToDeepseekHarness({
+          agentKind: "commandcode",
+          modelId: "deepseek/deepseek-v4.1-flash",
+        }),
+      ).toBe(true);
+      expect(
+        applyAutoDeepseekHarnessLaunch(
+          { agentKind: "commandcode", model: "deepseek/deepseek-v4.1-flash" },
+          true,
+        ),
+      ).toEqual({ agentKind: "deepseek", model: "deepseek/deepseek-v4.1-flash" });
+    });
+
+    it("does not remap a native DeepSeek launch", () => {
+      expect(
+        shouldAutoRemapToDeepseekHarness({
+          agentKind: "deepseek",
+          modelId: "deepseek-v4.1-flash",
         }),
       ).toBe(false);
     });

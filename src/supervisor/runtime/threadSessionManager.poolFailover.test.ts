@@ -199,6 +199,19 @@ describe("ThreadSessionManager pool failover", () => {
       });
       const restartThread = stubRestart(manager);
       await expect(
+        failover(manager, session, turn(), new Error("Kimi 额度已耗尽")),
+      ).resolves.toBe(true);
+      expect(restartThread).toHaveBeenCalledTimes(1);
+    }
+    {
+      const manager = createManager();
+      const session = seedSession(manager, {
+        agentKind: "kimi" as AgentKind,
+        poolAccountId: "kimi:dead",
+        poolProvider: "kimi",
+      });
+      const restartThread = stubRestart(manager);
+      await expect(
         failover(manager, session, turn(), { data: { http_status: 429 } }),
       ).resolves.toBe(false);
       await expect(

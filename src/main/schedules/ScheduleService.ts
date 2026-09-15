@@ -6,7 +6,12 @@ import {
   type ScheduledTaskInput,
   type ScheduledTaskRun,
 } from "@/shared/contracts";
-import { nextScheduleRunAt, normalizeScheduleThreadTarget } from "@/shared/schedules";
+import {
+  nextScheduleRunAt,
+  normalizeScheduleThreadTarget,
+  scheduleContinuesThread,
+  scheduleThreadTarget,
+} from "@/shared/schedules";
 import type { ScheduleCapability, ScheduleRunInvocation } from "./ScheduleCapability";
 
 export interface ScheduleStore {
@@ -38,6 +43,8 @@ export interface ScheduleServiceOptions {
   onChanged?(): void;
   now?: () => number;
   tickIntervalMs?: number;
+  /** True when the bound thread is gone or archived. Used on start to sweep leftovers. */
+  threadIsUnavailable?: (threadId: string) => boolean;
 }
 
 export class ScheduleService implements ScheduleCapability {
@@ -51,6 +58,7 @@ export class ScheduleService implements ScheduleCapability {
 
   start(): void {
     if (this.timer || this.disposed) return;
+    this.sweepUnavailableBindings();
     this.normalizeAfterStartup();
     this.timer = setInterval(() => this.tick(), this.options.tickIntervalMs ?? 15_000);
     this.timer.unref?.();
@@ -128,8 +136,14 @@ export class ScheduleService implements ScheduleCapability {
   }
 
   delete(id: string): void {
+    this.runningIds.delete(id);
     this.options.store.delete(id);
     this.emitChanged();
+  }
+
+  /** Drop schedules whose future runs continue this thread. Detached schedules stay. */
+  deleteContinuingThread(threadId: string): string[] {
+    return this.deleteMatching((task) => scheduleContinuesThread(task, threadId));
   }
 
   /** Explicit pause: keeps the definition, clears the next firing. */
@@ -324,6 +338,26 @@ export class ScheduleService implements ScheduleCapability {
     const task = this.options.store.get(id);
     if (!task) throw new Error("Scheduled task not found.");
     return task;
+  }
+
+  private sweepUnavailableBindings(): void {
+    const unavailable = this.options.threadIsUnavailable;
+    if (!unavailable) return;
+    this.deleteMatching((task) => {
+      const target = scheduleThreadTarget(task);
+      return target.kind === "existing" && unavailable(target.threadId);
+    });
+  }
+
+  private deleteMatching(match: (task: ScheduledTask) => boolean): string[] {
+    const ids = this.options.store.list().filter(match).map((task) => task.id);
+    if (ids.length === 0) return [];
+    for (const id of ids) {
+      this.runningIds.delete(id);
+      this.options.store.delete(id);
+    }
+    this.emitChanged();
+    return ids;
   }
 
   private emitChanged(): void {

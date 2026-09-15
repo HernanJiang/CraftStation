@@ -1,4 +1,4 @@
-import { Monitor, PackageOpen, X } from "lucide-react";
+import { Monitor } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import type { Project, ThreadGoal } from "@/shared/contracts";
 import { isHomeProjectId } from "@/shared/homeScope";
@@ -7,7 +7,6 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { useState, type ReactNode } from "react";
 import { ProjectSwitchMenu } from "./ProjectSwitchMenu";
 import type { CraftMode } from "./CraftModeSwitch";
-import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { ComposerPlanChip } from "./ComposerPlanChip";
 import { ThreadGoalDock } from "./ThreadGoalDock";
 import { selectThreadGoalDockState, type ThreadGoalDockState } from "./threadGoalState";
@@ -42,14 +41,6 @@ export function DraftContextBar(props: {
       ? props.threadId
       : undefined,
   );
-  // A staged "use in chat" recipe from My Recipes. The chip is a visual cue;
-  // the chat submit still resolves the StoredRecipe fresh before crafting.
-  const pendingRecipeIntent = useCraftingWorkbenchStore((state) => state.pendingRecipeIntent);
-  const recipes = useCraftingWorkbenchStore((state) => state.recipes);
-  const pendingRecipe = pendingRecipeIntent
-    ? recipes.find((recipe) => recipe.id === pendingRecipeIntent.recipeId)
-    : undefined;
-
   const itemClass = "flex items-center gap-1.5 font-medium";
 
   // Durable `/goal` bound to the live thread (if any). Shown only while a
@@ -119,24 +110,6 @@ export function DraftContextBar(props: {
       <div className="flex shrink-0 items-center gap-1">
         {props.rightActions}
         {goalThreadId ? <ThreadRuntimeStatusBar threadId={goalThreadId} /> : null}
-        {pendingRecipe ? (
-          <span
-            data-testid="pending-recipe-chip"
-            title={pendingRecipe.systemName}
-            className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 text-[11px] font-medium text-amber-700 dark:text-amber-300"
-          >
-            <PackageOpen className="size-3.5" />
-            <span className="max-w-40 truncate">{pendingRecipe.systemName}</span>
-            <button
-              type="button"
-              aria-label={t`取消配方`}
-              onClick={() => useCraftingWorkbenchStore.getState().clearPendingRecipeIntent()}
-              className="rounded p-0.5 hover:bg-amber-400/20"
-            >
-              <X className="size-3" />
-            </button>
-          </span>
-        ) : null}
         {/* 模式选择已移出聊天框：高效/创造模式改为在模型选择栏直接选对应配方。
             合成台按钮顺延为最右侧。craftMode 状态保留给合成台入口的 entryMode。 */}
       </div>

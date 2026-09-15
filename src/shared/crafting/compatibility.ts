@@ -146,7 +146,9 @@ export function resolveCompatibility(input: CompatibilityReadinessInput): Capabi
       statusInfo.status === "IMPOSSIBLE"
         ? [
             {
-              code: "RUNTIME_UNAVAILABLE",
+              code: statusInfo.routeReason?.includes("Compatibility bridge is unavailable")
+                ? "CPA_NOT_INSTALLED"
+                : "RUNTIME_UNAVAILABLE",
               phase: "readiness",
               message: statusInfo.routeReason
                 ? translateRouteReason(statusInfo.routeReason)
@@ -158,7 +160,9 @@ export function resolveCompatibility(input: CompatibilityReadinessInput): Capabi
                         input.openCodeRouteReady !== true
                       ? "OpenCode 路由 readiness 未验证"
                       : "Harness 未就绪或不可用",
-              remediation: "请安装/配置所选 Harness，或更换可用的模型/Harness 组合",
+              remediation: statusInfo.routeReason?.includes("Compatibility bridge is unavailable")
+                ? "点击「合成」将自动安装并启动 CLIProxyAPI，也可在右侧组件栏点击安装"
+                : "请安装/配置所选 Harness，或更换可用的模型/Harness 组合",
             },
           ]
         : [],
@@ -173,7 +177,7 @@ export function resolveCompatibility(input: CompatibilityReadinessInput): Capabi
  */
 function translateRouteReason(reason: string): string {
   if (reason.includes("Compatibility bridge is unavailable")) {
-    return "跨厂商组合需要 CLIProxyAPI 兼容桥，当前未就绪（未运行或未安装）";
+    return "跨厂商组合需要 CLIProxyAPI。未检测到已安装的 sidecar，点击「合成」或组件栏「安装」即可下载官方版本";
   }
   if (reason.includes("does not support Compatibility Bridge")) {
     return "目标 Harness 不支持兼容桥投影";

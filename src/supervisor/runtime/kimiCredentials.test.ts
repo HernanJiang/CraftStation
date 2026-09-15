@@ -208,7 +208,16 @@ describe("resolveKimiManagedHomeToken", () => {
   it("returns undefined for a missing home and for a stale token without refresh", async () => {
     const missing = join(await mkdtemp(join(tmpdir(), "cs-kimi-empty-")), "absent-home");
     expect(await resolveKimiManagedHomeToken(missing)).toBeUndefined();
-    const stale = await seedHome({ access_token: "stale-access" });
+    const stale = await seedHome({
+      access_token: "stale-access",
+      expires_at: Math.floor(Date.now() / 1000) - 100,
+    });
     expect(await resolveKimiManagedHomeToken(stale)).toBeUndefined();
+  });
+
+  it("accepts a long-lived API key with no expiry or refresh token", async () => {
+    const home = await seedHome({ access_token: "kimi-api-key", token_type: "api_key" });
+    const token = await resolveKimiManagedHomeToken(home);
+    expect(token).toEqual({ accessToken: "kimi-api-key" });
   });
 });

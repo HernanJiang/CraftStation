@@ -21,10 +21,7 @@ import {
   buildAcpElicitationAnswerEvents,
   normalizeAcpElicitationResponse,
 } from "./sessionElicitation";
-import {
-  hasNativeAcpPermissionMode,
-  selectAutoApprovedPermissionOption,
-} from "./sessionPermissionMode";
+import { selectAutoApprovedPermissionOption } from "./sessionPermissionMode";
 import {
   buildAcpQuestionPermissionAnswerEvents,
   isRejectionOptionId,
@@ -203,11 +200,13 @@ export class AcpSessionRequests {
   }
 
   private shouldAutoApproveSyntheticPermissionRequest(): boolean {
-    const { config, availableModeIds } = this.options.getPermissionContext();
+    const { config } = this.options.getPermissionContext();
     const policy = config?.approvalPolicy;
     if (!config || config.mode === "plan" || !policy) return false;
-    if (policy !== "never" && policy !== "yolo" && policy !== "bypassPermissions") return false;
-    return !hasNativeAcpPermissionMode(policy, availableModeIds);
+    // User picked 完全访问权限. Grok still emits ACP permission cards for
+    // shell even with `--always-approve` and a native bypass mode — honor
+    // the composer toggle, not the agent's leftover prompt.
+    return policy === "never" || policy === "yolo" || policy === "bypassPermissions";
   }
 
   private emitResolvedAndResume(requestId: ThreadServerRequestId, outcome: RequestOutcome): void {

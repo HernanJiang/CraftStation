@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/renderer/components/providers/bootstrap";
-import type { Thread } from "@/shared/contracts";
+import type { AgentStatus, Thread } from "@/shared/contracts";
 import { AppProvider } from "@/renderer/components/ui/provider";
 import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -1831,5 +1831,72 @@ describe("ThreadView", () => {
     await waitFor(() => {
       expect(bridge.interruptThread).toHaveBeenCalledWith({ threadId: "thread-gui-starting" });
     });
+  });
+
+  it("portals the header only for the main workspace pane", () => {
+    const portalTarget = document.createElement("div");
+    portalTarget.id = "craftstation-main-thread-header";
+    document.body.appendChild(portalTarget);
+    try {
+      const thread = {
+        id: "thread-side-chat",
+        projectId: "project-1",
+        title: "Side chat thread",
+        agentKind: "codex",
+        config: { model: "gpt-5.4" },
+        status: "idle",
+        attention: "none",
+        canResumeWithConfig: true,
+        archived: false,
+        done: false,
+        starred: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } satisfies Thread;
+      const agentStatus: AgentStatus = {
+        kind: "codex",
+        label: "Codex",
+        installed: true,
+        authState: "authenticated",
+        capabilities: {
+          models: [{ id: "gpt-5.4", label: "5.4" }],
+          efforts: ["low"],
+          modelEfforts: {},
+          modes: ["agent"],
+          approvalPolicies: [{ id: "on-request", label: "On Request" }],
+          sandboxModes: [{ id: "read-only", label: "Read Only" }],
+          supportsResume: true,
+          supportsDirectInput: true,
+          liveInputMode: "terminal",
+          presentationMode: "terminal",
+          settingDefs: [],
+        },
+      };
+      const projectLocation = { kind: "windows", path: "C:\\repo" } as const;
+
+      // Main pane: single visible pane — header portals into the workspace header.
+      const main = renderThreadView({ thread, agentStatus, projectLocation });
+      expect(
+        portalTarget.querySelectorAll("[data-thread-header-portal-content]"),
+      ).toHaveLength(1);
+      main.unmount();
+
+      // Side Chat pane: never portals — its header stays local to its own pane,
+      // otherwise two threads' headers render side by side in the workspace header.
+      const side = renderThreadView({
+        thread,
+        agentStatus,
+        projectLocation,
+        portalThreadHeader: false,
+      });
+      expect(portalTarget.querySelectorAll("[data-thread-header-portal-content]")).toHaveLength(
+        0,
+      );
+      expect(side.container.querySelectorAll("[data-thread-header-portal-content]")).toHaveLength(
+        1,
+      );
+    } finally {
+      portalTarget.remove();
+    }
   });
 });

@@ -11,6 +11,7 @@ import {
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
 } from "./descriptors";
 import { projectNativeHarnessControlPlane } from "./controlPlane";
@@ -195,6 +196,83 @@ describe("Native Harness control-plane projection", () => {
     });
 
     expect(result[0]?.status).toBe("error");
+  });
+
+  it("treats a WSL Muse install as ready on Windows", () => {
+    const result = projectNativeHarnessControlPlane({
+      descriptors: [MUSE_NATIVE_HARNESS_DESCRIPTOR],
+      statuses: [
+        status({
+          kind: "muse",
+          label: "Muse Code",
+          installed: false,
+          authState: "missing",
+          envKind: "windows",
+        }),
+        status({
+          kind: "muse",
+          label: "Muse Code",
+          installed: true,
+          authState: "authenticated",
+          envKind: "wsl",
+          envDistro: "Ubuntu",
+        }),
+      ],
+      profileConfigured: new Set(["muse"]),
+      environmentKind: "windows",
+    });
+
+    expect(result[0]).toMatchObject({
+      status: "ready",
+      environmentKind: "wsl",
+      descriptor: expect.objectContaining({ harnessKind: "muse" }),
+    });
+  });
+
+  it("treats installed Muse as ready when a third-party OpenAI-compatible profile exists", () => {
+    const result = projectNativeHarnessControlPlane({
+      descriptors: [MUSE_NATIVE_HARNESS_DESCRIPTOR],
+      statuses: [
+        status({
+          kind: "muse",
+          label: "Muse Code",
+          installed: true,
+          authState: "missing",
+          envKind: "wsl",
+          envDistro: "Ubuntu",
+        }),
+      ],
+      profileConfigured: new Set(["openai-compatible"]),
+      environmentKind: "windows",
+    });
+
+    expect(result[0]).toMatchObject({
+      status: "ready",
+      environmentKind: "wsl",
+      descriptor: expect.objectContaining({ harnessKind: "muse" }),
+    });
+    expect(result[0]?.diagnostics.some((entry) => entry.code === "AUTH_REQUIRED")).toBe(false);
+  });
+
+  it("keeps installed Muse not-configured without official login or a third-party profile", () => {
+    const result = projectNativeHarnessControlPlane({
+      descriptors: [MUSE_NATIVE_HARNESS_DESCRIPTOR],
+      statuses: [
+        status({
+          kind: "muse",
+          label: "Muse Code",
+          installed: true,
+          authState: "missing",
+          envKind: "wsl",
+          envDistro: "Ubuntu",
+        }),
+      ],
+      profileConfigured: new Set(),
+      environmentKind: "windows",
+    });
+
+    expect(result[0]?.status).toBe("not-configured");
+    expect(result[0]?.diagnostics.some((entry) => entry.code === "AUTH_REQUIRED")).toBe(true);
   });
 
   it("exposes OpenCode through the existing safe control-plane seam without claiming integration", () => {

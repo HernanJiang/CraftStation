@@ -26,7 +26,8 @@ const MUSE_MODEL_IDS = [
 
 const MUSE_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "ultra"] as const;
 
-// Muse approval modes: untrusted | on-request | never (CLI default on-request).
+// Muse CLI default is on-request. CraftStation defaults new threads to yolo
+// (`--yolo` / MSP `allowAll`); composer can still switch the policy per thread.
 // `--yolo` is the true full bypass (approval + sandbox + trust) and is the
 // bypassPermissions target.
 const MUSE_APPROVAL_POLICIES = [
@@ -55,14 +56,19 @@ export const museDefaultCapabilities: AgentCapability = {
   supportsResume: true,
   supportsOneShot: true,
   supportsDirectInput: true,
-  liveInputMode: "terminal",
-  presentationMode: "terminal",
-  // Although `muse exec --json` exists, it has no headless approval wire.
-  // Keep Muse terminal-only until it ships a real structured/ACP mode.
-  presentationModes: ["terminal"],
-  defaultApprovalPolicy: "on-request",
+  liveInputMode: "server",
+  presentationMode: "gui",
+  presentationModes: ["gui", "terminal"],
+  defaultApprovalPolicy: "yolo",
   bypassPermissions: { approvalPolicy: "yolo" },
   mcpScope: { terminal: "none", gui: "none" },
+  slashCommands: [
+    {
+      id: "compact",
+      label: "compact — Compact older conversation history",
+      description: "Compact older conversation history",
+    },
+  ],
   settingDefs: [],
   ...contextCaps,
 };
@@ -143,8 +149,8 @@ export const museDetectionSpec: DetectionSpec = {
   },
   // Muse ships via Meta's installer script only — no npm package, no
   // `muse update` / self-updater. Re-run the official install script for
-  // updates. Windows has no Muse build; the windows installer entry surfaces a
-  // clear message (schema requires both platforms when `installer` is set).
+  // updates. Windows has no Muse build; the windows installer runs the same
+  // script inside WSL.
   update: {
     installer: {
       posix: {
@@ -158,7 +164,7 @@ export const museDetectionSpec: DetectionSpec = {
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "Write-Host 'Muse Code is not available on Windows. Install it inside WSL or on macOS/Linux.'",
+          "if (Get-Command wsl.exe -ErrorAction SilentlyContinue) { wsl.exe -e bash -lc 'curl -fsSL https://dev.meta.ai/install.sh | sh' } else { Write-Error 'Muse Code has no Windows binary. Install WSL first, then retry.' }",
         ],
       },
     },

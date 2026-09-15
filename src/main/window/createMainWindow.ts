@@ -86,6 +86,8 @@ export interface CreateMainWindowOptions {
     details: RenderProcessGoneDetails,
     intent: RendererProcessGoneIntent | undefined,
   ) => void;
+  /** Escalation hook for when the renderer crashes past the reload cap. */
+  onReloadExhausted?: () => void;
   devServerUrl?: string;
   openDevTools?: boolean;
   showOnReady?: boolean;
@@ -225,6 +227,7 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
     ...(options.onRendererProcessGone
       ? { onRendererProcessGone: options.onRendererProcessGone }
       : {}),
+    ...(options.onReloadExhausted ? { onReloadExhausted: options.onReloadExhausted } : {}),
   });
 
   let boundsTimer: ReturnType<typeof setTimeout> | null = null;

@@ -1,9 +1,10 @@
 import { msg } from "@lingui/core/macro";
 import { toast } from "@heroui/react";
-import { getProjectAgentStatuses, resolveAgentPresentationMode } from "@/shared/agentStatus";
+import { getLaunchableAgentStatuses, resolveAgentPresentationMode } from "@/shared/agentStatus";
 import { applyHomeScopePermissions } from "@/shared/agents/unrestrictedPermissions";
 import type {
   Project,
+  ProjectDraftConfig,
   ProjectLocation,
   PromptSegment,
   TerminalSize,
@@ -40,7 +41,21 @@ import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import type { RemoteThreadLaunchResult } from "@/renderer/state/remoteServers/types";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
-import { resolveThirdPartyAccountForLaunch } from "@/shared/thirdPartyRouting";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
+import {
+  applyThirdPartyPickerSelection,
+  composerPickerAgentKind,
+  isThirdPartyAccountId,
+  resolveThirdPartyAccountForLaunch,
+} from "@/shared/thirdPartyRouting";
+import { resolveCompatibilityFamily } from "@/shared/harnessCompatibility";
+import { buildCompatibilityCraftResult, resolveExecutionRoute } from "@/shared/crafting";
+import { canonicalModelVendor } from "@/shared/crafting/vendors";
+import {
+  providerKindFromRecipeRef,
+  recipeLaunchHarnessKind,
+  recipeLaunchModelId,
+} from "@/renderer/crafting/recipePickerTarget";
 import { generateTitleAsync } from "@/renderer/utils/titleGen";
 import { buildProjectDraftConfig } from "@/renderer/views/MainView/parts/AppContent/draftConfig";
 import {
@@ -62,7 +77,7 @@ export async function performInitialThreadLaunch(input: {
 }): Promise<void> {
   const { thread, projectLocation, prompt, segments, userMessageItemId, initialSize } = input;
   const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
-  const agentStatus = getProjectAgentStatuses(
+  const agentStatus = getLaunchableAgentStatuses(
     projectLocation,
     agentStatuses,
     wslAgentStatuses,
@@ -146,16 +161,21 @@ export async function performInitialThreadLaunch(input: {
   // Third-party models carry their validated account binding explicitly so the
   // supervisor bypasses the subscription pool (never "No usable X account").
   const pendingAccountId = useUsageAccountsStore.getState().nextSessionAccountId ?? undefined;
+  const boundAccountId = effectiveThread.accountBinding?.accountId;
+  const officialCodexOpenAI =
+    effectiveThread.agentKind === "codex" &&
+    resolveCompatibilityFamily(effectiveThread.config.model) === "openai";
+  const explicitAccountId = officialCodexOpenAI
+    ? isThirdPartyAccountId(boundAccountId)
+      ? boundAccountId
+      : undefined
+    : (boundAccountId ?? pendingAccountId);
   const thirdPartyAccountId = resolveThirdPartyAccountForLaunch({
     agentKind: effectiveThread.agentKind,
     model: effectiveThread.config.model,
     customModels: useSharedSettings.getState().customModels ?? [],
     accounts: useUsageAccountsStore.getState().accounts ?? [],
-    ...(effectiveThread.accountBinding?.accountId
-      ? { explicitAccountId: effectiveThread.accountBinding.accountId }
-      : pendingAccountId
-        ? { explicitAccountId: pendingAccountId }
-        : {}),
+    ...(explicitAccountId ? { explicitAccountId } : {}),
   });
   const startInput = {
     agentKind: effectiveThread.agentKind,
@@ -251,6 +271,7 @@ interface ThreadLaunchRequest {
   readonly agentKind: string;
   readonly config: ThreadConfig;
   readonly prompt: string;
+  readonly accountId?: string;
   readonly compositionProvenance?: Thread["compositionProvenance"];
   /** Durable `/goal` prompt to bind right after the thread row exists. */
   readonly goal?: string;
@@ -284,11 +305,154 @@ interface ThreadLaunchHostTransport {
   startThread(input: ThreadLaunchRequest): Promise<RemoteThreadLaunchResult>;
 }
 
+function applyAutoDraftLaunch(input: DraftStartInput): DraftStartInput {
+  // 合成台配方是显式 Harness · 模型 · 订阅组合，禁止按模型名改绑 Harness。
+  // Leftover Chiral next-session account must not ride the recipe.
+  if (useCraftingWorkbenchStore.getState().pendingRecipeIntent) {
+    useCraftingWorkbenchStore.getState().clearPendingRecipeIntent();
+    if (!input.accountId) {
+      useUsageAccountsStore.getState().clearNextSessionAccount();
+    }
+    return input;
+  }
+  const storeId = useUsageAccountsStore.getState().nextSessionAccountId ?? undefined;
+  const family = resolveCompatibilityFamily(input.config.model);
+  const officialCodexOpenAI = input.agentKind === "codex" && family === "openai";
+  // Leftover Chiral next-session account must not ride an official ChatGPT pick.
+  const accountId = officialCodexOpenAI
+    ? isThirdPartyAccountId(input.accountId)
+      ? input.accountId
+      : undefined
+    : (input.accountId ?? storeId);
+  const remapped = applyThirdPartyPickerSelection({
+    agentKind: input.agentKind,
+    model: input.config.model,
+    ...(input.presentationMode ? { presentationMode: input.presentationMode } : {}),
+    ...(input.config.sourceProviderKind
+      ? { sourceProviderKind: input.config.sourceProviderKind }
+      : {}),
+    ...(accountId ? { accountId } : {}),
+  });
+  if (
+    remapped.agentKind === input.agentKind &&
+    remapped.model === input.config.model &&
+    (remapped.presentationMode ?? input.presentationMode) === input.presentationMode
+  ) {
+    return accountId === input.accountId ? input : { ...input, ...(accountId ? { accountId } : {}) };
+  }
+  return {
+    ...input,
+    agentKind: remapped.agentKind as DraftStartInput["agentKind"],
+    ...(remapped.presentationMode ? { presentationMode: remapped.presentationMode } : {}),
+    ...(accountId ? { accountId } : {}),
+    config: {
+      ...input.config,
+      model: remapped.model,
+      sourceProviderKind:
+        remapped.agentKind !== input.agentKind
+          ? input.agentKind
+          : input.config.sourceProviderKind,
+    },
+  };
+}
+
 export async function startThreadFromDraft(
   project: Project,
   input: DraftStartInput,
   options: { replacePaneId?: string; preserveActiveGroup?: boolean } = {},
 ): Promise<void> {
+  const recipeIntent = useCraftingWorkbenchStore.getState().pendingRecipeIntent;
+  if (recipeIntent) {
+    const recipe = useCraftingWorkbenchStore
+      .getState()
+      .recipes.find((entry) => entry.id === recipeIntent.recipeId);
+    if (recipe) {
+      const harnessKind = recipeLaunchHarnessKind(recipe) || input.agentKind;
+      const modelId = recipeLaunchModelId(recipe) ?? input.config.model;
+      const modelProviderKind =
+        providerKindFromRecipeRef(recipe.modelEntryRef) || input.agentKind;
+      const customModels = useSharedSettings.getState().customModels ?? [];
+      const accountId =
+        recipe.providerProfileRef ||
+        resolveThirdPartyAccountForLaunch({
+          agentKind: harnessKind,
+          model: modelId,
+          customModels,
+          ...(recipe.providerProfileRef
+            ? { explicitAccountId: recipe.providerProfileRef }
+            : {}),
+        });
+      if (accountId) {
+        useUsageAccountsStore.getState().setNextSessionAccount(accountId);
+      } else {
+        useUsageAccountsStore.getState().clearNextSessionAccount();
+      }
+      const decision = resolveExecutionRoute({
+        modelEntry: {
+          entryId: recipe.modelEntryRef,
+          source: recipe.modelEntryRef.startsWith("custom:") ? "custom" : "agent",
+          providerKind: modelProviderKind,
+          providerSurfaceKey: modelProviderKind,
+          providerLabel: modelProviderKind,
+          channelLabel: modelProviderKind,
+          modelId,
+          displayName: modelId,
+          ...(accountId ? { accountId } : {}),
+        },
+        harnessRef: {
+          harnessItemId: recipe.harnessRef.startsWith("harness:")
+            ? recipe.harnessRef
+            : `harness:${harnessKind}`,
+          harnessKind,
+          descriptorId: `native-harness:${harnessKind}`,
+          displayName: harnessKind,
+          vendor: canonicalModelVendor(harnessKind) || harnessKind,
+          official: true,
+          status: "ready",
+        },
+        harnessReady: true,
+        openCodeRouteReady: true,
+        // Spawn starts the sidecar; do not fail the homepage launch just
+        // because the bridge was idle at click time.
+        compatibilityBridgeReady: true,
+      });
+      if (decision.routeType === "fail-closed") {
+        useCraftingWorkbenchStore.getState().clearPendingRecipeIntent();
+        toast.danger(decision.reason ?? "该配方当前不可执行");
+        return;
+      }
+      if (decision.routeType === "compatibility") {
+        useCraftingWorkbenchStore.getState().clearPendingRecipeIntent();
+        const craftResult = buildCompatibilityCraftResult({
+          modelId,
+          modelEntryRef: recipe.modelEntryRef,
+          modelProviderKind,
+          harnessKind,
+          harnessRef: recipe.harnessRef,
+        });
+        await startThreadFromCraft(project, craftResult, input.prompt, {
+          ...options,
+          ...(accountId ? { accountId } : {}),
+        });
+        return;
+      }
+      input = {
+        ...input,
+        agentKind: harnessKind as DraftStartInput["agentKind"],
+        ...(accountId ? { accountId } : {}),
+        config: {
+          ...input.config,
+          model: modelId,
+          sourceProviderKind:
+            modelProviderKind !== harnessKind ? modelProviderKind : input.config.sourceProviderKind,
+        },
+      };
+    }
+  }
+  // Auto (not 合成台) must remap here, not only in the draft picker. Existing
+  // OpenCode + Muse Spark threads and quick-composer / MCP starts all funnel
+  // through this function; 合成台 uses startThreadFromCraft instead.
+  const launched = applyAutoDraftLaunch(input);
   const {
     agentKind,
     config,
@@ -301,7 +465,7 @@ export async function startThreadFromDraft(
     worktreeIsNewBranch,
     worktreeTransferUncommitted,
     presentationMode,
-  } = input;
+  } = launched;
   // Everything below runs on the project's host, so a mirrored remote project
   // can't launch while its server is unreachable. Bail before creating a
   // worktree we would then have to unwind.
@@ -319,7 +483,11 @@ export async function startThreadFromDraft(
   useAppStore.getState().updateProjectDraftConfig(
     project.id,
     buildProjectDraftConfig({
-      agentKind,
+      agentKind: (composerPickerAgentKind({
+        agentKind,
+        model: config.model,
+        sourceProviderKind: config.sourceProviderKind,
+      }) || agentKind) as ProjectDraftConfig["agentKind"],
       config,
       worktreeMode: !isHomeScope && worktreeIsNewBranch === true,
     }),
@@ -495,6 +663,11 @@ export async function startThreadFromDraft(
       ...(worktreePath ? { worktreePath } : {}),
       ...(worktreeBranch ? { worktreeBranch } : {}),
       ...(goal ? { goal } : {}),
+      ...(isThirdPartyAccountId(launched.accountId)
+        ? { accountId: launched.accountId }
+        : isThirdPartyAccountId(input.accountId)
+          ? { accountId: input.accountId }
+          : {}),
       isNewWorktree,
       options,
     });
@@ -586,7 +759,7 @@ function threadLaunchHost(project: Project): ThreadLaunchHostTransport {
 function createThreadRow(launch: ThreadLaunchRequest): Thread {
   const store = useAppStore.getState();
   const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
-  const projectAgentStatuses = getProjectAgentStatuses(
+  const projectAgentStatuses = getLaunchableAgentStatuses(
     launch.project.location,
     agentStatuses,
     wslAgentStatuses,
@@ -633,7 +806,20 @@ function createThreadRow(launch: ThreadLaunchRequest): Thread {
   if (!launch.remoteServerId) {
     generateTitleAsync(thread.id, launch.project.location, projectAgentStatuses, titlePrompt);
   }
-  return thread;
+  if (!isThirdPartyAccountId(launch.accountId)) return thread;
+  const accountBinding = {
+    accountId: launch.accountId,
+    provider: "openai-compatible" as const,
+    credentialScopeRef: `managed:${launch.accountId}`,
+    reason: "explicit" as const,
+    boundAt: Date.now(),
+  };
+  useAppStore.setState((state) => ({
+    threads: state.threads.map((row) =>
+      row.id === thread.id ? { ...row, accountBinding } : row,
+    ),
+  }));
+  return { ...thread, accountBinding };
 }
 
 /** Surface a failed launch on the thread row (error item + error status). */

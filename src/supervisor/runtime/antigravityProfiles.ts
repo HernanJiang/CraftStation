@@ -52,8 +52,8 @@ const BUNDLE_KEYS = [
 ] as const;
 
 const CLOUDCODE_BASES = [
-  "https://daily-cloudcode-pa.googleapis.com",
   "https://cloudcode-pa.googleapis.com",
+  "https://daily-cloudcode-pa.googleapis.com",
 ] as const;
 
 export interface AntigravityProfileServiceOptions {

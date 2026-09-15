@@ -16,8 +16,9 @@ function permissionResolution(response: unknown): CraftRequestResolution {
   );
   if (decision) {
     const normalized = decision.toLowerCase();
+    const optionId = typeof value.optionId === "string" ? value.optionId : decision;
     if (normalized.includes("always") || normalized.includes("session")) {
-      return { kind: "permission", response: "always" };
+      return { kind: "permission", response: "always", optionId };
     }
     if (
       normalized.includes("reject") ||
@@ -25,7 +26,7 @@ function permissionResolution(response: unknown): CraftRequestResolution {
       normalized.includes("decline") ||
       normalized.includes("cancel")
     ) {
-      return { kind: "permission", response: "reject" };
+      return { kind: "permission", response: "reject", optionId };
     }
     if (
       normalized.includes("once") ||
@@ -33,7 +34,7 @@ function permissionResolution(response: unknown): CraftRequestResolution {
       normalized.includes("accept") ||
       normalized.includes("approve")
     ) {
-      return { kind: "permission", response: "once" };
+      return { kind: "permission", response: "once", optionId };
     }
   }
   throw new Error("Crafted permission response does not contain a recognized decision.");

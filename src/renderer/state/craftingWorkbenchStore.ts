@@ -17,6 +17,19 @@ import {
   storedRecipeId,
 } from "@/shared/crafting/workbenchTypes";
 
+function modelIdFromRecipeRef(ref: string): string | undefined {
+  if (!ref.startsWith("agent:")) return undefined;
+  const withoutPrefix = ref.slice("agent:".length);
+  const lastColon = withoutPrefix.lastIndexOf(":");
+  if (lastColon <= 0) return undefined;
+  const modelId = withoutPrefix.slice(lastColon + 1).trim();
+  return modelId || undefined;
+}
+
+function normalizeRecipeHarnessKind(raw: string | undefined): string {
+  return (raw ?? "").replace(/^harness:/u, "").replace(/^native-harness:/u, "");
+}
+
 const STORE_KEY = "craftstation-crafting-workbench-v1";
 const STORE_VERSION = 1;
 
@@ -41,6 +54,11 @@ interface CraftingWorkbenchActions {
     providerProfileRef?: string;
     authRef?: string;
     runtimeProfileRef?: string;
+    /** Concrete launch model id (`gemini-3.8-flash`), never an `agent:` entry ref. */
+    modelId?: string;
+    /** Concrete harness kind (`opencode`), never `harness:opencode`. */
+    harnessKind?: string;
+    providerLabel?: string;
   }) => { recipe: StoredRecipe; duplicateCount: number };
   updateRecipeAlias: (id: string, alias?: string) => void;
   deleteRecipe: (id: string) => void;
@@ -175,24 +193,27 @@ export const useCraftingWorkbenchStore = create<CraftingWorkbenchStore>()(
           updatedAt: now,
           lastKnownModel: {
             displayName: modelName,
-            modelId: resolution.modelEntryRef,
-            providerLabel: resolution.modelEntryRef,
+            modelId: input.modelId ?? modelIdFromRecipeRef(modelEntryRef) ?? modelName,
+            providerLabel: input.providerLabel ?? modelName,
           },
           lastKnownHarness: {
             displayName: harnessName,
-            harnessKind: harnessRef,
+            harnessKind: normalizeRecipeHarnessKind(input.harnessKind ?? harnessRef),
           },
+          homepageVisible: true,
         };
         // Replace-by-same-component keeps the recipe list free of duplicates for the
         // same material pair while still allowing multiple aliases under different refs.
         // Preserve homepage visibility across re-saves.
         set((state) => ({
           recipes: state.recipes.some((r) => r.id === id)
-            ? state.recipes.map((r) =>
-                r.id === id
-                  ? { ...recipe, ...(r.homepageVisible ? { homepageVisible: true } : {}) }
-                  : r,
-              )
+            ? state.recipes.map((r) => {
+                if (r.id !== id) return r;
+                const next: StoredRecipe = { ...recipe };
+                if (r.homepageVisible) next.homepageVisible = true;
+                else delete next.homepageVisible;
+                return next;
+              })
             : [...state.recipes, recipe],
         }));
         return { recipe, duplicateCount };
@@ -269,6 +290,10 @@ export const useCraftingWorkbenchStore = create<CraftingWorkbenchStore>()(
       name: STORE_KEY,
       version: STORE_VERSION,
       storage: createDbStorage(),
+      partialize: (state) => {
+        const { pendingRecipeIntent: _pendingRecipeIntent, ...persisted } = state;
+        return persisted;
+      },
     },
   ),
 );

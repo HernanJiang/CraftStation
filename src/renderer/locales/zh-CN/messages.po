@@ -2903,7 +2903,7 @@ msgstr "社区"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ContextCompaction.tsx
 msgid "Compacting context"
-msgstr "压缩上下文"
+msgstr "正在压缩上下文"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Compare this fingerprint with the one shown by your server."
@@ -3139,7 +3139,7 @@ msgstr "上下文"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ContextCompaction.tsx
 msgid "Context compacted"
-msgstr "上下文压缩"
+msgstr "上下文已压缩完毕"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ContextCompaction.tsx
 msgid "Context compacted from {before} tokens"
@@ -7511,6 +7511,14 @@ msgstr "未找到活动的工作流。"
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "No active workflows in this repository."
 msgstr "此仓库中没有活动的工作流。"
+
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "This project is not a Git repository."
+msgstr "此项目不是 Git 仓库。"
+
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "Initialize Git and connect GitHub to see Actions workflows."
+msgstr "初始化 Git 并连接 GitHub 后即可查看 Actions 工作流。"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No activity yet."

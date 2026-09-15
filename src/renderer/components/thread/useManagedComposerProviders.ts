@@ -21,10 +21,9 @@ import { resolveInitialPresentationMode } from "./threadDraftViewHelpers";
 import type { ProviderModelMenuProvider } from "@/renderer/components/common/ProviderModelMenu/parts/buildItems";
 
 /**
- * DeepSeek 原生 Harness 只活在合成台：它的同名模型在 Command Code /
- * OpenCode 等渠道已有稳定入口，且它没有账号/登录/用量快照支撑的稳定已配置
- * 态，放进模型列表只会闪现又消失。因此 composer 模型列表永远过滤该 kind
- *（除非调用方点名 include 它）。
+ * DeepSeek 原生 Harness 只活在合成台。Auto 目录走 Command Code 等渠道，
+ * 启动时再 remap 到 dsh。`includeAgentKind` 必须是 catalog/channel
+ *（Command Code），不能是 remap 后的 Harness，否则官方模型行会抢走渠道行。
  */
 export function isComposerPickerExcludedAgent(kind: string): boolean {
   const base = baseAgentKind(kind);

@@ -1,4 +1,6 @@
 import type { ThreadConfig } from "@/shared/contracts";
+import { foreignAcpModelId, normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
+import { resolveOfficialDshModelId } from "../deepseek/modelIds";
 import { normalizeAcpModeId } from "./probe";
 import { findThoughtLevelConfigOption } from "./thoughtLevel";
 
@@ -154,6 +156,29 @@ function modelOptionAliases(option: AcpConfigSelectOptionLike): string[] {
     if (candidate) aliases.add(candidate);
   }
 
+  // dsh (DeepSeek Harness) advertises model option values as JSON
+  // `[provider, model]` tuples, e.g. `["deepseek-official","deepseek-flash"]`.
+  // The public catalog id is the model part; alias it so a catalog pick
+  // resolves to the exact advertised wire value.
+  if (value?.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (
+        Array.isArray(parsed) &&
+        parsed.length === 2 &&
+        typeof parsed[1] === "string" &&
+        parsed[1].trim().length > 0
+      ) {
+        aliases.add(parsed[1]);
+        if (typeof parsed[0] === "string" && parsed[0].trim().length > 0) {
+          aliases.add(`${parsed[0]}/${parsed[1]}`);
+        }
+      }
+    } catch {
+      // Not a tuple — treat as a plain wire value below.
+    }
+  }
+
   if (value) {
     // Some agents append a transport/provider tag to the wire value while the
     // configured model keeps the public id (Qwen: `model(openai)`). Treat that
@@ -260,6 +285,17 @@ function modelConfigTargetAliases(config: ThreadConfig): string[] {
   if (!modelId) {
     return [];
   }
+  const routed = foreignAcpModelId(config);
+  if (routed !== modelId) aliases.add(routed);
+  const commandCodeNative = normalizeCommandCodeModelId(modelId);
+  if (commandCodeNative !== modelId) aliases.add(commandCodeNative);
+  // CraftStation catalog spelling `deepseek-v4.1-flash` is the bare official
+  // id `deepseek-flash` (dsh advertises it as "DeepSeek-V41-Flash"). Without
+  // this alias the catalog pick never matches the advertised tuple and strict
+  // model binding fails the turn closed (or silently runs the runtime default
+  // without strict mode).
+  const officialDsh = resolveOfficialDshModelId(modelId);
+  if (officialDsh && officialDsh !== modelId) aliases.add(officialDsh);
 
   const effortAliases =
     config.effort === "xhigh" ? ["xhigh", "extra-high"] : config.effort ? [config.effort] : [];

@@ -1,4 +1,5 @@
 import type { AgentStatus } from "@/shared/contracts";
+import { WINDOWS_WSL_LAUNCH_FALLBACK_KINDS } from "@/shared/agentStatus";
 import type {
   NativeHarnessControlPlaneEntry,
   NativeHarnessDiagnostic,
@@ -6,6 +7,7 @@ import type {
   NativeHarnessPublicDiagnostic,
   NativeHarnessPublicDescriptor,
 } from "@/shared/crafting";
+import { THIRD_PARTY_ACCOUNT_PROVIDER } from "@/shared/thirdPartyRouting";
 
 export interface NativeHarnessControlPlaneProjectionInput {
   descriptors: readonly NativeHarnessDescriptor[];
@@ -37,10 +39,32 @@ function publicDescriptor(descriptor: NativeHarnessDescriptor): NativeHarnessPub
   };
 }
 
+function pickAgentStatus(
+  descriptor: NativeHarnessDescriptor,
+  statuses: readonly AgentStatus[],
+): AgentStatus | undefined {
+  const native = statuses.find(
+    (candidate) => candidate.kind === descriptor.harnessKind && candidate.envKind !== "wsl",
+  );
+  if (native?.installed) return native;
+  const allowWsl = (WINDOWS_WSL_LAUNCH_FALLBACK_KINDS as readonly string[]).includes(
+    descriptor.harnessKind,
+  );
+  if (!allowWsl) return native;
+  const wsl = statuses.find(
+    (candidate) =>
+      candidate.kind === descriptor.harnessKind &&
+      candidate.envKind === "wsl" &&
+      candidate.installed,
+  );
+  return wsl ?? native;
+}
+
 function statusFor(
   descriptor: NativeHarnessDescriptor,
   status: AgentStatus | undefined,
   diagnostics: readonly NativeHarnessDiagnostic[],
+  profileConfigured: ReadonlySet<string>,
 ): NativeHarnessControlPlaneEntry["status"] {
   if (
     descriptor.transport === "unavailable" ||
@@ -64,6 +88,14 @@ function statusFor(
   if (!status) return "not-configured";
   if (!status.installed) return "unavailable";
   if (status.authState === "authenticated") return "ready";
+  // Muse Code consumes a third-party OpenAI-compatible key as META_API_KEY at
+  // spawn. Official `muse login` is only for Meta's own account.
+  if (
+    descriptor.harnessKind === "muse" &&
+    profileConfigured.has(THIRD_PARTY_ACCOUNT_PROVIDER)
+  ) {
+    return "ready";
+  }
   if (status.authState === "missing") return "not-configured";
   return "not-configured";
 }
@@ -171,12 +203,10 @@ export function projectNativeHarnessControlPlane(
   input: NativeHarnessControlPlaneProjectionInput,
 ): NativeHarnessControlPlaneEntry[] {
   return input.descriptors.map((descriptor) => {
-    const agentStatus = input.statuses.find(
-      (candidate) => candidate.kind === descriptor.harnessKind && candidate.envKind !== "wsl",
-    );
+    const agentStatus = pickAgentStatus(descriptor, input.statuses);
     const supplied = input.diagnostics?.get(descriptor.harnessKind) ?? [];
     const diagnostics = dedupeDiagnostics(supplied);
-    const status = statusFor(descriptor, agentStatus, supplied);
+    const status = statusFor(descriptor, agentStatus, supplied, input.profileConfigured);
     const fallback = fallbackDiagnostic(descriptor, status, agentStatus);
     if (fallback && !diagnostics.some((entry) => entry.code === fallback.code)) {
       diagnostics.push(fallback);

@@ -7505,6 +7505,14 @@ msgstr "No active workflows found."
 msgid "No active workflows in this repository."
 msgstr "No active workflows in this repository."
 
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "This project is not a Git repository."
+msgstr "This project is not a Git repository."
+
+#: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
+msgid "Initialize Git and connect GitHub to see Actions workflows."
+msgstr "Initialize Git and connect GitHub to see Actions workflows."
+
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No activity yet."
 msgstr "No activity yet."

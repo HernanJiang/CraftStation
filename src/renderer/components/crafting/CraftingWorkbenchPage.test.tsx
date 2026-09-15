@@ -145,4 +145,72 @@ describe("CraftingWorkbenchPage", () => {
     const grid = screen.getByTestId("harness-inventory-grid");
     expect(grid.textContent).not.toContain("DeepSeek API Runtime");
   });
+
+  it("deletes a saved recipe from the workbench quick list", async () => {
+    useCraftingWorkbenchStore.getState().saveRecipe({
+      modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
+      harnessRef: "harness:opencode",
+      modelName: "Gemini 3.8 Flash",
+      harnessName: "OpenCode Native Harness",
+      resolution: {
+        resolutionKey: "test",
+        createdAt: new Date().toISOString(),
+        status: "CRAFTABLE",
+        source: "compatibility-layer",
+        modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
+        harnessRef: "harness:opencode",
+        capabilities: [],
+        diagnostics: [],
+      },
+    });
+
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    expect(await screen.findByText("OpenCode Native Harness · Gemini 3.8 Flash")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /删除配方/ }));
+    expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
+    expect(screen.queryByText("OpenCode Native Harness · Gemini 3.8 Flash")).not.toBeInTheDocument();
+  });
+
+  it("deletes a saved recipe from the workbench via context menu", async () => {
+    useCraftingWorkbenchStore.getState().saveRecipe({
+      modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
+      harnessRef: "harness:opencode",
+      modelName: "Gemini 3.8 Flash",
+      harnessName: "OpenCode Native Harness",
+      resolution: {
+        resolutionKey: "test",
+        createdAt: new Date().toISOString(),
+        status: "CRAFTABLE",
+        source: "compatibility-layer",
+        modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
+        harnessRef: "harness:opencode",
+        capabilities: [],
+        diagnostics: [],
+      },
+    });
+
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    const card = await screen.findByText("OpenCode Native Harness · Gemini 3.8 Flash");
+    fireEvent.contextMenu(card);
+    fireEvent.click(screen.getByRole("menuitem", { name: "删除配方" }));
+    expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
+  });
 });

@@ -3,6 +3,7 @@ import { scheduledTaskInputSchema } from "./contracts/schedule";
 import {
   nextScheduleRunAt,
   normalizeScheduleThreadTarget,
+  scheduleContinuesThread,
   scheduleRelatesToThread,
   scheduleThreadTarget,
 } from "./schedules";
@@ -121,6 +122,9 @@ describe("nextScheduleRunAt", () => {
     expect(scheduleRelatesToThread(created, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")).toBe(true);
     expect(scheduleRelatesToThread(created, "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")).toBe(false);
     expect(scheduleRelatesToThread(continues, "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")).toBe(true);
+    expect(scheduleContinuesThread(created, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")).toBe(false);
+    expect(scheduleContinuesThread(continues, "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")).toBe(true);
+    expect(scheduleContinuesThread(continues, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")).toBe(false);
     expect(scheduleThreadTarget(created)).toEqual({ kind: "new" });
     expect(normalizeScheduleThreadTarget({ targetThreadId: continues.targetThreadId })).toEqual({
       threadTarget: continues.threadTarget,

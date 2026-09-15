@@ -2554,7 +2554,7 @@ describe("CodexStructuredSession", () => {
     expect(updates).toContainEqual({ status: "idle", attention: "none" });
   });
 
-  it("skips internal compaction and sleep items without synthesizing rows", () => {
+  it("surfaces context compaction as a ContextCompaction tool call and still skips sleep", () => {
     const { onMessage, runtimeEvents } = makeNotificationSession();
 
     onMessage({
@@ -2585,7 +2585,20 @@ describe("CodexStructuredSession", () => {
       },
     });
 
-    expect(runtimeEvents.filter((event) => event.type.startsWith("item."))).toEqual([]);
+    const itemEvents = runtimeEvents.filter((event) => event.type.startsWith("item."));
+    expect(itemEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "item.started",
+          itemType: "tool_call",
+          payload: expect.objectContaining({ name: "ContextCompaction", status: "running" }),
+        }),
+        expect.objectContaining({
+          type: "item.completed",
+        }),
+      ]),
+    );
+    expect(itemEvents).toHaveLength(2);
   });
 
   it("keeps Codex child-thread messages out of the main timeline", () => {

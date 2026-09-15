@@ -130,6 +130,13 @@ describe("withPreferredModel", () => {
       resolveProviderDraftConfig(agentWith(injected), { model: "glm-5.3-flash-C" }).model,
     ).toBe("glm-5.3-flash-C");
   });
+
+  it("keeps a recipe model that is absent from the harness catalog even without an account id", () => {
+    const injected = withPreferredModel(capabilities, "gemini-3.8-flash");
+    expect(resolveProviderDraftConfig(agentWith(injected), { model: "gemini-3.8-flash" }).model).toBe(
+      "gemini-3.8-flash",
+    );
+  });
 });
 
 describe("resolveThinkingValue", () => {

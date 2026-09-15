@@ -18,6 +18,18 @@
 - 数据处置：经诊断后将该 stale `queued` exchange 标记为 `cancelled`（error 字段注明原因与日期），避免修复后每次启动补发一条隔了一天的旧 prompt；其余 14 条历史 exchange 未动。账号数据从未丢失（accounts.json 完好），只是 supervisor 死了读不到。
 - 验证：`pnpm typecheck` PASS；`build:electron` + 重打便携包 PASS；真实 baseDir 冷启动 supervisor 正常拉起（便携版主进程下出现 supervisor.cjs 子进程）；CDP 实测 `listAccounts` 秒回 14 个账号（修复前该调用永久 hang）；首页 composer、模型选择器（Antigravity · Gemini 3.8 Flash · High）、既有线程消息流全部渲染正常；无卡在"登录中…"的按钮；renderer 0 控制台错误。最终以便携 exe 原样重启（无 CDP）交付用户使用。
 - 已知边界：真实发一条消息、真实 OAuth 授权窗口待用户目视验收；`thread-collaboration`/`app-controls` 4 个单测失败属并行批次未提交半成品（与本次改动无关，main.ts 不被这些测试导入）；`isWelcomeSeen()` 的"每次启动都显示欢迎页"是 committed 的既有设计（兼作加载屏），未动。
+
+## main 直接修复 — Meta 等模型任务完成后计划卡不变（2026-09-15）
+
+- 症状（用户运行 1.1.1/1.1.2 便携版）：任务已完成、回复已渲染，但顶部胶囊 `Step x/y` 计划进度永远卡住不更新、不消失。Meta 类模型走 Muse MSP 路径必现；不发最终全完成 plan 更新的 ACP/Codex/Claude 路径同样存在。
+- 根因双层：①Muse MSP `mspSession.finishTurn` 只发 `turn.completed`，从不关闭打开的 plan 项（todo 列表很少全部 tick 到 completed），plan 项永远停留 `started/updated`；②renderer `threadTodoState.selectLatestThreadTodoDockCandidate` 对最新 plan 候选只认"全部 completed 才撤 dock"，被 turn 末关闭但步骤未全完成的 plan 项（ACP `closeOpenTurnItems`、Codex `turn/completed`、Claude turn close）同样让 Step 段永久滞留。
+- 修复（main 未提交，与现成批量一致留在工作区）：
+  - `src/supervisor/agents/muse/mspSession.ts`：`finishTurn` 先经新 `closeOpenPlanItem()` 关闭打开的计划项（复用 fold 的 todo 快照，保留 harness 最后真实步骤状态，对齐 ACP turn 末关闭语义），并重置 `lastTodoSignature` 使下一轮把 todo 列表重新发布为全新 plan 项（跨轮计划 dock 延续）。
+  - `src/supervisor/agents/muse/mspCanonicalMapping.ts`：新增导出 `closeMusePlanItem`；plan 项 id 改为每实例唯一（`muse-plan-<threadId>-<uuid>`），杜绝关闭后同 id 重开（renderer 对重复 `item.started` id 本来直接忽略）；`planStatus` 导出。
+  - `src/renderer/components/thread/threadTodoState.ts`：最新 plan 候选项 `state === "completed"` 时撤下 dock（时间线计划卡仍保留最后真实状态），与正常完成的计划行为一致。
+  - `src/renderer/state/slices/runtimeEventReducer.ts`：plan 项被 Claude 聚合器以同 id 重开（`item.started`）时允许复位为 `started`，避免 turn 末关闭后计划 dock 整会话无法回归。
+- 证据：新/改单测全过——`mspCanonicalMapping` 20/20（含 closeMusePlanItem、唯一 id）、`mspSession.test.ts` 新建 2/2（finishTurn 接线）、`threadTodoState` 15/15（含 completed 未全完成撤 dock、updated 跨轮保留两例）、`runtimeEventSlice` 36/36（含 plan reopen）；主+type-aware `oxlint --deny-warnings` 0 错误；邻居回归（acp canonicalMapping/session、claude、planAggregator、ThreadStatusCapsule、chatPaneSelectors 等）537 通过。`pnpm typecheck` 与 ThreadView.test 2 例、codex canonicalMapping 4 例失败均为并行批次未提交半成品所致，已用 stash 基线对比证实与本批无关。
+- 待用户：重启应用后用 Meta 模型跑一个多步任务目视验收（完成后 Step 段应消失而非卡住）；真实出流量验证受外部模型额度约束。
 # PROJECT_STATUS.md
 
 ## v0.7.0 Main Integration Record — 2026-09-01

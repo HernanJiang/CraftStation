@@ -8,6 +8,7 @@ import { goalPayloadFromProviderState } from "../../goalRuntime";
 import { isCodexSpawnAgentToolCall, readCollabAgentProgress } from "./collabAgent";
 import { readCodexGoalStatus } from "./goal";
 import { type CodexItemPayload, extractMessageText, readChangesPayload } from "./readers";
+import { isCodexCompactionItem } from "../canonicalMappingState";
 import {
   classifyCodexFileChangeKind,
   codexFinalStatus,
@@ -113,7 +114,7 @@ export function buildStartedPayload(
     const isSubAgent = isCodexSpawnAgentToolCall(source);
     const progress = isSubAgent ? readCollabAgentProgress(source) : undefined;
     return {
-      name: toolName(source) ?? "tool",
+      name: isCodexCompactionItem(source) ? "ContextCompaction" : (toolName(source) ?? "tool"),
       ...(serverId ? { serverId } : {}),
       ...(args !== undefined ? { args } : {}),
       ...(progress ? { progress } : {}),

@@ -4,6 +4,7 @@ import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import type { TranslateFn } from "@/renderer/i18n/i18n";
 import { Layers } from "lucide-react";
+import { isContextCompactionToolName } from "@/shared/contextCompaction";
 import type { ToolCallPayload } from "@/shared/contracts";
 import type { RuntimeChatItem } from "@/renderer/state/slices/runtimeEventSlice";
 import { formatTokenCount } from "@/renderer/components/thread/formatTokenCount";
@@ -88,27 +89,7 @@ function formatTokenLabel(value: number | undefined): string | null {
   return formatTokenCount(value);
 }
 
-/**
- * Names known to denote a context-compaction tool call. Compared
- * case-insensitively after stripping `_`, `-`, and whitespace, so codex's
- * `contextCompaction` and a hypothetical `context_compaction` /
- * `Context Compaction` from another agent all match.
- *
- * Add new providers here as their emission shape is discovered. Keep names
- * unambiguous — a bare `compaction` would risk false positives with unrelated
- * tools.
- */
-const COMPACTION_NAME_KEYS: readonly string[] = [
-  "contextcompaction",
-  "compactcontext",
-  "conversationcompaction",
-  "compactconversation",
-];
-
 export function isContextCompactionToolCall(item: RuntimeChatItem): boolean {
   if (item.type !== "tool_call") return false;
-  const name = (item.payload as ToolCallPayload | undefined)?.name;
-  if (!name) return false;
-  const normalized = name.toLowerCase().replace(/[\s_-]/g, "");
-  return COMPACTION_NAME_KEYS.includes(normalized);
+  return isContextCompactionToolName((item.payload as ToolCallPayload | undefined)?.name);
 }

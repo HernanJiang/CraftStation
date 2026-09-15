@@ -242,6 +242,10 @@ function classifyError(error: unknown, operation: string): Error {
     return new Error(`GitHub CLI is not authenticated. Run "gh auth login" in the terminal.`);
   }
 
+  if (isNoGitHubRepositoryError(error)) {
+    return new Error("This project is not a Git repository.");
+  }
+
   return new Error(`gh ${operation} failed: ${msg}`);
 }
 
@@ -1322,6 +1326,7 @@ export class GitHubService {
       );
       return { workflows, ...(scope.account ? { account: scope.account } : {}) };
     } catch (err) {
+      if (isNoGitHubRepositoryError(err)) return { workflows: [] };
       throw classifyError(err, "workflow list");
     }
   }
@@ -1351,6 +1356,7 @@ export class GitHubService {
       });
       return { runs };
     } catch (err) {
+      if (isNoGitHubRepositoryError(err)) return { runs: [] };
       throw classifyError(err, "run list");
     }
   }

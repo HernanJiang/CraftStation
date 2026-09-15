@@ -106,6 +106,17 @@ export function openAiCompatibleApiBase(normalizedApiRoot: string): string {
   return /\/v\d+$/i.test(path) ? root : `${root}/v1`;
 }
 
+/** Volcengine Ark coding/inference hosts speak Chat Completions, not Responses. */
+export function isVolcengineArkApiRoot(normalizedApiRoot: string): boolean {
+  try {
+    const url = new URL(normalizedApiRoot);
+    const host = url.hostname.toLowerCase();
+    return host === "ark.cn-beijing.volces.com" || /^ark\./u.test(host);
+  } catch {
+    return false;
+  }
+}
+
 export function buildProbeUrls(normalizedApiRoot: string): {
   models: string;
   responses: string;
@@ -268,6 +279,7 @@ export async function probeThirdPartyProvider(
   const now = input.now ?? Date.now();
   const urls = buildProbeUrls(normalizedApiRoot);
   const authHeader = `Bearer ${apiKey}`;
+  const arkRoot = isVolcengineArkApiRoot(normalizedApiRoot);
 
   // Low-cost hint only: GET /models for connectivity/auth/model-existence.
   // Its outcome never decides pass/fail by itself.
@@ -278,10 +290,10 @@ export async function probeThirdPartyProvider(
       { method: "GET", headers: { Accept: "application/json", Authorization: authHeader } },
       Math.min(timeoutMs, 12_000),
     );
-    if (modelsRes.status === 401) {
+    if (modelsRes.status === 401 && !arkRoot) {
       return failure("unauthorized", "API Key 无效或已失效（401）。", false, "GET /v1/models 401");
     }
-    if (modelsRes.status === 403) {
+    if (modelsRes.status === 403 && !arkRoot) {
       return failure("forbidden", "API Key 无权限访问该 Base URL（403）。", false, "GET /v1/models 403");
     }
     if (modelsRes.status === 429) {
@@ -307,6 +319,19 @@ export async function probeThirdPartyProvider(
     if (classified.detail === "network failure") {
       // Continue: some vendors disable /models but serve inference.
     }
+  }
+
+  if (arkRoot) {
+    return probeChatCompletions({
+      urls,
+      authHeader,
+      model,
+      timeoutMs,
+      now,
+      normalizedApiRoot,
+      modelListedHint,
+      fetchImpl: input.fetchImpl,
+    });
   }
 
   const responsesBody = JSON.stringify({
@@ -380,22 +405,47 @@ export async function probeThirdPartyProvider(
     );
   }
 
-  // ── Fallback: Chat Completions (only after clear Responses-unsupported) ──
-  const chatBody = JSON.stringify({
+  return probeChatCompletions({
+    urls,
+    authHeader,
     model,
+    timeoutMs,
+    now,
+    normalizedApiRoot,
+    modelListedHint,
+    fetchImpl: input.fetchImpl,
+  });
+}
+
+async function probeChatCompletions(input: {
+  urls: { chatCompletions: string };
+  authHeader: string;
+  model: string;
+  timeoutMs: number;
+  now: number;
+  normalizedApiRoot: string;
+  modelListedHint: boolean;
+  fetchImpl: ProbeFetch;
+}): Promise<ThirdPartyValidationResult> {
+  const chatBody = JSON.stringify({
+    model: input.model,
     messages: [{ role: "user", content: THIRD_PARTY_VALIDATION_PROMPT }],
     max_tokens: THIRD_PARTY_PROBE_MAX_TOKENS,
   });
   let chatRes: ProbeFetchResponse;
   try {
     chatRes = await input.fetchImpl(
-      urls.chatCompletions,
+      input.urls.chatCompletions,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: authHeader },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: input.authHeader,
+        },
         body: chatBody,
       },
-      timeoutMs,
+      input.timeoutMs,
     );
   } catch (error) {
     return classifyTransportError(error);
@@ -407,31 +457,77 @@ export async function probeThirdPartyProvider(
     return failure("forbidden", "API Key 无权限调用该模型（403）。", false, "POST /v1/chat/completions 403");
   }
   if (chatRes.status === 429) {
-    return failure("rate_limited", "服务端限流（429），请稍后重试。验证暂不可用。", true, "POST /v1/chat/completions 429");
+    return failure(
+      "rate_limited",
+      "服务端限流（429），请稍后重试。验证暂不可用。",
+      true,
+      "POST /v1/chat/completions 429",
+    );
   }
   if (chatRes.status >= 500) {
-    return failure("server_error", "服务端错误，请稍后重试。验证暂不可用。", true, `POST /v1/chat/completions ${chatRes.status}`);
+    return failure(
+      "server_error",
+      "服务端错误，请稍后重试。验证暂不可用。",
+      true,
+      `POST /v1/chat/completions ${chatRes.status}`,
+    );
   }
   if (chatRes.status >= 200 && chatRes.status < 300) {
     if (!chatBodyLooksOk(chatRes.bodyText)) {
-      return failure("invalid_response", "Chat Completions 返回了无法识别的结构，验证未通过。", false, "POST /v1/chat/completions invalid shape");
+      return failure(
+        "invalid_response",
+        "Chat Completions 返回了无法识别的结构，验证未通过。",
+        false,
+        "POST /v1/chat/completions invalid shape",
+      );
     }
-    return { ok: true, validatedProtocol: "chat_completions", normalizedApiRoot, validatedAt: now, modelListedHint };
+    return {
+      ok: true,
+      validatedProtocol: "chat_completions",
+      normalizedApiRoot: input.normalizedApiRoot,
+      validatedAt: input.now,
+      modelListedHint: input.modelListedHint,
+    };
   }
   if (chatRes.status === 404 || chatRes.status === 405) {
-    if (bodyIndicatesModelMissing(chatRes.bodyText, model)) {
-      return failure("model_not_found", `模型 ${model} 不存在或无权访问。`, false, "POST /v1/chat/completions model missing");
+    if (bodyIndicatesModelMissing(chatRes.bodyText, input.model)) {
+      return failure(
+        "model_not_found",
+        `模型 ${input.model} 不存在或无权访问。`,
+        false,
+        "POST /v1/chat/completions model missing",
+      );
     }
-    return failure("chat_completions_unsupported", "该 API 同时不支持 Responses 与 Chat Completions，无法添加。", false, `POST /v1/chat/completions ${chatRes.status}`);
+    return failure(
+      "chat_completions_unsupported",
+      "该 API 同时不支持 Responses 与 Chat Completions，无法添加。",
+      false,
+      `POST /v1/chat/completions ${chatRes.status}`,
+    );
   }
   if (chatRes.status === 400) {
-    if (bodyIndicatesModelMissing(chatRes.bodyText, model)) {
-      return failure("model_not_found", `模型 ${model} 不存在或无权访问。`, false, "POST /v1/chat/completions model missing");
+    if (bodyIndicatesModelMissing(chatRes.bodyText, input.model)) {
+      return failure(
+        "model_not_found",
+        `模型 ${input.model} 不存在或无权访问。`,
+        false,
+        "POST /v1/chat/completions model missing",
+      );
     }
     if (bodyIndicatesUnsupported(chatRes.bodyText)) {
-      return failure("chat_completions_unsupported", "该 API 同时不支持 Responses 与 Chat Completions，无法添加。", false, "POST /v1/chat/completions unsupported");
+      return failure(
+        "chat_completions_unsupported",
+        "该 API 同时不支持 Responses 与 Chat Completions，无法添加。",
+        false,
+        "POST /v1/chat/completions unsupported",
+      );
     }
-    return failure("invalid_response", "Chat Completions 请求被拒绝（400），请检查 Model Name 后重试。", false, `POST /v1/chat/completions 400`);
+    return failure(
+      "invalid_response",
+      "Chat Completions 请求被拒绝（400），请检查 Model Name 后重试。",
+      false,
+      `POST /v1/chat/completions 400`,
+    );
   }
   return failure(
     "chat_completions_unsupported",

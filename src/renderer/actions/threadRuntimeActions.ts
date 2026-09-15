@@ -23,6 +23,7 @@ import {
 import { captureProductEvent } from "@/renderer/analytics/productAnalytics";
 import { useAppStore } from "@/renderer/state/appStore";
 import { captureFileCheckpoint } from "@/renderer/state/fileCheckpointActions";
+import { readSessionHandoffState } from "@/renderer/actions/sessionHandoffActions";
 import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { remoteOwner } from "@/renderer/state/remoteProjection";
 import { performInitialThreadLaunch } from "./threadLaunchActions";
@@ -77,9 +78,11 @@ export async function performThreadInputSubmit(input: {
   /** Desktop-only: capture a file checkpoint keyed to the optimistic user message. */
   captureCheckpoint?: (checkpointItemId: string) => Promise<void>;
   /**
-   * Relaunch the thread and deliver this prompt as the resumed session's first
-   * input. Called only when the host has no session left for a thread that is
-   * still resumable, so the prompt is never dropped.
+   * Relaunch the thread and deliver this prompt as the new session's first
+   * input. Called whenever the host has no session left for the thread —
+   * whether it is still resumable (native sessionRef / config resume) or was
+   * never launched at all (e.g. a Side Chat ephemeral branch) — so the prompt
+   * is never dropped.
    */
   resumeLaunch?: (args: {
     prompt: string;
@@ -144,14 +147,11 @@ export async function performThreadInputSubmit(input: {
       ...(input.goalContext ? { goalContext: input.goalContext } : {}),
     });
   } catch (error) {
-    // The host session is gone (thread unloaded, supervisor restarted) but the
-    // thread can still be resumed: relaunch it with this prompt instead of
-    // dropping it. The optimistic paint stays — the relaunch reuses its item id.
-    if (
-      input.resumeLaunch &&
-      isUnknownThreadSessionError(error) &&
-      (thread.sessionRef || thread.canResumeWithConfig)
-    ) {
+    // The host session is gone (thread unloaded, supervisor restarted) or the
+    // thread was never launched (Side Chat ephemeral branch) — either way the
+    // prompt must not be dropped: relaunch it with this prompt instead. The
+    // optimistic paint stays — the relaunch reuses its item id.
+    if (input.resumeLaunch && isUnknownThreadSessionError(error)) {
       try {
         await input.resumeLaunch({
           prompt,
@@ -192,7 +192,11 @@ export async function submitThreadInput(
   if (!resolved) return;
   const { thread, projectLocation } = resolved;
   const owner = remoteOwner(thread);
-  const execution = getRuntimeExecutionEnvelope(threadId);
+  let execution = getRuntimeExecutionEnvelope(threadId);
+  if (!execution) {
+    await readSessionHandoffState(threadId).catch(() => null);
+    execution = getRuntimeExecutionEnvelope(threadId);
+  }
   await performThreadInputSubmit({
     thread,
     prompt,

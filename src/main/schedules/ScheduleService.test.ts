@@ -134,6 +134,58 @@ describe("ScheduleService", () => {
     service.dispose();
   });
 
+  it("deletes schedules that continue an archived thread and keeps detached ones", () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+    });
+    const threadId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const continues = service.create({
+      ...input,
+      name: "Continues archived",
+      targetThreadId: threadId,
+    });
+    const detached = service.create({
+      ...input,
+      name: "Detached",
+      sourceThreadId: threadId,
+      threadTarget: { kind: "new" },
+    });
+
+    expect(service.deleteContinuingThread(threadId)).toEqual([continues.id]);
+    expect(store.get(continues.id)).toBeNull();
+    expect(store.get(detached.id)?.id).toBe(detached.id);
+  });
+
+  it("sweeps leftover bindings for archived threads on start", () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const seed = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+    });
+    const archivedId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const liveId = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+    const leftover = seed.create({ ...input, name: "Leftover", targetThreadId: archivedId });
+    const live = seed.create({ ...input, name: "Live", targetThreadId: liveId });
+
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+      threadIsUnavailable: (threadId) => threadId === archivedId,
+    });
+    service.start();
+
+    expect(store.get(leftover.id)).toBeNull();
+    expect(store.get(live.id)?.id).toBe(live.id);
+    service.dispose();
+  });
+
   it("does not resurrect a task deleted while its run is in flight", async () => {
     const store = memoryStore();
     let resolveRun!: (output: string) => void;

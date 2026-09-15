@@ -61,6 +61,11 @@ export const grokDefaultCapabilities: AgentCapability = {
   bypassPermissions: { approvalPolicy: "bypassPermissions" },
   slashCommands: [GROK_COMPACT_COMMAND],
   settingDefs: [],
+  // Probe fills per-model windows from ACP `_meta.totalContextTokens`. Keep a
+  // 500K fallback so the composer dock can show capacity before the first
+  // usage_update (grok-4.5 / grok-4.6 both advertise 500000).
+  contextSizes: [{ id: "500K", label: "500K" }],
+  defaultContextSize: "500K",
 };
 
 function mergeCompactSlashCommands(

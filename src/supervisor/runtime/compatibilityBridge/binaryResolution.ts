@@ -10,6 +10,8 @@ export interface BridgeBinaryResolutionInput {
   existsSync: (path: string) => boolean;
   /** PATH lookup (e.g. the supervisor's `resolveExecutablePath`). */
   resolveOnPath: (command: string) => string | undefined;
+  /** Extra folders to probe after cwd `.tools/cpa` (portable exe / resources). */
+  extraSearchDirs?: readonly string[] | undefined;
 }
 
 export interface BridgeBinaryResolution {
@@ -37,23 +39,45 @@ export interface BridgeBinaryResolution {
 export function resolveCompatibilityBridgeBinary(
   input: BridgeBinaryResolutionInput,
 ): BridgeBinaryResolution {
-  const onPathCommand = input.platform === "win32" ? "cliproxyapi.exe" : "cliproxyapi";
+  const onPathCommands =
+    input.platform === "win32"
+      ? ["cliproxyapi.exe", "cli-proxy-api.exe"]
+      : ["cliproxyapi", "cli-proxy-api"];
   const fileNames =
     input.platform === "win32" ? ["cli-proxy-api.exe", "cliproxyapi.exe"] : ["cli-proxy-api"];
   const bundledDir = join(input.cwd, ".tools", "cpa");
+  const extraDirs = (input.extraSearchDirs ?? []).filter((dir) => dir.trim().length > 0);
   const bundledCandidates = fileNames.map((fileName) => join(bundledDir, fileName));
+  const extraCandidates = extraDirs.flatMap((dir) =>
+    fileNames.map((fileName) => join(dir, fileName)),
+  );
   const searched: string[] = [];
   if (input.envBinaryPath?.trim()) searched.push(input.envBinaryPath.trim());
-  searched.push(`PATH:${onPathCommand}`, ...bundledCandidates);
+  searched.push(
+    ...onPathCommands.map((command) => `PATH:${command}`),
+    ...bundledCandidates,
+    ...extraCandidates,
+  );
   const envPath = input.envBinaryPath?.trim();
-  const onPath = input.resolveOnPath(onPathCommand);
+  const onPath = onPathCommands
+    .map((command) => input.resolveOnPath(command))
+    .find((hit) => Boolean(hit));
   const bundledHit = bundledCandidates.find((candidate) => input.existsSync(candidate));
+  const extraHit = extraCandidates.find((candidate) => input.existsSync(candidate));
   const binaryPath =
-    envPath && input.existsSync(envPath) ? envPath : (onPath ?? bundledHit);
+    envPath && input.existsSync(envPath) ? envPath : (onPath ?? bundledHit ?? extraHit);
   return {
     ...(binaryPath ? { binaryPath } : {}),
     searched,
     fileNames,
     bundledDir,
   };
+}
+
+/** Craft/workbench may start the sidecar on demand; idle is not "unavailable". */
+export function isCompatibilityBridgeStartable(input: {
+  running: boolean;
+  binaryPath?: string | undefined;
+}): boolean {
+  return input.running || Boolean(input.binaryPath?.trim());
 }

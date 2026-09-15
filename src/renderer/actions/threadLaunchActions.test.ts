@@ -3,6 +3,7 @@ import type { Project, Thread } from "@/shared/contracts";
 import type { RemoteThreadLaunchResult } from "@/renderer/state/remoteServers/types";
 import { BUILTIN_MODEL_ITEMS, Crafter, getDefaultRegistry } from "@/shared/crafting";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -205,6 +206,10 @@ describe("startThreadFromDraft host transport", () => {
     mocks.appState.provisioningWorktreeThreadIds = {};
     mocks.sharedSettings.customModels = [];
     useUsageAccountsStore.getState().reset();
+    useCraftingWorkbenchStore.setState({
+      recipes: [],
+      pendingRecipeIntent: undefined,
+    });
     mocks.appState.createThread.mockImplementation((input) => {
       const values = input as Partial<Thread> & {
         threadId?: string;
@@ -213,6 +218,7 @@ describe("startThreadFromDraft host transport", () => {
       const thread = {
         id: values.threadId ?? "local-thread",
         projectId: values.projectId ?? localProject.id,
+        agentKind: values.agentKind ?? "codex",
         archived: false,
         config: values.config ?? {},
         ...(values.compositionProvenance
@@ -971,6 +977,154 @@ describe("startThreadFromDraft host transport", () => {
 
     expect(mocks.remoteState.launchRemoteThread).toHaveBeenCalledOnce();
     expect(mocks.runWorktreeSetupScript).not.toHaveBeenCalled();
+  });
+
+  it("remaps an OpenCode Muse Spark Auto draft onto Muse Code even without muse.exe", async () => {
+    await startThreadFromDraft(localProject, {
+      agentKind: "opencode",
+      config: { model: "opencode-go/muse-spark-1.3-contributor" },
+      prompt: "怎么做番茄炒蛋",
+      presentationMode: "gui",
+    });
+
+    expect(mocks.appState.createThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "muse",
+        config: expect.objectContaining({
+          model: "opencode-go/muse-spark-1.3-contributor",
+          sourceProviderKind: "opencode",
+        }),
+        presentationMode: "gui",
+      }),
+    );
+    expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "muse",
+        config: expect.objectContaining({
+          model: "opencode-go/muse-spark-1.3-contributor",
+          sourceProviderKind: "opencode",
+        }),
+        presentationMode: "gui",
+      }),
+    );
+  });
+
+  it("does not ride a leftover Chiral account onto an official ChatGPT Codex draft", async () => {
+    useUsageAccountsStore.getState().setNextSessionAccount("openai-compatible:chiral");
+    mocks.sharedSettings.customModels = [
+      { provider: "codex", accountId: "openai-compatible:chiral", modelId: "gpt-5.6-sol" },
+    ];
+
+    await startThreadFromDraft(localProject, {
+      agentKind: "codex",
+      config: { model: "gpt-5.4" },
+      prompt: "hello from chatgpt",
+      presentationMode: "gui",
+    });
+
+    expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "codex",
+        config: expect.objectContaining({ model: "gpt-5.4" }),
+      }),
+    );
+    expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("accountId");
+    expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("thirdPartyAccountId");
+  });
+
+  it("does not ride a leftover Chiral account onto an OpenCode Gemini recipe", async () => {
+    useUsageAccountsStore.getState().setNextSessionAccount("openai-compatible:chiral");
+    mocks.sharedSettings.customModels = [
+      { provider: "codex", accountId: "openai-compatible:chiral", modelId: "gpt-5.6-sol" },
+    ];
+    useCraftingWorkbenchStore.setState({
+      recipes: [
+        {
+          id: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
+          version: "1.0.0",
+          systemName: "OpenCode Native Harness · Gemini 3.8 Flash",
+          modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
+          harnessRef: "harness:opencode",
+          homepageVisible: true,
+          compatibility: { uiStatus: "NATIVE" },
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          lastKnownModel: {
+            displayName: "Gemini 3.8 Flash",
+            modelId: "gemini-3.8-flash",
+            providerLabel: "Antigravity",
+          },
+          lastKnownHarness: {
+            displayName: "OpenCode Native Harness",
+            harnessKind: "opencode",
+          },
+        },
+      ],
+      pendingRecipeIntent: {
+        recipeId: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
+      },
+    });
+
+    await startThreadFromDraft(localProject, {
+      agentKind: "antigravity",
+      config: { model: "gemini-3.8-flash" },
+      prompt: "hello from gemini recipe",
+      presentationMode: "gui",
+    });
+
+    expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "opencode",
+        config: expect.objectContaining({ model: "gemini-3.8-flash" }),
+      }),
+    );
+    expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("accountId");
+    expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("thirdPartyAccountId");
+    expect(useCraftingWorkbenchStore.getState().pendingRecipeIntent).toBeUndefined();
+  });
+
+  it("still launches an explicit Chiral GPT pick on the third-party account", async () => {
+    mocks.sharedSettings.customModels = [
+      { provider: "codex", accountId: "openai-compatible:chiral", modelId: "gpt-5.6-sol" },
+    ];
+
+    await startThreadFromDraft(localProject, {
+      agentKind: "codex",
+      config: { model: "gpt-5.6-sol" },
+      prompt: "hello from chiral",
+      presentationMode: "gui",
+      accountId: "openai-compatible:chiral",
+    });
+
+    expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "codex",
+        config: expect.objectContaining({ model: "gpt-5.6-sol" }),
+        thirdPartyAccountId: "openai-compatible:chiral",
+      }),
+    );
+  });
+
+  it("remaps a third-party MOS Spark Auto draft onto Muse without muse login", async () => {
+    useUsageAccountsStore.getState().setNextSessionAccount("openai-compatible:acct-1");
+
+    await startThreadFromDraft(localProject, {
+      agentKind: "opencode",
+      config: { model: "muse-spark-1.3" },
+      prompt: "怎么做番茄炒蛋",
+      presentationMode: "gui",
+    });
+
+    expect(mocks.appState.createThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "muse",
+        config: expect.objectContaining({
+          model: "muse-spark-1.3",
+          sourceProviderKind: "opencode",
+        }),
+        presentationMode: "gui",
+      }),
+    );
   });
 });
 

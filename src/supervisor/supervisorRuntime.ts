@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
   AgentKind,
   CaptureExperimentSnapshotPayload,
@@ -41,6 +42,7 @@ import type {
   GrokProfileLoginResult,
   KimiProfileCreatePayload,
   KimiProfileImportPayload,
+  KimiProfileApiKeyPayload,
   KimiProfileLoginPayload,
   KimiProfileLoginResult,
   GrokProfileCompletePayload,
@@ -108,7 +110,14 @@ import {
   type AgentAdapter,
   type AgentNativePlugin,
 } from "./agents/base";
-import { resolveCompatibilityBridgeBinary } from "./runtime/compatibilityBridge/binaryResolution";
+import {
+  isCompatibilityBridgeStartable,
+  resolveCompatibilityBridgeBinary,
+} from "./runtime/compatibilityBridge/binaryResolution";
+import {
+  compatibilityBridgeUserToolsDir,
+  installCliProxyApiBinary,
+} from "./runtime/compatibilityBridge/install";
 import { setWslAttachmentBridgeClient } from "./runtime/threadAttachments";
 import { FileIndexService } from "./fileIndex";
 import { GitService, resolveBuiltInWorktreeRoot, type CapturedExperimentSnapshot } from "./git";
@@ -348,18 +357,17 @@ export class SupervisorRuntime {
   }
 
   /**
-   * Production Compatibility adapter: real CLIProxyAPI sidecar from
-   * CLIPROXY_BINARY_PATH plus a session-scoped account credential namespace
-   * (the account's credential root becomes the bridge auth-dir). Undefined
-   * when the sidecar is not configured so the route stays honestly
-   * RUNTIME_UNAVAILABLE instead of pretending readiness.
+   * Production Compatibility adapter: the long-lived CLIProxyAPI singleton
+   * (env → PATH → bundled `.tools/cpa` → portable extra dirs) plus a
+   * session-scoped account credential namespace. Undefined when no sidecar
+   * binary exists so the route stays honestly RUNTIME_UNAVAILABLE.
    */
   private async createDefaultCompatibilityRuntimeAdapter(
     harnessKind: string,
     accountId: string | undefined,
   ): Promise<import("@/shared/crafting").HarnessRuntimeAdapter | undefined> {
-    const binaryPath = process.env.CLIPROXY_BINARY_PATH;
-    if (!binaryPath) return undefined;
+    const resolution = this.resolveCompatibilityBridgeBinaryForHost();
+    if (!resolution.binaryPath) return undefined;
     let accountPin: { accountId: string; credentialNamespace: string; authDir: string } | undefined;
     if (accountId) {
       const record = this.accountStore.getRecord(accountId);
@@ -371,13 +379,52 @@ export class SupervisorRuntime {
         };
       }
     }
-    const bridge = new CompatibilityBridgeService({
-      binaryPath,
-      ...(accountPin ? { authDir: accountPin.authDir } : {}),
-    });
+    const service = this.compatibilityBridgeService;
+    if (!service.getStatus().running) {
+      service.configure({
+        binaryPath: resolution.binaryPath,
+        ...(accountPin ? { authDir: accountPin.authDir } : {}),
+      });
+    }
     return new CompatibilityRuntimeAdapter(harnessKind, {
-      bridge,
+      bridge: service,
       ...(accountPin ? { accountPin } : {}),
+    });
+  }
+
+  private resolveCompatibilityBridgeBinaryForHost(options?: {
+    cwd?: string;
+    existsSync?: (path: string) => boolean;
+    resolveOnPath?: (command: string) => string | undefined;
+  }) {
+    const goPath = process.env.GOPATH?.trim();
+    const extraSearchDirs = [
+      compatibilityBridgeUserToolsDir(this.baseDir),
+      typeof process.resourcesPath === "string" && process.resourcesPath
+        ? join(process.resourcesPath, "cpa")
+        : "",
+      join(dirname(process.execPath), ".tools", "cpa"),
+      join(homedir(), "go", "bin"),
+      goPath ? join(goPath, "bin") : "",
+    ].filter((dir) => dir.length > 0);
+    return resolveCompatibilityBridgeBinary({
+      envBinaryPath: process.env.CLIPROXY_BINARY_PATH,
+      platform: process.platform,
+      cwd: options?.cwd ?? process.cwd(),
+      existsSync: options?.existsSync ?? existsSync,
+      resolveOnPath: options?.resolveOnPath ?? ((command) => resolveExecutablePath(command)),
+      extraSearchDirs,
+    });
+  }
+
+  private isCompatibilityBridgeStartableForHost(options?: {
+    cwd?: string;
+    existsSync?: (path: string) => boolean;
+    resolveOnPath?: (command: string) => string | undefined;
+  }): boolean {
+    return isCompatibilityBridgeStartable({
+      running: this.compatibilityBridgeService.getStatus().running,
+      binaryPath: this.resolveCompatibilityBridgeBinaryForHost(options).binaryPath,
     });
   }
 
@@ -1265,7 +1312,13 @@ export class SupervisorRuntime {
         "A Runtime switch is queued; the next Prompt cannot race the source Segment.",
       );
     }
-    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+    // Follow-up prompts must keep talking even when the renderer dropped the
+    // execution envelope (reload, missed session-switch-state). Bind to the
+    // live session's current Segment; a stale caller envelope still fails.
+    const execution =
+      payload.execution ??
+      this.sessionHandoffCoordinator.executionEnvelope(payload.threadId, session);
+    this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, execution);
     await session.sendPrompt(payload.prompt);
   }
 
@@ -1457,6 +1510,12 @@ export class SupervisorRuntime {
 
   importKimiProfile(payload: KimiProfileImportPayload): AccountView {
     const account = this.kimiProfileService.importCredential(payload);
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
+  importKimiApiKey(payload: KimiProfileApiKeyPayload): AccountView {
+    const account = this.kimiProfileService.importApiKey(payload);
     this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     return account;
   }
@@ -1858,7 +1917,9 @@ export class SupervisorRuntime {
           (descriptor) => descriptor.harnessKind === payload.harnessKind,
         )
       : Object.values(NATIVE_HARNESS_DESCRIPTORS);
-    const statuses = (await this.agentStatusService.getAgentStatuses({ wslDistros: [] })).windows;
+    const wslDistros = await this.agentStatusService.listWslDistros();
+    const { windows, wsl } = await this.agentStatusService.getAgentStatuses({ wslDistros });
+    const statuses = [...windows, ...wsl];
     // An empty account record is only a pending profile shell. Do not expose
     // it as an authenticated/configured profile until a provider credential
     // or a successful provider-specific status has been recorded.
@@ -1988,9 +2049,7 @@ export class SupervisorRuntime {
         },
         harnessRef,
         harnessReady: false,
-        // Real chain: consult the bridge service instead of a hardcoded
-        // constant. A non-running bridge still fails closed below.
-        compatibilityBridgeReady: this.compatibilityBridgeService.getStatus().running,
+        compatibilityBridgeReady: this.isCompatibilityBridgeStartableForHost(),
       });
     }
 
@@ -2009,10 +2068,9 @@ export class SupervisorRuntime {
       harnessRef,
       harnessReady: harnessRef?.status === "ready",
       openCodeRouteReady,
-      // Resolution is a read-only query and never starts a sidecar: the
-      // service's own `running` state is the readiness signal. Until the
-      // bridge is actually running, compatibility remains unavailable.
-      compatibilityBridgeReady: this.compatibilityBridgeService.getStatus().running,
+      // Idle sidecar is startable: spawn starts it. Only a missing binary
+      // fail-closes the compatibility route.
+      compatibilityBridgeReady: this.isCompatibilityBridgeStartableForHost(),
     });
     return result;
   }
@@ -2020,8 +2078,11 @@ export class SupervisorRuntime {
   /** Safe Compatibility Bridge projection for the Components inventory. */
   getCompatibilityBridgeStatus(): CompatibilityBridgeStatusView {
     const status = this.compatibilityBridgeService.getStatus();
+    const installed =
+      status.running || Boolean(this.resolveCompatibilityBridgeBinaryForHost().binaryPath);
     return compatibilityBridgeStatusSchema.parse({
       running: status.running,
+      installed,
       ...(status.endpoint ? { endpoint: status.endpoint } : {}),
       ...(status.pid !== undefined ? { pid: status.pid } : {}),
     });
@@ -2042,18 +2103,11 @@ export class SupervisorRuntime {
   }): Promise<CompatibilityBridgeStatusView> {
     const service = this.compatibilityBridgeService;
     if (service.getStatus().running) return this.getCompatibilityBridgeStatus();
-    const resolution = resolveCompatibilityBridgeBinary({
-      envBinaryPath: process.env.CLIPROXY_BINARY_PATH,
-      platform: process.platform,
-      cwd: options?.cwd ?? process.cwd(),
-      existsSync: options?.existsSync ?? existsSync,
-      resolveOnPath: options?.resolveOnPath ?? ((command) => resolveExecutablePath(command)),
-    });
+    const resolution = this.resolveCompatibilityBridgeBinaryForHost(options);
     if (!resolution.binaryPath) {
       throw new Error(
         `CLIProxyAPI sidecar binary not found. Searched: ${resolution.searched.join(" · ")}. ` +
-          `Download an official CLIProxyAPI release (router-for-me/CLIProxyAPI) and place '${resolution.fileNames[0] ?? "cli-proxy-api"}' in '${resolution.bundledDir}', ` +
-          `or point CLIPROXY_BINARY_PATH at the executable, then retry.`,
+          `Click 安装 in the 组件 column, or run 合成 to download the official release.`,
       );
     }
     service.configure({ binaryPath: resolution.binaryPath });
@@ -2072,6 +2126,28 @@ export class SupervisorRuntime {
   async stopCompatibilityBridge(): Promise<CompatibilityBridgeStatusView> {
     await this.compatibilityBridgeService.stop();
     return this.getCompatibilityBridgeStatus();
+  }
+
+  async installCompatibilityBridge(): Promise<CompatibilityBridgeStatusView> {
+    const destDir = compatibilityBridgeUserToolsDir(this.baseDir);
+    mkdirSync(destDir, { recursive: true });
+    await installCliProxyApiBinary({ destDir });
+    return this.getCompatibilityBridgeStatus();
+  }
+
+  async ensureCompatibilityBridge(): Promise<CompatibilityBridgeStatusView> {
+    if (this.compatibilityBridgeService.getStatus().running) {
+      return this.getCompatibilityBridgeStatus();
+    }
+    let resolution = this.resolveCompatibilityBridgeBinaryForHost();
+    if (!resolution.binaryPath) {
+      await this.installCompatibilityBridge();
+      resolution = this.resolveCompatibilityBridgeBinaryForHost();
+    }
+    if (!resolution.binaryPath) {
+      throw new Error("CLIProxyAPI 安装完成但仍找不到可执行文件，请重试或检查网络。");
+    }
+    return this.startCompatibilityBridge();
   }
 
   async craftAgent(payload: CraftAgentPayload): Promise<CraftAgentResult> {
@@ -3173,7 +3249,7 @@ export class SupervisorRuntime {
    */
   private handleKimiNativePromptError(accountId: string, error: unknown): void {
     if (!isKimiPoolQuotaError(error)) return;
-    const message = error instanceof Error ? error.message : String(error ?? "");
+    const message = "Kimi 额度已耗尽";
     try {
       this.accountStore.updateStatus(accountId, "quota-exhausted", {
         lastError: message,

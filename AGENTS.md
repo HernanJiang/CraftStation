@@ -69,6 +69,8 @@ D:\Work\CraftStation\              # Product Git Root；main 源码、测试、�
 - `Session` 是 Agent Entity 的连续工作过程，不等同于单条消息或单次模型请求。
 - `auto` 是 Slot 的 deterministic resolution mode，不是 Item 或 Router。
 
+对话默认路径是 Auto：按模型族选择 Harness（Muse Spark / Meta → Muse Code，DeepSeek → dsh）。用户在合成台指定或合成的结果是 Recipe。对用户与文档只称 Auto 与 Recipe；实现层可保留 `efficient` / `creative` 作为合成台入口 id。
+
 ## Product and Architecture Boundaries
 
 - v0.1.0 的原生链路为 `OpenAI Model Item + Codex Harness Item -> Recipe -> Crafter -> Result Item -> CraftPlan -> Entity -> Session`。
@@ -150,6 +152,7 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 - 便携版默认输出到 `D:\Work\CraftStation\release\`（`pnpm dist:win:portable` 的 `--output-dir` 即此目录，不再使用 `release-portable*` 系列目录）。
 - `release\` 下仅保留最新便携版 exe 和上一个版本稳定的便携版 exe 共两份备份；旧版本目录（`release-portable*`）、中间产物（`win-unpacked/`、`builder-debug.yml` 等）打包完成后即删除。
 - NSIS 安装包（`CraftStation-Setup-*.exe`）不属于便携版备份，不在此规则内，不得顺手删除。
+- 用户确认的 main 修复、缺陷与 hotfix 收口后，默认执行 `pnpm dist:win:portable` 打便携版；NSIS 安装包仅在用户明确要求时再打。
 
 ## Assistant Knowledge Capture
 

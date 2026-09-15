@@ -6,6 +6,7 @@ import type { AppStoreState } from "@/renderer/state/slices/shared";
 import {
   getThreadErrorDockStateForItem,
   isAuthErrorMessage,
+  resolveThreadAuthState,
   selectThreadErrorDockStates,
 } from "./threadErrorState";
 
@@ -33,6 +34,17 @@ describe("threadErrorState", () => {
   it("suppresses abort-only composer errors", () => {
     expect(getThreadErrorDockStateForItem(errorItem("err-1", "Aborted"))).toBeNull();
     expect(getThreadErrorDockStateForItem(errorItem("err-2", "AbortError: aborted"))).toBeNull();
+  });
+
+  it("suppresses Gemini capacity retries that later succeed", () => {
+    expect(
+      getThreadErrorDockStateForItem(
+        errorItem(
+          "err-503",
+          "API error (attempt 2) UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server",
+        ),
+      ),
+    ).toBeNull();
   });
 
   it("keeps non-abort composer errors", () => {
@@ -208,5 +220,72 @@ describe("isAuthErrorMessage", () => {
     "Claude turn failed.",
   ])("does not flag %q as an auth error", (msg) => {
     expect(isAuthErrorMessage(msg)).toBe(false);
+  });
+});
+
+describe("resolveThreadAuthState", () => {
+  it("requires official login when the harness has no credentials", () => {
+    expect(
+      resolveThreadAuthState({
+        authState: "missing",
+        errorDockStates: [],
+      }).authRequired,
+    ).toBe(true);
+  });
+
+  it("does not require official login when a catalog remap supplied the credentials", () => {
+    expect(
+      resolveThreadAuthState({
+        authState: "missing",
+        errorDockStates: [],
+        sourceProviderKind: "opencode",
+      }).authRequired,
+    ).toBe(false);
+  });
+
+  it("does not require official login when a third-party OpenAI-compatible account is bound", () => {
+    expect(
+      resolveThreadAuthState({
+        authState: "missing",
+        errorDockStates: [],
+        accountId: "openai-compatible:acct-1",
+      }).authRequired,
+    ).toBe(false);
+  });
+
+  it("does not demand official login when the model id names a foreign catalog channel", () => {
+    // Regression: an `opencode-go/…` model on the `muse` Harness with no
+    // recorded sourceProviderKind served fine through its catalog channel,
+    // but the composer still demanded `muse login` and blocked submit.
+    expect(
+      resolveThreadAuthState({
+        authState: "missing",
+        errorDockStates: [],
+        agentKind: "muse",
+        model: "opencode-go/muse-spark-1.3-contributor",
+      }).authRequired,
+    ).toBe(false);
+  });
+
+  it("still demands official login for a bare native model id on its own Harness", () => {
+    expect(
+      resolveThreadAuthState({
+        authState: "missing",
+        errorDockStates: [],
+        agentKind: "muse",
+        model: "muse-spark-1.2",
+      }).authRequired,
+    ).toBe(true);
+  });
+
+  it("still demands official login when the model channel matches the Harness", () => {
+    expect(
+      resolveThreadAuthState({
+        authState: "missing",
+        errorDockStates: [],
+        agentKind: "opencode",
+        model: "opencode/big-pickle",
+      }).authRequired,
+    ).toBe(true);
   });
 });

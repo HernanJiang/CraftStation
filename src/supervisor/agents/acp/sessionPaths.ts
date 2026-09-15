@@ -27,6 +27,17 @@ const ACP_SKILL_READ_DIRS = [
   ".cursor/commands",
 ] as const;
 
+/**
+ * Chat composer attachments live under `~/.craftstation/attachments`
+ * (and the nightly sibling). Agents must be able to read a screenshot the
+ * user dropped into the thread; write stays denied so session state cannot
+ * mutate the attachment store.
+ */
+const ACP_ATTACHMENT_READ_DIRS = [
+  ".craftstation/attachments",
+  ".craftstation-nightly/attachments",
+] as const;
+
 /** CWD to pass into the ACP session (the agent's working directory). */
 export function resolveSessionCwd(location: ProjectLocation): string {
   switch (location.kind) {
@@ -128,6 +139,7 @@ export function resolveAcpReadableHostFsPath(
   if (
     !isAcpHomeScopeLocation(location) &&
     !isAgentSkillReadPath(location, normalizedPath) &&
+    !isAgentAttachmentReadPath(location, normalizedPath) &&
     !isAgentHomeDirPath(location, normalizedPath, agentHomeDirs)
   ) {
     throw RequestError.invalidParams({ message: `Path is outside the project: ${rawPath}` });
@@ -270,6 +282,12 @@ export function sliceTextFileContent(
 
 function isAgentSkillReadPath(location: ProjectLocation, absolutePath: string): boolean {
   return ACP_SKILL_READ_DIRS.some((dir) => isUserHomeRelativePath(location, absolutePath, dir));
+}
+
+function isAgentAttachmentReadPath(location: ProjectLocation, absolutePath: string): boolean {
+  return ACP_ATTACHMENT_READ_DIRS.some((dir) =>
+    isUserHomeRelativePath(location, absolutePath, dir),
+  );
 }
 
 function userHomePrefix(location: ProjectLocation): string | undefined {

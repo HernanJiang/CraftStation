@@ -127,6 +127,7 @@ export class PiRpcSession implements StructuredSessionHandle {
   /** Latest visible extension status item for each Pi plugin-defined status key. */
   private readonly extensionStatusItemIds = new Map<string, string>();
   private turnErrorMessage: string | undefined;
+  private compactionItemId: string | undefined;
   private currentConfig: ThreadConfig;
   /** Pi assigns its session id asynchronously; do not publish a placeholder. */
   private sessionRef: ReturnType<typeof createKnownSessionRef> | undefined;
@@ -385,10 +386,38 @@ export class PiRpcSession implements StructuredSessionHandle {
         break;
       case "agent_start":
         break;
-      case "compaction_start":
+      case "compaction_start": {
+        const itemId = this.nextItemId("compact");
+        this.compactionItemId = itemId;
+        this.emit({
+          type: "item.started",
+          threadId: this.input.threadId,
+          itemId,
+          itemType: "tool_call",
+          payload: { name: "ContextCompaction", status: "running" },
+        });
         this.publishUpdate("working", "none");
         break;
-      case "compaction_end":
+      }
+      case "compaction_end": {
+        const existingId = this.compactionItemId;
+        this.compactionItemId = undefined;
+        const itemId = existingId ?? this.nextItemId("compact");
+        if (!existingId) {
+          this.emit({
+            type: "item.started",
+            threadId: this.input.threadId,
+            itemId,
+            itemType: "tool_call",
+            payload: { name: "ContextCompaction", status: "running" },
+          });
+        }
+        this.emit({
+          type: "item.completed",
+          threadId: this.input.threadId,
+          itemId,
+          payload: { name: "ContextCompaction", status: "success" },
+        });
         if (typeof event.errorMessage === "string" && event.errorMessage) {
           this.emit({
             type: "warning",
@@ -397,6 +426,7 @@ export class PiRpcSession implements StructuredSessionHandle {
           });
         }
         break;
+      }
       case "auto_retry_start":
         if (typeof event.errorMessage === "string") {
           this.emit({

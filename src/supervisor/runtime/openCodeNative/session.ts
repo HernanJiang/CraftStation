@@ -635,6 +635,7 @@ export class OpenCodeNativeSession implements CraftSession {
     }
     if (!mapped.event) return;
     this.emit(mapped.event);
+    for (const extra of mapped.followUp ?? []) this.emit(extra);
 
     if (mapped.event.type === "content.delta") {
       this.responseParts.push(mapped.event.delta);

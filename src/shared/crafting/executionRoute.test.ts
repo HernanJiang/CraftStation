@@ -72,7 +72,6 @@ describe("ExecutionRouteResolver", () => {
     ["openai"],
     ["xai"],
     ["google"],
-    ["deepseek"],
     ["moonshot"],
     ["moonshot-openai-compatible"],
   ])("resolves canonical vendor %s on OpenCode to native", (providerKind) => {
@@ -85,9 +84,84 @@ describe("ExecutionRouteResolver", () => {
     expect(decision.routeType).toBe("native");
   });
 
+  it("keeps OpenCode catalog models on the official OpenCode runtime", () => {
+    const decision = resolveExecutionRoute({
+      modelEntry: { ...openaiModel, providerKind: "opencode", modelId: "opencode-go/muse-spark-1.3-contributor" },
+      harnessRef: opencodeHarness,
+      harnessReady: true,
+      openCodeRouteReady: true,
+    });
+    expect(decision.routeType).toBe("native");
+  });
+
+  it("runs Antigravity-catalog Gemini on OpenCode natively without the compatibility bridge", () => {
+    const decision = resolveExecutionRoute({
+      modelEntry: {
+        ...openaiModel,
+        providerKind: "antigravity",
+        modelId: "gemini-3.8-flash",
+        entryId: "agent:antigravity:gemini-3.8-flash",
+      },
+      harnessRef: opencodeHarness,
+      harnessReady: true,
+      openCodeRouteReady: true,
+      compatibilityBridgeReady: false,
+    });
+    expect(decision.routeType).toBe("native");
+    expect(decision.isNative).toBe(true);
+    expect(decision.isCompatibility).toBe(false);
+  });
+
+  it("launches a third-party OpenAI-compatible account directly on OpenCode", () => {
+    const decision = resolveExecutionRoute({
+      modelEntry: {
+        ...openaiModel,
+        source: "custom",
+        providerKind: "opencode",
+        modelId: "glm-5.3-flash",
+        accountId: "openai-compatible:ark",
+      },
+      harnessRef: opencodeHarness,
+      harnessReady: true,
+      openCodeRouteReady: true,
+      compatibilityBridgeReady: false,
+    });
+    expect(decision.routeType).toBe("native");
+    expect(decision.reason).toMatch(/Third-party/i);
+  });
+
+  it("fails closed when a third-party account targets Antigravity", () => {
+    const decision = resolveExecutionRoute({
+      modelEntry: {
+        ...openaiModel,
+        source: "custom",
+        providerKind: "codex",
+        modelId: "gpt-5.6-sol",
+        accountId: "openai-compatible:chiral",
+      },
+      harnessRef: {
+        harnessItemId: "harness:antigravity",
+        harnessKind: "antigravity",
+        descriptorId: "desc-antigravity",
+        vendor: "google",
+        displayName: "Antigravity",
+        official: true,
+        status: "ready",
+      },
+      harnessReady: true,
+    });
+    expect(decision.routeType).toBe("fail-closed");
+    expect(decision.reason).toMatch(/third-party/i);
+  });
+
   it("fails closed for a vendor with no verified OpenCode native route", () => {
     const decision = resolveExecutionRoute({
-      modelEntry: { ...openaiModel, providerKind: "qwen" },
+      modelEntry: {
+        ...openaiModel,
+        providerKind: "qwen",
+        modelId: "qwen3.8-flash",
+        entryId: "agent:qwen:qwen3.8-flash",
+      },
       harnessRef: opencodeHarness,
       harnessReady: true,
       openCodeRouteReady: true,

@@ -123,6 +123,9 @@ importers:
       '@monaco-editor/react':
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@muse-code/sdk':
+        specifier: ^0.1.1
+        version: 0.1.1
       '@number-flow/react':
         specifier: ^0.6.2
         version: 0.6.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -1504,6 +1507,10 @@ packages:
       monaco-editor: '>= 0.25.0 < 1'
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@muse-code/sdk@0.1.1':
+    resolution: {integrity: sha512-kis3zolvwlExDeX9F1f3KVSSdCWTgF2TdbGcMJIb0HGkQNrX+qTmel6U9sC9ylHtFizxqOZ/yxGv1cvbcRywiQ==}
+    engines: {node: '>=20'}
 
   '@napi-rs/wasm-runtime@1.1.6':
     resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==}
@@ -8873,6 +8880,8 @@ snapshots:
       monaco-editor: 0.55.1
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
+
+  '@muse-code/sdk@0.1.1': {}
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)':
     dependencies:

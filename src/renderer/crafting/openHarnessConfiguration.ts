@@ -11,6 +11,7 @@ const NATIVE_AGENT_SETTINGS_KINDS = new Set([
   "kimi",
   "antigravity",
   "opencode",
+  "muse",
 ]);
 
 export type HarnessConfigurationTarget =

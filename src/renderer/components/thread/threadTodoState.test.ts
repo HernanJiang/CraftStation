@@ -241,6 +241,69 @@ describe("threadTodoState", () => {
     expect(selectThreadTodoDockState(state, "t1")).toBeNull();
   });
 
+  it("retires the dock when the latest plan item was closed without every step completed", () => {
+    // Harnesses frequently end the turn while the todo list still shows
+    // pending/in_progress steps (Meta via Muse MSP is the reported case). The
+    // closed plan item must not keep a stale "Step x/y" in the capsule.
+    const state = {
+      runtimeItemIdsByThread: { t1: ["plan-1"] },
+      runtimeItemsByIdByThread: {
+        t1: {
+          "plan-1": {
+            id: "plan-1",
+            type: "plan",
+            state: "completed",
+            payload: {
+              steps: [
+                { step: "Step one", status: "completed" },
+                { step: "Step two", status: "pending" },
+              ],
+            },
+            streams: {},
+          },
+        },
+      },
+    } as unknown as AppStoreState;
+
+    expect(selectThreadTodoDockState(state, "t1")).toBeNull();
+  });
+
+  it("keeps docking a plan item that is still open across follow-up turns", () => {
+    const state = {
+      runtimeItemIdsByThread: { t1: ["plan-1", "user-2"] },
+      runtimeItemsByIdByThread: {
+        t1: {
+          "plan-1": {
+            id: "plan-1",
+            type: "plan",
+            state: "updated",
+            payload: {
+              steps: [
+                { step: "Step one", status: "completed" },
+                { step: "Step two", status: "pending" },
+              ],
+            },
+            streams: {},
+          },
+          "user-2": {
+            id: "user-2",
+            type: "user_message",
+            state: "completed",
+            streams: { assistant_text: "Go!" },
+          },
+        },
+      },
+    } as unknown as AppStoreState;
+
+    expect(selectThreadTodoDockState(state, "t1")).toMatchObject({
+      sourceItemId: "plan-1",
+      steps: [
+        { text: "Step one", status: "completed" },
+        { text: "Step two", status: "pending" },
+      ],
+    });
+  });
+
   describe("areThreadTodoStepsEqual", () => {
     const s1: ThreadTodoDockState = {
       sourceItemId: "p1",

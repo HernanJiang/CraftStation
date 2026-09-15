@@ -60,6 +60,7 @@ import { areAgentSlashCommandsEqual } from "@/shared/contracts";
 import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { buildPromptContentBlocks } from "@/shared/promptContent";
 import { ensureThreadWorkspace } from "../../runtime/threadWorkspace";
+import { resolveNativeSpawnTarget } from "../../runtime/nativeHarness/nativeTransport";
 import {
   closeOpenTurnItems,
   createAcpMapperState,
@@ -106,6 +107,7 @@ export {
 };
 
 import { segmentsToContentBlocks } from "./sessionContentBlocks";
+import { isSkillCatalogOutboundTurn } from "@/shared/skillCatalogDump";
 import {
   filterAcpInboundNoise,
   filterAcpStdoutNonJsonLines,
@@ -213,6 +215,13 @@ export interface AcpStructuredSessionOptions {
   sessionUpdateTransform?: (notification: SessionNotification) => SessionNotification;
   /** Paint canonical state for this provider's `/goal` command family. */
   goalCommands?: boolean;
+  /**
+   * Fail-closed model binding (see `strictModelResolution` on
+   * `CreateStructuredSessionInput`): the session rejects a turn whose model
+   * cannot be bound to an advertised ACP option instead of continuing on the
+   * runtime default model.
+   */
+  strictModelResolution?: boolean;
   extensionSessionUpdateTransform?: import("../base/types").AcpExtensionSessionUpdateTransform;
   /** Vendor capability requests sent on ACP initialize. */
   initializeMeta?: Record<string, unknown>;
@@ -275,6 +284,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private readonly initializeMeta: Record<string, unknown> | undefined;
 
   private readonly goalCommands: boolean;
+  private readonly strictModelResolution: boolean;
 
   private extensionNotificationHandler?: import("../base/types").AcpExtensionNotificationHandler;
 
@@ -380,7 +390,9 @@ export class AcpStructuredSession implements StructuredSessionHandle {
 
   private get sessionConfigSync(): AcpSessionConfigSync {
     if (!this._sessionConfigSync) {
-      this._sessionConfigSync = new AcpSessionConfigSync(this.connection);
+      this._sessionConfigSync = new AcpSessionConfigSync(this.connection, {
+        strictModelResolution: this.strictModelResolution,
+      });
     }
     return this._sessionConfigSync;
   }
@@ -451,6 +463,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       this.sessionUpdateTransform = options.sessionUpdateTransform;
     }
     this.goalCommands = options?.goalCommands === true;
+    this.strictModelResolution = options?.strictModelResolution === true;
     if (options?.extensionSessionUpdateTransform) {
       this.extensionSessionUpdateTransform = options.extensionSessionUpdateTransform;
     }
@@ -558,7 +571,8 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     // WSL agents receive their cwd via the CLI argv (--cd), not the host spawn.
     const spawnCwd = projectLocation.kind === "wsl" ? undefined : sessionCwd;
 
-    const child = spawnChild(command.command, command.args, {
+    const spawnTarget = resolveNativeSpawnTarget(command.command, command.args);
+    const child = spawnChild(spawnTarget.command, spawnTarget.args, {
       ...(spawnCwd ? { cwd: spawnCwd } : {}),
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, TERM: "xterm-256color", ...(command.env ?? {}) },
@@ -979,22 +993,43 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     // per-id dedupe drops this duplicate emit.
     this.currentTurnId = `turn-${randomUUID()}`;
     const userItemId = options?.userMessageItemId ?? `user-${this.currentTurnId}`;
+    const promptContent = buildPromptContentBlocks(prompt, segments);
+    const isCatalogDump = isSkillCatalogOutboundTurn(prompt, promptContent);
     this.emitRuntimeEvents([
       { type: "turn.started", threadId: this.threadId, turnId: this.currentTurnId },
-      {
-        type: "item.started",
-        threadId: this.threadId,
-        itemId: userItemId,
-        itemType: "user_message",
-        payload: {
-          content: buildPromptContentBlocks(prompt, segments),
-        },
-      },
-      { type: "item.completed", threadId: this.threadId, itemId: userItemId },
+      ...(isCatalogDump
+        ? []
+        : [
+            {
+              type: "item.started" as const,
+              threadId: this.threadId,
+              itemId: userItemId,
+              itemType: "user_message" as const,
+              payload: {
+                content: promptContent,
+              },
+            },
+            { type: "item.completed" as const, threadId: this.threadId, itemId: userItemId },
+          ]),
     ]);
     if (this.goalCommands) {
       const goalEvents = mapAcpGoalSlashCommand(prompt, this.ensureMapperState());
       if (goalEvents.length > 0) this.emitRuntimeEvents(goalEvents);
+    }
+
+    if (isCatalogDump) {
+      this.foregroundTurnOpen = false;
+      this.emitRuntimeEvents([
+        {
+          type: "turn.completed",
+          threadId: this.threadId,
+          turnId: this.currentTurnId,
+          state: "cancelled",
+        },
+      ]);
+      this.currentTurnId = undefined;
+      this.emitListenerUpdate({ status: "idle", attention: "none" });
+      return;
     }
 
     // Signal working state immediately

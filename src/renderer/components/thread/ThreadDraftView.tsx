@@ -34,11 +34,11 @@ import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { recordCraftModeUse } from "@/renderer/state/usageRecorder";
-import { applyAutoMuseHarnessLaunch } from "@/shared/harnessCompatibility";
 import {
   applyThirdPartyPickerSelection,
   resolveThirdPartyHarnessForModel,
 } from "@/shared/thirdPartyRouting";
+import { getLaunchableAgentStatuses } from "@/shared/agentStatus";
 import {
   isConfiguredComposerAgent,
   resolveConfiguredProviderIds,
@@ -247,14 +247,19 @@ export function ThreadDraftView(props: {
       agentStatuses.filter((status) => status.installed && !disabledAgents.includes(status.kind)),
     [agentStatuses, disabledAgents],
   );
-  const preferredAgentKind = resolvePreferredAgentKind(installedAgents, lastDraftConfig);
+  const pickerInstalledAgents = useMemo(
+    () => installedAgents.filter((agent) => !isComposerPickerExcludedAgent(agent.kind)),
+    [installedAgents],
+  );
+  const preferredAgentKind = resolvePreferredAgentKind(pickerInstalledAgents, lastDraftConfig);
   const [agentKind, setAgentKind] = useState<AgentStatus["kind"] | undefined>(preferredAgentKind);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
-  const effectiveAgentKind = installedAgents.some((status) => status.kind === agentKind)
+  const effectiveAgentKind = pickerInstalledAgents.some((status) => status.kind === agentKind)
     ? agentKind
     : preferredAgentKind;
   const selectedAgent =
-    installedAgents.find((status) => status.kind === effectiveAgentKind) ?? installedAgents[0];
+    pickerInstalledAgents.find((status) => status.kind === effectiveAgentKind) ??
+    pickerInstalledAgents[0];
   const [model, setModel] = useState("");
   // Effort is absent (never "") when the model offers no tiers: every writer
   // normalizes through resolveEffortValue, and argv guards omit it.
@@ -322,15 +327,18 @@ export function ThreadDraftView(props: {
     }
     // 「管理模型」页的自定义模型在 presentation 解析之后合并，避免被
     // presentationCapabilities 覆盖掉 models/contextSizes。
+    const merged = mergeCustomModelsIntoCapabilities(
+      presentationAgent.kind,
+      presentationAgent.capabilities,
+      customModels,
+    );
+    // 合成台配方可以把不在该 Harness 原生目录里的模型挂上来（OpenCode · Gemini）。
+    // 不注入的话后续 resolveModelValue 会把选择打回 models[0]（例如 Muse Spark）。
     return {
       ...presentationAgent,
-      capabilities: mergeCustomModelsIntoCapabilities(
-        presentationAgent.kind,
-        presentationAgent.capabilities,
-        customModels,
-      ),
+      capabilities: withPreferredModel(merged, model),
     };
-  }, [selectedAgent, presentationMode, customModels, selectedAccountId]);
+  }, [selectedAgent, presentationMode, customModels, selectedAccountId, model]);
   const previousPresentationAgentKindRef = useRef<AgentStatus["kind"] | undefined>(
     selectedAgent?.kind,
   );
@@ -539,6 +547,10 @@ export function ThreadDraftView(props: {
       return;
     }
     if (!model) {
+      return;
+    }
+    if (useCraftingWorkbenchStore.getState().pendingRecipeIntent) {
+      // Recipe models may be absent from the native catalog; do not snap to models[0].
       return;
     }
 
@@ -878,8 +890,8 @@ export function ThreadDraftView(props: {
       const modes = agent.capabilities.presentationModes ?? [agent.capabilities.presentationMode];
       return modes.includes("gui");
     };
-    // DeepSeek 原生 Harness 只活在合成台（见 useManagedComposerProviders）：
-    // 同名模型在 Command Code / OpenCode 渠道已有稳定入口。
+    // DeepSeek 原生 Harness 只活在合成台。Auto 目录走 Command Code 等渠道，
+    // 启动时再 remap 到 dsh，避免官方模型行抢走渠道行的选中态。
     const pickerAgents = installedAgents.filter(
       (agent) => !isComposerPickerExcludedAgent(agent.kind),
     );
@@ -1096,14 +1108,10 @@ export function ThreadDraftView(props: {
   latestProviderModelChangeRef.current = (picked) => {
     if (!selectedAgent || !selectedAgentForConfig) return;
     hasLocalConfigEditRef.current = true;
-    const remapped = applyThirdPartyPickerSelection(
-      picked,
-      installedAgents.map((agent) => agent.kind),
-    );
-    const nextKind = remapped.agentKind;
-    const nextModel = remapped.model;
-    const nextAccountId = remapped.accountId;
-    const targetPresentationMode = remapped.presentationMode ?? presentationMode;
+    const nextKind = picked.agentKind;
+    const nextModel = picked.model;
+    const nextAccountId = picked.accountId;
+    const targetPresentationMode = picked.presentationMode ?? presentationMode;
     setSelectedAccountId(nextAccountId);
     if (nextAccountId) useUsageAccountsStore.getState().setNextSessionAccount(nextAccountId);
     else useUsageAccountsStore.getState().clearNextSessionAccount();
@@ -1111,14 +1119,12 @@ export function ThreadDraftView(props: {
       setPresentationMode(targetPresentationMode);
     }
     if (nextKind !== selectedAgent.kind) {
-      const targetAgent =
-        installedAgents.find((agent) => agent.kind === nextKind) ??
-        installedAgents.find((agent) => agent.kind === "opencode") ??
-        installedAgents.find((agent) => agent.kind === "codex");
+      // Never silently substitute OpenCode/Codex for a remapped native
+      // Harness. If Muse/DeepSeek is not launchable here, keep the current
+      // pick so the UI continues to name the process that would actually run.
+      const targetAgent = installedAgents.find((agent) => agent.kind === nextKind);
       if (!targetAgent) return;
-      const actualKind = installedAgents.some((agent) => agent.kind === nextKind)
-        ? nextKind
-        : targetAgent.kind;
+      const actualKind = nextKind;
       const targetSurface =
         providerModelProviders.find(
           (provider) =>
@@ -1135,7 +1141,7 @@ export function ThreadDraftView(props: {
       const surfaceCaps = withPreferredModel(
         targetSurface?.capabilities ??
           agentWithCapabilities(targetAgent, targetPresentationMode).capabilities,
-        nextAccountId ? nextModel : undefined,
+        nextModel,
       );
       const targetAgentForConfig = {
         ...agentWithCapabilities(targetAgent, targetPresentationMode),
@@ -1206,7 +1212,7 @@ export function ThreadDraftView(props: {
             (provider) => provider.kind === nextKind && provider.accountId === nextAccountId,
           )?.capabilities ??
           selectedAgentForConfig.capabilities,
-        nextAccountId ? nextModel : undefined,
+        nextModel,
       );
       const modelPreference = resolveProviderModelPreference(
         effectiveAgentKind as AgentStatus["kind"],
@@ -1425,18 +1431,50 @@ export function ThreadDraftView(props: {
   // once, feeding the usage-stats mode breakdown (auto / efficient / creative).
   const handleStartWithMode = (input: DraftStartInput) => {
     recordCraftModeUse(craftMode, effectiveAgentKind ?? null, model || null);
-    const museInstalled = installedAgents.some((status) => status.kind === "muse");
-    const remapped = applyAutoMuseHarnessLaunch(
-      { agentKind: input.agentKind, model: input.config.model },
-      museInstalled,
+    const withAccount: DraftStartInput = {
+      ...input,
+      ...(selectedAccountId ? { accountId: selectedAccountId } : { accountId: undefined }),
+    };
+    // 合成台配方是显式 Harness · 模型组合，禁止 Auto 按模型名改绑到别的 Harness。
+    if (craftMode !== "auto" || useCraftingWorkbenchStore.getState().pendingRecipeIntent) {
+      return onStart(withAccount);
+    }
+    const remapped = applyThirdPartyPickerSelection(
+      {
+        agentKind: withAccount.agentKind,
+        model: withAccount.config.model,
+        ...(withAccount.presentationMode ? { presentationMode: withAccount.presentationMode } : {}),
+        ...(selectedAccountId ? { accountId: selectedAccountId } : {}),
+      },
+      getLaunchableAgentStatuses(
+        project.location,
+        agentStatuses,
+        useAgentStatusesStore.getState().wslAgentStatuses,
+      )
+        .filter((status) => status.installed)
+        .map((status) => status.kind),
     );
-    if (remapped.agentKind === input.agentKind && remapped.model === input.config.model) {
-      return onStart(input);
+    const sourceProviderKind =
+      remapped.agentKind !== withAccount.agentKind
+        ? withAccount.agentKind
+        : withAccount.config.sourceProviderKind;
+    if (
+      remapped.agentKind === withAccount.agentKind &&
+      remapped.model === withAccount.config.model &&
+      (remapped.presentationMode ?? withAccount.presentationMode) === withAccount.presentationMode &&
+      sourceProviderKind === withAccount.config.sourceProviderKind
+    ) {
+      return onStart(withAccount);
     }
     return onStart({
-      ...input,
-      agentKind: remapped.agentKind,
-      config: { ...input.config, model: remapped.model },
+      ...withAccount,
+      agentKind: remapped.agentKind as AgentStatus["kind"],
+      ...(remapped.presentationMode ? { presentationMode: remapped.presentationMode } : {}),
+      config: {
+        ...withAccount.config,
+        model: remapped.model,
+        ...(sourceProviderKind ? { sourceProviderKind } : {}),
+      },
     });
   };
 
@@ -1536,6 +1574,7 @@ export function ThreadDraftView(props: {
                 : {})}
               selectedAgent={selectedAgentForConfig ?? selectedAgent}
               controls={draftControls}
+              {...(selectedAccountId ? { accountId: selectedAccountId } : {})}
               config={{
                 model,
                 ...(effort ? { effort } : {}),
@@ -1588,6 +1627,7 @@ export function ThreadDraftView(props: {
                   : {})}
                 selectedAgent={selectedAgentForConfig ?? selectedAgent}
                 controls={draftControls}
+                {...(selectedAccountId ? { accountId: selectedAccountId } : {})}
                 config={{
                   model,
                   ...(effort ? { effort } : {}),

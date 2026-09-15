@@ -12,6 +12,55 @@ function notification(sessionId: string, update: Record<string, unknown>): Sessi
 }
 
 describe("createGrokAcpSessionUpdateTransform", () => {
+  it("lifts envelope _meta.totalTokens onto stream chunks as occupancy", () => {
+    const transform = createGrokAcpSessionUpdateTransform();
+    const state = createAcpMapperState("thread-1");
+    const events = mapAcpSessionUpdate(
+      transform({
+        sessionId: PARENT_SESSION_ID,
+        update: {
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "text", text: "thinking" },
+        },
+        _meta: { totalTokens: 88_000, context_window: 500_000 },
+      } as unknown as SessionNotification),
+      state,
+    );
+    expect(events).toEqual(
+      expect.arrayContaining([
+        {
+          type: "context.updated",
+          threadId: "thread-1",
+          usage: { usedTokens: 88_000, maxTokens: 500_000 },
+        },
+      ]),
+    );
+  });
+
+  it("forwards Grok occupancy snapshots into the context bar", () => {
+    const transform = createGrokAcpSessionUpdateTransform();
+    const state = createAcpMapperState("thread-1");
+    const events = mapAcpSessionUpdate(
+      transform(
+        notification(PARENT_SESSION_ID, {
+          sessionUpdate: "auto_compact_started",
+          tokens_used: 402_603,
+          context_window: 500_000,
+          percentage: 81,
+          reason: "Context window 81% full",
+        }),
+      ),
+      state,
+    );
+    expect(events).toEqual([
+      {
+        type: "context.updated",
+        threadId: "thread-1",
+        usage: { usedTokens: 402_603, maxTokens: 500_000 },
+      },
+    ]);
+  });
+
   it("maps Grok goal extension updates into the canonical goal lifecycle", () => {
     const transform = createGrokAcpSessionUpdateTransform();
     const state = createAcpMapperState("thread-1");

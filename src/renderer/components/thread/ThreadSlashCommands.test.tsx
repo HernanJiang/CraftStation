@@ -1023,6 +1023,80 @@ describe("ThreadSlashCommands", () => {
     expect(editor.textContent).toBe("/review ");
   });
 
+  it("does not require official muse login when a third-party API account is selected", async () => {
+    const onStart = vi.fn<(input: unknown) => void>();
+    await act(async () => {
+      render(
+        <AppProvider>
+          <ThreadDraftComposerArea
+            project={draftProject}
+            selectedAgent={makeAgentStatus({
+              kind: "muse",
+              label: "Muse Code",
+              authState: "missing",
+            })}
+            accountId="openai-compatible:acct-1"
+            controls={[]}
+            config={{ model: "muse-spark-1.3" }}
+            compact={false}
+            paneCount={1}
+            gitBranch={undefined}
+            worktreeMode={false}
+            presentationMode="gui"
+            onConfigChange={() => {}}
+            onWorktreeModeChange={() => {}}
+            onSwitchBranch={() => {}}
+            onStart={onStart}
+          />
+        </AppProvider>,
+      );
+    });
+
+    typeSlashQuery(screen.getByRole("textbox"), "hello from third-party");
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+
+    expect(onStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "muse",
+        prompt: "hello from third-party",
+      }),
+    );
+  });
+
+  it("still blocks an official Muse draft that has no login and no third-party account", async () => {
+    const onStart = vi.fn<(input: unknown) => void>();
+    await act(async () => {
+      render(
+        <AppProvider>
+          <ThreadDraftComposerArea
+            project={draftProject}
+            selectedAgent={makeAgentStatus({
+              kind: "muse",
+              label: "Muse Code",
+              authState: "missing",
+            })}
+            controls={[]}
+            config={{ model: "muse-spark-1.3" }}
+            compact={false}
+            paneCount={1}
+            gitBranch={undefined}
+            worktreeMode={false}
+            presentationMode="gui"
+            onConfigChange={() => {}}
+            onWorktreeModeChange={() => {}}
+            onSwitchBranch={() => {}}
+            onStart={onStart}
+          />
+        </AppProvider>,
+      );
+    });
+
+    typeSlashQuery(screen.getByRole("textbox"), "hello");
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
   it("hides @Terminal in drafts when the provider owns MCP configuration", async () => {
     const baseCapabilities = makeAgentStatus().capabilities;
     await renderDraftComposer(

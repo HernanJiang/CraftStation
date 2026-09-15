@@ -85,6 +85,23 @@ describe("workbench compatibility tiers", () => {
     expect(resolution.source).toBe("compatibility-layer");
   });
 
+  it("names a missing compatibility bridge so the workbench can install on craft", () => {
+    const resolution = resolveCompatibility({
+      modelEntry: modelEntry({ providerKind: "moonshot", modelId: "kimi-k3-256k" }),
+      harnessRef: harnessRef({
+        vendor: "openai",
+        harnessKind: "codex",
+        harnessItemId: "harness:codex",
+        displayName: "Codex Native Harness",
+        status: "ready",
+      }),
+      harnessReady: true,
+      compatibilityBridgeReady: false,
+    });
+    expect(resolution.status).toBe("IMPOSSIBLE");
+    expect(resolution.diagnostics[0]?.code).toBe("CPA_NOT_INSTALLED");
+  });
+
   it("same-vendor agent kind and model vendor is NATIVE", () => {
     const resolution = resolveCompatibility({
       modelEntry: modelEntry({ providerKind: "codex" }),
@@ -125,7 +142,7 @@ describe("workbench compatibility tiers", () => {
     expect(resolution.status).toBe("IMPOSSIBLE");
 
     const verified = resolveCompatibility({
-      modelEntry: modelEntry({ providerKind: "deepseek" }),
+      modelEntry: modelEntry({ providerKind: "google" }),
       harnessRef: harnessRef({ harnessKind: "opencode", vendor: "opencode", status: "ready" }),
       harnessReady: true,
       openCodeRouteReady: true,

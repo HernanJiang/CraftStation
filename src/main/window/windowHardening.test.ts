@@ -101,3 +101,59 @@ describe("renderer termination intent wiring", () => {
     ]);
   });
 });
+
+const cleanExit = { reason: "clean-exit", exitCode: 0 } satisfies RenderProcessGoneDetails;
+
+describe("renderer reload guard recovery escalation", () => {
+  function withVisible(visible: boolean) {
+    const harness = createWindowHarness();
+    (harness.window as unknown as { isVisible: () => boolean }).isVisible = () => visible;
+    return harness;
+  }
+
+  it("reloads a clean renderer exit while the window is still visible", () => {
+    const harness = withVisible(true);
+    const loadRenderer = vi.fn<() => void>();
+    installRendererReloadGuard(harness.window, { loadRenderer });
+
+    harness.handlers.get("render-process-gone")?.({}, cleanExit);
+
+    expect(loadRenderer).toHaveBeenCalledOnce();
+    expect(harness.reload).not.toHaveBeenCalled();
+  });
+
+  it("ignores a clean renderer exit for an intended window close", () => {
+    const harness = withVisible(true);
+    const loadRenderer = vi.fn<() => void>();
+    installRendererReloadGuard(harness.window, { loadRenderer });
+
+    noteRendererWindowClose(harness.window, { defaultPrevented: false } as Electron.Event);
+    harness.handlers.get("render-process-gone")?.({}, cleanExit);
+
+    expect(loadRenderer).not.toHaveBeenCalled();
+  });
+
+  it("ignores a clean renderer exit while the window is hidden (closed to tray)", () => {
+    const harness = withVisible(false);
+    const loadRenderer = vi.fn<() => void>();
+    installRendererReloadGuard(harness.window, { loadRenderer });
+
+    harness.handlers.get("render-process-gone")?.({}, cleanExit);
+
+    expect(loadRenderer).not.toHaveBeenCalled();
+  });
+
+  it("escalates to onReloadExhausted after more than three crashes in a row", () => {
+    const harness = createWindowHarness();
+    const loadRenderer = vi.fn<() => void>();
+    const onReloadExhausted = vi.fn<() => void>();
+    installRendererReloadGuard(harness.window, { loadRenderer, onReloadExhausted });
+
+    for (let i = 0; i < 4; i++) {
+      harness.handlers.get("render-process-gone")?.({}, killed);
+    }
+
+    expect(loadRenderer).toHaveBeenCalledTimes(3);
+    expect(onReloadExhausted).toHaveBeenCalledOnce();
+  });
+});

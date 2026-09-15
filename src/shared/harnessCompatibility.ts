@@ -95,7 +95,10 @@ export function resolveCompatibilityFamily(modelId: string): CompatibilityModelF
     return "deepseek";
   }
   const normalized = stripModelProviderPrefix(raw);
-  if (normalized.startsWith("muse-") || normalized.startsWith("muse-spark-")) {
+  const leaf = stripModelProviderPrefix(normalized);
+  // OpenCode may emit `opencode-go/muse-spark-…` or a doubled prefix.
+  // `muse-spark` anywhere in the id is the family signal.
+  if (raw.includes("muse-spark") || normalized.startsWith("muse-") || leaf.startsWith("muse-")) {
     return "muse";
   }
   if (
@@ -109,41 +112,55 @@ export function resolveCompatibilityFamily(modelId: string): CompatibilityModelF
   return resolveThirdPartyFamily(normalized);
 }
 
-function isForeignMuseChannel(providerId: string): boolean {
-  const kind = providerId.trim().toLowerCase();
-  return (
-    kind === "opencode" ||
-    kind === "opencode-go" ||
-    kind === "openai-compatible" ||
-    kind.startsWith("opencode:")
-  );
-}
-
 /**
- * OpenCode is a catalog/carrier: Muse Spark (and other Muse-family models)
- * run on Muse Code even when the catalog/key comes from OpenCode Go or a
- * third-party OpenAI-compatible channel. Native `muse` launches are left
- * alone. Command Code keeps its own process.
+ * Auto mode (not 合成台) sends third-party Muse-family catalog picks onto
+ * Muse Code. The spawn Harness is Muse; catalog identity stays on the
+ * channel via `sourceProviderKind`.
  */
 export function shouldAutoRemapToMuseHarness(input: {
   agentKind: string;
   modelId: string;
 }): boolean {
-  if (resolveCompatibilityFamily(input.modelId) !== "muse") return false;
-  const kind = input.agentKind.trim().toLowerCase();
-  if (!kind || kind === "muse" || kind.startsWith("muse:")) return false;
-  return isForeignMuseChannel(kind);
+  if (input.agentKind === "muse" || input.agentKind === "commandcode") return false;
+  return resolveCompatibilityFamily(input.modelId) === "muse";
 }
 
 export function applyAutoMuseHarnessLaunch(
   input: { agentKind: string; model: string },
-  museInstalled: boolean,
+  _museInstalled?: boolean,
 ): { agentKind: string; model: string } {
-  if (!museInstalled) return input;
   if (!shouldAutoRemapToMuseHarness({ agentKind: input.agentKind, modelId: input.model })) {
     return input;
   }
+  // Do not wait for Windows `muse.exe` detection. Meta has no Win32 binary;
+  // spawn falls back to WSL. Gating on installed kept OpenCode as Harness.
   return { agentKind: "muse", model: input.model };
+}
+
+/**
+ * Auto mode (not 合成台) sends third-party DeepSeek-family catalog picks onto
+ * DeepSeek Harness. Command Code CLI tokens talk to `/alpha/generate` through
+ * CraftStation's local gateway — not `/provider/v1`.
+ */
+export function shouldAutoRemapToDeepseekHarness(input: {
+  agentKind: string;
+  modelId: string;
+}): boolean {
+  if (input.agentKind === "deepseek") return false;
+  return resolveCompatibilityFamily(input.modelId) === "deepseek";
+}
+
+export function applyAutoDeepseekHarnessLaunch(
+  input: { agentKind: string; model: string },
+  deepseekInstalled: boolean,
+): { agentKind: string; model: string } {
+  if (!deepseekInstalled) return input;
+  if (!shouldAutoRemapToDeepseekHarness({ agentKind: input.agentKind, modelId: input.model })) {
+    return input;
+  }
+  // Keep the catalog model id. Stripping `deepseek/deepseek-v4.1-flash` to
+  // `deepseek-v4.1-flash` made dsh look up a native id it does not have.
+  return { agentKind: "deepseek", model: input.model };
 }
 
 export function preferredHarnessForCompatibilityFamily(
@@ -186,6 +203,26 @@ export const COMPATIBILITY_FAMILY_LABELS: Record<CompatibilityModelFamily, strin
   muse: "Muse",
   unknown: "Unknown",
 };
+
+/** Icon kind for the model vendor (left of the picker row), not the channel. */
+export function modelFamilyIconKind(modelId: string): string | undefined {
+  switch (resolveCompatibilityFamily(modelId)) {
+    case "openai":
+      return "codex";
+    case "kimi":
+      return "kimi";
+    case "grok":
+      return "grok";
+    case "gemini":
+      return "gemini";
+    case "deepseek":
+      return "deepseek";
+    case "muse":
+      return "muse";
+    case "unknown":
+      return undefined;
+  }
+}
 
 /**
  * Provider kinds that natively feed each Harness. `openai-compatible`

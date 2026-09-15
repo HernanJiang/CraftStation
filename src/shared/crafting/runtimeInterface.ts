@@ -68,6 +68,8 @@ export type CraftRequestResolution =
   | {
       readonly kind: "permission";
       readonly response: "once" | "always" | "reject";
+      /** Original ACP/UI option id (e.g. `allow-once`). OpenCode ignores this. */
+      readonly optionId?: string | undefined;
       readonly message?: string | undefined;
     }
   | {

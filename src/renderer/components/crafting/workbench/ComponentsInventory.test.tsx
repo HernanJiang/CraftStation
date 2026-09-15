@@ -5,13 +5,17 @@ import { ComponentsInventory } from "./ComponentsInventory";
 
 const originalBridge = window.craftstation;
 
-function stubBridge(status: { running: boolean; endpoint?: string }) {
+function stubBridge(status: { running: boolean; endpoint?: string; installed?: boolean }) {
+  const view = { installed: status.installed ?? status.running, ...status };
   window.craftstation = {
-    getCompatibilityBridgeStatus: vi.fn<() => Promise<typeof status>>().mockResolvedValue(status),
+    getCompatibilityBridgeStatus: vi.fn<() => Promise<typeof view>>().mockResolvedValue(view),
     startCompatibilityBridge: vi
-      .fn<() => Promise<typeof status>>()
-      .mockResolvedValue({ running: true, endpoint: "http://127.0.0.1:8317" }),
-    stopCompatibilityBridge: vi.fn<() => Promise<typeof status>>().mockResolvedValue(status),
+      .fn<() => Promise<typeof view>>()
+      .mockResolvedValue({ running: true, installed: true, endpoint: "http://127.0.0.1:8317" }),
+    stopCompatibilityBridge: vi.fn<() => Promise<typeof view>>().mockResolvedValue(view),
+    ensureCompatibilityBridge: vi
+      .fn<() => Promise<typeof view>>()
+      .mockResolvedValue({ running: true, installed: true, endpoint: "http://127.0.0.1:8317" }),
   } as unknown as typeof window.craftstation;
 }
 
@@ -37,15 +41,25 @@ describe("ComponentsInventory", () => {
     expect(card.getAttribute("title")).toContain("http://127.0.0.1:8317");
   });
 
-  it("shows a stopped bridge honestly", async () => {
-    stubBridge({ running: false });
+  it("shows a stopped but installed bridge honestly", async () => {
+    stubBridge({ running: false, installed: true });
     render(<ComponentsInventory onSelect={() => undefined} />);
 
     expect(await screen.findByText("未运行")).toBeInTheDocument();
   });
 
+  it("shows an install action when the sidecar binary is missing", async () => {
+    stubBridge({ running: false, installed: false });
+    render(<ComponentsInventory onSelect={() => undefined} />);
+
+    expect(await screen.findByText("未安装")).toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("bridge-install"));
+    expect(window.craftstation.ensureCompatibilityBridge).toHaveBeenCalledWith({});
+    expect(await screen.findByText("运行中")).toBeInTheDocument();
+  });
+
   it("starts a stopped bridge from the one-click button", async () => {
-    stubBridge({ running: false });
+    stubBridge({ running: false, installed: true });
     render(<ComponentsInventory onSelect={() => undefined} />);
 
     fireEvent.click(await screen.findByTestId("bridge-start"));

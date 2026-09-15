@@ -117,8 +117,11 @@ function resolveWindowsNodeCmdShim(
   if (!existsSync(scriptPath)) return undefined;
 
   const localNode = join(baseDir, "node.exe");
+  const nodeCommand = existsSync(localNode)
+    ? localNode
+    : (resolveExecutablePath("node") ?? "node");
   return {
-    command: existsSync(localNode) ? localNode : "node",
+    command: nodeCommand,
     argsPrefix: [scriptPath],
   };
 }

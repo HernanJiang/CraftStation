@@ -25,6 +25,22 @@ function note(update: SessionNotification["update"]): SessionNotification {
 }
 
 describe("mapAcpSessionUpdate", () => {
+  it("drops Gemini 503 capacity retries instead of painting them as chat or errors", () => {
+    const state = createAcpMapperState("t-503");
+    expect(
+      mapAcpSessionUpdate(
+        note({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "text",
+            text: "API error (attempt 2) UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server",
+          },
+        }),
+        state,
+      ),
+    ).toEqual([]);
+  });
+
   it("maps provider-normalized ACP goal metadata independently from empty text boundaries", () => {
     const state = createAcpMapperState("t-goal");
     const set = mapAcpSessionUpdate(
@@ -271,6 +287,77 @@ describe("mapAcpSessionUpdate", () => {
     expect(state.openAssistantItemId).toBeUndefined();
   });
 
+  it("drops a streamed Grok skill-catalog echo (header then ids)", () => {
+    const state = createAcpMapperState("t-skills-stream");
+    expect(
+      mapAcpSessionUpdate(
+        note({
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: "Available skills:\n" },
+        }),
+        state,
+      ),
+    ).toEqual([]);
+    expect(
+      mapAcpSessionUpdate(
+        note({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "text",
+            text: "skill-creator-craftstation ask-matt ast-grep code-review diagnosing-bugs my-workflow",
+          },
+        }),
+        state,
+      ),
+    ).toEqual([]);
+    expect(state.openAssistantItemId).toBeUndefined();
+    expect(state.pendingSkillCatalogText).toContain("skill-creator-craftstation");
+  });
+
+  it("does not prepend a held Grok skill catalog onto the next real sentence", () => {
+    const state = createAcpMapperState("t-skills-leak");
+    mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: {
+          type: "text",
+          text: "skill-creator-craftstation ask-matt ast-grep code-review diagnosing-bugs my-workflow",
+        },
+      }),
+      state,
+    );
+    const events = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "这是 Manager 收口任务，不是建 skill。" },
+      }),
+      state,
+    );
+    expect(state.pendingSkillCatalogText).toBeUndefined();
+    const delta = events.find((event) => event.type === "content.delta");
+    expect(delta).toMatchObject({
+      type: "content.delta",
+      delta: "这是 Manager 收口任务，不是建 skill。",
+    });
+    expect(JSON.stringify(events)).not.toContain("skill-creator-craftstation");
+  });
+
+  it("drops Grok skill-catalog echoes before MCP tool calls", () => {
+    const state = createAcpMapperState("t-skills");
+    const events = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: {
+          type: "text",
+          text: "skill-creator-craftstation ask-matt ast-grep code-review diagnosing-bugs my-workflow my-research prototype",
+        },
+      }),
+      state,
+    );
+    expect(events).toEqual([]);
+    expect(state.openAssistantItemId).toBeUndefined();
+  });
+
   it("drops [MODE_UPDATE] agent text echoes — mode is chosen in the launcher, not chat", () => {
     // Gemini's ACP server emits `[MODE_UPDATE] <mode>` as a fresh
     // agent_message_chunk every time a session starts (or switches) into a
@@ -352,6 +439,80 @@ describe("mapAcpSessionUpdate", () => {
     ]);
     expect(state.openAssistantItemId).toBeUndefined();
     expect(state.openReasoningItemId).toBeDefined();
+  });
+
+  it("treats cumulative reasoning_content snapshots as a suffix, not a second copy", () => {
+    const state = createAcpMapperState("t-deepseek-snapshot");
+    mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "" },
+        reasoning_content: "Let me understand",
+      } as Parameters<typeof mapAcpSessionUpdate>[0]["update"]),
+      state,
+    );
+    const second = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "" },
+        reasoning_content: "Let me understand the task",
+      } as Parameters<typeof mapAcpSessionUpdate>[0]["update"]),
+      state,
+    );
+    expect(second).toEqual([
+      expect.objectContaining({
+        type: "content.delta",
+        stream: "reasoning_text",
+        delta: " the task",
+      }),
+    ]);
+  });
+
+  it("opens a new answer after a later thought instead of gluing onto the previous paragraph", () => {
+    const state = createAcpMapperState("t-deepseek-interleave");
+    mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "plan A" },
+      }),
+      state,
+    );
+    mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "answer A" },
+      }),
+      state,
+    );
+    const firstAssistant = state.openAssistantItemId;
+    expect(firstAssistant).toBeDefined();
+    const secondThought = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "plan B" },
+      }),
+      state,
+    );
+    expect(secondThought.map((event) => event.type)).toEqual([
+      "item.completed",
+      "item.started",
+      "content.delta",
+    ]);
+    expect(state.openAssistantItemId).toBeUndefined();
+    const secondAnswer = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "answer B" },
+      }),
+      state,
+    );
+    expect(secondAnswer.map((event) => event.type)).toEqual([
+      "item.completed",
+      "item.started",
+      "content.delta",
+    ]);
+    expect(state.openAssistantItemId).toBeDefined();
+    expect(state.openAssistantItemId).not.toBe(firstAssistant);
   });
 
   it("splits inline think tags from the visible assistant answer", () => {
@@ -2463,6 +2624,66 @@ describe("mapAcpSessionUpdate", () => {
     expect(events).toEqual([]);
   });
 
+  it("maps Grok tokens_used occupancy into the context bar", () => {
+    const state = createAcpMapperState("t-grok-occ");
+    const events = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "tokens_used",
+        tokens_used: 402_603,
+        context_window: 500_000,
+        percentage: 81,
+      } as unknown as Parameters<typeof mapAcpSessionUpdate>[0]["update"]),
+      state,
+    );
+    expect(events).toEqual([
+      {
+        type: "context.updated",
+        threadId: "t-grok-occ",
+        usage: { usedTokens: 402_603, maxTokens: 500_000 },
+      },
+    ]);
+    expect(
+      mapAcpSessionUpdate(
+        note({
+          sessionUpdate: "tokens_used",
+          tokens_used: 402_603,
+          context_window: 500_000,
+        } as unknown as Parameters<typeof mapAcpSessionUpdate>[0]["update"]),
+        state,
+      ),
+    ).toEqual([]);
+  });
+
+  it("maps Grok stream _meta.totalTokens as occupancy and skips billing totals", () => {
+    const state = createAcpMapperState("t-grok-meta");
+    const occupancy = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "thinking" },
+        _meta: { totalTokens: 120_000, context_window: 500_000 },
+      } as SessionNotification["update"]),
+      state,
+    );
+    expect(occupancy).toEqual(
+      expect.arrayContaining([
+        {
+          type: "context.updated",
+          threadId: "t-grok-meta",
+          usage: { usedTokens: 120_000, maxTokens: 500_000 },
+        },
+      ]),
+    );
+    const billing = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "hi" },
+        _meta: { totalTokens: 1_540, inputTokens: 1_000, outputTokens: 540 },
+      } as SessionNotification["update"]),
+      state,
+    );
+    expect(billing.filter((event) => event.type === "context.updated")).toEqual([]);
+  });
+
   it("maps usage_update into context usage", () => {
     const state = createAcpMapperState("t-usage");
     const events = mapAcpSessionUpdate(
@@ -2481,9 +2702,50 @@ describe("mapAcpSessionUpdate", () => {
         usage: {
           usedTokens: 71_000,
           maxTokens: 200_000,
+          breakdown: [{ id: "input", label: "Input", tokens: 71_000 }],
+        },
+      },
+      {
+        type: "usage.spent",
+        threadId: "t-usage",
+        usage: {
+          counterKind: "per-call",
+          counter: 71_000,
+          scopeId: "t-usage",
+          epoch: 0,
+          sampleId: "acp-usage:t-usage:71000:0",
         },
       },
     ]);
+  });
+
+  it("maps DeepSeek-style usage_update meta into input/output/cache", () => {
+    const state = createAcpMapperState("t-ds");
+    const events = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "usage_update",
+        used: 24_000,
+        size: 262_144,
+        _meta: {
+          prompt_tokens: 24_000,
+          completion_tokens: 800,
+          prompt_cache_hit_tokens: 6_000,
+        },
+      } as Parameters<typeof mapAcpSessionUpdate>[0]["update"]),
+      state,
+    );
+    expect(events[0]).toMatchObject({
+      type: "context.updated",
+      usage: {
+        usedTokens: 24_000,
+        maxTokens: 262_144,
+        breakdown: expect.arrayContaining([
+          { id: "input", label: "Input", tokens: 24_000 },
+          { id: "output", label: "Output", tokens: 800 },
+          { id: "cache-read", label: "Cache read", tokens: 6_000 },
+        ]),
+      },
+    });
   });
 });
 

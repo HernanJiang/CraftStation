@@ -1350,6 +1350,14 @@ describe("GitHubService", () => {
       ]);
     });
 
+    it("returns an empty workflow list when the project is not a git repository", async () => {
+      execFileAsyncMock.mockRejectedValue(
+        new Error("failed to run git: fatal: not a git repository (or any parent): .git"),
+      );
+
+      await expect(new GitHubService().listWorkflows(location)).resolves.toEqual({ workflows: [] });
+    });
+
     it("lists recent workflow runs", async () => {
       execFileAsyncMock.mockResolvedValue({
         stdout: JSON.stringify([

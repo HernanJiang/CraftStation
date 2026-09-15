@@ -149,9 +149,9 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
     logoClassName: "size-[78%]",
   },
   muse: {
-    // No licensed logo asset vendored: Meta-blue tile with the registered
-    // Muse infinity glyph.
-    background: "#0082FB",
+    // No licensed logo asset vendored: dark tile + letter glyph, matching
+    // the other brand badges instead of a full Meta-blue disc.
+    background: "#15161b",
     logo: "",
   },
   zai: {

@@ -156,6 +156,32 @@ describe("CommandCodeStructuredSession", () => {
     await session.dispose();
   });
 
+  it("queues a follow-up behind an in-flight print turn instead of throwing already-active", async () => {
+    let emitFirst: EmitFrame | undefined;
+    const first = new CommandCodeFixture((emit) => {
+      emitFirst = emit;
+    });
+    const second = new CommandCodeFixture();
+    const { session, spawnProcess } = createFixtureSession([first, second]);
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: vi.fn<(event: RuntimeEvent) => void>(),
+    });
+
+    await session.openThread({ model: "deepseek/deepseek-v4-flash" });
+    const firstTurn = session.startTurn("hello", { model: "deepseek/deepseek-v4-flash" });
+    await vi.waitFor(() => expect(emitFirst).toBeDefined());
+    const secondTurn = session.startTurn("again", { model: "deepseek/deepseek-v4-flash" });
+    expect(spawnProcess).toHaveBeenCalledTimes(1);
+    emitSuccessfulTurn(emitFirst!);
+    await expect(firstTurn).resolves.toBeUndefined();
+    await expect(secondTurn).resolves.toBeUndefined();
+    expect(spawnProcess).toHaveBeenCalledTimes(2);
+    await session.dispose();
+  });
+
   it("kills the print process on Stop and completes the turn as interrupted", async () => {
     const fixture = new CommandCodeFixture(() => undefined);
     const { session } = createFixtureSession(fixture);

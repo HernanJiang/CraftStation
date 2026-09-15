@@ -8,6 +8,7 @@ import {
   buildMuseForeignChildEnv,
   museForeignProviderFromModel,
   museForeignWslBootstrap,
+  museForeignWslSettingsWrite,
   normalizeMuseResponsesBaseUrl,
   readOpenCodeGoApiKey,
 } from "./foreignEndpoint";
@@ -101,5 +102,15 @@ describe("muse foreignEndpoint", () => {
     expect(bootstrap).toContain("python3");
     expect(bootstrap).toContain("shim.py");
     expect(bootstrap).not.toContain("sk-secret-key");
+  });
+
+  it("writes settings.json without launching the python shim", () => {
+    const script = museForeignWslSettingsWrite({
+      XDG_CONFIG_HOME: "/tmp/muse-iso",
+      CRAFTSTATION_MUSE_SETTINGS_JSON: "{\"provider\":\"meta\"}",
+    });
+    expect(script).toContain("settings.json");
+    expect(script).toContain("mkdir -p");
+    expect(script).not.toContain("python3");
   });
 });

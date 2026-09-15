@@ -72,6 +72,7 @@ export function createAcpStructuredSession(
       ? { sessionUpdateTransform: input.acpSessionUpdateTransform }
       : {}),
     ...(input.acpGoalCommands ? { goalCommands: true } : {}),
+    ...(input.strictModelResolution ? { strictModelResolution: true } : {}),
     ...(input.acpExtensionSessionUpdateTransform
       ? { extensionSessionUpdateTransform: input.acpExtensionSessionUpdateTransform }
       : {}),

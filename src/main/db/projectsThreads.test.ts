@@ -19,6 +19,7 @@ import {
   dbUpsertThread,
 } from "./projectsThreads";
 import { onProjectThreadDataChanged } from "./projectThreadChanges";
+import { onThreadBindingUnavailable } from "./threadBindingChanges";
 import {
   dbClaimRemoteCommand,
   dbCompleteRemoteCommand,
@@ -666,6 +667,20 @@ describe("projectsThreads (real sqlite round-trip)", () => {
     unsubscribe();
     dbDeleteThread("thread-1");
     expect(notificationCount).toBe(2);
+  });
+
+  it("notifies when a live thread is archived or deleted", () => {
+    const unavailable: string[] = [];
+    const stop = onThreadBindingUnavailable((threadId) => unavailable.push(threadId));
+    dbUpsertThread(testThread(), 0);
+    expect(unavailable).toEqual([]);
+
+    dbUpsertThread(testThread({ archived: true, archivedAt: "2026-09-14T00:00:00.000Z" }), 0);
+    expect(unavailable).toEqual(["thread-1"]);
+
+    dbDeleteThread("thread-1");
+    expect(unavailable).toEqual(["thread-1", "thread-1"]);
+    stop();
   });
 
   it("replays durable remote command receipts without reclaiming them", () => {

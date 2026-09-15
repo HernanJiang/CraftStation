@@ -9,6 +9,12 @@ export const kimiProfileImportPayloadSchema = z.object({
 });
 export type KimiProfileImportPayload = z.infer<typeof kimiProfileImportPayloadSchema>;
 
+export const kimiProfileApiKeyPayloadSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+  apiKey: z.string().trim().min(1).max(4096),
+});
+export type KimiProfileApiKeyPayload = z.infer<typeof kimiProfileApiKeyPayloadSchema>;
+
 export const kimiProfileCreatePayloadSchema = z.object({
   label: z.string().trim().min(1).max(120),
 });

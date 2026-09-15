@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "@heroui/react";
 import type { AccountView } from "@/shared/contracts";
+import { friendlyError } from "@/shared/messages";
 import type { SharedSettings } from "@/shared/settings";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
 import type {
@@ -65,6 +67,7 @@ export function CraftingWorkbenchPage(props: {
   const attachResolution = useCraftingWorkbenchStore((state) => state.attachResolution);
   const saveRecipe = useCraftingWorkbenchStore((state) => state.saveRecipe);
   const updateRecipeAlias = useCraftingWorkbenchStore((state) => state.updateRecipeAlias);
+  const deleteRecipe = useCraftingWorkbenchStore((state) => state.deleteRecipe);
   const loadRecipeToDraft = useCraftingWorkbenchStore((state) => state.loadRecipeToDraft);
   const setInspector = useCraftingWorkbenchStore((state) => state.setInspector);
   const recipes = useCraftingWorkbenchStore((state) => state.recipes);
@@ -82,6 +85,7 @@ export function CraftingWorkbenchPage(props: {
   const [nativeEntries, setNativeEntries] = useState<NativeHarnessControlPlaneEntry[]>([]);
   const [nativeLoading, setNativeLoading] = useState(true);
   const [highlightedKind, setHighlightedKind] = useState<string | undefined>(undefined);
+  const [crafting, setCrafting] = useState(false);
 
   // Enter the requested mode once when opened from a chat entry.
   useEffect(() => {
@@ -240,13 +244,7 @@ export function CraftingWorkbenchPage(props: {
     setInspector(ref.harnessItemId);
   };
 
-  const handleCraft = () => {
-    // NATIVE (direct official runtime) and bridge-verified CRAFTABLE are
-    // executable and saveable. CRAFTABLE only arises while the Compatibility
-    // Bridge reports running; spawn re-verifies the served-model contract.
-    // Anything else stays diagnostic-only.
-    if (!resolution || (resolution.status !== "NATIVE" && resolution.status !== "CRAFTABLE"))
-      return;
+  const persistCraftedRecipe = (nextResolution: CapabilityResolution) => {
     const name =
       selectedModel && selectedHarness
         ? `${selectedHarness.displayName} · ${selectedModel.displayName}`
@@ -256,7 +254,10 @@ export function CraftingWorkbenchPage(props: {
       harnessRef: efficientDraft.harnessRef ?? "",
       modelName: selectedModel?.displayName ?? "Model",
       harnessName: selectedHarness?.displayName ?? "Harness",
-      resolution,
+      resolution: nextResolution,
+      ...(selectedModel?.modelId ? { modelId: selectedModel.modelId } : {}),
+      ...(selectedHarness?.harnessKind ? { harnessKind: selectedHarness.harnessKind } : {}),
+      ...(selectedModel?.providerLabel ? { providerLabel: selectedModel.providerLabel } : {}),
       ...(efficientDraft.providerProfileRef
         ? { providerProfileRef: efficientDraft.providerProfileRef }
         : {}),
@@ -267,6 +268,47 @@ export function CraftingWorkbenchPage(props: {
     setSaveDupCount(duplicateCount);
     setSaveSystemName(name);
     setSaveOpen(true);
+  };
+
+  const handleCraft = () => {
+    if (!resolution) return;
+    const cpaMissing = resolution.diagnostics.some((entry) => entry.code === "CPA_NOT_INSTALLED");
+    if (resolution.status !== "NATIVE" && resolution.status !== "CRAFTABLE" && !cpaMissing) return;
+    if (!cpaMissing && resolution.status !== "CRAFTABLE") {
+      persistCraftedRecipe(resolution);
+      return;
+    }
+    if (resolution.status === "NATIVE") {
+      persistCraftedRecipe(resolution);
+      return;
+    }
+    if (crafting) return;
+    setCrafting(true);
+    void (async () => {
+      try {
+        await readBridge().ensureCompatibilityBridge({});
+        const next = await readBridge().resolveCraftingCompatibility({
+          modelEntryRef: efficientDraft.modelEntryRef ?? "",
+          harnessRef: efficientDraft.harnessRef ?? "",
+          ...(efficientDraft.providerProfileRef
+            ? { providerProfileRef: efficientDraft.providerProfileRef }
+            : {}),
+          ...(efficientDraft.runtimeProfileRef
+            ? { runtimeProfileRef: efficientDraft.runtimeProfileRef }
+            : {}),
+        });
+        attachResolution("efficient", next);
+        if (next.status !== "NATIVE" && next.status !== "CRAFTABLE") {
+          toast.danger(next.diagnostics[0]?.message ?? "CLIProxyAPI 启动后仍无法合成");
+          return;
+        }
+        persistCraftedRecipe(next);
+      } catch (error) {
+        toast.danger(friendlyError(error));
+      } finally {
+        setCrafting(false);
+      }
+    })();
   };
 
   const handleConfirmSave = (alias?: string) => {
@@ -392,6 +434,7 @@ export function CraftingWorkbenchPage(props: {
                     recipes={recipes}
                     limit={100}
                     onLoad={handleLoadRecipe}
+                    onDelete={(recipe) => deleteRecipe(recipe.id)}
                     onViewAll={() =>
                       usePanelStore.getState().openModelUsageWorkspace({ tab: "recipes" })
                     }

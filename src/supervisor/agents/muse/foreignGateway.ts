@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import { EnvHttpProxyAgent, fetch as undiciFetch } from "undici";
+import { resolveProxyConfig } from "@/supervisor/runtime/usageHttpClient";
 
 /**
  * Local Muse Code foreign gateway.
@@ -284,6 +286,26 @@ function writeJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(data);
 }
 
+/**
+ * Node's global `fetch` ignores HTTP(S)_PROXY / WinINET. OpenCode Go then
+ * sees the raw CN egress IP and returns RegionError. Same EnvHttpProxyAgent
+ * path as usageHttpClient.
+ */
+function fetchUpstream(
+  url: string,
+  init: { method: string; headers: Record<string, string>; body: string },
+) {
+  const proxyConfig = resolveProxyConfig(process.env, { allowSystemProxyFallback: true });
+  const requestInit = {
+    method: init.method,
+    headers: init.headers,
+    body: init.body,
+  };
+  return proxyConfig
+    ? undiciFetch(url, { ...requestInit, dispatcher: new EnvHttpProxyAgent(proxyConfig) })
+    : undiciFetch(url, requestInit);
+}
+
 function shouldAttachOpenCodeSession(upstream: string): boolean {
   try {
     return new URL(upstream).hostname.toLowerCase().endsWith("opencode.ai");
@@ -331,7 +353,7 @@ export async function startMuseForeignGateway(input: {
           "user-agent": "CraftStation-MuseGateway/1.0",
         };
         if (openCodeSession) headers["x-opencode-session"] = openCodeSession;
-        const upstreamRes = await fetch(`${upstream}/responses`, {
+        const upstreamRes = await fetchUpstream(`${upstream}/responses`, {
           method: "POST",
           headers,
           body: JSON.stringify(payload),

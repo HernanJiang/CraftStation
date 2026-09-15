@@ -47,10 +47,9 @@ export function seedOlderThreadRuntimeItemsCursor(
 }
 
 export function hasHydratedThreadRuntimeItems(threadId: string): boolean {
-  return (
-    hydratedThreadRuntimeIds.has(threadId) ||
-    Object.prototype.hasOwnProperty.call(useAppStore.getState().runtimeItemIdsByThread, threadId)
-  );
+  // Live events alone are not a hydration. Treating them as one skipped the
+  // DB seed for working threads, so reopen showed only the current turn.
+  return hydratedThreadRuntimeIds.has(threadId);
 }
 
 export function retainThreadRuntimeItems(threadId: string): void {
@@ -127,6 +126,30 @@ export async function hydrateThreadRuntimeItems(threadId: string): Promise<void>
   }
 }
 
+const HISTORY_BACKFILL_MAX_PAGES = 12;
+
+function threadUserMessageCount(threadId: string): number {
+  const ids = useAppStore.getState().runtimeItemIdsByThread[threadId] ?? [];
+  const byId = useAppStore.getState().runtimeItemsByIdByThread[threadId] ?? {};
+  return ids.reduce((count, id) => count + (byId[id]?.type === "user_message" ? 1 : 0), 0);
+}
+
+/**
+ * A working thread pinned to the bottom never fires `onStartReached`, so the
+ * first DB tail (often just the current turn's tools) would leave earlier
+ * user/assistant turns invisible. Pull older pages until we have prior
+ * conversation or run out of cursor.
+ */
+async function backfillOlderRuntimeHistory(threadId: string): Promise<void> {
+  for (let page = 0; page < HISTORY_BACKFILL_MAX_PAGES; page += 1) {
+    const cursor = olderRuntimePageCursorByThread.get(threadId);
+    if (cursor === undefined || cursor === null) return;
+    if (threadUserMessageCount(threadId) >= 2) return;
+    const loaded = await loadOlderThreadRuntimeItems(threadId);
+    if (!loaded) return;
+  }
+}
+
 async function hydrateThreadRuntimeItemsFromDb(threadId: string): Promise<boolean> {
   const bridge = readBridge();
   const [itemsResult, turnsResult, contextResult] = await Promise.allSettled([
@@ -145,9 +168,13 @@ async function hydrateThreadRuntimeItemsFromDb(threadId: string): Promise<boolea
     olderRuntimePageCursorByThread.set(threadId, itemsResult.value.nextCursor);
   }
   if (itemsResult.status === "fulfilled" && itemsResult.value.items.length > 0) {
-    // Persisted rows can contain raw tool runs or legacy synthetic summaries;
-    // normalize both forms during hydration.
-    const items = compactRuntimeItemsForHydration(itemsResult.value.items.map(toRuntimeChatItem));
+    const rawItems = itemsResult.value.items.map(toRuntimeChatItem);
+    // Compacting the tail into `tool-call-summary:*` ids would miss live tool
+    // rows (same tools, different ids) and shuffle or duplicate the current
+    // turn. Keep the raw tail whenever live items are already in memory.
+    const hasLiveItems =
+      (useAppStore.getState().runtimeItemIdsByThread[threadId]?.length ?? 0) > 0;
+    const items = hasLiveItems ? rawItems : compactRuntimeItemsForHydration(rawItems);
     useAppStore.getState().hydrateThreadRuntimeItems(threadId, items);
     // Any sub-agent tool_call that was mid-flight when the prior session
     // ended will hydrate here as still "running" and show up in the active
@@ -192,6 +219,10 @@ async function hydrateThreadRuntimeItemsFromDb(threadId: string): Promise<boolea
     captureRendererException(contextResult.reason, { featureArea: "runtime-persistence" });
   }
 
+  if (threadUserMessageCount(threadId) < 2) {
+    await backfillOlderRuntimeHistory(threadId);
+  }
+
   return (
     itemsResult.status !== "rejected" &&
     turnsResult.status !== "rejected" &&
@@ -199,15 +230,31 @@ async function hydrateThreadRuntimeItemsFromDb(threadId: string): Promise<boolea
   );
 }
 
+function threadHasObservedLiveItems(threadId: string): boolean {
+  const items = useAppStore.getState().runtimeItemsByIdByThread[threadId];
+  if (!items) return false;
+  return Object.values(items).some((item) => item.observedLive === true);
+}
+
 function evictInactiveThreadRuntimeItems(): void {
-  while (inactiveThreadRuntimeLru.size > MAX_CACHED_THREAD_TRANSCRIPTS) {
+  // Opening many other threads (smoke tests, focus stealing) used to evict a
+  // still-streaming transcript. Live events then re-seeded only the current
+  // turn, and hydration treated that suffix as complete history.
+  const kept: string[] = [];
+  while (inactiveThreadRuntimeLru.size > 0) {
     const threadId = inactiveThreadRuntimeLru.keys().next().value as string | undefined;
-    if (!threadId) return;
+    if (!threadId) break;
     inactiveThreadRuntimeLru.delete(threadId);
-    hydratedThreadRuntimeIds.delete(threadId);
-    olderRuntimePageCursorByThread.delete(threadId);
-    useAppStore.getState().evictThreadRuntimeItems(threadId);
+    const remaining = inactiveThreadRuntimeLru.size + kept.length;
+    if (remaining >= MAX_CACHED_THREAD_TRANSCRIPTS && !threadHasObservedLiveItems(threadId)) {
+      hydratedThreadRuntimeIds.delete(threadId);
+      olderRuntimePageCursorByThread.delete(threadId);
+      useAppStore.getState().evictThreadRuntimeItems(threadId);
+      continue;
+    }
+    kept.push(threadId);
   }
+  for (const threadId of kept) inactiveThreadRuntimeLru.add(threadId);
 }
 
 export function compactRuntimeItemsForHydration(

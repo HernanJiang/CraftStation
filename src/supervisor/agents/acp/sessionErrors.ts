@@ -263,8 +263,25 @@ export function isGrokPoolQuotaError(error: unknown): boolean {
  * (fail closed, a human must re-login). Never match those.
  */
 export function isKimiPoolQuotaError(error: unknown): boolean {
+  const message =
+    typeof error === "string"
+      ? error
+      : error && typeof error === "object"
+        ? (() => {
+            const record = error as { data?: unknown; message?: unknown };
+            const data =
+              record.data && typeof record.data === "object"
+                ? (record.data as Record<string, unknown>)
+                : {};
+            if (typeof data["message"] === "string" && data["message"].trim()) {
+              return data["message"];
+            }
+            return typeof record.message === "string" ? record.message : "";
+          })()
+        : "";
+  if (message === "Kimi 额度已耗尽") return true;
   if (!error || typeof error !== "object") {
-    return typeof error === "string" && /payment required/i.test(error);
+    return /payment required|额度(?:已)?耗尽|额度不足|套餐已用完/i.test(message);
   }
   const record = error as { data?: unknown; message?: unknown; status?: unknown };
   const data =
@@ -278,18 +295,14 @@ export function isKimiPoolQuotaError(error: unknown): boolean {
           ? record.status
           : undefined;
   if (httpStatus === 429) return false;
+  if (httpStatus === 401 || httpStatus === 403) return false;
   if (httpStatus === 402) return true;
-  const message =
-    typeof data["message"] === "string"
-      ? data["message"]
-      : typeof record.message === "string"
-        ? record.message
-        : "";
   if (!message) return false;
   if (/too many requests|rate[\s_-]*limit|\b429\b/i.test(message)) return false;
   if (/unauthorized|forbidden|\b401\b|\b403\b/i.test(message)) return false;
-  // Word-boundaried: must not catch "load balancing" and friends.
-  return /payment required|quota|insufficient|\bbalance\b/i.test(message);
+  return /payment required|quota|insufficient|\bbalance\b|额度(?:已)?耗尽|额度不足|套餐已用完|membership (?:expired|exhausted)|usage (?:limit|balance) exhausted/i.test(
+    message,
+  );
 }
 
 /**

@@ -11,7 +11,12 @@ import type {
 } from "@/shared/contracts";
 import { agentKindSchema } from "@/shared/contracts";
 import { buildWorktreeLocation, normalizeWorktreePathForComparison } from "@/shared/worktree";
-import { resolveThirdPartyAccountForLaunch } from "@/shared/thirdPartyRouting";
+import {
+  isForeignCatalogModelForHarness,
+  isThirdPartyAccountId,
+  modelCatalogChannel,
+  resolveThirdPartyAccountForLaunch,
+} from "@/shared/thirdPartyRouting";
 import { dbGetThreadRuntimeItemsPage } from "../../../db";
 import {
   assertNotSelf,
@@ -497,17 +502,41 @@ export const threadTools: ToolDomain = {
       // on openai-compatible, not native commandcode). Main-side has no
       // account roster, so resolve against the persisted custom catalog with
       // trustAccountChannel (the supervisor re-validates the record).
+      const sourceAccountId = sourceThread?.accountBinding?.accountId;
       const thirdPartyAccountId = resolveThirdPartyAccountForLaunch({
         agentKind,
         model,
         customModels: ctx.settings.read().customModels ?? [],
         trustAccountChannel: true,
+        ...(sourceThread &&
+        sourceThread.agentKind === agentKind &&
+        sourceThread.config.model === model &&
+        isThirdPartyAccountId(sourceAccountId)
+          ? { explicitAccountId: sourceAccountId }
+          : {}),
       });
+      // Record the catalog channel when the model id names one different
+      // from the spawn Harness (e.g. an `opencode-go/…` id on `muse`).
+      // Without it the composer mistakes the thread for a native
+      // official-login thread and demands e.g. `muse login` before it can run.
+      const inheritedChannel =
+        sourceThread &&
+        sourceThread.agentKind === agentKind &&
+        sourceThread.config.model === model
+          ? sourceThread.config.sourceProviderKind
+          : undefined;
+      const derivedChannel = modelCatalogChannel(model);
+      const sourceProviderKind =
+        inheritedChannel ??
+        (derivedChannel && isForeignCatalogModelForHarness(model, agentKind)
+          ? derivedChannel
+          : undefined);
       return ctx.createThread({
         projectId: parsed.projectId,
         prompt: parsed.prompt,
         agentKind,
         model,
+        ...(sourceProviderKind ? { sourceProviderKind } : {}),
         ...(effort ? { effort } : {}),
         ...(sourceThread?.config.fast !== undefined ? { fast: sourceThread.config.fast } : {}),
         ...(parsed.title ? { title: parsed.title } : {}),

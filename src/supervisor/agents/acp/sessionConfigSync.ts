@@ -1,5 +1,6 @@
 import type { ClientSideConnection, SessionUpdate } from "@agentclientprotocol/sdk";
 import { isThreadConfigEqual, type ThreadConfig } from "@/shared/contracts";
+import { foreignAcpModelId } from "@/shared/thirdPartyRouting";
 import { toErrorMessage } from "@/shared/errorMessage";
 import { normalizeAcpModeId } from "./probe";
 import {
@@ -30,6 +31,18 @@ type ConfigOptionUpdateWaiter = {
  * `ThreadConfig` remain owned by `AcpStructuredSession` and are passed in and
  * returned explicitly.
  */
+export interface AcpSessionConfigSyncOptions {
+  /**
+   * Fail-closed model binding for runtimes where an unresolved model silently
+   * falls back to the runtime default (DeepSeek Harness: dsh keeps serving its
+   * configured default model when the requested catalog id does not match an
+   * advertised option). When true, `applyTurnConfig` rejects the turn if the
+   * requested model cannot be bound to an advertised config option, instead
+   * of continuing on a different model.
+   */
+  strictModelResolution?: boolean;
+}
+
 export class AcpSessionConfigSync {
   private _availableModeIds: string[] = [];
   /**
@@ -49,7 +62,10 @@ export class AcpSessionConfigSync {
   private thoughtLevelToggleValues: { disabled: string; enabled: string } | undefined;
   private readonly configOptionUpdateWaiters = new Set<ConfigOptionUpdateWaiter>();
 
-  constructor(private readonly connection: ClientSideConnection) {}
+  constructor(
+    private readonly connection: ClientSideConnection,
+    private readonly options: AcpSessionConfigSyncOptions = {},
+  ) {}
 
   get availableModeIds(): string[] {
     return this._availableModeIds;
@@ -174,18 +190,31 @@ export class AcpSessionConfigSync {
           modelChanged = true;
           console.log("[acp] model config set to:", modelConfig.value);
         } catch (error) {
+          if (this.options.strictModelResolution) {
+            throw new Error(
+              `DSH model binding failed: the runtime rejected the requested model ${JSON.stringify(nextConfig.model)} (${toErrorMessage(error)})`,
+            );
+          }
           console.log(
             "[acp] live model config change rejected, continuing: %s",
             toErrorMessage(error),
           );
         }
+      } else if (this.options.strictModelResolution) {
+        // The runtime advertises a model selector but not the requested model.
+        // Continuing would silently run the runtime default model — fail closed.
+        throw new Error(
+          `DSH model binding failed: requested model ${JSON.stringify(nextConfig.model)} is not offered by the DeepSeek Harness runtime (advertised: ${JSON.stringify(
+            listSelectConfigOptionValues(this.currentConfigOptions, "model"),
+          )})`,
+        );
       } else {
         try {
           // Fallback for agents without a "model" config option that still
           // speak the removed pre-1.0 model API (see unstableModelCompat.ts).
           await setUnstableSessionModel(this.connection, {
             sessionId,
-            modelId: nextConfig.model,
+            modelId: foreignAcpModelId(nextConfig),
           });
           modelChanged = true;
           console.log("[acp] model set to:", nextConfig.model);

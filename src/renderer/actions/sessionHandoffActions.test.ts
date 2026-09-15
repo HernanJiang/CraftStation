@@ -343,6 +343,59 @@ describe("session handoff renderer actions", () => {
     });
   });
 
+  it("degrades to a store-only config update when the thread has no live session", async () => {
+    // Side Chat ephemeral branches never launch a runtime session; switching
+    // their model must not surface "Unknown thread session" — there is simply
+    // nothing to switch, so the new config waits for the next launch.
+    const source = craftedThread();
+    delete (source as { compositionProvenance?: unknown }).compositionProvenance;
+    source.canResumeWithConfig = false;
+    useAppStore.setState({ threads: [source] });
+    bridge.switchThreadProvider.mockRejectedValue(new Error("Unknown thread session: thread-1"));
+
+    await switchLiveThreadProvider({
+      thread: source,
+      projectLocation,
+      targetAgentKind: "kimi",
+      targetConfig: { model: "kimi-k2" },
+    });
+
+    expect(useAppStore.getState().threads[0]).toMatchObject({
+      id: source.id,
+      agentKind: "kimi",
+      config: { model: "kimi-k2" },
+      canResumeWithConfig: false,
+    });
+    expect(useAppStore.getState().threads[0]?.sessionRef).toBeUndefined();
+    expect(bridge.dbUpsertThread).toHaveBeenCalledWith(
+      expect.objectContaining({ id: source.id, agentKind: "kimi" }),
+    );
+    expect(bridge.dbInsertThreadNativeSession).not.toHaveBeenCalled();
+  });
+
+  it("still throws non-session switch failures", async () => {
+    const source = craftedThread();
+    delete (source as { compositionProvenance?: unknown }).compositionProvenance;
+    useAppStore.setState({ threads: [source] });
+    bridge.switchThreadProvider.mockRejectedValue(new Error("Unsupported agent adapter: kimi"));
+
+    await expect(
+      switchLiveThreadProvider({
+        thread: source,
+        projectLocation,
+        targetAgentKind: "kimi",
+        targetConfig: { model: "kimi-k2" },
+      }),
+    ).rejects.toThrow("Unsupported agent adapter: kimi");
+
+    expect(useAppStore.getState().threads[0]).toMatchObject({
+      id: source.id,
+      agentKind: "codex",
+      config: { model: "gpt-5.3-codex" },
+    });
+    expect(bridge.dbUpsertThread).not.toHaveBeenCalled();
+  });
+
   it("marks the abandoned working turn cancelled and settles orphaned subagents on switch", async () => {
     const source = {
       ...craftedThread(),

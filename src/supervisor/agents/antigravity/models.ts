@@ -2,6 +2,7 @@ import { stripAnsi } from "@/shared/ansi";
 import type { AgentCapability, LabeledOption } from "@/shared/contracts";
 import { spawnAgentPty } from "@/supervisor/oneShotSpawn";
 import { buildAgentCommand, type DetectProbeCtx } from "../base";
+import { buildContextSizeCapabilities } from "../contextWindowLabel";
 
 const TEXT_MODEL_HINT = /\b(?:claude|gemini|gpt|opus|sonnet|haiku|flash|pro|oss)\b/i;
 const MARKER_RE = /^\s*(?:[-*\u2022]\s+|\d+[.)]\s+|\[[ xX]\]\s*)/;
@@ -387,6 +388,42 @@ function sortEfforts(efforts: string[]): string[] {
     }
     return left.localeCompare(right);
   });
+}
+
+const GEMINI_CONTEXT_TOKENS = 1_048_576;
+const CLAUDE_CONTEXT_TOKENS = 200_000;
+const GPT_OSS_CONTEXT_TOKENS = 128_000;
+
+export function antigravityContextTokensForModel(modelId: string): number | undefined {
+  const normalized = modelId.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.includes("gemini")) return GEMINI_CONTEXT_TOKENS;
+  if (normalized.includes("claude") || normalized.includes("sonnet") || normalized.includes("opus")) {
+    return CLAUDE_CONTEXT_TOKENS;
+  }
+  if (normalized.includes("gpt") || normalized.includes("oss")) return GPT_OSS_CONTEXT_TOKENS;
+  return GEMINI_CONTEXT_TOKENS;
+}
+
+export function buildAntigravityContextCapabilities(
+  models: readonly { id: string }[],
+): Pick<AgentCapability, "contextSizes" | "modelContextSizes" | "defaultContextSize"> {
+  const sizes = new Map<string, number>();
+  const add = (id: string | undefined) => {
+    if (!id?.trim()) return;
+    const tokens = antigravityContextTokensForModel(id);
+    if (tokens) sizes.set(id, tokens);
+  };
+  for (const model of models) add(model.id);
+  for (const variant of ANTIGRAVITY_KNOWN_MODEL_VARIANTS) {
+    add(variant.model);
+    add(variant.cliSlug);
+    add(variant.cliModel);
+  }
+  return {
+    ...buildContextSizeCapabilities(sizes),
+    defaultContextSize: "1M",
+  };
 }
 
 export function buildAntigravityModelCapabilities(

@@ -33,6 +33,12 @@ export function ThreadPane(props: {
   headerNeedsTrafficLightPad?: boolean;
   /** Mounted but hidden for keep-alive. */
   hidden?: boolean;
+  /**
+   * False for non-main panes (e.g. right-panel Side Chat): the pane header
+   * stays local and never portals into the global workspace header.
+   * Defaults to true.
+   */
+  portalThreadHeader?: boolean;
   onClose: () => void;
   onContinueInProvider?: (
     sourceThread: Thread,
@@ -149,6 +155,7 @@ export function ThreadPane(props: {
       onClose={props.onClose}
       projectLocation={projectLocation}
       {...(props.hidden ? { hidden: true } : {})}
+      {...(props.portalThreadHeader === false ? { portalThreadHeader: false } : {})}
       onLaunchConsumed={() => consumeThreadLaunch(thread.id)}
       onLaunchFailed={(message) => {
         startTransition(() => {

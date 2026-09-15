@@ -15,6 +15,9 @@ const bridge = vi.hoisted(() => ({
   resolveThreadServerRequest: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   clearPendingSteer: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   setPendingSteer: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  readSessionSwitchState: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  dbUpsertThread: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  dbSetState: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
 }));
 
 vi.mock("@/renderer/bridge", () => ({ readBridge: () => bridge }));
@@ -110,6 +113,9 @@ describe("crafted active commands carry the runtime execution envelope", () => {
     bridge.resolveThreadServerRequest.mockResolvedValue(undefined);
     bridge.clearPendingSteer.mockResolvedValue(undefined);
     bridge.setPendingSteer.mockResolvedValue(undefined);
+    bridge.readSessionSwitchState.mockResolvedValue(null);
+    bridge.dbUpsertThread.mockResolvedValue(undefined);
+    bridge.dbSetState.mockResolvedValue(undefined);
     useSessionHandoffStore.setState({ statesByThread: {} });
     useAppStore.setState({ threads: [thread()], projects: [project()] });
   });
@@ -117,6 +123,50 @@ describe("crafted active commands carry the runtime execution envelope", () => {
   it("attaches the current envelope when submitting a prompt to a crafted thread", async () => {
     seedActiveBinding();
     await submitThreadInput("thread-1", "hello");
+    expect(bridge.sendThreadInput).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "thread-1", prompt: "hello", execution: ENVELOPE }),
+    );
+  });
+
+  it("rehydrates a dropped envelope from the supervisor before sending", async () => {
+    const state: SessionSwitchState = {
+      requestId: "segment:segment:thread-1:1",
+      threadId: "thread-1",
+      mode: "after-current-turn",
+      phase: "active",
+      sourceSegmentId: ENVELOPE.segmentId,
+      targetBinding: {
+        harnessKind: "codex",
+        modelId: "gpt-5.3-codex",
+        vendor: "openai",
+        runtimeAdapterId: "codex-runtime",
+      },
+      activeSegment: {
+        id: ENVELOPE.segmentId,
+        threadId: "thread-1",
+        ordinal: 0,
+        bindingEpoch: ENVELOPE.bindingEpoch,
+        status: "active",
+        craftPlanId: "plan-1",
+        recipeId: "recipe-1",
+        resultItemId: "result-1",
+        runtimeBinding: {
+          harnessKind: "codex",
+          modelId: "gpt-5.3-codex",
+          vendor: "openai",
+          runtimeAdapterId: "codex-runtime",
+        },
+        entityId: "entity-1",
+        runtimeSessionId: ENVELOPE.runtimeSessionId,
+        createdAt: "2026-08-31T00:00:01.000Z",
+        activatedAt: "2026-08-31T00:00:02.000Z",
+      },
+      requestedAt: "2026-08-31T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z",
+    };
+    bridge.readSessionSwitchState.mockResolvedValue(state);
+    await submitThreadInput("thread-1", "hello");
+    expect(bridge.readSessionSwitchState).toHaveBeenCalledWith({ threadId: "thread-1" });
     expect(bridge.sendThreadInput).toHaveBeenCalledWith(
       expect.objectContaining({ threadId: "thread-1", prompt: "hello", execution: ENVELOPE }),
     );

@@ -232,6 +232,11 @@ export async function resolveKimiManagedHomeToken(home: string): Promise<OAuthTo
       };
     }
   }
+  // Pasted API keys have no expiry and no refresh token. Reuse the bearer as-is
+  // and skip CLI identity headers — those belong to OAuth tokens.
+  if (record.expiresAt === undefined && !record.refreshToken) {
+    return { accessToken: record.accessToken };
+  }
   return undefined;
 }
 

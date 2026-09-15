@@ -79,10 +79,12 @@ import {
   type VerifyChannelModelResponse,
   type KimiProfileCreatePayload,
   type KimiProfileImportPayload,
+  type KimiProfileApiKeyPayload,
   type KimiProfileLoginPayload,
   type KimiProfileLoginResult,
   kimiProfileCreatePayloadSchema,
   kimiProfileImportPayloadSchema,
+  kimiProfileApiKeyPayloadSchema,
   kimiProfileLoginPayloadSchema,
 } from "../../contracts";
 import { definePayloadProcedure } from "../core";
@@ -270,6 +272,11 @@ export const usageProcedures = {
     "importKimiProfile",
     "supervisor",
     kimiProfileImportPayloadSchema,
+  ),
+  importKimiApiKey: definePayloadProcedure<KimiProfileApiKeyPayload, AccountView, "supervisor">(
+    "importKimiApiKey",
+    "supervisor",
+    kimiProfileApiKeyPayloadSchema,
   ),
   startKimiProfileLogin: definePayloadProcedure<
     KimiProfileLoginPayload,

@@ -16,6 +16,7 @@ import {
 } from "@/shared/threadGoal";
 import { registerNativeGoal, setThreadGoalPrompt } from "@/renderer/actions/threadActions";
 import { enqueueThreadFollowUp } from "@/renderer/actions/queuedFollowUpActions";
+import { isSkillCatalogOutboundTurn } from "@/shared/skillCatalogDump";
 import {
   changeThreadConfig,
   resolveThreadServerRequest,
@@ -131,6 +132,14 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
     if (agentStatus && supportsUsableFastMode(agentStatus.capabilities, thread.config.model)) {
       changeThreadConfig(thread.id, { ...thread.config, fast: thread.config.fast !== true });
     }
+    mentionRef.current?.clear();
+    mentionRef.current?.focus();
+    clearComposerText();
+    return;
+  }
+  // Grok plan turns used to submit the whole local skill catalog as the user
+  // prompt (dozens of kebab-case chips, no real request). Drop it.
+  if (isSkillCatalogOutboundTurn(flat, allSegments)) {
     mentionRef.current?.clear();
     mentionRef.current?.focus();
     clearComposerText();

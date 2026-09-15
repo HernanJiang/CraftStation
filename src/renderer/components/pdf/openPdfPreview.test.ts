@@ -5,12 +5,17 @@ const browserCreateTab = vi.hoisted(() =>
     .fn<(payload: { url: string; activate: boolean; reveal?: boolean }) => Promise<void>>()
     .mockResolvedValue(),
 );
+const browserActivateTab = vi.hoisted(() =>
+  vi.fn<(payload: { tabId: string }) => Promise<void>>().mockResolvedValue(),
+);
 
 vi.mock("@/renderer/bridge", () => ({
-  readBridge: () => ({ browserCreateTab }),
+  readBridge: () => ({ browserCreateTab, browserActivateTab }),
 }));
 
 import { openPdfPreview, resolvePdfHostPath } from "./openPdfPreview";
+import { useBrowserPanelStore } from "@/renderer/state/browserPanelStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
 
 describe("resolvePdfHostPath", () => {
   it("joins relative paths for Windows projects", () => {
@@ -60,6 +65,8 @@ describe("resolvePdfHostPath", () => {
 describe("openPdfPreview", () => {
   beforeEach(() => {
     browserCreateTab.mockClear();
+    browserActivateTab.mockClear();
+    useBrowserPanelStore.setState({ tabs: [], activeTabId: null, extracted: false });
   });
 
   it("creates a browser tab with reveal so presentation matches link opens", () => {
@@ -80,5 +87,28 @@ describe("openPdfPreview", () => {
       activate: true,
       reveal: true,
     });
+  });
+
+  it("reuses an existing tab at the same file URL instead of duplicating it", () => {
+    useBrowserPanelStore.setState({
+      tabs: [
+        {
+          tabId: "tab-pdf",
+          url: "file:///C:/repo/docs/a.pdf",
+          title: "a.pdf",
+          loading: false,
+          canGoBack: false,
+          canGoForward: false,
+        },
+      ],
+      activeTabId: "tab-pdf",
+    });
+
+    openPdfPreview("docs/a.pdf", { kind: "windows", path: "C:\\repo" });
+
+    expect(browserCreateTab).not.toHaveBeenCalled();
+    expect(browserActivateTab).toHaveBeenCalledWith({ tabId: "tab-pdf" });
+    expect(usePanelStore.getState().rightPanelTab).toBe("browser");
+    expect(usePanelStore.getState().browserPanelOpen).toBe(true);
   });
 });

@@ -10,7 +10,7 @@ import {
   adaptThreadConfigForCapabilities,
   capabilitiesForPresentation,
 } from "@/shared/agentSelection";
-import type { ProjectLocation, Thread, ThreadConfig } from "@/shared/contracts";
+import type { ProjectLocation, SwitchThreadProviderResult, Thread, ThreadConfig } from "@/shared/contracts";
 import {
   Crafter,
   getDefaultRegistry,
@@ -19,6 +19,7 @@ import {
   type CraftPlan,
 } from "@/shared/crafting";
 import type { SessionSwitchMode, SessionSwitchState } from "@/shared/sessionHandoff";
+import { isUnknownThreadSessionError } from "@/shared/threadRelaunch";
 import { getProjectPosixPath } from "@/shared/wsl";
 
 const TARGET_ITEMS: Readonly<
@@ -259,17 +260,6 @@ export async function switchLiveThreadProvider(input: {
     targetAgentKind: input.targetAgentKind,
     targetConfig,
   });
-  if (compiled.available && compiled.craftPlan && compiled.provenance) {
-    await requestSessionHandoff({
-      thread: input.thread,
-      projectLocation: input.projectLocation,
-      targetAgentKind: input.targetAgentKind,
-      targetConfig,
-      mode: "after-current-turn",
-      prompt: "Continue this conversation with the newly selected model. Preserve prior context.",
-    });
-    return;
-  }
 
   // Third-party custom models carry their validated account binding across
   // the switch — otherwise the rebuilt session falls back to the native pool
@@ -281,17 +271,40 @@ export async function switchLiveThreadProvider(input: {
     accounts: useUsageAccountsStore.getState().accounts ?? [],
     ...(input.targetAccountId ? { explicitAccountId: input.targetAccountId } : {}),
   });
-  const result = await readBridge().switchThreadProvider({
-    threadId: input.thread.id,
-    agentKind: input.targetAgentKind,
-    config: targetConfig,
-    ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
-  });
+
+  let result: SwitchThreadProviderResult | undefined;
+  try {
+    if (compiled.available && compiled.craftPlan && compiled.provenance) {
+      await requestSessionHandoff({
+        thread: input.thread,
+        projectLocation: input.projectLocation,
+        targetAgentKind: input.targetAgentKind,
+        targetConfig,
+        mode: "after-current-turn",
+        prompt: "Continue this conversation with the newly selected model. Preserve prior context.",
+      });
+      return;
+    }
+    result = await readBridge().switchThreadProvider({
+      threadId: input.thread.id,
+      agentKind: input.targetAgentKind,
+      config: targetConfig,
+      ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
+    });
+  } catch (error) {
+    if (!isUnknownThreadSessionError(error)) throw error;
+    // No live session to switch (e.g. a never-launched Side Chat ephemeral
+    // branch): degrade to a store-only config update so the next launch
+    // starts directly on the newly selected provider/model, and the next
+    // prompt resumes through the normal relaunch path.
+  }
   // A switch committed while a turn was working abandons that turn on the
   // disposed session. Mark it cancelled (same honesty rule as the stop
   // button and pending-steer displacement) instead of letting it render an
-  // empty 已完成. Only on success: a failed switch rolls back and the old
-  // turn, if any, keeps running.
+  // empty 已完成. Only when a live session was actually switched: a failed
+  // switch rolls back and the old turn, if any, keeps running. On a thread
+  // with no live session the marking merely settles a stale "working" row
+  // (e.g. a Side Chat branch copied from a mid-turn transcript).
   if (input.thread.status === "working" && input.thread.activeTurnStartedAt) {
     const startedAt = Date.parse(input.thread.activeTurnStartedAt);
     if (Number.isFinite(startedAt)) {
@@ -304,13 +317,16 @@ export async function switchLiveThreadProvider(input: {
   // the old native session, so adoption is never an option).
   useAppStore.getState().reconcileStaleSubAgents(input.thread.id);
   const { sessionRef: _previous, accountBinding: _binding, ...stable } = input.thread;
-  const boundAccountId = thirdPartyAccountId ?? result.poolAccountId;
+  const boundAccountId = thirdPartyAccountId ?? result?.poolAccountId;
+  // With no live session there is no new native session either: keep the
+  // thread's existing resume material so the next launch can still resume it.
+  const keptSessionRef = result?.sessionRef ?? input.thread.sessionRef;
   const updatedThread: Thread = {
     ...stable,
     agentKind: input.targetAgentKind,
     config: targetConfig,
     ...(input.targetPresentationMode ? { presentationMode: input.targetPresentationMode } : {}),
-    ...(result.sessionRef ? { sessionRef: result.sessionRef } : {}),
+    ...(keptSessionRef ? { sessionRef: keptSessionRef } : {}),
     ...(boundAccountId
       ? {
           accountBinding: {
@@ -322,7 +338,7 @@ export async function switchLiveThreadProvider(input: {
           },
         }
       : {}),
-    canResumeWithConfig: result.canResumeWithConfig,
+    canResumeWithConfig: result?.canResumeWithConfig ?? input.thread.canResumeWithConfig,
     updatedAt: new Date().toISOString(),
   };
   useAppStore.setState((current) => ({
@@ -331,13 +347,15 @@ export async function switchLiveThreadProvider(input: {
     ),
   }));
   await readBridge().dbUpsertThread(updatedThread);
-  await readBridge().dbInsertThreadNativeSession({
-    threadId: input.thread.id,
-    harness: input.targetAgentKind,
-    model: targetConfig.model,
-    ...(result.sessionRef ? { nativeSessionId: result.sessionRef.providerSessionId } : {}),
-    ...(result.poolAccountId ? { poolAccountId: result.poolAccountId } : {}),
-  });
+  if (result) {
+    await readBridge().dbInsertThreadNativeSession({
+      threadId: input.thread.id,
+      harness: input.targetAgentKind,
+      model: targetConfig.model,
+      ...(result.sessionRef ? { nativeSessionId: result.sessionRef.providerSessionId } : {}),
+      ...(result.poolAccountId ? { poolAccountId: result.poolAccountId } : {}),
+    });
+  }
   // The supervisor already painted a persisted model_switch divider at the
   // switch point; the toast only confirms + warns about cross-model drift.
   showTopStatusToast(`已切换至 ${targetConfig.model}`, {

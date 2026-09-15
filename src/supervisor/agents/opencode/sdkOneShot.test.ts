@@ -68,6 +68,20 @@ describe("runOpenCodeOneShot", () => {
     });
   });
 
+  it("accepts a bare Gemini recipe id as google/gemini", async () => {
+    await runOpenCodeOneShot({
+      location,
+      model: "gemini-3.8-flash",
+      prompt: "Generate a title",
+    });
+
+    expect(prompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: { providerID: "google", modelID: "gemini-3.8-flash" },
+      }),
+    );
+  });
+
   it.each(["<｜DSML｜tool_calls>", "< | | DSML | | tool_calls>"])(
     "rejects a leaked DeepSeek tool-call marker: %s",
     async (marker) => {

@@ -149,7 +149,13 @@ export class CommandCodeStructuredSession implements StructuredSessionHandle {
     options?: StartTurnOptions,
   ): Promise<void> {
     if (this.disposed) throw new Error("Command Code session is not open.");
-    if (this.currentTurnId) throw new Error("A Command Code turn is already active.");
+    // Follow-ups must queue behind the in-flight print process. Throwing
+    // "already active" used to fail the composer queue after a live turn
+    // (or a 403 that had not yet cleared currentTurnId).
+    if (this.turnPromise) {
+      await this.turnPromise.catch(() => undefined);
+    }
+    if (this.currentTurnId) this.forceCompleteTurn();
     this.currentTurnId = options?.turnId ?? `turn:${randomUUID()}`;
     this.mapper = createCommandCodeMapperState();
     this.retriedInvalidResume = false;

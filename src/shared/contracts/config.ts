@@ -26,6 +26,12 @@ const threadConfigShape = {
   crossagentsMcp: z.boolean().optional(),
   computerUse: z.boolean().optional(),
   chromeMcp: z.boolean().optional(),
+  /**
+   * Catalog/channel that listed the model when Auto Mode remaps Harness
+   * (Command Code → DeepSeek Harness, OpenCode → Muse). Absent when the
+   * picker kind already is the spawn Harness.
+   */
+  sourceProviderKind: z.string().optional(),
 } as const;
 
 export const threadConfigBaseSchema = z.object(threadConfigShape);
@@ -71,6 +77,7 @@ export function isThreadConfigEqual(
     left.crossagentMcp === right.crossagentMcp &&
     left.crossagentsMcp === right.crossagentsMcp &&
     left.computerUse === right.computerUse &&
-    left.chromeMcp === right.chromeMcp
+    left.chromeMcp === right.chromeMcp &&
+    left.sourceProviderKind === right.sourceProviderKind
   );
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   CraftPlan,
+  CraftRequestResolution,
   CraftSession,
   CraftSessionStatus,
   Entity,
@@ -30,12 +31,17 @@ import type {
   StructuredSessionListener,
 } from "@/supervisor/agents/base";
 
-function configForPlan(plan: CraftPlan): ThreadConfig {
+function configForPlan(plan: CraftPlan, defaultApprovalPolicy?: string): ThreadConfig {
   const overrides = plan.overrides;
+  const runtime = nativeRuntimeExecutionConfigForPlan(plan);
+  const approvalPolicy =
+    overrides?.approvalPolicy ?? runtime.approvalPolicy ?? defaultApprovalPolicy;
   return {
     model: overrides?.model ?? plan.runtimeBinding.modelId,
-    ...(overrides?.reasoningEffort ? { effort: overrides.reasoningEffort } : {}),
-    ...(overrides?.approvalPolicy ? { approvalPolicy: overrides.approvalPolicy } : {}),
+    ...(overrides?.reasoningEffort ?? runtime.reasoningEffort
+      ? { effort: overrides?.reasoningEffort ?? runtime.reasoningEffort }
+      : {}),
+    ...(approvalPolicy ? { approvalPolicy } : {}),
   };
 }
 
@@ -345,6 +351,29 @@ class StructuredNativeCraftSession implements CraftSession {
     };
   }
 
+  async respondToRequest(requestId: string, resolution: CraftRequestResolution): Promise<void> {
+    if (this._disposed) return;
+    if (!this.handle.resolveServerRequest) {
+      throw new Error(`Crafted thread ${this.threadId} does not support request resolution.`);
+    }
+    if (resolution.kind === "permission") {
+      await this.handle.resolveServerRequest(requestId, {
+        optionId: resolution.optionId ?? resolution.response,
+        ...(resolution.message ? { message: resolution.message } : {}),
+      });
+      return;
+    }
+    if (resolution.action === "reject") {
+      await this.handle.resolveServerRequest(requestId, { action: "cancel" });
+      return;
+    }
+    await this.handle.resolveServerRequest(requestId, {
+      answers: Object.fromEntries(
+        resolution.answers.map((row, index) => [`q${index}`, [...row]]),
+      ),
+    });
+  }
+
   async interrupt(): Promise<void> {
     if (this._disposed) return;
     if (!this.handle.interruptTurn) {
@@ -504,7 +533,10 @@ export class StructuredNativeHarnessRuntimeAdapter implements HarnessRuntimeAdap
       throw error;
     }
 
-    const config = configForPlan(entity.craftPlan);
+    const config = configForPlan(
+      entity.craftPlan,
+      this.options.adapter.capabilities.defaultApprovalPolicy,
+    );
     const threadId = entity.craftPlan.threadId ?? entity.id;
     let handle: StructuredSessionHandle | undefined;
     try {

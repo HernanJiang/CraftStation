@@ -1,7 +1,12 @@
 import type { AgentAuthMethod, AgentCapability, ProjectLocation } from "@/shared/contracts";
 import { batchWslCommandsAsync, type AuthProbe, type DetectionSpec } from "../base";
 import {
+  GOOGLE_CLOUDCODE_PRODUCTION_ENV,
+  GOOGLE_CLOUDCODE_PRODUCTION_URL,
+} from "../googleCloudCode";
+import {
   ANTIGRAVITY_KNOWN_MODEL_VARIANTS,
+  buildAntigravityContextCapabilities,
   buildAntigravityModelCapabilities,
   probeAntigravityRuntime,
   type AntigravityProbeResult,
@@ -20,8 +25,11 @@ export const ANTIGRAVITY_DEFAULT_MODEL_ID = "Gemini 3.6 Flash";
 // set `AGY_CLI_DISABLE_AUTO_UPDATE` on every `agy` spawn we make (detection
 // probes, account probe, PTY launches, one-shots). `agy update` runs without
 // this env (separate path), so explicit updates still work.
+export const ANTIGRAVITY_CLOUDCODE_PRODUCTION_URL = GOOGLE_CLOUDCODE_PRODUCTION_URL;
+
 export const ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV: Record<string, string> = {
   AGY_CLI_DISABLE_AUTO_UPDATE: "1",
+  ...GOOGLE_CLOUDCODE_PRODUCTION_ENV,
 };
 
 /**
@@ -49,6 +57,7 @@ export const defaultAntigravityCapabilities: AgentCapability = {
   efforts: defaultModelCapabilities.efforts,
   defaultEffort: defaultModelCapabilities.defaultEffort,
   modelEfforts: defaultModelCapabilities.modelEfforts,
+  ...buildAntigravityContextCapabilities(defaultModelCapabilities.models),
   modes: ["agent", "plan"],
   approvalPolicies: [
     { id: "default", label: "Request Review" },
@@ -141,6 +150,9 @@ export function createAntigravityDetectionSpec(
       onProbe?.(probe);
       return {
         ...(probe.capabilities ?? {}),
+        ...buildAntigravityContextCapabilities(
+          probe.capabilities?.models ?? defaultAntigravityCapabilities.models,
+        ),
         authMethods: [ANTIGRAVITY_TERMINAL_AUTH_METHOD],
       };
     },

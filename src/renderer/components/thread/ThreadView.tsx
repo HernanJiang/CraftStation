@@ -85,6 +85,7 @@ function areThreadViewPropsEqual(prev: ThreadViewProps, next: ThreadViewProps): 
     prev.showCloseButton === next.showCloseButton &&
     prev.paneAlign === next.paneAlign &&
     prev.hidden === next.hidden &&
+    prev.portalThreadHeader === next.portalThreadHeader &&
     prev.isDragging === next.isDragging &&
     prev.dropIndicator === next.dropIndicator &&
     prev.paneCount === next.paneCount &&
@@ -115,6 +116,13 @@ export type ThreadViewProps = {
   isDragging?: boolean;
   /** Mounted but hidden for keep-alive. */
   hidden?: boolean;
+  /**
+   * False when this pane is NOT the main workspace content (e.g. a Side Chat
+   * pane in the right panel): its header must render locally in its own pane
+   * and must never portal into the single global workspace-header target,
+   * which is reserved for the focused main thread.
+   */
+  portalThreadHeader?: boolean;
   dropIndicator?:
     | false
     | "replace"
@@ -167,6 +175,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     paneAlign = "center",
     isDragging,
     hidden = false,
+    portalThreadHeader = true,
     dropIndicator,
     paneIndex: _paneIndex,
     paneCount = 1,
@@ -316,7 +325,8 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
   const contentBodyClass = usesTerminalPresentation
     ? `${alignClass} flex min-h-0 w-full max-w-[920px] flex-1 flex-col pt-2`
     : "relative flex min-h-0 w-full flex-1 flex-col pt-2";
-  const threadHeaderIsPortaled = !hidden && paneCount === 1 && threadHeaderPortalTarget !== null;
+  const threadHeaderIsPortaled =
+    portalThreadHeader && !hidden && paneCount === 1 && threadHeaderPortalTarget !== null;
   const threadHeader = (
     <div
       data-thread-header-portal-content=""

@@ -137,6 +137,7 @@ export function SideChatPanel() {
           threadId={sideThread.id}
           paneCount={1}
           paneAlign="center"
+          portalThreadHeader={false}
           onClose={() => closeSideChat()}
         />
       </div>

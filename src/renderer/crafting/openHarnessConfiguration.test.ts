@@ -27,6 +27,10 @@ describe("harnessConfigurationTarget", () => {
     expect(harnessConfigurationTarget("grok").kind).toBe("agent-settings");
     expect(harnessConfigurationTarget("antigravity").kind).toBe("agent-settings");
     expect(harnessConfigurationTarget("opencode").kind).toBe("agent-settings");
+    expect(harnessConfigurationTarget("muse")).toEqual({
+      kind: "agent-settings",
+      section: "agents:muse",
+    });
   });
 
   it("routes DeepSeek API Runtime to the usage workspace account pool", () => {

@@ -9,6 +9,7 @@ import type { DbPersistExperimentStatePayload } from "@/shared/ipc";
 import { getSqlite } from "./connection";
 import { acknowledgeMirroredThreadIds, isMainCreatedThreadUnmirrored } from "./mainCreatedThreads";
 import { notifyProjectThreadDataChanged } from "./projectThreadChanges";
+import { notifyThreadBindingUnavailable } from "./threadBindingChanges";
 import { projectMutableRow } from "./rowMappers";
 
 /**
@@ -17,6 +18,12 @@ import { projectMutableRow } from "./rowMappers";
  */
 export function dbSyncAll(projectsData: Project[], threadsData: Thread[], viewJson: string): void {
   const sqlite = getSqlite();
+  const previousThreads = sqlite.prepare("SELECT id, archived FROM threads").all() as Array<{
+    id: string;
+    archived: number;
+  }>;
+  const previousArchived = new Map(previousThreads.map((row) => [row.id, row.archived === 1]));
+  const previousIds = new Set(previousThreads.map((row) => row.id));
 
   sqlite.transaction(() => {
     const existingProjectIds = new Set(
@@ -66,6 +73,17 @@ export function dbSyncAll(projectsData: Project[], threadsData: Thread[], viewJs
       )
       .run(viewJson);
   })();
+  const incomingThreadIds = new Set(threadsData.map((thread) => thread.id));
+  for (const threadId of previousIds) {
+    if (incomingThreadIds.has(threadId)) continue;
+    if (isMainCreatedThreadUnmirrored(threadId)) continue;
+    notifyThreadBindingUnavailable(threadId);
+  }
+  for (const thread of threadsData) {
+    if (thread.archived && previousArchived.get(thread.id) !== true) {
+      notifyThreadBindingUnavailable(thread.id);
+    }
+  }
   notifyProjectThreadDataChanged();
 }
 
@@ -92,6 +110,12 @@ export function dbPersistExperimentState(payload: DbPersistExperimentStatePayloa
         }),
       );
   })();
+  for (const threadId of payload.deletedThreadIds) {
+    notifyThreadBindingUnavailable(threadId);
+  }
+  for (const { thread } of payload.upsertThreads) {
+    if (thread.archived) notifyThreadBindingUnavailable(thread.id);
+  }
 }
 
 type SqliteStatement = ReturnType<InstanceType<typeof Database>["prepare"]>;

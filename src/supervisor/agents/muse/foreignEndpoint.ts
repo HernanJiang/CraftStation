@@ -106,19 +106,25 @@ export function writeMuseForeignSettings(
  * shim inside the distro (catalog at GET /muse-code/models, POST /responses
  * forwarded to the third-party API), then write settings.json at that origin.
  */
+/** Write isolated `settings.json` inside the WSL distro (host paths are invisible). */
+export function museForeignWslSettingsWrite(env: Record<string, string>): string {
+  const home = env.XDG_CONFIG_HOME?.trim();
+  const json = env[MUSE_FOREIGN_SETTINGS_JSON_ENV]?.trim();
+  if (!json || !home) return "";
+  const museDir = `${home.replace(/\/+$/u, "")}/muse`;
+  return (
+    `mkdir -p ${quotePosixShellArg(museDir)}; ` +
+    `printf '%s\\n' ${quotePosixShellArg(json)} > ${quotePosixShellArg(`${museDir}/settings.json`)}; `
+  );
+}
+
 export function museForeignWslBootstrap(env: Record<string, string>): string {
   const home = env.XDG_CONFIG_HOME?.trim();
   const upstream = env[MUSE_FOREIGN_SHIM_UPSTREAM_ENV]?.trim();
   const python = env[MUSE_FOREIGN_SHIM_PYTHON_ENV];
   const model = env[MUSE_FOREIGN_SHIM_MODEL_ENV]?.trim() || "muse-spark-1.3-contributor";
   if (!home || !upstream || !python) {
-    const json = env[MUSE_FOREIGN_SETTINGS_JSON_ENV]?.trim();
-    if (!json || !home) return "";
-    const museDir = `${home.replace(/\/+$/u, "")}/muse`;
-    return (
-      `mkdir -p ${quotePosixShellArg(museDir)}; ` +
-      `printf '%s\\n' ${quotePosixShellArg(json)} > ${quotePosixShellArg(`${museDir}/settings.json`)}; `
-    );
+    return museForeignWslSettingsWrite(env);
   }
   const museDir = `${home.replace(/\/+$/u, "")}/muse`;
   const shimPy = `${home.replace(/\/+$/u, "")}/shim.py`;

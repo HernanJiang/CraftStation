@@ -29,6 +29,11 @@ describe("deepseekContextTokensForModel", () => {
 });
 
 describe("deepseekDefaultCapabilities", () => {
+  it("lists the matrix-tested bare id deepseek-flash in fallback models", () => {
+    expect(deepseekDefaultCapabilities.models.map((model) => model.id)).toContain("deepseek-flash");
+    expect(deepseekDefaultCapabilities.modelContextSizes?.["deepseek-flash"]).toEqual(["1M"]);
+  });
+
   it("advertises 1M context and high/max thinking", () => {
     expect(deepseekDefaultCapabilities.defaultContextSize).toBe("1M");
     expect(deepseekDefaultCapabilities.contextSizes?.some((size) => size.id === "1M")).toBe(true);

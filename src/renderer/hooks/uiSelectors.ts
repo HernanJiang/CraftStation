@@ -9,7 +9,7 @@ import type {
   Thread,
 } from "@/shared/contracts";
 import { isEphemeralSideChatThread } from "@/shared/contracts";
-import { getProjectAgentStatuses } from "@/shared/agentStatus";
+import { getLaunchableAgentStatuses, getProjectAgentStatuses } from "@/shared/agentStatus";
 import { resolveActivePaneId } from "@/renderer/actions/currentProject";
 import {
   isDetectingAgentsForLocation,
@@ -307,7 +307,7 @@ export function useDraftEnvironment(project: Project | undefined): {
   const localAgentStatuses = useAgentStatusesStore(
     useShallow((state) =>
       project
-        ? getProjectAgentStatuses(project.location, state.agentStatuses, state.wslAgentStatuses)
+        ? getLaunchableAgentStatuses(project.location, state.agentStatuses, state.wslAgentStatuses)
         : EMPTY_AGENT_STATUSES,
     ),
   );

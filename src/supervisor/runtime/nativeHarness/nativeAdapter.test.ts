@@ -1,4 +1,4 @@
-﻿import { PassThrough, Writable } from "node:stream";
+import { PassThrough, Writable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
@@ -54,7 +54,7 @@ function plan(configPath = "C:\\repo\\cordis.yml"): CraftPlan {
     },
     runtimeBinding: {
       harnessKind: "deepseek",
-      modelId: "deepseek-chat",
+      modelId: "deepseek-v4.1-flash",
       vendor: "deepseek",
       runtimeAdapterId: "native-harness:deepseek",
       ...(configPath ? { options: { configPath } } : { options: {} }),
@@ -800,8 +800,16 @@ describe("Native process harness adapter", () => {
     expect(adapter.getActiveSessions()).toHaveLength(1);
     await session.terminate();
     expect(adapter.getActiveSessions()).toHaveLength(0);
+    const spawnCommand = vi.mocked(spawnProcess).mock.calls[0]?.[0];
+    if (process.platform === "win32") {
+      // The dsh.cmd shim is re-targeted to the resolved node executable
+      // (PATH-dependent: bare "node" or an absolute node.exe).
+      expect(String(spawnCommand)).toMatch(/node(\.exe)?$/i);
+    } else {
+      expect(spawnCommand).toBe("C:\\Users\\Haona\\AppData\\Roaming\\npm\\dsh.cmd");
+    }
     expect(spawnProcess).toHaveBeenCalledWith(
-      process.platform === "win32" ? "node" : "C:\\Users\\Haona\\AppData\\Roaming\\npm\\dsh.cmd",
+      spawnCommand,
       expect.arrayContaining(["--profile", "sdk", "--patch", "C:\\repo\\cordis.yml"]),
       expect.objectContaining({
         cwd: "C:\\repo",
@@ -866,8 +874,51 @@ describe("Native process harness adapter", () => {
     expect(fixture.requests[0]?.params).toEqual({
       cwd: "C:\\repo",
       provider: "deepseek-official",
-      model: "deepseek-chat",
+      model: "deepseek-flash",
     });
+  });
+
+  it("fails closed before Entity creation on an unknown DSH model id", async () => {
+    const spawnProcess = vi.fn<() => ChildProcessWithoutNullStreams>();
+    const adapter = new NativeProcessHarnessRuntimeAdapter({
+      descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: location,
+      mode: "deepseek",
+      runtimeCommand: "dsh-jsonrpc-agent-fixture",
+      spawnProcess: spawnProcess as unknown as typeof import("node:child_process").spawn,
+    });
+    const unknownPlan: CraftPlan = {
+      ...plan(),
+      runtimeBinding: { ...plan().runtimeBinding, modelId: "deepseek-chat" },
+    };
+    await expect(adapter.spawnEntity(unknownPlan)).rejects.toMatchObject({
+      code: "EXECUTION_FAILED",
+      details: { code: "UNKNOWN_DSH_MODEL_ID", modelId: "deepseek-chat" },
+    });
+    expect(spawnProcess).not.toHaveBeenCalled();
+    expect(adapter.getActiveSessions()).toHaveLength(0);
+  });
+
+  it("sends the official dsh model id verbatim when already canonical", async () => {
+    const fixture = new JsonRpcFixture();
+    const spawnProcess = vi.fn<() => ChildProcessWithoutNullStreams>(() =>
+      fixtureProcess(fixture),
+    ) as unknown as typeof import("node:child_process").spawn;
+    const adapter = new NativeProcessHarnessRuntimeAdapter({
+      descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: location,
+      mode: "deepseek",
+      runtimeCommand: "dsh-jsonrpc-agent-fixture",
+      spawnProcess,
+    });
+    const officialPlan: CraftPlan = {
+      ...plan(),
+      runtimeBinding: { ...plan().runtimeBinding, modelId: "deepseek-v4-pro" },
+    };
+    const entity = await adapter.spawnEntity(officialPlan);
+    const session = await adapter.createSession(entity);
+    expect(fixture.requests[0]?.params).toMatchObject({ model: "deepseek-v4-pro" });
+    await session.terminate();
   });
 
   it("waits for Antigravity result after the user_input DONE step", async () => {

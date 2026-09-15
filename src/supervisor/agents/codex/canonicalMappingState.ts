@@ -84,6 +84,14 @@ export function normalizeItemType(raw: string | undefined | null): string {
     .toLowerCase();
 }
 
+export function isCodexCompactionItem(item: { type?: unknown; kind?: unknown }): boolean {
+  const kind = normalizeItemType(
+    (typeof item.type === "string" ? item.type : undefined) ??
+      (typeof item.kind === "string" ? item.kind : undefined),
+  );
+  return kind === "context compaction" || kind === "compaction" || kind === "compaction trigger";
+}
+
 export function streamForType(
   type: CanonicalItemType,
 ): "assistant_text" | "reasoning_text" | undefined {

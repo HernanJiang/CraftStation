@@ -324,7 +324,7 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
         project,
         "if command -v curl >/dev/null 2>&1; then curl -fsSL https://dev.meta.ai/install.sh | sh; " +
           "else printf 'curl is required to install Muse Code. Install curl, then refresh detected agents.\\n'; fi",
-        "Write-Host 'Muse Code is not available on native Windows. Open a WSL project and install with: curl -fsSL https://dev.meta.ai/install.sh | sh'",
+        "if (Get-Command wsl.exe -ErrorAction SilentlyContinue) { wsl.exe -e bash -lc 'curl -fsSL https://dev.meta.ai/install.sh | sh' } else { Write-Error 'Muse Code has no Windows binary. Install WSL first, then retry.' }",
       ),
   },
   {

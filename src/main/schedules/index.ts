@@ -3,9 +3,11 @@ import {
   dbDeleteSchedule,
   dbGetSchedule,
   dbGetSchedules,
+  dbGetThread,
   dbListScheduleRuns,
   dbUpsertSchedule,
 } from "../db";
+import { onThreadBindingUnavailable } from "../db/threadBindingChanges";
 import type { ScheduledTask } from "@/shared/contracts";
 import type { ScheduleRunInvocation } from "./ScheduleCapability";
 import { ScheduleService } from "./ScheduleService";
@@ -22,7 +24,7 @@ export interface DeviceScheduleServiceOptions {
 export function createDeviceScheduleService(
   options: DeviceScheduleServiceOptions,
 ): ScheduleService {
-  return new ScheduleService({
+  const service = new ScheduleService({
     store: {
       list: dbGetSchedules,
       get: dbGetSchedule,
@@ -32,9 +34,17 @@ export function createDeviceScheduleService(
       listRuns: dbListScheduleRuns,
     },
     runTask: options.runTask,
+    threadIsUnavailable: (threadId) => {
+      const thread = dbGetThread(threadId);
+      return !thread || thread.archived;
+    },
     ...(options.onStartupInterrupted ? { onStartupInterrupted: options.onStartupInterrupted } : {}),
     ...(options.onChanged ? { onChanged: options.onChanged } : {}),
   });
+  onThreadBindingUnavailable((threadId) => {
+    service.deleteContinuingThread(threadId);
+  });
+  return service;
 }
 
 export type { ScheduleCapability, ScheduleRunInvocation } from "./ScheduleCapability";

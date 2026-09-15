@@ -89,9 +89,14 @@ export function mapCodexNotificationToRuntimeEvents(
       else if (itemType === "webSearch") canonicalType = "web_search";
       else if (itemType === "collabAgentToolCall" || itemType === "subAgentActivity") {
         canonicalType = "tool_call";
+      } else if (itemType === "contextCompaction" || itemType === "compaction") {
+        canonicalType = "tool_call";
       }
 
-      const canonicalPayload = buildNativeToolStartedPayload(item);
+      const canonicalPayload =
+        itemType === "contextCompaction" || itemType === "compaction"
+          ? { name: "ContextCompaction", status: "running" }
+          : buildNativeToolStartedPayload(item);
 
       events.push({
         type: "item.started",
@@ -208,11 +213,24 @@ export function mapCodexNotificationToRuntimeEvents(
     case "thread/compacted":
     case "context/compacted":
     case "compaction/completed": {
+      const itemId = `compact:${Date.now()}`;
       events.push({
-        type: "thread.compacted",
+        type: "item.started",
         threadId,
-        ...(params.summary ? { summary: params.summary as string } : {}),
-      } as any);
+        itemId,
+        itemType: "tool_call",
+        payload: { name: "ContextCompaction", status: "running" },
+      });
+      events.push({
+        type: "item.completed",
+        threadId,
+        itemId,
+        payload: {
+          name: "ContextCompaction",
+          status: "success",
+          ...(params.summary ? { args: { summary: params.summary } } : {}),
+        },
+      });
       break;
     }
 

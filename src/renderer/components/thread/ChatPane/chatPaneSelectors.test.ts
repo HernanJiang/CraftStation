@@ -11,6 +11,7 @@ import {
   selectChildTimelineEntries,
   selectCompletedTurnsByAnchorItem,
   selectMostRecentDisplayableCompletedTurn,
+  isVisibleRuntimeItem,
   selectVisibleThreadRuntimeItemIds,
   selectVisibleThreadTimelineEntries,
 } from "./chatPaneSelectors";
@@ -569,14 +570,16 @@ describe("chatPaneSelectors", () => {
       },
     } as unknown as AppStoreState;
 
-    // Thoughts are group members like any other tool row, so `thought → tool
-    // → thought` is a group of three.
+    // Thought before a tool stays in the group; thought after the last tool
+    // is a standalone chain so the following assistant paragraph can sit
+    // after it instead of being glued onto the previous answer.
     expect(selectVisibleThreadTimelineEntries(state, "t1")).toEqual([
       {
         kind: "tool_call_group",
         id: "tool-call-group:reasoning-1",
-        itemIds: ["reasoning-1", "tool-1", "reasoning-2"],
+        itemIds: ["reasoning-1", "tool-1"],
       },
+      { kind: "item", id: "reasoning-2" },
       { kind: "item", id: "assistant-1" },
     ]);
   });
@@ -1227,5 +1230,73 @@ describe("chatPaneSelectors", () => {
       });
     });
   });
+
+  it("hides leaked Muse protocol kind labels painted as assistant text", () => {
+    expect(
+      isVisibleRuntimeItem({
+        id: "asst-kind",
+        type: "assistant_message",
+        state: "completed",
+        streams: { assistant_text: "reminderChild" },
+      }),
+    ).toBe(false);
+    expect(
+      isVisibleRuntimeItem({
+        id: "asst-real",
+        type: "assistant_message",
+        state: "completed",
+        streams: { assistant_text: "我是 Muse Code。" },
+      }),
+    ).toBe(true);
+  });
+
+  it("hides Grok skill-catalog user bubbles", () => {
+    const names = [
+      "skill-creator-craftstation",
+      "ask-matt",
+      "ast-grep",
+      "code-review",
+      "diagnosing-bugs",
+      "my-workflow",
+      "my-research",
+      "prototype",
+    ];
+    expect(
+      isVisibleRuntimeItem({
+        id: "user-dump",
+        type: "user_message",
+        state: "completed",
+        streams: {},
+        payload: {
+          content: names.map((name) => ({
+            kind: "skill",
+            name,
+            invocation: `/${name}`,
+          })),
+        },
+      } as never),
+    ).toBe(false);
+  });
+
+  it("hides Grok skill-catalog assistant echoes", () => {
+    expect(
+      isVisibleRuntimeItem({
+        id: "asst-dump",
+        type: "assistant_message",
+        state: "completed",
+        streams: {
+          assistant_text:
+            "skill-creator-craftstation ask-matt ast-grep code-review diagnosing-bugs my-workflow my-research prototype",
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isVisibleRuntimeItem({
+        id: "asst-real",
+        type: "assistant_message",
+        state: "completed",
+        streams: { assistant_text: "按 F.O Manager 做一次巡检并修。" },
+      }),
+    ).toBe(true);
+  });
 });
-// @vitest-environment node

@@ -1,10 +1,16 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectLocation, ThreadConfig } from "@/shared/contracts";
 import { createKnownSessionRef } from "../base";
 import { createMuseAdapter } from "./index";
+import {
+  buildMuseMspStartOptions,
+  MUSE_MSP_CLIENT_INFO,
+  openOrStartMuseSession,
+} from "./mspSession";
+import { MUSE_FOREIGN_BASE_URL_ENV } from "./foreignEndpoint";
 import {
   discoverMuseSessionRef,
   isMuseSessionUuid,
@@ -33,10 +39,11 @@ describe("createMuseAdapter shape", () => {
     });
   });
 
-  it("advertises terminal-only and no structured session (awaiting real ACP)", () => {
-    expect(adapter.capabilities.presentationModes).toEqual(["terminal"]);
-    expect(adapter.capabilities.liveInputMode).toBe("terminal");
-    expect(adapter.createStructuredSession).toBeUndefined();
+  it("advertises GUI structured session over muse serve", () => {
+    expect(adapter.capabilities.presentationModes).toEqual(["gui", "terminal"]);
+    expect(adapter.capabilities.liveInputMode).toBe("server");
+    expect(adapter.capabilities.presentationMode).toBe("gui");
+    expect(adapter.createStructuredSession).toBeTypeOf("function");
   });
 
   it("neutralizes the browser for the WSL OAuth flow", () => {
@@ -53,6 +60,94 @@ describe("createMuseAdapter shape", () => {
     expect(adapter.defaultOneShotModel).toBe("muse-spark-1.2");
     expect(adapter.buildOneShotCommand).toBeTypeOf("function");
     expect(adapter.capabilities.supportsOneShot).toBe(true);
+  });
+});
+
+describe("Muse MSP client identity", () => {
+  it("uses a lowercase machine identifier for initialize", () => {
+    expect(MUSE_MSP_CLIENT_INFO.name).toMatch(/^[a-z0-9_]+$/);
+    expect(MUSE_MSP_CLIENT_INFO.version).toBe("1.1.0");
+  });
+});
+
+describe("buildMuseMspStartOptions", () => {
+  it("strips catalog prefixes and pins provider meta for a foreign launch", () => {
+    expect(
+      buildMuseMspStartOptions(
+        "/home/demo/repo",
+        { model: "opencode-go/muse-spark-1.3-contributor", approvalPolicy: "yolo" },
+        { [MUSE_FOREIGN_BASE_URL_ENV]: "http://127.0.0.1:9" },
+      ),
+    ).toEqual({
+      workspaceRoot: "/home/demo/repo",
+      modelId: "muse-spark-1.3-contributor",
+      providerId: "meta",
+      approvalMode: "allowAll",
+    });
+  });
+
+  it("keeps a native model id without forcing a provider", () => {
+    expect(buildMuseMspStartOptions("/tmp", { model: "muse-spark-1.2" })).toEqual({
+      workspaceRoot: "/tmp",
+      modelId: "muse-spark-1.2",
+    });
+  });
+});
+
+describe("openOrStartMuseSession", () => {
+  const startOptions = { workspaceRoot: "/tmp", modelId: "muse-spark-1.2" };
+
+  it("starts fresh when no resume id is provided", async () => {
+    const startSession = vi.fn(async () => ({ sessionId: "new" }));
+    const resumeSession = vi.fn(async () => ({ sessionId: "old" }));
+    const session = await openOrStartMuseSession(
+      { startSession, resumeSession } as never,
+      undefined,
+      startOptions,
+    );
+    expect(session).toEqual({ sessionId: "new" });
+    expect(resumeSession).not.toHaveBeenCalled();
+  });
+
+  it("resumes a live Muse session id", async () => {
+    const startSession = vi.fn(async () => ({ sessionId: "new" }));
+    const resumeSession = vi.fn(async () => ({ sessionId: "live" }));
+    const session = await openOrStartMuseSession(
+      { startSession, resumeSession } as never,
+      "966713f1-794f-480e-aa37-713e8387fe8e",
+      startOptions,
+    );
+    expect(session).toEqual({ sessionId: "live" });
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("starts fresh when resume reports the session was not found", async () => {
+    const startSession = vi.fn(async () => ({ sessionId: "fresh" }));
+    const resumeSession = vi.fn(async () => {
+      throw new Error("session 01a09f71-b49e-7a60-8bc5-18e09bb89718 was not found");
+    });
+    const session = await openOrStartMuseSession(
+      { startSession, resumeSession } as never,
+      "01a09f71-b49e-7a60-8bc5-18e09bb89718",
+      startOptions,
+    );
+    expect(session).toEqual({ sessionId: "fresh" });
+    expect(startSession).toHaveBeenCalledOnce();
+  });
+
+  it("rethrows non-missing resume failures", async () => {
+    const startSession = vi.fn(async () => ({ sessionId: "fresh" }));
+    const resumeSession = vi.fn(async () => {
+      throw new Error("unauthorized");
+    });
+    await expect(
+      openOrStartMuseSession(
+        { startSession, resumeSession } as never,
+        "966713f1-794f-480e-aa37-713e8387fe8e",
+        startOptions,
+      ),
+    ).rejects.toThrow("unauthorized");
+    expect(startSession).not.toHaveBeenCalled();
   });
 });
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildMuseArgs, buildMuseConfigFlags, buildMuseResumeArgs } from "./argv";
+import { buildMuseArgs, buildMuseConfigFlags, buildMuseResumeArgs, buildMuseServeCommand } from "./argv";
+import { museDefaultCapabilities } from "./detection";
+import { MUSE_FOREIGN_SETTINGS_JSON_ENV } from "./foreignEndpoint";
 
 describe("buildMuseConfigFlags", () => {
   it("always includes --trust-workspace", () => {
@@ -36,6 +38,15 @@ describe("buildMuseConfigFlags", () => {
       expect(args).toContain("--yolo");
       expect(args).not.toContain("--approval-mode");
     }
+  });
+
+  it("emits --yolo for Muse's default approval policy", () => {
+    const args = buildMuseConfigFlags({
+      approvalPolicy: museDefaultCapabilities.defaultApprovalPolicy,
+    } as any);
+    expect(museDefaultCapabilities.defaultApprovalPolicy).toBe("yolo");
+    expect(args).toContain("--yolo");
+    expect(args).not.toContain("--approval-mode");
   });
 });
 
@@ -80,5 +91,45 @@ describe("buildMuseResumeArgs", () => {
     const args = buildMuseResumeArgs("sess", { approvalPolicy: "yolo" } as any);
     expect(args.slice(0, 2)).toEqual(["resume", "sess"]);
     expect(args).toContain("--yolo");
+  });
+
+  it("resumes with --yolo when using the Muse default approval policy", () => {
+    const args = buildMuseResumeArgs("sess", {
+      approvalPolicy: museDefaultCapabilities.defaultApprovalPolicy,
+    } as any);
+    expect(args).toEqual(["resume", "sess", "--trust-workspace", "--yolo"]);
+  });
+});
+
+describe("buildMuseServeCommand", () => {
+  it("does not use a login/interactive WSL shell for muse serve", () => {
+    const spec = buildMuseServeCommand(
+      { kind: "wsl", distro: "Ubuntu", linuxPath: "/home/demo/repo", uncPath: "\\\\wsl$\\Ubuntu\\home\\demo\\repo" },
+      "/home/demo/.local/bin/muse",
+      {
+        XDG_CONFIG_HOME: "/tmp/muse-iso",
+        [MUSE_FOREIGN_SETTINGS_JSON_ENV]: "{\"provider\":\"meta\"}",
+      },
+    );
+    expect(spec.command.toLowerCase()).toContain("wsl");
+    expect(spec.args).not.toContain("-l");
+    expect(spec.args).not.toContain("-i");
+    const script = spec.args.at(-1) ?? "";
+    expect(script).toContain("muse");
+    expect(script).toContain("serve");
+    expect(script).toContain("settings.json");
+    expect(script).toContain("getent passwd");
+    expect(script).toContain("HOME=");
+  });
+
+  it("exports an explicit HTTP_PROXY into the WSL muse serve script", () => {
+    const spec = buildMuseServeCommand(
+      { kind: "wsl", distro: "Ubuntu", linuxPath: "/home/demo/repo", uncPath: "\\\\wsl$\\Ubuntu\\home\\demo\\repo" },
+      "muse",
+      { HTTP_PROXY: "http://127.0.0.1:7897", HTTPS_PROXY: "http://127.0.0.1:7897" },
+    );
+    const script = spec.args.at(-1) ?? "";
+    expect(script).toContain("export HTTP_PROXY='http://127.0.0.1:7897'");
+    expect(script).toContain("export HTTPS_PROXY='http://127.0.0.1:7897'");
   });
 });

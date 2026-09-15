@@ -96,6 +96,7 @@ import { ThreadDockHeader, ThreadDockIconButton, ThreadDockSection } from "./Thr
 import { ThreadComposer, type ComposerControl } from "./ThreadComposer";
 import { ContextQuotaRing } from "./ComposerStatusRow";
 import { supportsUsableFastMode } from "./threadDraftViewHelpers";
+import { resolveThreadAuthState } from "./threadErrorState";
 import {
   bindLeadingSkillUnlessLocalAction,
   filterSlashCommands,
@@ -117,6 +118,8 @@ export type DraftStartInput = {
   agentKind: AgentStatus["kind"];
   config: ThreadConfig;
   prompt: string;
+  /** Picker account for this send. Official ChatGPT leaves this unset. */
+  accountId?: string | undefined;
   segments?: PromptSegment[] | undefined;
   /**
    * Durable `/goal` prompt to bind to the new thread. Lets a draft `/goal +
@@ -317,6 +320,8 @@ export function ThreadDraftComposerArea(props: {
   onWorktreeModeChange: (worktreeMode: boolean) => void;
   onSwitchBranch: (branch: string, createNew: boolean) => void;
   onStart: (input: DraftStartInput) => void | Promise<void>;
+  /** Sticky third-party openai-compatible account for this draft, if any. */
+  accountId?: string;
 }) {
   const { t } = useLingui();
   const [prompt, setPrompt] = useState("");
@@ -442,7 +447,14 @@ export function ThreadDraftComposerArea(props: {
   );
   const filteredCommands = filterSlashCommands(availableCommands, slashQuery);
   const showCommandPanel = filteredCommands.length > 0;
-  const authRequired = props.selectedAgent.authState === "missing";
+  const { authRequired } = resolveThreadAuthState({
+    authState: props.selectedAgent.authState,
+    errorDockStates: [],
+    sourceProviderKind: props.config.sourceProviderKind,
+    accountId: props.accountId,
+    agentKind: props.selectedAgent.kind,
+    model: props.config.model,
+  });
   const isHomeScope = isHomeProjectId(props.project.id);
   // Registry-driven MCP toggles. The "+" add menu now flips the *persistent*
   // enablement (a standing default applied to every new thread), keyed by MCP

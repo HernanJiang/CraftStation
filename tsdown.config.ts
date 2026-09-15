@@ -86,6 +86,8 @@ const deps = {
     // the CJS Supervisor turns the generated import into require(), which Node
     // rejects with ERR_PACKAGE_PATH_NOT_EXPORTED before the app can start.
     /^@opencode-ai\/sdk(?:\/|$)/,
+    /^@muse-code\/sdk(?:\/|$)/,
+    /^@muse-code\/msp(?:\/|$)/,
   ],
   onlyBundle: false as const,
   neverBundle: [

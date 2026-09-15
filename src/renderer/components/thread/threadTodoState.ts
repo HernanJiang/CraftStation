@@ -83,10 +83,17 @@ function selectLatestThreadTodoDockCandidate(
   // Keep it docked until every step is completed (or a newer plan replaces it).
   // Follow-up user messages do not retire the dock — the plan persists across turns.
   for (let index = planCandidates.length - 1; index >= 0; index -= 1) {
-    const item = planCandidates[index]!;
+    const candidate = planCandidates[index]!;
     const dockState = deriveThreadTodoDockState(planCandidates, index, derivedStateCache);
     const allCompleted = dockState.steps.every((step) => step.status === "completed");
-    return allCompleted ? null : { item: item.item, dockState };
+    if (allCompleted) return null;
+    // A plan item already closed by its owning turn (ACP `closeOpenTurnItems`,
+    // MSP turn-end close, Codex `turn/completed`, Claude turn close) is no
+    // longer active — even when the harness never marked every step
+    // completed. Retire the dock instead of leaving a stale "Step x/y" in the
+    // capsule forever; the timeline plan card keeps the last real statuses.
+    if (candidate.item.state === "completed") return null;
+    return { item: candidate.item, dockState };
   }
   return null;
 }

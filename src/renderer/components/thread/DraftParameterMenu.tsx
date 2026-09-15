@@ -5,33 +5,44 @@ import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { useAppStore } from "@/renderer/state/appStore";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
-import { resolveRecipePickerTarget } from "@/renderer/crafting/recipePickerTarget";
+import { useCurrentProjectId } from "@/renderer/hooks/uiSelectors";
+import {
+  providerKindFromRecipeRef,
+  recipeLaunchHarnessKind,
+  recipeLaunchModelId,
+  resolveRecipePickerTarget,
+} from "@/renderer/crafting/recipePickerTarget";
 import {
   COMPATIBILITY_FAMILY_LABELS,
   COMPATIBILITY_HARNESS_LABELS,
-  isNativeModelHarnessPair,
-  preferredHarnessForCompatibilityFamily,
+  modelFamilyIconKind,
   resolveCompatibilityFamily,
   type CompatibilityHarnessId,
 } from "@/shared/harnessCompatibility";
-import {
-  applyThirdPartyPickerSelection,
-  isThirdPartyAccountId,
-  resolveThirdPartyHarnessForModel,
-} from "@/shared/thirdPartyRouting";
+import { getLaunchableAgentStatuses } from "@/shared/agentStatus";
+import { resolveAutoModelBinding } from "@/shared/thirdPartyRouting";
 import type { ComposerControl } from "./ThreadComposer";
 import { CONTEXT_WINDOW_PRESETS, resolveContextPresetValue } from "./threadDraftViewHelpers";
 
 export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
+  const currentProjectId = useCurrentProjectId();
+  const projectLocation = useAppStore(
+    (state) => state.projects.find((project) => project.id === currentProjectId)?.location,
+  );
   const installedHarnesses = useMemo(
     () =>
-      [...agentStatuses, ...wslAgentStatuses]
+      getLaunchableAgentStatuses(
+        projectLocation ?? { kind: "windows", path: "" },
+        agentStatuses,
+        wslAgentStatuses,
+      )
         .filter((entry) => entry.installed)
         .map((entry) => entry.kind),
-    [agentStatuses, wslAgentStatuses],
+    [projectLocation, agentStatuses, wslAgentStatuses],
   );
   const modelControl = props.controls.find((control) => control.kind === "provider-model");
   const effortControl = props.controls.find((control) => control.kind === "effort-context");
@@ -56,10 +67,13 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const [customContextDraft, setCustomContextDraft] = useState("");
   // Shared overlay zoom compensation (see overlayZoom.ts): empty at factor 1.
   const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
-  // 合成台「我的配方」：在管理模型勾选进首页的配方，选中即套用其底层模型
-  //（Harness 走既有自动路由）。底层模型已消失的配方仅管理页可见，不进选择器。
-  const homepageRecipes = useCraftingWorkbenchStore((state) => state.recipes).filter(
-    (recipe) => recipe.homepageVisible === true,
+  // 合成台「我的配方」：在管理模型勾选进首页的配方，选中即套用其 Harness · 模型
+  // 组合（含第三方兼容 API / CPA 链路）。Harness 不走模型名自动路由。
+  const recipes = useCraftingWorkbenchStore((state) => state.recipes);
+  const homepageRecipes = recipes.filter((recipe) => recipe.homepageVisible === true);
+  const setPendingRecipeIntent = useCraftingWorkbenchStore((state) => state.setPendingRecipeIntent);
+  const clearPendingRecipeIntent = useCraftingWorkbenchStore(
+    (state) => state.clearPendingRecipeIntent,
   );
   const customModelsForRecipes = useSharedSettings((state) => state.customModels);
   const recipeTargets =
@@ -105,43 +119,80 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   // Agent detection may temporarily expose an empty model id. Keep the Codex-style
   // parameter capsule useful instead of collapsing to a sparkles-only button.
   const currentModelLabel = modelControl?.currentModel.trim();
-  const label = [selectedModel?.label || currentModelLabel || "自定义", effortLabel]
-    .filter(Boolean)
-    .join(" · ");
-
-  // The system picks Model + Harness: show both identities on one row so
-  // Provider (who serves the API) is never confused with Model Family (what
-  // the model is) or Harness (what runs it). Always visible when resolvable —
-  // never gated on a mode flag.
-  const thirdPartyPick = isThirdPartyAccountId(modelControl?.currentAccountId);
-  const autoHarness: CompatibilityHarnessId | undefined =
+  const pendingRecipeIntent = useCraftingWorkbenchStore((state) => state.pendingRecipeIntent);
+  const pendingRecipe = pendingRecipeIntent
+    ? recipes.find((recipe) => recipe.id === pendingRecipeIntent.recipeId)
+    : undefined;
+  const identityRecipe =
+    pendingRecipe &&
+    modelControl &&
+    (recipeLaunchModelId(pendingRecipe) === modelControl.currentModel ||
+      pendingRecipe.lastKnownModel?.modelId === modelControl.currentModel) &&
+    (recipeLaunchHarnessKind(pendingRecipe) === modelControl.currentAgentKind ||
+      providerKindFromRecipeRef(pendingRecipe.modelEntryRef) === modelControl.currentAgentKind)
+      ? pendingRecipe
+      : modelControl
+        ? recipeTargets.find(({ recipe, target }) => {
+            const harness = recipeLaunchHarnessKind(recipe) || target.agentKind;
+            const model = target.model || recipeLaunchModelId(recipe);
+            return (
+              harness === modelControl.currentAgentKind && model === modelControl.currentModel
+            );
+          })?.recipe
+        : undefined;
+  const binding =
     modelControl && currentModelLabel
-      ? thirdPartyPick
-        ? resolveThirdPartyHarnessForModel(currentModelLabel, installedHarnesses)
-        : preferredHarnessForCompatibilityFamily(resolveCompatibilityFamily(currentModelLabel))
+      ? resolveAutoModelBinding(
+          {
+            agentKind: modelControl.currentAgentKind,
+            model: currentModelLabel,
+            ...(modelControl.currentAccountId
+              ? { accountId: modelControl.currentAccountId }
+              : {}),
+          },
+          installedHarnesses,
+        )
       : undefined;
-  const autoNative =
-    autoHarness !== undefined &&
-    modelControl !== undefined &&
-    !thirdPartyPick &&
-    isNativeModelHarnessPair({ providerId: modelControl.currentAgentKind, harnessId: autoHarness });
-  // OpenCode is the catalog/carrier: keep naming the model's home Harness
-  // (Muse Spark → Muse) until the pick rewrites onto that Harness. Vendor
-  // CLIs must name themselves — Command Code serving DeepSeek V4.1 Flash is
-  // still Command Code, not DeepSeek Harness.
-  const isCompatibilityCarrier = modelControl?.currentAgentKind === "opencode";
-  const showAffinityHarness = Boolean(autoHarness) && !autoNative && isCompatibilityCarrier;
-  const autoHarnessName = showAffinityHarness
-    ? COMPATIBILITY_HARNESS_LABELS[autoHarness!]
-    : (selectedProvider?.label ??
-      (autoHarness !== undefined ? COMPATIBILITY_HARNESS_LABELS[autoHarness] : undefined));
-  const prefixKind = showAffinityHarness ? autoHarness : modelControl?.currentAgentKind;
+  const harnessKind =
+    (identityRecipe ? recipeLaunchHarnessKind(identityRecipe) : undefined) ||
+    binding?.harnessId ||
+    modelControl?.currentAgentKind;
+  const catalogHarnessLabel =
+    harnessKind && harnessKind in COMPATIBILITY_HARNESS_LABELS
+      ? COMPATIBILITY_HARNESS_LABELS[harnessKind as CompatibilityHarnessId]
+      : undefined;
+  const autoHarnessName = identityRecipe
+    ? (identityRecipe.lastKnownHarness?.displayName ?? catalogHarnessLabel ?? selectedProvider?.label)
+    : harnessKind && harnessKind !== modelControl?.currentAgentKind
+      ? (catalogHarnessLabel ?? selectedProvider?.label)
+      : (selectedProvider?.label ?? catalogHarnessLabel);
+  const modelFromAnyProvider = modelControl?.providers
+    .flatMap((provider) => provider.capabilities.models)
+    .find(
+      (candidate) =>
+        candidate.id === modelControl.currentModel ||
+        candidate.id.split("/").pop()?.toLowerCase() ===
+          modelControl.currentModel.split("/").pop()?.toLowerCase(),
+    );
+  const modelDisplayName =
+    identityRecipe?.lastKnownModel?.displayName ||
+    selectedModel?.label ||
+    modelFromAnyProvider?.label ||
+    currentModelLabel ||
+    "自定义";
+  const modelIconKind = currentModelLabel
+    ? modelFamilyIconKind(
+        (identityRecipe ? recipeLaunchModelId(identityRecipe) : undefined) ?? currentModelLabel,
+      )
+    : undefined;
+  const label = [modelDisplayName, effortLabel].filter(Boolean).join(" · ");
+  const familyLabel = currentModelLabel
+    ? COMPATIBILITY_FAMILY_LABELS[resolveCompatibilityFamily(currentModelLabel)]
+    : undefined;
   const autoTitle =
-    autoHarness !== undefined && modelControl
-      ? `Provider: ${selectedProvider?.label ?? modelControl.currentAgentKind} · Family: ${
-          COMPATIBILITY_FAMILY_LABELS[resolveCompatibilityFamily(currentModelLabel ?? "")]
-        } · Harness: ${autoHarnessName ?? COMPATIBILITY_HARNESS_LABELS[autoHarness]} · Route: ${
-          autoNative ? "Native" : showAffinityHarness ? "Compatibility" : "Native"
+    autoHarnessName !== undefined && modelControl
+      ? `Harness: ${autoHarnessName} · Model: ${modelDisplayName}${
+          familyLabel ? ` · Family: ${familyLabel}` : ""
         }`
       : undefined;
 
@@ -155,13 +206,10 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
               data-testid="auto-harness-model"
               {...(autoTitle ? { title: autoTitle } : {})}
             >
-              {autoHarnessName !== undefined && prefixKind !== undefined ? (
+              {autoHarnessName !== undefined && harnessKind !== undefined ? (
                 <>
                   <ProviderIcon
-                    kind={prefixKind}
-                    {...(!showAffinityHarness && selectedProvider?.icon
-                      ? { icon: selectedProvider.icon }
-                      : {})}
+                    kind={harnessKind}
                     fallbackLabel={autoHarnessName}
                     tone="active"
                     className="size-3.5 shrink-0"
@@ -174,16 +222,17 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   </span>
                 </>
               ) : null}
-              {showAffinityHarness ? (
+              {modelIconKind ? (
                 <ProviderIcon
-                  kind={modelControl.currentAgentKind}
-                  {...(selectedProvider?.icon ? { icon: selectedProvider.icon } : {})}
-                  fallbackLabel={selectedProvider?.label}
+                  kind={modelIconKind}
+                  fallbackLabel={modelDisplayName}
                   tone="active"
                   className="size-3.5 shrink-0"
                 />
               ) : null}
-              <span className="whitespace-nowrap">{label}</span>
+              <span className="whitespace-nowrap" data-testid="auto-model-name">
+                {label}
+              </span>
             </span>
           ) : (
             <Sparkles className="size-3.5 text-violet-300" />
@@ -279,37 +328,32 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   >
                     {recipeTargets.map(({ recipe, target }) => {
                       const name = recipe.alias?.trim() || recipe.systemName;
-                      const recipeHarnessKind = recipe.harnessRef.replace(/^harness:/u, "");
+                      const recipeHarnessKind =
+                        recipeLaunchHarnessKind(recipe) || target.agentKind;
+                      const recipeModel = target.model || recipeLaunchModelId(recipe);
                       const isCurrent =
                         recipeHarnessKind === modelControl.currentAgentKind &&
-                        target.model === modelControl.currentModel &&
+                        recipeModel === modelControl.currentModel &&
                         (target.accountId ?? undefined) ===
-                          (modelControl.currentAccountId ?? undefined) &&
-                        recipeHarnessKind === modelControl.currentAgentKind;
+                          (modelControl.currentAccountId ?? undefined);
                       return (
                         <Dropdown.Item
                           key={`recipe:${recipe.id}`}
                           id={`recipe:${recipe.id}`}
                           textValue={`${name} 我的配方`}
-                          onPress={() =>
-                            modelControl.onChange(
-                              applyThirdPartyPickerSelection(
-                                {
-                                  // A saved recipe is an explicit composition.
-                                  // Its Harness wins over model-name auto-routing;
-                                  // otherwise an OpenCode Gemini recipe can be
-                                  // silently reinterpreted as Antigravity.
-                                  agentKind: recipeHarnessKind || target.agentKind,
-                                  model: target.model,
-                                  ...(target.presentationMode
-                                    ? { presentationMode: target.presentationMode }
-                                    : {}),
-                                  ...(target.accountId ? { accountId: target.accountId } : {}),
-                                },
-                                installedHarnesses,
-                              ),
-                            )
-                          }
+                          onPress={() => {
+                            setPendingRecipeIntent({ recipeId: recipe.id });
+                            modelControl.onChange({
+                              // A saved recipe is an explicit composition.
+                              // Its Harness wins over model-name auto-routing.
+                              agentKind: recipeHarnessKind || target.agentKind,
+                              model: recipeModel ?? target.model,
+                              ...(target.presentationMode
+                                ? { presentationMode: target.presentationMode }
+                                : {}),
+                              ...(target.accountId ? { accountId: target.accountId } : {}),
+                            });
+                          }}
                         >
                           <ProviderIcon
                             kind={target.agentKind}
@@ -333,7 +377,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                           model.id === modelControl.currentModel &&
                           !recipeTargets.some(
                             ({ recipe: candidateRecipe, target: candidateTarget }) =>
-                              candidateRecipe.harnessRef.replace(/^harness:/u, "") ===
+                              recipeLaunchHarnessKind(candidateRecipe) ===
                                 modelControl.currentAgentKind &&
                               candidateTarget.model === modelControl.currentModel &&
                               (candidateTarget.accountId ?? undefined) ===
@@ -344,28 +388,24 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                             key={`${providerIndex}:${provider.kind}:${model.id}`}
                             id={`${providerIndex}:${provider.kind}:${model.id}`}
                             textValue={`${provider.label} ${model.label}`}
-                            onPress={() =>
-                              modelControl.onChange(
-                                applyThirdPartyPickerSelection(
-                                  {
-                                    agentKind: provider.kind,
-                                    model: model.id,
-                                    ...(provider.presentationMode
-                                      ? { presentationMode: provider.presentationMode }
-                                      : {}),
-                                    ...(provider.accountId
-                                      ? { accountId: provider.accountId }
-                                      : {}),
-                                  },
-                                  installedHarnesses,
-                                ),
-                              )
-                            }
+                            onPress={() => {
+                              clearPendingRecipeIntent();
+                              modelControl.onChange({
+                                agentKind: provider.kind,
+                                model: model.id,
+                                ...(provider.presentationMode
+                                  ? { presentationMode: provider.presentationMode }
+                                  : {}),
+                                ...(provider.accountId ? { accountId: provider.accountId } : {}),
+                              });
+                            }}
                           >
                             <ProviderIcon
-                              kind={provider.kind}
-                              {...(provider.icon ? { icon: provider.icon } : {})}
-                              fallbackLabel={provider.label}
+                              kind={modelFamilyIconKind(model.id) ?? provider.kind}
+                              {...(provider.icon && !modelFamilyIconKind(model.id)
+                                ? { icon: provider.icon }
+                                : {})}
+                              fallbackLabel={model.label}
                               tone="active"
                               className="size-4 shrink-0"
                             />

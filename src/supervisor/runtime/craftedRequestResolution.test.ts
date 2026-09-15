@@ -121,4 +121,30 @@ describe("crafted native request resolution", () => {
       /question|answer|response|identity/i,
     );
   });
+
+  it("keeps the original ACP optionId when mapping allow-once", () => {
+    const request: CraftedRequest = {
+      type: "request.opened",
+      threadId: "thread-perm",
+      requestId: "acp-perm-0",
+      requestType: "tool_call_approval",
+      payload: {
+        summary: "tasks__list",
+        options: [
+          { optionId: "allow-once", label: "allow once" },
+          { optionId: "reject-once", label: "reject once" },
+        ],
+      },
+    };
+    expect(resolveCraftedRequest(request, { optionId: "allow-once" })).toEqual({
+      kind: "permission",
+      response: "once",
+      optionId: "allow-once",
+    });
+    expect(resolveCraftedRequest(request, { optionId: "reject-once" })).toEqual({
+      kind: "permission",
+      response: "reject",
+      optionId: "reject-once",
+    });
+  });
 });

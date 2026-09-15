@@ -9,6 +9,7 @@ import {
   createKnownSessionRef,
   detectAgentInstall,
   detectProbeLocation,
+  inheritBaseSpawnEnv,
   iterm2ProgressOscHint,
   type AgentAdapter,
   type AgentEnvContext,
@@ -121,6 +122,7 @@ export function createGeminiAdapter(): AgentAdapter {
     spawnEnv: {
       wsl: { BROWSER: "/bin/true" },
     },
+    ...inheritBaseSpawnEnv(geminiDetectionSpec),
     pluginId: "craftstation-status@gemini",
     pluginVersion: GEMINI_PLUGIN_VERSION,
     minProtocolVersion: 1,

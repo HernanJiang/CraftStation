@@ -1,7 +1,11 @@
-﻿import { randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { resolveExecutablePath } from "@/supervisor/agents/base";
 import { buildAntigravityModelArgs } from "@/supervisor/agents/antigravity/argv";
 import { ANTIGRAVITY_DEFAULT_MODEL_ID } from "@/supervisor/agents/antigravity/detection";
+import {
+  DSH_OFFICIAL_PROVIDER_ID,
+  resolveOfficialDshModelId,
+} from "@/supervisor/agents/deepseek/modelIds";
 import {
   CraftPlan,
   CraftSession,
@@ -245,6 +249,17 @@ class NativeProcessCraftSession implements CraftSession {
       typeof options.readinessTimeoutMs === "number" && options.readinessTimeoutMs > 0
         ? options.readinessTimeoutMs
         : DEFAULT_DEEPSEEK_READINESS_TIMEOUT_MS;
+    const requestedModel = effectiveOverrides(this.plan).model ?? this.plan.runtimeBinding.modelId;
+    const officialModel = resolveOfficialDshModelId(requestedModel);
+    if (!officialModel) {
+      // spawnEntity already validated the binding; this guards direct session
+      // construction paths that bypass Entity creation.
+      throw CraftingError.executionFailed(
+        `Unknown DeepSeek Harness model id ${JSON.stringify(requestedModel)}.`,
+        { code: "UNKNOWN_DSH_MODEL_ID", modelId: requestedModel },
+        "Pick a DeepSeek catalog model the official dsh runtime advertises.",
+      );
+    }
     const result = await this.transport.sendRequest(
       {
         jsonrpc: "2.0",
@@ -252,8 +267,8 @@ class NativeProcessCraftSession implements CraftSession {
         method: "initialize",
         params: {
           cwd: this.cwd,
-          provider: "deepseek-official",
-          model: effectiveOverrides(this.plan).model ?? this.plan.runtimeBinding.modelId,
+          provider: DSH_OFFICIAL_PROVIDER_ID,
+          model: officialModel,
         },
       },
       { timeoutMs },
@@ -729,6 +744,21 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
         "Native adapter does not support this CraftPlan.",
       );
     if (this.options.mode === "deepseek") {
+      const requestedModel =
+        effectiveOverrides(plan).model ?? plan.runtimeBinding.modelId;
+      if (!resolveOfficialDshModelId(requestedModel)) {
+        const record = nativeProcessDiagnostic(
+          this.harnessKind,
+          `Unknown DeepSeek Harness model id ${JSON.stringify(requestedModel)} (no synthetic Entity created).`,
+        );
+        this.diagnostics.push(record);
+        this.options.onDiagnostic?.(record);
+        throw CraftingError.executionFailed(
+          record.message,
+          { code: "UNKNOWN_DSH_MODEL_ID", modelId: requestedModel },
+          "Pick a DeepSeek catalog model the official dsh runtime advertises.",
+        );
+      }
       const options = objectOptions(plan);
       const profile =
         this.options.profileRef ??

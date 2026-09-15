@@ -4200,6 +4200,7 @@ describe("SupervisorRuntime craftAgent", () => {
     expect(respondToRequest).toHaveBeenCalledWith("permission_1", {
       kind: "permission",
       response: "once",
+      optionId: "once",
     });
 
     for (const listener of listeners) {
@@ -4944,6 +4945,38 @@ describe("SupervisorRuntime craftAgent", () => {
       expect(session.sendPrompt).toHaveBeenCalledWith("second turn");
       expect(craftedLifecycleCounts(runtime).craftedSessions).toBe(1);
       await runtime.closeThread({ threadId: "grok-crafted-multi-turn", execution });
+    });
+
+    it("keeps a live crafted Grok follow-up talking when the renderer omitted the envelope", async () => {
+      const runtime = makeRuntime(() => undefined);
+      const adapter = routedAdapter("grok");
+      const session = await adapter.createSession({
+        id: "entity:grok:dropped-envelope",
+        resultItemId: "result:grok",
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-dropped-envelope"),
+        status: "spawned",
+        createdAt: new Date().toISOString(),
+      });
+      session.sendPrompt = vi.fn<typeof session.sendPrompt>(async (prompt) => ({
+        response: `grok:${prompt}`,
+        events: [],
+      }));
+      adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
+      nativeHarnessFactoryOverrides.set("grok", vi.fn(() => adapter));
+
+      await runtime.craftAgent({
+        craftPlan: nativeCraftPlan("grok", "xai", "grok-dropped-envelope"),
+        projectLocation: { kind: "windows", path: "C:\\repo" },
+        prompt: "first turn",
+      });
+      await expect(
+        runtime.sendThreadInput({
+          threadId: "grok-dropped-envelope",
+          prompt: "都跑完了吗",
+          config: { model: "grok-model" },
+        }),
+      ).resolves.toBeUndefined();
+      expect(session.sendPrompt).toHaveBeenCalledWith("都跑完了吗");
     });
 
     it("releases a crafted account binding when the public closeThread seam terminates it", async () => {
@@ -5894,9 +5927,11 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
     expect(envelope.runtimeSessionId).toBe("runtime-fence:1");
 
     const missing = { code: "HANDOFF_ACTIVE_EXECUTION_REQUIRED" };
+    // Follow-up send binds to the live Segment when the renderer omitted the
+    // envelope (reload / missed session-switch-state). Close still fails closed.
     await expect(
       f.runtime.sendThreadInput({ threadId, prompt: "hi", config: { model: "m" } }),
-    ).rejects.toMatchObject(missing);
+    ).resolves.toBeUndefined();
     await expect(f.runtime.closeThread({ threadId })).rejects.toMatchObject(missing);
     await expect(f.runtime.clearPendingSteer({ threadId })).rejects.toMatchObject(missing);
     await expect(

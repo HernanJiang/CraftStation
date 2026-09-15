@@ -3,6 +3,7 @@
  * `tool_call_update` notifications.
  */
 
+import { isContextCompactionToolName } from "@/shared/contextCompaction";
 import type { CanonicalItemType, RuntimeEvent, ToolCallPayload } from "@/shared/contracts";
 import {
   extractAcpFileChangesFromContent,
@@ -55,7 +56,8 @@ export function buildAcpToolCallPayload(
   // `!payload.name` hide-unnamed guards and paints an anonymous accordion row.
   // Omitting `name` defers the row until a later update carries a real label;
   // finalization (`finalizeToolCallPayload`) guarantees it never stays nameless.
-  const name = title ?? kind;
+  const rawName = title ?? kind;
+  const name = isContextCompactionToolName(rawName) ? "ContextCompaction" : rawName;
   const contentResult = extractToolCallContentText(toolCall.content, resolveTerminalOutput);
   const images = extractToolCallContentImages(toolCall.content);
   const subAgentModel = isSubAgent ? readStringField(toolCall.rawInput, "model") : undefined;

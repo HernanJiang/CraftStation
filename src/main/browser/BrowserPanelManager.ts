@@ -371,7 +371,16 @@ export class BrowserPanelManager {
       return this.openSystemBrowser(url.toString());
     }
 
-    void this.createTab({ url: url.toString(), activate: true, reveal: true }).catch(() => {});
+    const urlString = url.toString();
+    // Reuse an existing tab at the same URL instead of piling up duplicates —
+    // agent and preview flows can request the same link many times per session.
+    const existing = this.tabs.find((t) => t.snapshot().url === urlString);
+    if (existing) {
+      this.setActiveTab(existing.tabId);
+      this.revealForUserOpen();
+      return true;
+    }
+    void this.createTab({ url: urlString, activate: true, reveal: true }).catch(() => {});
     return true;
   }
 

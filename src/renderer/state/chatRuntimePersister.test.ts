@@ -3,6 +3,7 @@ import { useAppStore } from "./appStore";
 import type { RuntimeChatItem } from "./slices/runtimeEventSlice";
 import {
   compactRuntimeItemsForHydration,
+  hasHydratedThreadRuntimeItems,
   hydrateThreadRuntimeItems,
   loadOlderThreadRuntimeItems,
   releaseThreadRuntimeItems,
@@ -42,6 +43,7 @@ function makeItem(
     streams: input.streams ?? {},
     ...(input.payload !== undefined ? { payload: input.payload } : {}),
     ...(input.parentItemId ? { parentItemId: input.parentItemId } : {}),
+    ...(input.observedLive === true ? { observedLive: true } : {}),
   };
 }
 
@@ -167,7 +169,11 @@ describe("paged runtime hydration", () => {
 
   it("hydrates the tail and coalesces concurrent requests for the next cursor", async () => {
     bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
-      items: [makeItem({ id: "newer", type: "assistant_message" })],
+      items: [
+        makeItem({ id: "user-1", type: "user_message" }),
+        makeItem({ id: "user-2", type: "user_message" }),
+        makeItem({ id: "newer", type: "assistant_message" }),
+      ],
       nextCursor: 100,
     });
 
@@ -207,10 +213,135 @@ describe("paged runtime hydration", () => {
 
     expect(useAppStore.getState().runtimeItemIdsByThread["paged-thread"]).toEqual([
       "older",
+      "user-1",
+      "user-2",
       "newer",
     ]);
     await expect(loadOlderThreadRuntimeItems("paged-thread")).resolves.toBe(false);
     expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("merges DB history in front of a live working-thread suffix and backfills older pages", async () => {
+    useAppStore.setState((state) => ({
+      ...state,
+      runtimeItemIdsByThread: { "live-working-thread": ["live-cmd"] },
+      runtimeItemsByIdByThread: {
+        "live-working-thread": {
+          "live-cmd": makeItem({ id: "live-cmd", type: "command_execution" }),
+        },
+      },
+    }));
+    bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+      items: [
+        makeItem({ id: "asst-1", type: "assistant_message" }),
+        makeItem({ id: "live-cmd", type: "command_execution" }),
+      ],
+      nextCursor: 50,
+    });
+    bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+      items: [makeItem({ id: "user-1", type: "user_message" })],
+      nextCursor: null,
+    });
+
+    await hydrateThreadRuntimeItems("live-working-thread");
+
+    expect(useAppStore.getState().runtimeItemIdsByThread["live-working-thread"]).toEqual([
+      "user-1",
+      "asst-1",
+      "live-cmd",
+    ]);
+    expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenNthCalledWith(2, {
+      threadId: "live-working-thread",
+      beforePosition: 50,
+      limit: 500,
+      targetTimelineEntryCount: 40,
+    });
+  });
+
+  it("does not treat a live-only suffix as already hydrated", () => {
+    useAppStore.setState((state) => ({
+      ...state,
+      runtimeItemIdsByThread: { "live-only-thread": ["live-cmd"] },
+      runtimeItemsByIdByThread: {
+        "live-only-thread": {
+          "live-cmd": makeItem({
+            id: "live-cmd",
+            type: "command_execution",
+            observedLive: true,
+          }),
+        },
+      },
+    }));
+    expect(hasHydratedThreadRuntimeItems("live-only-thread")).toBe(false);
+  });
+
+  it("keeps raw tool ids when merging a DB tail into live items", async () => {
+    useAppStore.setState((state) => ({
+      ...state,
+      runtimeItemIdsByThread: { "live-tools-thread": ["tool-2"] },
+      runtimeItemsByIdByThread: {
+        "live-tools-thread": {
+          "tool-2": makeItem({
+            id: "tool-2",
+            type: "tool_call",
+            payload: { name: "Read", status: "success" },
+            observedLive: true,
+          }),
+        },
+      },
+    }));
+    bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+      items: [
+        makeItem({ id: "user-1", type: "user_message" }),
+        makeItem({
+          id: "tool-1",
+          type: "tool_call",
+          payload: { name: "Read", status: "success" },
+        }),
+        makeItem({
+          id: "tool-2",
+          type: "tool_call",
+          payload: { name: "Read", status: "success" },
+        }),
+      ],
+      nextCursor: null,
+    });
+
+    await hydrateThreadRuntimeItems("live-tools-thread");
+
+    expect(useAppStore.getState().runtimeItemIdsByThread["live-tools-thread"]).toEqual([
+      "user-1",
+      "tool-1",
+      "tool-2",
+    ]);
+    expect(
+      useAppStore.getState().runtimeItemsByIdByThread["live-tools-thread"]?.["tool-2"]
+        ?.observedLive,
+    ).toBe(true);
+  });
+
+  it("backfills older pages when the first DB tail has no prior user turn", async () => {
+    bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+      items: [makeItem({ id: "tool-tail", type: "command_execution" })],
+      nextCursor: 80,
+    });
+    bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+      items: [makeItem({ id: "user-1", type: "user_message" })],
+      nextCursor: 40,
+    });
+    bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+      items: [makeItem({ id: "user-0", type: "user_message" })],
+      nextCursor: null,
+    });
+
+    await hydrateThreadRuntimeItems("idle-long-turn-thread");
+
+    expect(useAppStore.getState().runtimeItemIdsByThread["idle-long-turn-thread"]).toEqual([
+      "user-0",
+      "user-1",
+      "tool-tail",
+    ]);
+    expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenCalledTimes(3);
   });
 
   it("keeps the remote snapshot cursor through ChatPane hydration", async () => {
@@ -316,5 +447,41 @@ describe("paged runtime hydration", () => {
     expect(useAppStore.getState().runtimeItemIdsByThread[threadIds[0]!]).toEqual([
       `${threadIds[0]}-item`,
     ]);
+  });
+
+  it("does not evict a still-streaming transcript when the inactive cache overflows", async () => {
+    const liveThreadId = "live-cached-thread";
+    useAppStore.setState((state) => ({
+      ...state,
+      runtimeItemIdsByThread: {
+        ...state.runtimeItemIdsByThread,
+        [liveThreadId]: ["live-cmd"],
+      },
+      runtimeItemsByIdByThread: {
+        ...state.runtimeItemsByIdByThread,
+        [liveThreadId]: {
+          "live-cmd": makeItem({
+            id: "live-cmd",
+            type: "command_execution",
+            observedLive: true,
+          }),
+        },
+      },
+    }));
+    retainThreadRuntimeItems(liveThreadId);
+    releaseThreadRuntimeItems(liveThreadId);
+
+    const threadIds = Array.from({ length: 11 }, (_, index) => `overflow-thread-${index}`);
+    bridge.dbGetThreadRuntimeItemsPage.mockImplementation(async ({ threadId }) => ({
+      items: [makeItem({ id: `${threadId}-item`, type: "assistant_message" })],
+      nextCursor: null,
+    }));
+    for (const threadId of threadIds) {
+      await hydrateThreadRuntimeItems(threadId);
+      retainThreadRuntimeItems(threadId);
+      releaseThreadRuntimeItems(threadId);
+    }
+
+    expect(useAppStore.getState().runtimeItemIdsByThread[liveThreadId]).toEqual(["live-cmd"]);
   });
 });

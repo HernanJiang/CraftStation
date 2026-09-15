@@ -66,7 +66,13 @@ export function createDeepSeekAdapter(): AgentAdapter {
         [...DEEPSEEK_ACP_ARGS],
         resolveAgentBinaryPath(input.projectLocation, "dsh"),
       );
-      return createAcpStructuredSession(command, input);
+      // dsh silently keeps serving its configured default model when the
+      // requested catalog id matches no advertised option — never continue on
+      // a different model than the Recipe selected.
+      return createAcpStructuredSession(command, {
+        ...input,
+        strictModelResolution: true,
+      });
     },
     async buildAcpAuthCommand(ctx?: AgentEnvContext) {
       const location = detectProbeLocation(ctx);

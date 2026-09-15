@@ -26,11 +26,12 @@ describe("Native Harness registry", () => {
         "harness:antigravity",
         "harness:deepseek",
         "harness:deepseek-api",
+        "harness:muse",
       ]),
     );
-    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(5);
+    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(6);
     expect(BUILTIN_NATIVE_HARNESS_MODEL_ITEMS.map((item) => item.metadata.vendor)).toEqual(
-      expect.arrayContaining(["xai", "moonshot", "google", "deepseek"]),
+      expect.arrayContaining(["xai", "moonshot", "google", "deepseek", "muse"]),
     );
     expect(NATIVE_HARNESS_RECIPES.map((recipe) => recipe.id)).toEqual(
       expect.arrayContaining([
@@ -39,6 +40,7 @@ describe("Native Harness registry", () => {
         "recipe:google-antigravity-native",
         "recipe:deepseek-native",
         "recipe:deepseek-api",
+        "recipe:meta-muse-native",
       ]),
     );
   });

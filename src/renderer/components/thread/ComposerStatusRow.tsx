@@ -253,7 +253,8 @@ function quotaWindowPercent(snapshot: UsageSnapshot | undefined, matcher: RegExp
   );
   if (!window) return null;
   const hasCounts = window.used !== undefined || window.limit !== undefined;
-  if (!hasCounts && window.usedPercent === 0) return null;
+  // A bare 0% or 100% with no used/limit is a placeholder, not a measurement.
+  if (!hasCounts && (window.usedPercent === 0 || window.usedPercent === 100)) return null;
   return Math.round(window.usedPercent);
 }
 

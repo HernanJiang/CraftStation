@@ -93,6 +93,29 @@ function accountIdentity(account: AccountView): string {
  */
 const DEFAULT_KIMI_LABELS = new Set(["New Kimi", "本机 Kimi"]);
 
+async function submitKimiApiKey(input: {
+  apiKey: string;
+  onImported?: ((accountId: string) => void) | undefined;
+}): Promise<boolean> {
+  const key = input.apiKey.trim();
+  if (!key) return false;
+  try {
+    const account = await readBridge().importKimiApiKey({ label: "New Kimi", apiKey: key });
+    const refreshed = await readBridge().listAccounts({ provider: "kimi" });
+    const current = useUsageAccountsStore.getState().accounts;
+    useUsageAccountsStore
+      .getState()
+      .setAccounts([...current.filter((row) => row.provider !== "kimi"), ...refreshed]);
+    await refreshAndMergeProviderUsage("kimi");
+    toast.success("已用 API Key 添加 Kimi Code 账号");
+    if (account.accountId) input.onImported?.(account.accountId);
+    return true;
+  } catch (error) {
+    toast.danger(error instanceof Error ? error.message : "无法保存 Kimi API Key。");
+    return false;
+  }
+}
+
 /**
  * 池行主标题。Kimi 官方接口（已对 live 用量端点 + JWT claims 实测）不返回账号
  * 邮箱，只有不透明 user_id；用户在创建时填写的备注（建议邮箱）是行内唯一可读
@@ -489,6 +512,7 @@ function ProviderCard(props: {
   onDropProvider?: (t: string) => void;
   onRenameAccount?: (account: AccountView) => void;
   onImportAccount?: () => void;
+  onKimiApiKeyImported?: (accountId: string) => void;
 }) {
   const snapshot = useProviderUsage(props.id);
   const managedAccounts = useUsageAccountsStore(
@@ -819,6 +843,20 @@ function ProviderCard(props: {
             导入
           </button>
         ) : null}
+        {props.id === "kimi" ? (
+          <button
+            type="button"
+            disabled={signingIn || cliSigningIn}
+            onClick={() => {
+              setCookieOpen(false);
+              setApiKeyOpen((open) => !open);
+            }}
+            className="inline-flex h-8 shrink-0 items-center rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+            aria-label="使用 Kimi API Key 授权"
+          >
+            API Key
+          </button>
+        ) : null}
       </header>
 
       {managedAccounts.length > 0 ? (
@@ -1142,6 +1180,21 @@ function ProviderCard(props: {
           className="mt-3 flex items-center gap-2 rounded-xl border border-white/5 bg-[#17181c] p-2"
           onSubmit={(event) => {
             event.preventDefault();
+            if (props.id === "kimi") {
+              setCliSigningIn(true);
+              void submitKimiApiKey({
+                apiKey,
+                onImported: props.onKimiApiKeyImported,
+              })
+                .then((success) => {
+                  if (success) {
+                    setApiKey("");
+                    setApiKeyOpen(false);
+                  }
+                })
+                .finally(() => setCliSigningIn(false));
+              return;
+            }
             void handleSubmitApiKey().then((success) => {
               if (success) setApiKeyOpen(false);
             });
@@ -1158,7 +1211,7 @@ function ProviderCard(props: {
           />
           <button
             type="submit"
-            disabled={signingIn || apiKey.trim().length === 0}
+            disabled={signingIn || cliSigningIn || apiKey.trim().length === 0}
             className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/15 disabled:opacity-50"
           >
             {signingIn ? "保存中…" : "保存授权"}
@@ -1429,6 +1482,8 @@ function ManagedAccountPool(props: {
   onAdd: () => void;
   onImport?: () => void;
   importAriaLabel?: string;
+  onAddApiKey?: () => void;
+  addApiKeyAriaLabel?: string;
   onReauth: ((a: AccountView) => void) | undefined;
   onApplyHostLogin?: ((a: AccountView) => void) | undefined;
   onSelect: (a: AccountView) => void;
@@ -1474,6 +1529,17 @@ function ManagedAccountPool(props: {
           导入
         </button>
       ) : null}
+      {props.onAddApiKey ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={props.onAddApiKey}
+          aria-label={props.addApiKeyAriaLabel ?? "使用 API Key 添加账号"}
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+        >
+          API Key
+        </button>
+      ) : null}
     </div>
   ) : (
     <div className="mb-2 flex items-center justify-between">
@@ -1504,6 +1570,17 @@ function ManagedAccountPool(props: {
             className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
           >
             导入本机登录
+          </button>
+        ) : null}
+        {props.onAddApiKey ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={props.onAddApiKey}
+            aria-label={props.addApiKeyAriaLabel ?? "使用 API Key 添加账号"}
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
+          >
+            API Key
           </button>
         ) : null}
       </div>
@@ -1613,6 +1690,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   const [openAiCompatibleForm, setOpenAiCompatibleForm] = useState<{ accountId?: string } | null>(
     null,
   );
+  const [kimiApiKeyForm, setKimiApiKeyForm] = useState(false);
+  const [kimiApiKeyDraft, setKimiApiKeyDraft] = useState("");
   useEffect(() => {
     if (!openAiCompatibleForm) return;
     const frame = requestAnimationFrame(() => {
@@ -2211,6 +2290,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             onAdd={() => void accountActions(createKimiProfile, "kimi")}
             onImport={() => void accountActions(importHostKimiLogin, "kimi")}
             importAriaLabel="导入本机 Kimi Code 登录"
+            onAddApiKey={() => setKimiApiKeyForm((open) => !open)}
+            addApiKeyAriaLabel="使用 API Key 添加 Kimi Code 账号"
             onReauth={(a) =>
               void accountActions(
                 () => runKimiProfileLogin({ accountId: a.accountId, label: a.label }),
@@ -2369,6 +2450,41 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                     onSaved={() => setOpenAiCompatibleForm(null)}
                   />
                 ) : null}
+                {channel.id === "kimi" && kimiApiKeyForm ? (
+                  <form
+                    className="mt-2 flex items-center gap-2 rounded-xl border border-white/5 bg-[#17181c] p-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void accountActions(async () => {
+                        const success = await submitKimiApiKey({
+                          apiKey: kimiApiKeyDraft,
+                          onImported: (accountId) => void promptNewKimiLabel(accountId),
+                        });
+                        if (success) {
+                          setKimiApiKeyDraft("");
+                          setKimiApiKeyForm(false);
+                        }
+                      }, "kimi");
+                    }}
+                  >
+                    <input
+                      type="password"
+                      value={kimiApiKeyDraft}
+                      onChange={(event) => setKimiApiKeyDraft(event.target.value)}
+                      placeholder="粘贴 Kimi Code API Key"
+                      aria-label="Kimi Code API Key"
+                      autoComplete="off"
+                      className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
+                    />
+                    <button
+                      type="submit"
+                      disabled={kimiApiKeyDraft.trim().length === 0}
+                      className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/15 disabled:opacity-50"
+                    >
+                      保存授权
+                    </button>
+                  </form>
+                ) : null}
               </Fragment>
             ))}
             {signedInCodexAccounts.length === 0 &&
@@ -2403,6 +2519,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 id="kimi"
                 label="Kimi Code"
                 onImportAccount={() => void accountActions(importHostKimiLogin, "kimi")}
+                onKimiApiKeyImported={(accountId) => void promptNewKimiLabel(accountId)}
               />
             ) : null}
             {signedAntigravityAccounts.length === 0 &&

@@ -86,7 +86,28 @@ export function managedKimiProcessEnvironment(
   for (const key of blankKeys) env[key] = "";
   env.KIMI_CODE_HOME = managedKimiHome;
   ensureManagedKimiHome(managedKimiHome);
+  const managedApiKey = readManagedKimiApiKey(managedKimiHome);
+  if (managedApiKey) env.KIMI_CODE_API_KEY = managedApiKey;
   return env;
+}
+
+/** Long-lived API key stored in a managed home (not an OAuth access token). */
+export function readManagedKimiApiKey(managedKimiHome: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(credentialPath(managedKimiHome), "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+    const record = parsed as Record<string, unknown>;
+    const access = typeof record.access_token === "string" ? record.access_token.trim() : "";
+    if (!access) return undefined;
+    const tokenType = typeof record.token_type === "string" ? record.token_type.trim().toLowerCase() : "";
+    if (tokenType === "api_key") return access;
+    const refresh = typeof record.refresh_token === "string" ? record.refresh_token.trim() : "";
+    const expires = record.expires_at ?? record.expiresAt;
+    if (!refresh && expires == null) return access;
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function ensureManagedKimiHome(managedKimiHome: string): string {
@@ -104,6 +125,11 @@ export interface KimiProfileServiceOptions {
 export interface KimiProfileImportInput {
   label: string;
   profileRoot?: string | undefined;
+}
+
+export interface KimiProfileApiKeyInput {
+  label: string;
+  apiKey: string;
 }
 
 function isLikelyJwt(value: string): boolean {
@@ -287,6 +313,44 @@ export class KimiProfileService {
     return this.options.store.add({ provider: this.provider, label });
   }
 
+  /**
+   * Create (or reuse) a managed Kimi account from a pasted API key. Writes both
+   * `credentials/kimi-code.json` (so quota collection can reuse the key) and
+   * `config.toml` `[providers.moonshot] api_key` (so the CLI treats it as a
+   * live credential). Runtime spawn injects `KIMI_CODE_API_KEY` from the
+   * managed file — it never inherits the host env key.
+   */
+  importApiKey(input: KimiProfileApiKeyInput): AccountView {
+    const apiKey = input.apiKey.trim();
+    if (!apiKey) {
+      throw new AccountControlError("ACCOUNT_PROJECTION_FAILED", "Kimi API Key 不能为空。");
+    }
+    const content = JSON.stringify({ access_token: apiKey, token_type: "api_key" }, null, 2);
+    const identity = kimiFallbackIdentity(input.label, content);
+    const existing = this.options.store.findByProviderIdentity(this.provider, identity);
+    const account = existing
+      ? this.options.store.get(existing.accountId)!
+      : this.options.store.add({
+          provider: this.provider,
+          label: input.label,
+          providerAccountId: identity,
+          maskedIdentity: identity,
+        });
+    try {
+      const root = this.options.store.credentialRoot(account.accountId);
+      ensureManagedKimiHome(root);
+      writeFileAtomic(credentialPath(root), content, { encoding: "utf8", mode: 0o600 });
+      writeFileAtomic(join(root, "config.toml"), kimiApiKeyConfigToml(apiKey), {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      return this.options.store.updateStatus(account.accountId, "available");
+    } catch (error) {
+      if (!existing) this.options.store.remove(account.accountId);
+      throw error;
+    }
+  }
+
   /** Copy a global Kimi login into an account-owned root. The global home is
    * never used as a runtime home and the credential never crosses IPC. */
   importCredential(input: KimiProfileImportInput): AccountView {
@@ -424,4 +488,9 @@ export function buildKimiLoginScript(
 
 export function managedKimiLoginCwd(managedKimiHome: string): string {
   return ensureManagedKimiHome(managedKimiHome);
+}
+
+function kimiApiKeyConfigToml(apiKey: string): string {
+  const escaped = apiKey.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `[providers.moonshot]\napi_key = "${escaped}"\n`;
 }

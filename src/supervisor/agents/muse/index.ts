@@ -1,7 +1,13 @@
 import type { AgentCapability } from "@/shared/contracts";
-import { detectAgentInstall, type AgentAdapter, inheritBaseSpawnEnv } from "../base";
+import {
+  detectAgentInstall,
+  inheritBaseSpawnEnv,
+  type AgentAdapter,
+  type CreateStructuredSessionInput,
+} from "../base";
 import { buildMuseArgs, buildMuseResumeArgs } from "./argv";
 import { MUSE_DEFAULT_MODEL_ID, museDefaultCapabilities, museDetectionSpec } from "./detection";
+import { MuseMspSession } from "./mspSession";
 import { formatMusePromptSegments } from "./prompt";
 import {
   makeMuseDiscoverSessionRef,
@@ -14,9 +20,8 @@ import { detectMuseTerminalStatus, isMuseReadyForInitialPrompt } from "./termina
 // Docs: https://dev.meta.ai/docs/muse-code
 // Install: curl -fsSL https://dev.meta.ai/install.sh | sh
 //
-// Terminal-only: interactive TUI via PTY. Muse has no ACP mode; a GUI
-// structured session is deliberately deferred until Muse ships real ACP
-// support (then wire it through the shared ACP client like Grok/Kimi/Qwen).
+// GUI structured session speaks Muse Session Protocol via `muse serve`
+// (`@muse-code/sdk`). The TUI remains available as a fallback surface.
 
 export function createMuseAdapter(): AgentAdapter {
   let capabilities: AgentCapability = museDefaultCapabilities;
@@ -63,6 +68,10 @@ export function createMuseAdapter(): AgentAdapter {
     createInitialSessionRef() {
       // CLI mints its own id in interactive mode — no pre-assign flag.
       return undefined;
+    },
+
+    async createStructuredSession(input: CreateStructuredSessionInput) {
+      return MuseMspSession.create(input);
     },
 
     // Muse writes the date-sharded session dir shortly after launch; poll a

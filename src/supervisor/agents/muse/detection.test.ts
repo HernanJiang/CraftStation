@@ -111,6 +111,7 @@ describe("museDetectionSpec", () => {
       args: ["-c", "curl -fsSL https://dev.meta.ai/install.sh | sh"],
     });
     expect(museDetectionSpec.update?.installer?.windows?.binary).toBe("powershell.exe");
+    expect(museDetectionSpec.update?.installer?.windows?.args.join(" ")).toContain("wsl.exe");
   });
 
   it("advertises a terminal login method via capabilitiesProbe", async () => {
@@ -165,14 +166,14 @@ describe("museDefaultCapabilities", () => {
       "never",
       "yolo",
     ]);
-    expect(museDefaultCapabilities.defaultApprovalPolicy).toBe("on-request");
+    expect(museDefaultCapabilities.defaultApprovalPolicy).toBe("yolo");
     expect(museDefaultCapabilities.bypassPermissions).toEqual({ approvalPolicy: "yolo" });
   });
 
-  it("advertises terminal-only with resume, direct input, and exec one-shots", () => {
-    expect(museDefaultCapabilities.presentationModes).toEqual(["terminal"]);
-    expect(museDefaultCapabilities.presentationMode).toBe("terminal");
-    expect(museDefaultCapabilities.liveInputMode).toBe("terminal");
+  it("advertises GUI structured session with TUI fallback", () => {
+    expect(museDefaultCapabilities.presentationModes).toEqual(["gui", "terminal"]);
+    expect(museDefaultCapabilities.presentationMode).toBe("gui");
+    expect(museDefaultCapabilities.liveInputMode).toBe("server");
     expect(museDefaultCapabilities.supportsResume).toBe(true);
     expect(museDefaultCapabilities.supportsDirectInput).toBe(true);
     expect(museDefaultCapabilities.supportsOneShot).toBe(true);

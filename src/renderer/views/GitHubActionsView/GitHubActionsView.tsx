@@ -14,6 +14,14 @@ import { useGitHubActionsViewModel } from "./useGitHubActionsViewModel";
 const EMPTY_PINNED_WORKFLOWS: number[] = [];
 const RUN_PANEL_EXIT_MS = 200;
 
+function isNoGitRepositoryLoadError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("not a git repository") ||
+    lower.includes("this project is not a git repository")
+  );
+}
+
 function accountRefsEqual(
   first: { host: string; login: string } | undefined,
   second: { host: string; login: string } | undefined,
@@ -137,9 +145,10 @@ export function GitHubActionsView(props: {
     />
   );
 
+  const noGitRepository = Boolean(loadError && isNoGitRepositoryLoadError(loadError));
   const content = (
     <div className="flex h-full min-h-0 flex-col bg-[var(--content-background)]">
-      {loadError ? (
+      {loadError && !noGitRepository ? (
         <div
           role="alert"
           className="shrink-0 border-b border-danger/25 bg-danger/5 px-4 py-2 text-xs text-danger"
@@ -235,6 +244,18 @@ export function GitHubActionsView(props: {
             />
           </section>
         </>
+      ) : noGitRepository ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center">
+          <div>
+            <Workflow className="mx-auto mb-3 size-8 text-muted" />
+            <p className="text-sm font-medium text-foreground">
+              <Trans>This project is not a Git repository.</Trans>
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              <Trans>Initialize Git and connect GitHub to see Actions workflows.</Trans>
+            </p>
+          </div>
+        </div>
       ) : workflows.length === 0 && !loadingWorkflows && !loadError ? (
         <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center">
           <div>

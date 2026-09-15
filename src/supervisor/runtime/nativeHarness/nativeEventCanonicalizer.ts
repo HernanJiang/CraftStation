@@ -1,5 +1,7 @@
 ﻿import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import type { NativeHarnessDescriptor } from "@/shared/crafting";
+import { stripRetryableCapacityNoise } from "@/shared/retryableCapacityError";
+import { createContextUsageEvent, usageFromProviderRecord } from "@/supervisor/agents/contextUsage";
 import type { NativeWireEvent } from "./nativeTransport";
 import { redactNativePayload } from "./nativeTransport";
 
@@ -14,9 +16,35 @@ function antigravityEventPayload(event: NativeWireEvent): Record<string, unknown
   return nested ?? event.payload;
 }
 
+function firstString(candidates: unknown[]): string | undefined {
+  return candidates.find(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  );
+}
+
 function textFrom(payload: Record<string, unknown>): string | undefined {
-  const candidates = [payload.text_delta, payload.delta, payload.response, payload.text];
-  return candidates.find((value): value is string => typeof value === "string");
+  return firstString([payload.text_delta, payload.delta, payload.response, payload.text]);
+}
+
+function thinkingFrom(payload: Record<string, unknown>): string | undefined {
+  return firstString([
+    payload.thinking_delta,
+    payload.thinkingDelta,
+    payload.thought_delta,
+    payload.thoughtDelta,
+    payload.reasoning_delta,
+    payload.reasoningDelta,
+    payload.thinking,
+    payload.thought,
+  ]);
+}
+
+function isThinkingStep(stepType: string): boolean {
+  return /^(?:thinking|thought|agent_thought|reasoning)$/i.test(stepType);
+}
+
+function visibleText(value: string | undefined): string | undefined {
+  return value ? stripRetryableCapacityNoise(value) : undefined;
 }
 
 function numberValue(value: unknown): number | undefined {
@@ -74,19 +102,20 @@ function usageEvent(
   providerSessionId: string | undefined,
   usage: Record<string, unknown> | undefined,
 ): RuntimeEvent[] {
+  if (!usage) return [];
   const inputTokens =
-    numberValue(usage?.inputTokens) ??
-    numberValue(usage?.input_tokens) ??
-    numberValue(usage?.prompt_tokens) ??
+    numberValue(usage.inputTokens) ??
+    numberValue(usage.input_tokens) ??
+    numberValue(usage.prompt_tokens) ??
     0;
   const outputTokens =
-    numberValue(usage?.outputTokens) ??
-    numberValue(usage?.output_tokens) ??
-    numberValue(usage?.completion_tokens) ??
+    numberValue(usage.outputTokens) ??
+    numberValue(usage.output_tokens) ??
+    numberValue(usage.completion_tokens) ??
     0;
-  if (inputTokens + outputTokens === 0) return [];
-  return [
-    {
+  const events: RuntimeEvent[] = [];
+  if (inputTokens + outputTokens > 0) {
+    events.push({
       type: "usage.spent",
       threadId,
       usage: {
@@ -97,8 +126,11 @@ function usageEvent(
         sampleId: `${correlationId}:${sequence}`,
         turnId,
       },
-    },
-  ];
+    });
+  }
+  const context = createContextUsageEvent(threadId, usageFromProviderRecord(usage));
+  if (context) events.push(context);
+  return events;
 }
 
 export function canonicalizeNativeEvent(input: {
@@ -131,15 +163,15 @@ export function canonicalizeNativeEvent(input: {
 
   if (nativeType === "init") return [attach({ type: "session.started", threadId, turnId })];
   if (nativeType === "step_update") {
-    const text =
-      typeof payload.step_type === "string" && payload.step_type === "agent_response"
-        ? textFrom(payload)
-        : undefined;
     const result: RuntimeEvent[] = [];
     const stepType = typeof payload.step_type === "string" ? payload.step_type : "";
+    const conversationId = String(payload.conversation_id ?? threadId);
+    const stepKey =
+      payload.step_index !== undefined && payload.step_index !== null
+        ? String(payload.step_index)
+        : undefined;
     if (stepType === "tool" || stepType === "subagent") {
       const stepIndex = String(payload.step_index ?? event.sequence);
-      const conversationId = String(payload.conversation_id ?? threadId);
       const itemId = `${stepType}:${conversationId}:${stepIndex}`;
       const state = String(payload.state ?? "").toUpperCase();
       const toolInfo = recordValue(payload.tool_info);
@@ -200,6 +232,28 @@ export function canonicalizeNativeEvent(input: {
         );
       }
     }
+    const thinkingStep = isThinkingStep(stepType);
+    const thoughtText = visibleText(thinkingFrom(payload) ?? (thinkingStep ? textFrom(payload) : undefined));
+    if (thoughtText) {
+      const itemId = stepKey ? `thought:${conversationId}:${stepKey}` : `thought:${turnId}`;
+      result.push(
+        attach({
+          type: "item.started",
+          threadId,
+          itemId,
+          itemType: "reasoning",
+        }),
+        attach({
+          type: "content.delta",
+          threadId,
+          itemId,
+          stream: "reasoning_text",
+          delta: thoughtText,
+        }),
+      );
+    }
+    const text =
+      !thinkingStep && stepType === "agent_response" ? visibleText(textFrom(payload)) : undefined;
     if (text) {
       result.push(
         attach({
@@ -239,12 +293,13 @@ export function canonicalizeNativeEvent(input: {
   if (nativeType === "result") {
     const resultPayload = recordValue(payload.result) ?? payload;
     const status = String(resultPayload.status ?? payload.status ?? "").toUpperCase();
-    const response =
+    const response = visibleText(
       typeof resultPayload.response === "string"
         ? resultPayload.response
         : typeof payload.response === "string"
           ? payload.response
-          : undefined;
+          : undefined,
+    );
     const failed = new Set(["ERROR", "FAILED", "FAILURE", "AUTH_REQUIRED", "BLOCKED"]);
     const cancelled = new Set(["CANCELLED", "CANCELED", "INTERRUPTED"]);
     const state = failed.has(status)
@@ -421,10 +476,17 @@ export function canonicalizeNativeEvent(input: {
       }),
     ];
   }
-  if (nativeType === "stderr" || nativeType === "error")
+  if (nativeType === "stderr" || nativeType === "error") {
+    const raw = firstString([payload.message, payload.error, payload.text, payload.response]);
+    if (raw && !visibleText(raw)) return [];
     return [
-      attach({ type: "error", threadId, message: "Native provider reported an execution error." }),
+      attach({
+        type: "error",
+        threadId,
+        message: visibleText(raw) ?? "Native provider reported an execution error.",
+      }),
     ];
+  }
   return [
     attach({
       type: "warning",

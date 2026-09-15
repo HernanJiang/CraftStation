@@ -9,6 +9,7 @@ import {
   resolveContextOccupancy,
   resolveSessionCacheHitRate,
   resolveThreadContextUsageSummary,
+  shouldShowContextUsageDock,
 } from "./threadContextUsage";
 
 const baseThread: Thread = {
@@ -138,6 +139,19 @@ describe("threadContextUsage", () => {
     expect(hasReportedContextUsage({ maxTokens: 200_000 })).toBe(false);
     expect(hasReportedContextUsage({ usedTokens: 0, maxTokens: 200_000 })).toBe(true);
     expect(hasReportedContextUsage({ usedTokens: 1, maxTokens: 200_000 })).toBe(true);
+    expect(
+      shouldShowContextUsageDock({
+        maxTokens: 500_000,
+        usedLabel: "Unknown",
+        maxLabel: "500K",
+        remainingLabel: "Unknown",
+        percentLabel: "Context",
+        headline: "500K context",
+        detail: "Provider has not reported token usage.",
+        breakdown: [],
+        occupancy: [],
+      }),
+    ).toBe(true);
   });
 
   it("infers the configured window when the provider has not reported usage yet", () => {
@@ -163,6 +177,110 @@ describe("threadContextUsage", () => {
     expect(summary.maxTokens).toBe(500_000);
     expect(summary.usedTokens).toBeUndefined();
     expect(summary.headline).toBe("500K context");
+    expect(shouldShowContextUsageDock(summary)).toBe(true);
+  });
+
+  it("ignores a stale contextSize that the current model does not advertise", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "grok",
+        config: { model: "grok-4.6", contextSize: "500K" },
+      },
+      agentStatus: {
+        ...baseAgent,
+        kind: "grok",
+        capabilities: {
+          ...baseAgent.capabilities,
+          models: [{ id: "grok-4.6", label: "Grok 4.6" }],
+          contextSizes: [
+            { id: "500K", label: "500K" },
+            { id: "2M", label: "2M" },
+          ],
+          modelContextSizes: { "grok-4.6": ["2M"], "grok-4.5": ["500K"] },
+          defaultContextSize: "500K",
+        },
+      },
+      reportedUsage: undefined,
+    });
+    expect(summary.maxTokens).toBe(2_000_000);
+  });
+
+  it("matches Antigravity Gemini slugs to the advertised 1M window", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "antigravity",
+        config: { model: "gemini-3.8-flash-high" },
+      },
+      agentStatus: {
+        ...baseAgent,
+        kind: "antigravity",
+        capabilities: {
+          ...baseAgent.capabilities,
+          models: [{ id: "Gemini 3.8 Flash", label: "Gemini 3.8 Flash" }],
+          contextSizes: [{ id: "1M", label: "1M" }],
+          modelContextSizes: { "Gemini 3.8 Flash": ["1M"] },
+          defaultContextSize: "1M",
+        },
+      },
+      reportedUsage: undefined,
+    });
+    expect(summary.maxTokens).toBe(1_000_000);
+    expect(shouldShowContextUsageDock(summary)).toBe(true);
+  });
+
+  it("matches DeepSeek display names to the advertised 1M window", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "deepseek",
+        config: { model: "DeepSeek V4.1 Flash" },
+      },
+      agentStatus: {
+        ...baseAgent,
+        kind: "deepseek",
+        capabilities: {
+          ...baseAgent.capabilities,
+          models: [{ id: "deepseek-v4.1-flash", label: "V4.1 Flash" }],
+          contextSizes: [{ id: "1M", label: "1M" }],
+          modelContextSizes: { "deepseek-v4.1-flash": ["1M"] },
+          defaultContextSize: "1M",
+        },
+      },
+      reportedUsage: undefined,
+    });
+    expect(summary.maxTokens).toBe(1_000_000);
+    expect(shouldShowContextUsageDock(summary)).toBe(true);
+  });
+
+  it("replaces a 256Ki placeholder window with DeepSeek's advertised 1M", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "deepseek",
+        config: { model: "deepseek-v4.1-flash" },
+      },
+      agentStatus: {
+        ...baseAgent,
+        kind: "deepseek",
+        capabilities: {
+          ...baseAgent.capabilities,
+          models: [{ id: "deepseek-v4.1-flash", label: "V4.1 Flash" }],
+          contextSizes: [{ id: "1M", label: "1M" }],
+          modelContextSizes: { "deepseek-v4.1-flash": ["1M"] },
+          defaultContextSize: "1M",
+        },
+      },
+      reportedUsage: {
+        usedTokens: 24_000,
+        maxTokens: 262_144,
+        breakdown: [{ id: "input", label: "Input", tokens: 24_000 }],
+      },
+    });
+    expect(summary.maxTokens).toBe(1_000_000);
+    expect(summary.percent).toBe(2);
+    expect(summary.cacheHitRate).toBe(0);
   });
 
   it("parses a raw token-count context size", () => {
@@ -222,7 +340,7 @@ describe("threadContextUsage", () => {
     ).toBe(50);
     expect(
       resolveSessionCacheHitRate([{ id: "input", label: "Input", tokens: 80 }]),
-    ).toBeUndefined();
+    ).toBe(0);
   });
 
   it("does not invent occupancy rows from a bare used-token total", () => {

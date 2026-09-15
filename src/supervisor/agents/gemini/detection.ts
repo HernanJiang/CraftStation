@@ -12,27 +12,43 @@ import {
   type DetectionSpec,
 } from "../base";
 import { buildContextSizeCapabilities } from "../contextWindowLabel";
+import { GOOGLE_CLOUDCODE_PRODUCTION_ENV, GOOGLE_CLOUDCODE_PRODUCTION_URL } from "../googleCloudCode";
 import { getAgentProbeCwd } from "../probeCwd";
 
 // Gemini's ACP probe reports the selectable model ids/names, but not token
 // limits. Keep this as an exact documented allowlist so new ids do not inherit
 // a context label until we have a real source for that model.
+const GEMINI_1M = 1_048_576;
+
 const GEMINI_MODEL_CONTEXT_TOKENS = new Map<string, number>([
-  ["gemini-3.1-pro-preview", 1_048_576],
-  ["gemini-3-flash-preview", 1_048_576],
-  ["gemini-3.1-flash-lite-preview", 1_048_576],
-  ["gemini-2.5-pro", 1_048_576],
-  ["gemini-2.5-flash", 1_048_576],
-  ["gemini-2.5-flash-lite", 1_048_576],
-  ["gemini-2.0-flash", 1_048_576],
-  ["gemini-2.0-flash-lite", 1_048_576],
+  ["gemini-3.1-pro-preview", GEMINI_1M],
+  ["gemini-3-flash-preview", GEMINI_1M],
+  ["gemini-3.1-flash-lite-preview", GEMINI_1M],
+  ["gemini-3.8-flash", GEMINI_1M],
+  ["gemini-3.8-flash-high", GEMINI_1M],
+  ["gemini-3.8-flash-medium", GEMINI_1M],
+  ["gemini-3.8-flash-low", GEMINI_1M],
+  ["gemini-3.7-flash", GEMINI_1M],
+  ["gemini-3.6-flash", GEMINI_1M],
+  ["gemini-2.5-pro", GEMINI_1M],
+  ["gemini-2.5-flash", GEMINI_1M],
+  ["gemini-2.5-flash-lite", GEMINI_1M],
+  ["gemini-2.0-flash", GEMINI_1M],
+  ["gemini-2.0-flash-lite", GEMINI_1M],
   ["gemini-1.5-pro", 2_000_000],
-  ["gemini-1.5-flash", 1_048_576],
-  ["gemini-1.5-flash-8b", 1_048_576],
+  ["gemini-1.5-flash", GEMINI_1M],
+  ["gemini-1.5-flash-8b", GEMINI_1M],
 ]);
 
-function geminiModelContextTokens(modelId: string): number | undefined {
-  return GEMINI_MODEL_CONTEXT_TOKENS.get(modelId.toLowerCase());
+export function geminiModelContextTokens(modelId: string): number | undefined {
+  const normalized = modelId.trim().toLowerCase();
+  if (!normalized) return undefined;
+  const exact = GEMINI_MODEL_CONTEXT_TOKENS.get(normalized);
+  if (exact !== undefined) return exact;
+  // Gemini 3.x Flash/Pro/Lite family is 1M. Keep unrelated ids
+  // (`auto-gemini-3`, `gemini-9-pro`) off the allowlist.
+  if (/^gemini-3(?:\.\d+)?(?:-|$)/.test(normalized)) return GEMINI_1M;
+  return undefined;
 }
 
 export const defaultGeminiCapabilities: AgentCapability = {
@@ -130,12 +146,17 @@ async function probeGeminiMetadata(ctx: Parameters<NonNullable<DetectionSpec["st
   return providerMetadata ? { providerMetadata } : undefined;
 }
 
+export const GEMINI_CODE_ASSIST_PRODUCTION_URL = GOOGLE_CLOUDCODE_PRODUCTION_URL;
+
 export const geminiDetectionSpec: DetectionSpec = {
   kind: "gemini",
   label: "Gemini",
   binary: "gemini",
   loginCommand: "gemini /auth",
   capabilities: defaultGeminiCapabilities,
+  // Gemini CLI / language-server wrappers still inherit agy's daily Cloud Code
+  // host (`daily-cloudcode-pa`) and then EOF the SSE stream on production OAuth.
+  baseSpawnEnv: { ...GOOGLE_CLOUDCODE_PRODUCTION_ENV },
   update: {
     npm: "@google/gemini-cli",
     brew: "gemini-cli",

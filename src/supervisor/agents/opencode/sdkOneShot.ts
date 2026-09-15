@@ -15,6 +15,7 @@ import type { ProjectLocation } from "@/shared/contracts";
 import type { RunOneShotInput } from "../base";
 import { classifyOpenCodeError } from "./opencodeErrors";
 import { acquireOpenCodeServer, type AcquiredOpenCodeServer } from "./sdkClient";
+import { parseOpenCodeModelSlug } from "./modelSlug";
 
 const DENY_ALL_PERMISSIONS = [{ permission: "*", pattern: "*", action: "deny" }] as const;
 const READ_ONLY_WORKSPACE_PERMISSIONS = [
@@ -33,15 +34,6 @@ async function acquireOneShotServer(input: AcquireInput): Promise<AcquiredOpenCo
   return acquireOpenCodeServer({
     projectLocation: input.location,
   });
-}
-
-function parseModelSlug(
-  slug: string | undefined,
-): { providerID: string; modelID: string } | undefined {
-  if (!slug) return undefined;
-  const slash = slug.indexOf("/");
-  if (slash <= 0 || slash === slug.length - 1) return undefined;
-  return { providerID: slug.slice(0, slash), modelID: slug.slice(slash + 1) };
 }
 
 function extractAssistantText(parts: ReadonlyArray<unknown> | undefined): string {
@@ -82,7 +74,7 @@ function extractInfoErrorMessage(info: unknown): string | undefined {
  * (typically nothing), and we surface a classified `AbortError`.
  */
 export async function runOpenCodeOneShot(input: RunOneShotInput): Promise<string> {
-  const parsedModel = parseModelSlug(input.model);
+  const parsedModel = parseOpenCodeModelSlug(input.model);
   if (!parsedModel) {
     throw new Error(
       `OpenCode model must be in 'provider/model' format (got '${input.model ?? ""}').`,

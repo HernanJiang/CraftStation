@@ -162,6 +162,16 @@ describe("buildCommandCodePrintArgs", () => {
       "--yolo",
     );
   });
+
+  it("rewrites commandcode/<leaf> catalog ids onto vendor/model for --model", () => {
+    const args = buildCommandCodePrintArgs(
+      { model: "commandcode/deepseek-v4-flash" },
+      "hello",
+    );
+    expect(args).toContain("--model");
+    expect(args).toContain("deepseek/deepseek-v4-flash");
+    expect(args).not.toContain("commandcode/deepseek-v4-flash");
+  });
 });
 
 describe("createCommandCodeAdapter", () => {

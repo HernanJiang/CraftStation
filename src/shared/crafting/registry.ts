@@ -219,6 +219,29 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
     ],
   },
   {
+    id: "muse:muse-spark-1.2",
+    kind: "model",
+    metadata: {
+      id: "muse:muse-spark-1.2",
+      name: "Muse Spark 1.2",
+      version: "audit-2026-09",
+      vendor: "muse",
+      source: "builtin",
+      description: "Meta Muse Spark model family paired with the official Muse Code Harness.",
+      tags: ["coding", "muse", "meta"],
+      compatibilityStatus: "NATIVE",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "muse",
+        modelId: "muse-spark-1.2",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
     id: "deepseek:deepseek-v4-flash",
     kind: "model",
     metadata: {
@@ -510,12 +533,21 @@ export const BUILTIN_DEEPSEEK_API_HARNESS_ITEM = createNativeHarnessItem({
   executionMode: "structured_session",
 });
 
+export const BUILTIN_MUSE_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:muse",
+  name: "Muse Code Harness",
+  vendor: "muse",
+  description: "Official Muse Code agent runtime through muse serve (MSP). On Windows it runs via WSL.",
+  executionMode: "structured_session",
+});
+
 export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_GROK_HARNESS_ITEM,
   BUILTIN_KIMI_HARNESS_ITEM,
   BUILTIN_ANTIGRAVITY_HARNESS_ITEM,
   BUILTIN_DEEPSEEK_HARNESS_ITEM,
   BUILTIN_DEEPSEEK_API_HARNESS_ITEM,
+  BUILTIN_MUSE_HARNESS_ITEM,
 ];
 
 export const NATIVE_HARNESS_RECIPES = [
@@ -608,6 +640,14 @@ export const NATIVE_HARNESS_RECIPES = [
     harnessKind: "antigravity",
     harnessItemId: BUILTIN_ANTIGRAVITY_HARNESS_ITEM.id,
     modelVendors: ["google"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:meta-muse-native",
+    name: "Meta Muse Code Native Recipe",
+    description: "Native Muse Spark composition through the official Muse Code Harness (WSL on Windows).",
+    harnessKind: "muse",
+    harnessItemId: BUILTIN_MUSE_HARNESS_ITEM.id,
+    modelVendors: ["muse"],
   }),
   new NativeHarnessRecipe({
     id: "recipe:deepseek-native",

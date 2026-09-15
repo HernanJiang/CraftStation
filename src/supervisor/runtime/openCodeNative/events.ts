@@ -4,6 +4,7 @@ import { buildOpenCodeNativeDiagnostic, safeMessage } from "./diagnostics";
 
 export interface OpenCodeMappedEvent {
   readonly event?: RuntimeEvent;
+  readonly followUp?: readonly RuntimeEvent[];
   readonly envelope: NativeEventEnvelope;
   readonly diagnostic?: NativeHarnessDiagnostic;
 }
@@ -583,15 +584,24 @@ export function mapOpenCodeNativeEvent(
 
     case "session.compaction":
     case "session.context.compacted": {
+      const itemId = `compact:${sequence}`;
       return {
         event: {
-          type: "context.updated",
+          type: "item.started",
           threadId,
-          usage: {
-            breakdown: [{ id: "compaction", label: "Native Compaction", tokens: 0 }],
-          },
+          itemId,
+          itemType: "tool_call",
+          payload: { name: "ContextCompaction", status: "running" },
           nativeEnvelope: nativeEnv,
         },
+        followUp: [
+          {
+            type: "item.completed",
+            threadId,
+            itemId,
+            payload: { name: "ContextCompaction", status: "success" },
+          },
+        ],
         envelope: nativeEnv,
       };
     }

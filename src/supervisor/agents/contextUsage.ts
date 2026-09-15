@@ -181,42 +181,128 @@ export function extraUsageEntries(obj: Record<string, unknown>): ContextUsageBre
   return extras;
 }
 
+function cachedTokensFromDetails(obj: Record<string, unknown>): number | undefined {
+  const details = obj.prompt_tokens_details ?? obj.promptTokensDetails ?? obj.input_tokens_details;
+  if (!details || typeof details !== "object" || Array.isArray(details)) return undefined;
+  return firstInteger(details as Record<string, unknown>, [
+    "cached_tokens",
+    "cachedTokens",
+    "cache_read_tokens",
+  ]);
+}
+
+function flattenUsageRecord(obj: Record<string, unknown>): Record<string, unknown> {
+  const meta = obj._meta;
+  const nested = obj.usage;
+  return {
+    ...obj,
+    ...(nested && typeof nested === "object" && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : {}),
+    ...(meta && typeof meta === "object" && !Array.isArray(meta)
+      ? (meta as Record<string, unknown>)
+      : {}),
+  };
+}
+
+/**
+ * True when `totalTokens` is a per-call billing sum (`input + output`) rather
+ * than context-window occupancy. Grok Build streams occupancy as
+ * `_meta.totalTokens` or `tokens_used` + `context_window`; prompt-response
+ * `usage.totalTokens` is the billed turn total and must not move the context bar.
+ */
+export function isLikelyBillingAggregateUsage(obj: Record<string, unknown>): boolean {
+  const record = flattenUsageRecord(obj);
+  const window = firstInteger(record, [
+    "context_window",
+    "contextWindow",
+    "totalContextTokens",
+    "size",
+    "maxTokens",
+    "max_tokens",
+  ]);
+  if (window !== undefined) return false;
+  const input = firstInteger(record, [
+    "inputTokens",
+    "input_tokens",
+    "promptTokens",
+    "prompt_tokens",
+  ]);
+  const output = firstInteger(record, [
+    "outputTokens",
+    "output_tokens",
+    "completionTokens",
+    "completion_tokens",
+  ]);
+  const total = firstInteger(record, ["totalTokens", "total_tokens"]);
+  if (input === undefined || output === undefined || total === undefined) return false;
+  return Math.abs(total - (input + output)) <= 1;
+}
+
 export function usageFromProviderRecord(
   obj: Record<string, unknown>,
   options: { maxTokens?: number | undefined } = {},
 ): ThreadContextUsage | undefined {
+  const record = flattenUsageRecord(obj);
   return usageFromTokenCounts({
-    usedTokens: firstInteger(obj, ["totalTokens", "total_tokens", "used", "total"]),
+    usedTokens: firstInteger(record, [
+      "totalTokens",
+      "total_tokens",
+      "used_tokens",
+      "tokens_used",
+      "used",
+      "total",
+    ]),
+    inputTokens: firstInteger(record, [
+      "inputTokens",
+      "input_tokens",
+      "input",
+      "promptTokens",
+      "prompt_tokens",
+    ]),
     maxTokens:
       options.maxTokens ??
-      firstInteger(obj, [
+      firstInteger(record, [
         "maxTokens",
         "max_tokens",
         "size",
+        "context_window",
+        "contextWindow",
+        "totalContextTokens",
         "modelContextWindow",
         "model_context_window",
       ]),
-    inputTokens: firstInteger(obj, ["inputTokens", "input_tokens", "input"]),
-    outputTokens: firstInteger(obj, ["outputTokens", "output_tokens", "output"]),
-    thoughtTokens: firstInteger(obj, [
+    outputTokens: firstInteger(record, [
+      "outputTokens",
+      "output_tokens",
+      "output",
+      "completionTokens",
+      "completion_tokens",
+    ]),
+    thoughtTokens: firstInteger(record, [
       "thoughtTokens",
       "reasoningTokens",
       "reasoningOutputTokens",
       "reasoning_output_tokens",
       "reasoning_tokens",
     ]),
-    cachedReadTokens: firstInteger(obj, [
-      "cachedInputTokens",
-      "cachedReadTokens",
-      "cacheReadTokens",
-      "cached_input_tokens",
-      "cache_read_tokens",
-    ]),
-    cachedWriteTokens: firstInteger(obj, [
+    cachedReadTokens:
+      firstInteger(record, [
+        "cachedInputTokens",
+        "cachedReadTokens",
+        "cacheReadTokens",
+        "cachedTokens",
+        "cached_tokens",
+        "cached_input_tokens",
+        "cache_read_tokens",
+        "prompt_cache_hit_tokens",
+        "promptCacheHitTokens",
+      ]) ?? cachedTokensFromDetails(record),
+    cachedWriteTokens: firstInteger(record, [
       "cachedWriteTokens",
       "cacheWriteTokens",
       "cache_write_tokens",
     ]),
-    extra: extraUsageEntries(obj),
+    extra: extraUsageEntries(record),
   });
 }

@@ -105,8 +105,8 @@ async function scanLanguageServer(
  * is the LS's own backend surface, not the mismatched Cloud Code quota surface.
  */
 const CLOUDCODE_BASES = [
-  "https://daily-cloudcode-pa.googleapis.com",
   "https://cloudcode-pa.googleapis.com",
+  "https://daily-cloudcode-pa.googleapis.com",
 ] as const;
 
 type AntigravityCloudcodeResult =

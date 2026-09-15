@@ -111,7 +111,13 @@ export function ThreadDockIconButton({
           {children}
         </Button>
       </Tooltip.Trigger>
-      <Tooltip.Content>{tooltip}</Tooltip.Content>
+      <Tooltip.Content
+        placement="top"
+        offset={6}
+        className="craftstation-control-tooltip pointer-events-none"
+      >
+        <span className="whitespace-nowrap">{tooltip}</span>
+      </Tooltip.Content>
     </Tooltip>
   );
 }

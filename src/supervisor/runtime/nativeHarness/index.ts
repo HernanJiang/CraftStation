@@ -2,6 +2,7 @@ import type { AccountBinding, ProjectLocation, PromptSegment } from "@/shared/co
 import type { HarnessRuntimeAdapter } from "@/shared/crafting";
 import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
+import { createMuseAdapter } from "@/supervisor/agents/muse";
 import { antigravitySessionEnvForLocation } from "@/supervisor/agents/antigravity/detection";
 import {
   ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
@@ -10,6 +11,7 @@ import {
   DEEPSEEK_API_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
 } from "./descriptors";
@@ -37,6 +39,7 @@ export {
   DEEPSEEK_API_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
   PtyNativeHarnessRuntimeAdapter,
@@ -226,6 +229,27 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
       ...(mcpServers !== undefined ? { mcpServers } : {}),
       ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
     }),
+  muse: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    baseSpawnEnv,
+    mcpServers,
+    onPromptError,
+    skillSegments,
+    inlineSkillInstructions,
+  }) =>
+    new StructuredNativeHarnessRuntimeAdapter({
+      adapter: withBaseSpawnEnv(createMuseAdapter(), baseSpawnEnv),
+      descriptor: MUSE_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation,
+      ...(accountBinding ? { accountBinding } : {}),
+      ...(profileRef ? { profileRef } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(onPromptError ? { onPromptError } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
   opencode: ({
     projectLocation,
     accountBinding,

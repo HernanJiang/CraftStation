@@ -72,4 +72,22 @@ export const nativeHarnessProcedures = {
     CompatibilityBridgeStatusView,
     "supervisor"
   >("stopCompatibilityBridge", "supervisor", compatibilityBridgeControlPayloadSchema),
+  /**
+   * Download the official CLIProxyAPI release into the user tools dir.
+   * Does not start the sidecar; call start/ensure after install.
+   */
+  installCompatibilityBridge: definePayloadProcedure<
+    CompatibilityBridgeControlPayload,
+    CompatibilityBridgeStatusView,
+    "supervisor"
+  >("installCompatibilityBridge", "supervisor", compatibilityBridgeControlPayloadSchema),
+  /**
+   * Install the sidecar if missing, then start it. Used by 合成 and the
+   * Components inventory so an idle or absent CPA is not a dead end.
+   */
+  ensureCompatibilityBridge: definePayloadProcedure<
+    CompatibilityBridgeControlPayload,
+    CompatibilityBridgeStatusView,
+    "supervisor"
+  >("ensureCompatibilityBridge", "supervisor", compatibilityBridgeControlPayloadSchema),
 } as const;

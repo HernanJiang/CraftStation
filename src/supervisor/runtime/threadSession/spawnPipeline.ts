@@ -34,6 +34,10 @@ import {
 } from "@/shared/contracts";
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
 import { resolveAgentPresentationMode } from "@/shared/agentStatus";
+import {
+  modelCatalogChannel,
+  normalizeCommandCodeModelId,
+} from "@/shared/thirdPartyRouting";
 import type { AgentNativePlugin } from "@/supervisor/agents/base";
 import {
   resolveBrowserMcpHttpConfigForLaunch,
@@ -102,6 +106,15 @@ import {
 } from "../../agents/muse/foreignEndpoint";
 import { startMuseForeignGateway } from "../../agents/muse/foreignGateway";
 import { resolveWindowsMuseLaunchLocation } from "../../agents/muse/wslFallback";
+import {
+  commandCodeUsesCliGateway,
+  startCommandCodeAlphaGateway,
+} from "../../agents/commandcode/alphaGateway";
+import {
+  commandCodeCompatEnv,
+  readCommandCodeApiKey,
+  writeCommandCodeDshHome,
+} from "../../agents/commandcode/providerApi";
 import { applyLaunchArgsConfigRewrite, mergeCliHookExtraArgs } from "./cliHookArgs";
 import type { CliHookSessionCoordinator } from "./cliHookPlugin";
 import { shouldPrimeNativeProjectShellEnv } from "./helpers";
@@ -110,6 +123,7 @@ import type { PtyLifecycle } from "./ptyLifecycle";
 import type { RuntimeEventRouter } from "./runtimeEventRouter";
 import {
   StructuredRuntimeDiagnosticError,
+  structuredRuntimeCauseHint,
   structuredRuntimeFeatureArea,
 } from "./structuredRuntimeDiagnosticError";
 import { describeSpawnFailure, sanitizeEnv, sanitizedProcessEnv } from "./spawnDiagnostics";
@@ -836,15 +850,25 @@ export class SpawnPipeline {
       projectLocation: museCommandLocation,
     });
     const museForeignEnv = musePrepared.env;
+    const deepseekPrepared = await this.prepareDeepseekForeignLaunch({
+      agentKind: payload.agentKind,
+      threadId: payload.threadId,
+      model: payload.config.model,
+      sourceProviderKind: payload.config.sourceProviderKind,
+      thirdPartyAccountId: payload.thirdPartyAccountId,
+      projectLocation: payload.projectLocation,
+    });
+    const deepseekForeignEnv = deepseekPrepared.env;
     argv.args = applyMuseForeignLaunchArgs(argv.args, museForeignEnv);
     if (shouldPrimeNativeProjectShellEnv(payload.projectLocation)) {
       await primeProjectShellEnv(payload.projectLocation.path);
     }
     const command = resolveLaunchSpec(museCommandLocation, argv);
-    if (musePrepared.cleanup) {
+    if (musePrepared.cleanup || deepseekPrepared.cleanup) {
       const previousCleanup = command.cleanup;
       command.cleanup = () => {
         musePrepared.cleanup?.();
+        deepseekPrepared.cleanup?.();
         previousCleanup?.();
       };
     }
@@ -872,8 +896,14 @@ export class SpawnPipeline {
       initialSize: payload.initialSize,
       launchPrompt,
       command,
-      ...(this.mergeLaunchExtraEnv(museForeignEnv, cliHookExtras.env)
-        ? { extraEnv: this.mergeLaunchExtraEnv(museForeignEnv, cliHookExtras.env)! }
+      ...(this.mergeLaunchExtraEnv(museForeignEnv, deepseekForeignEnv, cliHookExtras.env)
+        ? {
+            extraEnv: this.mergeLaunchExtraEnv(
+              museForeignEnv,
+              deepseekForeignEnv,
+              cliHookExtras.env,
+            )!,
+          }
         : {}),
       ...(keepStructuredSession ? { structuredSession } : {}),
       ...(resolvedSessionRef ? { sessionRef: resolvedSessionRef } : {}),
@@ -1156,6 +1186,16 @@ export class SpawnPipeline {
       projectLocation: museCommandLocation,
     });
     const museForeignEnv = musePrepared.env;
+    const deepseekPrepared = await this.prepareDeepseekForeignLaunch({
+      agentKind: session.agentKind,
+      threadId: session.threadId,
+      model: config.model,
+      sourceProviderKind: config.sourceProviderKind,
+      thirdPartyAccountId:
+        session.poolProvider === "openai-compatible" ? session.poolAccountId : undefined,
+      projectLocation: session.projectLocation,
+    });
+    const deepseekForeignEnv = deepseekPrepared.env;
     argv.args = applyMuseForeignLaunchArgs(argv.args, museForeignEnv);
     if (shouldPrimeNativeProjectShellEnv(session.projectLocation)) {
       await primeProjectShellEnv(session.projectLocation.path);
@@ -1164,13 +1204,15 @@ export class SpawnPipeline {
       await structuredSession?.dispose();
       argv.cleanup?.();
       musePrepared.cleanup?.();
+      deepseekPrepared.cleanup?.();
       return;
     }
     const command = resolveLaunchSpec(museCommandLocation, argv);
-    if (musePrepared.cleanup) {
+    if (musePrepared.cleanup || deepseekPrepared.cleanup) {
       const previousCleanup = command.cleanup;
       command.cleanup = () => {
         musePrepared.cleanup?.();
+        deepseekPrepared.cleanup?.();
         previousCleanup?.();
       };
     }
@@ -1196,8 +1238,14 @@ export class SpawnPipeline {
       initialSize: session.terminalSize,
       launchPrompt,
       command,
-      ...(this.mergeLaunchExtraEnv(museForeignEnv, cliHookExtras.env)
-        ? { extraEnv: this.mergeLaunchExtraEnv(museForeignEnv, cliHookExtras.env)! }
+      ...(this.mergeLaunchExtraEnv(museForeignEnv, deepseekForeignEnv, cliHookExtras.env)
+        ? {
+            extraEnv: this.mergeLaunchExtraEnv(
+              museForeignEnv,
+              deepseekForeignEnv,
+              cliHookExtras.env,
+            )!,
+          }
         : {}),
       ...(keepStructuredSession ? { structuredSession } : {}),
       sessionRef: session.sessionRef,
@@ -1800,6 +1848,65 @@ export class SpawnPipeline {
     });
   }
 
+  private async prepareDeepseekForeignLaunch(input: {
+    agentKind: AgentKind;
+    threadId?: string | undefined;
+    model?: string | undefined;
+    sourceProviderKind?: string | undefined;
+    thirdPartyAccountId?: string | undefined;
+    projectLocation?: ProjectLocation;
+  }): Promise<{ env?: Record<string, string>; cleanup?: () => void }> {
+    if (baseAgentKind(input.agentKind) !== "deepseek") return {};
+    if (input.thirdPartyAccountId) return {};
+    const model = (input.model ?? "").trim();
+    const source =
+      (input.sourceProviderKind ?? "").trim().toLowerCase() || modelCatalogChannel(model) || "";
+    const commandCodeCatalogModel = /^(deepseek)\//iu.test(model);
+    if (source !== "commandcode" && !(source === "" && commandCodeCatalogModel)) {
+      return {};
+    }
+    const apiKey = readCommandCodeApiKey(input.projectLocation);
+    if (!apiKey) {
+      throw new AccountControlError(
+        "ACCOUNT_NOT_FOUND",
+        "Command Code 未登录，无法把 DeepSeek 模型接到 DeepSeek Harness。请先在「模型与用量」登录 Command Code。",
+        { provider: "commandcode" },
+      );
+    }
+    const isolationDir = input.threadId
+      ? join(tmpdir(), "craftstation-dsh-cc", input.threadId)
+      : undefined;
+    let baseUrl: string | undefined;
+    let cleanup: (() => void) | undefined;
+    if (commandCodeUsesCliGateway(apiKey)) {
+      const gateway = await startCommandCodeAlphaGateway({
+        apiKey,
+        ...(input.projectLocation
+          ? {
+              workingDir:
+                input.projectLocation.kind === "wsl"
+                  ? input.projectLocation.linuxPath
+                  : input.projectLocation.path,
+            }
+          : {}),
+      });
+      baseUrl = `${gateway.origin}/v1`;
+      cleanup = gateway.close;
+    }
+    if (isolationDir) {
+      writeCommandCodeDshHome({
+        isolationDir,
+        apiKey,
+        modelId: normalizeCommandCodeModelId(input.model ?? "deepseek/deepseek-v4.1-flash"),
+        ...(baseUrl ? { baseUrl } : {}),
+      });
+    }
+    return {
+      env: commandCodeCompatEnv(apiKey, isolationDir, baseUrl),
+      ...(cleanup ? { cleanup } : {}),
+    };
+  }
+
   private mergeLaunchExtraEnv(
     ...envs: Array<Record<string, string> | undefined>
   ): Record<string, string> | undefined {
@@ -1991,23 +2098,45 @@ export class SpawnPipeline {
         ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
         ...(excludedAccountIds?.length ? { excludedAccountIds: [...excludedAccountIds] } : {}),
       });
+      const museCommandLocation = await this.resolveMuseCommandLocation(agentKind, projectLocation);
+      const musePrepared = await this.prepareMuseForeignLaunch({
+        agentKind,
+        threadId,
+        model: config.model,
+        thirdPartyAccountId,
+        projectLocation: museCommandLocation,
+      });
+      const deepseekPrepared = await this.prepareDeepseekForeignLaunch({
+        agentKind,
+        threadId,
+        model: config.model,
+        sourceProviderKind: config.sourceProviderKind,
+        thirdPartyAccountId,
+        projectLocation,
+      });
+      const deepseekForeignEnv = deepseekPrepared.env;
       // Credential-source stickiness: third-party sessions record the
       // third-party provider so restarts/resumes re-enter the pool bypass
       // instead of the subscription pool.
       const effectiveProvider = thirdPartyAccountId
         ? "openai-compatible"
         : baseAgentKind(agentKind);
-      const baseSpawnEnv = accountEnv
-        ? { ...adapter.baseSpawnEnv, ...accountEnv.env }
-        : adapter.baseSpawnEnv;
+      const baseSpawnEnv = this.mergeLaunchExtraEnv(
+        adapter.baseSpawnEnv,
+        accountEnv?.env,
+        deepseekForeignEnv,
+        musePrepared.env,
+      );
       if (accountEnv) {
         console.log(
           `[account] structured session bound to pool account: provider=${effectiveProvider} thread=${threadId} account=${accountEnv.accountId} reason=${accountEnv.reason}`,
         );
       }
-      const handle = await adapter.createStructuredSession({
+      let handle: StructuredSessionHandle;
+      try {
+        const created = await adapter.createStructuredSession({
         threadId,
-        projectLocation,
+        projectLocation: museCommandLocation,
         config,
         agentSettings: this.ctx.resolveAgentSettings(adapter),
         ...(baseSpawnEnv ? { baseSpawnEnv } : {}),
@@ -2057,6 +2186,25 @@ export class SpawnPipeline {
             }
           : {}),
       });
+        if (!created) {
+          deepseekPrepared.cleanup?.();
+          musePrepared.cleanup?.();
+          return { handle: undefined };
+        }
+        handle = created;
+      } catch (error) {
+        deepseekPrepared.cleanup?.();
+        musePrepared.cleanup?.();
+        throw error;
+      }
+      if (deepseekPrepared.cleanup || musePrepared.cleanup) {
+        const innerDispose = handle.dispose.bind(handle);
+        handle.dispose = async () => {
+          deepseekPrepared.cleanup?.();
+          musePrepared.cleanup?.();
+          await innerDispose();
+        };
+      }
       return {
         handle,
         ...(accountEnv
@@ -2074,7 +2222,10 @@ export class SpawnPipeline {
       // (e.g. "No usable kimi account in the provider pool."). Surface them so
       // the GUI error strip explains WHY the start failed instead of a bare
       // diagnostic line the user cannot act on.
-      const causeHint = error instanceof AccountControlError ? error.message : undefined;
+      const causeHint =
+        error instanceof AccountControlError
+          ? error.message
+          : structuredRuntimeCauseHint(error);
       const diagnosticError = new StructuredRuntimeDiagnosticError(
         "session-creation",
         agentKind,

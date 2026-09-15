@@ -66,4 +66,43 @@ describe("mapCodexNotificationToRuntimeEvents", () => {
       delta: "planning",
     });
   });
+
+  it("maps context compaction items into a visible ContextCompaction tool call", () => {
+    const context: EventMappingContext = {
+      threadId: "thread-1",
+      activeItemIds: new Set(),
+    };
+    const started = mapCodexNotificationToRuntimeEvents(
+      {
+        method: "item/started",
+        params: { item: { id: "compact-1", type: "contextCompaction" } },
+      },
+      context,
+    );
+    expect(started).toEqual([
+      {
+        type: "item.started",
+        threadId: "thread-1",
+        itemId: "compact-1",
+        itemType: "tool_call",
+        payload: { name: "ContextCompaction", status: "running" },
+      },
+    ]);
+    const compacted = mapCodexNotificationToRuntimeEvents(
+      {
+        method: "thread/compacted",
+        params: { summary: "kept recent turns" },
+      },
+      context,
+    );
+    expect(compacted[0]).toMatchObject({
+      type: "item.started",
+      itemType: "tool_call",
+      payload: { name: "ContextCompaction", status: "running" },
+    });
+    expect(compacted[1]).toMatchObject({
+      type: "item.completed",
+      payload: { name: "ContextCompaction", status: "success" },
+    });
+  });
 });

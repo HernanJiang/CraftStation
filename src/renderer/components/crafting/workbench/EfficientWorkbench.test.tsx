@@ -21,7 +21,7 @@ function resolution(status: CapabilityResolution["status"]): CapabilityResolutio
             {
               code: "RUNTIME_UNAVAILABLE",
               phase: "readiness",
-              message: "跨厂商组合需要 CLIProxyAPI 兼容桥，当前未就绪（未运行或未安装）",
+              message: "Harness 未就绪或不可用",
               remediation: "请安装/配置所选 Harness",
             },
           ]
@@ -63,7 +63,29 @@ describe("EfficientWorkbench", () => {
       />,
     );
     expect(screen.getByTestId("compatibility-status")).toHaveTextContent("不可合成");
-    expect(screen.getByTestId("compatibility-reason")).toHaveTextContent("CLIProxyAPI 兼容桥");
+    expect(screen.getByTestId("compatibility-reason")).toHaveTextContent("Harness 未就绪或不可用");
+  });
+
+  it("lets the user click 安装并合成 when CPA is the only blocker", () => {
+    const blocked: CapabilityResolution = {
+      ...resolution("IMPOSSIBLE"),
+      diagnostics: [
+        {
+          code: "CPA_NOT_INSTALLED",
+          phase: "readiness",
+          message: "跨厂商组合需要 CLIProxyAPI",
+        },
+      ],
+    };
+    render(
+      <EfficientWorkbench
+        resolution={blocked}
+        onCraft={() => undefined}
+        onClear={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("craft-button")).not.toBeDisabled();
+    expect(screen.getByTestId("craft-button")).toHaveTextContent("安装并合成");
   });
 
   it("enables crafting for native resolutions", () => {

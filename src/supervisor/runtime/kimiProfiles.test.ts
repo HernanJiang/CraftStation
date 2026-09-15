@@ -9,6 +9,7 @@ import {
   buildKimiLoginScript,
   kimiCredentialIdentities,
   managedKimiProcessEnvironment,
+  readManagedKimiApiKey,
 } from "./kimiProfiles";
 
 function tempRoot(prefix: string): string {
@@ -61,6 +62,21 @@ describe("Kimi managed profile runtime", () => {
     expect(readFileSync(managedPath, "utf8")).toContain("SECRET_TOKEN");
     expect(existsSync(join(globalRoot, "credentials", "kimi-code.json"))).toBe(true);
     expect(account).not.toHaveProperty("credentialRoot");
+  });
+
+  it("creates a managed account from a pasted API key and injects it at spawn", () => {
+    const root = tempRoot("craftstation-kimi-apikey-");
+    const store = new AccountStore(root);
+    const service = new KimiProfileService({ store });
+    const account = service.importApiKey({ label: "New Kimi", apiKey: "sk-kimi-pasted" });
+    expect(account.status).toBe("available");
+    expect(account.providerAccountId).toMatch(/^New Kimi · [0-9a-f]{6}$/);
+    const home = service.managedKimiHome(account.accountId);
+    expect(readManagedKimiApiKey(home)).toBe("sk-kimi-pasted");
+    expect(readFileSync(join(home, "config.toml"), "utf8")).toContain("sk-kimi-pasted");
+    const env = managedKimiProcessEnvironment(home, { KIMI_CODE_API_KEY: "SENTINEL_API_KEY" });
+    expect(env.KIMI_CODE_API_KEY).toBe("sk-kimi-pasted");
+    expect(env.KIMI_CODE_HOME).toBe(home);
   });
 
   it("imports an api-key-style credential with a label-hash fallback identity", () => {

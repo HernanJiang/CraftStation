@@ -34,6 +34,10 @@ export interface AcpContentItemState {
   openAssistantItemId?: string;
   openReasoningItemId?: string;
   openUserItemId?: string;
+  /** Text already projected onto the live reasoning item (snapshot-vs-delta). */
+  reasoningAccum?: string;
+  /** Text already projected onto the live assistant item (snapshot-vs-delta). */
+  assistantAccum?: string;
 }
 
 /** Per-session state — tracks open items so deltas land on the right item id. */
@@ -45,6 +49,10 @@ export interface AcpMapperState {
   openReasoningItemId?: string;
   /** Item id of the currently-streaming user message, if any. */
   openUserItemId?: string;
+  /** Text already projected onto the live reasoning item (snapshot-vs-delta). */
+  reasoningAccum?: string;
+  /** Text already projected onto the live assistant item (snapshot-vs-delta). */
+  assistantAccum?: string;
   /** Open streamed content keyed by its owning subagent tool call. */
   subAgentContentItems: Map<string, AcpContentItemState>;
   /** Map ACP `toolCallId` → our internal item id + canonical item type + payload. */
@@ -92,6 +100,17 @@ export interface AcpMapperState {
    * tool_call payload.
    */
   resolveTerminalOutputByCommand?: (command: string) => string | undefined;
+  /**
+   * Buffered Grok-style skill-catalog echo while it streams in (`Available
+   * skills:` then kebab-case ids). Dropped once confirmed; flushed if the
+   * next chunk proves it is real prose.
+   */
+  pendingSkillCatalogText?: string;
+  /**
+   * Last occupancy snapshot emitted as `context.updated`. Grok streams the
+   * same `_meta.totalTokens` on every thought/tool/message chunk; skip repeats.
+   */
+  lastContextOccupancySignature?: string;
 }
 
 export function createAcpMapperState(threadId: string): AcpMapperState {
@@ -112,6 +131,21 @@ const OPEN_CONTENT_ITEM_KEYS = [
   "openReasoningItemId",
   "openUserItemId",
 ] as const;
+
+/**
+ * Providers (notably DeepSeek ACP) sometimes replay the full snapshot of a
+ * stream instead of a true delta. If `incoming` extends `previous`, emit only
+ * the suffix; if it is a duplicate, emit nothing.
+ */
+export function snapshotOrDelta(previous: string | undefined, incoming: string): string {
+  if (!incoming) return "";
+  const prior = previous ?? "";
+  if (!prior) return incoming;
+  if (incoming === prior) return "";
+  if (incoming.startsWith(prior)) return incoming.slice(prior.length);
+  if (prior.endsWith(incoming)) return "";
+  return incoming;
+}
 
 /** Close any open assistant/user/reasoning items as a turn boundary. */
 export function getContentItemState(
@@ -139,6 +173,20 @@ export function closeAllOpenContentItems(state: AcpMapperState): RuntimeEvent[] 
   return events;
 }
 
+export function completeOpenContentItem(
+  contentState: AcpContentItemState,
+  threadId: string,
+  which: "assistant" | "reasoning",
+): RuntimeEvent[] {
+  const idKey = which === "assistant" ? "openAssistantItemId" : "openReasoningItemId";
+  const accumKey = which === "assistant" ? "assistantAccum" : "reasoningAccum";
+  const itemId = contentState[idKey];
+  if (!itemId) return [];
+  delete contentState[idKey];
+  delete contentState[accumKey];
+  return [{ type: "item.completed", threadId, itemId }];
+}
+
 export function closeOpenContentItems(
   state: AcpMapperState,
   parentToolCallId?: string,
@@ -153,6 +201,8 @@ export function closeOpenContentItems(
       delete contentState[key];
     }
   }
+  delete contentState.assistantAccum;
+  delete contentState.reasoningAccum;
   return events;
 }
 

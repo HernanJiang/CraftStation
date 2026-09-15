@@ -1275,7 +1275,10 @@ describe("ThreadComposerSection", () => {
     });
 
     expect(screen.getByTestId("thread-queued-follow-up").tagName).toBe("SPAN");
-    fireEvent.click(screen.getByRole("button", { name: "Edit queue" }));
+    expect(screen.getByRole("button", { name: "Send now" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete queue" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     const input = screen.getByTestId("thread-queued-follow-up");
     expect(input.tagName).toBe("INPUT");
     fireEvent.change(input, { target: { value: "rewritten" } });

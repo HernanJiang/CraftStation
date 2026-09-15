@@ -236,6 +236,13 @@ export interface CreateStructuredSessionInput {
    */
   acpGoalCommands?: boolean;
   /**
+   * Fail-closed model binding for ACP runtimes that silently keep serving
+   * their default model when a requested catalog id matches no advertised
+   * option (DeepSeek Harness). When true, a turn whose model cannot be bound
+   * fails instead of continuing on the runtime default model.
+   */
+  strictModelResolution?: boolean;
+  /**
    * Translate a vendor ACP extension notification into a standard
    * `session/update` before canonical mapping. This is for providers that put
    * lifecycle boundaries on an extension method instead of the ACP stream.

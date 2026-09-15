@@ -51,6 +51,12 @@ interface RendererReloadGuardOptions {
     details: RenderProcessGoneDetails,
     intent: RendererProcessGoneIntent | undefined,
   ) => void;
+  /**
+   * Invoked when the renderer crashed more times than the reload cap allows.
+   * Without it the window stays permanently blank (nothing ever reloads again),
+   * so callers should escalate — e.g. rebuild the window.
+   */
+  onReloadExhausted?: () => void;
   /** Log-only surface label (e.g. "quick composer") to distinguish messages. */
   label?: string;
 }
@@ -142,16 +148,29 @@ export function installRendererReloadGuard(
   let reloadCount = 0;
   window.webContents.on("render-process-gone", (_event, details) => {
     const intent = consumeRendererTerminationIntent(window);
-    if (details.reason === "clean-exit" || window.isDestroyed()) return;
-    console.error(
-      `[craftstation] ${prefix}renderer gone: reason=${details.reason} exitCode=${details.exitCode}`,
-    );
+    if (window.isDestroyed()) return;
+    if (details.reason === "clean-exit") {
+      // A renderer that exits cleanly while its window stays visible leaves the
+      // window permanently blank; only a close we intended may end quietly.
+      if (intent === "window-close") return;
+      if (typeof window.isVisible === "function" && !window.isVisible()) return;
+      console.error(
+        `[craftstation] ${prefix}renderer exited cleanly while the window is visible, reloading`,
+      );
+    } else {
+      console.error(
+        `[craftstation] ${prefix}renderer gone: reason=${details.reason} exitCode=${details.exitCode}`,
+      );
+    }
     options.onRendererProcessGone?.(details, intent);
     const now = Date.now();
     reloadCount = now - lastReloadAt < 5_000 ? reloadCount + 1 : 1;
     lastReloadAt = now;
     if (reloadCount > 3) {
-      console.error(`[craftstation] ${prefix}renderer gone too many times in a row, not reloading`);
+      console.error(
+        `[craftstation] ${prefix}renderer gone too many times in a row, escalating recovery`,
+      );
+      options.onReloadExhausted?.();
       return;
     }
     options.loadRenderer();

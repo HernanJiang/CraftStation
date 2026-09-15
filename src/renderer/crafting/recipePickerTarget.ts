@@ -25,12 +25,62 @@ export interface RecipePickerTarget {
  *   manageable in 管理模型 → 我的配方 but is skipped in the picker instead
  *   of launching a dead selection.
  */
+/** Strip `harness:` / `native-harness:` so a stored ref launches as `opencode`. */
+export function normalizeRecipeHarnessKind(raw: string | undefined): string {
+  return (raw ?? "").replace(/^harness:/u, "").replace(/^native-harness:/u, "");
+}
+
+/** Harness kind a saved recipe should launch on (`opencode`, not `harness:opencode`). */
+export function recipeLaunchHarnessKind(recipe: StoredRecipe): string {
+  return normalizeRecipeHarnessKind(recipe.lastKnownHarness?.harnessKind || recipe.harnessRef);
+}
+
+/** Provider/agent kind encoded in an `agent:` / `custom:` material ref. */
+export function providerKindFromRecipeRef(ref: string): string | undefined {
+  if (ref.startsWith("agent:") || ref.startsWith("custom:")) {
+    const head = ref.slice(ref.indexOf(":") + 1).split(":")[0]?.trim();
+    return head || undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Model id encoded in an `agent:<surface>:<modelId>` material ref. Custom-model
+ * refs (`custom:…`) are catalog ids, not launch ids — those stay undefined.
+ */
+export function modelIdFromRecipeRef(ref: string): string | undefined {
+  if (!ref.startsWith("agent:")) return undefined;
+  const withoutPrefix = ref.slice("agent:".length);
+  const lastColon = withoutPrefix.lastIndexOf(":");
+  if (lastColon <= 0) return undefined;
+  const modelId = withoutPrefix.slice(lastColon + 1).trim();
+  return modelId || undefined;
+}
+
+/** Concrete model id a saved recipe should launch, even if lastKnown stored an entry ref. */
+export function recipeLaunchModelId(recipe: StoredRecipe): string | undefined {
+  const stored = recipe.lastKnownModel?.modelId?.trim();
+  if (stored && !stored.startsWith("agent:") && !stored.startsWith("custom:")) return stored;
+  return modelIdFromRecipeRef(recipe.modelEntryRef) ?? stored;
+}
+
 export function resolveRecipePickerTarget(
   recipe: StoredRecipe,
   providers: readonly ProviderModelMenuProvider[],
   customModels: readonly CustomModel[],
 ): RecipePickerTarget | undefined {
+  const launchKind = recipeLaunchHarnessKind(recipe);
   for (const provider of providers) {
+    // A workbench recipe is Harness · Model. The model card may come from
+    // another vendor's inventory (Gemini on Antigravity, then OpenCode as
+    // Harness). Exact material-id match must not hijack launch onto that
+    // vendor — only the recipe's harness family may win here.
+    if (
+      launchKind &&
+      baseAgentKind(provider.kind) !== baseAgentKind(launchKind)
+    ) {
+      continue;
+    }
     for (const model of provider.capabilities.models) {
       if (agentModelEntryId(providerMenuKey(provider), model.id) === recipe.modelEntryRef) {
         return {
@@ -53,11 +103,10 @@ export function resolveRecipePickerTarget(
     if (lastColon > 0) {
       const modelId = withoutPrefix.slice(lastColon + 1);
       const surfaceHead = withoutPrefix.slice(0, lastColon).split(":")[0] ?? "";
+      const family = launchKind || surfaceHead;
       const sameVendor = providers.filter(
-        (provider) => baseAgentKind(provider.kind) === baseAgentKind(surfaceHead),
+        (provider) => baseAgentKind(provider.kind) === baseAgentKind(family),
       );
-      // 同厂商都不存在时直接放弃，不跨厂商凑合。
-      if (sameVendor.length === 0) return undefined;
       const normalizedWanted = modelId.split("/").pop()?.toLowerCase() ?? modelId;
       for (const provider of sameVendor) {
         const model =
@@ -102,5 +151,29 @@ export function resolveRecipePickerTarget(
       };
     }
   }
-  return undefined;
+  // 合成台配方是 Harness · 模型 的显式组合（第三方兼容 API / 订阅→CPA→第三方）。
+  // 模型不必出现在该 Harness 的原生目录里：只要对应 Harness 还在选择器中，
+  // 就按配方启动，由 withPreferredModel 把模型 id 注入能力表。绝不跨厂商凑合。
+  const launchModel = recipeLaunchModelId(recipe) ?? custom?.modelId;
+  if (!launchKind || !launchModel) return undefined;
+  const sameFamily = providers.filter(
+    (provider) => baseAgentKind(provider.kind) === baseAgentKind(launchKind),
+  );
+  if (sameFamily.length === 0) return undefined;
+  const host =
+    sameFamily.find((provider) => provider.kind === launchKind && provider.accountId === undefined) ??
+    sameFamily.find((provider) => provider.kind === launchKind) ??
+    sameFamily[0];
+  if (!host) return undefined;
+  const served = host.capabilities.models.some(
+    (model) =>
+      model.id === launchModel ||
+      model.id.split("/").pop()?.toLowerCase() === launchModel.split("/").pop()?.toLowerCase(),
+  );
+  return {
+    agentKind: host.kind,
+    model: launchModel,
+    ...(served && host.accountId ? { accountId: host.accountId } : {}),
+    ...(host.presentationMode ? { presentationMode: host.presentationMode } : {}),
+  };
 }

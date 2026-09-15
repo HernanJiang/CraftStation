@@ -16,9 +16,8 @@ const uiStatusLabel: Record<CapabilityResolution["status"], string> = {
 /**
  * 合成台：Minecraft 四格合成隐喻 —— 左侧 2×2 输入格 → 箭头 → 右侧结果格，
  * 下方是真正的主操作区（清空次按钮 + 合成主按钮）。
- * NATIVE（直连官方运行时）与 CRAFTABLE（运行中的 CLIProxyAPI 兼容桥已验证，
- * executionRoute 保证 CRAFTABLE 只在桥就绪时出现）可执行；IMPOSSIBLE 显示
- * 真实原因，绝不伪造可执行态。
+ * NATIVE（直连官方运行时）与 CRAFTABLE（CLIProxyAPI 兼容桥可启动或已运行，
+ * spawn 时再拉起 sidecar）可执行；IMPOSSIBLE 显示真实原因，绝不伪造可执行态。
  */
 export function EfficientWorkbench(props: {
   model?: SelectedModelEntry | undefined;
@@ -35,10 +34,14 @@ export function EfficientWorkbench(props: {
 }) {
   const { model, harness, resolution, cpa, onCraft, onClear } = props;
 
-  // NATIVE and bridge-verified CRAFTABLE are executable. CRAFTABLE can only
-  // arise while the Compatibility Bridge reports running (the resolver fails
-  // closed otherwise), and spawn re-verifies the served-model contract.
-  const canCraft = resolution?.status === "NATIVE" || resolution?.status === "CRAFTABLE";
+  // NATIVE, CRAFTABLE, and CPA-missing (install-on-craft) are executable.
+  const canCraft =
+    resolution?.status === "NATIVE" ||
+    resolution?.status === "CRAFTABLE" ||
+    resolution?.diagnostics.some((entry) => entry.code === "CPA_NOT_INSTALLED");
+  const craftLabel = resolution?.diagnostics.some((entry) => entry.code === "CPA_NOT_INSTALLED")
+    ? "安装并合成"
+    : "合成";
   const resultName = model && harness ? `${harness.displayName} · ${model.displayName}` : "";
   const reason =
     resolution?.status !== "NATIVE" && resolution?.status !== "CRAFTABLE"
@@ -135,7 +138,7 @@ export function EfficientWorkbench(props: {
           data-testid="craft-button"
           className="h-12 font-semibold"
         >
-          合成
+          {craftLabel}
         </Button>
       </div>
     </section>

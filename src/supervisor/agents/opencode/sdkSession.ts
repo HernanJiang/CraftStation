@@ -23,7 +23,7 @@ import type {
   ThreadServerRequestId,
   ThreadStatus,
 } from "@/shared/contracts";
-import { normalizeThirdPartyModelId } from "@/shared/thirdPartyRouting";
+import { parseOpenCodeModelSlug } from "./modelSlug";
 import { areAgentSlashCommandsEqual } from "@/shared/contracts";
 import {
   createKnownSessionRef,
@@ -93,37 +93,20 @@ interface OpenCodeActiveTurn {
   admissionStarted: boolean;
   admitted: boolean;
   idleObserved: boolean;
+  firstOutputObserved: boolean;
   completionState?: OpenCodeTurnState;
   failureSource?: OpenCodeTurnFailureSource;
 }
+
+/** First model output / error / idle after admission. Silent hangs (no Google auth, unknown model) trip this. */
+const OPENCODE_FIRST_OUTPUT_TIMEOUT_MS = 60_000;
 
 export interface OpenCodeQuestionAnswerContext {
   answerKeys: string[];
   optionValues: Record<string, string>;
 }
 
-function parseModelSlug(
-  modelSlug: string | undefined,
-  thirdPartyProvider?: string,
-): { providerID: string; modelID: string } | undefined {
-  if (!modelSlug) return undefined;
-  // Strip the reserved third-party prefix first: on channels without the
-  // injected provider env (shared pool) it is stale transport metadata, not a
-  // real provider id. With the env present the slug degrades to the bare
-  // model name and still binds to the isolated provider below.
-  const normalized = normalizeThirdPartyModelId(modelSlug);
-  const slash = normalized.indexOf("/");
-  if (slash > 0) {
-    return {
-      providerID: normalized.slice(0, slash),
-      modelID: normalized.slice(slash + 1),
-    };
-  }
-  if (thirdPartyProvider) {
-    return { providerID: thirdPartyProvider, modelID: normalized };
-  }
-  return undefined;
-}
+
 
 function mapStatusUpdate(properties: { sessionID: string; status: { type: string } }): {
   status: ThreadStatus;
@@ -167,6 +150,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
   private activeTurn: OpenCodeActiveTurn | undefined;
   /** Failed turn retained until idle/next admission to suppress its derivative error path. */
   private lastFailedTurn: OpenCodeActiveTurn | undefined;
+  private firstOutputWatchdog: ReturnType<typeof setTimeout> | undefined;
   /** Live MCP set; starts from the launch input, replaced by settings saves. */
   private mcpServers: readonly ResolvedMcpServer[] | undefined;
 
@@ -280,11 +264,18 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     }
 
     const permission = buildOpenCodePermissionRules(config.approvalPolicy);
+    const createModel = parseOpenCodeModelSlug(
+      config.model,
+      this.input.baseSpawnEnv?.CRAFTSTATION_OPENCODE_PROVIDER,
+    );
     const createSession = (server: typeof acquired) =>
       server.client.session.create({
         directory: this.sdkDirectory,
         title: `craftstation/${this.threadId.slice(0, 8)}`,
         ...(permission ? { permission } : {}),
+        ...(createModel
+          ? { model: { id: createModel.modelID, providerID: createModel.providerID } }
+          : {}),
       });
     let created: Awaited<ReturnType<typeof acquired.client.session.create>>;
     try {
@@ -340,7 +331,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     if (options?.inlineInstructions) {
       parts.push({ type: "text", text: options.inlineInstructions });
     }
-    const model = parseModelSlug(
+    const model = parseOpenCodeModelSlug(
       config.model,
       this.input.baseSpawnEnv?.CRAFTSTATION_OPENCODE_PROVIDER,
     );
@@ -380,6 +371,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
       }
       if (turn.completionState) return;
       turn.admitted = true;
+      this.armFirstOutputWatchdog(turn);
       if (turn.idleObserved) {
         this.completeTurn(turn, turn.interrupted ? "interrupted" : "completed");
       }
@@ -567,6 +559,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.clearFirstOutputWatchdog();
 
     this.unsubscribeEvents?.();
     this.unsubscribeEvents = undefined;
@@ -956,6 +949,16 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
       if (this.pendingRequests.delete(requestId)) this.emitUpdateAfterRequestResolution();
     }
 
+    if (
+      event.type.startsWith("message.") ||
+      event.type.startsWith("part.") ||
+      event.type === "session.error" ||
+      event.type === "permission.asked" ||
+      event.type === "question.asked"
+    ) {
+      this.noteFirstModelOutput();
+    }
+
     if (event.type === "session.error") {
       const err = event.properties.error;
       const msg =
@@ -998,6 +1001,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
       admissionStarted: false,
       admitted: false,
       idleObserved: false,
+      firstOutputObserved: false,
     };
     this.lastFailedTurn = undefined;
     this.activeTurn = turn;
@@ -1029,8 +1033,37 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     return (this.mapperState?.toolItems.size ?? 0) > 0;
   }
 
+  private armFirstOutputWatchdog(turn: OpenCodeActiveTurn): void {
+    this.clearFirstOutputWatchdog();
+    this.firstOutputWatchdog = setTimeout(() => {
+      this.firstOutputWatchdog = undefined;
+      if (this.activeTurn !== turn || turn.completionState) return;
+      void this.interruptTurn();
+      turn.failureSource = "session";
+      this.lastFailedTurn = turn;
+      this.completeTurn(turn, "failed");
+      this.listener?.onError(
+        "OpenCode 长时间没有返回任何输出。请确认 Google/Gemini 已在 OpenCode 登录，或该模型不受 OpenCode 支持。",
+      );
+    }, OPENCODE_FIRST_OUTPUT_TIMEOUT_MS);
+  }
+
+  private clearFirstOutputWatchdog(): void {
+    if (!this.firstOutputWatchdog) return;
+    clearTimeout(this.firstOutputWatchdog);
+    this.firstOutputWatchdog = undefined;
+  }
+
+  private noteFirstModelOutput(): void {
+    const turn = this.activeTurn;
+    if (!turn || turn.firstOutputObserved) return;
+    turn.firstOutputObserved = true;
+    this.clearFirstOutputWatchdog();
+  }
+
   private completeTurn(turn: OpenCodeActiveTurn, state: OpenCodeTurnState): void {
     if (turn.completionState) return;
+    this.clearFirstOutputWatchdog();
     turn.completionState = state;
     if (state !== "completed") this.removePendingUserMessageItemId(turn.userMessageItemId);
     if (this.activeTurn === turn) this.activeTurn = undefined;

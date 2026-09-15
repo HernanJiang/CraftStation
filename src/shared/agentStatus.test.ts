@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStatus, ProjectLocation } from "./contracts";
 import {
+  getLaunchableAgentStatuses,
   getProjectAgentStatuses,
   getSettingsInstalledAgents,
   resolveAgentPresentationMode,
@@ -91,6 +92,51 @@ describe("getProjectAgentStatuses", () => {
     const legacyStatuses = [makeStatus("gemini", { envKind: "wsl" })];
 
     expect(getProjectAgentStatuses(location, [], legacyStatuses)).toEqual(legacyStatuses);
+  });
+});
+
+describe("getLaunchableAgentStatuses", () => {
+  it("adds WSL-only Muse to a Windows project so Muse Spark can spawn Muse Code", () => {
+    const location: ProjectLocation = { kind: "windows", path: "D:\\Work\\CraftStation" };
+    const windowsStatuses = [makeStatus("opencode"), makeStatus("commandcode")];
+    const wslMuse = makeStatus("muse", { envKind: "wsl", envDistro: "Ubuntu" });
+
+    expect(
+      getLaunchableAgentStatuses(location, windowsStatuses, [wslMuse]).map((status) => status.kind),
+    ).toEqual(["opencode", "commandcode", "muse"]);
+  });
+
+  it("does not add other WSL-only CLIs to a Windows project", () => {
+    const location: ProjectLocation = { kind: "windows", path: "D:\\Work\\CraftStation" };
+    expect(
+      getLaunchableAgentStatuses(
+        location,
+        [makeStatus("opencode")],
+        [makeStatus("kimi", { envKind: "wsl", envDistro: "Ubuntu" })],
+      ).map((status) => status.kind),
+    ).toEqual(["opencode"]);
+  });
+
+  it("uses WSL Muse when Windows reports the adapter as not installed", () => {
+    const location: ProjectLocation = { kind: "windows", path: "D:\\Work\\CraftStation" };
+    const missingNative = makeStatus("muse", { envKind: "windows", installed: false });
+    const wslMuse = makeStatus("muse", { envKind: "wsl", envDistro: "Ubuntu" });
+    expect(
+      getLaunchableAgentStatuses(location, [makeStatus("opencode"), missingNative], [wslMuse])
+        .filter((status) => status.installed)
+        .map((status) => status.kind),
+    ).toEqual(["opencode", "muse"]);
+  });
+
+  it("prefers an installed Windows Muse over the WSL copy", () => {
+    const location: ProjectLocation = { kind: "windows", path: "C:\\repo" };
+    const nativeMuse = makeStatus("muse", { envKind: "windows", label: "Muse Native" });
+    const wslMuse = makeStatus("muse", {
+      envKind: "wsl",
+      envDistro: "Ubuntu",
+      label: "Muse WSL",
+    });
+    expect(getLaunchableAgentStatuses(location, [nativeMuse], [wslMuse])).toEqual([nativeMuse]);
   });
 });
 

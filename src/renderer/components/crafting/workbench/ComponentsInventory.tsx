@@ -24,7 +24,7 @@ export function ComponentsInventory(props: {
 }) {
   const { t } = useLingui();
   const [bridge, setBridge] = useState<CompatibilityBridgeStatusView | "unknown">("unknown");
-  const [busy, setBusy] = useState<"starting" | "stopping" | null>(null);
+  const [busy, setBusy] = useState<"starting" | "stopping" | "installing" | null>(null);
 
   const refreshBridge = useCallback(async () => {
     try {
@@ -38,13 +38,15 @@ export function ComponentsInventory(props: {
     void refreshBridge();
   }, [refreshBridge]);
 
-  const controlBridge = async (action: "starting" | "stopping") => {
+  const controlBridge = async (action: "starting" | "stopping" | "installing") => {
     setBusy(action);
     try {
       setBridge(
         action === "starting"
           ? await readBridge().startCompatibilityBridge({})
-          : await readBridge().stopCompatibilityBridge({}),
+          : action === "installing"
+            ? await readBridge().ensureCompatibilityBridge({})
+            : await readBridge().stopCompatibilityBridge({}),
       );
     } catch (error) {
       toast.danger(friendlyError(error));
@@ -56,6 +58,7 @@ export function ComponentsInventory(props: {
 
   const bridgeKnown = bridge !== "unknown";
   const running = bridgeKnown && bridge.running;
+  const installed = bridgeKnown && bridge.installed === true;
 
   return (
     <section
@@ -86,24 +89,38 @@ export function ComponentsInventory(props: {
       >
         <button
           type="button"
-          onClick={props.onSelect}
+          onClick={() => {
+            if (bridgeKnown && !installed && !running) {
+              void controlBridge("installing");
+              return;
+            }
+            props.onSelect();
+          }}
           title={
             bridgeKnown
-              ? `CLIProxyAPI 兼容桥 · ${running ? `运行中 ${bridge.endpoint ?? ""}` : "未运行"}`
+              ? `CLIProxyAPI 兼容桥 · ${
+                  running
+                    ? `运行中 ${bridge.endpoint ?? ""}`
+                    : installed
+                      ? "已安装 · 未运行"
+                      : "未安装"
+                }`
               : "CLIProxyAPI 兼容桥 · 状态未知"
           }
           data-testid="component-cpa"
           className="aspect-square flex flex-col items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-1 text-center transition-colors hover:bg-white/10"
         >
           <span
-            className={`size-2 rounded-full ${running ? "bg-emerald-400" : "bg-neutral-600"}`}
+            className={`size-2 rounded-full ${
+              running ? "bg-emerald-400" : installed ? "bg-amber-400" : "bg-neutral-600"
+            }`}
             aria-hidden="true"
           />
           <span className="w-full truncate text-[9px] leading-tight text-neutral-300">
             CLIProxyAPI
           </span>
           <span className="w-full truncate text-[8px] leading-tight text-neutral-500">
-            {bridgeKnown ? (running ? "运行中" : "未运行") : "未知"}
+            {bridgeKnown ? (running ? "运行中" : installed ? "未运行" : "未安装") : "未知"}
           </span>
         </button>
         <button
@@ -126,7 +143,7 @@ export function ComponentsInventory(props: {
           >
             {busy === "stopping" ? t`Stopping…` : t`Stop bridge`}
           </button>
-        ) : (
+        ) : installed ? (
           <button
             type="button"
             onClick={() => void controlBridge("starting")}
@@ -135,6 +152,16 @@ export function ComponentsInventory(props: {
             className="rounded-md border border-white/10 px-2 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-white/10 disabled:opacity-40"
           >
             {busy === "starting" ? t`Starting…` : t`Start bridge`}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void controlBridge("installing")}
+            disabled={busy !== null || !bridgeKnown}
+            data-testid="bridge-install"
+            className="rounded-md border border-sky-400/30 px-2 py-1 text-[10px] text-sky-200 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+          >
+            {busy === "installing" ? "安装中…" : "安装 CLIProxyAPI"}
           </button>
         )}
       </div>

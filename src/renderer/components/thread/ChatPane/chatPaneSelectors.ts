@@ -3,6 +3,7 @@ import {
   type CompletedTurnRecord,
   type RuntimeChatItem,
 } from "@/renderer/state/slices/runtimeEventSlice";
+import { isSkillCatalogDump, isSkillCatalogUserContent } from "@/shared/skillCatalogDump";
 import type { AppStoreState } from "@/renderer/state/slices/shared";
 import type { MessageItemPayload, ToolCallPayload } from "@/shared/contracts";
 import { RUNTIME_REQUEST_ITEM_TYPE } from "@/shared/contracts";
@@ -168,8 +169,23 @@ function buildTimelineEntries(
       groupIds.push(nextId);
       idx += 1;
     }
+    // Thoughts after the last real tool stay outside the accordion so the
+    // next assistant paragraph can sit after that thinking instead of
+    // having the chain buried under "Ran N tools".
+    const trailingThoughtIds: string[] = [];
+    while (groupIds.length > 1) {
+      const lastId = groupIds[groupIds.length - 1]!;
+      const last = items?.[lastId];
+      if (last?.type !== "reasoning") break;
+      const hasToolBefore = groupIds.slice(0, -1).some((id) => {
+        const candidate = items?.[id];
+        return candidate !== undefined && candidate.type !== "reasoning" && isToolGroupItem(candidate);
+      });
+      if (!hasToolBefore) break;
+      trailingThoughtIds.unshift(groupIds.pop()!);
+    }
     if (groupIds.length === 1) {
-      entries.push({ kind: "item", id: itemId });
+      entries.push({ kind: "item", id: groupIds[0]! });
     } else {
       // Keep the id stable as new items are appended to the group so the
       // virtualizer reuses the same row DOM and existing tool rows do not
@@ -180,6 +196,9 @@ function buildTimelineEntries(
         id: `tool-call-group:${groupIds[0]}`,
         itemIds: groupIds,
       });
+    }
+    for (const thoughtId of trailingThoughtIds) {
+      entries.push({ kind: "item", id: thoughtId });
     }
   }
   return entries;
@@ -260,6 +279,13 @@ function hasVisibleText(text: string): boolean {
   return NON_WHITESPACE.test(text);
 }
 
+const LEAKED_MUSE_ITEM_KIND_LABEL =
+  /^\s*(?:reminderChild|userShell|subagent|workflow|compaction)\s*$/;
+
+function isLeakedMuseItemKindLabel(text: string): boolean {
+  return LEAKED_MUSE_ITEM_KIND_LABEL.test(text);
+}
+
 /**
  * Whether an item gets its own row in the chat timeline. Anything that answers
  * `false` here can never host an inline indicator, so callers that pick an
@@ -283,15 +309,33 @@ export function isVisibleRuntimeItem(item: RuntimeChatItem): boolean {
   // emits "\n\n" after tool calls). They have no renderable content, so
   // allocating a virtualized row for them only produces a blank gap. Keep an
   // empty in-flight item visible for its loader and preserve text/image payloads.
-  if (item.type === "assistant_message" && item.state === "completed") {
+  if (item.type === "user_message") {
+    const payload = getRuntimeItemPayload<MessageItemPayload>(item, "user_message");
+    if (isSkillCatalogUserContent(payload?.content)) return false;
+  }
+  if (item.type === "assistant_message") {
     const payload = getRuntimeItemPayload<MessageItemPayload>(item, "assistant_message");
-    const hasPayloadContent = payload?.content.some(
-      (block) =>
-        (block.kind === "text" && hasVisibleText(block.text)) ||
-        block.kind === "image" ||
-        block.kind === "audio",
-    );
-    if (!(hasVisibleText(item.streams.assistant_text ?? "") || hasPayloadContent)) return false;
+    const streamText = item.streams.assistant_text ?? "";
+    const payloadText =
+      payload?.content
+        ?.filter((block) => block.kind === "text")
+        .map((block) => block.text)
+        .join("\n") ?? "";
+    const assistantText = streamText.length > 0 ? streamText : payloadText;
+    if (isSkillCatalogDump(assistantText)) return false;
+    // Muse used to map unknown item kinds (`reminderChild`, `compaction`, …)
+    // onto assistant bubbles whose body was the kind name. Hide those leaked
+    // protocol labels so already-persisted transcripts stay readable.
+    if (isLeakedMuseItemKindLabel(assistantText)) return false;
+    if (item.state === "completed") {
+      const hasPayloadContent = payload?.content?.some(
+        (block) =>
+          (block.kind === "text" && hasVisibleText(block.text)) ||
+          block.kind === "image" ||
+          block.kind === "audio",
+      );
+      if (!(hasVisibleText(streamText) || hasPayloadContent)) return false;
+    }
   }
   if (isToolLikeItem(item)) {
     const payload = getToolLikePayload(item);
