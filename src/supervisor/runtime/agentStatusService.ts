@@ -65,8 +65,10 @@ const execFileAsync = promisify(execFile);
  * introduced presentation and MCP routing fields cannot remain stale in the
  * supervisor cache. v17 adds MCP transport/header/location safety declarations;
  * cached Antigravity statuses without them must not advertise unsafe servers.
+ * v18 adds Devin `defaultHiddenModels` so cached catalogs that dumped every
+ * ACP variant into the homepage picker are re-probed.
  */
-export const STATUS_CACHE_VERSION = 17;
+export const STATUS_CACHE_VERSION = 18;
 const WSL_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const WSL_LXSS_REGISTRY_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss";
 

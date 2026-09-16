@@ -1,6 +1,9 @@
 ﻿import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import type { NativeHarnessDescriptor } from "@/shared/crafting";
-import { stripRetryableCapacityNoise } from "@/shared/retryableCapacityError";
+import {
+  isRetryableCapacityError,
+  stripRetryableCapacityNoise,
+} from "@/shared/retryableCapacityError";
 import { createContextUsageEvent, usageFromProviderRecord } from "@/supervisor/agents/contextUsage";
 import type { NativeWireEvent } from "./nativeTransport";
 import { redactNativePayload } from "./nativeTransport";
@@ -17,9 +20,7 @@ function antigravityEventPayload(event: NativeWireEvent): Record<string, unknown
 }
 
 function firstString(candidates: unknown[]): string | undefined {
-  return candidates.find(
-    (value): value is string => typeof value === "string" && value.length > 0,
-  );
+  return candidates.find((value): value is string => typeof value === "string" && value.length > 0);
 }
 
 function textFrom(payload: Record<string, unknown>): string | undefined {
@@ -233,7 +234,9 @@ export function canonicalizeNativeEvent(input: {
       }
     }
     const thinkingStep = isThinkingStep(stepType);
-    const thoughtText = visibleText(thinkingFrom(payload) ?? (thinkingStep ? textFrom(payload) : undefined));
+    const thoughtText = visibleText(
+      thinkingFrom(payload) ?? (thinkingStep ? textFrom(payload) : undefined),
+    );
     if (thoughtText) {
       const itemId = stepKey ? `thought:${conversationId}:${stepKey}` : `thought:${turnId}`;
       result.push(
@@ -314,6 +317,7 @@ export function canonicalizeNativeEvent(input: {
         : rawError && typeof rawError === "object" && !Array.isArray(rawError)
           ? String((rawError as Record<string, unknown>).message ?? "Native provider error.")
           : undefined;
+    const failedMessage = providerError ?? `Native provider returned status ${status || "ERROR"}.`;
     return [
       ...(response
         ? [
@@ -337,12 +341,12 @@ export function canonicalizeNativeEvent(input: {
         threadId,
         itemId: `item:${turnId}`,
       }),
-      ...(state === "failed"
+      ...(state === "failed" && !isRetryableCapacityError(failedMessage)
         ? [
             attach({
               type: "error",
               threadId,
-              message: providerError ?? `Native provider returned status ${status || "ERROR"}.`,
+              message: failedMessage,
             }),
           ]
         : []),
@@ -359,7 +363,7 @@ export function canonicalizeNativeEvent(input: {
     const chunk = recordValue(payload.chunk) ?? payload;
     const chunkType = typeof chunk.type === "string" ? chunk.type : "";
     if (chunkType === "reasoning-delta" || chunkType === "text-delta") {
-      const text = typeof chunk.text === "string" ? chunk.text : undefined;
+      const text = visibleText(typeof chunk.text === "string" ? chunk.text : undefined);
       if (!text) return [];
       return [
         attach({

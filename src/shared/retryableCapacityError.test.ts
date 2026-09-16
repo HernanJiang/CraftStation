@@ -15,6 +15,9 @@ describe("isRetryableCapacityError", () => {
         "UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server",
       ),
     ).toBe(true);
+    expect(isRetryableCapacityError("No capacity available for model gemini-3.8-flash-high")).toBe(
+      true,
+    );
   });
 
   it("does not match real assistant text or final non-retry failures", () => {

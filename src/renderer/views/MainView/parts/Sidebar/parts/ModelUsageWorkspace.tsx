@@ -73,6 +73,7 @@ const CLI_LOGIN_COMMANDS: Record<string, string> = {
   // Official OpenCode login writes ~/.local/share/opencode/auth.json. Cookie
   // paste remains a last-resort fallback, not the primary path.
   opencode: "opencode auth login",
+  devin: "devin auth login",
 };
 
 function isAuthorizedUsageStatus(status: string | undefined): boolean {
@@ -191,20 +192,18 @@ function OpenAiCompatibleCard(props: { onOpenForm: () => void }) {
     <article
       data-testid="provider-card-openai-compatible"
       data-grid-span="1"
-      className="col-span-1 self-start rounded-xl border border-white/5 bg-[var(--surface)] p-3"
+      className="col-span-1 self-start rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3"
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <ProviderBrandBadge id="openai-compatible" label="OpenAI 兼容 API" size="compact" />
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold text-foreground">OpenAI 兼容 API</h3>
-          <p className="mt-0.5 truncate text-[10px] text-neutral-400">
-            自定义提供商 · 支持添加多个
-          </p>
+          <p className="mt-0.5 truncate text-[10px] text-muted">自定义提供商 · 支持添加多个</p>
         </div>
         <button
           type="button"
           onClick={props.onOpenForm}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground hover:bg-white/10"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground hover:bg-[var(--row-hover)]"
         >
           <UserRoundPlus className="size-3.5" /> 添加账号
         </button>
@@ -1099,7 +1098,12 @@ function ProviderCard(props: {
         command: cliCommand,
         onCommandComplete: (exitCode) => {
           setCliSigningIn(false);
-          if (exitCode === 0) void refreshAndMergeProviderUsage(props.id);
+          if (exitCode !== 0) return;
+          useUsageLoginStateStore.getState().setStored(props.id, true);
+          void refreshAndMergeProviderUsage(props.id);
+          void readBridge().refreshAgentStatuses?.(currentWslDistros(), {
+            agentKinds: [props.id],
+          });
         },
       });
       if (!opened) setCliSigningIn(false);
@@ -1193,7 +1197,7 @@ function ProviderCard(props: {
           : undefined
       }
       className={
-        "col-span-1 self-start h-fit min-h-0 rounded-xl border border-white/5 bg-[var(--surface)] p-3 " +
+        "col-span-1 self-start h-fit min-h-0 rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3 " +
         (authorized ? "min-h-[170px]" : "min-h-[76px]")
       }
     >
@@ -1206,7 +1210,7 @@ function ProviderCard(props: {
           type="button"
           disabled={signingIn || cliSigningIn}
           onClick={handleAccountAction}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
           <UserRoundPlus className="size-3.5" />
           {cliSigningIn || signingIn
@@ -1222,13 +1226,13 @@ function ProviderCard(props: {
             type="button"
             disabled={signingIn || cliSigningIn}
             onClick={props.onImportAccount}
-            className="inline-flex h-8 shrink-0 items-center rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+            className="inline-flex h-8 shrink-0 items-center rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
             aria-label={label + " 导入本机登录"}
           >
             导入
           </button>
         ) : null}
-        {props.id === "kimi" ? (
+        {props.id === "kimi" || props.id === "devin" ? (
           <button
             type="button"
             disabled={signingIn || cliSigningIn}
@@ -1236,8 +1240,8 @@ function ProviderCard(props: {
               setCookieOpen(false);
               setApiKeyOpen(true);
             }}
-            className="inline-flex h-8 shrink-0 items-center rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
-            aria-label="使用 Kimi API Key 授权"
+            className="inline-flex h-8 shrink-0 items-center rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
+            aria-label={props.id === "devin" ? "使用 Devin API Key 授权" : "使用 Kimi API Key 授权"}
           >
             API Key
           </button>
@@ -1245,7 +1249,7 @@ function ProviderCard(props: {
       </header>
 
       {managedAccounts.length > 0 ? (
-        <div className="mt-2 space-y-1 rounded-lg border border-white/5 bg-black/10 p-1.5">
+        <div className="mt-2 space-y-1 rounded-lg border border-[color:var(--hairline)] bg-black/5 dark:bg-black/20 p-1.5">
           {managedAccounts.map((account) =>
             !isStaleCachedAccount(account) ? (
               <div
@@ -1266,12 +1270,12 @@ function ProviderCard(props: {
                   }
                 }}
                 className={
-                  "flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-white/5 " +
+                  "flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-[var(--row-hover)] " +
                   (accountActionInFlight === account.accountId ? "opacity-60" : "")
                 }
               >
                 <span
-                  className="min-w-0 flex-1 break-all text-[9px] leading-4 text-neutral-400"
+                  className="min-w-0 flex-1 break-all text-[9px] leading-4 text-muted"
                   title={accountIdentity(account)}
                 >
                   {poolRowTitle(account)}
@@ -1294,7 +1298,7 @@ function ProviderCard(props: {
                             });
                       void (login as Promise<unknown>).finally(() => setCliSigningIn(false));
                     }}
-                    className="shrink-0 rounded-md bg-white/5 px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+                    className="shrink-0 rounded-md bg-black/5 dark:bg-white/5 px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
                     aria-label={account.label + " 登录授权"}
                   >
                     登录授权
@@ -1317,7 +1321,7 @@ function ProviderCard(props: {
                   type="button"
                   disabled={accountActionInFlight === account.accountId}
                   onClick={() => void removeCompactAccount(account)}
-                  className="shrink-0 rounded-md bg-white/5 px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+                  className="shrink-0 rounded-md bg-black/5 dark:bg-white/5 px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
                   aria-label={"删除失效的 " + account.label + " 缓存"}
                 >
                   删除
@@ -1331,7 +1335,7 @@ function ProviderCard(props: {
       {showProviderCard ? (
         <div
           className={
-            "mt-3 rounded-xl border border-white/5 bg-[#17181c] p-3" +
+            "mt-3 rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] dark:bg-[#17181c] p-3" +
             (providerPaused ? " opacity-50" : "")
           }
         >
@@ -1366,7 +1370,7 @@ function ProviderCard(props: {
                   type="button"
                   aria-label="编辑 Volcengine Ark Token Plan"
                   onClick={() => setApiKeyOpen(true)}
-                  className="rounded p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
+                  className="rounded p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
                 >
                   <Settings className="size-3" />
                 </button>
@@ -1375,7 +1379,7 @@ function ProviderCard(props: {
                   type="button"
                   aria-label="编辑阿里 Token Plan"
                   onClick={() => void handleSignIn()}
-                  className="rounded p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
+                  className="rounded p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
                 >
                   <Settings className="size-3" />
                 </button>
@@ -1384,7 +1388,7 @@ function ProviderCard(props: {
                 type="button"
                 aria-label={label + " 刷新状态"}
                 onClick={() => void refreshAndMergeProviderUsage(props.id)}
-                className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+                className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
               >
                 <RefreshCw className="size-3" />
               </button>
@@ -1393,7 +1397,7 @@ function ProviderCard(props: {
                   type="button"
                   aria-label={providerPaused ? "恢复使用" : "暂停使用"}
                   onClick={toggleProviderPaused}
-                  className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+                  className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
                 >
                   <Power className={"size-3 " + (providerPaused ? "" : "text-emerald-300")} />
                 </button>
@@ -1402,7 +1406,7 @@ function ProviderCard(props: {
                 type="button"
                 aria-label="移除账号"
                 onClick={handleRemoveAuthorization}
-                className="rounded p-1 text-neutral-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+                className="rounded p-1 text-muted hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
               >
                 <Trash2 className="size-3" />
               </button>
@@ -1460,7 +1464,7 @@ function ProviderCard(props: {
         <button
           type="button"
           onClick={toggleProviderPaused}
-          className="mt-2 inline-flex items-center gap-1 rounded-lg bg-white/5 px-2 py-1 text-[10px] text-neutral-400 transition-colors hover:bg-white/10"
+          className="mt-2 inline-flex items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)]"
         >
           <Power className="size-3" /> 已暂停跟踪，点击恢复
         </button>
@@ -1523,7 +1527,7 @@ function AccountRow(props: {
       role="button"
       tabIndex={0}
       data-account-id={account.accountId}
-      className="self-start h-fit rounded-xl border border-white/5 bg-[#17181c] p-3"
+      className="self-start h-fit rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] dark:bg-[#17181c] p-3"
     >
       <div className="flex min-w-0 items-start gap-2">
         <GripVertical className="mt-0.5 size-3.5 shrink-0 text-neutral-500" aria-label="拖拽排序" />
@@ -1550,7 +1554,7 @@ function AccountRow(props: {
           {props.priorityRank ? (
             <span
               title={`第 ${props.priorityRank} 优先级：排在前面的账号优先调度，可拖拽调整顺序`}
-              className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[9px] leading-4 text-neutral-400 tabular-nums"
+              className="shrink-0 rounded bg-black/5 dark:bg-white/5 px-1.5 py-0.5 text-[9px] leading-4 text-muted tabular-nums"
             >
               第{props.priorityRank}优先
             </span>
@@ -1564,7 +1568,7 @@ function AccountRow(props: {
                 e.stopPropagation();
                 props.onEdit?.(account);
               }}
-              className="rounded p-1 text-neutral-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
+              className="rounded p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground disabled:opacity-50"
             >
               <Pencil className="size-3" />
             </button>
@@ -1577,7 +1581,7 @@ function AccountRow(props: {
                 e.stopPropagation();
                 onReauth(account);
               }}
-              className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+              className="rounded px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
               aria-label={account.label + " 登录授权"}
             >
               登录授权
@@ -1591,7 +1595,7 @@ function AccountRow(props: {
                 e.stopPropagation();
                 props.onApplyHostLogin?.(account);
               }}
-              className="rounded px-1.5 py-1 text-[9px] text-neutral-300 hover:bg-white/10 disabled:opacity-50"
+              className="rounded px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
               title="将该账号设为本机 agy 登录（会替换本机当前登录）"
               aria-label={account.label + " 设为本机登录"}
             >
@@ -1605,7 +1609,7 @@ function AccountRow(props: {
               e.stopPropagation();
               props.onRefresh(account);
             }}
-            className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+            className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
             aria-label="刷新账号配额"
           >
             <RefreshCw className="size-3" />
@@ -1617,7 +1621,7 @@ function AccountRow(props: {
               e.stopPropagation();
               props.onToggleEnabled(account);
             }}
-            className="rounded p-1 text-neutral-400 hover:bg-white/10 disabled:opacity-50"
+            className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
             aria-label={account.enabled ? "禁用账号" : "启用账号"}
           >
             <Power className={"size-3 " + (account.enabled ? "text-emerald-300" : "")} />
@@ -1629,7 +1633,7 @@ function AccountRow(props: {
               e.stopPropagation();
               props.onRemove(account);
             }}
-            className="rounded p-1 text-neutral-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+            className="rounded p-1 text-muted hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
             aria-label="移除账号"
           >
             <Trash2 className="size-3" />
@@ -1679,7 +1683,7 @@ function PoolSchedulingControl(props: { providerId: string }) {
           scheduling: next as "priority" | "round-robin" | "random",
         });
       }}
-      className="h-7 rounded-lg bg-white/5 px-2 text-[10px] text-foreground"
+      className="h-7 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground"
     >
       <option value="priority">按优先级（排前优先）</option>
       <option value="round-robin">循环轮换</option>
@@ -1732,7 +1736,7 @@ function ManagedAccountPool(props: {
         disabled={busy}
         onClick={props.onAdd}
         aria-label={addAriaLabel}
-        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
       >
         <UserRoundPlus className="size-3.5" /> 添加账号
       </button>
@@ -1742,7 +1746,7 @@ function ManagedAccountPool(props: {
           disabled={busy}
           onClick={props.onImport}
           aria-label={props.importAriaLabel}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
           导入
         </button>
@@ -1753,7 +1757,7 @@ function ManagedAccountPool(props: {
           disabled={busy}
           onClick={props.onAddApiKey}
           aria-label={props.addApiKeyAriaLabel ?? "使用 API Key 添加账号"}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
           API Key
         </button>
@@ -1765,7 +1769,7 @@ function ManagedAccountPool(props: {
         <ProviderBrandBadge id={providerId} label={badgeLabel} size="compact" />
         <div className="min-w-0">
           <h3 className="truncate text-xs font-semibold text-foreground">{title}</h3>
-          <p className="mt-0.5 truncate text-[10px] text-neutral-400">新会话按账号池规则调度</p>
+          <p className="mt-0.5 truncate text-[10px] text-muted">新会话按账号池规则调度</p>
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -1775,7 +1779,7 @@ function ManagedAccountPool(props: {
           disabled={busy}
           onClick={props.onAdd}
           aria-label={addAriaLabel}
-          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
           <UserRoundPlus className="size-3" /> 添加账号
         </button>
@@ -1785,7 +1789,7 @@ function ManagedAccountPool(props: {
             disabled={busy}
             onClick={props.onImport}
             aria-label={props.importAriaLabel}
-            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
           >
             导入本机登录
           </button>
@@ -1796,7 +1800,7 @@ function ManagedAccountPool(props: {
             disabled={busy}
             onClick={props.onAddApiKey}
             aria-label={props.addApiKeyAriaLabel ?? "使用 API Key 添加账号"}
-            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-white/5 px-2 text-[10px] text-foreground hover:bg-white/10 disabled:opacity-50"
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
           >
             API Key
           </button>
@@ -1830,13 +1834,13 @@ function ManagedAccountPool(props: {
       }
       className={
         (single ? "col-span-1" : "col-span-2") +
-        " self-start h-fit rounded-xl border border-white/5 bg-[var(--surface)] p-3"
+        " self-start h-fit rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3"
       }
     >
       {header}
       {actionError ? <p className="mb-2 text-[10px] text-red-300">{actionError}</p> : null}
       {accounts.length === 0 ? (
-        <p className="rounded-lg bg-black/10 p-3 text-[10px] text-neutral-400">
+        <p className="rounded-lg bg-black/5 dark:bg-black/20 p-3 text-[10px] text-muted">
           尚未添加 {badgeLabel} 账号
         </p>
       ) : single ? (
@@ -2560,8 +2564,11 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   for (const provider of leftCardProviders) configuredProviderIds.add(provider.id);
 
   return (
-    <div data-testid="model-usage-workspace" className="flex h-full min-h-0 flex-col bg-[#0f0f12]">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-white/5 px-4">
+    <div
+      data-testid="model-usage-workspace"
+      className="flex h-full min-h-0 flex-col bg-[var(--surface)]"
+    >
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-[color:var(--hairline)] px-4">
         <div className="flex items-center gap-3">
           <img
             src={brandLogoUrl}
@@ -2572,7 +2579,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
           <div
             role="tablist"
             aria-label="模型与用量视图"
-            className="flex items-center gap-1 rounded-lg bg-white/5 p-1"
+            className="flex items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 p-1"
           >
             {(
               [
@@ -2591,8 +2598,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 onClick={() => setWorkspaceTabAndEntry(tab)}
                 className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                   workspaceTab === tab
-                    ? "bg-white/10 text-white"
-                    : "text-neutral-400 hover:text-white"
+                    ? "bg-[var(--row-active)] text-foreground"
+                    : "text-muted hover:text-foreground"
                 }`}
               >
                 {label}
@@ -2604,7 +2611,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
           type="button"
           onClick={close}
           aria-label="关闭模型与用量"
-          className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white"
+          className="rounded-lg p-1.5 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
         >
           <X className="size-4" />
         </button>
@@ -2658,7 +2665,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             signedAntigravityAccounts.length === 0 &&
             signedOpenAiCompatibleAccounts.length === 0 &&
             leftCardProviders.length === 0 ? (
-              <p className="rounded-xl border border-white/5 bg-[var(--surface)] p-6 text-center text-sm text-neutral-400">
+              <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
                 尚未绑定账号
               </p>
             ) : null}
@@ -2736,7 +2743,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             </Modal.Header>
             <Modal.Body className="px-5 pb-5 pt-2">
               {renameHint ? (
-                <p className="mb-2 text-xs leading-5 text-neutral-400">{renameHint}</p>
+                <p className="mb-2 text-xs leading-5 text-muted">{renameHint}</p>
               ) : null}
               <TextField
                 value={renameLabel}
@@ -2763,7 +2770,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 type="button"
                 disabled={renameLabel.trim().length === 0 || busy}
                 onClick={() => void renameAccount()}
-                className="rounded-lg bg-white/10 px-3 py-2 text-sm text-foreground disabled:opacity-50"
+                className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
               >
                 保存
               </button>

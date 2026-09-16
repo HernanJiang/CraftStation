@@ -231,7 +231,10 @@ export const useAgentStatusesStore = create<AgentStatusesStore>()(
     }),
     {
       name: "craftstation-agent-statuses-v1",
-      version: 13,
+      version: 14,
+      // v14 invalidates cached Devin catalogs that lacked defaultHiddenModels
+      // (ACP reports dozens of Claude/Gemini variants; only the curated default
+      // belongs in the homepage picker until the user checks more in 管理模型).
       // v13 mirrors the supervisor STATUS_CACHE_VERSION=16 bump: capability
       // equality now includes the complete capability payload, including
       // presentation and MCP routing fields. v12 covered ACP-derived thinking

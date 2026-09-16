@@ -113,6 +113,7 @@ import {
   filterAcpStdoutNonJsonLines,
   looksLikeAcpSessionNotification,
 } from "./sessionStreamFilter";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { maybeCaptureAcpUpdate } from "./sessionDiagnostics";
 import { AcpTerminalManager } from "./terminalManager";
 import {
@@ -1751,6 +1752,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private recordAgentSurfacedError(events: RuntimeEvent[]): void {
     for (const event of events) {
       if (event.type !== "error") continue;
+      if (isRetryableCapacityError(event.message)) continue;
       this.agentSurfacedErrorMessage = event.message;
       this.emitListenerUpdate({
         status: "error",
@@ -1878,14 +1880,20 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private emitPromptFailure(error: unknown): void {
     const headerMessage = resolveAcpPromptFailureMessage(error, this.agentSurfacedErrorMessage);
     const rpcMessage = resolveAcpPromptRpcErrorMessage(error);
-    this.emitListenerUpdate({
-      status: "error",
-      attention: "error",
-      errorMessage: headerMessage,
-    });
+    const retryNoise =
+      isRetryableCapacityError(headerMessage) || isRetryableCapacityError(rpcMessage);
+    this.emitListenerUpdate(
+      retryNoise
+        ? { status: "idle", attention: "none" }
+        : {
+            status: "error",
+            attention: "error",
+            errorMessage: headerMessage,
+          },
+    );
     const mapperState = this.ensureMapperState();
     const events: RuntimeEvent[] = [...closeOpenTurnItems(mapperState)];
-    if (shouldEmitAcpPromptRpcErrorItem(error, this.agentSurfacedErrorMessage)) {
+    if (!retryNoise && shouldEmitAcpPromptRpcErrorItem(error, this.agentSurfacedErrorMessage)) {
       events.push({ type: "error", threadId: this.threadId, message: rpcMessage });
     }
     if (this.currentTurnId) {

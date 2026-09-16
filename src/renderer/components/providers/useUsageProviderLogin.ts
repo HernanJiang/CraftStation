@@ -70,6 +70,7 @@ export function useUsageProviderLogin(id: string) {
     ((supportsLogin && hasStoredSession) ||
       id === "grok" ||
       id === "commandcode" ||
+      id === "devin" ||
       id === "antigravity");
 
   const refreshAgentStatus = async (): Promise<void> => {

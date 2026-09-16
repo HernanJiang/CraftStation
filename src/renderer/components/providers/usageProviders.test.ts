@@ -44,9 +44,16 @@ describe("usageProviders", () => {
     expect(isClaudeUsageProvider("codex")).toBe(false);
   });
 
+  it("lists Devin as a usage channel so 渠道与额度 can authorize the CLI", () => {
+    expect(
+      usageProvidersForAgentInstances(undefined).some((provider) => provider.id === "devin"),
+    ).toBe(true);
+  });
+
   it("derives API-key login support from provider descriptors", () => {
     expect(supportsApiKeyLogin("zai")).toBe(true);
     expect(supportsApiKeyLogin("kimi")).toBe(true);
+    expect(supportsApiKeyLogin("devin")).toBe(true);
     expect(supportsApiKeyLogin("qwen")).toBe(true);
     expect(supportsApiKeyLogin("grok")).toBe(false);
     expect(supportsBrowserLogin("qwen")).toBe(true);

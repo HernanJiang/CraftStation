@@ -1,3 +1,13 @@
+## Release 1.2.8 — Devin 渠道认证 / 模型勾选 / 浅色用量页 / Gemini 503（2026-09-16）
+
+- 基于 1.2.7 在 `main` 直接修复；GitHub Release 中英双语。便携包 `CraftStation-Portable-1.2.8-x64.exe`。
+- 用户可见：
+  - 「渠道与额度」出现 Devin 卡片：登录/授权或 API Key；认证后进入已配置渠道。
+  - Devin ACP 数十个细分模型默认隐藏，仅「管理模型」勾选的进入首页选择器。
+  - 浅色模式覆盖「模型与用量」工作区、账号卡片、额度条、「管理模型」输入与名单，以及侧栏左下角字迹。
+  - Gemini 503 容量重试不再出现在错误坞/状态栏；Windows 后台探测补 `windowsHide` 减少黑窗闪现。
+- 用户数据仍在 `~\.craftstation\`，与 exe 分离。
+
 ## Release 1.2.7 — Devin CLI / 凭据弹窗 / 浅色顶栏 / 便携版更新（2026-09-16）
 
 - 基于 1.2.6 在 `main` 直接修复与功能补齐；GitHub Release 中英双语。便携包 `CraftStation-Portable-1.2.7-x64.exe`。

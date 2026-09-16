@@ -126,14 +126,14 @@ function UsageBar(props: { label: string; value: number | null }) {
   const value = props.value == null ? null : Math.max(0, Math.min(100, Math.round(props.value)));
   const fillClass =
     value == null
-      ? "bg-white/20"
+      ? "bg-black/20 dark:bg-white/20"
       : value >= 100
         ? "bg-red-400"
         : value >= 90
           ? "bg-amber-400"
           : "bg-emerald-400";
   return (
-    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 text-[10px] text-neutral-400">
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 text-[10px] text-muted">
       <span>{props.label}</span>
       <span
         role="progressbar"
@@ -141,14 +141,14 @@ function UsageBar(props: { label: string; value: number | null }) {
         aria-valuemin={0}
         aria-valuemax={100}
         {...(value == null ? {} : { "aria-valuenow": value })}
-        className="relative flex h-4 min-w-0 items-center justify-center overflow-hidden rounded-full bg-white/10"
+        className="relative flex h-4 min-w-0 items-center justify-center overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
       >
         <span
           aria-hidden="true"
           className={"absolute inset-y-0 left-0 rounded-full " + fillClass}
           style={{ width: (value ?? 0) + "%" }}
         />
-        <span className="relative z-10 px-1 text-[9px] font-medium leading-none text-white/90 tabular-nums drop-shadow-sm">
+        <span className="relative z-10 px-1 text-[9px] font-medium leading-none text-foreground dark:text-white/90 tabular-nums drop-shadow-sm">
           {formatUsedQuota(value)}
         </span>
       </span>

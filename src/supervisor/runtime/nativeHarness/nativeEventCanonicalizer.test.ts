@@ -83,5 +83,10 @@ describe("canonicalizeNativeEvent Antigravity thinking and retry noise", () => {
     ).toEqual([]);
     expect(agyEvent("error", { message: noise })).toEqual([]);
     expect(agyEvent("error", { message: attempt1 })).toEqual([]);
+    expect(
+      agyEvent("assistant/chunk", {
+        chunk: { type: "text-delta", text: attempt1 },
+      }),
+    ).toEqual([]);
   });
 });

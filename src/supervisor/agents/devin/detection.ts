@@ -32,6 +32,11 @@ const DEVIN_FALLBACK_MODELS: LabeledOption[] = [
   { id: "gemini", label: "Gemini" },
 ];
 
+/** Hide every discovered Devin model except the curated default. */
+export function defaultHiddenDevinModels(models: readonly LabeledOption[]): string[] {
+  return models.filter((model) => model.id !== DEVIN_DEFAULT_MODEL_ID).map((model) => model.id);
+}
+
 const DEVIN_APPROVAL_POLICIES = [
   { id: "normal", label: "Normal" },
   { id: "accept-edits", label: "Accept Edits" },
@@ -41,6 +46,7 @@ const DEVIN_APPROVAL_POLICIES = [
 
 export const defaultDevinCapabilities: AgentCapability = {
   models: DEVIN_FALLBACK_MODELS,
+  defaultHiddenModels: defaultHiddenDevinModels(DEVIN_FALLBACK_MODELS),
   efforts: [],
   modelEfforts: {},
   modes: ["agent", "plan"],
@@ -141,9 +147,11 @@ export function buildDevinProbeCapabilities(
     ? dedupeAcpAuthMethods(probe.authMethods)
     : [DEVIN_TERMINAL_AUTH];
   const haveTerminal = authMethods.some((method) => "type" in method && method.type === "terminal");
+  const discoveredModels = probe?.models?.length ? probe.models : DEVIN_FALLBACK_MODELS;
   return {
     ...defaultDevinCapabilities,
     ...(probe?.models?.length ? { models: probe.models } : {}),
+    defaultHiddenModels: defaultHiddenDevinModels(discoveredModels),
     ...(probe?.efforts?.length ? { efforts: probe.efforts } : {}),
     ...(probe?.defaultEffort ? { defaultEffort: probe.defaultEffort } : {}),
     ...(probe?.modelEfforts ? { modelEfforts: probe.modelEfforts } : {}),
@@ -230,9 +238,11 @@ async function probeCapabilities(
   });
   const listed = list?.ok ? parseDevinModels(list.stdout) : [];
   const capabilities = buildDevinProbeCapabilities(probe ?? undefined);
+  const models = listed.length > 0 ? listed : (capabilities.models ?? DEVIN_FALLBACK_MODELS);
   return {
     ...capabilities,
-    ...(listed.length > 0 ? { models: listed } : {}),
+    models,
+    defaultHiddenModels: defaultHiddenDevinModels(models),
     authMethods: capabilities.authMethods?.length
       ? capabilities.authMethods
       : [DEVIN_TERMINAL_AUTH],

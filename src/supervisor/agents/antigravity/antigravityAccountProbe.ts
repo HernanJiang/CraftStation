@@ -84,6 +84,7 @@ async function spawnAndReadAccount(
   const child = spawn(executablePath, ["-p", "."], {
     cwd,
     stdio: "ignore",
+    shell: false,
     windowsHide: true,
     // The account probe runs on a 5-minute TTL, which is exactly the cadence
     // that keeps re-arming the CLI's background self-updater — and the updater

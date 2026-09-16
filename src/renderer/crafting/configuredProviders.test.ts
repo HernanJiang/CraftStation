@@ -45,6 +45,18 @@ describe("resolveConfiguredProviderIds", () => {
     ).toEqual(["opencode"]);
   });
 
+  it("treats a Devin CLI identity snapshot as a configured channel", () => {
+    expect(
+      resolveConfiguredProviderIds({
+        accounts: [],
+        storedLogin: {},
+        usageSnapshots: {
+          devin: { status: "ok", authenticatedAs: "me@devin.ai", windows: [] },
+        },
+      }),
+    ).toEqual(["devin"]);
+  });
+
   it("matches composer agents by base kind", () => {
     const configured = new Set(["cursor"]);
     expect(isConfiguredComposerAgent("cursor:work", configured)).toBe(true);

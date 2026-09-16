@@ -102,10 +102,10 @@ export function SidebarProviderAccounts() {
           >
             <AuthorizedModelsAvatarGroup />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-neutral-200 transition-colors group-hover:text-white">
+              <span className="block truncate text-xs font-medium text-foreground transition-colors group-hover:text-foreground">
                 模型与用量
               </span>
-              <span className="mt-0.5 block truncate text-[11px] text-neutral-400 transition-colors group-hover:text-neutral-200">
+              <span className="mt-0.5 block truncate text-[11px] text-muted transition-colors group-hover:text-foreground">
                 ✨ 添加新模型
               </span>
             </span>

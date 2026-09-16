@@ -148,6 +148,11 @@ const RENDERER_META: Record<string, Omit<UsageProvider, "id" | "label">> = {
   kimi: {
     rings: { outer: ["session-5h"], inner: ["weekly"] },
   },
+  // CLI login (`devin auth login`) is primary; pasted DEVIN_API_KEY is the
+  // fallback. Monthly ACU/credits when api.devin.ai returns them.
+  devin: {
+    rings: { outer: ["monthly"], inner: [] },
+  },
   qwen: {
     supportsBrowserLogin: true,
     externalBrowserLogin: true,

@@ -7,6 +7,7 @@ import { resolveCopilotToken } from "./copilotCredentials";
 import { resolveCursorToken } from "./cursorCredentials";
 import { resolveFactoryCliToken } from "./factoryCredentials";
 import { refreshRejectedGrokToken, resolveFreshGrokToken } from "./grokTokenRefresh";
+import { resolveDevinToken } from "./devinCredentials";
 import { resolveKimiToken } from "./kimiCredentials";
 import { resolveQwenUsageToken } from "./qwenCredentials";
 import { resolveZaiToken } from "./zaiCredentials";
@@ -47,6 +48,7 @@ function tokenResolvers(
     factory: async () => resolveFactoryCliToken(),
     zai: resolveZaiToken,
     kimi: resolveKimiToken,
+    devin: resolveDevinToken,
     qwen: () => resolveQwenUsageToken(settingsPath),
   };
 }

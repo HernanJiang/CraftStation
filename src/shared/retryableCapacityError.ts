@@ -15,11 +15,13 @@ export function isRetryableCapacityError(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
   const capacityPhrase = /No capacity available for model/i.test(trimmed);
+  // The capacity phrase is unique retry noise even without the UNAVAILABLE 503
+  // wrapper — Gemini/Antigravity/Devin have all streamed it as a bare body.
+  if (capacityPhrase) return true;
   const unavailable503 =
     /UNAVAILABLE\s*\(code\s*503\)/i.test(trimmed) || /\bcode 503\b/i.test(trimmed);
-  if (capacityPhrase && unavailable503) return true;
   const attempt = /API error\s*\(attempt\s*\d+\)\s*:?/i.test(trimmed);
-  return attempt && (unavailable503 || capacityPhrase);
+  return attempt && unavailable503;
 }
 
 /** Drop whole chunks / lines that are only retryable capacity noise. */

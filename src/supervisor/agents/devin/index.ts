@@ -4,6 +4,7 @@ import { createAcpStructuredSession } from "../acp";
 import {
   detectAgentInstall,
   detectProbeLocation,
+  inheritBaseSpawnEnv,
   type AgentAdapter,
   type AgentEnvContext,
   type CreateStructuredSessionInput,
@@ -47,6 +48,7 @@ export function createDevinAdapter(): AgentAdapter {
       },
     },
     ...(devinDetectionSpec.update ? { update: devinDetectionSpec.update } : {}),
+    ...inheritBaseSpawnEnv(devinDetectionSpec),
     get capabilities() {
       return capabilities;
     },

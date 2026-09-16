@@ -14,7 +14,10 @@ import {
   isSkillCatalogDump,
   shouldHoldSkillCatalogChunk,
 } from "@/shared/skillCatalogDump";
-import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
+import {
+  isRetryableCapacityError,
+  stripRetryableCapacityNoise,
+} from "@/shared/retryableCapacityError";
 import { parseAcpAgentMessageApiError } from "../acpUserVisibleErrors";
 import {
   classifyToolCallItemType,
@@ -121,14 +124,28 @@ export function mapAcpSessionUpdate(
           events.push(...completeOpenContentItem(contentState, threadId, "assistant"));
           if (!contentState.openReasoningItemId) {
             contentState.openReasoningItemId = newItemId("reason");
-            events.push({ type: "item.started", threadId, itemId: contentState.openReasoningItemId, itemType: "reasoning" });
+            events.push({
+              type: "item.started",
+              threadId,
+              itemId: contentState.openReasoningItemId,
+              itemType: "reasoning",
+            });
           }
-          events.push({ type: "content.delta", threadId, itemId: contentState.openReasoningItemId, stream: "reasoning_text", delta: reasoningDelta });
+          events.push({
+            type: "content.delta",
+            threadId,
+            itemId: contentState.openReasoningItemId,
+            stream: "reasoning_text",
+            delta: reasoningDelta,
+          });
           contentState.reasoningAccum = (contentState.reasoningAccum ?? "") + reasoningDelta;
         }
       }
       if (embedded.assistantText !== undefined) {
-        content = embedded.assistantText.length > 0 ? { type: "text", text: embedded.assistantText } : undefined;
+        content =
+          embedded.assistantText.length > 0
+            ? { type: "text", text: embedded.assistantText }
+            : undefined;
       }
       if (embedded.reasoningOnly) break;
       // Some ACP agents emit a blank text chunk after every tool call — empty
@@ -169,6 +186,11 @@ export function mapAcpSessionUpdate(
       }
       if (content?.type === "text") {
         if (isRetryableCapacityError(content.text)) break;
+        if (content.text.split(/\r?\n/).some((line) => isRetryableCapacityError(line))) {
+          const stripped = stripRetryableCapacityNoise(content.text);
+          if (!stripped) break;
+          content = { ...content, text: stripped };
+        }
         const apiError = parseAcpAgentMessageApiError(content.text);
         if (apiError) {
           events.push(...closeOpenContentItems(state, parentToolCallId));
@@ -247,8 +269,13 @@ export function mapAcpSessionUpdate(
       ) {
         break;
       }
-      const thoughtText = thoughtContent?.type === "text" ? thoughtContent.text : "";
+      let thoughtText = thoughtContent?.type === "text" ? thoughtContent.text : "";
       if (thoughtText && isRetryableCapacityError(thoughtText)) break;
+      if (thoughtText.split(/\r?\n/).some((line) => isRetryableCapacityError(line))) {
+        const stripped = stripRetryableCapacityNoise(thoughtText);
+        if (!stripped) break;
+        thoughtText = stripped;
+      }
       const thoughtDelta = snapshotOrDelta(contentState.reasoningAccum, thoughtText);
       if (!thoughtDelta) break;
       // A new thought round always seals the live assistant bubble so later
@@ -672,7 +699,11 @@ export function mapAcpSessionUpdate(
       // ACP `used` is context occupancy. Promote it to Input when the
       // provider did not send a separate prompt/input counter so the
       // composer panel can show 输入 / 缓存命中率 instead of a blank row.
-      if (merged.inputTokens === undefined && merged.input_tokens === undefined && merged.prompt_tokens === undefined) {
+      if (
+        merged.inputTokens === undefined &&
+        merged.input_tokens === undefined &&
+        merged.prompt_tokens === undefined
+      ) {
         const used = merged.used;
         if (typeof used === "number") merged.inputTokens = used;
       }
@@ -761,12 +792,17 @@ function mapAcpContextOccupancy(update: SessionUpdate, state: AcpMapperState): R
 }
 
 function hasStreamOccupancyMeta(meta: Record<string, unknown>): boolean {
-  return ["totalTokens", "total_tokens", "tokens_used", "used", "context_window", "contextWindow"].some(
-    (key) => {
-      const value = meta[key];
-      return typeof value === "number" && Number.isFinite(value) && value >= 0;
-    },
-  );
+  return [
+    "totalTokens",
+    "total_tokens",
+    "tokens_used",
+    "used",
+    "context_window",
+    "contextWindow",
+  ].some((key) => {
+    const value = meta[key];
+    return typeof value === "number" && Number.isFinite(value) && value >= 0;
+  });
 }
 
 /** Normalize provider-specific thought fields/tags into the ACP reasoning stream. */
@@ -778,14 +814,29 @@ function extractEmbeddedReasoning(update: SessionUpdate): {
   const raw = update as unknown as Record<string, unknown>;
   const content = raw.content;
   const meta = raw._meta;
-  const metaRecord = meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>) : undefined;
-  const direct = [raw.reasoning_content, raw.reasoningContent, raw.thought, raw.thinking, raw.analysis]
-    .find((value) => typeof value === "string" && value.length > 0);
-  const markedThought = metaRecord && [metaRecord.reasoning, metaRecord.thinking, metaRecord.thought, metaRecord.isThought]
-    .some((value) => value === true || typeof value === "string");
-  const contentText = content && typeof content === "object" && !Array.isArray(content) && (content as Record<string, unknown>).type === "text"
-    ? String((content as Record<string, unknown>).text ?? "")
-    : undefined;
+  const metaRecord =
+    meta && typeof meta === "object" && !Array.isArray(meta)
+      ? (meta as Record<string, unknown>)
+      : undefined;
+  const direct = [
+    raw.reasoning_content,
+    raw.reasoningContent,
+    raw.thought,
+    raw.thinking,
+    raw.analysis,
+  ].find((value) => typeof value === "string" && value.length > 0);
+  const markedThought =
+    metaRecord &&
+    [metaRecord.reasoning, metaRecord.thinking, metaRecord.thought, metaRecord.isThought].some(
+      (value) => value === true || typeof value === "string",
+    );
+  const contentText =
+    content &&
+    typeof content === "object" &&
+    !Array.isArray(content) &&
+    (content as Record<string, unknown>).type === "text"
+      ? String((content as Record<string, unknown>).text ?? "")
+      : undefined;
   if (typeof direct === "string") {
     if (contentText && contentText.length > 0 && contentText !== direct) {
       return { reasoningText: direct, assistantText: contentText, reasoningOnly: false };
@@ -794,7 +845,10 @@ function extractEmbeddedReasoning(update: SessionUpdate): {
   }
   if (markedThought && contentText) return { reasoningText: contentText, reasoningOnly: true };
   if (!contentText) return { reasoningOnly: false };
-  const match = /(?:<think(?:ing)?\s*>|<analysis\s*>)([\s\S]*?)(?:<\/(?:think(?:ing)?|analysis)>|$)/i.exec(contentText);
+  const match =
+    /(?:<think(?:ing)?\s*>|<analysis\s*>)([\s\S]*?)(?:<\/(?:think(?:ing)?|analysis)>|$)/i.exec(
+      contentText,
+    );
   if (!match) return { reasoningOnly: false };
   const reasoningText = match[1] ?? "";
   const assistantText = contentText.replace(match[0], "");

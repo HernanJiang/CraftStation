@@ -428,6 +428,14 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
     const transport = RequestError.internalError({ details: "Agent error" });
     expect(shouldEmitAcpPromptRpcErrorItem(transport, undefined)).toBe(true);
   });
+
+  it("does not emit Gemini capacity retries as RPC error rows", () => {
+    const transport = new Error(
+      "API error (attempt 1): UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high",
+    );
+    expect(shouldEmitAcpPromptRpcErrorItem(transport, undefined)).toBe(false);
+    expect(shouldEmitAcpPromptRpcErrorItem(transport, transport.message)).toBe(false);
+  });
 });
 
 describe("ACP prompt error observer", () => {
@@ -921,8 +929,7 @@ describe("ACP resource path helpers", () => {
   it("allows read-only access to CraftStation chat attachments outside the project", () => {
     const screenshot =
       "C:\\Users\\me\\.craftstation\\attachments\\6f9db30d-49f\\6f9db30d-1789454351081.png";
-    const nightly =
-      "C:\\Users\\me\\.craftstation-nightly\\attachments\\thread-1\\note.png";
+    const nightly = "C:\\Users\\me\\.craftstation-nightly\\attachments\\thread-1\\note.png";
     expect(resolveAcpReadableHostFsPath(WINDOWS_LOCATION, screenshot)).toBe(screenshot);
     expect(resolveAcpReadableHostFsPath(WINDOWS_LOCATION, nightly)).toBe(nightly);
     expect(
@@ -935,10 +942,7 @@ describe("ACP resource path helpers", () => {
       "Invalid params",
     );
     expect(() =>
-      resolveAcpReadableHostFsPath(
-        WINDOWS_LOCATION,
-        "C:\\Users\\me\\.craftstation\\settings.json",
-      ),
+      resolveAcpReadableHostFsPath(WINDOWS_LOCATION, "C:\\Users\\me\\.craftstation\\settings.json"),
     ).toThrow("Invalid params");
   });
 
@@ -1383,21 +1387,17 @@ describe("ACP client protocol helpers", () => {
 
   it("still sends a real prompt when skill chips ride beside it", async () => {
     const { connection, session } = makeConfigSyncSession();
-    await session.startTurn(
-      "请根据当前 diff 做一次计划",
-      { model: "model-a" },
-      [
-        {
-          kind: "skill",
-          name: "code-review",
-          path: "/skills/code-review/SKILL.md",
-          invocation: "/code-review",
-          provider: "Grok",
-          scope: "global",
-        },
-        { kind: "text", content: "请根据当前 diff 做一次计划" },
-      ],
-    );
+    await session.startTurn("请根据当前 diff 做一次计划", { model: "model-a" }, [
+      {
+        kind: "skill",
+        name: "code-review",
+        path: "/skills/code-review/SKILL.md",
+        invocation: "/code-review",
+        provider: "Grok",
+        scope: "global",
+      },
+      { kind: "text", content: "请根据当前 diff 做一次计划" },
+    ]);
     expect(connection.prompt).toHaveBeenCalled();
   });
 

@@ -220,6 +220,12 @@ describe("UsageLoginManager API-key flow", () => {
     expect(hasUsageSecret(cacheDir, "kimi")).toBe(true);
   });
 
+  it("seals a pasted Devin API key and reports it stored", async () => {
+    const manager = newManager(makePanel());
+    await expect(manager.submitApiKey("devin", "cog_secret")).resolves.toEqual({ ok: true });
+    expect(hasUsageSecret(cacheDir, "devin")).toBe(true);
+  });
+
   it("keeps the API-key fallback for hybrid Alibaba Token Plan login", async () => {
     const manager = newManager(makePanel());
     await expect(manager.submitApiKey("qwen", "qwen-secret")).resolves.toEqual({ ok: true });

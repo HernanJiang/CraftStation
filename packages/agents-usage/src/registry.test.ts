@@ -16,6 +16,7 @@ describe("createUsageCollectorRegistry", () => {
       "commandcode",
       "copilot",
       "cursor",
+      "devin",
       "factory",
       "grok",
       "kimi",

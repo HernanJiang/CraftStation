@@ -10,6 +10,7 @@ export function spawnAndAwaitExit(command: string, args: readonly string[]): Pro
   return new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
       windowsHide: true,
+      shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stderr = "";

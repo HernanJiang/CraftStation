@@ -5,6 +5,7 @@ import { collectCopilot } from "./collectors/copilot";
 import { collectCursor } from "./collectors/cursor";
 import { collectFactory } from "./collectors/factory";
 import { collectGrok } from "./collectors/grok";
+import { collectDevin } from "./collectors/devin";
 import { collectKimi } from "./collectors/kimi";
 import { collectQwen } from "./collectors/qwen";
 import { collectZai } from "./collectors/zai";
@@ -69,6 +70,11 @@ const KIMI_COLLECTOR: UsageCollector = {
   collect: collectKimi,
 };
 
+const DEVIN_COLLECTOR: UsageCollector = {
+  descriptor: BUILT_IN_USAGE_PROVIDER_DESCRIPTORS.devin,
+  collect: collectDevin,
+};
+
 const QWEN_COLLECTOR: UsageCollector = {
   descriptor: BUILT_IN_USAGE_PROVIDER_DESCRIPTORS.qwen,
   collect: collectQwen,
@@ -97,6 +103,7 @@ const BUILT_IN: UsageCollector[] = [
   FACTORY_COLLECTOR,
   ZAI_COLLECTOR,
   KIMI_COLLECTOR,
+  DEVIN_COLLECTOR,
   QWEN_COLLECTOR,
   VOLCENGINE_COLLECTOR,
   OPENAI_COMPATIBLE_COLLECTOR,

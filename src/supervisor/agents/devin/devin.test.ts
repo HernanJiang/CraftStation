@@ -8,7 +8,9 @@ import {
 } from "./argv";
 import {
   buildDevinCommand,
+  buildDevinProbeCapabilities,
   defaultDevinCapabilities,
+  defaultHiddenDevinModels,
   DEVIN_DEFAULT_MODEL_ID,
   devinDetectionSpec,
   parseDevinModels,
@@ -59,6 +61,37 @@ describe("Devin detection", () => {
     expect(defaultDevinCapabilities.models.map((model) => model.id)).toContain(
       DEVIN_DEFAULT_MODEL_ID,
     );
+    expect(defaultDevinCapabilities.defaultHiddenModels).toEqual(
+      defaultHiddenDevinModels(defaultDevinCapabilities.models),
+    );
+    expect(defaultDevinCapabilities.defaultHiddenModels).not.toContain(DEVIN_DEFAULT_MODEL_ID);
+  });
+
+  it("hides every discovered Devin model except the curated default", () => {
+    const discovered = [
+      { id: "swe", label: "SWE-1.6" },
+      { id: "claude-opus-5-medium", label: "Claude Opus 5 Medium" },
+      { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
+      { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+    ];
+    const capabilities = buildDevinProbeCapabilities({ models: discovered });
+    expect(capabilities.models).toEqual(discovered);
+    expect(capabilities.defaultHiddenModels).toEqual([
+      "claude-opus-5-medium",
+      "claude-sonnet-5",
+      "gemini-3.8-flash",
+    ]);
+  });
+
+  it("hides the entire ACP catalog when the curated default is absent", () => {
+    const discovered = [
+      { id: "claude-opus-5-high", label: "Claude Opus 5 High" },
+      { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+    ];
+    expect(buildDevinProbeCapabilities({ models: discovered }).defaultHiddenModels).toEqual([
+      "claude-opus-5-high",
+      "gemini-3.8-flash",
+    ]);
   });
 
   it("parses JSON and line-oriented model lists", () => {
@@ -157,7 +190,7 @@ describe("createDevinAdapter", () => {
     const args = command?.args ?? [];
     const rendered = args.includes("-EncodedCommand")
       ? Buffer.from(args.at(-1) ?? "", "base64").toString("utf16le")
-      : args.join(" ");
+      : [command?.command, ...args].join(" ");
     expect(rendered).toMatch(/devin/i);
     expect(rendered).toContain("auth");
     expect(rendered).toContain("logout");

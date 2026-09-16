@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Clipboard, LoaderCircle, Wrench } from "luci
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Thread } from "@/shared/contracts";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { useAppStore } from "@/renderer/state/appStore";
 import { formatTokenCount } from "./formatTokenCount";
 import { resolveThreadContextUsageSummary } from "./threadContextUsage";
@@ -124,10 +125,15 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
   };
   const hide = () => setPos(null);
 
+  const visibleErrorMessage =
+    thread.errorMessage && !isRetryableCapacityError(thread.errorMessage)
+      ? thread.errorMessage
+      : undefined;
+
   const copyError = async () => {
-    if (state !== "error" || !thread.errorMessage) return;
+    if (state !== "error" || !visibleErrorMessage) return;
     try {
-      await navigator.clipboard.writeText(thread.errorMessage);
+      await navigator.clipboard.writeText(visibleErrorMessage);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     } catch {
@@ -177,7 +183,7 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
                   value={formatDuration((previousTurn.endedAt - previousTurn.startedAt) / 1000)}
                 />
               ) : null}
-              {state === "error" && thread.errorMessage ? (
+              {state === "error" && visibleErrorMessage ? (
                 <div className="mt-2 border-t border-white/10 pt-2">
                   <div className="mb-1 font-semibold text-red-300">错误原因</div>
                   <button
@@ -185,7 +191,7 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
                     className="w-full break-words text-left text-red-200 hover:text-red-100"
                     onClick={() => void copyError()}
                   >
-                    {copied ? "已复制" : thread.errorMessage}
+                    {copied ? "已复制" : visibleErrorMessage}
                   </button>
                 </div>
               ) : null}

@@ -32,6 +32,7 @@ import {
   type StructuredSessionListener,
 } from "../base";
 import { resolveAgentBinaryPath } from "../binaryResolver";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { explainNativeNetworkError } from "../nativeNetworkError";
 import { buildAntigravityArgs, buildAntigravityPrintTimeoutArgs } from "./argv";
 
@@ -487,13 +488,18 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         console.warn("[antigravity] prompt error observer failed:", callbackError);
       }
       if (turnId) {
-        if (emitError) {
+        const displayMessage = explainNativeNetworkError(error, "Antigravity") ?? error.message;
+        if (
+          emitError &&
+          !isRetryableCapacityError(displayMessage) &&
+          !isRetryableCapacityError(error.message)
+        ) {
           this.emitRuntime({
             type: "error",
             threadId: this.input.threadId,
             // Display-only projection: the rejection below keeps the original
             // error so quota/auth matching never sees rewritten text.
-            message: explainNativeNetworkError(error, "Antigravity") ?? error.message,
+            message: displayMessage,
           });
         }
         this.emitRuntime({

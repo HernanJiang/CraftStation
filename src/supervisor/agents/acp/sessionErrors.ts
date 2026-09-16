@@ -1,4 +1,5 @@
 import { RequestError } from "@agentclientprotocol/sdk";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { explainNativeNetworkError } from "../nativeNetworkError";
 import { readNonNegativeInteger } from "../contextUsage";
 import type { RuntimeEvent } from "@/shared/contracts";
@@ -160,9 +161,11 @@ export function shouldEmitAcpPromptRpcErrorItem(
   error: unknown,
   agentSurfacedMessage?: string,
 ): boolean {
+  const rpcMessage = resolveAcpPromptRpcErrorMessage(error);
+  if (isRetryableCapacityError(rpcMessage)) return false;
+  if (agentSurfacedMessage && isRetryableCapacityError(agentSurfacedMessage)) return false;
   if (!agentSurfacedMessage) return true;
   if (isGenericAcpPromptTransportError(error)) return false;
-  const rpcMessage = resolveAcpPromptRpcErrorMessage(error);
   return rpcMessage !== agentSurfacedMessage && !isGenericAcpPromptRpcErrorMessage(rpcMessage);
 }
 

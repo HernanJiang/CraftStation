@@ -1,4 +1,5 @@
 import type { RuntimeEvent, ThreadContextUsage, ToolCallPayload } from "@/shared/contracts";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { isDelegatedAgentTool } from "@/shared/toolCallClassification";
 import { appendRuntimeStream } from "@/shared/runtimeStream";
 import type { AppStoreState } from "./shared";
@@ -431,6 +432,7 @@ function applyRuntimeEventToRuntimeState(
     }
 
     case "error": {
+      if (isRetryableCapacityError(event.message)) return {};
       const existingIds = state.runtimeItemIdsByThread[threadId] ?? [];
       const existingItems = state.runtimeItemsByIdByThread[threadId] ?? {};
       const item: RuntimeChatItem = {

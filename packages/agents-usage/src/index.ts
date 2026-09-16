@@ -117,6 +117,13 @@ export {
   KIMI_PROVIDER_ID,
   KIMI_USAGES_ENDPOINT,
 } from "./collectors/kimi";
+export {
+  collectDevin,
+  parseDevinUsage,
+  DEVIN_PROVIDER_ID,
+  DEVIN_ME_ENDPOINT,
+  DEVIN_USAGE_ENDPOINT,
+} from "./collectors/devin";
 export type { KimiUsagesResponse } from "./collectors/kimi";
 export {
   collectQwen,

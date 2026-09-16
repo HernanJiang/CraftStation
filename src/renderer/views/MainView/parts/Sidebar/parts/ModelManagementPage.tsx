@@ -20,9 +20,9 @@ import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchSto
 import { resolveThirdPartyHarnessForModel } from "@/shared/thirdPartyRouting";
 
 const inputClass =
-  "w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25";
+  "w-full rounded-lg border border-[color:var(--field-border)] bg-[var(--field-background)] px-2.5 py-1.5 text-xs text-foreground outline-none placeholder:text-muted focus:border-[color:var(--hairline-strong)]";
 const bulkActionClass =
-  "rounded-md border border-white/10 px-2 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40";
 
 /** 左栏渠道条目：agent 渠道（与首页模型选择器同源）或 OpenAI 兼容自定义渠道。 */
 type ChannelEntry = {
@@ -57,29 +57,32 @@ function CustomModelRow(props: {
   const { model, providerLabel, onUpdate, onRemove } = props;
   const contextBadge = formatContextBadge(model.contextSize);
   return (
-    <li className="rounded-lg bg-black/20 p-2" data-testid={`custom-model-${model.id}`}>
+    <li
+      className="rounded-lg border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-2"
+      data-testid={`custom-model-${model.id}`}
+    >
       <div className="flex items-center gap-2">
         <input
           aria-label="模型展示名称"
           value={model.displayName}
           onChange={(event) => onUpdate({ displayName: event.target.value })}
-          className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1 text-[11px] text-foreground outline-none focus:border-white/25"
+          className="min-w-0 flex-1 rounded-md border border-[color:var(--hairline)] bg-[var(--field-background)] px-2 py-1 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]"
         />
         {contextBadge ? (
           <span
-            className="shrink-0 rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-neutral-300"
+            className="shrink-0 rounded-full border border-[color:var(--hairline)] bg-[var(--surface-secondary)] px-1.5 py-0.5 text-[10px] text-muted"
             title={`上下文窗口 ${model.contextSize}`}
           >
             {contextBadge}
           </span>
         ) : null}
-        <span className="shrink-0 text-[10px] text-neutral-500">{providerLabel}</span>
-        <span className="shrink-0 text-[10px] text-neutral-500">{model.modelId}</span>
+        <span className="shrink-0 text-[10px] text-muted">{providerLabel}</span>
+        <span className="shrink-0 text-[10px] text-muted">{model.modelId}</span>
         <button
           type="button"
           aria-label={`移除 ${model.displayName}`}
           onClick={onRemove}
-          className="shrink-0 rounded-md p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
+          className="shrink-0 rounded-md p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
         >
           <X className="size-3.5" />
         </button>
@@ -604,8 +607,8 @@ export function ModelManagementPage(props: {
         className="flex w-64 shrink-0 flex-col gap-2 overflow-y-auto pr-1"
         data-testid="model-channel-rail"
       >
-        <div className="rounded-lg bg-white/5 px-3 py-2">
-          <p className="text-[11px] text-neutral-400">
+        <div className="rounded-lg bg-[var(--surface-secondary)] px-3 py-2">
+          <p className="text-[11px] text-muted">
             共 {channels.length} 个渠道 · {totalVisible} 个模型在首页可选
           </p>
           <div className="mt-2 flex items-center gap-1.5">
@@ -658,8 +661,8 @@ export function ModelManagementPage(props: {
               aria-pressed={channel.key === selectedKey}
               className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors ${
                 channel.key === selectedKey
-                  ? "border-white/20 bg-white/10"
-                  : "border-[var(--hairline)] bg-[var(--surface)] hover:bg-[var(--row-hover)]"
+                  ? "border-[color:var(--hairline-strong)] bg-[var(--row-active)]"
+                  : "border-[color:var(--hairline)] bg-[var(--surface)] hover:bg-[var(--row-hover)]"
               }`}
             >
               <ProviderBrandBadge id={channel.kind} label={channel.label} size="compact" />
@@ -667,9 +670,7 @@ export function ModelManagementPage(props: {
                 <span className="block truncate text-sm font-semibold text-foreground">
                   {channel.label}
                 </span>
-                <span className="mt-0.5 block text-[11px] text-neutral-400">
-                  {visibleCount} 个可见
-                </span>
+                <span className="mt-0.5 block text-[11px] text-muted">{visibleCount} 个可见</span>
               </span>
             </button>
           );
@@ -678,16 +679,16 @@ export function ModelManagementPage(props: {
 
       <div className="min-w-0 flex-1 overflow-y-auto pr-1" data-testid="model-channel-detail">
         {!selected ? (
-          <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-neutral-400">
+          <div className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-4 text-xs text-muted">
             还没有可用渠道。请先在「渠道与额度」页添加并登录渠道账号。
           </div>
         ) : (
-          <section className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+          <section className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3">
             <div className="flex items-center gap-2">
               <ProviderBrandBadge id={selected.kind} label={selected.label} size="compact" />
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-sm font-semibold text-foreground">{selected.label}</h3>
-                <p className="text-[11px] text-neutral-500">
+                <p className="text-[11px] text-muted">
                   {selectedAgentChannel
                     ? "勾选的模型会显示在首页模型选择器"
                     : "自定义 API 渠道的模型列表"}
@@ -701,7 +702,7 @@ export function ModelManagementPage(props: {
                       aria-label="在 OpenCode 中选择模型"
                       title="打开官方 OpenCode TUI，用它自己的模型选择器选择模型"
                       onClick={openOpencodeModelSelector}
-                      className="flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
+                      className="flex items-center gap-1 rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
                     >
                       在 OpenCode 中选择模型
                     </button>
@@ -712,7 +713,7 @@ export function ModelManagementPage(props: {
                     title="直接从上游获取该渠道当前可用的模型列表"
                     onClick={() => void fetchChannelModels(selected.kind, selected.label)}
                     disabled={refreshingKinds[selected.kind] === true}
-                    className="flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex items-center gap-1 rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {refreshingKinds[selected.kind] === true ? (
                       <Loader2 className="size-3 animate-spin" />
@@ -745,7 +746,7 @@ export function ModelManagementPage(props: {
 
             {selectedAgentChannel && selectedAgentChannel.models.length > 3 ? (
               <div className="relative mt-2">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-500" />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
                 <input
                   aria-label={`搜索 ${selected.label} 渠道模型`}
                   value={modelQuery}
@@ -757,7 +758,7 @@ export function ModelManagementPage(props: {
             ) : null}
 
             {selectedAgentChannel && selectedAgentChannel.models.length === 0 ? (
-              <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-[11px] text-neutral-400">
+              <p className="mt-3 rounded-lg bg-[var(--surface-secondary)] px-3 py-2 text-[11px] text-muted">
                 该渠道暂无可用模型。点击右上「获取模型」直接从上游拉取，或在下方手动添加模型 ID。
               </p>
             ) : null}
@@ -773,27 +774,27 @@ export function ModelManagementPage(props: {
                         role="checkbox"
                         aria-checked={isVisible}
                         onClick={() => toggleModelVisible(model.id)}
-                        className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-left hover:border-white/10 hover:bg-white/5"
+                        className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-left hover:border-[color:var(--hairline)] hover:bg-[var(--row-hover)]"
                       >
                         <Check
                           className={`size-4 shrink-0 ${
-                            isVisible ? "text-emerald-400" : "text-neutral-600"
+                            isVisible ? "text-emerald-400" : "text-muted"
                           }`}
                         />
                         <span
                           className={`min-w-0 flex-1 truncate text-sm ${
-                            isVisible ? "text-foreground" : "text-neutral-500"
+                            isVisible ? "text-foreground" : "text-muted"
                           }`}
                         >
                           {model.label}
                         </span>
-                        <span className="shrink-0 text-xs text-neutral-500">{model.id}</span>
+                        <span className="shrink-0 text-xs text-muted">{model.id}</span>
                       </button>
                     </li>
                   );
                 })}
                 {filteredChannelModels.length === 0 ? (
-                  <li className="px-3 py-2 text-[11px] text-neutral-500">
+                  <li className="px-3 py-2 text-[11px] text-muted">
                     没有匹配「{modelQuery.trim()}」的模型。
                   </li>
                 ) : null}
@@ -818,25 +819,23 @@ export function ModelManagementPage(props: {
                         role="checkbox"
                         aria-checked={isVisible}
                         onClick={() => setRecipeHomepageVisible(recipe.id, !isVisible)}
-                        className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-left hover:border-white/10 hover:bg-white/5"
+                        className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-left hover:border-[color:var(--hairline)] hover:bg-[var(--row-hover)]"
                       >
                         <Check
                           className={`size-4 shrink-0 ${
-                            isVisible ? "text-emerald-400" : "text-neutral-600"
+                            isVisible ? "text-emerald-400" : "text-muted"
                           }`}
                         />
                         <span className="min-w-0 flex-1">
                           <span
                             className={`block truncate text-sm ${
-                              isVisible ? "text-foreground" : "text-neutral-500"
+                              isVisible ? "text-foreground" : "text-muted"
                             }`}
                           >
                             {name}
                           </span>
                           {sub ? (
-                            <span className="block truncate text-[11px] text-neutral-500">
-                              {sub}
-                            </span>
+                            <span className="block truncate text-[11px] text-muted">{sub}</span>
                           ) : null}
                         </span>
                       </button>
@@ -844,7 +843,7 @@ export function ModelManagementPage(props: {
                   );
                 })}
                 {recipes.length === 0 ? (
-                  <li className="px-3 py-2 text-[11px] text-neutral-500">
+                  <li className="px-3 py-2 text-[11px] text-muted">
                     还没有保存的配方。去「合成台 /
                     Harness」合成并保存后，可在这里勾选进首页模型选择器。
                   </li>
@@ -854,7 +853,7 @@ export function ModelManagementPage(props: {
 
             {selectedCustom.length > 0 ? (
               <div className="mt-3">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
                   自定义模型（已加入首页）
                 </p>
                 <ul className="mt-1 flex flex-col gap-2">
@@ -875,22 +874,22 @@ export function ModelManagementPage(props: {
               <div className="mt-3">
                 {fetched.error ? <p className="text-[11px] text-red-400">{fetched.error}</p> : null}
                 {fetched.loading ? (
-                  <p className="flex items-center gap-1.5 text-[11px] text-neutral-400">
+                  <p className="flex items-center gap-1.5 text-[11px] text-muted">
                     <Loader2 className="size-3 animate-spin" /> 正在获取模型列表…
                   </p>
                 ) : null}
                 {compatibleListed.length > 0 ? (
                   <>
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
                       渠道模型
                     </p>
                     <ul className="mt-1 flex flex-col gap-1">
                       {compatibleListed.map((modelId) => (
                         <li
                           key={modelId}
-                          className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-2 py-1.5"
+                          className="flex items-center justify-between gap-2 rounded-lg bg-[var(--surface-secondary)] px-2 py-1.5"
                         >
-                          <span className="truncate text-[11px] text-neutral-200">{modelId}</span>
+                          <span className="truncate text-[11px] text-foreground">{modelId}</span>
                           <button
                             type="button"
                             onClick={() =>
@@ -903,7 +902,7 @@ export function ModelManagementPage(props: {
                               )
                             }
                             disabled={verifyingModelKey === `${selected.accountId}:${modelId}`}
-                            className="flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-50"
+                            className="flex shrink-0 items-center gap-1 rounded-md border border-[color:var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted hover:bg-[var(--row-hover)] hover:text-foreground disabled:opacity-50"
                           >
                             {verifyingModelKey === `${selected.accountId}:${modelId}` ? (
                               <Loader2 className="size-3 animate-spin" />
@@ -918,7 +917,7 @@ export function ModelManagementPage(props: {
                   </>
                 ) : null}
                 {!fetched.loading && !fetched.error && fetched.models.length === 0 ? (
-                  <p className="mt-1 text-[11px] text-neutral-500">
+                  <p className="mt-1 text-[11px] text-muted">
                     上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。
                   </p>
                 ) : null}
@@ -928,7 +927,7 @@ export function ModelManagementPage(props: {
                     aria-label={`获取 ${selected.label} 上游可用模型列表`}
                     title="直接从上游获取该渠道当前可用的模型列表"
                     onClick={() => void fetchCompatibleModels()}
-                    className="mt-2 flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-300 hover:bg-white/10 hover:text-white"
+                    className="mt-2 flex items-center gap-1 rounded-lg border border-[color:var(--hairline)] px-2 py-1 text-[11px] text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
                   >
                     <RefreshCw className="size-3" /> 获取模型
                   </button>
@@ -937,8 +936,8 @@ export function ModelManagementPage(props: {
             ) : null}
 
             {selected?.kind === "recipes" ? null : (
-              <div className="mt-3 rounded-lg bg-black/20 p-2">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+              <div className="mt-3 rounded-lg border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-2">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
                   手动添加模型
                 </p>
                 <div className="mt-1.5 flex items-center gap-1.5">
@@ -966,7 +965,7 @@ export function ModelManagementPage(props: {
                     title="打开添加模型对话框，可设置上下文窗口与输入输出类型"
                     onClick={() => setModelDialogOpen(true)}
                     disabled={!manualDraft.modelId.trim() || verifyingModelKey !== null}
-                    className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-[11px] text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                    className="flex shrink-0 items-center gap-1 rounded-lg border border-[color:var(--hairline)] px-2 py-1.5 text-[11px] text-muted hover:bg-[var(--row-hover)] hover:text-foreground disabled:opacity-40"
                   >
                     {verifyingModelKey !== null ? (
                       <Loader2 className="size-3 animate-spin" />
@@ -1035,9 +1034,9 @@ export function ModelManagementPage(props: {
         className="flex w-80 shrink-0 flex-col gap-2 overflow-y-auto pr-1"
         data-testid="model-roster-panel"
       >
-        <div className="rounded-lg bg-white/5 px-3 py-2">
+        <div className="rounded-lg bg-[var(--surface-secondary)] px-3 py-2">
           <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 text-[11px] text-neutral-400">
+            <p className="min-w-0 flex-1 text-[11px] text-muted">
               已选模型名单 · {roster.length} 个
             </p>
             <button
@@ -1050,10 +1049,10 @@ export function ModelManagementPage(props: {
               全部取消
             </button>
           </div>
-          <p className="mt-1 text-[10px] text-neutral-500">点击行首勾选可移出首页</p>
+          <p className="mt-1 text-[10px] text-muted">点击行首勾选可移出首页</p>
         </div>
         {roster.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-[11px] text-neutral-400">
+          <div className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-4 text-[11px] text-muted">
             还没有已选模型。在中间列勾选渠道模型即可加入首页选择器。
           </div>
         ) : null}
@@ -1061,7 +1060,7 @@ export function ModelManagementPage(props: {
           item.type === "recipe" ? (
             <div
               key={`roster:recipe:${item.id}`}
-              className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
+              className="flex items-center gap-2.5 rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] px-3 py-2.5"
             >
               <button
                 type="button"
@@ -1076,15 +1075,15 @@ export function ModelManagementPage(props: {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-foreground">{item.label}</span>
                 {item.sub ? (
-                  <span className="block truncate text-[11px] text-neutral-500">{item.sub}</span>
+                  <span className="block truncate text-[11px] text-muted">{item.sub}</span>
                 ) : null}
               </span>
-              <span className="shrink-0 text-xs text-neutral-400">我的配方</span>
+              <span className="shrink-0 text-xs text-muted">我的配方</span>
             </div>
           ) : item.type === "agent" ? (
             <div
               key={`roster:${item.channelKey}:${item.modelId}`}
-              className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
+              className="flex items-center gap-2.5 rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] px-3 py-2.5"
             >
               <button
                 type="button"
@@ -1099,12 +1098,12 @@ export function ModelManagementPage(props: {
               </button>
               <ProviderBrandBadge id={item.kind} label={item.channelLabel} size="compact" />
               <span className="min-w-0 flex-1 truncate text-sm text-foreground">{item.label}</span>
-              <span className="shrink-0 text-xs text-neutral-400">{item.channelLabel}</span>
+              <span className="shrink-0 text-xs text-muted">{item.channelLabel}</span>
             </div>
           ) : (
             <div
               key={`roster:${item.id}`}
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
+              className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] px-3 py-2.5"
             >
               <div className="flex items-center gap-2.5">
                 <button
@@ -1120,10 +1119,10 @@ export function ModelManagementPage(props: {
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                   {item.displayName}
                 </span>
-                <span className="shrink-0 text-xs text-neutral-400">{item.channelLabel}</span>
+                <span className="shrink-0 text-xs text-muted">{item.channelLabel}</span>
               </div>
               <div className="mt-1 flex items-center gap-1.5">
-                <span className="truncate text-[11px] text-neutral-500">{item.modelId}</span>
+                <span className="truncate text-[11px] text-muted">{item.modelId}</span>
               </div>
             </div>
           ),

@@ -40,6 +40,7 @@ function defaultRunner(): HostCredentialRunner {
       new Promise((resolve, reject) => {
         const child = spawn("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
           windowsHide: true,
+          shell: false,
           timeout: 30_000,
         });
         if (!child.stdout || !child.stdin) {
@@ -78,12 +79,17 @@ function defaultRunner(): HostCredentialRunner {
 
 /** Microsecond-ISO expiry (`...SSS000Z`), matching agm/agy consumers. */
 export function formatHostCredentialExpiry(expiresAt?: number): string {
-  const at = Number.isFinite(expiresAt) && (expiresAt as number) > 0 ? expiresAt as number : Date.now() + 3_600_000;
+  const at =
+    Number.isFinite(expiresAt) && (expiresAt as number) > 0
+      ? (expiresAt as number)
+      : Date.now() + 3_600_000;
   return new Date(at).toISOString().replace(/\.(\d{3})Z$/, ".$1000Z");
 }
 
 /** Build the exact host-login JSON blob. Pure: safe to unit test. */
-export function buildAntigravityHostCredentialPayload(input: AntigravityHostCredentialInput): string {
+export function buildAntigravityHostCredentialPayload(
+  input: AntigravityHostCredentialInput,
+): string {
   const accessToken = input.accessToken.trim();
   const refreshToken = input.refreshToken.trim();
   if (!accessToken || !refreshToken) {
@@ -115,11 +121,11 @@ const CRED_WRITE_SCRIPT = [
   "    public uint CredentialBlobSize; public IntPtr CredentialBlob; public uint Persist;",
   "    public uint AttributeCount; public IntPtr Attributes; public string TargetAlias; public string UserName;",
   "  }",
-  "  [DllImport(\"advapi32.dll\", CharSet = CharSet.Unicode, SetLastError = true)]",
+  '  [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]',
   "  public static extern bool CredWrite([In] ref CREDENTIAL userCredential, uint flags);",
-  "  [DllImport(\"advapi32.dll\", CharSet = CharSet.Unicode, SetLastError = true)]",
+  '  [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]',
   "  public static extern bool CredRead(string target, uint type, uint reservedFlag, out IntPtr credentialPtr);",
-  "  [DllImport(\"advapi32.dll\", SetLastError = true)]",
+  '  [DllImport("advapi32.dll", SetLastError = true)]',
   "  public static extern void CredFree(IntPtr buffer);",
   "  public static void Write(string target, string user, string secret) {",
   "    byte[] b = Encoding.UTF8.GetBytes(secret);",
@@ -170,9 +176,9 @@ const CRED_READ_SCRIPT = [
   "    public uint CredentialBlobSize; public IntPtr CredentialBlob; public uint Persist;",
   "    public uint AttributeCount; public IntPtr Attributes; public string TargetAlias; public string UserName;",
   "  }",
-  "  [DllImport(\"advapi32.dll\", CharSet = CharSet.Unicode, SetLastError = true)]",
+  '  [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]',
   "  public static extern bool CredRead(string target, uint type, uint reservedFlag, out IntPtr credentialPtr);",
-  "  [DllImport(\"advapi32.dll\", SetLastError = true)]",
+  '  [DllImport("advapi32.dll", SetLastError = true)]',
   "  public static extern void CredFree(IntPtr buffer);",
   "  public static string Read(string target) {",
   "    IntPtr p;",

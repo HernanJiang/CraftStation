@@ -2,6 +2,7 @@ import { Tooltip } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { Thread, ThreadStatusSource } from "@/shared/contracts";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 import { getStatusTone } from "@/renderer/components/providers/statusTone";
 import { useThreadHasBackgroundActivity } from "@/renderer/hooks/uiSelectors";
@@ -83,7 +84,12 @@ function ThreadHeaderStatusTooltipBody(props: {
   const runtime = threadRuntimeStatusLabel(thread, t, { hasBackgroundActivity, isConnecting });
   const source = thread.threadStatusSource;
   const isServer = source === "server";
-  const errorMessage = thread.status === "error" ? thread.errorMessage?.trim() : undefined;
+  const errorMessage =
+    thread.status === "error" &&
+    thread.errorMessage?.trim() &&
+    !isRetryableCapacityError(thread.errorMessage)
+      ? thread.errorMessage.trim()
+      : undefined;
 
   return (
     <div className="w-[min(22rem,calc(100vw-2rem))] space-y-3 py-3 pl-2 pr-5 [overflow-wrap:break-word] [word-break:normal] hyphens-none">

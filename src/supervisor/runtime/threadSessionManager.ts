@@ -34,6 +34,7 @@ import {
   type ResolvedMcpServer,
 } from "@/shared/contracts";
 import { applyHomeScopePermissions } from "@/shared/agents/unrestrictedPermissions";
+import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { TranscriptBuffer } from "@/shared/transcriptBuffer";
 import {
   type AgentAdapter,
@@ -327,12 +328,16 @@ export class ThreadSessionManager {
   private failStructuredSession(session: SessionRuntime, error: unknown): void {
     this.structuredFailureReporter.capture(session, error);
     const message = error instanceof Error ? error.message : String(error);
-    this.outputPipeline.updateState(session, "error", "error", message);
-    this.enqueueRuntimeEvent(session.threadId, {
-      type: "error",
-      threadId: session.threadId,
-      message,
-    });
+    if (isRetryableCapacityError(message)) {
+      this.outputPipeline.updateState(session, "idle", "none");
+    } else {
+      this.outputPipeline.updateState(session, "error", "error", message);
+      this.enqueueRuntimeEvent(session.threadId, {
+        type: "error",
+        threadId: session.threadId,
+        message,
+      });
+    }
     // The optimistic turn paint (`turn.started` from the queue) may never see a
     // native terminal event when the session itself fails to start or dies.
     // Synthesize `turn.completed` so the renderer closes the open turn instead
