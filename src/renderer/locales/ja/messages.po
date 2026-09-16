@@ -1463,6 +1463,7 @@ msgid "Ask each time"
 msgstr "毎回尋ねる"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask for approval"
 msgstr "承認を求める"
 
@@ -3902,6 +3903,8 @@ msgid "Default new thread"
 msgstr "デフォルトの新規スレッド"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Default permissions"
 msgstr "デフォルトの権限"
 
@@ -5452,6 +5455,7 @@ msgstr "固定されたワークツリーのソースがローカルブランチ
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/components/providers/composerControlBuilders.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Full access"
 msgstr "フルアクセス"
 
@@ -10935,6 +10939,14 @@ msgstr "実験目標を設定または表示する"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Set shortcut"
 msgstr "ショートカットを設定"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Set the starting permission level for every supported model and harness."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
+msgstr ""
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"

@@ -221,6 +221,7 @@ export function ThreadDraftView(props: {
   // 「管理模型」页保存的自定义模型，合并进首页模型选择器。
   const customModels = useSharedSettings((s) => s.customModels);
   const sharedSettingsHydrated = useSharedSettings((s) => s.sharedSettingsHydrated);
+  const defaultPermissionMode = useSharedSettings((s) => s.defaultPermissionMode);
   const showAgentDiscovery = useAgentStatusesStore((s) =>
     isDiscoveryActiveForLocation(s, project.location),
   );
@@ -295,7 +296,7 @@ export function ThreadDraftView(props: {
     isHomeScope ? false : (lastDraftConfig?.worktreeMode ?? false),
   );
   const effectiveWorktreeMode = isHomeScope ? false : worktreeMode;
-  const lastAppliedAgentKindRef = useRef<AgentStatus["kind"] | undefined>(undefined);
+  const lastAppliedAgentDefaultsRef = useRef<string | undefined>(undefined);
 
   // Presentation remains part of the launch contract, but the composer no
   // longer exposes a separate Chat/CLI surface selector. Each provider's
@@ -459,7 +460,8 @@ export function ThreadDraftView(props: {
       return;
     }
 
-    if (lastAppliedAgentKindRef.current === effectiveAgentKind) {
+    const agentDefaultsKey = `${effectiveAgentKind}:${defaultPermissionMode}`;
+    if (lastAppliedAgentDefaultsRef.current === agentDefaultsKey) {
       return;
     }
 
@@ -489,6 +491,7 @@ export function ThreadDraftView(props: {
     const resolved = resolveProviderDraftConfig(
       selectedAgentForConfig,
       recentThreadModel ? { ...saved, model: recentThreadModel } : saved,
+      defaultPermissionMode,
     );
     const nextModel = resolved.model;
     const nextEffort = resolved.effort;
@@ -509,7 +512,7 @@ export function ThreadDraftView(props: {
     setApprovalPolicy(nextApproval);
     setApprovalsReviewer(nextReviewer);
     setSandboxMode(nextSandbox);
-    lastAppliedAgentKindRef.current = effectiveAgentKind;
+    lastAppliedAgentDefaultsRef.current = agentDefaultsKey;
 
     // Persist per-provider config app-wide, last-used provider per project —
     // but only when the resolution came from persisted memory or an explicit
@@ -533,6 +536,7 @@ export function ThreadDraftView(props: {
     }
   }, [
     effectiveAgentKind,
+    defaultPermissionMode,
     selectedAgentForConfig,
     project.id,
     lastDraftConfig,
@@ -752,7 +756,11 @@ export function ThreadDraftView(props: {
       providerConfigs,
       providerModelPreferences,
     );
-    const resolved = resolveProviderDraftConfig(selectedAgentForConfig, saved);
+    const resolved = resolveProviderDraftConfig(
+      selectedAgentForConfig,
+      saved,
+      defaultPermissionMode,
+    );
     const nextModel = resolved.model;
     const nextEffort = resolved.effort;
     const nextContext = resolved.contextSize;
@@ -786,7 +794,7 @@ export function ThreadDraftView(props: {
     setApprovalPolicy(nextApproval);
     setApprovalsReviewer(nextReviewer);
     setSandboxMode(nextSandbox);
-    lastAppliedAgentKindRef.current = effectiveAgentKind;
+    lastAppliedAgentDefaultsRef.current = `${effectiveAgentKind}:${defaultPermissionMode}`;
 
     if (
       !hasInitialProjectDraft &&
@@ -820,6 +828,7 @@ export function ThreadDraftView(props: {
     sharedSettingsHydrated,
     selectedAgentForConfig,
     effectiveAgentKind,
+    defaultPermissionMode,
     lastDraftConfig,
     model,
     effort,
@@ -1170,12 +1179,16 @@ export function ThreadDraftView(props: {
       const targetBase = { ...targetSaved };
       delete targetBase.effort;
       delete targetBase.fast;
-      const resolved = resolveProviderDraftConfig(targetAgentForConfig, {
-        ...targetBase,
-        model: nextModel,
-        ...(targetPreference?.effort !== undefined ? { effort: targetPreference.effort } : {}),
-        ...(targetPreference?.fast !== undefined ? { fast: targetPreference.fast } : {}),
-      });
+      const resolved = resolveProviderDraftConfig(
+        targetAgentForConfig,
+        {
+          ...targetBase,
+          model: nextModel,
+          ...(targetPreference?.effort !== undefined ? { effort: targetPreference.effort } : {}),
+          ...(targetPreference?.fast !== undefined ? { fast: targetPreference.fast } : {}),
+        },
+        defaultPermissionMode,
+      );
       persistProviderConfig(actualKind, resolved);
       setModel(resolved.model);
       setEffort(resolved.effort);
@@ -1186,7 +1199,7 @@ export function ThreadDraftView(props: {
       setApprovalPolicy(resolved.approvalPolicy ?? "");
       setApprovalsReviewer(resolved.approvalsReviewer ?? "");
       setSandboxMode(resolved.sandboxMode ?? "");
-      lastAppliedAgentKindRef.current = actualKind as AgentStatus["kind"];
+      lastAppliedAgentDefaultsRef.current = `${actualKind}:${defaultPermissionMode}`;
       setAgentKind(actualKind as AgentStatus["kind"]);
       persistProjectDraftConfig({
         agentKind: actualKind as AgentStatus["kind"],

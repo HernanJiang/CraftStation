@@ -19,7 +19,11 @@ describe("GeneralSettings", () => {
   beforeEach(() => {
     bridgeMock.isRemoteSession.mockReturnValue(false);
     bridgeMock.isWindows.mockReturnValue(true);
-    useSharedSettings.setState({ launchAtStartup: true, startMinimized: true });
+    useSharedSettings.setState({
+      launchAtStartup: true,
+      startMinimized: true,
+      defaultPermissionMode: "ask",
+    });
   });
 
   it("shows desktop-only editor LSP controls in local sessions", () => {
@@ -74,6 +78,18 @@ describe("GeneralSettings", () => {
 
     expect(useSharedSettings.getState().launchAtStartup).toBe(false);
     expect(useSharedSettings.getState().startMinimized).toBe(false);
+  });
+
+  it("persists the default permission mode for every model and harness", async () => {
+    render(<GeneralSettings />);
+
+    const trigger = screen.getByRole("button", { name: /Default permissions/ });
+    expect(trigger).toHaveTextContent("Ask for approval");
+
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("option", { name: "Full access" }));
+
+    expect(useSharedSettings.getState().defaultPermissionMode).toBe("full-access");
   });
 
   it("hides Windows startup controls on other desktop platforms", () => {

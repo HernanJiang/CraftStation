@@ -1464,6 +1464,7 @@ msgid "Ask each time"
 msgstr "Спрашивать каждый раз"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask for approval"
 msgstr "Запрашивать подтверждение"
 
@@ -3903,6 +3904,8 @@ msgid "Default new thread"
 msgstr "Новый тред по умолчанию"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Default permissions"
 msgstr "Разрешения по умолчанию"
 
@@ -5453,6 +5456,7 @@ msgstr "Замороженный источник worktree не является
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/components/providers/composerControlBuilders.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Full access"
 msgstr "Полный доступ"
 
@@ -10937,6 +10941,14 @@ msgstr "Задать или просмотреть эксперименталь�
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Set shortcut"
 msgstr "Назначить сочетание клавиш"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Set the starting permission level for every supported model and harness."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
+msgstr ""
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"

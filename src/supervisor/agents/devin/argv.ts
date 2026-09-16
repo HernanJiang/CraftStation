@@ -19,6 +19,7 @@ export function permissionModeForConfig(config: ThreadConfig): string | undefine
     case "yolo":
     case "never":
     case "bypassPermissions":
+    case "bypass":
     case "dangerous":
       return "yolo";
     case "auto_edit":
@@ -62,7 +63,14 @@ export function buildDevinArgs(
 
 /** Argv for `devin acp` (ACP / GUI tab). */
 export function buildDevinAcpArgs(config: ThreadConfig): string[] {
-  const args: string[] = [...DEVIN_ACP_ARGS];
+  const args: string[] = [];
+  const permissionMode = permissionModeForConfig(config);
+  // `--permission-mode` is a global Devin flag, so it must precede the `acp`
+  // subcommand. Passing only the model here made the GUI composer advertise
+  // Full access while the spawned ACP process still started in its default
+  // supervised posture.
+  if (permissionMode) args.push("--permission-mode", permissionMode);
+  args.push(...DEVIN_ACP_ARGS);
   if (config.model) args.push("--model", config.model);
   return args;
 }

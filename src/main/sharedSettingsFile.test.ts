@@ -81,6 +81,7 @@ describe("sharedSettingsFile", () => {
     const settingsPath = join(makeTempDir(), "settings.json");
     writeSharedSettingsFile(settingsPath, {
       shownModels: {},
+      defaultPermissionMode: "ask",
       themeMode: "dark",
       themePreset: "default",
       locale: "system",
@@ -262,6 +263,7 @@ describe("sharedSettingsFile", () => {
       wslConflictResolverFast: false,
       wslConflictResolverPresentationMode: "gui",
       agentSettings: {},
+      defaultPermissionMode: "ask",
       hiddenModels: {},
       customModels: [],
       disabledAgents: [],

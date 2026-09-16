@@ -94,6 +94,17 @@ describe("Devin detection", () => {
     ]);
   });
 
+  it("uses the bypass permission id advertised by Devin ACP", () => {
+    expect(
+      buildDevinProbeCapabilities({
+        approvalPolicies: [
+          { id: "normal", label: "Normal" },
+          { id: "dangerous", label: "Bypass" },
+        ],
+      }).bypassPermissions,
+    ).toEqual({ approvalPolicy: "dangerous" });
+  });
+
   it("parses JSON and line-oriented model lists", () => {
     expect(parseDevinModels('["opus","swe-1-6-fast"]')).toEqual([
       { id: "opus", label: "Opus" },
@@ -121,6 +132,7 @@ describe("buildDevinArgs", () => {
   it("maps bypass policies to yolo and omits permission-mode in plan", () => {
     expect(permissionModeForConfig(config({ approvalPolicy: "yolo" }))).toBe("yolo");
     expect(permissionModeForConfig(config({ approvalPolicy: "bypassPermissions" }))).toBe("yolo");
+    expect(permissionModeForConfig(config({ approvalPolicy: "bypass" }))).toBe("yolo");
     expect(
       permissionModeForConfig(config({ mode: "plan", approvalPolicy: "yolo" })),
     ).toBeUndefined();
@@ -133,7 +145,13 @@ describe("buildDevinArgs", () => {
   });
 
   it("builds ACP and non-interactive print argv", () => {
-    expect(buildDevinAcpArgs(config({ model: "swe" }))).toEqual(["acp", "--model", "swe"]);
+    expect(buildDevinAcpArgs(config({ model: "swe", approvalPolicy: "yolo" }))).toEqual([
+      "--permission-mode",
+      "yolo",
+      "acp",
+      "--model",
+      "swe",
+    ]);
     expect(buildDevinPrintArgs(config({ model: "opus" }), "summarize")).toEqual([
       "--print",
       "--respect-workspace-trust",

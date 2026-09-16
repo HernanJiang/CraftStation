@@ -1464,6 +1464,7 @@ msgid "Ask each time"
 msgstr "Ask each time"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask for approval"
 msgstr "Ask for approval"
 
@@ -3903,6 +3904,8 @@ msgid "Default new thread"
 msgstr "Default new thread"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Default permissions"
 msgstr "Default permissions"
 
@@ -5453,6 +5456,7 @@ msgstr "Frozen worktree source is not a local branch: {branch}"
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/components/providers/composerControlBuilders.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Full access"
 msgstr "Full access"
 
@@ -10937,6 +10941,14 @@ msgstr "Set or view an experimental goal"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Set shortcut"
 msgstr "Set shortcut"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Set the starting permission level for every supported model and harness."
+msgstr "Set the starting permission level for every supported model and harness."
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
+msgstr "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"

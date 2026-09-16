@@ -156,6 +156,9 @@ export function buildDevinProbeCapabilities(
     : [DEVIN_TERMINAL_AUTH];
   const haveTerminal = authMethods.some((method) => "type" in method && method.type === "terminal");
   const discoveredModels = probe?.models?.length ? probe.models : DEVIN_FALLBACK_MODELS;
+  const advertisedBypassPolicy = probe?.approvalPolicies?.find((policy) =>
+    /^(?:yolo|never|bypass|dangerous|bypassPermissions)$/i.test(policy.id),
+  )?.id;
   return {
     ...defaultDevinCapabilities,
     ...(probe?.models?.length ? { models: probe.models } : {}),
@@ -167,6 +170,9 @@ export function buildDevinProbeCapabilities(
     ...(probe?.thinkingModels ? { thinkingModels: probe.thinkingModels } : {}),
     ...(probe?.modes?.length ? { modes: probe.modes } : {}),
     ...(probe?.approvalPolicies?.length ? { approvalPolicies: probe.approvalPolicies } : {}),
+    ...(advertisedBypassPolicy
+      ? { bypassPermissions: { approvalPolicy: advertisedBypassPolicy } }
+      : {}),
     ...(probe?.slashCommands?.length ? { slashCommands: probe.slashCommands } : {}),
     authMethods: haveTerminal ? authMethods : [...authMethods, DEVIN_TERMINAL_AUTH],
     authLogoutSupported: true,

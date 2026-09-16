@@ -48,6 +48,11 @@ export const cliPickerTargetOptions = [
   { id: "composer", label: msg`Composer` },
 ] as const satisfies readonly LocalizedOption[];
 
+export const defaultPermissionModeOptions = [
+  { id: "ask", label: msg`Ask for approval` },
+  { id: "full-access", label: msg`Full access` },
+] as const satisfies readonly LocalizedOption[];
+
 export const newThreadModeOptions = [
   { id: "page", label: msg`Page` },
   { id: "panel", label: msg`Panel` },

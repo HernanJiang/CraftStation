@@ -86,6 +86,50 @@ describe("resolveProviderDraftConfig fast mode", () => {
   });
 });
 
+describe("resolveProviderDraftConfig global permission default", () => {
+  const permissionAgent = agentWith({
+    approvalPolicies: [
+      { id: "normal", label: "Normal" },
+      { id: "accept-edits", label: "Accept Edits" },
+      { id: "yolo", label: "Bypass" },
+    ],
+    sandboxModes: [
+      { id: "workspace-write", label: "Workspace Write" },
+      { id: "danger-full-access", label: "Full Access" },
+    ],
+    defaultApprovalPolicy: "accept-edits",
+    defaultSandboxMode: "workspace-write",
+    bypassPermissions: {
+      approvalPolicy: "yolo",
+      sandboxMode: "danger-full-access",
+    },
+  });
+
+  it("overrides saved provider permissions with the global ask default", () => {
+    expect(
+      resolveProviderDraftConfig(
+        permissionAgent,
+        {
+          model: "plain",
+          approvalPolicy: "yolo",
+          sandboxMode: "danger-full-access",
+        },
+        "ask",
+      ),
+    ).toMatchObject({ approvalPolicy: "normal", sandboxMode: "workspace-write" });
+  });
+
+  it("maps the global full-access default through each provider's bypass declaration", () => {
+    expect(
+      resolveProviderDraftConfig(
+        permissionAgent,
+        { model: "plain", approvalPolicy: "normal", sandboxMode: "workspace-write" },
+        "full-access",
+      ),
+    ).toMatchObject({ approvalPolicy: "yolo", sandboxMode: "danger-full-access" });
+  });
+});
+
 describe("resolveFastValue", () => {
   // AI helpers resolve `fast` through this helper, so its default stays opt-in
   // and background work never spends fast requests on its own.
@@ -133,9 +177,9 @@ describe("withPreferredModel", () => {
 
   it("keeps a recipe model that is absent from the harness catalog even without an account id", () => {
     const injected = withPreferredModel(capabilities, "gemini-3.8-flash");
-    expect(resolveProviderDraftConfig(agentWith(injected), { model: "gemini-3.8-flash" }).model).toBe(
-      "gemini-3.8-flash",
-    );
+    expect(
+      resolveProviderDraftConfig(agentWith(injected), { model: "gemini-3.8-flash" }).model,
+    ).toBe("gemini-3.8-flash");
   });
 });
 

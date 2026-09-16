@@ -9,6 +9,7 @@ import {
   normalizeTopShortcutOrder,
   WINDOWS_SHELL_ARGUMENTS_MAX,
   type CliPickerTarget,
+  type DefaultPermissionMode,
   type PreventSleep,
   type ProviderModelPreference,
   type SidebarShortcutId,
@@ -85,6 +86,7 @@ interface SharedSettingsState extends SharedSettings {
   ) => void;
   setWslConflictResolverPresentationMode: (mode: ThreadPresentationMode) => void;
   setAgentSetting: (agentKind: string, key: string, value: boolean | string) => void;
+  setDefaultPermissionMode: (value: DefaultPermissionMode) => void;
   setAgentSecretSetting: (agentKind: string, key: string, value: string) => Promise<boolean>;
   setModelHidden: (agentKind: string, modelId: string, hidden: boolean) => void;
   setHiddenModels: (agentKind: string, hiddenIds: string[]) => void;
@@ -442,6 +444,11 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     const current = get().agentSettings;
     const agentValues = { ...current[agentKind], [key]: value };
     set({ agentSettings: { ...current, [agentKind]: agentValues } });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setDefaultPermissionMode: (defaultPermissionMode) => {
+    if (get().defaultPermissionMode === defaultPermissionMode) return;
+    set({ defaultPermissionMode });
     persistSettings(selectSharedSettings(get()));
   },
   setAgentSecretSetting: async (agentKind, key, value) => {
@@ -1060,6 +1067,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     wslConflictResolverFast: state.wslConflictResolverFast,
     wslConflictResolverPresentationMode: state.wslConflictResolverPresentationMode,
     agentSettings: state.agentSettings,
+    defaultPermissionMode: state.defaultPermissionMode,
     hiddenModels: state.hiddenModels,
     shownModels: state.shownModels,
     customModels: state.customModels,

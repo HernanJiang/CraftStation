@@ -1464,6 +1464,7 @@ msgid "Ask each time"
 msgstr "Demander à chaque fois"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask for approval"
 msgstr "Demander une approbation"
 
@@ -3903,6 +3904,8 @@ msgid "Default new thread"
 msgstr "Nouveau fil de discussion par défaut"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Default permissions"
 msgstr "Autorisations par défaut"
 
@@ -5453,6 +5456,7 @@ msgstr "La source d'arbre de travail figée n'est pas une branche locale : {bran
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/components/providers/composerControlBuilders.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Full access"
 msgstr "Accès complet"
 
@@ -10936,6 +10940,14 @@ msgstr "Définir ou afficher un objectif expérimental"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Set shortcut"
 msgstr "Définir un raccourci"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Set the starting permission level for every supported model and harness."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
+msgstr ""
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"

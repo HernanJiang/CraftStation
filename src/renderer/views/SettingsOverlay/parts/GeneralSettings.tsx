@@ -6,9 +6,13 @@ import type { AiContentLanguage, LocaleSetting } from "@/shared/locale";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { aiLanguageOptions, localeOptions } from "@/renderer/i18n/locales";
 import { LightballTabs, Select, TextArea, ToggleSwitch } from "@/renderer/components/common";
-import type { PreventSleep } from "@/shared/settings";
+import type { DefaultPermissionMode, PreventSleep } from "@/shared/settings";
 import { SettingRow, SettingsPage } from "./SettingsForm";
-import { newThreadModeOptions, useLocalizedOptions } from "./settingsOptions";
+import {
+  defaultPermissionModeOptions,
+  newThreadModeOptions,
+  useLocalizedOptions,
+} from "./settingsOptions";
 import { SidebarShortcutsSelector } from "./SidebarShortcutsSelector";
 
 export function GeneralSettings() {
@@ -19,6 +23,8 @@ export function GeneralSettings() {
   const setGitTextLanguage = useSharedSettings((state) => state.setGitTextLanguage);
   const customGlobalPrompt = useSharedSettings((state) => state.customGlobalPrompt);
   const setCustomGlobalPrompt = useSharedSettings((state) => state.setCustomGlobalPrompt);
+  const defaultPermissionMode = useSharedSettings((state) => state.defaultPermissionMode);
+  const setDefaultPermissionMode = useSharedSettings((state) => state.setDefaultPermissionMode);
   const preventSleep = useSharedSettings((state) => state.preventSleep);
   const setPreventSleep = useSharedSettings((state) => state.setPreventSleep);
   const closeToTray = useSharedSettings((state) => state.closeToTray);
@@ -39,6 +45,7 @@ export function GeneralSettings() {
   const windows = !remote && isWindows();
 
   const newThreadOptions = useLocalizedOptions(newThreadModeOptions);
+  const permissionOptions = useLocalizedOptions(defaultPermissionModeOptions);
   const resolvedLocaleOptions = localeOptions.map((option) => ({
     id: option.id,
     label: typeof option.label === "string" ? option.label : t(option.label),
@@ -91,8 +98,8 @@ export function GeneralSettings() {
         title={t`Custom prompt`}
         description={
           <Trans>
-            Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank
-            to disable. Always visible here — nothing is injected implicitly.
+            Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to
+            disable. Always visible here — nothing is injected implicitly.
           </Trans>
         }
       >
@@ -103,6 +110,24 @@ export function GeneralSettings() {
           placeholder={t`e.g. Always reply in Simplified Chinese. Prefer concise answers with code first.`}
           value={customGlobalPrompt}
           onChange={(e) => setCustomGlobalPrompt(e.target.value)}
+        />
+      </SettingRow>
+
+      <SettingRow
+        anchorId="general.defaultPermissions"
+        title={t`Default permissions`}
+        description={t`Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread.`}
+      >
+        <Select
+          aria-label={t`Default permissions`}
+          className="w-[180px] shrink-0"
+          options={permissionOptions}
+          value={defaultPermissionMode}
+          onChange={(value) => {
+            startTransition(() => {
+              setDefaultPermissionMode(value as DefaultPermissionMode);
+            });
+          }}
         />
       </SettingRow>
 

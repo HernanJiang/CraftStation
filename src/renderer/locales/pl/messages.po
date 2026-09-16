@@ -1464,6 +1464,7 @@ msgid "Ask each time"
 msgstr "Zapytaj za każdym razem"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask for approval"
 msgstr "Poproś o zatwierdzenie"
 
@@ -3903,6 +3904,8 @@ msgid "Default new thread"
 msgstr "Domyślny nowy wątek"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Default permissions"
 msgstr "Domyślne uprawnienia"
 
@@ -5453,6 +5456,7 @@ msgstr "Zamrożone źródło drzewa roboczego nie jest lokalną gałęzią: {bra
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/components/providers/composerControlBuilders.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Full access"
 msgstr "Pełny dostęp"
 
@@ -10937,6 +10941,14 @@ msgstr "Ustaw lub wyświetl cel eksperymentalny"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Set shortcut"
 msgstr "Ustaw skrót"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Set the starting permission level for every supported model and harness."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
+msgstr ""
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"

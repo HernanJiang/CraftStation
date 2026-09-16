@@ -1468,6 +1468,7 @@ msgid "Ask each time"
 msgstr "每次都询问"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask for approval"
 msgstr "请求批准"
 
@@ -3907,6 +3908,8 @@ msgid "Default new thread"
 msgstr "默认新线程"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Default permissions"
 msgstr "默认权限"
 
@@ -5457,6 +5460,7 @@ msgstr "冻结的工作树源不是本地分支：{branch}"
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/components/providers/composerControlBuilders.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Full access"
 msgstr "完全访问权限"
 
@@ -10944,6 +10948,14 @@ msgstr "设置或查看实验目标"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Set shortcut"
 msgstr "设置快捷键"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Set the starting permission level for every supported model and harness."
+msgstr "设置所有受支持模型和 Harness 的初始权限级别。"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
+msgstr "设置所有受支持模型和 Harness 的初始权限级别。开始线程前仍可在输入区中更改。"
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"

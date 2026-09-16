@@ -61,6 +61,9 @@ export const providerModelPreferenceSchema = z.object({
 });
 export type ProviderModelPreference = z.infer<typeof providerModelPreferenceSchema>;
 
+export const defaultPermissionModeSchema = z.enum(["ask", "full-access"]);
+export type DefaultPermissionMode = z.infer<typeof defaultPermissionModeSchema>;
+
 export const MAX_CROSSAGENT_ROUTING_OVERRIDES = 100;
 export const MAX_CROSSAGENT_SELECTION_VALUE_LENGTH = 256;
 
@@ -342,6 +345,8 @@ export const sharedSettingsSchema = z.object({
   wslConflictResolverPresentationMode: threadPresentationModeSchema,
   /** Per-agent settings keyed by agent kind, then setting key. */
   agentSettings: z.record(z.string(), z.record(z.string(), z.union([z.boolean(), z.string()]))),
+  /** Permission posture applied to every provider/model when a draft is opened. */
+  defaultPermissionMode: defaultPermissionModeSchema,
   /** Per-agent hidden model IDs keyed by agent kind. */
   hiddenModels: z.record(z.string(), z.array(z.string())),
   /**
@@ -753,6 +758,7 @@ export const defaultSharedSettings: SharedSettings = {
   wslConflictResolverFast: false,
   wslConflictResolverPresentationMode: "gui",
   agentSettings: {},
+  defaultPermissionMode: "ask",
   hiddenModels: {},
   shownModels: {},
   customModels: [],

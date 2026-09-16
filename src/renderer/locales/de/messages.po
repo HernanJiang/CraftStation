@@ -1464,6 +1464,7 @@ msgid "Ask each time"
 msgstr "Fragen Sie jedes Mal"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask for approval"
 msgstr "Genehmigung anfordern"
 
@@ -3903,6 +3904,8 @@ msgid "Default new thread"
 msgstr "Standardmäßiger neuer Thread"
 
 #: src/renderer/components/providers/codex/index.tsx
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Default permissions"
 msgstr "Standardberechtigungen"
 
@@ -5453,6 +5456,7 @@ msgstr "Die eingefrorene Worktree-Quelle ist kein lokaler Branch: {branch}"
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/components/providers/composerControlBuilders.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Full access"
 msgstr "Voller Zugriff"
 
@@ -10937,6 +10941,14 @@ msgstr "Legen Sie ein experimentelles Ziel fest oder zeigen Sie es an"
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Set shortcut"
 msgstr "Tastenkürzel festlegen"
+
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
+msgid "Set the starting permission level for every supported model and harness."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
+msgstr ""
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"

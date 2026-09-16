@@ -53,6 +53,10 @@ vi.mock("@/renderer/actions/experimentActions", () => ({
   launchExperiment: launchExperimentMock,
 }));
 
+vi.mock("@/renderer/state/usageRecorder", () => ({
+  recordCraftModeUse: vi.fn<() => void>(),
+}));
+
 import "@/renderer/components/providers/bootstrap";
 import { ThreadDraftView } from "./ThreadDraftView";
 
@@ -430,6 +434,7 @@ describe("ThreadDraftView", () => {
       lastPresentationModeByAgent: {},
       enabledMcpServers: {},
       disabledBuiltInMcpServers: {},
+      defaultPermissionMode: "ask",
       sharedSettingsHydrated: true,
     });
     useAppStore.setState({ pendingDraftWorktreeSelections: {} });
@@ -451,6 +456,34 @@ describe("ThreadDraftView", () => {
     expect(document.querySelector("[data-draft-context-bar]")).toBeInTheDocument();
     // 用量/额度不再常驻显示：旧指标行已移除，详情收敛进工具栏的悬浮圆环。
     expect(document.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
+  });
+
+  it("applies the global full-access default to a new draft launch", async () => {
+    const onStart = vi.fn<(input: unknown) => void>();
+    useSharedSettings.setState({ defaultPermissionMode: "full-access" });
+
+    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />);
+
+    await waitFor(() => {
+      const props = composerSpy.mock.lastCall?.[0] as {
+        controls: Array<{ iconKind?: string; value?: string }>;
+      };
+      expect(props.controls.find((control) => control.iconKind === "permission")?.value).toBe(
+        "full-access",
+      );
+    });
+
+    fireEvent.click(screen.getByText("set-prompt"));
+    fireEvent.click(screen.getByText("submit"));
+
+    expect(onStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          approvalPolicy: "never",
+          sandboxMode: "danger-full-access",
+        }),
+      }),
+    );
   });
 
   it("keeps no Branch/Worktree Git entry above the draft input (the capsule owns git)", () => {
@@ -616,9 +649,7 @@ describe("ThreadDraftView", () => {
 
   it("starts the session and binds the goal when the draft submits /goal + Prompt", async () => {
     const onStart = vi.fn<(input: unknown) => void>();
-    render(
-      <ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />,
-    );
+    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />);
 
     fireEvent.click(screen.getByText("set-goal-prompt"));
     fireEvent.click(screen.getByText("submit"));
@@ -634,9 +665,7 @@ describe("ThreadDraftView", () => {
 
   it("keeps the text and starts nothing when the draft submits a bare /goal", async () => {
     const onStart = vi.fn<(input: unknown) => void>();
-    render(
-      <ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />,
-    );
+    render(<ThreadDraftView project={project} agentStatuses={[codexStatus]} onStart={onStart} />);
 
     fireEvent.click(screen.getByText("set-bare-goal-prompt"));
     fireEvent.click(screen.getByText("submit"));
@@ -829,7 +858,7 @@ describe("ThreadDraftView", () => {
       const providerModel = props.controls.find((c) => c.kind === "provider-model");
       expect(providerModel?.currentAgentKind).toBe("gemini");
       expect(providerModel?.currentModel).toBe("auto");
-      expect(props.controls.some((control) => control.value === "never")).toBe(true);
+      expect(props.controls.some((control) => control.value === "default")).toBe(true);
     });
   });
 
@@ -1616,7 +1645,7 @@ describe("ThreadDraftView", () => {
     });
   });
 
-  it("defaults synthetic generic ACP permissions to auto approve", async () => {
+  it("applies the global ask default to synthetic generic ACP permissions", async () => {
     const onStart = vi.fn<(input: unknown) => void>();
 
     render(
@@ -1631,10 +1660,10 @@ describe("ThreadDraftView", () => {
           isSelected?: boolean;
         }>;
       };
-      const permission = props.controls.find((control) => control.label === "Auto Approve");
+      const permission = props.controls.find((control) => control.label === "Supervised");
       expect(permission).toMatchObject({
         kind: "toggle",
-        isSelected: true,
+        isSelected: false,
       });
     });
 
@@ -1646,7 +1675,7 @@ describe("ThreadDraftView", () => {
       config: {
         model: "model-a",
         mode: "agent",
-        approvalPolicy: "never",
+        approvalPolicy: "default",
       },
       presentationMode: "gui",
       prompt: "hello world",
@@ -2219,7 +2248,7 @@ describe("ThreadDraftView", () => {
       const nextProviderModel = props.controls.find((c) => c.kind === "provider-model");
       expect(nextProviderModel?.currentAgentKind).toBe("claude");
       expect(nextProviderModel?.currentModel).toBe("claude-opus-4-7");
-      expect(props.controls.some((control) => control.value === "auto")).toBe(true);
+      expect(props.controls.some((control) => control.value === "default")).toBe(true);
     });
 
     const claudeRenderModels = (

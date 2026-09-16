@@ -750,6 +750,7 @@ const remoteAgentSettingsSchema = sharedSettingsSchema.shape.agentSettings.trans
 export const remoteSettingsSchema = sharedSettingsSchema
   .pick({
     agentSettings: true,
+    defaultPermissionMode: true,
     hiddenModels: true,
     disabledAgents: true,
     providerOrder: true,

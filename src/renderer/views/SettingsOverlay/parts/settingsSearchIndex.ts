@@ -73,6 +73,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
   },
   {
     section: "general",
+    anchor: "general.defaultPermissions",
+    title: msg`Default permissions`,
+    description: msg`Set the starting permission level for every supported model and harness.`,
+    keywords: "permissions approval request ask full access model harness default",
+  },
+  {
+    section: "general",
     anchor: "general.homeScope",
     title: msg`Home scope`,
     description: msg`Show a projectless Home scope for OS-level agent sessions.`,

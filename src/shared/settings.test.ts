@@ -8,12 +8,23 @@ import {
 } from "./settings";
 
 describe("shared settings defaults", () => {
+  it("persists one global default permission mode for every model", () => {
+    expect(defaultSharedSettings.defaultPermissionMode).toBe("ask");
+    expect(normalizeSharedSettings({}).defaultPermissionMode).toBe("ask");
+    expect(
+      normalizeSharedSettings({ defaultPermissionMode: "full-access" }).defaultPermissionMode,
+    ).toBe("full-access");
+    expect(
+      normalizeSharedSettings({ defaultPermissionMode: "unsupported" }).defaultPermissionMode,
+    ).toBe("ask");
+  });
+
   it("leaves the custom global prompt blank by default", () => {
     expect(defaultSharedSettings.customGlobalPrompt).toBe("");
     expect(normalizeSharedSettings({}).customGlobalPrompt).toBe("");
-    expect(
-      normalizeSharedSettings({ customGlobalPrompt: "be concise" }).customGlobalPrompt,
-    ).toBe("be concise");
+    expect(normalizeSharedSettings({ customGlobalPrompt: "be concise" }).customGlobalPrompt).toBe(
+      "be concise",
+    );
   });
 
   it("normalizes sidebar shortcut order without duplicates or omissions", () => {
