@@ -979,7 +979,7 @@ describe("startThreadFromDraft host transport", () => {
     expect(mocks.runWorktreeSetupScript).not.toHaveBeenCalled();
   });
 
-  it("remaps an OpenCode Muse Spark Auto draft onto Muse Code even without muse.exe", async () => {
+  it("keeps an OpenCode Muse Spark Auto draft on OpenCode", async () => {
     await startThreadFromDraft(localProject, {
       agentKind: "opencode",
       config: { model: "opencode-go/muse-spark-1.3-contributor" },
@@ -989,20 +989,18 @@ describe("startThreadFromDraft host transport", () => {
 
     expect(mocks.appState.createThread).toHaveBeenCalledWith(
       expect.objectContaining({
-        agentKind: "muse",
+        agentKind: "opencode",
         config: expect.objectContaining({
           model: "opencode-go/muse-spark-1.3-contributor",
-          sourceProviderKind: "opencode",
         }),
         presentationMode: "gui",
       }),
     );
     expect(mocks.bridge.startThread).toHaveBeenCalledWith(
       expect.objectContaining({
-        agentKind: "muse",
+        agentKind: "opencode",
         config: expect.objectContaining({
           model: "opencode-go/muse-spark-1.3-contributor",
-          sourceProviderKind: "opencode",
         }),
         presentationMode: "gui",
       }),
@@ -1105,7 +1103,7 @@ describe("startThreadFromDraft host transport", () => {
     );
   });
 
-  it("remaps a third-party MOS Spark Auto draft onto Muse without muse login", async () => {
+  it("keeps a third-party MOS Spark Auto draft on OpenCode", async () => {
     useUsageAccountsStore.getState().setNextSessionAccount("openai-compatible:acct-1");
 
     await startThreadFromDraft(localProject, {
@@ -1117,10 +1115,9 @@ describe("startThreadFromDraft host transport", () => {
 
     expect(mocks.appState.createThread).toHaveBeenCalledWith(
       expect.objectContaining({
-        agentKind: "muse",
+        agentKind: "opencode",
         config: expect.objectContaining({
           model: "muse-spark-1.3",
-          sourceProviderKind: "opencode",
         }),
         presentationMode: "gui",
       }),

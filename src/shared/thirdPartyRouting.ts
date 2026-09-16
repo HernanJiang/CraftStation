@@ -1,6 +1,5 @@
 import {
   applyAutoDeepseekHarnessLaunch,
-  applyAutoMuseHarnessLaunch,
   modelProviderPrefix,
   preferredHarnessForCompatibilityFamily,
   resolveCompatibilityFamily,
@@ -50,7 +49,8 @@ function harnessIsInstalled(kind: string, installed: readonly string[] | undefin
  *
  * Prefer the model's native Harness when the user has it installed:
  * ChatGPT → Codex, Kimi → Kimi Code, Grok → Grok Build, DeepSeek → DeepSeek
- * Harness, Muse → Muse. Gemini's native Antigravity cannot consume an
+ * Harness. Muse stays on OpenCode by default because Muse Code is WSL-only on
+ * Windows. Gemini's native Antigravity cannot consume an
  * OpenAI-compatible Base URL, so it always falls through. Missing vendor or
  * missing install → OpenCode. The sticky openai-compatible account is always
  * the credential — never a subscription pool. Native catalog picks have no
@@ -63,9 +63,6 @@ export function resolveThirdPartyHarnessForModel(
   const family = resolveCompatibilityFamily(modelId);
   const preferred = preferredHarnessForCompatibilityFamily(family);
   if (preferred === "antigravity") return "opencode";
-  // Muse Code is WSL-only on Windows. Do not fall back to OpenCode just
-  // because `muse.exe` is missing from the native install list.
-  if (preferred === "muse") return "muse";
   if (harnessIsInstalled(preferred, installed)) return preferred;
   return harnessIsInstalled("opencode", installed) ? "opencode" : preferred;
 }
@@ -90,7 +87,7 @@ export interface AutoModelBinding {
 
 /**
  * Picker / composer identity is the catalog channel, not the spawn Harness.
- * After Auto Mode remaps Command Code → DeepSeek Harness (or OpenCode → Muse),
+ * After Auto Mode remaps Command Code → DeepSeek Harness,
  * `sourceProviderKind` keeps the row the user actually picked.
  */
 export function catalogProviderKind(input: {
@@ -104,7 +101,7 @@ export function catalogProviderKind(input: {
 /**
  * Bottom-right composer identity.
  *
- * Auto remap (Command Code → DeepSeek, OpenCode Muse Spark → Muse) keeps the
+ * Auto remap (Command Code → DeepSeek) keeps the
  * catalog row the user picked. An explicit recipe / 合成台 composition
  * (Antigravity Gemini onto OpenCode) keeps the spawn Harness — that is the
  * process the user composed, not the catalog the model card came from.
@@ -214,7 +211,7 @@ export function resolveAutoModelBinding(
  * - Third-party openai-compatible picks rewrite onto the model's native
  *   Harness when that Harness is installed (ChatGPT → Codex, Kimi/Grok/
  *   DeepSeek → their CLI, Muse → Muse, otherwise OpenCode).
- * - OpenCode catalog Muse Spark remaps onto Muse Code when installed.
+ * - OpenCode catalog Muse Spark stays on OpenCode; Muse Code is an explicit Recipe.
  * - Command Code DeepSeek remaps onto DeepSeek Harness when installed.
  * 合成台 / explicit recipes skip this helper. The returned `agentKind` is
  * the process that will actually spawn. UI must display that Harness, never
@@ -238,18 +235,6 @@ export function applyThirdPartyPickerSelection(
       agentKind: harness,
       sourceProviderKind: pick.sourceProviderKind ?? pick.agentKind,
       ...(harness === "muse" ? { presentationMode: "gui" as const } : {}),
-    };
-  }
-  const muse = applyAutoMuseHarnessLaunch(
-    { agentKind: pick.agentKind, model: pick.model },
-    harnessIsInstalled("muse", installed),
-  );
-  if (muse.agentKind !== pick.agentKind) {
-    return {
-      ...pick,
-      agentKind: "muse",
-      sourceProviderKind: pick.sourceProviderKind ?? pick.agentKind,
-      presentationMode: "gui",
     };
   }
   const deepseek = applyAutoDeepseekHarnessLaunch(

@@ -227,7 +227,8 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
       version: "audit-2026-09",
       vendor: "muse",
       source: "builtin",
-      description: "Meta Muse Spark model family paired with the official Muse Code Harness.",
+      description:
+        "Meta Muse Spark model family using OpenCode by default, with Muse Code available as an explicit Recipe.",
       tags: ["coding", "muse", "meta"],
       compatibilityStatus: "NATIVE",
     },

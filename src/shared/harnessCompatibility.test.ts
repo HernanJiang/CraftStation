@@ -2,14 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   COMPATIBILITY_HARNESS_LABELS,
   applyAutoDeepseekHarnessLaunch,
-  applyAutoMuseHarnessLaunch,
   isNativeModelHarnessPair,
   preferredHarnessForCompatibilityFamily,
   resolveAutoCompatibilityRoute,
   resolveCompatibilityFamily,
   resolveHarnessCompatibility,
   shouldAutoRemapToDeepseekHarness,
-  shouldAutoRemapToMuseHarness,
   stripModelProviderPrefix,
 } from "./harnessCompatibility";
 
@@ -47,6 +45,7 @@ describe("harnessCompatibility", () => {
       const result = resolveAutoCompatibilityRoute({
         providerId: "muse",
         modelId: "muse-spark-1.2",
+        harnessId: "muse",
         nativeCompatible: true,
         upstreamProtocol: "responses",
         cpaAvailable: true,
@@ -54,7 +53,7 @@ describe("harnessCompatibility", () => {
       expect(result.route).toBe("native");
       expect(result.requiresCPA).toBe(false);
       expect(result.modelFamily).toBe("muse");
-      expect(result.affinityHarness).toBe("muse");
+      expect(result.affinityHarness).toBe("opencode");
     });
 
     it("openai-compatible provider is never a native pair", () => {
@@ -78,7 +77,7 @@ describe("harnessCompatibility", () => {
       "openai-compatible/muse-spark-1.3",
     ])("classifies %s as muse family", (modelId) => {
       expect(resolveCompatibilityFamily(modelId)).toBe("muse");
-      expect(preferredHarnessForCompatibilityFamily("muse")).toBe("muse");
+      expect(preferredHarnessForCompatibilityFamily("muse")).toBe("opencode");
     });
 
     it("strips catalog provider prefixes", () => {
@@ -90,43 +89,8 @@ describe("harnessCompatibility", () => {
       );
     });
 
-    it("remaps OpenCode Go Muse Spark onto Muse Code even when muse.exe is missing", () => {
-      expect(
-        applyAutoMuseHarnessLaunch(
-          { agentKind: "opencode", model: "opencode-go/muse-spark-1.3-contributor" },
-          false,
-        ),
-      ).toEqual({ agentKind: "muse", model: "opencode-go/muse-spark-1.3-contributor" });
-    });
-
-    it("remaps OpenCode Go Muse Spark onto Muse Code in Auto mode", () => {
-      expect(
-        shouldAutoRemapToMuseHarness({
-          agentKind: "opencode",
-          modelId: "opencode-go/muse-spark-1.3-contributor",
-        }),
-      ).toBe(true);
-      expect(
-        applyAutoMuseHarnessLaunch(
-          { agentKind: "opencode", model: "opencode-go/muse-spark-1.3-contributor" },
-          true,
-        ),
-      ).toEqual({ agentKind: "muse", model: "opencode-go/muse-spark-1.3-contributor" });
-    });
-
-    it("does not remap a native Muse launch", () => {
-      expect(shouldAutoRemapToMuseHarness({ agentKind: "muse", modelId: "muse-spark-1.2" })).toBe(
-        false,
-      );
-    });
-
-    it("does not remap Command Code Muse onto Muse Code (no Responses wire yet)", () => {
-      expect(
-        shouldAutoRemapToMuseHarness({
-          agentKind: "commandcode",
-          modelId: "meta/muse-spark-1.3",
-        }),
-      ).toBe(false);
+    it("keeps Muse family affinity on OpenCode in Auto mode", () => {
+      expect(preferredHarnessForCompatibilityFamily("muse")).toBe("opencode");
     });
 
     it("remaps Command Code DeepSeek onto dsh in Auto mode", () => {
@@ -163,7 +127,7 @@ describe("harnessCompatibility", () => {
   });
 
   describe("OpenCode Go Muse default (gateway-direct)", () => {
-    it("routes opencode-go muse-spark through Muse Harness without translation", () => {
+    it("routes opencode-go muse-spark through OpenCode without translation", () => {
       const result = resolveAutoCompatibilityRoute({
         providerId: "opencode-go",
         modelId: "opencode-go/muse-spark-1.3-contributor",
@@ -172,7 +136,7 @@ describe("harnessCompatibility", () => {
         cpaAvailable: true,
       });
       expect(result.modelFamily).toBe("muse");
-      expect(result.harnessId).toBe("muse");
+      expect(result.harnessId).toBe("opencode");
       expect(result.route).toBe("gateway-direct");
       expect(result.requiresCPA).toBe(true);
       expect(result.translation).toBe(false);
@@ -181,8 +145,8 @@ describe("harnessCompatibility", () => {
     });
   });
 
-  describe("chat-only Muse (cpa-translate)", () => {
-    it("translates Responses downstream to Chat Completions upstream", () => {
+  describe("chat-only Muse through OpenCode", () => {
+    it("uses OpenCode Chat Completions support without translation", () => {
       const result = resolveAutoCompatibilityRoute({
         providerId: "custom-muse-api",
         modelId: "muse-spark-1.3-contributor",
@@ -190,11 +154,11 @@ describe("harnessCompatibility", () => {
         upstreamProtocol: "chat-completions",
         cpaAvailable: true,
       });
-      expect(result.harnessId).toBe("muse");
-      expect(result.route).toBe("cpa-translate");
+      expect(result.harnessId).toBe("opencode");
+      expect(result.route).toBe("gateway-direct");
       expect(result.requiresCPA).toBe(true);
-      expect(result.translation).toBe(true);
-      expect(result.downstreamProtocol).toBe("responses");
+      expect(result.translation).toBe(false);
+      expect(result.downstreamProtocol).toBe("chat-completions");
     });
   });
 
@@ -277,13 +241,13 @@ describe("harnessCompatibility", () => {
       const result = resolveAutoCompatibilityRoute({
         providerId: "opencode-go",
         modelId: "muse-spark-1.3-contributor",
-        harnessId: "opencode",
+        harnessId: "muse",
         nativeCompatible: false,
         upstreamProtocol: "responses",
         cpaAvailable: true,
       });
-      expect(result.harnessId).toBe("opencode");
-      expect(result.affinityHarness).toBe("muse");
+      expect(result.harnessId).toBe("muse");
+      expect(result.affinityHarness).toBe("opencode");
       expect(result.route).toBe("gateway-direct");
     });
   });

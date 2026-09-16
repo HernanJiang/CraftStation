@@ -139,7 +139,7 @@ describe("thirdPartyRouting", () => {
     ).toBeUndefined();
   });
 
-  it("keeps a remapped Muse launch on the original openai-compatible account", () => {
+  it("keeps an explicit Muse Recipe launch on the original openai-compatible account", () => {
     expect(
       resolveThirdPartyAccountForLaunch({
         agentKind: "muse",
@@ -198,7 +198,7 @@ describe("third-party picker harness", () => {
     expect(resolveThirdPartyHarnessForModel("chatgpt-4o")).toBe("codex");
     expect(resolveThirdPartyHarnessForModel("glm-5.3-flash-C")).toBe("opencode");
     expect(resolveThirdPartyHarnessForModel("z-ai/glm-5.3-flash")).toBe("opencode");
-    expect(resolveThirdPartyHarnessForModel("muse-spark-1.3-contributor")).toBe("muse");
+    expect(resolveThirdPartyHarnessForModel("muse-spark-1.3-contributor")).toBe("opencode");
     expect(resolveThirdPartyHarnessForModel("k3-256k")).toBe("kimi");
     expect(resolveThirdPartyHarnessForModel("grok-4.6")).toBe("grok");
     expect(resolveThirdPartyHarnessForModel("deepseek-v4-flash")).toBe("deepseek");
@@ -216,7 +216,7 @@ describe("third-party picker harness", () => {
       "deepseek",
     );
     expect(resolveThirdPartyHarnessForModel("muse-spark-1.3-contributor", ["opencode"])).toBe(
-      "muse",
+      "opencode",
     );
   });
 
@@ -285,7 +285,7 @@ describe("third-party picker harness", () => {
     });
   });
 
-  it("remaps an OpenCode catalog Muse Spark pick onto Muse Code", () => {
+  it("keeps an authenticated OpenCode catalog Muse Spark pick on OpenCode", () => {
     expect(
       applyThirdPartyPickerSelection(
         {
@@ -296,15 +296,13 @@ describe("third-party picker harness", () => {
         ["opencode", "muse"],
       ),
     ).toEqual({
-      agentKind: "muse",
+      agentKind: "opencode",
       model: "opencode-go/muse-spark-1.3-contributor",
       accountId: "opencode:zhipu",
-      sourceProviderKind: "opencode",
-      presentationMode: "gui",
     });
   });
 
-  it("remaps OpenCode Muse Spark onto Muse Code even when native muse.exe is missing", () => {
+  it("keeps OpenCode Muse Spark on OpenCode when native muse.exe is missing", () => {
     expect(
       applyThirdPartyPickerSelection(
         {
@@ -315,11 +313,9 @@ describe("third-party picker harness", () => {
         ["opencode"],
       ),
     ).toEqual({
-      agentKind: "muse",
+      agentKind: "opencode",
       model: "opencode-go/muse-spark-1.3-contributor",
       accountId: "opencode:zhipu",
-      sourceProviderKind: "opencode",
-      presentationMode: "gui",
     });
   });
 
@@ -368,7 +364,7 @@ describe("third-party picker harness", () => {
     ).toEqual({ agentKind: "commandcode", model: "meta/muse-spark-1.3" });
   });
 
-  it("remaps an OpenCode catalog Muse Spark pick onto Muse Code", () => {
+  it("keeps an OpenCode catalog Muse Spark pick on OpenCode", () => {
     expect(
       applyThirdPartyPickerSelection(
         {
@@ -379,10 +375,9 @@ describe("third-party picker harness", () => {
         ["opencode", "muse"],
       ),
     ).toEqual({
-      agentKind: "muse",
+      agentKind: "opencode",
       model: "opencode-go/muse-spark-1.3-contributor",
       presentationMode: "gui",
-      sourceProviderKind: "opencode",
     });
   });
 
@@ -394,9 +389,9 @@ describe("third-party picker harness", () => {
         sourceProviderKind: "commandcode",
       }),
     ).toBe("commandcode");
-    expect(
-      catalogProviderKind({ agentKind: "deepseek", sourceProviderKind: "commandcode" }),
-    ).toBe("commandcode");
+    expect(catalogProviderKind({ agentKind: "deepseek", sourceProviderKind: "commandcode" })).toBe(
+      "commandcode",
+    );
     expect(
       foreignAcpModelId({
         model: "deepseek/deepseek-v4.1-flash",
@@ -415,10 +410,10 @@ describe("third-party picker harness", () => {
     expect(foreignAcpModelId({ model: "gpt-5.6-sol" })).toBe("gpt-5.6-sol");
     expect(catalogProviderKind({ agentKind: "commandcode" })).toBe("commandcode");
     expect(
-      resolveAutoModelBinding(
-        { agentKind: "commandcode", model: "deepseek/deepseek-v4.1-flash" },
-        ["commandcode", "deepseek"],
-      ),
+      resolveAutoModelBinding({ agentKind: "commandcode", model: "deepseek/deepseek-v4.1-flash" }, [
+        "commandcode",
+        "deepseek",
+      ]),
     ).toEqual({
       harnessId: "deepseek",
       providerId: "commandcode",
@@ -430,7 +425,7 @@ describe("third-party picker harness", () => {
         ["opencode", "muse"],
       ),
     ).toEqual({
-      harnessId: "muse",
+      harnessId: "opencode",
       providerId: "opencode",
       providerModelId: "opencode-go/muse-spark-1.3-contributor",
     });
@@ -444,9 +439,9 @@ describe("third-party picker harness", () => {
         sourceProviderKind: "antigravity",
       }),
     ).toBe("opencode");
-    expect(
-      catalogProviderKind({ agentKind: "opencode", sourceProviderKind: "antigravity" }),
-    ).toBe("antigravity");
+    expect(catalogProviderKind({ agentKind: "opencode", sourceProviderKind: "antigravity" })).toBe(
+      "antigravity",
+    );
   });
 
   it("does not rewrite a native subscription pick", () => {
@@ -518,8 +513,8 @@ describe("model catalog channel", () => {
     expect(isForeignCatalogModelForHarness("opencode/big-pickle", "opencode")).toBe(false);
     expect(isForeignCatalogModelForHarness("opencode/big-pickle", "muse")).toBe(true);
     expect(isForeignCatalogModelForHarness(undefined, "muse")).toBe(false);
-    expect(isForeignCatalogModelForHarness("opencode-go/muse-spark-1.3-contributor", undefined)).toBe(
-      false,
-    );
+    expect(
+      isForeignCatalogModelForHarness("opencode-go/muse-spark-1.3-contributor", undefined),
+    ).toBe(false);
   });
 });

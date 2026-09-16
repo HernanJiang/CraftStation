@@ -69,7 +69,7 @@ D:\Work\CraftStation\              # Product Git Root；main 源码、测试、�
 - `Session` 是 Agent Entity 的连续工作过程，不等同于单条消息或单次模型请求。
 - `auto` 是 Slot 的 deterministic resolution mode，不是 Item 或 Router。
 
-对话默认路径是 Auto：按模型族选择 Harness（Muse Spark / Meta → Muse Code，DeepSeek → dsh）。用户在合成台指定或合成的结果是 Recipe。对用户与文档只称 Auto 与 Recipe；实现层可保留 `efficient` / `creative` 作为合成台入口 id。
+对话默认路径是 Auto：Muse Spark / Meta 默认走 OpenCode 原生兼容，DeepSeek 默认走 dsh。Muse Code 仅作为用户显式选择的 Recipe（Windows 通过 WSL）保留。用户在合成台指定或合成的结果是 Recipe。对用户与文档只称 Auto 与 Recipe；实现层可保留 `efficient` / `creative` 作为合成台入口 id。
 
 ## Product and Architecture Boundaries
 
@@ -161,6 +161,3 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 - 通用知识写入 `D:\Apps\Obsidian\Hernan\知识库\` 下对应领域文档。
 - CraftStation 架构、实现、Bug、配置和决策写入 `D:\Apps\Obsidian\Hernan\科研和项目\CraftStation\`。
 - 对应分类或项目文档不存在时，先提醒用户确认，再协助创建。
-
-
-

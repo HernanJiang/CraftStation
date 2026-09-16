@@ -113,31 +113,6 @@ export function resolveCompatibilityFamily(modelId: string): CompatibilityModelF
 }
 
 /**
- * Auto mode (not 合成台) sends third-party Muse-family catalog picks onto
- * Muse Code. The spawn Harness is Muse; catalog identity stays on the
- * channel via `sourceProviderKind`.
- */
-export function shouldAutoRemapToMuseHarness(input: {
-  agentKind: string;
-  modelId: string;
-}): boolean {
-  if (input.agentKind === "muse" || input.agentKind === "commandcode") return false;
-  return resolveCompatibilityFamily(input.modelId) === "muse";
-}
-
-export function applyAutoMuseHarnessLaunch(
-  input: { agentKind: string; model: string },
-  _museInstalled?: boolean,
-): { agentKind: string; model: string } {
-  if (!shouldAutoRemapToMuseHarness({ agentKind: input.agentKind, modelId: input.model })) {
-    return input;
-  }
-  // Do not wait for Windows `muse.exe` detection. Meta has no Win32 binary;
-  // spawn falls back to WSL. Gating on installed kept OpenCode as Harness.
-  return { agentKind: "muse", model: input.model };
-}
-
-/**
  * Auto mode (not 合成台) sends third-party DeepSeek-family catalog picks onto
  * DeepSeek Harness. Command Code CLI tokens talk to `/alpha/generate` through
  * CraftStation's local gateway — not `/provider/v1`.
@@ -178,7 +153,9 @@ export function preferredHarnessForCompatibilityFamily(
     case "deepseek":
       return "deepseek";
     case "muse":
-      return "muse";
+      // Muse Code is WSL-only on Windows. Auto keeps the broadly compatible
+      // OpenCode runtime; users can still choose the explicit Muse Code Recipe.
+      return "opencode";
     case "unknown":
       return "opencode";
   }

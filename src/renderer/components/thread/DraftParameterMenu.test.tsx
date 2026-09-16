@@ -162,7 +162,7 @@ describe("DraftParameterMenu", () => {
     });
   });
 
-  it("names Muse as the live Harness for an OpenCode Muse Spark pick", () => {
+  it("names OpenCode as the live Harness for an OpenCode Muse Spark pick", () => {
     useAgentStatusesStore.setState({
       agentStatuses: [installedStatus("opencode", "OpenCode"), installedStatus("muse", "Muse")],
     });
@@ -183,13 +183,13 @@ describe("DraftParameterMenu", () => {
       />,
     );
 
-    expect(screen.getByTestId("auto-harness-name")).toHaveTextContent("Muse");
+    expect(screen.getByTestId("auto-harness-name")).toHaveTextContent("OpenCode");
     const identity = screen.getByTestId("auto-harness-model");
-    expect(identity.getAttribute("title")).toContain("Harness: Muse");
+    expect(identity.getAttribute("title")).toContain("Harness: OpenCode");
     expect(identity.getAttribute("title")).toContain("Family: Muse");
   });
 
-  it("names Muse as the live Harness when WSL Muse is installed", () => {
+  it("still names OpenCode as the live Harness when WSL Muse is installed", () => {
     useAgentStatusesStore.setState({
       agentStatuses: [installedStatus("opencode", "OpenCode")],
       wslAgentStatuses: [installedStatus("muse", "Muse")],
@@ -211,11 +211,13 @@ describe("DraftParameterMenu", () => {
       />,
     );
 
-    expect(screen.getByTestId("auto-harness-name")).toHaveTextContent("Muse");
-    expect(screen.getByTestId("auto-harness-model").getAttribute("title")).toContain("Harness: Muse");
+    expect(screen.getByTestId("auto-harness-name")).toHaveTextContent("OpenCode");
+    expect(screen.getByTestId("auto-harness-model").getAttribute("title")).toContain(
+      "Harness: OpenCode",
+    );
   });
 
-  it("names Muse after the pick has remapped onto Muse Code", () => {
+  it("names Muse for an explicitly selected Muse Code Recipe", () => {
     render(
       <DraftParameterMenu
         controls={[
@@ -239,7 +241,7 @@ describe("DraftParameterMenu", () => {
     );
   });
 
-  it("submits an OpenCode Go Muse Spark pick through WSL Muse when Windows has no muse.exe", async () => {
+  it("submits an OpenCode Go Muse Spark pick through OpenCode when WSL Muse is installed", async () => {
     vi.useFakeTimers();
     useAgentStatusesStore.setState({
       agentStatuses: [installedStatus("opencode", "OpenCode")],
@@ -500,12 +502,15 @@ describe("DraftParameterMenu", () => {
         },
       ],
     });
-    const onChange = vi.fn<(value: {
-      agentKind: string;
-      model: string;
-      accountId?: string;
-      presentationMode?: "gui" | "terminal";
-    }) => void>();
+    const onChange =
+      vi.fn<
+        (value: {
+          agentKind: string;
+          model: string;
+          accountId?: string;
+          presentationMode?: "gui" | "terminal";
+        }) => void
+      >();
     const antigravity = makeModelControl({
       kind: "antigravity",
       label: "Antigravity",
@@ -584,7 +589,9 @@ describe("DraftParameterMenu", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(screen.getByRole("menuitem", { name: /OpenCode Native Harness · Gemini 3.8 Flash/ }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /OpenCode Native Harness · Gemini 3.8 Flash/ }),
+    );
 
     expect(control.kind === "provider-model" ? control.onChange : undefined).toHaveBeenCalledWith({
       agentKind: "opencode",
