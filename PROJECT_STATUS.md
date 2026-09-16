@@ -1,3 +1,8 @@
+## Release 1.2.11 — Devin team settings 超时（2026-09-16）
+
+- 基于 1.2.10 在 `main` 直接修复。便携包 `CraftStation-Portable-1.2.11-x64.exe`。
+- Devin ACP `session/new` 刷新 `GetCliTeamSettings` 时 10 秒超时会 fail-close，界面报 `Failed to load team settings`。现在把本机 HTTP 代理写入 `%APPDATA%\devin\config.json`（`proxy.mode=manual`），并重试该 `session/new`。
+
 ## Release 1.2.10 — Devin 登录终端 PowerShell 回退（2026-09-16）
 
 - 基于 1.2.9 在 `main` 直接修复。便携包 `CraftStation-Portable-1.2.10-x64.exe`。

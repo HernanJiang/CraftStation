@@ -91,6 +91,10 @@ function makeConfigSyncSession(
     }>;
     fsTextCapability?: boolean;
     initializeMeta?: Record<string, unknown>;
+    retrySessionOpen?: {
+      maxAttempts: number;
+      isRetryable: (error: unknown) => boolean;
+    };
   } = {},
 ) {
   const connection = {
@@ -214,6 +218,7 @@ function makeConfigSyncSession(
   session["loadSessionErrorRewriter"] = rewriteLoadSessionError;
   // Mirrors the constructor's `options?.fsTextCapability !== false` default.
   session["fsTextCapability"] = overrides.fsTextCapability !== false;
+  session["retrySessionOpen"] = overrides.retrySessionOpen;
   session["fsAgentHomeDirs"] = [];
   session["spawnReady"] = Promise.resolve();
   return { connection, listener, session: session as unknown as TestableAcpSession };
@@ -1881,6 +1886,44 @@ describe("ACP client protocol helpers", () => {
     await expect(session.openThread({ model: "model-a", browserMcp: true })).rejects.toThrow(
       "transport closed",
     );
+    expect(connection.newSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries session/new when the adapter marks the failure retryable", async () => {
+    const { connection, session } = makeConfigSyncSession({
+      retrySessionOpen: {
+        maxAttempts: 3,
+        isRetryable: (error) =>
+          error instanceof Error && /Failed to load team settings/i.test(error.message),
+      },
+    });
+    connection.newSession
+      .mockRejectedValueOnce(
+        new Error(
+          "Failed to load team settings: Failed to fetch team settings: fetch timed out after 10000ms",
+        ),
+      )
+      .mockResolvedValueOnce({
+        sessionId: "session-retry",
+        modes: { availableModes: [] },
+        configOptions: [],
+      });
+
+    await expect(session.openThread({ model: "model-a" })).resolves.toBe("session-retry");
+    expect(connection.newSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry session/new for unrelated open failures", async () => {
+    const { connection, session } = makeConfigSyncSession({
+      retrySessionOpen: {
+        maxAttempts: 3,
+        isRetryable: (error) =>
+          error instanceof Error && /Failed to load team settings/i.test(error.message),
+      },
+    });
+    connection.newSession.mockRejectedValueOnce(new Error("transport closed"));
+
+    await expect(session.openThread({ model: "model-a" })).rejects.toThrow("transport closed");
     expect(connection.newSession).toHaveBeenCalledTimes(1);
   });
 

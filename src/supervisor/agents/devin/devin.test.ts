@@ -153,6 +153,15 @@ describe("buildDevinArgs", () => {
       cwd: "C:\\repo",
     });
   });
+
+  it("lets extra spawn env win over the resolved HTTP proxy", () => {
+    const location: ProjectLocation = { kind: "windows", path: "C:\\repo" };
+    expect(
+      buildDevinCommand(location, ["acp"], "C:\\bin\\devin.exe", {
+        HTTP_PROXY: "http://override:9",
+      }).env,
+    ).toMatchObject({ HTTP_PROXY: "http://override:9" });
+  });
 });
 
 describe("createDevinAdapter", () => {

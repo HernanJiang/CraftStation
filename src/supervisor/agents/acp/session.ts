@@ -262,6 +262,14 @@ export interface AcpStructuredSessionOptions {
    * errors — see `acpFsTextCapability` in the adapter contract.
    */
   fsTextCapability?: boolean;
+  /**
+   * Retry `session/new` when the agent fail-closes on a retryable startup
+   * fetch (Devin team-settings 10s timeout). Resume/load are not retried.
+   */
+  retrySessionOpen?: {
+    maxAttempts: number;
+    isRetryable: (error: unknown) => boolean;
+  };
 }
 
 export interface AcpExternalSessionUpdateSource {
@@ -301,6 +309,9 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private readonly optimisticMcpTransports: readonly McpTransportKind[] | undefined;
   private readonly fsAgentHomeDirs: readonly string[];
   private readonly fsTextCapability: boolean;
+  private readonly retrySessionOpen:
+    | { maxAttempts: number; isRetryable: (error: unknown) => boolean }
+    | undefined;
   private readonly usageAccountId: string | undefined;
   private planModeToolTrackerInstance: AcpPlanModeToolTracker | undefined;
   /** CraftStation thread id (stable identifier we report in RuntimeEvents). */
@@ -477,6 +488,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     this.optimisticMcpTransports = options?.optimisticMcpTransports;
     this.fsAgentHomeDirs = options?.fsAgentHomeDirs ?? [];
     this.fsTextCapability = options?.fsTextCapability !== false;
+    this.retrySessionOpen = options?.retrySessionOpen;
     this.usageAccountId = options?.usageAccountId;
   }
 
@@ -792,6 +804,29 @@ export class AcpStructuredSession implements StructuredSessionHandle {
    * would turn a future agent regression into an unopenable thread; with it the
    * worst case is the old behaviour of launching without those servers.
    */
+  private async openNewSessionWithRetries<T>(
+    open: (mcpServers: ProtocolMcpServer[]) => Promise<T>,
+  ): Promise<T> {
+    const retry = this.retrySessionOpen;
+    const maxAttempts = Math.max(1, retry?.maxAttempts ?? 1);
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await this.openWithMcpServers(open);
+      } catch (error) {
+        lastError = error;
+        if (!retry?.isRetryable(error) || attempt >= maxAttempts) throw error;
+        console.warn(
+          "[acp] session/new retryable failure (attempt %d/%d): %s",
+          attempt,
+          maxAttempts,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+    throw lastError;
+  }
+
   private async openWithMcpServers<T>(
     open: (mcpServers: ProtocolMcpServer[]) => Promise<T>,
   ): Promise<T> {
@@ -907,7 +942,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       }
     } else {
       console.log("[acp] creating new session in", this.cwd);
-      const result = await this.openWithMcpServers((mcpServers) =>
+      const result = await this.openNewSessionWithRetries((mcpServers) =>
         this.connection.newSession({
           cwd: this.cwd,
           mcpServers,

@@ -47,7 +47,7 @@ export function shouldSpawnAcpSession(input: CreateStructuredSessionInput): bool
 export function createAcpStructuredSession(
   acpCommand: CommandSpec,
   input: CreateStructuredSessionInput,
-  overrides?: Pick<AcpStructuredSessionOptions, "assumedMcpCapabilities">,
+  overrides?: Pick<AcpStructuredSessionOptions, "assumedMcpCapabilities" | "retrySessionOpen">,
 ): AcpStructuredSession | undefined {
   if (!shouldSpawnAcpSession(input)) {
     return undefined;
@@ -91,5 +91,6 @@ export function createAcpStructuredSession(
     ...(overrides?.assumedMcpCapabilities
       ? { assumedMcpCapabilities: overrides.assumedMcpCapabilities }
       : {}),
+    ...(overrides?.retrySessionOpen ? { retrySessionOpen: overrides.retrySessionOpen } : {}),
   });
 }

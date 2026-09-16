@@ -119,4 +119,19 @@ describe("createAcpStructuredSession baseSpawnEnv merge", () => {
       initializeMeta: { "qwen.daemon.activeWorkHeartbeat": { v: 1 } },
     });
   });
+
+  it("forwards retrySessionOpen from adapter overrides", () => {
+    const createSpy = spyOnCreate();
+    const retrySessionOpen = { maxAttempts: 3, isRetryable: () => true };
+
+    createAcpStructuredSession({ command: "devin", args: ["acp"] }, makeInput(), {
+      retrySessionOpen,
+      assumedMcpCapabilities: { http: true },
+    });
+
+    expect(createSpy.mock.calls[0]?.[3]).toMatchObject({
+      assumedMcpCapabilities: { http: true },
+      retrySessionOpen,
+    });
+  });
 });

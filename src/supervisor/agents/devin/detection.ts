@@ -14,11 +14,13 @@ import {
   buildAgentCommand,
   cliSubcommandAuthProbe,
   envVarAuthProbe,
+  mergeSpawnEnv,
   readAgentCommandOutput,
   type AuthProbe,
   type CapabilitiesProbeResult,
   type DetectionSpec,
 } from "../base";
+import { devinProxySpawnEnv, ensureDevinUserProxyConfig } from "./proxy";
 import { getAgentProbeCwd, resolveProbeSpawnCwd } from "../probeCwd";
 import { DEVIN_ACP_ARGS } from "./argv";
 
@@ -75,7 +77,13 @@ export function buildDevinCommand(
   executablePath?: string,
   extraEnv?: Record<string, string>,
 ) {
-  return buildAgentCommand(location, "devin", args, executablePath, extraEnv);
+  return buildAgentCommand(
+    location,
+    "devin",
+    args,
+    executablePath,
+    mergeSpawnEnv(devinProxySpawnEnv(), extraEnv),
+  );
 }
 
 function humanizeDevinModelLabel(id: string): string {
@@ -203,6 +211,7 @@ async function probeCapabilities(
   probeEnv: Record<string, string> | undefined,
   signal?: AbortSignal,
 ): Promise<CapabilitiesProbeResult | undefined> {
+  ensureDevinUserProxyConfig();
   const command = buildDevinCommand(location, [...DEVIN_ACP_ARGS], executablePath, probeEnv);
   const processCwd = resolveProbeSpawnCwd(location, command.cwd);
   const probe = await probeAcpCapabilities(
@@ -212,7 +221,7 @@ async function probeCapabilities(
     {
       ...(processCwd ? { processCwd } : {}),
       ...(command.env ? { env: command.env } : {}),
-      timeoutMs: 20_000,
+      timeoutMs: 45_000,
       ...(signal ? { signal } : {}),
       label: location.kind === "wsl" ? `devin:wsl:${location.distro}` : `devin:${location.kind}`,
     },
@@ -226,7 +235,7 @@ async function probeCapabilities(
     executablePath,
     ["models", "list", "--format", "json"],
     {
-      timeoutMs: 20_000,
+      timeoutMs: 45_000,
       wslLinuxCwd: "/tmp",
       posixCwd: getAgentProbeCwd(location),
       ...(probeEnv ? { env: probeEnv } : {}),

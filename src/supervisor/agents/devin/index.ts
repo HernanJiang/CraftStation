@@ -17,6 +17,7 @@ import {
   DEVIN_DEFAULT_MODEL_ID,
   devinDetectionSpec,
 } from "./detection";
+import { ensureDevinUserProxyConfig, isDevinTeamSettingsTimeoutError } from "./proxy";
 import { detectDevinTerminalStatus } from "./terminal";
 
 export function createDevinAdapter(): AgentAdapter {
@@ -76,6 +77,7 @@ export function createDevinAdapter(): AgentAdapter {
     },
 
     async createStructuredSession(input: CreateStructuredSessionInput) {
+      ensureDevinUserProxyConfig();
       const command = buildDevinCommand(
         input.projectLocation,
         buildDevinAcpArgs(input.config),
@@ -84,8 +86,15 @@ export function createDevinAdapter(): AgentAdapter {
       // Devin ACP `session/new` accepts HTTP MCP even when initialize omits
       // mcpCapabilities (same pattern as Factory Droid). CraftStation's built-in
       // Schedule / cross-thread / custom MCP servers are all HTTP.
+      //
+      // `session/new` fail-closes if `GetCliTeamSettings` exceeds Devin's 10s
+      // Connect-RPC budget. Retry the open: a later attempt often hits cache.
       return createAcpStructuredSession(command, input, {
         assumedMcpCapabilities: { http: true },
+        retrySessionOpen: {
+          maxAttempts: 3,
+          isRetryable: isDevinTeamSettingsTimeoutError,
+        },
       });
     },
 
