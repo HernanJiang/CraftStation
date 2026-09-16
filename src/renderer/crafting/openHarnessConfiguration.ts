@@ -12,6 +12,7 @@ const NATIVE_AGENT_SETTINGS_KINDS = new Set([
   "antigravity",
   "opencode",
   "muse",
+  "devin",
 ]);
 
 export type HarnessConfigurationTarget =

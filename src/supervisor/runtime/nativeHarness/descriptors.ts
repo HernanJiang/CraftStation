@@ -273,6 +273,35 @@ export const MUSE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   ),
 };
 
+export const DEVIN_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:devin",
+  harnessKind: "devin",
+  label: "Devin Native Harness",
+  vendor: "cognition",
+  official: true,
+  transport: "acp-stdio",
+  machineFacingBoundary: "devin acp",
+  capabilities: capabilityMap(
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents", "context", "compaction"],
+    [],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "mcp",
+      "skills",
+      "subagents",
+      "cleanup",
+      "diagnostics",
+    ],
+  ),
+};
+
 export const OPENCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:opencode",
   harnessKind: "opencode",
@@ -315,4 +344,5 @@ export const NATIVE_HARNESS_DESCRIPTORS = {
   "deepseek-api": DEEPSEEK_API_HARNESS_DESCRIPTOR,
   muse: MUSE_NATIVE_HARNESS_DESCRIPTOR,
   opencode: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  devin: DEVIN_NATIVE_HARNESS_DESCRIPTOR,
 } as const;

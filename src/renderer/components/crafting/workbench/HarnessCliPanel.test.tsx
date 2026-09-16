@@ -158,10 +158,30 @@ describe("HarnessCliPanel one-click install", () => {
     );
 
     const installChip = screen.getByTestId("harness-cli-install-antigravity");
+    expect(installChip).toHaveTextContent("下载并安装");
     fireEvent.click(installChip);
     expect(onInstall).toHaveBeenCalledTimes(1);
     expect(onInstall.mock.calls[0]?.[0].descriptor.harnessKind).toBe("antigravity");
     // The install chip must not fall through to the row's detail handler.
+    expect(onShowDetail).not.toHaveBeenCalled();
+  });
+
+  it("installs an unavailable row in place instead of opening settings", () => {
+    const onInstall = vi.fn<(entry: NativeHarnessControlPlaneEntry) => void>();
+    const onShowDetail = vi.fn<(entry: NativeHarnessControlPlaneEntry) => void>();
+    render(
+      <HarnessCliPanel
+        entries={[entry("devin", "unavailable"), entry("grok", "ready")]}
+        loading={false}
+        onRefresh={() => undefined}
+        onInstall={onInstall}
+        onShowDetail={onShowDetail}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("harness-cli-row-devin"));
+    expect(onInstall).toHaveBeenCalledTimes(1);
+    expect(onInstall.mock.calls[0]?.[0].descriptor.harnessKind).toBe("devin");
     expect(onShowDetail).not.toHaveBeenCalled();
   });
 

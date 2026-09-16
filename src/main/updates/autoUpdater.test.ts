@@ -18,6 +18,7 @@ const autoUpdaterMock = vi.hoisted(() => {
     ),
     quitAndInstall: vi.fn<(isSilent?: boolean, isForceRunAfter?: boolean) => void>(),
     setFeedURL: vi.fn<(options: unknown) => void>(),
+    requestTimeout: undefined as number | undefined,
     /** Test helper: invoke a registered electron-updater event listener. */
     emit(event: string, ...args: unknown[]) {
       handlers.get(event)?.(...args);
@@ -35,15 +36,21 @@ const INITIAL_CHECK_DELAY_MS = 30_000;
 const PERIODIC_CHECK_INTERVAL_MS = 60 * 60 * 1_000;
 
 describe("createAutoUpdaterController", () => {
+  let previousPortableDir: string | undefined;
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    previousPortableDir = process.env.PORTABLE_EXECUTABLE_DIR;
+    delete process.env.PORTABLE_EXECUTABLE_DIR;
     autoUpdaterMock.checkForUpdates.mockResolvedValue(undefined);
     autoUpdaterMock.downloadUpdate.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    if (previousPortableDir === undefined) delete process.env.PORTABLE_EXECUTABLE_DIR;
+    else process.env.PORTABLE_EXECUTABLE_DIR = previousPortableDir;
   });
 
   it("runs the install hook before quitAndInstall", () => {
@@ -72,6 +79,12 @@ describe("createAutoUpdaterController", () => {
 
     expect(autoUpdaterMock.autoDownload).toBe(false);
     expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true);
+    expect(autoUpdaterMock.requestTimeout).toBe(8_000);
+    expect(autoUpdaterMock.setFeedURL).toHaveBeenCalledWith({
+      provider: "github",
+      owner: "HernanJiang",
+      repo: "CraftStation",
+    });
   });
 
   it("starts the controller-owned download when a check finds an update", async () => {
@@ -142,17 +155,13 @@ describe("createAutoUpdaterController", () => {
         autoUpdaterMock.emit("error", transient);
         throw transient;
       })
-      .mockImplementationOnce(async () => {
-        autoUpdaterMock.emit("error", transient);
-        throw transient;
-      })
       .mockResolvedValueOnce(undefined);
 
     const checking = controller.checkForUpdate();
-    await vi.advanceTimersByTimeAsync(1_500);
+    await vi.advanceTimersByTimeAsync(400);
     await checking;
 
-    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(3);
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2);
     expect(reportError).not.toHaveBeenCalled();
   });
 
@@ -169,13 +178,13 @@ describe("createAutoUpdaterController", () => {
     });
 
     const first = controller.checkForUpdate();
-    await vi.advanceTimersByTimeAsync(1_500);
+    await vi.advanceTimersByTimeAsync(400);
     await first;
     const second = controller.checkForUpdate();
-    await vi.advanceTimersByTimeAsync(1_500);
+    await vi.advanceTimersByTimeAsync(400);
     await second;
 
-    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(6);
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(4);
     expect(reportError).not.toHaveBeenCalled();
     expect(sendStatus).toHaveBeenLastCalledWith({
       type: "error",
@@ -229,7 +238,7 @@ describe("createAutoUpdaterController", () => {
     controller.initialize();
     const failure = Object.assign(
       new Error(
-        "Unable to find latest version on GitHub (https://github.com/SDSLeon/craftstation/releases/latest), please ensure a production release exists: 404",
+        "Unable to find latest version on GitHub (https://github.com/HernanJiang/CraftStation/releases/latest), please ensure a production release exists: 404",
       ),
       { statusCode: 404 },
     );
@@ -335,5 +344,50 @@ describe("createAutoUpdaterController", () => {
     controller.installUpdate();
     await vi.advanceTimersByTimeAsync(PERIODIC_CHECK_INTERVAL_MS);
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails a hung GitHub check instead of leaving the UI on Checking", async () => {
+    const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+    const controller = createAutoUpdaterController(sendStatus, "stable", false);
+    controller.initialize();
+    autoUpdaterMock.checkForUpdates.mockImplementation(() => new Promise(() => {}));
+
+    const checking = controller.checkForUpdate();
+    await vi.advanceTimersByTimeAsync(8_000);
+    await vi.advanceTimersByTimeAsync(400);
+    await vi.advanceTimersByTimeAsync(8_000);
+    await checking;
+
+    expect(sendStatus).toHaveBeenCalledWith({
+      type: "error",
+      messageKey: "update.serviceUnavailable",
+    });
+  });
+
+  it("points portable Windows builds at GitHub Releases instead of auto-installing", async () => {
+    const previous = process.env.PORTABLE_EXECUTABLE_DIR;
+    process.env.PORTABLE_EXECUTABLE_DIR = "D:\\CraftStation";
+    try {
+      const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+      const controller = createAutoUpdaterController(sendStatus, "stable", false);
+      controller.initialize();
+      autoUpdaterMock.checkForUpdates.mockImplementationOnce(async () => {
+        autoUpdaterMock.emit("update-available", { version: "1.2.6" });
+      });
+
+      await controller.checkForUpdate();
+
+      expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled();
+      expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(false);
+      expect(sendStatus).toHaveBeenCalledWith({
+        type: "update-available",
+        version: "1.2.6",
+        manualDownloadUrl: "https://github.com/HernanJiang/CraftStation/releases",
+        openDownload: true,
+      });
+    } finally {
+      if (previous === undefined) delete process.env.PORTABLE_EXECUTABLE_DIR;
+      else process.env.PORTABLE_EXECUTABLE_DIR = previous;
+    }
   });
 });

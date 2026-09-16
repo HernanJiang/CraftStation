@@ -163,6 +163,7 @@ export function CraftingWorkbenchPage(props: {
           // more here so the row settles even if an event was missed.
           void readControlPlane().finally(finish);
         },
+        onRetry: () => handleInstallHarness(entry),
       });
       if (!opened) finish();
     },
@@ -589,6 +590,7 @@ export function CraftingWorkbenchPage(props: {
           onShowDetail={(entry) => {
             setHighlightedKind(entry.descriptor.harnessKind);
             setInspector(entry.descriptor.harnessKind);
+            if (entry.status === "unavailable") return;
             if (entry.status !== "ready") {
               openHarnessConfiguration(entry.descriptor.harnessKind);
             }

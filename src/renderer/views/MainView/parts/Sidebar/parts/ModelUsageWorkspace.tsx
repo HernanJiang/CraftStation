@@ -383,91 +383,90 @@ function OpenAiCompatibleFormCard(props: {
   };
 
   const field =
-    "w-full rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25";
+    "w-full rounded-lg border border-[color:var(--field-border)] bg-[var(--field-background)] px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]";
   return (
-    <article
-      data-testid="openai-compatible-form"
-      data-grid-span="2"
-      className="col-span-2 self-start rounded-xl border border-white/10 bg-[#17181c] p-3"
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-foreground">
-          {props.accountId ? "编辑 OpenAI 兼容提供商" : "添加 OpenAI 兼容提供商"}
-        </h3>
-        <button
-          type="button"
-          onClick={props.onCancel}
-          aria-label="取消编辑 OpenAI 兼容提供商"
-          className="rounded p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-      {loading ? (
-        <p className="text-[10px] text-neutral-400">加载中…</p>
-      ) : (
-        <form className="space-y-2" onSubmit={(event) => void submit(event)}>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-[10px] text-neutral-400">提供商名称（卡片显示）</span>
-              <input
-                value={values.providerName}
-                onChange={(e) => set("providerName")(e.target.value)}
-                placeholder="例如 My Relay"
-                aria-label="OpenAI 兼容提供商名称"
-                className={field}
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-[10px] text-neutral-400">Base URL *</span>
-              <input
-                value={values.baseUrl}
-                onChange={(e) => set("baseUrl")(e.target.value)}
-                placeholder="https://api.example.com/v1"
-                aria-label="OpenAI 兼容 API Base URL"
-                autoComplete="url"
-                className={field}
-              />
-            </label>
-          </div>
-          <label className="block space-y-1">
-            <span className="text-[10px] text-neutral-400">
-              API Key *{props.accountId ? "（编辑时留空表示保持不变）" : ""}
-            </span>
-            <input
-              type="password"
-              value={values.apiKey}
-              onChange={(e) => set("apiKey")(e.target.value)}
-              placeholder="sk-..."
-              aria-label="OpenAI 兼容 API Key"
-              autoComplete="off"
-              className={field}
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-[10px] text-neutral-400">模型名称</span>
-              <input
-                value={values.model}
-                onChange={(e) => set("model")(e.target.value)}
-                placeholder="例如 gpt-5.6-sol"
-                aria-label="OpenAI 兼容模型名称"
-                className={field}
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-[10px] text-neutral-400">模型展示名称</span>
-              <input
-                value={values.displayName}
-                onChange={(e) => set("displayName")(e.target.value)}
-                placeholder="例如 GPT-5.6"
-                aria-label="OpenAI 兼容模型展示名称"
-                className={field}
-              />
-            </label>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 flex-1 text-[10px] leading-4 text-neutral-500" aria-live="polite">
+    <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onCancel()}>
+      <Modal.Container placement="center" size="md">
+        <Modal.Dialog className="sm:max-w-[560px]" data-testid="openai-compatible-form">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>
+              {props.accountId ? "编辑 OpenAI 兼容提供商" : "添加 OpenAI 兼容提供商"}
+            </Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="px-5 pb-2 pt-2">
+            {loading ? (
+              <p className="text-[10px] text-muted">加载中…</p>
+            ) : (
+              <form
+                id="openai-compatible-credential-form"
+                className="space-y-2"
+                onSubmit={(event) => void submit(event)}
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-muted">提供商名称（卡片显示）</span>
+                    <input
+                      value={values.providerName}
+                      onChange={(e) => set("providerName")(e.target.value)}
+                      placeholder="例如 My Relay"
+                      aria-label="OpenAI 兼容提供商名称"
+                      className={field}
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-muted">Base URL *</span>
+                    <input
+                      value={values.baseUrl}
+                      onChange={(e) => set("baseUrl")(e.target.value)}
+                      placeholder="https://api.example.com/v1"
+                      aria-label="OpenAI 兼容 API Base URL"
+                      autoComplete="url"
+                      className={field}
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-[10px] text-muted">
+                    API Key *{props.accountId ? "（编辑时留空表示保持不变）" : ""}
+                  </span>
+                  <input
+                    type="password"
+                    value={values.apiKey}
+                    onChange={(e) => set("apiKey")(e.target.value)}
+                    placeholder="sk-..."
+                    aria-label="OpenAI 兼容 API Key"
+                    autoComplete="off"
+                    className={field}
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-muted">模型名称</span>
+                    <input
+                      value={values.model}
+                      onChange={(e) => set("model")(e.target.value)}
+                      placeholder="例如 gpt-5.6-sol"
+                      aria-label="OpenAI 兼容模型名称"
+                      className={field}
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-muted">模型展示名称</span>
+                    <input
+                      value={values.displayName}
+                      onChange={(e) => set("displayName")(e.target.value)}
+                      placeholder="例如 GPT-5.6"
+                      aria-label="OpenAI 兼容模型展示名称"
+                      className={field}
+                    />
+                  </label>
+                </div>
+              </form>
+            )}
+          </Modal.Body>
+          <Modal.Footer className="flex-wrap gap-2">
+            <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
               {validation.status === "unverified" &&
                 (lastVerifiedLabel
                   ? `未验证（上次已验证 · ${lastVerifiedLabel}，修改后需重新验证）。`
@@ -481,26 +480,414 @@ function OpenAiCompatibleFormCard(props: {
             </p>
             <button
               type="button"
+              onClick={props.onCancel}
+              className="rounded-lg px-3 py-2 text-sm text-muted"
+            >
+              取消
+            </button>
+            <button
+              type="button"
               onClick={() => void verify()}
               disabled={!canVerify}
               aria-label="验证 Base URL 与模型"
-              className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/10 disabled:opacity-50"
+              className="rounded-lg border border-[color:var(--hairline)] px-3 py-2 text-sm text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
             >
               {validation.status === "verifying" ? "验证中…" : "验证"}
             </button>
             <button
               type="submit"
+              form="openai-compatible-credential-form"
               disabled={!canSave}
               aria-label={props.accountId ? "保存提供商" : "添加提供商"}
               title={!canSave ? "验证通过后才能保存" : undefined}
-              className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/15 disabled:opacity-50"
+              className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
             >
               {saving ? "保存中…" : props.accountId ? "保存" : "添加"}
             </button>
-          </div>
-        </form>
-      )}
-    </article>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+function KimiApiKeyDialog(props: {
+  onClose: () => void;
+  onImported?: ((accountId: string) => void) | undefined;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const field =
+    "w-full rounded-lg border border-[color:var(--field-border)] bg-[var(--field-background)] px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]";
+  return (
+    <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onClose()}>
+      <Modal.Container>
+        <Modal.Dialog className="sm:max-w-[420px]" data-testid="kimi-api-key-form">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>Kimi Code API Key</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="px-5 pb-2 pt-2">
+            <form
+              id="kimi-api-key-form"
+              className="space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (saving) return;
+                setSaving(true);
+                void submitKimiApiKey({
+                  apiKey,
+                  onImported: props.onImported,
+                })
+                  .then((success) => {
+                    if (success) props.onClose();
+                  })
+                  .finally(() => setSaving(false));
+              }}
+            >
+              <p className="text-[10px] leading-4 text-muted">保存前会验证 API Key 并导入账号。</p>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="粘贴 Kimi Code API Key"
+                aria-label="Kimi Code API Key"
+                autoComplete="off"
+                className={field}
+              />
+            </form>
+          </Modal.Body>
+          <Modal.Footer>
+            <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
+              {saving ? "验证中…" : "未验证"}
+            </p>
+            <button
+              type="button"
+              onClick={props.onClose}
+              className="rounded-lg px-3 py-2 text-sm text-muted"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              form="kimi-api-key-form"
+              disabled={saving || apiKey.trim().length === 0}
+              className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            >
+              {saving ? "保存中…" : "保存"}
+            </button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+const CREDENTIAL_FIELD_CLASS =
+  "w-full rounded-lg border border-[color:var(--field-border)] bg-[var(--field-background)] px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]";
+
+function VolcengineCredentialDialog(props: {
+  apiKey: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  saving: boolean;
+  onApiKeyChange: (value: string) => void;
+  onAccessKeyIdChange: (value: string) => void;
+  onSecretAccessKeyChange: (value: string) => void;
+  onRegionChange: (value: string) => void;
+  onClose: () => void;
+  onSavingChange: (saving: boolean) => void;
+}) {
+  return (
+    <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onClose()}>
+      <Modal.Container>
+        <Modal.Dialog className="sm:max-w-[520px]" data-testid="volcengine-credential-form">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>火山方舟 Volcengine Ark</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="px-5 pb-2 pt-2">
+            <form
+              id="volcengine-credential-form"
+              className="space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (props.saving) return;
+                const submittedApiKey = props.apiKey.trim();
+                const hasAccessKey = props.accessKeyId.trim().length > 0;
+                const hasSecretKey = props.secretAccessKey.trim().length > 0;
+                if (!submittedApiKey && (hasAccessKey || hasSecretKey)) {
+                  toast.danger("填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。");
+                  return;
+                }
+                if (hasAccessKey !== hasSecretKey) {
+                  toast.danger("AK 与 SK 必须同时填写。");
+                  return;
+                }
+                props.onSavingChange(true);
+                void (async () => {
+                  const bridge = readBridge();
+                  const outcome = await bridge.submitVolcengineCredentials({
+                    ...(submittedApiKey ? { apiKey: submittedApiKey } : {}),
+                    ...(props.accessKeyId.trim() ? { accessKeyId: props.accessKeyId.trim() } : {}),
+                    ...(props.secretAccessKey.trim()
+                      ? { secretAccessKey: props.secretAccessKey.trim() }
+                      : {}),
+                    region: props.region.trim() || "cn-beijing",
+                  });
+                  if (!outcome.ok) {
+                    toast.danger(outcome.error ?? "无法保存火山方舟凭据。");
+                    return;
+                  }
+                  useUsageLoginStateStore.getState().setStored("volcengine", true);
+                  props.onApiKeyChange("");
+                  props.onAccessKeyIdChange("");
+                  props.onSecretAccessKeyChange("");
+                  props.onClose();
+                  await refreshAndMergeProviderUsage("volcengine");
+                  toast.success("火山方舟凭据已保存。");
+                  if (submittedApiKey && outcome.arkModel) {
+                    await autoProvisionVolcengineArkChannel({
+                      apiKey: submittedApiKey,
+                      model: outcome.arkModel,
+                    }).catch((error) =>
+                      toast.warning(
+                        `额度已登录；火山方舟模型渠道自动创建失败（${error instanceof Error ? error.message : "未知错误"}），可在「OpenAI 兼容 API」手动添加。`,
+                      ),
+                    );
+                  } else if (submittedApiKey && !outcome.arkModel) {
+                    toast.warning(
+                      "Ark API Key 已保存，但验证没有返回可用模型，暂未创建模型渠道。请确认该 Key 有 Ark 推理权限，或在「OpenAI 兼容 API」手动添加。",
+                    );
+                  } else if (!submittedApiKey) {
+                    const hasArkChannel = useUsageAccountsStore
+                      .getState()
+                      .accounts.some(
+                        (account) =>
+                          account.provider === "openai-compatible" &&
+                          [account.providerAccountId, account.label, account.plan].some(
+                            (value) => value?.trim() === "Volcengine Ark",
+                          ),
+                      );
+                    if (!hasArkChannel) {
+                      toast.info(
+                        "火山额度已登录；如需在「管理模型」中使用火山方舟模型，请再填写 Ark API Key（将自动创建模型渠道）。",
+                      );
+                    }
+                  }
+                })()
+                  .catch((error) =>
+                    toast.danger(error instanceof Error ? error.message : "无法保存火山方舟凭据。"),
+                  )
+                  .finally(() => props.onSavingChange(false));
+              }}
+            >
+              <p className="text-[10px] leading-4 text-muted">
+                Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent
+                Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。
+              </p>
+              <input
+                type="password"
+                value={props.apiKey}
+                onChange={(event) => props.onApiKeyChange(event.target.value)}
+                placeholder="Ark API Key（模型调用 Key）"
+                aria-label="Volcengine Ark API Key"
+                required
+                autoComplete="off"
+                className={CREDENTIAL_FIELD_CLASS}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={props.accessKeyId}
+                  onChange={(event) => props.onAccessKeyIdChange(event.target.value)}
+                  placeholder="Access Key ID (AKLT...)"
+                  aria-label="Volcengine Access Key ID"
+                  autoComplete="off"
+                  className={CREDENTIAL_FIELD_CLASS}
+                />
+                <input
+                  type="password"
+                  value={props.secretAccessKey}
+                  onChange={(event) => props.onSecretAccessKeyChange(event.target.value)}
+                  placeholder="Secret Access Key"
+                  aria-label="Volcengine Secret Access Key"
+                  autoComplete="off"
+                  className={CREDENTIAL_FIELD_CLASS}
+                />
+              </div>
+              <input
+                value={props.region}
+                onChange={(event) => props.onRegionChange(event.target.value)}
+                placeholder="cn-beijing"
+                aria-label="Volcengine Region"
+                className={CREDENTIAL_FIELD_CLASS}
+              />
+            </form>
+          </Modal.Body>
+          <Modal.Footer>
+            <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
+              {props.saving ? "验证中…" : "保存前会验证 Ark Key / AK/SK。"}
+            </p>
+            <button
+              type="button"
+              onClick={props.onClose}
+              className="rounded-lg px-3 py-2 text-sm text-muted"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              form="volcengine-credential-form"
+              disabled={
+                props.saving ||
+                props.apiKey.trim().length === 0 ||
+                Boolean(props.accessKeyId.trim()) !== Boolean(props.secretAccessKey.trim())
+              }
+              className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            >
+              {props.saving ? "保存中…" : "保存"}
+            </button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+function ApiKeyCredentialDialog(props: {
+  label: string;
+  apiKey: string;
+  saving: boolean;
+  onApiKeyChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => Promise<boolean>;
+}) {
+  return (
+    <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onClose()}>
+      <Modal.Container>
+        <Modal.Dialog className="sm:max-w-[420px]" data-testid="api-key-credential-form">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{props.label} API Key</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="px-5 pb-2 pt-2">
+            <form
+              id="api-key-credential-form"
+              className="space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (props.saving) return;
+                void props.onSubmit().then((success) => {
+                  if (success) {
+                    props.onApiKeyChange("");
+                    props.onClose();
+                  }
+                });
+              }}
+            >
+              <p className="text-[10px] leading-4 text-muted">保存前会验证 API Key。</p>
+              <input
+                type="password"
+                value={props.apiKey}
+                onChange={(event) => props.onApiKeyChange(event.target.value)}
+                placeholder={`粘贴 ${props.label} API Key`}
+                aria-label={`${props.label} API Key`}
+                autoComplete="off"
+                className={CREDENTIAL_FIELD_CLASS}
+              />
+            </form>
+          </Modal.Body>
+          <Modal.Footer>
+            <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
+              {props.saving ? "验证中…" : "未验证"}
+            </p>
+            <button
+              type="button"
+              onClick={props.onClose}
+              className="rounded-lg px-3 py-2 text-sm text-muted"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              form="api-key-credential-form"
+              disabled={props.saving || props.apiKey.trim().length === 0}
+              className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            >
+              {props.saving ? "保存中…" : "保存"}
+            </button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+function CookieCredentialDialog(props: {
+  label: string;
+  cookie: string;
+  saving: boolean;
+  hint: string;
+  onCookieChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => Promise<boolean>;
+}) {
+  return (
+    <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onClose()}>
+      <Modal.Container>
+        <Modal.Dialog className="sm:max-w-[480px]" data-testid="cookie-credential-form">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{props.label} Cookie</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="px-5 pb-2 pt-2">
+            <form
+              id="cookie-credential-form"
+              className="space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (props.saving) return;
+                void props.onSubmit().then((success) => {
+                  if (success) props.onClose();
+                });
+              }}
+            >
+              <p className="text-[10px] leading-4 text-muted">{props.hint}</p>
+              <input
+                type="password"
+                value={props.cookie}
+                onChange={(event) => props.onCookieChange(event.target.value)}
+                placeholder={"粘贴 " + props.label + " 的 Cookie"}
+                aria-label={props.label + " Cookie"}
+                autoComplete="off"
+                className={CREDENTIAL_FIELD_CLASS}
+              />
+            </form>
+          </Modal.Body>
+          <Modal.Footer>
+            <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
+              {props.saving ? "验证中…" : "保存前会验证会话 Cookie。"}
+            </p>
+            <button
+              type="button"
+              onClick={props.onClose}
+              className="rounded-lg px-3 py-2 text-sm text-muted"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              form="cookie-credential-form"
+              disabled={props.saving || props.cookie.trim().length === 0}
+              className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            >
+              {props.saving ? "保存中…" : "保存"}
+            </button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
 
@@ -825,11 +1212,9 @@ function ProviderCard(props: {
           {cliSigningIn || signingIn
             ? "登录中…"
             : connected || managedAccounts.length > 0 || hasStoredSession || hasRememberedIdentity
-              ? apiKeyOpen || cookieOpen
-                ? "收起"
-                : needsUsageSessionConnect
-                  ? "连接额度"
-                  : "添加账号"
+              ? needsUsageSessionConnect
+                ? "连接额度"
+                : "添加账号"
               : "登录/授权"}
         </button>
         {props.onImportAccount ? (
@@ -849,7 +1234,7 @@ function ProviderCard(props: {
             disabled={signingIn || cliSigningIn}
             onClick={() => {
               setCookieOpen(false);
-              setApiKeyOpen((open) => !open);
+              setApiKeyOpen(true);
             }}
             className="inline-flex h-8 shrink-0 items-center rounded-lg bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-white/10 disabled:opacity-50"
             aria-label="使用 Kimi API Key 授权"
@@ -980,7 +1365,7 @@ function ProviderCard(props: {
                 <button
                   type="button"
                   aria-label="编辑 Volcengine Ark Token Plan"
-                  onClick={() => setApiKeyOpen((value) => !value)}
+                  onClick={() => setApiKeyOpen(true)}
                   className="rounded p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
                 >
                   <Settings className="size-3" />
@@ -1039,184 +1424,37 @@ function ProviderCard(props: {
         </div>
       ) : null}
       {apiKeyOpen && props.id === "volcengine" ? (
-        <form
-          className="mt-3 space-y-2 rounded-xl border border-white/5 bg-[#17181c] p-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (credentialSaving) return;
-            const submittedApiKey = apiKey.trim();
-            const hasAccessKey = volcengineAccessKeyId.trim().length > 0;
-            const hasSecretKey = volcengineSecretAccessKey.trim().length > 0;
-            if (!submittedApiKey && (hasAccessKey || hasSecretKey)) {
-              toast.danger("填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。");
-              return;
-            }
-            if (hasAccessKey !== hasSecretKey) {
-              toast.danger("AK 与 SK 必须同时填写。");
-              return;
-            }
-            setCredentialSaving(true);
-            void (async () => {
-              const bridge = readBridge();
-              const outcome = await bridge.submitVolcengineCredentials({
-                ...(submittedApiKey ? { apiKey: submittedApiKey } : {}),
-                ...(volcengineAccessKeyId.trim()
-                  ? { accessKeyId: volcengineAccessKeyId.trim() }
-                  : {}),
-                ...(volcengineSecretAccessKey.trim()
-                  ? { secretAccessKey: volcengineSecretAccessKey.trim() }
-                  : {}),
-                region: volcengineRegion.trim() || "cn-beijing",
-              });
-              if (!outcome.ok) {
-                toast.danger(outcome.error ?? "无法保存火山方舟凭据。");
-                return;
-              }
-              useUsageLoginStateStore.getState().setStored("volcengine", true);
-              setApiKey("");
-              setVolcengineAccessKeyId("");
-              setVolcengineSecretAccessKey("");
-              setApiKeyOpen(false);
-              await refreshAndMergeProviderUsage("volcengine");
-              // An Ark API key also unlocks runnable models: auto-provision the
-              // Ark coding endpoint as an OpenAI-compatible channel so the model
-              // list shows up in 管理模型 and the homepage picker.
-              if (submittedApiKey && outcome.arkModel) {
-                await autoProvisionVolcengineArkChannel({
-                  apiKey: submittedApiKey,
-                  model: outcome.arkModel,
-                }).catch((error) =>
-                  toast.warning(
-                    `额度已登录；火山方舟模型渠道自动创建失败（${error instanceof Error ? error.message : "未知错误"}），可在「OpenAI 兼容 API」手动添加。`,
-                  ),
-                );
-              } else if (submittedApiKey && !outcome.arkModel) {
-                // Ark Key 已验证但没有返回可用模型：之前这里静默跳过，
-                // 看起来就是“显示成功但管理模型里没有渠道”。
-                toast.warning(
-                  "Ark API Key 已保存，但验证没有返回可用模型，暂未创建模型渠道。请确认该 Key 有 Ark 推理权限，或在「OpenAI 兼容 API」手动添加。",
-                );
-              } else if (!submittedApiKey) {
-                // 仅 AK/SK（Coding Plan 额度）登录时没有可调用的模型渠道：
-                // 明确告诉用户，而不是让“管理模型里没有渠道”看起来像 bug。
-                const hasArkChannel = useUsageAccountsStore
-                  .getState()
-                  .accounts.some(
-                    (account) =>
-                      account.provider === "openai-compatible" &&
-                      [account.providerAccountId, account.label, account.plan].some(
-                        (value) => value?.trim() === "Volcengine Ark",
-                      ),
-                  );
-                if (!hasArkChannel) {
-                  toast.info(
-                    "火山额度已登录；如需在「管理模型」中使用火山方舟模型，请再填写 Ark API Key（将自动创建模型渠道）。",
-                  );
-                }
-              }
-            })()
-              .catch((error) =>
-                toast.danger(error instanceof Error ? error.message : "无法保存火山方舟凭据。"),
-              )
-              .finally(() => setCredentialSaving(false));
-          }}
-        >
-          <p className="text-[10px] leading-4 text-neutral-400">
-            Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent
-            Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。
-          </p>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="Ark API Key（模型调用 Key）"
-            aria-label="Volcengine Ark API Key"
-            required
-            autoComplete="off"
-            className="w-full rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={volcengineAccessKeyId}
-              onChange={(event) => setVolcengineAccessKeyId(event.target.value)}
-              placeholder="Access Key ID (AKLT...)"
-              aria-label="Volcengine Access Key ID"
-              autoComplete="off"
-              className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
-            />
-            <input
-              type="password"
-              value={volcengineSecretAccessKey}
-              onChange={(event) => setVolcengineSecretAccessKey(event.target.value)}
-              placeholder="Secret Access Key"
-              aria-label="Volcengine Secret Access Key"
-              autoComplete="off"
-              className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              value={volcengineRegion}
-              onChange={(event) => setVolcengineRegion(event.target.value)}
-              placeholder="cn-beijing"
-              aria-label="Volcengine Region"
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
-            />
-            <button
-              type="submit"
-              disabled={
-                credentialSaving ||
-                apiKey.trim().length === 0 ||
-                Boolean(volcengineAccessKeyId.trim()) !== Boolean(volcengineSecretAccessKey.trim())
-              }
-              className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/15 disabled:opacity-50"
-            >
-              保存授权
-            </button>
-          </div>
-        </form>
+        <VolcengineCredentialDialog
+          apiKey={apiKey}
+          accessKeyId={volcengineAccessKeyId}
+          secretAccessKey={volcengineSecretAccessKey}
+          region={volcengineRegion}
+          saving={credentialSaving}
+          onApiKeyChange={setApiKey}
+          onAccessKeyIdChange={setVolcengineAccessKeyId}
+          onSecretAccessKeyChange={setVolcengineSecretAccessKey}
+          onRegionChange={setVolcengineRegion}
+          onClose={() => setApiKeyOpen(false)}
+          onSavingChange={setCredentialSaving}
+        />
       ) : apiKeyOpen ? (
-        <form
-          className="mt-3 flex items-center gap-2 rounded-xl border border-white/5 bg-[#17181c] p-2"
-          onSubmit={(event) => {
-            event.preventDefault();
+        <ApiKeyCredentialDialog
+          label={label}
+          apiKey={apiKey}
+          saving={signingIn || cliSigningIn}
+          onApiKeyChange={setApiKey}
+          onClose={() => setApiKeyOpen(false)}
+          onSubmit={() => {
             if (props.id === "kimi") {
               setCliSigningIn(true);
-              void submitKimiApiKey({
+              return submitKimiApiKey({
                 apiKey,
                 onImported: props.onKimiApiKeyImported,
-              })
-                .then((success) => {
-                  if (success) {
-                    setApiKey("");
-                    setApiKeyOpen(false);
-                  }
-                })
-                .finally(() => setCliSigningIn(false));
-              return;
+              }).finally(() => setCliSigningIn(false));
             }
-            void handleSubmitApiKey().then((success) => {
-              if (success) setApiKeyOpen(false);
-            });
+            return handleSubmitApiKey();
           }}
-        >
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder={`粘贴 ${label} API Key`}
-            aria-label={`${label} API Key`}
-            autoComplete="off"
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
-          />
-          <button
-            type="submit"
-            disabled={signingIn || cliSigningIn || apiKey.trim().length === 0}
-            className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/15 disabled:opacity-50"
-          >
-            {signingIn ? "保存中…" : "保存授权"}
-          </button>
-        </form>
+        />
       ) : null}
       {!authorized && providerPaused ? (
         <button
@@ -1228,39 +1466,19 @@ function ProviderCard(props: {
         </button>
       ) : null}
       {cookieOpen && (externalLoginUrl ?? pasteUrl) ? (
-        <form
-          className="mt-3 rounded-xl border border-white/5 bg-[#17181c] p-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleSubmitCookie().then((success) => {
-              if (success) setCookieOpen(false);
-            });
-          }}
-        >
-          <p className="mb-1.5 text-[10px] leading-4 text-neutral-400">
-            {externalLoginUrl
+        <CookieCredentialDialog
+          label={label}
+          cookie={cookie}
+          saving={signingIn}
+          hint={
+            externalLoginUrl
               ? "已在你的默认浏览器打开登录页。登录完成后，从浏览器开发者工具（F12 → 应用/网络） 复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
-              : "在你自己的浏览器中登录后，从开发者工具（F12 → 应用/网络）复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："}
-          </p>
-          <div className="flex items-center gap-2">
-            <input
-              type="password"
-              value={cookie}
-              onChange={(event) => setCookie(event.target.value)}
-              placeholder={"粘贴 " + label + " 的 Cookie"}
-              aria-label={label + " Cookie"}
-              autoComplete="off"
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
-            />
-            <button
-              type="submit"
-              disabled={signingIn || cookie.trim().length === 0}
-              className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/15 disabled:opacity-50"
-            >
-              {signingIn ? "验证中…" : "保存授权"}
-            </button>
-          </div>
-        </form>
+              : "在你自己的浏览器中登录后，从开发者工具（F12 → 应用/网络）复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+          }
+          onCookieChange={setCookie}
+          onClose={() => setCookieOpen(false)}
+          onSubmit={handleSubmitCookie}
+        />
       ) : null}
     </div>
   );
@@ -1691,16 +1909,6 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     null,
   );
   const [kimiApiKeyForm, setKimiApiKeyForm] = useState(false);
-  const [kimiApiKeyDraft, setKimiApiKeyDraft] = useState("");
-  useEffect(() => {
-    if (!openAiCompatibleForm) return;
-    const frame = requestAnimationFrame(() => {
-      document
-        .querySelector('[data-testid="openai-compatible-form"]')
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [openAiCompatibleForm]);
   // The active tab lives in the panel store (persisted): reopening the page
   // restores the last-visited tab, and explicit deep links keep working.
   const workspaceTab = usePanelStore((state) => state.modelUsageWorkspaceTab);
@@ -2290,7 +2498,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             onAdd={() => void accountActions(createKimiProfile, "kimi")}
             onImport={() => void accountActions(importHostKimiLogin, "kimi")}
             importAriaLabel="导入本机 Kimi Code 登录"
-            onAddApiKey={() => setKimiApiKeyForm((current) => !current)}
+            onAddApiKey={() => setKimiApiKeyForm(true)}
             addApiKeyAriaLabel="使用 API Key 添加 Kimi Code 账号"
             onReauth={(a) =>
               void accountActions(
@@ -2442,49 +2650,6 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                     onDropProvider={(t) => handleProviderDrop(t)}
                   />
                 )}
-                {/* OpenAI 兼容提供商表单直接展开在账号池卡片下方，而不是顶部。 */}
-                {channel.id === "openai-compatible" && openAiCompatibleForm ? (
-                  <OpenAiCompatibleFormCard
-                    accountId={openAiCompatibleForm.accountId ?? undefined}
-                    onCancel={() => setOpenAiCompatibleForm(null)}
-                    onSaved={() => setOpenAiCompatibleForm(null)}
-                  />
-                ) : null}
-                {channel.id === "kimi" && kimiApiKeyForm ? (
-                  <form
-                    className="mt-2 flex items-center gap-2 rounded-xl border border-white/5 bg-[#17181c] p-2"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void accountActions(async () => {
-                        const success = await submitKimiApiKey({
-                          apiKey: kimiApiKeyDraft,
-                          onImported: (accountId) => void promptNewKimiLabel(accountId),
-                        });
-                        if (success) {
-                          setKimiApiKeyDraft("");
-                          setKimiApiKeyForm(false);
-                        }
-                      }, "kimi");
-                    }}
-                  >
-                    <input
-                      type="password"
-                      value={kimiApiKeyDraft}
-                      onChange={(event) => setKimiApiKeyDraft(event.target.value)}
-                      placeholder="粘贴 Kimi Code API Key"
-                      aria-label="Kimi Code API Key"
-                      autoComplete="off"
-                      className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-white/25"
-                    />
-                    <button
-                      type="submit"
-                      disabled={kimiApiKeyDraft.trim().length === 0}
-                      className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-white/15 disabled:opacity-50"
-                    >
-                      保存授权
-                    </button>
-                  </form>
-                ) : null}
               </Fragment>
             ))}
             {signedInCodexAccounts.length === 0 &&
@@ -2546,6 +2711,19 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
         </div>
       )}
       <div data-testid="provider-grid" className="hidden" />
+      {openAiCompatibleForm ? (
+        <OpenAiCompatibleFormCard
+          accountId={openAiCompatibleForm.accountId ?? undefined}
+          onCancel={() => setOpenAiCompatibleForm(null)}
+          onSaved={() => setOpenAiCompatibleForm(null)}
+        />
+      ) : null}
+      {kimiApiKeyForm ? (
+        <KimiApiKeyDialog
+          onClose={() => setKimiApiKeyForm(false)}
+          onImported={(accountId) => void promptNewKimiLabel(accountId)}
+        />
+      ) : null}
       <Modal.Backdrop
         isOpen={renameTarget !== null}
         onOpenChange={(next) => !next && closeRenameAccount()}

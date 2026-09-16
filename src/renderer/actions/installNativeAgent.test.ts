@@ -90,9 +90,39 @@ describe("runNativeAgentInstall", () => {
 
     runNativeAgentInstall({ agentKind: "antigravity", label: "Antigravity", onComplete });
 
-    expect(toast.danger).toHaveBeenCalledWith(expect.stringContaining("3"));
+    expect(toast.danger).toHaveBeenCalledWith(
+      expect.stringContaining("3"),
+      expect.objectContaining({
+        actionProps: expect.objectContaining({ children: "重试" }),
+      }),
+    );
     expect(bridgeMock.refreshAgentStatuses).not.toHaveBeenCalled();
     expect(onComplete).toHaveBeenCalledWith(false);
+  });
+
+  it("retries the same install from the failure toast without leaving the workbench", () => {
+    const onComplete = vi.fn<(ok: boolean) => void>();
+    const onRetry = vi.fn<() => void>();
+    installRunner.runAgentInstallCommand.mockImplementation(
+      (input: { onCommandComplete?: (exitCode: number) => void }) => {
+        input.onCommandComplete?.(1);
+        return true;
+      },
+    );
+
+    runNativeAgentInstall({
+      agentKind: "devin",
+      label: "Devin Native Harness",
+      onComplete,
+      onRetry,
+    });
+
+    const options = vi.mocked(toast.danger).mock.calls[0]?.[1] as
+      | { actionProps?: { onPress?: () => void } }
+      | undefined;
+    options?.actionProps?.onPress?.();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(installRunner.runAgentInstallCommand).toHaveBeenCalledTimes(1);
   });
 
   it("reports a failed post-install detection refresh instead of faking success", async () => {
@@ -108,7 +138,12 @@ describe("runNativeAgentInstall", () => {
     runNativeAgentInstall({ agentKind: "antigravity", label: "Antigravity", onComplete });
 
     await vi.waitFor(() => {
-      expect(toast.danger).toHaveBeenCalledWith("supervisor gone");
+      expect(toast.danger).toHaveBeenCalledWith(
+        "supervisor gone",
+        expect.objectContaining({
+          actionProps: expect.objectContaining({ children: "重试" }),
+        }),
+      );
       expect(onComplete).toHaveBeenCalledWith(false);
     });
   });

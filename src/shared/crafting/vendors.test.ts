@@ -11,6 +11,8 @@ describe("crafting vendors", () => {
     expect(canonicalModelVendor("deepseek")).toBe("deepseek");
     expect(canonicalModelVendor("opencode")).toBe("opencode");
     expect(canonicalModelVendor("muse")).toBe("muse");
+    expect(canonicalModelVendor("devin")).toBe("cognition");
+    expect(canonicalModelVendor("cognition")).toBe("cognition");
     expect(canonicalModelVendor("CODEX")).toBe("openai");
   });
 
@@ -29,6 +31,7 @@ describe("crafting vendors", () => {
     expect(isSameModelVendor("gemini", "google")).toBe(true);
     expect(isSameModelVendor("deepseek", "deepseek")).toBe(true);
     expect(isSameModelVendor("opencode", "opencode")).toBe(true);
+    expect(isSameModelVendor("devin", "cognition")).toBe(true);
   });
 
   it("rejects cross-vendor pairs and empty input", () => {

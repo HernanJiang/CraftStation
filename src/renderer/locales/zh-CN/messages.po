@@ -4198,6 +4198,10 @@ msgstr "设备与工具"
 msgid "Devices can pair while this desktop is reachable."
 msgstr "当此桌面可访问时，设备可以配对。"
 
+#: src/renderer/components/providers/devin/manifest.ts
+msgid "Devin"
+msgstr "Devin"
+
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Dialogue exchanges"
 msgstr "对话往来"
@@ -4392,9 +4396,23 @@ msgstr "完成"
 msgid "Done · Waiting for your input"
 msgstr "完成 · 等待您的输入"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Download and install {0}"
+msgstr "下载并安装 {0}"
+
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Download and install {0} now"
+msgstr "立即下载并安装 {0}"
+
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
 msgstr "下载图片"
+
+#: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
+msgid "Download v{version}"
+msgstr ""
 
 #. placeholder {0}: name || t`the chosen folder`
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
@@ -5240,6 +5258,10 @@ msgid "First-class DeepSeek Harness (dsh) integration using CraftStation's ACP r
 msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
+msgid "First-class Devin CLI integration using CraftStation's ACP runtime."
+msgstr "使用 CraftStation ACP 运行时的一流 Devin CLI 集成。"
+
+#: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
 msgstr "使用 CraftStation ACP 运行时的一流 Factory Droid 集成。"
 
@@ -6062,7 +6084,6 @@ msgstr "检查规范运行时项目"
 msgid "install"
 msgstr "安装"
 
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
@@ -6076,8 +6097,8 @@ msgstr "安装"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "Install {0}"
-msgstr "安装 {0}"
+#~ msgid "Install {0}"
+#~ msgstr "安装 {0}"
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -6086,8 +6107,8 @@ msgstr "为{env}安装{0}。"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "Install {0} now"
-msgstr "立即安装 {0}"
+#~ msgid "Install {0} now"
+#~ msgstr "立即安装 {0}"
 
 #. placeholder {0}: formatAgentList(props.agentStatuses.map((s) => s.label))
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -8245,6 +8266,10 @@ msgstr "在以下位置打开冲突解决器"
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Open dialog"
 msgstr "打开对话框"
+
+#: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
+msgid "Open download page"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadGroup.tsx
 msgid "Open experiment"
@@ -13445,6 +13470,10 @@ msgstr "验证 SSH 主机密钥"
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Version"
 msgstr "版本"
+
+#: src/renderer/i18n/sharedMessages.ts
+msgid "Version {version} is available. Portable builds cannot auto-install — download it from GitHub Releases."
+msgstr ""
 
 #. placeholder {0}: metadata.authMethod
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/authHelpers.ts

@@ -242,6 +242,29 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
     ],
   },
   {
+    id: "cognition:swe",
+    kind: "model",
+    metadata: {
+      id: "cognition:swe",
+      name: "SWE-1.6",
+      version: "audit-2026-09",
+      vendor: "cognition",
+      source: "builtin",
+      description: "Cognition SWE model family paired with the official Devin Native Harness.",
+      tags: ["coding", "cognition", "devin"],
+      compatibilityStatus: "NATIVE",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "cognition",
+        modelId: "swe",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
     id: "deepseek:deepseek-v4-flash",
     kind: "model",
     metadata: {
@@ -537,7 +560,16 @@ export const BUILTIN_MUSE_HARNESS_ITEM = createNativeHarnessItem({
   id: "harness:muse",
   name: "Muse Code Harness",
   vendor: "muse",
-  description: "Official Muse Code agent runtime through muse serve (MSP). On Windows it runs via WSL.",
+  description:
+    "Official Muse Code agent runtime through muse serve (MSP). On Windows it runs via WSL.",
+  executionMode: "structured_session",
+});
+
+export const BUILTIN_DEVIN_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:devin",
+  name: "Devin Native Harness",
+  vendor: "cognition",
+  description: "Official Devin CLI agent runtime through its ACP stdio boundary.",
   executionMode: "structured_session",
 });
 
@@ -548,6 +580,7 @@ export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_DEEPSEEK_HARNESS_ITEM,
   BUILTIN_DEEPSEEK_API_HARNESS_ITEM,
   BUILTIN_MUSE_HARNESS_ITEM,
+  BUILTIN_DEVIN_HARNESS_ITEM,
 ];
 
 export const NATIVE_HARNESS_RECIPES = [
@@ -644,10 +677,19 @@ export const NATIVE_HARNESS_RECIPES = [
   new NativeHarnessRecipe({
     id: "recipe:meta-muse-native",
     name: "Meta Muse Code Native Recipe",
-    description: "Native Muse Spark composition through the official Muse Code Harness (WSL on Windows).",
+    description:
+      "Native Muse Spark composition through the official Muse Code Harness (WSL on Windows).",
     harnessKind: "muse",
     harnessItemId: BUILTIN_MUSE_HARNESS_ITEM.id,
     modelVendors: ["muse"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:cognition-devin-native",
+    name: "Cognition Devin Native Recipe",
+    description: "Native Cognition model composition through the official Devin CLI Harness.",
+    harnessKind: "devin",
+    harnessItemId: BUILTIN_DEVIN_HARNESS_ITEM.id,
+    modelVendors: ["cognition"],
   }),
   new NativeHarnessRecipe({
     id: "recipe:deepseek-native",

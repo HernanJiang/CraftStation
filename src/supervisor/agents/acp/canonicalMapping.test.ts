@@ -39,6 +39,18 @@ describe("mapAcpSessionUpdate", () => {
         state,
       ),
     ).toEqual([]);
+    expect(
+      mapAcpSessionUpdate(
+        note({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "text",
+            text: "API error (attempt 1): UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server",
+          },
+        }),
+        state,
+      ),
+    ).toEqual([]);
   });
 
   it("maps provider-normalized ACP goal metadata independently from empty text boundaries", () => {
@@ -527,8 +539,16 @@ describe("mapAcpSessionUpdate", () => {
 
     expect(events).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: "content.delta", stream: "reasoning_text", delta: "逐项检查。\n继续验证。" }),
-        expect.objectContaining({ type: "content.delta", stream: "assistant_text", delta: "最终答案" }),
+        expect.objectContaining({
+          type: "content.delta",
+          stream: "reasoning_text",
+          delta: "逐项检查。\n继续验证。",
+        }),
+        expect.objectContaining({
+          type: "content.delta",
+          stream: "assistant_text",
+          delta: "最终答案",
+        }),
       ]),
     );
   });

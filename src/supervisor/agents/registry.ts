@@ -20,6 +20,7 @@ import { createCommandCodeAdapter } from "./commandcode";
 import { createCopilotAdapter } from "./copilot";
 import { createCodexAdapter } from "./codex";
 import { createCursorAdapter, createCursorProfileAdapter } from "./cursor";
+import { createDevinAdapter } from "./devin";
 import { createFactoryAdapter } from "./factory";
 import { createGeminiAdapter } from "./gemini";
 import { createGrokAdapter } from "./grok";
@@ -58,6 +59,7 @@ export function buildAgentRegistry(userInstances: AgentInstanceConfig[]): AgentA
     createOpenCodeAdapter(),
     createPiAdapter(),
     createFactoryAdapter(),
+    createDevinAdapter(),
   ];
   const userAdapters = userInstances
     .filter((inst) => inst.enabled !== false && inst.driver === "acp-generic")

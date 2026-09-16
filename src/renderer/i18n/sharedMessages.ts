@@ -202,6 +202,10 @@ const SHARED_MESSAGE_DESCRIPTORS: Record<MessageKey, MessageDescriptor> = {
   "update.devUnavailable": msg({
     message: "Update checks are not available in development mode.",
   }),
+  "update.portableAvailable": msg({
+    message:
+      "Version {version} is available. Portable builds cannot auto-install — download it from GitHub Releases.",
+  }),
   "remote.helper.invalidResponse": msg({
     message: "CraftStation Helper returned an invalid response.",
   }),

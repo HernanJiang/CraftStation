@@ -4194,6 +4194,10 @@ msgstr "Geräte & Werkzeuge"
 msgid "Devices can pair while this desktop is reachable."
 msgstr "Geräte können gekoppelt werden, solange dieser Desktop erreichbar ist."
 
+#: src/renderer/components/providers/devin/manifest.ts
+msgid "Devin"
+msgstr ""
+
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Dialogue exchanges"
 msgstr "Dialog-Nachrichten"
@@ -4388,9 +4392,23 @@ msgstr "Fertig"
 msgid "Done · Waiting for your input"
 msgstr "Fertig · Warten auf Ihre Eingabe"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Download and install {0}"
+msgstr ""
+
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Download and install {0} now"
+msgstr ""
+
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
 msgstr "Bild herunterladen"
+
+#: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
+msgid "Download v{version}"
+msgstr ""
 
 #. placeholder {0}: name || t`the chosen folder`
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
@@ -5236,6 +5254,10 @@ msgid "First-class DeepSeek Harness (dsh) integration using CraftStation's ACP r
 msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
+msgid "First-class Devin CLI integration using CraftStation's ACP runtime."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
 msgstr "Erstklassige Factory-Droid-Integration mit der ACP-Laufzeit von CraftStation."
 
@@ -6058,7 +6080,6 @@ msgstr "Überprüfen Sie kanonische Laufzeitelemente"
 msgid "install"
 msgstr "installieren"
 
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
@@ -6072,8 +6093,8 @@ msgstr "Installieren"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "Install {0}"
-msgstr ""
+#~ msgid "Install {0}"
+#~ msgstr ""
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -6082,8 +6103,8 @@ msgstr "Installieren Sie {0} für {env}."
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "Install {0} now"
-msgstr ""
+#~ msgid "Install {0} now"
+#~ msgstr ""
 
 #. placeholder {0}: formatAgentList(props.agentStatuses.map((s) => s.label))
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -8238,6 +8259,10 @@ msgstr "Öffnen Sie den Konfliktlöser in"
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Open dialog"
 msgstr "Dialog öffnen"
+
+#: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
+msgid "Open download page"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadGroup.tsx
 msgid "Open experiment"
@@ -13438,6 +13463,10 @@ msgstr "SSH-Hostschlüssel prüfen"
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Version"
 msgstr "Version"
+
+#: src/renderer/i18n/sharedMessages.ts
+msgid "Version {version} is available. Portable builds cannot auto-install — download it from GitHub Releases."
+msgstr ""
 
 #. placeholder {0}: metadata.authMethod
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/authHelpers.ts

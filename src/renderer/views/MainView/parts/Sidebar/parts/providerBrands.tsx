@@ -40,6 +40,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   opencode: "OpenCode",
   deepseek: "DeepSeek",
   muse: "Muse",
+  devin: "Devin",
   zai: "z.ai",
   qwen: "Alibaba Token Plan",
   volcengine: "Volcengine Ark Token Plan",
@@ -65,6 +66,8 @@ const VENDOR_KIND_TO_BRAND: Record<string, string> = {
   "deepseek-api": "deepseek",
   "opencode-go": "opencode",
   meta: "muse",
+  cognition: "devin",
+  devin: "devin",
   recipes: "recipes",
 };
 
@@ -152,6 +155,10 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
     // No licensed logo asset vendored: dark tile + letter glyph, matching
     // the other brand badges instead of a full Meta-blue disc.
     background: "#15161b",
+    logo: "",
+  },
+  devin: {
+    background: "#0b1220",
     logo: "",
   },
   zai: {

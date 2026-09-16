@@ -1,3 +1,15 @@
+## Release 1.2.7 — Devin CLI / 凭据弹窗 / 浅色顶栏 / 便携版更新（2026-09-16）
+
+- 基于 1.2.6 在 `main` 直接修复与功能补齐；GitHub Release 中英双语。便携包 `CraftStation-Portable-1.2.7-x64.exe`。
+- 用户可见：
+  - 全功能接入 Devin CLI（合成台 Native Harness、一键安装、ACP Session、MCP 注入、检查更新）。
+  - 凭据/Key/AK-SK 填写改为 Modal，未授权时首次点击不再无反应。
+  - 浅色主题下顶部栏与侧边栏跟随浅色语义色，不再硬编码深色渐变。
+  - 应用更新源改为 `HernanJiang/CraftStation`；检查超时 8s；便携版发现新版本打开 GitHub Releases，不自动覆盖 exe。
+  - 合成台未安装 Harness 点击整行即下载安装，失败 Toast 可重试，不再跳到代理设置。
+  - Gemini 503 容量重试噪声不再刷到会话错误里。
+- 用户数据仍在 `~\.craftstation\`，与 exe 分离；分发只需一个 Portable exe。
+
 ## Release 1.2.6 — 首页入口 / Harness 实时检测与安装 / CLI 更新交互 Hotfix（2026-09-16）
 
 - 对应 GitHub Issues：#3（CLI 更新指示显示但点击无效、双击时更新页瞬间开关）、#4（Harness/CLI 不支持直接安装）。基于 1.2.5 在 `main` 直接修复，commit `24701bb3`，tag `v1.2.6` 已 push，GitHub Release 已发布（`CraftStation-Portable-1.2.6-x64.exe`，131 MB，未签章问题无）。

@@ -42,6 +42,7 @@ const HARNESSES = {
   opencode: harness("opencode", "opencode"),
   deepseek: harness("deepseek", "deepseek"),
   muse: harness("muse", "muse"),
+  devin: harness("devin", "cognition"),
 } as const;
 
 function route(
@@ -84,6 +85,11 @@ const opencodeCatalog = model({
   providerKind: "opencode",
   modelId: "opencode-go/muse-spark-1.3-contributor",
 });
+const devinSub = model({
+  entryId: "agent:devin:swe",
+  providerKind: "devin",
+  modelId: "swe",
+});
 const chiral = model({
   entryId: "custom:codex:openai-compatible:chiral:gpt-5.6-sol",
   source: "custom",
@@ -107,6 +113,7 @@ describe("API × Harness composition matrix", () => {
     expect(route(dshSub, HARNESSES.deepseek)).toBe("native");
     expect(route(agyGemini, HARNESSES.antigravity)).toBe("native");
     expect(route(opencodeCatalog, HARNESSES.opencode)).toBe("native");
+    expect(route(devinSub, HARNESSES.devin)).toBe("native");
   });
 
   it("projects a subscription onto a foreign CLI through CLIProxyAPI", () => {
@@ -117,7 +124,9 @@ describe("API × Harness composition matrix", () => {
 
   it("runs allowlisted vendors on OpenCode natively, even from a subscription catalog", () => {
     expect(route(chatgpt, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
-    expect(route(agyGemini, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
+    expect(route(agyGemini, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe(
+      "native",
+    );
     expect(route(kimiSub, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
     expect(route(dshSub, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
     expect(route(grokSub, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
@@ -138,8 +147,8 @@ describe("API × Harness composition matrix", () => {
   });
 
   it("binds Antigravity-catalog Gemini onto OpenCode without CLIProxyAPI", () => {
-    expect(
-      route(agyGemini, HARNESSES.opencode, { compatibilityBridgeReady: false }),
-    ).toBe("native");
+    expect(route(agyGemini, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe(
+      "native",
+    );
   });
 });

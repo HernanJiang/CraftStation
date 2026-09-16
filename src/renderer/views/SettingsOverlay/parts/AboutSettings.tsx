@@ -11,7 +11,7 @@ import { SettingsPage } from "./SettingsForm";
 import appIconStableUrl from "../../../../../build/icon.png";
 import appIconNightlyUrl from "../../../../../build/icon-nightly.png";
 
-const GITHUB_REPO = "https://github.com/SDSLeon/craftstation";
+const GITHUB_REPO = "https://github.com/HernanJiang/CraftStation";
 const WEBSITE_URL = "https://craftstation.com/";
 
 function AboutLink(props: { href: string; children: React.ReactNode }) {
@@ -34,6 +34,7 @@ function UpdateButton() {
   const downloadPercent = useUpdateStore((s) => s.downloadPercent);
   const transferred = useUpdateStore((s) => s.downloadTransferred);
   const total = useUpdateStore((s) => s.downloadTotal);
+  const manualDownloadUrl = useUpdateStore((s) => s.manualDownloadUrl);
 
   if (phase === "checking") {
     return (
@@ -83,6 +84,20 @@ function UpdateButton() {
     return (
       <Button size="sm" variant="tertiary" onPress={() => void readBridge().installUpdate()}>
         <RefreshCw className="size-3.5" />
+        {label}
+      </Button>
+    );
+  }
+
+  if (phase === "available-manual" && manualDownloadUrl) {
+    const label = version ? t`Download v${version}` : t`Open download page`;
+    return (
+      <Button
+        size="sm"
+        variant="tertiary"
+        onPress={() => void readBridge().openExternal(manualDownloadUrl)}
+      >
+        <ExternalLink className="size-3.5" />
         {label}
       </Button>
     );

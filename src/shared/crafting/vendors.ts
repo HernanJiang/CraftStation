@@ -24,6 +24,8 @@ const AGENT_KIND_TO_VENDOR: Record<string, string> = {
   "opencode-go": "opencode",
   muse: "muse",
   meta: "muse",
+  cognition: "cognition",
+  devin: "cognition",
   qwen: "qwen",
   cursor: "cursor",
   aionui: "aionui",

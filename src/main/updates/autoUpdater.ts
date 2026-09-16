@@ -22,8 +22,31 @@ const INITIAL_CHECK_DELAY_MS = 30_000;
  * long-lived window still discovers releases without ever being restarted.
  */
 const PERIODIC_CHECK_INTERVAL_MS = 60 * 60 * 1_000;
-const TRANSIENT_RETRY_DELAYS_MS = [500, 1_000] as const;
+const CHECK_REQUEST_TIMEOUT_MS = 8_000;
+const CHECK_RETRY_DELAYS_MS = [400] as const;
+const DOWNLOAD_RETRY_DELAYS_MS = [500, 1_000] as const;
 const TRANSIENT_REPORT_COOLDOWN_MS = 6 * 60 * 60 * 1_000;
+const GITHUB_UPDATE_OWNER = "HernanJiang";
+const GITHUB_UPDATE_REPO = "CraftStation";
+const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_UPDATE_OWNER}/${GITHUB_UPDATE_REPO}/releases`;
+
+function isPortableWindowsBuild(): boolean {
+  return Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label} timed out after ${ms}ms`);
+      error.name = "TimeoutError";
+      reject(error);
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
 
 export interface AutoUpdaterController {
   initialize(): void;
@@ -111,7 +134,9 @@ export function createAutoUpdaterController(
         return;
       } catch (error) {
         const failure = classifyUpdateFailure(attemptState.eventError ?? error, operation, channel);
-        const retryDelay = TRANSIENT_RETRY_DELAYS_MS[attempt];
+        const retryDelay = (
+          operation === "check" ? CHECK_RETRY_DELAYS_MS : DOWNLOAD_RETRY_DELAYS_MS
+        )[attempt];
         if (failure.retryable && retryDelay !== undefined) {
           if (activeAttempt === attemptState) activeAttempt = null;
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
@@ -149,9 +174,15 @@ export function createAutoUpdaterController(
     checkInFlight = true;
     notifyOnFailure = notify;
     updateAvailable = false;
-    checkPromise = runOperation("check", () => autoUpdater.checkForUpdates())
+    checkPromise = runOperation("check", () =>
+      withTimeout(
+        Promise.resolve().then(() => autoUpdater.checkForUpdates()),
+        CHECK_REQUEST_TIMEOUT_MS,
+        "update check",
+      ),
+    )
       .then(() => {
-        if (updateAvailable && !updateReady) {
+        if (updateAvailable && !updateReady && !isPortableWindowsBuild()) {
           void beginDownload().catch(() => {});
         } else {
           checkInFlight = false;
@@ -189,8 +220,9 @@ export function createAutoUpdaterController(
     // A renderer stuck during hydration cannot reach the normal install
     // button. Once an update is downloaded, Cmd/Ctrl+Q still provides a
     // main-process-owned recovery path that applies it on quit.
-    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.autoInstallOnAppQuit = !isPortableWindowsBuild();
     autoUpdater.forceDevUpdateConfig = Boolean(process.env.UPDATE_SERVER_URL);
+    (autoUpdater as { requestTimeout?: number }).requestTimeout = CHECK_REQUEST_TIMEOUT_MS;
 
     if (channel === "nightly") {
       autoUpdater.channel = "nightly";
@@ -202,6 +234,12 @@ export function createAutoUpdaterController(
     const localUpdateUrl = process.env.UPDATE_SERVER_URL;
     if (localUpdateUrl) {
       autoUpdater.setFeedURL({ provider: "generic", url: localUpdateUrl });
+    } else {
+      autoUpdater.setFeedURL({
+        provider: "github",
+        owner: GITHUB_UPDATE_OWNER,
+        repo: GITHUB_UPDATE_REPO,
+      });
     }
 
     autoUpdater.on("checking-for-update", () => {
@@ -210,6 +248,16 @@ export function createAutoUpdaterController(
     });
     autoUpdater.on("update-available", (info) => {
       updateAvailable = true;
+      if (isPortableWindowsBuild()) {
+        checkInFlight = false;
+        sendStatus({
+          type: "update-available",
+          version: info.version,
+          manualDownloadUrl: GITHUB_RELEASES_URL,
+          openDownload: notifyOnFailure,
+        });
+        return;
+      }
       checkInFlight = true;
       sendStatus({ type: "update-available", version: info.version });
     });

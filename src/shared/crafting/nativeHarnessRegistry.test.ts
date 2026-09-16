@@ -27,11 +27,12 @@ describe("Native Harness registry", () => {
         "harness:deepseek",
         "harness:deepseek-api",
         "harness:muse",
+        "harness:devin",
       ]),
     );
-    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(6);
+    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(7);
     expect(BUILTIN_NATIVE_HARNESS_MODEL_ITEMS.map((item) => item.metadata.vendor)).toEqual(
-      expect.arrayContaining(["xai", "moonshot", "google", "deepseek", "muse"]),
+      expect.arrayContaining(["xai", "moonshot", "google", "deepseek", "muse", "cognition"]),
     );
     expect(NATIVE_HARNESS_RECIPES.map((recipe) => recipe.id)).toEqual(
       expect.arrayContaining([
@@ -41,6 +42,7 @@ describe("Native Harness registry", () => {
         "recipe:deepseek-native",
         "recipe:deepseek-api",
         "recipe:meta-muse-native",
+        "recipe:cognition-devin-native",
       ]),
     );
   });

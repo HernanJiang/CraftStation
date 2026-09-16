@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { usePanelStore } from "@/renderer/state/panelStore";
-import {
-  harnessConfigurationTarget,
-  openHarnessConfiguration,
-} from "./openHarnessConfiguration";
+import { harnessConfigurationTarget, openHarnessConfiguration } from "./openHarnessConfiguration";
 
 const initialPanelState = usePanelStore.getState();
 
@@ -30,6 +27,10 @@ describe("harnessConfigurationTarget", () => {
     expect(harnessConfigurationTarget("muse")).toEqual({
       kind: "agent-settings",
       section: "agents:muse",
+    });
+    expect(harnessConfigurationTarget("devin")).toEqual({
+      kind: "agent-settings",
+      section: "agents:devin",
     });
   });
 

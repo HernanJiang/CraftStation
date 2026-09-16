@@ -1,6 +1,7 @@
 import { toast } from "@heroui/react";
 import { msg } from "@/shared/messages";
 import type { UpdateStatus } from "@/shared/ipc";
+import { readBridge } from "@/renderer/bridge";
 import { useUpdateStore } from "@/renderer/state/updateStore";
 import type { WorkbenchContribution } from "../lifecycle";
 import type { WorkbenchServices } from "../services";
@@ -12,6 +13,14 @@ export function handleUpdateStatus(status: UpdateStatus): void {
       store.setChecking();
       break;
     case "update-available":
+      if (status.manualDownloadUrl) {
+        store.setAvailableManual(status.version, status.manualDownloadUrl);
+        toast.info(msg("update.portableAvailable", { version: status.version }));
+        if (status.openDownload) {
+          void readBridge().openExternal(status.manualDownloadUrl);
+        }
+        break;
+      }
       store.beginUpdateDownload(status.version);
       break;
     case "update-not-available":

@@ -120,6 +120,7 @@ describe("native ACP registry aliases", () => {
       "claude-acp": "claude",
       "codex-acp": "codex",
       cursor: "cursor",
+      "devin-cli": "devin",
       "factory-droid": "factory",
       gemini: "gemini",
       "github-copilot": "copilot",
@@ -140,6 +141,7 @@ describe("native ACP registry aliases", () => {
     expect([...APP_SUPPORTED_ACP_AGENT_IDS].toSorted()).toEqual(aliasesWithNativeSupport);
     expect([...APP_SUPPORTED_ACP_AGENT_IDS].toSorted()).toEqual([
       "cursor",
+      "devin-cli",
       "factory-droid",
       "gemini",
       "github-copilot",
@@ -626,6 +628,10 @@ describe("AcpRegistrySettings", () => {
     expect(entries.get("factory")?.installCommand(wslProject)).toContain(
       "curl -fsSL https://app.factory.ai/cli | sh",
     );
+    expect(entries.get("devin")?.installCommand(wslProject)).toContain(
+      "curl -fsSL https://cli.devin.ai/install.sh | bash",
+    );
+    expect(entries.get("devin")?.docsUrl).toBe("https://docs.devin.ai/cli");
     expect(entries.get("cursor")?.installCommand(wslProject)).toContain(
       "curl https://cursor.com/install -fsS | bash",
     );
@@ -662,6 +668,9 @@ describe("AcpRegistrySettings", () => {
       expect(entries.get("copilot")?.installCommand(macProject)).toContain(
         "brew install --cask copilot-cli",
       );
+      expect(entries.get("devin")?.installCommand(macProject)).toContain(
+        "brew install --cask devin-cli",
+      );
     });
 
     withHostPlatform("win32", () => {
@@ -676,6 +685,9 @@ describe("AcpRegistrySettings", () => {
       );
       expect(entries.get("factory")?.installCommand(windowsProject)).toContain(
         "irm https://app.factory.ai/cli/windows | iex",
+      );
+      expect(entries.get("devin")?.installCommand(windowsProject)).toContain(
+        "irm https://static.devin.ai/cli/setup.ps1 | iex",
       );
       expect(entries.get("cursor")?.installCommand(windowsProject)).toContain(
         "https://cursor.com/install?win32=true",

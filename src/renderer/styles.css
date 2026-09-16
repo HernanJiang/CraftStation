@@ -9,9 +9,9 @@
   font-style: normal;
   font-display: swap;
   unicode-range:
-    U+0000-024F, U+0250-02FF, U+0300-036F, U+0370-03FF, U+0400-04FF, U+1E00-1EFF,
-    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2200-22FF,
-    U+2C60-2C7F, U+A720-A7FF, U+FB00-FB06, U+FEFF, U+FFFD;
+    U+0000-024F, U+0250-02FF, U+0300-036F, U+0370-03FF, U+0400-04FF, U+1E00-1EFF, U+2000-206F,
+    U+2070-209F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2200-22FF, U+2C60-2C7F, U+A720-A7FF,
+    U+FB00-FB06, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: "Geist Mono";
@@ -20,9 +20,9 @@
   font-style: normal;
   font-display: swap;
   unicode-range:
-    U+0000-024F, U+0250-02FF, U+0300-036F, U+0370-03FF, U+0400-04FF, U+1E00-1EFF,
-    U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2200-22FF,
-    U+2C60-2C7F, U+A720-A7FF, U+FB00-FB06, U+FEFF, U+FFFD;
+    U+0000-024F, U+0250-02FF, U+0300-036F, U+0370-03FF, U+0400-04FF, U+1E00-1EFF, U+2000-206F,
+    U+2070-209F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2200-22FF, U+2C60-2C7F, U+A720-A7FF,
+    U+FB00-FB06, U+FEFF, U+FFFD;
 }
 
 :root {
@@ -1475,8 +1475,22 @@ html[data-window-kind="main"] .craftstation-shell:has(.craftstation-titlebar) {
   -webkit-backdrop-filter: blur(28px) saturate(130%);
 }
 
+html[data-window-kind="main"]:where(.light, [data-theme="light"])
+  .craftstation-shell:has(.craftstation-titlebar) {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--window-header-background) 94%, white) 0%,
+    var(--sidebar-background) 100%
+  );
+}
+
 .craftstation-titlebar {
   background: transparent !important;
+}
+
+html:where(.light, [data-theme="light"]) .craftstation-titlebar {
+  background: var(--window-header-background) !important;
+  color: var(--foreground);
 }
 
 .craftstation-titlebar,
@@ -1514,6 +1528,21 @@ html[data-window-kind="main"] .craftstation-shell:has(.craftstation-titlebar) {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
+}
+
+html:where(.light, [data-theme="light"])
+  .craftstation-shell:has(.craftstation-titlebar)
+  .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay) {
+  background: var(--sidebar-background) !important;
+}
+
+html:where(.light, [data-theme="light"])[data-native-material="on"]
+  .craftstation-shell:has(.craftstation-titlebar)
+  .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay),
+html:where(.light, [data-theme="light"])[data-sidebar-glass="on"]
+  .craftstation-shell:has(.craftstation-titlebar)
+  .craftstation-sidebar-aside:not(.craftstation-sidebar-aside--overlay) {
+  background: var(--sidebar-glass-tint) !important;
 }
 
 .craftstation-shell:has(.craftstation-titlebar) .craftstation-sidebar-body,

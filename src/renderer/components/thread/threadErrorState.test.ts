@@ -45,6 +45,14 @@ describe("threadErrorState", () => {
         ),
       ),
     ).toBeNull();
+    expect(
+      getThreadErrorDockStateForItem(
+        errorItem(
+          "err-503-attempt-1",
+          "API error (attempt 1): UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server",
+        ),
+      ),
+    ).toBeNull();
   });
 
   it("keeps non-abort composer errors", () => {

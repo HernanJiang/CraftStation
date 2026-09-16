@@ -1,6 +1,12 @@
 import { create } from "zustand";
 
-export type UpdatePhase = "idle" | "checking" | "downloading" | "downloaded" | "error";
+export type UpdatePhase =
+  | "idle"
+  | "checking"
+  | "downloading"
+  | "downloaded"
+  | "error"
+  | "available-manual";
 
 interface UpdateState {
   phase: UpdatePhase;
@@ -10,6 +16,8 @@ interface UpdateState {
   downloadTransferred: number | null;
   downloadTotal: number | null;
   downloadBytesPerSecond: number | null;
+  /** GitHub Releases URL when the running build cannot auto-install (portable). */
+  manualDownloadUrl: string | null;
   /**
    * In-flight agent binary updates keyed by `${agentKind}:${envKind}:${distro}`.
    * Agent installers (npm scripts, vendor updaters) stream no byte counts, so
@@ -54,6 +62,7 @@ export interface AgentUpdateInFlight {
 interface UpdateActions {
   setChecking: () => void;
   beginUpdateDownload: (version: string) => void;
+  setAvailableManual: (version: string, url: string) => void;
   setNotAvailable: () => void;
   setDownloading: (percent: number, progress?: DownloadProgressPayload) => void;
   setDownloaded: (version: string) => void;
@@ -74,6 +83,7 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
   version: null,
   downloadPercent: 0,
   errorMessage: null,
+  manualDownloadUrl: null,
   ...clearedDownloadFields,
   agentUpdates: {},
   availableCliUpdates: [],
@@ -84,6 +94,7 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
       errorMessage: null,
       version: null,
       downloadPercent: 0,
+      manualDownloadUrl: null,
       ...clearedDownloadFields,
     }),
   beginUpdateDownload: (version) =>
@@ -92,6 +103,16 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
       version,
       downloadPercent: 0,
       errorMessage: null,
+      manualDownloadUrl: null,
+      ...clearedDownloadFields,
+    }),
+  setAvailableManual: (version, url) =>
+    set({
+      phase: "available-manual",
+      version,
+      errorMessage: null,
+      downloadPercent: 0,
+      manualDownloadUrl: url,
       ...clearedDownloadFields,
     }),
   setNotAvailable: () =>
@@ -100,6 +121,7 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
       errorMessage: null,
       version: null,
       downloadPercent: 0,
+      manualDownloadUrl: null,
       ...clearedDownloadFields,
     }),
   setDownloading: (percent, progress) =>
@@ -119,6 +141,7 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
       phase: "downloaded",
       version,
       downloadPercent: 100,
+      manualDownloadUrl: null,
       ...clearedDownloadFields,
     }),
   setError: (message) =>
@@ -127,6 +150,7 @@ export const useUpdateStore = create<UpdateState & UpdateActions>()((set) => ({
       errorMessage: message,
       version: null,
       downloadPercent: 0,
+      manualDownloadUrl: null,
       ...clearedDownloadFields,
     }),
   beginAgentUpdate: (key, label) =>

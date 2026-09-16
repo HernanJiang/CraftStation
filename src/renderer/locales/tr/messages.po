@@ -4194,6 +4194,10 @@ msgstr "Cihazlar ve araçlar"
 msgid "Devices can pair while this desktop is reachable."
 msgstr "Cihazlar bu masaüstüne erişilebildiği sürece eşleşebilir."
 
+#: src/renderer/components/providers/devin/manifest.ts
+msgid "Devin"
+msgstr ""
+
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Dialogue exchanges"
 msgstr "Diyalog alışverişi"
@@ -4388,9 +4392,23 @@ msgstr "Bitti"
 msgid "Done · Waiting for your input"
 msgstr "Bitti · Girişinizi bekliyorum"
 
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Download and install {0}"
+msgstr ""
+
+#. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Download and install {0} now"
+msgstr ""
+
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
 msgstr "Görseli indir"
+
+#: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
+msgid "Download v{version}"
+msgstr ""
 
 #. placeholder {0}: name || t`the chosen folder`
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
@@ -5236,6 +5254,10 @@ msgid "First-class DeepSeek Harness (dsh) integration using CraftStation's ACP r
 msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
+msgid "First-class Devin CLI integration using CraftStation's ACP runtime."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
 msgstr "CraftStation'un ACP çalışma zamanını kullanan birinci sınıf Factory Droid entegrasyonu."
 
@@ -6058,7 +6080,6 @@ msgstr "Kanonik çalışma zamanı öğelerini incele"
 msgid "install"
 msgstr "yükle"
 
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/plugins/PluginDetail.tsx
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
@@ -6072,8 +6093,8 @@ msgstr "Yükle"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "Install {0}"
-msgstr ""
+#~ msgid "Install {0}"
+#~ msgstr ""
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -6082,8 +6103,8 @@ msgstr "{env} için {0} yükleyin."
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
-msgid "Install {0} now"
-msgstr ""
+#~ msgid "Install {0} now"
+#~ msgstr ""
 
 #. placeholder {0}: formatAgentList(props.agentStatuses.map((s) => s.label))
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -8238,6 +8259,10 @@ msgstr "Çakışma çözümleyiciyi şurada açın"
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Open dialog"
 msgstr "İletişim kutusunu aç"
+
+#: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
+msgid "Open download page"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadGroup.tsx
 msgid "Open experiment"
@@ -13438,6 +13463,10 @@ msgstr "SSH ana makine anahtarını doğrula"
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Version"
 msgstr "Sürüm"
+
+#: src/renderer/i18n/sharedMessages.ts
+msgid "Version {version} is available. Portable builds cannot auto-install — download it from GitHub Releases."
+msgstr ""
 
 #. placeholder {0}: metadata.authMethod
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/authHelpers.ts

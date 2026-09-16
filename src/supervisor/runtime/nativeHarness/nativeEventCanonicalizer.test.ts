@@ -66,19 +66,22 @@ describe("canonicalizeNativeEvent Antigravity thinking and retry noise", () => {
         }),
       ]),
     );
-    expect(events.some((event) => event.type === "content.delta" && event.stream === "assistant_text")).toBe(
-      false,
-    );
+    expect(
+      events.some((event) => event.type === "content.delta" && event.stream === "assistant_text"),
+    ).toBe(false);
   });
 
   it("does not paint Gemini 503 capacity retries as assistant text or errors", () => {
     const noise =
       "API error (attempt 2) UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server";
+    const attempt1 =
+      "API error (attempt 1): UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server";
     expect(
       agyEvent("step_update", {
         step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: noise },
       }),
     ).toEqual([]);
     expect(agyEvent("error", { message: noise })).toEqual([]);
+    expect(agyEvent("error", { message: attempt1 })).toEqual([]);
   });
 });

@@ -43,6 +43,7 @@ const PREFERRED_MODEL: Record<string, string> = {
   kimi: "kimi-code/kimi-for-coding",
   deepseek: "deepseek-v4-flash",
   muse: "muse-spark-1.2",
+  devin: "swe",
   qwen: "qwen3.8-max",
   qoder: "lite",
 };

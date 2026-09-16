@@ -328,6 +328,26 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
       ),
   },
   {
+    id: "devin",
+    acpRegistryAliases: [{ id: "devin-cli", nativeSupport: true }],
+    description: msg`First-class Devin CLI integration using CraftStation's ACP runtime.`,
+    docsUrl: "https://docs.devin.ai/cli",
+    installCommand: (project) =>
+      nativeInstallCommand(project, {
+        mac:
+          "if command -v curl >/dev/null 2>&1; then curl -fsSL https://cli.devin.ai/install.sh | bash; " +
+          "elif command -v brew >/dev/null 2>&1; then brew install --cask devin-cli; else " +
+          MAC_MISSING_CURL_BREW_MESSAGE +
+          "; fi",
+        posix:
+          "if command -v curl >/dev/null 2>&1; then curl -fsSL https://cli.devin.ai/install.sh | bash; else " +
+          POSIX_MISSING_CURL_MESSAGE +
+          "; fi",
+        windows:
+          "if (Get-Command irm -ErrorAction SilentlyContinue) { irm https://static.devin.ai/cli/setup.ps1 | iex } else { Write-Host 'No supported installer found. Install PowerShell Invoke-RestMethod first, then refresh detected agents.' }",
+      }),
+  },
+  {
     id: "factory",
     acpRegistryAliases: [{ id: "factory-droid", nativeSupport: true }],
     description: msg`First-class Factory Droid integration using CraftStation's ACP runtime.`,

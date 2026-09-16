@@ -67,6 +67,11 @@ const updateByKind: Record<string, AgentAdapter["update"]> = {
       "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_amd64.json",
     ],
   },
+  devin: {
+    builtIn: { binary: "devin", args: ["update"] },
+    homebrewCask: "devin-cli",
+    latestVersionUrls: ["https://static.devin.ai/cli/current/manifest.json"],
+  },
 };
 
 function makeStatus(overrides: Partial<AgentStatus>): AgentStatus {
@@ -435,6 +440,19 @@ describe("getLatestVersionForAdapter", () => {
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
       "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_amd64.json",
     );
+  });
+
+  it("fetches the latest Devin CLI version from the official manifest", async () => {
+    const fetchSpy = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ version: "3000.10.27" }),
+    } as Response);
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    const result = await getLatestVersionForAdapter(makeAdapter("devin"));
+    expect(result).toEqual({ version: "3000.10.27", source: "version-url" });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://static.devin.ai/cli/current/manifest.json");
   });
 
   it("falls back to the next provider version URL", async () => {

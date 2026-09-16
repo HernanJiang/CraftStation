@@ -675,8 +675,8 @@ afterPack: build/after-pack.cjs
 
 publish:
   provider: github
-  owner: SDSLeon
-  repo: craftstation${publishChannelLine}
+  owner: HernanJiang
+  repo: CraftStation${publishChannelLine}
 
 win:
   target:

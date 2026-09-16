@@ -18,7 +18,20 @@ export function runNativeAgentInstall(input: {
   project?: Parameters<typeof runAgentInstallCommand>[0]["project"];
   /** `true` when the installer exited cleanly and detection refreshed. */
   onComplete?: (ok: boolean) => void;
+  /**
+   * Optional workbench-owned retry. When omitted, the toast Retry action
+   * re-invokes this helper with the same input (settings page, one-shots).
+   */
+  onRetry?: () => void;
 }): boolean {
+  const retryInstall = () => {
+    if (input.onRetry) {
+      input.onRetry();
+      return;
+    }
+    void runNativeAgentInstall(input);
+  };
+
   const entry = NATIVE_AGENT_REGISTRY_ENTRIES.find((candidate) => candidate.id === input.agentKind);
   if (!entry) {
     toast.danger(
@@ -35,7 +48,15 @@ export function runNativeAgentInstall(input: {
     onCommandComplete: (exitCode) => {
       if (exitCode !== 0) {
         toast.danger(
-          `${input.label} 安装命令以退出码 ${exitCode} 结束，请查看安装终端中的真实输出。`,
+          `${input.label} 安装失败（退出码 ${exitCode}）。常见原因是缺少 curl、PowerShell 或 WSL。请查看安装终端输出后重试。`,
+          {
+            actionProps: {
+              children: "重试",
+              onPress: retryInstall,
+              variant: "secondary",
+            },
+            timeout: 0,
+          },
         );
         input.onComplete?.(false);
         return;
@@ -46,6 +67,14 @@ export function runNativeAgentInstall(input: {
         .catch((error) => {
           toast.danger(
             error instanceof Error ? error.message : `${input.label} 安装后状态刷新失败。`,
+            {
+              actionProps: {
+                children: "重试",
+                onPress: retryInstall,
+                variant: "secondary",
+              },
+              timeout: 0,
+            },
           );
           input.onComplete?.(false);
         });

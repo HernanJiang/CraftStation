@@ -5,7 +5,7 @@ describe("classifyUpdateFailure", () => {
   it("treats a GitHub latest-release 404 as a missing stable feed", () => {
     const failure = Object.assign(
       new Error(
-        "Unable to find latest version on GitHub (https://github.com/SDSLeon/craftstation/releases/latest), please ensure a production release exists: 404",
+        "Unable to find latest version on GitHub (https://github.com/HernanJiang/CraftStation/releases/latest), please ensure a production release exists: 404",
       ),
       { statusCode: 404 },
     );

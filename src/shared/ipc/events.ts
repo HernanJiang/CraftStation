@@ -224,7 +224,14 @@ export type PrWatchStatusEvent = {
 
 export type UpdateStatus =
   | { type: "checking" }
-  | { type: "update-available"; version: string }
+  | {
+      type: "update-available";
+      version: string;
+      /** Portable builds cannot auto-install; renderer should open this URL. */
+      manualDownloadUrl?: string;
+      /** User-initiated check: open the download page immediately. */
+      openDownload?: boolean;
+    }
   | { type: "update-not-available" }
   | {
       type: "downloading";

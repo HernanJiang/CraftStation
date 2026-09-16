@@ -1,5 +1,6 @@
 import type { AccountBinding, ProjectLocation, PromptSegment } from "@/shared/contracts";
 import type { HarnessRuntimeAdapter } from "@/shared/crafting";
+import { createDevinAdapter } from "@/supervisor/agents/devin";
 import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
 import { createMuseAdapter } from "@/supervisor/agents/muse";
@@ -9,6 +10,7 @@ import {
   CODEX_NATIVE_HARNESS_DESCRIPTOR,
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
   DEEPSEEK_API_HARNESS_DESCRIPTOR,
+  DEVIN_NATIVE_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
@@ -37,6 +39,7 @@ export {
   CODEX_NATIVE_HARNESS_DESCRIPTOR,
   DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
   DEEPSEEK_API_HARNESS_DESCRIPTOR,
+  DEVIN_NATIVE_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
@@ -242,6 +245,27 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     new StructuredNativeHarnessRuntimeAdapter({
       adapter: withBaseSpawnEnv(createMuseAdapter(), baseSpawnEnv),
       descriptor: MUSE_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation,
+      ...(accountBinding ? { accountBinding } : {}),
+      ...(profileRef ? { profileRef } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(onPromptError ? { onPromptError } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
+  devin: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    baseSpawnEnv,
+    mcpServers,
+    onPromptError,
+    skillSegments,
+    inlineSkillInstructions,
+  }) =>
+    new StructuredNativeHarnessRuntimeAdapter({
+      adapter: withBaseSpawnEnv(createDevinAdapter(), baseSpawnEnv),
+      descriptor: DEVIN_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
       ...(accountBinding ? { accountBinding } : {}),
       ...(profileRef ? { profileRef } : {}),

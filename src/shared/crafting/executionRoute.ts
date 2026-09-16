@@ -51,6 +51,7 @@ export const SUBSCRIPTION_HARNESS_KINDS = new Set([
   "deepseek",
   "muse",
   "commandcode",
+  "devin",
 ]);
 
 function harnessSupportsCustomBaseUrl(harnessKind: string): boolean {

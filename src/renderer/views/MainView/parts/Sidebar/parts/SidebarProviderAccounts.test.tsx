@@ -81,6 +81,7 @@ const usageProvidersMock = vi.hoisted(() => ({
     { id: "antigravity", label: "Antigravity" },
     { id: "commandcode", label: "Command Code" },
     { id: "openai-compatible", label: "OpenAI 兼容 API" },
+    { id: "volcengine", label: "Volcengine Ark Token Plan" },
     { id: "opencode", label: "OpenCode" },
   ],
 }));
@@ -112,11 +113,11 @@ vi.mock("@/renderer/components/providers/usageProviders", () => ({
 }));
 
 vi.mock("@/renderer/components/providers/useUsageProviderLogin", () => ({
-  useUsageProviderLogin: () => ({
+  useUsageProviderLogin: (id: string) => ({
     canSignIn: true,
     canReauthenticate: false,
-    canApiKeySignIn: false,
-    canManageApiKey: false,
+    canApiKeySignIn: id === "volcengine",
+    canManageApiKey: id === "volcengine",
     canSignOut: false,
     signingIn: false,
     apiKey: "",
@@ -1418,5 +1419,43 @@ describe("SidebarProviderAccounts", () => {
     expect(within(page).getByRole("button", { name: "Share" })).toBeInTheDocument();
     expect(within(page).getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(page).toHaveTextContent("Model usage");
+  });
+
+  it("opens the OpenAI compatible credential dialog when unauthorized", async () => {
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const card = within(workspace).getByTestId("provider-card-openai-compatible");
+    fireEvent.click(within(card).getByRole("button", { name: "添加账号" }));
+
+    expect(await screen.findByTestId("openai-compatible-form")).toBeInTheDocument();
+    expect(screen.getByText("添加 OpenAI 兼容提供商")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("openai-compatible-form")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("opens the Kimi API Key dialog from the unauthorized card", async () => {
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const card = within(workspace).getByTestId("provider-card-kimi");
+    fireEvent.click(within(card).getByRole("button", { name: "使用 Kimi API Key 授权" }));
+
+    const dialog = await screen.findByTestId("api-key-credential-form");
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByPlaceholderText("粘贴 Kimi Code API Key")).toBeInTheDocument();
+  });
+
+  it("opens the Volcengine credential dialog when unauthorized", async () => {
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const card = within(workspace).getByTestId("provider-card-volcengine");
+    fireEvent.click(within(card).getByRole("button", { name: "登录/授权" }));
+
+    expect(await screen.findByTestId("volcengine-credential-form")).toBeInTheDocument();
+    expect(screen.getByLabelText("Volcengine Ark API Key")).toBeInTheDocument();
   });
 });

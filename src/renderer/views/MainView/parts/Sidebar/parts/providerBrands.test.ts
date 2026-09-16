@@ -10,6 +10,8 @@ describe("brandIdForVendorKind", () => {
     expect(brandIdForVendorKind("deepseek-api")).toBe("deepseek");
     expect(brandIdForVendorKind("opencode-go")).toBe("opencode");
     expect(brandIdForVendorKind("meta")).toBe("muse");
+    expect(brandIdForVendorKind("cognition")).toBe("devin");
+    expect(brandIdForVendorKind("devin")).toBe("devin");
   });
 
   it("passes brand keys and unknowns through, normalizes case", () => {
@@ -22,7 +24,16 @@ describe("brandIdForVendorKind", () => {
   });
 
   it("every mapped target resolves to a real brand or honest fallback", () => {
-    for (const target of ["codex", "grok", "kimi", "gemini", "deepseek", "muse", "opencode"]) {
+    for (const target of [
+      "codex",
+      "grok",
+      "kimi",
+      "gemini",
+      "deepseek",
+      "muse",
+      "opencode",
+      "devin",
+    ]) {
       expect(PROVIDER_BRANDS[target]).toBeDefined();
       expect(PROVIDER_LABELS[target]).toBeDefined();
     }

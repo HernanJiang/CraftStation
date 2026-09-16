@@ -138,6 +138,8 @@ const messages = {
   "update.serviceUnavailable": "The update service is temporarily unavailable.",
   "update.operationFailed": "The update operation failed.",
   "update.devUnavailable": "Update checks are not available in development mode.",
+  "update.portableAvailable":
+    "Version {version} is available. Portable builds cannot auto-install — download it from GitHub Releases.",
 
   // ── Remote hosts ─────────────────────────────────────────
   "remote.helper.invalidResponse": "CraftStation Helper returned an invalid response.",

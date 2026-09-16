@@ -83,21 +83,31 @@ export function HarnessCliPanel(props: {
               key={entry.descriptor.id}
               type="button"
               data-testid={`harness-cli-row-${entry.descriptor.harnessKind}`}
+              disabled={installing}
               title={
-                entry.status === "not-configured"
-                  ? "点击配置"
-                  : entry.status === "unavailable"
-                    ? "点击安装"
-                    : entry.status === "error"
-                      ? "点击查看并修复"
-                      : entry.descriptor.label
+                installing
+                  ? "正在安装…"
+                  : entry.status === "not-configured"
+                    ? "点击配置"
+                    : entry.status === "unavailable"
+                      ? "点击下载并安装"
+                      : entry.status === "error"
+                        ? "点击查看并修复"
+                        : entry.descriptor.label
               }
-              onClick={() => onShowDetail(entry)}
+              onClick={() => {
+                if (installing) return;
+                if (canInstall) {
+                  onInstall?.(entry);
+                  return;
+                }
+                onShowDetail(entry);
+              }}
               className={`flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors ${
                 highlighted
                   ? "border-amber-400/60 bg-amber-400/10"
                   : "border-white/5 bg-white/[0.03] hover:bg-white/[0.07]"
-              }`}
+              } disabled:cursor-wait disabled:opacity-70`}
             >
               <ProviderBrandBadge
                 id={brandIdForVendorKind(entry.descriptor.vendor)}
@@ -161,7 +171,7 @@ export function HarnessCliPanel(props: {
                   role="button"
                   tabIndex={0}
                   data-testid={`harness-cli-install-${entry.descriptor.harnessKind}`}
-                  aria-label={t`Install ${entry.descriptor.label || entry.descriptor.harnessKind}`}
+                  aria-label={t`Download and install ${entry.descriptor.label || entry.descriptor.harnessKind}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     onInstall?.(entry);
@@ -172,11 +182,11 @@ export function HarnessCliPanel(props: {
                     event.stopPropagation();
                     onInstall?.(entry);
                   }}
-                  className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-amber-300"
-                  title={t`Install ${entry.descriptor.label || entry.descriptor.harnessKind} now`}
+                  className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-200 transition-colors hover:bg-amber-400/35 focus-visible:outline-2 focus-visible:outline-amber-300"
+                  title={t`Download and install ${entry.descriptor.label || entry.descriptor.harnessKind} now`}
                 >
                   <Download className="size-3" />
-                  {t`Install`}
+                  下载并安装
                 </span>
               ) : null}
               {installing ? (

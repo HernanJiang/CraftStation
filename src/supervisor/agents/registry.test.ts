@@ -21,6 +21,7 @@ const EXPECTED_BUILT_IN_ORDER = [
   "opencode",
   "pi",
   "factory",
+  "devin",
 ] as const;
 
 const EXPECTED_SUBAGENT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[number], string> =
@@ -41,6 +42,7 @@ const EXPECTED_SUBAGENT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)
     opencode: "yolo",
     pi: "never",
     factory: "auto-high",
+    devin: "yolo",
   };
 
 const EXPECTED_DEFAULT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[number], string> = {
@@ -60,6 +62,7 @@ const EXPECTED_DEFAULT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[
   opencode: "yolo",
   pi: "never",
   factory: "auto-high",
+  devin: "accept-edits",
 };
 
 function detectionProviderKinds(): string[] {
