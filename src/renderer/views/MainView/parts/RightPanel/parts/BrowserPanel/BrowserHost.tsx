@@ -54,6 +54,7 @@ export function BrowserHost() {
   const setRightPanelTab = usePanelStore((s) => s.setRightPanelTab);
   const extracted = useBrowserPanelStore((s) => s.extracted);
   const hasTabs = useBrowserPanelStore((s) => s.tabs.length > 0);
+  const automationActive = useBrowserPanelStore((s) => s.automationActive);
 
   // The browser is painted wherever its dock slot lives: the right panel's
   // active layer, a right-panel split section, or a bottom dock slot. Keying
@@ -69,9 +70,11 @@ export function BrowserHost() {
         : "drawer"
       : browserPanelOpen && dockedVisible
         ? "docked"
-        : // Panel + overlay both closed: keep tabs alive off-screen so the agent
-          // can drive them headless (no forced panel reveal).
-          "background";
+        : automationActive
+          ? // Keep tabs alive off-screen only while an agent is actively driving
+            // them. The main process clears this after its grace period.
+            "background"
+          : "hidden";
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -84,10 +87,10 @@ export function BrowserHost() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, browserPanelOpen]);
 
-  // Extracted → the standalone window owns the browser. Background keeps
-  // existing tabs mounted off-screen so switching threads or right-panel tabs
-  // never destroys a page (unmounting a <webview> drops its guest and forces
-  // a reload on return). Only mount nothing when there are no tabs at all.
+  // Extracted → the standalone window owns the browser. Idle hidden tabs are
+  // restored from persisted state on demand instead of retaining one Chromium
+  // renderer per tab indefinitely. Active automation keeps them mounted in
+  // background mode so screenshots and browser tools continue to work.
   if (mode === "hidden") return null;
   if (mode === "background" && !hasTabs) return null;
 

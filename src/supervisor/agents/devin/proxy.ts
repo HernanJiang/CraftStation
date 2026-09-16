@@ -16,6 +16,27 @@ import { resolveProxyConfig } from "@/supervisor/runtime/usageHttpClient";
 
 const TEAM_SETTINGS_ERROR = /failed to (?:load|fetch) team settings|GetCliTeamSettings/i;
 
+const DEFAULT_TEAM_SETTINGS_RETRIES = 3;
+const DEFAULT_TEAM_SETTINGS_BACKOFF_MS = 500;
+
+export function resolveDevinTeamSettingsRetryPolicy(
+  env: Record<string, string | undefined> = process.env,
+): { maxAttempts: number; initialDelayMs: number } {
+  const retries = boundedInteger(
+    env.CRAFTSTATION_DEVIN_TEAM_SETTINGS_RETRIES,
+    DEFAULT_TEAM_SETTINGS_RETRIES,
+    0,
+    5,
+  );
+  const initialDelayMs = boundedInteger(
+    env.CRAFTSTATION_DEVIN_TEAM_SETTINGS_BACKOFF_MS,
+    DEFAULT_TEAM_SETTINGS_BACKOFF_MS,
+    0,
+    10_000,
+  );
+  return { maxAttempts: retries + 1, initialDelayMs };
+}
+
 export function isDevinTeamSettingsTimeoutError(error: unknown): boolean {
   const text = errorText(error);
   return TEAM_SETTINGS_ERROR.test(text) && /timed?\s*out/i.test(text);
@@ -161,4 +182,16 @@ function asProxyBlock(value: unknown): { mode?: string; url?: string } | undefin
 /** Devin config allows JS comments; drop them so JSON.parse can read it. */
 function stripJsonComments(raw: string): string {
   return raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
+function boundedInteger(
+  raw: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (!raw?.trim()) return fallback;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(maximum, Math.max(minimum, value));
 }

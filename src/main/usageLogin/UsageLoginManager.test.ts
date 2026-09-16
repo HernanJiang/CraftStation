@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -259,6 +259,19 @@ describe("UsageLoginManager API-key flow", () => {
     expect(hasUsageSecret(cacheDir, "zai")).toBe(true);
     await expect(manager.clearLogin("zai")).resolves.toEqual({ ok: true });
     expect(hasUsageSecret(cacheDir, "zai")).toBe(false);
+  });
+
+  it("removes the Command Code CLI credential so authorization cannot reappear", async () => {
+    const commandCodeHome = join(cacheDir, "commandcode-home");
+    const authPath = join(commandCodeHome, "auth.json");
+    mkdirSync(commandCodeHome, { recursive: true });
+    writeFileSync(authPath, JSON.stringify({ apiKey: "cmd-secret" }), "utf8");
+    const manager = new UsageLoginManager({ cacheDir } as never, () => makePanel() as never, {
+      commandCodeAuthFile: authPath,
+    });
+
+    await expect(manager.clearLogin("commandcode")).resolves.toEqual({ ok: true });
+    expect(existsSync(authPath)).toBe(false);
   });
 });
 

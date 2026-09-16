@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { AccountView } from "@/shared/contracts";
 
 interface UsageAccountsStore {
@@ -34,37 +35,49 @@ function sameAccount(left: AccountView, right: AccountView): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export const useUsageAccountsStore = create<UsageAccountsStore>()((set) => ({
-  accounts: [],
-  hydrated: false,
-  nextSessionAccountId: null,
-  setAccounts: (accounts) =>
-    set((state) => {
-      if (
-        state.accounts.length === accounts.length &&
-        state.accounts.every((account, index) => sameAccount(account, accounts[index]!))
-      ) {
-        return state;
-      }
-      return { accounts: [...accounts], hydrated: true };
+export const useUsageAccountsStore = create<UsageAccountsStore>()(
+  persist(
+    (set) => ({
+      accounts: [],
+      hydrated: false,
+      nextSessionAccountId: null,
+      setAccounts: (accounts) =>
+        set((state) => {
+          if (
+            state.accounts.length === accounts.length &&
+            state.accounts.every((account, index) => sameAccount(account, accounts[index]!))
+          ) {
+            return state.hydrated ? state : { hydrated: true };
+          }
+          return { accounts: [...accounts], hydrated: true };
+        }),
+      upsertAccount: (account) =>
+        set((state) => {
+          const index = state.accounts.findIndex((item) => item.accountId === account.accountId);
+          if (index < 0) return { accounts: [...state.accounts, account], hydrated: true };
+          if (sameAccount(state.accounts[index]!, account)) return { hydrated: true };
+          const accounts = [...state.accounts];
+          accounts[index] = account;
+          accounts.sort((left, right) => left.order - right.order);
+          return { accounts, hydrated: true };
+        }),
+      removeAccount: (accountId) =>
+        set((state) => ({
+          accounts: state.accounts.filter((account) => account.accountId !== accountId),
+          nextSessionAccountId:
+            state.nextSessionAccountId === accountId ? null : state.nextSessionAccountId,
+        })),
+      setNextSessionAccount: (accountId) => set({ nextSessionAccountId: accountId }),
+      clearNextSessionAccount: () => set({ nextSessionAccountId: null }),
+      reset: () => set({ accounts: [], hydrated: false, nextSessionAccountId: null }),
     }),
-  upsertAccount: (account) =>
-    set((state) => {
-      const index = state.accounts.findIndex((item) => item.accountId === account.accountId);
-      if (index < 0) return { accounts: [...state.accounts, account], hydrated: true };
-      if (sameAccount(state.accounts[index]!, account)) return { hydrated: true };
-      const accounts = [...state.accounts];
-      accounts[index] = account;
-      accounts.sort((left, right) => left.order - right.order);
-      return { accounts, hydrated: true };
-    }),
-  removeAccount: (accountId) =>
-    set((state) => ({
-      accounts: state.accounts.filter((account) => account.accountId !== accountId),
-      nextSessionAccountId:
-        state.nextSessionAccountId === accountId ? null : state.nextSessionAccountId,
-    })),
-  setNextSessionAccount: (accountId) => set({ nextSessionAccountId: accountId }),
-  clearNextSessionAccount: () => set({ nextSessionAccountId: null }),
-  reset: () => set({ accounts: [], hydrated: false, nextSessionAccountId: null }),
-}));
+    {
+      name: "craftstation-usage-accounts",
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      // AccountView contains display metadata only. Credentials remain in the
+      // supervisor's managed account store and are never copied to the renderer.
+      partialize: (state) => ({ accounts: state.accounts, hydrated: state.hydrated }),
+    },
+  ),
+);

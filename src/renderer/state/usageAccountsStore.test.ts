@@ -41,4 +41,20 @@ describe("setAccountsUnlessEmptyWipe", () => {
 
     expect(useUsageAccountsStore.getState().accounts).toEqual([]);
   });
+
+  it("rehydrates the last visible authorization rows after a renderer restart", async () => {
+    const persisted = account("kimi:cached");
+    useUsageAccountsStore.setState({ accounts: [], hydrated: false });
+    localStorage.setItem(
+      "craftstation-usage-accounts",
+      JSON.stringify({ state: { accounts: [persisted], hydrated: true }, version: 1 }),
+    );
+
+    await useUsageAccountsStore.persist.rehydrate();
+
+    expect(useUsageAccountsStore.getState()).toMatchObject({
+      accounts: [persisted],
+      hydrated: true,
+    });
+  });
 });

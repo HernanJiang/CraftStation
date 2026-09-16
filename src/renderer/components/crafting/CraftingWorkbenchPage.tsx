@@ -116,10 +116,18 @@ export function CraftingWorkbenchPage(props: {
   const refreshHarness = useCallback(async () => {
     setNativeLoading(true);
     try {
-      await readBridge().refreshAgentStatuses(currentWslDistros(), {
+      const response = await readBridge().refreshAgentStatuses(currentWslDistros(), {
         agentKinds: [...NATIVE_HARNESS_AGENT_KINDS],
       });
+      if (response.degraded) {
+        console.warn("[crafting] agent status refresh degraded", response.degraded);
+        toast.warning("Agent 状态刷新超时，已保留上次结果。请稍后重试。");
+        return;
+      }
       await readControlPlane();
+    } catch (error) {
+      console.warn("[crafting] failed to refresh agent statuses", error);
+      toast.warning(`Agent 状态刷新失败，已保留上次结果：${friendlyError(error)}`);
     } finally {
       setNativeLoading(false);
     }

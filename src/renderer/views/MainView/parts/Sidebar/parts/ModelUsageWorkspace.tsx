@@ -23,10 +23,8 @@ import { useUsageProviderLogin } from "@/renderer/components/providers/useUsageP
 import {
   createAndRunCodexProfileLogin,
   createAndRunGrokProfileLogin,
-  createAndRunKimiProfileLogin,
   runAgentLoginCommand,
   runCodexProfileLogin,
-  runKimiProfileLogin,
   signInAndImportAntigravityAccount,
 } from "@/renderer/actions/agentLoginActions";
 import { autoProvisionVolcengineArkChannel } from "@/renderer/actions/volcengineArkChannel";
@@ -67,7 +65,6 @@ const CLI_LOGIN_COMMANDS: Record<string, string> = {
   claude: "claude auth login",
   gemini: "gemini /auth",
   cursor: "cursor-agent login",
-  kimi: "kimi acp --login",
   // CLI v1.38.2 的真实登录命令（"cmdc auth login" 是其内部过时提示，会报参数错误）。
   commandcode: "cmdc login",
   // Official OpenCode login writes ~/.local/share/opencode/auth.json. Cookie
@@ -96,19 +93,27 @@ const DEFAULT_KIMI_LABELS = new Set(["New Kimi", "本机 Kimi"]);
 
 async function submitKimiApiKey(input: {
   apiKey: string;
+  accountId?: string | undefined;
+  label?: string | undefined;
   onImported?: ((accountId: string) => void) | undefined;
 }): Promise<boolean> {
   const key = input.apiKey.trim();
   if (!key) return false;
   try {
-    const account = await readBridge().importKimiApiKey({ label: "New Kimi", apiKey: key });
+    const account = await readBridge().importKimiApiKey({
+      ...(input.accountId ? { accountId: input.accountId } : {}),
+      label: input.label?.trim() || "New Kimi",
+      apiKey: key,
+    });
     const refreshed = await readBridge().listAccounts({ provider: "kimi" });
     const current = useUsageAccountsStore.getState().accounts;
     useUsageAccountsStore
       .getState()
       .setAccounts([...current.filter((row) => row.provider !== "kimi"), ...refreshed]);
     await refreshAndMergeProviderUsage("kimi");
-    toast.success("已用 API Key 添加 Kimi Code 账号");
+    toast.success(
+      input.accountId ? "Kimi Code API Key 已更新" : "已用 API Key 添加 Kimi Code 账号",
+    );
     if (account.accountId) input.onImported?.(account.accountId);
     return true;
   } catch (error) {
@@ -511,6 +516,8 @@ function OpenAiCompatibleFormCard(props: {
 }
 
 function KimiApiKeyDialog(props: {
+  accountId?: string | undefined;
+  label?: string | undefined;
   onClose: () => void;
   onImported?: ((accountId: string) => void) | undefined;
 }) {
@@ -536,6 +543,8 @@ function KimiApiKeyDialog(props: {
                 setSaving(true);
                 void submitKimiApiKey({
                   apiKey,
+                  accountId: props.accountId,
+                  label: props.label,
                   onImported: props.onImported,
                 })
                   .then((success) => {
@@ -1069,10 +1078,8 @@ function ProviderCard(props: {
       return;
     }
     if (props.id === "kimi") {
-      setCliSigningIn(true);
-      void createAndRunKimiProfileLogin({ label: "New Kimi" }).finally(() =>
-        setCliSigningIn(false),
-      );
+      setCookieOpen(false);
+      setApiKeyOpen(true);
       return;
     }
     // commandcode 有意落入下方的 CLI 登录分支：官方 `cmdc auth login` 会把
@@ -1210,16 +1217,19 @@ function ProviderCard(props: {
           type="button"
           disabled={signingIn || cliSigningIn}
           onClick={handleAccountAction}
+          aria-label={props.id === "kimi" ? "使用 Kimi API Key 授权" : undefined}
           className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
           <UserRoundPlus className="size-3.5" />
-          {cliSigningIn || signingIn
-            ? "登录中…"
-            : connected || managedAccounts.length > 0 || hasStoredSession || hasRememberedIdentity
-              ? needsUsageSessionConnect
-                ? "连接额度"
-                : "添加账号"
-              : "登录/授权"}
+          {props.id === "kimi"
+            ? "API Key"
+            : cliSigningIn || signingIn
+              ? "登录中…"
+              : connected || managedAccounts.length > 0 || hasStoredSession || hasRememberedIdentity
+                ? needsUsageSessionConnect
+                  ? "连接额度"
+                  : "添加账号"
+                : "登录/授权"}
         </button>
         {props.onImportAccount ? (
           <button
@@ -1232,7 +1242,7 @@ function ProviderCard(props: {
             导入
           </button>
         ) : null}
-        {props.id === "kimi" || props.id === "devin" ? (
+        {props.id === "devin" ? (
           <button
             type="button"
             disabled={signingIn || cliSigningIn}
@@ -1241,7 +1251,7 @@ function ProviderCard(props: {
               setApiKeyOpen(true);
             }}
             className="inline-flex h-8 shrink-0 items-center rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
-            aria-label={props.id === "devin" ? "使用 Devin API Key 授权" : "使用 Kimi API Key 授权"}
+            aria-label="使用 Devin API Key 授权"
           >
             API Key
           </button>
@@ -1912,7 +1922,10 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   const [openAiCompatibleForm, setOpenAiCompatibleForm] = useState<{ accountId?: string } | null>(
     null,
   );
-  const [kimiApiKeyForm, setKimiApiKeyForm] = useState(false);
+  const [kimiApiKeyForm, setKimiApiKeyForm] = useState<{
+    accountId?: string;
+    label?: string;
+  } | null>(null);
   // The active tab lives in the panel store (persisted): reopening the page
   // restores the last-visited tab, and explicit deep links keep working.
   const workspaceTab = usePanelStore((state) => state.modelUsageWorkspaceTab);
@@ -2345,27 +2358,6 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
         : "已创建账号，但本机 ~/.codex/auth.json 无法解析",
     );
   };
-  const createKimiProfile = async () => {
-    await createAndRunKimiProfileLogin({
-      label: "New Kimi",
-      onCreated: (accountId) => void promptNewKimiLabel(accountId),
-    });
-  };
-  const importHostKimiLogin = async () => {
-    const account = await readBridge().importKimiProfile({ label: "本机 Kimi" });
-    await refreshAccountList();
-    if (account?.accountId) {
-      const fresh = useUsageAccountsStore
-        .getState()
-        .accounts.find((a) => a.accountId === account.accountId);
-      if (fresh) openRenameAccount(fresh, { prefill: "", hint: KIMI_REMARK_HINT });
-    }
-    toast.success(
-      account.status === "available"
-        ? "已导入本机 Kimi Code 登录"
-        : "已创建 Kimi 账号，但本机凭据无法解析",
-    );
-  };
   const handleProviderDrop = (targetId: string) => {
     if (!draggedProviderId || draggedProviderId === targetId) return;
     const displayed = resolveDisplayedProviders(providerOrder, []).map((p) => p.id);
@@ -2499,17 +2491,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             badgeLabel="Kimi Code"
             addAriaLabel="添加 Kimi Code 账号"
             accounts={signedKimiAccounts}
-            onAdd={() => void accountActions(createKimiProfile, "kimi")}
-            onImport={() => void accountActions(importHostKimiLogin, "kimi")}
-            importAriaLabel="导入本机 Kimi Code 登录"
-            onAddApiKey={() => setKimiApiKeyForm(true)}
-            addApiKeyAriaLabel="使用 API Key 添加 Kimi Code 账号"
-            onReauth={(a) =>
-              void accountActions(
-                () => runKimiProfileLogin({ accountId: a.accountId, label: a.label }),
-                "kimi",
-              )
-            }
+            onAdd={() => setKimiApiKeyForm({})}
+            onReauth={(a) => setKimiApiKeyForm({ accountId: a.accountId, label: a.label })}
           />
         );
       case "antigravity":
@@ -2690,7 +2673,6 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
               <ProviderCard
                 id="kimi"
                 label="Kimi Code"
-                onImportAccount={() => void accountActions(importHostKimiLogin, "kimi")}
                 onKimiApiKeyImported={(accountId) => void promptNewKimiLabel(accountId)}
               />
             ) : null}
@@ -2727,8 +2709,12 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
       ) : null}
       {kimiApiKeyForm ? (
         <KimiApiKeyDialog
-          onClose={() => setKimiApiKeyForm(false)}
-          onImported={(accountId) => void promptNewKimiLabel(accountId)}
+          accountId={kimiApiKeyForm.accountId}
+          label={kimiApiKeyForm.label}
+          onClose={() => setKimiApiKeyForm(null)}
+          onImported={
+            kimiApiKeyForm.accountId ? undefined : (accountId) => void promptNewKimiLabel(accountId)
+          }
         />
       ) : null}
       <Modal.Backdrop

@@ -9,6 +9,7 @@ import {
   type ChatPaneActions,
 } from "../chatPaneActionsContext";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { MessageList } from "./MessageList";
 import { clearTimelineMeasurementCache } from "./timelineMeasurementCache";
 
@@ -203,6 +204,7 @@ describe("MessageList", () => {
       runtimeItemChildrenByParentByThread: {},
       runtimeCompletedTurnsByThread: {},
     }));
+    useSharedSettings.setState({ zoomFactor: 1 });
   });
 
   it("configures LegendList 3.3.3 anchoring and dynamic-size preservation", () => {
@@ -230,6 +232,32 @@ describe("MessageList", () => {
     props.onStartReached?.();
     expect(onStartReached).toHaveBeenCalledOnce();
     expect(props.recycleItems).toBe(false);
+  });
+
+  it("corrects LegendList's scaled first measurement with CSS-pixel row dimensions", async () => {
+    vi.useFakeTimers();
+    try {
+      useSharedSettings.setState({ zoomFactor: 1.25 });
+      render(<MessageList threadId="thread-1" entries={makeEntries(["item-1"])} />);
+      const row = screen.getByText("item-1").closest("[data-chat-virtual-row='true']");
+      if (!(row instanceof HTMLDivElement)) throw new Error("missing virtual row");
+      Object.defineProperties(row, {
+        offsetHeight: { configurable: true, value: 100 },
+        offsetWidth: { configurable: true, value: 500 },
+        getBoundingClientRect: {
+          configurable: true,
+          value: () => ({ width: 625, height: 125 }),
+        },
+      });
+      setItemSizeMock.mockClear();
+
+      await act(async () => vi.advanceTimersByTimeAsync(16));
+
+      expect(setItemSizeMock).toHaveBeenCalledWith("item-1", { height: 100, width: 500 });
+    } finally {
+      vi.useRealTimers();
+      useSharedSettings.setState({ zoomFactor: 1 });
+    }
   });
 
   it("keeps long assistant rows out of short-message size estimates", () => {

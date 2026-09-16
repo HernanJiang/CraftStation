@@ -32,6 +32,18 @@ export const AssistantMessage = memo(function AssistantMessage({
 }: AssistantMessageProps) {
   const { t } = useLingui();
   const actions = useChatPaneActions();
+  const turnRecord = useAppStore((state) =>
+    selectCompletedTurnsByAnchorItem(state, threadId).get(item.id),
+  );
+  const completedTurnWasRemapped = useAppStore((state) => {
+    if (!turnRecord) return false;
+    return (state.runtimeCompletedTurnsByThread[threadId] ?? []).some(
+      (source) =>
+        source.startedAt === turnRecord.startedAt &&
+        source.endedAt === turnRecord.endedAt &&
+        source.anchorItemId !== item.id,
+    );
+  });
   // The copy action only appears under a turn's *final* answer: the message
   // must be the last top-level item of its turn — any trailing item (another
   // message, a tool call, an error from a failed turn) means the text was an
@@ -43,6 +55,11 @@ export const AssistantMessage = memo(function AssistantMessage({
   // a copy action yet.
   const finalAnswerStatus = useAppStore((state): "confirmed" | "candidate" | "none" => {
     if (item.parentItemId) return "none";
+    // Some providers append a metadata-only assistant item after the visible
+    // answer. Completed-turn resolution deliberately remaps that invisible
+    // trailer to the preceding visible row; trust that lifecycle boundary so
+    // copy/fork controls do not disappear for Gemini/Antigravity transcripts.
+    if (completedTurnWasRemapped) return "confirmed";
     const ids = state.runtimeItemIdsByThread[threadId];
     const byId = state.runtimeItemsByIdByThread[threadId];
     if (!ids || !byId) return "none";
@@ -81,9 +98,6 @@ export const AssistantMessage = memo(function AssistantMessage({
   // owned by their host desktop (a local fork row could neither open nor
   // resume there) and experiment candidates are lifecycle-owned by their
   // experiment, so both stay copy-only.
-  const turnRecord = useAppStore((state) =>
-    selectCompletedTurnsByAnchorItem(state, threadId).get(item.id),
-  );
   const isRemoteThread = useAppStore(
     (state) => state.threads.find((thread) => thread.id === threadId)?.remoteServerId !== undefined,
   );

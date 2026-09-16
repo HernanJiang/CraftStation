@@ -17,7 +17,11 @@ import {
   DEVIN_DEFAULT_MODEL_ID,
   devinDetectionSpec,
 } from "./detection";
-import { ensureDevinUserProxyConfig, isDevinTeamSettingsTimeoutError } from "./proxy";
+import {
+  ensureDevinUserProxyConfig,
+  isDevinTeamSettingsTimeoutError,
+  resolveDevinTeamSettingsRetryPolicy,
+} from "./proxy";
 import { detectDevinTerminalStatus } from "./terminal";
 
 export function createDevinAdapter(): AgentAdapter {
@@ -92,7 +96,7 @@ export function createDevinAdapter(): AgentAdapter {
       return createAcpStructuredSession(command, input, {
         assumedMcpCapabilities: { http: true },
         retrySessionOpen: {
-          maxAttempts: 3,
+          ...resolveDevinTeamSettingsRetryPolicy(),
           isRetryable: isDevinTeamSettingsTimeoutError,
         },
       });

@@ -9,6 +9,7 @@ import {
   ensureDevinUserProxyConfig,
   isDevinTeamSettingsTimeoutError,
   resetDevinProxyConfigMemo,
+  resolveDevinTeamSettingsRetryPolicy,
 } from "./proxy";
 
 afterEach(() => {
@@ -38,6 +39,30 @@ describe("isDevinTeamSettingsTimeoutError", () => {
       false,
     );
     expect(isDevinTeamSettingsTimeoutError(new Error("Failed to load team settings"))).toBe(false);
+  });
+});
+
+describe("resolveDevinTeamSettingsRetryPolicy", () => {
+  it("defaults to three retries with exponential backoff", () => {
+    expect(resolveDevinTeamSettingsRetryPolicy({})).toEqual({
+      maxAttempts: 4,
+      initialDelayMs: 500,
+    });
+  });
+
+  it("allows bounded environment overrides", () => {
+    expect(
+      resolveDevinTeamSettingsRetryPolicy({
+        CRAFTSTATION_DEVIN_TEAM_SETTINGS_RETRIES: "2",
+        CRAFTSTATION_DEVIN_TEAM_SETTINGS_BACKOFF_MS: "750",
+      }),
+    ).toEqual({ maxAttempts: 3, initialDelayMs: 750 });
+    expect(
+      resolveDevinTeamSettingsRetryPolicy({
+        CRAFTSTATION_DEVIN_TEAM_SETTINGS_RETRIES: "99",
+        CRAFTSTATION_DEVIN_TEAM_SETTINGS_BACKOFF_MS: "999999",
+      }),
+    ).toEqual({ maxAttempts: 6, initialDelayMs: 10_000 });
   });
 });
 

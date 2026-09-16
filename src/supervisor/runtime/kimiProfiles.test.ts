@@ -64,7 +64,7 @@ describe("Kimi managed profile runtime", () => {
     expect(account).not.toHaveProperty("credentialRoot");
   });
 
-  it("creates a managed account from a pasted API key and injects it at spawn", () => {
+  it("creates a restart-safe Kimi Code API-key profile in config.toml", () => {
     const root = tempRoot("craftstation-kimi-apikey-");
     const store = new AccountStore(root);
     const service = new KimiProfileService({ store });
@@ -73,10 +73,47 @@ describe("Kimi managed profile runtime", () => {
     expect(account.providerAccountId).toMatch(/^New Kimi · [0-9a-f]{6}$/);
     const home = service.managedKimiHome(account.accountId);
     expect(readManagedKimiApiKey(home)).toBe("sk-kimi-pasted");
-    expect(readFileSync(join(home, "config.toml"), "utf8")).toContain("sk-kimi-pasted");
+    const config = readFileSync(join(home, "config.toml"), "utf8");
+    expect(config).toContain("[providers.kimi-code]");
+    expect(config).toContain('type = "kimi"');
+    expect(config).toContain('base_url = "https://api.kimi.com/coding/v1"');
+    expect(config).toContain('api_key = "sk-kimi-pasted"');
+    expect(config).toContain('default_model = "kimi-code/kimi-for-coding"');
+    expect(config).toContain('[models."kimi-code/kimi-for-coding"]');
+    expect(config).toContain('[models."kimi-code/k3"]');
     const env = managedKimiProcessEnvironment(home, { KIMI_CODE_API_KEY: "SENTINEL_API_KEY" });
-    expect(env.KIMI_CODE_API_KEY).toBe("sk-kimi-pasted");
+    expect(env.KIMI_CODE_API_KEY).toBe("");
     expect(env.KIMI_CODE_HOME).toBe(home);
+  });
+
+  it("replaces an expired managed account API key without creating a duplicate row", () => {
+    const root = tempRoot("craftstation-kimi-rekey-");
+    const store = new AccountStore(root);
+    const service = new KimiProfileService({ store });
+    const original = service.importApiKey({ label: "Kimi A", apiKey: "sk-old" });
+
+    const updated = service.importApiKey({
+      accountId: original.accountId,
+      label: original.label,
+      apiKey: "sk-new",
+    });
+
+    expect(updated.accountId).toBe(original.accountId);
+    expect(store.list()).toHaveLength(1);
+    expect(readManagedKimiApiKey(service.managedKimiHome(original.accountId))).toBe("sk-new");
+  });
+
+  it("migrates an existing API-key account to the durable provider config on spawn", () => {
+    const home = tempRoot("craftstation-kimi-legacy-apikey-");
+    writeCredential(home, { access_token: "sk-existing", token_type: "api_key" });
+    writeFileSync(join(home, "config.toml"), '[providers.moonshot]\napi_key = "sk-existing"\n');
+
+    managedKimiProcessEnvironment(home, {});
+
+    const config = readFileSync(join(home, "config.toml"), "utf8");
+    expect(config).toContain("[providers.kimi-code]");
+    expect(config).toContain('type = "kimi"');
+    expect(config).toContain('base_url = "https://api.kimi.com/coding/v1"');
   });
 
   it("imports an api-key-style credential with a label-hash fallback identity", () => {

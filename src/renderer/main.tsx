@@ -11,7 +11,11 @@ import {
   type RendererCrashKind,
   type RendererCrashReport,
 } from "./RendererCrashScreen";
-import { isIgnorableRejection, isIgnorableWindowError } from "./rendererGlobalErrors";
+import {
+  isIgnorableRejection,
+  isIgnorableWindowError,
+  isNonFatalBackgroundRejection,
+} from "./rendererGlobalErrors";
 import { bootstrapAppThemeFromCache } from "./theme/applyAppTheme";
 import { bootstrapAppLocaleFromCache } from "./i18n/i18n";
 
@@ -154,6 +158,12 @@ window.addEventListener("unhandledrejection", (event) => {
     event.preventDefault();
     return;
   }
+  if (isNonFatalBackgroundRejection(event.reason)) {
+    event.preventDefault();
+    console.warn("[craftstation][renderer:background-polling]", event.reason);
+    captureRendererException(event.reason, { featureArea: "background-polling" });
+    return;
+  }
   // Sentry's Electron renderer integration already captures global rejections; this only swaps UI.
   showCrash("unhandled-rejection", event.reason, undefined, { capture: false });
 });
@@ -197,8 +207,9 @@ function stampBootstrapImport(name: string): void {
 function publishBootstrapAttribution(): void {
   bootstrapAttribution.totalMs = Math.round((performance.now() - bootstrapT0) * 10) / 10;
   try {
-    (window as unknown as { __craftstationBootstrapAttribution?: Record<string, number> })
-      .__craftstationBootstrapAttribution = { ...bootstrapAttribution };
+    (
+      window as unknown as { __craftstationBootstrapAttribution?: Record<string, number> }
+    ).__craftstationBootstrapAttribution = { ...bootstrapAttribution };
   } catch {
     // Attribution is best-effort; a hostile embedder must not break startup.
   }
@@ -224,7 +235,12 @@ const localeBootstrapPromise = bootstrapAppLocaleFromCache().then(() => {
   stampBootstrapImport("locale");
 });
 
-void Promise.all([appModulePromise, providerBootstrapPromise, workbenchModulePromise, localeBootstrapPromise])
+void Promise.all([
+  appModulePromise,
+  providerBootstrapPromise,
+  workbenchModulePromise,
+  localeBootstrapPromise,
+])
   .then(([{ App }, , { createWindowWorkbench }]) => {
     publishBootstrapAttribution();
     logRendererBootstrap("rendering React app");

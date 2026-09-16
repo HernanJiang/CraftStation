@@ -93,6 +93,8 @@ function makeConfigSyncSession(
     initializeMeta?: Record<string, unknown>;
     retrySessionOpen?: {
       maxAttempts: number;
+      initialDelayMs?: number;
+      sleep?: (delayMs: number) => Promise<void>;
       isRetryable: (error: unknown) => boolean;
     };
   } = {},
@@ -1890,9 +1892,12 @@ describe("ACP client protocol helpers", () => {
   });
 
   it("retries session/new when the adapter marks the failure retryable", async () => {
+    const onRetryDelay = vi.fn<(delayMs: number) => Promise<void>>(() => Promise.resolve());
     const { connection, session } = makeConfigSyncSession({
       retrySessionOpen: {
-        maxAttempts: 3,
+        maxAttempts: 4,
+        initialDelayMs: 500,
+        sleep: onRetryDelay,
         isRetryable: (error) =>
           error instanceof Error && /Failed to load team settings/i.test(error.message),
       },
@@ -1911,6 +1916,31 @@ describe("ACP client protocol helpers", () => {
 
     await expect(session.openThread({ model: "model-a" })).resolves.toBe("session-retry");
     expect(connection.newSession).toHaveBeenCalledTimes(2);
+    expect(onRetryDelay).toHaveBeenCalledWith(500);
+  });
+
+  it("uses exponential backoff between repeated retryable session-open failures", async () => {
+    const sleep = vi.fn<(delayMs: number) => Promise<void>>(() => Promise.resolve());
+    const { connection, session } = makeConfigSyncSession({
+      retrySessionOpen: {
+        maxAttempts: 4,
+        initialDelayMs: 500,
+        sleep,
+        isRetryable: () => true,
+      },
+    });
+    connection.newSession
+      .mockRejectedValueOnce(new Error("team settings timeout 1"))
+      .mockRejectedValueOnce(new Error("team settings timeout 2"))
+      .mockRejectedValueOnce(new Error("team settings timeout 3"))
+      .mockResolvedValueOnce({
+        sessionId: "session-after-backoff",
+        modes: { availableModes: [] },
+        configOptions: [],
+      });
+
+    await expect(session.openThread({ model: "model-a" })).resolves.toBe("session-after-backoff");
+    expect(sleep.mock.calls.map(([delay]) => delay)).toEqual([500, 1_000, 2_000]);
   });
 
   it("does not retry session/new for unrelated open failures", async () => {

@@ -62,3 +62,17 @@ export function isIgnorableWindowError(event: ErrorEvent): boolean {
 export function isIgnorableRejection(reason: unknown): boolean {
   return isViewTransitionSkippedError(reason) || isViewTransitionInvalidStateError(reason);
 }
+
+/**
+ * Background status refreshes are advisory. Electron wraps an IPC rejection
+ * with the channel name, so require both that channel and the supervisor
+ * operation before suppressing the fatal renderer screen.
+ */
+export function isNonFatalBackgroundRejection(reason: unknown): boolean {
+  const message = readErrorMessage(reason);
+  if (!message) return false;
+  return (
+    message.includes("craftstation:refresh-agent-statuses") &&
+    /Supervisor request ["']refreshAgentStatuses["'] timed out\.?/i.test(message)
+  );
+}

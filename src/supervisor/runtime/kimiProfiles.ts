@@ -86,8 +86,16 @@ export function managedKimiProcessEnvironment(
   for (const key of blankKeys) env[key] = "";
   env.KIMI_CODE_HOME = managedKimiHome;
   ensureManagedKimiHome(managedKimiHome);
+  // Upgrade API-key profiles created by older CraftStation versions. Kimi
+  // Code no longer consumes KIMI_CODE_API_KEY from the process environment;
+  // the provider declaration must survive in config.toml instead.
   const managedApiKey = readManagedKimiApiKey(managedKimiHome);
-  if (managedApiKey) env.KIMI_CODE_API_KEY = managedApiKey;
+  if (managedApiKey) {
+    writeFileAtomic(join(managedKimiHome, "config.toml"), kimiApiKeyConfigToml(managedApiKey), {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+  }
   return env;
 }
 
@@ -99,7 +107,8 @@ export function readManagedKimiApiKey(managedKimiHome: string): string | undefin
     const record = parsed as Record<string, unknown>;
     const access = typeof record.access_token === "string" ? record.access_token.trim() : "";
     if (!access) return undefined;
-    const tokenType = typeof record.token_type === "string" ? record.token_type.trim().toLowerCase() : "";
+    const tokenType =
+      typeof record.token_type === "string" ? record.token_type.trim().toLowerCase() : "";
     if (tokenType === "api_key") return access;
     const refresh = typeof record.refresh_token === "string" ? record.refresh_token.trim() : "";
     const expires = record.expires_at ?? record.expiresAt;
@@ -128,6 +137,7 @@ export interface KimiProfileImportInput {
 }
 
 export interface KimiProfileApiKeyInput {
+  accountId?: string | undefined;
   label: string;
   apiKey: string;
 }
@@ -314,11 +324,10 @@ export class KimiProfileService {
   }
 
   /**
-   * Create (or reuse) a managed Kimi account from a pasted API key. Writes both
-   * `credentials/kimi-code.json` (so quota collection can reuse the key) and
-   * `config.toml` `[providers.moonshot] api_key` (so the CLI treats it as a
-   * live credential). Runtime spawn injects `KIMI_CODE_API_KEY` from the
-   * managed file — it never inherits the host env key.
+   * Create, reuse, or re-key a managed Kimi account. The official CLI reads
+   * provider credentials from config.toml and deliberately ignores ordinary
+   * shell API-key variables, so config.toml is the runtime source of truth.
+   * The credential JSON remains an account-scoped copy for quota collection.
    */
   importApiKey(input: KimiProfileApiKeyInput): AccountView {
     const apiKey = input.apiKey.trim();
@@ -327,7 +336,17 @@ export class KimiProfileService {
     }
     const content = JSON.stringify({ access_token: apiKey, token_type: "api_key" }, null, 2);
     const identity = kimiFallbackIdentity(input.label, content);
-    const existing = this.options.store.findByProviderIdentity(this.provider, identity);
+    const targeted = input.accountId ? this.options.store.getRecord(input.accountId) : undefined;
+    if (input.accountId && !targeted) {
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${input.accountId}'.`);
+    }
+    if (targeted && targeted.provider !== this.provider) {
+      throw new AccountControlError(
+        "ACCOUNT_RUNTIME_UNSUPPORTED",
+        "Kimi API Key can only target a Kimi account.",
+      );
+    }
+    const existing = targeted ?? this.options.store.findByProviderIdentity(this.provider, identity);
     const account = existing
       ? this.options.store.get(existing.accountId)!
       : this.options.store.add({
@@ -343,6 +362,10 @@ export class KimiProfileService {
       writeFileAtomic(join(root, "config.toml"), kimiApiKeyConfigToml(apiKey), {
         encoding: "utf8",
         mode: 0o600,
+      });
+      this.options.store.updateProviderMetadata(account.accountId, {
+        providerAccountId: identity,
+        maskedIdentity: identity,
       });
       return this.options.store.updateStatus(account.accountId, "available");
     } catch (error) {
@@ -376,7 +399,8 @@ export class KimiProfileService {
     // API-key-style credentials carry no JWT/email identity: fall back to a
     // label + content-hash identity so the import still succeeds on its own
     // account row instead of failing outright.
-    const identity = kimiCredentialIdentities(parsed)[0] ?? kimiFallbackIdentity(input.label, content);
+    const identity =
+      kimiCredentialIdentities(parsed)[0] ?? kimiFallbackIdentity(input.label, content);
     const existing = this.options.store.findByProviderIdentity(this.provider, identity);
     const account = existing
       ? this.options.store.get(existing.accountId)!
@@ -492,5 +516,45 @@ export function managedKimiLoginCwd(managedKimiHome: string): string {
 
 function kimiApiKeyConfigToml(apiKey: string): string {
   const escaped = apiKey.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-  return `[providers.moonshot]\napi_key = "${escaped}"\n`;
+  return [
+    'default_model = "kimi-code/kimi-for-coding"',
+    "",
+    "[providers.kimi-code]",
+    'type = "kimi"',
+    'base_url = "https://api.kimi.com/coding/v1"',
+    `api_key = "${escaped}"`,
+    "",
+    '[models."kimi-code/kimi-for-coding"]',
+    'provider = "kimi-code"',
+    'model = "kimi-for-coding"',
+    "max_context_size = 262144",
+    'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
+    'display_name = "K2.7 Coding"',
+    "",
+    '[models."kimi-code/kimi-for-coding-highspeed"]',
+    'provider = "kimi-code"',
+    'model = "kimi-for-coding-highspeed"',
+    "max_context_size = 262144",
+    'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
+    'display_name = "K2.7 Coding Highspeed"',
+    "",
+    '[models."kimi-code/k3"]',
+    'provider = "kimi-code"',
+    'model = "k3"',
+    "max_context_size = 1048576",
+    'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
+    'display_name = "K3"',
+    'support_efforts = ["low", "high", "max"]',
+    'default_effort = "high"',
+    "",
+    '[models."kimi-code/k3-256k"]',
+    'provider = "kimi-code"',
+    'model = "k3-256k"',
+    "max_context_size = 262144",
+    'capabilities = ["thinking", "always_thinking", "image_in", "tool_use"]',
+    'display_name = "K3-256k"',
+    'support_efforts = ["low", "high", "max"]',
+    'default_effort = "high"',
+    "",
+  ].join("\n");
 }

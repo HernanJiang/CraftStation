@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isNonFatalBackgroundRejection,
   isIgnorableRejection,
   isIgnorableWindowError,
   isResizeObserverLoopError,
@@ -59,5 +60,14 @@ describe("rendererGlobalErrors", () => {
     const err = new DOMException("IndexedDB transaction inactive", "InvalidStateError");
     expect(isViewTransitionInvalidStateError(err)).toBe(false);
     expect(isIgnorableRejection(err)).toBe(false);
+  });
+
+  it("classifies agent-status polling timeouts as non-fatal background rejections", () => {
+    const error = new Error(
+      `Error invoking remote method 'craftstation:refresh-agent-statuses': Error: Supervisor request "refreshAgentStatuses" timed out.`,
+    );
+
+    expect(isNonFatalBackgroundRejection(error)).toBe(true);
+    expect(isNonFatalBackgroundRejection(new Error("Supervisor request timed out."))).toBe(false);
   });
 });

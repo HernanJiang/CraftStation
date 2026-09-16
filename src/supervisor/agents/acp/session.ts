@@ -268,6 +268,10 @@ export interface AcpStructuredSessionOptions {
    */
   retrySessionOpen?: {
     maxAttempts: number;
+    /** Delay before the first retry; later retries double this value. */
+    initialDelayMs?: number;
+    /** Injectable for deterministic tests. */
+    sleep?: (delayMs: number) => Promise<void>;
     isRetryable: (error: unknown) => boolean;
   };
 }
@@ -310,7 +314,12 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private readonly fsAgentHomeDirs: readonly string[];
   private readonly fsTextCapability: boolean;
   private readonly retrySessionOpen:
-    | { maxAttempts: number; isRetryable: (error: unknown) => boolean }
+    | {
+        maxAttempts: number;
+        initialDelayMs?: number;
+        sleep?: (delayMs: number) => Promise<void>;
+        isRetryable: (error: unknown) => boolean;
+      }
     | undefined;
   private readonly usageAccountId: string | undefined;
   private planModeToolTrackerInstance: AcpPlanModeToolTracker | undefined;
@@ -822,6 +831,11 @@ export class AcpStructuredSession implements StructuredSessionHandle {
           maxAttempts,
           error instanceof Error ? error.message : String(error),
         );
+        const initialDelayMs = Math.max(0, retry.initialDelayMs ?? 0);
+        const delayMs = Math.min(30_000, initialDelayMs * 2 ** (attempt - 1));
+        if (delayMs > 0) {
+          await (retry.sleep ?? sleep)(delayMs);
+        }
       }
     }
     throw lastError;
@@ -1968,4 +1982,8 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       return notification;
     }
   }
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }

@@ -1,5 +1,5 @@
 import { clipboard } from "electron";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { BrowserPanelManager } from "../browser";
@@ -57,6 +57,11 @@ export interface UsageLoginResult {
   arkModel?: string | undefined;
 }
 
+interface UsageLoginManagerOptions {
+  /** Test seam; production defaults to the official Command Code auth file. */
+  commandCodeAuthFile?: string;
+}
+
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface GitHubDeviceCodeResponse {
@@ -81,6 +86,7 @@ export class UsageLoginManager {
   constructor(
     private readonly paths: CraftStationPaths,
     private readonly getBrowserPanel: () => BrowserPanelManager | null,
+    private readonly options: UsageLoginManagerOptions = {},
   ) {
     this.antigravityOAuth = new AntigravityOAuthManager(paths.cacheDir);
   }
@@ -109,11 +115,12 @@ export class UsageLoginManager {
     this.cancelLogin(providerId);
     if (providerId === "antigravity") this.antigravityOAuth.clear();
     else clearUsageSecret(this.paths.cacheDir, providerId);
-    // Official CLI homes are independent import sources. Signing out of a
-    // CraftStation provider clears only CraftStation-owned staging/session
-    // state and must never log the user out of Grok, Command Code, or another
-    // vendor CLI — with one deliberate exception below.
+    // Most official CLI homes remain independent import sources. OpenCode and
+    // Command Code are exceptions: their cards are backed directly by the CLI
+    // auth file, so retaining it makes a supposedly deleted authorization
+    // reappear on the very next usage refresh.
     if (providerId === "opencode") this.clearOpenCodeAuth();
+    if (providerId === "commandcode") this.clearCommandCodeAuth();
     const config = PROVIDER_CONFIGS[providerId];
     if (config?.kind === "cookie") {
       await this.getBrowserPanel()
@@ -126,6 +133,12 @@ export class UsageLoginManager {
         });
     }
     return { ok: true };
+  }
+
+  private clearCommandCodeAuth(): void {
+    const authPath =
+      this.options.commandCodeAuthFile ?? join(homedir(), ".commandcode", "auth.json");
+    rmSync(authPath, { force: true });
   }
 
   /**

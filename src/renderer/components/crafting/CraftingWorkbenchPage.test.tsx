@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { toast } from "@heroui/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -269,6 +270,31 @@ describe("CraftingWorkbenchPage", () => {
     await waitFor(() =>
       expect(bridgeMock.getNativeHarnessControlPlane.mock.calls.length).toBeGreaterThanOrEqual(2),
     );
+  });
+
+  it("keeps the last control-plane rows and warns when status refresh times out", async () => {
+    const warning = vi.spyOn(toast, "warning").mockImplementation(() => "toast-timeout");
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    const kimiRow = await screen.findByTestId("harness-cli-row-kimi");
+    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
+    bridgeMock.refreshAgentStatuses.mockRejectedValueOnce(
+      new Error('Supervisor request "refreshAgentStatuses" timed out.'),
+    );
+
+    fireEvent.click(screen.getByTitle("刷新状态"));
+
+    await waitFor(() => expect(warning).toHaveBeenCalled());
+    expect(kimiRow).toBeInTheDocument();
+    expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalledTimes(1);
   });
 
   it("re-reads the control plane on detection events without re-detecting", async () => {

@@ -505,6 +505,18 @@ export const agentStatusesResponseSchema = z.object({
    * should show a detecting/loading state until fresh detection events arrive.
    */
   fromCache: z.boolean(),
+  /**
+   * Present when the main process returned its last known response because a
+   * background refresh could not complete. Renderers should preserve their
+   * current projection and surface a non-blocking warning.
+   */
+  degraded: z
+    .object({
+      error: z.enum(["TIMEOUT", "SUPERVISOR_UNAVAILABLE"]),
+      operation: z.literal("refreshAgentStatuses"),
+      message: z.string(),
+    })
+    .optional(),
 });
 export type AgentStatusesResponse = z.infer<typeof agentStatusesResponseSchema>;
 

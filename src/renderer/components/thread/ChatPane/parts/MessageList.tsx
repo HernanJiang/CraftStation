@@ -32,6 +32,7 @@ import {
 } from "../../pausedTurn";
 import { formatElapsed, formatElapsedZh } from "@/renderer/utils/formatTime";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import {
   getRuntimeItemPayload,
   type CompletedTurnRecord,
@@ -577,6 +578,7 @@ const VirtualChatListRow = memo(function VirtualChatListRow({
   canRevertCheckpoints,
   onRequestRevert,
 }: VirtualChatListRowProps) {
+  const zoomFactor = useSharedSettings((state) => state.zoomFactor);
   const rowElementRef = useRef<HTMLDivElement | null>(null);
   const liveMeasureRafRef = useRef<number | null>(null);
   // Keep the observer mounted when an appended prompt changes this row from
@@ -601,6 +603,21 @@ const VirtualChatListRow = memo(function VirtualChatListRow({
       remeasureElement(entry.id, element, true);
     });
   }, [entry.id, remeasureElement]);
+  useLayoutEffect(() => {
+    if (zoomFactor === 1) return;
+    // LegendList's first browser measurement uses getBoundingClientRect(),
+    // whose dimensions already include CSS `zoom`. Feeding that value back
+    // into an element under the same zoom scales the row twice and makes
+    // neighbouring messages overlap. Correct it after LegendList's mount
+    // layout effect with offset dimensions (unscaled CSS pixels).
+    const frame = requestAnimationFrame(() => {
+      const element = rowElementRef.current;
+      if (!element) return;
+      const layout = remeasureElement(entry.id, element);
+      if (layout) syncFollowingVirtualRowPositions(element, layout);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [entry.id, remeasureElement, zoomFactor]);
   useLayoutEffect(() => {
     if (!isLastEntry) return;
     return useAppStore.subscribe(
@@ -800,17 +817,21 @@ function TurnStatusText({
     return <LiveTurnStatusText startedAtMs={bar.startedAtMs} formatDuration={formatDuration} />;
   }
   const elapsed = formatDuration(Math.max(0, Math.floor((bar.endedAtMs - bar.startedAtMs) / 1000)));
-  const label = useZhUnits
-    ? bar.state === "completed"
-      ? `已完成 ${elapsed}`
-      : bar.state === "failed"
-        ? `失败，耗时 ${elapsed}`
-        : `已暂停，耗时 ${elapsed}`
-    : bar.state === "completed"
-      ? <Trans>Completed in {elapsed}</Trans>
-      : bar.state === "failed"
-        ? <Trans>Failed after {elapsed}</Trans>
-        : <Trans>Paused after {elapsed}</Trans>;
+  const label = useZhUnits ? (
+    bar.state === "completed" ? (
+      `已完成 ${elapsed}`
+    ) : bar.state === "failed" ? (
+      `失败，耗时 ${elapsed}`
+    ) : (
+      `已暂停，耗时 ${elapsed}`
+    )
+  ) : bar.state === "completed" ? (
+    <Trans>Completed in {elapsed}</Trans>
+  ) : bar.state === "failed" ? (
+    <Trans>Failed after {elapsed}</Trans>
+  ) : (
+    <Trans>Paused after {elapsed}</Trans>
+  );
   if (bar.state === "paused" && canContinue) {
     return (
       <button

@@ -27,6 +27,7 @@ function renderSidebarOnly() {
 const actions = vi.hoisted(() => ({
   createAndRunCodexProfileLogin: vi.fn<() => Promise<boolean>>(),
   createAndRunGrokProfileLogin: vi.fn<() => Promise<boolean>>(),
+  createAndRunKimiProfileLogin: vi.fn<() => Promise<boolean>>(),
   runAgentLoginCommand: vi.fn<() => boolean>(),
   runCodexProfileLogin: vi.fn<() => Promise<boolean>>(),
 }));
@@ -164,6 +165,7 @@ describe("SidebarProviderAccounts", () => {
     bridge.setAccountPoolScheduling.mockReset().mockResolvedValue({ scheduling: "priority" });
     actions.createAndRunCodexProfileLogin.mockReset().mockResolvedValue(true);
     actions.createAndRunGrokProfileLogin.mockReset().mockResolvedValue(true);
+    actions.createAndRunKimiProfileLogin.mockReset().mockResolvedValue(true);
     actions.runCodexProfileLogin.mockReset().mockResolvedValue(true);
     actions.runAgentLoginCommand.mockReset().mockReturnValue(true);
     usageLogin.handleSignIn.mockReset().mockResolvedValue();
@@ -1446,6 +1448,36 @@ describe("SidebarProviderAccounts", () => {
     const dialog = await screen.findByTestId("api-key-credential-form");
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByPlaceholderText("粘贴 Kimi Code API Key")).toBeInTheDocument();
+  });
+
+  it("uses API Key as the only Kimi add-account path", async () => {
+    useUsageAccountsStore.getState().setAccounts([
+      {
+        accountId: "kimi-1",
+        provider: "kimi",
+        label: "Kimi A",
+        createdAt: 1,
+        status: "available",
+        enabled: true,
+        selected: false,
+        order: 0,
+        credentialScopeRef: "managed/kimi-1",
+        providerAccountId: "kimi@example.com",
+        maskedIdentity: "kimi@example.com",
+        quotaWindows: [],
+      },
+    ]);
+    bridge.listAccounts.mockResolvedValue(useUsageAccountsStore.getState().accounts);
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    const card = within(workspace).getByTestId("provider-card-kimi");
+
+    fireEvent.click(within(card).getByRole("button", { name: "添加 Kimi Code 账号" }));
+
+    expect(await screen.findByTestId("kimi-api-key-form")).toBeInTheDocument();
+    expect(actions.createAndRunKimiProfileLogin).not.toHaveBeenCalled();
+    expect(within(card).queryByRole("button", { name: "导入本机 Kimi Code 登录" })).toBeNull();
   });
 
   it("opens the Volcengine credential dialog when unauthorized", async () => {

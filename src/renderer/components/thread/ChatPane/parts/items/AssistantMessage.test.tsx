@@ -116,6 +116,32 @@ describe("AssistantMessage", () => {
       expect(screen.queryByLabelText("Copy message")).toBeNull();
     });
 
+    it("keeps copy available when a completed turn ends on a filtered provider trailer", () => {
+      const emptyTrailer: RuntimeChatItem = {
+        id: "provider_trailer",
+        type: "assistant_message",
+        state: "completed",
+        payload: { content: [] },
+        streams: {},
+      };
+      seed([answer, emptyTrailer]);
+      useAppStore.getState().hydrateThreadCompletedTurns("thread-1", [
+        {
+          startedAt: 1_000,
+          endedAt: 3_000,
+          anchorItemId: emptyTrailer.id,
+        },
+      ]);
+
+      render(
+        <AppProvider>
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
+        </AppProvider>,
+      );
+
+      expect(screen.getByLabelText("Copy message")).toBeTruthy();
+    });
+
     it("ignores nested sub-agent items when locating the turn's last item", () => {
       seed([
         answer,
