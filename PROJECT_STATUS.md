@@ -1,3 +1,8 @@
+## Release 1.2.10 — Devin 登录终端 PowerShell 回退（2026-09-16）
+
+- 基于 1.2.9 在 `main` 直接修复。便携包 `CraftStation-Portable-1.2.10-x64.exe`。
+- Devin「登录/授权」打开终端时，若 PowerShell 7 路径无效，回退到 Windows PowerShell / cmd，不再 toast `start-shell` 失败。
+
 ## Release 1.2.9 — Gemini/Antigravity 思考展开与收尾格式（2026-09-16）
 
 - 基于 1.2.8 在 `main` 直接修复；GitHub Release 中英双语。便携包 `CraftStation-Portable-1.2.9-x64.exe`。

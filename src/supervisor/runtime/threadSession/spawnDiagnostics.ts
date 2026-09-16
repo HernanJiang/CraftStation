@@ -20,7 +20,7 @@ export function describeSpawnFailure(
     if (cwdDiagnosis) return cwdDiagnosis;
   }
 
-  if (cmd.command.startsWith("/")) {
+  if (isAbsoluteSpawnPath(cmd.command)) {
     const binaryDiagnosis = diagnoseShellBinary(cmd.command);
     if (binaryDiagnosis) return binaryDiagnosis;
   } else {
@@ -40,6 +40,10 @@ export function describeSpawnFailure(
   }
 
   return `${prefix}: ${base}`;
+}
+
+function isAbsoluteSpawnPath(command: string): boolean {
+  return command.startsWith("/") || command.startsWith("\\\\") || /^[A-Za-z]:[\\/]/.test(command);
 }
 
 function diagnoseRelativeBinary(command: string, env: Record<string, string>): string | undefined {
@@ -148,6 +152,7 @@ function diagnoseShellBinary(command: string): string | undefined {
   if (!stat.isFile()) {
     return `Cannot start shell: ${command} is not an executable file.`;
   }
+  if (process.platform === "win32") return undefined;
   try {
     accessSync(command, fsConstants.X_OK);
   } catch {

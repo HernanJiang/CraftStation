@@ -75,7 +75,7 @@ import { CliHookSessionCoordinator } from "./threadSession/cliHookPlugin";
 import { InvalidSessionRecoveryCoordinator } from "./threadSession/invalidSessionRecovery";
 import { StructuredInterruptWatchdog } from "./threadSession/structuredInterruptWatchdog";
 import { SteerCoordinator, clearPendingSteerSlot } from "./threadSession/steerCoordinator";
-import { buildShellCommand } from "./threadSession/shellCommand";
+import { buildShellCommand, windowsShellSpawnFallbacks } from "./threadSession/shellCommand";
 import {
   SpawnPipeline,
   workspaceLaunchConfig,
@@ -1435,10 +1435,14 @@ export class ThreadSessionManager {
             payload.windowsShellRuntime === "powershell" ? "powershell" : "preferred",
           )
         : { shell: "", kind: "cmd" as const, args: [] };
-    const shellCommand = buildShellCommand(payload.projectLocation, windowsShell, {
+    const shellLaunchOptions = {
       startInHome: payload.startInHome === true,
       ...(payload.cwdOverride ? { cwdOverride: payload.cwdOverride } : {}),
-    });
+    };
+    const shellCandidates =
+      process.platform === "win32" && payload.projectLocation.kind === "windows"
+        ? [windowsShell, ...windowsShellSpawnFallbacks(windowsShell)]
+        : [windowsShell];
     this.options.emit({ type: "thread-reset", threadId: payload.shellId });
     const terminalEnv = resolveTerminalColorEnv(payload.projectLocation);
 
@@ -1480,17 +1484,33 @@ export class ThreadSessionManager {
     // can land, and xterm never reflows pre-wrapped scrollback. Fall back to
     // 120×30 only if the renderer hasn't measured yet.
     let pty;
-    try {
-      pty = spawn(shellCommand.command, shellCommand.args, {
-        name: process.platform === "win32" ? "xterm-color" : terminalEnv.TERM,
-        cols: payload.initialSize?.cols ?? 120,
-        rows: payload.initialSize?.rows ?? 30,
-        ...(shellCommand.cwd ? { cwd: shellCommand.cwd } : {}),
-        env: shellEnv,
-      });
-    } catch (error) {
-      throw new Error(describeSpawnFailure("shell", shellCommand, shellEnv, error), {
-        cause: error,
+    let lastSpawnFailure:
+      | { command: ReturnType<typeof buildShellCommand>; error: unknown }
+      | undefined;
+    for (const candidate of shellCandidates) {
+      const shellCommand = buildShellCommand(
+        payload.projectLocation,
+        candidate,
+        shellLaunchOptions,
+      );
+      try {
+        pty = spawn(shellCommand.command, shellCommand.args, {
+          name: process.platform === "win32" ? "xterm-color" : terminalEnv.TERM,
+          cols: payload.initialSize?.cols ?? 120,
+          rows: payload.initialSize?.rows ?? 30,
+          ...(shellCommand.cwd ? { cwd: shellCommand.cwd } : {}),
+          env: shellEnv,
+        });
+        lastSpawnFailure = undefined;
+        break;
+      } catch (error) {
+        lastSpawnFailure = { command: shellCommand, error };
+      }
+    }
+    if (!pty) {
+      const failure = lastSpawnFailure!;
+      throw new Error(describeSpawnFailure("shell", failure.command, shellEnv, failure.error), {
+        cause: failure.error,
       });
     }
 

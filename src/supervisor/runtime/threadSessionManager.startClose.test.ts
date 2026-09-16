@@ -274,6 +274,53 @@ describe("ThreadSessionManager Windows shells", () => {
       expect.objectContaining({ cwd: process.cwd() }),
     );
   });
+
+  it("falls back from a stale PowerShell 7 path so login overlays still open", async () => {
+    const structuredSession = createStructuredSession(Promise.resolve());
+    const adapter = createAdapter("codex", structuredSession);
+    const resolveWindowsShell = vi.fn<
+      (runtime?: "preferred" | "powershell") => WindowsShellPreference
+    >(() => ({
+      shell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      kind: "pwsh" as const,
+      args: ["-NoLogo"],
+    }));
+    vi.mocked(spawnPty)
+      .mockImplementationOnce(() => {
+        throw new Error(
+          "'C:\\Program Files\\PowerShell\\7\\pwsh.exe' is not recognized as an internal or external command, operable program or batch file.",
+        );
+      })
+      .mockImplementationOnce(
+        () =>
+          ({
+            pid: 124,
+            kill: vi.fn<() => void>(),
+            onData: vi.fn<() => void>(),
+            onExit: vi.fn<() => void>(),
+            write: vi.fn<() => void>(),
+          }) as never,
+      );
+    const manager = createManager("codex", adapter, undefined, resolveWindowsShell);
+
+    await manager.startShell({
+      shellId: "login:devin",
+      projectLocation: { kind: "windows", path: process.cwd() },
+      windowsShellRuntime: "powershell",
+      startInHome: true,
+    });
+
+    expect(spawnPty).toHaveBeenCalledTimes(2);
+    expect(spawnPty).toHaveBeenNthCalledWith(
+      1,
+      "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      ["-NoLogo"],
+      expect.anything(),
+    );
+    expect(vi.mocked(spawnPty).mock.calls[1]?.[0]?.toLowerCase()).toMatch(
+      /powershell\.exe$|cmd\.exe$/,
+    );
+  });
 });
 
 describe("ThreadSessionManager start guards", () => {

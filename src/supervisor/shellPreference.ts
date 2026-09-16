@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { win32 } from "node:path";
 import type { AvailableWindowsShell, SharedSettings, WindowsShellKind } from "@/shared/settings";
@@ -47,6 +47,15 @@ export interface DetectWindowsShellsOptions {
 /** Store/MSIX App Execution Alias, deprioritized when a real package image is discoverable. */
 export function isWindowsAppExecutionAlias(path: string): boolean {
   return /\\appdata\\local\\microsoft\\windowsapps\\[^\\]+$/i.test(path.replaceAll("/", "\\"));
+}
+
+/** True when `path` is a regular file node-pty can actually CreateProcess. */
+export function isLaunchableWindowsBinary(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
 }
 
 function uniqueExistingPaths(
@@ -165,7 +174,7 @@ function listMsixPwshFromAppx(pathExists: (path: string) => boolean): string[] {
  * Appx is the fallback when the package directory is not listable.
  */
 export function findInstalledWindowsPwsh(
-  pathExists: (path: string) => boolean = existsSync,
+  pathExists: (path: string) => boolean = isLaunchableWindowsBinary,
   options?: { probeAppx?: boolean },
 ): string[] {
   const localAppData = process.env.LOCALAPPDATA;
@@ -189,7 +198,11 @@ export function findInstalledWindowsPwsh(
     ...listPwshInChildFolders(scoopRoot, pathExists),
     ...msixFromFs,
   ];
-  if (msixFromFs.length === 0 && options?.probeAppx !== false && pathExists === existsSync) {
+  if (
+    msixFromFs.length === 0 &&
+    options?.probeAppx !== false &&
+    pathExists === isLaunchableWindowsBinary
+  ) {
     found.push(...listMsixPwshFromAppx(pathExists));
   }
   return uniqueExistingPaths(found, pathExists);
@@ -297,7 +310,7 @@ function pushShell(
  */
 export function detectWindowsShells(
   resolveExecutable: ResolveWindowsExecutable,
-  pathExists: (path: string) => boolean = existsSync,
+  pathExists: (path: string) => boolean = isLaunchableWindowsBinary,
   options?: DetectWindowsShellsOptions,
 ): AvailableWindowsShell[] {
   if (process.platform !== "win32") return [];

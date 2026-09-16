@@ -8,6 +8,7 @@ import {
   detectWindowsShells,
   inferPwshVersion,
   inferWindowsShellKind,
+  isLaunchableWindowsBinary,
   isWindowsAppExecutionAlias,
   parseAppxInstallLocations,
   parsePwshVersion,
@@ -205,6 +206,10 @@ describe("Windows shell preference", () => {
     expect(isWindowsAppExecutionAlias(storeAlias)).toBe(true);
     expect(isWindowsAppExecutionAlias(msixImage)).toBe(false);
     expect(isWindowsAppExecutionAlias(msiImage)).toBe(false);
+  });
+
+  it("does not treat a missing path as a launchable Windows binary", () => {
+    expect(isLaunchableWindowsBinary("C:\\definitely-missing-pwsh\\pwsh.exe")).toBe(false);
   });
 
   it("falls back from a stale override without applying that override's arguments", () => {

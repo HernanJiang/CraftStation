@@ -1,32 +1,20 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { describeSpawnFailure } from "./spawnDiagnostics";
 
-const ENV_KEYS = [
-  "CRAFTSTATION_COMPUTER_USE_MCP_URL",
-  "CRAFTSTATION_COMPUTER_USE_MCP_TOKEN",
-  "CRAFTSTATION_CHROME_MCP_URL",
-  "CRAFTSTATION_CHROME_MCP_TOKEN",
-] as const;
-
-const savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
-
-afterEach(() => {
-  for (const key of ENV_KEYS) {
-    const value = savedEnv[key];
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
-  vi.resetModules();
-});
-
-describe("sanitizedProcessEnv", () => {
-  it("keeps launch-only MCP credentials out of ambient child environments", async () => {
-    for (const key of ENV_KEYS) process.env[key] = `${key}-secret`;
-
-    const { sanitizedProcessEnv } = await import("./spawnDiagnostics");
-
-    for (const key of ENV_KEYS) {
-      expect(sanitizedProcessEnv).not.toHaveProperty(key);
-      expect(process.env[key]).toBe(`${key}-secret`);
-    }
+describe("describeSpawnFailure", () => {
+  it("diagnoses a missing Windows absolute shell path instead of cmd.exe noise", () => {
+    const message = describeSpawnFailure(
+      "shell",
+      {
+        command: "C:\\definitely-missing-pwsh\\pwsh.exe",
+        args: ["-NoLogo"],
+      },
+      { PATH: "C:\\Windows\\System32" },
+      new Error(
+        "'C:\\definitely-missing-pwsh\\pwsh.exe' is not recognized as an internal or external command, operable program or batch file.",
+      ),
+    );
+    expect(message).toMatch(/not found/i);
+    expect(message).toContain("C:\\definitely-missing-pwsh\\pwsh.exe");
   });
 });

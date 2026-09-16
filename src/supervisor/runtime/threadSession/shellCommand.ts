@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import type { ProjectLocation } from "@/shared/contracts";
-import { getWslCommand } from "../../agents/base";
-import type { WindowsShellPreference } from "../../shellPreference";
+import { getWindowsSystemCommand, getWslCommand } from "../../agents/base";
+import { isLaunchableWindowsBinary, type WindowsShellPreference } from "../../shellPreference";
 
 /**
  * Resolve the command/args (and cwd) that spawn a plain interactive shell for a
@@ -42,4 +42,34 @@ export function buildShellCommand(
     args: ["-l"],
     cwd: cwdOverride || (startInHome ? homedir() : location.path),
   };
+}
+
+/**
+ * If the preferred Windows shell is missing or unspawnable (stale PowerShell 7
+ * path is the usual case), keep login/install overlays alive with Windows
+ * PowerShell 5.1 and then cmd.exe.
+ */
+export function windowsShellSpawnFallbacks(
+  primary: WindowsShellPreference,
+  pathExists: (path: string) => boolean = isLaunchableWindowsBinary,
+): WindowsShellPreference[] {
+  const seen = new Set([primary.shell.replaceAll("/", "\\").toLowerCase()]);
+  const extras: WindowsShellPreference[] = [];
+  const add = (pref: WindowsShellPreference) => {
+    const key = pref.shell.replaceAll("/", "\\").toLowerCase();
+    if (seen.has(key) || !pathExists(pref.shell)) return;
+    seen.add(key);
+    extras.push(pref);
+  };
+  add({
+    shell: getWindowsSystemCommand("WindowsPowerShell\\v1.0\\powershell.exe"),
+    kind: "powershell",
+    args: ["-NoLogo"],
+  });
+  add({
+    shell: getWindowsSystemCommand("cmd.exe"),
+    kind: "cmd",
+    args: [],
+  });
+  return extras;
 }
