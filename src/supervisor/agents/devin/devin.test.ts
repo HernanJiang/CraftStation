@@ -13,6 +13,7 @@ import {
   defaultHiddenDevinModels,
   DEVIN_DEFAULT_MODEL_ID,
   devinDetectionSpec,
+  normalizeDevinSessionModelId,
   parseDevinModels,
 } from "./detection";
 import { createDevinAdapter } from "./index";
@@ -233,5 +234,69 @@ describe("detectDevinTerminalStatus", () => {
       status: "needs_approval",
     });
     expect(detectDevinTerminalStatus("? for shortcuts")).toMatchObject({ status: "idle" });
+  });
+});
+
+describe("parseDevinModels families catalog", () => {
+  it("expands the current `families` format into selectable variant uids", () => {
+    expect(
+      parseDevinModels(
+        JSON.stringify({
+          families: [
+            {
+              family_label: "SWE-1.6",
+              family_uid: "swe-1.6",
+              slug: "swe-1.6",
+              aliases: [],
+              variants: [
+                { model_uid: "swe-1-6", label: "SWE-1.6" },
+                { model_uid: "swe-1-6-high", label: "SWE-1.6 High" },
+              ],
+            },
+            {
+              family_label: "Gemini 3.8 Flash",
+              family_uid: "gemini-3-8-flash",
+              slug: "gemini-3-8-flash",
+              aliases: ["gemini"],
+              variants: [{ model_uid: "gemini-3-8-flash-high", label: "Gemini 3.8 Flash High" }],
+            },
+          ],
+        }),
+      ),
+    ).toEqual([
+      { id: "swe-1-6", label: "SWE-1.6" },
+      { id: "swe-1-6-high", label: "SWE-1.6 High" },
+      { id: "gemini-3-8-flash-high", label: "Gemini 3.8 Flash High" },
+    ]);
+  });
+
+  it("falls back to the family slug when a family carries no variants", () => {
+    expect(
+      parseDevinModels(
+        JSON.stringify({
+          families: [{ family_uid: "swe-2", family_label: "SWE-2", variants: [] }],
+        }),
+      ),
+    ).toEqual([{ id: "swe-2", label: "SWE-2" }]);
+  });
+});
+
+describe("normalizeDevinSessionModelId", () => {
+  it("strips a devin: composite prefix and passes live ids through", () => {
+    const known = new Set(["swe-1-6", "swe"]);
+    expect(normalizeDevinSessionModelId("devin:swe-1-6", known)).toBe("swe-1-6");
+    expect(normalizeDevinSessionModelId("swe-1-6", known)).toBe("swe-1-6");
+    expect(normalizeDevinSessionModelId(undefined, known)).toBeUndefined();
+    expect(normalizeDevinSessionModelId("  ", known)).toBeUndefined();
+  });
+
+  it("snaps a stale catalog id to the default so the session can start", () => {
+    expect(normalizeDevinSessionModelId("carnelian-bead", new Set(["swe-1-6", "swe"]))).toBe(
+      DEVIN_DEFAULT_MODEL_ID,
+    );
+  });
+
+  it("skips validation when no real catalog was ever probed", () => {
+    expect(normalizeDevinSessionModelId("carnelian-bead", undefined)).toBe("carnelian-bead");
   });
 });

@@ -1,3 +1,15 @@
+## Release 1.2.12 — Antigravity/Devin/Gemini 修复批次（2026-09-17）
+
+- 基于 1.2.11 在 `main` 直接修复。便携包 `CraftStation-Portable-1.2.12-x64.exe`。
+- **Antigravity 闪终端窗**：`agy --bg-updater` 自 AllocConsole 逃逸 pseudoconsole 弹窗。nativeHarness crafting 路径此前完全没注入 `AGY_CLI_DISABLE_AUTO_UPDATE=1`（B-mode 下 baseSpawnEnv 为空），已在该 lane + GUI 会话 env 双重兜底；进程扫描顺带 reap 漏网的 stray updater。
+- **Antigravity 思考链 UI**：thinking 事件缺 `step_index` 时全部坍缩进单个 turn 顶部 item（真实 agy 会话数据库证实 thinking 与 tool 在 wire 上 1:1 交错）。canonicalizer 现按「连续思考段」拆分多个 item，思考与工具按真实顺序交错渲染。
+- **Devin 模型目录解析失效**：`devin models list --format json` 新版返回 `{families:[{variants:[…]}]}`，旧解析器只认 `{models:[…]}`，导致目录为空、stale 模型 id（如已改名的 `carnelian-bead`）每次会话被 Devin 后端以 `invalid_argument` 拒绝。现在解析变体 uid，会话创建时校验模型 id，未知 id 自动回退默认 SWE 并告警。
+- **Gemini 池额度 0%（issue #8）**：纯应用内授权的账号没有 `projectId`，`fetchAvailableModels` 落到默认项目永远返回满额度。现在先 `loadCodeAssist` 发现 `cloudaicompanionProject` 并持久化。
+- **子 agent 代理**：CLI 不读 WinINET 系统代理，Explorer 启动时子 agent/one-shot 直连而主 agent 走代理。`buildAgentCommand` Windows 分支统一注入解析后的代理 env（env 变量优先、系统代理回退、socks 转 http），主/子 agent 路由一致。
+- **诊断**：新增 `CRAFTSTATION_CAPTURE_NATIVE_WIRE=1` wire 帧抓包（脱敏），用于诊断 Gemini 经 Antigravity 是否根本不产出 thinking step（SDK/上游层面确认）。
+- 已知边界：Muse Spark 思考/工具交错受 `@muse-code/sdk` Turn 面板限制（`items()` 重放 backlog、`deltas()` 仅 live），本版无法在产物内彻底修复，待上游提供统一事件序。
+- main 上存在 62 个与本次改动无关的既有测试失败（渲染层/codex mapping 等），本批次验证方式为「与干净 main 基线对比 0 新增失败 + 1 个既有失败被顺带修复」。
+
 ## Release 1.2.11 — Devin team settings 超时（2026-09-16）
 
 - 基于 1.2.10 在 `main` 直接修复。便携包 `CraftStation-Portable-1.2.11-x64.exe`。

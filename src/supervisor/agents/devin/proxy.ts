@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveProxyConfig } from "@/supervisor/runtime/usageHttpClient";
+import { normalizeHttpProxyUrl } from "../base/proxyEnv";
 
 /**
  * Devin CLI (chisel) uses a 10s Connect-RPC timeout for
@@ -74,7 +75,7 @@ export function devinProxySpawnEnv(
   if (!raw) return undefined;
   // Devin's reqwest client rejects `socks5://` ("unsupported scheme socks5")
   // even though Clash mixed ports speak both HTTP CONNECT and SOCKS. Force HTTP.
-  const url = httpProxyUrlForDevin(raw);
+  const url = normalizeHttpProxyUrl(raw);
   const noProxy = proxy.noProxy?.trim() || "localhost,127.0.0.1,::1";
   return {
     HTTP_PROXY: url,
@@ -90,10 +91,7 @@ export function devinProxySpawnEnv(
 
 /** Clash/V2Ray often export SOCKS; Devin CLI only tunnels HTTP CONNECT. */
 export function httpProxyUrlForDevin(url: string): string {
-  const trimmed = url.trim();
-  const match = /^(socks5h?|socks4a?):\/\//i.exec(trimmed);
-  if (!match) return trimmed;
-  return `http://${trimmed.slice(match[0].length)}`;
+  return normalizeHttpProxyUrl(url);
 }
 
 export type EnsureDevinProxyResult = {

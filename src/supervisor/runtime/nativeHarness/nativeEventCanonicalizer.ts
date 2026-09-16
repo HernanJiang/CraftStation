@@ -47,6 +47,29 @@ function isThinkingStep(stepType: string): boolean {
   return /^(?:thinking|thought|agent_thought|reasoning)$/i.test(stepType);
 }
 
+/**
+ * Per-turn mutable state for thinking-run attribution. Some providers emit
+ * thinking `step_update` frames without a `step_index`; without extra state
+ * every one of those deltas collapses into a single `thought:{turnId}` item
+ * anchored at the turn's top, so thoughts that actually arrived *between*
+ * tool calls all render as one block above the tools. The state splits the
+ * stream into one item per contiguous thinking run: a tool/subagent step or
+ * assistant text closes the open run, and the next thinking delta opens a new
+ * one at its true timeline position.
+ */
+export interface NativeCanonicalizerTurnState {
+  /** Item id of the currently open thinking run, if any. */
+  openThoughtItemId: string | undefined;
+  /** Thinking runs allocated so far this turn (run 0 keeps the legacy id). */
+  thoughtRuns: number;
+  /** A non-thinking step arrived since the open run started. */
+  interrupted: boolean;
+}
+
+export function createNativeCanonicalizerTurnState(): NativeCanonicalizerTurnState {
+  return { openThoughtItemId: undefined, thoughtRuns: 0, interrupted: false };
+}
+
 function visibleText(value: string | undefined): string | undefined {
   if (!value) return undefined;
   return stripRetryableCapacityNoise(stripGeminiHarnessNoise(value) ?? "");
@@ -144,8 +167,10 @@ export function canonicalizeNativeEvent(input: {
   turnId: string;
   correlationId: string;
   event: NativeWireEvent;
+  /** Per-turn mutable state; required to split step-less thinking into runs. */
+  thoughtRunState?: NativeCanonicalizerTurnState;
 }): RuntimeEvent[] {
-  const { descriptor, threadId, turnId, correlationId, event } = input;
+  const { descriptor, threadId, turnId, correlationId, event, thoughtRunState } = input;
   const native =
     descriptor.harnessKind === "deepseek"
       ? dshEvent(event)
@@ -176,6 +201,7 @@ export function canonicalizeNativeEvent(input: {
         ? String(payload.step_index)
         : undefined;
     if (stepType === "tool" || stepType === "subagent") {
+      if (thoughtRunState) thoughtRunState.interrupted = true;
       const stepIndex = String(payload.step_index ?? event.sequence);
       const itemId = `${stepType}:${conversationId}:${stepIndex}`;
       const state = String(payload.state ?? "").toUpperCase();
@@ -238,7 +264,37 @@ export function canonicalizeNativeEvent(input: {
       }
     }
     const thinkingStep = isThinkingStep(stepType);
-    const thoughtItemId = stepKey ? `thought:${conversationId}:${stepKey}` : `thought:${turnId}`;
+    let thoughtItemId: string;
+    if (stepKey) {
+      thoughtItemId = `thought:${conversationId}:${stepKey}`;
+    } else if (!thoughtRunState) {
+      // Legacy collapse: without turn state there is no way to attribute
+      // step-less thinking to contiguous runs.
+      thoughtItemId = `thought:${turnId}`;
+    } else {
+      if (thoughtRunState.openThoughtItemId && !thoughtRunState.interrupted) {
+        thoughtItemId = thoughtRunState.openThoughtItemId;
+      } else {
+        // Close the run that tools/text interrupted so its block ends at its
+        // real position, then anchor the continuation here.
+        if (thoughtRunState.openThoughtItemId) {
+          result.push(
+            attach({
+              type: "item.completed",
+              threadId,
+              itemId: thoughtRunState.openThoughtItemId,
+            }),
+          );
+        }
+        thoughtItemId =
+          thoughtRunState.thoughtRuns === 0
+            ? `thought:${turnId}`
+            : `thought:${turnId}:${thoughtRunState.thoughtRuns}`;
+        thoughtRunState.thoughtRuns += 1;
+        thoughtRunState.openThoughtItemId = thoughtItemId;
+        thoughtRunState.interrupted = false;
+      }
+    }
     const thoughtText = visibleText(
       thinkingFrom(payload) ?? (thinkingStep ? textFrom(payload) : undefined),
     );
@@ -261,10 +317,16 @@ export function canonicalizeNativeEvent(input: {
     }
     if (thinkingStep && isTerminalToolState(String(payload.state ?? "").toUpperCase())) {
       result.push(attach({ type: "item.completed", threadId, itemId: thoughtItemId }));
+      if (thoughtRunState && thoughtRunState.openThoughtItemId === thoughtItemId) {
+        thoughtRunState.openThoughtItemId = undefined;
+      }
     }
     const text =
       !thinkingStep && stepType === "agent_response" ? visibleText(textFrom(payload)) : undefined;
     if (text) {
+      // Visible assistant text also closes the open thinking run: a thought
+      // that arrives after prose belongs after it in the timeline.
+      if (thoughtRunState) thoughtRunState.interrupted = true;
       result.push(
         attach({
           type: "item.started",

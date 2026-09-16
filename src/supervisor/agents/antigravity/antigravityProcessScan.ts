@@ -15,6 +15,18 @@ import { windowsPowershellPath } from "../../runtime/windowsPowershell";
 const execFileAsync = promisify(execFile);
 const WSL_PID_OFFSET = 1_000_000_000;
 
+/**
+ * `agy`'s detached background self-updater escapes the pseudoconsole its
+ * parent runs in and allocates its own Windows console — with Windows
+ * Terminal as the default host that pops a stray terminal window mid-session.
+ * Every CraftStation spawn injects `AGY_CLI_DISABLE_AUTO_UPDATE=1` to prevent
+ * it, but an updater can still leak through (a spawn path we don't own, an
+ * `agy` build that ignores the switch, a long-hung updater). CraftStation owns
+ * agent updates (Settings → `agy update`), so any `--bg-updater` we see in an
+ * `agy` tree is stray and gets reaped at scan time.
+ */
+const BG_UPDATER_RE = /agy(?:\.exe)?["']?\s+--bg-updater(?:\s|$)/;
+
 export interface ProcInfo {
   pid: number;
   ppid: number;
@@ -232,7 +244,10 @@ export function parseLsof(stdout: string): { pid: number; port: number }[] {
 export async function resolveAntigravityLsEndpoints(
   wslDistros: readonly string[] = [],
 ): Promise<{ ports: number[]; csrfTokens: string[] }> {
-  const { pids, csrfTokens } = resolveTargets(await listProcesses(wslDistros));
+  const procs = await listProcesses(wslDistros);
+  // Same process snapshot drives the stray-updater reap — no extra scans.
+  void reapStrayAntigravityUpdaters(procs);
+  const { pids, csrfTokens } = resolveTargets(procs);
   if (pids.size === 0) return { ports: [], csrfTokens };
   const ports = [
     ...new Set(
@@ -242,4 +257,41 @@ export async function resolveAntigravityLsEndpoints(
     ),
   ];
   return { ports, csrfTokens };
+}
+
+/** Pick out stray `agy --bg-updater` processes from a process snapshot. */
+export function selectStrayAntigravityUpdaters(procs: readonly ProcInfo[]): ProcInfo[] {
+  if (process.platform !== "win32") return [];
+  return procs.filter(
+    (proc) =>
+      proc.pid < WSL_PID_OFFSET && isAntigravityRoot(proc) && BG_UPDATER_RE.test(proc.haystack),
+  );
+}
+
+/**
+ * `taskkill /T /F` every stray `agy --bg-updater` in the snapshot. Best-effort
+ * and quiet: a kill that loses a race with the updater's own exit is fine.
+ */
+export async function reapStrayAntigravityUpdaters(procs: readonly ProcInfo[]): Promise<number> {
+  const victims = selectStrayAntigravityUpdaters(procs);
+  let reaped = 0;
+  for (const victim of victims) {
+    try {
+      await execFileAsync("taskkill", ["/PID", String(victim.pid), "/T", "/F"], {
+        timeout: 5_000,
+        windowsHide: true,
+      });
+      reaped += 1;
+    } catch {
+      // Already gone, or access denied — nothing to do.
+    }
+  }
+  if (reaped > 0) {
+    console.warn(
+      `[antigravity] reaped ${reaped} stray ` +
+        "`agy --bg-updater` process(es); CraftStation owns agent updates " +
+        "(Settings → update).",
+    );
+  }
+  return reaped;
 }

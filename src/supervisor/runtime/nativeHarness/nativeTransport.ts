@@ -1,8 +1,9 @@
 ﻿import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { appendFileSync, closeSync, existsSync, openSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
 import { dirname, join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
 import type { NativeHarnessDiagnostic } from "@/shared/crafting";
 import { extractWindowsCmdShimScript, resolveExecutablePath } from "@/supervisor/agents/base";
 import { terminateChildProcessTree } from "@/shared/processTree";
@@ -117,9 +118,7 @@ function resolveWindowsNodeCmdShim(
   if (!existsSync(scriptPath)) return undefined;
 
   const localNode = join(baseDir, "node.exe");
-  const nodeCommand = existsSync(localNode)
-    ? localNode
-    : (resolveExecutablePath("node") ?? "node");
+  const nodeCommand = existsSync(localNode) ? localNode : (resolveExecutablePath("node") ?? "node");
   return {
     command: nodeCommand,
     argsPrefix: [scriptPath],
@@ -177,8 +176,48 @@ export class NdjsonProcessTransport {
       reject: (error: Error) => void;
     }
   >();
+  /**
+   * Opt-in raw-frame capture (`CRAFTSTATION_CAPTURE_NATIVE_WIRE=1`): appends a
+   * redacted copy of every inbound frame to a per-session NDJSON file in the
+   * temp dir. Exists so provider-specific mapping gaps (e.g. whether a model
+   * emits thinking steps at all) can be diagnosed from one real conversation
+   * without a dev build.
+   */
+  private wireCapture: { fd: number; path: string } | undefined;
 
-  constructor(private readonly options: NativeProcessTransportOptions) {}
+  constructor(private readonly options: NativeProcessTransportOptions) {
+    if (process.env.CRAFTSTATION_CAPTURE_NATIVE_WIRE === "1") {
+      const path = join(
+        process.env.CRAFTSTATION_CAPTURE_NATIVE_WIRE_DIR?.trim() || tmpdir(),
+        `craftstation-native-wire-${this.correlationId}.ndjson`,
+      );
+      try {
+        this.wireCapture = { fd: openSync(path, "a"), path };
+        console.warn(`[native-wire] capturing ${options.harnessKind} frames to ${path}`);
+      } catch {
+        this.wireCapture = undefined;
+      }
+    }
+  }
+
+  private captureFrame(event: NativeWireEvent): void {
+    const capture = this.wireCapture;
+    if (!capture) return;
+    try {
+      appendFileSync(
+        capture.fd,
+        `${JSON.stringify({
+          ts: new Date().toISOString(),
+          sequence: event.sequence,
+          type: event.type,
+          payload: redactNativePayload(event.payload),
+        })}\n`,
+      );
+    } catch {
+      closeSync(capture.fd);
+      this.wireCapture = undefined;
+    }
+  }
 
   get pendingRequestCount(): number {
     return this.pendingRequests.size;
@@ -322,6 +361,7 @@ export class NdjsonProcessTransport {
           payload: record,
           sequence: this.sequence,
         };
+        this.captureFrame(wireEvent);
         this.eventHandler?.(wireEvent);
         this.options.onEvent(wireEvent);
         return;
@@ -345,6 +385,7 @@ export class NdjsonProcessTransport {
         payload,
         sequence: this.sequence,
       };
+      this.captureFrame(wireEvent);
       this.eventHandler?.(wireEvent);
       this.options.onEvent(wireEvent);
     } catch {
@@ -467,6 +508,14 @@ export class NdjsonProcessTransport {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.wireCapture) {
+      try {
+        closeSync(this.wireCapture.fd);
+      } catch {
+        // Already closed.
+      }
+      this.wireCapture = undefined;
+    }
     this.rejectPending(new Error("Native transport disposed."));
     const child = this.process;
     this.process = undefined;

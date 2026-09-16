@@ -33,6 +33,7 @@ import {
 } from "./shellBasics";
 import { detectPowerShell, type DetectedPowerShell } from "../../shellPreference";
 import { mergeSpawnEnv, withBaseSpawnEnv } from "./spawnEnv";
+import { agentProxySpawnEnv } from "./proxyEnv";
 import type {
   AgentArgvSpec,
   AgentEnvContext,
@@ -313,9 +314,7 @@ function resolveWindowsNodeCmdShim(commandPath: string):
   if (!existsSync(scriptPath)) return undefined;
 
   const localNode = join(baseDir, "node.exe");
-  const nodeCommand = existsSync(localNode)
-    ? localNode
-    : (resolveExecutablePath("node") ?? "node");
+  const nodeCommand = existsSync(localNode) ? localNode : (resolveExecutablePath("node") ?? "node");
   return {
     command: nodeCommand,
     argsPrefix: [scriptPath],
@@ -398,7 +397,11 @@ export function buildAgentCommand(
       ? buildWindowsCommand(location.path, shim.command, [...shim.argsPrefix, ...args])
       : buildWindowsCommand(location.path, commandPath, args);
     const shellEnv = getProjectShellEnv(location.path) ?? getWindowsPathOverrideEnv();
-    const mergedEnv = { ...(shellEnv ?? {}), ...(env ?? {}) };
+    // The shared proxy layer sits between the project shell env and the
+    // caller's env: CLIs never read the WinINET system proxy, so without it an
+    // Explorer-launched app spawns agents (main and subagent alike) that go
+    // direct while the in-process HTTP clients tunnel. Caller env wins.
+    const mergedEnv = { ...(shellEnv ?? {}), ...agentProxySpawnEnv(), ...(env ?? {}) };
     if (Object.keys(mergedEnv).length > 0) spec.env = mergedEnv;
     return spec;
   }

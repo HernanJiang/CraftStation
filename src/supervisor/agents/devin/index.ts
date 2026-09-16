@@ -14,8 +14,10 @@ import { buildDevinAcpArgs, buildDevinArgs, buildDevinPrintArgs } from "./argv";
 import {
   buildDevinCommand,
   defaultDevinCapabilities,
+  devinProbedModelIds,
   DEVIN_DEFAULT_MODEL_ID,
   devinDetectionSpec,
+  normalizeDevinSessionModelId,
 } from "./detection";
 import {
   ensureDevinUserProxyConfig,
@@ -82,9 +84,19 @@ export function createDevinAdapter(): AgentAdapter {
 
     async createStructuredSession(input: CreateStructuredSessionInput) {
       ensureDevinUserProxyConfig();
+      const normalizedModel = input.config.model
+        ? normalizeDevinSessionModelId(input.config.model, devinProbedModelIds())
+        : undefined;
+      const sessionConfig: ThreadConfig = {
+        ...input.config,
+        // A model id the current CLI catalog no longer carries (renamed or
+        // removed between releases) makes Devin's backend reject the session
+        // with an opaque `invalid_argument` — snap to a live id instead.
+        ...(normalizedModel ? { model: normalizedModel } : {}),
+      };
       const command = buildDevinCommand(
         input.projectLocation,
-        buildDevinAcpArgs(input.config),
+        buildDevinAcpArgs(sessionConfig),
         resolveAgentBinaryPath(input.projectLocation, "devin"),
       );
       // Devin ACP `session/new` accepts HTTP MCP even when initialize omits
@@ -93,13 +105,17 @@ export function createDevinAdapter(): AgentAdapter {
       //
       // `session/new` fail-closes if `GetCliTeamSettings` exceeds Devin's 10s
       // Connect-RPC budget. Retry the open: a later attempt often hits cache.
-      return createAcpStructuredSession(command, input, {
-        assumedMcpCapabilities: { http: true },
-        retrySessionOpen: {
-          ...resolveDevinTeamSettingsRetryPolicy(),
-          isRetryable: isDevinTeamSettingsTimeoutError,
+      return createAcpStructuredSession(
+        command,
+        { ...input, config: sessionConfig },
+        {
+          assumedMcpCapabilities: { http: true },
+          retrySessionOpen: {
+            ...resolveDevinTeamSettingsRetryPolicy(),
+            isRetryable: isDevinTeamSettingsTimeoutError,
+          },
         },
-      });
+      );
     },
 
     async buildAcpAuthCommand(ctx?: AgentEnvContext) {
@@ -139,7 +155,13 @@ export function createDevinAdapter(): AgentAdapter {
       if (!prompt) return undefined;
       return {
         command: "devin",
-        args: buildDevinPrintArgs({ model: model || DEVIN_DEFAULT_MODEL_ID }, prompt),
+        args: buildDevinPrintArgs(
+          {
+            model:
+              normalizeDevinSessionModelId(model, devinProbedModelIds()) ?? DEVIN_DEFAULT_MODEL_ID,
+          },
+          prompt,
+        ),
         stdin: "",
       };
     },

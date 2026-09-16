@@ -56,6 +56,53 @@ const CLOUDCODE_BASES = [
   "https://daily-cloudcode-pa.googleapis.com",
 ] as const;
 
+const LOAD_CODE_ASSIST_BODY = JSON.stringify({
+  metadata: { ideType: "GEMINI_CLI", pluginType: "GEMINI" },
+});
+
+/**
+ * Resolve the account's Cloud Code project id via `loadCodeAssist` — the same
+ * OAuth-only surface the Gemini CLI collector uses for its tier lookup, which
+ * also names the `cloudaicompanionProject` the quota endpoints scope against.
+ */
+async function discoverAntigravityProjectId(
+  accessToken: string,
+  host: HostPort,
+): Promise<string | undefined> {
+  for (const base of CLOUDCODE_BASES) {
+    let body: string | undefined;
+    try {
+      const res = await host.http.request({
+        method: "POST",
+        url: `${base}/v1internal:loadCodeAssist`,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: LOAD_CODE_ASSIST_BODY,
+        timeoutMs: 15_000,
+      });
+      if (res.status < 200 || res.status >= 300) continue;
+      body = res.body;
+    } catch {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(body ?? "") as { cloudaicompanionProject?: unknown };
+      if (
+        typeof parsed.cloudaicompanionProject === "string" &&
+        parsed.cloudaicompanionProject.trim()
+      ) {
+        return parsed.cloudaicompanionProject.trim();
+      }
+    } catch {
+      // Malformed body — try the next base.
+    }
+  }
+  return undefined;
+}
+
 export interface AntigravityProfileServiceOptions {
   store: AccountStore;
   /** safeStorage cacheDir for the sealed credential buckets. */
@@ -478,12 +525,26 @@ export class AntigravityProfileService {
       }
     }
 
-    const projectId = getUsageSecret(
+    let projectId = getUsageSecret(
       cacheDir,
       bucket,
       "projectId",
       reportUndecryptableSecret,
     )?.trim();
+    if (!projectId) {
+      // Accounts authorized in-app (never captured from a host IDE login)
+      // carry no projectId, and `fetchAvailableModels` without one answers
+      // against a default project whose buckets always read full — the quota
+      // panel then sticks at 0% forever. Discover the account's Cloud Code
+      // project via `loadCodeAssist` (the same surface the Gemini collector
+      // uses) and persist it so later polls skip the extra round trip.
+      projectId = await discoverAntigravityProjectId(token.accessToken, host).catch(
+        () => undefined,
+      );
+      if (projectId) {
+        setUsageSecret(cacheDir, bucket, "projectId", projectId);
+      }
+    }
     const requestBody = projectId ? JSON.stringify({ project: projectId }) : "{}";
     const readModels = async (accessToken: string): Promise<unknown | "auth-rejected"> => {
       for (const base of CLOUDCODE_BASES) {

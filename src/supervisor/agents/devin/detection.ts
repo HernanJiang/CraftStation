@@ -103,6 +103,8 @@ function asModelRow(value: unknown): LabeledOption | undefined {
   const record = value as Record<string, unknown>;
   const id =
     (typeof record.id === "string" && record.id.trim()) ||
+    (typeof record.model_uid === "string" && record.model_uid.trim()) ||
+    (typeof record.uid === "string" && record.uid.trim()) ||
     (typeof record.slug === "string" && record.slug.trim()) ||
     (typeof record.name === "string" && record.name.trim()) ||
     "";
@@ -114,7 +116,7 @@ function asModelRow(value: unknown): LabeledOption | undefined {
   return { id, label };
 }
 
-/** Parse `devin models list --format json` (array, `{models:[…]}`, or line-oriented). */
+/** Parse `devin models list --format json` (array, `{models:[…]}`, `{families:[…]}`, or line-oriented). */
 export function parseDevinModels(output: string): LabeledOption[] {
   const trimmed = stripAnsi(output).trim();
   if (!trimmed) return [];
@@ -135,6 +137,41 @@ export function parseDevinModels(output: string): LabeledOption[] {
         ? ((parsed as { models: unknown[] }).models ?? [])
         : [];
     for (const row of rows) push(asModelRow(row));
+    // Current CLI releases answer with `{families:[{variants:[…]}]}`: the
+    // selectable ids are the per-variant `model_uid`s (e.g. `swe-1-6`), not
+    // the family slugs. Older releases and the family-level fallback keep the
+    // flat shapes above.
+    if (
+      models.length === 0 &&
+      parsed &&
+      typeof parsed === "object" &&
+      Array.isArray((parsed as { families?: unknown }).families)
+    ) {
+      for (const family of (parsed as { families: unknown[] }).families) {
+        if (!family || typeof family !== "object") continue;
+        const record = family as Record<string, unknown>;
+        const variants = Array.isArray(record.variants) ? record.variants : [];
+        if (variants.length > 0) {
+          for (const variant of variants) push(asModelRow(variant));
+          continue;
+        }
+        // Degenerate family without variants: expose the family slug itself.
+        const familyId =
+          (typeof record.slug === "string" && record.slug.trim()) ||
+          (typeof record.family_uid === "string" && record.family_uid.trim()) ||
+          "";
+        push(
+          familyId
+            ? {
+                id: familyId,
+                label:
+                  (typeof record.family_label === "string" && record.family_label.trim()) ||
+                  humanizeDevinModelLabel(familyId),
+              }
+            : undefined,
+        );
+      }
+    }
     if (models.length > 0) return models;
   } catch {
     // Fall through to the line parser for human `devin models list` output.
@@ -146,6 +183,35 @@ export function parseDevinModels(output: string): LabeledOption[] {
     if (id && /^[A-Za-z0-9][\w./:-]*$/.test(id)) push({ id, label: humanizeDevinModelLabel(id) });
   }
   return models;
+}
+
+/**
+ * Session-safe model id for a Devin spawn.
+ *
+ * Devin's backend rejects unknown model uids with an opaque Connect-RPC
+ * `invalid_argument` ("an internal error occurred (trace ID …)") instead of a
+ * named error, and the catalog renames uids between releases — a thread that
+ * pinned a since-renamed id (e.g. a preview codename) then fails every turn
+ * with that unreadable error. When a probed catalog is available and the
+ * requested id is not in it, snap to the Devin default instead and let the
+ * warning explain the substitution. `devin:`-prefixed composite ids (crafted
+ * model identity leaking into argv) are stripped first.
+ *
+ * `knownModelIds === undefined` means "no real catalog was ever probed" —
+ * validation is skipped rather than guessed.
+ */
+export function normalizeDevinSessionModelId(
+  model: string | undefined,
+  knownModelIds: ReadonlySet<string> | undefined,
+): string | undefined {
+  const trimmed = model?.trim().replace(/^devin:/i, "");
+  if (!trimmed) return undefined;
+  if (!knownModelIds || knownModelIds.has(trimmed)) return trimmed;
+  console.warn(
+    `[devin] model '${trimmed}' is not in this CLI's catalog; ` +
+      `falling back to '${DEVIN_DEFAULT_MODEL_ID}' so the session can start.`,
+  );
+  return DEVIN_DEFAULT_MODEL_ID;
 }
 
 export function buildDevinProbeCapabilities(
@@ -211,6 +277,24 @@ const storedCredentialsAuthProbe: AuthProbe = async (ctx) => {
   return nativeCredentialPaths().some((path) => existsSync(path)) ? "authenticated" : "missing";
 };
 
+/**
+ * Model ids from the most recent successful `devin models list` probe, or
+ * `undefined` while no real catalog has been seen (fallback lists don't
+ * count — validating against them would reject real variant ids). Family
+ * alias slugs (opus/sonnet/swe/…) are always included: Devin accepts them
+ * as session models even though the catalog answers with variant uids.
+ */
+let probedDevinModelIds: ReadonlySet<string> | undefined;
+
+export function devinProbedModelIds(): ReadonlySet<string> | undefined {
+  return probedDevinModelIds;
+}
+
+/** Test-only: forget the probed catalog memo. */
+export function resetDevinProbedModelIds(): void {
+  probedDevinModelIds = undefined;
+}
+
 async function probeCapabilities(
   location: ProjectLocation,
   executablePath: string,
@@ -252,6 +336,12 @@ async function probeCapabilities(
     return undefined;
   });
   const listed = list?.ok ? parseDevinModels(list.stdout) : [];
+  if (listed.length > 0) {
+    probedDevinModelIds = new Set([
+      ...listed.map((model) => model.id),
+      ...DEVIN_FALLBACK_MODELS.map((model) => model.id),
+    ]);
+  }
   const capabilities = buildDevinProbeCapabilities(probe ?? undefined);
   const models = listed.length > 0 ? listed : (capabilities.models ?? DEVIN_FALLBACK_MODELS);
   return {

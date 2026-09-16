@@ -5,6 +5,7 @@ import {
   parsePortLines,
   parseWslProcessLines,
   parseWslSs,
+  selectStrayAntigravityUpdaters,
   type ProcInfo,
   resolveTargets,
 } from "./antigravityProcessScan";
@@ -78,5 +79,30 @@ describe("WSL process scan parsers", () => {
     expect(
       parseWslSs('LISTEN 0 4096 127.0.0.1:36775 0.0.0.0:* users:(("agy",pid=91558,fd=12))'),
     ).toEqual([{ pid: 1_000_091_558, port: 36775 }]);
+  });
+});
+
+describe("selectStrayAntigravityUpdaters", () => {
+  const victims = [
+    proc(7, 1, "c:/users/x/agy.exe --bg-updater"),
+    proc(8, 1, '"c:/users/x/agy.exe" --bg-updater --manifest url'),
+  ];
+
+  it("matches an agy --bg-updater process inside an antigravity tree", () => {
+    const selected = selectStrayAntigravityUpdaters([
+      ...victims,
+      proc(1, 0, "agy.exe serve"),
+      proc(2, 1, "agy child"),
+      proc(9, 0, "notepad.exe --bg-updater"),
+    ]);
+    expect(selected.map((entry) => entry.pid)).toEqual(
+      // The reaper only targets Windows console escapes.
+      process.platform === "win32" ? [7, 8] : [],
+    );
+  });
+
+  it("never selects WSL-offset pids (taskkill cannot reach distro processes)", () => {
+    const selected = selectStrayAntigravityUpdaters([proc(1_000_000_007, 1, "agy --bg-updater")]);
+    expect(selected).toEqual([]);
   });
 });

@@ -11,9 +11,13 @@ import type {
 import type { NativeHarnessDiagnostic } from "@/shared/crafting";
 import { isHomeScopeLocation } from "@/shared/homeScope";
 import { inlinePromptSegmentText } from "@/shared/promptContent";
-import { antigravitySessionEnvForLocation } from "./detection";
+import { antigravitySessionEnvForLocation, ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV } from "./detection";
 import { ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR } from "@/supervisor/runtime/nativeHarness/descriptors";
-import { canonicalizeNativeEvent } from "@/supervisor/runtime/nativeHarness/nativeEventCanonicalizer";
+import {
+  canonicalizeNativeEvent,
+  createNativeCanonicalizerTurnState,
+  type NativeCanonicalizerTurnState,
+} from "@/supervisor/runtime/nativeHarness/nativeEventCanonicalizer";
 import {
   buildAntigravityStreamArgs,
   NdjsonProcessTransport,
@@ -133,6 +137,12 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
    * session surfaces that instead of accepting the silent truncation.
    */
   private activeToolSteps = new Set<number>();
+  /**
+   * Thinking-run attribution state, reset per turn. Splits step-less thinking
+   * frames into contiguous runs so thoughts interleave with tools in the UI
+   * instead of collapsing into one turn-top block (see the canonicalizer).
+   */
+  private thoughtRunState: NativeCanonicalizerTurnState = createNativeCanonicalizerTurnState();
   /** True while we killed the process to stop a turn; exit is not a crash. */
   private ignoringProcessExit = false;
 
@@ -214,6 +224,10 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     }
     this.projection = createAntigravityMcpProjection(projectableMcpServers);
     const env = {
+      // Kill switch is laid down first so it survives even a caller that
+      // forgot baseSpawnEnv: the bg-updater escapes any pseudoconsole we can
+      // create and pops a stray terminal window when it fires.
+      ...ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
       ...(antigravitySessionEnvForLocation(this.input.baseSpawnEnv, this.input.projectLocation) ??
         {}),
       ...(this.input.projectLocation.kind === "wsl" ? { BROWSER: "/bin/true" } : {}),
@@ -295,6 +309,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     this.streamedReasoningByItem.clear();
     this.openReasoningItemIds.clear();
     this.activeToolSteps.clear();
+    this.thoughtRunState = createNativeCanonicalizerTurnState();
     const additionalInstructions = [
       ...(segments ?? []).map(inlinePromptSegmentText),
       ...(options?.inlineInstructions ? [options.inlineInstructions] : []),
@@ -395,6 +410,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       turnId,
       correlationId: this.transport?.correlationId ?? "antigravity",
       event,
+      thoughtRunState: this.thoughtRunState,
     });
     for (const runtimeEvent of canonicalEvents) {
       if (runtimeEvent.type === "item.started" && runtimeEvent.itemType === "reasoning") {

@@ -109,6 +109,10 @@ const CLOUDCODE_BASES = [
   "https://daily-cloudcode-pa.googleapis.com",
 ] as const;
 
+const LOAD_CODE_ASSIST_BODY = JSON.stringify({
+  metadata: { ideType: "GEMINI_CLI", pluginType: "GEMINI" },
+});
+
 type AntigravityCloudcodeResult =
   | { kind: "ok"; windows: UsageWindow[]; authenticatedAs?: string }
   | { kind: "auth-missing" }
@@ -123,10 +127,58 @@ function isSentinel(value: unknown, marker: string): boolean {
   return value !== null && typeof value === "object" && marker in (value as object);
 }
 
+/**
+ * `fetchAvailableModels` without a project answers against a default project
+ * whose buckets always read full — a CLI-only machine would show a stuck 0%
+ * pool. `loadCodeAssist` names the project the quota endpoints actually scope
+ * against; resolve it once per poll before reading models.
+ */
+async function discoverCloudcodeProjectId(
+  accessToken: string,
+  host: HostPort,
+): Promise<string | undefined> {
+  for (const base of CLOUDCODE_BASES) {
+    let body: string | undefined;
+    try {
+      const res = await host.http.request({
+        method: "POST",
+        url: `${base}/v1internal:loadCodeAssist`,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: LOAD_CODE_ASSIST_BODY,
+        timeoutMs: 15_000,
+      });
+      if (res.status < 200 || res.status >= 300) continue;
+      body = res.body;
+    } catch {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(body ?? "") as { cloudaicompanionProject?: unknown };
+      if (
+        typeof parsed.cloudaicompanionProject === "string" &&
+        parsed.cloudaicompanionProject.trim()
+      ) {
+        return parsed.cloudaicompanionProject.trim();
+      }
+    } catch {
+      // Malformed body — try the next base.
+    }
+  }
+  return undefined;
+}
+
 async function fetchAntigravityCloudcodeQuota(host: HostPort): Promise<AntigravityCloudcodeResult> {
   let token = await host.credentials.getOAuthToken("antigravity").catch(() => undefined);
   if (!token?.accessToken) return { kind: "auth-missing" };
 
+  const projectId = await discoverCloudcodeProjectId(token.accessToken, host).catch(
+    () => undefined,
+  );
+  const modelsRequestBody = projectId ? JSON.stringify({ project: projectId }) : "{}";
   const readModels = async (accessToken: string): Promise<unknown | string | undefined> => {
     // Terminal verdicts are returned as `{ [AUTH_REJECTED]: true }`-style marker
     // objects so they can never be confused with a successful models body.
@@ -143,7 +195,7 @@ async function fetchAntigravityCloudcodeQuota(host: HostPort): Promise<Antigravi
             "User-Agent": "antigravity",
             Accept: "application/json",
           },
-          body: "{}",
+          body: modelsRequestBody,
           timeoutMs: 15_000,
         });
         status = res.status;

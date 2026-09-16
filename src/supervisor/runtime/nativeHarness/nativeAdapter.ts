@@ -27,7 +27,11 @@ import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import type { ProjectLocation, PromptSegment, ResolvedMcpServer } from "@/shared/contracts";
 import { CraftingError } from "@/shared/crafting/errors";
 import { inlinePromptSegmentText } from "@/shared/promptContent";
-import { canonicalizeNativeEvent } from "./nativeEventCanonicalizer";
+import {
+  canonicalizeNativeEvent,
+  createNativeCanonicalizerTurnState,
+  type NativeCanonicalizerTurnState,
+} from "./nativeEventCanonicalizer";
 import {
   createAntigravityStreamTransport,
   createDeepSeekJsonRpcTransport,
@@ -200,6 +204,21 @@ class NativeProcessCraftSession implements CraftSession {
   private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
   private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
   private readonly _explicitNativeSessionRef: string | undefined;
+  /** Per-turn thinking-run state, keyed by turn id (antigravity only). */
+  private readonly _thinkingRunStates = new Map<string, NativeCanonicalizerTurnState>();
+
+  private thinkingRunState(turnId: string): NativeCanonicalizerTurnState {
+    let state = this._thinkingRunStates.get(turnId);
+    if (!state) {
+      state = createNativeCanonicalizerTurnState();
+      this._thinkingRunStates.set(turnId, state);
+      if (this._thinkingRunStates.size > 8) {
+        const oldest = this._thinkingRunStates.keys().next().value;
+        if (oldest !== undefined) this._thinkingRunStates.delete(oldest);
+      }
+    }
+    return state;
+  }
 
   constructor(
     readonly id: string,
@@ -374,6 +393,10 @@ class NativeProcessCraftSession implements CraftSession {
       turnId,
       correlationId: this.transport.correlationId,
       event,
+      // Antigravity only: split step-less thinking frames into contiguous runs
+      // so thoughts interleave with tools. DeepSeek frames carry their own step
+      // identity and must keep the legacy mapping.
+      ...(this.mode === "antigravity" ? { thoughtRunState: this.thinkingRunState(turnId) } : {}),
     });
     const events = canonicalEvents;
     for (const next of events) {

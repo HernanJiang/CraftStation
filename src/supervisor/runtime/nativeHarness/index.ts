@@ -4,7 +4,12 @@ import { createDevinAdapter } from "@/supervisor/agents/devin";
 import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
 import { createMuseAdapter } from "@/supervisor/agents/muse";
-import { antigravitySessionEnvForLocation } from "@/supervisor/agents/antigravity/detection";
+import {
+  ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
+  antigravitySessionEnvForLocation,
+} from "@/supervisor/agents/antigravity/detection";
+import { agentProxySpawnEnv } from "@/supervisor/agents/base/proxyEnv";
+import { mergeSpawnEnv } from "@/supervisor/agents/base/spawnEnv";
 import {
   ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   CODEX_NATIVE_HARNESS_DESCRIPTOR,
@@ -165,7 +170,15 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     // Pool-account scope redirects (AGY_ADC_AUTH + GOOGLE_APPLICATION_
     // CREDENTIALS) ride the adapter-level runtime env onto every spawn; the
     // WSL boundary strips them — a distro agy cannot read a host credential.
-    const runtimeEnv = antigravitySessionEnvForLocation(baseSpawnEnv, projectLocation);
+    // The auto-update kill switch and the shared proxy layer are laid down
+    // FIRST so a bound account env can never displace them: the bg-updater
+    // escapes any pseudoconsole and pops a stray terminal window, and this
+    // lane used to spawn without the switch entirely (B-mode binds no account
+    // env for antigravity, so baseSpawnEnv arrives undefined here).
+    const runtimeEnv = antigravitySessionEnvForLocation(
+      mergeSpawnEnv(agentProxySpawnEnv(), ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV, baseSpawnEnv),
+      projectLocation,
+    );
     return new NativeProcessHarnessRuntimeAdapter({
       descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,

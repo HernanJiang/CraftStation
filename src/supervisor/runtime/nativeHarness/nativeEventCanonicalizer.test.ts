@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { canonicalizeNativeEvent } from "./nativeEventCanonicalizer";
+import {
+  canonicalizeNativeEvent,
+  createNativeCanonicalizerTurnState,
+} from "./nativeEventCanonicalizer";
 import { ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR } from "./descriptors";
 
 function agyEvent(type: string, payload: Record<string, unknown>, sequence = 1) {
@@ -138,5 +141,96 @@ An async task has completed. Review the task result and proceed accordingly.
         expect.objectContaining({ type: "item.completed", itemId: "thought:agy-1:2" }),
       ]),
     );
+  });
+});
+
+describe("canonicalizeNativeEvent step-less thinking run splitting", () => {
+  function agyEventWithState(
+    event: { type: string; payload: Record<string, unknown>; sequence: number },
+    state: ReturnType<typeof createNativeCanonicalizerTurnState>,
+  ) {
+    return canonicalizeNativeEvent({
+      descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
+      threadId: "t1",
+      turnId: "turn-1",
+      correlationId: "c1",
+      event,
+      thoughtRunState: state,
+    });
+  }
+
+  it("splits step-less thinking into one item per contiguous run", () => {
+    const state = createNativeCanonicalizerTurnState();
+    let seq = 0;
+    const next = (payload: Record<string, unknown>) =>
+      agyEventWithState(
+        { type: "step_update", payload: { step_update: payload }, sequence: ++seq },
+        state,
+      );
+
+    // thought → tool → thought: the second thinking stretch must land on a new
+    // item positioned after the tool, not collapse into the turn-top item.
+    next({ step_type: "thinking", state: "ACTIVE", thinking_delta: "first run" });
+    next({ step_type: "thinking", state: "DONE", thinking_delta: "" });
+    next({ step_type: "tool", step_index: 0, state: "ACTIVE", tool_name: "grep" });
+    const secondRun = next({
+      step_type: "thinking",
+      state: "ACTIVE",
+      thinking_delta: "second run",
+    });
+
+    expect(secondRun).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "item.started", itemId: "thought:turn-1:1" }),
+        expect.objectContaining({
+          type: "content.delta",
+          itemId: "thought:turn-1:1",
+          stream: "reasoning_text",
+          delta: "second run",
+        }),
+      ]),
+    );
+  });
+
+  it("closes an open thinking run that a tool step interrupted", () => {
+    const state = createNativeCanonicalizerTurnState();
+    let seq = 0;
+    const next = (payload: Record<string, unknown>) =>
+      agyEventWithState(
+        { type: "step_update", payload: { step_update: payload }, sequence: ++seq },
+        state,
+      );
+    // Thinking that never saw its own DONE frame before a tool arrives.
+    next({ step_type: "thinking", state: "ACTIVE", thinking_delta: "still open" });
+    next({ step_type: "tool", step_index: 0, state: "ACTIVE", tool_name: "grep" });
+    const resumed = next({ step_type: "thinking", state: "ACTIVE", thinking_delta: "resumed" });
+    expect(resumed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "item.completed", itemId: "thought:turn-1" }),
+        expect.objectContaining({ type: "item.started", itemId: "thought:turn-1:1" }),
+      ]),
+    );
+  });
+
+  it("keeps consecutive step-less thinking deltas on one shared item", () => {
+    const state = createNativeCanonicalizerTurnState();
+    let seq = 0;
+    const next = (payload: Record<string, unknown>) =>
+      agyEventWithState(
+        { type: "step_update", payload: { step_update: payload }, sequence: ++seq },
+        state,
+      );
+    next({ step_type: "thinking", state: "ACTIVE", thinking_delta: "part one " });
+    const continued = next({ step_type: "thinking", state: "ACTIVE", thinking_delta: "part two" });
+    expect(continued).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "content.delta",
+          itemId: "thought:turn-1",
+          delta: "part two",
+        }),
+      ]),
+    );
+    expect(state.thoughtRuns).toBe(1);
   });
 });
