@@ -45,6 +45,21 @@ describe("base control styles", () => {
     );
   });
 
+  it("paints main-window chrome from the header token, not a dark-only gradient", () => {
+    expect(
+      ruleFor('html[data-window-kind="main"] .craftstation-shell:has(.craftstation-titlebar)'),
+    ).toContain("background: var(--window-header-background)");
+    expect(styles).not.toContain("rgba(22, 18, 22");
+    expect(styles).not.toContain(".craftstation-titlebar {\n  background: transparent !important;");
+  });
+
+  it("uses a theme-aware hairline for the workspace frame seam", () => {
+    expect(ruleFor(".craftstation-workspace-frame")).toContain(
+      "border-left-color: var(--hairline)",
+    );
+    expect(ruleFor(".craftstation-workspace-frame")).not.toContain("rgba(255, 255, 255");
+  });
+
   it("lets the auto-focused draft composer become GPU-idle", () => {
     expect(styles).toMatch(/\.craftstation-composer-border-glow::before\s*\{/);
     expect(

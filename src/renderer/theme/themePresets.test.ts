@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { applyAppTheme } from "./applyAppTheme";
+import { afterEach, describe, expect, it } from "vitest";
+import { applyAppTheme, bootstrapAppThemeFromCache, persistThemeBoot } from "./applyAppTheme";
 import { contrastRatio, mixHex, toHex } from "./colorMath";
 import { APP_THEME_PRESETS, DEFAULT_THEME_ID, getThemePreset } from "./themePresets";
 import { MANAGED_THEME_VARS } from "./themeTokens";
@@ -231,5 +231,76 @@ describe("applyAppTheme", () => {
     for (const key of MANAGED_THEME_VARS) {
       expect(el.style.getPropertyValue(key)).toBe("");
     }
+  });
+});
+
+describe("persistThemeBoot", () => {
+  afterEach(() => {
+    localStorage.removeItem("craftstation-boot");
+    document.documentElement.style.removeProperty("background-color");
+  });
+
+  it("replaces a stale pre-paint inline background with the active theme background", () => {
+    const el = document.createElement("div");
+    el.style.backgroundColor = "rgb(255, 0, 0)";
+    applyAppTheme(el, "light", "github");
+    persistThemeBoot("light", "github", el);
+    expect(el.style.backgroundColor).not.toBe("rgb(255, 0, 0)");
+    expect(JSON.parse(localStorage.getItem("craftstation-boot") ?? "{}")).toMatchObject({
+      appearance: "light",
+    });
+  });
+
+  it("updates the inline background when switching dark to light", () => {
+    const el = document.createElement("div");
+    applyAppTheme(el, "dark", "github");
+    persistThemeBoot("dark", "github", el);
+    expect(el.style.getPropertyValue("--background")).toBe("#0d1117");
+    applyAppTheme(el, "light", "github");
+    persistThemeBoot("light", "github", el);
+    expect(el.style.getPropertyValue("--background")).toBe("#ffffff");
+    expect(el.style.backgroundColor).not.toBe("");
+    expect(JSON.parse(localStorage.getItem("craftstation-boot") ?? "{}")).toMatchObject({
+      appearance: "light",
+    });
+  });
+});
+
+describe("bootstrapAppThemeFromCache", () => {
+  afterEach(() => {
+    localStorage.removeItem("craftstation-boot");
+    localStorage.removeItem("craftstation-shared-settings");
+    document.documentElement.classList.remove("light", "dark");
+    delete document.documentElement.dataset.theme;
+    delete document.documentElement.dataset.themePreset;
+    document.documentElement.style.removeProperty("background-color");
+  });
+
+  it("applies light class and data-theme from cached themeMode=light", () => {
+    document.documentElement.classList.add("dark");
+    document.documentElement.style.backgroundColor = "rgb(7, 7, 9)";
+    localStorage.setItem(
+      "craftstation-shared-settings",
+      JSON.stringify({ themeMode: "light", themePreset: "default" }),
+    );
+    bootstrapAppThemeFromCache();
+    expect(document.documentElement.classList.contains("light")).toBe(true);
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(document.documentElement.dataset.theme).toBe("light");
+    // Bootstrap must not rewrite the pre-paint boot background or cache.
+    expect(document.documentElement.style.backgroundColor).toBe("rgb(7, 7, 9)");
+    expect(localStorage.getItem("craftstation-boot")).toBeNull();
+  });
+
+  it("applies dark class and data-theme from cached themeMode=dark", () => {
+    document.documentElement.classList.add("light");
+    localStorage.setItem(
+      "craftstation-shared-settings",
+      JSON.stringify({ themeMode: "dark", themePreset: "default" }),
+    );
+    bootstrapAppThemeFromCache();
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.documentElement.classList.contains("light")).toBe(false);
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });

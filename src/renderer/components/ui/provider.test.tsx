@@ -54,6 +54,8 @@ beforeEach(() => {
 
 afterEach(() => {
   toast.clear();
+  document.documentElement.style.removeProperty("background-color");
+  localStorage.removeItem("craftstation-boot");
   // Restore the testSetup default matchMedia stub so other tests behave.
   setMatchMedia(true);
 });
@@ -239,6 +241,18 @@ describe("AppProvider", () => {
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(document.documentElement.classList.contains("light")).toBe(true);
     expect(document.documentElement.classList.contains("dark")).toBe(false);
+  });
+
+  it("replaces a stale pre-paint html background when appearance changes", () => {
+    document.documentElement.style.backgroundColor = "rgb(7, 7, 9)";
+    settingsState.themeMode = "light";
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+    expect(document.documentElement.style.backgroundColor).not.toBe("rgb(7, 7, 9)");
+    expect(document.documentElement.style.backgroundColor).not.toBe("");
   });
 
   it("follows the system preference when themeMode is 'system' (dark)", () => {

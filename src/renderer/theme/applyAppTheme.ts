@@ -37,15 +37,44 @@ const SHARED_SETTINGS_CACHE_KEY = "craftstation-shared-settings";
 // index.html so the first frame matches the active theme. Keep the key in sync.
 const BOOT_CACHE_KEY = "craftstation-boot";
 
+function resolveThemeBackground(
+  root: HTMLElement,
+  appearance: Appearance,
+  themeId: string,
+): string {
+  const inline = root.style.getPropertyValue("--background").trim();
+  if (inline) return inline;
+  if (typeof getComputedStyle === "function") {
+    const computed = getComputedStyle(root).getPropertyValue("--background").trim();
+    if (computed) return computed;
+  }
+  const preset = getThemePreset(themeId);
+  return (appearance === "dark" ? preset.dark : preset.light)["--background"] ?? "";
+}
+
 /**
  * Persists the resolved appearance + background so the next launch's pre-paint
  * bootstrap (index.html) can match the active theme before the renderer mounts.
+ * Also replaces the pre-paint inline `html.style.backgroundColor` so a runtime
+ * Light ↔ Dark switch cannot leave the previous theme's boot color showing
+ * through translucent chrome.
  */
-export function persistThemeBoot(appearance: Appearance, themeId: string): void {
+export function persistThemeBoot(
+  appearance: Appearance,
+  themeId: string,
+  root: HTMLElement = document.documentElement,
+): void {
   try {
-    const preset = getThemePreset(themeId);
-    const background = (appearance === "dark" ? preset.dark : preset.light)["--background"];
-    localStorage.setItem(BOOT_CACHE_KEY, JSON.stringify({ appearance, bg: background }));
+    const background = resolveThemeBackground(root, appearance, themeId);
+    if (background) {
+      root.style.backgroundColor = background;
+    } else {
+      root.style.removeProperty("background-color");
+    }
+    localStorage.setItem(
+      BOOT_CACHE_KEY,
+      JSON.stringify({ appearance, bg: background || undefined }),
+    );
   } catch {
     // Non-fatal; the bootstrap falls back to themeMode + system preference.
   }
@@ -81,6 +110,8 @@ export function bootstrapAppThemeFromCache(): void {
     root.dataset.theme = appearance;
     root.dataset.themePreset = themeId;
     applyAppTheme(root, appearance, themeId);
+    // Read-only first-paint apply. index.html already painted boot.bg;
+    // AppProvider persistThemeBoot syncs cache + html background on mount.
   } catch {
     // Ignore malformed cache; the provider effect applies real settings shortly.
   }
