@@ -400,6 +400,89 @@ describe("AntigravityStructuredSession", () => {
     ).toEqual(["hello ", "world"]);
   });
 
+  it("does not re-append a step_update snapshot of the already streamed answer", async () => {
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: "hello " },
+      });
+      emit({
+        event: "step_update",
+        step_update: {
+          step_type: "agent_response",
+          state: "DONE",
+          text_delta: "hello world",
+        },
+      });
+      emit({
+        event: "result",
+        result: { status: "SUCCESS", response: "hello world" },
+      });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.8 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("hello", { model: "Gemini 3.8 Flash" });
+
+    expect(
+      events
+        .filter(
+          (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
+            event.type === "content.delta" && event.stream === "assistant_text",
+        )
+        .map((event) => event.delta)
+        .join(""),
+    ).toBe("hello world");
+  });
+
+  it("completes streamed thinking when the result envelope arrives", async () => {
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: {
+          conversation_id: "agy-conversation-1",
+          step_index: 1,
+          step_type: "thinking",
+          state: "ACTIVE",
+          text_delta: "plan the files",
+        },
+      });
+      emit({
+        event: "result",
+        result: { status: "SUCCESS", response: "done" },
+      });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.8 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("hello", { model: "Gemini 3.8 Flash" });
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "item.completed",
+          itemId: "thought:agy-conversation-1:1",
+        }),
+      ]),
+    );
+  });
+
   it("keeps a failed result in the error state and preserves the official tool error", async () => {
     const fixture = new AntigravityFixture((emit) => {
       emit({ event: "init", conversation_id: "agy-conversation-1" });

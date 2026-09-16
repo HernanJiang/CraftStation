@@ -391,10 +391,7 @@ class NativeProcessCraftSession implements CraftSession {
       // a provider only emits `result`, but do not double-count the streamed
       // response when both forms are present.
       if (next.type === "content.delta" && next.stream === "assistant_text") {
-        const delta =
-          event.type === "result"
-            ? finalResponseRemainder(this._streamedResponse, next.delta)
-            : next.delta;
+        const delta = finalResponseRemainder(this._streamedResponse, next.delta);
         if (!delta) continue;
         this._streamedResponse += delta;
         this._response += delta;
@@ -744,8 +741,7 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
         "Native adapter does not support this CraftPlan.",
       );
     if (this.options.mode === "deepseek") {
-      const requestedModel =
-        effectiveOverrides(plan).model ?? plan.runtimeBinding.modelId;
+      const requestedModel = effectiveOverrides(plan).model ?? plan.runtimeBinding.modelId;
       if (!resolveOfficialDshModelId(requestedModel)) {
         const record = nativeProcessDiagnostic(
           this.harnessKind,

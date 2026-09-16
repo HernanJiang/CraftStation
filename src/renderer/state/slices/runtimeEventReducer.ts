@@ -245,7 +245,9 @@ function applyRuntimeEventToRuntimeState(
         state.runtimeOpenTurnByThread[threadId] === false
           ? {}
           : { runtimeOpenTurnByThread: { ...state.runtimeOpenTurnByThread, [threadId]: false } };
-      if (event.state !== "interrupted" && event.state !== "cancelled") return closeTurnPatch;
+      if (event.state !== "interrupted" && event.state !== "cancelled") {
+        return { ...closeTurnPatch, ...completeOpenReasoningItems(state, threadId) };
+      }
       return { ...closeTurnPatch, ...pruneTrailingInterruptedReasoningItems(state, threadId) };
     }
 
@@ -522,6 +524,32 @@ function coalesceRuntimeEvents(events: RuntimeEvent[]): RuntimeEvent[] {
 
   flushPendingDelta();
   return coalesced;
+}
+
+function completeOpenReasoningItems(
+  state: RuntimeEventState,
+  threadId: string,
+): Partial<RuntimeEventState> {
+  const items = state.runtimeItemsByIdByThread[threadId];
+  if (!items) return {};
+  let changed = false;
+  const nextItems: Record<string, RuntimeChatItem> = { ...items };
+  for (const [id, item] of Object.entries(items)) {
+    if (item.type !== "reasoning" || item.state === "completed") continue;
+    changed = true;
+    nextItems[id] = {
+      ...item,
+      state: "completed",
+      ...(item.startedAt !== undefined ? { completedAt: Date.now() } : {}),
+    };
+  }
+  if (!changed) return {};
+  return {
+    runtimeItemsByIdByThread: {
+      ...state.runtimeItemsByIdByThread,
+      [threadId]: nextItems,
+    },
+  };
 }
 
 function pruneTrailingInterruptedReasoningItems(

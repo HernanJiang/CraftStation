@@ -1,3 +1,11 @@
+## Release 1.2.9 — Gemini/Antigravity 思考展开与收尾格式（2026-09-16）
+
+- 基于 1.2.8 在 `main` 直接修复；GitHub Release 中英双语。便携包 `CraftStation-Portable-1.2.9-x64.exe`。
+- 用户可见：
+  - Gemini 后台任务回执与 `<system_information>` 不再进入对话/思考。
+  - 思考项在步进结束和回合完成时关闭，不再一直展开。
+  - 收尾信封不再把整段快照（含工具日志）重贴到最终回答后面。
+
 ## Release 1.2.8 — Devin 渠道认证 / 模型勾选 / 浅色用量页 / Gemini 503（2026-09-16）
 
 - 基于 1.2.7 在 `main` 直接修复；GitHub Release 中英双语。便携包 `CraftStation-Portable-1.2.8-x64.exe`。

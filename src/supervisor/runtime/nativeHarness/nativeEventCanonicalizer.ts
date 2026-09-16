@@ -1,5 +1,6 @@
 ﻿import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import type { NativeHarnessDescriptor } from "@/shared/crafting";
+import { stripGeminiHarnessNoise } from "@/shared/geminiHarnessNoise";
 import {
   isRetryableCapacityError,
   stripRetryableCapacityNoise,
@@ -24,7 +25,9 @@ function firstString(candidates: unknown[]): string | undefined {
 }
 
 function textFrom(payload: Record<string, unknown>): string | undefined {
-  return firstString([payload.text_delta, payload.delta, payload.response, payload.text]);
+  // `response` on a step_update is the full snapshot, not a delta. Using it
+  // here re-appends the whole answer (plus harness receipts) at wrap-up.
+  return firstString([payload.text_delta, payload.delta, payload.text]);
 }
 
 function thinkingFrom(payload: Record<string, unknown>): string | undefined {
@@ -45,7 +48,8 @@ function isThinkingStep(stepType: string): boolean {
 }
 
 function visibleText(value: string | undefined): string | undefined {
-  return value ? stripRetryableCapacityNoise(value) : undefined;
+  if (!value) return undefined;
+  return stripRetryableCapacityNoise(stripGeminiHarnessNoise(value) ?? "");
 }
 
 function numberValue(value: unknown): number | undefined {
@@ -234,26 +238,29 @@ export function canonicalizeNativeEvent(input: {
       }
     }
     const thinkingStep = isThinkingStep(stepType);
+    const thoughtItemId = stepKey ? `thought:${conversationId}:${stepKey}` : `thought:${turnId}`;
     const thoughtText = visibleText(
       thinkingFrom(payload) ?? (thinkingStep ? textFrom(payload) : undefined),
     );
     if (thoughtText) {
-      const itemId = stepKey ? `thought:${conversationId}:${stepKey}` : `thought:${turnId}`;
       result.push(
         attach({
           type: "item.started",
           threadId,
-          itemId,
+          itemId: thoughtItemId,
           itemType: "reasoning",
         }),
         attach({
           type: "content.delta",
           threadId,
-          itemId,
+          itemId: thoughtItemId,
           stream: "reasoning_text",
           delta: thoughtText,
         }),
       );
+    }
+    if (thinkingStep && isTerminalToolState(String(payload.state ?? "").toUpperCase())) {
+      result.push(attach({ type: "item.completed", threadId, itemId: thoughtItemId }));
     }
     const text =
       !thinkingStep && stepType === "agent_response" ? visibleText(textFrom(payload)) : undefined;
@@ -340,6 +347,11 @@ export function canonicalizeNativeEvent(input: {
         type: "item.completed",
         threadId,
         itemId: `item:${turnId}`,
+      }),
+      attach({
+        type: "item.completed",
+        threadId,
+        itemId: `thought:${turnId}`,
       }),
       ...(state === "failed" && !isRetryableCapacityError(failedMessage)
         ? [

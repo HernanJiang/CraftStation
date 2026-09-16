@@ -495,6 +495,29 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     expect(state.runtimeItemsByIdByThread["t1"]?.["reason-1"]).toBeDefined();
   });
 
+  it("completes leftover reasoning on a successful turn so Thinking does not stay expanded", () => {
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "reason-1",
+      itemType: "reasoning",
+    });
+    apply("t1", {
+      type: "content.delta",
+      threadId: "t1",
+      itemId: "reason-1",
+      stream: "reasoning_text",
+      delta: "planning the wrap-up",
+    });
+    apply("t1", {
+      type: "turn.completed",
+      threadId: "t1",
+      turnId: "turn-1",
+      state: "completed",
+    });
+    expect(store.getState().runtimeItemsByIdByThread["t1"]?.["reason-1"]?.state).toBe("completed");
+  });
+
   it("preserves Copilot-style subagent children when the parent completes", () => {
     apply("t1", {
       type: "item.started",
@@ -856,11 +879,7 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
         streams: {},
       },
     ]);
-    expect(store.getState().runtimeItemIdsByThread["t1"]).toEqual([
-      "user-1",
-      "live-mid",
-      "asst-1",
-    ]);
+    expect(store.getState().runtimeItemIdsByThread["t1"]).toEqual(["user-1", "live-mid", "asst-1"]);
     expect(store.getState().runtimeItemsByIdByThread["t1"]?.["live-mid"]?.observedLive).toBe(true);
   });
 

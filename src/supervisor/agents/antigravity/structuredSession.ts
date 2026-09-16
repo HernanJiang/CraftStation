@@ -120,6 +120,8 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
   }> = [];
   private disposed = false;
   private streamedAssistantText = "";
+  private streamedReasoningByItem = new Map<string, string>();
+  private openReasoningItemIds = new Set<string>();
   private pendingError: string | undefined;
   private pendingClose = false;
   /**
@@ -290,6 +292,8 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     });
     const turnPromise = this.turnPromise;
     this.streamedAssistantText = "";
+    this.streamedReasoningByItem.clear();
+    this.openReasoningItemIds.clear();
     this.activeToolSteps.clear();
     const additionalInstructions = [
       ...(segments ?? []).map(inlinePromptSegmentText),
@@ -393,17 +397,35 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       event,
     });
     for (const runtimeEvent of canonicalEvents) {
+      if (runtimeEvent.type === "item.started" && runtimeEvent.itemType === "reasoning") {
+        this.openReasoningItemIds.add(runtimeEvent.itemId);
+      }
+      if (runtimeEvent.type === "item.completed") {
+        this.openReasoningItemIds.delete(runtimeEvent.itemId);
+      }
       if (runtimeEvent.type === "content.delta" && runtimeEvent.stream === "assistant_text") {
-        if (event.type === "result") {
-          const delta = finalResponseRemainder(this.streamedAssistantText, runtimeEvent.delta);
-          if (delta) this.emitRuntime({ ...runtimeEvent, delta });
-          continue;
-        }
-        this.streamedAssistantText += runtimeEvent.delta;
+        const delta = finalResponseRemainder(this.streamedAssistantText, runtimeEvent.delta);
+        if (!delta) continue;
+        this.streamedAssistantText += delta;
+        this.emitRuntime({ ...runtimeEvent, delta });
+        continue;
+      }
+      if (runtimeEvent.type === "content.delta" && runtimeEvent.stream === "reasoning_text") {
+        const prior = this.streamedReasoningByItem.get(runtimeEvent.itemId) ?? "";
+        const delta = finalResponseRemainder(prior, runtimeEvent.delta);
+        if (!delta) continue;
+        this.streamedReasoningByItem.set(runtimeEvent.itemId, prior + delta);
+        this.openReasoningItemIds.add(runtimeEvent.itemId);
+        this.emitRuntime({ ...runtimeEvent, delta });
+        continue;
       }
       this.emitRuntime(runtimeEvent);
     }
     if (event.type === "result") {
+      for (const itemId of this.openReasoningItemIds) {
+        this.emitRuntime({ type: "item.completed", threadId: this.input.threadId, itemId });
+      }
+      this.openReasoningItemIds.clear();
       const failure = resultFailureMessage(event);
       if (!failure && this.activeToolSteps.size > 0) {
         this.emitRuntime({

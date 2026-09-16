@@ -89,4 +89,54 @@ describe("canonicalizeNativeEvent Antigravity thinking and retry noise", () => {
       }),
     ).toEqual([]);
   });
+
+  it("does not paint Gemini async-task receipts as assistant text", () => {
+    const dump = `Wait for background browser audit execution to complete.Task id "task-135" finished with result:
+
+The command exited with code 0.
+Output:
+Launching Chrome...
+Log: file:///tmp/task-135.log
+<system_information>
+An async task has completed. Review the task result and proceed accordingly.
+</system_information>`;
+    expect(
+      agyEvent("step_update", {
+        step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: dump },
+      }),
+    ).toEqual([]);
+    expect(
+      agyEvent("step_update", {
+        step_update: {
+          step_type: "agent_response",
+          state: "DONE",
+          text_delta: "",
+          response: `修复图表高度。\n\n${dump}`,
+        },
+      }).some((event) => event.type === "content.delta"),
+    ).toBe(false);
+  });
+
+  it("completes a thinking step so wrap-up does not leave Thinking expanded", () => {
+    const events = agyEvent("step_update", {
+      step_update: {
+        conversation_id: "agy-1",
+        step_index: 2,
+        step_type: "thinking",
+        state: "DONE",
+        text_delta: "internal plan",
+      },
+    });
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "content.delta",
+          itemId: "thought:agy-1:2",
+          stream: "reasoning_text",
+          delta: "internal plan",
+        }),
+        expect.objectContaining({ type: "item.completed", itemId: "thought:agy-1:2" }),
+      ]),
+    );
+  });
 });
