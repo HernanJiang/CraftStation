@@ -110,6 +110,7 @@ export interface ThreadAuxiliaryPanelSnapshot {
   placement: AuxiliaryPanelPlacement;
   tab: RightPanelTab | null;
   tabs: RightPanelTab[];
+  subAgentContext: SubAgentPanelContext | null;
   browserOpen: boolean;
   usageOpen: boolean;
   notesOpen: boolean;
@@ -119,6 +120,7 @@ export const EMPTY_THREAD_AUXILIARY_PANEL: ThreadAuxiliaryPanelSnapshot = {
   placement: "hidden",
   tab: null,
   tabs: [],
+  subAgentContext: null,
   browserOpen: false,
   usageOpen: false,
   notesOpen: false,
@@ -136,9 +138,10 @@ interface PanelState {
    * Per-thread right-sidebar snapshots. Each thread owns its auxiliary shell
    * (placement/tab/tabs) plus the simple open flags; switching threads
    * captures the previous thread's state and restores the target's (or
-   * defaults when the thread has none). Payload contexts (git review, files,
-   * subagent, PR) and layout chrome (maximized, splits, docks) stay global
-   * on purpose — they reference specific repos/sessions, not the thread.
+   * defaults when the thread has none). The subagent context is part of the
+   * snapshot because it belongs to one parent thread; repo-scoped payload
+   * contexts (git review, files, PR) and layout chrome (maximized, splits,
+   * docks) stay global.
    * Session-only: never persisted (persistStoreSlice allowlist below).
    */
   threadAuxiliaryPanels: Record<string, ThreadAuxiliaryPanelSnapshot>;
@@ -483,6 +486,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
           placement: state.auxiliaryPanelPlacement,
           tab: state.auxiliaryPanelTab,
           tabs: state.auxiliaryPanelTabs,
+          subAgentContext: state.subAgentPanelContext,
           browserOpen: state.browserPanelOpen,
           usageOpen: state.usagePanelOpen,
           notesOpen: state.notesPanelOpen,
@@ -496,6 +500,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
       if (
         state.auxiliaryPanelPlacement === snapshot.placement &&
         state.auxiliaryPanelTab === snapshot.tab &&
+        state.subAgentPanelContext === snapshot.subAgentContext &&
         state.browserPanelOpen === snapshot.browserOpen &&
         state.usagePanelOpen === snapshot.usageOpen &&
         state.notesPanelOpen === snapshot.notesOpen
@@ -506,6 +511,8 @@ export const usePanelStore = create<PanelState>()((set) => ({
         auxiliaryPanelPlacement: snapshot.placement,
         auxiliaryPanelTab: snapshot.tab,
         auxiliaryPanelTabs: snapshot.tabs,
+        subAgentPanelContext: snapshot.subAgentContext,
+        subAgentPanelOpen: snapshot.subAgentContext !== null,
         browserPanelOpen: snapshot.browserOpen,
         usagePanelOpen: snapshot.usageOpen,
         notesPanelOpen: snapshot.notesOpen,

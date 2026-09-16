@@ -56,7 +56,15 @@ export function useBrowserSync(): void {
           if (event.mode === "panel") {
             panel.setBrowserOverlayOpen(false);
           }
+          // A user-opened link must reveal the actual Browser workspace, not
+          // merely mark its contents as available. Previously this only set
+          // browserPanelOpen, leaving a hidden auxiliary rail (and its old
+          // selected tab) untouched, so clicks in agent output looked inert.
+          panel.clearBottomPanelDockTab("browser");
+          if (panel.rightPanelSplit?.tab === "browser") panel.setRightPanelSplit(null);
           panel.openBrowserPanel();
+          panel.setAuxiliaryPanelPlacement("right");
+          panel.setAuxiliaryPanelTab("browser");
         }
       } else if (event.type === "automation-active") {
         setAutomationActive(event.active);

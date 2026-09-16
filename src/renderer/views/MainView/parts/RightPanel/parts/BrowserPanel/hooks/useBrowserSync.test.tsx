@@ -87,4 +87,31 @@ describe("useBrowserSync", () => {
       browserOverlayMaximized: false,
     });
   });
+
+  it("reveals an agent-output link in the right panel when the browser preference is panel", async () => {
+    usePanelStore.setState({
+      auxiliaryPanelPlacement: "hidden",
+      auxiliaryPanelTab: null,
+      auxiliaryPanelTabs: [],
+      rightPanelTab: "git",
+      browserPanelOpen: false,
+      browserOverlayOpen: false,
+      browserOverlayMaximized: false,
+    });
+    renderHook(() => useBrowserSync());
+
+    await waitFor(() => expect(browserListeners).toHaveLength(1));
+    act(() => {
+      browserListeners[0]?.({ type: "open-panel", mode: "panel" });
+    });
+
+    expect(usePanelStore.getState()).toMatchObject({
+      auxiliaryPanelPlacement: "right",
+      auxiliaryPanelTab: "browser",
+      auxiliaryPanelTabs: ["browser"],
+      rightPanelTab: "browser",
+      browserPanelOpen: true,
+      browserOverlayOpen: false,
+    });
+  });
 });

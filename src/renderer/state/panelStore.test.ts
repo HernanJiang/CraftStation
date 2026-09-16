@@ -457,4 +457,30 @@ describe("per-thread auxiliary panels", () => {
     store().restoreThreadAuxiliaryPanel("thread-a");
     expect(store().auxiliaryPanelPlacement).toBe("hidden");
   });
+
+  it("restores each thread's open subagent as a peer right-panel tab", () => {
+    const store = () => usePanelStore.getState();
+    const contextA = { threadId: "thread-a", parentItemId: "agent-a" };
+    store().setAuxiliaryPanelPlacement("right");
+    store().setSubAgentPanelContext(contextA);
+    store().setAuxiliaryPanelTab("subagent");
+    store().captureThreadAuxiliaryPanel("thread-a");
+
+    store().restoreThreadAuxiliaryPanel("thread-b");
+    expect(store()).toMatchObject({
+      auxiliaryPanelPlacement: "hidden",
+      auxiliaryPanelTab: null,
+      subAgentPanelContext: null,
+      subAgentPanelOpen: false,
+    });
+
+    store().restoreThreadAuxiliaryPanel("thread-a");
+    expect(store()).toMatchObject({
+      auxiliaryPanelPlacement: "right",
+      auxiliaryPanelTab: "subagent",
+      auxiliaryPanelTabs: ["subagent"],
+      subAgentPanelContext: contextA,
+      subAgentPanelOpen: true,
+    });
+  });
 });

@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserTabGroupInfo } from "@/shared/ipc";
 
-const resolveWebContentsById = vi.hoisted(() => vi.fn<(id: number) => unknown>());
+const { resolveWebContentsById, openExternal, readSharedSettingsFile } = vi.hoisted(() => ({
+  resolveWebContentsById: vi.fn<(id: number) => unknown>(),
+  openExternal: vi.fn<(url: string) => Promise<void>>(),
+  readSharedSettingsFile: vi.fn<(path: string) => unknown>(),
+}));
 
 vi.mock("electron", () => ({
   BrowserWindow: class BrowserWindow {},
-  shell: { openExternal: vi.fn<(url: string) => Promise<void>>() },
+  shell: { openExternal },
 }));
 
 vi.mock("../db", () => ({
@@ -14,7 +18,7 @@ vi.mock("../db", () => ({
 }));
 
 vi.mock("../sharedSettingsFile", () => ({
-  readSharedSettingsFile: vi.fn<(path: string) => unknown>(),
+  readSharedSettingsFile,
 }));
 
 vi.mock("../attachments/localFiles", () => ({
@@ -101,6 +105,10 @@ function seedGroupState(
 describe("BrowserPanelManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    readSharedSettingsFile.mockReturnValue({
+      browser: { linkOpenTarget: "internal", linkPresentationMode: "panel" },
+    });
+    openExternal.mockResolvedValue(undefined);
   });
 
   it("rejects the host window WebContents as a browser tab target", async () => {
@@ -236,5 +244,21 @@ describe("BrowserPanelManager", () => {
     expect(manager.snapshot().activeTabId).toBe("tab-a");
     expect(events).toEqual(["open-panel"]);
     expect((manager as unknown as { tabs: typeof tabs }).tabs).toHaveLength(1);
+  });
+
+  it("opens agent-output links in the system browser when that setting is selected", async () => {
+    readSharedSettingsFile.mockReturnValue({
+      browser: { linkOpenTarget: "system", linkPresentationMode: "panel" },
+    });
+    const { BrowserPanelManager } = await import("./BrowserPanelManager");
+    const manager = new BrowserPanelManager(
+      { settingsPath: "settings.json" } as never,
+      "Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36",
+    );
+
+    await expect(manager.openLink("https://system-browser.test/docs")).resolves.toBe(true);
+
+    expect(openExternal).toHaveBeenCalledWith("https://system-browser.test/docs");
+    expect(manager.snapshot().tabs).toEqual([]);
   });
 });
