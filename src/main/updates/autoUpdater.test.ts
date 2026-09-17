@@ -363,6 +363,47 @@ describe("createAutoUpdaterController", () => {
       messageKey: "update.serviceUnavailable",
     });
   });
+  it("acknowledges every check up front, even a deduped one", async () => {
+    const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+    const controller = createAutoUpdaterController(sendStatus, "stable", false);
+    controller.initialize();
+    autoUpdaterMock.checkForUpdates.mockImplementation(() => new Promise(() => {}));
+
+    const first = controller.checkForUpdate();
+    const second = controller.checkForUpdate();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The menu never sits silent: both callers get an immediate checking
+    // status while electron works, and only one wire check runs.
+    expect(sendStatus.mock.calls.filter(([status]) => status.type === "checking")).toHaveLength(2);
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(8_000 + 400 + 8_000);
+    await first;
+    await second;
+  });
+
+  it("trips a stalled download into a visible error and releases the gate", async () => {
+    const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+    const controller = createAutoUpdaterController(sendStatus, "stable", false);
+    controller.initialize();
+    // Download starts but never emits progress or settles.
+    autoUpdaterMock.downloadUpdate.mockImplementation(() => new Promise(() => {}));
+
+    const first = controller.startUpdateDownload();
+    await vi.advanceTimersByTimeAsync(119_000);
+    expect(sendStatus).not.toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
+    // The guard polls every 15s and trips past 120s of silence (135s tick).
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(sendStatus).toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
+    // The gate is released: a retry actually re-enters downloadUpdate.
+    // (The original promises stay pending by design — a late underlying
+    // completion still lands via update-downloaded — so never await them.)
+    const second = controller.startUpdateDownload();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(136_000);
+  });
 
   it("points portable Windows builds at GitHub Releases instead of auto-installing", async () => {
     const previous = process.env.PORTABLE_EXECUTABLE_DIR;

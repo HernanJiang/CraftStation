@@ -168,6 +168,10 @@ export function CliUpdateMenu() {
   // updates found without opening the menu.
   const appUpdatePending = appPhase === "downloaded" || appPhase === "available-manual";
   const badgeCount = updates.length + (appUpdatePending ? 1 : 0);
+  // Local acknowledgment: while the menu's own check is in flight but main
+  // hasn't reported anything yet (deduped onto an in-flight check, slow
+  // network, missed event), still show progress instead of silence.
+  const appCheckingQuietly = checking && (appPhase === "idle" || appPhase === "error");
 
   return (
     <Dropdown>
@@ -242,6 +246,16 @@ export function CliUpdateMenu() {
               </Label>
             </Dropdown.Item>
           ) : null}
+          {appPhase === "checking" || appCheckingQuietly ? (
+            <Dropdown.Item
+              key="app-checking"
+              id="app-checking"
+              textValue={t`Checking for CraftStation update`}
+            >
+              <RefreshCw className="size-4 animate-spin" />
+              <Label>{t`Checking for CraftStation update…`}</Label>
+            </Dropdown.Item>
+          ) : null}
           {appPhase === "downloading" ? (
             <Dropdown.Item
               key="app-downloading"
@@ -271,7 +285,11 @@ export function CliUpdateMenu() {
               </Label>
             </Dropdown.Item>
           ))}
-          {updates.length === 0 && !appUpdatePending && appPhase !== "downloading" ? (
+          {updates.length === 0 &&
+          !appUpdatePending &&
+          appPhase !== "downloading" &&
+          appPhase !== "checking" &&
+          !appCheckingQuietly ? (
             <Dropdown.Item id="none" textValue={t`All CLIs are up to date`}>
               <Label>{checking ? t`Checking installed CLIs…` : t`All CLIs are up to date`}</Label>
             </Dropdown.Item>

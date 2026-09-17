@@ -2244,6 +2244,14 @@ msgstr "Đang kiểm tra"
 msgid "Checking {serverName}"
 msgstr "Đang kiểm tra {serverName}"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update…"
+msgstr ""
+
 #: src/mobile/views/DesktopsView.tsx
 msgid "Checking host…"
 msgstr "Đang kiểm tra máy chủ…"
@@ -5011,8 +5019,8 @@ msgid "External provider"
 msgstr "Nhà cung cấp bên ngoài"
 
 #: src/renderer/components/thread/threadDraftViewHelpers.ts
-msgid "Extra High"
-msgstr "Cực cao"
+#~ msgid "Extra High"
+#~ msgstr "Cực cao"
 
 #. placeholder {0}: sourceAgent?.label ?? thread.agentKind
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx

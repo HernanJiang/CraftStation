@@ -130,6 +130,17 @@ describe("CliUpdateMenu", () => {
     expect(useUpdateStore.getState().availableCliUpdates).toBe(before);
   });
 
+  it("shows app-check progress while its own check is in flight and main is quiet", async () => {
+    bridgeMock.getLatestAgentVersion.mockImplementation(() => new Promise(() => {}));
+    useUpdateStore.setState({ phase: "idle", version: null, manualDownloadUrl: null });
+    render(<CliUpdateMenu />);
+    fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu).getByRole("menuitem", { name: /Checking for CraftStation update/u }),
+    ).toBeTruthy();
+  });
+
   it("lists the app itself with restart-to-install once downloaded", async () => {
     useUpdateStore.setState({
       phase: "downloaded",

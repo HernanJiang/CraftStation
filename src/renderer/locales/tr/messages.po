@@ -2244,6 +2244,14 @@ msgstr "Kontrol ediliyor"
 msgid "Checking {serverName}"
 msgstr "{serverName} kontrol ediliyor"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update…"
+msgstr ""
+
 #: src/mobile/views/DesktopsView.tsx
 msgid "Checking host…"
 msgstr "Ana makine kontrol ediliyor…"
@@ -5011,8 +5019,8 @@ msgid "External provider"
 msgstr "Harici sağlayıcı"
 
 #: src/renderer/components/thread/threadDraftViewHelpers.ts
-msgid "Extra High"
-msgstr "Ekstra Yüksek"
+#~ msgid "Extra High"
+#~ msgstr "Ekstra Yüksek"
 
 #. placeholder {0}: sourceAgent?.label ?? thread.agentKind
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx

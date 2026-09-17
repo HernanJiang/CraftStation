@@ -2244,6 +2244,14 @@ msgstr "확인 중"
 msgid "Checking {serverName}"
 msgstr "{serverName} 확인 중"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update…"
+msgstr ""
+
 #: src/mobile/views/DesktopsView.tsx
 msgid "Checking host…"
 msgstr "호스트 확인 중…"
@@ -5011,8 +5019,8 @@ msgid "External provider"
 msgstr "외부 제공자"
 
 #: src/renderer/components/thread/threadDraftViewHelpers.ts
-msgid "Extra High"
-msgstr "매우 높음"
+#~ msgid "Extra High"
+#~ msgstr "매우 높음"
 
 #. placeholder {0}: sourceAgent?.label ?? thread.agentKind
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx

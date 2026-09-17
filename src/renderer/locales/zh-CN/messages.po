@@ -2248,6 +2248,14 @@ msgstr "正在检查"
 msgid "Checking {serverName}"
 msgstr "正在检查 {serverName}"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update"
+msgstr "正在检查 CraftStation 更新"
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update…"
+msgstr "正在检查 CraftStation 更新…"
+
 #: src/mobile/views/DesktopsView.tsx
 msgid "Checking host…"
 msgstr "正在检查主机…"
@@ -5015,8 +5023,8 @@ msgid "External provider"
 msgstr "外部服务商"
 
 #: src/renderer/components/thread/threadDraftViewHelpers.ts
-msgid "Extra High"
-msgstr "超高"
+#~ msgid "Extra High"
+#~ msgstr "超高"
 
 #. placeholder {0}: sourceAgent?.label ?? thread.agentKind
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx

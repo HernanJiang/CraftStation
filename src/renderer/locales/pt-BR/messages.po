@@ -2244,6 +2244,14 @@ msgstr "Verificando"
 msgid "Checking {serverName}"
 msgstr "Verificando {serverName}"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Checking for CraftStation update…"
+msgstr ""
+
 #: src/mobile/views/DesktopsView.tsx
 msgid "Checking host…"
 msgstr "Verificando host…"
@@ -5011,8 +5019,8 @@ msgid "External provider"
 msgstr "Provedor externo"
 
 #: src/renderer/components/thread/threadDraftViewHelpers.ts
-msgid "Extra High"
-msgstr "Extra Alto"
+#~ msgid "Extra High"
+#~ msgstr "Extra Alto"
 
 #. placeholder {0}: sourceAgent?.label ?? thread.agentKind
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx

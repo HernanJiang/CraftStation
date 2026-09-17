@@ -25,6 +25,9 @@ const PERIODIC_CHECK_INTERVAL_MS = 60 * 60 * 1_000;
 const CHECK_REQUEST_TIMEOUT_MS = 8_000;
 const CHECK_RETRY_DELAYS_MS = [400] as const;
 const DOWNLOAD_RETRY_DELAYS_MS = [500, 1_000] as const;
+/** No download-progress bytes for this long ⇒ treat the download as stalled. */
+const DOWNLOAD_STALL_TIMEOUT_MS = 120_000;
+const DOWNLOAD_STALL_POLL_MS = 15_000;
 const TRANSIENT_REPORT_COOLDOWN_MS = 6 * 60 * 60 * 1_000;
 const GITHUB_UPDATE_OWNER = "HernanJiang";
 const GITHUB_UPDATE_REPO = "CraftStation";
@@ -77,6 +80,9 @@ export function createAutoUpdaterController(
   // User-initiated checks/downloads toast; launch/hourly probes stay silent.
   let notifyOnFailure = false;
   const transientReportTimes = new Map<string, number>();
+  // Stall guard for downloads that stop emitting progress without settling.
+  let lastDownloadProgressAt = 0;
+  let stallTimer: ReturnType<typeof setInterval> | null = null;
 
   function sendFailureStatus(failure: { kind: UpdateFailureKind }, notify: boolean): void {
     if (!notify || failure.kind === "optional-manifest-missing") {
@@ -161,15 +167,50 @@ export function createAutoUpdaterController(
     if (downloadPromise) return downloadPromise;
     checkInFlight = true;
     notifyOnFailure = true;
+    lastDownloadProgressAt = Date.now();
+    armDownloadStallGuard();
     downloadPromise = runOperation("download", () => autoUpdater.downloadUpdate()).finally(() => {
       downloadPromise = null;
+      disarmDownloadStallGuard();
       notifyOnFailure = false;
       if (!updateReady) checkInFlight = false;
     });
     return downloadPromise;
   }
 
+  // A stalled download (no bytes for STALL_TIMEOUT) never settles on its own:
+  // progress events stop, no error fires, and every later check/download
+  // no-ops against the stuck promise while the UI shows nothing. Trip it into
+  // a visible transient-network error and release the gates so the next check
+  // retries. A late underlying completion still lands via update-downloaded.
+  function armDownloadStallGuard(): void {
+    disarmDownloadStallGuard();
+    stallTimer = setInterval(() => {
+      if (!downloadPromise || updateReady) {
+        disarmDownloadStallGuard();
+        return;
+      }
+      if (Date.now() - lastDownloadProgressAt <= DOWNLOAD_STALL_TIMEOUT_MS) return;
+      disarmDownloadStallGuard();
+      downloadPromise = null;
+      checkInFlight = false;
+      reportClassifiedFailure("download", "transient-network");
+      sendFailureStatus({ kind: "transient-network" }, true);
+    }, DOWNLOAD_STALL_POLL_MS);
+    stallTimer.unref?.();
+  }
+
+  function disarmDownloadStallGuard(): void {
+    if (stallTimer) {
+      clearInterval(stallTimer);
+      stallTimer = null;
+    }
+  }
+
   function beginCheck(notify: boolean): Promise<void> {
+    // Acknowledge every check up front — including ones that dedupe onto an
+    // in-flight run — so the update menu never sits silent while main decides.
+    sendStatus({ type: "checking" });
     if (checkPromise) return checkPromise;
     checkInFlight = true;
     notifyOnFailure = notify;
@@ -267,6 +308,7 @@ export function createAutoUpdaterController(
     });
     autoUpdater.on("download-progress", (progress) => {
       checkInFlight = true;
+      lastDownloadProgressAt = Date.now();
       sendStatus({
         type: "downloading",
         percent: progress.percent,
