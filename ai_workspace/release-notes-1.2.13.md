@@ -1,6 +1,6 @@
-# Release 1.2.13 — Devin 凭证固化与额度窗口 + Muse OpenCode 原生路由（待发布）
+# Release 1.2.13 — Devin 凭证固化与额度窗口 + Muse OpenCode 原生路由（已推送，待打版）
 
-状态：代码与测试已完成，未提交、未 push（`github.com:443` 被代理挡住，恢复后按 PROJECT_STATUS 指令对齐再发版）。
+状态：已提交（`b55114d1`）并推送到 `origin/main`；`v1.2.13` tag 与便携包待发版时再打。
 
 ## 用户可见
 
