@@ -2,11 +2,12 @@
 
 - 已提交 `f8186f7` 并 push，tag `v1.2.13` 已打并推送；NSIS 安装包与便携版（`release/CraftStation-Setup-1.2.13-x64.exe` + `CraftStation-Portable-1.2.13-x64.exe` + blockmap/latest.yml）均已打出并上传到 GitHub Release v1.2.13（Latest）。发版惯例已更新：以后默认双包（见 AGENTS.md）。
 
-## Release 1.2.15 — 更新菜单无反馈修复（2026-09-17，待发布）
+## Release 1.2.15 — 更新菜单无反馈修复（2026-09-17，已发布为 Latest）
 
 - 用户在更新菜单点“检查”后没有任何应用行：三种静默路径——main 侧去重/慢查无显式 checking 回执；下载停滞（无进度、无错误、无超时）导致后继检查全部对空 promise 放行；本地菜单在 main 未回执前无本地进度行。
 - 修法：`beginCheck` 入口即发 `checking`（去重也发）；菜单在本地检查中而 main 仍 idle/error 时显示“正在检查应用更新…”；下载 120 秒无字节即判 transient-network 可见错误并释放门闩（迟到完成仍可落地）。
 - 另：v1.2.14 已为 Latest（含双包），本版验证后发 1.2.15。
+- 已提交推送，双包已打出并上传到 GitHub Release v1.2.15（Latest，4 文件齐）。便携版保留 1.2.15 + 1.2.14。
 
 ## Release 1.2.14 — 聊天结尾与档位修复（2026-09-17，已发布为 Latest）
 
