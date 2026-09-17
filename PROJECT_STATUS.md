@@ -2,6 +2,12 @@
 
 - 已提交 `f8186f7` 并 push，tag `v1.2.13` 已打并推送；NSIS 安装包与便携版（`release/CraftStation-Setup-1.2.13-x64.exe` + `CraftStation-Portable-1.2.13-x64.exe` + blockmap/latest.yml）均已打出并上传到 GitHub Release v1.2.13（Latest）。发版惯例已更新：以后默认双包（见 AGENTS.md）。
 
+## Release 1.2.14 — 聊天结尾与档位修复（2026-09-17，已发布为 Latest）
+
+- v1.2.13 为安装包专版（其便携包资产已从 Release 撤下，版本号保持纯净）；本批（消息尾部收拢、可复制、chip toast、英文档位）发为 v1.2.14。
+- 双包均已打出并上传到 GitHub Release v1.2.14（Latest，安装包 + blockmap + latest.yml + 便携版）。便携版保留 1.2.14 + 1.2.13 两份；中间产物已清。
+- 注意：`pnpm dist:win:all` 会连带打 arm64，本机编不过；双包一律分两次打（`dist:win` + `dist:win:portable`）。
+
 - 基于 1.2.12 在 `main` 直接修复。含：Antigravity 终端弹窗根除、裸 XML 标签被吞、选择器隐藏未配置渠道、默认模型改为列表第一个、本应用进右上更新菜单、Schedule Kimi 自检失败，外加 1.2.12 批次的 Devin 凭证固化与 Muse OpenCode 原生路由（已推送 `b55114d1`/`97f0cc5b`，本批在其之上）。并行批次 23 个 WIP 文件封在 `peer-WIP-2026-09-17` stash（恢复：`git stash pop` 前先与 owner 线程确认；`v1.1 skeleton` 与 `wip-model-usage-ui` 两个旧 stash 不动）。
 - **Antigravity 每次使用都弹终端（根因）**：`windowsHide:true` 仍会分配隐藏 conhost，真机验证每个 `agy` 会话进程必带 conhost 子进程；Windows Terminal 接管即闪。改用 `detached:true`（transport 新增 `noConsole` 选项，agy 会话 + account probe 启用，仅 Windows）后真机验证零 conhost。kill/退出语义不变，残留由现有 reaper 覆盖。
 - **Antigravity/Gemini 输出错乱**：模型 emits 的裸 `<plan>`/`<response>` 等伪 XML 被 micromark 当 HTML 解析、sanitizer 剥掉未知元素，整行凭空消失（真机渲染复现确认）。新增 `escapeBareAngleTags` normalizer：fence/行内代码之外把 tag-like `<` 转义，`<https://…>`/`<mailto:>`/`<user@host>` autolink 原样保留；另有渲染回归测试。
