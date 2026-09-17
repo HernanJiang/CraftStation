@@ -149,10 +149,10 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 
 ## Portable Release
 
-- 便携版默认输出到 `D:\Work\CraftStation\release\`（`pnpm dist:win:portable` 的 `--output-dir` 即此目录，不再使用 `release-portable*` 系列目录）。
-- `release\` 下仅保留最新便携版 exe 和上一个版本稳定的便携版 exe 共两份备份；旧版本目录（`release-portable*`）、中间产物（`win-unpacked/`、`builder-debug.yml` 等）打包完成后即删除。
-- NSIS 安装包（`CraftStation-Setup-*.exe`）不属于便携版备份，不在此规则内，不得顺手删除。
-- 用户确认的 main 修复、缺陷与 hotfix 收口后，默认执行 `pnpm dist:win:portable` 打便携版；NSIS 安装包仅在用户明确要求时再打。
+- 默认每次发版同时打便携版与 NSIS 安装包：`pnpm dist:win:portable` 与 `pnpm dist:win`（或统一 `pnpm dist:win:all`，如存在），产物均位于 `D:\Work\CraftStation\release\`。
+- `release\` 下便携版仅保留最新和上一个版本稳定版共两份备份；旧版本目录（`release-portable*`）、中间产物（`win-unpacked/`、`builder-debug.yml` 等）打包完成后即删除。
+- NSIS 安装包（`CraftStation-Setup-*.exe`）连同 `latest.yml` / blockmap 随版本发布到 GitHub Release（updater feed 所需），不属于便携版备份计数，不得顺手删除。
+- 用户确认的 main 修复、缺陷与 hotfix 收口后，默认执行双包构建；用户只说“打包”时同样默认双包，不再单独确认 NSIS。
 
 ## Assistant Knowledge Capture
 
