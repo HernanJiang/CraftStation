@@ -72,6 +72,15 @@ export const OPEN_CODE_PROVIDER_FACTS: readonly OpenCodeProviderFact[] = [
       "OpenAI-compatible Kimi is a separate provider route and must not be relabeled Moonshot-native.",
     ],
   },
+  {
+    family: "muse",
+    providerID: "opencode-go",
+    authModes: ["api-key", "oauth"],
+    representativeModels: ["muse-spark-1.3", "muse-spark-1.2"],
+    facts: [
+      "Muse Spark is bound through OpenCode's opencode-go provider; it is not the Muse Harness (muse serve / MSP).",
+    ],
+  },
 ];
 
 function familyForModel(item: Item): OpenCodeModelFamily | undefined {
@@ -81,6 +90,7 @@ function familyForModel(item: Item): OpenCodeModelFamily | undefined {
   }
   if (vendor === "moonshot" || vendor === "kimi" || vendor === "moonshot-openai-compatible")
     return "moonshot";
+  if (vendor === "muse" || vendor === "meta") return "muse";
   return undefined;
 }
 

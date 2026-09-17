@@ -90,6 +90,11 @@ const devinSub = model({
   providerKind: "devin",
   modelId: "swe",
 });
+const museSub = model({
+  entryId: "agent:muse:muse-spark-1.2",
+  providerKind: "muse",
+  modelId: "muse-spark-1.2",
+});
 const chiral = model({
   entryId: "custom:codex:openai-compatible:chiral:gpt-5.6-sol",
   source: "custom",
@@ -114,6 +119,7 @@ describe("API × Harness composition matrix", () => {
     expect(route(agyGemini, HARNESSES.antigravity)).toBe("native");
     expect(route(opencodeCatalog, HARNESSES.opencode)).toBe("native");
     expect(route(devinSub, HARNESSES.devin)).toBe("native");
+    expect(route(museSub, HARNESSES.muse)).toBe("native");
   });
 
   it("projects a subscription onto a foreign CLI through CLIProxyAPI", () => {
@@ -130,6 +136,9 @@ describe("API × Harness composition matrix", () => {
     expect(route(kimiSub, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
     expect(route(dshSub, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
     expect(route(grokSub, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
+    // Muse Spark rides OpenCode's own opencode-go provider (native), never the
+    // MSP custom session with its SDK interleave limitation.
+    expect(route(museSub, HARNESSES.opencode, { compatibilityBridgeReady: false })).toBe("native");
   });
 
   it("injects third-party APIs directly into Harnesses that accept a custom Base URL", () => {

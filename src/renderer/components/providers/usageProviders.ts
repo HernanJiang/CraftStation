@@ -149,9 +149,10 @@ const RENDERER_META: Record<string, Omit<UsageProvider, "id" | "label">> = {
     rings: { outer: ["session-5h"], inner: ["weekly"] },
   },
   // CLI login (`devin auth login`) is primary; pasted DEVIN_API_KEY is the
-  // fallback. Monthly ACU/credits when api.devin.ai returns them.
+  // fallback. Identity/plan come from the CLI itself; daily/weekly/monthly
+  // ACU windows render when the usage API returns them.
   devin: {
-    rings: { outer: ["monthly"], inner: [] },
+    rings: { outer: ["daily"], inner: ["weekly", "monthly"] },
   },
   qwen: {
     supportsBrowserLogin: true,

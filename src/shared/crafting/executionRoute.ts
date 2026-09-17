@@ -34,6 +34,7 @@ export const OPENCODE_NATIVE_MODEL_VENDORS = [
   "deepseek",
   "moonshot",
   "moonshot-openai-compatible",
+  "muse",
 ] as const;
 
 /**
@@ -87,6 +88,8 @@ function openCodeNativeVendorFor(modelEntry: SelectedModelEntry): string {
       return "moonshot";
     case "deepseek":
       return "deepseek";
+    case "muse":
+      return "muse";
     default:
       return "";
   }

@@ -1,3 +1,14 @@
+## Release 1.2.13 — Devin 凭证固化与额度窗口 + Muse OpenCode 原生路由（2026-09-17，待发布）
+
+- 基于 1.2.12 在 `main` 直接修复，未提交、未 push（`github.com:443` 被代理挡住，远端已有等价 `cad75fb`，见下）。
+- **Devin 每次重登录（根因）**：`devin auth login` 本来就持久化成功（`%APPDATA%\devin\credentials.toml`），但用量采集去调根本不存在的 `api.devin.ai/v3/users/me`、`/v3/usage`（对任意 token 都是 404，已用真机 + 假 token 双重验证），于是永远返回“ok 但无身份、无额度”的空卡，看起来像没登录。参考 grok（读 `~/.grok/auth.json`）/ Codex（读 `~/.codex/auth.json`）的做法：`resolveDevinToken` 在文件凭证上叠加 `devin auth status` 的身份（Email/User ID/Plan，10 分钟缓存，失败只降级不报错）；粘贴的 `DEVIN_API_KEY` 保持原样，绝不混入 CLI 身份。探测器不再只看文件存在，而是解析出有效 token 才算已登录（含 WSL 侧 grep），与解析器共用同一 token 判定。
+- **每天/周额度**：采集器从只认 `monthly` 改为 daily/weekly/monthly 三窗口（嵌套对象、`daily_used` 类扁平字段、旧无范围形状回退到 monthly 全兼容），描述符 `windowIds` 与用量圆环同步更新。但实测结论是：CLI 会话 token 能用的官方接口都不给个人用量数字（v3 要 `cog_` service user + 企业权限，v1/v2alpha 要 service key，会话 token 一律 401；`devin auth status` 只有 Tier/Plan 没有数字）。所以数字额度暂无数据源，进已知边界，不伪造；身份 + Plan 现已固化显示，接口一旦返回数字即自动渲染。
+- **Muse Spark 交错**：`@muse-code/sdk` Turn 面板把 item 流（重放 backlog）和 delta 流（仅 live）拆成两条无统一序号的异步流，产物内无法还原 wire 真实顺序，只能等 Meta 上游给统一事件序——这就是“上游 SDK 限制”的意思。按用户要求改走 OpenCode 原生做法：OpenCode 本身原生支持 Muse（`opencode-go` provider，当前 `opencode-go/muse-spark` 就是这么跑的），新增 `recipe:muse-opencode-native` + `OPENCODE_NATIVE_MODEL_VENDORS` + binding fact + family 映射，muse 模型 + OpenCode Harness 即走官方 OpenCode runtime，由 OpenCode 自己的事件协议保序，绕开 MSP 自定义会话（`muse serve` + foreign gateway）的交错坑。muse+muse 原生 pairing 与 MSP 会话原样保留。
+- **梯子默认**：`NO_PROXY` 用户变量里带着 `github.com` 全家直连，git 实际 bypass 代理。已删掉 github 相关条目（保留 localhost 与内网直连），git 默认走 `127.0.0.1:7897`，`git ls-remote` 已通。
+- **Git/上传状态**：`git push` 走 `github.com:443` 被 Clash 挡住（`api.github.com` 正常，已用它确认远端 `main = cad75fb`，与本地 `1ef93140` 同内容、tag `v1.2.12` 远端已存在）。网络恢复后按用户指令 `git fetch origin && git reset --hard origin/main && git tag -f v1.2.12 origin/main` 对齐（工作区内容无变化），再把本批提交、打 `v1.2.13`、重打便携包。
+- 验证：新增/扩展单测（`devin auth status` 解析、身份缓存、文件登录固化、env key 隔离、三窗口解析与合并）全过；`packages/agents-usage` + Devin 相关 48 文件 460 测试全过；`tsc` 本批 0 新增错误（唯一错误是并行批次未提交文件的既有问题，已用 stash 对照证实）；真机 `resolveDevinToken` 一次性验证 PASS（读到真实邮箱 + Pro）。
+- 注意：`sess_44d716f6-…zcode-session` 在 app 线程列表与磁盘上都查无此 id，已按问题描述本身复现修复；另有一条同名 Devin 修复线程（`85092248`）处于 working 但无 transcript，本批只动 Devin 相关 7 个文件，未碰其余 24 个并行 WIP 文件。
+
 ## Release 1.2.12 — Antigravity/Devin/Gemini 修复批次（2026-09-17）
 
 - 基于 1.2.11 在 `main` 直接修复。便携包 `CraftStation-Portable-1.2.12-x64.exe`。

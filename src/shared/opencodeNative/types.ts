@@ -6,6 +6,7 @@ export const openCodeModelFamilySchema = z.enum([
   "google",
   "deepseek",
   "moonshot",
+  "muse",
 ]);
 export type OpenCodeModelFamily = z.infer<typeof openCodeModelFamilySchema>;
 

@@ -38,6 +38,11 @@ const cases = [
     recipe: "recipe:kimi-openai-compatible-opencode",
     providerID: "moonshot-openai-compatible",
   },
+  {
+    model: "muse:muse-spark-1.2",
+    recipe: "recipe:muse-opencode-native",
+    providerID: "opencode-go",
+  },
 ] as const;
 
 describe("OpenCode native composition contract", () => {

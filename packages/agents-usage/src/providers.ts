@@ -70,15 +70,16 @@ export const BUILT_IN_USAGE_PROVIDER_DESCRIPTORS = {
     windowIds: ["session-5h", "weekly"],
   },
   // Devin CLI stores a PAT in credentials.toml (`devin auth login`) or
-  // DEVIN_API_KEY. Usage meters are best-effort against api.devin.ai; a live
-  // token still marks the channel configured so 管理模型 can list Devin models.
+  // DEVIN_API_KEY, with identity from `devin auth status`. Usage meters are
+  // best-effort against api.devin.ai (daily/weekly/monthly when returned); a
+  // live token still marks the channel configured so 管理模型 can list models.
   devin: {
     id: "devin",
     label: "Devin",
     mechanism: "api-key",
     needsLogin: true,
     apiKeyFallback: true,
-    windowIds: ["monthly"],
+    windowIds: ["daily", "weekly", "monthly"],
   },
   qwen: {
     id: "qwen",

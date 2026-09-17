@@ -652,6 +652,18 @@ export const NATIVE_HARNESS_RECIPES = [
     compatibilityStatus: "EXPERIMENTAL",
   }),
   new NativeHarnessRecipe({
+    id: "recipe:muse-opencode-native",
+    name: "Muse Spark OpenCode Native Recipe",
+    description:
+      "Muse Spark Model Item through OpenCode's opencode-go provider adapter; not the Muse Harness (MSP).",
+    harnessKind: "opencode",
+    harnessItemId: BUILTIN_OPENCODE_HARNESS_ITEM.id,
+    modelVendors: ["muse"],
+    harnessVendors: ["opencode"],
+    providerID: "opencode-go",
+    compatibilityStatus: "EXPERIMENTAL",
+  }),
+  new NativeHarnessRecipe({
     id: "recipe:xai-grok-native",
     name: "xAI Grok Build Native Recipe",
     description: "Native xAI model composition through the official Grok Build Harness.",

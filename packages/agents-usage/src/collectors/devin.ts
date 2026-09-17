@@ -5,9 +5,13 @@ import type { UsageSnapshot, UsageWindow } from "../types";
 /**
  * Devin CLI / Cognition. The CLI writes a persistent PAT to credentials.toml
  * (`devin auth login`); `DEVIN_API_KEY` / a pasted key is the fallback. Usage
- * lives behind api.devin.ai (Bearer `cog_…`). Individual plans often have no
- * public quota payload — a live token still yields `ok` with identity so the
- * channel can be configured and Devin models appear in 管理模型.
+ * lives behind api.devin.ai (Bearer `cog_…`); daily/weekly/monthly windows are
+ * parsed when the payload carries them (nested objects or `<window>_used` /
+ * `<window>_limit` fields), with the legacy unscoped `{used, limit}` shape
+ * still mapping to the monthly pool. Identity comes from the CLI itself
+ * (`devin auth status`, attached supervisor-side): a live token still yields
+ * `ok` with identity so the channel stays configured without re-login and
+ * Devin models appear in 管理模型.
  *
  *   GET https://api.devin.ai/v3/users/me
  *   GET https://api.devin.ai/v3/usage
@@ -66,37 +70,104 @@ function identityFromBody(body: unknown): { authenticatedAs?: string; plan?: str
   };
 }
 
-function monthlyWindowFromBody(body: unknown): UsageWindow | undefined {
-  const root = asRecord(body);
-  const usage =
-    asRecord(root?.usage) ??
-    asRecord(root?.quota) ??
-    asRecord(root?.credits) ??
-    asRecord(root?.acu) ??
-    root;
-  if (!usage) return undefined;
-  const used = numeric(usage.used ?? usage.consumed ?? usage.spent ?? usage.current);
+function windowFromContainer(
+  id: string,
+  label: string,
+  container: Record<string, unknown>,
+): UsageWindow | undefined {
+  const used = numeric(
+    container.used ?? container.consumed ?? container.spent ?? container.current,
+  );
   const limit = numeric(
-    usage.limit ?? usage.total ?? usage.cap ?? usage.allowance ?? usage.included,
+    container.limit ??
+      container.total ??
+      container.cap ??
+      container.allowance ??
+      container.included,
   );
   if (used === undefined && limit === undefined) return undefined;
   const usedValue = Math.max(0, used ?? 0);
   const capValue = limit !== undefined && limit > 0 ? limit : undefined;
   const usedPercent =
     capValue !== undefined ? Math.min(100, (usedValue / capValue) * 100) : usedValue > 0 ? 100 : 0;
-  const resetRaw = usage.resetsAt ?? usage.resetAt ?? usage.reset_at ?? usage.resets_at;
+  const resetRaw =
+    container.resetsAt ?? container.resetAt ?? container.reset_at ?? container.resets_at;
   const resetsAt = toEpochMs(
     typeof resetRaw === "string" || typeof resetRaw === "number" ? resetRaw : undefined,
   );
   return {
-    id: "monthly",
-    label: "Monthly",
+    id,
+    label,
     usedPercent,
     unit: "credits",
     used: usedValue,
     ...(capValue !== undefined ? { limit: capValue } : {}),
     ...(resetsAt !== undefined ? { resetsAt } : {}),
   };
+}
+
+const DEVIN_WINDOW_IDS = [
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+] as const;
+
+/**
+ * Collect one window's fields from flat `<window>_<field>` keys
+ * (`daily_used`, `weeklyLimit`, …) into a synthetic container.
+ */
+function scopedFieldsFromRecord(
+  record: Record<string, unknown>,
+  windowId: string,
+): Record<string, unknown> | undefined {
+  const scoped: Record<string, unknown> = {};
+  const prefix = windowId.toLowerCase();
+  for (const [key, value] of Object.entries(record)) {
+    const match = /^([A-Za-z]+)[_]?([A-Za-z_]+)$/.exec(key);
+    if (!match) continue;
+    const [, scope, field] = match;
+    if (scope?.toLowerCase() !== prefix || !field) continue;
+    const normalized = field.toLowerCase().replace(/_/g, "");
+    if (["used", "consumed", "spent", "current"].includes(normalized)) scoped.used = value;
+    else if (["limit", "total", "cap", "allowance", "included"].includes(normalized))
+      scoped.limit = value;
+    else if (["resetsat", "resetat"].includes(normalized)) scoped.resetsAt = value;
+  }
+  return Object.keys(scoped).length > 0 ? scoped : undefined;
+}
+
+/**
+ * Extract daily/weekly/monthly windows from a usage payload. Accepts a window
+ * as a nested object (`usage.daily`, `quota.weekly`, …), as flat prefixed
+ * fields (`daily_used`/`weekly_limit`), or — for `monthly` only — as the
+ * legacy unscoped `{used, limit}` shape, so older payloads keep working.
+ */
+function windowsFromBody(body: unknown): UsageWindow[] {
+  const root = asRecord(body);
+  if (!root) return [];
+  const nests = [root.usage, root.quota, root.credits, root.acu, root.consumption, root]
+    .map(asRecord)
+    .filter((nest): nest is Record<string, unknown> => nest !== undefined);
+  const windows: UsageWindow[] = [];
+  for (const { id, label } of DEVIN_WINDOW_IDS) {
+    let found: UsageWindow | undefined;
+    for (const nest of nests) {
+      const nested = asRecord(nest[id]);
+      const scoped = nested ?? scopedFieldsFromRecord(nest, id);
+      // Unscoped `{used, limit}` still means the monthly pool (back-compat).
+      const container = scoped ?? (id === "monthly" ? nest : undefined);
+      if (!container) continue;
+      found = windowFromContainer(id, label, container);
+      if (found) break;
+    }
+    if (found) windows.push(found);
+  }
+  return windows;
+}
+
+function mergeWindows(primary: UsageWindow[], fallback: UsageWindow[]): UsageWindow[] {
+  const seen = new Set(primary.map((window) => window.id));
+  return [...primary, ...fallback.filter((window) => !seen.has(window.id))];
 }
 
 export function parseDevinUsage(
@@ -110,11 +181,12 @@ export function parseDevinUsage(
   const authenticatedAs =
     identity.authenticatedAs ?? usageIdentity.authenticatedAs ?? fallbackIdentity?.authenticatedAs;
   const plan = identity.plan ?? usageIdentity.plan ?? fallbackIdentity?.plan;
-  const window = monthlyWindowFromBody(usageBody) ?? monthlyWindowFromBody(meBody);
+  // The usage endpoint wins per window; `/users/me` fills windows it lacks.
+  const windows = mergeWindows(windowsFromBody(usageBody), windowsFromBody(meBody));
   return {
     providerId: DEVIN_PROVIDER_ID,
     status: "ok",
-    windows: window ? [window] : [],
+    windows,
     fetchedAt: nowMs,
     ...(authenticatedAs ? { authenticatedAs } : {}),
     ...(plan ? { plan } : {}),

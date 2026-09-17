@@ -48,6 +48,15 @@ describe("OpenCode ModelProviderBinding", () => {
     });
   });
 
+  it("binds Muse Spark through the opencode-go provider, not the Muse Harness", () => {
+    expect(bindOpenCodeModel({ model: model("muse", "muse-spark-1.3") })).toMatchObject({
+      harnessKind: "opencode",
+      modelFamily: "muse",
+      providerID: "opencode-go",
+      modelID: "muse-spark-1.3",
+    });
+  });
+
   it("includes both Kimi routes and leaves un-smoked combinations unavailable", () => {
     const matrix = buildOpenCodeCompatibilityMatrix();
     expect(matrix.filter((entry) => entry.family === "moonshot")).toHaveLength(2);

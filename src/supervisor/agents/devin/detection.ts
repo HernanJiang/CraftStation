@@ -1,6 +1,4 @@
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { stripAnsi } from "@/shared/ansi";
 import type {
   AgentCapability,
@@ -21,6 +19,10 @@ import {
   type DetectionSpec,
 } from "../base";
 import { devinProxySpawnEnv, ensureDevinUserProxyConfig } from "./proxy";
+import {
+  hasDevinCredentialContent,
+  nativeDevinCredentialPaths,
+} from "../../runtime/devinCredentials";
 import { getAgentProbeCwd, resolveProbeSpawnCwd } from "../probeCwd";
 import { DEVIN_ACP_ARGS } from "./argv";
 
@@ -247,19 +249,23 @@ export function buildDevinProbeCapabilities(
   };
 }
 
-function nativeCredentialPaths(): string[] {
-  const home = homedir();
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA?.trim();
-    return [
-      ...(appData ? [join(appData, "devin", "credentials.toml")] : []),
-      join(home, ".devin", "credentials.toml"),
-    ];
-  }
-  const linux = join(home, ".local", "share", "devin", "credentials.toml");
-  const mac = join(home, "Library", "Application Support", "devin", "credentials.toml");
-  const legacy = join(home, ".devin", "credentials.toml");
-  return process.platform === "darwin" ? [mac, linux, legacy] : [linux, legacy];
+/**
+ * Token assignment the file probe accepts (TOML `key = "value"`). Mirrors the
+ * key names `parseDevinCredentialsToml` understands, so the WSL existence
+ * check and the native content parse never disagree about what counts as a
+ * persisted login.
+ */
+const DEVIN_CREDENTIAL_TOKEN_PATTERN =
+  "^\\s*(windsurf_api_key|devin_api_key|token|api_token|api_key|apikey|access_token|pat)\\s*=";
+
+function hasNativeDevinCredential(): boolean {
+  return nativeDevinCredentialPaths().some((path) => {
+    try {
+      return hasDevinCredentialContent(readFileSync(path, "utf8"));
+    } catch {
+      return false;
+    }
+  });
 }
 
 const storedCredentialsAuthProbe: AuthProbe = async (ctx) => {
@@ -267,14 +273,16 @@ const storedCredentialsAuthProbe: AuthProbe = async (ctx) => {
     const [result] = await batchWslCommandsAsync(
       ctx.location.distro,
       [
-        "test -f ~/.local/share/devin/credentials.toml -o -f ~/.devin/credentials.toml && echo yes || echo no",
+        `for f in ~/.local/share/devin/credentials.toml ~/.devin/credentials.toml; do [ -f "$f" ] && grep -qiE '${DEVIN_CREDENTIAL_TOKEN_PATTERN}' "$f" && echo yes; done`,
       ],
       ctx.signal,
     );
     if (!result?.ok) return "unknown";
-    return result.stdout.trim() === "yes" ? "authenticated" : "missing";
+    return result.stdout.split(/\s+/).includes("yes") ? "authenticated" : "missing";
   }
-  return nativeCredentialPaths().some((path) => existsSync(path)) ? "authenticated" : "missing";
+  // A leftover empty/corrupt file (e.g. after `devin auth logout`) must read
+  // as signed out — Codex/Grok parity is "parse the CLI home", not "it exists".
+  return hasNativeDevinCredential() ? "authenticated" : "missing";
 };
 
 /**

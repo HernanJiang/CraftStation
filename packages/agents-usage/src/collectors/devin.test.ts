@@ -40,6 +40,46 @@ describe("parseDevinUsage", () => {
     expect(snapshot.authenticatedAs).toBe("dev@cognition.ai");
     expect(snapshot.windows).toEqual([]);
   });
+
+  it("maps daily/weekly/monthly windows from nested objects", () => {
+    const snapshot = parseDevinUsage(
+      undefined,
+      {
+        usage: {
+          daily: { used: 4, limit: 20 },
+          weekly: { used: 30, limit: 100, resetAt: "2026-09-21T00:00:00Z" },
+          monthly: { used: 120, limit: 500 },
+        },
+      },
+      FAKE_NOW_MS,
+    );
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["daily", "weekly", "monthly"]);
+    expect(snapshot.windows[0]).toMatchObject({ used: 4, limit: 20, usedPercent: 20 });
+    expect(snapshot.windows[1]).toMatchObject({ used: 30, limit: 100, usedPercent: 30 });
+    expect(snapshot.windows[2]).toMatchObject({ used: 120, limit: 500, usedPercent: 24 });
+  });
+
+  it("maps flat prefixed fields and keeps legacy unscoped monthly", () => {
+    const snapshot = parseDevinUsage(
+      undefined,
+      { daily_used: 2, daily_limit: 10, weekly_used: 5, used: 50, limit: 200 },
+      FAKE_NOW_MS,
+    );
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["daily", "weekly", "monthly"]);
+    expect(snapshot.windows[0]).toMatchObject({ id: "daily", used: 2, limit: 10 });
+    expect(snapshot.windows[1]).toMatchObject({ id: "weekly", used: 5 });
+    expect(snapshot.windows[2]).toMatchObject({ id: "monthly", used: 50, limit: 200 });
+  });
+
+  it("lets the usage endpoint win per window and fills gaps from me", () => {
+    const snapshot = parseDevinUsage(
+      { monthly: { used: 1, limit: 10 } },
+      { usage: { monthly: { used: 7, limit: 10 }, daily: { used: 1, limit: 5 } } },
+      FAKE_NOW_MS,
+    );
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["daily", "monthly"]);
+    expect(snapshot.windows.find((window) => window.id === "monthly")).toMatchObject({ used: 7 });
+  });
 });
 
 describe("collectDevin", () => {
