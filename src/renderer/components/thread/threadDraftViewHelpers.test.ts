@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentCapability, AgentStatus } from "@/shared/contracts";
 import {
+  formatEffortLabel,
   resolveFastValue,
   resolvePreferredAgentKind,
   resolveProviderDraftConfig,
@@ -241,6 +242,16 @@ describe("resolveSavedProviderDraftConfig", () => {
         { codex: { model: "gpt-5.6-sol", contextSize: "400k" } },
       ),
     ).toMatchObject({ contextSize: "1m" });
+  });
+});
+
+describe("formatEffortLabel", () => {
+  it("keeps vendor-native English labels (never translated)", () => {
+    expect(formatEffortLabel("xhigh")).toBe("Extra High");
+    expect(formatEffortLabel("xHigh")).toBe("Extra High");
+    expect(formatEffortLabel("max")).toBe("Max");
+    expect(formatEffortLabel("high")).toBe("High");
+    expect(formatEffortLabel("minimal")).toBe("Minimal");
   });
 });
 

@@ -224,8 +224,15 @@ export function resolveModeValue(agent: AgentStatus, preferred?: string): string
     : (modes[0] ?? "agent");
 }
 
+/**
+ * Effort tier labels stay in vendor-native English everywhere ("Extra High",
+ * never translated): the tiers are provider vocabulary (OpenAI/Grok/Gemini
+ * use English tier names), and translating a single tier produced the
+ * mixed-language menus users reported. Per-vendor tier *availability* still
+ * comes from each agent's capability probe — only the display label is fixed.
+ */
 export function formatEffortLabel(id: string): string {
-  if (id === "xhigh" || id === "xHigh") return i18n._(msg`Extra High`);
+  if (id === "xhigh" || id === "xHigh") return "Extra High";
   if (id === "ultracode") return "Ultracode";
   return id.charAt(0).toUpperCase() + id.slice(1);
 }

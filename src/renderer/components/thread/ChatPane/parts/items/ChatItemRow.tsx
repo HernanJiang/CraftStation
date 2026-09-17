@@ -52,11 +52,15 @@ export const ChatItemRow = memo(function ChatItemRow({
 }: ChatItemRowProps) {
   "use no memo";
   if (entry.kind === "tool_call_group") {
+    // A group is "live" only while the turn is still running: a settled
+    // turn's tail group collapses to its summary like every other group.
+    // (isLastEntry alone stays true forever for the timeline tail, which left
+    // finished turns showing an expanded tool pile with no copyable answer.)
     return (
       <ToolCallGroup
         threadId={threadId}
         itemIds={entry.itemIds}
-        isLive={isLastEntry}
+        isLive={isLastEntry && isTurnActive}
         {...(onHeightChange ? { onHeightChange } : {})}
         {...(onVirtualizerLayoutChange ? { onVirtualizerLayoutChange } : {})}
       />

@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { Surface } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import type { MessageItemPayload } from "@/shared/contracts";
+import type { AppStoreState } from "@/renderer/state/slices/shared";
 import { PixelLoader } from "@/renderer/components/common/PixelLoader";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useExperimentStore } from "@/renderer/state/experimentStore";
@@ -18,6 +19,7 @@ import { ForkTurnButton } from "./ForkTurnButton";
 import { ImageCard } from "./ImageCard";
 import { imageViewSourceFromImageBlock } from "./imageViewSource";
 import { SmoothItemMarkdown } from "./ItemMarkdown";
+import { isToolGroupItem } from "./toolCallCategorization";
 
 interface AssistantMessageProps {
   threadId: string;
@@ -44,16 +46,22 @@ export const AssistantMessage = memo(function AssistantMessage({
         source.anchorItemId !== item.id,
     );
   });
-  // The copy action only appears under a turn's *final* answer: the message
-  // must be the last top-level item of its turn — any trailing item (another
-  // message, a tool call, an error from a failed turn) means the text was an
-  // intermediate status note, not the answer. Every turn keeps its button, not
-  // just the most recent one. Sub-agent messages (those nested under a tool
-  // call) are ignored so they neither qualify nor cancel a top-level answer's
-  // terminal status. A completed item at the live tail is still an
-  // intermediate update until the turn itself settles, so it must not expose
-  // a copy action yet.
-  const finalAnswerStatus = useAppStore((state): "confirmed" | "candidate" | "none" => {
+  // The copy action only appears under a turn's *final* answer. Two gates:
+  // fork stays strict (only a settled turn whose answer has no trailing rows
+  // at all may anchor a branch), while copy is forgiving: trailing tool-like
+  // rows (tool calls, reasoning, command/edit/search results) are turn
+  // machinery, not a newer answer, so a settled turn whose visible text is
+  // followed only by tools still owns a copyable answer. Anything
+  // message-like (another answer, plan, question, error) keeps the text
+  // intermediate under both gates. Every turn keeps its button, not just the
+  // most recent one. Sub-agent messages (those nested under a tool call) are
+  // ignored so they neither qualify nor cancel a top-level answer's terminal
+  // status. A completed item at the live tail is still an intermediate update
+  // until the turn itself settles, so it must not expose a copy action yet.
+  const scanFinalStatus = (
+    state: AppStoreState,
+    transparentTools: boolean,
+  ): "confirmed" | "candidate" | "none" => {
     if (item.parentItemId) return "none";
     // Some providers append a metadata-only assistant item after the visible
     // answer. Completed-turn resolution deliberately remaps that invisible
@@ -68,10 +76,13 @@ export const AssistantMessage = memo(function AssistantMessage({
     for (let i = index + 1; i < ids.length; i += 1) {
       const next = byId[ids[i]!];
       if (!next || next.parentItemId) continue;
+      if (transparentTools && isToolGroupItem(next)) continue;
       return next.type === "user_message" ? "confirmed" : "none";
     }
     return isTurnActive ? "candidate" : "confirmed";
-  });
+  };
+  const finalAnswerStatus = useAppStore((state) => scanFinalStatus(state, false));
+  const copyableStatus = useAppStore((state) => scanFinalStatus(state, true));
   const stream = item.streams.assistant_text ?? "";
   const payload = getRuntimeItemPayload<MessageItemPayload>(item, "assistant_message");
   const rawText =
@@ -92,12 +103,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         .filter((s): s is NonNullable<typeof s> => s !== null),
     [actions?.remoteImageRefUrl, payload?.content],
   );
-  const showCopyButton = finalAnswerStatus === "confirmed" && !isStreaming && rawText.length > 0;
-  // The fork + end-time affordances ride the same confirmed-final gate as copy:
-  // only a settled turn's last answer can anchor a branch. Remote threads are
-  // owned by their host desktop (a local fork row could neither open nor
-  // resume there) and experiment candidates are lifecycle-owned by their
-  // experiment, so both stay copy-only.
+  const showCopyButton = copyableStatus === "confirmed" && !isStreaming && rawText.length > 0;
+  // Fork stays on the strict gate: only a settled turn whose answer has no
+  // trailing rows at all may anchor a branch. Remote threads are owned by
+  // their host desktop (a local fork row could neither open nor resume there)
+  // and experiment candidates are lifecycle-owned by their experiment, so
+  // both stay copy-only.
   const isRemoteThread = useAppStore(
     (state) => state.threads.find((thread) => thread.id === threadId)?.remoteServerId !== undefined,
   );
@@ -106,14 +117,19 @@ export const AssistantMessage = memo(function AssistantMessage({
       experiment.candidates.some((candidate) => candidate.threadId === threadId),
     ),
   );
-  const showFork = showCopyButton && !isRemoteThread && !isExperimentThread;
+  const showFork =
+    finalAnswerStatus === "confirmed" &&
+    !isStreaming &&
+    rawText.length > 0 &&
+    !isRemoteThread &&
+    !isExperimentThread;
   const endedClock = turnRecord ? formatClockTime(turnRecord.endedAt) : "";
   const endedFull = turnRecord ? new Date(turnRecord.endedAt).toLocaleString() : "";
   // The tail answer's copy action becomes available only once its turn
   // settles. Reserve the same strip while the answer is still a candidate so
   // revealing the button cannot grow the virtual row and move the transcript
   // past the pinned bottom edge.
-  const reserveCopyButtonSpace = finalAnswerStatus !== "none" && rawText.length > 0;
+  const reserveCopyButtonSpace = copyableStatus !== "none" && rawText.length > 0;
   return (
     <Surface variant="transparent" className={chatMessageSurfaceClass}>
       <div className="min-w-0 leading-snug">

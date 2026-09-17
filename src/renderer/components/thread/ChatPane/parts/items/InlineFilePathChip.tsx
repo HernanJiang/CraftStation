@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { toast } from "@heroui/react";
 import { getEntryIconUrl } from "@/renderer/components/common/fileIcons";
 import { getBasename } from "@/shared/pathUtils";
+import { friendlyError } from "@/shared/messages";
 
 interface InlineFilePathChipProps {
   path: string;
@@ -16,9 +18,10 @@ interface InlineFilePathChipProps {
  * `.craftstation-mention-chip` used in the composer.
  *
  * When `onOpen` rejects (e.g. a bare basename that couldn't be resolved to a
- * real project file), the chip switches to an inert visual — same badge but
- * no hover effect and no click handler — so the user sees the reference
- * without a broken interaction.
+ * real project file), the failure is toasted once with the reason — a silent
+ * dead chip reads as "click does nothing" — and the chip then switches to an
+ * inert visual (same badge, no hover, no handler) so a permanently missing
+ * reference doesn't nag on every click.
  */
 export function InlineFilePathChip({ path, line, endLine, onOpen }: InlineFilePathChipProps) {
   const [inert, setInert] = useState(false);
@@ -34,7 +37,10 @@ export function InlineFilePathChip({ path, line, endLine, onOpen }: InlineFilePa
     if (inert || !onOpen) return;
     const result = onOpen(path, line);
     if (result && typeof result.catch === "function") {
-      result.catch(() => setInert(true));
+      result.catch((error: unknown) => {
+        toast.danger(`无法打开 ${basename}：${friendlyError(error)}`);
+        setInert(true);
+      });
     }
   };
 

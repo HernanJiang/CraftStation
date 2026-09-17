@@ -103,14 +103,31 @@ describe("AssistantMessage", () => {
       expect(screen.getByLabelText("Copy message")).toBeTruthy();
     });
 
-    it("hides the copy action when tool calls follow the message in the same turn", () => {
+    it("shows copy on a settled turn whose answer is followed only by tools", () => {
+      seed([
+        answer,
+        { id: "tool_1", type: "tool_call", state: "completed", payload: {}, streams: {} },
+        { id: "reason_1", type: "reasoning", state: "completed", payload: {}, streams: {} },
+      ]);
+      render(
+        <AppProvider>
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
+        </AppProvider>,
+      );
+      // Copyable (the visible answer), but not forkable (strict gate: the
+      // turn's tail is tool rows, not the answer).
+      expect(screen.getByLabelText("Copy message")).toBeTruthy();
+      expect(screen.queryByLabelText("Fork from this turn")).toBeNull();
+    });
+
+    it("hides the copy action while trailing tools are still running", () => {
       seed([
         answer,
         { id: "tool_1", type: "tool_call", state: "completed", payload: {}, streams: {} },
       ]);
       render(
         <AppProvider>
-          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
+          <AssistantMessage threadId="thread-1" item={answer} isTurnActive={true} />
         </AppProvider>,
       );
       expect(screen.queryByLabelText("Copy message")).toBeNull();
@@ -261,7 +278,7 @@ describe("AssistantMessage", () => {
       expect(screen.queryByLabelText("Fork from this turn")).toBeNull();
     });
 
-    it("hides the fork action for intermediate answers but keeps copy gating", () => {
+    it("keeps copy but hides fork for tool-trailed answers", () => {
       seed([
         answer,
         { id: "tool_1", type: "tool_call", state: "completed", payload: {}, streams: {} },
@@ -272,7 +289,7 @@ describe("AssistantMessage", () => {
           <AssistantMessage threadId="thread-1" item={answer} isTurnActive={false} />
         </AppProvider>,
       );
-      expect(screen.queryByLabelText("Copy message")).toBeNull();
+      expect(screen.getByLabelText("Copy message")).toBeTruthy();
       expect(screen.queryByLabelText("Fork from this turn")).toBeNull();
     });
 
