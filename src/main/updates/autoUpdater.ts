@@ -53,7 +53,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 export interface AutoUpdaterController {
   initialize(): void;
-  checkForUpdate(): Promise<void>;
+  checkForUpdate(options?: { automatic?: boolean | undefined }): Promise<void>;
   startUpdateDownload(): Promise<void>;
   installUpdate(): void;
 }
@@ -343,13 +343,15 @@ export function createAutoUpdaterController(
     periodicTimer.unref?.();
   }
 
-  async function checkForUpdate(): Promise<void> {
+  async function checkForUpdate(options?: { automatic?: boolean | undefined }): Promise<void> {
     if (isDev && !process.env.UPDATE_SERVER_URL) {
       sendStatus({ type: "error", messageKey: "update.devUnavailable" });
       return;
     }
     try {
-      await beginCheck(true);
+      // Automatic probes (launch / CLI-menu mount auto-check) stay silent like
+      // the hourly poll: failures never toast. Only user-initiated checks do.
+      await beginCheck(options?.automatic !== true);
     } catch {
       // beginCheck owns classification, reporting, and UI status. Keep this IPC
       // resolved because the renderer invokes it fire-and-forget.

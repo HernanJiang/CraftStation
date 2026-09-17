@@ -60,6 +60,7 @@ class StdioClient {
       ...(t.cwd ? { cwd: t.cwd } : {}),
       env: { ...process.env, ...(t.env ?? {}) },
       stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
     });
     this.child.on("error", () => undefined);
     this.child.stderr?.on("data", () => undefined);

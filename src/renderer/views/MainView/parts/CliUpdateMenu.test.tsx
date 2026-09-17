@@ -130,6 +130,21 @@ describe("CliUpdateMenu", () => {
     expect(useUpdateStore.getState().availableCliUpdates).toBe(before);
   });
 
+  it("checks the app silently on the launch auto-check and notifies on manual checks", async () => {
+    render(<CliUpdateMenu />);
+    // Mount auto-check: CLI probes + app check together, app side silent.
+    await waitFor(() =>
+      expect(bridgeMock.checkForUpdate).toHaveBeenCalledWith({ automatic: true }),
+    );
+
+    fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
+    const menu = await screen.findByRole("menu");
+    bridgeMock.checkForUpdate.mockClear();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Check all CLIs/u }));
+    // Manual check keeps user-facing failure notifications.
+    await waitFor(() => expect(bridgeMock.checkForUpdate).toHaveBeenCalledWith({}));
+  });
+
   it("shows app-check progress while its own check is in flight and main is quiet", async () => {
     bridgeMock.getLatestAgentVersion.mockImplementation(() => new Promise(() => {}));
     useUpdateStore.setState({ phase: "idle", version: null, manualDownloadUrl: null });

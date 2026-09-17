@@ -1,3 +1,10 @@
+## Release 1.2.16 — 启动同步检查更新 + Gemini 闪终端窗根治（2026-09-17，发布流程中）
+
+- **启动时同步检查更新**：标题栏更新菜单的自动检查（mount/CLI 集合变化时）本就同时探 CLI 与 CraftStation 应用更新；本批把自动路径改为静默——`checkForUpdate` IPC 新增可选 `{ automatic: true }`，自动检查失败按“无更新”处理不 toast，手动菜单“检查”保持真实错误通知。main 侧启动 30s 首查 + 每小时轮询逻辑不变。
+- **Gemini(Antigravity) 每次工具调用都闪 PowerShell 窗（根治）**：1.2.13 用 `detached:true` 消掉了 agy 自身的控制台，但 DETACHED_PROCESS 子进程没有任何控制台，导致它派生的每个 console 子系统孙子进程（agy shell 工具 → pwsh、language_server、stdio MCP）都各分配一个全新的**可见**控制台——每次 tool call 弹一个 pwsh 窗。真机实验证实：`windowsHide:true`（CREATE_NO_WINDOW）下子进程的隐藏 conhost 无窗口句柄，且孙子进程 `GetConsoleWindow()=0` 完全无控制台、无窗口；`detached` 下孙子进程 `VISIBLE=True`。修法：nativeTransport 去掉 detached（`noConsole` 选项随之失效已删除）、antigravityAccountProbe 同步去 detached；顺手补 `pi/mcpExtension.ts` stdio MCP spawn 缺失的 `windowsHide`（全仓唯一缺口）。测试文件改为 `nativeTransportWindowsConsole.test.ts`，新增「孙子进程无可见控制台」真机断言。
+- 验证：`pnpm typecheck` PASS；触碰文件 oxlint 0 警告；updates/ipc/CliUpdateMenu/MainTitlebar/nativeHarness/antigravity/pi 目标测试全过；`nativeAdapter.test.ts` 的 DeepSeek max-tokens 续跑 1 例失败已用 stash 基线对比证实为 HEAD 既有失败，与本批无关。
+- 用户已验收，按惯例提交推送并双包构建发布（release notes 见 `ai_workspace/release-notes-1.2.16.md`）。
+
 ## Release 1.2.13 — 第二批用户验收修复（2026-09-17，已发布到远端）
 
 - 已提交 `f8186f7` 并 push，tag `v1.2.13` 已打并推送；NSIS 安装包与便携版（`release/CraftStation-Setup-1.2.13-x64.exe` + `CraftStation-Portable-1.2.13-x64.exe` + blockmap/latest.yml）均已打出并上传到 GitHub Release v1.2.13（Latest）。发版惯例已更新：以后默认双包（见 AGENTS.md）。

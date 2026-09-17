@@ -120,6 +120,25 @@ describe("createAutoUpdaterController", () => {
     expect(reportError).not.toHaveBeenCalled();
   });
 
+  it("keeps automatic check failures silent", async () => {
+    const sendStatus = vi.fn<(status: { type: string; message?: string }) => void>();
+    const controller = createAutoUpdaterController(sendStatus, "stable", false, vi.fn());
+    controller.initialize();
+    const failure = Object.assign(new Error("latest-mac.yml returned 404"), { statusCode: 404 });
+    autoUpdaterMock.checkForUpdates.mockImplementationOnce(async () => {
+      autoUpdaterMock.emit("error", failure);
+      throw failure;
+    });
+
+    // Launch/CLI-menu auto-checks must never surface an error row or toast —
+    // they report as "not available", exactly like the hourly poll.
+    await expect(controller.checkForUpdate({ automatic: true })).resolves.toBeUndefined();
+
+    expect(sendStatus).toHaveBeenCalledWith({ type: "checking" });
+    expect(sendStatus).toHaveBeenCalledWith({ type: "update-not-available" });
+    expect(sendStatus).not.toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
+  });
+
   it("keeps a missing stable manifest observable with normalized tags", async () => {
     const reportError = vi.fn<(error: unknown, tags?: Record<string, string>) => void>();
     const controller = createAutoUpdaterController(vi.fn(), "stable", false, reportError);

@@ -73,12 +73,15 @@ export function CliUpdateMenu() {
     if (inFlightRef.current > 0 && !options?.force) return;
     inFlightRef.current += 1;
     setChecking(true);
-    // The app itself rides the same menu: a manual check also probes GitHub
-    // for a newer CraftStation release (main dedupes + hourly-polls anyway).
-    // Failures surface through onUpdateStatus; never let an IPC rejection
-    // bubble to the window as an unhandled rejection.
+    // The app itself rides the same menu: every check — including the
+    // once-per-launch automatic one — also probes GitHub for a newer
+    // CraftStation release, so CLI and app updates are checked in sync
+    // (main dedupes + hourly-polls anyway). Automatic checks stay silent
+    // (no error toast on failure); manual presses notify. Failures surface
+    // through onUpdateStatus; never let an IPC rejection bubble to the
+    // window as an unhandled rejection.
     void Promise.resolve()
-      .then(() => readBridge().checkForUpdate())
+      .then(() => readBridge().checkForUpdate(options?.force ? {} : { automatic: true }))
       .catch((error: unknown) => {
         console.error("[craftstation][updates] check-for-update failed", error);
       });

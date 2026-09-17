@@ -626,7 +626,7 @@ export function createLocalIpcHandlers(
     upsertPrWatch: (watch) => options.prWatchService.upsert(watch),
     deletePrWatch: ({ projectId, prNumber }) => options.prWatchService.delete(projectId, prNumber),
     syncPrWatchAgent: (agent) => options.prWatchService.syncAgent(agent),
-    checkForUpdate: () => options.autoUpdater.checkForUpdate(),
+    checkForUpdate: (payload) => options.autoUpdater.checkForUpdate(payload),
     startUpdateDownload: () => options.autoUpdater.startUpdateDownload(),
     installUpdate: () => options.autoUpdater.installUpdate(),
     browserGetState: () => requireBrowserPanel(options.getBrowserPanelManager).snapshot(),
