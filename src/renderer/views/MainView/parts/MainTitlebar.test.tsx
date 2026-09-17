@@ -12,6 +12,8 @@ const bridgeMock = vi.hoisted(() => ({
   updateAgentBinary: vi.fn<() => Promise<{ ok: boolean; output?: string }>>(),
   refreshAgentStatuses: vi.fn<() => Promise<void>>(),
   installUpdate: vi.fn<() => Promise<void>>(),
+  checkForUpdate: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  openExternal: vi.fn<(url: string) => Promise<void>>().mockResolvedValue(undefined),
 }));
 
 const toastMock = vi.hoisted(() => ({

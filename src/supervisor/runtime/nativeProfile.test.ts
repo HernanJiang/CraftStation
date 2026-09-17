@@ -162,4 +162,43 @@ describe("verifyProfileIdentity", () => {
       }),
     ).not.toThrow();
   });
+
+  it("accepts a Kimi CLI credential with no identity claims (presence check)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kimi-id-"));
+    const missing = () =>
+      verifyProfileIdentity("kimi", dir, {
+        accountId: "kimi:acc-1",
+        providerAccountId: "user-a@example.com",
+      });
+    expect(missing).toThrowError(AccountControlError);
+    expect(missing).toThrow(expect.objectContaining({ code: "ACCOUNT_IDENTITY_UNAVAILABLE" }));
+
+    // The real CLI shape: tokens only, never identity. This must not throw
+    // "native identity is absent" — that failure mode bricked every
+    // managed-account (schedule) Kimi run.
+    mkdirSync(join(dir, "credentials"), { recursive: true });
+    writeFileSync(
+      join(dir, "credentials", "kimi-code.json"),
+      JSON.stringify({ access_token: "tok", token_type: "Bearer" }),
+      "utf8",
+    );
+    expect(() =>
+      verifyProfileIdentity("kimi", dir, {
+        accountId: "kimi:acc-1",
+        providerAccountId: "user-a@example.com",
+      }),
+    ).not.toThrow();
+
+    writeFileSync(
+      join(dir, "credentials", "kimi-code.json"),
+      JSON.stringify({ refresh_token: "only-refresh" }),
+      "utf8",
+    );
+    const malformed = () =>
+      verifyProfileIdentity("kimi", dir, {
+        accountId: "kimi:acc-1",
+        providerAccountId: "user-a@example.com",
+      });
+    expect(malformed).toThrow(expect.objectContaining({ code: "ACCOUNT_IDENTITY_UNAVAILABLE" }));
+  });
 });

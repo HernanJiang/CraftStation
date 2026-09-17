@@ -386,3 +386,47 @@ export function normalizeShortCodeFenceClosers(text: string): string {
   });
   return changed ? (out ?? []).join("") : text;
 }
+
+/**
+ * Models (Gemini/Antigravity especially) emit pseudo-XML placeholders as bare
+ * prose (`<plan>`, `</response>`, `<understand>`). micromark parses those as
+ * HTML tags and the sanitizer then drops the unknown elements, so whole lines
+ * vanish from the rendered answer. Escape a `<` that opens something tag-like
+ * outside fenced/inline code, while preserving real CommonMark autolinks
+ * (`<https://…>`, `<mailto:…>`, `<user@host>`) byte for byte.
+ */
+export function escapeBareAngleTags(text: string): string {
+  let changed = false;
+  const converted = splitSegmentsOutsideFences(text).map((segment) => {
+    if (segment.inFence) return segment.text;
+    const next = escapeBareAngleTagsOutsideInlineCode(segment.text);
+    if (next !== segment.text) changed = true;
+    return next;
+  });
+  return changed ? converted.join("") : text;
+}
+
+function escapeBareAngleTagsOutsideInlineCode(text: string): string {
+  if (!text.includes("<")) return text;
+  const parts = text.split(/(`[^`\n]*`)/);
+  let changed = false;
+  const converted = parts.map((part, index) => {
+    if (index % 2 === 1) return part;
+    const next = escapeBareTagOpens(part);
+    if (next !== part) changed = true;
+    return next;
+  });
+  return changed ? converted.join("") : text;
+}
+
+function escapeBareTagOpens(text: string): string {
+  return text.replace(/<(?=[A-Za-z/!?])/g, (match, offset: number) => {
+    const rest = text.slice(offset);
+    // Genuine autolinks survive: `<scheme:…>` (no spaces) and `<user@host>`.
+    const autolink = /^<[a-zA-Z][a-zA-Z0-9+.-]*:[^<>\s]*>/.exec(rest);
+    if (autolink) return match;
+    const email = /^<[^<>\s]*@[^<>\s]*>/.exec(rest);
+    if (email) return match;
+    return "&lt;";
+  });
+}

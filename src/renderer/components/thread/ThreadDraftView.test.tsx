@@ -427,6 +427,7 @@ describe("ThreadDraftView", () => {
     useSharedSettings.setState({
       providerConfigs: {},
       providerModelPreferences: {},
+      defaultModels: {},
       agentSettings: {},
       hiddenModels: {},
       customModels: [],
@@ -2051,15 +2052,10 @@ describe("ThreadDraftView", () => {
     const onStart = vi.fn<(input: unknown) => void>();
 
     act(() => {
+      // Explicit menu pick recorded in defaultModels (auto-persisted
+      // providerConfigs models no longer feed the default).
       useSharedSettings.setState({
-        providerConfigs: {
-          cursor: {
-            model: "gpt-5.5-high",
-            effort: "",
-            mode: "agent",
-            approvalPolicy: "default",
-          },
-        },
+        defaultModels: { cursor: "gpt-5.5-high" },
       });
     });
 
@@ -2077,6 +2073,36 @@ describe("ThreadDraftView", () => {
       const effortContext = props.controls.find((c) => c.kind === "effort-context");
       expect(providerModel?.currentModel).toBe("gpt-5.5");
       expect(effortContext?.effortValue).toBe("high");
+    });
+  });
+
+  it("opens fresh drafts on the model list's first entry, not a stale auto-persisted pin", async () => {
+    const onStart = vi.fn<(input: unknown) => void>();
+
+    act(() => {
+      // Simulates the old self-perpetuating default (e.g. big-pickle written
+      // back by pure-default resolutions): it must not feed the default.
+      useSharedSettings.setState({
+        providerConfigs: {
+          cursor: {
+            model: "gpt-5.5",
+            effort: "high",
+            mode: "agent",
+            approvalPolicy: "default",
+          },
+        },
+      });
+    });
+
+    render(<ThreadDraftView project={project} agentStatuses={[cursorStatus]} onStart={onStart} />);
+
+    await waitFor(() => {
+      const props = composerSpy.mock.lastCall?.[0] as {
+        controls: Array<{ kind?: string; currentModel?: string }>;
+      };
+      expect(
+        props.controls.find((control) => control.kind === "provider-model")?.currentModel,
+      ).toBe("composer-2");
     });
   });
 

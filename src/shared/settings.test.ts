@@ -70,6 +70,14 @@ describe("shared settings defaults", () => {
     expect(normalizeSharedSettings({ zoomFactor: 99 }).zoomFactor).toBe(1);
   });
 
+  it("starts with no explicit default models and keeps explicit picks", () => {
+    expect(defaultSharedSettings.defaultModels).toEqual({});
+    expect(normalizeSharedSettings({}).defaultModels).toEqual({});
+    expect(
+      normalizeSharedSettings({ defaultModels: { codex: "gpt-5.6-sol" } }).defaultModels,
+    ).toEqual({ codex: "gpt-5.6-sol" });
+  });
+
   it("preserves global provider and model effort/Fast preferences", () => {
     expect(
       normalizeSharedSettings({

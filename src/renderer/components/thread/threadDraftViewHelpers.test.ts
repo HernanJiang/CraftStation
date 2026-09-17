@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { AgentCapability, AgentStatus } from "@/shared/contracts";
 import {
   resolveFastValue,
+  resolvePreferredAgentKind,
   resolveProviderDraftConfig,
-  resolveRecentThreadModel,
   resolveSavedProviderDraftConfig,
   resolveThinkingValue,
   withPreferredModel,
@@ -244,64 +244,19 @@ describe("resolveSavedProviderDraftConfig", () => {
   });
 });
 
-describe("resolveRecentThreadModel", () => {
-  const caps = {
-    models: [
-      { id: "opencode/big-pickle", label: "Big Pickle" },
-      { id: "opencode/kimi-k2", label: "Kimi K2" },
-    ],
-  } as unknown as AgentCapability;
+describe("resolvePreferredAgentKind", () => {
+  const installed = [
+    { kind: "codex", label: "Codex" },
+    { kind: "opencode", label: "OpenCode" },
+  ] as unknown as AgentStatus[];
 
-  function thread(overrides: Record<string, unknown>) {
-    return {
-      id: "t",
-      projectId: "p1",
-      title: "T",
-      agentKind: "opencode",
-      config: { model: "opencode/kimi-k2" },
-      archived: false,
-      updatedAt: "2026-09-01T00:00:00.000Z",
-      ...overrides,
-    } as never;
-  }
-
-  it("returns the newest matching thread's model", () => {
-    expect(
-      resolveRecentThreadModel(
-        [
-          thread({ id: "old", updatedAt: "2026-09-01T00:00:00.000Z" }),
-          thread({ id: "new", updatedAt: "2026-09-10T00:00:00.000Z" }),
-        ],
-        "p1",
-        "opencode",
-        caps,
-      ),
-    ).toBe("opencode/kimi-k2");
-  });
-
-  it("skips archived threads, other projects, other agentKinds, and models the capability table no longer offers", () => {
-    expect(
-      resolveRecentThreadModel(
-        [
-          thread({ id: "archived", archived: true, updatedAt: "2026-09-11T00:00:00.000Z" }),
-          thread({ id: "other-project", projectId: "p2", updatedAt: "2026-09-12T00:00:00.000Z" }),
-          thread({ id: "other-agent", agentKind: "codex", updatedAt: "2026-09-13T00:00:00.000Z" }),
-          thread({
-            id: "gone-model",
-            config: { model: "opencode/retired" },
-            updatedAt: "2026-09-14T00:00:00.000Z",
-          }),
-          thread({ id: "usable", updatedAt: "2026-09-09T00:00:00.000Z" }),
-        ],
-        "p1",
-        "opencode",
-        caps,
-      ),
-    ).toBe("opencode/kimi-k2");
-  });
-
-  it("returns undefined when no recorded thread can be reused", () => {
-    expect(resolveRecentThreadModel([], "p1", "opencode", caps)).toBeUndefined();
-    expect(resolveRecentThreadModel(undefined, "p1", "opencode", caps)).toBeUndefined();
+  it("restores the last-draft agent only with explicit model memory for it", () => {
+    const lastDraft = { agentKind: "opencode", model: "opencode/big-pickle" } as never;
+    expect(resolvePreferredAgentKind(installed, lastDraft, { opencode: "x" })).toBe("opencode");
+    // Bare last-draft restore (e.g. an auto-persisted default) falls to the list head.
+    expect(resolvePreferredAgentKind(installed, lastDraft, {})).toBe("codex");
+    expect(resolvePreferredAgentKind(installed, lastDraft)).toBe("codex");
+    expect(resolvePreferredAgentKind(installed, undefined, {})).toBe("codex");
+    expect(resolvePreferredAgentKind([], undefined, {})).toBeUndefined();
   });
 });

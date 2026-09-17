@@ -63,7 +63,6 @@ import {
   resolvePreferredAgentKind,
   resolveProviderDraftConfig,
   resolveProviderModelPreference,
-  resolveRecentThreadModel,
   resolveSavedProviderDraftConfig,
   supportsUsableFastMode,
   resolveThinkingValue,
@@ -252,7 +251,11 @@ export function ThreadDraftView(props: {
     () => installedAgents.filter((agent) => !isComposerPickerExcludedAgent(agent.kind)),
     [installedAgents],
   );
-  const preferredAgentKind = resolvePreferredAgentKind(pickerInstalledAgents, lastDraftConfig);
+  const preferredAgentKind = resolvePreferredAgentKind(
+    pickerInstalledAgents,
+    lastDraftConfig,
+    useSharedSettings.getState().defaultModels,
+  );
   const [agentKind, setAgentKind] = useState<AgentStatus["kind"] | undefined>(preferredAgentKind);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
   const effectiveAgentKind = pickerInstalledAgents.some((status) => status.kind === agentKind)
@@ -471,26 +474,19 @@ export function ThreadDraftView(props: {
       isHomeScope ? {} : providerConfigsRef.current,
       providerModelPreferencesRef.current,
     );
-    // No usable project memory → continue where this project actually left
-    // off: the most recent thread's model beats the provider's models[0]
-    // alphabetical default.
-    const lastDraftModelUsable = !!(
-      lastDraftConfig &&
-      lastDraftConfig.agentKind === effectiveAgentKind &&
-      lastDraftConfig.model.trim() &&
-      selectedAgentForConfig.capabilities.models.some((m) => m.id === lastDraftConfig.model)
-    );
-    const recentThreadModel = lastDraftModelUsable
-      ? undefined
-      : resolveRecentThreadModel(
-          useAppStore.getState().threads,
-          project.id,
-          effectiveAgentKind,
-          selectedAgentForConfig.capabilities,
-        );
+    // Explicit-only model memory: a stored provider/last-draft model may be an
+    // auto-persisted default (e.g. a stale big-pickle pin), so it never counts
+    // as the default. Only a menu pick recorded in defaultModels restores;
+    // otherwise the draft opens on the model list's first entry. Unknown or
+    // retired ids fall back to models[0] inside resolveProviderDraftConfig.
+    const explicitDefault =
+      useSharedSettings.getState().defaultModels[effectiveAgentKind]?.trim() || undefined;
     const resolved = resolveProviderDraftConfig(
       selectedAgentForConfig,
-      recentThreadModel ? { ...saved, model: recentThreadModel } : saved,
+      {
+        ...saved,
+        model: explicitDefault ?? selectedAgentForConfig.capabilities.models[0]?.id ?? "",
+      },
       defaultPermissionMode,
     );
     const nextModel = resolved.model;
@@ -1190,6 +1186,8 @@ export function ThreadDraftView(props: {
         defaultPermissionMode,
       );
       persistProviderConfig(actualKind, resolved);
+      // Explicit menu pick → this provider's draft default from now on.
+      if (!nextAccountId) useSharedSettings.getState().setDefaultModel(actualKind, resolved.model);
       setModel(resolved.model);
       setEffort(resolved.effort);
       setContextSize(resolved.contextSize);
@@ -1255,6 +1253,11 @@ export function ThreadDraftView(props: {
       setSandboxMode(resolved.sandboxMode ?? "");
       if (effectiveAgentKind) {
         persistProviderConfig(effectiveAgentKind, resolved);
+        // Same-agent explicit pick → draft default (skipped for account
+        // surfaces, whose models belong to the account, not the provider).
+        if (!nextAccountId) {
+          useSharedSettings.getState().setDefaultModel(effectiveAgentKind, resolved.model);
+        }
         persistProjectDraftConfig({
           agentKind: effectiveAgentKind,
           model: resolved.model,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  escapeBareAngleTags,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
   normalizeMermaidFenceLanguages,
@@ -109,6 +110,26 @@ describe("normalizeGfmTableSeparators", () => {
     const input = "| a | b | c |\r\n|---|---|\r\n| 1 | 2 | 3 |\r\n";
     const out = normalizeGfmTableSeparators(input);
     expect(out).toContain("| --- | --- | --- |\r\n");
+  });
+});
+
+describe("escapeBareAngleTags", () => {
+  it("escapes pseudo-XML placeholders so the sanitizer cannot eat them", () => {
+    expect(escapeBareAngleTags("<plan>\n</response>\n<understand>刺激</understand>")).toBe(
+      "&lt;plan>\n&lt;/response>\n&lt;understand>刺激&lt;/understand>",
+    );
+  });
+
+  it("leaves real autolinks and comparisons alone", () => {
+    expect(escapeBareAngleTags("see <https://example.test/x> and <me@example.test>")).toBe(
+      "see <https://example.test/x> and <me@example.test>",
+    );
+    expect(escapeBareAngleTags("a < b and 3 < 4")).toBe("a < b and 3 < 4");
+  });
+
+  it("skips fenced code and inline code", () => {
+    expect(escapeBareAngleTags("```xml\n<plan/>\n```\n")).toBe("```xml\n<plan/>\n```\n");
+    expect(escapeBareAngleTags("use `<tag>` here")).toBe("use `<tag>` here");
   });
 });
 // @vitest-environment node

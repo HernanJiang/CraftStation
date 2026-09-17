@@ -37,6 +37,7 @@ import { InlineFilePathChip } from "./InlineFilePathChip";
 import { InlineFolderPathChip } from "./InlineFolderPathChip";
 import { LC_SELECTOR_LANG, tryParseSelectorPayload } from "./SelectorBadge";
 import {
+  escapeBareAngleTags,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
   normalizeMermaidFenceLanguages,
@@ -133,7 +134,7 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
     normalizeIncompleteProjectLinkTail(
       normalizeMermaidFenceLanguages(
         normalizeGfmTableSeparators(
-          normalizeLatexMathDelimiters(normalizeShortCodeFenceClosers(text)),
+          normalizeLatexMathDelimiters(normalizeShortCodeFenceClosers(escapeBareAngleTags(text))),
         ),
       ),
     ),

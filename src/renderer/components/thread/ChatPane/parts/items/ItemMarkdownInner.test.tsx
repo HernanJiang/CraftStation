@@ -606,6 +606,18 @@ flowchart TD
     expect(screen.queryByText(/\[blocked\]/)).not.toBeInTheDocument();
   });
 
+  it("keeps bare pseudo-XML tags visible instead of letting sanitize eat them", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"<plan>\n<response>最终回复</response>\n"} />
+      </AppProvider>,
+    );
+
+    expect(container).toHaveTextContent("<plan>");
+    expect(container).toHaveTextContent("<response>");
+    expect(container).toHaveTextContent("最终回复");
+  });
+
   it("reports failed markdown link opens", async () => {
     const openExternal = vi
       .fn<(href: string) => Promise<void>>()

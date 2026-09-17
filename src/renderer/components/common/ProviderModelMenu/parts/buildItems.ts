@@ -36,9 +36,10 @@ export interface ProviderModelMenuProvider {
   accountId?: string;
   capabilities: AgentCapability;
   /**
-   * Installed CLI without a login/configured channel yet. Stays in the
-   * catalog with an explicit unconfigured hint instead of disappearing after
-   * the usage/accounts hydration lands.
+   * Installed CLI without a login/configured channel yet. Hidden from the
+   * picker by default (only channels the user actually added stay listed);
+   * the current selection is always kept so an open thread never loses its
+   * own row, and 管理模型 remains the full-catalog discovery surface.
    */
   unconfigured?: boolean;
 }
@@ -398,8 +399,17 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
     providerOrder,
   } = input;
   const providerSortKey = makeProviderSortKey(providerOrder);
+  // Channels the user never configured stay out of the picker — an installed
+  // CLI alone is not a channel. The current selection is exempt so switching
+  // models inside an open thread never hides the row being edited.
+  const isCurrentProvider = (provider: ProviderModelMenuProvider): boolean =>
+    currentAgentKind !== undefined &&
+    provider.kind === currentAgentKind &&
+    (provider.accountId ?? undefined) === (input.currentAccountId ?? undefined);
   const visibleProviders = (
-    lockedAgentKind ? providers.filter((p) => p.kind === lockedAgentKind) : providers
+    lockedAgentKind
+      ? providers.filter((p) => p.kind === lockedAgentKind)
+      : providers.filter((p) => !p.unconfigured || isCurrentProvider(p))
   )
     .slice()
     .sort((a, b) => providerSortKey(a.kind) - providerSortKey(b.kind));
@@ -645,6 +655,16 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
         });
       }
     }
+  }
+
+  if (out.length === 0 && !isSearching) {
+    // Every provider was filtered (e.g. nothing configured yet): say so and
+    // point at the setup surface instead of rendering a dead empty menu.
+    out.push({
+      type: "header-plain",
+      id: "header:empty",
+      label: msg`暂无已配置渠道 — 去「渠道与额度」登录后即可使用`,
+    });
   }
 
   return out;

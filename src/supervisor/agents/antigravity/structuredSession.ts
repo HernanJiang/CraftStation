@@ -255,6 +255,9 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
           : this.input.projectLocation.path),
       ...(command.env ? { env: command.env } : {}),
       ...(this.options.spawnProcess ? { spawnProcess: this.options.spawnProcess } : {}),
+      // agy allocates a console per session; without DETACHED the hidden
+      // conhost is handed to Windows Terminal and flashes on every use.
+      noConsole: true,
       onEvent: () => undefined,
       onDiagnostic: (diagnostic) => this.handleDiagnostic(diagnostic),
       onProcessExit: (event) => this.handleProcessExit(event),

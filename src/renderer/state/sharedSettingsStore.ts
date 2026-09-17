@@ -100,6 +100,8 @@ interface SharedSettingsState extends SharedSettings {
   /** Persist the user-ordered Own Subagents route (native lane + provider kinds). */
   setOwnSubagentsRouteOrder: (order: string[]) => void;
   setProviderOrder: (order: string[]) => void;
+  /** Record an explicit menu pick as the provider's draft default model. */
+  setDefaultModel: (agentKind: string, modelId: string) => void;
   setCollapseTerminalComposer: (value: boolean) => void;
   setCliPickerTarget: (value: CliPickerTarget) => void;
   setStaleThreadUnloadMinutes: (value: number) => void;
@@ -517,6 +519,14 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     set({ providerOrder: next });
     persistSettings(selectSharedSettings(get()));
   },
+  setDefaultModel: (agentKind, modelId) => {
+    const kind = agentKind.trim();
+    const id = modelId.trim();
+    if (!kind || !id) return;
+    if (get().defaultModels[kind] === id) return;
+    set({ defaultModels: { ...get().defaultModels, [kind]: id } });
+    persistSettings(selectSharedSettings(get()));
+  },
   setCollapseTerminalComposer: (collapseTerminalComposer) => {
     set({ collapseTerminalComposer });
     persistSettings(selectSharedSettings(get()));
@@ -906,6 +916,9 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
       favoriteModels: get().favoriteModels.filter((entry) => entry.agentKind !== prefix),
       recentModels: get().recentModels.filter((entry) => entry.agentKind !== prefix),
       providerOrder: get().providerOrder.filter((kind) => kind !== prefix),
+      defaultModels: Object.fromEntries(
+        Object.entries(get().defaultModels).filter(([kind]) => kind !== prefix),
+      ),
     });
     persistSettings(selectSharedSettings(get()));
   },
@@ -1072,6 +1085,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     shownModels: state.shownModels,
     customModels: state.customModels,
     disabledAgents: state.disabledAgents,
+    defaultModels: state.defaultModels,
     providerOrder: state.providerOrder,
     acpRegistryInstalledAgents: state.acpRegistryInstalledAgents,
     agentInstances: state.agentInstances,

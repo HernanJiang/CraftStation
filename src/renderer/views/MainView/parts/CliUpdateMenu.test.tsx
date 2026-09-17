@@ -11,6 +11,9 @@ const bridgeMock = vi.hoisted(() => ({
   getLatestAgentVersion: vi.fn<() => Promise<{ version: string; source: string }>>(),
   updateAgentBinary: vi.fn<() => Promise<{ ok: boolean; output?: string }>>(),
   refreshAgentStatuses: vi.fn<() => Promise<unknown>>(),
+  checkForUpdate: vi.fn<() => Promise<void>>(),
+  installUpdate: vi.fn<() => Promise<void>>(),
+  openExternal: vi.fn<(url: string) => Promise<void>>(),
 }));
 
 vi.mock("@/renderer/bridge", () => ({
@@ -125,5 +128,37 @@ describe("CliUpdateMenu", () => {
       expect(bridgeMock.getLatestAgentVersion.mock.calls.length).toBeGreaterThan(1),
     );
     expect(useUpdateStore.getState().availableCliUpdates).toBe(before);
+  });
+
+  it("lists the app itself with restart-to-install once downloaded", async () => {
+    useUpdateStore.setState({
+      phase: "downloaded",
+      version: "1.2.13",
+      manualDownloadUrl: null,
+    });
+    render(<CliUpdateMenu />);
+    fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
+    const menu = await screen.findByRole("menu");
+    const item = await within(menu).findByRole("menuitem", { name: /CraftStation.*1\.2\.13/u });
+    fireEvent.click(item);
+    expect(bridgeMock.installUpdate).toHaveBeenCalledTimes(1);
+    useUpdateStore.setState({ phase: "idle", version: null });
+  });
+
+  it("offers the manual package for portable builds", async () => {
+    useUpdateStore.setState({
+      phase: "available-manual",
+      version: "1.2.13",
+      manualDownloadUrl: "https://github.com/HernanJiang/CraftStation/releases",
+    });
+    render(<CliUpdateMenu />);
+    fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
+    const menu = await screen.findByRole("menu");
+    const item = await within(menu).findByRole("menuitem", { name: /CraftStation.*1\.2\.13/u });
+    fireEvent.click(item);
+    expect(bridgeMock.openExternal).toHaveBeenCalledWith(
+      "https://github.com/HernanJiang/CraftStation/releases",
+    );
+    useUpdateStore.setState({ phase: "idle", version: null, manualDownloadUrl: null });
   });
 });

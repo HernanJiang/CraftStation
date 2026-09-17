@@ -21,6 +21,16 @@ export interface NativeProcessTransportOptions {
   cwd: string;
   env?: Record<string, string>;
   spawnProcess?: typeof spawn;
+  /**
+   * Detach the child into its own process group on Windows so the OS never
+   * allocates a console (conhost) for it. `windowsHide` alone still allocates
+   * a hidden console, and when Windows Terminal is the default terminal app
+   * the handoff flashes a terminal window on every spawn — verified live:
+   * `agy.exe` session spawns always carry a conhost child without this, never
+   * with it. Only agy opts in today; kill/dispose semantics are unchanged
+   * (TerminateProcess still lands) and strays are covered by the reaper.
+   */
+  noConsole?: boolean;
   onEvent: (event: NativeWireEvent) => void;
   onDiagnostic: (diagnostic: NativeHarnessDiagnostic) => void;
   onProcessExit?: (event: NativeProcessExit) => void;
@@ -240,6 +250,12 @@ export class NdjsonProcessTransport {
         env: { ...process.env, ...(this.options.env ?? {}) },
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
+        // No console at all on Windows (see noConsole): without DETACHED the
+        // OS allocates conhost even for hidden windows and Windows Terminal
+        // flashes it on every spawn.
+        ...(this.options.noConsole === true && process.platform === "win32"
+          ? { detached: true }
+          : {}),
       });
       this.process = child as ChildProcessWithoutNullStreams;
       const output = createInterface({ input: child.stdout });

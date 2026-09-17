@@ -388,6 +388,14 @@ export const sharedSettingsSchema = z.object({
   /** Agent kinds that the user has disabled (hidden from the agent picker). */
   disabledAgents: z.array(z.string()),
   /**
+   * Per-provider default model, written ONLY on explicit menu picks. Fresh
+   * drafts open on the model list's first entry; a stored
+   * providerConfigs/last-draft model may be an auto-persisted default and is
+   * never treated as the default. Starts empty so one stale pin (e.g. an old
+   * big-pickle default) can never resurrect itself.
+   */
+  defaultModels: z.record(z.string(), z.string()),
+  /**
    * User-defined display order for providers in the model picker. Provider kinds not in this
    * list fall back to the built-in default order at the tail.
    */
@@ -763,6 +771,7 @@ export const defaultSharedSettings: SharedSettings = {
   shownModels: {},
   customModels: [],
   disabledAgents: [],
+  defaultModels: {},
   providerOrder: [],
   acpRegistryInstalledAgents: {},
   agentInstances: {},

@@ -3509,6 +3509,10 @@ msgstr ""
 msgid "Crafting Workbench"
 msgstr ""
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "CraftStation"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
 msgstr "O CraftStation e seus agentes são executados na máquina remota. O SSH é usado apenas para iniciar o ambiente remoto e proteger o túnel local."
@@ -4409,8 +4413,16 @@ msgstr ""
 msgid "Download image"
 msgstr "Baixar imagem"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Download package"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Download v{version}"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Downloading CraftStation update"
 msgstr ""
 
 #. placeholder {0}: name || t`the chosen folder`
@@ -4433,6 +4445,7 @@ msgstr "Baixando modelo de voz {0}%"
 msgid "Downloading voice model..."
 msgstr "Baixando modelo de voz..."
 
+#. placeholder {0}: Math.round(appPercent)
 #. placeholder {0}: Math.round(updatePercent)
 #. placeholder {0}: Math.round(updateStatus.percent)
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
@@ -10117,6 +10130,10 @@ msgstr "Resolve conflitos de mesclagem durante rebase ou mesclagem."
 msgid "Restart CraftStation"
 msgstr "Reiniciar o CraftStation"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Restart to install"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Restore"
 msgstr "Restaurar"
@@ -14177,6 +14194,10 @@ msgstr ""
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "收起 Git 面板"
+msgstr ""
+
+#: src/renderer/components/common/ProviderModelMenu/parts/buildItems.ts
+msgid "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
 msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx

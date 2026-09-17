@@ -3508,6 +3508,10 @@ msgstr ""
 msgid "Crafting Workbench"
 msgstr ""
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "CraftStation"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
 msgstr "CraftStation とエージェントはリモートマシン上で実行されます。SSH はリモート環境の起動とローカルトンネルの保護にのみ使用されます。"
@@ -4408,8 +4412,16 @@ msgstr ""
 msgid "Download image"
 msgstr "画像をダウンロード"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Download package"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Download v{version}"
+msgstr ""
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Downloading CraftStation update"
 msgstr ""
 
 #. placeholder {0}: name || t`the chosen folder`
@@ -4432,6 +4444,7 @@ msgstr "音声モデルをダウンロード中{0}%"
 msgid "Downloading voice model..."
 msgstr "音声モデルをダウンロードしています..."
 
+#. placeholder {0}: Math.round(appPercent)
 #. placeholder {0}: Math.round(updatePercent)
 #. placeholder {0}: Math.round(updateStatus.percent)
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
@@ -10115,6 +10128,10 @@ msgstr "リベースまたはマージ中のマージ競合を解決します。
 msgid "Restart CraftStation"
 msgstr "CraftStation を再起動"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Restart to install"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Restore"
 msgstr "復元"
@@ -14175,6 +14192,10 @@ msgstr ""
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "收起 Git 面板"
+msgstr ""
+
+#: src/renderer/components/common/ProviderModelMenu/parts/buildItems.ts
+msgid "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
 msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx

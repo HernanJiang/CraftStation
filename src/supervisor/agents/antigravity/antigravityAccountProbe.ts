@@ -86,6 +86,9 @@ async function spawnAndReadAccount(
     stdio: "ignore",
     shell: false,
     windowsHide: true,
+    // Same no-console treatment as the GUI session: the probe's hidden
+    // console would otherwise be handed to Windows Terminal and flash.
+    ...(process.platform === "win32" ? { detached: true } : {}),
     // The account probe runs on a 5-minute TTL, which is exactly the cadence
     // that keeps re-arming the CLI's background self-updater — and the updater
     // detaches into its own console window (see

@@ -38,6 +38,10 @@ export function CliUpdateMenu() {
   const { t } = useLingui();
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
+  const appPhase = useUpdateStore((state) => state.phase);
+  const appVersion = useUpdateStore((state) => state.version);
+  const appPercent = useUpdateStore((state) => state.downloadPercent);
+  const appManualUrl = useUpdateStore((state) => state.manualDownloadUrl);
   const [checking, setChecking] = useState(false);
   const [updates, setUpdates] = useState<CliUpdate[]>([]);
   const [updatingKey, setUpdatingKey] = useState<string | null>(null);
@@ -69,6 +73,15 @@ export function CliUpdateMenu() {
     if (inFlightRef.current > 0 && !options?.force) return;
     inFlightRef.current += 1;
     setChecking(true);
+    // The app itself rides the same menu: a manual check also probes GitHub
+    // for a newer CraftStation release (main dedupes + hourly-polls anyway).
+    // Failures surface through onUpdateStatus; never let an IPC rejection
+    // bubble to the window as an unhandled rejection.
+    void Promise.resolve()
+      .then(() => readBridge().checkForUpdate())
+      .catch((error: unknown) => {
+        console.error("[craftstation][updates] check-for-update failed", error);
+      });
     try {
       // Safety valve: each upstream probe aborts at 8s per URL, but adapters
       // can chain several URLs — never let the spinner stick past 30s.
@@ -149,10 +162,17 @@ export function CliUpdateMenu() {
     }
   };
 
+  // The app itself is part of this menu: badge + row when a CraftStation
+  // release is pending (downloaded / manual package / downloading). The
+  // background hourly check drives the same store, so this also surfaces
+  // updates found without opening the menu.
+  const appUpdatePending = appPhase === "downloaded" || appPhase === "available-manual";
+  const badgeCount = updates.length + (appUpdatePending ? 1 : 0);
+
   return (
     <Dropdown>
       <ControlTooltip
-        label={updates.length > 0 ? `有 ${updates.length} 个 CLI 可更新` : t`Check for updates`}
+        label={badgeCount > 0 ? `有 ${badgeCount} 个更新可用` : t`Check for updates`}
         detail={t`Check all installed agent CLIs`}
       >
         {/* Opening the menu must only open the menu. A forced check inside the
@@ -164,7 +184,7 @@ export function CliUpdateMenu() {
           data-testid="titlebar-cli-update-button"
           aria-label={t`Check for CLI updates`}
           className={`${buttonClass} relative mr-1 px-1.5 ${
-            updates.length > 0 ? "text-amber-300" : ""
+            badgeCount > 0 ? "text-amber-300" : ""
           }`}
         >
           {checking ? (
@@ -172,9 +192,9 @@ export function CliUpdateMenu() {
           ) : (
             <Download className="size-3.5" />
           )}
-          {updates.length > 0 ? (
+          {badgeCount > 0 ? (
             <span className="absolute -top-0.5 -right-0.5 min-w-3 rounded-full bg-amber-400 px-0.5 text-center text-[8px] leading-3 font-bold text-black">
-              {updates.length}
+              {badgeCount}
             </span>
           ) : null}
         </Dropdown.Trigger>
@@ -184,6 +204,10 @@ export function CliUpdateMenu() {
           aria-label={t`CLI updates`}
           onAction={(key) => {
             if (key === "check") void runCheck({ force: true });
+            if (key === "app-install") void readBridge().installUpdate();
+            if (key === "app-download" && appManualUrl) {
+              void readBridge().openExternal(appManualUrl);
+            }
             const entry = updates.find((candidate) => candidate.key === String(key));
             if (entry) void updateOne(entry);
           }}
@@ -192,6 +216,44 @@ export function CliUpdateMenu() {
             <RefreshCw className={checking ? "size-4 animate-spin" : "size-4"} />
             <Label>{checking ? t`Checking…` : t`Check all CLIs`}</Label>
           </Dropdown.Item>
+          {appPhase === "downloaded" ? (
+            <Dropdown.Item
+              key="app-install"
+              id="app-install"
+              textValue={`CraftStation ${appVersion ?? ""}`}
+            >
+              <Download className="size-4 text-amber-300" />
+              <Label>
+                {t`CraftStation`}
+                {appVersion ? ` v${appVersion}` : ""} · {t`Restart to install`}
+              </Label>
+            </Dropdown.Item>
+          ) : null}
+          {appPhase === "available-manual" && appManualUrl ? (
+            <Dropdown.Item
+              key="app-download"
+              id="app-download"
+              textValue={`CraftStation ${appVersion ?? ""}`}
+            >
+              <Download className="size-4 text-amber-300" />
+              <Label>
+                {t`CraftStation`}
+                {appVersion ? ` v${appVersion}` : ""} · {t`Download package`}
+              </Label>
+            </Dropdown.Item>
+          ) : null}
+          {appPhase === "downloading" ? (
+            <Dropdown.Item
+              key="app-downloading"
+              id="app-downloading"
+              textValue={t`Downloading CraftStation update`}
+            >
+              <RefreshCw className="size-4 animate-spin" />
+              <Label>
+                {t`CraftStation`} · {t`Downloading… ${Math.round(appPercent)}%`}
+              </Label>
+            </Dropdown.Item>
+          ) : null}
           {updates.map((entry) => (
             <Dropdown.Item
               key={entry.key}
@@ -209,7 +271,7 @@ export function CliUpdateMenu() {
               </Label>
             </Dropdown.Item>
           ))}
-          {updates.length === 0 ? (
+          {updates.length === 0 && !appUpdatePending && appPhase !== "downloading" ? (
             <Dropdown.Item id="none" textValue={t`All CLIs are up to date`}>
               <Label>{checking ? t`Checking installed CLIs…` : t`All CLIs are up to date`}</Label>
             </Dropdown.Item>

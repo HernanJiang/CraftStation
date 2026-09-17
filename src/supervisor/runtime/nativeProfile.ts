@@ -212,17 +212,27 @@ export function verifyProfileIdentity(
       throw identityUnavailable(provider, expectedAccount, "credential could not be read");
     }
   } else if (provider === "kimi") {
+    // The Kimi CLI credential carries no identity claims (only access_token /
+    // refresh_token / expiry) — the same shape as Antigravity's authorized_user
+    // ADC file. The expected identity already lives in the account-store row,
+    // so verify the credential is materially present instead of pretending to
+    // compare it. Requiring file-carried identity here fails every
+    // managed-account run (schedules included) with "native identity is
+    // absent" even though the credential is valid.
     const credentialPath = join(profilePath, "credentials", "kimi-code.json");
     if (!existsSync(credentialPath)) {
       throw identityUnavailable(provider, expectedAccount, "credential file is missing");
     }
     try {
       const parsed = JSON.parse(readFileSync(credentialPath, "utf8")) as unknown;
-      const identities = collectIdentityValues(parsed);
-      if (identities.length === 0) {
-        throw identityUnavailable(provider, expectedAccount, "native identity is absent");
+      const record =
+        parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : {};
+      const accessToken = record["access_token"] ?? record["accessToken"];
+      if (typeof accessToken !== "string" || !accessToken.trim()) {
+        throw identityUnavailable(provider, expectedAccount, "credential is malformed");
       }
-      assertIdentityMatch(provider, expectedAccount, identities);
     } catch (err) {
       if (err instanceof AccountControlError) throw err;
       throw identityUnavailable(provider, expectedAccount, "credential could not be read");
@@ -269,26 +279,4 @@ function assertIdentityMatch(
       },
     );
   }
-}
-
-function collectIdentityValues(value: unknown, depth = 0): string[] {
-  if (depth > 4 || !value || typeof value !== "object" || Array.isArray(value)) return [];
-  const record = value as Record<string, unknown>;
-  const values: string[] = [];
-  for (const key of [
-    "email",
-    "user_email",
-    "userId",
-    "user_id",
-    "accountId",
-    "account_id",
-    "subject",
-    "sub",
-  ]) {
-    const candidate = record[key];
-    if (typeof candidate === "string" && candidate.trim()) values.push(candidate.trim());
-  }
-  for (const child of Object.values(record))
-    values.push(...collectIdentityValues(child, depth + 1));
-  return [...new Set(values)];
 }

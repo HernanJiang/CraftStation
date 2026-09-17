@@ -362,4 +362,14 @@ describe("sharedSettingsStore", () => {
     expect(useSharedSettings.getState().agentSettings["cursor:work"]).toBeUndefined();
     expect(useSharedSettings.getState().providerOrder).toEqual(["cursor"]);
   });
+
+  it("records explicit default models per provider", () => {
+    expect(useSharedSettings.getState().defaultModels).toEqual({});
+    useSharedSettings.getState().setDefaultModel("codex", "gpt-5.6-sol");
+    useSharedSettings.getState().setDefaultModel("codex", "gpt-5.6-sol");
+    expect(useSharedSettings.getState().defaultModels).toEqual({ codex: "gpt-5.6-sol" });
+    useSharedSettings.getState().setDefaultModel("  ", "x");
+    useSharedSettings.getState().setDefaultModel("codex", "  ");
+    expect(useSharedSettings.getState().defaultModels).toEqual({ codex: "gpt-5.6-sol" });
+  });
 });

@@ -3509,6 +3509,10 @@ msgstr "Crafting Table"
 msgid "Crafting Workbench"
 msgstr "Crafting Workbench"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "CraftStation"
+msgstr "CraftStation"
+
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
 msgstr "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
@@ -4409,9 +4413,17 @@ msgstr "Download and install {0} now"
 msgid "Download image"
 msgstr "Download image"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Download package"
+msgstr "Download package"
+
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Download v{version}"
 msgstr "Download v{version}"
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Downloading CraftStation update"
+msgstr "Downloading CraftStation update"
 
 #. placeholder {0}: name || t`the chosen folder`
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
@@ -4433,6 +4445,7 @@ msgstr "Downloading voice model {0}%"
 msgid "Downloading voice model..."
 msgstr "Downloading voice model..."
 
+#. placeholder {0}: Math.round(appPercent)
 #. placeholder {0}: Math.round(updatePercent)
 #. placeholder {0}: Math.round(updateStatus.percent)
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
@@ -10117,6 +10130,10 @@ msgstr "Resolves merge conflicts during rebase or merge."
 msgid "Restart CraftStation"
 msgstr "Restart CraftStation"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Restart to install"
+msgstr "Restart to install"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Restore"
 msgstr "Restore"
@@ -14178,6 +14195,10 @@ msgstr "搜索分支"
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "收起 Git 面板"
 msgstr "收起 Git 面板"
+
+#: src/renderer/components/common/ProviderModelMenu/parts/buildItems.ts
+msgid "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
+msgstr "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "暂无正式线程。"
