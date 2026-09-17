@@ -1,4 +1,6 @@
-## Release 1.2.13 — 第二批用户验收修复（2026-09-17，待提交）
+## Release 1.2.13 — 第二批用户验收修复（2026-09-17，已发布到远端）
+
+- 已提交 `f8186f7` 并 push，tag `v1.2.13` 已打并推送；NSIS 安装包 `release/CraftStation-Setup-1.2.13-x64.exe`（+ blockmap/latest.yml）已打出；GitHub Release 发布（上传安装包）待用户一句话。
 
 - 基于 1.2.12 在 `main` 直接修复。含：Antigravity 终端弹窗根除、裸 XML 标签被吞、选择器隐藏未配置渠道、默认模型改为列表第一个、本应用进右上更新菜单、Schedule Kimi 自检失败，外加 1.2.12 批次的 Devin 凭证固化与 Muse OpenCode 原生路由（已推送 `b55114d1`/`97f0cc5b`，本批在其之上）。并行批次 23 个 WIP 文件封在 `peer-WIP-2026-09-17` stash（恢复：`git stash pop` 前先与 owner 线程确认；`v1.1 skeleton` 与 `wip-model-usage-ui` 两个旧 stash 不动）。
 - **Antigravity 每次使用都弹终端（根因）**：`windowsHide:true` 仍会分配隐藏 conhost，真机验证每个 `agy` 会话进程必带 conhost 子进程；Windows Terminal 接管即闪。改用 `detached:true`（transport 新增 `noConsole` 选项，agy 会话 + account probe 启用，仅 Windows）后真机验证零 conhost。kill/退出语义不变，残留由现有 reaper 覆盖。
