@@ -111,6 +111,18 @@ describe("normalizeGfmTableSeparators", () => {
     const out = normalizeGfmTableSeparators(input);
     expect(out).toContain("| --- | --- | --- |\r\n");
   });
+
+  it("repairs the separator under an all-empty header row", () => {
+    const input = "| | |\n|---|\n| 唯一变量 | 只训 MLP |\n| 起点 | 76.03 |\n";
+    const out = normalizeGfmTableSeparators(input);
+    expect(out).toContain("| --- | --- |");
+    expect(out.split("\n")[0]).toBe("| | |");
+  });
+
+  it("leaves an all-empty header with a matching separator untouched", () => {
+    const input = "| | |\n|---|---|\n| 1 | 2 |\n";
+    expect(normalizeGfmTableSeparators(input)).toBe(input);
+  });
 });
 
 describe("escapeBareAngleTags", () => {

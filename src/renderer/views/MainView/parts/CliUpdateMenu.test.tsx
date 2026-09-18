@@ -187,4 +187,35 @@ describe("CliUpdateMenu", () => {
     );
     useUpdateStore.setState({ phase: "idle", version: null, manualDownloadUrl: null });
   });
+
+  it("shows byte-level progress and a browser fallback while downloading", async () => {
+    useUpdateStore.setState({
+      phase: "downloading",
+      version: "1.2.16",
+      downloadPercent: 0,
+      downloadTransferred: 2.2 * 1024 * 1024,
+      downloadTotal: 85 * 1024 * 1024,
+      downloadBytesPerSecond: 110 * 1024,
+    });
+    render(<CliUpdateMenu />);
+    fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
+    const menu = await screen.findByRole("menu");
+    // The percent can read 0% for minutes on a slow CDN; bytes + speed are the
+    // proof of life (issue #11).
+    const item = within(menu).getByRole("menuitem", { name: /CraftStation · Downloading/u });
+    expect(item.textContent).toContain("2.2 MB / 85.0 MB");
+    expect(item.textContent).toContain("110.0 KB/s");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Download in browser instead/u }));
+    expect(bridgeMock.openExternal).toHaveBeenCalledWith(
+      "https://github.com/HernanJiang/CraftStation/releases",
+    );
+    useUpdateStore.setState({
+      phase: "idle",
+      version: null,
+      downloadPercent: 0,
+      downloadTransferred: null,
+      downloadTotal: null,
+      downloadBytesPerSecond: null,
+    });
+  });
 });

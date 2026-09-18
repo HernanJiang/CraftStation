@@ -615,4 +615,96 @@ describe("AntigravityStructuredSession", () => {
       "RESOURCE_EXHAUSTED: Individual quota reached",
     );
   });
+
+  it("downgrades the post-turn exit-1 after a failed turn to a warning instead of a second failure", async () => {
+    // Probe-verified agy behavior: after emitting a failed `result`, the CLI
+    // exits with code 1 on its own. The crash diagnostic must not become a
+    // second thread failure ("Native process exited with code 1") that buries
+    // the real result-payload error.
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({ event: "result", result: { status: "ERROR", error: "model exploded" } });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    const onError = vi.fn<(message: string) => void>();
+    const onClose = vi.fn<() => void>();
+    session.setListener({
+      onClose,
+      onError,
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.8 Flash", approvalPolicy: "yolo" });
+    await expect(session.startTurn("fail", { model: "Gemini 3.8 Flash" })).rejects.toThrow(
+      "model exploded",
+    );
+    fixture.emit("exit", 1, null);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "warning",
+          message: "Native process exited with code 1 (none).",
+        }),
+      ]),
+    );
+    expect(events.filter((event) => event.type === "error")).toHaveLength(1);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("downgrades an idle process crash to a warning and keeps onClose recovery", async () => {
+    const fixture = new AntigravityFixture();
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    const onError = vi.fn<(message: string) => void>();
+    const onClose = vi.fn<() => void>();
+    session.setListener({
+      onClose,
+      onError,
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.8 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("hello", { model: "Gemini 3.8 Flash" });
+    fixture.emit("exit", 1, null);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "warning",
+          message: "Native process exited with code 1 (none).",
+        }),
+      ]),
+    );
+    expect(events.some((event) => event.type === "error")).toBe(false);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("still fails the active turn when the process crashes mid-turn", async () => {
+    const fixture = new AntigravityFixture(() => undefined);
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.8 Flash", approvalPolicy: "yolo" });
+    const turn = session.startTurn("hello", { model: "Gemini 3.8 Flash" });
+    fixture.emit("exit", 1, null);
+
+    await expect(turn).rejects.toThrow("Native process exited with code 1");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "failed" }),
+      ]),
+    );
+  });
 });

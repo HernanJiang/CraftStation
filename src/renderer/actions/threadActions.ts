@@ -182,6 +182,10 @@ export function openThread(
   // Opening a conversation is the user's acknowledgement of that thread's
   // completion/attention toast. Drop it from the bell list and sidebar dot.
   useNotificationStore.getState().dismissThread(threadId);
+  // The main-process taskbar badge (issue #12) clears on the same acknowledgement.
+  void readBridge()
+    .dismissTaskbarAttention(threadId)
+    .catch(() => undefined);
   // Model usage is an inline workspace rather than a route. Close it at the
   // shared thread-navigation seam so every sidebar/thread entry point returns
   // to the conversation surface instead of changing an obscured view.

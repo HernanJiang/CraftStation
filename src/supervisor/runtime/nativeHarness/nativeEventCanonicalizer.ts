@@ -117,7 +117,12 @@ function dshEvent(event: NativeWireEvent): {
 }
 
 function turnState(reason: unknown): "completed" | "failed" | "interrupted" | "cancelled" {
-  const kind = recordValue(reason)?.kind;
+  const rawKind = recordValue(reason)?.kind;
+  // DSH emits snake_case kinds ("max_tokens"); the adapter's terminal-error
+  // matcher already normalizes underscores, so the canonicalizer must too —
+  // otherwise an underscore kind silently degrades a failed turn to
+  // "completed" here while the adapter reports EXECUTION_FAILED.
+  const kind = typeof rawKind === "string" ? rawKind.replace(/_/gu, "-") : undefined;
   if (kind === "cancelled") return "cancelled";
   if (kind === "interrupted" || kind === "aborted") return "interrupted";
   if (kind === "error" || kind === "failed" || kind === "max-tokens" || kind === "blocked")

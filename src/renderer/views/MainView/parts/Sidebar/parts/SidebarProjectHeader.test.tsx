@@ -175,4 +175,32 @@ describe("SidebarProjectHeader", () => {
     fireEvent.click(screen.getByRole("button", { name: `New chat in ${project.name}` }));
     expect(openNewThreadMock).toHaveBeenCalledWith(project.id);
   });
+
+  it("collapses the project group from the header close button", async () => {
+    const { useSidebarUiStore } = await import("@/renderer/state/sidebarUiStore");
+    useSidebarUiStore.setState({ collapsedProjects: {} });
+    renderHeader();
+
+    fireEvent.click(screen.getByRole("button", { name: `Collapse ${project.name}` }));
+
+    expect(useSidebarUiStore.getState().collapsedProjects[project.id]).toBe(true);
+    expect(openNewThreadMock).not.toHaveBeenCalled();
+    useSidebarUiStore.setState({ collapsedProjects: {} });
+  });
+
+  it("hides the close button while the project group is already collapsed", () => {
+    render(
+      <SidebarProjectHeader
+        project={project}
+        isCollapsed={true}
+        isDragging={false}
+        isUnreachable={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: `Collapse ${project.name}` }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `New chat in ${project.name}` })).toBeInTheDocument();
+  });
 });

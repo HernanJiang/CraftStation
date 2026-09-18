@@ -34,6 +34,7 @@ const { bridge } = vi.hoisted(() => ({
     appendUsageEvents: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     interruptThread: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     controlThreadGoal: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    dismissTaskbarAttention: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   },
 }));
 const { hasHydratedThreadRuntimeItems, hydrateThreadRuntimeItems } = vi.hoisted(() => ({

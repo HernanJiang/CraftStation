@@ -207,7 +207,13 @@ export function normalizeGfmTableSeparators(text: string): string {
 function isPotentialTableRow(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed.includes("|")) return false;
-  return /[^\s|:-]/.test(trimmed);
+  if (/[^\s|:-]/.test(trimmed)) return true;
+  // Models occasionally emit a table with an all-empty header (`| | |`) — no
+  // text character, so the check above rejects it and the mismatched separator
+  // is never rewritten, leaving the whole block as raw piped text. An empty
+  // header row is still a table row: at least two pipes forming >= 1 column,
+  // and never a separator row (those contain `-`).
+  return (trimmed.match(/\|/g)?.length ?? 0) >= 2 && /^[|\s]+$/.test(trimmed);
 }
 
 function isTableSeparatorRow(line: string): boolean {

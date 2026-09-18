@@ -1103,6 +1103,7 @@ function ProviderCard(props: {
       const opened = runAgentLoginCommand({
         label,
         command: cliCommand,
+        agentKind: props.id,
         onCommandComplete: (exitCode) => {
           setCliSigningIn(false);
           if (exitCode !== 0) return;

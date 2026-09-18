@@ -77,7 +77,10 @@ export function resolveThreadContextUsageSummary(input: {
     : undefined;
   const configuredMaxTokens = inferConfiguredContextLimit(thread, capabilities);
   const usedTokens = reportedUsage?.usedTokens;
-  const maxTokens = preferAdvertisedContextWindow(reportedUsage?.maxTokens, configuredMaxTokens);
+  const maxTokens = preferAdvertisedContextWindow(reportedUsage?.maxTokens, configuredMaxTokens, {
+    usedTokens,
+    reportedIsCompactThreshold: thread.agentKind === "grok",
+  });
   const percent =
     usedTokens !== undefined && maxTokens !== undefined && maxTokens > 0
       ? Math.max(0, Math.min(100, Math.round((usedTokens / maxTokens) * 100)))
@@ -200,15 +203,27 @@ export function resolveSessionCacheHitRate(
   return Math.round((cacheRead / prompt) * 100);
 }
 
-/** 256Ki/256K placeholders yield to a larger advertised model window (DeepSeek V4 = 1M). */
+/**
+ * 256Ki/256K placeholders yield to a larger advertised model window (DeepSeek V4 = 1M).
+ * Two more reports also cannot be the session's real capacity and yield the
+ * same way: a "window" smaller than the tokens currently occupying it, and
+ * Grok's `context_window`, which Grok's own docs define as the auto-compact
+ * trigger ("tells Grok when to trigger auto-compaction") while the CLI ignores
+ * window downgrades from the server — so a smaller Grok report is a threshold,
+ * never a legitimately smaller window. Near-miss reports like Codex's 95%
+ * compact limit (258400 under a configured 272k) stay as reported.
+ */
 function preferAdvertisedContextWindow(
   reported: number | undefined,
   advertised: number | undefined,
+  options: { usedTokens?: number | undefined; reportedIsCompactThreshold?: boolean } = {},
 ): number | undefined {
   if (reported === undefined) return advertised;
-  if (advertised === undefined) return reported;
+  if (advertised === undefined || advertised <= reported) return reported;
   const stock = reported === 262_144 || reported === 256_000 || reported === 128_000;
-  if (stock && advertised > reported) return advertised;
+  if (stock) return advertised;
+  if (options.reportedIsCompactThreshold) return advertised;
+  if (options.usedTokens !== undefined && options.usedTokens > reported) return advertised;
   return reported;
 }
 
@@ -271,7 +286,13 @@ function contextModelIdsMatch(left: string, right: string): boolean {
   const a = normalizeContextModelId(left);
   const b = normalizeContextModelId(right);
   if (!a || !b) return false;
-  return a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`) || a.startsWith(`${b}-`) || b.startsWith(`${a}-`);
+  return (
+    a === b ||
+    a.endsWith(`/${b}`) ||
+    b.endsWith(`/${a}`) ||
+    a.startsWith(`${b}-`) ||
+    b.startsWith(`${a}-`)
+  );
 }
 
 function modelContextSizeList(

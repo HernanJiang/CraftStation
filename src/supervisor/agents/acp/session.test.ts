@@ -395,7 +395,7 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
   it("treats Kimi 402 failures as pool quota errors, never 429 or auth", () => {
     // No repo sample of Kimi turn-level text exists yet, so the matcher is
     // anchored on HTTP 402 (Payment Required) plus payment wording — 429
-    // rate-limiting and 401/403 auth stay fail-closed.
+    // rate-limiting and 401 auth stay fail-closed.
     expect(
       isKimiPoolQuotaError({
         code: -32603,
@@ -416,6 +416,31 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
     expect(isKimiPoolQuotaError(new Error("load balancing failed"))).toBe(false);
     expect(isKimiPoolQuotaError(new Error("Internal error"))).toBe(false);
     expect(isKimiPoolQuotaError(undefined)).toBe(false);
+  });
+
+  it("treats Kimi's 403 subscription-window exhaustion as pool quota", () => {
+    // Verbatim from Kimi CLI 0.43.1 against a 5h-window-exhausted account:
+    // `provider.auth_error: 403 You've reached your 5-hour usage limit. Your
+    // quota will reset when the current 5-hour window ends. …` — an auth
+    // STATUS carrying a quota reason; without the split, same-turn failover
+    // never fires and the thread sticks to the dead account.
+    const windowError =
+      "provider.auth_error: 403 You've reached your 5-hour usage limit. Your quota will reset when the current 5-hour window ends. To continue now, purchase extra usage or upgrade your plan: https://www.kimi.com/membership/subscription?tab=quota";
+    expect(isKimiPoolQuotaError(new Error(windowError))).toBe(true);
+    expect(
+      isKimiPoolQuotaError({
+        code: -32603,
+        message: "Internal error",
+        data: { http_status: 403, message: windowError },
+      }),
+    ).toBe(true);
+    // Genuine 403 auth denials (no quota wording) stay fail-closed.
+    expect(isKimiPoolQuotaError({ data: { http_status: 403, message: "access forbidden" } })).toBe(
+      false,
+    );
+    expect(isKimiPoolQuotaError(new Error("403 forbidden: plan has no access to this model"))).toBe(
+      false,
+    );
   });
 
   it("rejects non-quota errors as pool quota signals", () => {

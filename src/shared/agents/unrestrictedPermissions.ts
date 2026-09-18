@@ -13,12 +13,14 @@ export interface UnrestrictedPermissionConfig {
 }
 
 /**
- * Resolve a provider's most-permissive approval/sandbox choice from its
- * advertised capabilities, falling back to its declared bypass posture when
- * the probe exposes no choices. Provider-agnostic: the preferred-id lists are
- * only ranked candidates — a value is used solely when the target provider
- * itself advertises it. Shared by the subagent lane (unrestricted children)
- * and scheduled runs (unattended, so approvals cannot be answered).
+ * Resolve a provider's most-permissive approval/sandbox choice. The provider's
+ * declared bypass posture (`capabilities.bypassPermissions`) wins over the
+ * conventional-id guesses: providers whose strongest policy is NOT the
+ * conventional one name it explicitly (kimi ≥0.42: `yolo` is only
+ * ask-when-needed, `auto` is the true never-ask; claude: `auto` is the app's
+ * full-access id, not `bypassPermissions`). The preferred-id list remains the
+ * fallback for providers that declare no bypass posture. Shared by the draft
+ * default (设置 → 默认权限), the subagent lane, and scheduled/automation runs.
  */
 export function resolveUnrestrictedPermissionConfig(
   capabilities: UnrestrictedPermissionCapabilities,
@@ -60,15 +62,15 @@ function resolveUnrestrictedOption(
   declaredBypass: string | undefined,
   preferredIds: readonly string[],
 ): string | undefined {
-  for (const id of preferredIds) {
-    const match = options.find((option) => option.id === id);
-    if (match) return match.id;
-  }
   if (
     declaredBypass &&
     (options.length === 0 || options.some((option) => option.id === declaredBypass))
   ) {
     return declaredBypass;
+  }
+  for (const id of preferredIds) {
+    const match = options.find((option) => option.id === id);
+    if (match) return match.id;
   }
   return undefined;
 }

@@ -375,6 +375,8 @@ const remoteBridgeOverrides = {
   pickQuickComposerFiles: () =>
     Promise.reject(new Error("Quick Composer is not available in a remote session.")),
   notifyQuickComposerMainReady: () => Promise.resolve(),
+  // Taskbar badges are desktop-only; a remote session has no taskbar to clear.
+  dismissTaskbarAttention: () => Promise.resolve(),
 };
 
 const remoteBridge = Object.defineProperties(

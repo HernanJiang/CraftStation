@@ -76,6 +76,8 @@ export type CraftStationBridge = CraftStationInvokeBridge & {
   dismissQuickComposer(): Promise<void>;
   pickQuickComposerFiles(): Promise<string[] | null>;
   notifyQuickComposerMainReady(): Promise<void>;
+  /** The user opened a thread — clear its taskbar completion badge (issue #12). */
+  dismissTaskbarAttention(threadId: string): Promise<void>;
   reloadRenderer(): Promise<void>;
   onQuickComposerSubmit(listener: (submission: QuickComposerSubmission) => void): () => void;
   onQuickComposerDismissRequested(listener: () => void): () => void;
@@ -157,5 +159,6 @@ export const IPC_WINDOW_CHANNELS = {
   quickComposerDismiss: createChannel("quickComposerWindowDismiss"),
   quickComposerPickFiles: createChannel("quickComposerWindowPickFiles"),
   quickComposerMainReady: createChannel("quickComposerMainReady"),
+  taskbarAttentionDismiss: createChannel("taskbarAttentionDismiss"),
   rendererReload: createChannel("rendererReload"),
 } as const;

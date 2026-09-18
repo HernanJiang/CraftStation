@@ -96,7 +96,10 @@ function statusForEvent(event: RuntimeEvent): {
       ? { status: "needs_approval", attention: "needs_approval" }
       : { status: "needs_reply", attention: "needs_reply" };
   }
-  if (event.type === "error") return { status: "error", attention: "none" };
+  // Standalone "error" events never flip thread status on their own: every
+  // genuine failure path emits `turn.completed state:"failed"` right after the
+  // error event, and mid-turn/post-turn noise frames must not toggle the
+  // thread into error (which surfaces as a toast).
   return null;
 }
 
@@ -413,6 +416,17 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       thoughtRunState: this.thoughtRunState,
     });
     for (const runtimeEvent of canonicalEvents) {
+      if (runtimeEvent.type === "error" && !this.currentTurnId) {
+        // Trailing stderr/error frames after the turn finished: keep them
+        // visible as warnings instead of error events that flip the thread
+        // into error status and pop a toast for an already-completed turn.
+        this.emitRuntime({
+          type: "warning",
+          threadId: this.input.threadId,
+          message: runtimeEvent.message,
+        });
+        continue;
+      }
       if (runtimeEvent.type === "item.started" && runtimeEvent.itemType === "reasoning") {
         this.openReasoningItemIds.add(runtimeEvent.itemId);
       }
@@ -475,8 +489,26 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
   private handleDiagnostic(diagnostic: NativeHarnessDiagnostic): void {
     if (diagnostic.code === "NATIVE_STDERR") return;
     if (this.ignoringProcessExit && diagnostic.code === "NATIVE_PROCESS_CRASHED") return;
-    if (this.currentTurnId) this.finishTurn(new Error(diagnostic.message));
-    else if (this.listener) this.listener.onError(diagnostic.message);
+    if (this.currentTurnId) {
+      this.finishTurn(new Error(diagnostic.message));
+      return;
+    }
+    if (diagnostic.code === "NATIVE_PROCESS_CRASHED") {
+      // Turn-less process death is a lifecycle event, not a turn failure.
+      // `agy` exits 1 right after emitting a failed `result` (probe-verified),
+      // so routing this to listener.onError manufactures a SECOND thread
+      // failure ("Native process exited with code 1") that buries the real
+      // result-payload error with a toast. handleProcessExit already tears
+      // the transport down and reports onClose; the next send respawns
+      // transparently. Keep the crash visible as a warning instead.
+      this.emitRuntime({
+        type: "warning",
+        threadId: this.input.threadId,
+        message: diagnostic.message,
+      });
+      return;
+    }
+    if (this.listener) this.listener.onError(diagnostic.message);
     else this.pendingError = diagnostic.message;
   }
 

@@ -21,6 +21,7 @@ import type {
 } from "../contracts";
 import type { BrowserState, BrowserTabInfo } from "./procedures/browser";
 import type { BrowserLinkPresentationMode, CrossagentRoutingOverride } from "../settings";
+import type { ZoomDirection } from "../zoom";
 import type { IpcProcedurePayload, SupervisorProcedureName } from "./procedureMap";
 import type { MessageKey } from "../messages";
 import type { SessionSwitchState } from "../sessionHandoff";
@@ -202,6 +203,11 @@ export type BrowserEvent =
   | { type: "usage-login-device-code"; deviceCode: UsageLoginDeviceCode }
   | { type: "usage-login-device-code-cleared"; providerId: string }
   | { type: "picker-cancelled" }
+  // Ctrl/Cmd +/-/0 pressed while a browser tab's guest has keyboard focus. The
+  // guest swallows key events, so the renderer's keybinding service never sees
+  // them; the main process forwards the chord to the embedder window so
+  // whole-app zoom keeps working from inside the browser (VS Code parity).
+  | { type: "app-zoom-shortcut"; direction: ZoomDirection }
   // Headless agent activity: while active the renderer keeps the browser's
   // <webview>s mounted off-screen (so tabs can be driven with the panel closed);
   // when it goes idle the renderer unmounts them to free resources.

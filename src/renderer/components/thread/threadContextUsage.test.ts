@@ -283,6 +283,77 @@ describe("threadContextUsage", () => {
     expect(summary.cacheHitRate).toBe(0);
   });
 
+  it("yields Grok's auto-compact threshold report to the advertised 500K window", () => {
+    const grokAgent: AgentStatus = {
+      ...baseAgent,
+      kind: "grok",
+      capabilities: {
+        ...baseAgent.capabilities,
+        models: [{ id: "grok-4.6", label: "Grok 4.6" }],
+        contextSizes: [{ id: "500K", label: "500K" }],
+        modelContextSizes: { "grok-4.6": ["500K"] },
+        defaultContextSize: "500K",
+      },
+    };
+    const grokThread: Thread = {
+      ...baseThread,
+      agentKind: "grok",
+      config: { model: "grok-4.6", contextSize: "272k" },
+    };
+    // Live report shape observed from grok 1.0.34: `_meta.context_window` is the
+    // auto-compact threshold (258400) and occupancy legitimately exceeds it.
+    const hot = resolveThreadContextUsageSummary({
+      thread: grokThread,
+      agentStatus: grokAgent,
+      reportedUsage: { usedTokens: 292_203, maxTokens: 258_400 },
+    });
+    expect(hot.maxTokens).toBe(500_000);
+    expect(hot.percent).toBe(58);
+
+    // After compaction the threshold report must not drag the capacity back
+    // down — the dock would otherwise oscillate between 258K and 500K.
+    const compacted = resolveThreadContextUsageSummary({
+      thread: grokThread,
+      agentStatus: grokAgent,
+      reportedUsage: { usedTokens: 6_232, maxTokens: 258_400 },
+    });
+    expect(compacted.maxTokens).toBe(500_000);
+  });
+
+  it("keeps Codex's near-miss compact limit authoritative", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "codex",
+        config: { model: "gpt-5.6", contextSize: "272k" },
+      },
+      agentStatus: {
+        ...baseAgent,
+        kind: "codex",
+        capabilities: {
+          ...baseAgent.capabilities,
+          models: [{ id: "gpt-5.6", label: "GPT-5.6" }],
+          contextSizes: [{ id: "272k", label: "272k" }],
+          modelContextSizes: { "gpt-5.6": ["272k"] },
+          defaultContextSize: "272k",
+        },
+      },
+      reportedUsage: { usedTokens: 250_000, maxTokens: 258_400 },
+    });
+    expect(summary.maxTokens).toBe(258_400);
+  });
+
+  it("yields an exceeded reported window to the advertised window for any provider", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: { ...baseThread, config: { model: "claude-opus-4-7", contextSize: "1m" } },
+      agentStatus: baseAgent,
+      reportedUsage: { usedTokens: 250_000, maxTokens: 200_000 },
+    });
+    // 250K occupied in a reported 200K "window" is impossible for a true
+    // capacity — the report must be a threshold, so the advertised 1M wins.
+    expect(summary.maxTokens).toBe(1_000_000);
+  });
+
   it("parses a raw token-count context size", () => {
     const summary = resolveThreadContextUsageSummary({
       thread: { ...baseThread, config: { model: "grok-4.6", contextSize: "256000" } },
@@ -338,9 +409,7 @@ describe("threadContextUsage", () => {
         { id: "cache-read", label: "Cache read", tokens: 50 },
       ]),
     ).toBe(50);
-    expect(
-      resolveSessionCacheHitRate([{ id: "input", label: "Input", tokens: 80 }]),
-    ).toBe(0);
+    expect(resolveSessionCacheHitRate([{ id: "input", label: "Input", tokens: 80 }])).toBe(0);
   });
 
   it("does not invent occupancy rows from a bare used-token total", () => {

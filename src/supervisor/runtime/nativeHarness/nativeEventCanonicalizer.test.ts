@@ -3,7 +3,10 @@ import {
   canonicalizeNativeEvent,
   createNativeCanonicalizerTurnState,
 } from "./nativeEventCanonicalizer";
-import { ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR } from "./descriptors";
+import {
+  ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
+  DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+} from "./descriptors";
 
 function agyEvent(type: string, payload: Record<string, unknown>, sequence = 1) {
   return canonicalizeNativeEvent({
@@ -232,5 +235,47 @@ describe("canonicalizeNativeEvent step-less thinking run splitting", () => {
       ]),
     );
     expect(state.thoughtRuns).toBe(1);
+  });
+});
+
+describe("canonicalizeNativeEvent DeepSeek turn/end reason kinds", () => {
+  function dshTurnEnd(reason: Record<string, unknown>) {
+    return canonicalizeNativeEvent({
+      descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
+      threadId: "t1",
+      turnId: "turn-1",
+      correlationId: "c1",
+      event: {
+        type: "session.event",
+        payload: { params: { sessionId: "s1", event: { type: "turn/end", data: { reason } } } },
+        sequence: 1,
+      },
+    });
+  }
+
+  it("maps a snake_case max_tokens reason to a failed turn", () => {
+    const events = dshTurnEnd({ kind: "max_tokens" });
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "error" }),
+        expect.objectContaining({ type: "turn.completed", state: "failed" }),
+      ]),
+    );
+  });
+
+  it("keeps a hyphenated max-tokens reason failed", () => {
+    const events = dshTurnEnd({ kind: "max-tokens" });
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "failed" }),
+      ]),
+    );
+  });
+
+  it("keeps an unknown reason kind completed", () => {
+    const events = dshTurnEnd({ kind: "finished" });
+    expect(events).toEqual([
+      expect.objectContaining({ type: "turn.completed", state: "completed" }),
+    ]);
   });
 });

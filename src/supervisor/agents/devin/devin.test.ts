@@ -35,7 +35,6 @@ describe("Devin detection", () => {
       kind: "devin",
       label: "Devin",
       binary: "devin",
-      loginCommand: "devin auth login",
       versionArgs: ["--version"],
       update: {
         builtIn: { binary: "devin", args: ["update"] },
@@ -43,6 +42,29 @@ describe("Devin detection", () => {
         latestVersionUrls: ["https://static.devin.ai/cli/current/manifest.json"],
       },
     });
+    // The login command runs the detected absolute binary path so the login
+    // terminal never depends on the shell PATH (bare `devin` escapes installs
+    // outside registry/user PATH).
+    expect(typeof devinDetectionSpec.loginCommand).toBe("function");
+    if (typeof devinDetectionSpec.loginCommand !== "function") return;
+    expect(
+      devinDetectionSpec.loginCommand({
+        location: { kind: "windows", path: "C:\\repo" },
+        executablePath: "C:\\Tools\\devin.exe",
+      }),
+    ).toBe("& 'C:\\Tools\\devin.exe' auth login");
+    expect(
+      devinDetectionSpec.loginCommand({
+        location: { kind: "posix", path: "/repo" },
+        executablePath: "/usr/local/bin/devin",
+      }),
+    ).toBe("'/usr/local/bin/devin' auth login");
+    expect(
+      devinDetectionSpec.loginCommand({
+        location: { kind: "windows", path: "C:\\repo" },
+        executablePath: undefined,
+      }),
+    ).toBeUndefined();
     expect(devinDetectionSpec.update?.installer?.posix.args.join(" ")).toContain(
       "https://cli.devin.ai/install.sh",
     );

@@ -26,14 +26,14 @@ const EXPECTED_BUILT_IN_ORDER = [
 
 const EXPECTED_SUBAGENT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[number], string> =
   {
-    claude: "bypassPermissions",
+    claude: "auto",
     copilot: "never",
     codex: "never",
     gemini: "never",
     qwen: "never",
     qoder: "bypassPermissions",
     grok: "bypassPermissions",
-    kimi: "yolo",
+    kimi: "auto",
     deepseek: "yolo",
     muse: "yolo",
     antigravity: "yolo",

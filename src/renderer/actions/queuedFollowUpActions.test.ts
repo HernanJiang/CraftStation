@@ -73,6 +73,17 @@ describe("queued follow-up actions", () => {
     expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toBeUndefined();
   });
 
+  it("restores the queued follow-up when the steer send fails", async () => {
+    enqueueThreadFollowUp("thread-q", "go now", [{ kind: "text", content: "go now" }]);
+    vi.mocked(setThreadPendingSteer).mockRejectedValueOnce(
+      new Error('Supervisor request "setPendingSteer" timed out'),
+    );
+    await expect(sendQueuedFollowUpNow(thread())).rejects.toThrow("timed out");
+    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toMatchObject({
+      prompt: "go now",
+    });
+  });
+
   it("Send now on an idle thread submits as a normal follow-up", async () => {
     enqueueThreadFollowUp("thread-q", "after stop", undefined);
     await sendQueuedFollowUpNow(thread({ status: "idle" }));

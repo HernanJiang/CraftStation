@@ -2213,6 +2213,10 @@ msgstr "Check all installed agent CLIs"
 msgid "Check for CLI updates"
 msgstr "Check for CLI updates"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Check for CraftStation updates"
+msgstr "Check for CraftStation updates"
+
 #: src/renderer/views/SettingsOverlay/parts/RemoteHostUpdateControl.tsx
 msgid "Check for update"
 msgstr "Check for update"
@@ -2500,6 +2504,10 @@ msgstr "CLI updates"
 msgid "Click a shortcut to record a new key, or ＋ to add another."
 msgstr "Click a shortcut to record a new key, or ＋ to add another."
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Click to check for a new CraftStation version"
+msgstr "Click to check for a new CraftStation version"
+
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Clipboard rejected the image (unsupported format)"
 msgstr "Clipboard rejected the image (unsupported format)"
@@ -2652,6 +2660,7 @@ msgid "Close pairing"
 msgstr "Close pairing"
 
 #: src/renderer/components/thread/ThreadDraftChrome.tsx
+#: src/renderer/components/thread/ThreadView.tsx
 msgid "Close pane"
 msgstr "Close pane"
 
@@ -2759,6 +2768,11 @@ msgstr "Codex"
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
 msgstr "Collapse"
+
+#. placeholder {0}: project.name
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
+msgid "Collapse {0}"
+msgstr "Collapse {0}"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Collapse {label}"
@@ -3545,6 +3559,10 @@ msgstr "CraftStation Helper is not ready yet (HTTP {status})."
 msgid "CraftStation Helper returned an invalid response."
 msgstr "CraftStation Helper returned an invalid response."
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "CraftStation is up to date"
+msgstr "CraftStation is up to date"
+
 #: src/renderer/components/common/CraftStationMascot.tsx
 msgid "CraftStation mascot"
 msgstr "CraftStation mascot"
@@ -3568,8 +3586,8 @@ msgid "CraftStation SSH runtime manifest is missing or invalid: {path}"
 msgstr "CraftStation SSH runtime manifest is missing or invalid: {path}"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
-msgid "CraftStation version"
-msgstr "CraftStation version"
+#~ msgid "CraftStation version"
+#~ msgstr "CraftStation version"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
@@ -4423,6 +4441,10 @@ msgstr "Download and install {0} now"
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
 msgstr "Download image"
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Download in browser instead"
+msgstr "Download in browser instead"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Download package"

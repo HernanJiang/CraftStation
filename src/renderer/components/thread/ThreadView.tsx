@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Tooltip } from "@heroui/react";
-import { Bug } from "lucide-react";
+import { Bug, X } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import type {
   AgentStatus,
@@ -172,6 +172,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     pendingLaunchPrompt,
     pendingLaunchSegments,
     pendingLaunchUserMessageItemId,
+    showCloseButton = false,
     paneAlign = "center",
     isDragging,
     hidden = false,
@@ -182,6 +183,7 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
     headerNeedsTrafficLightPad = false,
     dragHandleRef,
     droppableRef,
+    onClose,
     installedAgents,
     onContinueInProvider,
     onLaunchConsumed,
@@ -421,6 +423,20 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                     : t`Inspect canonical runtime items`}
                 </Tooltip.Content>
               </Tooltip>
+            ) : null}
+            {showCloseButton && onClose ? (
+              <button
+                type="button"
+                aria-label={t`Close pane`}
+                title={t`Close pane`}
+                className="craftstation-overlay-header__controls shrink-0 rounded p-1 text-muted/60 transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+              >
+                <X className="size-3.5" />
+              </button>
             ) : null}
           </div>
         </div>

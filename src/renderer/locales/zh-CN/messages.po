@@ -2207,15 +2207,19 @@ msgstr "再次检查"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check all CLIs"
-msgstr ""
+msgstr "检查所有 CLI"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check all installed agent CLIs"
-msgstr ""
+msgstr "检查所有已安装的 Agent CLI"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check for CLI updates"
-msgstr ""
+msgstr "检查 CLI 更新"
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Check for CraftStation updates"
+msgstr "检查 CraftStation 更新"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteHostUpdateControl.tsx
 msgid "Check for update"
@@ -2504,6 +2508,10 @@ msgstr ""
 msgid "Click a shortcut to record a new key, or ＋ to add another."
 msgstr "点击快捷键以录制新的按键，或点击 ＋ 添加另一个。"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Click to check for a new CraftStation version"
+msgstr "点击检查 CraftStation 新版本"
+
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Clipboard rejected the image (unsupported format)"
 msgstr ""
@@ -2656,6 +2664,7 @@ msgid "Close pairing"
 msgstr "关闭配对"
 
 #: src/renderer/components/thread/ThreadDraftChrome.tsx
+#: src/renderer/components/thread/ThreadView.tsx
 msgid "Close pane"
 msgstr "关闭窗格"
 
@@ -2763,6 +2772,11 @@ msgstr "Codex"
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
 msgstr "折叠"
+
+#. placeholder {0}: project.name
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
+msgid "Collapse {0}"
+msgstr "折叠 {0}"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Collapse {label}"
@@ -3549,6 +3563,10 @@ msgstr "CraftStation Helper 尚未就绪（HTTP {status}）。"
 msgid "CraftStation Helper returned an invalid response."
 msgstr "CraftStation Helper 返回了无效响应。"
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "CraftStation is up to date"
+msgstr "CraftStation 已是最新版本"
+
 #: src/renderer/components/common/CraftStationMascot.tsx
 msgid "CraftStation mascot"
 msgstr "CraftStation 吉祥物"
@@ -3572,8 +3590,8 @@ msgid "CraftStation SSH runtime manifest is missing or invalid: {path}"
 msgstr "CraftStation SSH 运行时清单缺失或无效：{path}"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
-msgid "CraftStation version"
-msgstr ""
+#~ msgid "CraftStation version"
+#~ msgstr ""
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
@@ -4427,6 +4445,10 @@ msgstr "立即下载并安装 {0}"
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
 msgstr "下载图片"
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Download in browser instead"
+msgstr "改为在浏览器中下载"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Download package"

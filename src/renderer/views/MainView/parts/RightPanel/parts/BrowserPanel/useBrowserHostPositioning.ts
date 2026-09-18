@@ -1,5 +1,7 @@
 import { useLayoutEffect, type RefObject } from "react";
 import { useBrowserDockStore } from "@/renderer/state/browserDockStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { normalizeZoomFactor } from "@/shared/zoom";
 
 // Box the browser lives in while the panel/overlay are closed but tabs are alive.
 // It stays in-window at opacity 0 so the webview keeps a painting guest surface
@@ -83,14 +85,24 @@ export function useBrowserHostPositioning(input: {
         wrapper.style.zIndex = overlay ? "55" : "";
       }
       const rect = slot.getBoundingClientRect();
-      const key = `${rect.top}|${rect.left}|${rect.width}|${rect.height}`;
+      // getBoundingClientRect() returns viewport-space (visual) pixels, which
+      // already include the whole-app CSS `zoom` on <html>. The wrapper is a
+      // document.body child, so its inline style lives in layout (pre-zoom)
+      // pixels: assigning visual pixels would scale the box a second time and
+      // drift it by (zoom-1)×distance. Normalize back to layout pixels.
+      const zoom = normalizeZoomFactor(useSharedSettings.getState().zoomFactor);
+      const top = rect.top / zoom;
+      const left = rect.left / zoom;
+      const width = rect.width / zoom;
+      const height = rect.height / zoom;
+      const key = `${top}|${left}|${width}|${height}`;
       if (key === last) return;
       last = key;
       Object.assign(wrapper.style, {
-        top: `${rect.top}px`,
-        left: `${rect.left}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+        height: `${height}px`,
         right: "auto",
         bottom: "auto",
         maxWidth: "",
@@ -151,10 +163,17 @@ export function useBrowserHostPositioning(input: {
     const unsubscribe = useBrowserDockStore.subscribe((state, previousState) => {
       if (state.slotEl !== previousState.slotEl) observeSlot(state.slotEl);
     });
+    // A zoom change re-lays the slot out, which normally reaches us through the
+    // ResizeObserver; subscribe anyway so alignment never waits on a frame where
+    // only the factor (not the slot box) changed.
+    const unsubscribeZoom = useSharedSettings.subscribe((state, previousState) => {
+      if (state.zoomFactor !== previousState.zoomFactor) scheduleMeasure();
+    });
     window.addEventListener("resize", scheduleMeasure);
     observeSlot(useBrowserDockStore.getState().slotEl);
     return () => {
       unsubscribe();
+      unsubscribeZoom();
       window.removeEventListener("resize", scheduleMeasure);
       resizeObserver.disconnect();
       observedAside?.removeEventListener("transitionrun", onTransitionRun);

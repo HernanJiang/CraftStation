@@ -19,6 +19,7 @@ import {
   type DetectionSpec,
 } from "../base";
 import { devinProxySpawnEnv, ensureDevinUserProxyConfig } from "./proxy";
+import { quotePosixShellArg, quotePowerShellLiteral } from "../base/shellBasics";
 import {
   hasDevinCredentialContent,
   nativeDevinCredentialPaths,
@@ -366,7 +367,15 @@ export const devinDetectionSpec: DetectionSpec = {
   kind: "devin",
   label: "Devin",
   binary: "devin",
-  loginCommand: "devin auth login",
+  // Run the login through the detected absolute path: the login terminal
+  // resolves bare names through the shell PATH, which misses installs that
+  // live outside registry/user PATH (`devin` not recognized).
+  loginCommand: ({ location, executablePath }) => {
+    if (!executablePath) return undefined;
+    return location.kind === "windows"
+      ? `& ${quotePowerShellLiteral(executablePath)} auth login`
+      : `${quotePosixShellArg(executablePath)} auth login`;
+  },
   capabilities: defaultDevinCapabilities,
   versionArgs: ["--version"],
   authProbes: [

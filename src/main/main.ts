@@ -36,6 +36,10 @@ import { registerIpcHandlers } from "./ipc/registerHandlers";
 import { createSleepInhibitor } from "./sleepInhibitor";
 import { shouldPreventSystemSleep } from "./sleepPolicy";
 import {
+  createTaskbarAttentionController,
+  type TaskbarAttentionController,
+} from "./taskbarAttention";
+import {
   installLocalFileProtocolHandler,
   registerLocalFileProtocolScheme,
 } from "./attachments/localFiles";
@@ -57,13 +61,13 @@ import {
 import { SupervisorClient } from "./supervisor/SupervisorClient";
 import { createAutoUpdaterController } from "./updates/autoUpdater";
 import { createMainWindow } from "./window/createMainWindow";
-import { installWindowsAcrylicHideShowGuard, restoreWindowsWindowAfterShow } from "./window/windowMaterial";
+import {
+  installWindowsAcrylicHideShowGuard,
+  restoreWindowsWindowAfterShow,
+} from "./window/windowMaterial";
 import { requestTrackedRendererReload } from "./window/windowHardening";
 import { probeRendererContentHealth } from "./window/rendererHealth";
-import {
-  recoverRendererContent,
-  scheduleRendererContentCheck,
-} from "./window/rendererRecovery";
+import { recoverRendererContent, scheduleRendererContentCheck } from "./window/rendererRecovery";
 import { installMainFileLogger } from "./diagnostics/mainFileLogger";
 import {
   createQuickComposerWindow,
@@ -181,6 +185,9 @@ if (baseDirOverride) {
 
 const hasSingleInstanceLock = isDev || app.requestSingleInstanceLock();
 let craftstationPaths: CraftStationPaths | null = null;
+// Declared before the init block below assigns it; the controller reads both
+// the window and settings lazily, so it can be created before either exists.
+let taskbarAttention: TaskbarAttentionController | null = null;
 if (hasSingleInstanceLock) {
   craftstationPaths = prepareCraftStationDataRoot(
     baseDirOverride ??
@@ -189,6 +196,10 @@ if (hasSingleInstanceLock) {
   // Packaged builds have no console; mirror warnings/errors to disk so launch
   // failures leave evidence. Must run before anything that can fail loudly.
   if (craftstationPaths) installMainFileLogger(craftstationPaths.logsDir);
+  taskbarAttention = createTaskbarAttentionController({
+    getWindow: () => mainWindow,
+    isCategoryEnabled: isTaskbarAttentionCategoryEnabled,
+  });
 }
 
 const sentryEnabled = initializeMainSentry({ appVersion: app.getVersion(), isDev, channel });
@@ -263,6 +274,16 @@ function isCloseToTrayEnabled(): boolean {
   if (!craftstationPaths) return false;
   try {
     return readSharedSettingsFile(craftstationPaths.settingsPath).closeToTray;
+  } catch {
+    return false;
+  }
+}
+
+function isTaskbarAttentionCategoryEnabled(category: "done" | "needsAttention" | "error"): boolean {
+  if (!craftstationPaths) return false;
+  try {
+    const settings = readSharedSettingsFile(craftstationPaths.settingsPath);
+    return settings.notificationsEnabled && settings.notificationStatuses[category];
   } catch {
     return false;
   }
@@ -620,6 +641,7 @@ function createMainAppWindow(showOnReady = true): BrowserWindow {
     if (mainWindow === window) mainRendererReady = false;
   });
   installWindowsAcrylicHideShowGuard(window, resolveWindowChromeOptions);
+  window.on("focus", () => taskbarAttention?.notifyWindowFocus());
   scheduleRendererContentCheck({
     window,
     delayMs: 20_000,
@@ -936,6 +958,7 @@ if (!hasSingleInstanceLock) {
           }
           persistSupervisorEvent(event);
           handleSupervisorEventForSleep(event);
+          taskbarAttention?.observeSupervisorEvent(event);
           appControlsMcpIngress?.observeSupervisorEvent(event);
           scheduleRunCoordinator?.observeSupervisorEvent(event);
           prWatchService?.observeSupervisorEvent(event);
@@ -1400,6 +1423,12 @@ if (!hasSingleInstanceLock) {
         flushTrayThreadOpen();
         flushInAppNotifications();
       });
+      ipcMain.handle(IPC_WINDOW_CHANNELS.taskbarAttentionDismiss, (event, threadId: unknown) => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!window || window !== mainWindow || window.isDestroyed()) return;
+        if (typeof threadId !== "string" || threadId.length === 0) return;
+        taskbarAttention?.dismissThread(threadId);
+      });
       ipcMain.handle(IPC_WINDOW_CHANNELS.rendererReload, (event) => {
         const window = BrowserWindow.fromWebContents(event.sender);
         if (window) requestTrackedRendererReload(window);
@@ -1514,6 +1543,8 @@ if (!hasSingleInstanceLock) {
         computerUseMcpIngress = null;
         appControlsMcpIngress?.dispose();
         appControlsMcpIngress = null;
+        taskbarAttention?.dispose();
+        taskbarAttention = null;
         scheduleMcpIngress?.dispose();
         scheduleMcpIngress = null;
         crossagentsMcpIngress?.dispose();

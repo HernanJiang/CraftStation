@@ -26,12 +26,19 @@ export function clearQueuedFollowUp(threadId: string): void {
 export async function sendQueuedFollowUpNow(thread: Thread): Promise<void> {
   const queued = takeQueuedFollowUp(thread.id);
   if (!queued) return;
-  if (thread.status === "working") {
-    await setThreadPendingSteer(thread, queued.prompt, queued.segments);
-    captureThreadPromptSubmitted(thread, queued.prompt, queued.segments, "pending_steer");
-    return;
+  try {
+    if (thread.status === "working") {
+      await setThreadPendingSteer(thread, queued.prompt, queued.segments);
+      captureThreadPromptSubmitted(thread, queued.prompt, queued.segments, "pending_steer");
+      return;
+    }
+    await submitQueuedPrompt(thread, queued);
+  } catch (error) {
+    // The prompt was already taken out of the queue; put it back so a failed
+    // send (e.g. a supervisor timeout) never silently drops the user's text.
+    useAppStore.getState().setQueuedFollowUp(thread.id, queued);
+    throw error;
   }
-  await submitQueuedPrompt(thread, queued);
 }
 
 export async function flushQueuedFollowUp(threadId: string): Promise<void> {

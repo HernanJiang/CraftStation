@@ -1,4 +1,6 @@
 import { webContents as webContentsModule, type WebContents } from "electron";
+import { IPC_EVENT_CHANNELS, type BrowserEvent } from "@/shared/ipc";
+import type { ZoomDirection } from "@/shared/zoom";
 import { CdpClient } from "./cdp/cdpClient";
 import { DialogController } from "./cdp/dialogController";
 import { NetworkCapture } from "./cdp/networkCapture";
@@ -204,6 +206,21 @@ export class BrowserTab {
       if (isBrowserForwardKeyDown(input)) {
         event.preventDefault();
         this.goForward();
+        return;
+      }
+      // Whole-app zoom (Ctrl/Cmd +/-/0): a focused <webview> guest swallows
+      // key events, so the renderer's keybinding service never sees the chord.
+      // Forward it to the embedder window, whose useBrowserSync applies the
+      // shared zoomFactor — otherwise zoom is impossible to change (or undo)
+      // while browsing.
+      const zoomDirection = resolveAppZoomKeyDown(input);
+      if (zoomDirection) {
+        event.preventDefault();
+        const host = wc.hostWebContents;
+        if (host && !host.isDestroyed()) {
+          const message: BrowserEvent = { type: "app-zoom-shortcut", direction: zoomDirection };
+          host.send(IPC_EVENT_CHANNELS.browserEvent, message);
+        }
         return;
       }
     };
@@ -509,4 +526,16 @@ function isBrowserBackKeyDown(input: Electron.Input): boolean {
 function isBrowserForwardKeyDown(input: Electron.Input): boolean {
   if (input.type !== "keyDown") return false;
   return (input.control || input.meta) && !input.shift && !input.alt && input.key === "]";
+}
+
+// Mirrors the renderer keybindings `view.zoom-in/out/reset` (Ctrl+= / Ctrl+- /
+// Ctrl+0, ⌘ on macOS, numpad included). Shift is allowed so the physically
+// shifted symbols ("+", "_") that share keys with "=" / "-" still match.
+function resolveAppZoomKeyDown(input: Electron.Input): ZoomDirection | null {
+  if (input.type !== "keyDown" || !(input.control || input.meta) || input.alt) return null;
+  const key = input.key.toLowerCase();
+  if (key === "=" || key === "+" || input.code === "NumpadAdd") return "in";
+  if (key === "-" || key === "_" || input.code === "NumpadSubtract") return "out";
+  if (key === "0" || input.code === "Numpad0") return "reset";
+  return null;
 }

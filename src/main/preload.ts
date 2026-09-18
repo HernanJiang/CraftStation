@@ -240,6 +240,9 @@ const bridge: CraftStationBridge = {
   notifyQuickComposerMainReady() {
     return ipcRenderer.invoke(IPC_WINDOW_CHANNELS.quickComposerMainReady);
   },
+  dismissTaskbarAttention(threadId: string) {
+    return ipcRenderer.invoke(IPC_WINDOW_CHANNELS.taskbarAttentionDismiss, threadId);
+  },
   reloadRenderer() {
     return ipcRenderer.invoke(IPC_WINDOW_CHANNELS.rendererReload);
   },

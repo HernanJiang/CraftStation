@@ -539,6 +539,27 @@ flowchart TD
     expect(rawParagraph).toBeUndefined();
   });
 
+  it("renders a table whose header row is entirely empty", () => {
+    // Observed from Grok: an all-empty header (`| | |`) with a single-segment
+    // separator under it. The empty header carries no text character, so the
+    // separator was never repaired and remark-gfm rejected the block.
+    const emptyHeader = ["| | |", "|---|", "| 唯一变量 | 只训 MLP |", "| 起点 | 76.03 |", ""].join(
+      "\n",
+    );
+
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={emptyHeader} />
+      </AppProvider>,
+    );
+
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+    const rows = table!.querySelectorAll("tbody tr");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.querySelectorAll("td")).toHaveLength(2);
+  });
+
   it("renders a markdown table with thead, tbody, th and td elements", () => {
     const mdTable = [
       "| Name | Role |",

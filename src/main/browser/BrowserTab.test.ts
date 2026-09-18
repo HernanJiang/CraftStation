@@ -204,4 +204,70 @@ describe("BrowserTab", () => {
     expect(event.preventDefault).not.toHaveBeenCalled();
     expect(webContents.navigationHistory.goBack).not.toHaveBeenCalled();
   });
+
+  it("forwards whole-app zoom chords to the embedder window", async () => {
+    const { BrowserTab } = await import("./BrowserTab");
+    const { IPC_EVENT_CHANNELS } = await import("@/shared/ipc");
+    const tab = new BrowserTab({
+      tabId: "tab-1",
+      userAgent: "ua",
+      onUpdate: vi.fn<() => void>(),
+      onAttention: vi.fn<() => void>(),
+      onPopup: vi.fn<() => void>(),
+    });
+    const webContents = createWebContents();
+    const host = {
+      send: vi.fn<(channel: string, payload: unknown) => void>(),
+      isDestroyed: vi.fn<() => boolean>(() => false),
+    };
+    (webContents as { hostWebContents?: unknown }).hostWebContents = host;
+    tab.attach(webContents as never);
+
+    const handler = captureBeforeInput(webContents);
+    const zoomIn = { preventDefault: vi.fn<() => void>() };
+    handler(zoomIn, { type: "keyDown", control: true, key: "=" });
+    expect(zoomIn.preventDefault).toHaveBeenCalled();
+    expect(host.send).toHaveBeenCalledWith(IPC_EVENT_CHANNELS.browserEvent, {
+      type: "app-zoom-shortcut",
+      direction: "in",
+    });
+
+    const zoomOut = { preventDefault: vi.fn<() => void>() };
+    handler(zoomOut, { type: "keyDown", meta: true, key: "_" });
+    expect(host.send).toHaveBeenCalledWith(IPC_EVENT_CHANNELS.browserEvent, {
+      type: "app-zoom-shortcut",
+      direction: "out",
+    });
+
+    const reset = { preventDefault: vi.fn<() => void>() };
+    handler(reset, { type: "keyDown", control: true, code: "Numpad0", key: "0" });
+    expect(host.send).toHaveBeenCalledWith(IPC_EVENT_CHANNELS.browserEvent, {
+      type: "app-zoom-shortcut",
+      direction: "reset",
+    });
+  });
+
+  it("ignores bare zoom keys without a modifier", async () => {
+    const { BrowserTab } = await import("./BrowserTab");
+    const tab = new BrowserTab({
+      tabId: "tab-1",
+      userAgent: "ua",
+      onUpdate: vi.fn<() => void>(),
+      onAttention: vi.fn<() => void>(),
+      onPopup: vi.fn<() => void>(),
+    });
+    const webContents = createWebContents();
+    const host = {
+      send: vi.fn<(channel: string, payload: unknown) => void>(),
+      isDestroyed: vi.fn<() => boolean>(() => false),
+    };
+    (webContents as { hostWebContents?: unknown }).hostWebContents = host;
+    tab.attach(webContents as never);
+
+    const handler = captureBeforeInput(webContents);
+    const event = { preventDefault: vi.fn<() => void>() };
+    handler(event, { type: "keyDown", key: "=" });
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(host.send).not.toHaveBeenCalled();
+  });
 });

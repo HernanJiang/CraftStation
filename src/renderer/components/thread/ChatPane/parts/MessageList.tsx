@@ -65,6 +65,7 @@ import {
   writeTimelineMeasurements,
 } from "./timelineMeasurementCache";
 import { syncFollowingVirtualRowPositions } from "./virtualRowLayout";
+import { normalizeContainerRectForAppZoom } from "./zoomNormalizedContainerRect";
 
 export interface CheckpointRevertActions {
   rollbackThreadConversation(input: {
@@ -588,6 +589,9 @@ const VirtualChatListRow = memo(function VirtualChatListRow({
   isLastEntryRef.current = isLastEntry;
   const ref = useCallback((element: HTMLDivElement | null) => {
     rowElementRef.current = element;
+    // LegendList measures our parent container with getBoundingClientRect();
+    // keep that reading in layout pixels under the whole-app CSS zoom.
+    if (element) normalizeContainerRectForAppZoom(element.parentElement);
   }, []);
   const remeasureRow = useCallback(() => {
     const element = rowElementRef.current;

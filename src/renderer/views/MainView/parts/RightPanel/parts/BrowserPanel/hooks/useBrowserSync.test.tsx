@@ -114,4 +114,25 @@ describe("useBrowserSync", () => {
       browserOverlayOpen: false,
     });
   });
+
+  it("applies app zoom shortcuts forwarded from a focused browser guest", async () => {
+    const { useSharedSettings } = await import("@/renderer/state/sharedSettingsStore");
+    useSharedSettings.setState({ zoomFactor: 1 });
+    renderHook(() => useBrowserSync());
+
+    await waitFor(() => expect(browserListeners).toHaveLength(1));
+    act(() => {
+      browserListeners[0]?.({ type: "app-zoom-shortcut", direction: "in" });
+    });
+    expect(useSharedSettings.getState().zoomFactor).toBeCloseTo(1.1);
+
+    act(() => {
+      browserListeners[0]?.({ type: "app-zoom-shortcut", direction: "out" });
+    });
+    act(() => {
+      browserListeners[0]?.({ type: "app-zoom-shortcut", direction: "reset" });
+    });
+    expect(useSharedSettings.getState().zoomFactor).toBe(1);
+    useSharedSettings.setState({ zoomFactor: 1 });
+  });
 });

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { readBridge } from "@/renderer/bridge";
+import { adjustAppZoom } from "@/renderer/actions/zoomActions";
 import { useBrowserPanelStore } from "@/renderer/state/browserPanelStore";
 import { selectAnyObstructingOverlayOpen, usePanelStore } from "@/renderer/state/panelStore";
 
@@ -68,6 +69,11 @@ export function useBrowserSync(): void {
         }
       } else if (event.type === "automation-active") {
         setAutomationActive(event.active);
+      } else if (event.type === "app-zoom-shortcut") {
+        // Sent only to the window that embeds the focused guest, so exactly one
+        // renderer steps the shared zoomFactor (other windows follow via the
+        // shared-settings sync).
+        adjustAppZoom(event.direction);
       } else if (event.type === "picker-cancelled") {
         setPickerActive(false);
       } else if (event.type === "usage-login-confirmation") {

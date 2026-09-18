@@ -1146,7 +1146,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                     <ThreadQueuedFollowUpStrip
                       queued={composerQueuedFollowUp}
                       onSendNow={() => {
-                        void sendQueuedFollowUpNow(thread);
+                        // Never let a failed steer (e.g. a supervisor IPC
+                        // timeout) escape as an unhandled rejection — that
+                        // tears down the whole renderer with the crash overlay.
+                        void sendQueuedFollowUpNow(thread).catch((error: unknown) => {
+                          console.error("[thread] failed to send queued follow-up", error);
+                          toast.danger(friendlyError(error));
+                        });
                       }}
                       onEdit={handleEditQueuedFollowUp}
                       onDelete={() => clearQueuedFollowUp(thread.id)}

@@ -72,6 +72,17 @@ vi.mock("@/renderer/state/panelStore", () => ({
   },
 }));
 
+const agentStatusesState = vi.hoisted(() => ({
+  agentStatuses: [] as Array<{ kind: string; installed: boolean; executablePath?: string }>,
+  wslAgentStatuses: [] as Array<{ kind: string; installed: boolean; executablePath?: string }>,
+}));
+
+vi.mock("@/renderer/state/agentStatusesStore", () => ({
+  useAgentStatusesStore: {
+    getState: () => agentStatusesState,
+  },
+}));
+
 vi.mock("@/renderer/state/sharedSettingsStore", () => ({
   useSharedSettings: {
     getState: () => ({ terminalPosition: "bottom" }),
@@ -176,11 +187,64 @@ describe("runAgentLoginCommand", () => {
     loginTerminalStore.close.mockReset();
     loginTerminalStore.markFailed.mockReset();
     loginTerminalStore.active = undefined;
+    agentStatusesState.agentStatuses = [];
+    agentStatusesState.wslAgentStatuses = [];
     useUsageAccountsStore.getState().reset();
     writeScriptToShellMock.mockReset();
     startShellWithCurrentSettingsMock
       .mockReset()
       .mockImplementation((payload) => bridge.startShell(payload));
+  });
+
+  it("rewrites the bare login binary to the detected absolute path on Windows", () => {
+    agentStatusesState.agentStatuses = [
+      { kind: "devin", installed: true, executablePath: "C:\\Tools\\devin.exe" },
+    ];
+
+    runAgentLoginCommand({
+      label: "Devin",
+      command: "devin auth login",
+      agentKind: "devin",
+      project: windowsProject,
+    });
+
+    const script = writeScriptToShellMock.mock.calls[0]?.[1] ?? "";
+    expect(script).toContain("Clear-Host; & 'C:\\Tools\\devin.exe' auth login");
+  });
+
+  it("keeps the bare login command when no executable path was detected", () => {
+    agentStatusesState.agentStatuses = [{ kind: "devin", installed: true }];
+
+    runAgentLoginCommand({
+      label: "Devin",
+      command: "devin auth login",
+      agentKind: "devin",
+      project: windowsProject,
+    });
+
+    const script = writeScriptToShellMock.mock.calls[0]?.[1] ?? "";
+    expect(script).toContain("Clear-Host; devin auth login");
+  });
+
+  it("resolves the login binary from the WSL status pool for WSL projects", () => {
+    agentStatusesState.agentStatuses = [
+      { kind: "devin", installed: true, executablePath: "C:\\Tools\\devin.exe" },
+    ];
+    agentStatusesState.wslAgentStatuses = [
+      { kind: "devin", installed: true, executablePath: "/home/demo/.local/bin/devin" },
+    ];
+
+    runAgentLoginCommand({
+      label: "Devin",
+      command: "devin auth login",
+      agentKind: "devin",
+      project: wslProject,
+    });
+
+    const innerScript = unwrapBashScript(writeScriptToShellMock.mock.calls[0]?.[1] ?? "");
+    expect(innerScript).toContain(
+      "clear; BROWSER='/bin/true' DISPLAY='' WAYLAND_DISPLAY='' '/home/demo/.local/bin/devin' auth login",
+    );
   });
 
   it("opens hard-wrapped WSL auth URLs in the native browser", () => {

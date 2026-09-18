@@ -2213,6 +2213,10 @@ msgstr ""
 msgid "Check for CLI updates"
 msgstr ""
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Check for CraftStation updates"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/RemoteHostUpdateControl.tsx
 msgid "Check for update"
 msgstr "Перевірити оновлення"
@@ -2500,6 +2504,10 @@ msgstr ""
 msgid "Click a shortcut to record a new key, or ＋ to add another."
 msgstr "Натисніть комбінацію клавіш, щоб записати нову клавішу, або ＋, щоб додати ще одну."
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Click to check for a new CraftStation version"
+msgstr ""
+
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Clipboard rejected the image (unsupported format)"
 msgstr ""
@@ -2652,6 +2660,7 @@ msgid "Close pairing"
 msgstr "Закрити підключення"
 
 #: src/renderer/components/thread/ThreadDraftChrome.tsx
+#: src/renderer/components/thread/ThreadView.tsx
 msgid "Close pane"
 msgstr "Закрити панель"
 
@@ -2759,6 +2768,11 @@ msgstr "Codex"
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
 msgstr "Згорнути"
+
+#. placeholder {0}: project.name
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
+msgid "Collapse {0}"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Collapse {label}"
@@ -3545,6 +3559,10 @@ msgstr "CraftStation Helper ще не готовий (HTTP {status})."
 msgid "CraftStation Helper returned an invalid response."
 msgstr "CraftStation Helper повернув неприпустиму відповідь."
 
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "CraftStation is up to date"
+msgstr ""
+
 #: src/renderer/components/common/CraftStationMascot.tsx
 msgid "CraftStation mascot"
 msgstr ""
@@ -3568,8 +3586,8 @@ msgid "CraftStation SSH runtime manifest is missing or invalid: {path}"
 msgstr "Маніфест середовища виконання CraftStation SSH відсутній або недійсний: {path}"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
-msgid "CraftStation version"
-msgstr ""
+#~ msgid "CraftStation version"
+#~ msgstr ""
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
@@ -4423,6 +4441,10 @@ msgstr ""
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
 msgstr "Завантажити зображення"
+
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
+msgid "Download in browser instead"
+msgstr ""
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Download package"

@@ -5,6 +5,7 @@ import { stripAnsi } from "@/shared/ansi";
 import { readBridge } from "@/renderer/bridge";
 import { i18n } from "@/renderer/i18n/i18n";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { useLoginTerminalStore } from "@/renderer/state/loginTerminalStore";
 import { watchRoutedTerminal } from "@/renderer/state/remoteTerminalFeed";
@@ -52,6 +53,8 @@ function resolveLoginProject(): Project | undefined {
 export function runAgentLoginCommand(input: {
   label: string;
   command: string;
+  /** Agent kind used to resolve the detected absolute binary path. */
+  agentKind?: string;
   env?: Record<string, string>;
   /** Overlay subtitle override (e.g. keepalive sessions like Antigravity). */
   subtitle?: string;
@@ -87,7 +90,9 @@ export function runAgentLoginCommand(input: {
   // TUI takes over. `clear` (POSIX) / `Clear-Host` (PowerShell) gives the
   // overlay a clean canvas so the user only sees the agent's own UI.
   const loginCommand = buildTerminalCommand({
-    command: input.command,
+    command: input.agentKind
+      ? resolveLoginBinaryCommand(input.command, input.agentKind, project.location.kind)
+      : input.command,
     env: suppressWslBrowser
       ? {
           ...(input.env ?? {}),
@@ -851,6 +856,33 @@ function quotePosixShellArg(value: string): string {
 // doubling it.
 function quotePowerShellArg(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
+}
+
+/**
+ * Rewrite a login template's bare binary token to the detected absolute path
+ * when the status inventory has one for this agent in the login shell's env.
+ * The login terminal resolves bare names through the shell PATH, which misses
+ * installs that live outside registry/user PATH — the reported Devin failure
+ * (`devin` is not recognized) even though detection can see the binary. The
+ * PowerShell call operator `&` is required for quoted paths.
+ */
+function resolveLoginBinaryCommand(
+  template: string,
+  agentKind: string,
+  locationKind: ProjectLocation["kind"],
+): string {
+  const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
+  const pool = locationKind === "wsl" ? wslAgentStatuses : agentStatuses;
+  const executablePath = pool.find(
+    (status) => status.kind === agentKind && status.installed,
+  )?.executablePath;
+  if (!executablePath) return template;
+  const args = template.trim().split(/\s+/u).slice(1);
+  const binary =
+    locationKind === "windows"
+      ? `& ${quotePowerShellArg(executablePath)}`
+      : quotePosixShellArg(executablePath);
+  return [binary, ...args].join(" ");
 }
 
 const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;

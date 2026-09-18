@@ -262,9 +262,23 @@ export function isGrokPoolQuotaError(error: unknown): boolean {
  *
  * Deliberately narrow: HTTP 402 (Payment Required) means the membership
  * cannot pay for the turn — fail over. 429 is rate-limiting (recovers on its
- * own — the quota poller already deprioritizes those rows); 401/403 is auth
- * (fail closed, a human must re-login). Never match those.
+ * own — the quota poller already deprioritizes those rows); 401 is auth
+ * (fail closed, a human must re-login). 403 is split: Kimi reports
+ * subscription-window exhaustion as `provider.auth_error: 403 "You've reached
+ * your 5-hour usage limit … quota will reset …"` — an auth STATUS carrying a
+ * quota reason that must fail over — while genuine 403s (forbidden, no plan
+ * access) stay fail-closed.
  */
+
+/**
+ * Wording that distinguishes a 403 quota-window exhaustion from a genuine
+ * auth denial. Observed verbatim from Kimi CLI 0.43.1 against an exhausted
+ * account: `provider.auth_error: 403 You've reached your 5-hour usage limit.
+ * Your quota will reset when the current 5-hour window ends. …`
+ */
+const KIMI_QUOTA_WINDOW_RE =
+  /usage\s+limit|quota\s+will\s+reset|quota\s+(?:exceeded|exhausted)|额度(?:已)?耗尽|额度不足|套餐已用完/i;
+
 export function isKimiPoolQuotaError(error: unknown): boolean {
   const message =
     typeof error === "string"
@@ -298,12 +312,14 @@ export function isKimiPoolQuotaError(error: unknown): boolean {
           ? record.status
           : undefined;
   if (httpStatus === 429) return false;
-  if (httpStatus === 401 || httpStatus === 403) return false;
+  if (httpStatus === 401) return false;
+  if (httpStatus === 403) return KIMI_QUOTA_WINDOW_RE.test(message);
   if (httpStatus === 402) return true;
   if (!message) return false;
   if (/too many requests|rate[\s_-]*limit|\b429\b/i.test(message)) return false;
-  if (/unauthorized|forbidden|\b401\b|\b403\b/i.test(message)) return false;
-  return /payment required|quota|insufficient|\bbalance\b|额度(?:已)?耗尽|额度不足|套餐已用完|membership (?:expired|exhausted)|usage (?:limit|balance) exhausted/i.test(
+  if (/unauthorized|\b401\b/i.test(message)) return false;
+  if (/forbidden|\b403\b/i.test(message)) return KIMI_QUOTA_WINDOW_RE.test(message);
+  return /payment required|quota|insufficient|\bbalance\b|额度(?:已)?耗尽|额度不足|套餐已用完|membership (?:expired|exhausted)|usage (?:limit|balance) exhausted|usage\s+limit/i.test(
     message,
   );
 }

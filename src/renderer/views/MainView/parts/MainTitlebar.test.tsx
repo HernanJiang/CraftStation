@@ -66,6 +66,28 @@ const panelActions = {
 };
 const updateState = { phase: "idle", version: undefined, downloadPercent: 0 };
 
+const updateStoreMock = vi.hoisted(() => {
+  type MockState = { phase: string };
+  const listeners = new Set<(state: MockState) => void>();
+  return {
+    state: { phase: "idle" } as MockState,
+    subscribe(listener: (state: MockState) => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    setPhase(phase: string) {
+      this.state = { phase };
+      for (const listener of [...listeners]) listener(this.state);
+    },
+    reset() {
+      this.state = { phase: "idle" };
+      listeners.clear();
+    },
+  };
+});
+
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridgeMock,
   isRemoteSession: () => false,
@@ -90,10 +112,12 @@ vi.mock("@/renderer/state/panelStore", () => ({
 vi.mock("@/renderer/state/updateStore", () => ({
   useUpdateStore: Object.assign((selector: (state: unknown) => unknown) => selector(updateState), {
     getState: () => ({
+      phase: updateStoreMock.state.phase,
       setAvailableCliUpdates: vi.fn<() => void>(),
       beginAgentUpdate: vi.fn<() => void>(),
       finishAgentUpdate: vi.fn<() => void>(),
     }),
+    subscribe: updateStoreMock.subscribe,
   }),
 }));
 
@@ -187,8 +211,38 @@ describe("MainTitlebar CLI 更新入口", () => {
     bridgeMock.updateAgentBinary.mockReset().mockResolvedValue({ ok: true });
     bridgeMock.refreshAgentStatuses.mockReset().mockResolvedValue(undefined);
     bridgeMock.installUpdate.mockReset().mockResolvedValue(undefined);
+    bridgeMock.checkForUpdate.mockClear();
+    updateStoreMock.reset();
     toastMock.danger.mockReset();
     toastMock.success.mockReset();
+  });
+
+  it("点击版本号触发手动应用更新检查并在已是最新时提示", async () => {
+    render(<MainTitlebar />);
+
+    fireEvent.click(screen.getByTestId("titlebar-app-version"));
+    await waitFor(() => expect(bridgeMock.checkForUpdate).toHaveBeenCalledWith({}));
+
+    // Main reports the check lifecycle through the status channel; a
+    // checking → idle transition after a manual click means "no update".
+    updateStoreMock.setPhase("checking");
+    updateStoreMock.setPhase("idle");
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledOnce());
+
+    // A check that finds an update must NOT toast "up to date".
+    toastMock.success.mockClear();
+    fireEvent.click(screen.getByTestId("titlebar-app-version"));
+    updateStoreMock.setPhase("checking");
+    updateStoreMock.setPhase("downloading");
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(toastMock.success).not.toHaveBeenCalled();
+
+    // While a check is in flight the pill refuses to stack another one.
+    bridgeMock.checkForUpdate.mockClear();
+    updateStoreMock.setPhase("checking");
+    fireEvent.click(screen.getByTestId("titlebar-app-version"));
+    expect(bridgeMock.checkForUpdate).not.toHaveBeenCalled();
+    updateStoreMock.reset();
   });
 
   it("在窗口按钮左侧用一个小按钮汇总已安装 CLI 的更新", async () => {
