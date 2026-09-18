@@ -310,6 +310,8 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private readonly projectLocation: ProjectLocation;
   private readonly mcpServers: readonly ResolvedMcpServer[];
   private readonly assumedMcpCapabilities: AcpMcpCapabilities | undefined;
+  /** Names of requested MCP servers the latest session open did not deliver. */
+  private mcpInjectionDrops: string[] = [];
   private readonly optimisticMcpTransports: readonly McpTransportKind[] | undefined;
   private readonly fsAgentHomeDirs: readonly string[];
   private readonly fsTextCapability: boolean;
@@ -791,19 +793,24 @@ export class AcpStructuredSession implements StructuredSessionHandle {
    * ACP mode/model IDs (which vary per agent).
    */
   /** See {@link gateAcpMcpServers}; adds launch-time logging of what was dropped. */
-  private gateMcpServers(
-    servers: ProtocolMcpServer[],
-    capabilities: AcpMcpCapabilities | undefined,
-  ): ProtocolMcpServer[] {
-    const kept = gateAcpMcpServers(servers, capabilities);
-    if (kept.length < servers.length) {
-      console.log(
-        "[acp] dropping %d remote MCP server(s) — agent does not advertise the transport capability; launching without them: %s",
-        servers.length - kept.length,
-        servers.map((server) => server.name).join(", "),
-      );
-    }
-    return kept;
+  private noteMcpInjectionDrops(built: ProtocolMcpServer[], delivered: ProtocolMcpServer[]): void {
+    if (delivered.length >= built.length) return;
+    const deliveredNames = new Set(delivered.map((server) => server.name));
+    const dropped = built
+      .filter((server) => !deliveredNames.has(server.name))
+      .map((server) => server.name);
+    if (dropped.length === 0) return;
+    console.log(
+      "[acp] dropping %d remote MCP server(s) — agent does not advertise the transport capability; launching without them: %s",
+      dropped.length,
+      dropped.join(", "),
+    );
+    this.mcpInjectionDrops.push(...dropped);
+  }
+
+  /** Names of requested MCP servers the latest open did not deliver; drains the list. */
+  consumeMcpInjectionDrops(): string[] {
+    return this.mcpInjectionDrops.splice(0);
   }
 
   /**
@@ -849,7 +856,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       this.assumedMcpCapabilities,
     );
     const built = buildAcpMcpServers(this.mcpServers);
-    const attempted = this.gateMcpServers(built, capabilities);
+    const attempted = gateAcpMcpServers(built, capabilities);
     const optimisticTransports = this.optimisticMcpTransports;
     let fallback: ProtocolMcpServer[];
     if (optimisticTransports !== undefined && optimisticTransports.length > 0) {
@@ -862,18 +869,25 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         ),
         capabilities,
       );
-    } else if (
-      this.agentMcpCapabilities === undefined &&
-      this.assumedMcpCapabilities !== undefined
-    ) {
+    } else if (this.assumedMcpCapabilities !== undefined) {
+      // The attempted set may include servers only the adapter's assumed
+      // capabilities let through (Devin advertises http:false yet accepts
+      // HTTP MCP). Gate the fallback by the strictly advertised capabilities
+      // so a compatibility failure can still open without those servers.
       fallback = gateAcpMcpServers(built, this.agentMcpCapabilities);
     } else {
       fallback = attempted;
     }
-    if (fallback.length === attempted.length) return open(attempted);
+    if (fallback.length === attempted.length) {
+      const result = await open(attempted);
+      this.noteMcpInjectionDrops(built, attempted);
+      return result;
+    }
 
     try {
-      return await open(attempted);
+      const result = await open(attempted);
+      this.noteMcpInjectionDrops(built, attempted);
+      return result;
     } catch (error) {
       if (!isAssumedMcpCompatibilityError(error)) throw error;
       console.log(
@@ -881,7 +895,9 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         attempted.length - fallback.length,
         error.code,
       );
-      return open(fallback);
+      const result = await open(fallback);
+      this.noteMcpInjectionDrops(built, fallback);
+      return result;
     }
   }
 

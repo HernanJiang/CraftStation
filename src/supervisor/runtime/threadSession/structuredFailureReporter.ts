@@ -10,7 +10,12 @@ import {
 const EXPECTED_PROVIDER_OUTCOME =
   /\b(?:(?:you(?:['’]ve| have) )(?:reached|hit) your (?:usage|quota) limit|(?:quota|usage|billing)(?:[_ -](?:quota|limit))?[_ -](?:is[_ -])?(?:exhausted|exceeded|reached)|(?:quota|usage|billing)[_ -]credits?[_ -](?:are[_ -])?(?:exhausted|exceeded)|insufficient_quota|auth_required|device authentication failed|user must authenticate)\b/i;
 
-function isExpectedStructuredFailure(error: unknown): boolean {
+/**
+ * Whether a structured failure text is an expected provider outcome (quota,
+ * auth, billing) rather than a retryable transport/network interruption.
+ * Walks the cause chain like the reporter itself.
+ */
+export function isExpectedStructuredFailure(error: unknown): boolean {
   let current = error;
   const visited = new Set<unknown>();
   for (let depth = 0; depth < 5 && current !== undefined && !visited.has(current); depth += 1) {
@@ -24,7 +29,7 @@ function isExpectedStructuredFailure(error: unknown): boolean {
   return false;
 }
 
-function failureClassFor(error: unknown): StructuredRuntimeFailureClass {
+export function classifyStructuredFailure(error: unknown): StructuredRuntimeFailureClass {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
   return /^(?:ACP connection closed unexpectedly\.|ACP agent exited unexpectedly \(code -?\d+\)\.)$/u.test(
     message,
@@ -59,7 +64,7 @@ export class StructuredFailureReporter {
     if (isExpectedStructuredFailure(error)) return;
     if (this.reported.has(session)) return;
     this.reported.add(session);
-    const failureClass = failureClassFor(error);
+    const failureClass = classifyStructuredFailure(error);
     captureSupervisorException(
       new StructuredRuntimeDiagnosticError(failureClass, session.agentKind),
       {

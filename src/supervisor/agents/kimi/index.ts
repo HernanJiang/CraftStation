@@ -148,6 +148,10 @@ export function createKimiAdapter(): AgentAdapter {
         {
           subagents,
           taskTimeoutMs: resolveKimiBackgroundTaskTimeoutMs(input.agentSettings),
+          // Managed accounts spawn the CLI with a per-profile KIMI_CODE_HOME;
+          // without it the bridge polls the host ~/.kimi-code root forever and
+          // the subagent tile never settles.
+          ...(kimiHome ? { kimiHome } : {}),
         },
       );
       session = createAcpStructuredSession(command, {

@@ -92,6 +92,7 @@ function createManager(
     logsDir: join(tempDir, "logs"),
     settingsPath: join(tempDir, "settings.json"),
     readDisableCliHookPlugin: () => false,
+    readTurnRetryPolicy: () => ({ maxAttempts: 0, intervalMs: 1000 }),
     adapters: new Map([[agentKind, adapter]]),
     resolveWindowsShell,
   });

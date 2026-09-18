@@ -249,6 +249,7 @@ describe("handleThreadStateNotification", () => {
 
     expect(toastMock.success).toHaveBeenCalledWith("Thread", {
       context: "Finished · Waiting for your input",
+      ledgerLogged: true,
       onPress: expect.any(Function),
       timeout: 5000,
     });
@@ -285,6 +286,7 @@ describe("handleThreadStateNotification unfocused path", () => {
 
     expect(toastMock.success).toHaveBeenCalledWith("Thread", {
       context: "Finished · Waiting for your input",
+      ledgerLogged: true,
       onPress: expect.any(Function),
       timeout: 5000,
     });
@@ -369,6 +371,7 @@ describe("handleThreadStateNotification PWA path", () => {
     expect(notifications).toHaveLength(0);
     expect(toastMock.success).toHaveBeenCalledWith("Thread", {
       context: "Finished · Waiting for your input",
+      ledgerLogged: true,
       onPress: expect.any(Function),
       timeout: 5000,
     });

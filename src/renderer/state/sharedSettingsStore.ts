@@ -105,6 +105,8 @@ interface SharedSettingsState extends SharedSettings {
   setCollapseTerminalComposer: (value: boolean) => void;
   setCliPickerTarget: (value: CliPickerTarget) => void;
   setStaleThreadUnloadMinutes: (value: number) => void;
+  setTurnRetryMaxAttempts: (value: number) => void;
+  setTurnRetryIntervalSeconds: (value: number) => void;
   setAutoArchiveDoneAfterDays: (value: number) => void;
   setArchiveRetention: (value: SharedSettings["archiveRetention"]) => void;
   setScrollSpeed: (value: number) => void;
@@ -537,6 +539,14 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
   },
   setStaleThreadUnloadMinutes: (staleThreadUnloadMinutes) => {
     set({ staleThreadUnloadMinutes });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setTurnRetryMaxAttempts: (turnRetryMaxAttempts) => {
+    set({ turnRetryMaxAttempts });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setTurnRetryIntervalSeconds: (turnRetryIntervalSeconds) => {
+    set({ turnRetryIntervalSeconds });
     persistSettings(selectSharedSettings(get()));
   },
   setAutoArchiveDoneAfterDays: (autoArchiveDoneAfterDays) => {
@@ -1092,6 +1102,8 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     collapseTerminalComposer: state.collapseTerminalComposer,
     cliPickerTarget: state.cliPickerTarget,
     staleThreadUnloadMinutes: state.staleThreadUnloadMinutes,
+    turnRetryMaxAttempts: state.turnRetryMaxAttempts,
+    turnRetryIntervalSeconds: state.turnRetryIntervalSeconds,
     autoArchiveDoneAfterDays: state.autoArchiveDoneAfterDays,
     archiveRetention: state.archiveRetention,
     scrollSpeed: state.scrollSpeed,

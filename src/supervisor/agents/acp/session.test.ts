@@ -53,6 +53,7 @@ type TestableAcpSession = {
   ): Promise<void>;
   interruptTurn(): Promise<void>;
   forceCompleteTurn(): void;
+  consumeMcpInjectionDrops(): string[];
   dispose(): Promise<void>;
   resolveServerRequest(requestId: string, response: unknown): Promise<void>;
   handlePermissionRequest(params: RequestPermissionRequest): Promise<unknown>;
@@ -181,6 +182,7 @@ function makeConfigSyncSession(
   session["agentMcpCapabilities"] =
     "agentMcpCapabilities" in overrides ? overrides.agentMcpCapabilities : { http: true };
   session["assumedMcpCapabilities"] = overrides.assumedMcpCapabilities;
+  session["mcpInjectionDrops"] = [];
   session["optimisticMcpTransports"] = overrides.optimisticMcpTransports;
   session["currentConfig"] = overrides.currentConfig ?? {
     model: "model-a",
@@ -2194,7 +2196,11 @@ describe("ACP client protocol helpers", () => {
     },
   );
 
-  it("does not assume transports the agent explicitly declined to advertise", async () => {
+  it("attempts assumed transports the agent under-reports (Devin advertises http:false but accepts HTTP MCP)", async () => {
+    // Devin 3000.x answers initialize with mcpCapabilities {http:false,sse:false}
+    // yet its session/new connects HTTP MCP servers fine (verified against devin
+    // 3000.10.27). The adapter's assumed capability must win over the bogus
+    // advertisement, otherwise every built-in (all-HTTP) server is dropped.
     const { connection, session } = makeConfigSyncSession({
       agentMcpCapabilities: { http: false },
       assumedMcpCapabilities: { http: true },
@@ -2217,7 +2223,85 @@ describe("ACP client protocol helpers", () => {
     );
 
     expect(connection.newSession).toHaveBeenCalledTimes(1);
+    expect(connection.newSession).toHaveBeenCalledWith({
+      cwd: "C:\\repo",
+      mcpServers: [
+        {
+          type: "http",
+          name: "browser",
+          url: "http://127.0.0.1:9123/mcp",
+          headers: [{ name: "Authorization", value: "Bearer secret-token" }],
+        },
+      ],
+    });
+    // Delivered in full: nothing pending for the injection-drop notice.
+    expect(session.consumeMcpInjectionDrops()).toEqual([]);
+  });
+
+  it("retries without assumed transports the agent under-reports when session creation rejects them", async () => {
+    const { connection, session } = makeConfigSyncSession({
+      agentMcpCapabilities: { http: false },
+      assumedMcpCapabilities: { http: true },
+      mcpServers: [
+        {
+          id: "browser",
+          name: "browser",
+          timeoutMs: 30_000,
+          transport: {
+            type: "http",
+            url: "http://127.0.0.1:9123/mcp",
+            headers: {},
+          },
+        },
+      ],
+    });
+    connection.newSession
+      .mockRejectedValueOnce(
+        RequestError.invalidParams({ message: "MCP server transport is unsupported" }),
+      )
+      .mockResolvedValueOnce({
+        sessionId: "session-1",
+        modes: { availableModes: [] },
+        configOptions: [],
+      });
+
+    await expect(session.openThread({ model: "model-a", browserMcp: true })).resolves.toBe(
+      "session-1",
+    );
+
+    expect(connection.newSession).toHaveBeenCalledTimes(2);
+    expect(connection.newSession).toHaveBeenLastCalledWith({
+      cwd: "C:\\repo",
+      mcpServers: [],
+    });
+    // The fallback opened without the server: it lands in the drop notice.
+    expect(session.consumeMcpInjectionDrops()).toEqual(["browser"]);
+    expect(session.consumeMcpInjectionDrops()).toEqual([]);
+  });
+
+  it("drops and reports remote MCP servers when neither advertised nor assumed capabilities cover them", async () => {
+    const { connection, session } = makeConfigSyncSession({
+      agentMcpCapabilities: { http: false, sse: false },
+      mcpServers: [
+        {
+          id: "browser",
+          name: "browser",
+          timeoutMs: 30_000,
+          transport: {
+            type: "http",
+            url: "http://127.0.0.1:9123/mcp",
+            headers: {},
+          },
+        },
+      ],
+    });
+
+    await expect(session.openThread({ model: "model-a", browserMcp: true })).resolves.toBe(
+      "session-1",
+    );
+
     expect(connection.newSession).toHaveBeenCalledWith({ cwd: "C:\\repo", mcpServers: [] });
+    expect(session.consumeMcpInjectionDrops()).toEqual(["browser"]);
   });
 
   it("appends both browser and Crossagents MCP servers when both are selected", async () => {

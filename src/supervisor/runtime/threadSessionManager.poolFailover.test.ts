@@ -42,6 +42,7 @@ function createManager(extraOptions: Record<string, unknown> = {}): ThreadSessio
     logsDir: join(tempDir, "logs"),
     settingsPath: join(tempDir, "settings.json"),
     readDisableCliHookPlugin: () => false,
+    readTurnRetryPolicy: () => ({ maxAttempts: 0, intervalMs: 1000 }),
     adapters: new Map(),
     resolveWindowsShell: () => ({ shell: "powershell.exe", kind: "powershell", args: ["-NoLogo"] }),
     ...extraOptions,
@@ -198,9 +199,9 @@ describe("ThreadSessionManager pool failover", () => {
         poolProvider: "kimi",
       });
       const restartThread = stubRestart(manager);
-      await expect(
-        failover(manager, session, turn(), new Error("Kimi 额度已耗尽")),
-      ).resolves.toBe(true);
+      await expect(failover(manager, session, turn(), new Error("Kimi 额度已耗尽"))).resolves.toBe(
+        true,
+      );
       expect(restartThread).toHaveBeenCalledTimes(1);
     }
     {

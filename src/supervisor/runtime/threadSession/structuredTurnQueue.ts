@@ -21,6 +21,18 @@ export interface StructuredTurnQueueContext {
     turn: QueuedStructuredTurn,
     error: unknown,
   ): Promise<boolean>;
+  /**
+   * Craft-Harness automatic retry: when a turn dies on a network/transport
+   * interruption, wait the configured interval and replay it (with an
+   * invisible continuation note). Runs after pool failover has declined;
+   * returns true when it took over (the caller must not also fail the
+   * session); false to fall through to the normal failure path.
+   */
+  tryTurnRetry?(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+    error: unknown,
+  ): Promise<boolean>;
 }
 
 /**
@@ -93,6 +105,7 @@ export class StructuredTurnQueue {
         return;
       }
       if (await this.ctx.tryPoolFailover?.(session, replayTurn, error)) return;
+      if (await this.ctx.tryTurnRetry?.(session, replayTurn, error)) return;
       this.ctx.failStructuredSession(session, error);
     });
   }
@@ -125,6 +138,7 @@ export class StructuredTurnQueue {
         ...(options ? { turnId: options.turnId } : {}),
       };
       if (await this.ctx.tryPoolFailover?.(session, replayTurn, error)) return;
+      if (await this.ctx.tryTurnRetry?.(session, replayTurn, error)) return;
       this.ctx.failStructuredSession(session, error);
     });
   }

@@ -92,6 +92,8 @@ Codex app-server、stdio、JSON-RPC、server pool 与 Codex-specific session 都
 
 CLIProxyAPI 在 v0.1.0 不预设为 Codex 必经路径，也不重写为 TypeScript；是否使用只由 provider/auth 需求决定。
 
+**Craft-Harness**（v1.3.1 起正式引入）：跨 Harness 的外围 runtime 管理层，由 CraftStation 统一实现，承载所有「不涉及 Agent 核心特性」的通用机制——自动重试、重试间隔、续接 Prompt 注入、内置 MCP 服务器的统一管理与注入（浏览器、Own Subagents、Chrome、计划、应用控制、计算机操作等）等。Craft-Harness 不做 per-agent 特性适配：只依赖所有 structured harness 共用的 seam（`StructuredSessionHandle` 失败冒泡、session/new 的 MCP 注入通道），配额/鉴权仍归 pool failover 与 fail-closed 语义，用户主动中断永不被重试；内置 MCP 必须对所有支持的 Harness 一视同仁地注入，不允许出现「面板显示已启用但实际未注入」的盲区。首个落地能力：structured turn 因网络/传输中断失败时，按「设置 → 一般 → 重试次数 / 重试间隔」自动重试并注入续接 Prompt（实现：`src/supervisor/runtime/threadSession/turnRetryCoordinator.ts`）。纯终端（PTY-only）路径无 per-turn 失败信号，不在 Craft-Harness 重试覆盖范围。
+
 Auto-Crafting、Model Fingerprint、Active Probing、Compatibility Prediction、复杂 Context Strategy、Tool Policy Composition、Learned Routing、Recipe Search 与完整 Recipe Graph persistence 仅在对应 Feature 立项后实现。
 
 ## Engineering and Observability

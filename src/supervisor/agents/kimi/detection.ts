@@ -130,6 +130,22 @@ export function normalizeKimiProbeEfforts(probe: AcpProbeResult | undefined): {
   };
 }
 
+/**
+ * Resolve a Kimi model's context window. A `-NNNk` size suffix in the model
+ * id (e.g. `kimi-code/k3-256k`) IS the product contract for that variant, but
+ * the ACP probe reports the family-level window (1M for the whole K3 family)
+ * in `totalContextTokens` — so the suffix wins on disagreement, otherwise the
+ * renderer's stock-window yield rule would promote k3-256k to a 1M display.
+ */
+export function kimiModelContextTokens(modelId: string, probed: unknown): number | undefined {
+  const suffix = /-(\d+)k$/i.exec(modelId.trim());
+  if (suffix) {
+    const k = Number.parseInt(suffix[1]!, 10);
+    if (k > 0) return k * 1024;
+  }
+  return typeof probed === "number" && probed > 0 ? probed : undefined;
+}
+
 export function buildKimiProbeCapabilities(
   probe: AcpProbeResult | undefined,
   credentialState: {
@@ -143,8 +159,11 @@ export function buildKimiProbeCapabilities(
   if (probe?.modelMetadata) {
     const sizes = new Map<string, number>();
     for (const [modelId, meta] of Object.entries(probe.modelMetadata)) {
-      const tokens = (meta as { totalContextTokens?: unknown }).totalContextTokens;
-      if (typeof tokens === "number" && tokens > 0) sizes.set(modelId, tokens);
+      const tokens = kimiModelContextTokens(
+        modelId,
+        (meta as { totalContextTokens?: unknown }).totalContextTokens,
+      );
+      if (tokens !== undefined) sizes.set(modelId, tokens);
     }
     if (sizes.size > 0) {
       contextCaps = buildContextSizeCapabilities(sizes);
@@ -258,10 +277,9 @@ async function probeCapabilities(
   // Fall back to the verified snapshot when the live probe has no models
   // (host logged out, managed pool account still usable). A successful probe
   // always wins — the fallback only fills the model/effort surface.
-  const effectiveProbe =
-    probe?.models?.length
-      ? probe
-      : { ...(probe ?? {}), ...KIMI_FALLBACK_PROBE };
+  const effectiveProbe = probe?.models?.length
+    ? probe
+    : { ...(probe ?? {}), ...KIMI_FALLBACK_PROBE };
   return buildKimiProbeCapabilities(effectiveProbe, credentialState);
 }
 

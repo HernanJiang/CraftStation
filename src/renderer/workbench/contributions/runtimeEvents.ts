@@ -15,7 +15,12 @@ import {
   shouldInspectThreadStateForNotification,
   showInAppUserNotification,
 } from "@/renderer/notifications";
-import { poolFailoverToastCopy, showTopStatusToast } from "@/renderer/components/ui/topStatusToast";
+import {
+  mcpInjectionDropCopy,
+  poolFailoverToastCopy,
+  showTopStatusToast,
+  turnRetryToastCopy,
+} from "@/renderer/components/ui/topStatusToast";
 import { providerLabel } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 import type { WorkbenchContribution } from "../lifecycle";
 import type { WorkbenchServices } from "../services";
@@ -207,6 +212,29 @@ export const runtimeEventsContribution: WorkbenchContribution<WorkbenchServices>
           event.toAccount,
         );
         showTopStatusToast(notice.title, { description: notice.description });
+      }
+      if (event.type === "thread-turn-retry") {
+        // Craft-Harness auto-retry kicked in: one top toast announces the wait
+        // and the attempt number; the original failure stays out of the error
+        // dock unless every retry is exhausted.
+        const notice = turnRetryToastCopy(
+          event.attempt,
+          event.maxAttempts,
+          event.delaySeconds,
+          event.reason,
+        );
+        showTopStatusToast(notice.title, {
+          description: notice.description,
+          timeout: Math.min(event.delaySeconds * 1000, 8000),
+        });
+      }
+      if (event.type === "thread-mcp-injection-drop") {
+        // Enabled-in-panel MCP servers the agent never received must surface —
+        // toast + notification ledger, never a silent launch without them.
+        showInAppUserNotification({
+          threadId: event.threadId,
+          ...mcpInjectionDropCopy(event.serverNames),
+        });
       }
       if (event.type === "thread-reset") {
         pendingRuntimeEvents.delete(event.threadId);

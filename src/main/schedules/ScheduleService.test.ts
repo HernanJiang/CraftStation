@@ -288,4 +288,119 @@ describe("ScheduleService", () => {
     await vi.waitFor(() => expect(store.get(task.id)?.lastStatus).toBe("succeeded"));
     expect(onChanged.mock.calls.length).toBeGreaterThanOrEqual(4);
   });
+
+  it("keeps schedules whose availability check throws during the startup sweep", () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const seed = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+    });
+    const bound = seed.create({
+      ...input,
+      name: "Bound",
+      targetThreadId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+
+    const onDiagnostic = vi.fn();
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+      threadIsUnavailable: () => {
+        throw new Error("db not ready");
+      },
+      onDiagnostic,
+    });
+    service.start();
+
+    expect(store.get(bound.id)).not.toBeNull();
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "SWEEP_CHECK_FAILED",
+        scheduleId: bound.id,
+        status: "error",
+      }),
+    );
+    service.dispose();
+  });
+
+  it("reports listable rows that by-id reads cannot see at startup", () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const seed = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+    });
+    const task = seed.create(input);
+    const poisoned: ScheduleStore = {
+      ...store,
+      get: (id) => (id === task.id ? null : store.get(id)),
+    };
+    const onDiagnostic = vi.fn();
+    const service = new ScheduleService({
+      store: poisoned,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+      onDiagnostic,
+    });
+    service.start();
+
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "STORE_INDEX_MISSING",
+        scheduleId: task.id,
+        status: "error",
+      }),
+    );
+    service.dispose();
+  });
+
+  it("emits no diagnostics for a consistent store at startup", () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const seed = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+    });
+    seed.create(input);
+
+    const onDiagnostic = vi.fn();
+    const service = new ScheduleService({
+      store,
+      runTask: vi.fn<() => Promise<string>>(),
+      now: () => now,
+      onDiagnostic,
+    });
+    service.start();
+
+    expect(onDiagnostic).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  it("keeps the full by-id lifecycle working across a host restart", async () => {
+    const store = memoryStore();
+    const now = new Date(2026, 6, 6, 7, 0).getTime();
+    const runTask = vi.fn<() => Promise<string>>().mockResolvedValue("ok");
+    const first = new ScheduleService({ store, runTask, now: () => now });
+    const task = first.create(input);
+
+    const restarted = new ScheduleService({ store, runTask, now: () => now });
+    restarted.start();
+
+    expect(restarted.get(task.id)?.id).toBe(task.id);
+    expect(restarted.update(task.id, { ...input, name: "Renamed" }).name).toBe("Renamed");
+    expect(restarted.pause(task.id).enabled).toBe(false);
+    expect(restarted.resume(task.id).enabled).toBe(true);
+    restarted.runNow(task.id);
+    await vi.waitFor(() => expect(store.get(task.id)?.lastStatus).toBe("succeeded"));
+    expect(restarted.listRuns(task.id)).toEqual([]);
+    restarted.delete(task.id);
+    expect(restarted.get(task.id)).toBeNull();
+    restarted.dispose();
+    first.dispose();
+  });
 });

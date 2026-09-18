@@ -25,6 +25,7 @@ vi.mock("@/renderer/bridge", () => ({
 }));
 
 import { AppProvider } from "./provider";
+import { useNotificationStore } from "@/renderer/state/notificationStore";
 
 function setMatchMedia(prefersDark: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -54,6 +55,7 @@ beforeEach(() => {
 
 afterEach(() => {
   toast.clear();
+  useNotificationStore.getState().clear();
   // Restore the testSetup default matchMedia stub so other tests behave.
   setMatchMedia(true);
 });
@@ -214,6 +216,87 @@ describe("AppProvider", () => {
     fireEvent.pointerUp(toastElement!, { pointerId: 3, pointerType: "mouse" });
 
     expect(screen.getByText("Keep test")).toBeInTheDocument();
+  });
+
+  it("shows error toast titles in full instead of truncating them", async () => {
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+
+    const message = "无法打开 executor_*.md：File not found: D:/work/executor_a1.md";
+    act(() => {
+      toast.danger(message, { timeout: 0 });
+    });
+
+    const title = await screen.findByText(message);
+    expect(title).not.toHaveClass("truncate");
+    expect(title).toHaveClass("whitespace-pre-wrap");
+    expect(title).toHaveClass("break-words");
+  });
+
+  it("accumulates error toasts in the notification store", async () => {
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+
+    act(() => {
+      toast.danger("无法打开 EXPERIMENT_REGISTRY.md：File not found", { timeout: 0 });
+      toast("Plain info toast", { timeout: 0 });
+    });
+
+    await waitFor(() => {
+      const items = useNotificationStore.getState().items;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        tone: "danger",
+        title: "无法打开 EXPERIMENT_REGISTRY.md：File not found",
+      });
+    });
+  });
+
+  it("skips toasts that already logged their own bell row", async () => {
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+
+    act(() => {
+      toast.danger("Thread failed", { timeout: 0, ledgerLogged: true } as any);
+    });
+
+    await screen.findByText("Thread failed");
+    // Thread-state notifications push their own row in notifications.ts; the
+    // generic ledger must not duplicate it.
+    expect(useNotificationStore.getState().items).toHaveLength(0);
+  });
+
+  it("forwards context and onPress through the toast queue", async () => {
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+
+    const onPress = vi.fn<() => void>();
+    act(() => {
+      toast.success("Thread done", {
+        context: "Finished · Waiting for your input",
+        onPress,
+        ledgerLogged: true,
+        timeout: 0,
+      } as any);
+    });
+
+    // HeroUI 3.2.2 used to silently drop these options; the app-shell
+    // forwarding patch must keep them reachable for the provider.
+    await screen.findByText("Finished · Waiting for your input");
+    fireEvent.click(screen.getByText("Thread done"));
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 
   it("applies dark class + data-theme when themeMode is explicit 'dark'", () => {

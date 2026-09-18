@@ -17,6 +17,7 @@ import { resolveThreadAuthState } from "@/renderer/components/thread/threadError
 import { useDelayedPendingSteer } from "@/renderer/components/thread/useDelayedPendingSteer";
 import type { ThreadDockState } from "@/renderer/components/thread/useThreadDockState";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useComposerInputInbox } from "@/renderer/state/composerInputInbox";
 
 /**
  * The composer's action docks — sign-in required, a queued steer, and the open
@@ -78,9 +79,22 @@ export function ComposerActionDocks(props: {
             void sendQueuedFollowUpNow(thread);
           }}
           onDelete={() => clearQueuedFollowUp(thread.id)}
-          onPromptChange={(nextPrompt) =>
-            useAppStore.getState().updateQueuedFollowUpPrompt(thread.id, nextPrompt)
-          }
+          // The strip is a sibling of the composer here (no shared ref), so
+          // editing routes through the composer input inbox — the composer's
+          // drain effect restores text into the editor and attachment segments
+          // back into the attachment bar.
+          onEdit={() => {
+            const queuedEntry = useAppStore.getState().queuedFollowUpByThreadId[thread.id];
+            if (!queuedEntry) return;
+            const segments = queuedEntry.segments ?? [];
+            useComposerInputInbox
+              .getState()
+              .enqueue(
+                thread.id,
+                segments.length > 0 ? segments : [{ kind: "text", content: queuedEntry.prompt }],
+              );
+            clearQueuedFollowUp(thread.id);
+          }}
         />
       ) : null}
       {pendingSteer ? (

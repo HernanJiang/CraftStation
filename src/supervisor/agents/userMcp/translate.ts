@@ -258,15 +258,28 @@ export interface AcpMcpCapabilities {
  * Effective MCP transport support for an ACP agent.
  *
  * `advertised` is what the agent returned in `initialize`. `assumed` is what
- * the adapter knows the agent actually supports; it only applies when the
- * agent advertises no `mcpCapabilities` at all, so an agent that explicitly
- * states its transports is always taken at its word.
+ * the adapter knows from real launches; an assumed `true` beats a `false` or
+ * missing advertisement because agents under-report — Devin 3000.x advertises
+ * `mcpCapabilities: { http: false, sse: false }` yet accepts HTTP MCP servers
+ * in `session/new` (verified against devin 3000.10.27). Should a future agent
+ * genuinely reject an assumed transport, `session/new` fails with an
+ * MCP-flavoured protocol error and the open retries without those servers, so
+ * the override can never brick the thread.
  */
 export function resolveAcpMcpCapabilities(
   advertised: AcpMcpCapabilities | undefined,
   assumed: AcpMcpCapabilities | undefined,
 ): AcpMcpCapabilities | undefined {
-  return advertised ?? assumed;
+  if (!advertised) return assumed;
+  if (!assumed) return advertised;
+  const merged: AcpMcpCapabilities = {};
+  const http =
+    assumed.http === true || advertised.http === true ? true : (advertised.http ?? assumed.http);
+  const sse =
+    assumed.sse === true || advertised.sse === true ? true : (advertised.sse ?? assumed.sse);
+  if (http !== undefined) merged.http = http;
+  if (sse !== undefined) merged.sse = sse;
+  return merged;
 }
 
 export function gateAcpMcpServers<T extends object>(

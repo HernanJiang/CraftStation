@@ -3508,6 +3508,10 @@ msgstr "カメラを開始できませんでした"
 msgid "Couldn't update the skill."
 msgstr "スキルを更新できませんでした。"
 
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Craft-Harness automatically retries a turn interrupted by network or connection failures, injecting a continuation prompt on retry. Set to 0 to disable."
+msgstr ""
+
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
 msgstr ""
@@ -4395,7 +4399,6 @@ msgstr "完了しました"
 #. Notification status: thread is done
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
-#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarProjectRows.ts
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9488,8 +9491,8 @@ msgid "Queued"
 msgstr "キュー待ち"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "Queued prompt"
-msgstr ""
+#~ msgid "Queued prompt"
+#~ msgstr ""
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -10805,6 +10808,10 @@ msgstr "検索中..."
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Searching…"
 msgstr "検索中…"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Seconds Craft-Harness waits between automatic turn retry attempts."
+msgstr ""
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadRow.tsx
 msgid "See more"
@@ -12748,6 +12755,18 @@ msgstr "試してみる"
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Turn on remote access to show a pairing code."
 msgstr "リモートアクセスをオンにすると、ペアリングコードが表示されます。"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Turn retry attempts"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Turn retry interval"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Turn retry interval (seconds)"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Turn tracking on or off per provider. Disabled providers are skipped by the auto-refresh."

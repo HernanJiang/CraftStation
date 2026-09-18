@@ -99,9 +99,12 @@ export function createDevinAdapter(): AgentAdapter {
         buildDevinAcpArgs(sessionConfig),
         resolveAgentBinaryPath(input.projectLocation, "devin"),
       );
-      // Devin ACP `session/new` accepts HTTP MCP even when initialize omits
-      // mcpCapabilities (same pattern as Factory Droid). CraftStation's built-in
-      // Schedule / cross-thread / custom MCP servers are all HTTP.
+      // Devin ACP `session/new` accepts HTTP MCP servers even though newer
+      // builds advertise `mcpCapabilities: { http: false, sse: false }` in
+      // initialize (verified against devin 3000.10.27: session/new with an
+      // HTTP server succeeds). The assumed capability therefore overrides the
+      // under-reporting advertisement; a genuine rejection still retries the
+      // open without the assumed transports.
       //
       // `session/new` fail-closes if `GetCliTeamSettings` exceeds Devin's 10s
       // Connect-RPC budget. Retry the open: a later attempt often hits cache.

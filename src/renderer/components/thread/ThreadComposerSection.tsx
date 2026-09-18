@@ -11,6 +11,7 @@ import type {
 } from "@/shared/contracts";
 import { supportsHeaderBearingHttpMcp, supportsMcpAtProjectLocation } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
+import { fileNameFromPath, isAudioPath, isImagePath } from "@/shared/promptContent";
 import {
   adaptThreadConfigForCapabilities,
   agentStatusForPresentation,
@@ -47,6 +48,7 @@ import {
 import {
   storableAttachment,
   useAttachments,
+  type Attachment,
   type SaveClipboardImage,
 } from "../composer/useAttachments";
 import type { VoiceInputHandle } from "../composer/VoiceInputButton";
@@ -110,6 +112,22 @@ import {
   useSkillSlashCommands,
 } from "@/renderer/components/skills/useSkills";
 import { useDelayedPendingSteer } from "./useDelayedPendingSteer";
+
+/** Rebuild a composer attachment from a durable attachment segment — preview
+ * object URLs are long revoked, so rendering falls back to the file path. */
+function attachmentFromSegment(
+  segment: Extract<PromptSegment, { kind: "attachment" }>,
+): Attachment {
+  const name = fileNameFromPath(segment.path);
+  return {
+    id: crypto.randomUUID(),
+    path: segment.path,
+    name,
+    ...(segment.mimeType ? { mimeType: segment.mimeType } : {}),
+    isImage: isImagePath(name, segment.mimeType),
+    isAudio: isAudioPath(name, segment.mimeType),
+  };
+}
 
 type ThreadComposerSectionProps = {
   threadId: string;
@@ -622,7 +640,8 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       providers: managedProviders,
       ...(displayAccountId ? { selectedAccountId: displayAccountId } : {}),
       installedHarnesses: launchableHarnesses,
-      pickerAgentKind: isStagingSwitch && pendingSwitch ? pendingSwitch.agentKind : catalogAgentKind,
+      pickerAgentKind:
+        isStagingSwitch && pendingSwitch ? pendingSwitch.agentKind : catalogAgentKind,
       onProviderChange: (next) => {
         // Stage only: the switch commits on send (see submitPrompt). This
         // keeps "pick model, tweak effort, send" as one atomic user action
@@ -750,6 +769,32 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     return readBridge().writeTerminal({ threadId: thread.id, data });
   }
 
+  // Move a queued follow-up back into the composer for editing: text segments
+  // restore into the editor, attachment segments become composer attachments
+  // again, and the queue entry is consumed.
+  function handleEditQueuedFollowUp() {
+    const queued = useAppStore.getState().queuedFollowUpByThreadId[thread.id];
+    if (!queued) return;
+    const segments = queued.segments ?? [];
+    const textSegments = segments.filter((segment) => segment.kind !== "attachment");
+    mentionRef.current?.restoreFromSegments(
+      textSegments.length > 0 ? textSegments : [{ kind: "text", content: queued.prompt }],
+    );
+    const restoredAttachments = segments
+      .filter(
+        (segment): segment is Extract<PromptSegment, { kind: "attachment" }> =>
+          segment.kind === "attachment",
+      )
+      .map(attachmentFromSegment);
+    if (restoredAttachments.length > 0) {
+      attachments.restore([...attachmentsRef.current, ...restoredAttachments]);
+    }
+    setPrompt(queued.prompt);
+    setHasContent(true);
+    clearQueuedFollowUp(thread.id);
+    mentionRef.current?.focus();
+  }
+
   async function submitPrompt(segments: PromptSegment[]) {
     const composerSession = composerSessionRef.current;
     const hasPromptText = segments.some(
@@ -829,10 +874,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       setIsSubmitting(false);
       // The fresh session is idle by construction: never steer into it.
       switchedForSend = true;
-    } else if (
-      craftMode === "auto" &&
-      !useCraftingWorkbenchStore.getState().pendingRecipeIntent
-    ) {
+    } else if (craftMode === "auto" && !useCraftingWorkbenchStore.getState().pendingRecipeIntent) {
       const remapped = applyThirdPartyPickerSelection(
         {
           agentKind: sendThread.agentKind,
@@ -985,17 +1027,33 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       return;
     }
     let composerHasContent = composer.serializeSegments().length > 0;
+    const inboxAttachments: Attachment[] = [];
     for (const key of [fallbackComposerInboxKey, thread.id]) {
       const items = useComposerInputInbox.getState().drain(key);
       for (const segments of items) {
+        // Attachment segments can't live in the editor; they rejoin the
+        // composer as attachments (queued follow-up edit on mobile).
+        const editorSegments: PromptSegment[] = [];
+        for (const segment of segments) {
+          if (segment.kind === "attachment") {
+            inboxAttachments.push(attachmentFromSegment(segment));
+          } else {
+            editorSegments.push(segment);
+          }
+        }
+        if (editorSegments.length === 0) continue;
         const separator: PromptSegment[] = composerHasContent
           ? [{ kind: "text", content: "\n\n" }]
           : [];
-        composer.insertSegments([...separator, ...segments], { atEnd: true, focus: false });
+        composer.insertSegments([...separator, ...editorSegments], { atEnd: true, focus: false });
         composerHasContent = true;
       }
     }
+    if (inboxAttachments.length > 0) {
+      attachments.restore([...attachmentsRef.current, ...inboxAttachments]);
+    }
   }, [
+    attachments,
     editorMounted,
     fallbackComposerInboxKey,
     isSubmitting,
@@ -1090,10 +1148,11 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                       onSendNow={() => {
                         void sendQueuedFollowUpNow(thread);
                       }}
+                      onEdit={handleEditQueuedFollowUp}
                       onDelete={() => clearQueuedFollowUp(thread.id)}
-                      onPromptChange={(nextPrompt) =>
-                        useAppStore.getState().updateQueuedFollowUpPrompt(thread.id, nextPrompt)
-                      }
+                      {...(attachmentImageUrlForPath
+                        ? { imageUrlForPath: attachmentImageUrlForPath }
+                        : {})}
                     />
                   ),
                 }

@@ -19,11 +19,24 @@ import type { ScheduleToolContext, ScheduleToolDomain } from "./types";
  * `Schedule.create`, `Schedule.list_runs`, and so on.
  */
 
-const timezoneSchema = z.string().trim().min(1).max(64).nullable().optional();
-const recipeIdSchema = z.string().trim().min(1).max(160).nullable().optional();
-const targetThreadIdSchema = z.string().uuid().nullable().optional();
-const projectIdSchema = z.string().min(1).nullable().optional();
-const harnessItemIdSchema = z.string().trim().min(1).max(160).nullable().optional();
+/**
+ * Some agent bridges stringify null/undefined before sending (observed with
+ * OpenCode threads passing timezone:"null", which then crashed IANA timezone
+ * validation even though a real null is legal — and persisted recipeId:"null"
+ * into the store). Normalize those sentinels back to null on nullable fields.
+ */
+const nullishArg = <S extends z.ZodTypeAny>(schema: S) =>
+  z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    const lowered = value.trim().toLowerCase();
+    return lowered === "null" || lowered === "undefined" || lowered === "" ? null : value;
+  }, schema);
+
+const timezoneSchema = nullishArg(z.string().trim().min(1).max(64).nullable().optional());
+const recipeIdSchema = nullishArg(z.string().trim().min(1).max(160).nullable().optional());
+const targetThreadIdSchema = nullishArg(z.string().uuid().nullable().optional());
+const projectIdSchema = nullishArg(z.string().min(1).nullable().optional());
+const harnessItemIdSchema = nullishArg(z.string().trim().min(1).max(160).nullable().optional());
 const callingThreadUuid = (threadId: string | undefined): string | null => {
   if (!threadId) return null;
   return z.string().uuid().safeParse(threadId).success ? threadId : null;
@@ -460,6 +473,20 @@ export const scheduleTools: ScheduleToolDomain = {
 
 function requireSchedule(ctx: ScheduleToolContext, id: string): ScheduledTask {
   const task = ctx.scheduleService.get(id);
-  if (!task) throw new Error("Scheduled task not found.");
-  return task;
+  if (task) return task;
+  // A row that list() can see but get() cannot read means the store views
+  // diverged (observed after a host restart). Say so explicitly instead of a
+  // plain NOT_FOUND so callers do not mistake it for a deleted schedule.
+  let listedButUnreadable = false;
+  try {
+    listedButUnreadable = ctx.scheduleService.list().some((entry) => entry.id === id);
+  } catch {
+    // If even list fails, fall through to the plain not-found error.
+  }
+  if (listedButUnreadable) {
+    throw new Error(
+      `Scheduled task ${id} is visible in list but unreadable by id (store index missing). Restart the CraftStation host and retry; the schedule itself was not deleted.`,
+    );
+  }
+  throw new Error(`Scheduled task not found: ${id}.`);
 }

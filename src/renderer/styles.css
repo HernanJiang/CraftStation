@@ -764,6 +764,13 @@
   text-overflow: ellipsis;
 }
 
+/* Error toasts carry the failure's full text: never clamp them away. */
+.toast--danger .lc-toast__title {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
 .lc-toast__description {
   display: block;
   max-height: max(3rem, min(8rem, calc(100dvh - 8rem)));

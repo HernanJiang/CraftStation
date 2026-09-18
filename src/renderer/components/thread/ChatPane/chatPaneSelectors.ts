@@ -179,7 +179,9 @@ function buildTimelineEntries(
       if (last?.type !== "reasoning") break;
       const hasToolBefore = groupIds.slice(0, -1).some((id) => {
         const candidate = items?.[id];
-        return candidate !== undefined && candidate.type !== "reasoning" && isToolGroupItem(candidate);
+        return (
+          candidate !== undefined && candidate.type !== "reasoning" && isToolGroupItem(candidate)
+        );
       });
       if (!hasToolBefore) break;
       trailingThoughtIds.unshift(groupIds.pop()!);
@@ -221,8 +223,17 @@ function isToolGroupItem(item: RuntimeChatItem): boolean {
   if (isToolLikeItem(item) && imageViewRendersInline(item.payload)) {
     return false;
   }
-  // The groupable type set (tools, reasoning, commands, edits, searches) lives
-  // in toolCallCategorization so it is maintained in one place.
+  // Reasoning carrying actual summary text stays in the main flow at its own
+  // position: folding it into a "Ran N tools" accordion hides the model's
+  // thinking between tool calls (muse variants with reasoningSummary=auto
+  // rendered as tool spam with the thinking buried). Empty reasoning brackets
+  // stay groupable glue — they complete empty, get dropped at the data layer,
+  // and folding them keeps a live tool group from splitting on noise.
+  if (item.type === "reasoning" && (item.streams.reasoning_text ?? "").trim().length > 0) {
+    return false;
+  }
+  // The groupable type set (tools, empty reasoning, commands, edits, searches)
+  // lives in toolCallCategorization so it is maintained in one place.
   return isGroupableItemType(item);
 }
 

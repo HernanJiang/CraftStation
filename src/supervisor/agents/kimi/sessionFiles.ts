@@ -240,12 +240,26 @@ export async function discoverKimiSessionRef(
   return createKnownSessionRef(winner.id);
 }
 
-/** Resolve an ACP session id to Kimi's opaque workdir-scoped session path. */
+/**
+ * Resolve an ACP session id to Kimi's opaque workdir-scoped session path.
+ *
+ * Managed-account threads spawn the CLI with a per-profile `KIMI_CODE_HOME`
+ * (baseSpawnEnv), so their sessions never land under the host `~/.kimi-code`
+ * root. Callers that know the launch's effective home must pass it via
+ * `options.kimiHome` — otherwise resolution scans the wrong root and silently
+ * never finds the dir (this stalled every background-subagent monitor on
+ * managed accounts). Native locations only: the WSL root resolves through the
+ * in-distro login env and cannot consume a host path.
+ */
 export async function resolveKimiSessionDir(
   location: ProjectLocation,
   sessionId: string,
+  options?: { kimiHome?: string },
 ): Promise<string | undefined> {
-  const root = await getKimiSessionsRootAsync(location);
+  const root =
+    location.kind !== "wsl" && options?.kimiHome?.trim()
+      ? join(options.kimiHome.trim(), "sessions")
+      : await getKimiSessionsRootAsync(location);
   if (!root) return undefined;
   const workDirs = await listSessionDir(location, root);
   if (!workDirs) return undefined;

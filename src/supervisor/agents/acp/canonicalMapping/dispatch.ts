@@ -15,6 +15,7 @@ import {
   shouldHoldSkillCatalogChunk,
 } from "@/shared/skillCatalogDump";
 import { stripGeminiHarnessNoise } from "@/shared/geminiHarnessNoise";
+import { stripKimiHarnessNoise } from "@/shared/kimiHarnessNoise";
 import {
   isRetryableCapacityError,
   stripRetryableCapacityNoise,
@@ -186,7 +187,7 @@ export function mapAcpSessionUpdate(
         }
       }
       if (content?.type === "text") {
-        const withoutHarness = stripGeminiHarnessNoise(content.text);
+        const withoutHarness = stripKimiHarnessNoise(stripGeminiHarnessNoise(content.text) ?? "");
         if (!withoutHarness) break;
         content = { ...content, text: withoutHarness };
         if (isRetryableCapacityError(content.text)) break;
@@ -275,7 +276,7 @@ export function mapAcpSessionUpdate(
       }
       let thoughtText = thoughtContent?.type === "text" ? thoughtContent.text : "";
       if (thoughtText) {
-        const withoutHarness = stripGeminiHarnessNoise(thoughtText);
+        const withoutHarness = stripKimiHarnessNoise(stripGeminiHarnessNoise(thoughtText) ?? "");
         if (!withoutHarness) break;
         thoughtText = withoutHarness;
       }

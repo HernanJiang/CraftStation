@@ -48,7 +48,7 @@ export function createDeviceScheduleService(
 }
 
 export type { ScheduleCapability, ScheduleRunInvocation } from "./ScheduleCapability";
-export { ScheduleService, type ScheduleStore } from "./ScheduleService";
+export { ScheduleService, type ScheduleDiagnostic, type ScheduleStore } from "./ScheduleService";
 export { ScheduleRunCoordinator, type ScheduleRunCoordinatorDeps } from "./ScheduleRunCoordinator";
 export { buildScheduleThreadContextText, extractScheduleRunSummary } from "./threadContext";
 export {

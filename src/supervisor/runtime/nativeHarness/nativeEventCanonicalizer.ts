@@ -1,6 +1,7 @@
-﻿import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
+import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import type { NativeHarnessDescriptor } from "@/shared/crafting";
 import { stripGeminiHarnessNoise } from "@/shared/geminiHarnessNoise";
+import { stripKimiHarnessNoise } from "@/shared/kimiHarnessNoise";
 import {
   isRetryableCapacityError,
   stripRetryableCapacityNoise,
@@ -72,7 +73,9 @@ export function createNativeCanonicalizerTurnState(): NativeCanonicalizerTurnSta
 
 function visibleText(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  return stripRetryableCapacityNoise(stripGeminiHarnessNoise(value) ?? "");
+  return stripRetryableCapacityNoise(
+    stripKimiHarnessNoise(stripGeminiHarnessNoise(value) ?? "") ?? "",
+  );
 }
 
 function numberValue(value: unknown): number | undefined {

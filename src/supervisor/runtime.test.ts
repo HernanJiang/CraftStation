@@ -351,17 +351,20 @@ describe("SupervisorRuntime thread input", () => {
         model: "gpt-5.4",
       },
     });
-    await Promise.resolve();
-
-    expect(emitted).toEqual([
-      expect.objectContaining({
-        type: "thread-state",
-        threadId: session.threadId,
-        status: "error",
-        attention: "error",
-        errorMessage: "request failed",
-      }),
-    ]);
+    // The catch chain runs pool failover and Craft-Harness retry checks before
+    // failing the session — each decision is async, so wait for the event
+    // rather than a fixed number of microtask ticks.
+    await vi.waitFor(() => {
+      expect(emitted).toEqual([
+        expect.objectContaining({
+          type: "thread-state",
+          threadId: session.threadId,
+          status: "error",
+          attention: "error",
+          errorMessage: "request failed",
+        }),
+      ]);
+    });
   });
 
   it("rolls back provider conversation through the structured session", async () => {
@@ -4962,7 +4965,10 @@ describe("SupervisorRuntime craftAgent", () => {
         events: [],
       }));
       adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
-      nativeHarnessFactoryOverrides.set("grok", vi.fn(() => adapter));
+      nativeHarnessFactoryOverrides.set(
+        "grok",
+        vi.fn(() => adapter),
+      );
 
       await runtime.craftAgent({
         craftPlan: nativeCraftPlan("grok", "xai", "grok-dropped-envelope"),

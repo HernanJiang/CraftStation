@@ -72,6 +72,23 @@ describe("kimi session discovery (native)", () => {
     expect(await resolveKimiSessionDir(location, "missing-session")).toBeUndefined();
   });
 
+  it("honors an explicit kimiHome over the env-derived root", async () => {
+    // Managed-account threads spawn the CLI with a per-profile KIMI_CODE_HOME
+    // (baseSpawnEnv); the main process env points elsewhere. Resolution must
+    // follow the explicit home — the env root never contains these sessions.
+    const managedHome = mkdtempSync(join(tmpdir(), "kimi-managed-"));
+    try {
+      const dir = join(managedHome, "sessions", "workA", "managed-session");
+      mkdirSync(dir, { recursive: true });
+      expect(await resolveKimiSessionDir(location, "managed-session")).toBeUndefined();
+      expect(
+        await resolveKimiSessionDir(location, "managed-session", { kimiHome: managedHome }),
+      ).toBe(dir);
+    } finally {
+      rmSync(managedHome, { recursive: true, force: true });
+    }
+  });
+
   it("disambiguates multiple new candidates by the state.json cwd", async () => {
     const projA = join(tmpdir(), "kimi-proj-a");
     const locationA = windowsLocation(projA);

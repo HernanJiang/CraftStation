@@ -131,6 +131,25 @@ export type SupervisorEvent =
       toAccount: string;
     }
   | {
+      /** Craft-Harness: an interrupted turn is being retried automatically. */
+      type: "thread-turn-retry";
+      threadId: string;
+      attempt: number;
+      maxAttempts: number;
+      delaySeconds: number;
+      reason: string;
+    }
+  | {
+      /**
+       * User-enabled MCP servers the agent session did not receive (the agent
+       * rejected or cannot carry their transport). Names only — never URLs,
+       * headers, or tokens.
+       */
+      type: "thread-mcp-injection-drop";
+      threadId: string;
+      serverNames: string[];
+    }
+  | {
       type: "thread-osc-shell";
       threadId: string;
       event: OscShellEvent;

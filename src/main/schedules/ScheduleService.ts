@@ -29,6 +29,20 @@ export interface ScheduleStore {
   listRuns?(scheduleId: string, limit?: number): ScheduledTaskRun[];
 }
 
+/**
+ * Structured diagnostic emitted on startup self-checks and sweep protection.
+ * Carries phase/operation/status/code so log lines stay greppable.
+ */
+export interface ScheduleDiagnostic {
+  phase: "startup";
+  operation: string;
+  status: "error" | "warn";
+  code: "STORE_LIST_FAILED" | "STORE_READ_FAILED" | "STORE_INDEX_MISSING" | "SWEEP_CHECK_FAILED";
+  scheduleId?: string;
+  threadId?: string;
+  message: string;
+}
+
 export interface ScheduleServiceOptions {
   store: ScheduleStore;
   runTask(task: ScheduledTask, invocation: ScheduleRunInvocation): Promise<string | null>;
@@ -41,6 +55,8 @@ export interface ScheduleServiceOptions {
   onStartupInterrupted?(scheduleId: string): void;
   /** Notified after any mutation so hosts can broadcast one unified change event. */
   onChanged?(): void;
+  /** Diagnostic sink for startup self-checks; defaults to console.error. */
+  onDiagnostic?(entry: ScheduleDiagnostic): void;
   now?: () => number;
   tickIntervalMs?: number;
   /** True when the bound thread is gone or archived. Used on start to sweep leftovers. */
@@ -60,6 +76,7 @@ export class ScheduleService implements ScheduleCapability {
     if (this.timer || this.disposed) return;
     this.sweepUnavailableBindings();
     this.normalizeAfterStartup();
+    this.verifyStoreConsistency();
     this.timer = setInterval(() => this.tick(), this.options.tickIntervalMs ?? 15_000);
     this.timer.unref?.();
   }
@@ -125,7 +142,8 @@ export class ScheduleService implements ScheduleCapability {
       ...current,
       ...parsed,
       ...normalizeScheduleThreadTarget(parsed),
-      sourceThreadId: parsed.sourceThreadId !== undefined ? parsed.sourceThreadId : current.sourceThreadId,
+      sourceThreadId:
+        parsed.sourceThreadId !== undefined ? parsed.sourceThreadId : current.sourceThreadId,
       enabled,
       nextRunAt,
       updatedAt: new Date(now).toISOString(),
@@ -336,8 +354,56 @@ export class ScheduleService implements ScheduleCapability {
 
   private requireTask(id: string): ScheduledTask {
     const task = this.options.store.get(id);
-    if (!task) throw new Error("Scheduled task not found.");
+    if (!task) throw new Error(`Scheduled task not found: ${id}.`);
     return task;
+  }
+
+  /**
+   * Every id visible through list() must be readable through get() — both are
+   * supposed to hit the same store view. A mismatch once shipped as "by-id
+   * operations report not found while list still shows the row", so verify the
+   * invariant loudly at startup instead of serving a half-broken store.
+   */
+  private verifyStoreConsistency(): void {
+    let listed: ScheduledTask[];
+    try {
+      listed = this.options.store.list();
+    } catch (error) {
+      this.diagnose({
+        phase: "startup",
+        operation: "verify-store-consistency",
+        status: "error",
+        code: "STORE_LIST_FAILED",
+        message: `schedule store list() failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return;
+    }
+    for (const task of listed) {
+      let reread: ScheduledTask | null;
+      try {
+        reread = this.options.store.get(task.id);
+      } catch (error) {
+        this.diagnose({
+          phase: "startup",
+          operation: "verify-store-consistency",
+          status: "error",
+          code: "STORE_READ_FAILED",
+          scheduleId: task.id,
+          message: `schedule ${task.id} is listable but get() threw: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        continue;
+      }
+      if (!reread) {
+        this.diagnose({
+          phase: "startup",
+          operation: "verify-store-consistency",
+          status: "error",
+          code: "STORE_INDEX_MISSING",
+          scheduleId: task.id,
+          message: `schedule ${task.id} is listable but get() returned null; by-id operations will fail`,
+        });
+      }
+    }
   }
 
   private sweepUnavailableBindings(): void {
@@ -345,12 +411,44 @@ export class ScheduleService implements ScheduleCapability {
     if (!unavailable) return;
     this.deleteMatching((task) => {
       const target = scheduleThreadTarget(task);
-      return target.kind === "existing" && unavailable(target.threadId);
+      if (target.kind !== "existing") return false;
+      try {
+        return unavailable(target.threadId);
+      } catch (error) {
+        // A failing availability check must never delete a schedule: keep the
+        // row and report, rather than sweeping bindings on a transient error.
+        this.diagnose({
+          phase: "startup",
+          operation: "sweep-unavailable-bindings",
+          status: "error",
+          code: "SWEEP_CHECK_FAILED",
+          scheduleId: task.id,
+          threadId: target.threadId,
+          message: `thread availability check failed, schedule kept: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        return false;
+      }
     });
   }
 
+  private diagnose(entry: ScheduleDiagnostic): void {
+    if (this.options.onDiagnostic) {
+      this.options.onDiagnostic(entry);
+      return;
+    }
+    console.error(
+      `[craftstation][schedules] phase=${entry.phase} operation=${entry.operation} status=${entry.status} code=${entry.code}` +
+        (entry.scheduleId ? ` scheduleId=${entry.scheduleId}` : "") +
+        (entry.threadId ? ` threadId=${entry.threadId}` : "") +
+        ` — ${entry.message}`,
+    );
+  }
+
   private deleteMatching(match: (task: ScheduledTask) => boolean): string[] {
-    const ids = this.options.store.list().filter(match).map((task) => task.id);
+    const ids = this.options.store
+      .list()
+      .filter(match)
+      .map((task) => task.id);
     if (ids.length === 0) return [];
     for (const id of ids) {
       this.runningIds.delete(id);

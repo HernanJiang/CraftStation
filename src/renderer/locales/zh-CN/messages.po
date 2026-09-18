@@ -3513,6 +3513,10 @@ msgstr "无法启动摄像头"
 msgid "Couldn't update the skill."
 msgstr "无法更新技能。"
 
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Craft-Harness automatically retries a turn interrupted by network or connection failures, injecting a continuation prompt on retry. Set to 0 to disable."
+msgstr "遇到网络或连接中断时，由 Craft-Harness 自动重试该轮对话，并在重试时注入续接提示词。设为 0 表示关闭。"
+
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
 msgstr "合成台 / Harness"
@@ -4400,7 +4404,6 @@ msgstr "完成"
 #. Notification status: thread is done
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
-#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/sidebarProjectRows.ts
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9497,8 +9500,8 @@ msgid "Queued"
 msgstr "已排队"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "Queued prompt"
-msgstr "排队中的提示"
+#~ msgid "Queued prompt"
+#~ msgstr "排队中的提示"
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -10814,6 +10817,10 @@ msgstr "正在搜索..."
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Searching…"
 msgstr "正在搜索…"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Seconds Craft-Harness waits between automatic turn retry attempts."
+msgstr "Craft-Harness 每次自动重试之间等待的秒数。"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadRow.tsx
 msgid "See more"
@@ -12757,6 +12764,18 @@ msgstr "立即试用"
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Turn on remote access to show a pairing code."
 msgstr "开启远程访问以显示配对码。"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Turn retry attempts"
+msgstr "重试次数"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Turn retry interval"
+msgstr "重试间隔"
+
+#: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+msgid "Turn retry interval (seconds)"
+msgstr "重试间隔（秒）"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Turn tracking on or off per provider. Disabled providers are skipped by the auto-refresh."

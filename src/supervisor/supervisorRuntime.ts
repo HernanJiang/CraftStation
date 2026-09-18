@@ -899,6 +899,13 @@ export class SupervisorRuntime {
       logsDir: this.logsDir,
       settingsPath: this.settingsPath,
       readDisableCliHookPlugin: () => this.sharedSettingsCache.read().disableCliHookPlugin,
+      readTurnRetryPolicy: () => {
+        const settings = this.sharedSettingsCache.read();
+        return {
+          maxAttempts: settings.turnRetryMaxAttempts,
+          intervalMs: settings.turnRetryIntervalSeconds * 1000,
+        };
+      },
       adapters: this.adapters,
       resolveWindowsShell: (runtime) => this.resolveWindowsShell(runtime),
       resolveAccountSessionEnv: (input) => this.resolveAccountSessionEnv(input),

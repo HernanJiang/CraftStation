@@ -159,6 +159,14 @@ export interface StructuredSessionHandle {
    * server; sessions without this hook pick the new set up on next launch.
    */
   updateMcpServers?(mcpServers: readonly ResolvedMcpServer[]): Promise<void>;
+  /**
+   * Drain the names of requested MCP servers the last session open did NOT
+   * deliver to the agent (capability gate or compatibility fallback). The
+   * runtime turns these into a user-visible notice so an enabled-in-panel
+   * server never fails to inject silently. Returns and clears the pending
+   * names; empty when everything was delivered.
+   */
+  consumeMcpInjectionDrops?(): string[];
   readThread?(): Promise<ThreadHistory>;
   rollbackThread?(numTurns: number, config?: ThreadConfig): Promise<ThreadHistory>;
   setListener(listener: StructuredSessionListener): void;

@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useEffectEvent,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -15,10 +16,16 @@ import { applySidebarGlassTint } from "@/renderer/theme/sidebarGlass";
 import { isRemoteSession, readBridge } from "@/renderer/bridge";
 import { captureRendererException } from "@/renderer/diagnostics/sentry";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { useNotificationStore } from "@/renderer/state/notificationStore";
 import { i18n, dynamicActivate } from "@/renderer/i18n/i18n";
 import { detectOSLocale, resolveLocale } from "@/renderer/i18n/locales";
 import { getToastActionLabel, normalizeToastContent } from "./toastContent";
+import { installToastExtrasForwarding } from "./toastExtras";
 import { SwipeDismissToast } from "./SwipeDismissToast";
+
+// HeroUI 3.2.2 drops extra toast options (context/onPress/ledgerLogged);
+// patch the shared toast object before any toast is fired.
+installToastExtrasForwarding();
 
 function systemPrefersReducedTransparency(): boolean {
   return (
@@ -33,6 +40,28 @@ const toastContentClassName = "min-w-0 p-0 pr-1";
 const toastDescriptionClassName =
   "lc-toast__description overscroll-contain whitespace-pre-wrap pr-1";
 const toastTitleClassName = "lc-toast__title";
+
+/**
+ * One bell-list row per error toast. Thread-state notifications push their own
+ * rows in notifications.ts and mark the toast content with `ledgerLogged`, so
+ * this only picks up standalone `toast.danger(...)` calls (action errors like
+ * "无法打开 X：…") that would otherwise vanish after the 5s timeout with no
+ * trace in the bell panel.
+ */
+function ToastLedgerEntry(props: {
+  variant: unknown;
+  text: string | undefined;
+  alreadyLogged: boolean;
+}) {
+  const { variant, text, alreadyLogged } = props;
+  const pushedRef = useRef(false);
+  useEffect(() => {
+    if (pushedRef.current || alreadyLogged || variant !== "danger" || !text) return;
+    pushedRef.current = true;
+    useNotificationStore.getState().push({ tone: "danger", title: text, status: "" });
+  }, [variant, text, alreadyLogged]);
+  return null;
+}
 
 export function useResolvedAppearance(): "light" | "dark" {
   return useContext(AppearanceContext);
@@ -168,8 +197,7 @@ export function AppProvider(props: {
   // together. Chromium honors it; persisted via sharedSettings. `--app-zoom`
   // mirrors the factor for the overlay counter-zoom layer (styles.css).
   useEffect(() => {
-    const factor =
-      typeof zoomFactor === "number" && Number.isFinite(zoomFactor) ? zoomFactor : 1;
+    const factor = typeof zoomFactor === "number" && Number.isFinite(zoomFactor) ? zoomFactor : 1;
     document.documentElement.style.zoom = factor === 1 ? "" : String(factor);
     document.documentElement.style.setProperty("--app-zoom", String(factor));
   }, [zoomFactor]);
@@ -254,14 +282,27 @@ export function AppProvider(props: {
             const isToastPressable = hasOnPress && !actionProps;
             const actionLabel = getToastActionLabel(actionProps);
             const isCopyAction = actionLabel?.toLowerCase().startsWith("copy") ?? false;
+            // Error text must never be ellipsized: the title wraps in full
+            // (danger variant also opts out of the 2-line clamp in styles.css);
+            // other variants keep the compact single-line truncation.
+            const isDanger = variant === "danger";
             const titleRow = title ? (
               <>
-                <span className="min-w-0 flex-1 truncate">{title}</span>
+                <span
+                  className={`min-w-0 flex-1 ${isDanger ? "whitespace-pre-wrap break-words" : "truncate"}`}
+                >
+                  {title}
+                </span>
                 {typeof rawContext === "string" && rawContext ? (
                   <span className="shrink-0 text-[10px] font-normal text-muted">{rawContext}</span>
                 ) : null}
               </>
             ) : null;
+            const ledgerText =
+              typeof rawTitle === "string"
+                ? rawTitle + (typeof rawDescription === "string" ? `\n${rawDescription}` : "")
+                : undefined;
+            const ledgerLogged = isObject && (content as any).ledgerLogged === true;
 
             return (
               <SwipeDismissToast
@@ -269,6 +310,11 @@ export function AppProvider(props: {
                 variant={variant}
                 className={`lc-toast relative w-full border border-border/40 ${isToastPressable ? "cursor-pointer" : ""}`}
               >
+                <ToastLedgerEntry
+                  variant={variant}
+                  text={ledgerText}
+                  alreadyLogged={ledgerLogged}
+                />
                 {isToastPressable ? (
                   <div
                     className="flex w-full items-start gap-2 px-2.5 py-2"

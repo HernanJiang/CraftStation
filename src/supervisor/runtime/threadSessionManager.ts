@@ -82,6 +82,7 @@ import {
   type SpawnThreadInput,
 } from "./threadSession/spawnPipeline";
 import { StructuredTurnQueue } from "./threadSession/structuredTurnQueue";
+import { TurnRetryCoordinator } from "./threadSession/turnRetryCoordinator";
 import { buildHistoryPreface, ThreadTranscriptTracker } from "./threadSession/threadTranscript";
 import { StructuredFailureReporter } from "./threadSession/structuredFailureReporter";
 import { readSupervisorSharedSettings } from "./supervisorSharedSettings";
@@ -163,6 +164,7 @@ export class ThreadSessionManager {
   private readonly spawnPipeline: SpawnPipeline;
   private readonly invalidSessionRecovery: InvalidSessionRecoveryCoordinator;
   private readonly structuredTurnQueue: StructuredTurnQueue;
+  private readonly turnRetryCoordinator: TurnRetryCoordinator;
   private readonly structuredFailureReporter = new StructuredFailureReporter();
   private readonly recentlyRemovedThreadIds = new Set<string>();
   private disposed = false;
@@ -190,12 +192,27 @@ export class ThreadSessionManager {
       isDisposed: () => this.disposed,
       completeForcedInterrupt: (session) => this.completeForcedStructuredInterrupt(session),
     });
+    // Craft-Harness retry coordinator: closures are deferred, so referencing
+    // `this.structuredTurnQueue` / `this.spawnPipeline` before their
+    // assignment below is safe — retry only runs async, after construction.
+    this.turnRetryCoordinator = new TurnRetryCoordinator({
+      isDisposed: () => this.disposed,
+      isCurrentSession: (session) => this.isCurrentSession(session),
+      readPolicy: () => this.options.readTurnRetryPolicy(),
+      emit: options.emit,
+      attachHistoryPreface: (session, turn) => this.attachHistoryPreface(session, turn),
+      startTurn: (session, turn) => this.structuredTurnQueue.start(session, turn),
+      restartTurn: (session, turn) => this.spawnPipeline.restartThread(session, turn),
+      sleep,
+    });
     this.structuredTurnQueue = new StructuredTurnQueue({
       emit: options.emit,
       sessions: this.sessions,
       beginFailureEpisode: (session) => this.structuredFailureReporter.beginEpisode(session),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
       tryPoolFailover: (session, turn, error) => this.tryPoolFailover(session, turn, error),
+      tryTurnRetry: (session, turn, error) =>
+        this.turnRetryCoordinator.tryTurnRetry(session, turn, error),
     });
     this.steerCoordinator = new SteerCoordinator({
       emit: options.emit,

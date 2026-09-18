@@ -415,6 +415,14 @@ export const sharedSettingsSchema = z.object({
   cliPickerTarget: z.enum(["ask", "terminal", "composer"]),
   /** Idle minutes before a hidden resumable thread is unloaded. 0 disables auto-unload. */
   staleThreadUnloadMinutes: z.number().int().min(0),
+  /**
+   * Craft-Harness turn retry policy: how many times a turn that failed on a
+   * network/transport interruption is automatically retried by the supervisor
+   * (harness-agnostic, outer runtime layer). 0 disables automatic retries.
+   */
+  turnRetryMaxAttempts: z.number().int().min(0).max(10),
+  /** Seconds to wait between automatic turn retry attempts. */
+  turnRetryIntervalSeconds: z.number().int().min(1).max(300),
   /** Days a thread can stay marked done before it is auto-archived. 0 disables auto-archive. */
   autoArchiveDoneAfterDays: z.number().int().min(0),
   /**
@@ -778,6 +786,8 @@ export const defaultSharedSettings: SharedSettings = {
   collapseTerminalComposer: false,
   cliPickerTarget: "ask",
   staleThreadUnloadMinutes: 60,
+  turnRetryMaxAttempts: 2,
+  turnRetryIntervalSeconds: 5,
   autoArchiveDoneAfterDays: 3,
   archiveRetention: "7d",
   scrollSpeed: 2,

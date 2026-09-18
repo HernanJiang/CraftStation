@@ -209,4 +209,114 @@ describe("Schedule MCP tools", () => {
       }),
     );
   });
+
+  it("normalizes stringified null sentinels on create (OpenCode bridge)", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    await scheduleTools.handlers.create!(
+      {
+        name: "Null sentinel probe",
+        prompt: "Probe null sentinel normalization.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        timezone: "null",
+        recipeId: "null",
+        projectId: "null",
+        continueInCurrentThread: false,
+      },
+      ctx(service),
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ timezone: null, recipeId: null }),
+    );
+  });
+
+  it("normalizes stringified null sentinels on update (OpenCode bridge)", async () => {
+    const current = {
+      id: "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150",
+      name: "Self check",
+      prompt: "Run the self check.",
+      agentKind: "opencode",
+      recurrence: { kind: "interval", everyMinutes: 30 },
+      enabled: true,
+      timezone: "Asia/Shanghai",
+      recipeId: "recipe-1",
+      threadTarget: { kind: "new" },
+      targetThreadId: null,
+      sourceThreadId: thread.id,
+      createdByThreadId: thread.id,
+      config: { model: "opencode-go/muse-spark-1.3-contributor" },
+    } as unknown as ScheduledTask;
+    const update = vi.fn<(id: string, input: unknown) => ScheduledTask>(
+      (_id, input) => ({ ...current, ...(input as object) }) as ScheduledTask,
+    );
+    const service = {
+      get: vi.fn<(id: string) => ScheduledTask | null>(() => current),
+      update,
+    } as unknown as ScheduleCapability;
+
+    await scheduleTools.handlers.update!(
+      { id: current.id, timezone: "null", recipeId: "undefined" },
+      ctx(service),
+    );
+
+    expect(update).toHaveBeenCalledWith(
+      current.id,
+      expect.objectContaining({ timezone: null, recipeId: null }),
+    );
+  });
+
+  it("still accepts real null and real time zones alongside the sentinels", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    await scheduleTools.handlers.create!(
+      {
+        name: "Real null probe",
+        prompt: "Probe real null handling.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        timezone: null,
+        recipeId: null,
+        continueInCurrentThread: false,
+      },
+      ctx(service),
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ timezone: null, recipeId: null }),
+    );
+    create.mockClear();
+    await scheduleTools.handlers.create!(
+      {
+        name: "Real zone probe",
+        prompt: "Probe real timezone handling.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        timezone: "Asia/Shanghai",
+        continueInCurrentThread: false,
+      },
+      ctx(service),
+    );
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ timezone: "Asia/Shanghai" }));
+  });
+
+  it("distinguishes a listed-but-unreadable schedule from a plain not found", () => {
+    const id = "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150";
+    const ghost = { id } as ScheduledTask;
+    const diverged = {
+      get: vi.fn<(id: string) => ScheduledTask | null>(() => null),
+      list: vi.fn<() => ScheduledTask[]>(() => [ghost]),
+    } as unknown as ScheduleCapability;
+    expect(() => scheduleTools.handlers.get!({ id }, ctx(diverged))).toThrow(
+      /visible in list but unreadable by id/u,
+    );
+
+    const empty = {
+      get: vi.fn<(id: string) => ScheduledTask | null>(() => null),
+      list: vi.fn<() => ScheduledTask[]>(() => []),
+    } as unknown as ScheduleCapability;
+    expect(() => scheduleTools.handlers.get!({ id }, ctx(empty))).toThrow(
+      `Scheduled task not found: ${id}.`,
+    );
+  });
 });

@@ -34,10 +34,7 @@ import {
 } from "@/shared/contracts";
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
 import { resolveAgentPresentationMode } from "@/shared/agentStatus";
-import {
-  modelCatalogChannel,
-  normalizeCommandCodeModelId,
-} from "@/shared/thirdPartyRouting";
+import { modelCatalogChannel, normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
 import type { AgentNativePlugin } from "@/supervisor/agents/base";
 import {
   resolveBrowserMcpHttpConfigForLaunch,
@@ -676,6 +673,7 @@ export class SpawnPipeline {
             payload.threadId,
           )
         ).threadId;
+        this.emitMcpInjectionDrops(payload.threadId, structuredSession);
       } catch (error) {
         await structuredSession.dispose();
         if (ctx.pendingStartInterrupts.delete(payload.threadId)) {
@@ -1070,6 +1068,7 @@ export class SpawnPipeline {
         } else {
           freshSessionRef = session.sessionRef;
         }
+        this.emitMcpInjectionDrops(session.threadId, structuredSession);
       } catch (error) {
         await structuredSession.dispose();
         throw error;
@@ -1366,6 +1365,7 @@ export class SpawnPipeline {
         if (typeof freshThreadId === "string" && freshThreadId.length > 0) {
           freshSessionRef = createKnownSessionRef(freshThreadId);
         }
+        this.emitMcpInjectionDrops(session.threadId, structuredSession);
       }
       if (!ctx.isCurrentSession(session)) {
         throw new Error("Thread session was replaced during the provider switch.");
@@ -2135,57 +2135,57 @@ export class SpawnPipeline {
       let handle: StructuredSessionHandle;
       try {
         const created = await adapter.createStructuredSession({
-        threadId,
-        projectLocation: museCommandLocation,
-        config,
-        agentSettings: this.ctx.resolveAgentSettings(adapter),
-        ...(baseSpawnEnv ? { baseSpawnEnv } : {}),
-        ...(mcpIdentity ? { mcpIdentity } : {}),
-        ...(mcpServers.length > 0 || adapter.capabilities.mcpConfigSource === "agentSettings"
-          ? { mcpServers }
-          : {}),
-        ...(sessionRef ? { sessionRef } : {}),
-        ...(presentationMode ? { presentationMode } : {}),
-        ...(accountEnv
-          ? {
-              // Chat-lane equivalent of the craftAgent lane's onPromptError:
-              // quota failures write back onto the pool account so the next
-              // session resolution skips it.
-              onPromptError: (error: unknown) =>
-                this.ctx.options.handleAccountPromptError?.({
-                  provider: effectiveProvider,
-                  accountId: accountEnv.accountId,
-                  error,
-                }),
-              // Async quota failures (Codex turn/completed notifications)
-              // settle before any rejection can reach the turn queue: replay
-              // the carried prompt on the next usable pool account via the
-              // normal failover path. The carried user-message id prevents a
-              // duplicate user row; the write-back above already marked the
-              // dead account before this runs.
-              onPoolQuotaTurnFailed: (failedTurn) => {
-                const runtime = this.ctx.sessions.get(threadId);
-                if (!runtime) return;
-                const turn: QueuedStructuredTurn = {
-                  prompt: failedTurn.prompt,
-                  config: failedTurn.config,
-                  ...(failedTurn.segments ? { segments: failedTurn.segments } : {}),
-                  ...(failedTurn.userMessageItemId
-                    ? { userMessageItemId: failedTurn.userMessageItemId }
-                    : {}),
-                };
-                void (async () => {
-                  try {
-                    await this.ctx.tryPoolFailover?.(runtime, turn, failedTurn.error);
-                  } catch {
-                    // Declines and restart failures surface through the
-                    // original quota banner; never replace it here.
-                  }
-                })();
-              },
-            }
-          : {}),
-      });
+          threadId,
+          projectLocation: museCommandLocation,
+          config,
+          agentSettings: this.ctx.resolveAgentSettings(adapter),
+          ...(baseSpawnEnv ? { baseSpawnEnv } : {}),
+          ...(mcpIdentity ? { mcpIdentity } : {}),
+          ...(mcpServers.length > 0 || adapter.capabilities.mcpConfigSource === "agentSettings"
+            ? { mcpServers }
+            : {}),
+          ...(sessionRef ? { sessionRef } : {}),
+          ...(presentationMode ? { presentationMode } : {}),
+          ...(accountEnv
+            ? {
+                // Chat-lane equivalent of the craftAgent lane's onPromptError:
+                // quota failures write back onto the pool account so the next
+                // session resolution skips it.
+                onPromptError: (error: unknown) =>
+                  this.ctx.options.handleAccountPromptError?.({
+                    provider: effectiveProvider,
+                    accountId: accountEnv.accountId,
+                    error,
+                  }),
+                // Async quota failures (Codex turn/completed notifications)
+                // settle before any rejection can reach the turn queue: replay
+                // the carried prompt on the next usable pool account via the
+                // normal failover path. The carried user-message id prevents a
+                // duplicate user row; the write-back above already marked the
+                // dead account before this runs.
+                onPoolQuotaTurnFailed: (failedTurn) => {
+                  const runtime = this.ctx.sessions.get(threadId);
+                  if (!runtime) return;
+                  const turn: QueuedStructuredTurn = {
+                    prompt: failedTurn.prompt,
+                    config: failedTurn.config,
+                    ...(failedTurn.segments ? { segments: failedTurn.segments } : {}),
+                    ...(failedTurn.userMessageItemId
+                      ? { userMessageItemId: failedTurn.userMessageItemId }
+                      : {}),
+                  };
+                  void (async () => {
+                    try {
+                      await this.ctx.tryPoolFailover?.(runtime, turn, failedTurn.error);
+                    } catch {
+                      // Declines and restart failures surface through the
+                      // original quota banner; never replace it here.
+                    }
+                  })();
+                },
+              }
+            : {}),
+        });
         if (!created) {
           deepseekPrepared.cleanup?.();
           musePrepared.cleanup?.();
@@ -2223,9 +2223,7 @@ export class SpawnPipeline {
       // the GUI error strip explains WHY the start failed instead of a bare
       // diagnostic line the user cannot act on.
       const causeHint =
-        error instanceof AccountControlError
-          ? error.message
-          : structuredRuntimeCauseHint(error);
+        error instanceof AccountControlError ? error.message : structuredRuntimeCauseHint(error);
       const diagnosticError = new StructuredRuntimeDiagnosticError(
         "session-creation",
         agentKind,
@@ -2259,6 +2257,20 @@ export class SpawnPipeline {
     this.ctx.pendingStartInterrupts.delete(threadId);
     await structuredSession?.dispose();
     return true;
+  }
+
+  /**
+   * Surface MCP servers the session open could not inject (capability gate /
+   * compatibility fallback) as a user-visible notice. Without this the panel
+   * shows them enabled while the agent never saw them — a silent blind spot.
+   */
+  private emitMcpInjectionDrops(
+    threadId: string,
+    structuredSession: StructuredSessionHandle | undefined,
+  ): void {
+    const serverNames = structuredSession?.consumeMcpInjectionDrops?.() ?? [];
+    if (serverNames.length === 0) return;
+    this.ctx.options.emit({ type: "thread-mcp-injection-drop", threadId, serverNames });
   }
 
   private emitOptimisticWorkingState(

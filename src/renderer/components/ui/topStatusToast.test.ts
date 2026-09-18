@@ -4,7 +4,7 @@ const toast = vi.hoisted(() => vi.fn<(message: unknown, options?: unknown) => st
 
 vi.mock("@heroui/react", () => ({ toast }));
 
-import { poolFailoverToastCopy, showTopStatusToast } from "./topStatusToast";
+import { poolFailoverToastCopy, showTopStatusToast, turnRetryToastCopy } from "./topStatusToast";
 
 describe("showTopStatusToast", () => {
   beforeEach(() => {
@@ -36,6 +36,13 @@ describe("showTopStatusToast", () => {
     expect(poolFailoverToastCopy("Grok", "a@x.com", "b@y.com")).toEqual({
       title: "Grok账号a@x.com额度已耗尽",
       description: "已切换到b@y.com继续作答",
+    });
+  });
+
+  it("formats Craft-Harness retry notices with attempt, interval and reason", () => {
+    expect(turnRetryToastCopy(1, 2, 5, "ECONNRESET")).toEqual({
+      title: "网络/连接中断，5 秒后自动重试（第 1/2 次）",
+      description: "ECONNRESET",
     });
   });
 });

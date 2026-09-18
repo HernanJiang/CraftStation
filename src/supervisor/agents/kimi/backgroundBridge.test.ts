@@ -1,4 +1,7 @@
 import type { SessionNotification } from "@agentclientprotocol/sdk";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectLocation } from "@/shared/contracts";
 import {
@@ -75,8 +78,10 @@ function startBridge(
 }
 
 describe("Kimi background subagent bridge", () => {
-  it("defaults to no host deadline and accepts an explicit configured deadline", () => {
-    expect(DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS).toBe(0);
+  it("bounds the session-dir wait and accepts an explicit task deadline", () => {
+    // A never-resolving session dir must fail the launch (10 min), not spin
+    // forever — the managed-account wrong-root bug pinned tiles at "running".
+    expect(DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS).toBe(10 * 60 * 1_000);
     expect(DEFAULT_KIMI_BACKGROUND_TASK_TIMEOUT_MS).toBe(0);
     expect(resolveKimiBackgroundTaskTimeoutMs()).toBe(0);
     expect(resolveKimiBackgroundTaskTimeoutMs({ backgroundTaskTimeoutMs: "1234" })).toBe(1234);
@@ -87,7 +92,11 @@ describe("Kimi background subagent bridge", () => {
     ).toBe(5678);
   });
 
-  it("does not abandon a running task after the former two-hour deadline", async () => {
+  it("settles a still-pending launch as lost when the bridge is disposed", async () => {
+    // Session teardown (thread close, session replacement, app quit) aborts
+    // every monitor. The renderer's completion channel dies with the session,
+    // so disposal itself must emit the terminal failure — otherwise the
+    // subagent tile spins forever.
     let clock = 1_000;
     let reads = 0;
     const readText = makeReadText({
@@ -113,7 +122,14 @@ describe("Kimi background subagent bridge", () => {
     await vi.waitFor(() => expect(reads).toBeGreaterThan(0));
     bridge.dispose();
 
-    expect(updates).toHaveLength(0);
+    // The running monitor never emitted on its own (no host deadline)…
+    // …but dispose settled the tile with a terminal failure.
+    expect(updates).toHaveLength(1);
+    expect(updates[0]?.update).toMatchObject({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "tool-1",
+      status: "failed",
+    });
   });
 
   it("reports an explicit host deadline as failed instead of claiming completion", async () => {
@@ -660,5 +676,76 @@ describe("Kimi background subagent bridge", () => {
       toolCallId: "tool-1",
       status: "failed",
     });
+  });
+
+  it("resolves the session dir under an explicit managed-account kimiHome", async () => {
+    // Managed accounts spawn Kimi with KIMI_CODE_HOME=<profile dir>, so their
+    // sessions never land under the host ~/.kimi-code root. The bridge must
+    // poll the override — before this, the monitor never found the dir and
+    // the subagent tile spun forever.
+    const home = mkdtempSync(join(tmpdir(), "kimi-bridge-home-"));
+    try {
+      const sessionDir = join(home, "sessions", "wd_test", "session-1");
+      const tasksDir = join(sessionDir, "agents", "main", "tasks");
+      mkdirSync(join(tasksDir, "agent-task"), { recursive: true });
+      writeFileSync(
+        join(tasksDir, "agent-task.json"),
+        JSON.stringify({ status: "completed", endedAt: 5 }),
+      );
+      writeFileSync(join(tasksDir, "agent-task", "output.log"), "child result");
+      writeFileSync(
+        join(sessionDir, "agents", "main", "wire.jsonl"),
+        [
+          wireLine(10, {
+            type: "tool.call",
+            turnId: "1",
+            name: "TaskOutput",
+            args: { task_id: "agent-task" },
+          }),
+          wireLine(11, {
+            type: "content.part",
+            turnId: "1",
+            part: { type: "text", text: "auto reply" },
+          }),
+          wireLine(12, { type: "step.end", turnId: "1", finishReason: "end_turn" }),
+        ].join("\n"),
+      );
+
+      const updates: SessionNotification[] = [];
+      const bridge = createKimiBackgroundBridge(
+        { kind: "posix", path: "/repo" },
+        (notification) => updates.push(notification),
+        // No readText/resolveSessionDir overrides: the real fs resolution must
+        // find the session under the explicit home.
+        { kimiHome: home, pollIntervalMs: 1 },
+      );
+      bridge.onBackgroundLaunch({
+        sessionId: "session-1",
+        toolCallId: "tool-1",
+        taskId: "agent-task",
+      });
+      await vi.waitFor(() => {
+        expect(
+          updates.some((notification) => notification.update.sessionUpdate === "tool_call_update"),
+        ).toBe(true);
+      });
+      bridge.dispose();
+
+      const terminal = updates.find(
+        (notification) => notification.update.sessionUpdate === "tool_call_update",
+      );
+      expect(terminal?.update).toMatchObject({
+        toolCallId: "tool-1",
+        status: "completed",
+        rawOutput: "child result",
+      });
+      // The monitor settled synchronously with its emission, so dispose had no
+      // orphaned launch left to fail.
+      expect(
+        updates.filter((notification) => notification.update.sessionUpdate === "tool_call_update"),
+      ).toHaveLength(1);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });

@@ -1,4 +1,5 @@
 import { startTransition } from "react";
+import { NumberField } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { NewThreadMode } from "@/shared/contracts";
 import { isRemoteSession, isWindows } from "@/renderer/bridge";
@@ -39,6 +40,12 @@ export function GeneralSettings() {
   const setHomeScopeEnabled = useSharedSettings((state) => state.setHomeScopeEnabled);
   const editorLspEnabled = useSharedSettings((state) => state.editorLspEnabled);
   const setEditorLspEnabled = useSharedSettings((state) => state.setEditorLspEnabled);
+  const turnRetryMaxAttempts = useSharedSettings((state) => state.turnRetryMaxAttempts);
+  const setTurnRetryMaxAttempts = useSharedSettings((state) => state.setTurnRetryMaxAttempts);
+  const turnRetryIntervalSeconds = useSharedSettings((state) => state.turnRetryIntervalSeconds);
+  const setTurnRetryIntervalSeconds = useSharedSettings(
+    (state) => state.setTurnRetryIntervalSeconds,
+  );
   // System sleep and tray behavior belong to the desktop OS; a remote session
   // can't affect them, so hide the rows there.
   const remote = isRemoteSession();
@@ -129,6 +136,67 @@ export function GeneralSettings() {
             });
           }}
         />
+      </SettingRow>
+
+      <SettingRow
+        anchorId="general.turnRetryMaxAttempts"
+        title={t`Turn retry attempts`}
+        description={
+          <Trans>
+            Craft-Harness automatically retries a turn interrupted by network or connection
+            failures, injecting a continuation prompt on retry. Set to 0 to disable.
+          </Trans>
+        }
+      >
+        <NumberField
+          aria-label={t`Turn retry attempts`}
+          className="w-[160px] shrink-0"
+          minValue={0}
+          maxValue={10}
+          step={1}
+          value={turnRetryMaxAttempts}
+          onChange={(value) => {
+            if (value === undefined || Number.isNaN(value)) return;
+            startTransition(() => {
+              setTurnRetryMaxAttempts(Math.max(0, Math.min(10, Math.floor(value))));
+            });
+          }}
+        >
+          <NumberField.Group>
+            <NumberField.DecrementButton />
+            <NumberField.Input />
+            <NumberField.IncrementButton />
+          </NumberField.Group>
+        </NumberField>
+      </SettingRow>
+
+      <SettingRow
+        anchorId="general.turnRetryIntervalSeconds"
+        title={t`Turn retry interval`}
+        description={
+          <Trans>Seconds Craft-Harness waits between automatic turn retry attempts.</Trans>
+        }
+      >
+        <NumberField
+          aria-label={t`Turn retry interval (seconds)`}
+          className="w-[160px] shrink-0"
+          minValue={1}
+          maxValue={300}
+          step={1}
+          value={turnRetryIntervalSeconds}
+          onChange={(value) => {
+            if (value === undefined || Number.isNaN(value)) return;
+            startTransition(() => {
+              setTurnRetryIntervalSeconds(Math.max(1, Math.min(300, Math.floor(value))));
+            });
+          }}
+        >
+          <NumberField.Group>
+            <NumberField.DecrementButton />
+            <NumberField.Input />
+            <NumberField.IncrementButton />
+          </NumberField.Group>
+        </NumberField>
       </SettingRow>
 
       {!remote && (

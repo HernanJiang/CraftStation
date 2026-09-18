@@ -19,6 +19,7 @@ function makeManager() {
     logsDir: "",
     settingsPath: "",
     readDisableCliHookPlugin: () => false,
+    readTurnRetryPolicy: () => ({ maxAttempts: 0, intervalMs: 1000 }),
     adapters: new Map(),
     resolveWindowsShell: () => ({ shell: "cmd", kind: "cmd", args: [] }),
   });

@@ -16,11 +16,14 @@ import { resolveKimiSessionDir } from "./sessionFiles";
 
 const POLL_INTERVAL_MS = 500;
 /**
- * Session persistence can lag a provider launch by an arbitrary amount. A
- * missing directory is not task completion, so the default is unbounded;
- * callers that need a readiness ceiling may pass an explicit value.
+ * Session persistence can lag a provider launch by a few seconds, so the dir
+ * lookup retries — but a lookup that NEVER resolves (wrong KIMI_CODE_HOME
+ * root on managed accounts was the live example) must not spin forever: the
+ * subagent tile would pin at "running" with no terminal event ever arriving.
+ * Ten minutes is orders of magnitude past any real persistence lag; on expiry
+ * the monitor emits a synthetic "lost" failure so the UI settles.
  */
-export const DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS = 0;
+export const DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS = 10 * 60 * 1_000;
 /**
  * How long to poll the session's wire journal for the model's follow-up
  * reply turn after the task file reports a terminal status.
@@ -58,6 +61,12 @@ interface KimiBackgroundBridgeDependencies {
   taskTimeoutMs?: number;
   now?: () => number;
   subagents?: AcpSubagentCoordinator;
+  /**
+   * Effective Kimi home of the launched CLI (`baseSpawnEnv.KIMI_CODE_HOME`).
+   * Managed-account threads isolate sessions into a per-profile home, so the
+   * default host root would never contain their session dirs.
+   */
+  kimiHome?: string;
 }
 
 function parseTimeout(value: unknown): number | undefined {
@@ -88,7 +97,13 @@ export function createKimiBackgroundBridge(
   dependencies: KimiBackgroundBridgeDependencies = {},
 ): KimiBackgroundBridge {
   const readText = dependencies.readText ?? readSessionFileText;
-  const resolveSessionDir = dependencies.resolveSessionDir ?? resolveKimiSessionDir;
+  const kimiHome = dependencies.kimiHome?.trim();
+  const resolveSessionDir =
+    dependencies.resolveSessionDir ??
+    (kimiHome
+      ? (loc: ProjectLocation, sessionId: string) =>
+          resolveKimiSessionDir(loc, sessionId, { kimiHome })
+      : resolveKimiSessionDir);
   const pollIntervalMs = dependencies.pollIntervalMs ?? POLL_INTERVAL_MS;
   const sessionDirTimeoutMs =
     dependencies.sessionDirTimeoutMs ?? DEFAULT_KIMI_SESSION_DIR_TIMEOUT_MS;
@@ -98,12 +113,17 @@ export function createKimiBackgroundBridge(
   const abortController = new AbortController();
   const claimedAutomaticTurns = new Set<string>();
   const launchedTasks = new Set<string>();
+  // Launches whose monitor has not emitted a terminal completion yet. Disposal
+  // must settle them as "lost": without a terminal update the renderer's
+  // subagent tile spins forever (the completion channel dies with the session).
+  const pendingLaunches = new Map<string, KimiBackgroundLaunch>();
 
   return {
     onBackgroundLaunch(launch) {
       const launchKey = `${launch.sessionId}:${launch.taskId}`;
       if (launchedTasks.has(launchKey)) return;
       launchedTasks.add(launchKey);
+      pendingLaunches.set(launchKey, launch);
       void monitorBackgroundLaunch({
         location,
         launch,
@@ -117,10 +137,20 @@ export function createKimiBackgroundBridge(
         signal: abortController.signal,
         claimedAutomaticTurns,
         subagents,
+        // Settled synchronously with the terminal emission, so a dispose() in
+        // the same tick as the completion never double-settles the launch.
+        onSettled: () => pendingLaunches.delete(launchKey),
+      }).finally(() => {
+        pendingLaunches.delete(launchKey);
       });
     },
     dispose() {
       abortController.abort();
+      const orphaned = [...pendingLaunches.values()];
+      pendingLaunches.clear();
+      for (const launch of orphaned) {
+        emitBackgroundCompletion(emit, subagents, launch, "lost", undefined, undefined);
+      }
     },
   };
 }
@@ -138,6 +168,7 @@ interface MonitorBackgroundLaunchInput {
   signal: AbortSignal;
   claimedAutomaticTurns: Set<string>;
   subagents: AcpSubagentCoordinator;
+  onSettled: () => void;
 }
 
 async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Promise<void> {
@@ -149,7 +180,20 @@ async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Pro
     // "running 0/1" and the whole thread pinned at "working" forever. Fail the
     // launch explicitly instead — the parent session stays alive.
     if (sessionDir === undefined && !input.signal.aborted) {
-      emitBackgroundCompletion(input.emit, input.subagents, input.launch, "lost", undefined, undefined);
+      console.warn(
+        "[kimi] background subagent %s: session dir for %s never resolved; settling as lost",
+        input.launch.taskId,
+        input.launch.sessionId,
+      );
+      emitBackgroundCompletion(
+        input.emit,
+        input.subagents,
+        input.launch,
+        "lost",
+        undefined,
+        undefined,
+      );
+      input.onSettled();
     }
     return;
   }
@@ -184,6 +228,7 @@ async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Pro
       output,
       emitAutomaticReply ? automaticTurn.text : undefined,
     );
+    input.onSettled();
     return;
   }
   // An explicit host deadline is a failure, never a successful completion.
@@ -197,6 +242,7 @@ async function monitorBackgroundLaunch(input: MonitorBackgroundLaunchInput): Pro
       undefined,
       undefined,
     );
+    input.onSettled();
   }
 }
 

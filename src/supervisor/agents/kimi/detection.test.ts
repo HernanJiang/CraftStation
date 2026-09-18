@@ -344,6 +344,24 @@ describe("buildKimiProbeCapabilities", () => {
     expect(buildKimiProbeCapabilities(undefined, noCredentials).models).toBeUndefined();
   });
 
+  it("lets a size-suffixed model id win over the probed family window", () => {
+    // The probe reports the K3 family window (1M) for every K3 variant; the
+    // `-256k` suffix in the variant id is the actual product contract.
+    const caps = buildKimiProbeCapabilities(
+      {
+        modelMetadata: {
+          "kimi-code/k3": { totalContextTokens: 1_048_576 },
+          "kimi-code/k3-256k": { totalContextTokens: 1_048_576 },
+        },
+      },
+      noCredentials,
+    );
+    expect(caps.modelContextSizes).toEqual({
+      "kimi-code/k3": ["1M"],
+      "kimi-code/k3-256k": ["256K"],
+    });
+  });
+
   it("preserves ACP thinking model capabilities", () => {
     expect(
       buildKimiProbeCapabilities({ thinkingModels: ["kimi-for-coding"] }, noCredentials)
@@ -457,15 +475,15 @@ describe("resolveKimiProbeHome", () => {
 
   it("prefers a live pool credential over an emptied host stub", async () => {
     const { poolHome } = await seedHomes({ hostToken: "", poolToken: "pool-token" });
-    await expect(
-      resolveKimiProbeHome({ kind: "windows", path: "C:\\repo" }),
-    ).resolves.toBe(poolHome);
+    await expect(resolveKimiProbeHome({ kind: "windows", path: "C:\\repo" })).resolves.toBe(
+      poolHome,
+    );
   });
 
   it("falls back to the host home when the pool has no live token", async () => {
     const { hostHome } = await seedHomes({ hostToken: "host-token" });
-    await expect(
-      resolveKimiProbeHome({ kind: "windows", path: "C:\\repo" }),
-    ).resolves.toBe(hostHome);
+    await expect(resolveKimiProbeHome({ kind: "windows", path: "C:\\repo" })).resolves.toBe(
+      hostHome,
+    );
   });
 });

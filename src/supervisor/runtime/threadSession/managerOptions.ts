@@ -20,6 +20,12 @@ export interface ThreadSessionManagerOptions {
   logsDir: string;
   settingsPath: string;
   readDisableCliHookPlugin(): boolean;
+  /**
+   * Craft-Harness turn retry policy (max extra attempts + fixed interval),
+   * read live from shared settings on every failure so changes apply without
+   * restarting sessions.
+   */
+  readTurnRetryPolicy(): { maxAttempts: number; intervalMs: number };
   adapters: Map<AgentKind, AgentAdapter>;
   resolveWindowsShell(runtime?: "preferred" | "powershell"): WindowsShellPreference;
   /**

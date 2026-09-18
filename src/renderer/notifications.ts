@@ -150,11 +150,14 @@ function showToastNotification(
   };
 
   // One compact row: task title with the completion state as trailing context.
-  // The whole row opens the thread; no separate action button.
+  // The whole row opens the thread; no separate action button. `ledgerLogged`
+  // tells the toast provider this toast already pushed its bell-list row, so
+  // the generic error-toast ledger skips it (no duplicate entries).
   const toastId = toast[variant](threadTitle, {
     context: detail,
     onPress: open,
     timeout: 5000,
+    ledgerLogged: true,
   } as any);
   trackTaskToast(toastId);
   useNotificationStore.getState().push({

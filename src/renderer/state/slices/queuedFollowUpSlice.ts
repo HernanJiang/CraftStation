@@ -15,7 +15,6 @@ export interface QueuedFollowUpSlice {
   queuedFollowUpByThreadId: Record<string, QueuedFollowUp>;
   setQueuedFollowUp(threadId: string, queued: QueuedFollowUp | null): void;
   pauseQueuedFollowUp(threadId: string): void;
-  updateQueuedFollowUpPrompt(threadId: string, prompt: string): void;
 }
 
 export function createInitialQueuedFollowUpState(): Pick<
@@ -50,23 +49,6 @@ export const createQueuedFollowUpSlice: SliceCreator<QueuedFollowUpSlice> = (set
         queuedFollowUpByThreadId: {
           ...state.queuedFollowUpByThreadId,
           [threadId]: { ...current, paused: true },
-        },
-      };
-    }),
-  updateQueuedFollowUpPrompt: (threadId, prompt) =>
-    set((state) => {
-      const current = state.queuedFollowUpByThreadId[threadId];
-      if (!current) return state;
-      const trimmed = prompt.trim();
-      if (!trimmed || current.prompt === trimmed) return state;
-      return {
-        queuedFollowUpByThreadId: {
-          ...state.queuedFollowUpByThreadId,
-          [threadId]: {
-            ...current,
-            prompt: trimmed,
-            segments: [{ kind: "text", content: trimmed }],
-          },
         },
       };
     }),

@@ -1260,11 +1260,19 @@ describe("ThreadComposerSection", () => {
     expect(analytics.captureThreadPromptSubmitted).not.toHaveBeenCalled();
   });
 
-  it("keeps a queued follow-up read-only until Edit is pressed", async () => {
+  it("moves a queued follow-up back into the composer with its attachments when Edit is pressed", async () => {
     useAppStore.setState({
       queuedFollowUpByThreadId: {
         [guiThread.id]: {
-          prompt: "later",
+          prompt: "change direction",
+          segments: [
+            {
+              kind: "attachment",
+              path: "C:\\attachments\\queued\\image-1.png",
+              mimeType: "image/png",
+            },
+            { kind: "text", content: "change direction" },
+          ],
           queuedAt: Date.now(),
           paused: false,
         },
@@ -1278,17 +1286,40 @@ describe("ThreadComposerSection", () => {
     expect(screen.getByRole("button", { name: "Send now" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete queue" })).toBeInTheDocument();
+    // The queued image stays visible in the strip instead of disappearing.
+    const stripAttachments = screen.getByTestId("thread-queued-follow-up-attachments");
+    expect(stripAttachments.querySelector('img[alt="image-1.png"]')).not.toBeNull();
+
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    const input = screen.getByTestId("thread-queued-follow-up");
-    expect(input.tagName).toBe("INPUT");
-    fireEvent.change(input, { target: { value: "rewritten" } });
-    fireEvent.blur(input);
+
+    // The queue entry is consumed; text and image return to the composer.
     await waitFor(() => {
-      expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]?.prompt).toBe(
-        "rewritten",
-      );
+      expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]).toBeUndefined();
     });
-    expect(screen.getByTestId("thread-queued-follow-up").tagName).toBe("SPAN");
+    expect(screen.queryByTestId("thread-queued-follow-up")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveTextContent("change direction");
+    expect(screen.getByLabelText("Preview image-1.png")).toBeInTheDocument();
+  });
+
+  it("restores inbox attachment segments into the composer attachment bar", async () => {
+    renderComposer();
+
+    act(() => {
+      useComposerInputInbox.getState().enqueue(guiThread.id, [
+        {
+          kind: "attachment",
+          path: "C:\\attachments\\queued\\image-1.png",
+          mimeType: "image/png",
+        },
+        { kind: "text", content: "change direction" },
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox")).toHaveTextContent("change direction");
+    });
+    expect(screen.getByLabelText("Preview image-1.png")).toBeInTheDocument();
+    expect(useComposerInputInbox.getState().itemsByComposer[guiThread.id]).toBeUndefined();
   });
 
   it("sends a queued follow-up immediately when the user chooses Send now", async () => {

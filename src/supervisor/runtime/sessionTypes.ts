@@ -41,6 +41,13 @@ export interface QueuedStructuredTurn {
   poolFailoverAttempt?: number;
   poolTriedAccountIds?: string[];
   /**
+   * Craft-Harness retry chain state. Incremented each time this turn is
+   * automatically replayed after a network/transport interruption; carried on
+   * the turn object (like the failover chain) so the chain terminates at the
+   * configured cap even across session rebuilds.
+   */
+  turnRetryAttempt?: number;
+  /**
    * Failover context carry-over ("前情提要"), rendered from the thread
    * transcript at failover time. restartThread prepends it to the SENT
    * prompt only — the painted user message stays the raw prompt.
