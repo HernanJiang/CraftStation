@@ -1,4 +1,6 @@
-## Release 1.3.2 — 新线程默认权限修复（2026-09-18，待打包）
+## Release 1.3.2 — 缩放根治、权限默认值修复与更新体验改进（2026-09-18，已发布为 Latest）
+
+- 已提交 `5a00da6e` 并 push，tag `v1.3.2` 已推送；双包 + blockmap + `latest.yml` 共 4 文件已上传到 GitHub Release v1.3.2（Latest）。便携版备份保留 1.3.2 + 1.3.1；中间产物（`win-unpacked/`、`builder-debug.yml`）已清。
 
 - **侧边浏览器 Ctrl+± 缩放错位根治（双缩放）**：`useBrowserHostPositioning.measure()` 把 `slot.getBoundingClientRect()` 的**视觉像素**（已含 `<html>` 的 CSS zoom）直接赋给 body-portaled wrapper 的 inline style——wrapper 在 zoom 根内被二次缩放，错位量 = (zoom−1)×距离，与 09-07 overlay 漂移同族。修复：读数除以当前 `zoomFactor` 归一回布局像素再赋值，并订阅 `zoomFactor` 变化即时重测（不再只等 resize/RO）。另外补「无法还原」的另一半：webview guest 聚焦时 Ctrl+±/0 被 guest 吞掉、宿主 keybinding 收不到——`BrowserTab` 的 `before-input-event` 新增 `resolveAppZoomKeyDown`（Ctrl/⌘ + =/+/-/_/0 + 小键盘），命中即 `preventDefault` 并经 `browserEvent` 新增 `app-zoom-shortcut` 事件定向发给嵌入窗口（`wc.hostWebContents`，不广播，避免多窗重复步进共享 zoomFactor），渲染层 `useBrowserSync` 收到后走既有 `adjustAppZoom`——缩放在浏览器内聚焦时也可用、可还原。
 - **对话 UI 缩放后大片空白根治**：LegendList 3.3.3 用 `getBoundingClientRect()` 测量 item 容器（挂载首测 + deferred web shrink 确认两条路径），zoom≠1 时读到的是缩放后视觉像素，写进 sizes 后把后续行 top 推大 → 行间空白，且经 `snapshotMeasurements` 污染 timeline 缓存（同 zoom 签名下复访仍有空白）。既有 rAF 纠正只盖挂载首测，盖不住 deferred shrink（它在我们纠正之后一帧再测）。修复：新增 `zoomNormalizedContainerRect.ts`，在 `VirtualChatListRow` 的 ref 里给 LegendList 容器（row.parentElement）包一层幂等的 `getBoundingClientRect`，按实时 zoomFactor 除回布局像素——LegendList 所有测量路径（首测/延迟 shrink/MVCP 锚定）自此拿到的都是布局像素，与 style.top/scrollTop/RO borderBoxSize 同一坐标系。zoom=1 时原样透传零行为变化。
