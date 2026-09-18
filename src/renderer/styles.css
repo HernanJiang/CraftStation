@@ -1204,7 +1204,7 @@
     /* Dark surfaces read muddier through heavy blur, so lean more on the theme
        color (higher alpha = less transparent) than the light default above. */
     --sidebar-glass-tint: color-mix(in oklab, var(--sidebar-background) 65%, transparent);
-    --window-header-background: rgba(18, 18, 20, 0.82);
+    --window-header-background: color-mix(in oklab, var(--sidebar-background) 82%, transparent);
     --composer-surface: #2b2b2b;
   }
 
@@ -1465,32 +1465,15 @@ html[data-window-kind="quickComposer"] #root {
 }
 
 /* v0.2.13: the React shell owns the complete 38px title row, so the native
-   titleBarOverlay height must not be reserved a second time. */
+   titleBarOverlay height must not be reserved a second time. Chrome paint is
+   the resolved --window-header-background token (opaque in light, slightly
+   translucent in dark so native material can bleed through) — never a
+   dark-only literal that light/preset rules have to override. */
 html[data-window-kind="main"] .craftstation-shell:has(.craftstation-titlebar) {
   padding-top: 0;
-  /* Keep the titlebar dark and legible, but let a little more of the native
-     material bleed through instead of painting an almost opaque slab. */
-  background: linear-gradient(135deg, rgba(22, 18, 22, 0.76) 0%, rgba(18, 16, 20, 0.81) 100%);
+  background: var(--window-header-background);
   backdrop-filter: blur(28px) saturate(130%);
   -webkit-backdrop-filter: blur(28px) saturate(130%);
-}
-
-html[data-window-kind="main"]:where(.light, [data-theme="light"])
-  .craftstation-shell:has(.craftstation-titlebar) {
-  background: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--window-header-background) 94%, white) 0%,
-    var(--sidebar-background) 100%
-  );
-}
-
-.craftstation-titlebar {
-  background: transparent !important;
-}
-
-html:where(.light, [data-theme="light"]) .craftstation-titlebar {
-  background: var(--window-header-background) !important;
-  color: var(--foreground);
 }
 
 .craftstation-titlebar,
@@ -1515,7 +1498,7 @@ html:where(.light, [data-theme="light"]) .craftstation-titlebar {
   box-shadow: none;
   /* This is the one intentional vertical seam: it starts below the rounded
      chat frame corner. The sidebar itself must not add a second line. */
-  border-left-color: rgba(255, 255, 255, 0.05);
+  border-left-color: var(--hairline);
 }
 
 .craftstation-shell:has(.craftstation-titlebar)
