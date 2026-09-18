@@ -1,4 +1,6 @@
-## Release 1.3.1 — Craft-Harness 外围重试层 + 错误通知修复（2026-09-18，待验收）
+## Release 1.3.1 — Craft-Harness 外围重试层 + 错误通知修复（2026-09-18，已发布为 Latest）
+
+- 已提交 `377f80f0` 并 push，tag `v1.3.1` 已推送；双包 + blockmap + `latest.yml` 共 4 文件已上传到 GitHub Release v1.3.1（Latest）。便携版备份保留 1.3.1 + 1.2.16；中间产物（`win-unpacked/`、`builder-debug.yml`）已清。
 
 - **Craft-Harness 正式引入**：跨 Harness 外围 runtime 管理层（概念已写入 AGENTS.md）。首个能力：structured turn 因网络/传输中断失败时自动重试。新增 `TurnRetryCoordinator`（`src/supervisor/runtime/threadSession/turnRetryCoordinator.ts`），挂在 `StructuredTurnQueue.start` 的 catch 链上（pool failover 之后、failStructuredSession 之前）：网络错误（复用 `isNativeNetworkErrorMessage`）same-handle 重发；transport 类失败（连接关闭/进程退出）走 `restartThread` 重建会话重放；重试时经 historyPreface 通道注入隐形续接 Prompt（UI 绘制仍是原始用户消息）。配额/鉴权（EXPECTED_PROVIDER_OUTCOME）、capacity 噪音、用户主动 Stop 均明确排除。重试进行中顶部 toast 提示「网络/连接中断，N 秒后自动重试（第 x/y 次）」（新 `thread-turn-retry` 事件）。
 - **设置 → 一般 新增「重试次数」「重试间隔」**：`turnRetryMaxAttempts`（默认 2，0 关闭，上限 10）+ `turnRetryIntervalSeconds`（默认 5 秒，1–300），shared settings 全链路持久化，supervisor 经 `readTurnRetryPolicy` 每次失败时实时读取（改设置无需重启会话）。
