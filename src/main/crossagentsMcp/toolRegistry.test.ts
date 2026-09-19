@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  CROSSAGENTS_MCP_INSTRUCTIONS,
   CROSSAGENTS_MCP_SERVER_INFO,
   dispatchTool,
   formatToolResult,
@@ -16,7 +17,8 @@ function makeCtx(bus: unknown): CrossagentsToolContext {
 }
 
 describe("crossagents peer tool registry", () => {
-  it("advertises the persistent peer surface under the crossagents name", () => {    expect(CROSSAGENTS_MCP_SERVER_INFO).toMatchObject({ name: "crossagents" });
+  it("advertises the persistent peer surface under the crossagents name", () => {
+    expect(CROSSAGENTS_MCP_SERVER_INFO).toMatchObject({ name: "crossagents" });
     expect(TOOLS.map((tool) => tool.name)).toEqual([
       "list_peers",
       "send_message",
@@ -160,11 +162,9 @@ describe("crossagents peer tool registry", () => {
     expect(await dispatchTool("send_message", { target: "", message: "hi" }, ctx)).toMatchObject({
       isError: true,
     });
-    const noIdentity = await dispatchTool(
-      "inbox",
-      {},
-      { bus: {} } as unknown as CrossagentsToolContext,
-    );
+    const noIdentity = await dispatchTool("inbox", {}, {
+      bus: {},
+    } as unknown as CrossagentsToolContext);
     expect(noIdentity).toMatchObject({ isError: true });
     expect(formatToolResult("inbox", { count: 0 })).toMatchObject({
       content: [{ type: "text" }],
@@ -180,9 +180,9 @@ describe("crossagents peer tool registry", () => {
     };
     const bus = {
       spawnPeer: vi.fn<() => Promise<typeof spawned>>(async () => spawned),
-      switchPeerModel: vi.fn<
-        () => Promise<{ threadId: string; address: string; model: string }>
-      >(async () => ({ threadId: "t-grok-7", address: "grok:G7", model: "grok-4.7" })),
+      switchPeerModel: vi.fn<() => Promise<{ threadId: string; address: string; model: string }>>(
+        async () => ({ threadId: "t-grok-7", address: "grok:G7", model: "grok-4.7" }),
+      ),
       stopPeer: vi.fn<() => Promise<{ deleted: boolean }>>(async () => ({ deleted: true })),
     };
     const ctx = makeCtx(bus);
@@ -208,6 +208,19 @@ describe("crossagents peer tool registry", () => {
     };
     expect(bus.stopPeer).toHaveBeenCalledWith("caller", "grok:G7");
     expect(stopped.deleted).toBe(true);
+  });
+
+  it("documents devin and sidebar-UUID aliases on the advertised surface", () => {
+    const schemaOf = (name: string) =>
+      TOOLS.find((tool) => tool.name === name)!.inputSchema.properties as Record<
+        string,
+        { description?: string }
+      >;
+    expect(schemaOf("spawn_peer").harness!.description).toContain("devin");
+    expect(schemaOf("send_message").target!.description).toContain("UUID");
+    expect(schemaOf("stop_peer").target!.description).toContain("UUID");
+    expect(CROSSAGENTS_MCP_INSTRUCTIONS).toContain("devin");
+    expect(CROSSAGENTS_MCP_INSTRUCTIONS).toContain("thread:<uuid>");
   });
 
   it("rejects lifecycle calls with missing fields", async () => {

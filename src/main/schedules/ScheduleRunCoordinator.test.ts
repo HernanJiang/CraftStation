@@ -761,4 +761,132 @@ describe("ScheduleRunCoordinator", () => {
       }),
     );
   });
+
+  it("binds the fired detached thread's peer address (Crossagents parity)", async () => {
+    const bindRunThreadAddress = vi
+      .fn<(threadId: string) => Promise<string | null>>()
+      .mockResolvedValue("claude:native-thread-1");
+    const { coordinator } = makeHarness({ bindRunThreadAddress });
+
+    const settled = coordinator.runScheduleAsThread(task);
+    await flush();
+
+    expect(bindRunThreadAddress).toHaveBeenCalledWith("thread-1");
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toBeNull();
+  });
+
+  it("binds the peer address on the native craftAgent path too", async () => {
+    const bindRunThreadAddress = vi
+      .fn<(threadId: string) => Promise<string | null>>()
+      .mockResolvedValue("devin:devin-session-1");
+    const craftAgent = vi
+      .fn<
+        () => Promise<{ threadId: string; entityId: string; sessionId: string; response: string }>
+      >()
+      .mockResolvedValue({
+        threadId: "thread-1",
+        entityId: "entity-1",
+        sessionId: "session-1",
+        response: "ok",
+      });
+    const { coordinator } = makeHarness({
+      bindRunThreadAddress,
+      craftAgent,
+      resolveExecution: () => ({
+        kind: "native",
+        prompt: task.prompt,
+        craftPlan: {
+          id: "plan-1",
+          recipeId: "recipe:cognition-devin-native",
+          resultItemId: "result-1",
+          ingredients: {},
+          runtimeBinding: {
+            harnessKind: "devin",
+            modelId: "swe-2-max",
+            vendor: "cognition",
+            runtimeAdapterId: "devin",
+          },
+          createdAt: "2026-01-01T00:00:00.000Z",
+          threadId: "thread-1",
+        },
+        snapshot: {
+          recipeId: "recipe:cognition-devin-native",
+          model: "swe-2-max",
+          harnessItemId: "harness:devin",
+          agentKind: "devin",
+          threadTarget: { kind: "new" },
+          sourceThreadId: null,
+        },
+        contextSnapshot: null,
+      }),
+    });
+
+    await expect(coordinator.runScheduleAsThread({ ...task, agentKind: "devin" })).resolves.toBe(
+      "ok",
+    );
+    expect(bindRunThreadAddress).toHaveBeenCalledWith("thread-1");
+  });
+
+  it("never binds a peer address for thread-bound follow-up runs", async () => {
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const sourceThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Baseline monitoring",
+      agentKind: task.agentKind,
+      config: { model: "claude-fable-5", effort: "high" },
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      archived: false,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: null,
+    } as unknown as Thread;
+    const bindRunThreadAddress = vi
+      .fn<(threadId: string) => Promise<string | null>>()
+      .mockResolvedValue(null);
+    const sendFollowUp = vi
+      .fn<(input: { threadId: string; prompt: string }) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const { coordinator, threads } = makeHarness({
+      bindRunThreadAddress,
+      getThread: (id) => (id === sourceId ? sourceThread : null),
+      threadExists: (id) => id === sourceId || threads.has(id),
+      sendFollowUp,
+    });
+
+    const settled = coordinator.runScheduleAsThread({
+      ...task,
+      targetThreadId: sourceId,
+      threadTarget: { kind: "existing", threadId: sourceId },
+    });
+    await flush();
+    coordinator.observeSupervisorEvent(threadState(sourceId, "working"));
+    coordinator.observeSupervisorEvent(threadState(sourceId, "idle"));
+    await expect(settled).resolves.toBeNull();
+    // The bound thread already owns its address lifecycle; a follow-up run
+    // must not rebind (or worse, re-key) it.
+    expect(bindRunThreadAddress).not.toHaveBeenCalled();
+  });
+
+  it("a binding failure never fails the run itself", async () => {
+    const bindRunThreadAddress = vi
+      .fn<(threadId: string) => Promise<string | null>>()
+      .mockRejectedValue(new Error("binding store gone"));
+    const { coordinator, runs } = makeHarness({ bindRunThreadAddress });
+
+    const settled = coordinator.runScheduleAsThread(task);
+    await flush();
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toBeNull();
+    expect(runs.get("run-1")).toMatchObject({ status: "succeeded" });
+  });
 });

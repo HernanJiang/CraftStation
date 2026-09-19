@@ -42,6 +42,11 @@ describe("native thread addresses", () => {
     expect(() => assertKnownHarness("codex")).not.toThrow();
   });
 
+  it("accepts devin and prints the live scope in rejection messages", () => {
+    expect(() => assertKnownHarness("devin")).not.toThrow();
+    expect(() => assertKnownHarness("claude")).toThrow(/devin/);
+  });
+
   it("infers a native harness from the model family", () => {
     expect(inferNativeHarnessFromModel("gemini-3.8-flash")).toBe("antigravity");
     expect(inferNativeHarnessFromModel("google:gemini-3.8-flash")).toBe("antigravity");
@@ -50,6 +55,18 @@ describe("native thread addresses", () => {
     expect(inferNativeHarnessFromModel("opencode-go/muse-spark-1.3-contributor")).toBe("opencode");
     expect(inferNativeHarnessFromModel("gpt-5.4")).toBe("codex");
     expect(inferNativeHarnessFromModel("mystery-model")).toBeNull();
+  });
+
+  it("infers devin from Cognition SWE model ids without stealing kimi/codex", () => {
+    expect(inferNativeHarnessFromModel("swe-2-max")).toBe("devin");
+    expect(inferNativeHarnessFromModel("swe-2")).toBe("devin");
+    expect(inferNativeHarnessFromModel("swe-1")).toBe("devin");
+    expect(inferNativeHarnessFromModel("swe")).toBe("devin");
+    expect(inferNativeHarnessFromModel("cognition:swe-2-max")).toBe("devin");
+    expect(inferNativeHarnessFromModel("devin")).toBe("devin");
+    // Regression: existing families are untouched by the devin rule.
+    expect(inferNativeHarnessFromModel("kimi-for-coding")).toBe("kimi");
+    expect(inferNativeHarnessFromModel("gpt-5.6")).toBe("codex");
   });
 
   it("normalizes trailing slashes and same-path equality", () => {

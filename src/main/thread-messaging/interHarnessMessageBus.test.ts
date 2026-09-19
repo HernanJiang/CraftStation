@@ -19,6 +19,7 @@ import type { PersistedCompletedTurn, PersistedRuntimeItem } from "../db/runtime
 import { ThreadCollaborationService } from "../thread-collaboration/ThreadCollaborationService";
 import { ThreadControlAdapter } from "../thread-collaboration/ThreadControlAdapter";
 import { InterHarnessMessageBus } from "./interHarnessMessageBus";
+import { getNativeBinding, putNativeBinding } from "./nativeThreadIndex";
 
 const serverNativeBindingCandidates = [
   join(process.cwd(), "dist", "server-native", "better_sqlite3.node"),
@@ -518,6 +519,132 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
         model: "gemini-3.8-flash",
       }),
     );
+  });
+
+  it("spawn_peer harness=devin model=swe-2-max stays in scope and binds devin:…", async () => {
+    const spawned = await bus.spawnPeer("codex", {
+      harness: "devin",
+      model: "swe-2-max",
+      effort: "max",
+      title: "Devin peer",
+      message: "hello",
+    });
+    expect(spawned.address).toBe("devin:native-devin-9");
+    expect(spawned.nativeSessionId).toBe("native-devin-9");
+    const row = dbGetThread(spawned.threadId);
+    expect(row?.agentKind).toBe("devin");
+    expect(createThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        agentKind: "devin",
+        model: "swe-2-max",
+        effort: "max",
+      }),
+    );
+    expect(getNativeBinding("devin:native-devin-9")?.threadId).toBe(spawned.threadId);
+  });
+
+  it("spawn_peer infers devin from swe-2-max when the harness is omitted", async () => {
+    const spawned = await bus.spawnPeer("codex", { model: "swe-2-max", message: "hello" });
+    expect(spawned.address).toBe("devin:native-devin-9");
+    expect(createThread).toHaveBeenCalledWith(
+      expect.objectContaining({ agentKind: "devin", model: "swe-2-max" }),
+    );
+  });
+
+  it("sidebar UUID, thread:<uuid>, and devin:<nativeId> reach the SAME conversation", async () => {
+    const DEVIN_UUID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    dbUpsertThread(
+      thread("devin-row", {
+        id: DEVIN_UUID,
+        agentKind: "devin",
+        config: { model: "swe-2-max" },
+        sessionRef: { providerSessionId: "devin-D1", discoveredAt: "2026-08-31T12:00:00.000Z" },
+      }),
+      0,
+    );
+    sessionRefs.set(DEVIN_UUID, "devin-D1");
+
+    const viaUuid = await bus.send("codex", DEVIN_UUID, "via uuid");
+    const viaPrefix = await bus.send("codex", `thread:${DEVIN_UUID}`, "via thread prefix");
+    const viaNative = await bus.send("codex", "devin:devin-D1", "via native address");
+    expect(viaUuid.targetThreadId).toBe(DEVIN_UUID);
+    expect(viaPrefix.targetThreadId).toBe(DEVIN_UUID);
+    expect(viaNative.targetThreadId).toBe(DEVIN_UUID);
+    // The UUID resolution recorded the synthesized native binding; no
+    // duplicate thread was created for any spelling.
+    expect(getNativeBinding("devin:devin-D1")?.threadId).toBe(DEVIN_UUID);
+    expect(createThread).not.toHaveBeenCalled();
+    expect(
+      dbGetThreads().filter((entry) => entry.sessionRef?.providerSessionId === "devin-D1"),
+    ).toHaveLength(1);
+    // get_peer_status parity: the UUID names the same peer entry.
+    const peer = bus.getPeer("codex", DEVIN_UUID);
+    expect(peer.address).toBe("devin:devin-D1");
+    expect(peer.boundThreadId).toBe(DEVIN_UUID);
+    expect(bus.getPeer("codex", "devin:devin-D1").boundThreadId).toBe(DEVIN_UUID);
+  });
+
+  it("an unbound plain app thread resolves by UUID through a synthesized thread-id address", async () => {
+    const APP_UUID = "9b2f2b0a-7c6a-4f6e-9f2a-3f0b1d2c3e4f";
+    dbUpsertThread(
+      thread("plain-row", {
+        id: APP_UUID,
+        agentKind: "kimi",
+        // Pre-discovery row: no native session id yet, so the address
+        // synthesizes from agentKind + thread.id.
+        sessionRef: { providerSessionId: "", discoveredAt: "2026-08-31T12:00:00.000Z" },
+      }),
+      0,
+    );
+    const exchange = await bus.send("codex", APP_UUID, "hello plain app thread");
+    expect(exchange.targetThreadId).toBe(APP_UUID);
+    expect(getNativeBinding(`kimi:${APP_UUID}`)?.threadId).toBe(APP_UUID);
+    expect(createThread).not.toHaveBeenCalled();
+  });
+
+  it("a UUID with no matching thread fails closed instead of claiming or spawning", async () => {
+    await expect(bus.send("codex", "00000000-0000-0000-0000-000000000000", "x")).rejects.toThrow(
+      /Unknown peer reference/,
+    );
+    expect(createThread).not.toHaveBeenCalled();
+    expect(dbGetThreads()).toHaveLength(3);
+  });
+
+  it("stop_peer accepts the sidebar UUID of a bound peer", async () => {
+    const BOUND_UUID = "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b";
+    dbUpsertThread(
+      thread("bound-row", {
+        id: BOUND_UUID,
+        agentKind: "codex",
+        sessionRef: { providerSessionId: "codex-C55", discoveredAt: "2026-08-31T12:00:00.000Z" },
+      }),
+      0,
+    );
+    putNativeBinding({
+      address: "codex:codex-C55",
+      threadId: BOUND_UUID,
+      workspace: "/ws/project-1",
+      origin: "craftstation",
+      boundAt: "2026-09-01T00:00:00.000Z",
+    });
+    const stopped = await bus.stopPeer("codex", BOUND_UUID);
+    expect(stopped.threadId).toBe(BOUND_UUID);
+    expect(dbGetThread(BOUND_UUID)).toBeNull();
+    expect(getNativeBinding("codex:codex-C55")).toBeNull();
+  });
+
+  it("stop_peer refuses to delete the calling thread by its own UUID", async () => {
+    const CALLER_UUID = "1c9d4f2a-5b3e-4a8c-9d0e-6f7a8b9c0d1e";
+    dbUpsertThread(
+      thread("caller-row", {
+        id: CALLER_UUID,
+        agentKind: "codex",
+        sessionRef: { providerSessionId: "codex-C9", discoveredAt: "2026-08-31T12:00:00.000Z" },
+      }),
+      0,
+    );
+    await expect(bus.stopPeer(CALLER_UUID, CALLER_UUID)).rejects.toThrow(/itself/);
   });
 
   it("stop_peer closes the session and fully removes the peer", async () => {

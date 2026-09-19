@@ -43,12 +43,13 @@ export const NATIVE_MESSAGING_HARNESSES: ReadonlySet<string> = new Set([
   "opencode",
   "grok",
   "antigravity",
+  "devin",
 ]);
 
 export function assertKnownHarness(harness: string): void {
   if (!NATIVE_MESSAGING_HARNESSES.has(harness)) {
     throw new Error(
-      `Harness "${harness}" is not in this round's native-messaging scope (codex, kimi, opencode, grok, antigravity).`,
+      `Harness "${harness}" is not in this round's native-messaging scope (${[...NATIVE_MESSAGING_HARNESSES].join(", ")}).`,
     );
   }
   if (!ADDRESS_PART.test(harness)) throw new Error(`Invalid harness id: ${harness}.`);
@@ -62,14 +63,20 @@ export function assertKnownHarness(harness: string): void {
 export function inferNativeHarnessFromModel(model: string): string | null {
   const value = model.trim().toLowerCase();
   if (!value) return null;
-  if (
-    value.includes("gemini") ||
-    value.startsWith("google:") ||
-    value.includes("antigravity")
-  ) {
+  if (value.includes("gemini") || value.startsWith("google:") || value.includes("antigravity")) {
     return "antigravity";
   }
   if (value.includes("grok") || value.startsWith("xai:")) return "grok";
+  // Cognition Devin family (swe, swe-1, swe-2-max, …). No kimi/codex model id
+  // carries these markers, so the check cannot steal an existing inference.
+  if (
+    value === "swe" ||
+    /^swe[-_]/.test(value) ||
+    value.includes("cognition") ||
+    value.includes("devin")
+  ) {
+    return "devin";
+  }
   if (value.includes("kimi") || value.startsWith("moonshot:") || /^k[0-9]/.test(value)) {
     return "kimi";
   }
@@ -179,7 +186,9 @@ function readSessionMeta(
  * managed homes). Matches Test D's requirement: a thread created by a plain
  * external `codex` CLI is discoverable without CraftStation ever spawning.
  */
-export function discoverCodexThreads(options: CodexDiscoveryOptions = {}): DiscoveredNativeThread[] {
+export function discoverCodexThreads(
+  options: CodexDiscoveryOptions = {},
+): DiscoveredNativeThread[] {
   const maxFiles = options.maxFiles ?? 500;
   const workspace = options.workspace ? resolveWorkspace(options.workspace) : undefined;
   const seen = new Map<string, DiscoveredNativeThread>();

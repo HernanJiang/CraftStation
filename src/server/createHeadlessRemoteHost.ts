@@ -277,6 +277,13 @@ export async function createHeadlessRemoteHost(
         return null;
       }
     },
+    // Crossagents parity: detached run threads get their harness:nativeId peer
+    // address bound once the native session id appears. Lazy lookup — the bus
+    // lives inside appControlsMcpIngress, constructed below.
+    bindRunThreadAddress: (threadId) => {
+      const bus = appControlsMcpIngress?.getInterHarnessMessageBus();
+      return bus ? bus.bindNativeAddressForThread(threadId) : Promise.resolve(null);
+    },
   });
   scheduleRunCoordinator = scheduleCoordinator;
   const scheduleService = createDeviceScheduleService({
@@ -396,6 +403,12 @@ export async function createHeadlessRemoteHost(
   scheduleMcpIngress = new ScheduleMcpIngress({
     scheduleService,
     getThread: dbGetThread,
+    // Schedule and Crossagents share ONE address space: native addresses and
+    // sidebar UUIDs resolve through the same InterHarnessMessageBus.
+    resolvePeerTarget: (target, sourceThreadId) =>
+      appControlsMcpIngress!.getInterHarnessMessageBus().resolvePeerTarget(target, sourceThreadId),
+    peerAddressOfThread: (threadId) =>
+      appControlsMcpIngress!.getInterHarnessMessageBus().peerAddressForThread(threadId),
   });
 
   // In dev, advertise loopback by default so the iOS simulator's WebView can

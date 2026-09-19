@@ -10,12 +10,15 @@ export const CROSSAGENTS_MCP_SERVER_INFO = {
 export const CROSSAGENTS_MCP_INSTRUCTIONS = [
   "Use the Crossagents MCP server to message persistent native threads (agents) in this workspace — across harnesses.",
   "Every tool named below belongs to this server. Hosts that namespace MCP tools expose them under this server's name (for example `crossagents__list_peers`), so resolve each bare name against your own tool list and call the crossagents entry.",
-  "Peers are stable harness:nativeId addresses (for example codex:C123, kimi:K456). Ask the user which peer to contact, or call list_peers to discover the workspace roster; never invent an address.",
-  "Sending or asking auto-binds an external peer to its REAL native thread — a duplicate native thread is never created. Use spawn_peer to create a brand-new long-lived native thread on the requested model/harness (the target runtime executes, not the caller). switch_peer_model changes a peer's model; a cross-harness switch creates a NEW native session instead of relabeling the old one. stop_peer fully removes a test peer. Ordinary send_message/ask to a busy peer queue behind its current turn; pass interrupt=true to abort that turn (same class as the user hitting Stop) and deliver the new message as the next turn. interrupt never deletes the thread — stop_peer is the destructive cleanup tool.",
+  "Peers are stable harness:nativeId addresses (for example codex:C123, kimi:K456, devin:D789). A peer target may also be the sidebar thread's UUID (or thread:<uuid>) — both spellings resolve to the SAME conversation. Ask the user which peer to contact, or call list_peers to discover the workspace roster; never invent an address.",
+  "Sending or asking auto-binds an external peer to its REAL native thread — a duplicate native thread is never created. Use spawn_peer to create a brand-new long-lived native thread on the requested model/harness (the target runtime executes, not the caller; harness devin with model swe-2-max is supported). switch_peer_model changes a peer's model; a cross-harness switch creates a NEW native session instead of relabeling the old one. stop_peer fully removes a test peer. Ordinary send_message/ask to a busy peer queue behind its current turn; pass interrupt=true to abort that turn (same class as the user hitting Stop) and deliver the new message as the next turn. interrupt never deletes the thread — stop_peer is the destructive cleanup tool.",
   "ask waits up to timeout_s for the reply and then stops waiting; the message itself stays durable and a late reply remains readable via inbox. Never treat a timeout as a failure of the peer.",
   "Use reply() to answer an exchange addressed to this thread so the conversation stays threaded.",
   "For one-off temporary helpers inside your own thread, use the separate own_subagents server (spawn_agent) or your harness's own native subagent tools — not this server.",
 ].join(" ");
+
+const TARGET_DESCRIPTION =
+  "Peer target: a harness:nativeId address (e.g. kimi:K456, devin:D789) or the sidebar thread UUID (thread:<uuid> also accepted) — both resolve to the same conversation.";
 
 export interface CrossagentsToolContext {
   bus: InterHarnessMessageBus;
@@ -42,7 +45,7 @@ export const TOOLS = [
       additionalProperties: false,
       required: ["target", "message"],
       properties: {
-        target: { type: "string", minLength: 1 },
+        target: { type: "string", minLength: 1, description: TARGET_DESCRIPTION },
         message: { type: "string", minLength: 1, maxLength: 50000 },
         interrupt: { type: "boolean" },
       },
@@ -57,7 +60,7 @@ export const TOOLS = [
       additionalProperties: false,
       required: ["target", "message"],
       properties: {
-        target: { type: "string", minLength: 1 },
+        target: { type: "string", minLength: 1, description: TARGET_DESCRIPTION },
         message: { type: "string", minLength: 1, maxLength: 50000 },
         timeout_s: { type: "number", minimum: 0, maximum: 110 },
         interrupt: { type: "boolean" },
@@ -96,7 +99,7 @@ export const TOOLS = [
       type: "object",
       additionalProperties: false,
       required: ["target"],
-      properties: { target: { type: "string", minLength: 1 } },
+      properties: { target: { type: "string", minLength: 1, description: TARGET_DESCRIPTION } },
     },
   },
   {
@@ -107,7 +110,7 @@ export const TOOLS = [
       type: "object",
       additionalProperties: false,
       required: ["target"],
-      properties: { target: { type: "string", minLength: 1 } },
+      properties: { target: { type: "string", minLength: 1, description: TARGET_DESCRIPTION } },
     },
   },
   {
@@ -123,7 +126,7 @@ export const TOOLS = [
           type: "string",
           minLength: 1,
           description:
-            "Harness kind (codex, kimi, opencode, grok, antigravity). When omitted, inferred from the model (e.g. gemini* → antigravity). Never silently reuse the caller's harness for a different model family.",
+            "Harness kind (codex, kimi, opencode, grok, antigravity, devin). When omitted, inferred from the model (e.g. gemini* → antigravity, swe-2-max → devin). Never silently reuse the caller's harness for a different model family.",
         },
         model: { type: "string", minLength: 1 },
         title: { type: "string", minLength: 1, maxLength: 200 },
@@ -136,13 +139,13 @@ export const TOOLS = [
   {
     name: "switch_peer_model",
     description:
-      "Change a peer thread's model. Same-harness updates the live session config. Cross-harness (e.g. Grok → Gemini) creates a NEW native runtime/session for the target harness, bootstrapped from this thread's conversation — it never relabels a Grok session as Gemini. Failure rolls back to the original model/harness.",
+      "Change a peer thread's model. Same-harness updates the live session config. Cross-harness (e.g. Grok → Gemini, or any → Devin via a swe-* model) creates a NEW native runtime/session for the target harness, bootstrapped from this thread's conversation — it never relabels a Grok session as Gemini. Failure rolls back to the original model/harness.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
       required: ["target", "model"],
       properties: {
-        target: { type: "string", minLength: 1 },
+        target: { type: "string", minLength: 1, description: TARGET_DESCRIPTION },
         model: { type: "string", minLength: 1 },
       },
     },
@@ -155,7 +158,7 @@ export const TOOLS = [
       type: "object",
       additionalProperties: false,
       required: ["target"],
-      properties: { target: { type: "string", minLength: 1 } },
+      properties: { target: { type: "string", minLength: 1, description: TARGET_DESCRIPTION } },
     },
   },
 ] as const;
@@ -225,7 +228,12 @@ export async function dispatchTool(
           deliveryModeArg(args.interrupt),
         );
         if (timeoutMs === undefined) return { exchange, timedOut: false };
-        const waited = await ctx.bus.waitForReply(caller(), exchange.id, exchange.updatedAt, timeoutMs);
+        const waited = await ctx.bus.waitForReply(
+          caller(),
+          exchange.id,
+          exchange.updatedAt,
+          timeoutMs,
+        );
         return { exchange: waited.exchange, timedOut: waited.timedOut };
       }
       case "reply": {

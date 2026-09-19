@@ -1,14 +1,16 @@
 import { z } from "zod";
+import { getDefaultRegistry } from "@/shared/crafting";
 import { isHomeProjectId } from "@/shared/homeScope";
+import { parseThreadUuidReference } from "@/shared/nativeThreads";
 import {
   agentKindSchema,
   scheduleRecurrenceSchema,
-  scheduleThreadTargetSchema,
   type ScheduledTask,
   type ScheduledTaskInput,
   type ScheduledTaskRun,
+  type ScheduleThreadTarget,
 } from "@/shared/contracts";
-import { normalizeScheduleThreadTarget } from "@/shared/schedules";
+import { normalizeScheduleThreadTarget, scheduleThreadTarget } from "@/shared/schedules";
 import type { ScheduleToolContext, ScheduleToolDomain } from "./types";
 
 /**
@@ -34,7 +36,13 @@ const nullishArg = <S extends z.ZodTypeAny>(schema: S) =>
 
 const timezoneSchema = nullishArg(z.string().trim().min(1).max(64).nullable().optional());
 const recipeIdSchema = nullishArg(z.string().trim().min(1).max(160).nullable().optional());
-const targetThreadIdSchema = nullishArg(z.string().uuid().nullable().optional());
+/**
+ * Thread references accepted at the MCP boundary: a sidebar UUID,
+ * `thread:<uuid>`, or a Crossagents `harness:nativeId` address. Canonicalized
+ * to the thread UUID by {@link resolveExistingThreadRef} before persistence —
+ * the stored schedule always carries the UUID.
+ */
+const targetThreadIdSchema = nullishArg(z.string().trim().min(1).max(240).nullable().optional());
 const projectIdSchema = nullishArg(z.string().min(1).nullable().optional());
 const harnessItemIdSchema = nullishArg(z.string().trim().min(1).max(160).nullable().optional());
 const callingThreadUuid = (threadId: string | undefined): string | null => {
@@ -47,7 +55,15 @@ const callingThreadUuid = (threadId: string | undefined): string | null => {
  * sending them over MCP (observed with OpenCode threads passing
  * `threadTarget`). Accept both shapes; a string that is not a JSON object
  * still fails validation with a clear error instead of a cryptic type error.
+ * The `existing` threadId is intentionally NOT uuid-only here: it may also be
+ * `thread:<uuid>` or a Crossagents `harness:nativeId` address, canonicalized
+ * by {@link resolveExistingThreadRef} after parsing.
  */
+const scheduleThreadTargetInputSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("new") }),
+  z.object({ kind: z.literal("existing"), threadId: z.string().trim().min(1).max(240) }),
+]);
+
 const threadTargetArgSchema = z.preprocess((value) => {
   if (typeof value !== "string") return value;
   try {
@@ -55,7 +71,79 @@ const threadTargetArgSchema = z.preprocess((value) => {
   } catch {
     return value;
   }
-}, scheduleThreadTargetSchema);
+}, scheduleThreadTargetInputSchema);
+
+/**
+ * Canonicalize an MCP thread reference to the sidebar thread UUID. Bare and
+ * `thread:`-prefixed UUIDs pass through (existence is enforced at fire time,
+ * matching legacy targetThreadId behavior); a `harness:nativeId` address goes
+ * through the SAME Crossagents resolver — no UUID-only copy — so both servers
+ * always name one conversation.
+ */
+function resolveExistingThreadRef(
+  raw: string,
+  ctx: ScheduleToolContext,
+  callingThreadId: string | null,
+): string {
+  const uuidRef = parseThreadUuidReference(raw);
+  if (uuidRef) return uuidRef;
+  if (!ctx.resolvePeerTarget) {
+    throw new Error(
+      `Cannot bind the schedule to "${raw}": this host has no Crossagents address resolver wired. Use the target thread's sidebar UUID instead.`,
+    );
+  }
+  return ctx.resolvePeerTarget(raw, callingThreadId).threadId;
+}
+
+/**
+ * An explicitly requested agentKind must map to a registered harness item —
+ * otherwise the run would fail at fire time, or worse, drift onto the calling
+ * thread's harness. Fail at create/update time with a clear message instead.
+ * Inherited (omitted) agentKinds keep legacy behavior.
+ */
+function assertExplicitHarnessRegistered(
+  agentKind: string | undefined,
+  harnessItemId: string | null | undefined,
+): void {
+  const registry = getDefaultRegistry();
+  if (harnessItemId != null) {
+    if (!registry.getItem(harnessItemId)) {
+      throw new Error(
+        `Unknown harnessItemId "${harnessItemId}": no such harness item is registered. The schedule would fail at fire time; pass a registered harness item (e.g. harness:devin).`,
+      );
+    }
+    return;
+  }
+  if (agentKind === undefined) return;
+  const itemId = `harness:${agentKind.split(":")[0]}`;
+  if (!registry.getItem(itemId)) {
+    throw new Error(
+      `Cannot schedule agentKind "${agentKind}": harness item "${itemId}" is not registered, so the run could never fire as ${agentKind}. Pick a detected harness (codex, kimi, opencode, grok, antigravity, devin, …) or pass an explicit harnessItemId — the calling thread's harness is never substituted silently.`,
+    );
+  }
+}
+
+/** Task JSON enriched with Crossagents identity when the host wires the bus. */
+function serializeTask(task: ScheduledTask, ctx: ScheduleToolContext): unknown {
+  if (!ctx.peerAddressOfThread) return task;
+  const target = scheduleThreadTarget(task);
+  const boundThreadId = target.kind === "existing" ? target.threadId : null;
+  return {
+    ...task,
+    boundThreadId,
+    peerAddress: boundThreadId ? (ctx.peerAddressOfThread(boundThreadId) ?? null) : null,
+  };
+}
+
+/** Run JSON enriched with the fired thread's Crossagents peer address. */
+function serializeRun(run: ScheduledTaskRun, ctx: ScheduleToolContext): unknown {
+  if (!ctx.peerAddressOfThread) return run;
+  return {
+    ...run,
+    boundThreadId: run.threadId,
+    peerAddress: ctx.peerAddressOfThread(run.threadId) ?? null,
+  };
+}
 
 const createArgsSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -163,14 +251,14 @@ function scheduleExtraJsonSchema(): Record<string, unknown> {
     recipeId: { type: ["string", "null"], description: "Opaque recipe reference (no secrets)." },
     targetThreadId: {
       type: ["string", "null"],
-      format: "uuid",
       description:
-        "String alternative for threadTarget {kind:'existing',threadId}: bind future runs to this existing thread (same-thread follow-up; native session is always fresh).",
+        "String alternative for threadTarget {kind:'existing',threadId}: bind future runs to this existing thread (same-thread follow-up; native session is always fresh). Accepts the sidebar thread UUID, thread:<uuid>, or a Crossagents harness:nativeId address (e.g. kimi:session_…, devin:…) — all resolve to the same thread.",
     },
     threadTarget: {
       description:
         'Canonical target as an OBJECT (never a string): {kind:"new"} opens a fresh thread per run; ' +
         '{kind:"existing",threadId:"<uuid>"} runs inside that thread (same-thread follow-up). ' +
+        "The existing threadId may be a sidebar UUID, thread:<uuid>, or a Crossagents harness:nativeId address; all forms resolve to the same thread via the shared Crossagents resolver. " +
         "Independent of source thread provenance. A JSON-stringified object is also accepted.",
       oneOf: [
         {
@@ -185,7 +273,12 @@ function scheduleExtraJsonSchema(): Record<string, unknown> {
           required: ["kind", "threadId"],
           properties: {
             kind: { const: "existing" },
-            threadId: { type: "string", format: "uuid" },
+            threadId: {
+              type: "string",
+              minLength: 1,
+              description:
+                "Sidebar thread UUID, thread:<uuid>, or a Crossagents harness:nativeId address (e.g. kimi:session_…, devin:…).",
+            },
           },
         },
       ],
@@ -215,8 +308,9 @@ function idJsonSchema(): Record<string, unknown> {
   };
 }
 
-function createSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
+function createSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
   const parsed = createArgsSchema.parse(args);
+  assertExplicitHarnessRegistered(parsed.agentKind, parsed.harnessItemId ?? undefined);
   const sourceThread = ctx.identity.threadId ? ctx.getThread(ctx.identity.threadId) : null;
   const agentKind = parsed.agentKind ?? sourceThread?.agentKind;
   const model = parsed.model ?? sourceThread?.config.model;
@@ -244,9 +338,25 @@ function createSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask 
     !wantsDetached &&
     (parsed.continueInCurrentThread === true ||
       (parsed.threadTarget === undefined && parsed.targetThreadId == null));
+  // Crossagents parity: threadTarget/targetThreadId accept a sidebar UUID,
+  // thread:<uuid>, or a harness:nativeId address — all canonicalized to the
+  // target thread's UUID through the shared resolver before persistence.
+  const explicitTarget: ScheduleThreadTarget | undefined =
+    parsed.threadTarget === undefined
+      ? undefined
+      : parsed.threadTarget.kind === "new"
+        ? { kind: "new" }
+        : {
+            kind: "existing",
+            threadId: resolveExistingThreadRef(parsed.threadTarget.threadId, ctx, callingId),
+          };
+  const explicitTargetThreadId =
+    parsed.targetThreadId != null
+      ? resolveExistingThreadRef(parsed.targetThreadId, ctx, callingId)
+      : parsed.targetThreadId;
   const target = normalizeScheduleThreadTarget({
-    threadTarget: continueHere ? { kind: "existing", threadId: callingId } : parsed.threadTarget,
-    targetThreadId: parsed.targetThreadId,
+    threadTarget: continueHere ? { kind: "existing", threadId: callingId } : explicitTarget,
+    targetThreadId: explicitTargetThreadId,
   });
   // Thread-bound schedules (threadTarget existing, incl. the default
   // continue-here binding) record source == target so run provenance, the
@@ -277,75 +387,92 @@ function createSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask 
       ...(parsed.harnessItemId !== undefined ? { harnessItemId: parsed.harnessItemId } : {}),
     },
   };
-  return ctx.scheduleService.create(input);
+  return serializeTask(ctx.scheduleService.create(input), ctx);
 }
 
-function updateSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
+function updateSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
   const parsed = updateArgsSchema.parse(args);
+  assertExplicitHarnessRegistered(parsed.agentKind, parsed.harnessItemId ?? undefined);
   const current = requireSchedule(ctx, parsed.id);
   const callingId = callingThreadUuid(ctx.identity.threadId);
   const continueHere = parsed.continueInCurrentThread === true && callingId != null;
+  // Same Crossagents-parity canonicalization as create(): UUID, thread:<uuid>,
+  // and harness:nativeId targets all land on the target thread's UUID.
+  const parsedTarget: ScheduleThreadTarget | undefined =
+    parsed.threadTarget === undefined
+      ? undefined
+      : parsed.threadTarget.kind === "new"
+        ? { kind: "new" }
+        : {
+            kind: "existing",
+            threadId: resolveExistingThreadRef(parsed.threadTarget.threadId, ctx, callingId),
+          };
+  const parsedTargetThreadId =
+    parsed.targetThreadId != null
+      ? resolveExistingThreadRef(parsed.targetThreadId, ctx, callingId)
+      : parsed.targetThreadId;
   const target = normalizeScheduleThreadTarget({
     threadTarget: continueHere
       ? { kind: "existing", threadId: callingId }
-      : parsed.threadTarget !== undefined
-        ? parsed.threadTarget
+      : parsedTarget !== undefined
+        ? parsedTarget
         : current.threadTarget,
     targetThreadId:
-      parsed.targetThreadId !== undefined
-        ? parsed.targetThreadId
-        : (current.targetThreadId ?? null),
+      parsed.targetThreadId !== undefined ? parsedTargetThreadId : (current.targetThreadId ?? null),
   });
-  return ctx.scheduleService.update(parsed.id, {
-    name: parsed.name ?? current.name,
-    prompt: parsed.prompt ?? current.prompt,
-    recurrence: parsed.recurrence ?? current.recurrence,
-    enabled: parsed.enabled ?? current.enabled,
-    agentKind: parsed.agentKind ?? current.agentKind,
-    projectId: parsed.projectId !== undefined ? parsed.projectId : (current.projectId ?? null),
-    timezone: parsed.timezone !== undefined ? parsed.timezone : (current.timezone ?? null),
-    recipeId: parsed.recipeId !== undefined ? parsed.recipeId : (current.recipeId ?? null),
-    threadTarget: target.threadTarget,
-    targetThreadId: target.targetThreadId,
-    sourceThreadId: current.sourceThreadId ?? null,
-    createdByThreadId: current.createdByThreadId ?? callingId,
-    config: {
-      model: parsed.model ?? current.config.model,
-      ...(parsed.effort === null
-        ? {}
-        : parsed.effort !== undefined
-          ? { effort: parsed.effort }
-          : current.config.effort
-            ? { effort: current.config.effort }
+  return serializeTask(
+    ctx.scheduleService.update(parsed.id, {
+      name: parsed.name ?? current.name,
+      prompt: parsed.prompt ?? current.prompt,
+      recurrence: parsed.recurrence ?? current.recurrence,
+      enabled: parsed.enabled ?? current.enabled,
+      agentKind: parsed.agentKind ?? current.agentKind,
+      projectId: parsed.projectId !== undefined ? parsed.projectId : (current.projectId ?? null),
+      timezone: parsed.timezone !== undefined ? parsed.timezone : (current.timezone ?? null),
+      recipeId: parsed.recipeId !== undefined ? parsed.recipeId : (current.recipeId ?? null),
+      threadTarget: target.threadTarget,
+      targetThreadId: target.targetThreadId,
+      sourceThreadId: current.sourceThreadId ?? null,
+      createdByThreadId: current.createdByThreadId ?? callingId,
+      config: {
+        model: parsed.model ?? current.config.model,
+        ...(parsed.effort === null
+          ? {}
+          : parsed.effort !== undefined
+            ? { effort: parsed.effort }
+            : current.config.effort
+              ? { effort: current.config.effort }
+              : {}),
+        ...(current.config.fast !== undefined ? { fast: current.config.fast } : {}),
+        ...(parsed.harnessItemId !== undefined
+          ? { harnessItemId: parsed.harnessItemId }
+          : current.config.harnessItemId
+            ? { harnessItemId: current.config.harnessItemId }
             : {}),
-      ...(current.config.fast !== undefined ? { fast: current.config.fast } : {}),
-      ...(parsed.harnessItemId !== undefined
-        ? { harnessItemId: parsed.harnessItemId }
-        : current.config.harnessItemId
-          ? { harnessItemId: current.config.harnessItemId }
-          : {}),
-    },
-  });
+      },
+    }),
+    ctx,
+  );
 }
 
-function getSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
-  return requireSchedule(ctx, idArgsSchema.parse(args).id);
+function getSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
+  return serializeTask(requireSchedule(ctx, idArgsSchema.parse(args).id), ctx);
 }
 
-function pauseSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
+function pauseSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
   const { id } = idArgsSchema.parse(args);
   requireSchedule(ctx, id);
-  return ctx.scheduleService.pause(id);
+  return serializeTask(ctx.scheduleService.pause(id), ctx);
 }
 
-function resumeSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
+function resumeSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
   const { id } = idArgsSchema.parse(args);
   requireSchedule(ctx, id);
-  return ctx.scheduleService.resume(id);
+  return serializeTask(ctx.scheduleService.resume(id), ctx);
 }
 
-function runSchedule(args: unknown, ctx: ScheduleToolContext): ScheduledTask {
-  return ctx.scheduleService.runNow(idArgsSchema.parse(args).id);
+function runSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
+  return serializeTask(ctx.scheduleService.runNow(idArgsSchema.parse(args).id), ctx);
 }
 
 function deleteSchedule(args: unknown, ctx: ScheduleToolContext): { deleted: boolean; id: string } {
@@ -355,10 +482,10 @@ function deleteSchedule(args: unknown, ctx: ScheduleToolContext): { deleted: boo
   return { deleted: true, id };
 }
 
-function listScheduleRuns(args: unknown, ctx: ScheduleToolContext): ScheduledTaskRun[] {
+function listScheduleRuns(args: unknown, ctx: ScheduleToolContext): unknown {
   const parsed = listRunsArgsSchema.parse(args);
   requireSchedule(ctx, parsed.id);
-  return ctx.scheduleService.listRuns(parsed.id, parsed.limit);
+  return ctx.scheduleService.listRuns(parsed.id, parsed.limit).map((run) => serializeRun(run, ctx));
 }
 
 export const scheduleTools: ScheduleToolDomain = {
@@ -379,10 +506,16 @@ export const scheduleTools: ScheduleToolDomain = {
         "Create a plan / monitor / daily routine / timed task (计划 / 监控 / 日常 / 定时任务). " +
         "Use this instead of polling, sleeping, or keeping a turn open while waiting " +
         "(training jobs, CI, later reminders, recurring checks). The current agent and model " +
-        "are used unless overridden. The schedule binds to the calling thread by default " +
+        "are used unless overridden — to fire runs as Devin, pass agentKind:'devin', " +
+        "model:'swe-2-max', effort:'max' (an explicit agentKind whose harness item is not " +
+        "registered fails at create time; it never falls back to the calling thread's harness). " +
+        "The schedule binds to the calling thread by default " +
         "(future runs continue there); pass threadTarget {kind:'existing',threadId} (or the " +
         "top-level targetThreadId string) to bind another existing thread, or " +
-        "{kind:'new'} / continueInCurrentThread:false for a detached schedule. The returned " +
+        "{kind:'new'} / continueInCurrentThread:false for a detached schedule. The target " +
+        "threadId accepts the sidebar UUID, thread:<uuid>, or a Crossagents harness:nativeId " +
+        "address (e.g. kimi:session_…, devin:…) — every form resolves to the SAME thread. " +
+        "The returned " +
         "task always carries sourceThreadId and targetThreadId — verify they match the " +
         "intended thread. For sub-hourly repeats use recurrence " +
         "{kind:'interval',everyMinutes:N} (e.g. every 10 minutes). Never ask the scheduled " +
@@ -459,7 +592,7 @@ export const scheduleTools: ScheduleToolDomain = {
     },
   ],
   handlers: {
-    list: (_args, ctx) => ctx.scheduleService.list(),
+    list: (_args, ctx) => ctx.scheduleService.list().map((task) => serializeTask(task, ctx)),
     get: getSchedule,
     create: createSchedule,
     update: updateSchedule,

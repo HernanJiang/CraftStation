@@ -1021,6 +1021,13 @@ if (!hasSingleInstanceLock) {
             return null;
           }
         },
+        // Crossagents parity: detached run threads get their harness:nativeId
+        // peer address bound once the native session id appears. Lazy lookup —
+        // the bus lives inside appControlsMcpIngress, constructed below.
+        bindRunThreadAddress: (threadId) => {
+          const bus = appControlsMcpIngress?.getInterHarnessMessageBus();
+          return bus ? bus.bindNativeAddressForThread(threadId) : Promise.resolve(null);
+        },
       });
       scheduleRunCoordinator = scheduleCoordinator;
       const scheduleService = createDeviceScheduleService({
@@ -1247,6 +1254,14 @@ if (!hasSingleInstanceLock) {
         scheduleService,
         getThread: dbGetThread,
         resolveThreadIdBySessionId,
+        // Schedule and Crossagents share ONE address space: native addresses
+        // and sidebar UUIDs resolve through the same InterHarnessMessageBus.
+        resolvePeerTarget: (target, sourceThreadId) =>
+          appControlsMcpIngress!
+            .getInterHarnessMessageBus()
+            .resolvePeerTarget(target, sourceThreadId),
+        peerAddressOfThread: (threadId) =>
+          appControlsMcpIngress!.getInterHarnessMessageBus().peerAddressForThread(threadId),
       });
       const scheduleMcpReady = scheduleMcpIngress.start().catch((err) => {
         console.error("[craftstation] schedule MCP ingress failed to start:", err);

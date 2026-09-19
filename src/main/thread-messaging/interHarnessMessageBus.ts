@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { AgentKind, ProjectLocation, Thread } from "@/shared/contracts";
 import type { NativeThreadPeer } from "@/shared/nativeThreads";
-import { formatNativeAddress, parseNativeAddress } from "@/shared/nativeThreads";
+import {
+  formatNativeAddress,
+  parseNativeAddress,
+  parseThreadUuidReference,
+} from "@/shared/nativeThreads";
 import type { ThreadDialogueRequest, ThreadExchange } from "@/shared/threadCollaboration";
 import type { ThreadCollaborationService } from "../thread-collaboration/ThreadCollaborationService";
 import type { ThreadControlAdapter } from "../thread-collaboration/ThreadControlAdapter";
@@ -14,6 +18,7 @@ import {
   deleteNativeBindingsForThread,
   discoverCodexThreads,
   getNativeBinding,
+  getNativeBindingByThread,
   inferNativeHarnessFromModel,
   putNativeBinding,
   resolveWorkspace,
@@ -187,8 +192,17 @@ export class InterHarnessMessageBus {
     return { threadId, address, created: true };
   }
 
-  /** Resolve an address to its bound thread, auto-claiming external peers. */
+  /**
+   * Resolve a peer reference to its bound thread. Accepted spellings:
+   * - `harness:nativeId` (canonical native address; external peers auto-claim)
+   * - a bare CraftStation thread UUID (sidebar thread id)
+   * - `thread:<uuid>` (explicit sidebar form)
+   * All three name the SAME conversation; a sidebar UUID never spawns a
+   * duplicate native session.
+   */
   resolveAddress(address: string, sourceProjectId: string): { threadId: string } {
+    const threadRef = parseThreadUuidReference(address);
+    if (threadRef) return this.resolveThreadUuidReference(threadRef, address);
     const bound = getNativeBinding(address);
     if (bound && this.threadRowExists(bound.threadId)) return { threadId: bound.threadId };
     if (bound) deleteNativeBinding(address);
@@ -212,6 +226,118 @@ export class InterHarnessMessageBus {
     }
     const projectId = this.projectForAddress(address, sourceProjectId);
     return { threadId: this.claimPeer(address, projectId).threadId };
+  }
+
+  /**
+   * Resolve a bare/`thread:` sidebar UUID to its thread row. The thread must
+   * already exist — a UUID reference never claims, spawns, or duplicates a
+   * native session. When the thread has an addressable harness, the
+   * synthesized `harness:nativeId` binding is recorded so the native address
+   * and the UUID converge on this row from then on.
+   */
+  private resolveThreadUuidReference(threadId: string, raw: string): { threadId: string } {
+    let thread: Thread | null = null;
+    try {
+      thread = this.deps.control.require(threadId);
+    } catch {
+      thread = null;
+    }
+    if (!thread) {
+      throw new Error(
+        `Unknown peer reference: ${raw}. It looks like a sidebar thread UUID, but no such thread exists. Use list_peers for harness:nativeId addresses.`,
+      );
+    }
+    const address = this.addressOfThread(thread);
+    const workspace = this.workspaceOfThread(thread);
+    if (address && workspace) {
+      const bound = getNativeBinding(address.address);
+      if (!bound || bound.threadId !== thread.id) {
+        putNativeBinding({
+          address: address.address,
+          threadId: thread.id,
+          workspace,
+          origin: "craftstation",
+          boundAt: this.now().toISOString(),
+        });
+      }
+    }
+    return { threadId: thread.id };
+  }
+
+  /**
+   * Crossagents/Schedule shared peer-target resolution: any accepted spelling
+   * (native address or sidebar UUID) to its thread id. The source thread only
+   * supplies the workspace scope for external claims; when it is unknown the
+   * first registered workspace project is used.
+   */
+  resolvePeerTarget(target: string, sourceThreadId: string | null): { threadId: string } {
+    const source = sourceThreadId
+      ? (this.deps.control.list().find((entry) => entry.id === sourceThreadId) ?? null)
+      : null;
+    const projectId = source?.projectId ?? this.deps.listProjectLocations()[0]?.projectId ?? null;
+    if (!projectId) {
+      throw new Error(
+        `Cannot resolve peer target "${target}": no source thread or workspace project is available.`,
+      );
+    }
+    return this.resolveAddress(target, projectId);
+  }
+
+  /**
+   * The native peer address of a thread row, read-only: the durable binding
+   * wins, otherwise the address synthesized from agentKind + sessionRef (the
+   * same synthesis resolveAddress records). Null when the thread is unknown
+   * or its harness is outside the native-messaging scope.
+   */
+  peerAddressForThread(threadId: string): string | null {
+    const bound = getNativeBindingByThread(threadId);
+    if (bound) return bound.address;
+    let thread: Thread;
+    try {
+      thread = this.deps.control.require(threadId);
+    } catch {
+      return null;
+    }
+    return this.addressOfThread(thread)?.address ?? null;
+  }
+
+  /**
+   * Await a freshly launched thread's native session id and bind its peer
+   * address (spawn_peer / Schedule kind:"new" run parity). Returns null —
+   * never a fabricated id — when the thread is gone, its harness is out of
+   * scope, or no session id appears within the spawn timeout.
+   */
+  async bindNativeAddressForThread(threadId: string): Promise<string | null> {
+    let thread: Thread;
+    try {
+      thread = this.deps.control.require(threadId);
+    } catch {
+      return null;
+    }
+    const harness = thread.agentKind?.trim();
+    if (!harness) return null;
+    try {
+      assertKnownHarness(harness);
+    } catch {
+      return null;
+    }
+    let nativeId: string;
+    try {
+      nativeId = await this.awaitNativeSessionId(threadId);
+    } catch {
+      return null;
+    }
+    const address = formatNativeAddress(harness, nativeId);
+    const workspace = this.workspaceOfThread(this.deps.control.require(threadId));
+    if (!workspace) return null;
+    putNativeBinding({
+      address,
+      threadId,
+      workspace,
+      origin: "craftstation",
+      boundAt: this.now().toISOString(),
+    });
+    return address;
   }
 
   /**
@@ -399,10 +525,26 @@ export class InterHarnessMessageBus {
 
   /**
    * Resolve an address to an already-known thread WITHOUT claiming anything:
-   * unknown addresses fail closed instead of materializing rows.
+   * unknown addresses fail closed instead of materializing rows. Sidebar UUID
+   * references resolve to their existing row directly.
    */
   private resolveExistingAddress(address: string): string {
-    const bound = getNativeBinding(address);
+    const threadRef = parseThreadUuidReference(address);
+    if (threadRef) {
+      try {
+        this.deps.control.require(threadRef);
+        return threadRef;
+      } catch {
+        throw new Error(`Unknown peer (nothing to stop): ${address}.`);
+      }
+    }
+    let bound: ReturnType<typeof getNativeBinding> = null;
+    try {
+      bound = getNativeBinding(address);
+    } catch {
+      // Not a parseable harness:nativeId address — fall through to the
+      // thread-list scan before failing closed.
+    }
     if (bound) {
       try {
         this.deps.control.require(bound.threadId);
@@ -519,11 +661,18 @@ export class InterHarnessMessageBus {
     );
   }
 
-  /** Single peer lookup by address within the caller's workspace scope. */
-  getPeer(sourceThreadId: string, address: string): NativeThreadPeer {
-    const peer = this.listPeers(sourceThreadId).find((entry) => entry.address === address);
+  /**
+   * Single peer lookup within the caller's workspace scope. Accepts a native
+   * address or a sidebar thread UUID (`thread:<uuid>` also works) — both name
+   * the same conversation.
+   */
+  getPeer(sourceThreadId: string, target: string): NativeThreadPeer {
+    const threadRef = parseThreadUuidReference(target);
+    const peer = this.listPeers(sourceThreadId).find((entry) =>
+      threadRef ? entry.boundThreadId === threadRef : entry.address === target,
+    );
     if (!peer) {
-      throw new Error(`Peer not found in this workspace scope: ${address}.`);
+      throw new Error(`Peer not found in this workspace scope: ${target}.`);
     }
     return peer;
   }

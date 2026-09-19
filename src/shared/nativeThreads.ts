@@ -63,6 +63,22 @@ export function formatNativeAddress(harness: string, nativeId: string): string {
   return nativeThreadAddressSchema.parse(`${harness}:${nativeId}`);
 }
 
+const THREAD_UUID_REFERENCE =
+  /^(?:thread:)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/**
+ * Parse a sidebar-thread reference — a bare CraftStation thread UUID or the
+ * explicit `thread:<uuid>` form. Returns the bare UUID, or null when the
+ * target is not a thread reference (e.g. a `harness:nativeId` address). Both
+ * spellings name the same sidebar conversation as the thread's native
+ * address; resolution is shared by Crossagents and Schedule.
+ */
+export function parseThreadUuidReference(target: string): string | null {
+  const trimmed = target.trim();
+  if (!THREAD_UUID_REFERENCE.test(trimmed)) return null;
+  return trimmed.startsWith("thread:") ? trimmed.slice("thread:".length) : trimmed;
+}
+
 /**
  * Normalize a workspace path for peer-scope comparison: forward slashes,
  * no trailing slash, and full case-folding on Windows (drive letter and

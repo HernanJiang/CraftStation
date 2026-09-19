@@ -83,6 +83,13 @@ export interface ScheduleRunCoordinatorDeps {
    * back to the isolated legacy startThread path.
    */
   craftAgent?(payload: CraftAgentPayload): Promise<CraftAgentResult>;
+  /**
+   * Crossagents parity for detached (threadTarget kind:"new") runs: await the
+   * fired thread's native session id and bind its `harness:nativeId` peer
+   * address. Wired to InterHarnessMessageBus.bindNativeAddressForThread in
+   * production; the run NEVER fails because a binding could not be written.
+   */
+  bindRunThreadAddress?(threadId: string): Promise<string | null>;
   resolveExecution?(input: {
     task: ScheduledTask;
     runThreadId: string;
@@ -260,6 +267,9 @@ export class ScheduleRunCoordinator {
     );
 
     if (launch.kind === "native" && this.deps.craftAgent) {
+      // Crossagents parity: bind the run thread's harness:nativeId peer address
+      // as soon as its native session id appears (the binder polls internally).
+      this.bindRunThreadAddressAsync(threadId);
       try {
         const result = await this.deps.craftAgent({
           craftPlan: launch.craftPlan,
@@ -324,7 +334,26 @@ export class ScheduleRunCoordinator {
       throw error instanceof Error ? error : new Error(message);
     }
 
+    // Same peer-address binding as the native path; the turn settles on its
+    // own track and binding trouble never fails the run.
+    this.bindRunThreadAddressAsync(threadId);
     return settled;
+  }
+
+  /**
+   * Fire-and-forget Crossagents peer-address binding for a freshly fired
+   * detached run thread. A binding failure (out-of-scope harness, no session
+   * id within the timeout, shutdown races) is swallowed — the run itself is
+   * already recorded and never fails because a peer address is missing.
+   */
+  private bindRunThreadAddressAsync(threadId: string): void {
+    const bind = this.deps.bindRunThreadAddress;
+    if (!bind) return;
+    try {
+      void bind(threadId).catch(() => undefined);
+    } catch {
+      // Synchronous throw (e.g. DB closing during shutdown): ignore.
+    }
   }
 
   /**

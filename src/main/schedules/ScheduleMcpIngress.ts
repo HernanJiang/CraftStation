@@ -25,6 +25,15 @@ export interface ScheduleMcpIngressDeps {
    * persisted sessionRef mapping; without it the URL identity is used.
    */
   resolveThreadIdBySessionId?(sessionId: string): string | null;
+  /**
+   * Shared Crossagents peer-target resolution (harness:nativeId, thread:<uuid>,
+   * or bare sidebar UUID → the same thread row). Wire from the
+   * InterHarnessMessageBus so Schedule and Crossagents never diverge on what a
+   * target names.
+   */
+  resolvePeerTarget?(target: string, sourceThreadId: string | null): { threadId: string };
+  /** Native peer address of a thread row, when addressable (Crossagents parity). */
+  peerAddressOfThread?(threadId: string): string | null;
 }
 
 export class ScheduleMcpIngress {
@@ -40,6 +49,8 @@ export class ScheduleMcpIngress {
         identity,
         scheduleService: deps.scheduleService,
         getThread: deps.getThread,
+        ...(deps.resolvePeerTarget ? { resolvePeerTarget: deps.resolvePeerTarget } : {}),
+        ...(deps.peerAddressOfThread ? { peerAddressOfThread: deps.peerAddressOfThread } : {}),
       }),
       ...(deps.resolveThreadIdBySessionId
         ? { resolveThreadIdBySessionId: deps.resolveThreadIdBySessionId }

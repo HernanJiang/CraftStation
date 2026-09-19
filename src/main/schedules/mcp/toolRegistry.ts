@@ -22,7 +22,11 @@ export const SCHEDULE_MCP_INSTRUCTIONS =
   "get is only a summary. once.runAt is ISO-8601, Z or offset like +08:00. For sub-hourly repeats " +
   "use recurrence {kind:'interval',everyMinutes:N}. Never ask the scheduled prompt to create its " +
   "own next schedule. Schedules bind to the creating thread by default; set " +
-  "continueInCurrentThread:false or threadTarget {kind:'new'} to detach.";
+  "continueInCurrentThread:false or threadTarget {kind:'new'} to detach. Thread targets share the " +
+  "Crossagents address space: a sidebar thread UUID, thread:<uuid>, or a harness:nativeId address " +
+  "(e.g. kimi:session_…, devin:…) all resolve to the SAME thread — no duplicate native session is " +
+  "ever created. To fire runs as Devin use agentKind:'devin' with model:'swe-2-max'; get/list/" +
+  "list_runs report each task/run's boundThreadId and peerAddress.";
 
 export const TOOLS: readonly StreamableHttpMcpToolSpec[] = scheduleTools.specs;
 

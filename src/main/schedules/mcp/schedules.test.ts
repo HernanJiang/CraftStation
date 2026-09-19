@@ -19,6 +19,21 @@ function ctx(service: ScheduleCapability): ScheduleToolContext {
   };
 }
 
+/** Context with the Crossagents bus seams wired (production parity). */
+function ctxWithBus(
+  service: ScheduleCapability,
+  bus: {
+    resolvePeerTarget?: (target: string, sourceThreadId: string | null) => { threadId: string };
+    peerAddressOfThread?: (threadId: string) => string | null;
+  },
+): ScheduleToolContext {
+  return {
+    ...ctx(service),
+    ...(bus.resolvePeerTarget ? { resolvePeerTarget: bus.resolvePeerTarget } : {}),
+    ...(bus.peerAddressOfThread ? { peerAddressOfThread: bus.peerAddressOfThread } : {}),
+  };
+}
+
 describe("Schedule MCP tools", () => {
   it("lists ScheduledTaskRun rows through list_runs", async () => {
     const task = { id: "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150" } as ScheduledTask;
@@ -318,5 +333,233 @@ describe("Schedule MCP tools", () => {
     expect(() => scheduleTools.handlers.get!({ id }, ctx(empty))).toThrow(
       `Scheduled task not found: ${id}.`,
     );
+  });
+
+  it("resolves a harness:nativeId threadTarget to the existing thread UUID (shared Crossagents resolver)", async () => {
+    const KIMI_UUID = "d48b6841-b29c-476c-ab2d-85fe3145c7d8";
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    const resolvePeerTarget = vi.fn(() => ({ threadId: KIMI_UUID }));
+
+    await scheduleTools.handlers.create!(
+      {
+        name: "Kimi executor check",
+        prompt: "Run the check.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        threadTarget: { kind: "existing", threadId: "kimi:session_abc123" },
+      },
+      ctxWithBus(service, { resolvePeerTarget }),
+    );
+
+    // The shared resolver ran once; the schedule persists the CANONICAL UUID,
+    // never the raw address — and the run binds to that same conversation.
+    expect(resolvePeerTarget).toHaveBeenCalledWith("kimi:session_abc123", thread.id);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadTarget: { kind: "existing", threadId: KIMI_UUID },
+        targetThreadId: KIMI_UUID,
+        sourceThreadId: KIMI_UUID,
+        createdByThreadId: thread.id,
+      }),
+    );
+  });
+
+  it("resolves a bare harness:nativeId targetThreadId string the same way", async () => {
+    const DEVIN_UUID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    const resolvePeerTarget = vi.fn(() => ({ threadId: DEVIN_UUID }));
+
+    await scheduleTools.handlers.create!(
+      {
+        name: "Devin nightly",
+        prompt: "Run the nightly self check.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        targetThreadId: "devin:acp-session-9",
+      },
+      ctxWithBus(service, { resolvePeerTarget }),
+    );
+
+    expect(resolvePeerTarget).toHaveBeenCalledWith("devin:acp-session-9", thread.id);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadTarget: { kind: "existing", threadId: DEVIN_UUID },
+        targetThreadId: DEVIN_UUID,
+      }),
+    );
+  });
+
+  it("accepts thread:<uuid> targets without needing the resolver", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    const resolvePeerTarget = vi.fn(() => ({ threadId: "unused" }));
+
+    await scheduleTools.handlers.create!(
+      {
+        name: "Prefixed target",
+        prompt: "Bind to the prefixed thread.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        threadTarget: { kind: "existing", threadId: `thread:${executorThread.id}` },
+      },
+      ctxWithBus(service, { resolvePeerTarget }),
+    );
+
+    expect(resolvePeerTarget).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadTarget: { kind: "existing", threadId: executorThread.id },
+        targetThreadId: executorThread.id,
+      }),
+    );
+  });
+
+  it("fails closed with a clear error when a native address has no resolver wired", () => {
+    const service = {
+      create: vi.fn(),
+    } as unknown as ScheduleCapability;
+    expect(() =>
+      scheduleTools.handlers.create!(
+        {
+          name: "No resolver",
+          prompt: "Bind by address.",
+          recurrence: { kind: "interval", everyMinutes: 30 },
+          threadTarget: { kind: "existing", threadId: "kimi:session_abc123" },
+        },
+        ctx(service),
+      ),
+    ).toThrow(/no Crossagents address resolver/);
+  });
+
+  it("fires as Devin when agentKind=devin model=swe-2-max effort=max are explicit", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+
+    await scheduleTools.handlers.create!(
+      {
+        name: "Devin self check",
+        prompt: "Run the self check and report.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        agentKind: "devin",
+        model: "swe-2-max",
+        effort: "max",
+        threadTarget: { kind: "new" },
+      },
+      ctx(service),
+    );
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentKind: "devin",
+        threadTarget: { kind: "new" },
+        config: expect.objectContaining({ model: "swe-2-max", effort: "max" }),
+      }),
+    );
+  });
+
+  it("rejects an explicit agentKind whose harness item is missing instead of drifting", () => {
+    const create = vi.fn();
+    const service = { create } as unknown as ScheduleCapability;
+    expect(() =>
+      scheduleTools.handlers.create!(
+        {
+          name: "Typo harness",
+          prompt: "This must not silently bind the caller's harness.",
+          recurrence: { kind: "interval", everyMinutes: 30 },
+          agentKind: "devin-typo",
+          model: "swe-2-max",
+        },
+        ctx(service),
+      ),
+    ).toThrow(/harness:devin-typo/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown explicit harnessItemId at create time", () => {
+    const create = vi.fn();
+    const service = { create } as unknown as ScheduleCapability;
+    expect(() =>
+      scheduleTools.handlers.create!(
+        {
+          name: "Ghost harness item",
+          prompt: "No such item.",
+          recurrence: { kind: "interval", everyMinutes: 30 },
+          harnessItemId: "harness:no-such-harness",
+        },
+        ctx(service),
+      ),
+    ).toThrow(/harnessItemId/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("get exposes boundThreadId and peerAddress for a UUID-bound task", () => {
+    const bound = {
+      id: "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150",
+      name: "Bound check",
+      agentKind: "devin",
+      threadTarget: { kind: "existing", threadId: executorThread.id },
+      targetThreadId: executorThread.id,
+      sourceThreadId: executorThread.id,
+      config: { model: "swe-2-max" },
+    } as unknown as ScheduledTask;
+    const service = {
+      get: vi.fn<(id: string) => ScheduledTask | null>(() => bound),
+    } as unknown as ScheduleCapability;
+    const peerAddressOfThread = vi.fn((threadId: string) =>
+      threadId === executorThread.id ? "devin:acp-session-9" : null,
+    );
+
+    const result = scheduleTools.handlers.get!(
+      { id: bound.id },
+      ctxWithBus(service, { peerAddressOfThread }),
+    ) as Record<string, unknown>;
+
+    expect(result).toMatchObject({
+      id: bound.id,
+      boundThreadId: executorThread.id,
+      peerAddress: "devin:acp-session-9",
+    });
+  });
+
+  it("list_runs rows carry boundThreadId and peerAddress of the fired thread", async () => {
+    const taskRow = { id: "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150" } as ScheduledTask;
+    const firedThreadId = "64261085-f3ec-4a99-8f42-a6a73468feec";
+    const run = {
+      id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      scheduleId: taskRow.id,
+      threadId: firedThreadId,
+      triggeredBy: "scheduled",
+      startedAt: "2026-09-19T00:00:00.000Z",
+      completedAt: null,
+      status: "running",
+      summary: null,
+      error: null,
+    } as ScheduledTaskRun;
+    const service = {
+      get: vi.fn<(id: string) => ScheduledTask | null>(() => taskRow),
+      listRuns: vi.fn<() => ScheduledTaskRun[]>(() => [run]),
+    } as unknown as ScheduleCapability;
+    const peerAddressOfThread = vi.fn((threadId: string) =>
+      threadId === firedThreadId ? "devin:devin-session-1" : null,
+    );
+
+    const rows = (await scheduleTools.handlers.list_runs!(
+      { id: taskRow.id },
+      ctxWithBus(service, { peerAddressOfThread }),
+    )) as Array<Record<string, unknown>>;
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: run.id,
+      boundThreadId: firedThreadId,
+      peerAddress: "devin:devin-session-1",
+    });
   });
 });
