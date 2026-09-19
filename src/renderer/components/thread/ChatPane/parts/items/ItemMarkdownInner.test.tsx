@@ -110,6 +110,34 @@ $$`}
     expect(container.textContent).toContain("indeed");
   });
 
+  it("renders formulas containing `<` instead of falling back to raw source", async () => {
+    // Regression: `escapeBareAngleTags` used to rewrite `<t` to `&lt;t` inside
+    // math, which made KaTeX throw and the whole formula rendered raw.
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={
+            "$$\\mathcal{L}_{\\mathrm{CE}} = -\\frac{1}{N} \\sum_{t=1}^{N} \\log p_{\\theta}(y_t \\mid x, y_{<t})$$"
+          }
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+  });
+
+  it("recovers formulas whose source already contains `&lt;` entities", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"$$y_{&lt;t}$$"} />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+  });
+
   it("keeps math-signal-less escaped brackets as literal text", () => {
     const { container } = render(
       <AppProvider>

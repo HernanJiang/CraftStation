@@ -412,15 +412,75 @@ export function escapeBareAngleTags(text: string): string {
   return changed ? converted.join("") : text;
 }
 
+/**
+ * Inline code and math spans, in one capture group for `String.split`. Math
+ * spans are protected for the same reason code is: `&lt;` inside math is a
+ * KaTeX parse error (`&` outside alignment) that drops the whole formula back
+ * to raw source. Classic `\( \)` `\[ \]` spans are captured too; whether they
+ * count as math is decided per-span by the same signal check
+ * `normalizeLatexMathDelimiters` uses, so prose brackets still get escaped.
+ * Single `$` requires a non-space-closed body whose closing `$` is not
+ * followed by a digit — the same currency guard micromark-extension-math
+ * applies.
+ */
+const INLINE_CODE_OR_MATH_SPAN_RE =
+  /(`[^`\n]*`|\$\$[\s\S]+?\$\$|\$[^\s$][^$]*?[^\s$]\$(?!\d)|\$[^\s$]\$(?!\d)|\\\[[\s\S]*?\\\](?!\()|\\\([\s\S]*?\\\))/g;
+
+function isProtectedMathSpan(part: string): boolean {
+  if (part.startsWith("$")) return true;
+  if (part.startsWith("\\[") || part.startsWith("\\(")) {
+    return LATEX_MATH_SIGNAL_RE.test(part.slice(2, -2));
+  }
+  return false;
+}
+
 function escapeBareAngleTagsOutsideInlineCode(text: string): string {
   if (!text.includes("<")) return text;
-  const parts = text.split(/(`[^`\n]*`)/);
+  const parts = text.split(INLINE_CODE_OR_MATH_SPAN_RE);
   let changed = false;
   const converted = parts.map((part, index) => {
-    if (index % 2 === 1) return part;
+    if (index % 2 === 1 && (part.startsWith("`") || isProtectedMathSpan(part))) return part;
     const next = escapeBareTagOpens(part);
     if (next !== part) changed = true;
     return next;
+  });
+  return changed ? converted.join("") : text;
+}
+
+const MATH_ENTITY_MAP: Record<string, string> = { lt: "<", gt: ">", amp: "&" };
+
+/**
+ * Make `$…$`/`$$…$$` math-span contents safe for the rest of the pipeline.
+ * Two hazards:
+ *
+ * - Streamdown's `remend` incomplete-markdown pass treats `<` followed by a
+ *   letter as an unclosed HTML tag and truncates the math span from that
+ *   point on (`$x<y$` → `$x`), handing KaTeX a truncated formula (`y_{` EOF
+ *   parse errors). Rewrite tag-like `<` opens to the `\lt ` TeX command,
+ *   which remend ignores and KaTeX renders as `<`.
+ * - Models sometimes emit HTML entities inside math (`y_{&lt;t}`); `&` is a
+ *   KaTeX error outside alignment environments, so decode the common
+ *   entities first — `&lt;` then takes the same `\lt` path.
+ *
+ * Runs after `normalizeLatexMathDelimiters`, so only `$`/`$$` spans need
+ * handling. Fenced/inline code and prose keep their bytes.
+ */
+export function protectMathSpans(text: string): string {
+  if (!text.includes("$")) return text;
+  let changed = false;
+  const converted = splitSegmentsOutsideFences(text).map((segment) => {
+    if (segment.inFence) return segment.text;
+    return segment.text
+      .split(INLINE_CODE_OR_MATH_SPAN_RE)
+      .map((part, index) => {
+        if (index % 2 === 0 || !part.startsWith("$")) return part;
+        const next = part
+          .replace(/&(lt|gt|amp);/g, (match, name: string) => MATH_ENTITY_MAP[name] ?? match)
+          .replace(/<(?=[A-Za-z/!?])/g, "\\lt ");
+        if (next !== part) changed = true;
+        return next;
+      })
+      .join("");
   });
   return changed ? converted.join("") : text;
 }

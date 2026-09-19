@@ -5,6 +5,7 @@ import {
   normalizeLatexMathDelimiters,
   normalizeMermaidFenceLanguages,
   normalizeShortCodeFenceClosers,
+  protectMathSpans,
 } from "./ItemMarkdown";
 
 describe("normalizeLatexMathDelimiters", () => {
@@ -142,6 +143,48 @@ describe("escapeBareAngleTags", () => {
   it("skips fenced code and inline code", () => {
     expect(escapeBareAngleTags("```xml\n<plan/>\n```\n")).toBe("```xml\n<plan/>\n```\n");
     expect(escapeBareAngleTags("use `<tag>` here")).toBe("use `<tag>` here");
+  });
+
+  it("keeps raw `<` inside dollar math so KaTeX can parse it", () => {
+    // `&lt;` inside math is a KaTeX parse error that drops the whole formula
+    // back to raw source — the intermittent "garbled formula" report.
+    expect(escapeBareAngleTags("$$\\sum_{t=1}^N \\log p(y_t \\mid y_{<t})$$")).toBe(
+      "$$\\sum_{t=1}^N \\log p(y_t \\mid y_{<t})$$",
+    );
+    expect(escapeBareAngleTags("inline $x<y$ math")).toBe("inline $x<y$ math");
+  });
+
+  it("keeps `<` inside classic delimiters only when they carry a math signal", () => {
+    expect(escapeBareAngleTags("\\[\\mathcal{L} = \\sum y_{<t}\\]")).toBe(
+      "\\[\\mathcal{L} = \\sum y_{<t}\\]",
+    );
+    expect(escapeBareAngleTags("\\(x_t<y\\)")).toBe("\\(x_t<y\\)");
+    // Signal-less brackets stay prose — pseudo-tags inside still get escaped
+    // (and render back as literal `<` in the paragraph path).
+    expect(escapeBareAngleTags("\\[x <tag> y\\]")).toBe("\\[x &lt;tag> y\\]");
+    expect(escapeBareAngleTags("\\(x<t\\)")).toBe("\\(x&lt;t\\)");
+  });
+});
+
+describe("protectMathSpans", () => {
+  it("rewrites tag-like `<` inside math to `\\lt ` so remend cannot truncate it", () => {
+    // remend strips `<`+letter as an unclosed tag (`$x<y$` → `$x`), handing
+    // KaTeX a truncated formula — the intermittent "garbled formula" report.
+    expect(protectMathSpans("$$\\sum_{t=1}^N \\log p(y_t \\mid y_{<t})$$")).toBe(
+      "$$\\sum_{t=1}^N \\log p(y_t \\mid y_{\\lt t})$$",
+    );
+    expect(protectMathSpans("inline $x<y$ math")).toBe("inline $x\\lt y$ math");
+  });
+
+  it("decodes entities inside math first so `&lt;` takes the `\\lt` path too", () => {
+    expect(protectMathSpans("$$y_{&lt;t} &gt; 0$$")).toBe("$$y_{\\lt t} > 0$$");
+    expect(protectMathSpans("$a&lt;b$")).toBe("$a\\lt b$");
+  });
+
+  it("leaves `<=`, spaced `<`, prose entities, and code untouched", () => {
+    expect(protectMathSpans("$x <= y$ and $x < y$")).toBe("$x <= y$ and $x < y$");
+    expect(protectMathSpans("a &lt; b and `$x<y$`")).toBe("a &lt; b and `$x<y$`");
+    expect(protectMathSpans("```\n$x<y$\n```")).toBe("```\n$x<y$\n```");
   });
 });
 // @vitest-environment node

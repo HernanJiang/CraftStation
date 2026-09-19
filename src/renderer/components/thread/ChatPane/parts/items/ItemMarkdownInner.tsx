@@ -42,6 +42,7 @@ import {
   normalizeLatexMathDelimiters,
   normalizeMermaidFenceLanguages,
   normalizeShortCodeFenceClosers,
+  protectMathSpans,
 } from "./ItemMarkdown";
 import { imageViewSourceFromMarkdownImage } from "./imageViewSource";
 import { normalizeHighlightLanguage } from "./languageDetect";
@@ -134,7 +135,9 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
     normalizeIncompleteProjectLinkTail(
       normalizeMermaidFenceLanguages(
         normalizeGfmTableSeparators(
-          normalizeLatexMathDelimiters(normalizeShortCodeFenceClosers(escapeBareAngleTags(text))),
+          protectMathSpans(
+            normalizeLatexMathDelimiters(normalizeShortCodeFenceClosers(escapeBareAngleTags(text))),
+          ),
         ),
       ),
     ),
