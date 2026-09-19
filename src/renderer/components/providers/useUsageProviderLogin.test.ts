@@ -64,6 +64,15 @@ function localGoSnapshot(): UsageSnapshot {
 }
 
 describe("useUsageProviderLogin", () => {
+  it("does not claim sign-out success when the cache invalidation fails", async () => {
+    bridgeMock.clearUsageLogin.mockResolvedValue({ ok: true });
+    bridgeMock.forgetProviderUsage.mockRejectedValue(new Error("supervisor unavailable"));
+    const { result } = renderHook(() => useUsageProviderLogin("devin"));
+    await act(async () => {
+      expect(await result.current.handleSignOut()).toBe(false);
+    });
+  });
+
   beforeEach(() => {
     bridgeMock.isRemoteSession.mockReturnValue(false);
     bridgeMock.startUsageLogin.mockReset();

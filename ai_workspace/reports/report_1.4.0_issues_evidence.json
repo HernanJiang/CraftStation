@@ -1,0 +1,35 @@
+{
+  "version": "1.4.0",
+  "targetedTests": { "files": 27, "passed": 320, "failed": 0 },
+  "additionalTests": { "files": 2, "passed": 18, "failed": 0, "overlapsTargeted": true },
+  "typecheck": "pass",
+  "lint": "pass",
+  "mockSmoke": {
+    "automated": 9,
+    "mockedGates": 16,
+    "runtimeErrors": 0,
+    "report": "C:/Users/Haona/.craftstation-smoke/v140-logout-fixture/artifacts/full-reset/smoke-report.json",
+    "firstAttempt": "failed: manual usage panel obscured the schedule surface; panel closed and full suite rerun"
+  },
+  "antigravityLive": {
+    "credentials": "isolated copies of existing accounts; originals untouched",
+    "accounts": 2,
+    "windowsPerAccount": 4,
+    "claudeWeeklyUsedPercent": [33.6, 5.7],
+    "displayedRoundedPercent": [34, 6],
+    "deleteThroughUi": true,
+    "deletedStayedAbsentAfterRefresh": true,
+    "siblingPreserved": true
+  },
+  "devinDeletion": {
+    "environment": "isolated HOME and APPDATA; synthetic credentials; real Electron UI/IPC/filesystem path",
+    "primaryCredentialExistsAfter": false,
+    "legacyCredentialExistsAfter": false,
+    "deletedIdentityAbsent": true,
+    "signInAvailable": true,
+    "realExternalReauthorizationTested": false
+  },
+  "openIssuesAudited": [1, 8, 9, 10, 11, 12],
+  "priorFullSuite": "see report_1.4.0_round2_tests.json; not a fresh full run of this final patch",
+  "performance": "see report_1.4.0_round2_evidence.json; no new whole-app A/B claim"
+}

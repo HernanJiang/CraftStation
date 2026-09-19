@@ -208,17 +208,16 @@ export function useUsageProviderLogin(id: string) {
     try {
       const outcome = await readBridge().clearUsageLogin({ providerId: id });
       if (!outcome.ok) {
-        toast.danger(`Unable to sign out of ${id}.`);
+        toast.danger(outcome.error ?? `Unable to sign out of ${id}.`);
         return false;
       }
       // Drop the supervisor's cached snapshot (memory + persisted cache) in the
       // same breath: a remembered identity (e.g. Antigravity's app-not-running
       // preservation) must never resurrect a deleted authorization.
-      await readBridge()
-        .forgetProviderUsage?.({ providerId: id })
-        .catch(() => undefined);
+      await readBridge().forgetProviderUsage?.({ providerId: id });
       useUsageLoginStateStore.getState().setStored(id, false);
       await refreshAndMergeProviderUsage(id);
+      await refreshAgentStatus();
       return true;
     } catch (error) {
       toast.danger(error instanceof Error ? error.message : `Unable to sign out of ${id}.`);

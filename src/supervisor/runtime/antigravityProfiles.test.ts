@@ -71,6 +71,46 @@ function okHost(): HostPort {
 }
 
 describe("AntigravityProfileService", () => {
+  it("shows weekly consumption even when the legacy model quotas are all full", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new AntigravityProfileService({ store, cacheDir });
+    seedHostLogin(cacheDir, "quota-fixture@example.com");
+    const account = service.importHostLogin();
+    const host = okHost();
+    vi.mocked(host.http.request).mockImplementation(async (req) => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify(
+        req.url.endsWith(":retrieveUserQuotaSummary")
+          ? {
+              groups: [
+                {
+                  displayName: "Claude and GPT models",
+                  buckets: [
+                    {
+                      bucketId: "3p-weekly",
+                      window: "weekly",
+                      remainingFraction: 0.66428894,
+                      resetTime: "2026-09-23T15:04:08Z",
+                    },
+                    { bucketId: "3p-5h", window: "5h", remainingFraction: 1 },
+                  ],
+                },
+              ],
+            }
+          : { models: { "claude-opus-4-6-thinking": { quotaInfo: { remainingFraction: 1 } } } },
+      ),
+    }));
+    const refreshed = await service.collectQuota(account.accountId, host);
+    expect(refreshed.quotaWindows).toContainEqual(
+      expect.objectContaining({
+        id: "antigravity:claude:weekly",
+        usedPercent: 33.6,
+      }),
+    );
+  });
+
   it("appends a pool row per host login instead of overwriting (Grok-style)", () => {
     const cacheDir = makeCacheDir();
     const store = new AccountStore(join(cacheDir, "accounts"));

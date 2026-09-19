@@ -1,4 +1,12 @@
-## v1.4.0 — 架构统一与第二轮资源优化候选（2026-09-19，未合入 main / 未发布）
+## v1.4.0 发布收口 — 额度、授权删除与 GitHub Issues（2026-09-19）
+
+- 用户追加授权：保留现有语言结构，修复 Antigravity 额度、Devin/其他渠道授权删除及剩余 GitHub Issues，然后打包上传。
+- 本轮新增修复：账号池/单渠道统一读取 Antigravity 5h+weekly 汇总；Devin 凭据路径复用与删除、删除失败不再假成功、旧额度请求代际隔离；CRAFTABLE 配方确认后才保存，取消不写入，回车不绕过门禁。
+- 核验 Open Issues #1/#8/#9/#10/#11/#12；后四项已有修复，保留并复验，不重复添加功能。
+- 验证：本轮 320 定向测试通过，版本/弹窗另行 18 通过（有重叠），最终 typecheck/lint 通过，完整 mock smoke 9 自动 + 16 模拟门通过、错误 0。真实账号副本额度 33.6%/5.7%；真实界面删除账号不复活，隔离 Devin 两处凭据删除后恢复登录入口。
+- 发布说明与结果见 `ai_workspace/release-notes-1.4.0.md`、`ai_workspace/reports/report_1.4.0_issues.md`。第二轮性能结论及未验证项继续有效。原工作区三份研究文档内容保留，不以候选的扩充副本覆盖用户内容。
+
+## v1.4.0 — 架构统一与第二轮资源优化候选（2026-09-19，以下为本轮修复前记录）
 
 - GitHub 已提交：[PR #13](https://github.com/HernanJiang/CraftStation/pull/13)，远端分支 `v1.4.0-architecture-performance`（旧 `dev` 占用名称前缀，本地分支保持不变）。双包已生成；自动批准审核拒绝中间目录清理，故保留，详情见第二轮报告。
 - 用户授权实际重构、第二轮 CPU/内存/磁盘优化及提交 GitHub；未启用大型角色工作流。实现位于 `dev/1.4.0-architecture-performance` / `.worktrees/1.4.0-architecture-performance`；main 仍为 1.3.4，原有三份研究文档保留。

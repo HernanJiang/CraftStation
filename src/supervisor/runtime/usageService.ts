@@ -23,6 +23,7 @@ import {
   type ClaudeUsageProfile,
 } from "../agents/claude/claudeUsageProfiles";
 import { createLocalUsageCollectors, type LocalUsageCollector } from "./localUsageCollectors";
+import { resetDevinIdentityCache } from "./devinCredentials";
 import { createNodeUsageHost } from "./usageHost";
 
 /**
@@ -82,6 +83,7 @@ export class UsageService {
   private readonly localCollectors: Map<string, LocalUsageCollector>;
   private readonly host: HostPort;
   private readonly snapshots = new Map<string, UsageSnapshot>();
+  private readonly credentialGenerations = new Map<string, number>();
   private loadedFromCache = false;
   /** In-flight refreshes keyed by their sorted id-set, so identical concurrent refreshes coalesce. */
   private readonly refreshesInFlight = new Map<string, Promise<ProviderUsageResponse>>();
@@ -207,6 +209,11 @@ export class UsageService {
    * authorization on the very next refresh.
    */
   forgetProvider(providerId: string): void {
+    if (providerId === "devin") resetDevinIdentityCache();
+    this.credentialGenerations.set(
+      providerId,
+      (this.credentialGenerations.get(providerId) ?? 0) + 1,
+    );
     this.snapshots.delete(providerId);
     this.writeCache();
     this.options.emit({ type: "provider-usage-all", snapshots: [...this.snapshots.values()] });
@@ -236,6 +243,7 @@ export class UsageService {
   }
 
   private async runRefresh(ids: string[]): Promise<ProviderUsageResponse> {
+    const generations = new Map(ids.map((id) => [id, this.credentialGenerations.get(id) ?? 0]));
     const claudeProfiles = this.claudeUsageProfiles();
     const registryIds = ids.filter((id) => this.registry.has(id));
     const localIds = ids.filter((id) => this.localCollectors.has(id));
@@ -259,6 +267,13 @@ export class UsageService {
     if (this.readUsageSettings().showEstimatedCost) {
       snapshots = await this.withEstimatedCost(snapshots, claudeProfiles);
     }
+    // A response started before logout no longer has authority to restore the
+    // identity, either in the cache, an event, or the caller's IPC response.
+    snapshots = snapshots.filter(
+      (snapshot) =>
+        generations.get(snapshot.providerId) ===
+        (this.credentialGenerations.get(snapshot.providerId) ?? 0),
+    );
     for (const snapshot of snapshots) {
       this.snapshots.set(snapshot.providerId, snapshot);
       this.options.emit({ type: "provider-usage", snapshot });

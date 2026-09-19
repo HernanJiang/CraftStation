@@ -28,6 +28,7 @@ import {
   type ProviderLoginConfig,
 } from "./providerLoginConfigs";
 import { AntigravityOAuthManager } from "./AntigravityOAuthManager";
+import { nativeDevinCredentialPaths } from "@/shared/devinCredentialPaths";
 import { fetchHttpClient } from "./fetchHttpClient";
 
 /**
@@ -60,6 +61,7 @@ export interface UsageLoginResult {
 interface UsageLoginManagerOptions {
   /** Test seam; production defaults to the official Command Code auth file. */
   commandCodeAuthFile?: string;
+  devinCredentialFiles?: string[];
 }
 
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
@@ -121,16 +123,24 @@ export class UsageLoginManager {
     // reappear on the very next usage refresh.
     if (providerId === "opencode") this.clearOpenCodeAuth();
     if (providerId === "commandcode") this.clearCommandCodeAuth();
+    if (providerId === "devin") {
+      for (const path of this.options.devinCredentialFiles ?? nativeDevinCredentialPaths()) {
+        rmSync(path, { force: true });
+      }
+      if (process.env.DEVIN_API_KEY?.trim() || process.env.WINDSURF_API_KEY?.trim()) {
+        return {
+          ok: false,
+          error:
+            "本地 Devin 授权已清除，但环境变量仍提供凭据。请移除 DEVIN_API_KEY / WINDSURF_API_KEY 后重启应用。",
+        };
+      }
+    }
     const config = PROVIDER_CONFIGS[providerId];
     if (config?.kind === "cookie") {
-      await this.getBrowserPanel()
-        ?.clearLoginCookies({
-          cookieUrl: config.cookieUrl,
-          authCookiePattern: config.authCookiePattern,
-        })
-        .catch((error) => {
-          console.warn("[usage-login] failed to clear login cookies:", error);
-        });
+      await this.getBrowserPanel()?.clearLoginCookies({
+        cookieUrl: config.cookieUrl,
+        authCookiePattern: config.authCookiePattern,
+      });
     }
     return { ok: true };
   }
@@ -170,12 +180,8 @@ export class UsageLoginManager {
     for (const dir of [...new Set(candidates)]) {
       const authPath = join(dir, "auth.json");
       let parsed: unknown;
-      try {
-        if (!existsSync(authPath)) continue;
-        parsed = JSON.parse(readFileSync(authPath, "utf8"));
-      } catch {
-        continue;
-      }
+      if (!existsSync(authPath)) continue;
+      parsed = JSON.parse(readFileSync(authPath, "utf8"));
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
       const record = parsed as Record<string, unknown>;
       const hasGo = Object.prototype.hasOwnProperty.call(record, "opencode-go");
@@ -183,11 +189,7 @@ export class UsageLoginManager {
       if (!hasGo && !hasZen) continue;
       delete record["opencode-go"];
       delete record["opencode"];
-      try {
-        writeFileSync(authPath, JSON.stringify(record, null, 2), "utf8");
-      } catch (error) {
-        console.warn("[usage-login] failed to clear OpenCode auth:", error);
-      }
+      writeFileSync(authPath, JSON.stringify(record, null, 2), "utf8");
     }
   }
 

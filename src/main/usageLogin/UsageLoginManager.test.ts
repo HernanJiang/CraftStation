@@ -83,6 +83,23 @@ function newManager(panel: ReturnType<typeof makePanel>) {
 }
 
 describe("UsageLoginManager provider catalog", () => {
+  it("removes Devin CLI credentials as well as the captured usage session", async () => {
+    const credentialFile = join(cacheDir, "devin", "credentials.toml");
+    mkdirSync(join(cacheDir, "devin"), { recursive: true });
+    writeFileSync(credentialFile, 'windsurf_api_key = "fixture-token"\n');
+    const manager = new UsageLoginManager({ cacheDir } as never, () => makePanel() as never, {
+      devinCredentialFiles: [credentialFile],
+    } as never);
+    await expect(manager.clearLogin("devin")).resolves.toEqual({ ok: true });
+    expect(existsSync(credentialFile)).toBe(false);
+  });
+
+  it("does not report successful deletion when browser credentials cannot be cleared", async () => {
+    const panel = makePanel();
+    panel.clearLoginCookies.mockRejectedValue(new Error("cookie store unavailable"));
+    await expect(newManager(panel).clearLogin("grok")).rejects.toThrow("cookie store unavailable");
+  });
+
   it("keeps every login config backed by a canonical usage descriptor", () => {
     const manager = newManager(makePanel());
     const descriptorIds = new Set(allUsageProviderDescriptors().map((descriptor) => descriptor.id));

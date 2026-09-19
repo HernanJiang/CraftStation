@@ -1,0 +1,75 @@
+{
+  "note": "继承的上游同号记录，非本次 v1.4.0；原文保留追溯。",
+  "release": {
+    "version": "1.4.0",
+    "date": "2026-06-28",
+    "title": "CraftStation in 13 languages, a dockable browser & custom shortcuts",
+    "summary": "A big feature release: CraftStation now speaks 13 languages, the built-in browser pops out into its own window with a real address bar and bookmarks, and you can rebind every keyboard shortcut. New usage providers, configurable worktree placement, and a built-in What's New round it out, alongside broad reliability fixes.",
+    "changes": [
+      {
+        "kind": "added",
+        "text": "CraftStation is now available in 13 languages — English, Spanish, Russian, Ukrainian, Simplified Chinese, Japanese, Brazilian Portuguese, German, French, Korean, Polish, Vietnamese, and Turkish — with a new Language setting to choose your display language or follow your operating system, and a separate language for AI-generated commit messages and pull request summaries."
+      },
+      {
+        "kind": "added",
+        "text": "Pop the built-in browser out into its own window and dock it back whenever you want, now with a real address bar, search suggestions, bookmarks, and browsing history."
+      },
+      {
+        "kind": "added",
+        "text": "A new Shortcuts page lets you browse every keyboard shortcut and rebind it — record a new key, add extra bindings, or reset to the default — with conflicts flagged as you go."
+      },
+      {
+        "kind": "added",
+        "text": "Catch up without leaving the app: a sidebar entry now flags unread releases and a Changelog page lays out each release's highlights."
+      },
+      {
+        "kind": "added",
+        "text": "Find any setting by typing its name in the settings sidebar and jump straight to it."
+      },
+      {
+        "kind": "added",
+        "text": "Choose where CraftStation creates git worktrees — in one shared folder or nested inside each project under .craftstation/worktrees — with per-project overrides for native and WSL paths, and point a project at its new location if you move its folder on disk."
+      },
+      {
+        "kind": "added",
+        "text": "Track your Z.ai (GLM Coding Plan) and Factory (Droid) usage right in the usage panel, by pasting an API key for Z.ai or signing in to Factory through the built-in browser."
+      },
+      {
+        "kind": "added",
+        "text": "Run GitHub Copilot and Cursor as new built-in agents you can install, update, and launch directly in CraftStation."
+      },
+      {
+        "kind": "improved",
+        "text": "Generating thread titles, commit messages, and conflict resolutions is quicker thanks to a new Fast mode for these utility tasks."
+      },
+      {
+        "kind": "improved",
+        "text": "A thread launched by a background workflow now shows a live working status in the chat header, provider icon, and sidebar until the whole orchestration finishes, instead of looking idle the moment a turn ends."
+      },
+      {
+        "kind": "improved",
+        "text": "The usage panel keeps loading even when no Claude session is active, adds 7-day, 30-day, and all-time windows for your profile stats, and lets you right-click Antigravity's ring to switch which quota it tracks."
+      },
+      {
+        "kind": "improved",
+        "text": "Your unsent composer text and attachments now stay put when you switch threads and come back, and clear cleanly once you send."
+      },
+      {
+        "kind": "fixed",
+        "text": "Signing in to Google now works inside the built-in browser, which previously turned the attempt away as an insecure browser."
+      },
+      {
+        "kind": "fixed",
+        "text": "System notifications now appear reliably, and clicking one brings CraftStation to the front and opens the thread that triggered it."
+      },
+      {
+        "kind": "fixed",
+        "text": "Starting and updating agents is more reliable, with Windows launching native agent binaries directly, native updates resolving through Homebrew including cask-backed apps, and Claude shutting down its spawned tool processes when you close a thread."
+      },
+      {
+        "kind": "fixed",
+        "text": "Chat is smoother and more faithful — scroll jumps, spacer flashes, and image flicker are gone, streamed agent text keeps every character, a thread that resumes on its own shows as working again, and Codex tool activity renders MCP, skill, and subagent calls with the right details."
+      }
+    ]
+  }
+}
