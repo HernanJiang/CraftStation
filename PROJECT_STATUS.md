@@ -1,4 +1,6 @@
-## Release 1.3.3 — Crossagents 统一寻址与 Devin 对等体支持（2026-09-19，待打包）
+## Release 1.3.3 — Crossagents 统一寻址与 Devin 对等体支持（2026-09-19，已发布为 Latest）
+
+- 已提交 `3e5c54ac` 并 push，tag `v1.3.3` 已推送；双包 + blockmap + `latest.yml` 共 4 文件已上传到 GitHub Release v1.3.3（Latest）。便携版备份保留 1.3.3 + 1.3.2；中间产物（`win-unpacked/`、`builder-debug.yml`）已清。注：`dist:win:all` 会尝试 arm64 而本机无 ARM64 v143 工具集，本版沿用 `dist:win` + `dist:win:portable`（x64）分别构建。
 
 - **Crossagents 统一寻址**：`send_message` / `ask` / `get_peer` / `switch_peer_model` / `stop_peer` / `reply` 的 target 除 `harness:nativeId` 外，新增接受侧边栏线程 UUID 与 `thread:<uuid>` —— 三种拼写经 `parseThreadUuidReference`（`src/shared/nativeThreads.ts`）+ `InterHarnessMessageBus.resolveAddress` 收敛到同一行，绝不复制第二个 native session；UUID 解析顺带把合成 `harness:nativeId` 地址写入绑定表，此后两种拼写共用 fast path。`resolveExistingAddress`（stop_peer 路径）同步支持 UUID 并 fail-closed。
 - **Schedule 与 Crossagents 共享寻址空间**：`threadTarget` / `targetThreadId` 接受三种拼写，经 `resolveExistingThreadRef` → bus `resolvePeerTarget` 归一为 UUID 落库；`get` / `list` / `list_runs` 经 `serializeTask` / `serializeRun` 附带 `boundThreadId` + `peerAddress`。`ScheduleMcpIngress` 新增 `resolvePeerTarget` / `peerAddressOfThread` 依赖，`main.ts` 与 `createHeadlessRemoteHost.ts` 统一接到 `appControlsMcpIngress.getInterHarnessMessageBus()`。
