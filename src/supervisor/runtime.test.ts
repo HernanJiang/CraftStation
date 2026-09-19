@@ -10,6 +10,7 @@ import { RequestError } from "@agentclientprotocol/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEvent, ThreadConfig } from "@/shared/contracts";
 import {
+  craftPlanSchema,
   Crafter,
   BUILTIN_MODEL_ITEMS,
   CraftingError,
@@ -4108,6 +4109,113 @@ describe("SupervisorRuntime craftAgent", () => {
       state: { threadId, phase: "active" },
     });
     expect(runtime.readSessionSwitchState(threadId)).toMatchObject({ threadId, phase: "active" });
+  });
+
+  it("hands the source conversation's MCP candidates and capability config to the handoff target", async () => {
+    const runtime = makeRuntime(() => undefined);
+    runtime.setCustomCraftingAdapter((plan) => ({
+      id: `handoff-mcp:${plan.runtimeBinding.harnessKind}`,
+      harnessKind: plan.runtimeBinding.harnessKind,
+      supports: () => true,
+      spawnEntity: async (resolvedPlan) => ({
+        id: `entity:handoff-mcp:${resolvedPlan.runtimeBinding.harnessKind}`,
+        resultItemId: resolvedPlan.resultItemId,
+        craftPlan: resolvedPlan,
+        status: "spawned" as const,
+        createdAt: new Date(0).toISOString(),
+      }),
+      createSession: async (entity) => {
+        const harnessKind = entity.craftPlan.runtimeBinding.harnessKind;
+        return {
+          id: `handoff-mcp-session:${harnessKind}`,
+          threadId: entity.craftPlan.threadId ?? "",
+          entityId: entity.id,
+          status: "idle" as const,
+          startTurn: async () => ({
+            turnId: `turn:${harnessKind}`,
+            status: "completed" as const,
+            events: [],
+          }),
+          interrupt: async () => undefined,
+          terminate: async () => undefined,
+          getSnapshot: () => ({
+            sessionId: `handoff-mcp-session:${harnessKind}`,
+            threadId: entity.craftPlan.threadId ?? "",
+            entityId: entity.id,
+            status: "idle" as const,
+            events: [],
+          }),
+          subscribe: () => () => undefined,
+          sendPrompt: async () => ({ response: "continued", events: [] }),
+        };
+      },
+      resumeSession: async () => {
+        throw new Error("resume is not used by this handoff MCP test");
+      },
+    }));
+
+    const threadId = "craft-thread:handoff-mcp";
+    const basePlan = craftPlan(threadId);
+    const sourcePlan = craftPlanSchema.parse({
+      ...basePlan,
+      overrides: {
+        ...(basePlan.overrides ?? {}),
+        capabilityMode: "creative",
+        mcpServerIds: ["browser", "my-mcp"],
+      },
+    });
+    const candidates = [
+      {
+        id: "browser",
+        name: "Browser",
+        enabled: true,
+        transport: { type: "http", url: "http://127.0.0.1:1", headers: {} },
+      },
+      {
+        id: "my-mcp",
+        name: "My MCP",
+        enabled: true,
+        transport: { type: "stdio", command: "mcp", args: [] },
+      },
+    ] as never;
+
+    await runtime.craftAgent({
+      craftPlan: sourcePlan,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "",
+      mcpServers: candidates,
+    });
+
+    const createSpy = vi.spyOn(
+      runtime as unknown as {
+        createCraftingAdapter: (...args: unknown[]) => Promise<unknown>;
+      },
+      "createCraftingAdapter",
+    );
+    await runtime.requestSessionSwitch({
+      threadId,
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      targetCraftPlan: craftPlanSchema.parse(nativeCraftPlan("grok", "xai", threadId)),
+      mode: "after-current-turn",
+      prompt: "continue with MCP intact",
+    });
+
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    const [targetPlan, , candidateArg] = createSpy.mock.calls[0] as [
+      { overrides?: Record<string, unknown> },
+      unknown,
+      typeof candidates,
+    ];
+    // The source candidates ride along — without them the rebuilt session
+    // launches with no user-configured MCP servers at all.
+    expect(candidateArg).toEqual(candidates);
+    // The source capability config (mode + explicit ids) is inherited, so the
+    // target resolves capabilities under the same policy as the source.
+    expect(targetPlan.overrides).toMatchObject({
+      capabilityMode: "creative",
+      mcpServerIds: ["browser", "my-mcp"],
+    });
+    createSpy.mockRestore();
   });
 
   it("binds an explicit OpenAI-compatible account to an isolated Native Codex host", async () => {

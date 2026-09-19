@@ -4,11 +4,18 @@ import {
   type UsageWindow,
 } from "@craftstation/agents-usage";
 
-/** Account-scoped weekly/5h quota; old model availability does not include weekly limits. */
+/**
+ * Account/provider-scoped weekly/5h quota from the cloudcode OAuth surface.
+ * `nowMs` feeds the empty-default-bucket filter — this backend answers with
+ * synthetic always-full buckets for groups whose usage is tracked elsewhere
+ * (observed: every Gemini bucket), which must not render as 0% used. Old
+ * model availability does not include weekly limits.
+ */
 export async function readAntigravityQuotaSummary(
   host: HostPort,
   accessToken: string,
   requestBody: string,
+  nowMs?: number,
 ): Promise<UsageWindow[]> {
   for (const base of [
     "https://cloudcode-pa.googleapis.com",
@@ -31,7 +38,9 @@ export async function readAntigravityQuotaSummary(
       // buckets into zero usage or borrow another account's local LS snapshot.
       if (res.status === 401 || res.status === 429) return [];
       if (res.status < 200 || res.status >= 300) continue;
-      const windows = antigravityQuotaSummaryWindows(JSON.parse(res.body ?? ""));
+      const windows = antigravityQuotaSummaryWindows(JSON.parse(res.body ?? ""), {
+        ...(nowMs !== undefined ? { nowMs } : {}),
+      });
       if (windows.length > 0) return windows;
     } catch {
       // Keep older servers and temporarily unavailable summary endpoints usable.

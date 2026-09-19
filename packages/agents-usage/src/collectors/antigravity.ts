@@ -44,6 +44,27 @@ export function antigravityWindowId(
 }
 
 /**
+ * Extract the Cloud Code project id from a `loadCodeAssist` response, matching
+ * the CLIProxyAPI surface this quota path was verified against: the primary
+ * `cloudaicompanionProject` field may be a plain string or a `{id: …}` object,
+ * and older servers used the `projectId` / `project` keys. Returns undefined
+ * when none of them carry a usable id.
+ */
+export function antigravityProjectFromLoadCodeAssist(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const root = body as Record<string, unknown>;
+  for (const key of ["cloudaicompanionProject", "projectId", "project"] as const) {
+    const value = root[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const id = (value as Record<string, unknown>).id;
+      if (typeof id === "string" && id.trim()) return id.trim();
+    }
+  }
+  return undefined;
+}
+
+/**
  * Classify a quota-summary group by its display name. The Gemini group is named
  * "Gemini Models"; everything else (currently "Claude and GPT models") folds
  * into the `claude` group, matching the in-app split.
@@ -165,8 +186,19 @@ function quotaSummaryGroups(body: unknown): Record<string, unknown>[] {
  * cadence segment lets the shared pacer infer the window length. Returns [] for a
  * body without recognizable groups so the scanner can fall back to the legacy
  * per-model pooling.
+ *
+ * With `nowMs`, a full bucket whose reset sits at "now + window length" is
+ * dropped as an empty-default artifact: the cloudcode OAuth summary answers
+ * with a synthetic always-full bucket (reset recomputed per request) for model
+ * groups whose usage is tracked on a different backend — rendering it would
+ * show a misleading 0% used. Buckets with any recorded usage (remaining < 1),
+ * or whose reset does not hug the window boundary, are real and kept.
  */
-export function antigravityQuotaSummaryWindows(body: unknown): UsageWindow[] {
+export function antigravityQuotaSummaryWindows(
+  body: unknown,
+  options?: { nowMs?: number },
+): UsageWindow[] {
+  const nowMs = options?.nowMs;
   const entries: { order: number; window: UsageWindow }[] = [];
   const seen = new Set<string>();
   for (const group of quotaSummaryGroups(body)) {
@@ -180,10 +212,13 @@ export function antigravityQuotaSummaryWindows(body: unknown): UsageWindow[] {
       if (fraction === undefined) continue;
       const cadence = antigravityCadence(bucket);
       if (!cadence) continue;
+      const reset = toEpochMs(typeof bucket.resetTime === "string" ? bucket.resetTime : undefined);
+      if (nowMs !== undefined && isEmptyDefaultBucket(fraction, reset, cadence, nowMs)) {
+        continue;
+      }
       const id = antigravityWindowId(groupKey, cadence);
       if (seen.has(id)) continue;
       seen.add(id);
-      const reset = toEpochMs(typeof bucket.resetTime === "string" ? bucket.resetTime : undefined);
       entries.push({
         order: antigravityWindowOrder(groupKey, cadence),
         window: {
@@ -196,6 +231,47 @@ export function antigravityQuotaSummaryWindows(body: unknown): UsageWindow[] {
     }
   }
   return entries.sort((a, b) => a.order - b.order).map((entry) => entry.window);
+}
+
+/** Tolerance when matching a bucket reset against "now + window length". */
+const EMPTY_BUCKET_RESET_TOLERANCE_MS = 90_000;
+
+const CADENCE_LENGTH_MS: Record<AntigravityCadence, number> = {
+  "session-5h": 5 * 3_600_000,
+  weekly: 7 * 86_400_000,
+};
+
+/**
+ * True when a `fetchAvailableModels` per-model quota entry carries no real
+ * usage record: remaining ≈ 1 with a reset recomputed as now + 5h per request.
+ * The cloudcode models surface answers this way for every model whose usage is
+ * tracked on another backend — folding them into pools would render 0% bars.
+ */
+export function antigravityModelUsageRecorded(
+  model: AntigravityModelQuota,
+  nowMs: number,
+): boolean {
+  if (model.remainingFraction < 0.9999) return true;
+  if (model.resetsAt === undefined) return false;
+  const expected = nowMs + CADENCE_LENGTH_MS["session-5h"];
+  return Math.abs(model.resetsAt - expected) > EMPTY_BUCKET_RESET_TOLERANCE_MS;
+}
+
+/**
+ * True for the cloudcode summary's synthetic always-full bucket: remaining ≈ 1
+ * and the reset instant is (re)computed as now + window length per request —
+ * real usage buckets keep a fixed reset and/or a depleted fraction.
+ */
+function isEmptyDefaultBucket(
+  fraction: number,
+  reset: number | undefined,
+  cadence: AntigravityCadence,
+  nowMs: number,
+): boolean {
+  if (fraction < 0.9999) return false;
+  if (reset === undefined) return false;
+  const expected = nowMs + CADENCE_LENGTH_MS[cadence];
+  return Math.abs(reset - expected) <= EMPTY_BUCKET_RESET_TOLERANCE_MS;
 }
 
 interface AntigravityPool {

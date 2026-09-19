@@ -7,7 +7,9 @@ import {
 import { AccountControlError, type AccountView } from "@/shared/contracts";
 import {
   antigravityModelsFromFetchAvailableModels,
+  antigravityModelUsageRecorded,
   antigravityPoolWindows,
+  antigravityProjectFromLoadCodeAssist,
   type HostPort,
 } from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
@@ -90,13 +92,9 @@ async function discoverAntigravityProjectId(
       continue;
     }
     try {
-      const parsed = JSON.parse(body ?? "") as { cloudaicompanionProject?: unknown };
-      if (
-        typeof parsed.cloudaicompanionProject === "string" &&
-        parsed.cloudaicompanionProject.trim()
-      ) {
-        return parsed.cloudaicompanionProject.trim();
-      }
+      const parsed = JSON.parse(body ?? "") as unknown;
+      const projectId = antigravityProjectFromLoadCodeAssist(parsed);
+      if (projectId) return projectId;
     } catch {
       // Malformed body — try the next base.
     }
@@ -549,7 +547,12 @@ export class AntigravityProfileService {
     const requestBody = projectId ? JSON.stringify({ project: projectId }) : "{}";
     let summaryWindows: Awaited<ReturnType<typeof readAntigravityQuotaSummary>> = [];
     const readModels = async (accessToken: string): Promise<unknown | "auth-rejected"> => {
-      summaryWindows = await readAntigravityQuotaSummary(host, accessToken, requestBody);
+      summaryWindows = await readAntigravityQuotaSummary(
+        host,
+        accessToken,
+        requestBody,
+        Date.now(),
+      );
       if (summaryWindows.length > 0) return {};
       for (const base of CLOUDCODE_BASES) {
         let status = 0;
@@ -615,14 +618,21 @@ export class AntigravityProfileService {
     const windows =
       summaryWindows.length > 0
         ? summaryWindows
-        : antigravityPoolWindows(antigravityModelsFromFetchAvailableModels(parsed));
+        : antigravityPoolWindows(
+            antigravityModelsFromFetchAvailableModels(parsed).filter((model) =>
+              antigravityModelUsageRecorded(model, Date.now()),
+            ),
+          );
     const email = token.email?.trim();
     const withMetadata = this.options.store.updateProviderMetadata(accountId, {
       ...(email ? { providerAccountId: email } : {}),
     });
     if (windows.length === 0) {
-      const updated = this.options.store.updateStatus(accountId, "unavailable", {
-        lastError: "Antigravity 额度响应中没有可用模型。",
+      // Every surface answered but carried no real usage record (synthetic
+      // full buckets filtered out). The account itself may be perfectly
+      // usable — do not mark it unavailable; clear stale windows instead.
+      const updated = this.options.store.updateStatus(accountId, "available", {
+        lastError: "云端额度接口未返回该账号的用量记录（Gemini 用量在官方会话侧统计）。",
         lastQuotaAt: Date.now(),
       });
       return this.options.store.updateQuota(accountId, []) ?? withMetadata ?? updated;

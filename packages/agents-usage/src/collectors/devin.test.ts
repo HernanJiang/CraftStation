@@ -5,7 +5,10 @@ import {
   DEVIN_ME_ENDPOINT,
   DEVIN_PROVIDER_ID,
   DEVIN_USAGE_ENDPOINT,
+  DEVIN_USER_STATUS_ENDPOINT,
+  identityFromUserStatus,
   parseDevinUsage,
+  windowsFromUserStatus,
 } from "./devin";
 
 describe("parseDevinUsage", () => {
@@ -117,5 +120,109 @@ describe("collectDevin", () => {
     expect(snapshot.status).toBe("ok");
     expect(snapshot.authenticatedAs).toBe("cli@devin.ai");
     expect(snapshot.windows).toEqual([]);
+  });
+});
+
+/** Observed GetUserStatus shape for a QUOTA-billed Devin Pro CLI account. */
+const USER_STATUS_QUOTA = {
+  userStatus: {
+    pro: true,
+    email: "user@example.com",
+    teamId: "devin-team$account-x",
+    planStatus: {
+      planInfo: {
+        teamsTier: "TEAMS_TIER_DEVIN_PRO",
+        planName: "Pro",
+        isDevin: true,
+        billingStrategy: "BILLING_STRATEGY_QUOTA",
+      },
+      planStart: "2026-09-16T02:53:38Z",
+      planEnd: "2026-10-16T02:53:38Z",
+      availablePromptCredits: -1,
+      overageBalanceMicros: "-3282891",
+      dailyQuotaResetAtUnix: "1789891200",
+      weeklyQuotaResetAtUnix: "1789891200",
+    },
+  },
+  planInfo: { planName: "Pro" },
+};
+
+describe("windowsFromUserStatus", () => {
+  it("builds daily/weekly reset windows from the observed QUOTA shape", () => {
+    const windows = windowsFromUserStatus(USER_STATUS_QUOTA);
+    expect(windows.map((window) => window.id)).toEqual(["daily", "weekly"]);
+    expect(windows[0]).toMatchObject({ label: "Daily", usedPercent: 0, resetsAt: 1789891200000 });
+    expect(windows[1]).toMatchObject({ label: "Weekly", usedPercent: 0, resetsAt: 1789891200000 });
+  });
+
+  it("converts a reported remaining percent into usedPercent", () => {
+    const windows = windowsFromUserStatus({
+      userStatus: {
+        planStatus: {
+          dailyRemainingPercent: 70.5,
+          weeklyQuotaRemainingPercent: 40,
+          dailyResetAtUnix: 1789891200,
+        },
+      },
+    });
+    expect(windows).toHaveLength(2);
+    expect(windows[0]).toMatchObject({ id: "daily", usedPercent: 29.5 });
+    expect(windows[1]).toMatchObject({ id: "weekly", usedPercent: 60 });
+  });
+
+  it("returns empty for a body without planStatus", () => {
+    expect(windowsFromUserStatus({})).toEqual([]);
+    expect(windowsFromUserStatus(undefined)).toEqual([]);
+  });
+});
+
+describe("identityFromUserStatus", () => {
+  it("reads email and planName from the observed shape", () => {
+    expect(identityFromUserStatus(USER_STATUS_QUOTA)).toEqual({
+      authenticatedAs: "user@example.com",
+      plan: "Pro",
+    });
+  });
+});
+
+describe("collectDevin GetUserStatus", () => {
+  it("routes the CLI session token straight to GetUserStatus (v3 404s for it)", async () => {
+    const requestedUrls: string[] = [];
+    const host = createFakeHost({
+      tokens: { devin: { accessToken: "devin-session-token$abc.sig", email: "cli@x.ai" } },
+      routes: {
+        [DEVIN_USER_STATUS_ENDPOINT]: {
+          status: 200,
+          body: JSON.stringify(USER_STATUS_QUOTA),
+        },
+      },
+      onRequest: (req) => requestedUrls.push(req.url),
+    });
+    const snapshot = await collectDevin(host);
+    expect(requestedUrls).toEqual([DEVIN_USER_STATUS_ENDPOINT]);
+    expect(snapshot.status).toBe("ok");
+    expect(snapshot.plan).toBe("Pro");
+    expect(snapshot.authenticatedAs).toBe("user@example.com");
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["daily", "weekly"]);
+    expect(snapshot.windows[0]?.resetsAt).toBe(1789891200000);
+  });
+
+  it("falls back to GetUserStatus for an API key when v3 carries no windows", async () => {
+    const host = createFakeHost({
+      secrets: { devin: { apiKey: "cog_pasted" } },
+      routes: {
+        [DEVIN_ME_ENDPOINT]: { status: 200, body: JSON.stringify({ email: "me@devin.ai" }) },
+        [DEVIN_USAGE_ENDPOINT]: { status: 404, body: "" },
+        [DEVIN_USER_STATUS_ENDPOINT]: {
+          status: 200,
+          body: JSON.stringify(USER_STATUS_QUOTA),
+        },
+      },
+    });
+    const snapshot = await collectDevin(host);
+    expect(snapshot.status).toBe("ok");
+    expect(snapshot.authenticatedAs).toBe("user@example.com");
+    expect(snapshot.plan).toBe("Pro");
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["daily", "weekly"]);
   });
 });

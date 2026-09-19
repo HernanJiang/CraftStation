@@ -70,9 +70,11 @@ export const BUILT_IN_USAGE_PROVIDER_DESCRIPTORS = {
     windowIds: ["session-5h", "weekly"],
   },
   // Devin CLI stores a PAT in credentials.toml (`devin auth login`) or
-  // DEVIN_API_KEY, with identity from `devin auth status`. Usage meters are
-  // best-effort against api.devin.ai (daily/weekly/monthly when returned); a
-  // live token still marks the channel configured so 管理模型 can list models.
+  // DEVIN_API_KEY. A pasted `cog_…` key can call api.devin.ai/v3; the CLI's
+  // session token (windsurf_api_key) is 404'd there and goes to the Windsurf
+  // self-serve GetUserStatus surface (plan + daily/weekly resets; usage
+  // percentages only for some account shapes). A live token still marks the
+  // channel configured so 管理模型 can list models.
   devin: {
     id: "devin",
     label: "Devin",

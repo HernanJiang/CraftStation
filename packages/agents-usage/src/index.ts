@@ -120,9 +120,11 @@ export {
 export {
   collectDevin,
   parseDevinUsage,
+  windowsFromUserStatus,
   DEVIN_PROVIDER_ID,
   DEVIN_ME_ENDPOINT,
   DEVIN_USAGE_ENDPOINT,
+  DEVIN_USER_STATUS_ENDPOINT,
 } from "./collectors/devin";
 export type { KimiUsagesResponse } from "./collectors/kimi";
 export {
@@ -156,8 +158,10 @@ export {
 } from "./collectors/openaiCompatible";
 export {
   antigravityModelsFromFetchAvailableModels,
+  antigravityModelUsageRecorded,
   antigravityPool,
   antigravityPoolWindows,
+  antigravityProjectFromLoadCodeAssist,
   antigravityQuotaSummaryWindows,
   antigravityWindowId,
 } from "./collectors/antigravity";

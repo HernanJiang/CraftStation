@@ -2,8 +2,36 @@ import { describe, expect, it } from "vitest";
 import {
   antigravityPool,
   antigravityPoolWindows,
+  antigravityProjectFromLoadCodeAssist,
   antigravityQuotaSummaryWindows,
 } from "./antigravity";
+
+describe("antigravityProjectFromLoadCodeAssist", () => {
+  it("reads the plain-string cloudaicompanionProject", () => {
+    expect(
+      antigravityProjectFromLoadCodeAssist({ cloudaicompanionProject: "aicode-consumers" }),
+    ).toBe("aicode-consumers");
+  });
+
+  it("reads the object shape with an id field", () => {
+    expect(
+      antigravityProjectFromLoadCodeAssist({
+        cloudaicompanionProject: { id: "proj-123", displayName: "P" },
+      }),
+    ).toBe("proj-123");
+  });
+
+  it("falls back to the legacy projectId/project keys", () => {
+    expect(antigravityProjectFromLoadCodeAssist({ projectId: "legacy-id" })).toBe("legacy-id");
+    expect(antigravityProjectFromLoadCodeAssist({ project: { id: "obj-id" } })).toBe("obj-id");
+  });
+
+  it("returns undefined for missing or empty values", () => {
+    expect(antigravityProjectFromLoadCodeAssist({})).toBeUndefined();
+    expect(antigravityProjectFromLoadCodeAssist({ cloudaicompanionProject: "  " })).toBeUndefined();
+    expect(antigravityProjectFromLoadCodeAssist(undefined)).toBeUndefined();
+  });
+});
 
 const NOW = 1_717_000_000_000;
 
@@ -112,6 +140,64 @@ describe("antigravityQuotaSummaryWindows", () => {
     const claudeWeekly = windows.find((w) => w.id === "antigravity:claude:weekly");
     expect(claudeWeekly?.usedPercent).toBe(0);
     expect(claudeWeekly?.resetsAt).toBeUndefined();
+  });
+
+  it("drops empty-default buckets when nowMs is passed (cloudcode synthetic full buckets)", () => {
+    // Observed cloudcode shape: full buckets whose reset is recomputed as
+    // now + window length on every request, plus one real depleted bucket
+    // with a fixed reset that predates the request.
+    const nowMs = Date.parse("2026-09-19T16:45:20Z");
+    const body = {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            { window: "weekly", remainingFraction: 1, resetTime: "2026-09-26T16:45:20Z" }, // now+7d
+            { window: "5h", remainingFraction: 1, resetTime: "2026-09-19T21:45:20Z" }, // now+5h
+          ],
+        },
+        {
+          displayName: "Claude and GPT models",
+          buckets: [
+            { window: "weekly", remainingFraction: 0.6643, resetTime: "2026-09-23T15:04:08Z" }, // real
+            { window: "5h", remainingFraction: 1, resetTime: "2026-09-19T21:45:20Z" }, // now+5h
+          ],
+        },
+      ],
+    };
+    const windows = antigravityQuotaSummaryWindows(body, { nowMs });
+    expect(windows.map((w) => w.id)).toEqual(["antigravity:claude:weekly"]);
+    expect(windows[0]?.usedPercent).toBeCloseTo(33.6, 1);
+  });
+
+  it("keeps full buckets whose reset does not hug the window boundary", () => {
+    const nowMs = Date.parse("2026-09-19T21:45:20Z");
+    const body = {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            // Real "just reset" bucket: full, but reset is 4h away, not 5h.
+            { window: "5h", remainingFraction: 1, resetTime: "2026-09-20T01:45:20Z" },
+            // Real weekly bucket: full with a reset not aligned to now+7d.
+            { window: "weekly", remainingFraction: 1, resetTime: "2026-09-24T00:00:00Z" },
+          ],
+        },
+      ],
+    };
+    expect(antigravityQuotaSummaryWindows(body, { nowMs })).toHaveLength(2);
+  });
+
+  it("keeps every bucket when nowMs is omitted (LS path, previous behavior)", () => {
+    const body = {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [{ window: "5h", remainingFraction: 1, resetTime: "2026-09-19T21:45:20Z" }],
+        },
+      ],
+    };
+    expect(antigravityQuotaSummaryWindows(body)).toHaveLength(1);
   });
 
   it("skips buckets without a numeric fraction or recognizable cadence", () => {

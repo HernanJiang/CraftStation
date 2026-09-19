@@ -4,23 +4,38 @@ import type { UsageSnapshot, UsageWindow } from "../types";
 
 /**
  * Devin CLI / Cognition. The CLI writes a persistent PAT to credentials.toml
- * (`devin auth login`); `DEVIN_API_KEY` / a pasted key is the fallback. Usage
- * lives behind api.devin.ai (Bearer `cog_…`); daily/weekly/monthly windows are
- * parsed when the payload carries them (nested objects or `<window>_used` /
- * `<window>_limit` fields), with the legacy unscoped `{used, limit}` shape
- * still mapping to the monthly pool. Identity comes from the CLI itself
- * (`devin auth status`, attached supervisor-side): a live token still yields
- * `ok` with identity so the channel stays configured without re-login and
- * Devin models appear in 管理模型.
+ * (`devin auth login`); `DEVIN_API_KEY` / a pasted key is the fallback.
  *
- *   GET https://api.devin.ai/v3/users/me
- *   GET https://api.devin.ai/v3/usage
+ * Two upstream surfaces, token-dependent:
+ * - A pasted `cog_…` API key can call api.devin.ai/v3 (users/me, usage) —
+ *   daily/weekly/monthly windows are parsed when the payload carries them.
+ * - The CLI's `devin-session-token$…` (windsurf_api_key) is rejected by
+ *   api.devin.ai/v3/* with 404; its quota lives on the Windsurf self-serve
+ *   seat-management surface (`GetUserStatus`, verified 200 with the CLI
+ *   token). That response carries planInfo.planName plus
+ *   daily/weekly reset instants; usage-percentage fields only appear for
+ *   some account shapes, so windows without one render at 0% until the
+ *   server starts reporting a real number (never invented).
+ *
+ * Identity comes from the CLI itself (`devin auth status`, attached
+ * supervisor-side): a live token still yields `ok` with identity so the
+ * channel stays configured without re-login and Devin models appear in
+ * 管理模型.
+ *
+ *   GET  https://api.devin.ai/v3/users/me
+ *   GET  https://api.devin.ai/v3/usage
+ *   POST https://server.self-serve.windsurf.com/…/GetUserStatus
  */
 
 export const DEVIN_PROVIDER_ID = "devin" as const;
 
 export const DEVIN_ME_ENDPOINT = "https://api.devin.ai/v3/users/me";
 export const DEVIN_USAGE_ENDPOINT = "https://api.devin.ai/v3/usage";
+export const DEVIN_USER_STATUS_ENDPOINT =
+  "https://server.self-serve.windsurf.com/exa.seat_management_pb.SeatManagementService/GetUserStatus";
+
+/** The `devin auth login` session token shape (windsurf_api_key in credentials.toml). */
+const CLI_SESSION_TOKEN_PREFIX = "devin-session-token$";
 
 function numeric(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -170,6 +185,86 @@ function mergeWindows(primary: UsageWindow[], fallback: UsageWindow[]): UsageWin
   return [...primary, ...fallback.filter((window) => !seen.has(window.id))];
 }
 
+/**
+ * Quota percentage from a GetUserStatus planStatus. Some account shapes report
+ * `dailyRemainingPercent` / `dailyQuotaRemainingPercent` (and weekly twins);
+ * most QUOTA-billed accounts report none. undefined means "no number to show".
+ */
+function remainingPercent(
+  planStatus: Record<string, unknown>,
+  cadence: "daily" | "weekly",
+): number | undefined {
+  for (const key of [`${cadence}RemainingPercent`, `${cadence}QuotaRemainingPercent`]) {
+    const value = planStatus[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function resetAtMs(
+  planStatus: Record<string, unknown>,
+  cadence: "daily" | "weekly",
+): number | undefined {
+  for (const key of [`${cadence}ResetAtUnix`, `${cadence}QuotaResetAtUnix`]) {
+    const value = planStatus[key];
+    if (typeof value === "string" || typeof value === "number") {
+      const ms = toEpochMs(value);
+      if (ms !== undefined) return ms;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Build daily/weekly windows from a GetUserStatus planStatus. A window is
+ * emitted when the server reports a reset instant or a remaining percentage —
+ * both missing means there is nothing honest to render. Without a percentage
+ * the window shows 0% (QUOTA-billed accounts carry no usage number; the reset
+ * instant and plan name are the real content).
+ */
+export function windowsFromUserStatus(body: unknown): UsageWindow[] {
+  const root = asRecord(body);
+  const userStatus = asRecord(root?.userStatus) ?? root;
+  const planStatus = asRecord(userStatus?.planStatus) ?? asRecord(root?.planStatus);
+  if (!planStatus) return [];
+  const windows: UsageWindow[] = [];
+  for (const cadence of ["daily", "weekly"] as const) {
+    const percent = remainingPercent(planStatus, cadence);
+    const resetsAt = resetAtMs(planStatus, cadence);
+    if (percent === undefined && resetsAt === undefined) continue;
+    windows.push({
+      id: cadence,
+      label: cadence === "daily" ? "Daily" : "Weekly",
+      usedPercent: percent === undefined ? 0 : Math.round((100 - percent) * 10) / 10,
+      ...(resetsAt !== undefined ? { resetsAt } : {}),
+    });
+  }
+  return windows;
+}
+
+/**
+ * Identity + plan from a GetUserStatus body. planInfo can sit at the top level,
+ * under userStatus, or under userStatus.planStatus (observed shapes all three).
+ */
+export function identityFromUserStatus(body: unknown): {
+  authenticatedAs?: string;
+  plan?: string;
+} {
+  const root = asRecord(body);
+  const userStatus = asRecord(root?.userStatus) ?? root;
+  const planStatus = asRecord(userStatus?.planStatus);
+  const planInfo =
+    asRecord(planStatus?.planInfo) ?? asRecord(userStatus?.planInfo) ?? asRecord(root?.planInfo);
+  const authenticatedAs = pickString(userStatus, ["email", "name", "userId"]);
+  const plan = pickString(planInfo, ["planName", "teamsTier"]) ?? pickString(root, ["plan"]);
+  return {
+    ...(authenticatedAs ? { authenticatedAs } : {}),
+    ...(plan ? { plan } : {}),
+  };
+}
+
 export function parseDevinUsage(
   meBody: unknown,
   usageBody: unknown,
@@ -220,8 +315,52 @@ async function getJson(http: HttpClient, url: string, token: string): Promise<Ht
 }
 
 /**
- * Collect Devin usage. Pasted API key wins over the host CLI/env token.
- * A live token with no quota payload still returns `ok` plus identity.
+ * Windsurf self-serve seat-management `GetUserStatus`: the surface that
+ * actually answers for the CLI session token (api.devin.ai/v3 404s for it).
+ * Connect-RPC JSON: the token rides both the Bearer header and
+ * `metadata.api_key` (verified working request shape).
+ */
+async function getUserStatus(
+  http: HttpClient,
+  token: string,
+): Promise<{ status: number; body: unknown }> {
+  const res = await http.request({
+    method: "POST",
+    url: DEVIN_USER_STATUS_ENDPOINT,
+    headers: {
+      "Content-Type": "application/json",
+      "Connect-Protocol-Version": "1",
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      metadata: {
+        ide_name: "WINDSURF",
+        ide_version: "1.0.0",
+        extension_version: "1.0.0",
+        api_key: token,
+      },
+    }),
+    timeoutMs: 15_000,
+  });
+  let parsed: unknown;
+  const text = res.body?.trim();
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = undefined;
+    }
+  }
+  return { status: res.status, body: parsed };
+}
+
+/**
+ * Collect Devin usage. Pasted API key wins over the host CLI/env token. The
+ * CLI session token goes straight to GetUserStatus (v3 rejects it with 404);
+ * other tokens try the v3 usage API first and fall back to GetUserStatus when
+ * it yields no windows. A live token with no quota payload still returns `ok`
+ * plus identity.
  */
 export async function collectDevin(host: HostPort, _opts?: CollectOptions): Promise<UsageSnapshot> {
   const now = host.now();
@@ -238,24 +377,43 @@ export async function collectDevin(host: HostPort, _opts?: CollectOptions): Prom
       : {}),
   };
 
+  const isCliSessionToken = bearer.startsWith(CLI_SESSION_TOKEN_PREFIX);
   let meResponse: HttpResponse | undefined;
   let usageResponse: HttpResponse | undefined;
-  try {
-    [meResponse, usageResponse] = await Promise.all([
-      getJson(host.http, DEVIN_ME_ENDPOINT, bearer),
-      getJson(host.http, DEVIN_USAGE_ENDPOINT, bearer),
-    ]);
-  } catch {
-    return parseDevinUsage(undefined, undefined, now, fallbackIdentity);
+  let userStatus: { status: number; body: unknown } | undefined;
+
+  if (isCliSessionToken) {
+    // Verified: api.devin.ai/v3/* answers 404 for this token shape — the
+    // seat-management surface is the only quota source for it.
+    try {
+      userStatus = await getUserStatus(host.http, bearer);
+    } catch {
+      userStatus = undefined;
+    }
+  } else {
+    try {
+      [meResponse, usageResponse] = await Promise.all([
+        getJson(host.http, DEVIN_ME_ENDPOINT, bearer),
+        getJson(host.http, DEVIN_USAGE_ENDPOINT, bearer),
+      ]);
+    } catch {
+      return parseDevinUsage(undefined, undefined, now, fallbackIdentity);
+    }
   }
 
-  const rejected = [meResponse, usageResponse].some(
-    (response) => response.status === 401 || response.status === 403,
-  );
+  const rejected =
+    [meResponse, usageResponse].some(
+      (response) => response !== undefined && (response.status === 401 || response.status === 403),
+    ) ||
+    (isCliSessionToken &&
+      userStatus !== undefined &&
+      (userStatus.status === 401 || userStatus.status === 403));
   if (rejected && !fallbackIdentity.authenticatedAs && !fallbackIdentity.plan) {
     return snapshot("auth-missing", now, { error: "token rejected" });
   }
-  if (meResponse.status === 429 || usageResponse.status === 429) {
+  const rateLimited =
+    meResponse?.status === 429 || usageResponse?.status === 429 || userStatus?.status === 429;
+  if (rateLimited) {
     return snapshot("rate-limited", now);
   }
 
@@ -270,5 +428,33 @@ export async function collectDevin(host: HostPort, _opts?: CollectOptions): Prom
     }
   };
 
-  return parseDevinUsage(parseBody(meResponse), parseBody(usageResponse), now, fallbackIdentity);
+  const meBody = meResponse ? parseBody(meResponse) : undefined;
+  const usageBody = usageResponse ? parseBody(usageResponse) : undefined;
+  const parsed = parseDevinUsage(meBody, usageBody, now, fallbackIdentity);
+
+  // CLI session token: GetUserStatus is the primary (only) source. API key:
+  // fall back only when the v3 payload carried no windows of its own.
+  const needsUserStatus = isCliSessionToken || parsed.windows.length === 0;
+  if (needsUserStatus && userStatus === undefined) {
+    try {
+      userStatus = await getUserStatus(host.http, bearer);
+    } catch {
+      userStatus = undefined;
+    }
+  }
+  if (userStatus && userStatus.status >= 200 && userStatus.status < 300) {
+    // The server's own view of identity/plan wins over the stored token's
+    // static fields and the v3 payload — it reflects the account as it is now.
+    const statusIdentity = identityFromUserStatus(userStatus.body);
+    const statusWindows = windowsFromUserStatus(userStatus.body);
+    return {
+      ...parsed,
+      ...(statusIdentity.authenticatedAs
+        ? { authenticatedAs: statusIdentity.authenticatedAs }
+        : {}),
+      ...(statusIdentity.plan ? { plan: statusIdentity.plan } : {}),
+      windows: mergeWindows(parsed.windows, statusWindows),
+    };
+  }
+  return parsed;
 }

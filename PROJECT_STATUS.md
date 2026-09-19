@@ -1,3 +1,18 @@
+## Handoff（上下文切换）后 MCP 全部丢失修复（2026-09-20）
+
+- **用户报告**：切换模型/上下文续接后，新模型在同一会话里 MCP 全都不可用。
+- **根因（`supervisorRuntime.prepareHandoffTarget`）**：CraftPlan handoff（`requestSessionSwitch` → SessionHandoffCoordinator）的 `createCraftingAdapter(..., undefined, ...)` 把 MCP 候选传成了 `undefined`，且 handoff 目标 plan 由 renderer 只用 model+harness 两个 slot 重新编译、不带任何能力字段——`resolveCraftingMcpServers` 在空候选上解析，**用户配置的 MCP 全部丢失**，capabilityMode 也从源会话的 creative/explicit 静默漂移为 auto。对照：另一条切换路径 `spawnPipeline.switchThreadProvider` 显式复用 `session.mcpLaunchSnapshot`，不受影响。
+- **修复（supervisor 内闭环，与 `switchThreadProvider` 对齐）**：①新增 `craftMcpCandidatesByThread` 缓存——`craftAgent`/`resumeCraftAgent` 每次成功启动会话时记录 renderer 传入的 MCP 候选快照；②`prepareHandoffTarget` 读取该快照作为 `candidateMcpServers` 传入 adapter 构造；③新增 `inheritHandoffCapabilityConfig`——把源 plan（`craftedPlansByThread`）的 `capabilityMode`/`mcpServerIds`/`skills` 继承到目标 plan 的 overrides（仅当源有而目标没有），目标解析能力时与源同一策略；④`releaseCraftedSession` 清理缓存。缓存按线程键、生命周期与活跃会话一致，handoff 要求源会话活跃故必然命中；重启后恢复路径本身重新走 craftAgent 建立缓存。
+- **验证**：新增回归测试（runtime.test.ts，断言 handoff 目标收到源 MCP 候选 + 能力配置继承）；runtime/sessionHandoff/threadSession 套件 27 文件 387 例全过；`pnpm typecheck` PASS；触碰文件 oxlint 0 警告。真实跨模型切换 UI 验收待用户。
+
+## Antigravity 额度 0% 实锤归因（假满桶过滤）+ Devin 额度真修复（2026-09-20）
+
+- **探针实证链（用户反驳"明明全用完了"后重查，推翻此前"0% 是真实状态"结论）**：① `userinfo` 验证 8 个 ADC token 与账号一一对应，无凭据错位；② cloudcode-pa `retrieveUserQuotaSummary` 对 `rem=1` 的桶 **reset 时间随请求时刻漂移**（两次请求间隔 5s，reset 同步 +5s）——这是服务端为"该体系无用量记录"的模型组动态生成的合成满桶，不是"没用过"；真实用量桶特征为 rem<1 且 reset 固定（两个账号 Claude weekly 0.6643/0.9425 的 reset 分毫不动，即 33.6%/5.7% 真实用量）；③ **Gemini 组在该 cloudcode 体系完全没有用量数据**（跟踪在官方另一后端），用户实际大量使用 gemini 会话（usage_events 佐证）但该面板永远读满 → 面板显示 0% 是误导而非真实；④ 官方口径在本地 LS，但新版 agy 的 LS 需要认证（`agy -p` 的 LS 对无凭证 RPC 返回 401，token 不在命令行），旧"无认证直读"已失效，逆向 LS 认证为独立后续项。
+- **本轮修复（诚实降级，`packages/agents-usage/collectors/antigravity.ts` + 两个调用点）**：`antigravityQuotaSummaryWindows` 新增可选 `nowMs`——满桶（rem≥0.9999）且 reset 贴"now+窗口长度"（±90s 容差）判定为合成默认桶直接丢弃；`fetchAvailableModels` per-model 路径同款过滤（`antigravityModelUsageRecorded`）。cloudcode 两条调用链（`collectQuota` 账号池、`fetchAntigravityCloudcodeQuota` provider 卡）传入 now；LS 路径不传 now 行为不变。过滤后无窗口时：账号状态保持 `available`（不再误标 unavailable）、清空旧窗口、lastError 说明"云端额度接口未返回该账号的用量记录（Gemini 用量在官方会话侧统计）"；provider 卡返回 ok+空窗口。效果：不再渲染误导性的 0% 条，真实桶（如 Claude 33.6%）照常显示。
+- **Devin "暂无额度窗口" 真修复（`packages/agents-usage/src/collectors/devin.ts`）**：CLI session token（`windsurf_api_key`，`devin-session-token$` 前缀）请求 `api.devin.ai/v3/*` 必 404（探针实锤），其配额实际在 Windsurf self-serve seat-management 面。collector 新增 `GetUserStatus`（`server.self-serve.windsurf.com/…/GetUserStatus`，Bearer + `metadata.api_key`，`Connect-Protocol-Version: 1`；真实探针 200）：CLI session token 直连该端点（跳过必 404 的 v3）；粘贴的 `cog_` key 仍先走 v3、无窗口时兜底。解析 `userStatus.planStatus`：`planInfo.planName`（实测 Pro）、`daily/weeklyQuotaResetAtUnix`（字符串秒 → resetsAt）；percentage 字段仅部分账号形态返回，有则换算 usedPercent，无则窗口 0% + 真实 reset（不发明数字）；服务端 identity/plan 覆盖 token 静态字段。UI 从"暂无额度窗口"变为 plan 徽标 + Daily/Weekly 恢复时间。
+- **防御性加固**：`antigravityProjectFromLoadCodeAssist`（agents-usage 新导出，与 CLIProxyAPI `extractCloudaicompanionProject` 对齐）——`cloudaicompanionProject` 兼容 `{id}` 对象形态与 `projectId`/`project` 备用键，两处 discover 统一改用（注：探针同时证实 summary/fetchAvailableModels 响应不随 project 变化，此项为纯防御）。
+- **验证**：agents-usage + supervisor 相关套件 32 文件 419 例全过；`pnpm typecheck` PASS；触碰文件 oxlint 0 警告。GetUserStatus 请求形态与响应字段、假满桶 reset 漂移特征均经真实端点探针验证；真实 UI 呈现待用户验收。遗留项：逆向新版 agy LS 认证以恢复官方口径直读。
+
 ## v1.4.0 发布收口 — 额度、授权删除与 GitHub Issues（2026-09-19）
 
 - 已发布：[v1.4.0](https://github.com/HernanJiang/CraftStation/releases/tag/v1.4.0) 为 Latest、非草稿、非预发布；Windows x64 NSIS、便携版、blockmap、`latest.yml` 四文件均已上传，远端大小与本地产物一致。PR #13 已合入 main，tag 已推送，6 个目标 Issues 已关闭，发布核验时无 Open Issues。

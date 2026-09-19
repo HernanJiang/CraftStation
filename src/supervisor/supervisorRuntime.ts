@@ -520,6 +520,14 @@ export class SupervisorRuntime {
   private readonly craftedSessionsByThread = new Map<string, CraftSession>();
   /** Immutable active plan per durable CraftStation thread. */
   private readonly craftedPlansByThread = new Map<string, CraftAgentPayload["craftPlan"]>();
+  /**
+   * MCP candidates the renderer handed to the most recent craft per thread.
+   * Session handoff must relaunch the target with the same servers — the
+   * handoff target plan compiles from model+harness slots alone, so without
+   * this snapshot `resolveCraftingMcpServers` sees no candidates and the
+   * rebuilt session launches with every user-configured MCP server missing.
+   */
+  private readonly craftMcpCandidatesByThread = new Map<string, McpServer[]>();
   /** Source binding retained only across target CAS -> bootstrap commit. */
   private readonly handoffSourceBindings = new Map<string, AccountBinding | undefined>();
   private readonly pendingHandoffEvents = new Map<
@@ -2244,6 +2252,9 @@ export class SupervisorRuntime {
       craftedSession = session;
       sessionId = session.id;
       craftedThreadId = plan.threadId ?? session.threadId;
+      if (craftedThreadId) {
+        this.craftMcpCandidatesByThread.set(craftedThreadId, payload.mcpServers ?? []);
+      }
       this.registerCraftedSession(
         craftedThreadId,
         plan.runtimeBinding.harnessKind,
@@ -2375,6 +2386,9 @@ export class SupervisorRuntime {
       craftedSession = session;
       sessionId = session.id;
       craftedThreadId = plan.threadId ?? session.threadId;
+      if (craftedThreadId) {
+        this.craftMcpCandidatesByThread.set(craftedThreadId, payload.mcpServers ?? []);
+      }
       this.registerCraftedSession(
         craftedThreadId,
         plan.runtimeBinding.harnessKind,
@@ -3168,12 +3182,20 @@ export class SupervisorRuntime {
     accountId?: string,
     accountMode?: "explicit" | "selected" | "auto" | "preferred",
   ): Promise<PreparedTargetRuntime> {
+    // The handoff target plan compiles from model+harness slots only, so it
+    // carries no MCP capability fields, and the renderer sends no candidates
+    // along the switch request. Reuse the source conversation's snapshot —
+    // otherwise the rebuilt session comes up with MCP entirely missing.
+    const mcpCandidates = craftPlan.threadId
+      ? this.craftMcpCandidatesByThread.get(craftPlan.threadId)
+      : undefined;
+    const effectivePlan = this.inheritHandoffCapabilityConfig(craftPlan);
     let binding: AccountBinding | undefined;
     try {
       const created = await this.createCraftingAdapter(
-        craftPlan,
+        effectivePlan,
         projectLocation,
-        undefined,
+        mcpCandidates,
         accountId,
         accountMode,
       );
@@ -3190,6 +3212,37 @@ export class SupervisorRuntime {
       if (binding) this.releaseCraftedBinding(binding);
       throw error;
     }
+  }
+
+  /**
+   * Carry the source plan's capability configuration (capability mode, explicit
+   * MCP server ids, explicit skills) onto the handoff target plan. The target
+   * compiles fresh from model+harness slots and would otherwise resolve
+   * capabilities in auto mode with an empty candidate set — a silent semantic
+   * drift from the conversation the user is continuing.
+   */
+  private inheritHandoffCapabilityConfig(
+    target: CraftAgentPayload["craftPlan"],
+  ): CraftAgentPayload["craftPlan"] {
+    const source = target.threadId ? this.craftedPlansByThread.get(target.threadId) : undefined;
+    if (!source) return target;
+    const sourceConfig = nativeRuntimeExecutionConfigForPlan(source);
+    const targetConfig = nativeRuntimeExecutionConfigForPlan(target);
+    const patch: Record<string, unknown> = {};
+    if (sourceConfig.capabilityMode && !targetConfig.capabilityMode) {
+      patch.capabilityMode = sourceConfig.capabilityMode;
+    }
+    if (sourceConfig.mcpServerIds && !targetConfig.mcpServerIds) {
+      patch.mcpServerIds = sourceConfig.mcpServerIds;
+    }
+    if (sourceConfig.skills && !targetConfig.skills) {
+      patch.skills = sourceConfig.skills;
+    }
+    if (Object.keys(patch).length === 0) return target;
+    return {
+      ...target,
+      overrides: { ...(target.overrides ?? {}), ...patch },
+    } as CraftAgentPayload["craftPlan"];
   }
 
   private registerCraftedSession(
@@ -3410,6 +3463,7 @@ export class SupervisorRuntime {
     this.craftedSessionsByThread.delete(threadId);
     this.craftedPlansByThread.delete(threadId);
     this.craftedRequestsByThread.delete(threadId);
+    this.craftMcpCandidatesByThread.delete(threadId);
     for (const [harnessKind, candidate] of this.nativeHarnessSessions) {
       if (candidate === session) this.nativeHarnessSessions.delete(harnessKind);
     }

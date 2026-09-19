@@ -1,10 +1,12 @@
 import {
   antigravityModelsFromFetchAvailableModels,
+  antigravityModelUsageRecorded,
   antigravityPoolWindows,
+  antigravityProjectFromLoadCodeAssist,
   antigravityQuotaSummaryWindows,
   type HostPort,
-  type UsageWindow,
   type UsageSnapshot,
+  type UsageWindow,
 } from "@craftstation/agents-usage";
 import {
   GET_COMMAND_MODEL_CONFIGS,
@@ -158,13 +160,9 @@ async function discoverCloudcodeProjectId(
       continue;
     }
     try {
-      const parsed = JSON.parse(body ?? "") as { cloudaicompanionProject?: unknown };
-      if (
-        typeof parsed.cloudaicompanionProject === "string" &&
-        parsed.cloudaicompanionProject.trim()
-      ) {
-        return parsed.cloudaicompanionProject.trim();
-      }
+      const parsed = JSON.parse(body ?? "") as unknown;
+      const projectId = antigravityProjectFromLoadCodeAssist(parsed);
+      if (projectId) return projectId;
     } catch {
       // Malformed body — try the next base.
     }
@@ -182,7 +180,12 @@ async function fetchAntigravityCloudcodeQuota(host: HostPort): Promise<Antigravi
   const modelsRequestBody = projectId ? JSON.stringify({ project: projectId }) : "{}";
   let summaryWindows: UsageWindow[] = [];
   const readModels = async (accessToken: string): Promise<unknown | string | undefined> => {
-    summaryWindows = await readAntigravityQuotaSummary(host, accessToken, modelsRequestBody);
+    summaryWindows = await readAntigravityQuotaSummary(
+      host,
+      accessToken,
+      modelsRequestBody,
+      host.now(),
+    );
     if (summaryWindows.length > 0) return {};
     // Terminal verdicts are returned as `{ [AUTH_REJECTED]: true }`-style marker
     // objects so they can never be confused with a successful models body.
@@ -235,10 +238,18 @@ async function fetchAntigravityCloudcodeQuota(host: HostPort): Promise<Antigravi
     return { kind: "error", error: "Antigravity quota endpoint unreachable" };
   }
 
-  const models = antigravityModelsFromFetchAvailableModels(parsed);
+  const models = antigravityModelsFromFetchAvailableModels(parsed).filter((model) =>
+    antigravityModelUsageRecorded(model, host.now()),
+  );
   const windows = summaryWindows.length > 0 ? summaryWindows : antigravityPoolWindows(models);
   if (windows.length === 0) {
-    return { kind: "error", error: "Antigravity quota response carried no models" };
+    // Synthetic full buckets filtered out: this backend tracks no real usage
+    // for these groups. Not an endpoint failure — say so instead of erroring.
+    return {
+      kind: "ok",
+      windows: [],
+      ...(token.email?.trim() ? { authenticatedAs: token.email.trim() } : {}),
+    };
   }
   const authenticatedAs = token.email?.trim() || token.accountId?.trim();
   return {
