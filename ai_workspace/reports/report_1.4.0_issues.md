@@ -1,4 +1,4 @@
-# v1.4.0 发布前问题修复报告
+# v1.4.0 问题修复与发布报告
 
 本报告承接第二轮架构与性能优化。用户追加授权修复 GitHub 未完成问题、Antigravity 额度及授权删除，并打包上传；语言结构按用户决定保持。
 
@@ -40,3 +40,22 @@ GitHub 查询时仅以上 6 个 Open Issues；其余 #2/#3/#4/#5/#7 已关闭，
 ## 未验证项
 
 未逐一验证全部 8 个账号与所有渠道的真实 OAuth 删除后重新登录；未执行用户正在运行的 1.3.4 的覆盖安装；完整外部问答/审批/steer/模型切换矩阵、跨 Harness handoff、真实 MCP/Computer Use、SSH/WSL、其他桌面平台与移动真机仍以第二轮报告的边界为准。自动化和 fixture 证据不替代这些验收。
+
+## 最终构建与工作区保全
+
+`pnpm dist:win` 和 `pnpm dist:win:portable --skip-build` 均完成，afterPack 两次确认 x64 SQLite / node-pty 可加载。SQLite build 目录仍只有两个原生文件，共 2,024,448 B；CPA 与既有 peripheral sidecar 均在包内。
+
+| 发布文件                                    |      字节 |
+| ------------------------------------------- | --------: |
+| `CraftStation-Setup-1.4.0-x64.exe`          | 148318363 |
+| `CraftStation-Portable-1.4.0-x64.exe`       | 127123510 |
+| `CraftStation-Setup-1.4.0-x64.exe.blockmap` |    153730 |
+| `latest.yml`                                |       361 |
+
+产物已复制到 `D:/Work/CraftStation/release/`。[PR #13](https://github.com/HernanJiang/CraftStation/pull/13) 已合入 main，6 个目标 Issues 已关闭，tag `v1.4.0` 已推送。
+
+发布完成：[GitHub Release v1.4.0](https://github.com/HernanJiang/CraftStation/releases/tag/v1.4.0) 已核验为 Latest、非草稿、非预发布。以上四文件在远端均为 `uploaded`，字节数与表中本地产物一致；GitHub 查询 Open Issues 返回空列表。双语 Release body 已发布。此次核验确认上传及更新清单齐全，不替代用户环境的覆盖安装验收。
+
+主工作区原有三份研究文档与分支扩充稿不同，已在 `D:/Work/CraftStation-backups/v1.4.0-before-main-20260919-2330/` 备份，fast-forward 后逐字节恢复并核验一致；这三份文件保留为 main 工作区修改，没有混入发布提交。
+
+清理限制：自动批准审核拒绝删除明确指向的旧 `CraftStation-Portable-1.3.3-x64.exe`，仅返回 `blocked by policy`；此前工作树 `release/win-unpacked` / `builder-debug.yml` 清理也被拒绝。未更换手段绕过，因此旧包与中间文件保留，便携备份暂时超过约定的两份。双包构建和上传不受此限制影响。
