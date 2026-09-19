@@ -1,3 +1,8 @@
+## Release 1.3.4 — 公式内 `<` 渲染修复（2026-09-19，待发布）
+
+- **修复公式整段变原文乱码**：模型公式含 `y_{<t}`、`x<y` 这类 `<`+字母写法时整条回退原文（可见 `&lt;` 或 `\mathcal` 源码），不含 `<` 的公式正常 → 时好时坏。根因两层：① `escapeBareAngleTags` 把公式内 `<` 转义成 `&lt;`（KaTeX ParseError）；② streamdown `remend` 把 `<t` 当未闭合标签从 `<` 起截断数学段（`$x<y$`→`$x`）。修复：`escapeBareAngleTags` 跳过 `$…$`/`$$…$$`/`\(…\)`/`\[…\]` 数学段（`\[`/`\(` 按 `LATEX_MATH_SIGNAL_RE` 判定）；新增 `protectMathSpans` 归一化（`normalizeLatexMathDelimiters` 之后）——数学段内先解码 `&lt;`/`&gt;`/`&amp;`，再把 `<`+`[A-Za-z/!?]` 改写为 `\lt `，remend 不截断、KaTeX 渲染为 `<`。
+- 验证：`ItemMarkdown.test.ts` +5 例、`ItemMarkdownInner.test.tsx` +2 例渲染级（含 `<` 公式经 KaTeX 渲染、`&lt;` 源公式恢复），文件 63/63 全过；typecheck PASS。
+
 ## Release 1.3.3 — Crossagents 统一寻址与 Devin 对等体支持（2026-09-19，已发布为 Latest）
 
 - 已提交 `3e5c54ac` 并 push，tag `v1.3.3` 已推送；双包 + blockmap + `latest.yml` 共 4 文件已上传到 GitHub Release v1.3.3（Latest）。便携版备份保留 1.3.3 + 1.3.2；中间产物（`win-unpacked/`、`builder-debug.yml`）已清。注：`dist:win:all` 会尝试 arm64 而本机无 ARM64 v143 工具集，本版沿用 `dist:win` + `dist:win:portable`（x64）分别构建。
