@@ -1,3 +1,12 @@
+## Release 1.3.3 — Crossagents 统一寻址与 Devin 对等体支持（2026-09-19，待打包）
+
+- **Crossagents 统一寻址**：`send_message` / `ask` / `get_peer` / `switch_peer_model` / `stop_peer` / `reply` 的 target 除 `harness:nativeId` 外，新增接受侧边栏线程 UUID 与 `thread:<uuid>` —— 三种拼写经 `parseThreadUuidReference`（`src/shared/nativeThreads.ts`）+ `InterHarnessMessageBus.resolveAddress` 收敛到同一行，绝不复制第二个 native session；UUID 解析顺带把合成 `harness:nativeId` 地址写入绑定表，此后两种拼写共用 fast path。`resolveExistingAddress`（stop_peer 路径）同步支持 UUID 并 fail-closed。
+- **Schedule 与 Crossagents 共享寻址空间**：`threadTarget` / `targetThreadId` 接受三种拼写，经 `resolveExistingThreadRef` → bus `resolvePeerTarget` 归一为 UUID 落库；`get` / `list` / `list_runs` 经 `serializeTask` / `serializeRun` 附带 `boundThreadId` + `peerAddress`。`ScheduleMcpIngress` 新增 `resolvePeerTarget` / `peerAddressOfThread` 依赖，`main.ts` 与 `createHeadlessRemoteHost.ts` 统一接到 `appControlsMcpIngress.getInterHarnessMessageBus()`。
+- **Devin 对等体**：`NATIVE_MESSAGING_HARNESSES` 加入 `devin`；`inferNativeHarnessFromModel` 识别 `swe` / `swe-*` / `cognition` / `devin` → `spawn_peer`（可省略 harness）、`switch_peer_model` 跨 harness 切换均落到 devin。
+- **分离式计划任务自动登记 peer 地址**：`ScheduleRunCoordinator` 两条触发路径（native craftAgent 与 legacy）均 fire-and-forget 调 `bindRunThreadAddress` → `bindNativeAddressForThread` 轮询等新线程 session id 落绑定；绑定失败绝不使运行失败。
+- **agentKind/harnessItemId 提前校验**：`assertExplicitHarnessRegistered` 在 schedule create/update 时对显式值查 registry，未注册即时报错，不再等触发失败或静默回落到调用线程 harness。
+- 验证：`interHarnessMessageBus.test.ts` 新增 7 例、`schedules.test.ts` 20 例、`ScheduleRunCoordinator.test.ts` 24 例、`nativeThreadIndex.test.ts` 10 例、crossagents `toolRegistry.test.ts` 9 例全过；typecheck PASS；pre-commit oxlint type-aware + oxfmt 全过。既有基线：`interHarnessMessageBus.test.ts` 3 例失败（busy 目标应 queued 实为 delivered）经 stash 对照证实为 HEAD 既有，与本批无关。
+
 ## Release 1.3.2 — 缩放根治、权限默认值修复与更新体验改进（2026-09-18，已发布为 Latest）
 
 - 已提交 `5a00da6e` 并 push，tag `v1.3.2` 已推送；双包 + blockmap + `latest.yml` 共 4 文件已上传到 GitHub Release v1.3.2（Latest）。便携版备份保留 1.3.2 + 1.3.1；中间产物（`win-unpacked/`、`builder-debug.yml`）已清。
