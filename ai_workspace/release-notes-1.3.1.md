@@ -44,6 +44,8 @@
 - `pnpm typecheck` PASS；全部触碰文件 oxlint 0 警告；i18n 已 extract 并补齐 zh-CN。
 - `src/supervisor/runtime/` 全量 947 过 / 6 失败，6 个失败已逐一用 stash 基线对比证实为干净 HEAD 既有（startClose 3、nativeAdapter DeepSeek max-tokens 1、spawnPipeline MCP 1、compatibilityBridge e2e 1），与本批无关；`runtime.test.ts` 失败名单与干净 HEAD 逐行一致。
 
+---
+
 # Release 1.3.1 — Craft-Harness outer retry layer & error notification fixes
 
 ## User-visible

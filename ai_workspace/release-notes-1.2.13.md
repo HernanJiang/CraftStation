@@ -1,6 +1,4 @@
-# Release 1.2.13 — 第二批用户验收修复（待发布）
-
-状态：代码与测试已完成，待提交推送与打包。
+# Release 1.2.13 — 第二批用户验收修复（已发布）
 
 ## 用户可见
 
@@ -26,7 +24,9 @@
 - 触碰面回归：ChatPane markdown、menu、draft、settings、updates 相关套件全过；`tsc` 零新增；`oxlint` 零警告；i18n 已提取，zh-CN 已补。
 - 已知边界不变：Devin 个人用量数字暂无 CLI 可用源；Muse MSP 交错走 OpenCode 原生路由绕开。
 
-# Release 1.2.13 — second user-acceptance batch (pending)
+---
+
+# Release 1.2.13 — second user-acceptance batch (released)
 
 ## User-visible
 
@@ -36,3 +36,18 @@
 - Fresh drafts default to the first listed model; explicit menu picks stick.
 - The titlebar update menu now covers the app itself (restart-to-install / package download, badged).
 - Scheduled Kimi runs no longer fail with `native identity is absent`.
+
+## Root causes
+
+- Terminal popup: `windowsHide` still allocated a hidden conhost, which Windows Terminal then took over and flashed (every live agy session carried a conhost). `detached` spawns allocate zero conhosts (verified live).
+- Swallowed tags: micromark parses bare `<tag>` as HTML and the sanitizer strips unknown elements.
+- Picker: the 1.2.6 "keep unconfigured entries" display conflicted with the expectation that never-configured channels should not appear; the latter won.
+- Default model: the providerConfigs/lastDraft/recent-thread memory layers perpetuated stale defaults; only explicit menu picks are remembered now.
+- Self-update: the electron-updater chain was already complete; only the menu entry row was missing.
+- Kimi self-check: the CLI credential file honestly has no identity field, so presence is the honest check (same as Antigravity ADC).
+
+## Verification
+
+- transport console-less 3 (incl. real conhost assertions) / markdown escaping 4 + render regression 1 / picker filter 4 / draft default 2 (incl. Cursor variant normalization) / update menu 2 / nativeProfile 14 — all green.
+- Touched-surface regression: ChatPane markdown, menu, draft, settings, updates suites all green; `tsc` zero new errors; `oxlint` zero warnings; i18n extracted, zh-CN filled.
+- Known edges unchanged: Devin personal usage numbers have no CLI data source yet; Muse MSP interleave is routed around via the OpenCode native path.

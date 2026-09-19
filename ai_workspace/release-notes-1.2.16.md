@@ -17,6 +17,8 @@
 - 新增/更新测试：自动检查静默（autoUpdater）、启动自动检查 vs 手动检查的 IPC 参数（CliUpdateMenu）、孙子进程无可见控制台真机断言（nativeTransportWindowsConsole，Windows 实际执行）。
 - updates / ipc / CliUpdateMenu / MainTitlebar / nativeHarness / antigravity / pi 目标套件全过；`nativeAdapter.test.ts` DeepSeek max-tokens 1 例失败为 HEAD 既有（stash 基线对比证实）。
 
+---
+
 # Release 1.2.16 — synchronized startup update check & Gemini console-flash fix
 
 ## User-visible
@@ -27,3 +29,9 @@
 ## Root cause
 
 - Console flash: the previous `detached: true` spawn left agy with no console, so every console-subsystem grandchild (shell tool → pwsh, language_server, stdio MCP) allocated its own fresh visible console. `windowsHide` (CREATE_NO_WINDOW) alone keeps the whole tree windowless — verified live (`GetConsoleWindow()=0` for grandchildren).
+
+## Verification
+
+- `pnpm typecheck` PASS; oxlint clean on every touched file.
+- New/updated tests: silent automatic check (autoUpdater), startup auto-check vs manual-check IPC args (CliUpdateMenu), and a live Windows assertion that grandchildren get no visible console (nativeTransportWindowsConsole).
+- updates / ipc / CliUpdateMenu / MainTitlebar / nativeHarness / antigravity / pi target suites all green; the one `nativeAdapter.test.ts` DeepSeek max-tokens failure is pre-existing on HEAD (confirmed via stash baseline).

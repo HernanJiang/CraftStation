@@ -22,3 +22,30 @@
 - 新增测试全过：`interHarnessMessageBus.test.ts` 新增 7 例（devin spawn/推断、三种拼写同会话、未绑定 app 线程 UUID 解析、无匹配 UUID fail-closed、stop_peer UUID 接受/自删拒绝）、`schedules.test.ts` 扩至 20 例、`ScheduleRunCoordinator.test.ts` 扩至 24 例、`nativeThreadIndex.test.ts` +`getNativeBindingByThread` 与 devin 推断、`toolRegistry.test.ts`（crossagents）9 例。
 - `pnpm typecheck` PASS；pre-commit oxlint type-aware + oxfmt + tsc 全过。
 - 既有基线：`interHarnessMessageBus.test.ts` 3 例失败（Test H / ask timeout / Test I，busy 目标应 queued 实为 delivered）经 stash 对照证实为 HEAD 既有问题，与本批无关（busy 判定在 `ThreadCollaborationService`，未触碰）。
+
+---
+
+# Release 1.3.3 — Crossagents unified addressing & Devin peer support
+
+## User-facing
+
+- **Cross-thread messaging now accepts sidebar UUIDs**: the `send_message` / `ask` / `get_peer` / `switch_peer_model` / `stop_peer` / `reply` target parameters accept a thread's sidebar UUID (or the `thread:<uuid>` form) in addition to `harness:nativeId` addresses (e.g. `kimi:K456`) — all three spellings name the same conversation and never duplicate a native session.
+- **Schedules share the Crossagents address space**: Schedule `threadTarget` / `targetThreadId` accept the same three spellings, canonicalized to the thread UUID through the same resolver before persistence; `get` / `list` / `list_runs` now report each task/run's `boundThreadId` and `peerAddress` so you can verify the binding.
+- **Devin threads are first-class peers**: `devin` joined the native-messaging scope — `spawn_peer` can create a `harness:"devin"` + `model:"swe-2-max"` thread directly; model inference recognizes `swe-*` / `cognition` / `devin` markers, so omitting the harness with `swe-2-max` lands on devin, and cross-harness `switch_peer_model` to a swe model works the same way.
+- **Detached schedule runs self-register their peer address**: threads fired by `threadTarget {kind:"new"}` bind their `harness:nativeId` address as soon as the native session id appears, so other threads can address them right away; a binding failure never fails the run.
+- **Schedule agentKind/harnessItemId validated up front**: an explicit `agentKind` or `harnessItemId` with no registered harness item now fails at create/update time with a clear message (suggesting a detected harness), instead of failing at fire time or silently drifting onto the calling thread's harness.
+
+## Implementation
+
+- `shared/nativeThreads.ts` gained `parseThreadUuidReference`, recognizing bare UUIDs and the `thread:<uuid>` sidebar reference forms.
+- `InterHarnessMessageBus`: `resolveAddress` / `resolveExistingAddress` / `getPeer` accept UUID references; new `resolvePeerTarget` (the shared Crossagents/Schedule entry), `peerAddressForThread` (read-only address lookup), and `bindNativeAddressForThread` (polls for a fresh thread's session id and writes the binding). UUID resolution also records the synthesized address binding, so both spellings converge on the same row from then on.
+- `nativeThreadIndex`: `NATIVE_MESSAGING_HARNESSES` gained `devin`; `inferNativeHarnessFromModel` recognizes `swe` / `swe-*` / `cognition` / `devin`.
+- Schedule MCP: `scheduleThreadTargetInputSchema` relaxed the uuid-only restriction on `existing.threadId`, canonicalized by `resolveExistingThreadRef`; `serializeTask` / `serializeRun` inject `boundThreadId` + `peerAddress`; `assertExplicitHarnessRegistered` checks the registry at create/update.
+- `ScheduleRunCoordinator`: both fire paths (native craftAgent and legacy) fire-and-forget `bindRunThreadAddress` (wired lazily to the bus in `main.ts` / `createHeadlessRemoteHost.ts`); binding failures never fail the run.
+- `ScheduleMcpIngress` gained the optional `resolvePeerTarget` / `peerAddressOfThread` deps, wired in production to `appControlsMcpIngress.getInterHarnessMessageBus()`.
+
+## Verification
+
+- New tests all green: `interHarnessMessageBus.test.ts` +7 cases (devin spawn/inference, three spellings → same conversation, unbound app-thread UUID resolution, unmatched UUID fails closed, stop_peer accepts UUID / refuses self-delete), `schedules.test.ts` now 20, `ScheduleRunCoordinator.test.ts` now 24, `nativeThreadIndex.test.ts` +`getNativeBindingByThread` and devin inference, crossagents `toolRegistry.test.ts` 9.
+- `pnpm typecheck` PASS; pre-commit oxlint type-aware + oxfmt + tsc all green.
+- Pre-existing baseline: 3 `interHarnessMessageBus.test.ts` failures (Test H / ask timeout / Test I — busy target should queue but delivers) confirmed pre-existing on HEAD via stash comparison, unrelated to this batch (the busy check lives in `ThreadCollaborationService`, untouched).

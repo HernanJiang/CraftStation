@@ -155,6 +155,7 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 - `release\` 下便携版仅保留最新和上一个版本稳定版共两份备份；旧版本目录（`release-portable*`）、中间产物（`win-unpacked/`、`builder-debug.yml` 等）打包完成后即删除。
 - NSIS 安装包（`CraftStation-Setup-*.exe`）连同 `latest.yml` / blockmap 随版本发布到 GitHub Release（updater feed 所需），不属于便携版备份计数，不得顺手删除。
 - 用户确认的 main 修复、缺陷与 hotfix 收口后，默认执行双包构建；用户只说“打包”时同样默认双包，不再单独确认 NSIS。
+- Release notes 默认中英双语：`ai_workspace/release-notes-X.Y.Z.md` 与 GitHub Release body 均为中文正文在前、`---` 分隔后接完整英文译文（`User-facing` / `Implementation` / `Verification` 对应 `用户可见` / `实现` / `验证`）。历史版本发布时已补齐英文段；新发布不再单独确认双语。
 
 ## Assistant Knowledge Capture
 
