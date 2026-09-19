@@ -801,13 +801,12 @@ describe("Native process harness adapter", () => {
     await session.terminate();
     expect(adapter.getActiveSessions()).toHaveLength(0);
     const spawnCommand = vi.mocked(spawnProcess).mock.calls[0]?.[0];
-    if (process.platform === "win32") {
-      // The dsh.cmd shim is re-targeted to the resolved node executable
-      // (PATH-dependent: bare "node" or an absolute node.exe).
-      expect(String(spawnCommand)).toMatch(/node(\.exe)?$/i);
-    } else {
-      expect(spawnCommand).toBe("C:\\Users\\Haona\\AppData\\Roaming\\npm\\dsh.cmd");
-    }
+    // Windows shim 转到 node；其他平台保留显式命令，两种平台都必须断言。
+    const expectedCommand =
+      process.platform === "win32"
+        ? /node(\.exe)?$/i
+        : /^C:\\Users\\Haona\\AppData\\Roaming\\npm\\dsh\.cmd$/;
+    expect(spawnCommand).toMatch(expectedCommand);
     expect(spawnProcess).toHaveBeenCalledWith(
       spawnCommand,
       expect.arrayContaining(["--profile", "sdk", "--patch", "C:\\repo\\cordis.yml"]),
@@ -921,137 +920,144 @@ describe("Native process harness adapter", () => {
     await session.terminate();
   });
 
-  it("waits for Antigravity result after the user_input DONE step", async () => {
-    const fixture = new EventEmitter() as EventEmitter & {
-      readonly stdout: PassThrough;
-      readonly stderr: PassThrough;
-      killed: boolean;
-      kill: ReturnType<typeof vi.fn<() => boolean>>;
-    } & { stdin: Writable };
-    Object.assign(fixture, {
-      stdout: new PassThrough(),
-      stderr: new PassThrough(),
-      killed: false,
-      kill: vi.fn<() => boolean>(() => {
-        fixture.killed = true;
-        return true;
-      }),
-    });
-    (fixture as { stdin: Writable }).stdin = new Writable({
-      write: (chunk, _encoding, callback) => {
-        const request = JSON.parse(String(chunk)) as Record<string, unknown>;
-        const emit = (event: Record<string, unknown>) => {
-          fixture.stdout.write(`${JSON.stringify(event)}\n`);
-        };
-        emit({ event: "init", conversation_id: "agy-session" });
-        emit({ event: "step_update", step_update: { step_type: "user_input", state: "DONE" } });
-        emit({
-          event: "step_update",
-          step_update: {
-            conversation_id: "agy-session",
-            step_index: 2,
-            step_type: "tool",
-            tool_name: "view_file",
-            state: "ACTIVE",
-          },
-        });
-        emit({
-          event: "step_update",
-          step_update: {
-            conversation_id: "agy-session",
-            step_index: 2,
-            step_type: "tool",
-            tool_name: "view_file",
-            state: "DONE",
-          },
-        });
-        emit({
-          event: "step_update",
-          step_update: {
-            conversation_id: "agy-session",
-            step_index: 3,
-            step_type: "subagent",
-            tool_name: "invoke_subagent",
-            state: "ACTIVE",
-          },
-        });
-        emit({
-          event: "step_update",
-          step_update: {
-            conversation_id: "agy-session",
-            step_index: 3,
-            step_type: "subagent",
-            tool_name: "invoke_subagent",
-            state: "DONE",
-          },
-        });
-        emit({
-          event: "step_update",
-          step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: "hello" },
-        });
-        emit({ event: "step_update", step_update: { step_type: "agent_response", state: "DONE" } });
-        emit({ event: "result", result: { status: "SUCCESS", response: "hello" } });
-        void request;
-        callback();
-      },
-    });
-    const spawnProcess = vi.fn<() => typeof fixture>(
-      () => fixture,
-    ) as unknown as typeof import("node:child_process").spawn;
-    const adapter = new NativeProcessHarnessRuntimeAdapter({
-      descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
-      projectLocation: location,
-      mode: "antigravity",
-      runtimeCommand: "agy-fixture",
-      spawnProcess,
-    });
-    const antigravityPlan = {
-      ...plan(),
-      id: "plan:antigravity:test",
-      recipeId: "recipe:google-antigravity-native",
-      resultItemId: "result:antigravity",
-      ingredients: {
-        model: {
-          ...plan().ingredients.model!,
-          itemId: "google:antigravity-default",
-          vendor: "google",
-        },
-        harness: {
-          ...plan().ingredients.harness!,
-          itemId: "harness:antigravity",
-          vendor: "google",
-        },
-      },
-      runtimeBinding: {
-        ...plan().runtimeBinding,
-        harnessKind: "antigravity",
-        modelId: "Gemini 3.5 Flash",
-        vendor: "google",
-        runtimeAdapterId: "native-harness:antigravity",
-      },
-    };
-    const entity = await adapter.spawnEntity(antigravityPlan);
-    const session = await adapter.createSession(entity);
-    const result = await session.startTurn({ prompt: "hello" });
-    expect(result).toMatchObject({ status: "completed", response: "hello" });
-    expect(session.sessionRef).toBe("agy-session");
-    expect(result.events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: "item.started", itemId: "tool:agy-session:2" }),
-        expect.objectContaining({ type: "item.completed", itemId: "tool:agy-session:2" }),
-        expect.objectContaining({
-          type: "item.started",
-          itemId: "subagent:agy-session:3",
-          payload: expect.objectContaining({ isSubAgent: true }),
+  it.each([{ chunks: ["hello"] }, { chunks: ["hello", "hello"] }, { chunks: ["hello", "lo"] }])(
+    "waits for Antigravity result and preserves repeated deltas: $chunks",
+    async ({ chunks }) => {
+      const fixture = new EventEmitter() as EventEmitter & {
+        readonly stdout: PassThrough;
+        readonly stderr: PassThrough;
+        killed: boolean;
+        kill: ReturnType<typeof vi.fn<() => boolean>>;
+      } & { stdin: Writable };
+      Object.assign(fixture, {
+        stdout: new PassThrough(),
+        stderr: new PassThrough(),
+        killed: false,
+        kill: vi.fn<() => boolean>(() => {
+          fixture.killed = true;
+          return true;
         }),
-        expect.objectContaining({
-          type: "item.completed",
-          itemId: "subagent:agy-session:3",
-          payload: expect.objectContaining({ isSubAgent: true }),
-        }),
-      ]),
-    );
-  });
+      });
+      (fixture as { stdin: Writable }).stdin = new Writable({
+        write: (chunk, _encoding, callback) => {
+          const request = JSON.parse(String(chunk)) as Record<string, unknown>;
+          const emit = (event: Record<string, unknown>) => {
+            fixture.stdout.write(`${JSON.stringify(event)}\n`);
+          };
+          emit({ event: "init", conversation_id: "agy-session" });
+          emit({ event: "step_update", step_update: { step_type: "user_input", state: "DONE" } });
+          emit({
+            event: "step_update",
+            step_update: {
+              conversation_id: "agy-session",
+              step_index: 2,
+              step_type: "tool",
+              tool_name: "view_file",
+              state: "ACTIVE",
+            },
+          });
+          emit({
+            event: "step_update",
+            step_update: {
+              conversation_id: "agy-session",
+              step_index: 2,
+              step_type: "tool",
+              tool_name: "view_file",
+              state: "DONE",
+            },
+          });
+          emit({
+            event: "step_update",
+            step_update: {
+              conversation_id: "agy-session",
+              step_index: 3,
+              step_type: "subagent",
+              tool_name: "invoke_subagent",
+              state: "ACTIVE",
+            },
+          });
+          emit({
+            event: "step_update",
+            step_update: {
+              conversation_id: "agy-session",
+              step_index: 3,
+              step_type: "subagent",
+              tool_name: "invoke_subagent",
+              state: "DONE",
+            },
+          });
+          for (const text of chunks)
+            emit({
+              event: "step_update",
+              step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: text },
+            });
+          emit({
+            event: "step_update",
+            step_update: { step_type: "agent_response", state: "DONE" },
+          });
+          emit({ event: "result", result: { status: "SUCCESS", response: chunks.join("") } });
+          void request;
+          callback();
+        },
+      });
+      const spawnProcess = vi.fn<() => typeof fixture>(
+        () => fixture,
+      ) as unknown as typeof import("node:child_process").spawn;
+      const adapter = new NativeProcessHarnessRuntimeAdapter({
+        descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
+        projectLocation: location,
+        mode: "antigravity",
+        runtimeCommand: "agy-fixture",
+        spawnProcess,
+      });
+      const antigravityPlan = {
+        ...plan(),
+        id: "plan:antigravity:test",
+        recipeId: "recipe:google-antigravity-native",
+        resultItemId: "result:antigravity",
+        ingredients: {
+          model: {
+            ...plan().ingredients.model!,
+            itemId: "google:antigravity-default",
+            vendor: "google",
+          },
+          harness: {
+            ...plan().ingredients.harness!,
+            itemId: "harness:antigravity",
+            vendor: "google",
+          },
+        },
+        runtimeBinding: {
+          ...plan().runtimeBinding,
+          harnessKind: "antigravity",
+          modelId: "Gemini 3.5 Flash",
+          vendor: "google",
+          runtimeAdapterId: "native-harness:antigravity",
+        },
+      };
+      const entity = await adapter.spawnEntity(antigravityPlan);
+      const session = await adapter.createSession(entity);
+      const result = await session.startTurn({ prompt: "hello" });
+      expect(result).toMatchObject({ status: "completed", response: chunks.join("") });
+      expect(session.sessionRef).toBe("agy-session");
+      expect(result.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "item.started", itemId: "tool:agy-session:2" }),
+          expect.objectContaining({ type: "item.completed", itemId: "tool:agy-session:2" }),
+          expect.objectContaining({
+            type: "item.started",
+            itemId: "subagent:agy-session:3",
+            payload: expect.objectContaining({ isSubAgent: true }),
+          }),
+          expect.objectContaining({
+            type: "item.completed",
+            itemId: "subagent:agy-session:3",
+            payload: expect.objectContaining({ isSubAgent: true }),
+          }),
+        ]),
+      );
+    },
+  );
 
   it.runIf(process.platform === "win32")(
     "marks session terminated on Windows interrupt with unique canonical events and auto adapter release",

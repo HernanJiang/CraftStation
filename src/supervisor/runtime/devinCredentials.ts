@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { nativeDevinCredentialPaths } from "@/shared/devinCredentialPaths";
+export { nativeDevinCredentialPaths } from "@/shared/devinCredentialPaths";
 import { promisify } from "node:util";
 import { parse as parseToml } from "smol-toml";
 import type { OAuthToken } from "@craftstation/agents-usage";
@@ -21,25 +21,6 @@ function cleaned(raw: string | undefined): string | undefined {
     value = value.slice(1, -1).trim();
   }
   return value || undefined;
-}
-
-/** Paths `devin auth login` writes, matching the CLI detection probe. */
-export function nativeDevinCredentialPaths(): string[] {
-  const home = homedir();
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA?.trim();
-    return [
-      ...(appData ? [join(appData, "devin", "credentials.toml")] : []),
-      join(home, ".devin", "credentials.toml"),
-    ];
-  }
-  const xdg = process.env.XDG_DATA_HOME?.trim();
-  const linux = xdg
-    ? join(xdg, "devin", "credentials.toml")
-    : join(home, ".local", "share", "devin", "credentials.toml");
-  const mac = join(home, "Library", "Application Support", "devin", "credentials.toml");
-  const legacy = join(home, ".devin", "credentials.toml");
-  return process.platform === "darwin" ? [mac, linux, legacy] : [linux, legacy];
 }
 
 export function parseDevinEnv(env: Record<string, string | undefined>): OAuthToken | undefined {

@@ -2,6 +2,8 @@ import { msg } from "@lingui/core/macro";
 import { toast } from "@heroui/react";
 import { getLaunchableAgentStatuses, resolveAgentPresentationMode } from "@/shared/agentStatus";
 import { applyHomeScopePermissions } from "@/shared/agents/unrestrictedPermissions";
+import { applyPermissionMode } from "@/shared/agents/defaultPermissions";
+import { permissionConfigSchema, type PermissionConfig } from "@/shared/contracts/config";
 import type {
   Project,
   ProjectDraftConfig,
@@ -49,13 +51,21 @@ import {
   resolveThirdPartyAccountForLaunch,
 } from "@/shared/thirdPartyRouting";
 import { resolveCompatibilityFamily } from "@/shared/harnessCompatibility";
-import { buildCompatibilityCraftResult, resolveExecutionRoute } from "@/shared/crafting";
+import {
+  buildCompatibilityCraftResult,
+  resolveExecutionRoute,
+  type CraftPlan,
+  type CraftResult,
+  getDefaultProvenanceStore,
+  nativeRuntimeExecutionConfigForPlan,
+  provenanceStateKey,
+} from "@/shared/crafting";
 import { canonicalModelVendor } from "@/shared/crafting/vendors";
 import {
   providerKindFromRecipeRef,
   recipeLaunchHarnessKind,
   recipeLaunchModelId,
-} from "@/renderer/crafting/recipePickerTarget";
+} from "@/shared/crafting/recipeIdentity";
 import { generateTitleAsync } from "@/renderer/utils/titleGen";
 import { buildProjectDraftConfig } from "@/renderer/views/MainView/parts/AppContent/draftConfig";
 import {
@@ -107,7 +117,13 @@ export async function performInitialThreadLaunch(input: {
   if (
     !remoteOwner(effectiveThread) &&
     effectiveThread.sessionRef?.providerSessionId &&
-    (await resumeCraftedThread({ thread: effectiveThread, projectLocation, prompt }))
+    (await resumeCraftedThread({
+      thread: effectiveThread,
+      projectLocation,
+      prompt,
+      ...(segments ? { segments } : {}),
+      ...(userMessageItemId ? { userMessageItemId } : {}),
+    }))
   ) {
     captureThreadStarted(effectiveThread);
     if (prompt.length > 0 || (segments?.length ?? 0) > 0) {
@@ -286,6 +302,7 @@ interface ThreadLaunchRequest {
 }
 
 export interface CraftedSessionLaunchOptions {
+  permissionConfig?: PermissionConfig;
   replacePaneId?: string;
   preserveActiveGroup?: boolean;
   /** Explicit account for this newly-created crafted Session only. */
@@ -298,6 +315,41 @@ export interface CraftedSessionLaunchOptions {
    * CraftPlan runtime overrides so the Supervisor resolver honors it.
    */
   capabilityMode?: "auto" | "efficient" | "creative";
+}
+
+/** 缺省采用设置；已有且目标 CLI 支持的显式权限不被设置覆盖。 */
+function launchPermissions(
+  location: ProjectLocation,
+  agentKind: string,
+  config: ThreadConfig,
+): ThreadConfig {
+  const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
+  const agent = getLaunchableAgentStatuses(location, agentStatuses, wslAgentStatuses).find(
+    (candidate) => candidate.kind === agentKind,
+  );
+  if (!agent) return config;
+  const { approvalPolicies, sandboxModes } = agent.capabilities;
+  const validApproval =
+    !config.approvalPolicy ||
+    approvalPolicies.length === 0 ||
+    approvalPolicies.some((option) => option.id === config.approvalPolicy);
+  const validSandbox =
+    !config.sandboxMode || sandboxModes.some((option) => option.id === config.sandboxMode);
+  if ((config.approvalPolicy || config.sandboxMode) && validApproval && validSandbox) return config;
+  const hasExplicit = Boolean(config.approvalPolicy || config.sandboxMode);
+  const defaults = applyPermissionMode(
+    agent.capabilities,
+    config,
+    hasExplicit ? "ask" : (useSharedSettings.getState().defaultPermissionMode ?? "ask"),
+  );
+  return {
+    ...defaults,
+    ...(validApproval && config.approvalPolicy ? { approvalPolicy: config.approvalPolicy } : {}),
+    ...(validSandbox && config.sandboxMode ? { sandboxMode: config.sandboxMode } : {}),
+    ...(validApproval && config.approvalsReviewer
+      ? { approvalsReviewer: config.approvalsReviewer }
+      : {}),
+  };
 }
 
 interface ThreadLaunchHostTransport {
@@ -338,7 +390,9 @@ function applyAutoDraftLaunch(input: DraftStartInput): DraftStartInput {
     remapped.model === input.config.model &&
     (remapped.presentationMode ?? input.presentationMode) === input.presentationMode
   ) {
-    return accountId === input.accountId ? input : { ...input, ...(accountId ? { accountId } : {}) };
+    return accountId === input.accountId
+      ? input
+      : { ...input, ...(accountId ? { accountId } : {}) };
   }
   return {
     ...input,
@@ -349,9 +403,7 @@ function applyAutoDraftLaunch(input: DraftStartInput): DraftStartInput {
       ...input.config,
       model: remapped.model,
       sourceProviderKind:
-        remapped.agentKind !== input.agentKind
-          ? input.agentKind
-          : input.config.sourceProviderKind,
+        remapped.agentKind !== input.agentKind ? input.agentKind : input.config.sourceProviderKind,
     },
   };
 }
@@ -368,19 +420,19 @@ export async function startThreadFromDraft(
       .recipes.find((entry) => entry.id === recipeIntent.recipeId);
     if (recipe) {
       const harnessKind = recipeLaunchHarnessKind(recipe) || input.agentKind;
-      const modelId = recipeLaunchModelId(recipe) ?? input.config.model;
-      const modelProviderKind =
-        providerKindFromRecipeRef(recipe.modelEntryRef) || input.agentKind;
       const customModels = useSharedSettings.getState().customModels ?? [];
+      const custom = customModels.find((candidate) => candidate.id === recipe.modelEntryRef);
+      const modelId = custom?.modelId ?? recipeLaunchModelId(recipe) ?? input.config.model;
+      const modelProviderKind =
+        custom?.provider ?? providerKindFromRecipeRef(recipe.modelEntryRef) ?? input.agentKind;
       const accountId =
         recipe.providerProfileRef ||
+        custom?.accountId ||
         resolveThirdPartyAccountForLaunch({
           agentKind: harnessKind,
           model: modelId,
           customModels,
-          ...(recipe.providerProfileRef
-            ? { explicitAccountId: recipe.providerProfileRef }
-            : {}),
+          ...(recipe.providerProfileRef ? { explicitAccountId: recipe.providerProfileRef } : {}),
         });
       if (accountId) {
         useUsageAccountsStore.getState().setNextSessionAccount(accountId);
@@ -432,6 +484,7 @@ export async function startThreadFromDraft(
         });
         await startThreadFromCraft(project, craftResult, input.prompt, {
           ...options,
+          permissionConfig: permissionConfigSchema.parse(input.config),
           ...(accountId ? { accountId } : {}),
         });
         return;
@@ -452,7 +505,11 @@ export async function startThreadFromDraft(
   // Auto (not 合成台) must remap here, not only in the draft picker. Existing
   // OpenCode + Muse Spark threads and quick-composer / MCP starts all funnel
   // through this function; 合成台 uses startThreadFromCraft instead.
-  const launched = applyAutoDraftLaunch(input);
+  const remapped = applyAutoDraftLaunch(input);
+  const launched = {
+    ...remapped,
+    config: launchPermissions(project.location, remapped.agentKind, remapped.config),
+  };
   const {
     agentKind,
     config,
@@ -815,9 +872,7 @@ function createThreadRow(launch: ThreadLaunchRequest): Thread {
     boundAt: Date.now(),
   };
   useAppStore.setState((state) => ({
-    threads: state.threads.map((row) =>
-      row.id === thread.id ? { ...row, accountBinding } : row,
-    ),
+    threads: state.threads.map((row) => (row.id === thread.id ? { ...row, accountBinding } : row)),
   }));
   return { ...thread, accountBinding };
 }
@@ -865,14 +920,6 @@ function appendOptimisticInitialUserMessage(
   return itemId;
 }
 
-import {
-  type CraftPlan,
-  type CraftResult,
-  getDefaultProvenanceStore,
-  nativeRuntimeExecutionConfigForPlan,
-  provenanceStateKey,
-} from "@/shared/crafting";
-
 /**
  * MCP candidate snapshot for Crafting launches. Auto/Efficient plans (no
  * explicit ids) must hand the complete enabled candidate snapshot to the
@@ -912,23 +959,25 @@ export async function startThreadFromCraft(
 
   const threadId = planThreadId(craftResult.craftPlan.threadId);
   const projectLocation = resolveProjectLocation(project.location, undefined);
+  const originalPlan = craftResult.craftPlan;
+  const runtimeConfig = nativeRuntimeExecutionConfigForPlan(originalPlan);
+  const config = launchPermissions(projectLocation, originalPlan.runtimeBinding.harnessKind, {
+    model: originalPlan.runtimeBinding.modelId,
+    ...(runtimeConfig.approvalPolicy ? { approvalPolicy: runtimeConfig.approvalPolicy } : {}),
+    ...runtimeConfig.permissionConfig,
+    ...options.permissionConfig,
+  });
   const plan: CraftPlan = {
     ...craftResult.craftPlan,
     threadId,
     workspace: projectLocation.kind === "wsl" ? projectLocation.linuxPath : projectLocation.path,
-    ...(options.capabilityMode
-      ? {
-          overrides: {
-            ...craftResult.craftPlan.overrides,
-            capabilityMode: options.capabilityMode,
-          },
-        }
-      : {}),
+    overrides: {
+      ...originalPlan.overrides,
+      permissionConfig: permissionConfigSchema.parse(config),
+      ...(options.capabilityMode ? { capabilityMode: options.capabilityMode } : {}),
+    },
   };
   const agentKind = plan.runtimeBinding.harnessKind;
-  const config: ThreadConfig = {
-    model: plan.runtimeBinding.modelId,
-  };
 
   const bridge = readBridge();
   if (remoteOwner(project)) {
@@ -954,7 +1003,7 @@ export async function startThreadFromCraft(
     options,
     isNewWorktree: false,
   });
-  appendOptimisticInitialUserMessage(thread, prompt);
+  const userMessageItemId = appendOptimisticInitialUserMessage(thread, prompt);
 
   try {
     // The app-store persist is asynchronous. Upsert the thread explicitly
@@ -981,18 +1030,23 @@ export async function startThreadFromCraft(
       craftPlan: plan,
       projectLocation,
       prompt,
+      ...(userMessageItemId ? { userMessageItemId } : {}),
       accountMode,
       mcpServers: craftingMcpLaunchServers(plan, project.mcpServers),
       ...(accountId && accountMode !== "auto" ? { accountId } : {}),
     });
     if (craftAgentResult.accountBinding) {
-      const boundThread = { ...thread, accountBinding: craftAgentResult.accountBinding };
       useAppStore.setState((state) => ({
         threads: state.threads.map((candidate) =>
-          candidate.id === thread.id ? boundThread : candidate,
+          candidate.id === thread.id
+            ? { ...candidate, accountBinding: craftAgentResult.accountBinding }
+            : candidate,
         ),
       }));
-      await bridge.dbUpsertThread(boundThread);
+      const boundThread = useAppStore
+        .getState()
+        .threads.find((candidate) => candidate.id === thread.id);
+      if (boundThread) await bridge.dbUpsertThread(boundThread);
     }
     if (accountId === pendingAccountId) {
       useUsageAccountsStore.getState().clearNextSessionAccount();
@@ -1027,15 +1081,14 @@ async function resumeCraftedThread(input: {
   thread: Thread;
   projectLocation: ProjectLocation;
   prompt: string;
+  segments?: PromptSegment[];
+  userMessageItemId?: string;
 }): Promise<boolean> {
   const bridge = readBridge();
   const store = configureProvenanceStore(bridge);
   const handoffState = await readSessionHandoffState(input.thread.id).catch(() => null);
   const activeHandoff =
-    handoffState?.phase === "active" &&
-    handoffState.activeSegment &&
-    handoffState.targetCraftPlan &&
-    handoffState.targetProvenance
+    handoffState?.phase === "active" && handoffState.activeSegment && handoffState.targetCraftPlan
       ? handoffState
       : undefined;
   const provenance =
@@ -1061,30 +1114,66 @@ async function resumeCraftedThread(input: {
         workspace,
         sessionRef: providerSessionId,
       }).craftPlan;
+  const legacyActiveSegment =
+    handoffState?.phase === "active" ? handoffState.activeSegment : undefined;
+  if (!activeHandoff && legacyActiveSegment) {
+    // Older initial bindings persisted a Segment but no full CraftPlan.
+    // Recover its identity only for the same Recipe/Result/model/Harness and
+    // native Session; a genuine different composition still fails closed.
+    const binding = legacyActiveSegment.runtimeBinding;
+    const recovered = recoveredCraftPlan.runtimeBinding;
+    if (
+      legacyActiveSegment.recipeId !== recoveredCraftPlan.recipeId ||
+      legacyActiveSegment.resultItemId !== recoveredCraftPlan.resultItemId ||
+      legacyActiveSegment.nativeSessionRef !== providerSessionId ||
+      binding.harnessKind !== recovered.harnessKind ||
+      binding.modelId !== recovered.modelId ||
+      binding.vendor !== recovered.vendor ||
+      binding.routeType !== recovered.routeType
+    )
+      throw new Error("HANDOFF_ACTIVE_PLAN_MISMATCH");
+    recoveredCraftPlan.id = legacyActiveSegment.craftPlanId;
+  }
   const projectMcpServers = useAppStore
     .getState()
     .projects.find((project) => project.id === input.thread.projectId)?.mcpServers;
   const storedAccountId =
     activeHandoff?.activeAccountBinding?.accountId ?? input.thread.accountBinding?.accountId;
   const accountId = storedAccountId ?? resolveChannelAccountIdForThreadModel(input.thread);
+  const userMessageItemId =
+    input.userMessageItemId ??
+    appendOptimisticInitialUserMessage(input.thread, input.prompt, input.segments);
   const result = await bridge.resumeCraftAgent({
-    craftPlan: recoveredCraftPlan,
+    craftPlan: {
+      ...recoveredCraftPlan,
+      overrides: {
+        ...recoveredCraftPlan.overrides,
+        permissionConfig:
+          recoveredCraftPlan.overrides?.permissionConfig ??
+          permissionConfigSchema.parse(input.thread.config),
+      },
+    },
     projectLocation: input.projectLocation,
     sessionRef: providerSessionId,
     mcpServers: craftingMcpLaunchServers(recoveredCraftPlan, projectMcpServers),
     ...(accountId ? { accountId } : {}),
     ...(input.prompt.length > 0 ? { prompt: input.prompt } : {}),
+    ...(userMessageItemId ? { userMessageItemId } : {}),
   });
   if (result.accountBinding) {
     // Persist the binding the resume actually used (mirror the launch path):
     // without it the *next* resume falls back to the default account again.
-    const boundThread = { ...input.thread, accountBinding: result.accountBinding };
     useAppStore.setState((state) => ({
       threads: state.threads.map((candidate) =>
-        candidate.id === input.thread.id ? boundThread : candidate,
+        candidate.id === input.thread.id
+          ? { ...candidate, accountBinding: result.accountBinding }
+          : candidate,
       ),
     }));
-    await bridge.dbUpsertThread(boundThread);
+    const boundThread = useAppStore
+      .getState()
+      .threads.find((candidate) => candidate.id === input.thread.id);
+    if (boundThread) await bridge.dbUpsertThread(boundThread);
   }
   if (result.threadId !== input.thread.id) {
     throw new Error(

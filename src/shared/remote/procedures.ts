@@ -87,6 +87,7 @@ export const REMOTE_PROCEDURE_SPECS = {
 
   // Git and GitHub reads
   getGitStatus: read("projectLocation"),
+  gitDescribe: read("projectLocation"),
   getGitDiff: read("projectLocation"),
   getGitDiffBatch: read("projectLocation"),
   getGitFileContent: read("projectLocation"),

@@ -122,6 +122,7 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
             const normalized = normalizeChatProjectPath(token, actions.projectLocation);
             return normalized === token ? null : parseProjectPathRef(normalized, { rootNames });
           },
+          parseLinkRef: (href: string) => (actions ? parseHrefProjectPathRef(href, actions) : null),
         },
       ],
     ],
@@ -519,12 +520,17 @@ function parseHrefProjectPathRef(
   actions: NonNullable<ReturnType<typeof useChatPaneActions>>,
 ): ProjectPathRef | null {
   const rootNames = actions.projectRootNames;
-  const direct = parseProjectPathRef(href, { rootNames });
+  // URI 转义只在显式链接边界解码一次。普通路径的 %20 可能就是文件名，
+  // file: 的解码由 normalizeChatProjectPath 负责，不能重复解码 %2520。
+  const path = /^file:\/\//i.test(href)
+    ? normalizeChatProjectPath(href, actions.projectLocation)
+    : decodeAutoPathHref(href);
+  const direct = parseProjectPathRef(path, { rootNames, allowSpaces: true });
   if (direct) return direct;
 
-  const normalized = normalizeChatProjectPath(href, actions.projectLocation);
-  if (normalized === href) return null;
-  return parseProjectPathRef(normalized, { rootNames });
+  const normalized = normalizeChatProjectPath(path, actions.projectLocation);
+  if (normalized === path) return null;
+  return parseProjectPathRef(normalized, { rootNames, allowSpaces: true });
 }
 
 function renderPathChip(

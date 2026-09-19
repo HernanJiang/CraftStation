@@ -16,7 +16,8 @@ import { z } from "zod";
  * carries the shape + the pure helpers.
  */
 
-export const CHANGELOG_URL = "https://craftstation.com/changelog.json";
+export const CHANGELOG_URL =
+  "https://raw.githubusercontent.com/HernanJiang/CraftStation/main/website/public/changelog.json";
 
 export type ChangelogChangeKind = "added" | "improved" | "fixed";
 

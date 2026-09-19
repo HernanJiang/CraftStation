@@ -43,8 +43,8 @@ function poolExhaustedError(
     candidates.length > 0
       ? candidates
           .map(
-            (candidate) =>
-              `${labels.get(candidate.accountId) ?? candidate.accountId}（${candidate.status}：${candidate.reason}）`,
+            (entry) =>
+              `${labels.get(entry.accountId) ?? entry.accountId}（${entry.status}：${entry.reason}）`,
           )
           .join("；")
       : "该厂商尚无账号";

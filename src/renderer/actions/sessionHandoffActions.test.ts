@@ -91,6 +91,23 @@ describe("session handoff renderer actions", () => {
     bridge.dbSetState.mockResolvedValue(undefined);
   });
 
+  it("never falls back to a local provider switch for a remote conversation", async () => {
+    const thread = { ...craftedThread(), remoteServerId: "remote-server" };
+    useAppStore.setState({ threads: [thread] });
+    await expect(
+      switchLiveThreadProvider({
+        thread,
+        projectLocation,
+        targetAgentKind: "grok",
+        targetConfig: { model: "grok-4.6" },
+      }),
+    ).rejects.toThrow("Remote conversations do not support in-place handoff");
+    expect(bridge.switchThreadProvider).not.toHaveBeenCalled();
+    expect(bridge.requestSessionSwitch).not.toHaveBeenCalled();
+    expect(bridge.dbUpsertThread).not.toHaveBeenCalled();
+    expect(useAppStore.getState().threads).toEqual([thread]);
+  });
+
   it.each([
     ["grok", "grok-4.6", "recipe:xai-grok-native", "grok"],
     ["codex", "gpt-5.3-codex", "recipe:openai-codex-native", "codex"],
@@ -438,8 +455,9 @@ describe("session handoff renderer actions", () => {
     expect(useAppStore.getState().userCancelledTurnStartsByThread[source.id]).toEqual([
       Date.parse("2026-09-08T20:00:00.000Z"),
     ]);
-    expect(
-      useAppStore.getState().runtimeItemsByIdByThread[source.id]?.["sub-1"],
-    ).toMatchObject({ state: "completed", payload: { status: "error" } });
+    expect(useAppStore.getState().runtimeItemsByIdByThread[source.id]?.["sub-1"]).toMatchObject({
+      state: "completed",
+      payload: { status: "error" },
+    });
   });
 });

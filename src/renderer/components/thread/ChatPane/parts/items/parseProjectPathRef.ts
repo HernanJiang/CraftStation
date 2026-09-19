@@ -8,6 +8,8 @@ const PATH_EXTENSION_RE =
 export const PROJECT_PATH_TOKEN_SOURCE = String.raw`(?<![A-Za-z0-9_:/@.\\-])(\/?(?:[A-Za-z0-9_@.][A-Za-z0-9_@.-]*(?:[\\/][A-Za-z0-9_@.-]+)+|[A-Za-z0-9_@-][A-Za-z0-9_@.-]*\.[A-Za-z][A-Za-z0-9-]*))(?::(\d+)(?:-\d+)?)?`;
 
 interface ParseOptions {
+  /** 只有显式 Markdown 链接允许空格；普通文本检测仍避免误识别句子。 */
+  allowSpaces?: boolean;
   /**
    * Top-level entry names of the active project. When provided, the parser
    * requires the candidate's first segment to match one — this prevents false
@@ -30,7 +32,7 @@ interface ParseOptions {
  */
 export function parseProjectPathRef(s: string, options: ParseOptions = {}): ProjectPathRef | null {
   const t = s.trim();
-  if (t.length < 2 || /\s/.test(t)) return null;
+  if (t.length < 2 || (options.allowSpaces ? /[\r\n\t]/ : /\s/).test(t)) return null;
   if (/^https?:\/\//i.test(t)) return null;
 
   const lineMatch = t.match(/^(.+):(\d+)(?:-(\d+))?$/);
@@ -46,7 +48,8 @@ export function parseProjectPathRef(s: string, options: ParseOptions = {}): Proj
   if (!hasSeparator && !hasExtension) return null;
 
   const isAbsolutePosix = candidate.startsWith("/");
-  if (options.rootNames && hasSeparator && !isAbsolutePosix) {
+  const isAbsoluteWindows = /^[A-Za-z]:[\\/]/.test(candidate) || candidate.startsWith("\\\\");
+  if (options.rootNames && hasSeparator && !isAbsolutePosix && !isAbsoluteWindows) {
     if (firstSegment === "" || !options.rootNames.has(firstSegment)) return null;
   }
 

@@ -197,9 +197,7 @@ describe.skipIf(!sqliteAvailable)("thread collaboration MCP tools", () => {
     expect(sendThreadInput).toHaveBeenCalledTimes(1);
     expect(sendThreadInput.mock.calls[0]![0].threadId).toBe("target");
     expect(sendThreadInput.mock.calls[0]![0].prompt).toContain("What is the status?");
-    expect(sendThreadInput.mock.calls[0]![0].prompt).toContain(
-      "[CraftStation cross-thread dialogue]",
-    );
+    expect(sendThreadInput.mock.calls[0]![0].prompt).toContain("来自「source」的任务：");
     expect(interruptThread).not.toHaveBeenCalled();
     expect(startThread).not.toHaveBeenCalled();
   });
@@ -324,17 +322,20 @@ describe.skipIf(!sqliteAvailable)("thread collaboration MCP tools", () => {
     expect(retry.id).toBe(parent.id);
   });
 
-  it("queues for a busy target without steering, interrupting or raw-sending", async () => {
+  it("injects into a busy target through the control plane without an extra interrupt", async () => {
     statuses.set("target", "working");
     const exchange = await ask({ threadId: "target", request: "queue me" });
 
-    expect(exchange.status).toBe("queued");
-    expect(sendThreadInput).not.toHaveBeenCalled();
+    expect(exchange.status).toBe("delivered");
+    expect(sendThreadInput).toHaveBeenCalledTimes(1);
     expect(interruptThread).not.toHaveBeenCalled();
   });
 
   it("does not claim delivery when the target needs attention before accepting the message", async () => {
     statuses.set("target", "needs_approval");
+    sendThreadInput.mockRejectedValueOnce(
+      Object.assign(new Error("not accepted"), { code: "THREAD_TARGET_NEEDS_ATTENTION" }),
+    );
     const result = (await dispatchTool(
       "send_thread_message",
       {
@@ -352,7 +353,8 @@ describe.skipIf(!sqliteAvailable)("thread collaboration MCP tools", () => {
       target_thread_id: "target",
       error: "Message status: needs_attention",
     });
-    expect(sendThreadInput).not.toHaveBeenCalled();
+    expect(sendThreadInput).toHaveBeenCalledTimes(1);
+    expect(interruptThread).not.toHaveBeenCalled();
   });
 
   it("lets participants read an exchange and rejects non-participants", async () => {

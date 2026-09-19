@@ -175,6 +175,7 @@ export interface UsageLoginResult {
 
 export interface UsageLogoutResult {
   ok: boolean;
+  error?: string;
 }
 
 export const usageLoginStatePayloadSchema = z.object({});

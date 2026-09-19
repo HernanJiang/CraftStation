@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { permissionConfigSchema } from "../contracts/config";
+
 /**
  * The capability vocabulary is deliberately small and descriptive. It is a
  * reporting contract, not an instruction to implement a universal capability
@@ -206,6 +208,7 @@ export const nativeRuntimeExecutionConfigSchema = z.object({
   reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
   serviceTier: z.enum(["default", "flex", "fast", "priority"]).optional(),
   approvalPolicy: z.enum(["always", "auto", "never", "on-demand"]).optional(),
+  permissionConfig: permissionConfigSchema.optional(),
   permissionProfile: z.string().min(1).optional(),
   profileRef: z.string().min(1).optional(),
   accountId: z.string().min(1).optional(),
@@ -270,6 +273,7 @@ export function nativeRuntimeExecutionConfigForPlan(
   return nativeRuntimeExecutionConfigSchema.parse({
     ...(plan.workspace ? { workspace: plan.workspace } : {}),
     model: overrides.model ?? plan.runtimeBinding.modelId,
+    permissionConfig: overrides.permissionConfig ?? bindingOptions.permissionConfig,
     ...(overrides.capabilityMode ||
     (typeof bindingOptions.capabilityMode === "string" &&
       ["auto", "efficient", "creative"].includes(bindingOptions.capabilityMode))

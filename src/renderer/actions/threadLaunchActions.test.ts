@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Project, Thread } from "@/shared/contracts";
+import type { AgentStatus, Project, Thread } from "@/shared/contracts";
 import type { RemoteThreadLaunchResult } from "@/renderer/state/remoteServers/types";
 import { BUILTIN_MODEL_ITEMS, Crafter, getDefaultRegistry } from "@/shared/crafting";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
@@ -75,14 +75,21 @@ const mocks = vi.hoisted(() => {
     dbSetState: vi.fn<(key: string, value: string) => Promise<void>>(),
   };
   const sharedSettings = {
+    defaultPermissionMode: "ask" as "ask" | "full-access",
     pushRecentModel: vi.fn<(...args: unknown[]) => void>(),
     mcpServers: [] as unknown[],
     disabledBuiltInMcpServers: {},
     disabledBuiltInMcpTools: {},
-    customModels: [] as Array<{ provider: string; accountId?: string; modelId: string }>,
+    customModels: [] as Array<{
+      id?: string;
+      provider: string;
+      accountId?: string;
+      modelId: string;
+    }>,
   };
   return {
     appState,
+    agentStatuses: [] as AgentStatus[],
     remoteState,
     remoteClient,
     bridge,
@@ -125,7 +132,7 @@ vi.mock("@/renderer/state/remoteServersStore", () => ({
 
 vi.mock("@/renderer/state/agentStatusesStore", () => ({
   useAgentStatusesStore: {
-    getState: () => ({ agentStatuses: [], wslAgentStatuses: [] }),
+    getState: () => ({ agentStatuses: mocks.agentStatuses, wslAgentStatuses: [] }),
   },
 }));
 
@@ -205,6 +212,8 @@ describe("startThreadFromDraft host transport", () => {
     mocks.appState.threads = [];
     mocks.appState.provisioningWorktreeThreadIds = {};
     mocks.sharedSettings.customModels = [];
+    mocks.sharedSettings.defaultPermissionMode = "ask";
+    mocks.agentStatuses = [];
     useUsageAccountsStore.getState().reset();
     useCraftingWorkbenchStore.setState({
       recipes: [],
@@ -269,6 +278,70 @@ describe("startThreadFromDraft host transport", () => {
     mocks.performWorktreeRemoval.mockResolvedValue(true);
   });
 
+  it.each(["ask", "full-access"] as const)(
+    "sends %s permissions through crafted launch and persisted config",
+    async (mode) => {
+      mocks.sharedSettings.defaultPermissionMode = mode;
+      mocks.agentStatuses = [
+        {
+          kind: "codex",
+          label: "Codex",
+          installed: true,
+          authState: "authenticated",
+          capabilities: {
+            models: [],
+            efforts: [],
+            modelEfforts: {},
+            modes: ["agent"],
+            approvalPolicies: [
+              { id: "on-request", label: "Ask" },
+              { id: "never", label: "Full" },
+            ],
+            sandboxModes: [
+              { id: "workspace-write", label: "Workspace" },
+              { id: "danger-full-access", label: "Full" },
+            ],
+            bypassPermissions: { approvalPolicy: "never", sandboxMode: "danger-full-access" },
+            supportsResume: true,
+            supportsDirectInput: true,
+            liveInputMode: "server",
+            presentationMode: "gui",
+            settingDefs: [],
+          },
+        } as AgentStatus,
+      ];
+      const result = new Crafter().compile(
+        { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+        {},
+      );
+      await startThreadFromCraft(localProject, result, "permissions");
+      const permissions =
+        mode === "ask"
+          ? { approvalPolicy: "on-request", sandboxMode: "workspace-write" }
+          : { approvalPolicy: "never", sandboxMode: "danger-full-access" };
+      expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          craftPlan: expect.objectContaining({
+            overrides: expect.objectContaining({ permissionConfig: permissions }),
+          }),
+        }),
+      );
+      expect(mocks.appState.threads[0]?.config).toMatchObject(permissions);
+      await startThreadFromCraft(localProject, result, "keep explicit ask", {
+        permissionConfig: { approvalPolicy: "on-request", sandboxMode: "foreign-sandbox" },
+      });
+      expect(mocks.bridge.craftAgent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          craftPlan: expect.objectContaining({
+            overrides: expect.objectContaining({
+              permissionConfig: { approvalPolicy: "on-request", sandboxMode: "workspace-write" },
+            }),
+          }),
+        }),
+      );
+    },
+  );
+
   it("hands a crafted plan to the production craftAgent seam using its plan thread id", async () => {
     const craftResult = new Crafter().compile(
       { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
@@ -289,9 +362,21 @@ describe("startThreadFromDraft host transport", () => {
     expect(mocks.bridge.craftAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: "inspect the repository",
+        userMessageItemId: expect.any(String),
         accountMode: "auto",
         projectLocation: localProject.location,
         craftPlan: expect.objectContaining({ threadId: "craft-thread-1", workspace: "C:\\repo" }),
+      }),
+    );
+    const craftedPayload = mocks.bridge.craftAgent.mock.calls[0]![0] as {
+      userMessageItemId: string;
+    };
+    expect(mocks.appState.applyRuntimeEvent).toHaveBeenCalledWith(
+      "craft-thread-1",
+      expect.objectContaining({
+        type: "item.started",
+        itemId: craftedPayload.userMessageItemId,
+        itemType: "user_message",
       }),
     );
     expect(mocks.bridge.dbSetState).toHaveBeenCalledWith(
@@ -300,6 +385,47 @@ describe("startThreadFromDraft host transport", () => {
     );
     expect(mocks.appState.createThread).toHaveBeenCalledWith(
       expect.objectContaining({ threadId: "craft-thread-1", agentKind: "codex" }),
+    );
+  });
+  it("late account binding preserves runtime status and session identity already received", async () => {
+    const result = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+      {},
+    );
+    mocks.bridge.craftAgent.mockImplementationOnce(async () => {
+      const thread = mocks.appState.threads[0]!;
+      mocks.appState.threads = [
+        {
+          ...thread,
+          status: "idle",
+          sessionRef: { providerSessionId: "native-kept", discoveredAt: "2026-09-19T00:00:00Z" },
+        },
+      ];
+      return {
+        threadId: thread.id,
+        entityId: "entity",
+        sessionId: "session",
+        response: "done",
+        accountBinding: {
+          accountId: "fixture-account",
+          provider: "codex",
+          credentialScopeRef: "fixture",
+          reason: "explicit",
+          boundAt: 1,
+        },
+      };
+    });
+    await startThreadFromCraft(localProject, result, "prompt");
+    expect(mocks.appState.threads[0]).toMatchObject({
+      status: "idle",
+      sessionRef: { providerSessionId: "native-kept" },
+      accountBinding: { accountId: "fixture-account" },
+    });
+    expect(mocks.bridge.dbUpsertThread).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: "idle",
+        sessionRef: { providerSessionId: "native-kept", discoveredAt: "2026-09-19T00:00:00Z" },
+      }),
     );
   });
 
@@ -1132,6 +1258,8 @@ describe("performInitialThreadLaunch host transport", () => {
     vi.clearAllMocks();
     mocks.appState.projects = [];
     mocks.sharedSettings.customModels = [];
+    mocks.sharedSettings.defaultPermissionMode = "ask";
+    mocks.agentStatuses = [];
     mocks.remoteState.withClient.mockImplementation((desktopId, invoke) =>
       invoke(mocks.remoteClient),
     );
@@ -1240,7 +1368,7 @@ describe("performInitialThreadLaunch host transport", () => {
     );
   });
 
-  it("recovers a crafted thread from persisted provenance through resumeCraftAgent", async () => {
+  it("recovers a crafted thread with the existing optimistic message identity", async () => {
     const provenance = new Crafter().compile({
       slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" },
     }).resultItem!.provenance;
@@ -1258,13 +1386,16 @@ describe("performInitialThreadLaunch host transport", () => {
     await performInitialThreadLaunch({
       thread,
       projectLocation: localProject.location,
-      prompt: "",
+      prompt: "continue after reload",
+      userMessageItemId: "user-resume-existing",
       initialSize,
     });
 
     expect(mocks.bridge.resumeCraftAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionRef: "rollout-resume-1",
+        prompt: "continue after reload",
+        userMessageItemId: "user-resume-existing",
         projectLocation: localProject.location,
         craftPlan: expect.objectContaining({
           threadId: "local-thread",
@@ -1365,6 +1496,60 @@ describe("performInitialThreadLaunch host transport", () => {
       sessionRef: { providerSessionId: "native-grok-current" },
     });
   });
+
+  it.each([true, false])(
+    "recovers the initial Segment without handoff provenance (full plan: %s)",
+    async (hasPlan) => {
+      const crafted = new Crafter().compile(
+        { slots: { model: BUILTIN_MODEL_ITEMS[0], harness: "auto" } },
+        { threadId: "local-thread", workspace: "C:\\repo" },
+      );
+      const plan = crafted.craftPlan!;
+      const thread = {
+        ...localThread,
+        id: "local-thread",
+        presentationMode: "gui",
+        compositionProvenance: crafted.resultItem!.provenance,
+        sessionRef: {
+          providerSessionId: "original-native",
+          discoveredAt: "2026-09-19T00:00:00.000Z",
+        },
+      } as Thread;
+      mocks.appState.threads = [thread];
+      mocks.bridge.readSessionSwitchState.mockResolvedValue({
+        threadId: thread.id,
+        phase: "active",
+        targetBinding: plan.runtimeBinding,
+        ...(hasPlan ? { targetCraftPlan: plan } : {}),
+        activeSegment: {
+          id: "initial-segment",
+          craftPlanId: plan.id,
+          recipeId: plan.recipeId,
+          resultItemId: plan.resultItemId,
+          runtimeBinding: plan.runtimeBinding,
+          nativeSessionRef: "original-native",
+        },
+      });
+      mocks.bridge.resumeCraftAgent.mockResolvedValue({
+        threadId: thread.id,
+        entityId: "resumed-entity",
+        sessionId: "resumed-session",
+        response: "",
+      });
+      await performInitialThreadLaunch({
+        thread,
+        projectLocation: localProject.location,
+        prompt: "",
+        initialSize,
+      });
+      expect(mocks.bridge.resumeCraftAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionRef: "original-native",
+          craftPlan: expect.objectContaining({ id: plan.id, recipeId: plan.recipeId }),
+        }),
+      );
+    },
+  );
 
   it("resumes a channel-model thread with its channel account and persists the binding", async () => {
     mocks.sharedSettings.customModels = [

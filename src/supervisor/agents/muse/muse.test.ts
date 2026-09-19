@@ -98,8 +98,12 @@ describe("openOrStartMuseSession", () => {
   const startOptions = { workspaceRoot: "/tmp", modelId: "muse-spark-1.2" };
 
   it("starts fresh when no resume id is provided", async () => {
-    const startSession = vi.fn(async () => ({ sessionId: "new" }));
-    const resumeSession = vi.fn(async () => ({ sessionId: "old" }));
+    const startSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => ({
+      sessionId: "new",
+    }));
+    const resumeSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => ({
+      sessionId: "old",
+    }));
     const session = await openOrStartMuseSession(
       { startSession, resumeSession } as never,
       undefined,
@@ -110,8 +114,12 @@ describe("openOrStartMuseSession", () => {
   });
 
   it("resumes a live Muse session id", async () => {
-    const startSession = vi.fn(async () => ({ sessionId: "new" }));
-    const resumeSession = vi.fn(async () => ({ sessionId: "live" }));
+    const startSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => ({
+      sessionId: "new",
+    }));
+    const resumeSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => ({
+      sessionId: "live",
+    }));
     const session = await openOrStartMuseSession(
       { startSession, resumeSession } as never,
       "966713f1-794f-480e-aa37-713e8387fe8e",
@@ -122,8 +130,10 @@ describe("openOrStartMuseSession", () => {
   });
 
   it("starts fresh when resume reports the session was not found", async () => {
-    const startSession = vi.fn(async () => ({ sessionId: "fresh" }));
-    const resumeSession = vi.fn(async () => {
+    const startSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => ({
+      sessionId: "fresh",
+    }));
+    const resumeSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => {
       throw new Error("session 01a09f71-b49e-7a60-8bc5-18e09bb89718 was not found");
     });
     const session = await openOrStartMuseSession(
@@ -136,8 +146,10 @@ describe("openOrStartMuseSession", () => {
   });
 
   it("rethrows non-missing resume failures", async () => {
-    const startSession = vi.fn(async () => ({ sessionId: "fresh" }));
-    const resumeSession = vi.fn(async () => {
+    const startSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => ({
+      sessionId: "fresh",
+    }));
+    const resumeSession = vi.fn<() => Promise<{ sessionId: string }>>(async () => {
       throw new Error("unauthorized");
     });
     await expect(

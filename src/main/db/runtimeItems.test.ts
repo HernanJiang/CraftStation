@@ -1,6 +1,8 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createRequire } from "node:module";
+import { Worker } from "node:worker_threads";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Thread } from "@/shared/contracts";
@@ -75,6 +77,112 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
     closeDatabase();
     rmSync(dir, { recursive: true, force: true });
     delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
+  });
+
+  it("preserves streamed content while a second connection commits a runtime write", async () => {
+    // The Supervisor owns another WAL connection. A deferred read transaction
+    // cannot upgrade its snapshot after that writer commits; busy_timeout does
+    // not repair SQLITE_BUSY_SNAPSHOT. Keep the competing writer off this thread.
+    const worker = new Worker(
+      `const {parentPort, workerData} = require('node:worker_threads');
+       const Database = require(workerData.modulePath);
+       const db = new Database(workerData.path, workerData.options);
+       db.exec('BEGIN IMMEDIATE');
+       db.prepare('UPDATE threads SET title = ? WHERE id = ?').run('peer committed', 'thread-1');
+       parentPort.postMessage('locked');
+       setTimeout(() => { db.exec('COMMIT'); db.close(); }, 200);`,
+      {
+        eval: true,
+        workerData: {
+          modulePath: createRequire(import.meta.url).resolve("better-sqlite3"),
+          path: join(dir, "state.sqlite"),
+          options: nativeBindingEnv ? { nativeBinding: nativeBindingEnv } : undefined,
+        },
+      },
+    );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        worker.once("message", () => resolve());
+        worker.once("error", reject);
+      });
+      dbApplyThreadRuntimeEvents("thread-1", [
+        {
+          type: "item.started",
+          threadId: "thread-1",
+          itemId: "concurrent",
+          itemType: "assistant_message",
+        },
+        {
+          type: "content.delta",
+          threadId: "thread-1",
+          itemId: "concurrent",
+          stream: "assistant_text",
+          delta: "complete answer",
+        },
+        { type: "item.completed", threadId: "thread-1", itemId: "concurrent" },
+      ]);
+      expect(dbGetThreadRuntimeItems("thread-1")).toEqual([
+        expect.objectContaining({
+          id: "concurrent",
+          state: "completed",
+          streams: { assistant_text: "complete answer" },
+        }),
+      ]);
+      expect(getSqlite().prepare("SELECT title FROM threads WHERE id = ?").get("thread-1")).toEqual(
+        { title: "peer committed" },
+      );
+    } finally {
+      await worker.terminate();
+    }
+  });
+
+  it("keeps rollback and connection reopen isolated with reused statements", () => {
+    dbApplyThreadRuntimeEvents("thread-1", [
+      {
+        type: "item.started",
+        threadId: "thread-1",
+        itemId: "persisted",
+        itemType: "assistant_message",
+      },
+    ]);
+    expect(() =>
+      getSqlite().transaction(() => {
+        dbApplyThreadRuntimeEvents("thread-1", [
+          {
+            type: "content.delta",
+            threadId: "thread-1",
+            itemId: "persisted",
+            stream: "assistant_text",
+            delta: "rollback",
+          },
+        ]);
+        throw new Error("abort fixture transaction");
+      })(),
+    ).toThrow("abort fixture");
+    expect(dbGetThreadRuntimeItems("thread-1")[0]?.streams).toEqual({});
+    closeDatabase();
+    initDatabase(join(dir, "state.sqlite"));
+    dbApplyThreadRuntimeEvents("thread-1", [
+      {
+        type: "content.delta",
+        threadId: "thread-1",
+        itemId: "persisted",
+        stream: "assistant_text",
+        delta: "after reopen",
+      },
+    ]);
+    expect(dbGetThreadRuntimeItems("thread-1")[0]?.streams.assistant_text).toBe("after reopen");
+    dbReplaceThreadRuntimeItems("thread-1", []);
+    dbApplyThreadRuntimeEvents("thread-1", [
+      {
+        type: "content.delta",
+        threadId: "thread-1",
+        itemId: "persisted",
+        stream: "assistant_text",
+        delta: "must not resurrect",
+      },
+    ]);
+    expect(dbGetThreadRuntimeItems("thread-1")).toEqual([]);
   });
 
   it("applies streamed item and context updates without replacing the transcript", () => {

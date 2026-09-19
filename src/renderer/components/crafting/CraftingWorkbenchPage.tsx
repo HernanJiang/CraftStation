@@ -69,7 +69,6 @@ export function CraftingWorkbenchPage(props: {
   const clearCreativeDraft = useCraftingWorkbenchStore((state) => state.clearCreativeDraft);
   const attachResolution = useCraftingWorkbenchStore((state) => state.attachResolution);
   const saveRecipe = useCraftingWorkbenchStore((state) => state.saveRecipe);
-  const updateRecipeAlias = useCraftingWorkbenchStore((state) => state.updateRecipeAlias);
   const deleteRecipe = useCraftingWorkbenchStore((state) => state.deleteRecipe);
   const loadRecipeToDraft = useCraftingWorkbenchStore((state) => state.loadRecipeToDraft);
   const setInspector = useCraftingWorkbenchStore((state) => state.setInspector);
@@ -83,6 +82,7 @@ export function CraftingWorkbenchPage(props: {
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveDupCount, setSaveDupCount] = useState(0);
   const [saveSystemName, setSaveSystemName] = useState("");
+  const [pendingSave, setPendingSave] = useState<Parameters<typeof saveRecipe>[0]>();
   const [loadOpen, setLoadOpen] = useState(false);
   const [loadRecipeId, setLoadRecipeId] = useState<string | undefined>(undefined);
   const [nativeEntries, setNativeEntries] = useState<NativeHarnessControlPlaneEntry[]>([]);
@@ -309,7 +309,7 @@ export function CraftingWorkbenchPage(props: {
       selectedModel && selectedHarness
         ? `${selectedHarness.displayName} · ${selectedModel.displayName}`
         : "";
-    const { duplicateCount } = saveRecipe({
+    setPendingSave({
       modelEntryRef: efficientDraft.modelEntryRef ?? "",
       harnessRef: efficientDraft.harnessRef ?? "",
       modelName: selectedModel?.displayName ?? "Model",
@@ -325,7 +325,13 @@ export function CraftingWorkbenchPage(props: {
         ? { runtimeProfileRef: efficientDraft.runtimeProfileRef }
         : {}),
     });
-    setSaveDupCount(duplicateCount);
+    setSaveDupCount(
+      recipes.filter(
+        (recipe) =>
+          recipe.modelEntryRef === efficientDraft.modelEntryRef &&
+          recipe.harnessRef === efficientDraft.harnessRef,
+      ).length,
+    );
     setSaveSystemName(name);
     setSaveOpen(true);
   };
@@ -372,8 +378,13 @@ export function CraftingWorkbenchPage(props: {
   };
 
   const handleConfirmSave = (alias?: string) => {
-    const target = [...recipes].reverse().find((r) => r.systemName === saveSystemName);
-    if (target && alias) updateRecipeAlias(target.id, alias);
+    if (
+      !pendingSave ||
+      (pendingSave.resolution.status !== "NATIVE" && pendingSave.resolution.status !== "CRAFTABLE")
+    )
+      return;
+    saveRecipe({ ...pendingSave, ...(alias ? { alias } : {}) });
+    setPendingSave(undefined);
     setSaveOpen(false);
   };
 
@@ -609,9 +620,12 @@ export function CraftingWorkbenchPage(props: {
       <RecipeSaveDialog
         open={saveOpen}
         systemName={saveSystemName}
-        resolution={resolution ?? ({} as CapabilityResolution)}
+        resolution={pendingSave?.resolution ?? resolution ?? ({} as CapabilityResolution)}
         duplicateCount={saveDupCount}
-        onClose={() => setSaveOpen(false)}
+        onClose={() => {
+          setSaveOpen(false);
+          setPendingSave(undefined);
+        }}
         onSave={handleConfirmSave}
       />
       <RecipeLoadConfirmDialog

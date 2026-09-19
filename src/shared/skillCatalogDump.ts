@@ -42,10 +42,14 @@ export function classifySkillCatalogText(text: string): SkillCatalogTextKind {
   if (tokens.length === 0) return "header";
   if (tokens.some((token) => STOPWORD.test(token))) return "prose";
   if (!tokens.every((token) => SKILL_TOKEN.test(token))) return "prose";
-  if (tokens.length >= MIN_TOKENS) return "dump";
+  const fromHeader = Boolean(lines[0] && HEADER.test(lines[0]));
+  // 普通英文短语也可能恰有六个合法 token，不能据此吞掉用户输入或回复。
+  // 无标题的目录需呈现足够多的技能 ID 形态；保留已知 Grok 混合目录的识别。
+  const skillShapedCount = tokens.filter((token) => token.includes("-")).length;
+  if (tokens.length >= MIN_TOKENS && (fromHeader || skillShapedCount >= MIN_TOKENS / 2))
+    return "dump";
   // Short unhyphenated words ("Hello", "Looking") are ordinary prose.
   // Hold only a catalog header or kebab-case skill ids while they stream in.
-  const fromHeader = Boolean(lines[0] && HEADER.test(lines[0]));
   if (fromHeader || tokens.some((token) => token.includes("-"))) return "prefix";
   return "prose";
 }
@@ -96,16 +100,18 @@ export function isSkillCatalogUserContent(
   if (!content || content.length === 0) {
     return extraText ? isSkillCatalogDump(extraText) : false;
   }
-  if (
-    content.some(
-      (block) =>
-        block.kind !== "text" &&
-        block.kind !== "skill",
-    )
-  ) {
+  if (content.some((block) => block.kind !== "text" && block.kind !== "skill")) {
     return false;
   }
   const skillCount = content.filter((block) => block.kind === "skill").length;
+  const promptText = [
+    ...content.filter((block) => block.kind === "text").map((block) => block.text ?? ""),
+    extraText ?? "",
+  ]
+    .join(" ")
+    .trim();
+  // 显式 skill chips 本身已有结构身份，不依赖名称带连字符；真实文字仍优先保留。
+  if (skillCount >= MIN_TOKENS && !promptText) return true;
   const text = `${textFromContentBlocks(content)} ${extraText ?? ""}`;
   if (skillCount >= MIN_TOKENS && classifySkillCatalogText(text) !== "prose") return true;
   return isSkillCatalogDump(text);

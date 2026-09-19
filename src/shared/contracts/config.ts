@@ -39,6 +39,14 @@ export const threadConfigBaseSchema = z.object(threadConfigShape);
 export const threadConfigSchema = threadConfigBaseSchema;
 export type ThreadConfig = z.infer<typeof threadConfigSchema>;
 
+/** CLI 原生权限值；保留审批策略、审核者与 sandbox 三者的独立语义。 */
+export const permissionConfigSchema = threadConfigBaseSchema.pick({
+  approvalPolicy: true,
+  approvalsReviewer: true,
+  sandboxMode: true,
+});
+export type PermissionConfig = z.infer<typeof permissionConfigSchema>;
+
 export const providerDraftConfigSchema = threadConfigBaseSchema;
 export type ProviderDraftConfig = z.infer<typeof providerDraftConfigSchema>;
 

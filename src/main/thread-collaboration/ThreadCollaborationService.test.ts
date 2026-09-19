@@ -258,7 +258,7 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
       config: { model: "gpt-5.6" },
     });
     await expect(request({ idempotencyKey: "same-model" })).resolves.toMatchObject({
-      status: "queued",
+      status: "delivered",
     });
 
     // Identical Model×Harness tuple → fail closed with a stable error.
@@ -269,7 +269,7 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     await expect(request({ idempotencyKey: "identical" })).rejects.toMatchObject({
       code: "THREAD_COLLABORATION_SAME_COMPOSITION",
     });
-    expect(sendThreadInput).toHaveBeenCalledTimes(1);
+    expect(sendThreadInput).toHaveBeenCalledTimes(2);
   });
 
   it("allows identical Model×Harness pairs when they are provably distinct native threads", async () => {
@@ -301,9 +301,7 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     const delivered = await request({ idempotencyKey: "distinct-native" });
     expect(delivered.status).toBe("delivered");
     expect(delivered.targetProvenance).toMatchObject({ nativeSessionId: "codex-C2" });
-    expect(sendThreadInput).toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: "target" }),
-    );
+    expect(sendThreadInput).toHaveBeenCalledWith(expect.objectContaining({ threadId: "target" }));
   });
 
   it("resolves the composition policy from runtime provenance, not raw thread strings", async () => {
@@ -360,7 +358,7 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     expect(interruptThread).not.toHaveBeenCalled();
     expect(sendThreadInput.mock.calls[0]?.[0]).toMatchObject({
       threadId: "target",
-      prompt: expect.stringContaining("hello"),
+      prompt: expect.stringContaining("question"),
     });
   });
 
@@ -579,6 +577,28 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     expect(second).toBeNull();
   });
 
+  it("defers only the owning unaccepted claim and rejects stale releases", () => {
+    const repository = new ExchangeRepository();
+    const created = repository.create(repositoryInput()).exchange;
+    repository.markQueued(created.id);
+    const first = repository.claim(created.id)!;
+    expect(() => repository.deferDelivery(created.id, "wrong-token", "queued")).toThrow();
+    expect(repository.require(created.id).status).toBe("delivering");
+    expect(repository.deferDelivery(created.id, first.token, "queued")).toMatchObject({
+      status: "queued",
+      deliveredAt: null,
+    });
+    const second = repository.claim(created.id)!;
+    expect(() => repository.deferDelivery(created.id, first.token, "queued")).toThrow();
+    repository.markDelivered(created.id, second.token, {
+      baselineTurnIndex: 0,
+      requestAnchorItemId: created.requestItemId,
+      deliveredAt: "2026-09-01T00:00:00Z",
+    });
+    expect(() => repository.deferDelivery(created.id, second.token, "queued")).toThrow();
+    expect(repository.require(created.id).status).toBe("delivered");
+  });
+
   it("fails an expired delivery claim instead of retrying an uncertain send", () => {
     let now = new Date("2026-08-31T12:00:00.000Z");
     const repository = new ExchangeRepository(
@@ -592,5 +612,19 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     const [failed] = repository.failExpiredClaims();
     expect(failed?.status).toBe("failed");
     expect(failed?.error?.code).toBe("THREAD_COLLABORATION_DELIVERY_UNCERTAIN");
+  });
+
+  it("cannot defer an expired claim before the recovery sweep runs", () => {
+    let now = new Date("2026-09-19T10:00:00.000Z");
+    const repository = new ExchangeRepository(() => now);
+    const created = repository.create(repositoryInput()).exchange;
+    repository.markQueued(created.id);
+    const claim = repository.claim(created.id, 10)!;
+    now = new Date("2026-09-19T10:00:00.010Z");
+    expect(() => repository.deferDelivery(created.id, claim.token, "queued")).toThrow();
+    expect(repository.require(created.id).status).toBe("delivering");
+    expect(repository.failExpiredClaims()[0]?.error?.code).toBe(
+      "THREAD_COLLABORATION_DELIVERY_UNCERTAIN",
+    );
   });
 });

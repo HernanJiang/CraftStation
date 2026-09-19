@@ -410,199 +410,232 @@ function classifyRuntimeTimelineRow(
  * keeps the main process as the durability owner without rewriting a thread's
  * complete transcript for every streaming batch.
  */
+function createRuntimeEventStatements(sqlite: InstanceType<typeof Database>) {
+  return {
+    threadExists: sqlite.prepare("SELECT 1 FROM threads WHERE id = ?"),
+    getItem: sqlite.prepare(
+      "SELECT type, state, payload, streams FROM thread_runtime_items WHERE thread_id = ? AND item_id = ?",
+    ),
+    nextPosition: sqlite.prepare(
+      "SELECT COALESCE(MAX(position), -1) + 1 AS position FROM thread_runtime_items WHERE thread_id = ?",
+    ),
+    insertItem: sqlite.prepare(
+      `INSERT OR IGNORE INTO thread_runtime_items
+         (thread_id, item_id, position, type, state, payload, streams, parent_item_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ),
+    updateItem: sqlite.prepare(
+      `UPDATE thread_runtime_items
+       SET state = ?, payload = ?, streams = ?
+       WHERE thread_id = ? AND item_id = ?`,
+    ),
+    deleteItem: sqlite.prepare(
+      "DELETE FROM thread_runtime_items WHERE thread_id = ? AND item_id = ?",
+    ),
+    completeOpenRequests: sqlite.prepare(
+      `UPDATE thread_runtime_items SET state = 'completed'
+       WHERE thread_id = ? AND type = ? AND state != 'completed'`,
+    ),
+  };
+}
+
+// 缓存的是固定 SQL 编译结果，不缓存线程/聊天数据。连接关闭重开即换 key，
+// WeakMap 不保活旧连接；每批事务和返回前落盘的既有语义保持不变。
+const runtimeEventStatements = new WeakMap<
+  InstanceType<typeof Database>,
+  ReturnType<typeof createRuntimeEventStatements>
+>();
+
 export function dbApplyThreadRuntimeEvents(
   threadId: string,
   events: readonly RuntimeEvent[],
 ): void {
   if (events.length === 0) return;
   const sqlite = getSqlite();
-  sqlite.transaction(() => {
-    if (!threadExistsInSqlite(sqlite, threadId)) return;
+  let statements = runtimeEventStatements.get(sqlite);
+  if (!statements) {
+    statements = createRuntimeEventStatements(sqlite);
+    runtimeEventStatements.set(sqlite, statements);
+  }
+  const {
+    threadExists,
+    getItem,
+    nextPosition,
+    insertItem,
+    updateItem,
+    deleteItem,
+    completeOpenRequests,
+  } = statements;
+  sqlite
+    .transaction(() => {
+      if (!threadExists.get(threadId)) return;
 
-    const getItem = sqlite.prepare(
-      "SELECT type, state, payload, streams FROM thread_runtime_items WHERE thread_id = ? AND item_id = ?",
-    );
-    const nextPosition = sqlite.prepare(
-      "SELECT COALESCE(MAX(position), -1) + 1 AS position FROM thread_runtime_items WHERE thread_id = ?",
-    );
-    const insertItem = sqlite.prepare(
-      `INSERT OR IGNORE INTO thread_runtime_items
-         (thread_id, item_id, position, type, state, payload, streams, parent_item_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    const updateItem = sqlite.prepare(
-      `UPDATE thread_runtime_items
-       SET state = ?, payload = ?, streams = ?
-       WHERE thread_id = ? AND item_id = ?`,
-    );
-    const deleteItem = sqlite.prepare(
-      "DELETE FROM thread_runtime_items WHERE thread_id = ? AND item_id = ?",
-    );
-    const completeOpenRequests = sqlite.prepare(
-      `UPDATE thread_runtime_items SET state = 'completed'
-       WHERE thread_id = ? AND type = ? AND state != 'completed'`,
-    );
+      const readItem = (itemId: string) =>
+        getItem.get(threadId, itemId) as
+          | { type: string; state: string; payload: string | null; streams: string | null }
+          | undefined;
+      let nextItemPosition: number | undefined;
+      const appendItem = (item: PersistedRuntimeItem) => {
+        nextItemPosition ??= (nextPosition.get(threadId) as { position: number }).position;
+        insertItem.run(
+          threadId,
+          item.id,
+          nextItemPosition,
+          item.type,
+          item.state,
+          item.payload === undefined ? null : JSON.stringify(item.payload),
+          JSON.stringify(item.streams),
+          item.parentItemId ?? null,
+        );
+        nextItemPosition += 1;
+      };
 
-    const readItem = (itemId: string) =>
-      getItem.get(threadId, itemId) as
-        | { type: string; state: string; payload: string | null; streams: string | null }
-        | undefined;
-    let nextItemPosition: number | undefined;
-    const appendItem = (item: PersistedRuntimeItem) => {
-      nextItemPosition ??= (nextPosition.get(threadId) as { position: number }).position;
-      insertItem.run(
-        threadId,
-        item.id,
-        nextItemPosition,
-        item.type,
-        item.state,
-        item.payload === undefined ? null : JSON.stringify(item.payload),
-        JSON.stringify(item.streams),
-        item.parentItemId ?? null,
-      );
-      nextItemPosition += 1;
-    };
-
-    for (const event of events) {
-      switch (event.type) {
-        case "item.started":
-          appendItem({
-            id: event.itemId,
-            type: event.itemType,
-            state: "started",
-            streams: {},
-            ...(event.payload !== undefined ? { payload: event.payload } : {}),
-            ...(event.parentItemId ? { parentItemId: event.parentItemId } : {}),
-          });
-          break;
-
-        case "item.updated": {
-          const row = readItem(event.itemId);
-          if (!row) break;
-          updateItem.run(
-            row.state === "completed" ? "completed" : "updated",
-            JSON.stringify(
-              mergePayload(row.payload ? safeParse(row.payload) : undefined, event.payload),
-            ),
-            row.streams ?? "{}",
-            threadId,
-            event.itemId,
-          );
-          break;
-        }
-
-        case "item.completed": {
-          const row = readItem(event.itemId);
-          if (!row) break;
-          const streams = normalizeRuntimeStreams(row.streams ? safeParse(row.streams) : undefined);
-          if (row.type === "reasoning" && !(streams.reasoning_text ?? "").trim()) {
-            deleteItem.run(threadId, event.itemId);
-            break;
-          }
-          const previousPayload = row.payload ? safeParse(row.payload) : undefined;
-          const payload =
-            event.payload === undefined
-              ? previousPayload
-              : mergePayload(previousPayload, event.payload);
-          updateItem.run(
-            "completed",
-            payload === undefined ? null : JSON.stringify(payload),
-            row.streams ?? "{}",
-            threadId,
-            event.itemId,
-          );
-          break;
-        }
-
-        case "content.delta": {
-          const row = readItem(event.itemId);
-          if (!row) break;
-          const streams = row.streams ? (safeParse(row.streams) as Record<string, string>) : {};
-          streams[event.stream] = appendRuntimeStream(
-            streams[event.stream] ?? "",
-            event.delta,
-            event.stream,
-          );
-          updateItem.run(
-            row.state === "completed" ? "completed" : "updated",
-            row.payload,
-            JSON.stringify(streams),
-            threadId,
-            event.itemId,
-          );
-          break;
-        }
-
-        case "context.updated": {
-          const previous = dbGetThreadContextUsageFromSqlite(sqlite, threadId);
-          replaceThreadContextUsageInSqlite(
-            sqlite,
-            threadId,
-            mergeContextUsage(previous, event.usage),
-          );
-          break;
-        }
-
-        case "turn.completed":
-          if (event.state === "interrupted" || event.state === "cancelled") {
-            pruneTrailingInterruptedReasoningItems(sqlite, threadId);
-          }
-          // A finished turn no longer blocks on an approval/question. Retire any
-          // request items left open (e.g. an interrupted turn that never emitted
-          // `request.resolved`) so a later snapshot cannot resurrect a stale
-          // pending request.
-          completeOpenRequests.run(threadId, RUNTIME_REQUEST_ITEM_TYPE);
-          break;
-
-        case "usage.spent":
-          // Token consumption is not a chat item; the usage ledger persists it
-          // (recordUsageSpentFromRuntimeEvents) alongside this function.
-          break;
-
-        case "request.opened": {
-          // Persist the open request so a remote client that missed the live
-          // broadcast can recover it from the thread snapshot. The payload shape
-          // mirrors what `requestsFromRuntimeItems` reads back on recovery.
-          const itemId = runtimeRequestItemId(event.requestId);
-          const payload = {
-            requestId: event.requestId,
-            requestType: event.requestType,
-            payload: event.payload,
-          };
-          const row = readItem(itemId);
-          if (row) {
-            updateItem.run(
-              "started",
-              JSON.stringify(payload),
-              row.streams ?? "{}",
-              threadId,
-              itemId,
-            );
-          } else {
+      for (const event of events) {
+        switch (event.type) {
+          case "item.started":
             appendItem({
-              id: itemId,
-              type: RUNTIME_REQUEST_ITEM_TYPE,
+              id: event.itemId,
+              type: event.itemType,
               state: "started",
               streams: {},
-              payload,
+              ...(event.payload !== undefined ? { payload: event.payload } : {}),
+              ...(event.parentItemId ? { parentItemId: event.parentItemId } : {}),
             });
+            break;
+
+          case "item.updated": {
+            const row = readItem(event.itemId);
+            if (!row) break;
+            updateItem.run(
+              row.state === "completed" ? "completed" : "updated",
+              JSON.stringify(
+                mergePayload(row.payload ? safeParse(row.payload) : undefined, event.payload),
+              ),
+              row.streams ?? "{}",
+              threadId,
+              event.itemId,
+            );
+            break;
           }
-          break;
-        }
 
-        case "request.resolved": {
-          const itemId = runtimeRequestItemId(event.requestId);
-          const row = readItem(itemId);
-          if (!row) break;
-          updateItem.run("completed", row.payload, row.streams ?? "{}", threadId, itemId);
-          break;
-        }
+          case "item.completed": {
+            const row = readItem(event.itemId);
+            if (!row) break;
+            const streams = normalizeRuntimeStreams(
+              row.streams ? safeParse(row.streams) : undefined,
+            );
+            if (row.type === "reasoning" && !(streams.reasoning_text ?? "").trim()) {
+              deleteItem.run(threadId, event.itemId);
+              break;
+            }
+            const previousPayload = row.payload ? safeParse(row.payload) : undefined;
+            const payload =
+              event.payload === undefined
+                ? previousPayload
+                : mergePayload(previousPayload, event.payload);
+            updateItem.run(
+              "completed",
+              payload === undefined ? null : JSON.stringify(payload),
+              row.streams ?? "{}",
+              threadId,
+              event.itemId,
+            );
+            break;
+          }
 
-        default:
-          break;
+          case "content.delta": {
+            const row = readItem(event.itemId);
+            if (!row) break;
+            const streams = row.streams ? (safeParse(row.streams) as Record<string, string>) : {};
+            streams[event.stream] = appendRuntimeStream(
+              streams[event.stream] ?? "",
+              event.delta,
+              event.stream,
+            );
+            updateItem.run(
+              row.state === "completed" ? "completed" : "updated",
+              row.payload,
+              JSON.stringify(streams),
+              threadId,
+              event.itemId,
+            );
+            break;
+          }
+
+          case "context.updated": {
+            const previous = dbGetThreadContextUsageFromSqlite(sqlite, threadId);
+            replaceThreadContextUsageInSqlite(
+              sqlite,
+              threadId,
+              mergeContextUsage(previous, event.usage),
+            );
+            break;
+          }
+
+          case "turn.completed":
+            if (event.state === "interrupted" || event.state === "cancelled") {
+              pruneTrailingInterruptedReasoningItems(sqlite, threadId);
+            }
+            // A finished turn no longer blocks on an approval/question. Retire any
+            // request items left open (e.g. an interrupted turn that never emitted
+            // `request.resolved`) so a later snapshot cannot resurrect a stale
+            // pending request.
+            completeOpenRequests.run(threadId, RUNTIME_REQUEST_ITEM_TYPE);
+            break;
+
+          case "usage.spent":
+            // Token consumption is not a chat item; the usage ledger persists it
+            // (recordUsageSpentFromRuntimeEvents) alongside this function.
+            break;
+
+          case "request.opened": {
+            // Persist the open request so a remote client that missed the live
+            // broadcast can recover it from the thread snapshot. The payload shape
+            // mirrors what `requestsFromRuntimeItems` reads back on recovery.
+            const itemId = runtimeRequestItemId(event.requestId);
+            const payload = {
+              requestId: event.requestId,
+              requestType: event.requestType,
+              payload: event.payload,
+            };
+            const row = readItem(itemId);
+            if (row) {
+              updateItem.run(
+                "started",
+                JSON.stringify(payload),
+                row.streams ?? "{}",
+                threadId,
+                itemId,
+              );
+            } else {
+              appendItem({
+                id: itemId,
+                type: RUNTIME_REQUEST_ITEM_TYPE,
+                state: "started",
+                streams: {},
+                payload,
+              });
+            }
+            break;
+          }
+
+          case "request.resolved": {
+            const itemId = runtimeRequestItemId(event.requestId);
+            const row = readItem(itemId);
+            if (!row) break;
+            updateItem.run("completed", row.payload, row.streams ?? "{}", threadId, itemId);
+            break;
+          }
+
+          default:
+            break;
+        }
       }
-    }
-  })();
+      // Acquire the write reservation before reading item positions/snapshots.
+      // Another process (the runtime ledger) writes this WAL too: a deferred
+      // read-to-write upgrade can fail immediately despite busy_timeout.
+    })
+    .immediate();
 }
 
 export function dbReplaceThreadRuntimeItems(threadId: string, items: PersistedRuntimeItem[]): void {

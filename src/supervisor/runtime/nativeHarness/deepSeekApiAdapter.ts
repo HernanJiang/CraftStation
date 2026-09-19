@@ -1,3 +1,4 @@
+import { SessionEventHistory } from "../sessionEventHistory";
 import { randomUUID } from "node:crypto";
 import type {
   CraftPlan,
@@ -120,9 +121,7 @@ class DeepSeekApiCraftSession implements CraftSession {
   private _sequence = 0;
   private _response = "";
   private readonly _messages: JsonRecord[] = [];
-  private readonly _events: RuntimeEvent[] = [];
-  private readonly _nativeEvents: NativeEventEnvelope[] = [];
-  private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
+  private readonly history = new SessionEventHistory();
   private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
 
   constructor(
@@ -146,25 +145,22 @@ class DeepSeekApiCraftSession implements CraftSession {
   }
 
   getDiagnostics(): readonly NativeHarnessDiagnostic[] {
-    return [...this._diagnostics];
+    return this.history.readDiagnostics();
   }
 
   getSnapshot(): SessionSnapshot {
-    return {
+    return this.history.snapshot({
       sessionId: this.id,
       entityId: this.entityId,
       threadId: this.threadId,
       status: this._status,
       activeTurnId: this._activeTurnId,
       activeTurnStatus: this._activeTurnId ? "running" : undefined,
-      events: [...this._events],
-      nativeEvents: [...this._nativeEvents],
-      diagnostics: [...this._diagnostics],
       runtimeConfig: {
         model: this.options.plan.overrides?.model ?? this.options.plan.runtimeBinding.modelId,
         ...(this.options.plan.workspace ? { workspace: this.options.plan.workspace } : {}),
       },
-    };
+    });
   }
 
   subscribe(listener: (event: RuntimeEvent, snapshot: SessionSnapshot) => void): () => void {
@@ -177,14 +173,13 @@ class DeepSeekApiCraftSession implements CraftSession {
       ...event,
       nativeEnvelope: safeEnvelope(this.options.descriptor, nativeType, this._sequence++),
     } as RuntimeEvent;
-    this._events.push(next);
-    this._nativeEvents.push(next.nativeEnvelope!);
+    this.history.append(next);
     const snapshot = this.getSnapshot();
     for (const listener of this._listeners) listener(next, snapshot);
   }
 
   private diagnostic(code: NativeHarnessDiagnostic["code"], message: string): void {
-    this._diagnostics.push({
+    this.history.addDiagnostic({
       code,
       harnessKind: this.options.descriptor.harnessKind,
       phase: "turn",
@@ -387,7 +382,7 @@ class DeepSeekApiCraftSession implements CraftSession {
       throw CraftingError.executionFailed("A DeepSeek API turn is already active.");
     }
     const turnId = command.turnId ?? `turn:${randomUUID()}`;
-    const turnStart = this._events.length;
+    const turnStart = this.history.eventCount;
     const controller = new AbortController();
     this._activeTurnId = turnId;
     this._activeAbort = controller;
@@ -503,7 +498,7 @@ class DeepSeekApiCraftSession implements CraftSession {
       return {
         turnId,
         status: "completed",
-        events: this._events.slice(turnStart),
+        events: this.history.eventsSince(turnStart),
         response: this._response,
       };
     } catch (error) {
@@ -516,7 +511,7 @@ class DeepSeekApiCraftSession implements CraftSession {
           turnId,
           state: "interrupted",
         });
-        return { turnId, status: "interrupted", events: this._events.slice(turnStart) };
+        return { turnId, status: "interrupted", events: this.history.eventsSince(turnStart) };
       }
       this._status = "error";
       this.emit({ type: "error", threadId: this.threadId, message: errorMessage(error) });

@@ -42,9 +42,9 @@ export function resolveUnrestrictedPermissionConfig(
 }
 
 /**
- * Home is OS-level: every agent launches with that provider's strongest
- * advertised approval/sandbox posture so the native CLI is not confined to
- * the home folder. Repo workspaces are left unchanged.
+ * Legacy Home launches without any permission choice retain their OS-level
+ * posture. Explicit choices (including the app-wide default applied by the
+ * composer) must survive Home routing; repo workspaces are left unchanged.
  */
 export function applyHomeScopePermissions(
   location: ProjectLocation,
@@ -52,6 +52,7 @@ export function applyHomeScopePermissions(
   capabilities: UnrestrictedPermissionCapabilities,
 ): ThreadConfig {
   if (!isHomeScopeLocation(location)) return config;
+  if (config.approvalPolicy || config.sandboxMode) return config;
   const unrestricted = resolveUnrestrictedPermissionConfig(capabilities);
   if (!unrestricted.approvalPolicy && !unrestricted.sandboxMode) return config;
   return { ...config, ...unrestricted };

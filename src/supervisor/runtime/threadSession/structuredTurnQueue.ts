@@ -45,11 +45,16 @@ export interface StructuredTurnQueueContext {
 export class StructuredTurnQueue {
   constructor(private readonly ctx: StructuredTurnQueueContext) {}
 
-  start(session: SessionRuntime, turn: QueuedStructuredTurn): void {
+  start(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+    options?: { reusePaintedMessage: boolean },
+  ): void {
     if (!session.structuredSession?.startTurn) {
       return;
     }
     this.ctx.beginFailureEpisode(session);
+    const generation = this.beginTurn(session);
     // Optimistic user_message: paint the user's prompt in the chat pane
     // before the structured session's `prompt()` round-trip resolves so the
     // chat doesn't visually stall waiting on the agent. Only meaningful for
@@ -59,15 +64,17 @@ export class StructuredTurnQueue {
     // renderers need this broadcast to see the submitted user message.
     const turnId = turn.turnId ?? `turn-${randomUUID()}`;
     const optimisticItemId =
-      session.presentationMode === "gui" && turn.prompt.length > 0
-        ? this.emitOptimisticUserMessage(
-            session.threadId,
-            turn.prompt,
-            turn.segments,
-            turn.userMessageItemId,
-            turnId,
-          )
-        : undefined;
+      options?.reusePaintedMessage && turn.userMessageItemId
+        ? turn.userMessageItemId
+        : session.presentationMode === "gui" && turn.prompt.length > 0
+          ? this.emitOptimisticUserMessage(
+              session.threadId,
+              turn.prompt,
+              turn.segments,
+              turn.userMessageItemId,
+              turnId,
+            )
+          : undefined;
     // Failover/manual-switch context carry-over: prepend the stashed preface
     // to the SENT prompt only (the optimistic paint below stays the raw
     // prompt), then consume it so a later restart of this turn object cannot
@@ -79,10 +86,11 @@ export class StructuredTurnQueue {
     // Persistent fallback goal first (highest priority), then the failover
     // preface, then the raw prompt. Painted output always stays the raw
     // prompt (see the optimistic paint above).
-    const sendPrompt = [turn.goalContext, turn.historyPreface, turn.prompt]
+    const sendPrompt = [turn.goalContext, turn.retryContext, turn.historyPreface, turn.prompt]
       .filter((part): part is string => typeof part === "string" && part.length > 0)
       .join("\n\n");
     delete turn.historyPreface;
+    delete turn.retryContext;
     const startOptions = {
       ...(session.agentKind === "opencode" ? { turnId } : {}),
       ...(optimisticItemId ? { userMessageItemId: optimisticItemId } : {}),
@@ -100,14 +108,7 @@ export class StructuredTurnQueue {
       turn.segments,
       Object.keys(startOptions).length > 0 ? startOptions : undefined,
     );
-    void startTurn.catch(async (error) => {
-      if (this.ctx.sessions.get(session.threadId)?.instanceId !== session.instanceId) {
-        return;
-      }
-      if (await this.ctx.tryPoolFailover?.(session, replayTurn, error)) return;
-      if (await this.ctx.tryTurnRetry?.(session, replayTurn, error)) return;
-      this.ctx.failStructuredSession(session, error);
-    });
+    this.observeFailure(session, replayTurn, startTurn, generation);
   }
 
   /** Drain the launch-queued initial prompt once the agent's TUI is ready. */
@@ -116,6 +117,7 @@ export class StructuredTurnQueue {
       return;
     }
     this.ctx.beginFailureEpisode(session);
+    const generation = this.beginTurn(session);
     const prompt = session.pendingLaunchPrompt;
     session.pendingLaunchPrompt = undefined;
     // One-shot fallback goal for the launch turn (same paint/send split as
@@ -128,18 +130,56 @@ export class StructuredTurnQueue {
     const startTurn = options
       ? session.structuredSession.startTurn(sendPrompt, session.config, undefined, options)
       : session.structuredSession.startTurn(sendPrompt, session.config);
-    void startTurn.catch(async (error) => {
-      if (this.ctx.sessions.get(session.threadId)?.instanceId !== session.instanceId) {
-        return;
-      }
-      const replayTurn: QueuedStructuredTurn = {
+    this.observeFailure(
+      session,
+      {
         prompt,
         config: session.config,
+        ...(launchGoal ? { goalContext: launchGoal } : {}),
         ...(options ? { turnId: options.turnId } : {}),
-      };
-      if (await this.ctx.tryPoolFailover?.(session, replayTurn, error)) return;
-      if (await this.ctx.tryTurnRetry?.(session, replayTurn, error)) return;
-      this.ctx.failStructuredSession(session, error);
+      },
+      startTurn,
+      generation,
+    );
+  }
+
+  private beginTurn(session: SessionRuntime): number {
+    const generation = (session.structuredTurnGeneration ?? 0) + 1;
+    session.structuredTurnGeneration = generation;
+    return generation;
+  }
+
+  /** 两个入口共用失败处理；每个 await 后重新核验归属，旧回合不能覆盖 Stop 或新回合。 */
+  private observeFailure(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+    completion: Promise<void>,
+    generation: number,
+  ): void {
+    const isCurrent = () =>
+      this.ctx.sessions.get(session.threadId)?.instanceId === session.instanceId &&
+      session.structuredTurnGeneration === generation &&
+      !session.structuredTurnInterruptRequested;
+    void completion.catch(async (error) => {
+      if (!isCurrent()) return;
+      try {
+        if (await this.ctx.tryPoolFailover?.(session, turn, error)) return;
+        if (!isCurrent()) return;
+        if (await this.ctx.tryTurnRetry?.(session, turn, error)) return;
+      } catch {
+        // 恢复失败仍由下方保留原始故障；未知恢复异常不能直接写日志泄露 Prompt/凭据。
+        console.warn("[supervisor] structured turn recovery failed", {
+          phase: "runtime",
+          operation: "recover-structured-turn",
+          status: "failed",
+          code: "TURN_RECOVERY_FAILED",
+          threadId: session.threadId,
+          instanceId: session.instanceId,
+          turnId: turn.turnId,
+          nextStep: "Inspect the original turn failure and provider connection state.",
+        });
+      }
+      if (isCurrent()) this.ctx.failStructuredSession(session, error);
     });
   }
 

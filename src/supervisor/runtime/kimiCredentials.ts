@@ -135,14 +135,15 @@ async function readManagedKimiCredential(path: string): Promise<ManagedKimiCrede
     const content = await readFile(path, "utf8");
     const parsed = JSON.parse(content) as Record<string, unknown>;
     const rawToken = parsed["access_token"];
-    if (typeof rawToken !== "string" || !rawToken.trim()) return undefined;
     const rawRefresh = parsed["refresh_token"];
+    const accessToken = typeof rawToken === "string" ? rawToken.trim() : "";
+    const refreshToken = typeof rawRefresh === "string" ? rawRefresh.trim() : "";
+    if (!accessToken && !refreshToken) return undefined;
     return {
       path,
       home: path.slice(0, path.indexOf("credentials")),
-      accessToken: rawToken.trim(),
-      refreshToken:
-        typeof rawRefresh === "string" && rawRefresh.trim() ? rawRefresh.trim() : undefined,
+      accessToken,
+      refreshToken: refreshToken || undefined,
       expiresAt: expiryEpochMs(parsed["expires_at"] ?? parsed["expiresAt"]),
     };
   } catch {
@@ -216,7 +217,7 @@ export async function resolveKimiManagedHomeToken(home: string): Promise<OAuthTo
   const record = await readManagedKimiCredential(join(home, "credentials", "kimi-code.json"));
   if (!record) return undefined;
   const now = Date.now();
-  if (record.expiresAt !== undefined && record.expiresAt > now + 60_000) {
+  if (record.accessToken && record.expiresAt !== undefined && record.expiresAt > now + 60_000) {
     return {
       accessToken: record.accessToken,
       expiresAt: record.expiresAt,
@@ -234,7 +235,7 @@ export async function resolveKimiManagedHomeToken(home: string): Promise<OAuthTo
   }
   // Pasted API keys have no expiry and no refresh token. Reuse the bearer as-is
   // and skip CLI identity headers — those belong to OAuth tokens.
-  if (record.expiresAt === undefined && !record.refreshToken) {
+  if (record.accessToken && record.expiresAt === undefined && !record.refreshToken) {
     return { accessToken: record.accessToken };
   }
   return undefined;
@@ -276,7 +277,9 @@ export async function resolveKimiToken(): Promise<OAuthToken | undefined> {
     .map((entry) => ({ entry, expiresAt: entry.expiresAt }))
     .filter(
       (item): item is { entry: ManagedKimiCredential; expiresAt: number } =>
-        item.expiresAt !== undefined && item.expiresAt > now + 60_000,
+        Boolean(item.entry.accessToken) &&
+        item.expiresAt !== undefined &&
+        item.expiresAt > now + 60_000,
     )
     .sort((a, b) => b.expiresAt - a.expiresAt);
   const fresh = freshEntries[0];

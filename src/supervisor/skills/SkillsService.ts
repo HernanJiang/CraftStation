@@ -1173,6 +1173,7 @@ export class SkillsService {
     projectLocation?: ProjectLocation;
     segments: readonly PromptSegment[];
     nativePlugins?: readonly AgentNativePlugin[];
+    intent?: "invoked" | "available";
   }): Promise<string | undefined> {
     if (!input.segments.some((segment) => segment.kind === "skill")) return undefined;
     const adapter = this.adapters.get(input.agentKind);
@@ -1209,7 +1210,7 @@ export class SkillsService {
       }
     }
     if (sources.length === 0) return undefined;
-    const text = buildInlineSkillInstructions(sources);
+    const text = buildInlineSkillInstructions(sources, undefined, input.intent);
     return text.length > 0 ? text : undefined;
   }
 

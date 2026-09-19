@@ -4,6 +4,8 @@ import type { SessionSwitchState } from "@/shared/sessionHandoff";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useSessionHandoffStore } from "@/renderer/state/sessionHandoffStore";
 import {
+  cancelPendingThreadSubmission,
+  performThreadInputSubmit,
   clearThreadPendingSteer,
   resolveThreadServerRequest,
   setThreadPendingSteer,
@@ -128,6 +130,39 @@ describe("crafted active commands carry the runtime execution envelope", () => {
     );
   });
 
+  it("cancels a prompt stopped while its file checkpoint is still being saved", async () => {
+    const gui = thread({ presentationMode: "gui" });
+    useAppStore.setState({ threads: [gui], projects: [project()] });
+    let completeCheckpoint!: () => void;
+    const checkpoint = new Promise<void>((resolve) => {
+      completeCheckpoint = resolve;
+    });
+    const submitting = performThreadInputSubmit({
+      thread: gui,
+      prompt: "cancel before dispatch",
+      transport: bridge,
+      captureCheckpoint: () => checkpoint,
+    });
+    expect(useAppStore.getState().threads[0]?.status).toBe("working");
+    cancelPendingThreadSubmission(gui.id);
+    // The app projection calls a completed GUI transcript "finished".
+    expect(useAppStore.getState().threads[0]).toMatchObject({
+      status: "finished",
+      attention: "none",
+    });
+    completeCheckpoint();
+    await submitting;
+    expect(bridge.sendThreadInput).not.toHaveBeenCalled();
+    await performThreadInputSubmit({
+      thread: gui,
+      prompt: "next independent turn",
+      transport: bridge,
+    });
+    expect(bridge.sendThreadInput).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ prompt: "next independent turn" }),
+    );
+  });
+
   it("rehydrates a dropped envelope from the supervisor before sending", async () => {
     const state: SessionSwitchState = {
       requestId: "segment:segment:thread-1:1",
@@ -207,16 +242,14 @@ describe("crafted active commands carry the runtime execution envelope", () => {
 
   it("marks the displaced working turn cancelled when steering", async () => {
     useAppStore.setState({
-      threads: [
-        thread({ status: "working", activeTurnStartedAt: "2026-09-08T20:00:00.000Z" }),
-      ],
+      threads: [thread({ status: "working", activeTurnStartedAt: "2026-09-08T20:00:00.000Z" })],
       userCancelledTurnStartsByThread: {},
     });
     await setThreadPendingSteer(thread(), "steer!", undefined);
     expect(bridge.setPendingSteer).toHaveBeenCalledTimes(1);
-    expect(
-      useAppStore.getState().userCancelledTurnStartsByThread["thread-1"],
-    ).toEqual([Date.parse("2026-09-08T20:00:00.000Z")]);
+    expect(useAppStore.getState().userCancelledTurnStartsByThread["thread-1"]).toEqual([
+      Date.parse("2026-09-08T20:00:00.000Z"),
+    ]);
   });
 
   it("does not mark anything when steering an idle thread", async () => {
@@ -226,9 +259,7 @@ describe("crafted active commands carry the runtime execution envelope", () => {
     });
     await setThreadPendingSteer(thread(), "steer!", undefined);
     expect(bridge.setPendingSteer).toHaveBeenCalledTimes(1);
-    expect(
-      useAppStore.getState().userCancelledTurnStartsByThread["thread-1"] ?? [],
-    ).toEqual([]);
+    expect(useAppStore.getState().userCancelledTurnStartsByThread["thread-1"] ?? []).toEqual([]);
   });
 
   it("never invents an envelope when the binding is missing or queued", () => {

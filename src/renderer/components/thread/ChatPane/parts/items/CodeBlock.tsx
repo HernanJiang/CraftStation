@@ -7,6 +7,7 @@ import {
   type ShikiTheme,
 } from "./shikiClient";
 import type { HighlightLanguage } from "./languageDetect";
+import { CodeHighlightCache } from "./codeHighlightCache";
 
 interface CodeBlockProps {
   text: string;
@@ -17,23 +18,13 @@ interface CodeBlockProps {
 
 /**
  * Bounded LRU keyed on `theme::lang::text`. Same body is highlighted only
- * once per theme; eviction caps the working set so a long thread doesn't
- * pin megabytes of HTML.
+ * once per theme; both count and text bytes are bounded so large tool output
+ * cannot pin hundreds of megabytes. Evicted code still renders in full.
  */
-const cache = new Map<string, string>();
-const MAX_CACHE = 200;
+const cache = new CodeHighlightCache();
 
 function cacheKey(theme: ShikiTheme, lang: string, text: string): string {
   return `${theme}::${lang}::${text}`;
-}
-
-function setCache(key: string, html: string): void {
-  if (cache.has(key)) cache.delete(key);
-  if (cache.size >= MAX_CACHE) {
-    const oldest = cache.keys().next().value;
-    if (oldest !== undefined) cache.delete(oldest);
-  }
-  cache.set(key, html);
 }
 
 /**
@@ -56,19 +47,21 @@ export function CodeBlock({ text, lang, className }: CodeBlockProps) {
     }
     let cancelled = false;
     void (async () => {
-      const ok = await ensureLanguage(lang);
-      if (!ok) {
-        if (!cancelled) setHtml(null);
-        return;
-      }
-      const highlighter = await getShikiHighlighter();
       try {
+        const ok = await ensureLanguage(lang);
+        if (cancelled) return;
+        if (!ok) {
+          setHtml(null);
+          return;
+        }
+        const highlighter = await getShikiHighlighter();
+        if (cancelled) return;
         const out = highlighter.codeToHtml(text, {
           lang,
           theme,
           transformers: [transparentBgTransformer],
         });
-        setCache(key, out);
+        cache.set(key, out);
         if (!cancelled) setHtml(out);
       } catch {
         if (!cancelled) setHtml(null);

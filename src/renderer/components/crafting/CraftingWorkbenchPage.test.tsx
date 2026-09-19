@@ -11,6 +11,7 @@ const bridgeMock = vi.hoisted(() => ({
   getNativeHarnessControlPlane: vi.fn<() => Promise<NativeHarnessControlPlaneEntry[]>>(),
   refreshAgentStatuses: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   resolveCraftingCompatibility: vi.fn<() => Promise<unknown>>(),
+  ensureCompatibilityBridge: vi.fn<() => Promise<unknown>>(),
   onSupervisorEvent: vi.fn<(listener: (event: unknown) => void) => () => void>(
     () => () => undefined,
   ),
@@ -73,6 +74,50 @@ function resetStores() {
 }
 
 describe("CraftingWorkbenchPage", () => {
+  it("saves a compatible recipe only after confirmation, and cancellation keeps the list intact", async () => {
+    const resolution = {
+      resolutionKey: "bridge",
+      createdAt: new Date().toISOString(),
+      status: "CRAFTABLE",
+      source: "compatibility-layer",
+      modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
+      harnessRef: "harness:codex",
+      capabilities: [],
+      diagnostics: [],
+    };
+    bridgeMock.resolveCraftingCompatibility.mockResolvedValue(resolution);
+    bridgeMock.ensureCompatibilityBridge.mockResolvedValue({ status: "running" });
+    useCraftingWorkbenchStore.getState().setEfficientModel(resolution.modelEntryRef);
+    useCraftingWorkbenchStore.getState().setEfficientHarness(resolution.harnessRef);
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => {}}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("craft-button")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("craft-button"));
+    const save = await screen.findByTestId("confirm-save-recipe");
+    expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
+    expect(save).not.toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("例如：日常编码组合"), {
+      target: { value: "我的兼容配方" },
+    });
+    fireEvent.click(save);
+    expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(1);
+    expect(useCraftingWorkbenchStore.getState().recipes[0]).toMatchObject({
+      alias: "我的兼容配方",
+      compatibility: { uiStatus: "CRAFTABLE" },
+    });
+    fireEvent.click(screen.getByTestId("craft-button"));
+    await screen.findByTestId("confirm-save-recipe");
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(useCraftingWorkbenchStore.getState().recipes[0]?.alias).toBe("我的兼容配方");
+  });
+
   beforeEach(() => {
     resetStores();
     vi.clearAllMocks();

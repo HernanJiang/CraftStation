@@ -59,6 +59,34 @@ afterEach(() => {
 });
 
 describe("UsageService", () => {
+  it("does not resurrect a deleted login when an older quota request completes", async () => {
+    let complete!: (snapshot: UsageSnapshot) => void;
+    const service = new UsageService({
+      emit: () => {},
+      host: makeHost({}),
+      cachePath: tempCachePath(),
+      localCollectors: [
+        {
+          id: "antigravity",
+          collect: () =>
+            new Promise((resolve) => {
+              complete = resolve;
+            }),
+        },
+      ],
+    });
+    const pending = service.refreshProviderUsage({ providerIds: ["antigravity"] });
+    service.forgetProvider("antigravity");
+    complete({
+      providerId: "antigravity",
+      status: "ok",
+      windows: [],
+      authenticatedAs: "deleted@example.com",
+      fetchedAt: NOW,
+    });
+    expect((await pending).snapshots).toEqual([]);
+  });
+
   it("refresh defaults to Claude and Codex only, emits per-provider then a terminal event", async () => {
     const events: SupervisorEvent[] = [];
     const service = new UsageService({

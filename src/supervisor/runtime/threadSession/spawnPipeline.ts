@@ -367,6 +367,8 @@ export interface SpawnPipelineContext {
     error: unknown,
   ): Promise<boolean>;
   isCurrentSession(session: SessionRuntime): boolean;
+  /** 重建后继续走完整的回合恢复链，同时复用已经绘制的用户消息身份。 */
+  replayStructuredTurn(session: SessionRuntime, turn: QueuedStructuredTurn): void;
   resolveAgentSettings(adapter: AgentAdapter): Record<string, boolean | string>;
   emitOptimisticUserMessage(
     threadId: string,
@@ -938,6 +940,9 @@ export class SpawnPipeline {
 
   async restartThread(session: SessionRuntime, turn: QueuedStructuredTurn): Promise<void> {
     const ctx = this.ctx;
+    const generation = session.structuredTurnGeneration;
+    const ownsRestart = () =>
+      ctx.isCurrentSession(session) && session.structuredTurnGeneration === generation;
     const { prompt, config } = turn;
     if (!session.sessionRef) {
       throw new Error("Session cannot be restarted without a known session reference.");
@@ -956,11 +961,12 @@ export class SpawnPipeline {
     // session is replaced. `closeThread` already does this on full teardown.
     ctx.runtimeEventRouter.clearAllForThread(session.threadId);
     await session.structuredSession?.dispose();
+    if (!ownsRestart()) return;
     if (session.structuredSession) {
       await sleep(150);
     }
     ctx.ptyLifecycle.kill(session);
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       return;
     }
 
@@ -971,7 +977,7 @@ export class SpawnPipeline {
       await primeProjectShellEnv(session.projectLocation.path);
     }
     await this.ctx.options.prepareSkillsForLaunch?.(session.projectLocation, session.agentKind);
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       return;
     }
 
@@ -997,6 +1003,7 @@ export class SpawnPipeline {
       adapter: session.adapter,
       ...(session.presentationMode ? { presentationMode: session.presentationMode } : {}),
     });
+    if (!ownsRestart()) return;
     const { handle: structuredSession, poolAccount: restartPoolAccount } =
       await this.createStructuredSession(
         session.adapter,
@@ -1018,7 +1025,7 @@ export class SpawnPipeline {
         // landed (or failed to land) yet.
         turn.poolTriedAccountIds,
       );
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       await structuredSession?.dispose();
       return;
     }
@@ -1031,7 +1038,7 @@ export class SpawnPipeline {
         throw error;
       }
     }
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       await structuredSession?.dispose();
       return;
     }
@@ -1074,7 +1081,7 @@ export class SpawnPipeline {
         throw error;
       }
     }
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       await structuredSession?.dispose();
       return;
     }
@@ -1105,32 +1112,7 @@ export class SpawnPipeline {
         ...(session.presentationMode ? { presentationMode: session.presentationMode } : {}),
       });
       if (prompt.trim().length > 0 && structuredSession.startTurn) {
-        // Retry/recovery callers preserve the id of a user message that was
-        // already broadcast before the old session stopped. Reuse it without
-        // emitting another turn.started + item pair. A missing id means this
-        // path owns the first canonical paint and must emit it now.
-        const turnId = turn.turnId ?? `turn-${randomUUID()}`;
-        const optimisticItemId =
-          turn.userMessageItemId ??
-          ctx.emitOptimisticUserMessage(session.threadId, prompt, turn.segments, undefined, turnId);
-        const startOptions = {
-          ...(session.agentKind === "opencode" ? { turnId } : {}),
-          userMessageItemId: optimisticItemId,
-          ...(turn.inlineInstructions ? { inlineInstructions: turn.inlineInstructions } : {}),
-        };
-        // Failover context carry-over goes to the MODEL only: the painted
-        // user message above stays the raw prompt so the chat never shows
-        // system preface text as if the user typed it.
-        const sendPrompt = turn.historyPreface ? `${turn.historyPreface}\n\n${prompt}` : prompt;
-        void structuredSession
-          .startTurn(sendPrompt, launchConfig, turn.segments, startOptions)
-          .catch(async (error) => {
-            if (ctx.sessions.get(restarted.threadId)?.instanceId !== restarted.instanceId) {
-              return;
-            }
-            if (await ctx.tryPoolFailover?.(restarted, turn, error)) return;
-            ctx.failStructuredSession(restarted, error);
-          });
+        ctx.replayStructuredTurn(restarted, { ...turn, config: launchConfig });
       }
       return;
     }
@@ -1142,7 +1124,7 @@ export class SpawnPipeline {
       session.projectLocation,
       resolvedMcpServers,
     );
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       await structuredSession?.dispose();
       return;
     }
@@ -1199,7 +1181,7 @@ export class SpawnPipeline {
     if (shouldPrimeNativeProjectShellEnv(session.projectLocation)) {
       await primeProjectShellEnv(session.projectLocation.path);
     }
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       await structuredSession?.dispose();
       argv.cleanup?.();
       musePrepared.cleanup?.();
@@ -1220,7 +1202,7 @@ export class SpawnPipeline {
     if (structuredSession && !keepStructuredSession) {
       await structuredSession.dispose();
     }
-    if (!ctx.isCurrentSession(session)) {
+    if (!ownsRestart()) {
       if (structuredSession && keepStructuredSession) {
         await structuredSession.dispose();
       }

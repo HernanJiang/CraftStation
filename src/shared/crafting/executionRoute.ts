@@ -105,9 +105,39 @@ export interface ExecutionRouteResolutionInput {
 
 export interface ExecutionRouteDecision {
   routeType: ExecutionRouteType;
+  reasonCode: ExecutionRouteReasonCode;
   reason?: string | undefined;
   isNative: boolean;
   isCompatibility: boolean;
+}
+
+/** 供 UI/编译/执行共享的原因契约；人类可读文案可调整，调用方不再解析英文子串。 */
+export type ExecutionRouteReasonCode =
+  | "MISSING_INGREDIENT"
+  | "HARNESS_NOT_READY"
+  | "OPENCODE_NOT_READY"
+  | "THIRD_PARTY_UNSUPPORTED"
+  | "THIRD_PARTY_DIRECT"
+  | "OPENCODE_CATALOG"
+  | "OPENCODE_NATIVE_VENDOR"
+  | "OPENCODE_VENDOR_UNVERIFIED"
+  | "NATIVE_PAIRING"
+  | "BRIDGE_NOT_READY"
+  | "BRIDGE_HARNESS_UNSUPPORTED"
+  | "COMPATIBILITY_PAIRING";
+
+function decision(
+  routeType: ExecutionRouteType,
+  reasonCode: ExecutionRouteReasonCode,
+  reason: string,
+): ExecutionRouteDecision {
+  return {
+    routeType,
+    reasonCode,
+    reason,
+    isNative: routeType === "native",
+    isCompatibility: routeType === "compatibility",
+  };
 }
 
 export function resolveExecutionRoute(
@@ -117,49 +147,40 @@ export function resolveExecutionRoute(
     input;
 
   if (!modelEntry || !harnessRef) {
-    return {
-      routeType: "fail-closed",
-      reason: "Missing model entry or harness reference",
-      isNative: false,
-      isCompatibility: false,
-    };
+    return decision(
+      "fail-closed",
+      "MISSING_INGREDIENT",
+      "Missing model entry or harness reference",
+    );
   }
 
   if (!harnessReady) {
-    return {
-      routeType: "fail-closed",
-      reason: "Harness is not installed, authenticated, or runtime ready",
-      isNative: false,
-      isCompatibility: false,
-    };
+    return decision(
+      "fail-closed",
+      "HARNESS_NOT_READY",
+      "Harness is not installed, authenticated, or runtime ready",
+    );
   }
 
   if (harnessRef.harnessKind === "opencode" && openCodeRouteReady !== true) {
-    return {
-      routeType: "fail-closed",
-      reason: "OpenCode route is not ready",
-      isNative: false,
-      isCompatibility: false,
-    };
+    return decision("fail-closed", "OPENCODE_NOT_READY", "OpenCode route is not ready");
   }
 
   // Third-party OpenAI-compatible accounts inject BaseURL/key into the target
   // Harness. They never go through CLIProxyAPI (that path is for subscriptions).
   if (isThirdPartyAccountId(modelEntry.accountId)) {
     if (!harnessSupportsCustomBaseUrl(harnessRef.harnessKind)) {
-      return {
-        routeType: "fail-closed",
-        reason: `Harness '${harnessRef.harnessKind}' cannot consume a third-party OpenAI-compatible Base URL`,
-        isNative: false,
-        isCompatibility: false,
-      };
+      return decision(
+        "fail-closed",
+        "THIRD_PARTY_UNSUPPORTED",
+        `Harness '${harnessRef.harnessKind}' cannot consume a third-party OpenAI-compatible Base URL`,
+      );
     }
-    return {
-      routeType: "native",
-      reason: "Third-party OpenAI-compatible account launches directly on the selected Harness",
-      isNative: true,
-      isCompatibility: false,
-    };
+    return decision(
+      "native",
+      "THIRD_PARTY_DIRECT",
+      "Third-party OpenAI-compatible account launches directly on the selected Harness",
+    );
   }
 
   // OpenCode is a universal native Harness for allowlisted vendors. Catalog
@@ -170,29 +191,26 @@ export function resolveExecutionRoute(
   if (harnessRef.harnessKind === "opencode") {
     const kind = sourceKind(modelEntry);
     if (kind === "opencode" || kind.startsWith("opencode")) {
-      return {
-        routeType: "native",
-        reason: "OpenCode catalog model runs on the official OpenCode runtime",
-        isNative: true,
-        isCompatibility: false,
-      };
+      return decision(
+        "native",
+        "OPENCODE_CATALOG",
+        "OpenCode catalog model runs on the official OpenCode runtime",
+      );
     }
     const modelVendor = openCodeNativeVendorFor(modelEntry);
     if (modelVendor) {
-      return {
-        routeType: "native",
-        reason: `OpenCode universal router serves '${modelVendor}' models through the official OpenCode runtime`,
-        isNative: true,
-        isCompatibility: false,
-      };
+      return decision(
+        "native",
+        "OPENCODE_NATIVE_VENDOR",
+        `OpenCode universal router serves '${modelVendor}' models through the official OpenCode runtime`,
+      );
     }
     if (!SUBSCRIPTION_HARNESS_KINDS.has(kind)) {
-      return {
-        routeType: "fail-closed",
-        reason: `Model vendor '${canonicalModelVendor(modelEntry.providerKind) || modelEntry.providerKind}' has no verified OpenCode native route`,
-        isNative: false,
-        isCompatibility: false,
-      };
+      return decision(
+        "fail-closed",
+        "OPENCODE_VENDOR_UNVERIFIED",
+        `Model vendor '${canonicalModelVendor(modelEntry.providerKind) || modelEntry.providerKind}' has no verified OpenCode native route`,
+      );
     }
   }
 
@@ -202,38 +220,34 @@ export function resolveExecutionRoute(
   const isNativePairing = isSameModelVendor(modelEntry.providerKind, harnessRef.vendor);
 
   if (isNativePairing) {
-    return {
-      routeType: "native",
-      reason: "Native model and harness pairing directly routes to official runtime",
-      isNative: true,
-      isCompatibility: false,
-    };
+    return decision(
+      "native",
+      "NATIVE_PAIRING",
+      "Native model and harness pairing directly routes to official runtime",
+    );
   }
 
   // Compatibility is an opt-in, verified runtime capability. An omitted
   // readiness value is unknown and must fail closed.
   if (compatibilityBridgeReady !== true) {
-    return {
-      routeType: "fail-closed",
-      reason: "Compatibility bridge is unavailable or not ready",
-      isNative: false,
-      isCompatibility: false,
-    };
+    return decision(
+      "fail-closed",
+      "BRIDGE_NOT_READY",
+      "Compatibility bridge is unavailable or not ready",
+    );
   }
 
   if (!SUPPORTED_COMPATIBILITY_HARNESSES.includes(harnessRef.harnessKind as any)) {
-    return {
-      routeType: "fail-closed",
-      reason: `Target harness ${harnessRef.harnessKind} does not support Compatibility Bridge projection`,
-      isNative: false,
-      isCompatibility: false,
-    };
+    return decision(
+      "fail-closed",
+      "BRIDGE_HARNESS_UNSUPPORTED",
+      `Target harness ${harnessRef.harnessKind} does not support Compatibility Bridge projection`,
+    );
   }
 
-  return {
-    routeType: "compatibility",
-    reason: "Cross model and harness pairing routed through CLIProxyAPI Compatibility Bridge",
-    isNative: false,
-    isCompatibility: true,
-  };
+  return decision(
+    "compatibility",
+    "COMPATIBILITY_PAIRING",
+    "Cross model and harness pairing routed through CLIProxyAPI Compatibility Bridge",
+  );
 }

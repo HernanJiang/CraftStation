@@ -30,6 +30,15 @@ export function parseOpenCodeModelSlug(
   if (!modelSlug?.trim()) return undefined;
   const normalized = normalizeThirdPartyModelId(modelSlug);
   if (!normalized) return undefined;
+  if (thirdPartyProvider) {
+    // An account-bound endpoint owns the provider. A slash inside a foreign
+    // model id (e.g. vendor/model) must not escape to ambient vendor auth.
+    const prefix = `${thirdPartyProvider}/`;
+    return {
+      providerID: thirdPartyProvider,
+      modelID: normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalized,
+    };
+  }
   const slash = normalized.indexOf("/");
   if (slash > 0 && slash < normalized.length - 1) {
     const providerID = normalized.slice(0, slash);
@@ -38,9 +47,6 @@ export function parseOpenCodeModelSlug(
       return undefined;
     }
     return { providerID, modelID };
-  }
-  if (thirdPartyProvider) {
-    return { providerID: thirdPartyProvider, modelID: normalized };
   }
   const family = resolveCompatibilityFamily(normalized);
   const providerID = FAMILY_PROVIDER[family];

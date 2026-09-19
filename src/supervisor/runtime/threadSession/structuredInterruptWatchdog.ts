@@ -26,7 +26,20 @@ export class StructuredInterruptWatchdog {
     if (session.presentationMode !== "gui") {
       return;
     }
-    if (!session.structuredSession?.interruptTurn) {
+    // 即使 provider 已结束失败回合、没有可中断的 handle，Stop 也取消等待中的重试。
+    session.structuredTurnGeneration = (session.structuredTurnGeneration ?? 0) + 1;
+    if (session.ignoreExit) {
+      // 重建已接管旧 handle 的关闭；Stop 应立即结束逻辑回合，不能等待已失效的
+      // provider 再确认中断。重建链会根据 generation 丢弃它随后拿到的新资源。
+      this.clearStructuredInterruptWatchdog(session);
+      session.structuredTurnInterruptRequested = false;
+      session.structuredSession = undefined;
+      this.ctx.completeForcedInterrupt(session);
+      return;
+    }
+    const handle = session.structuredSession;
+    const interruptTurn = handle?.interruptTurn;
+    if (!interruptTurn) {
       return;
     }
     // A previous request may have left the flag set (the acked-cancel path
@@ -35,12 +48,25 @@ export class StructuredInterruptWatchdog {
     // bricks the thread in "working" with a dead stop button.
     session.structuredTurnInterruptRequested = true;
     this.armStructuredInterruptWatchdog(session);
+    const generation = session.structuredTurnGeneration;
     try {
-      await session.structuredSession.interruptTurn();
+      await interruptTurn.call(handle);
     } catch (error) {
+      // 旧 Stop 的迟到回执不能清理新回合、替换后的实例或它的 watchdog。
+      if (
+        this.ctx.sessions.get(session.threadId)?.instanceId !== session.instanceId ||
+        session.structuredTurnGeneration !== generation ||
+        session.structuredSession !== handle
+      )
+        return;
+      if (isNoActiveTurnToInterrupt(error)) {
+        this.clearStructuredInterruptWatchdog(session);
+        session.structuredTurnInterruptRequested = false;
+        this.ctx.completeForcedInterrupt(session);
+        return;
+      }
       session.structuredTurnInterruptRequested = false;
       this.clearStructuredInterruptWatchdog(session);
-      if (isNoActiveTurnToInterrupt(error)) return;
       throw error;
     }
   }

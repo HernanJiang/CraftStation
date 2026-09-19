@@ -25,10 +25,7 @@ import {
   type RuntimeProvenanceResolver,
   type ThreadContextProjection,
 } from "./provenance";
-import {
-  THREAD_CONTROL_SETTLED_STATUSES,
-  ThreadControlAdapter,
-} from "./ThreadControlAdapter";
+import { THREAD_CONTROL_SETTLED_STATUSES, ThreadControlAdapter } from "./ThreadControlAdapter";
 
 const ATTENTION_STATUSES: ReadonlySet<ThreadStatus> = new Set(["needs_approval", "needs_reply"]);
 const TERMINAL_EXCHANGE_STATUSES = new Set(["replied", "failed", "cancelled"]);
@@ -257,7 +254,8 @@ export class ThreadCollaborationService {
       });
   }
 
-  async recover(): Promise<void> {    for (const exchange of this.repository.failExpiredClaims()) this.publish(exchange);
+  async recover(): Promise<void> {
+    for (const exchange of this.repository.failExpiredClaims()) this.publish(exchange);
     for (let exchange of this.repository.listRecoverable()) {
       if (exchange.status === "created") {
         exchange = this.repository.markQueued(exchange.id);
@@ -382,6 +380,21 @@ export class ThreadCollaborationService {
       this.publish(delivered);
       return delivered;
     } catch (error) {
+      // 只接受明确的“未接纳”协议码；网络/配额/鉴权与未知异常不自动重投。
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+      if (
+        code === "THREAD_TARGET_BUSY" ||
+        code === "agent_busy" ||
+        code === "THREAD_TARGET_NEEDS_ATTENTION"
+      ) {
+        const deferred = this.repository.deferDelivery(
+          exchange.id,
+          claim.token,
+          code === "THREAD_TARGET_NEEDS_ATTENTION" ? "needs_attention" : "queued",
+        );
+        this.publish(deferred);
+        return deferred;
+      }
       return this.fail(exchange.id, error, "THREAD_COLLABORATION_DELIVERY_FAILED");
     }
   }
@@ -498,9 +511,7 @@ export class ThreadCollaborationService {
 
 function buildTargetEnvelope(exchange: ThreadExchange): string {
   const from = exchange.sourceProvenance.title.trim() || exchange.sourceThreadId;
-  const context = exchange.contextCapsule?.text
-    ? `\n\n${exchange.contextCapsule.text}`
-    : "";
+  const context = exchange.contextCapsule?.text ? `\n\n${exchange.contextCapsule.text}` : "";
   return `来自「${from}」的任务：\n${exchange.request}${context}`;
 }
 

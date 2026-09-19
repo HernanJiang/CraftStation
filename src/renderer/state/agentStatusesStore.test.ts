@@ -47,7 +47,7 @@ beforeEach(reset);
 describe("persisted agent status cache", () => {
   it("invalidates v10 statuses whose terminal auth methods lack baseSpawnEnv-derived env", async () => {
     const options = useAgentStatusesStore.persist.getOptions();
-    expect(options.version).toBe(13);
+    expect(options.version).toBe(14);
     // Mirrors supervisor STATUS_CACHE_VERSION=16: a persisted antigravity
     // status from before the derivation would build the `agy` login command
     // without `AGY_CLI_DISABLE_AUTO_UPDATE`.
@@ -77,7 +77,7 @@ describe("persisted agent status cache", () => {
 
   it("invalidates v8 statuses cached before successful ACP sessions established auth", async () => {
     const options = useAgentStatusesStore.persist.getOptions();
-    expect(options.version).toBe(13);
+    expect(options.version).toBe(14);
     const staleAcp = makeStatus({
       kind: "acp-generic:example",
       label: "Example ACP",
@@ -104,7 +104,7 @@ describe("persisted agent status cache", () => {
 
   it("invalidates v6 statuses produced without the Grok login-shell environment", async () => {
     const options = useAgentStatusesStore.persist.getOptions();
-    expect(options.version).toBe(13);
+    expect(options.version).toBe(14);
     expect(options.migrate).toBeTypeOf("function");
 
     const grok = makeStatus({

@@ -139,6 +139,24 @@ describe("createAutoUpdaterController", () => {
     expect(sendStatus).not.toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
   });
 
+  it("keeps unsupported development auto-checks silent while preserving manual feedback", async () => {
+    vi.stubEnv("UPDATE_SERVER_URL", undefined);
+    try {
+      const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+      const controller = createAutoUpdaterController(sendStatus, "stable", true, vi.fn());
+      await controller.checkForUpdate({ automatic: true });
+      expect(sendStatus).not.toHaveBeenCalled();
+      expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled();
+      await controller.checkForUpdate({});
+      expect(sendStatus).toHaveBeenCalledExactlyOnceWith({
+        type: "error",
+        messageKey: "update.devUnavailable",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("keeps a missing stable manifest observable with normalized tags", async () => {
     const reportError = vi.fn<(error: unknown, tags?: Record<string, string>) => void>();
     const controller = createAutoUpdaterController(vi.fn(), "stable", false, reportError);

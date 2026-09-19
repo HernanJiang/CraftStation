@@ -1,3 +1,4 @@
+import { SessionEventHistory } from "../sessionEventHistory";
 import { randomUUID } from "node:crypto";
 import { spawn as spawnPty, type IPty } from "node-pty";
 import type {
@@ -6,7 +7,6 @@ import type {
   CraftSessionStatus,
   Entity,
   HarnessRuntimeAdapter,
-  NativeEventEnvelope,
   NativeHarnessDescriptor,
   NativeHarnessDiagnostic,
   SessionSnapshot,
@@ -30,6 +30,7 @@ function configForPlan(plan: CraftPlan): ThreadConfig {
     model: plan.overrides?.model ?? plan.runtimeBinding.modelId,
     ...(plan.overrides?.reasoningEffort ? { effort: plan.overrides.reasoningEffort } : {}),
     ...(plan.overrides?.approvalPolicy ? { approvalPolicy: plan.overrides.approvalPolicy } : {}),
+    ...plan.overrides?.permissionConfig,
   };
 }
 
@@ -115,9 +116,7 @@ class PtyNativeCraftSession implements CraftSession {
   private _turn: PtyTurn | undefined;
   private _disposed = false;
   private _sequence = 0;
-  private readonly _events: RuntimeEvent[] = [];
-  private readonly _nativeEvents: NativeEventEnvelope[] = [];
-  private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
+  private readonly history = new SessionEventHistory();
   private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
   private readonly _dataDisposable: { dispose(): void };
   private readonly _exitDisposable: { dispose(): void };
@@ -151,21 +150,18 @@ class PtyNativeCraftSession implements CraftSession {
   }
 
   getDiagnostics(): readonly NativeHarnessDiagnostic[] {
-    return [...this._diagnostics];
+    return this.history.readDiagnostics();
   }
 
   getSnapshot(): SessionSnapshot {
-    return {
+    return this.history.snapshot({
       sessionId: this.id,
       entityId: this.entityId,
       threadId: this.threadId,
       status: this._status,
       activeTurnId: this._turn?.turnId,
       activeTurnStatus: this._turn ? "running" : undefined,
-      events: [...this._events],
       nativeSessionRef: this._providerSessionId,
-      nativeEvents: [...this._nativeEvents],
-      diagnostics: [...this._diagnostics],
       effectiveOverrides: {
         ...(this.config.model ? { model: this.config.model } : {}),
         ...(this.config.effort
@@ -181,7 +177,7 @@ class PtyNativeCraftSession implements CraftSession {
             }
           : {}),
       },
-    };
+    });
   }
 
   subscribe(listener: (event: RuntimeEvent, snapshot: SessionSnapshot) => void): () => void {
@@ -191,8 +187,7 @@ class PtyNativeCraftSession implements CraftSession {
 
   private emit(event: RuntimeEvent): void {
     const next = withEnvelope(event, this.descriptor, this._providerSessionId, this._sequence++);
-    this._events.push(next);
-    if (next.nativeEnvelope) this._nativeEvents.push(next.nativeEnvelope);
+    this.history.append(next);
     const snapshot = this.getSnapshot();
     for (const listener of this._listeners) {
       try {
@@ -249,7 +244,7 @@ class PtyNativeCraftSession implements CraftSession {
       this.finishTurn(error ? "failed" : "completed", error);
     }
     if (error) {
-      this._diagnostics.push(
+      this.history.addDiagnostic(
         makeDiagnostic(this.descriptor, "turn", "native-process-exit", error, { exitCode, signal }),
       );
       this._status = "error";
@@ -286,7 +281,7 @@ class PtyNativeCraftSession implements CraftSession {
     const result: TurnResult = {
       turnId: turn.turnId,
       status,
-      events: this._events.slice(turn.eventsStart),
+      events: this.history.eventsSince(turn.eventsStart),
       ...(turn.response ? { response: turn.response } : {}),
       ...(error ? { error: error.message } : {}),
     };
@@ -304,7 +299,7 @@ class PtyNativeCraftSession implements CraftSession {
       });
     }
     const turnId = command.turnId ?? `turn:${randomUUID()}`;
-    const eventsStart = this._events.length;
+    const eventsStart = this.history.eventCount;
     this._turn = {
       turnId,
       response: "",
@@ -344,7 +339,7 @@ class PtyNativeCraftSession implements CraftSession {
     command.signal?.addEventListener("abort", onAbort, { once: true });
     if (this.turnTimeoutMs > 0) {
       activeTurn.settleTimer = setTimeout(() => {
-        this._diagnostics.push(
+        this.history.addDiagnostic(
           makeDiagnostic(
             this.descriptor,
             "turn",
@@ -385,7 +380,7 @@ class PtyNativeCraftSession implements CraftSession {
     try {
       this.pty.kill();
     } catch (error) {
-      this._diagnostics.push(makeDiagnostic(this.descriptor, "dispose", "pty-kill", error));
+      this.history.addDiagnostic(makeDiagnostic(this.descriptor, "dispose", "pty-kill", error));
     }
     this._status = "terminated";
     this._listeners.clear();

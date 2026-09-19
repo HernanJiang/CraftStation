@@ -74,6 +74,7 @@ export class TurnRetryCoordinator {
     const policy = this.ctx.readPolicy();
     if (policy.maxAttempts <= 0) return false;
     if (session.structuredTurnInterruptRequested === true) return false;
+    const generation = session.structuredTurnGeneration;
     const message = error instanceof Error ? error.message : String(error ?? "");
     if (isRetryableCapacityError(message)) return false;
     if (isExpectedStructuredFailure(error)) return false;
@@ -96,7 +97,13 @@ export class TurnRetryCoordinator {
       reason,
     });
     await this.ctx.sleep(policy.intervalMs);
-    if (this.ctx.isDisposed() || !this.ctx.isCurrentSession(session)) return false;
+    if (
+      this.ctx.isDisposed() ||
+      !this.ctx.isCurrentSession(session) ||
+      Boolean(session.structuredTurnInterruptRequested) ||
+      session.structuredTurnGeneration !== generation
+    )
+      return false;
     try {
       if (failureClass === "transport") {
         // Dead connection/process: re-sending on the same handle would fail
@@ -104,12 +111,8 @@ export class TurnRetryCoordinator {
         // preface for the fresh-session case.
         this.ctx.attachHistoryPreface(session, turn);
       }
-      // Continuation note rides the historyPreface channel: prepended to the
-      // SENT prompt only, never painted. restartThread drops the preface when
-      // the old session resumes natively, so it can never duplicate context.
-      turn.historyPreface = turn.historyPreface
-        ? `${RETRY_CONTINUATION_NOTE}\n\n${turn.historyPreface}`
-        : RETRY_CONTINUATION_NOTE;
+      // 只发给模型；与可被 native resume 丢弃的历史前缀分开，且每次尝试只注入一次。
+      turn.retryContext = RETRY_CONTINUATION_NOTE;
       if (failureClass === "transport") {
         await this.ctx.restartTurn(session, turn);
       } else {

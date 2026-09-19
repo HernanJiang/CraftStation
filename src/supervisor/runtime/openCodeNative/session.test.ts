@@ -53,6 +53,7 @@ function makeClient() {
   let listener: ((event: unknown) => void) | undefined;
   const client: OpenCodeNativeClient = {
     session: {
+      update: vi.fn<ApiCall>().mockResolvedValue({ data: {} }),
       create: vi.fn<ApiCall>().mockResolvedValue({ data: { id: "ses_new" } }),
       get: vi.fn<ApiCall>().mockResolvedValue({ data: { id: "ses_resume" } }),
       promptAsync: vi.fn<ApiCall>().mockImplementation(async () => {
@@ -103,6 +104,26 @@ function makeClient() {
 }
 
 describe("OpenCodeNativeSession public lifecycle seam", () => {
+  it("restores Ask permissions when resuming an existing session", async () => {
+    const { client, connection } = makeClient();
+    const craftPlan = plan();
+    craftPlan.overrides = { permissionConfig: { approvalPolicy: "default" } };
+    const session = await OpenCodeNativeSession.open({
+      entityId: "entity:test",
+      threadId: "thread:test",
+      projectLocation: location,
+      plan: craftPlan,
+      sessionRef: "existing",
+      transport: { connect: async () => connection, dispose: async () => {} } as never,
+    });
+    expect(client.session.create).not.toHaveBeenCalled();
+    expect(client.session.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        permission: [{ permission: "*", pattern: "*", action: "ask" }],
+      }),
+    );
+    await session.terminate();
+  });
   it("keeps the CraftStation provider namespace out of the remote model id", async () => {
     const { client, connection } = makeClient();
     const basePlan = plan();
@@ -123,6 +144,34 @@ describe("OpenCodeNativeSession public lifecycle seam", () => {
     expect(client.session.create).toHaveBeenCalledWith(
       expect.objectContaining({
         model: { providerID: "openai", id: "glm-5.3-flash" },
+      }),
+    );
+    await session.terminate();
+  });
+
+  it("applies Full at creation and Ask on the next turn", async () => {
+    const { client, connection } = makeClient();
+    const craftPlan = plan();
+    craftPlan.overrides = { permissionConfig: { approvalPolicy: "yolo" } };
+    const session = await OpenCodeNativeSession.open({
+      entityId: "entity:test",
+      threadId: "thread:test",
+      projectLocation: location,
+      plan: craftPlan,
+      transport: { connect: async () => connection, dispose: async () => {} } as never,
+    });
+    expect(client.session.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      }),
+    );
+    await session.startTurn({
+      prompt: "hello",
+      overrides: { permissionConfig: { approvalPolicy: "default" } },
+    });
+    expect(client.session.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        permission: [{ permission: "*", pattern: "*", action: "ask" }],
       }),
     );
     await session.terminate();
@@ -223,7 +272,8 @@ describe("OpenCodeNativeSession public lifecycle seam", () => {
     await session.terminate();
   });
 
-  it("routes permission allow/deny to permission.reply", async () => {    const { client, connection } = makeClient();
+  it("routes permission allow/deny to permission.reply", async () => {
+    const { client, connection } = makeClient();
     const session = await OpenCodeNativeSession.open({
       entityId: "entity:test",
       threadId: "thread:test",

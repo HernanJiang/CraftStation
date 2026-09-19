@@ -145,9 +145,8 @@ export function buildCompletedPayload(
 ): unknown {
   if (itemType === "command_execution") {
     return {
-      ...(typeof source.status === "string"
-        ? { status: source.status === "failed" ? "error" : "success" }
-        : {}),
+      ...(typeof source.status === "string" ? { status: codexFinalStatus(source.status) } : {}),
+      ...(source.status === "declined" ? { errorMessage: "Command execution was declined." } : {}),
       ...(typeof source.exitCode === "number" ? { exitCode: source.exitCode } : {}),
       ...(typeof source.durationMs === "number" ? { durationMs: source.durationMs } : {}),
     };

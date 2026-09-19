@@ -1044,7 +1044,7 @@ function ProviderCard(props: {
           hostBoundAccounts.length === 0
         ) {
           if (providerPaused) toggleProviderPaused();
-          await handleSignOut();
+          if (!(await handleSignOut())) return;
         }
         // The deleted provider must not keep a remembered identity/plan from the
         // previous snapshot, or the card resurrects after the removal.

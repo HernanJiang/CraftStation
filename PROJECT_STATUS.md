@@ -1,3 +1,23 @@
+## v1.4.0 发布收口 — 额度、授权删除与 GitHub Issues（2026-09-19）
+
+- 用户追加授权：保留现有语言结构，修复 Antigravity 额度、Devin/其他渠道授权删除及剩余 GitHub Issues，然后打包上传。
+- 本轮新增修复：账号池/单渠道统一读取 Antigravity 5h+weekly 汇总；Devin 凭据路径复用与删除、删除失败不再假成功、旧额度请求代际隔离；CRAFTABLE 配方确认后才保存，取消不写入，回车不绕过门禁。
+- 核验 Open Issues #1/#8/#9/#10/#11/#12；后四项已有修复，保留并复验，不重复添加功能。
+- 验证：本轮 320 定向测试通过，版本/弹窗另行 18 通过（有重叠），最终 typecheck/lint 通过，完整 mock smoke 9 自动 + 16 模拟门通过、错误 0。真实账号副本额度 33.6%/5.7%；真实界面删除账号不复活，隔离 Devin 两处凭据删除后恢复登录入口。
+- 发布说明与结果见 `ai_workspace/release-notes-1.4.0.md`、`ai_workspace/reports/report_1.4.0_issues.md`。第二轮性能结论及未验证项继续有效。原工作区三份研究文档内容保留，不以候选的扩充副本覆盖用户内容。
+
+## v1.4.0 — 架构统一与第二轮资源优化候选（2026-09-19，以下为本轮修复前记录）
+
+- GitHub 已提交：[PR #13](https://github.com/HernanJiang/CraftStation/pull/13)，远端分支 `v1.4.0-architecture-performance`（旧 `dev` 占用名称前缀，本地分支保持不变）。双包已生成；自动批准审核拒绝中间目录清理，故保留，详情见第二轮报告。
+- 用户授权实际重构、第二轮 CPU/内存/磁盘优化及提交 GitHub；未启用大型角色工作流。实现位于 `dev/1.4.0-architecture-performance` / `.worktrees/1.4.0-architecture-performance`；main 仍为 1.3.4，原有三份研究文档保留。
+- 架构与修复：Session 历史共享、类型化路由、retry/Stop 代际隔离、协作队列/CAS、诊断隐私；修复 Windows 聊天文件引用、CLI 默认权限传递、自定义 Recipe 的模型来源/目标 Harness 隔离、第三方 endpoint 与可选 CPA、OAuth 副本刷新及代理配置。最后真实运行补齐 WAL 双连接、用户消息落库去重、快速 Stop 和重载恢复/复用同一 Session。
+- 自动验证：全量 11,855 通过 / 66 跳过 / 0 失败（1,098 文件），加最后增量定向复验；不是单次冻结源码全量。最终 typecheck、完整 lint、生产 build、完整 mock smoke（9 自动场景 + 16 模拟门、捕获错误 0）通过。
+- 最终局部性能：1,000 次持久化 wall 210.42 → 145.45 ms、CPU 187 → 110 ms；8 线程交错场景无明显改善。高亮保留堆 24.72 → 4.39 MiB；短生命周期日志引用回收。第一轮 15,000 事件增量广播约 3.93 倍，但逐事件全读历史压力用例仍有退化。整机占用不作无匹配基线的下降承诺。
+- 凭据与真机：复用 1.3.4 有效托管凭据，Codex/Kimi 原生、第三方 Responses → Codex、Codex → CPA → Kimi/OpenCode 均获得真实回答；文件打开、快速 Stop、重载后同 Session 追问通过。第一轮“Codex 配额/Kimi 无凭据”仅是当时账号状况，不再作为本轮阻断结论。
+- 语言：共享逻辑统一 TS，保留 Swift/Java 移动系统桥接与既有 Rust sidecar，不新增 Rust 重写。
+- 未验证：完整外部审批/问答/steer/换模型矩阵、跨 Harness handoff、真实 MCP/Computer Use、SSH/WSL、macOS/Linux/mobile 真机、安装升级；详见报告，不把 mock 或 1,277 ID 追踪当成全部功能 PASS。
+- 交付：[第二轮报告](ai_workspace/reports/report_1.4.0_round2.md)、[第一轮架构](ai_workspace/reports/report_1.4.0_architecture.md)、[1,277 ID 账本](ai_workspace/reports/report_1.4.0_coverage.md)、[最终测试](ai_workspace/reports/report_1.4.0_round2_tests.json)、[最终证据](ai_workspace/reports/report_1.4.0_round2_evidence.json)。Windows x64 双包与 GitHub 提交状态见第二轮报告；没有合 main、正式 tag 或 Release。旧继承 changelog 的同号 1.4.0 条目在正式发布前仍需统一处理。
+
 ## Release 1.3.4 — 公式内 `<` 渲染修复（2026-09-19，已发布为 Latest）
 
 - 已提交 `05234bc3`（修复）+ `17e29349`（release）并 push，tag `v1.3.4` 已推送；双包 + blockmap + `latest.yml` 共 4 文件已上传到 GitHub Release v1.3.4（Latest）。便携版备份保留 1.3.4 + 1.3.3；中间产物（`win-unpacked/`、`builder-debug.yml`）已清。

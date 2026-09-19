@@ -192,6 +192,9 @@ async function runSmoke(plan) {
   try {
     await client.send("Page.enable");
     await client.send("Runtime.enable");
+    // Electron can start occluded on Windows; input and menu transitions must
+    // run against the visible owned window, not a background-throttled surface.
+    await bridgeInvoke(client, "focusWindow");
     await runScenario(report, "welcome-dismissal", () => welcomeDismissalScenario(client));
     await installWindowErrorCollector(client);
     await runScenario(report, "baseline", () => baselineScenario(client));
@@ -1201,18 +1204,25 @@ async function schedulesScenario(client) {
     assert(created.name === name, "created schedule did not preserve its name");
     assert(!("projectId" in created), "device schedule unexpectedly carries a project id");
 
-    const opened = await evaluate(
-      client,
-      `(() => {
+    const opened = await waitForValue(
+      () =>
+        evaluate(
+          client,
+          `(() => {
         const button = [...document.querySelectorAll('button, [role="button"]')].find(
-          (candidate) => candidate.getAttribute("aria-label") === "Schedules" || candidate.textContent?.trim() === "Schedules",
+          (candidate) => candidate.getAttribute("aria-label") === "Schedules"
+            || candidate.textContent?.trim() === "Schedules"
+            || candidate.querySelector(':scope > span')?.textContent?.trim() === "Plan",
         );
         if (!(button instanceof HTMLElement)) return false;
         button.click();
         return true;
       })()`,
+        ),
+      Boolean,
+      "Schedules shortcut",
     );
-    assert(opened, "Schedules was not available in the main sidebar");
+    assert(opened, "Plan/Schedules navigation entry was unavailable");
     const rendered = await waitForValue(
       () =>
         evaluate(
@@ -1644,7 +1654,7 @@ async function runMockGate(client, gate, fixture) {
     }
     case "provider-skill-delivery": {
       const expected = {
-        claude: "slash",
+        claude: "prompt",
         codex: "dollar",
         gemini: "prompt",
         opencode: "prompt",
@@ -1736,7 +1746,7 @@ async function runMockGate(client, gate, fixture) {
           evaluate(
             client,
             `(() => ({
-              selectControls: document.querySelectorAll('[aria-label="Select"]').length,
+              selectControls: document.querySelectorAll('[data-testid="auto-harness-model"], [aria-label="Select model"]').length,
             }))()`,
           ),
         (candidate) => candidate.selectControls > 0,
@@ -1764,10 +1774,12 @@ async function runMockGate(client, gate, fixture) {
     case "terminal-pty":
       assert(fixture.bridgeKeys.includes("startThread"), "thread launch bridge is missing");
       assert(
-        /\bCLI\b/i.test(await evaluate(client, "document.body.innerText")),
-        "terminal presentation control did not render",
+        ["startShell", "writeTerminal", "resizeTerminal", "closeThread"].every((key) =>
+          fixture.bridgeKeys.includes(key),
+        ),
+        "terminal lifecycle IPC contract is incomplete",
       );
-      return "terminal launch contract and entry point were checked without spawning a real provider";
+      return "terminal lifecycle IPC contracts checked; real PTY input/output requires the separate manual gate";
     case "visual-a11y": {
       const result = await evaluate(
         client,

@@ -5,7 +5,7 @@ import {
   type HarnessReference,
   type SelectedModelEntry,
 } from "./workbenchTypes";
-import { resolveExecutionRoute } from "./executionRoute";
+import { resolveExecutionRoute, type ExecutionRouteReasonCode } from "./executionRoute";
 
 /**
  * Pure, deterministic Model × Harness compatibility resolution.
@@ -59,16 +59,16 @@ export function resolutionKeyFor(
   adapterId?: string,
   adapterVersion?: string,
 ): string {
-  return [
+  // 固定槽位并使用结构化编码；可选槽位省略和分隔符出现在 ID 中都不能碰撞。
+  // 此 key 是不透明的投影标识，不替换已持久化 Recipe/Thread/Session 身份。
+  return JSON.stringify([
     modelEntryRef,
     harnessRef,
     providerProfileRef,
     runtimeProfileRef,
     adapterId,
     adapterVersion,
-  ]
-    .filter(Boolean)
-    .join("|");
+  ]);
 }
 
 /**
@@ -82,6 +82,7 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
   source: "native" | "compatibility-layer" | "unavailable";
   /** Stable route reason for honest failure display (never a fake status). */
   routeReason?: string | undefined;
+  routeReasonCode: ExecutionRouteReasonCode;
 } {
   const { modelEntry, harnessRef, harnessReady, openCodeRouteReady, compatibilityBridgeReady } =
     input;
@@ -100,6 +101,7 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
       internalStatus: isOpencodeUnready ? "EXPERIMENTAL" : "UNAVAILABLE",
       source: isOpencodeUnready ? "compatibility-layer" : "unavailable",
       ...(routeDecision.reason ? { routeReason: routeDecision.reason } : {}),
+      routeReasonCode: routeDecision.reasonCode,
     };
   }
 
@@ -109,6 +111,7 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
       internalStatus: "NATIVE",
       source: "native",
       ...(routeDecision.reason ? { routeReason: routeDecision.reason } : {}),
+      routeReasonCode: routeDecision.reasonCode,
     };
   }
 
@@ -117,6 +120,7 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
     internalStatus: "SUPPORTED",
     source: "compatibility-layer",
     ...(routeDecision.reason ? { routeReason: routeDecision.reason } : {}),
+    routeReasonCode: routeDecision.reasonCode,
   };
 }
 
@@ -146,12 +150,13 @@ export function resolveCompatibility(input: CompatibilityReadinessInput): Capabi
       statusInfo.status === "IMPOSSIBLE"
         ? [
             {
-              code: statusInfo.routeReason?.includes("Compatibility bridge is unavailable")
-                ? "CPA_NOT_INSTALLED"
-                : "RUNTIME_UNAVAILABLE",
+              code:
+                statusInfo.routeReasonCode === "BRIDGE_NOT_READY"
+                  ? "CPA_NOT_INSTALLED"
+                  : "RUNTIME_UNAVAILABLE",
               phase: "readiness",
               message: statusInfo.routeReason
-                ? translateRouteReason(statusInfo.routeReason)
+                ? translateRouteReason(statusInfo.routeReasonCode, statusInfo.routeReason)
                 : !input.modelEntry
                   ? "缺少模型组件"
                   : !input.harnessRef
@@ -160,9 +165,10 @@ export function resolveCompatibility(input: CompatibilityReadinessInput): Capabi
                         input.openCodeRouteReady !== true
                       ? "OpenCode 路由 readiness 未验证"
                       : "Harness 未就绪或不可用",
-              remediation: statusInfo.routeReason?.includes("Compatibility bridge is unavailable")
-                ? "点击「合成」将自动安装并启动 CLIProxyAPI，也可在右侧组件栏点击安装"
-                : "请安装/配置所选 Harness，或更换可用的模型/Harness 组合",
+              remediation:
+                statusInfo.routeReasonCode === "BRIDGE_NOT_READY"
+                  ? "点击「合成」将自动安装并启动 CLIProxyAPI，也可在右侧组件栏点击安装"
+                  : "请安装/配置所选 Harness，或更换可用的模型/Harness 组合",
             },
           ]
         : [],
@@ -175,20 +181,20 @@ export function resolveCompatibility(input: CompatibilityReadinessInput): Capabi
  * combinations name the missing Compatibility Bridge explicitly instead of a
  * generic "不可合成".
  */
-function translateRouteReason(reason: string): string {
-  if (reason.includes("Compatibility bridge is unavailable")) {
+function translateRouteReason(code: ExecutionRouteReasonCode, reason: string): string {
+  if (code === "BRIDGE_NOT_READY") {
     return "跨厂商组合需要 CLIProxyAPI。未检测到已安装的 sidecar，点击「合成」或组件栏「安装」即可下载官方版本";
   }
-  if (reason.includes("does not support Compatibility Bridge")) {
+  if (code === "BRIDGE_HARNESS_UNSUPPORTED") {
     return "目标 Harness 不支持兼容桥投影";
   }
-  if (reason.includes("not installed, authenticated, or runtime ready")) {
+  if (code === "HARNESS_NOT_READY") {
     return "Harness 未安装、未登录或运行环境未就绪";
   }
-  if (reason.includes("OpenCode route is not ready")) {
+  if (code === "OPENCODE_NOT_READY") {
     return "OpenCode 路由 readiness 未验证";
   }
-  if (reason.includes("has no verified OpenCode native route")) {
+  if (code === "OPENCODE_VENDOR_UNVERIFIED") {
     return "该模型厂商暂无已验证的 OpenCode 原生路由";
   }
   return reason;

@@ -1,0 +1,958 @@
+{
+  "version": "1.4.0",
+  "date": "2026-09-19",
+  "workspace": "D:/Work/CraftStation/.worktrees/1.4.0-architecture-performance",
+  "branch": "dev/1.4.0-architecture-performance",
+  "baseline": {
+    "initial": {
+      "file": "baseline-tests.json",
+      "total": 11796,
+      "passed": 11666,
+      "failed": 66,
+      "pending": 64,
+      "files": 1086,
+      "success": false
+    },
+    "independentMainFailedFiles": {
+      "file": "main-baseline-failures.json",
+      "total": 1147,
+      "passed": 1081,
+      "failed": 66,
+      "pending": 0,
+      "files": 25,
+      "success": false
+    },
+    "files": [
+      {
+        "file": "src/renderer/app.test.tsx",
+        "failed": 5,
+        "suiteLoadError": false,
+        "disposition": "补 dismissTaskbarAttention bridge mock。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 28,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/remoteProcedureRouter.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "补 gitDescribe read 分类；显式 local-only switch 与 native-session mirror。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 219,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/mobile/views/ThreadView.test.tsx",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "桌面：Stop loading/退役模式入口；mobile：toast 参数合同。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 17,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/actions/sideChatActions.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "补 dismissTaskbarAttention bridge mock。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 9,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/state/agentStatusesStore.test.ts",
+        "failed": 3,
+        "suiteLoadError": false,
+        "disposition": "schema 13 旧 fixture 更新到实际 14。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 39,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/components/skills/SkillsManager.test.tsx",
+        "failed": 0,
+        "suiteLoadError": true,
+        "disposition": "toast mock 保留真实 getQueue 接口，解除 suite 加载错误。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 13,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/components/thread/ThreadComposerSection.test.tsx",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "修普通英文被目录过滤及发送 promise 处理；队列附件合同保留。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 56,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/components/thread/ThreadGoalDock.test.tsx",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "Date.now spy 替代导致 waitFor 卡死的 fake timers。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 10,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/components/thread/ThreadSlashCommands.test.tsx",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "按持久 goal 合同验证草稿启动 prompt 与目标。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 31,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/components/thread/ThreadView.test.tsx",
+        "failed": 2,
+        "suiteLoadError": false,
+        "disposition": "桌面：Stop loading/退役模式入口；mobile：toast 参数合同。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 28,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "补已存在的 retry settings 搜索入口。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 13,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/SortableThreadItem.test.tsx",
+        "failed": 2,
+        "suiteLoadError": false,
+        "disposition": "不恢复已经退役的 unload 菜单；底层卸载 action/runtime 仍保留。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 17,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/git.test.ts",
+        "failed": 3,
+        "suiteLoadError": false,
+        "disposition": "mock 二进制 resolver，Windows 查找能力由独立 resolver tests 覆盖。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 119,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/runtime.test.ts",
+        "failed": 23,
+        "suiteLoadError": false,
+        "disposition": "宿主 MCP/settings/skills 环境隔离；Kimi 第三方账号 binding 与 DeepSeek 模型 fixture 对齐真实合同。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 120,
+          "skipped": 1
+        }
+      },
+      {
+        "file": "src/main/thread-messaging/interHarnessMessageBus.test.ts",
+        "failed": 3,
+        "suiteLoadError": false,
+        "disposition": "明确 busy 拒绝 fixture 与即时接受分别覆盖；未改回旧的一律排队合同。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 23,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/main/thread-collaboration/ThreadCollaborationService.test.ts",
+        "failed": 2,
+        "suiteLoadError": false,
+        "disposition": "保留 busy 即时注入；明确拒绝才回队列，租约/claim CAS 与未知错误不重发。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 23,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/agents/oneShotCapability.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "DeepSeek ACP-only 不假称 headless 支持。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 39,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/runtime/threadSessionManager.startClose.test.ts",
+        "failed": 3,
+        "suiteLoadError": false,
+        "disposition": "隔离宿主 MCP env；首轮/关闭生命周期断言保留。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 25,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/shared/crafting/crafting.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "显式完整 9 Harness 目录，替代旧 7 项计数。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 14,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/main/app-controls/mcp/threadCollaborationTools.test.ts",
+        "failed": 3,
+        "suiteLoadError": false,
+        "disposition": "同上，经主 MCP 工具 seam 验证。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 10,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/agents/codex/canonicalMapping.test.ts",
+        "failed": 4,
+        "suiteLoadError": false,
+        "disposition": "输入 context 占用与输出/计费 breakdown 分开，按现有实际协议 fixture 复验。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 67,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/agents/codex/codex.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "同上，保留计费 token breakdown。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 131,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/agents/opencode/sdkCanonicalMapping.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "同上，保留 OpenCode 用量语义。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 43,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/runtime/nativeHarness/nativeAdapter.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "修重复 delta 吞字，原 DeepSeek hellohello 断言保留；agy result replay 独立。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 33,
+          "skipped": 0
+        }
+      },
+      {
+        "file": "src/supervisor/runtime/threadSession/spawnPipeline.test.ts",
+        "failed": 1,
+        "suiteLoadError": false,
+        "disposition": "隔离宿主 env，新增恢复代际/Stop/再次输入覆盖。",
+        "currentSuite": {
+          "status": "passed",
+          "passed": 42,
+          "skipped": 0
+        }
+      }
+    ]
+  },
+  "automated": {
+    "full": {
+      "file": "final-tests.json",
+      "total": 11846,
+      "passed": 11781,
+      "failed": 0,
+      "pending": 65,
+      "files": 1089,
+      "success": true
+    },
+    "postFullTargeted": [
+      {
+        "file": "last-targeted.json",
+        "total": 55,
+        "passed": 55,
+        "failed": 0,
+        "pending": 0,
+        "files": 4,
+        "success": true
+      },
+      {
+        "file": "kimi-final.json",
+        "total": 77,
+        "passed": 77,
+        "failed": 0,
+        "pending": 0,
+        "files": 3,
+        "success": true
+      },
+      {
+        "file": "update-final.json",
+        "total": 39,
+        "passed": 39,
+        "failed": 0,
+        "pending": 0,
+        "files": 3,
+        "success": true
+      }
+    ],
+    "redBeforeFix": [
+      {
+        "file": "kimi-oauth-before.json",
+        "total": 21,
+        "passed": 19,
+        "failed": 2,
+        "pending": 0,
+        "files": 1,
+        "success": false
+      },
+      {
+        "file": "kimi-empty-before.json",
+        "total": 25,
+        "passed": 21,
+        "failed": 4,
+        "pending": 0,
+        "files": 1,
+        "success": false
+      }
+    ],
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "finalChecks": {
+      "commands": ["pnpm typecheck", "pnpm lint", "pnpm build"],
+      "exitCode": 0,
+      "sourceState": "最终更新静默守卫之后",
+      "rawLogs": [
+        "ai_workspace/validation/1.4.0/typecheck-final.log",
+        "ai_workspace/validation/1.4.0/lint-final.log",
+        "ai_workspace/validation/1.4.0/build-final.log"
+      ]
+    }
+  },
+  "performance": {
+    "method": "main 原 Adapter 与候选 Adapter 使用同一生产通知链；1 次预热、5 次采样取中位数；单 worker，仅代表本地吞吐",
+    "before": {
+      "node": "v24.18.1",
+      "platform": "win32",
+      "rows": [
+        {
+          "count": 1000,
+          "readEvery": 0,
+          "samplesMs": [
+            3.431600000000117, 3.118600000000015, 5.9099999999998545, 5.004200000000083,
+            5.352300000000014
+          ],
+          "medianMs": 5.004200000000083,
+          "events": 1001
+        },
+        {
+          "count": 5000,
+          "readEvery": 0,
+          "samplesMs": [
+            28.388000000000147, 28.679200000000037, 26.291600000000017, 26.04970000000003,
+            27.371700000000146
+          ],
+          "medianMs": 27.371700000000146,
+          "events": 5001
+        },
+        {
+          "count": 15000,
+          "readEvery": 0,
+          "samplesMs": [
+            170.73239999999987, 171.96710000000007, 164.4962999999998, 171.13200000000006,
+            163.76270000000022
+          ],
+          "medianMs": 170.73239999999987,
+          "events": 15001
+        },
+        {
+          "count": 1000,
+          "readEvery": 100,
+          "samplesMs": [
+            4.643699999999626, 6.894000000000233, 2.167899999999918, 2.5882000000001426,
+            2.034599999999955
+          ],
+          "medianMs": 2.5882000000001426,
+          "events": 1001
+        },
+        {
+          "count": 5000,
+          "readEvery": 100,
+          "samplesMs": [
+            24.509599999999864, 22.879399999999805, 22.257100000000264, 23.298499999999876,
+            24.592699999999695
+          ],
+          "medianMs": 23.298499999999876,
+          "events": 5001
+        },
+        {
+          "count": 15000,
+          "readEvery": 100,
+          "samplesMs": [
+            162.38540000000012, 171.22829999999976, 165.33390000000009, 162.14249999999993,
+            155.97450000000026
+          ],
+          "medianMs": 162.38540000000012,
+          "events": 15001
+        },
+        {
+          "count": 1000,
+          "readEvery": 1,
+          "samplesMs": [
+            2.222099999999955, 2.0213000000003376, 2.076000000000022, 1.9967999999998938,
+            2.1159999999999854
+          ],
+          "medianMs": 2.076000000000022,
+          "events": 1001
+        },
+        {
+          "count": 5000,
+          "readEvery": 1,
+          "samplesMs": [
+            24.78839999999991, 26.36220000000003, 23.216199999999844, 26.509100000000217,
+            26.85660000000007
+          ],
+          "medianMs": 26.36220000000003,
+          "events": 5001
+        }
+      ]
+    },
+    "after": {
+      "node": "v24.18.1",
+      "platform": "win32",
+      "rows": [
+        {
+          "count": 1000,
+          "readEvery": 0,
+          "samplesMs": [
+            3.848299999999881, 3.1833999999998923, 2.982300000000123, 2.6116000000001804,
+            2.779399999999896
+          ],
+          "medianMs": 2.982300000000123,
+          "events": 1001
+        },
+        {
+          "count": 5000,
+          "readEvery": 0,
+          "samplesMs": [
+            17.244500000000016, 13.614100000000008, 11.695699999999988, 12.445099999999911,
+            14.456699999999955
+          ],
+          "medianMs": 13.614100000000008,
+          "events": 5001
+        },
+        {
+          "count": 15000,
+          "readEvery": 0,
+          "samplesMs": [
+            43.644000000000005, 43.39210000000003, 57.322400000000016, 31.93360000000007,
+            39.449299999999994
+          ],
+          "medianMs": 43.39210000000003,
+          "events": 15001
+        },
+        {
+          "count": 1000,
+          "readEvery": 100,
+          "samplesMs": [
+            2.2444000000000415, 2.238299999999981, 2.316100000000006, 2.2373000000000047,
+            2.2147999999999683
+          ],
+          "medianMs": 2.238299999999981,
+          "events": 1001
+        },
+        {
+          "count": 5000,
+          "readEvery": 100,
+          "samplesMs": [
+            12.7971, 12.996900000000096, 11.189399999999978, 10.46699999999987, 13.215599999999995
+          ],
+          "medianMs": 12.7971,
+          "events": 5001
+        },
+        {
+          "count": 15000,
+          "readEvery": 100,
+          "samplesMs": [
+            41.322400000000016, 47.22569999999996, 44.33899999999994, 42.08480000000009,
+            41.43359999999984
+          ],
+          "medianMs": 42.08480000000009,
+          "events": 15001
+        },
+        {
+          "count": 1000,
+          "readEvery": 1,
+          "samplesMs": [
+            3.1953000000003158, 3.0734000000002197, 3.5122999999998683, 3.1521999999999935,
+            3.110099999999875
+          ],
+          "medianMs": 3.1521999999999935,
+          "events": 1001
+        },
+        {
+          "count": 5000,
+          "readEvery": 1,
+          "samplesMs": [
+            73.14159999999993, 103.46810000000005, 69.63020000000006, 81.5998999999997,
+            104.51699999999983
+          ],
+          "medianMs": 81.5998999999997,
+          "events": 5001
+        }
+      ]
+    },
+    "comparison": [
+      {
+        "count": 1000,
+        "readEvery": 0,
+        "beforeMs": 5.004200000000083,
+        "afterMs": 2.982300000000123,
+        "beforeOverAfter": 1.677966670019742,
+        "retainedEvents": 1001
+      },
+      {
+        "count": 5000,
+        "readEvery": 0,
+        "beforeMs": 27.371700000000146,
+        "afterMs": 13.614100000000008,
+        "beforeOverAfter": 2.0105405425257734,
+        "retainedEvents": 5001
+      },
+      {
+        "count": 15000,
+        "readEvery": 0,
+        "beforeMs": 170.73239999999987,
+        "afterMs": 43.39210000000003,
+        "beforeOverAfter": 3.9346424810046012,
+        "retainedEvents": 15001
+      },
+      {
+        "count": 1000,
+        "readEvery": 100,
+        "beforeMs": 2.5882000000001426,
+        "afterMs": 2.238299999999981,
+        "beforeOverAfter": 1.1563239958898113,
+        "retainedEvents": 1001
+      },
+      {
+        "count": 5000,
+        "readEvery": 100,
+        "beforeMs": 23.298499999999876,
+        "afterMs": 12.7971,
+        "beforeOverAfter": 1.8206077939533079,
+        "retainedEvents": 5001
+      },
+      {
+        "count": 15000,
+        "readEvery": 100,
+        "beforeMs": 162.38540000000012,
+        "afterMs": 42.08480000000009,
+        "beforeOverAfter": 3.8585284948484913,
+        "retainedEvents": 15001
+      },
+      {
+        "count": 1000,
+        "readEvery": 1,
+        "beforeMs": 2.076000000000022,
+        "afterMs": 3.1521999999999935,
+        "beforeOverAfter": 0.6585876530677071,
+        "retainedEvents": 1001
+      },
+      {
+        "count": 5000,
+        "readEvery": 1,
+        "beforeMs": 26.36220000000003,
+        "afterMs": 81.5998999999997,
+        "beforeOverAfter": 0.3230665723855069,
+        "retainedEvents": 5001
+      }
+    ],
+    "limitation": "逐事件全量读取历史会退化；审计的生产订阅未采用此模式。未测全应用延迟、帧率或 RSS 收益。",
+    "reachability": {
+      "node": "v24.18.1",
+      "platform": "win32",
+      "rows": [
+        {
+          "materializedBeforeAppend": false,
+          "appendedAfterSnapshot": 512,
+          "retainedFutureEvents": 127
+        },
+        {
+          "materializedBeforeAppend": true,
+          "appendedAfterSnapshot": 512,
+          "retainedFutureEvents": 0
+        }
+      ]
+    }
+  },
+  "smoke": {
+    "mode": "mock",
+    "reportPath": "C:/Users/Haona/.craftstation-smoke/v140-mock-verified/artifacts/smoke-report.json",
+    "startedAt": "2026-09-19T12:13:51.917Z",
+    "finishedAt": "2026-09-19T12:14:36.019Z",
+    "automaticPassed": 9,
+    "automaticFailed": 0,
+    "automated": [
+      {
+        "id": "welcome-dismissal",
+        "status": "pass",
+        "detail": {
+          "dismissed": true,
+          "detail": "welcome screen dismissed through its primary action"
+        }
+      },
+      {
+        "id": "baseline",
+        "status": "pass",
+        "detail": {
+          "url": "http://127.0.0.1:55893/?craftstationDebugSession=[redacted]",
+          "title": "CraftStation (dev)",
+          "bodyText": "Pull requests\nPlan\nWork\nCrafting Table\nMCP Servers\nSettings\nv1.4.0\nCraftStation\nNew chat / project\n\nPROJECTS\n\nproject\nHome\n模型与用量\n✨ 添加新模型\nSettings\nproject\nAgent workspace\nDiscovering coding agents…\n\nScanning your system for installed CLIs. This usually takes a couple of seconds.\n\nPROVIDER\nClaude Code\nSearching...\nCodex\nSearching...\nGemini\nSearching...\nQwen Code\nSearching...\nQoder CLI\nSearching...\nGrok Build\nSearching...\nKimi Code\nSearching...\nDeepSeek Harness\nSearching...\nMuse Code\nSearching...\nDevin\nSearching...\nAntigravity\nSearching...\nCommand Code\nSearching...\nOpenCode\nSearching...\nPi\nSearching...\nCursor\nSearching...\nGitHub Copilot\nSearching...\nFactory Droid\nSearching...\nWarming up shell environment…\nUpdate error: Update checks are not available in development mode.",
+          "rootChildren": 2,
+          "craftstationBridge": "object",
+          "devBridge": "object",
+          "crash": false,
+          "welcomeVisible": false,
+          "draftComposer": false,
+          "modelPicker": false,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-01-baseline.png"
+        }
+      },
+      {
+        "id": "settings",
+        "status": "pass",
+        "detail": {
+          "sections": [
+            "profile",
+            "general",
+            "audio",
+            "appearance",
+            "terminal",
+            "threads",
+            "git",
+            "worktrees",
+            "notifications",
+            "ai",
+            "search",
+            "shortcuts",
+            "remoteAccess",
+            "remoteServers",
+            "agentsGeneral",
+            "skills",
+            "mcpServers",
+            "plugins",
+            "browser",
+            "usage",
+            "archived",
+            "changelog",
+            "about"
+          ],
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-settings.png",
+          "mcpListScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-mcp-servers-list.png",
+          "mcpScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-mcp-servers.png",
+          "mcpImportScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-mcp-import.png",
+          "pluginsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-plugins.png",
+          "skillsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-skills.png",
+          "skillsImportScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-skills-import.png",
+          "skillsImportDestinationsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-skills-import-destinations.png",
+          "skillsMarketplaceScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-skills-marketplace.png",
+          "skillsTargetsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-skills-targets.png"
+        }
+      },
+      {
+        "id": "control-geometry",
+        "status": "pass",
+        "detail": {
+          "switchGeometry": {
+            "control": {
+              "radius": 9999,
+              "height": 20
+            },
+            "thumb": {
+              "radius": 9999,
+              "height": 16
+            }
+          },
+          "sliderGeometry": {
+            "track": {
+              "radius": 9999,
+              "height": 20
+            },
+            "fill": {
+              "radius": 0,
+              "height": 20
+            },
+            "thumb": {
+              "radius": 9999,
+              "height": 16
+            }
+          },
+          "sliderPresent": true,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02-control-geometry.png"
+        }
+      },
+      {
+        "id": "schedules",
+        "status": "pass",
+        "detail": {
+          "scheduleId": "7e0eb7a8-9468-4c3b-81ce-622d081b0edf",
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02b-schedules.png"
+        }
+      },
+      {
+        "id": "github-actions",
+        "status": "pass",
+        "detail": {
+          "hiddenByDefault": true,
+          "toggleVisible": true,
+          "toggleSelected": false,
+          "overlayOpen": true,
+          "heading": true,
+          "projectPicker": true,
+          "crash": false,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-02c-github-actions.png"
+        }
+      },
+      {
+        "id": "thread-search",
+        "status": "pass",
+        "detail": {
+          "dialog": true,
+          "searchInput": true,
+          "crash": false,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\smoke-03-thread-search.png"
+        }
+      },
+      {
+        "id": "browser",
+        "status": "pass",
+        "detail": {
+          "outDir": "C:\\Users\\Haona\\.craftstation-smoke\\v140-mock-verified\\artifacts\\browser"
+        }
+      },
+      {
+        "id": "mock-integrations",
+        "status": "pass",
+        "detail": "16/16 deterministic mock gates passed"
+      }
+    ],
+    "manual": [
+      {
+        "gate": "changed-surface",
+        "status": "mocked",
+        "detail": "covered by baseline and diff-selected automated scenarios"
+      },
+      {
+        "gate": "file-editor",
+        "status": "mocked",
+        "detail": "fixture project tree bridge returned successfully"
+      },
+      {
+        "gate": "git-mutations",
+        "status": "mocked",
+        "detail": "fixture git status round-trip returned successfully"
+      },
+      {
+        "gate": "github-actions-live",
+        "status": "mocked",
+        "detail": "GitHub Actions list, definition, rerun, and delete bridge contracts are exposed"
+      },
+      {
+        "gate": "ipc-roundtrip",
+        "status": "mocked",
+        "detail": "database and settings IPC round-trips returned successfully"
+      },
+      {
+        "gate": "mcp-extension",
+        "status": "mocked",
+        "detail": "mock provider status, external MCP discovery, and browser bridge contracts responded"
+      },
+      {
+        "gate": "native-auth-update",
+        "status": "mocked",
+        "detail": "update state and usage-auth state were exercised with deterministic mock data"
+      },
+      {
+        "gate": "project-mutations",
+        "status": "mocked",
+        "detail": "isolated seeded project was loaded and selected"
+      },
+      {
+        "gate": "provider-live",
+        "status": "mocked",
+        "detail": "provider codex was hydrated and selector UI rendered without external credentials"
+      },
+      {
+        "gate": "provider-skill-delivery",
+        "status": "mocked",
+        "detail": "all supported adapters exposed the managed fixture skill with their invocation mode"
+      },
+      {
+        "gate": "quick-composer",
+        "status": "mocked",
+        "detail": "mock gate acknowledged: quick-composer"
+      },
+      {
+        "gate": "remote-mobile",
+        "status": "mocked",
+        "detail": "remote pairing state bridge returned successfully"
+      },
+      {
+        "gate": "runtime-requests",
+        "status": "mocked",
+        "detail": "runtime request store and resolution IPC contract were checked"
+      },
+      {
+        "gate": "skills-manager",
+        "status": "mocked",
+        "detail": "managed and provider skill disable/enable, copy import, and delete round-tripped"
+      },
+      {
+        "gate": "terminal-pty",
+        "status": "mocked",
+        "detail": "terminal lifecycle IPC contracts checked; real PTY input/output requires the separate manual gate"
+      },
+      {
+        "gate": "visual-a11y",
+        "status": "mocked",
+        "detail": "interactive labels and dark-theme baseline were checked"
+      }
+    ],
+    "rendererErrors": []
+  },
+  "real": {
+    "codex": {
+      "status": "BLOCKED_EXTERNAL",
+      "route": "官方 native Codex app-server",
+      "threadId": "428223fd-4b4e-43d9-91b6-2c24284a962a",
+      "providerSessionId": "01a0b982-2096-7743-88f1-b1983cd15949",
+      "model": "gpt-5.5",
+      "outcome": "usage limit；没有成功助手回答"
+    },
+    "kimi": {
+      "status": "BLOCKED_EXTERNAL",
+      "model": "kimi-code/k3-256k",
+      "threadIds": ["d7e2a23c-d8c3-4cda-9103-f332ed87e39f", "626fe3d7-28c3-4f4a-9d03-481ae25b77b1"],
+      "outcome": "Authentication required；宿主 access/refresh token 为空",
+      "discovery": "真机复现空凭据导入 available；导入/登录完成守卫已修并测试，末次独立 Electron IPC 拒绝空凭据。有效 OAuth 缺配置和 refresh-only 由定向测试证明，未声称 live 成功。"
+    },
+    "providerChatGates": {
+      "firstSuccessfulReply": "BLOCKED_EXTERNAL",
+      "followUp": "NOT_RUN",
+      "userQuestion": "NOT_RUN",
+      "permissionDeny": "NOT_RUN",
+      "steer": "NOT_RUN",
+      "agentStop": "NOT_RUN",
+      "liveModelChange": "NOT_RUN",
+      "reopenNativeSession": "NOT_RUN"
+    },
+    "terminal": {
+      "output": true,
+      "interruptedAndAcceptedNextCommand": true,
+      "size": null,
+      "closed": true,
+      "uiOpenedAndObservedOutput": true,
+      "resize": "请求可提交；shell readTerminalSize 返回 null，精确尺寸未验"
+    },
+    "opencodeSixRouteProbe": "6 项通过：本地 server/session 创建及预期 prompt 拒绝，不代表外部模型成功回答",
+    "finalGuardChecks": {
+      "automaticPhase": "idle",
+      "automaticDevelopmentToast": false,
+      "emptyCredentialRejected": true,
+      "emptyCredentialError": "Error invoking remote method 'craftstation:import-kimi-profile': Error: Kimi Code credential contains no access token or refresh token. Please sign in again.",
+      "manualPhase": "error",
+      "manualDevelopmentToast": true,
+      "mode": "mock profile / 真实 Electron 与生产 IPC；不使用有效外部模型凭据",
+      "screenshot": "report_1.4.0_assets/final-automatic-quiet.png"
+    },
+    "pending": [
+      "cross-Harness handoff",
+      "two-Harness peer delivery",
+      "Chrome extension",
+      "Computer Use real GUI",
+      "remote/mobile",
+      "SSH",
+      "real GitHub Actions mutations",
+      "quick composer shortcut (occupied by existing app)",
+      "NSIS/portable installation"
+    ],
+    "screenshotPaths": [
+      "report_1.4.0_assets/baseline.png",
+      "report_1.4.0_assets/schedules.png",
+      "report_1.4.0_assets/skills-marketplace.png",
+      "report_1.4.0_assets/real-pty.png",
+      "report_1.4.0_assets/kimi-empty-credential.png",
+      "report_1.4.0_assets/final-automatic-quiet.png"
+    ],
+    "sessions": [
+      {
+        "file": "C:/Users/Haona/.craftstation-smoke/v140-real-20260919/session.json",
+        "state": "stopped"
+      },
+      {
+        "file": "C:/Users/Haona/.craftstation-smoke/v140-real-final/session.json",
+        "state": "stopped"
+      },
+      {
+        "file": "C:/Users/Haona/.craftstation-smoke/v140-final-guards/session.json",
+        "state": "stopped"
+      }
+    ]
+  },
+  "reviews": {
+    "standards": "限定最终 diff 0 Findings；更新守卫另做有限复审；未独立复跑全量/live",
+    "spec": "refresh-only quota 修复后限定范围 0 Findings；不代表全项目外部验收"
+  },
+  "publication": {
+    "merged": false,
+    "pushed": false,
+    "tagged": false,
+    "packaged": false,
+    "remaining": "正式发布前区分当前 1.4.0 与继承 changelog 旧 1.4.0 的发布空间"
+  }
+}

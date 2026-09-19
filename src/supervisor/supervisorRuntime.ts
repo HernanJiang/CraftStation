@@ -85,7 +85,8 @@ import {
   compatibilityBridgeStatusSchema,
   type CompatibilityBridgeStatusView,
 } from "@/shared/crafting/compatibilityBridge";
-import { nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
+import { craftPlanSchema, nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
+import { sanitizePortableRecord } from "./sessionHandoff/redaction";
 import {
   AccountControlError,
   BUILT_IN_MCP_SERVER_NAMES,
@@ -183,8 +184,11 @@ import { PluginRegistry, resolvePluginMcpServers } from "./plugins";
 import { captureExperimentResponseSnapshot } from "./experimentResponseSnapshot";
 import { CompatibilityBridgeService } from "./runtime/compatibilityBridge";
 import { CompatibilityRuntimeAdapter } from "./runtime/compatibilityBridge/compatibilityRuntimeAdapter";
+import { createCompatibilityTargetRuntime } from "./runtime/compatibilityBridge/targetRuntime";
+import { projectCompatibilityAccount } from "./runtime/compatibilityBridge/accountProjection";
+import { OwnedHarnessRuntimes } from "./runtime/ownedHarnessRuntimes";
+import { permissionConfigSchema } from "@/shared/contracts/config";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
-import { AppServerProcessHost } from "./runtime/nativeCodex/appServerProcessHost";
 import { CraftingError } from "@/shared/crafting/errors";
 import { AccountResolver } from "./runtime/accountResolver";
 import { AccountStore } from "./runtime/accountStore";
@@ -366,6 +370,8 @@ export class SupervisorRuntime {
   private async createDefaultCompatibilityRuntimeAdapter(
     harnessKind: string,
     accountId: string | undefined,
+    projectLocation: ProjectLocation,
+    candidateMcpServers: McpServer[] | undefined,
   ): Promise<import("@/shared/crafting").HarnessRuntimeAdapter | undefined> {
     const resolution = this.resolveCompatibilityBridgeBinaryForHost();
     if (!resolution.binaryPath) return undefined;
@@ -376,8 +382,18 @@ export class SupervisorRuntime {
         accountPin = {
           accountId,
           credentialNamespace: "cli-proxy-api-auth",
-          authDir: this.accountStore.credentialRoot(record.accountId),
+          authDir: projectCompatibilityAccount(
+            record.provider,
+            this.accountStore.credentialRoot(record.accountId),
+            join(
+              this.baseDir,
+              "compatibility-auth",
+              record.accountId.replace(/[^A-Za-z0-9._-]/g, "_"),
+            ),
+          ),
         };
+      } else {
+        throw new Error("CPA 配方绑定的账号不存在，请重新选择模型账号。");
       }
     }
     const service = this.compatibilityBridgeService;
@@ -389,7 +405,31 @@ export class SupervisorRuntime {
     }
     return new CompatibilityRuntimeAdapter(harnessKind, {
       bridge: service,
+      ownsBridge: false,
       ...(accountPin ? { accountPin } : {}),
+      createTargetAdapter: async (config, plan) => {
+        const skills = await this.resolveCraftingSkills(plan, projectLocation);
+        return createCompatibilityTargetRuntime({
+          config,
+          plan,
+          projectLocation,
+          directory: join(
+            this.baseDir,
+            "compatibility-runtime",
+            (plan.threadId ?? plan.id).replace(/[^A-Za-z0-9._-]/g, "_"),
+          ),
+          agent: this.adapters.get(harnessKind),
+          descriptor:
+            NATIVE_HARNESS_DESCRIPTORS[harnessKind as keyof typeof NATIVE_HARNESS_DESCRIPTORS],
+          mcpServers:
+            (await this.resolveCraftingMcpServers(plan, projectLocation, candidateMcpServers)) ??
+            [],
+          skillSegments: skills.segments,
+          ...(skills.inlineInstructions
+            ? { inlineSkillInstructions: skills.inlineInstructions }
+            : {}),
+        });
+      },
     });
   }
 
@@ -467,6 +507,7 @@ export class SupervisorRuntime {
    * after construction are not lost between IPC reads.
    */
   private readonly nativeHarnessAdapters = new Map<string, HarnessRuntimeAdapter>();
+  private readonly ownedHarnessRuntimes = new OwnedHarnessRuntimes();
   /** Latest session per harness for the control-plane diagnostics projection. */
   private readonly nativeHarnessSessions = new Map<string, CraftSession>();
   /** Crafted sessions are not ThreadSessionManager sessions, so keep their
@@ -1207,6 +1248,7 @@ export class SupervisorRuntime {
       } finally {
         this.sessionHandoffCoordinator.terminateActive(payload.threadId);
         this.releaseCraftedSession(payload.threadId);
+        await this.ownedHarnessRuntimes.flush();
       }
       return;
     }
@@ -1329,7 +1371,22 @@ export class SupervisorRuntime {
       payload.execution ??
       this.sessionHandoffCoordinator.executionEnvelope(payload.threadId, session);
     this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, execution);
-    await session.sendPrompt(payload.prompt);
+    if (payload.config || payload.userMessageItemId) {
+      await session.startTurn({
+        prompt: payload.prompt,
+        ...(payload.userMessageItemId ? { userMessageItemId: payload.userMessageItemId } : {}),
+        ...(payload.config
+          ? {
+              overrides: {
+                model: payload.config.model,
+                permissionConfig: permissionConfigSchema.parse(payload.config),
+              },
+            }
+          : {}),
+      });
+    } else {
+      await session.sendPrompt(payload.prompt);
+    }
   }
 
   async interruptThread(payload: InterruptThreadPayload): Promise<void> {
@@ -1397,6 +1454,11 @@ export class SupervisorRuntime {
         "[supervisor] crafted turn did not acknowledge interrupt in time; closed locally:",
         threadId,
       );
+      // Retire the unresponsive Session as well: painting an interrupted row
+      // alone leaves the provider running and the pending craft call unresolved.
+      void current.terminate().catch((error) => {
+        console.error("[supervisor] force-stop session teardown failed:", error);
+      });
     }, CRAFTED_INTERRUPT_FORCE_STOP_MS);
     this.craftedInterruptWatchdogs.set(threadId, watchdog);
   }
@@ -2192,7 +2254,12 @@ export class SupervisorRuntime {
       );
       const response =
         payload.prompt.trim().length > 0
-          ? await session.sendPrompt(payload.prompt)
+          ? payload.userMessageItemId
+            ? await session.startTurn({
+                prompt: payload.prompt,
+                userMessageItemId: payload.userMessageItemId,
+              })
+            : await session.sendPrompt(payload.prompt)
           : { response: "" };
       return {
         // CraftStation owns the stable user-visible Thread identity. A native
@@ -2203,7 +2270,7 @@ export class SupervisorRuntime {
         entityId: entity.id,
         sessionId: session.id,
         ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
-        response: response.response,
+        response: response.response ?? "",
         ...(accountBinding ? { accountBinding } : {}),
       };
     } catch (error) {
@@ -2244,6 +2311,50 @@ export class SupervisorRuntime {
   }
 
   async resumeCraftAgent(payload: ResumeCraftAgentPayload): Promise<CraftAgentResult> {
+    const threadId = payload.craftPlan.threadId;
+    const live = threadId ? this.craftedSessionsByThread.get(threadId) : undefined;
+    if (live && live.status !== "terminated" && live.status !== "error") {
+      const activePlan = this.craftedPlansByThread.get(threadId!);
+      const binding = this.craftedSessionBindings.get(threadId!);
+      // A renderer reload must reattach to the owned Session, not spawn a
+      // second handle with the same native identity and stale subscriptions.
+      // Changing a composition/account still requires the handoff boundary.
+      if (
+        activePlan?.id !== payload.craftPlan.id ||
+        activePlan.recipeId !== payload.craftPlan.recipeId ||
+        activePlan.resultItemId !== payload.craftPlan.resultItemId ||
+        activePlan.runtimeBinding.harnessKind !== payload.craftPlan.runtimeBinding.harnessKind ||
+        activePlan.runtimeBinding.modelId !== payload.craftPlan.runtimeBinding.modelId ||
+        activePlan.runtimeBinding.vendor !== payload.craftPlan.runtimeBinding.vendor ||
+        activePlan.runtimeBinding.routeType !== payload.craftPlan.runtimeBinding.routeType ||
+        activePlan.workspace !== payload.craftPlan.workspace ||
+        (live.nativeSessionRef ?? live.sessionRef) !== payload.sessionRef ||
+        (payload.accountId && binding?.accountId !== payload.accountId)
+      )
+        throw new Error("HANDOFF_ACTIVE_PLAN_MISMATCH");
+      if (payload.prompt?.trim() && live.status === "busy")
+        throw new Error("Cannot resume with a new prompt while the crafted Session is busy.");
+      const response = payload.prompt?.trim()
+        ? await live.startTurn({
+            prompt: payload.prompt,
+            ...(payload.userMessageItemId ? { userMessageItemId: payload.userMessageItemId } : {}),
+            ...(payload.craftPlan.overrides ? { overrides: payload.craftPlan.overrides } : {}),
+          })
+        : undefined;
+      this.publishCraftedSessionState(threadId!, live);
+      return {
+        threadId: threadId!,
+        entityId: live.entityId,
+        sessionId: live.id,
+        sessionRef: payload.sessionRef,
+        response: response?.response ?? "",
+        ...(binding ? { accountBinding: binding } : {}),
+      };
+    }
+    if (live) {
+      await live.terminate();
+      this.releaseCraftedSession(threadId!);
+    }
     let entityId: string | undefined;
     let sessionId: string | undefined;
     let accountBinding: AccountBinding | undefined;
@@ -2273,14 +2384,19 @@ export class SupervisorRuntime {
         entity.id,
       );
       const response = payload.prompt?.trim()
-        ? await session.sendPrompt(payload.prompt)
+        ? payload.userMessageItemId
+          ? await session.startTurn({
+              prompt: payload.prompt,
+              userMessageItemId: payload.userMessageItemId,
+            })
+          : await session.sendPrompt(payload.prompt)
         : { response: "" };
       return {
         threadId: plan.threadId ?? session.threadId ?? "",
         entityId: entity.id,
         sessionId: session.id,
         ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
-        response: response.response,
+        response: response.response ?? "",
         ...(accountBinding ? { accountBinding } : {}),
       };
     } catch (error) {
@@ -2339,9 +2455,24 @@ export class SupervisorRuntime {
 
     const isCompatibilityRoute = plan.runtimeBinding.routeType === "compatibility";
     if (isCompatibilityRoute) {
-      // Compatibility plans never touch native adapters: protocol, session and
-      // tool semantics differ. The independent CompatibilityRuntimeAdapter owns
-      // the CLIProxyAPI sidecar and the official Target Harness CLI process.
+      const sourceVendor = plan.ingredients.model?.vendor ?? plan.runtimeBinding.vendor;
+      const sourceProvider = (
+        {
+          openai: "codex",
+          codex: "codex",
+          moonshot: "kimi",
+          kimi: "kimi",
+          xai: "grok",
+          grok: "grok",
+        } as Record<string, string>
+      )[sourceVendor];
+      // CPA 绑定模型来源账号，不能从目标 Harness 的订阅池取凭据。
+      if (!accountId && sourceProvider && this.accountStore.records(sourceProvider).length > 0) {
+        accountId = this.accountResolver.resolve({ provider: sourceProvider, mode: "auto" }).account
+          .accountId;
+      }
+      // CPA owns provider translation; its target factory reuses the selected
+      // Harness session seam so tools, permissions and resume stay intact.
       const adapter = this._compatibilityRuntimeAdapterFactory
         ? await Promise.resolve(
             this._compatibilityRuntimeAdapterFactory(plan.runtimeBinding.harnessKind, accountId),
@@ -2349,6 +2480,8 @@ export class SupervisorRuntime {
         : await this.createDefaultCompatibilityRuntimeAdapter(
             plan.runtimeBinding.harnessKind,
             accountId,
+            projectLocation,
+            candidateMcpServers,
           );
       if (!adapter) {
         throw CraftingError.runtimeUnavailable(
@@ -2357,7 +2490,22 @@ export class SupervisorRuntime {
           "Install the CLIProxyAPI sidecar and configure its binary path to enable the Compatibility route.",
         );
       }
-      return { adapter, plan };
+      const sourceAccount = accountId ? this.accountStore.getRecord(accountId) : undefined;
+      return {
+        adapter: this.ownedHarnessRuntimes.own(adapter),
+        plan,
+        ...(sourceAccount
+          ? {
+              accountBinding: {
+                accountId: sourceAccount.accountId,
+                provider: sourceAccount.provider,
+                credentialScopeRef: sourceAccount.credentialScopeRef,
+                reason: "explicit" as const,
+                boundAt: Date.now(),
+              },
+            }
+          : {}),
+      };
     }
 
     let accountRoot: string | undefined;
@@ -2367,7 +2515,10 @@ export class SupervisorRuntime {
     const managedProvider =
       (plan.runtimeBinding.harnessKind === "codex" ||
         plan.runtimeBinding.harnessKind === "opencode" ||
-        plan.runtimeBinding.harnessKind === "muse") &&
+        plan.runtimeBinding.harnessKind === "muse" ||
+        plan.runtimeBinding.harnessKind === "kimi" ||
+        plan.runtimeBinding.harnessKind === "grok" ||
+        plan.runtimeBinding.harnessKind === "deepseek") &&
       explicitRecord?.provider === "openai-compatible"
         ? "openai-compatible"
         : plan.runtimeBinding.harnessKind === "codex"
@@ -2444,6 +2595,7 @@ export class SupervisorRuntime {
           const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
             resolution.account.accountId,
             plan.runtimeBinding.harnessKind,
+            plan.runtimeBinding.modelId,
           );
           accountEnv = runtime.env;
         } else {
@@ -2476,11 +2628,11 @@ export class SupervisorRuntime {
         ? new NativeCodexRuntimeAdapter({
             ...(accountRoot
               ? {
-                  host: new AppServerProcessHost({
-                    ...(accountRoot ? { codexHome: accountRoot } : {}),
-                    ...(accountEnv ? { env: accountEnv } : {}),
-                  }),
                   codexHome: accountRoot,
+                  ...(managedProvider === "openai-compatible"
+                    ? { profileMode: "endpoint" as const }
+                    : {}),
+                  ...(accountEnv ? { baseSpawnEnv: accountEnv } : {}),
                 }
               : {}),
             ...(accountBinding ? { accountBinding } : {}),
@@ -2528,19 +2680,7 @@ export class SupervisorRuntime {
                         },
                 }
               : {}),
-            ...(accountRoot &&
-            (plan.runtimeBinding.harnessKind === "grok" ||
-              plan.runtimeBinding.harnessKind === "kimi" ||
-              plan.runtimeBinding.harnessKind === "antigravity")
-              ? {
-                  baseSpawnEnv:
-                    accountEnv ??
-                    prepareNativeProfile(plan.runtimeBinding.harnessKind, {
-                      accountId: accountBinding!.accountId,
-                      credentialRoot: accountRoot,
-                    }).env,
-                }
-              : {}),
+            ...(accountEnv ? { baseSpawnEnv: accountEnv } : {}),
             ...(accountBinding && plan.runtimeBinding.harnessKind === "grok"
               ? {
                   onPromptError: (error: unknown) =>
@@ -2560,10 +2700,11 @@ export class SupervisorRuntime {
         `No production runtime adapter is available for '${plan.runtimeBinding.harnessKind}'.`,
       );
     }
+    const ownedAdapter = this.ownedHarnessRuntimes.own(adapter);
     if (!this._customCraftingAdapter) {
-      this.nativeHarnessAdapters.set(plan.runtimeBinding.harnessKind, adapter);
+      this.nativeHarnessAdapters.set(plan.runtimeBinding.harnessKind, ownedAdapter);
     }
-    return { adapter, plan, ...(accountBinding ? { accountBinding } : {}) };
+    return { adapter: ownedAdapter, plan, ...(accountBinding ? { accountBinding } : {}) };
   }
 
   private hasManagedCredential(
@@ -2803,6 +2944,7 @@ export class SupervisorRuntime {
       const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
         record.accountId,
         input.provider,
+        input.model,
       );
       console.log(
         `[account] third-party session bound: provider=${input.provider} thread=${input.threadId} account=${record.accountId} protocol=${protocol}`,
@@ -3005,12 +3147,19 @@ export class SupervisorRuntime {
       projectLocation,
       presentationMode: "gui",
     });
+    const explicitInvocation = Boolean(explicitSkills?.length);
     const inlineInstructions = await this.skillsService.buildTurnSkillInjection({
       agentKind: agentKind ?? harnessKind,
       projectLocation,
       segments,
+      intent: explicitInvocation ? "invoked" : "available",
     });
-    return { segments, ...(inlineInstructions ? { inlineInstructions } : {}) };
+    // Auto exposes enabled skills for discovery; it must not manufacture a
+    // user invocation of every installed skill on every turn.
+    return {
+      segments: explicitInvocation ? segments : [],
+      ...(inlineInstructions ? { inlineInstructions } : {}),
+    };
   }
 
   private async prepareHandoffTarget(
@@ -3103,7 +3252,10 @@ export class SupervisorRuntime {
       }
       const pending = this.pendingHandoffEvents.get(threadId);
       if (pending) pending.push(fencedEvent);
-      else this.emit({ type: "thread-runtime-event", threadId, event: fencedEvent });
+      else {
+        this.emit({ type: "thread-runtime-event", threadId, event: fencedEvent });
+        this.publishCraftedSessionState(threadId, session, fencedEvent);
+      }
       // The runtime acknowledged the interrupt with a real turn completion:
       // disarm the force-stop watchdog.
       if (fencedEvent.type === "turn.completed") this.clearCraftedInterruptWatchdog(threadId);
@@ -3171,6 +3323,8 @@ export class SupervisorRuntime {
         phase: "active",
         sourceSegmentId: ensuredInitialSegment.id,
         targetBinding: ensuredInitialSegment.runtimeBinding,
+        ...(plan ? { targetCraftPlan: craftPlanSchema.parse(sanitizePortableRecord(plan)) } : {}),
+        ...(binding ? { activeAccountBinding: binding } : {}),
         activeSegment: ensuredInitialSegment,
         requestedAt: ensuredInitialSegment.activatedAt ?? ensuredInitialSegment.createdAt,
         updatedAt: now,
@@ -3178,6 +3332,67 @@ export class SupervisorRuntime {
       this.runtimeSegmentLedger.saveSwitchState(bindingState);
       this.emit({ type: "session-switch-state", threadId, state: bindingState });
     }
+    if (!this.pendingHandoffEvents.has(threadId))
+      this.publishCraftedSessionState(threadId, session);
+  }
+
+  /** Canonical content alone does not update the desktop's thread-state
+   * channel. Publish only lifecycle boundaries, never per-token snapshots. */
+  private publishCraftedSessionState(
+    threadId: string,
+    session: CraftSession,
+    event?: import("@/shared/contracts").RuntimeEvent,
+  ): void {
+    if (
+      event &&
+      ![
+        "turn.started",
+        "turn.completed",
+        "request.opened",
+        "request.resolved",
+        "session.exited",
+        "error",
+      ].includes(event.type)
+    )
+      return;
+    if (this.craftedSessionsByThread.get(threadId) !== session) return;
+    const request = this.craftedRequestsByThread.get(threadId)?.values().next().value;
+    let status: import("@/shared/contracts").ThreadStatus;
+    let attention: import("@/shared/contracts").ThreadAttention;
+    if (event?.type === "session.exited") {
+      status = "inactive";
+      attention = "none";
+    } else if (
+      event?.type === "error" ||
+      (event?.type === "turn.completed" && event.state === "failed")
+    ) {
+      status = "error";
+      attention = "error";
+    } else if (request) {
+      status = request.requestType === "tool_user_input" ? "needs_reply" : "needs_approval";
+      attention = status;
+    } else if (
+      event?.type === "turn.started" ||
+      (event?.type !== "turn.completed" && session.status === "busy")
+    ) {
+      status = "working";
+      attention = "working";
+    } else {
+      status = "idle";
+      attention = "none";
+    }
+    const providerSessionId = session.nativeSessionRef ?? session.sessionRef;
+    this.emit({
+      type: "thread-state",
+      threadId,
+      status,
+      attention,
+      canResumeWithConfig: Boolean(providerSessionId),
+      ...(providerSessionId
+        ? { sessionRef: { providerSessionId, discoveredAt: new Date().toISOString() } }
+        : {}),
+      ...(event?.type === "error" ? { errorMessage: event.message } : {}),
+    });
   }
 
   private releaseCraftedBinding(binding: AccountBinding): void {
@@ -3789,11 +4004,8 @@ export class SupervisorRuntime {
         this.releaseCraftedSession(threadId);
       }),
     );
-    await Promise.allSettled(
-      [...this.nativeHarnessAdapters.values()].map((adapter) =>
-        Promise.resolve(adapter.dispose?.() ?? undefined),
-      ),
-    );
+    await this.ownedHarnessRuntimes.dispose();
+    await this.compatibilityBridgeService.stop();
     this.nativeHarnessAdapters.clear();
     await this.threadSessionManager.dispose();
     this.ownSubagentsMcpIngress.dispose();

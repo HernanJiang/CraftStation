@@ -49,10 +49,7 @@ function config(model: string, sourceProviderKind?: string): ThreadConfig {
 
 describe("dsh ACP model wire values", () => {
   it("resolves the catalog id deepseek-flash to the exact advertised tuple", () => {
-    const resolved = resolveModelConfigValue(
-      config("deepseek-flash"),
-      [DSH_MODEL_OPTION],
-    );
+    const resolved = resolveModelConfigValue(config("deepseek-flash"), [DSH_MODEL_OPTION]);
     expect(resolved).toEqual({
       configId: "model",
       value: '["deepseek-official","deepseek-flash"]',
@@ -61,26 +58,19 @@ describe("dsh ACP model wire values", () => {
   });
 
   it("resolves official ids to their own advertised tuple", () => {
-    const resolved = resolveModelConfigValue(
-      config("deepseek-v4-pro"),
-      [DSH_MODEL_OPTION],
-    );
+    const resolved = resolveModelConfigValue(config("deepseek-v4-pro"), [DSH_MODEL_OPTION]);
     expect(resolved?.value).toBe('["deepseek-official","deepseek-v4-pro"]');
   });
 
   it("resolves the catalog alias deepseek-v4.1-flash onto the advertised deepseek-flash tuple", () => {
-    const resolved = resolveModelConfigValue(
-      config("deepseek-v4.1-flash"),
-      [DSH_MODEL_OPTION],
-    );
+    const resolved = resolveModelConfigValue(config("deepseek-v4.1-flash"), [DSH_MODEL_OPTION]);
     expect(resolved?.value).toBe('["deepseek-official","deepseek-flash"]');
   });
 
   it("resolves a full wire-value catalog id back to the identical wire value", () => {
-    const resolved = resolveModelConfigValue(
-      config('["deepseek-official","deepseek-flash"]'),
-      [DSH_MODEL_OPTION],
-    );
+    const resolved = resolveModelConfigValue(config('["deepseek-official","deepseek-flash"]'), [
+      DSH_MODEL_OPTION,
+    ]);
     expect(resolved?.value).toBe('["deepseek-official","deepseek-flash"]');
   });
 
@@ -103,15 +93,18 @@ describe("dsh ACP model wire values", () => {
         },
       ],
     };
-    const resolved = resolveModelConfigValue(config("commandcode/deepseek-v4-flash", "commandcode"), [
-      options,
-    ]);
+    const resolved = resolveModelConfigValue(
+      config("commandcode/deepseek-v4-flash", "commandcode"),
+      [options],
+    );
     expect(resolved?.value).toBe('["commandcode","deepseek/deepseek-v4-flash"]');
     expect(resolved?.value).not.toContain("anthropic:");
   });
 
   it("does not match a catalog id the runtime does not advertise", () => {
-    expect(resolveModelConfigValue(config("deepseek-v4.1-pro"), [DSH_MODEL_OPTION])).toBeUndefined();
+    expect(
+      resolveModelConfigValue(config("deepseek-v4.1-pro"), [DSH_MODEL_OPTION]),
+    ).toBeUndefined();
     expect(resolveModelConfigValue(config("gpt-5.6-sol"), [DSH_MODEL_OPTION])).toBeUndefined();
   });
 });
@@ -119,9 +112,13 @@ describe("dsh ACP model wire values", () => {
 describe("AcpSessionConfigSync strict model binding", () => {
   function makeStrictSync(configOptions: unknown[]) {
     const connection = {
-      setSessionMode: vi.fn().mockResolvedValue(undefined),
-      setSessionConfigOption: vi.fn().mockResolvedValue({ configOptions }),
-      request: vi.fn().mockResolvedValue(undefined),
+      setSessionMode: vi
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue(undefined),
+      setSessionConfigOption: vi
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue({ configOptions }),
+      request: vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue(undefined),
     };
     const sync = new AcpSessionConfigSync(connection as unknown as ClientSideConnection, {
       strictModelResolution: true,

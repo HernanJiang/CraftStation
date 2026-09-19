@@ -29,12 +29,7 @@ export type CodexSocketMessage =
       kind: "unknown";
     };
 
-export const CODEX_APPROVAL_POLICIES = [
-  "untrusted",
-  "on-request",
-  "granular",
-  "never",
-] as const;
+export const CODEX_APPROVAL_POLICIES = ["untrusted", "on-request", "granular", "never"] as const;
 
 export type CodexApprovalPolicy = (typeof CODEX_APPROVAL_POLICIES)[number];
 
@@ -55,20 +50,7 @@ export function toCodexApprovalPolicy(policy: string | undefined): CodexApproval
   return undefined;
 }
 
-export function toCodexSandboxPolicy(
-  mode: string | undefined,
-): { type: "readOnly" } | { type: "workspaceWrite" } | { type: "dangerFullAccess" } | undefined {
-  switch (mode) {
-    case "read-only":
-      return { type: "readOnly" };
-    case "workspace-write":
-      return { type: "workspaceWrite" };
-    case "danger-full-access":
-      return { type: "dangerFullAccess" };
-    default:
-      return undefined;
-  }
-}
+export { toCodexSandboxPolicy } from "@/shared/agents/codexPermissions";
 
 export function extractThreadField(result: unknown, field: string): string | undefined {
   return extractObjectStringField(result, "thread", field);

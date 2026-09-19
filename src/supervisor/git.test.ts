@@ -27,6 +27,11 @@ const { execFileMock, mkdirMock, readFileMock, readWslCommandOutputAsync, rmMock
     statMock: vi.fn<() => Promise<{ isFile(): boolean; size: number; mtimeMs: number }>>(),
   }));
 
+vi.mock("./agents/base/processRuntime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./agents/base/processRuntime")>()),
+  resolveExecutablePath: (name: string) => name,
+}));
+
 vi.mock("./agents/base", async () => {
   const actual = await vi.importActual<typeof import("./agents/base")>("./agents/base");
   return {

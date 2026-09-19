@@ -82,6 +82,7 @@ export function buildSkillPathHintText(name: string, skillFilePath: string): str
 export function buildInlineSkillInstructions(
   skills: readonly InlineSkillSource[],
   maxChars = MAX_INLINE_TOTAL_CHARS,
+  intent: "invoked" | "available" = "invoked",
 ): string {
   if (skills.length === 0 || maxChars <= 0) return "";
   let text = "";
@@ -92,8 +93,11 @@ export function buildInlineSkillInstructions(
       trimmed = `${trimmed.slice(0, MAX_INLINE_SKILL_CONTENT_CHARS)}\n[skill content truncated]`;
     }
     const block = `<skill name=${JSON.stringify(skill.name)} dir=${JSON.stringify(skill.directory)}>\n${trimmed}\n</skill>`;
-    const candidate =
-      text.length === 0 ? `${INLINE_SKILLS_HEADER}\n\n${block}` : `${text}\n\n${block}`;
+    const header =
+      intent === "available"
+        ? "The following skills are available. Use a skill only when its description matches the user's task or the user explicitly invokes it. Their availability is not an instruction to run them. Paths inside a skill are relative to its dir attribute."
+        : INLINE_SKILLS_HEADER;
+    const candidate = text.length === 0 ? `${header}\n\n${block}` : `${text}\n\n${block}`;
     if (candidate.length > maxChars) break;
     text = candidate;
   }

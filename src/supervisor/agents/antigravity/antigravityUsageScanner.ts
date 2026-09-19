@@ -16,6 +16,7 @@ import {
   RETRIEVE_USER_QUOTA_SUMMARY,
 } from "./antigravityLanguageServer";
 import { resolveAntigravityLsEndpoints } from "./antigravityProcessScan";
+import { readAntigravityQuotaSummary } from "./antigravityCloudQuota";
 
 /**
  * Antigravity usage from its local language server (LS-only by design).
@@ -179,7 +180,10 @@ async function fetchAntigravityCloudcodeQuota(host: HostPort): Promise<Antigravi
     () => undefined,
   );
   const modelsRequestBody = projectId ? JSON.stringify({ project: projectId }) : "{}";
+  let summaryWindows: UsageWindow[] = [];
   const readModels = async (accessToken: string): Promise<unknown | string | undefined> => {
+    summaryWindows = await readAntigravityQuotaSummary(host, accessToken, modelsRequestBody);
+    if (summaryWindows.length > 0) return {};
     // Terminal verdicts are returned as `{ [AUTH_REJECTED]: true }`-style marker
     // objects so they can never be confused with a successful models body.
     for (const base of CLOUDCODE_BASES) {
@@ -232,7 +236,7 @@ async function fetchAntigravityCloudcodeQuota(host: HostPort): Promise<Antigravi
   }
 
   const models = antigravityModelsFromFetchAvailableModels(parsed);
-  const windows = antigravityPoolWindows(models);
+  const windows = summaryWindows.length > 0 ? summaryWindows : antigravityPoolWindows(models);
   if (windows.length === 0) {
     return { kind: "error", error: "Antigravity quota response carried no models" };
   }

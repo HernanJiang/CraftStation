@@ -86,6 +86,11 @@ export function managedKimiProcessEnvironment(
   for (const key of blankKeys) env[key] = "";
   env.KIMI_CODE_HOME = managedKimiHome;
   ensureManagedKimiHome(managedKimiHome);
+  ensureManagedKimiRuntimeConfig(managedKimiHome);
+  return env;
+}
+
+function ensureManagedKimiRuntimeConfig(managedKimiHome: string): void {
   // Upgrade API-key profiles created by older CraftStation versions. Kimi
   // Code no longer consumes KIMI_CODE_API_KEY from the process environment;
   // the provider declaration must survive in config.toml instead.
@@ -95,8 +100,33 @@ export function managedKimiProcessEnvironment(
       encoding: "utf8",
       mode: 0o600,
     });
+    return;
   }
-  return env;
+  // The CLI discovers OAuth through a provider declaration, not by scanning
+  // credentials/. Repair old imported homes, but preserve configurations
+  // written by an official login (including region and custom model settings).
+  if (existsSync(join(managedKimiHome, "config.toml"))) return;
+  let credential: unknown;
+  try {
+    credential = JSON.parse(readFileSync(credentialPath(managedKimiHome), "utf8"));
+  } catch {
+    return;
+  }
+  if (!hasKimiCredentialMaterial(credential)) return;
+  writeFileAtomic(join(managedKimiHome, "config.toml"), kimiRuntimeConfigToml(), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+}
+
+function hasKimiCredentialMaterial(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  // A refreshable OAuth file remains usable even when its access token expired.
+  // File presence or identity metadata alone is not a login credential.
+  return [record.access_token, record.refresh_token].some(
+    (token) => typeof token === "string" && token.trim().length > 0,
+  );
 }
 
 /** Long-lived API key stored in a managed home (not an OAuth access token). */
@@ -399,6 +429,12 @@ export class KimiProfileService {
     // API-key-style credentials carry no JWT/email identity: fall back to a
     // label + content-hash identity so the import still succeeds on its own
     // account row instead of failing outright.
+    if (!hasKimiCredentialMaterial(parsed)) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "Kimi Code credential contains no access token or refresh token. Please sign in again.",
+      );
+    }
     const identity =
       kimiCredentialIdentities(parsed)[0] ?? kimiFallbackIdentity(input.label, content);
     const existing = this.options.store.findByProviderIdentity(this.provider, identity);
@@ -414,6 +450,7 @@ export class KimiProfileService {
       const root = this.options.store.credentialRoot(account.accountId);
       ensureManagedKimiHome(root);
       writeFileAtomic(credentialPath(root), content, { encoding: "utf8", mode: 0o600 });
+      ensureManagedKimiRuntimeConfig(root);
       return this.options.store.updateStatus(account.accountId, "available");
     } catch (error) {
       if (!existing) this.options.store.remove(account.accountId);
@@ -470,6 +507,14 @@ export class KimiProfileService {
         { accountId, expected, actual: identity },
       );
     }
+    if (!hasKimiCredentialMaterial(parsed)) {
+      throw new AccountControlError(
+        "ACCOUNT_PROJECTION_FAILED",
+        "Kimi Code login did not create a usable credential. Please sign in again.",
+        { accountId },
+      );
+    }
+    ensureManagedKimiRuntimeConfig(managedRoot);
     this.options.store.updateProviderMetadata(accountId, {
       providerAccountId: identity,
       maskedIdentity: identity,
@@ -515,31 +560,39 @@ export function managedKimiLoginCwd(managedKimiHome: string): string {
 }
 
 function kimiApiKeyConfigToml(apiKey: string): string {
-  const escaped = apiKey.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-  return [
+  return kimiRuntimeConfigToml(apiKey);
+}
+
+/** OAuth references the account-owned credential file; never embed its token. */
+function kimiRuntimeConfigToml(apiKey?: string): string {
+  const provider = apiKey === undefined ? "managed:kimi-code" : "kimi-code";
+  const escaped = apiKey?.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  const config = [
     'default_model = "kimi-code/kimi-for-coding"',
     "",
-    "[providers.kimi-code]",
+    apiKey === undefined ? '[providers."managed:kimi-code"]' : "[providers.kimi-code]",
     'type = "kimi"',
     'base_url = "https://api.kimi.com/coding/v1"',
-    `api_key = "${escaped}"`,
+    ...(apiKey === undefined
+      ? ['[providers."managed:kimi-code".oauth]', 'storage = "file"', 'key = "oauth/kimi-code"']
+      : [`api_key = "${escaped}"`]),
     "",
     '[models."kimi-code/kimi-for-coding"]',
-    'provider = "kimi-code"',
+    `provider = "${provider}"`,
     'model = "kimi-for-coding"',
     "max_context_size = 262144",
     'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
     'display_name = "K2.7 Coding"',
     "",
     '[models."kimi-code/kimi-for-coding-highspeed"]',
-    'provider = "kimi-code"',
+    `provider = "${provider}"`,
     'model = "kimi-for-coding-highspeed"',
     "max_context_size = 262144",
     'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
     'display_name = "K2.7 Coding Highspeed"',
     "",
     '[models."kimi-code/k3"]',
-    'provider = "kimi-code"',
+    `provider = "${provider}"`,
     'model = "k3"',
     "max_context_size = 1048576",
     'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
@@ -548,7 +601,7 @@ function kimiApiKeyConfigToml(apiKey: string): string {
     'default_effort = "high"',
     "",
     '[models."kimi-code/k3-256k"]',
-    'provider = "kimi-code"',
+    `provider = "${provider}"`,
     'model = "k3-256k"',
     "max_context_size = 262144",
     'capabilities = ["thinking", "always_thinking", "image_in", "tool_use"]',
@@ -556,5 +609,6 @@ function kimiApiKeyConfigToml(apiKey: string): string {
     'support_efforts = ["low", "high", "max"]',
     'default_effort = "high"',
     "",
-  ].join("\n");
+  ];
+  return config.join("\n");
 }

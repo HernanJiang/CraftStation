@@ -101,7 +101,7 @@ describe("mergeCustomModelsIntoCapabilities", () => {
   });
 
   it("merges hand-written effort tiers without touching builtin entries", () => {
-    const custom = [
+    const customEfforts = [
       {
         id: "custom:codex::my-model",
         provider: "codex",
@@ -112,7 +112,7 @@ describe("mergeCustomModelsIntoCapabilities", () => {
         defaultEffort: "low",
       },
     ];
-    const merged = mergeCustomModelsIntoCapabilities("codex", baseCapabilities(), custom);
+    const merged = mergeCustomModelsIntoCapabilities("codex", baseCapabilities(), customEfforts);
     expect(merged.modelEfforts?.["my-model"]).toEqual(["low", "high"]);
     expect(merged.modelDefaultEfforts?.["my-model"]).toBe("low");
     expect(merged.modelEfforts?.["builtin-1"]).toBeUndefined();

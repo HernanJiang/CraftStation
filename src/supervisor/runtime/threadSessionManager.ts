@@ -259,6 +259,8 @@ export class ThreadSessionManager {
       closeThread: (payload) => this.closeThread(payload),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
       failThreadLaunch: (threadId, error) => this.failThreadLaunch(threadId, error),
+      replayStructuredTurn: (session, turn) =>
+        this.structuredTurnQueue.start(session, turn, { reusePaintedMessage: true }),
       tryPoolFailover: (session, turn, error) => this.tryPoolFailover(session, turn, error),
       isCurrentSession: (session) => this.isCurrentSession(session),
       resolveAgentSettings: (adapter) => this.resolveAgentSettings(adapter),
@@ -1634,7 +1636,7 @@ export class ThreadSessionManager {
       this.ptyLifecycle.killShell(shell);
     }
     this.shellSessions.clear();
-    this.logWriter.dispose();
+    await this.logWriter.dispose();
   }
 
   private requireSession(threadId: string): SessionRuntime {

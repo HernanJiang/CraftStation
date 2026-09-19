@@ -193,6 +193,7 @@ export class AcpSessionConfigSync {
           if (this.options.strictModelResolution) {
             throw new Error(
               `DSH model binding failed: the runtime rejected the requested model ${JSON.stringify(nextConfig.model)} (${toErrorMessage(error)})`,
+              { cause: error },
             );
           }
           console.log(

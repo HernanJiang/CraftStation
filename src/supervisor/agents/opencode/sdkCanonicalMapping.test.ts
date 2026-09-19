@@ -193,7 +193,7 @@ describe("sdkCanonicalMapping — text streaming", () => {
       type: "context.updated",
       threadId: "thread-1",
       usage: {
-        usedTokens: 71_500,
+        usedTokens: 60_000,
         breakdown: [
           { id: "input", label: "Input", tokens: 60_000 },
           { id: "output", label: "Output", tokens: 8_000 },

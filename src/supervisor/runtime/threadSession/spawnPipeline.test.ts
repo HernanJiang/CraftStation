@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isolateRuntimeMcpEnvironment } from "../testSupport/runtimeEnvironment";
+import type { SessionRuntime } from "../sessionTypes";
+import { StructuredInterruptWatchdog } from "./structuredInterruptWatchdog";
 import type { SessionRef, ThreadConfig } from "@/shared/contracts";
 import type { StructuredSessionHandle } from "@/supervisor/agents/base";
 import {
@@ -16,6 +19,9 @@ import {
   CROSSAGENTS_PEER_MCP_TOKEN_ENV,
   CROSSAGENTS_PEER_MCP_URL_ENV,
 } from "@/supervisor/agents/crossagentsPeerMcp";
+
+beforeEach(isolateRuntimeMcpEnvironment);
+afterEach(() => vi.unstubAllEnvs());
 
 describe("resolveSupportedPresentationMode", () => {
   it("moves a legacy terminal thread to GUI when the provider is now GUI-only", () => {
@@ -131,7 +137,7 @@ describe("effectiveLaunchConfig — single gate for built-in MCP disables", () =
   });
 });
 
-describe("workspaceLaunchConfig — Home scope unrestricted for every agent", () => {
+describe("workspaceLaunchConfig — Home permissions", () => {
   const adapter = {
     capabilities: {
       approvalPolicies: [
@@ -153,8 +159,15 @@ describe("workspaceLaunchConfig — Home scope unrestricted for every agent", ()
     ).toEqual(config);
   });
 
-  it("forces each provider's unrestricted posture in Home", () => {
+  it("preserves explicit permissions in Home", () => {
     const config = { ...baseConfig, approvalPolicy: "default", sandboxMode: "workspace-write" };
+    expect(
+      workspaceLaunchConfig({ kind: "windows", path: "C:\\Users\\me" }, config, adapter, []),
+    ).toEqual(config);
+  });
+
+  it("keeps legacy unrestricted Home launches without a permission choice", () => {
+    const config = { ...baseConfig };
     expect(
       workspaceLaunchConfig({ kind: "windows", path: "C:\\Users\\me" }, config, adapter, []),
     ).toEqual({
@@ -640,6 +653,7 @@ describe("switchThreadProvider transactional lifecycle", () => {
         if (options.failOpen) throw new Error("open failed");
         return "ses_new";
       }),
+      startTurn: vi.fn<() => Promise<void>>(async () => undefined),
       dispose: vi.fn<() => Promise<void>>(async () => {
         handle.disposed = true;
       }),
@@ -649,6 +663,7 @@ describe("switchThreadProvider transactional lifecycle", () => {
   }
 
   function makePipeline(handle: ReturnType<typeof makeHandle>) {
+    const replayStructuredTurn = vi.fn<(session: SessionRuntime, turn: unknown) => void>();
     const oldDispose = vi.fn<() => Promise<void>>(async () => undefined);
     const oldSession = {
       threadId: "t1",
@@ -698,6 +713,7 @@ describe("switchThreadProvider transactional lifecycle", () => {
       sessionRuntimeLifecycle: { attach },
       pendingStartInterrupts: new Set(),
       pendingStartAborts: new Set(),
+      replayStructuredTurn,
     } as never);
     return {
       pipeline,
@@ -707,8 +723,77 @@ describe("switchThreadProvider transactional lifecycle", () => {
       sessions,
       adapter,
       resolveAccountSessionEnv,
+      replayStructuredTurn,
     };
   }
+
+  it.each(["dispose", "create", "activate", "open"] as const)(
+    "abandons restart and disposes its replacement when Stop occurs during %s",
+    async (stage) => {
+      const handle = makeHandle();
+      const h = makePipeline(handle);
+      const session = Object.assign(h.oldSession, {
+        instanceId: "old-instance",
+        agentKind: "opencode",
+        adapter: h.adapter,
+        status: "working",
+        sessionRef: { providerSessionId: "old", discoveredAt: "now" },
+      }) as unknown as SessionRuntime;
+      const gate = Promise.withResolvers<void>();
+      const entered = Promise.withResolvers<void>();
+      const wait = async () => {
+        entered.resolve();
+        await gate.promise;
+      };
+      if (stage === "dispose") h.oldDispose.mockImplementationOnce(wait);
+      if (stage === "create")
+        h.adapter.createStructuredSession.mockImplementationOnce(async () => {
+          await wait();
+          return handle;
+        });
+      if (stage === "activate")
+        handle.activate.mockImplementationOnce(async () => {
+          await wait();
+          handle.activated = true;
+        });
+      if (stage === "open")
+        handle.openThread.mockImplementationOnce(async () => {
+          await wait();
+          return "new";
+        });
+      const restarting = h.pipeline.restartThread(session, {
+        prompt: "replay",
+        config: session.config,
+      });
+      await entered.promise;
+      const completeForcedInterrupt = vi.fn<(value: SessionRuntime) => void>((value) => {
+        value.status = "idle";
+      });
+      const watchdog = new StructuredInterruptWatchdog({
+        sessions: h.sessions as unknown as Map<string, SessionRuntime>,
+        isDisposed: () => false,
+        completeForcedInterrupt,
+      });
+      await watchdog.interruptStructuredTurn(session);
+      gate.resolve();
+      await restarting;
+      expect(h.attach).not.toHaveBeenCalled();
+      expect(h.replayStructuredTurn).not.toHaveBeenCalled();
+      expect(completeForcedInterrupt).toHaveBeenCalledOnce();
+      expect(session.structuredSession).toBeUndefined();
+      expect(handle.dispose).toHaveBeenCalledTimes(stage === "dispose" ? 0 : 1);
+      // 与 sendThreadInput 的恢复条件相同：取消后下一条输入必须能重建并进入统一队列。
+      expect(session.status).toBe("idle");
+      const replacement = makeHandle();
+      h.adapter.createStructuredSession.mockResolvedValueOnce(replacement);
+      await h.pipeline.restartThread(session, { prompt: "next input", config: session.config });
+      expect(h.attach).toHaveBeenCalledOnce();
+      expect(h.replayStructuredTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ structuredSession: replacement }),
+        expect.objectContaining({ prompt: "next input" }),
+      );
+    },
+  );
 
   it("activates the new OpenCode session before openThread", async () => {
     const handle = makeHandle();

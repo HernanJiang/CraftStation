@@ -60,7 +60,7 @@ const RUNTIME_DEPS = [
 
 // devDependencies the stage needs to run electron-builder + rebuild natives.
 const STAGE_DEV_DEPS = ["electron", "electron-builder", "@electron/rebuild"];
-const { PACKAGED_DIST_DIRS, PACKAGED_DIST_FILES } = channelTable;
+const { PACKAGED_DIST_DIRS, PACKAGED_DIST_FILES, PACKAGED_NATIVE_EXCLUDES } = channelTable;
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -620,6 +620,7 @@ files:
 ${packagedDistFilesYaml}
   - package.json
   - node_modules/**/*
+${PACKAGED_NATIVE_EXCLUDES.map((pattern) => `  - "${pattern}"`).join("\n")}
   # The SDK's optionalDependencies include a 200+MB precompiled \`claude\` SEA
   # binary per platform. We ship without it; users provide \`claude\` via PATH.
   - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**/*"

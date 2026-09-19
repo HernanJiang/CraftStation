@@ -2,7 +2,7 @@
 import { CodexBinaryResolver, type ResolvedCodexBinary } from "./codexBinaryResolver";
 import { JsonRpcTransport } from "./jsonRpcTransport";
 import { CraftingError } from "@/shared/crafting/errors";
-import { managedCodexProcessEnvironment } from "../codexProfiles";
+import { managedCodexProcessEnvironment, stripCodexRouterEnv } from "../codexProfiles";
 
 export interface AppServerProcessOptions {
   binaryPath?: string | undefined;
@@ -12,6 +12,7 @@ export interface AppServerProcessOptions {
   onStderr?: ((chunk: string) => void) | undefined;
   onExit?: ((code: number | null, signal: string | null) => void) | undefined;
   codexHome?: string | undefined;
+  profileMode?: "subscription" | "endpoint" | undefined;
 }
 
 export class AppServerProcessHost {
@@ -73,13 +74,18 @@ export class AppServerProcessHost {
     const args = ["app-server", "--stdio", ...(this.options?.args ?? [])];
     this._spawnArgs = [...args];
     const cwd = this.options?.cwd ?? process.cwd();
-    const env = {
-      ...process.env,
-      ...this.options?.env,
-      ...(this.options?.codexHome
-        ? managedCodexProcessEnvironment(this.options.codexHome, process.env)
-        : {}),
-    };
+    // Endpoint profiles are already compiled by provider/API. Initializing a
+    // subscription home here would silently replace their provider and URL.
+    const env =
+      this.options?.profileMode === "endpoint" && this.options.codexHome
+        ? { ...stripCodexRouterEnv(), ...this.options.env, CODEX_HOME: this.options.codexHome }
+        : {
+            ...process.env,
+            ...this.options?.env,
+            ...(this.options?.codexHome
+              ? managedCodexProcessEnvironment(this.options.codexHome, process.env)
+              : {}),
+          };
 
     try {
       const child = spawn(binary.path, args, {

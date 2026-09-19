@@ -4,6 +4,49 @@ import { describe, expect, it } from "vitest";
 import { normalizeChatProjectPath, toProjectRelativeDisplayPath } from "./chatPathUtils";
 
 describe("normalizeChatProjectPath", () => {
+  it("opens Markdown Windows drive paths with a URI-style leading slash", () => {
+    const project = { kind: "windows" as const, path: "D:\\Work\\EQ-Agent" };
+    expect(
+      normalizeChatProjectPath(
+        "/D:/Work/EQ-Agent/review/EQ-Dataset-v1-20260919/index.html",
+        project,
+      ),
+    ).toBe("review/EQ-Dataset-v1-20260919/index.html");
+    expect(normalizeChatProjectPath("/D:/Work/Other/index.html:25", project)).toBe(
+      "D:/Work/Other/index.html:25",
+    );
+    expect(normalizeChatProjectPath("/D:/Work/EQ-Agent-copy/index.html", project)).toBe(
+      "D:/Work/EQ-Agent-copy/index.html",
+    );
+  });
+
+  it("decodes file URI paths once while keeping network shares absolute", () => {
+    const project = { kind: "windows" as const, path: "D:\\Work\\EQ-Agent" };
+    expect(
+      normalizeChatProjectPath(
+        "file:///D:/Work/EQ-Agent/review/%E6%8A%A5%E5%91%8A%20one.html",
+        project,
+      ),
+    ).toBe("review/报告 one.html");
+    expect(normalizeChatProjectPath("file://server/share/report.html", project)).toBe(
+      "//server/share/report.html",
+    );
+    expect(normalizeChatProjectPath("\\\\server\\share\\report.html", project)).toBe(
+      "//server/share/report.html",
+    );
+    expect(normalizeChatProjectPath("review/100%20literal.html", project)).toBe(
+      "review/100%20literal.html",
+    );
+  });
+
+  it("respects POSIX case and does not reinterpret a POSIX drive-shaped directory", () => {
+    expect(
+      normalizeChatProjectPath("/home/me/Repo/file.ts", { kind: "posix", path: "/home/me/repo" }),
+    ).toBe("/home/me/Repo/file.ts");
+    expect(
+      normalizeChatProjectPath("/D:/folder/file.ts", { kind: "posix", path: "/home/me/repo" }),
+    ).toBe("/D:/folder/file.ts");
+  });
   it("normalizes Windows project-absolute paths to project-relative paths", () => {
     expect(
       normalizeChatProjectPath("C:/repo/src/supervisor/agents/acp/session.ts:945", {

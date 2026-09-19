@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OpenCodeNativeSession } from "./session";
 import { getDefaultRegistry } from "@/shared/crafting/registry";
@@ -49,59 +52,69 @@ describe("OpenCode 6-route live smoke matrix", () => {
   it.each(cases)(
     "probes live server session creation and turn settlement for $providerID ($model)",
     async (item) => {
-      const modelItem = registry.getItem(item.model)!;
-      const plan: CraftPlan = {
-        id: `probe:opencode:${item.providerID}:${item.modelId}`,
-        recipeId: item.recipe,
-        resultItemId: `probe-result:${item.providerID}:${item.modelId}`,
-        ingredients: {
-          model: {
-            slot: "model",
-            itemId: modelItem.id,
-            itemVersion: modelItem.metadata.version,
+      const workspace = await mkdtemp(join(tmpdir(), "craftstation-opencode-probe-"));
+      let session: OpenCodeNativeSession | undefined;
+      try {
+        const modelItem = registry.getItem(item.model)!;
+        const plan: CraftPlan = {
+          id: `probe:opencode:${item.providerID}:${item.modelId}`,
+          recipeId: item.recipe,
+          resultItemId: `probe-result:${item.providerID}:${item.modelId}`,
+          ingredients: {
+            model: {
+              slot: "model",
+              itemId: modelItem.id,
+              itemVersion: modelItem.metadata.version,
+              vendor: modelItem.metadata.vendor,
+              kind: "model",
+            },
+            harness: {
+              slot: "harness",
+              itemId: opencode.id,
+              itemVersion: opencode.metadata.version,
+              vendor: opencode.metadata.vendor,
+              kind: "harness",
+            },
+          },
+          runtimeBinding: {
+            harnessKind: "opencode",
+            providerID: item.providerID,
+            modelId: item.modelId,
             vendor: modelItem.metadata.vendor,
-            kind: "model",
+            runtimeAdapterId: "native-harness:opencode-probe-only",
           },
-          harness: {
-            slot: "harness",
-            itemId: opencode.id,
-            itemVersion: opencode.metadata.version,
-            vendor: opencode.metadata.vendor,
-            kind: "harness",
+          workspace: workspace,
+          threadId: `thread:live:${item.providerID}`,
+          createdAt: new Date().toISOString(),
+        };
+
+        session = await OpenCodeNativeSession.open({
+          entityId: `entity:live:${item.providerID}`,
+          threadId: `thread:live:${item.providerID}`,
+          projectLocation: {
+            kind: "windows",
+            path: workspace,
           },
-        },
-        runtimeBinding: {
-          harnessKind: "opencode",
-          providerID: item.providerID,
-          modelId: item.modelId,
-          vendor: modelItem.metadata.vendor,
-          runtimeAdapterId: "native-harness:opencode-probe-only",
-        },
-        workspace: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
-        threadId: `thread:live:${item.providerID}`,
-        createdAt: new Date().toISOString(),
-      };
+          plan,
+        });
 
-      const session = await OpenCodeNativeSession.open({
-        entityId: `entity:live:${item.providerID}`,
-        threadId: `thread:live:${item.providerID}`,
-        projectLocation: {
-          kind: "windows",
-          path: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
-        },
-        plan,
-      });
+        expect(session.id).toMatch(/^sess:opencode:ses_/u);
+        expect(session.status).toBe("idle");
 
-      expect(session.id).toMatch(/^sess:opencode:ses_/u);
-      expect(session.status).toBe("idle");
+        // Attempt prompt turn: since provider API keys are not supplied in env, expect safe rejection / error handling
+        await expect(session.startTurn({ prompt: "ping" })).rejects.toThrow(
+          /error|failed|execution|timeout|model not found|authentication|auth required/iu,
+        );
 
-      // Attempt prompt turn: since provider API keys are not supplied in env, expect safe rejection / error handling
-      await expect(session.startTurn({ prompt: "ping" })).rejects.toThrow(
-        /error|failed|execution|timeout|model not found|authentication|auth required/iu,
-      );
-
-      await session.terminate();
-      expect(session.status).toBe("terminated");
+        await session.terminate();
+        expect(session.status).toBe("terminated");
+      } finally {
+        try {
+          await session?.terminate();
+        } finally {
+          await rm(workspace, { recursive: true, force: true });
+        }
+      }
     },
     45_000,
   );

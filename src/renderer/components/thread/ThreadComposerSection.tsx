@@ -21,6 +21,7 @@ import {
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { continueInterruptedTaskSegments, isThreadTaskPaused } from "./pausedTurn";
 import {
+  cancelPendingThreadSubmission,
   changeThreadConfig,
   clearThreadPendingSteer,
 } from "@/renderer/actions/threadRuntimeActions";
@@ -735,6 +736,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   function handleInterrupt() {
     if (isInterrupting) return;
     setIsInterrupting(true);
+    cancelPendingThreadSubmission(thread.id);
     const execution = getRuntimeExecutionEnvelope(thread.id);
     // Capture the live turn's start before the stop round-trips: a turn the
     // user stops renders as 已取消 (matched by start timestamp), which is the
@@ -1310,7 +1312,11 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                           setHasContent(hasText);
                           latestSegmentsRef.current = mentionRef.current?.serializeSegments() ?? [];
                         }}
-                        onSubmit={submitPrompt}
+                        onSubmit={(segments) => {
+                          void submitPrompt(segments).catch((error: unknown) =>
+                            toast.danger(friendlyError(error)),
+                          );
+                        }}
                         onPasteImage={(file: File) => {
                           void attachments
                             .addClipboardImage(file, thread.id)
@@ -1452,11 +1458,11 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                     {...(!usesRemoteTransport ? { onAttachFiles: attachments.addFiles } : {})}
                     onSubmit={() => {
                       const segments = mentionRef.current?.serializeSegments();
-                      submitPrompt(
+                      void submitPrompt(
                         segments && segments.length > 0
                           ? segments
                           : [{ kind: "text", content: prompt.trim() }],
-                      );
+                      ).catch((error: unknown) => toast.danger(friendlyError(error)));
                     }}
                   />
                 </div>

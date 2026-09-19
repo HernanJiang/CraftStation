@@ -410,6 +410,11 @@ process.stdin.on("data", (chunk) => {
     ["--no-warnings", seedScript, "--baseDir", dataDir, "--projectDir", projectDir, "--reset"],
     { cwd: repoRoot, stdio: "inherit", windowsHide: process.platform === "win32" },
   );
+  // Scenario labels are English. Pin only this newly-created isolated fixture,
+  // so host OS locale cannot change selectors or touch the user's settings.
+  if (mode === "mock") {
+    await writeFile(join(dataDir, "settings.json"), JSON.stringify({ locale: "en" }));
+  }
 }
 
 async function resolvePorts() {

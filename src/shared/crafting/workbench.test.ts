@@ -173,6 +173,18 @@ describe("workbench compatibility tiers", () => {
     expect(resolutionKeyFor("agent:codex:gpt-5.3", "harness:opencode")).not.toBe(base);
     expect(resolutionKeyFor("agent:codex:gpt-5.3", "harness:codex", "account-1")).not.toBe(base);
   });
+
+  it("does not alias provider/runtime slots or identifiers containing delimiters", () => {
+    expect(resolutionKeyFor("model", "harness", "profile")).not.toBe(
+      resolutionKeyFor("model", "harness", undefined, "profile"),
+    );
+    expect(resolutionKeyFor("model|harness", "other")).not.toBe(
+      resolutionKeyFor("model", "harness|other"),
+    );
+    expect(resolutionKeyFor("model", "harness", "", "profile")).not.toBe(
+      resolutionKeyFor("model", "harness", undefined, "profile"),
+    );
+  });
 });
 
 describe("recipe identity", () => {

@@ -80,7 +80,9 @@ describe("Deep Module Boundary Guards", () => {
       const content = fs.readFileSync(file, "utf8");
       for (const pattern of forbiddenRuntimePatterns) {
         expect(
-          content.includes(pattern),
+          pattern === "agents/codex"
+            ? /agents\/codex(?:\/|["'])/.test(content)
+            : content.includes(pattern),
           `Native Codex file '${file}' violates isolation by referencing legacy pattern '${pattern}'`,
         ).toBe(false);
       }

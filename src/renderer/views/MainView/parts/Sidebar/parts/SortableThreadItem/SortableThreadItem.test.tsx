@@ -491,7 +491,7 @@ describe("SortableThreadItem", () => {
     );
   });
 
-  it("enables unload for a loaded thread without a session ref", () => {
+  it("keeps the retired unload action out of a loaded thread menu", () => {
     render(
       <SortableThreadItem
         thread={makeThread()}
@@ -508,12 +508,10 @@ describe("SortableThreadItem", () => {
       .at(-1)?.[0]
       .find((item) => item.id === "unload");
 
-    expect(unloadItem).toMatchObject({ id: "unload" });
-    expect(unloadItem?.isDisabled).toBe(false);
-    expect(unloadItem?.disabledReason).toBeUndefined();
+    expect(unloadItem).toBeUndefined();
   });
 
-  it("keeps unload disabled for already unloaded threads", () => {
+  it("keeps the retired unload action out of an inactive thread menu", () => {
     render(
       <SortableThreadItem
         thread={{ ...makeThread(), status: "inactive" }}
@@ -530,11 +528,7 @@ describe("SortableThreadItem", () => {
       .at(-1)?.[0]
       .find((item) => item.id === "unload");
 
-    expect(unloadItem).toMatchObject({
-      id: "unload",
-      isDisabled: true,
-      disabledReason: "Thread is already unloaded.",
-    });
+    expect(unloadItem).toBeUndefined();
   });
 
   it("keeps flat-list thread rows free of project, sync, git, files, and terminal chrome", () => {

@@ -104,6 +104,7 @@ export const craftAgentPayloadSchema = z.object({
   craftPlan: craftPlanSchema,
   projectLocation: projectLocationSchema,
   prompt: z.string(),
+  userMessageItemId: z.string().min(1).optional(),
   /** Candidate custom MCP servers selected by the CraftPlan; Supervisor revalidates ids. */
   mcpServers: mcpServerListSchema.optional(),
   accountId: z.string().min(1).optional(),
@@ -128,6 +129,7 @@ export const resumeCraftAgentPayloadSchema = z.object({
   projectLocation: projectLocationSchema,
   sessionRef: z.string().min(1),
   prompt: z.string().optional(),
+  userMessageItemId: z.string().min(1).optional(),
   /** Candidate custom MCP servers selected by the reconstructed CraftPlan. */
   mcpServers: mcpServerListSchema.optional(),
   accountId: z.string().min(1).optional(),

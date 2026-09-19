@@ -1,3 +1,4 @@
+import { SessionEventHistory } from "../sessionEventHistory";
 import { randomUUID } from "node:crypto";
 import type {
   CraftPlan,
@@ -6,7 +7,6 @@ import type {
   CraftSessionStatus,
   Entity,
   HarnessRuntimeAdapter,
-  NativeEventEnvelope,
   NativeHarnessDescriptor,
   NativeHarnessDiagnostic,
   SessionSnapshot,
@@ -38,10 +38,11 @@ function configForPlan(plan: CraftPlan, defaultApprovalPolicy?: string): ThreadC
     overrides?.approvalPolicy ?? runtime.approvalPolicy ?? defaultApprovalPolicy;
   return {
     model: overrides?.model ?? plan.runtimeBinding.modelId,
-    ...(overrides?.reasoningEffort ?? runtime.reasoningEffort
+    ...((overrides?.reasoningEffort ?? runtime.reasoningEffort)
       ? { effort: overrides?.reasoningEffort ?? runtime.reasoningEffort }
       : {}),
     ...(approvalPolicy ? { approvalPolicy } : {}),
+    ...runtime.permissionConfig,
   };
 }
 
@@ -143,9 +144,9 @@ class StructuredNativeCraftSession implements CraftSession {
   private _activeTurnStatus: TurnStatus | undefined;
   private _disposed = false;
   private _sequence = 0;
-  private readonly _events: RuntimeEvent[] = [];
-  private readonly _nativeEvents: NativeEventEnvelope[] = [];
-  private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
+  private pendingCompletion: { resolve: () => void; reject: (error: Error) => void } | undefined;
+  private completionPromise: Promise<void> | undefined;
+  private readonly history = new SessionEventHistory();
   private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
 
   constructor(
@@ -163,6 +164,7 @@ class StructuredNativeCraftSession implements CraftSession {
     const listener: StructuredSessionListener = {
       onClose: () => {
         if (this._disposed) return;
+        this.pendingCompletion?.reject(new Error("Native process exited during the turn."));
         this._status = "terminated";
         this.emit({
           type: "session.exited",
@@ -171,8 +173,9 @@ class StructuredNativeCraftSession implements CraftSession {
         });
       },
       onError: (message) => {
+        this.pendingCompletion?.reject(new Error(message));
         const record = diagnostic(descriptor, "turn", "native-session-error", new Error(message));
-        this._diagnostics.push(record);
+        this.history.addDiagnostic(record);
         this._status = "error";
         this.emit({ type: "error", threadId: this.threadId, message });
       },
@@ -183,7 +186,17 @@ class StructuredNativeCraftSession implements CraftSession {
           this.emit({ type: "error", threadId: this.threadId, message: update.errorMessage });
         }
       },
-      onRuntimeEvent: (event) => this.emit(event),
+      onRuntimeEvent: (event) => {
+        // The owned seam announces admission once, including handles that
+        // only emit completion. Do not open the same turn a second time.
+        if (event.type === "turn.started" && this._activeTurnStatus === "running") return;
+        if (event.type === "turn.completed") {
+          this._activeTurnStatus = statusFromTurnState(event.state);
+          this._status = event.state === "failed" ? "error" : "idle";
+        }
+        this.emit(event);
+        if (event.type === "turn.completed") this.pendingCompletion?.resolve();
+      },
     };
     handle.setListener(listener);
   }
@@ -201,21 +214,18 @@ class StructuredNativeCraftSession implements CraftSession {
   }
 
   getDiagnostics(): readonly NativeHarnessDiagnostic[] {
-    return [...this._diagnostics];
+    return this.history.readDiagnostics();
   }
 
   getSnapshot(): SessionSnapshot {
-    return {
+    return this.history.snapshot({
       sessionId: this.id,
       entityId: this.entityId,
       threadId: this.threadId,
       status: this._status,
       activeTurnId: this._activeTurnId,
       activeTurnStatus: this._activeTurnStatus,
-      events: [...this._events],
       nativeSessionRef: this._providerSessionId,
-      nativeEvents: [...this._nativeEvents],
-      diagnostics: [...this._diagnostics],
       effectiveOverrides: {
         ...(this.config.model ? { model: this.config.model } : {}),
         ...(this.config.effort
@@ -231,7 +241,7 @@ class StructuredNativeCraftSession implements CraftSession {
             }
           : {}),
       },
-    };
+    });
   }
 
   subscribe(listener: (event: RuntimeEvent, snapshot: SessionSnapshot) => void): () => void {
@@ -246,8 +256,7 @@ class StructuredNativeCraftSession implements CraftSession {
       this._providerSessionId,
       this._sequence++,
     );
-    this._events.push(next);
-    if (next.nativeEnvelope) this._nativeEvents.push(next.nativeEnvelope);
+    this.history.append(next);
     const snapshot = this.getSnapshot();
     for (const listener of this._listeners) {
       try {
@@ -272,31 +281,75 @@ class StructuredNativeCraftSession implements CraftSession {
       );
     }
 
-    const turnStart = this._events.length;
+    const turnStart = this.history.eventCount;
     const turnId = command.turnId ?? `turn:${randomUUID()}`;
     this._activeTurnId = turnId;
     this._activeTurnStatus = "running";
     this._status = "busy";
+    this.emit({ type: "turn.started", threadId: this.threadId, turnId });
+    if (command.userMessageItemId) {
+      // Echo suppression in the native mapper assumes the runtime publishes
+      // this row. UI-only optimistic paint is not durable or visible to peers.
+      this.emit({
+        type: "item.started",
+        threadId: this.threadId,
+        itemId: command.userMessageItemId,
+        itemType: "user_message",
+        payload: { content: [{ kind: "text", text: command.prompt }] },
+      });
+      this.emit({
+        type: "item.completed",
+        threadId: this.threadId,
+        itemId: command.userMessageItemId,
+      });
+    }
+    const completion =
+      this.handle.turnCompletionMode === "event"
+        ? new Promise<void>((resolve, reject) => {
+            this.pendingCompletion = { resolve, reject };
+          })
+        : undefined;
+    this.completionPromise = completion;
+    // The terminal notification can precede the admission response. Observe
+    // rejection immediately, then await the same promise after admission.
+    void completion?.catch(() => undefined);
     const onAbort = () => {
       void this.handle.interruptTurn?.();
     };
     command.signal?.addEventListener("abort", onAbort, { once: true });
     try {
+      Object.assign(this.config, {
+        ...(command.overrides?.model ? { model: command.overrides.model } : {}),
+        ...(command.overrides?.reasoningEffort
+          ? { effort: command.overrides.reasoningEffort }
+          : {}),
+        ...(command.overrides?.approvalPolicy
+          ? { approvalPolicy: command.overrides.approvalPolicy }
+          : {}),
+        ...command.overrides?.permissionConfig,
+      });
       await this.handle.startTurn(
         command.prompt,
         this.config,
-        this.skillSegments ? [...this.skillSegments] : undefined,
-        this.inlineSkillInstructions
-          ? { inlineInstructions: this.inlineSkillInstructions }
+        this.skillSegments?.length
+          ? [{ kind: "text", content: command.prompt }, ...this.skillSegments]
           : undefined,
+        {
+          turnId,
+          ...(command.userMessageItemId ? { userMessageItemId: command.userMessageItemId } : {}),
+          ...(this.inlineSkillInstructions
+            ? { inlineInstructions: this.inlineSkillInstructions }
+            : {}),
+        },
       );
+      if (completion) await completion;
     } catch (error) {
       this._status = "error";
       this._activeTurnStatus = "failed";
       const record = diagnostic(this.descriptor, "turn", "startTurn", error, {
         sessionId: this.id,
       });
-      this._diagnostics.push(record);
+      this.history.addDiagnostic(record);
       this.emit({
         type: "error",
         threadId: this.threadId,
@@ -315,16 +368,18 @@ class StructuredNativeCraftSession implements CraftSession {
             harnessKind: this.descriptor.harnessKind,
           });
     } finally {
+      this.pendingCompletion = undefined;
+      this.completionPromise = undefined;
       command.signal?.removeEventListener("abort", onAbort);
     }
 
-    const events = this._events.slice(turnStart);
+    const events = this.history.eventsSince(turnStart);
     const completed = [...events].reverse().find((event) => event.type === "turn.completed");
     const turnStatus = statusFromTurnState(
       completed?.type === "turn.completed" ? completed.state : undefined,
     );
     this._activeTurnStatus = turnStatus;
-    this._status = "idle";
+    this._status = this._disposed ? "terminated" : "idle";
     const response = events
       .filter(
         (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
@@ -346,7 +401,7 @@ class StructuredNativeCraftSession implements CraftSession {
     return {
       turnId,
       status: turnStatus,
-      events: this._events.slice(turnStart),
+      events: this.history.eventsSince(turnStart),
       ...(response ? { response } : {}),
     };
   }
@@ -368,9 +423,7 @@ class StructuredNativeCraftSession implements CraftSession {
       return;
     }
     await this.handle.resolveServerRequest(requestId, {
-      answers: Object.fromEntries(
-        resolution.answers.map((row, index) => [`q${index}`, [...row]]),
-      ),
+      answers: Object.fromEntries(resolution.answers.map((row, index) => [`q${index}`, [...row]])),
     });
   }
 
@@ -380,7 +433,7 @@ class StructuredNativeCraftSession implements CraftSession {
       // No native cancel on this handle. Refuse to fake a stop: throw so the
       // supervisor's interrupt watchdog force-closes the turn instead of the
       // renderer believing a still-running turn was interrupted.
-      this._diagnostics.push(
+      this.history.addDiagnostic(
         diagnostic(
           this.descriptor,
           "interrupt",
@@ -393,13 +446,11 @@ class StructuredNativeCraftSession implements CraftSession {
     try {
       await this.handle.interruptTurn();
     } catch (error) {
-      this._diagnostics.push(diagnostic(this.descriptor, "interrupt", "interrupt", error));
+      this.history.addDiagnostic(diagnostic(this.descriptor, "interrupt", "interrupt", error));
       throw error;
     }
-    this._status = "idle";
-    if (this._activeTurnId && this._activeTurnStatus === "running") {
-      this._activeTurnStatus = "interrupted";
-    }
+    // Only the native terminal event settles status. An abort RPC response
+    // acknowledges the request, not completion; keep the watchdog armed.
   }
 
   async steer(instructions: string): Promise<void> {
@@ -409,16 +460,26 @@ class StructuredNativeCraftSession implements CraftSession {
       return;
     }
     await this.interrupt();
+    await this.completionPromise;
     await this.startTurn({ prompt: instructions });
   }
 
   async terminate(): Promise<void> {
     if (this._disposed) return;
     this._disposed = true;
+    if (this.pendingCompletion) {
+      this.emit({
+        type: "turn.completed",
+        threadId: this.threadId,
+        turnId: this._activeTurnId ?? `turn:${randomUUID()}`,
+        state: "cancelled",
+      });
+      this.pendingCompletion.resolve();
+    }
     try {
       await this.handle.dispose();
     } catch (error) {
-      this._diagnostics.push(diagnostic(this.descriptor, "dispose", "dispose", error));
+      this.history.addDiagnostic(diagnostic(this.descriptor, "dispose", "dispose", error));
       this._status = "error";
       throw error;
     } finally {

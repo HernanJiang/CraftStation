@@ -1,3 +1,5 @@
+import { SessionEventHistory } from "../sessionEventHistory";
+import { toCodexSandboxPolicy } from "@/shared/agents/codexPermissions";
 import { randomUUID } from "node:crypto";
 import type {
   CraftPlan,
@@ -74,6 +76,8 @@ export interface NativeCodexAdapterOptions {
   /** Supervisor-resolved MCP servers selected by the CraftPlan. */
   mcpServers?: readonly ResolvedMcpServer[] | undefined;
   codexHome?: string | undefined;
+  baseSpawnEnv?: Record<string, string> | undefined;
+  profileMode?: "subscription" | "endpoint" | undefined;
   skillSegments?: readonly PromptSegment[] | undefined;
   inlineSkillInstructions?: string | undefined;
 }
@@ -82,9 +86,7 @@ export class NativeCodexCraftSession implements CraftSession {
   private _status: CraftSessionStatus = "idle";
   private _activeTurnId?: string | undefined;
   private _activeTurnStatus?: TurnStatus | undefined;
-  private readonly _events: RuntimeEvent[] = [];
-  private readonly _nativeEvents: NativeEventEnvelope[] = [];
-  private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
+  private readonly history = new SessionEventHistory();
   private readonly _listeners = new Set<SessionEventListener>();
   private _effectiveOverrides?: RuntimeOverrides | undefined;
   private _unsubscribeNotif?: (() => void) | undefined;
@@ -133,7 +135,7 @@ export class NativeCodexCraftSession implements CraftSession {
     this._unsubscribeClose = this.client.onClose(() => {
       if (this._status === "terminated") return;
       const error = new Error("Codex App-Server transport closed unexpectedly.");
-      this._diagnostics.push(codexDiagnostic("turn", "transport-close", error));
+      this.history.addDiagnostic(codexDiagnostic("turn", "transport-close", error));
       this._status = "error";
       this.emitEvent(
         { type: "error", threadId: this.threadId, message: error.message },
@@ -161,23 +163,20 @@ export class NativeCodexCraftSession implements CraftSession {
   }
 
   getDiagnostics(): readonly NativeHarnessDiagnostic[] {
-    return [...this._diagnostics];
+    return this.history.readDiagnostics();
   }
 
   getSnapshot(): SessionSnapshot {
-    return {
+    return this.history.snapshot({
       sessionId: this.id,
       entityId: this.entityId,
       threadId: this.threadId,
       status: this._status,
       activeTurnId: this._activeTurnId,
       activeTurnStatus: this._activeTurnStatus,
-      events: [...this._events],
       nativeSessionRef: this.nativeSessionRef,
-      nativeEvents: [...this._nativeEvents],
-      diagnostics: [...this._diagnostics],
       effectiveOverrides: this._effectiveOverrides ? { ...this._effectiveOverrides } : undefined,
-    };
+    });
   }
 
   subscribe(listener: SessionEventListener): () => void {
@@ -205,8 +204,7 @@ export class NativeCodexCraftSession implements CraftSession {
             receivedAt: new Date().toISOString(),
           },
         };
-    this._events.push(nextEvent);
-    if (nextEvent.nativeEnvelope) this._nativeEvents.push(nextEvent.nativeEnvelope);
+    this.history.append(nextEvent);
     const snapshot = this.getSnapshot();
     for (const listener of this._listeners) {
       try {
@@ -302,6 +300,13 @@ export class NativeCodexCraftSession implements CraftSession {
       this._effectiveOverrides = {
         ...this._effectiveOverrides,
         ...command.overrides,
+        permissionConfig: {
+          ...this._effectiveOverrides?.permissionConfig,
+          ...(command.overrides.approvalPolicy
+            ? { approvalPolicy: command.overrides.approvalPolicy }
+            : {}),
+          ...command.overrides.permissionConfig,
+        },
       };
     }
 
@@ -332,7 +337,7 @@ export class NativeCodexCraftSession implements CraftSession {
           turnId,
           sessionId: this.id,
         });
-        this._diagnostics.push(diagnostic);
+        this.history.addDiagnostic(diagnostic);
         const rawMsg = error instanceof Error ? error.message : String(error);
         // Native-CLI transport failures (direct official endpoint unreachable)
         // get an actionable explanation instead of raw transport text.
@@ -424,7 +429,13 @@ export class NativeCodexCraftSession implements CraftSession {
           model: this._effectiveOverrides?.model,
           effort: this._effectiveOverrides?.reasoningEffort,
           serviceTier: this._effectiveOverrides?.serviceTier,
-          approvalPolicy: this._effectiveOverrides?.approvalPolicy,
+          approvalPolicy:
+            this._effectiveOverrides?.permissionConfig?.approvalPolicy ??
+            this._effectiveOverrides?.approvalPolicy,
+          sandboxPolicy: toCodexSandboxPolicy(
+            this._effectiveOverrides?.permissionConfig?.sandboxMode,
+          ),
+          approvalsReviewer: this._effectiveOverrides?.permissionConfig?.approvalsReviewer,
           collaborationMode: {
             mode: "default",
             settings: {
@@ -498,7 +509,7 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
 
   private async ensureClient(): Promise<AppServerClient> {
     if (this._client) {
-      if (this.accountBinding) await this.verifyNativeAccount(this._client);
+      if (this.accountBinding?.provider === "codex") await this.verifyNativeAccount(this._client);
       return this._client;
     }
 
@@ -506,7 +517,8 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
       const mcp = buildCodexMcp(this.options?.mcpServers ?? []);
       this._host = new AppServerProcessHost({
         ...(mcp.args.length > 0 ? { args: mcp.args } : {}),
-        ...(Object.keys(mcp.env).length > 0 ? { env: mcp.env } : {}),
+        env: { ...this.options?.baseSpawnEnv, ...mcp.env },
+        ...(this.options?.profileMode ? { profileMode: this.options.profileMode } : {}),
         ...(this.options?.codexHome ? { codexHome: this.options.codexHome } : {}),
       });
     }
@@ -519,7 +531,7 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
     }
 
     await client.initialize();
-    if (this.options?.accountBinding) {
+    if (this.options?.accountBinding?.provider === "codex") {
       if (this.options.codexHome)
         verifyProfileIdentity("codex", this.options.codexHome, this.options.accountBinding);
       await this.verifyNativeAccount(client);
@@ -639,7 +651,9 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         cwd: entity.craftPlan.workspace,
         model: overrides?.model ?? entity.craftPlan.runtimeBinding.modelId,
         serviceTier: overrides?.serviceTier,
-        approvalPolicy: overrides?.approvalPolicy,
+        approvalPolicy: overrides?.permissionConfig?.approvalPolicy ?? overrides?.approvalPolicy,
+        approvalsReviewer: overrides?.permissionConfig?.approvalsReviewer,
+        sandbox: overrides?.permissionConfig?.sandboxMode,
       });
 
       // Official Codex App-Server thread IDs are UUIDs generated by the server
@@ -694,7 +708,15 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
       const threadId = sessionRef || entity.craftPlan.threadId || `thread:${randomUUID()}`;
       const sessionId = `sess:codex:${threadId}`;
 
-      await client.resumeThread({ threadId });
+      const permissions = entity.craftPlan.overrides?.permissionConfig;
+      await client.resumeThread({
+        threadId,
+        ...(permissions?.approvalPolicy ? { approvalPolicy: permissions.approvalPolicy } : {}),
+        ...(permissions?.approvalsReviewer
+          ? { approvalsReviewer: permissions.approvalsReviewer }
+          : {}),
+        ...(permissions?.sandboxMode ? { sandbox: permissions.sandboxMode } : {}),
+      });
       entity.status = "running";
 
       logCraftingEvent({

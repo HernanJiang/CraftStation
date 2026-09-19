@@ -21,6 +21,7 @@ interface MdNode {
 interface PluginOptions {
   cacheKey?: string;
   parsePathRef: (token: string) => ProjectPathRef | null;
+  parseLinkRef?: (href: string) => ProjectPathRef | null;
 }
 
 const SKIP_PARENT_TYPES = new Set(["code", "inlineCode", "link", "linkReference", "html"]);
@@ -48,7 +49,9 @@ function visit(node: MdNode, options: PluginOptions): void {
     if (child.type === "text" && typeof child.value === "string") {
       next.push(...transformText(child.value, options));
     } else if (child.type === "link" && typeof child.url === "string") {
-      const ref = options.parsePathRef(child.url);
+      const ref = options.parseLinkRef
+        ? options.parseLinkRef(child.url)
+        : options.parsePathRef(child.url);
       if (ref) child.url = pathRefUrl(ref);
       next.push(child);
     } else if (SKIP_PARENT_TYPES.has(child.type)) {

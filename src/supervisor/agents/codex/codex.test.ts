@@ -1462,7 +1462,7 @@ describe("CodexStructuredSession", () => {
       type: "context.updated",
       threadId: "local-thread",
       usage: {
-        usedTokens: 100,
+        usedTokens: 80,
         maxTokens: 258_400,
         breakdown: [
           { id: "input", label: "Input", tokens: 80 },
@@ -1808,9 +1808,9 @@ describe("CodexStructuredSession", () => {
       onUpdate: () => {},
     };
 
-    await expect(
-      structuredSession.startTurn("hi", { model: "glm-5.3-flash" }),
-    ).rejects.toThrow(/not supported/);
+    await expect(structuredSession.startTurn("hi", { model: "glm-5.3-flash" })).rejects.toThrow(
+      /not supported/,
+    );
     expect(requests).toHaveLength(1);
     expect(runtimeEvents.some((event) => event.type === "warning")).toBe(false);
     expect(runtimeEvents.some((event) => event.type === "error")).toBe(true);

@@ -15,6 +15,7 @@ export { safeMessage } from "./diagnostics";
 
 export interface OpenCodeNativeClient {
   readonly session: {
+    update?: (parameters: Record<string, unknown>) => Promise<{ data?: unknown }>;
     create: (parameters?: Record<string, unknown>) => Promise<{ data?: unknown }>;
     get: (parameters: Record<string, unknown>) => Promise<{ data?: unknown }>;
     promptAsync: (parameters: Record<string, unknown>) => Promise<{ data?: unknown }>;

@@ -3,8 +3,7 @@ import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import type { CapabilityResolution } from "@/shared/crafting/workbenchTypes";
 
 /**
- * Save Recipe dialog: shown when the user clicks "合成" on a verified NATIVE
- * combination. Only saves a StoredRecipe — it never launches a Thread/Agent.
+ * Saving a compatible Recipe does not launch it or claim runtime verification.
  * The system name is auto-composed and the alias is an optional subtitle.
  */
 export function RecipeSaveDialog(props: {
@@ -17,6 +16,7 @@ export function RecipeSaveDialog(props: {
 }) {
   const { open, systemName, resolution, duplicateCount, onClose, onSave } = props;
   const [alias, setAlias] = useState("");
+  const canSave = resolution.status === "NATIVE" || resolution.status === "CRAFTABLE";
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={(next) => !next && onClose()}>
       <Modal.Container>
@@ -37,7 +37,7 @@ export function RecipeSaveDialog(props: {
             </div>
             {resolution.status === "CRAFTABLE" ? (
               <p className="mt-2 text-[11px] text-amber-300/80">
-                Compatibility 尚未完成运行时验证，不能保存
+                此配方通过兼容桥运行；启动时会再次检查运行环境与模型可用性。
               </p>
             ) : null}
             {duplicateCount > 0 ? (
@@ -49,7 +49,8 @@ export function RecipeSaveDialog(props: {
               value={alias}
               onChange={setAlias}
               onKeyDown={(event) => {
-                if (event.key === "Enter") onSave(alias.trim() ? alias.trim() : undefined);
+                if (event.key === "Enter" && canSave)
+                  onSave(alias.trim() ? alias.trim() : undefined);
               }}
               className="mt-3"
             >
@@ -64,7 +65,7 @@ export function RecipeSaveDialog(props: {
             <Button
               variant="primary"
               onPress={() => onSave(alias.trim() ? alias.trim() : undefined)}
-              isDisabled={resolution.status !== "NATIVE"}
+              isDisabled={!canSave}
               data-testid="confirm-save-recipe"
             >
               保存配方

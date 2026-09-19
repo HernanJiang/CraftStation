@@ -299,7 +299,7 @@ describe("mobile ThreadView", () => {
 
       await act(() => vi.advanceTimersByTimeAsync(1));
       expect(bridgeMock.startThread).toHaveBeenCalledTimes(1);
-      expect(toastDanger).toHaveBeenCalledWith("restart failed");
+      expect(toastDanger).toHaveBeenCalledWith("restart failed", undefined);
     } finally {
       vi.useRealTimers();
     }

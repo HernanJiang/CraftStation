@@ -345,7 +345,9 @@ export function createAutoUpdaterController(
 
   async function checkForUpdate(options?: { automatic?: boolean | undefined }): Promise<void> {
     if (isDev && !process.env.UPDATE_SERVER_URL) {
-      sendStatus({ type: "error", messageKey: "update.devUnavailable" });
+      if (options?.automatic !== true) {
+        sendStatus({ type: "error", messageKey: "update.devUnavailable" });
+      }
       return;
     }
     try {

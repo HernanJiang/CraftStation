@@ -207,7 +207,8 @@ export class ExchangeRepository {
     return exchange;
   }
 
-  listForThread(threadId: string, limit = 30): ThreadExchange[] {    const rows = getSqlite()
+  listForThread(threadId: string, limit = 30): ThreadExchange[] {
+    const rows = getSqlite()
       .prepare(
         `SELECT * FROM thread_exchanges
          WHERE source_thread_id = ? OR target_thread_id = ?
@@ -229,7 +230,8 @@ export class ExchangeRepository {
     return rows.map(rowToExchange);
   }
 
-  countQueuedBySource(sourceThreadId: string): number {    const row = getSqlite()
+  countQueuedBySource(sourceThreadId: string): number {
+    const row = getSqlite()
       .prepare(
         `SELECT COUNT(*) AS count FROM thread_exchanges
          WHERE source_thread_id = ? AND status IN ('created', 'queued')`,
@@ -294,6 +296,23 @@ export class ExchangeRepository {
         exchangeId,
         token,
       );
+    if (result.changes !== 1) throw staleClaimError(exchangeId);
+    return this.require(exchangeId);
+  }
+
+  /** 仅明确未被 Runtime 接纳的投递可退回队列；取消/过期 claim 不得被复活。 */
+  deferDelivery(
+    exchangeId: string,
+    token: string,
+    status: "queued" | "needs_attention",
+  ): ThreadExchange {
+    const stamp = this.now().toISOString();
+    const result = getSqlite()
+      .prepare(`UPDATE thread_exchanges
+      SET status = ?, claim_token = NULL, claim_expires_at = NULL, updated_at = ?
+      WHERE id = ? AND status = 'delivering' AND claim_token = ? AND delivered_at IS NULL
+        AND claim_expires_at > ?`)
+      .run(status, stamp, exchangeId, token, stamp);
     if (result.changes !== 1) throw staleClaimError(exchangeId);
     return this.require(exchangeId);
   }

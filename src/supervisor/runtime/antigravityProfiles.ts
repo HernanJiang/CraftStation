@@ -11,6 +11,7 @@ import {
   type HostPort,
 } from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
+import { readAntigravityQuotaSummary } from "../agents/antigravity/antigravityCloudQuota";
 import { CraftStationCredentialVault } from "./credentialVault";
 import {
   antigravityAdcCredentialPath,
@@ -546,7 +547,10 @@ export class AntigravityProfileService {
       }
     }
     const requestBody = projectId ? JSON.stringify({ project: projectId }) : "{}";
+    let summaryWindows: Awaited<ReturnType<typeof readAntigravityQuotaSummary>> = [];
     const readModels = async (accessToken: string): Promise<unknown | "auth-rejected"> => {
+      summaryWindows = await readAntigravityQuotaSummary(host, accessToken, requestBody);
+      if (summaryWindows.length > 0) return {};
       for (const base of CLOUDCODE_BASES) {
         let status = 0;
         let body: string | undefined;
@@ -608,7 +612,10 @@ export class AntigravityProfileService {
     }
 
     this.persistAccountAdc(accountId);
-    const windows = antigravityPoolWindows(antigravityModelsFromFetchAvailableModels(parsed));
+    const windows =
+      summaryWindows.length > 0
+        ? summaryWindows
+        : antigravityPoolWindows(antigravityModelsFromFetchAvailableModels(parsed));
     const email = token.email?.trim();
     const withMetadata = this.options.store.updateProviderMetadata(accountId, {
       ...(email ? { providerAccountId: email } : {}),

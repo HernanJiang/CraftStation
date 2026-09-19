@@ -35,6 +35,7 @@ const { bridge, captureFileCheckpoint, runtimeActions } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/renderer/actions/threadRuntimeActions", () => ({
+  cancelPendingThreadSubmission: vi.fn<(threadId: string) => void>(),
   changeThreadConfig: runtimeActions.changeThreadConfig,
   resolveThreadServerRequest: runtimeActions.resolveThreadServerRequest,
   submitThreadInput: runtimeActions.submitThreadInput,
@@ -1144,7 +1145,7 @@ describe("ThreadView", () => {
     expect(screen.queryByLabelText("Collapse composer")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Show composer")).not.toBeInTheDocument();
 
-    expect(screen.getByRole("button", { name: "CraftStation mode" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CraftStation mode" })).not.toBeInTheDocument();
   });
 
   it("surfaces the GUI plan only in the top-right capsule without duplicating the plan row or hiding the live timer", async () => {
@@ -1714,6 +1715,8 @@ describe("ThreadView", () => {
   });
 
   it("allows queued follow-ups and stop while a GUI ACP thread is running", async () => {
+    const interruption = Promise.withResolvers<void>();
+    bridge.interruptThread.mockReturnValueOnce(interruption.promise);
     renderThreadView({
       thread: {
         id: "thread-gui-working",
@@ -1772,6 +1775,8 @@ describe("ThreadView", () => {
       expect(bridge.interruptThread).toHaveBeenCalledWith({ threadId: "thread-gui-working" });
     });
     expect(stopButton.querySelector('[aria-label="Loading"]')).toBeInTheDocument();
+    await act(async () => interruption.resolve());
+    expect(stopButton.querySelector('[aria-label="Loading"]')).not.toBeInTheDocument();
 
     // After entering text, send button appears instead
     const input = screen.getByPlaceholderText("Send a message...");
@@ -1876,9 +1881,7 @@ describe("ThreadView", () => {
 
       // Main pane: single visible pane — header portals into the workspace header.
       const main = renderThreadView({ thread, agentStatus, projectLocation });
-      expect(
-        portalTarget.querySelectorAll("[data-thread-header-portal-content]"),
-      ).toHaveLength(1);
+      expect(portalTarget.querySelectorAll("[data-thread-header-portal-content]")).toHaveLength(1);
       main.unmount();
 
       // Side Chat pane: never portals — its header stays local to its own pane,
@@ -1889,9 +1892,7 @@ describe("ThreadView", () => {
         projectLocation,
         portalThreadHeader: false,
       });
-      expect(portalTarget.querySelectorAll("[data-thread-header-portal-content]")).toHaveLength(
-        0,
-      );
+      expect(portalTarget.querySelectorAll("[data-thread-header-portal-content]")).toHaveLength(0);
       expect(side.container.querySelectorAll("[data-thread-header-portal-content]")).toHaveLength(
         1,
       );

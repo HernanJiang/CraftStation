@@ -90,6 +90,7 @@ export interface CodexUserInputItem {
 }
 
 export interface CodexThreadStartParams {
+  sandbox?: string | undefined;
   cwd?: string | null | undefined;
   model?: string | null | undefined;
   modelProvider?: string | null | undefined;
@@ -116,6 +117,8 @@ export interface CodexThreadStartResult {
 }
 
 export interface CodexTurnStartParams {
+  sandboxPolicy?: { type: "readOnly" | "workspaceWrite" | "dangerFullAccess" } | undefined;
+  approvalsReviewer?: string | undefined;
   threadId: string;
   input: CodexUserInputItem[];
   turnId?: string | null | undefined;
