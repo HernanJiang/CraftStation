@@ -3042,7 +3042,8 @@
       "scope": "changed/new source, scripts and public reports; heuristic screening only"
     },
     "portable": "PASS: pnpm dist:win:portable --skip-build; afterPack SQLite + node-pty native load; final SQLite build subtree also 2 files / 2024448 B",
-    "intermediateCleanup": "BLOCKED_BY_POLICY: automatic approval review rejected recursive removal of verified candidate release/win-unpacked and builder-debug.yml; both retained, artifacts intact."
+    "intermediateCleanup": "BLOCKED_BY_POLICY: automatic approval review rejected recursive removal of verified candidate release/win-unpacked and builder-debug.yml; both retained, artifacts intact.",
+    "commitHooks": "PASS: lint-staged type-aware lint/format and pnpm typecheck"
   },
   "finalMockSmoke": {
     "startedAt": "2026-09-19T14:38:02.802Z",
@@ -3318,5 +3319,12 @@
       "bytes": 361,
       "name": "latest.yml"
     }
-  ]
+  ],
+  "github": {
+    "url": "https://github.com/HernanJiang/CraftStation/pull/13",
+    "localBranch": "dev/1.4.0-architecture-performance",
+    "remoteBranch": "v1.4.0-architecture-performance",
+    "base": "main",
+    "note": "Remote dev exists; retain it and use a flat remote branch after directory file conflict. No main merge/tag/Release."
+  }
 }

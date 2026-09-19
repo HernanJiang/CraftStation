@@ -1,5 +1,6 @@
 ## v1.4.0 — 架构统一与第二轮资源优化候选（2026-09-19，未合入 main / 未发布）
 
+- GitHub 已提交：[PR #13](https://github.com/HernanJiang/CraftStation/pull/13)，远端分支 `v1.4.0-architecture-performance`（旧 `dev` 占用名称前缀，本地分支保持不变）。双包已生成；自动批准审核拒绝中间目录清理，故保留，详情见第二轮报告。
 - 用户授权实际重构、第二轮 CPU/内存/磁盘优化及提交 GitHub；未启用大型角色工作流。实现位于 `dev/1.4.0-architecture-performance` / `.worktrees/1.4.0-architecture-performance`；main 仍为 1.3.4，原有三份研究文档保留。
 - 架构与修复：Session 历史共享、类型化路由、retry/Stop 代际隔离、协作队列/CAS、诊断隐私；修复 Windows 聊天文件引用、CLI 默认权限传递、自定义 Recipe 的模型来源/目标 Harness 隔离、第三方 endpoint 与可选 CPA、OAuth 副本刷新及代理配置。最后真实运行补齐 WAL 双连接、用户消息落库去重、快速 Stop 和重载恢复/复用同一 Session。
 - 自动验证：全量 11,855 通过 / 66 跳过 / 0 失败（1,098 文件），加最后增量定向复验；不是单次冻结源码全量。最终 typecheck、完整 lint、生产 build、完整 mock smoke（9 自动场景 + 16 模拟门、捕获错误 0）通过。

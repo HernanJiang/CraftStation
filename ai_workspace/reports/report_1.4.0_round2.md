@@ -105,3 +105,5 @@ Recipe → CraftPlan → Entity → Session 增加结构化 `permissionConfig`�
 包体验证限构建、资源与原生加载；没有对用户正在使用的 1.3.4 执行安装升级。中间目录清理经过绝对路径和非链接核验后仍被自动批准审核拒绝（仅返回 `blocked by policy`），故 `release/win-unpacked` 与 `builder-debug.yml` 保留，未改用其他工具绕过。主仓库的稳定版产物未动。
 
 版本分支提交到 `HernanJiang/CraftStation`，目标 PR 为 `main`；候选提交不等同正式发布。历史继承 changelog 存在旧同号 1.4.0 条目，正式 Release 前需统一处理，当前不覆盖其历史内容。
+
+提交结果：[PR #13](https://github.com/HernanJiang/CraftStation/pull/13)。本地分支仍为 `dev/1.4.0-architecture-performance`；远端已有 `dev`，Git 拒绝同前缀 `dev/...`（directory file conflict），因此映射到 `origin/v1.4.0-architecture-performance`。旧远端 `dev` 未删除，main 未合入。
