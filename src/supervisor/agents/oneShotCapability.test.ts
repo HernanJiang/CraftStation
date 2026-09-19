@@ -45,14 +45,14 @@ describe("supportsOneShot capability", () => {
     expect(supported).toEqual(["claude", "pi"]);
   });
 
-  it("marks every first-class adapter as one-shot capable", () => {
-    // First-class providers are CLIs with a headless prompt path, so each must
-    // expose one-shot support. Only runtime-registered ACP-registry generics
-    // outside this built-in registry may lack it.
+  it("keeps the ACP-only DeepSeek adapter out of headless one-shot selectors", () => {
     const missing = adapters
       .filter((adapter) => adapter.capabilities.supportsOneShot !== true)
       .map((adapter) => adapter.kind);
-    expect(missing).toEqual([]);
+    expect(missing).toEqual(["deepseek"]);
+    const deepseek = adapters.find((adapter) => adapter.kind === "deepseek");
+    expect(deepseek?.runOneShot).toBeUndefined();
+    expect(deepseek?.buildOneShotCommand).toBeUndefined();
   });
 
   it("includes Grok now that it implements the `grok -p` headless path", () => {

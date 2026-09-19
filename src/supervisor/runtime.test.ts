@@ -21,6 +21,7 @@ import { resolveCraftStationPaths } from "@/shared/craftstationPaths";
 import { setUsageSecret } from "@/shared/usageSecretStore";
 import type { SessionRuntime } from "./runtime/sessionTypes";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
+import { isolateRuntimeMcpEnvironment } from "./runtime/testSupport/runtimeEnvironment";
 
 const taskkillSpawnSyncMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>());
 const ptySpawnMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>());
@@ -103,9 +104,28 @@ function makeTempDir(): string {
 
 function makeRuntime(emit: ConstructorParameters<typeof SupervisorRuntime>[0]): SupervisorRuntime {
   const runtime = new SupervisorRuntime(emit);
+  // Runtime 编排夹具不应读取或投影宿主真实 Skills；技能专用用例会覆盖这些 spy。
+  vi.spyOn(runtime.skillsService, "prepareForLaunch").mockResolvedValue(undefined);
+  vi.spyOn(runtime.skillsService, "scan").mockResolvedValue({
+    skills: [],
+    effectiveSkillIds: [],
+    invocation: "slash",
+    issues: [],
+    canLinkToGlobal: true,
+  });
   runtimesToDispose.push(runtime);
   return runtime;
 }
+
+beforeEach(() => {
+  isolateRuntimeMcpEnvironment();
+  const baseDir = makeTempDir();
+  vi.stubEnv("CRAFTSTATION_DATA_DIR", baseDir);
+  writeFileSync(
+    join(baseDir, "settings.json"),
+    JSON.stringify({ locale: "en", customGlobalPrompt: "" }),
+  );
+});
 
 afterEach(async () => {
   // Dispose any runtimes the test created so their owned services (LSP
@@ -115,6 +135,7 @@ afterEach(async () => {
   // rejects the queued `onUserConsoleLog` forward as it tears down,
   // surfacing as an unhandled rejection that fails the CI run.
   await Promise.allSettled(runtimesToDispose.splice(0).map((runtime) => runtime.disposeAsync()));
+  vi.unstubAllEnvs();
   // Restoring an env var to `undefined` coerces it to the literal string
   // "undefined" (Node stringifies anything assigned to `process.env.X`).
   // That bug used to cause the supervisor to resolve its baseDir as the
@@ -3083,7 +3104,7 @@ describe("SupervisorRuntime craftAgent", () => {
         ...base.runtimeBinding,
         harnessKind,
         vendor,
-        modelId: `${harnessKind}-model`,
+        modelId: harnessKind === "deepseek" ? "deepseek-v4-flash" : `${harnessKind}-model`,
         runtimeAdapterId: `native-harness:${harnessKind}`,
       },
     };
@@ -3128,6 +3149,70 @@ describe("SupervisorRuntime craftAgent", () => {
       },
     };
   }
+
+  it("publishes crafted lifecycle state and native identity without waiting for reply text", async () => {
+    process.env.CRAFTSTATION_DATA_DIR = makeTempDir();
+    const updates: Record<string, unknown>[] = [];
+    const runtime = makeRuntime((event) => {
+      if (event.type === "thread-state") updates.push(event);
+    });
+    const adapter = routedAdapter("grok");
+    const create = adapter.createSession;
+    let listener: SessionEventListener | undefined;
+    adapter.createSession = async (entity) => {
+      const session = await create(entity);
+      return {
+        ...session,
+        nativeSessionRef: "native-state-ref",
+        subscribe: (next) => {
+          listener = next;
+          return () => {};
+        },
+      };
+    };
+    nativeHarnessFactoryOverrides.set("grok", () => adapter);
+    await runtime.craftAgent({
+      craftPlan: nativeCraftPlan("grok", "xai", "state-thread"),
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      prompt: "",
+    });
+    const snapshot = {
+      sessionId: "session:test:grok",
+      entityId: "entity:test:grok",
+      status: "busy" as const,
+      events: [],
+    };
+    listener!({ type: "turn.started", threadId: "state-thread", turnId: "turn-state" }, snapshot);
+    expect(updates.at(-1)).toMatchObject({
+      status: "working",
+      sessionRef: { providerSessionId: "native-state-ref" },
+    });
+    listener!(
+      {
+        type: "request.opened",
+        threadId: "state-thread",
+        requestId: "r",
+        requestType: "tool_user_input",
+        payload: { summary: "choose", details: {} },
+      },
+      snapshot,
+    );
+    expect(updates.at(-1)).toMatchObject({ status: "needs_reply" });
+    listener!(
+      { type: "request.resolved", threadId: "state-thread", requestId: "r", outcome: "answered" },
+      snapshot,
+    );
+    listener!(
+      {
+        type: "turn.completed",
+        threadId: "state-thread",
+        turnId: "turn-state",
+        state: "completed",
+      },
+      snapshot,
+    );
+    expect(updates.at(-1)).toMatchObject({ status: "idle" });
+  });
 
   it.each([
     ["grok", "xai"],
@@ -4065,18 +4150,32 @@ describe("SupervisorRuntime craftAgent", () => {
       provider: "openai-compatible",
       reason: "explicit",
     });
-    expect(created.adapter).toBeInstanceOf(NativeCodexRuntimeAdapter);
-    const host = (created.adapter as NativeCodexRuntimeAdapter).host as unknown as {
-      options?: { codexHome?: string; env?: Record<string, string> };
-    };
-    expect(host.options?.codexHome).toContain("openai-compatible-codex");
-    expect(host.options?.codexHome).not.toContain(`openai-compatible:${account.accountId}`);
-    expect(host.options?.env).toEqual({
-      CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY: "sk-runtime-test",
-    });
-    expect(readFileSync(join(host.options!.codexHome!, "config.toml"), "utf8")).toContain(
-      'name = "Chiral-API"',
+    expect(created.adapter.id).toBe("codex-native-runtime");
+    // Exercise the ownership seam instead of assuming the concrete adapter
+    // escapes it. The process-host test separately verifies endpoint env/config.
+    const spawn = vi
+      .spyOn(NativeCodexRuntimeAdapter.prototype, "spawnEntity")
+      .mockImplementation(async function (this: NativeCodexRuntimeAdapter, plan) {
+        expect(Reflect.get(this, "options")).toMatchObject({
+          profileMode: "endpoint",
+          baseSpawnEnv: { CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY: "sk-runtime-test" },
+        });
+        return {
+          id: "endpoint-fixture",
+          resultItemId: plan.resultItemId,
+          craftPlan: plan,
+          status: "spawned",
+          createdAt: "fixture",
+        };
+      });
+    await created.adapter.spawnEntity(craftPlan("craft-openai-compatible"));
+    spawn.mockRestore();
+    const codexHome = join(
+      cacheDir,
+      "openai-compatible-codex",
+      account.accountId.replace(/[^A-Za-z0-9._-]/g, "_"),
     );
+    expect(readFileSync(join(codexHome, "config.toml"), "utf8")).toContain('name = "Chiral-API"');
   });
 
   it("skips sendPrompt for an empty prompt", async () => {
@@ -4742,6 +4841,7 @@ describe("SupervisorRuntime craftAgent", () => {
         }));
         // The native runtime ignores the interrupt entirely: no turn.completed.
         session.interrupt = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+        vi.spyOn(session, "terminate");
         adapter.createSession = vi.fn<typeof adapter.createSession>(async () => session);
         nativeHarnessFactoryOverrides.set(
           "grok",
@@ -4769,6 +4869,7 @@ describe("SupervisorRuntime craftAgent", () => {
         );
 
         vi.advanceTimersByTime(3_100);
+        expect(session.terminate).toHaveBeenCalledOnce();
         expect(emitted).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
@@ -4876,6 +4977,7 @@ describe("SupervisorRuntime craftAgent", () => {
         events: [],
       }));
       session.interrupt = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      vi.spyOn(session, "startTurn");
       session.sendPrompt = vi.fn<typeof session.sendPrompt>(async (prompt) => ({
         response: `grok:${prompt}`,
         events: [],
@@ -4914,6 +5016,7 @@ describe("SupervisorRuntime craftAgent", () => {
         status: "spawned",
         createdAt: new Date().toISOString(),
       });
+      vi.spyOn(session, "startTurn");
       session.sendPrompt = vi.fn<typeof session.sendPrompt>(async (prompt) => ({
         response: `grok:${prompt}`,
         events: [],
@@ -4928,6 +5031,11 @@ describe("SupervisorRuntime craftAgent", () => {
         craftPlan: nativeCraftPlan("grok", "xai", "grok-crafted-multi-turn"),
         projectLocation: { kind: "windows", path: "C:\\repo" },
         prompt: "first turn",
+        userMessageItemId: "optimistic-first",
+      });
+      expect(session.startTurn).toHaveBeenCalledWith({
+        prompt: "first turn",
+        userMessageItemId: "optimistic-first",
       });
       const activeSegment = runtime.readSessionSwitchState("grok-crafted-multi-turn")
         ?.activeSegment as { id: string; runtimeSessionId: string; bindingEpoch: number };
@@ -4940,12 +5048,19 @@ describe("SupervisorRuntime craftAgent", () => {
         runtime.sendThreadInput({
           threadId: "grok-crafted-multi-turn",
           prompt: "second turn",
+          userMessageItemId: "optimistic-second",
           config: { model: "grok-model" },
           execution,
         }),
       ).resolves.toBeUndefined();
 
-      expect(session.sendPrompt).toHaveBeenCalledWith("second turn");
+      expect(session.startTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: "second turn",
+          userMessageItemId: "optimistic-second",
+          overrides: expect.objectContaining({ model: "grok-model" }),
+        }),
+      );
       expect(craftedLifecycleCounts(runtime).craftedSessions).toBe(1);
       await runtime.closeThread({ threadId: "grok-crafted-multi-turn", execution });
     });
@@ -4960,6 +5075,7 @@ describe("SupervisorRuntime craftAgent", () => {
         status: "spawned",
         createdAt: new Date().toISOString(),
       });
+      vi.spyOn(session, "startTurn");
       session.sendPrompt = vi.fn<typeof session.sendPrompt>(async (prompt) => ({
         response: `grok:${prompt}`,
         events: [],
@@ -4982,7 +5098,9 @@ describe("SupervisorRuntime craftAgent", () => {
           config: { model: "grok-model" },
         }),
       ).resolves.toBeUndefined();
-      expect(session.sendPrompt).toHaveBeenCalledWith("都跑完了吗");
+      expect(session.startTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: "都跑完了吗" }),
+      );
     });
 
     it("releases a crafted account binding when the public closeThread seam terminates it", async () => {
@@ -5671,22 +5789,15 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
       // account in the provider pool" for a third-party launch.
       const dead = addPoolAccount(runtime, "kimi", "Dead", true);
       runtime.accountStore.updateStatus(dead.accountId, "quota-exhausted");
-      await expect(
-        resolveThirdParty(runtime, {
-          provider: "kimi",
-          threadId: "thread-tp-2",
-          model: "k3-256k",
-          thirdPartyAccountId: thirdParty.accountId,
-        }),
-      ).rejects.toThrowError(/暂不支持直连 kimi Harness/);
-      await expect(
-        resolveThirdParty(runtime, {
-          provider: "kimi",
-          threadId: "thread-tp-2",
-          model: "k3-256k",
-          thirdPartyAccountId: thirdParty.accountId,
-        }),
-      ).rejects.not.toThrowError(/provider pool/);
+      const resolved = await resolveThirdParty(runtime, {
+        provider: "kimi",
+        threadId: "thread-tp-2",
+        model: "k3-256k",
+        thirdPartyAccountId: thirdParty.accountId,
+      });
+      expect(resolved?.accountId).toBe(thirdParty.accountId);
+      expect(resolved?.reason).toBe("third-party");
+      expect(resolved?.accountId).not.toBe(dead.accountId);
     });
 
     it("fails closed on unknown or unverified third-party accounts", async () => {
@@ -5833,6 +5944,7 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
     /** Supervisor events (session-switch-state, thread-runtime-event, ...). */
     emitted: Array<{ type: string } & Record<string, unknown>>;
     sessionIds: string[];
+    turns: Array<{ prompt: string; userMessageItemId?: string | undefined }>;
     /** Emit a canonical event from the MOST RECENTly created crafted session. */
     emitFromSession: (event: RuntimeEvent) => void;
   }
@@ -5842,6 +5954,7 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
     const runtime = makeRuntime((event) => emitted.push(event as { type: string }));
     let emitFromCurrent: (event: RuntimeEvent) => void = () => undefined;
     const sessionIds: string[] = [];
+    const turns: FenceFixture["turns"] = [];
     let sessionCounter = 0;
     runtime.setCustomCraftingAdapter(
       (plan): HarnessRuntimeAdapter => ({
@@ -5868,14 +5981,14 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
           };
           return {
             id: sessionId,
+            nativeSessionRef: `native:${sessionId}`,
             threadId: entity.craftPlan.threadId,
             entityId: entity.id,
             status: "idle" as const,
-            startTurn: async () => ({
-              turnId: "turn:fence",
-              status: "completed" as const,
-              events: [],
-            }),
+            startTurn: async (command) => {
+              turns.push(command);
+              return { turnId: "turn:fence", status: "completed" as const, events: [] };
+            },
             interrupt: async () => undefined,
             steer: async () => undefined,
             respondToRequest: async () => undefined,
@@ -5898,6 +6011,7 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
       plan: fencePlan(threadId),
       emitted,
       sessionIds,
+      turns,
       emitFromSession: (event) => emitFromCurrent(event),
     };
   }
@@ -5920,6 +6034,43 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
     };
   }
 
+  it("reattaches a reloaded renderer without replacing the live Session or its listeners", async () => {
+    const threadId = "fence-reload";
+    const f = makeFenceRuntime(threadId);
+    const initial = await f.runtime.craftAgent({ craftPlan: f.plan, projectLocation, prompt: "" });
+    const payload = { craftPlan: f.plan, projectLocation, sessionRef: "native:runtime-fence:1" };
+    await expect(f.runtime.resumeCraftAgent(payload)).resolves.toMatchObject({
+      entityId: initial.entityId,
+      sessionId: initial.sessionId,
+    });
+    expect(f.sessionIds).toHaveLength(1);
+    await f.runtime.resumeCraftAgent({
+      ...payload,
+      prompt: "continue",
+      userMessageItemId: "resume-user",
+    });
+    expect(f.turns).toEqual([
+      expect.objectContaining({ prompt: "continue", userMessageItemId: "resume-user" }),
+    ]);
+    f.emitFromSession({ type: "turn.started", threadId, turnId: "after-reload" });
+    f.emitFromSession({
+      type: "turn.completed",
+      threadId,
+      turnId: "after-reload",
+      state: "completed",
+    });
+    expect(f.emitted.filter((event) => event.type === "thread-state").at(-1)).toMatchObject({
+      status: "idle",
+    });
+    await expect(
+      f.runtime.resumeCraftAgent({ ...payload, sessionRef: "different-native-session" }),
+    ).rejects.toThrow("HANDOFF_ACTIVE_PLAN_MISMATCH");
+    await expect(
+      f.runtime.resumeCraftAgent({ ...payload, accountId: "different-account" }),
+    ).rejects.toThrow("HANDOFF_ACTIVE_PLAN_MISMATCH");
+    expect(f.sessionIds).toHaveLength(1);
+  });
+
   it("publishes the initial active binding and fences crafted active commands", async () => {
     const threadId = "fence-thread";
     const f = makeFenceRuntime(threadId);
@@ -5929,6 +6080,9 @@ describe("SupervisorRuntime crafted execution fencing (v0.9 F1)", () => {
     // session-switch-state channel, so the renderer can fence commands.
     const segments = activeBindingStates(f);
     expect(segments).toHaveLength(1);
+    expect(f.runtime.readSessionSwitchState(threadId)).toMatchObject({
+      targetCraftPlan: { id: f.plan.id, recipeId: f.plan.recipeId },
+    });
     const envelope = envelopeFor(segments[0]!);
     expect(envelope.runtimeSessionId).toBe("runtime-fence:1");
 

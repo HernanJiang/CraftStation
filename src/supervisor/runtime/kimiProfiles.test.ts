@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -86,6 +86,47 @@ describe("Kimi managed profile runtime", () => {
     expect(env.KIMI_CODE_HOME).toBe(home);
   });
 
+  it("makes an imported OAuth credential usable in an isolated CLI home", () => {
+    const source = tempRoot("craftstation-kimi-oauth-source-");
+    writeCredential(source, {
+      access_token: "OAUTH_ACCESS_SENTINEL",
+      refresh_token: "OAUTH_REFRESH_SENTINEL",
+      token_type: "Bearer",
+      expires_at: 1,
+    });
+    const service = new KimiProfileService({
+      store: new AccountStore(tempRoot("craftstation-kimi-oauth-store-")),
+    });
+    const account = service.importCredential({ label: "OAuth", profileRoot: source });
+    const home = service.managedKimiHome(account.accountId);
+    const config = readFileSync(join(home, "config.toml"), "utf8");
+    expect(config).toContain('[providers."managed:kimi-code".oauth]');
+    expect(config).toContain('storage = "file"');
+    expect(config).toContain('key = "oauth/kimi-code"');
+    expect(config).toContain('provider = "managed:kimi-code"');
+    expect(config).toContain('[models."kimi-code/k3-256k"]');
+    expect(config).not.toContain("OAUTH_ACCESS_SENTINEL");
+    expect(config).not.toContain("OAUTH_REFRESH_SENTINEL");
+    expect(existsSync(join(source, "config.toml"))).toBe(false);
+    expect(readManagedKimiApiKey(home)).toBeUndefined();
+  });
+
+  it("repairs a legacy OAuth home on spawn without replacing existing CLI settings", () => {
+    const home = tempRoot("craftstation-kimi-oauth-legacy-");
+    writeCredential(home, {
+      access_token: "OAUTH_ACCESS_SENTINEL",
+      refresh_token: "OAUTH_REFRESH_SENTINEL",
+      token_type: "Bearer",
+    });
+    managedKimiProcessEnvironment(home, {});
+    expect(readFileSync(join(home, "config.toml"), "utf8")).toContain('key = "oauth/kimi-code"');
+    const customized =
+      'default_model = "custom"\n# Preserve official CLI region and user settings.\n';
+    writeFileSync(join(home, "config.toml"), customized);
+    managedKimiProcessEnvironment(home, {});
+    expect(readFileSync(join(home, "config.toml"), "utf8")).toBe(customized);
+  });
+
   it("replaces an expired managed account API key without creating a duplicate row", () => {
     const root = tempRoot("craftstation-kimi-rekey-");
     const store = new AccountStore(root);
@@ -130,6 +171,22 @@ describe("Kimi managed profile runtime", () => {
   it.each([
     ["missing", undefined, "ACCOUNT_PROJECTION_FAILED"],
     ["malformed", "not-json", "ACCOUNT_PROJECTION_FAILED"],
+    [
+      "empty OAuth tokens",
+      '{"access_token":"","refresh_token":"","expires_at":0}',
+      "ACCOUNT_PROJECTION_FAILED",
+    ],
+    [
+      "whitespace tokens",
+      '{"access_token":"  ","refresh_token":"  "}',
+      "ACCOUNT_PROJECTION_FAILED",
+    ],
+    [
+      "metadata only",
+      '{"account":{"email":"not-logged-in@kimi.test"}}',
+      "ACCOUNT_PROJECTION_FAILED",
+    ],
+    ["non-object JSON", "[]", "ACCOUNT_PROJECTION_FAILED"],
   ])("fails closed for %s credentials", (_name, content, code) => {
     const root = tempRoot("craftstation-kimi-invalid-");
     const source = tempRoot("craftstation-kimi-source-");
@@ -179,6 +236,35 @@ describe("Kimi managed profile runtime", () => {
       status: "available",
       providerAccountId: "kimi-user-1",
     });
+  });
+
+  it("does not promote a completed login with empty credential tokens", () => {
+    const store = new AccountStore(tempRoot("craftstation-kimi-empty-login-"));
+    const service = new KimiProfileService({ store });
+    const account = service.createEmpty("Kimi Empty");
+    writeCredential(service.managedKimiHome(account.accountId), {
+      access_token: "",
+      refresh_token: "",
+      token_type: "Bearer",
+      expires_at: 0,
+    });
+    expect(() => service.completeLogin(account.accountId)).toThrow(
+      expect.objectContaining({ code: "ACCOUNT_PROJECTION_FAILED" }),
+    );
+    expect(store.get(account.accountId)?.status).toBe("unavailable");
+  });
+
+  it("preserves refresh-only OAuth credentials and their isolated provider declaration", () => {
+    const source = tempRoot("craftstation-kimi-refresh-source-");
+    writeCredential(source, { access_token: "", refresh_token: "REFRESH_SENTINEL", expires_at: 0 });
+    const service = new KimiProfileService({
+      store: new AccountStore(tempRoot("craftstation-kimi-refresh-store-")),
+    });
+    const account = service.importCredential({ label: "Refreshable", profileRoot: source });
+    expect(account.status).toBe("available");
+    expect(
+      readFileSync(join(service.managedKimiHome(account.accountId), "config.toml"), "utf8"),
+    ).toContain('key = "oauth/kimi-code"');
   });
 });
 
@@ -353,6 +439,49 @@ describe("Kimi account-scoped quota collection", () => {
       "session-5h",
       "weekly",
     ]);
+  });
+
+  it("refreshes an imported refresh-only account before its own quota query", async () => {
+    const source = tempRoot("craftstation-kimi-refresh-quota-source-");
+    writeCredential(source, {
+      access_token: "",
+      refresh_token: "refresh-only",
+      expires_at: FUTURE,
+    });
+    const service = new KimiProfileService({
+      store: new AccountStore(tempRoot("craftstation-kimi-refresh-quota-")),
+    });
+    const account = service.importCredential({ label: "Refresh", profileRoot: source });
+    const refresh = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "new-managed-bearer",
+          refresh_token: "rotated-managed-refresh",
+          expires_in: 900,
+        }),
+        { status: 200 },
+      ),
+    );
+    try {
+      const seenAuth: string[] = [];
+      const view = await service.collectQuota(account.accountId, quotaHost(seenAuth));
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(seenAuth).toEqual(["Bearer new-managed-bearer"]);
+      expect(view.status).toBe("available");
+      const written = JSON.parse(
+        readFileSync(
+          join(service.managedKimiHome(account.accountId), "credentials", "kimi-code.json"),
+          "utf8",
+        ),
+      );
+      expect(written.refresh_token).toBe("rotated-managed-refresh");
+      expect(
+        JSON.parse(readFileSync(join(source, "credentials", "kimi-code.json"), "utf8"))
+          .access_token,
+      ).toBe("");
+    } finally {
+      refresh.mockRestore();
+    }
   });
 
   it("keeps a fresh inference-exhaustion mark across a healthy quota poll", async () => {

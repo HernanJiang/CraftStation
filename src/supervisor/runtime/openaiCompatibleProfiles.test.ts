@@ -182,17 +182,18 @@ describe("OpenAiCompatibleProfileService", () => {
     expect(runtime.env).toEqual({ CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY: "sk-test" });
   });
 
-  it("prepares vendor CLI env for Kimi, Grok, and DeepSeek without writing the key to disk", () => {
+  it("prepares CLI-readable isolated Kimi config and Grok/DeepSeek env", () => {
     const cacheDir = makeCacheDir();
     const store = new AccountStore(join(cacheDir, "accounts"));
     const service = new OpenAiCompatibleProfileService({ store, cacheDir });
     seedStaging(cacheDir, "Cavoti");
     const account = service.importStaging();
 
-    expect(service.prepareVendorCompatRuntime(account.accountId, "kimi").env).toEqual({
-      KIMI_CODE_API_KEY: "sk-test",
-      KIMI_CODE_BASE_URL: "https://relay.example.com/v1",
-    });
+    const kimi = service.prepareVendorCompatRuntime(account.accountId, "kimi", "vendor/model");
+    expect(readFileSync(join(kimi.env.KIMI_CODE_HOME!, "config.toml"), "utf8")).toContain(
+      '[models."vendor/model"]',
+    );
+    expect(kimi.env.KIMI_MODEL_NAME).toBe("");
     expect(service.prepareVendorCompatRuntime(account.accountId, "grok").env).toMatchObject({
       GROK_API_KEY: "sk-test",
       GROK_API_BASE: "https://relay.example.com/v1",

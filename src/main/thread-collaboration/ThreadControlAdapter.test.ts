@@ -63,6 +63,15 @@ function makeAdapter(status: Thread["status"]) {
 }
 
 describe("ThreadControlAdapter", () => {
+  it("does not turn an ambiguous send failure into an interrupt or duplicate send", async () => {
+    const { adapter, runtime } = makeAdapter("working");
+    const error = new Error("connection lost after acceptance");
+    runtime.sendThreadInput.mockRejectedValueOnce(error);
+    await expect(adapter.deliverSettled("target-thread", "request")).rejects.toBe(error);
+    expect(runtime.sendThreadInput).toHaveBeenCalledTimes(1);
+    expect(runtime.interruptThread).not.toHaveBeenCalled();
+    expect(runtime.startThread).not.toHaveBeenCalled();
+  });
   it("injects a prompt into a working target instead of waiting in a queue", async () => {
     const { adapter, runtime } = makeAdapter("working");
 

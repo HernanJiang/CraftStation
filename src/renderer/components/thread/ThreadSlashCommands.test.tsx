@@ -869,7 +869,7 @@ describe("ThreadSlashCommands", () => {
     expect(editor.textContent).toBe("");
   });
 
-  it("swallows draft /goal with an honest toast instead of sending it to the provider", async () => {
+  it("starts a draft goal with the command removed from the provider prompt", async () => {
     const baseCapabilities = makeAgentStatus().capabilities;
     const onStart = vi.fn<(input: unknown) => void>();
     const onConfigChange = vi.fn<(patch: Partial<Thread["config"]>) => void>();
@@ -894,9 +894,12 @@ describe("ThreadSlashCommands", () => {
 
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    // Drafts have no live thread to bind a goal to: the command is swallowed
-    // with guidance instead of reaching the provider as chat text.
-    expect(onStart).not.toHaveBeenCalled();
+    expect(onStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "ship unified GUI goal support",
+        goal: "ship unified GUI goal support",
+      }),
+    );
     expect(onConfigChange).not.toHaveBeenCalled();
   });
 

@@ -99,9 +99,7 @@ function makeStructuredHandle(
         listener?.onUpdate({ status: "idle", attention: "none" });
       }),
     interruptTurn: vi.fn(async () => undefined),
-    resolveServerRequest: vi.fn(
-      options.resolveServerRequest ?? (async () => undefined),
-    ),
+    resolveServerRequest: vi.fn(options.resolveServerRequest ?? (async () => undefined)),
     setListener: vi.fn((next: StructuredSessionListener) => {
       listener = next;
       handle.listener = next;
@@ -123,6 +121,77 @@ function makeStructuredAgent(handle: StructuredSessionHandle): AgentAdapter {
 }
 
 describe("Native Harness runtime seam", () => {
+  it("preserves the user prompt with skill segments and waits for an asynchronous terminal event", async () => {
+    const handle = makeStructuredHandle({ startTurn: vi.fn(async () => undefined) });
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: makeStructuredAgent({ ...handle, turnCompletionMode: "event" }),
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+      skillSegments: [{ kind: "text", content: "skill supplement" }],
+    });
+    const session = await adapter.createSession(await adapter.spawnEntity(makePlan("grok", "xai")));
+    let completed = false;
+    const turn = session
+      .startTurn({ prompt: "original user prompt", userMessageItemId: "user-persisted" })
+      .then((result) => {
+        completed = true;
+        return result;
+      });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(completed).toBe(false);
+    expect(session.getSnapshot().events).toContainEqual(
+      expect.objectContaining({
+        type: "item.started",
+        itemId: "user-persisted",
+        itemType: "user_message",
+        payload: { content: [{ kind: "text", text: "original user prompt" }] },
+      }),
+    );
+    await session.interrupt();
+    // Admission/abort acknowledgements alone cannot disarm the Supervisor's
+    // watchdog. A terminal runtime event must settle the turn.
+    expect(session.getSnapshot().activeTurnStatus).toBe("running");
+    expect(session.status).toBe("busy");
+    expect(handle.startTurn).toHaveBeenCalledWith(
+      "original user prompt",
+      expect.any(Object),
+      [
+        { kind: "text", content: "original user prompt" },
+        { kind: "text", content: "skill supplement" },
+      ],
+      expect.objectContaining({ turnId: expect.any(String) }),
+    );
+    handle.listener?.onRuntimeEvent?.({
+      type: "content.delta",
+      threadId: "thread:grok",
+      itemId: "reply",
+      stream: "assistant_text",
+      delta: "actual reply",
+    });
+    handle.listener?.onRuntimeEvent?.({
+      type: "turn.completed",
+      threadId: "thread:grok",
+      turnId: "native-turn",
+      state: "completed",
+    });
+    await expect(turn).resolves.toMatchObject({ response: "actual reply", status: "completed" });
+    await session.terminate();
+  });
+  it("settles an admitted asynchronous turn when its session is closed", async () => {
+    const handle = makeStructuredHandle({ startTurn: vi.fn(async () => undefined) });
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: makeStructuredAgent({ ...handle, turnCompletionMode: "event" }),
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+    });
+    const session = await adapter.createSession(await adapter.spawnEntity(makePlan("grok", "xai")));
+    const turn = session.startTurn({ prompt: "pending" });
+    await Promise.resolve();
+    await session.terminate();
+    await expect(turn).resolves.toMatchObject({ status: "cancelled" });
+    expect(session.status).toBe("terminated");
+  });
   it("binds CraftPlan profile/environment, preserves native session identity, envelopes events, and resumes", async () => {
     const firstHandle = makeStructuredHandle({ sessionId: "grok-session-1" });
     const adapter = new StructuredNativeHarnessRuntimeAdapter({
@@ -280,6 +349,50 @@ describe("Native Harness runtime seam", () => {
       expect.objectContaining({ approvalPolicy: "bypassPermissions" }),
       undefined,
     );
+  });
+
+  it("keeps explicit native permissions through CraftPlan and overrides bypass defaults", async () => {
+    const handle = makeStructuredHandle();
+    const agent = makeStructuredAgent(handle);
+    agent.capabilities.defaultApprovalPolicy = "bypassPermissions";
+    const adapter = new StructuredNativeHarnessRuntimeAdapter({
+      adapter: agent,
+      descriptor: GROK_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+    });
+    const plan = makePlan("grok", "xai");
+    plan.overrides = {
+      permissionConfig: { approvalPolicy: "on-request", sandboxMode: "workspace-write" },
+    };
+    await adapter.createSession(await adapter.spawnEntity(plan));
+    expect(handle.openThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvalPolicy: "on-request",
+        sandboxMode: "workspace-write",
+      }),
+      undefined,
+    );
+    const session = await adapter.createSession(await adapter.spawnEntity(plan));
+    await session.startTurn({
+      prompt: "next",
+      userMessageItemId: "optimistic-user-next",
+      overrides: {
+        permissionConfig: { approvalPolicy: "never", sandboxMode: "danger-full-access" },
+      },
+    });
+    expect(handle.startTurn).toHaveBeenCalledWith(
+      "next",
+      expect.objectContaining({
+        approvalPolicy: "never",
+        sandboxMode: "danger-full-access",
+      }),
+      undefined,
+      expect.objectContaining({
+        turnId: expect.any(String),
+        userMessageItemId: "optimistic-user-next",
+      }),
+    );
+    await session.terminate();
   });
 
   it("forwards the native prompt error observer into the provider structured-session seam", async () => {

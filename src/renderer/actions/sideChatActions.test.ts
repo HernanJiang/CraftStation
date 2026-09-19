@@ -18,6 +18,7 @@ import {
 const { bridge, toast } = vi.hoisted(() => ({
   bridge: {
     closeThread: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    dismissTaskbarAttention: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     appendUsageEvents: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     dbReplaceThreadRuntimeSnapshot: vi.fn<(payload: unknown) => Promise<void>>(),
   },

@@ -41,6 +41,18 @@ export interface SettingsSearchEntry {
 }
 
 export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
+  {
+    section: "general",
+    anchor: "general.turnRetryMaxAttempts",
+    title: msg`Turn retry attempts`,
+    keywords: "craft-harness retry network transport attempts 重试 次数",
+  },
+  {
+    section: "general",
+    anchor: "general.turnRetryIntervalSeconds",
+    title: msg`Turn retry interval`,
+    keywords: "craft-harness retry delay interval seconds 重试 间隔",
+  },
   // General
   {
     section: "general",

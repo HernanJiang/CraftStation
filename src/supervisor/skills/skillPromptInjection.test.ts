@@ -11,6 +11,17 @@ function skillSegment(name: string, path: string): PromptSegment {
   return { kind: "skill", name, path, invocation: `/${name}`, provider: "Test", scope: "global" };
 }
 
+it("distinguishes available skills from explicit user invocations without dropping their content", () => {
+  const source = [
+    { name: "fixture", directory: "/fixture", content: "Preserved skill instructions." },
+  ];
+  const available = buildInlineSkillInstructions(source, undefined, "available");
+  expect(available).toContain("Use a skill only when");
+  expect(available).not.toContain("The user invoked");
+  expect(available).toContain(source[0]!.content);
+  expect(buildInlineSkillInstructions(source)).toContain("The user invoked");
+});
+
 describe("isPathUnderAny", () => {
   it("matches across separators and case", () => {
     expect(

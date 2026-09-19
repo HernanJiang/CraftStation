@@ -281,6 +281,7 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
           reasoningEffort: "high",
           serviceTier: "fast",
           approvalPolicy: "never",
+          permissionConfig: { approvalPolicy: "on-request", sandboxMode: "workspace-write" },
         },
       },
     ).craftPlan!;
@@ -297,7 +298,8 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
       cwd: "D:\\test\\workspace",
       model: "gpt-5.3-codex",
       serviceTier: "fast",
-      approvalPolicy: "never",
+      approvalPolicy: "on-request",
+      sandbox: "workspace-write",
     });
   });
 
@@ -630,17 +632,35 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
     const session = await adapter.createSession(entity);
 
     // Turn 1
-    const turn1Promise = session.startTurn({ prompt: "First Turn" });
+    const turn1Promise = session.startTurn({
+      prompt: "First Turn",
+      overrides: {
+        permissionConfig: { approvalPolicy: "never", sandboxMode: "danger-full-access" },
+      },
+    });
     const turn1 = await turn1Promise;
     expect(turn1.status).toBe("completed");
 
     // Turn 2
-    const turn2Promise = session.startTurn({ prompt: "Second Turn" });
+    const turn2Promise = session.startTurn({
+      prompt: "Second Turn",
+      overrides: {
+        permissionConfig: { approvalPolicy: "on-request", sandboxMode: "workspace-write" },
+      },
+    });
     const turn2 = await turn2Promise;
     expect(turn2.status).toBe("completed");
 
     const turnRequests = receivedRequests.filter((r) => r.method === "turn/start");
     expect(turnRequests.length).toBe(2);
+    expect(turnRequests[0]?.params).toMatchObject({
+      approvalPolicy: "never",
+      sandboxPolicy: { type: "dangerFullAccess" },
+    });
+    expect(turnRequests[1]?.params).toMatchObject({
+      approvalPolicy: "on-request",
+      sandboxPolicy: { type: "workspaceWrite" },
+    });
     expect(turnRequests[0]?.params?.input[0]?.text).toBe("First Turn");
     expect(turnRequests[1]?.params?.input[0]?.text).toBe("Second Turn");
     expect(turnRequests[0]?.params?.collaborationMode).toMatchObject({

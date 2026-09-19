@@ -15,6 +15,7 @@ import type {
   SessionEventListener,
   StartTurnCommand,
   TurnResult,
+  HarnessRuntimeAdapter,
 } from "@/shared/crafting/runtimeInterface";
 import { resolveExecutablePath } from "@/supervisor/agents/base/processRuntime";
 import { getWslCommand } from "@/supervisor/agents/base/shellBasics";
@@ -41,7 +42,14 @@ import type {
 const COMPATIBILITY_PROVIDER_ID = "craftstation-compat";
 
 export interface CompatibilityRuntimeAdapterOptions {
+  /** CPA 只拥有认证/翻译；目标 Harness 的会话协议、审批、MCP 与恢复复用正式运行时。 */
+  createTargetAdapter?: (
+    config: TargetHarnessConfig,
+    plan: CraftPlan,
+  ) => Promise<HarnessRuntimeAdapter>;
   bridge: CompatibilityBridgeService;
+  /** Supervisor shares one bridge; only its owner may stop other sessions' API. */
+  ownsBridge?: boolean;
   /** Account credential namespace pinned for the session scope, if any. */
   accountPin?: AccountPinConfig | undefined;
   spawnFn?: SpawnFunction | undefined;
@@ -72,6 +80,7 @@ export class CompatibilityRuntimeAdapter {
   private readonly diagnostics: NativeHarnessDiagnostic[] = [];
   private readonly modelVerifyTimeoutMs: number;
   private started = false;
+  private readonly targets = new Map<string, { adapter: HarnessRuntimeAdapter; entity: Entity }>();
 
   constructor(harnessKind: string, options: CompatibilityRuntimeAdapterOptions) {
     this.harnessKind = harnessKind;
@@ -99,6 +108,7 @@ export class CompatibilityRuntimeAdapter {
     if (this.options.accountPin) {
       this.bridge.pinAccount(this.options.accountPin);
     }
+    if (this.options.ownsBridge === false) this.bridge.retain(this);
 
     let status: CompatibilityBridgeStatus;
     try {
@@ -114,6 +124,27 @@ export class CompatibilityRuntimeAdapter {
 
     const modelId = craftPlan.runtimeBinding.modelId;
     await this.verifyModelContract(status, modelId);
+
+    if (this.options.createTargetAdapter) {
+      const targetConfig = exportCompatibilityForHarness(this.harnessKind, status, modelId);
+      const adapter = await this.options.createTargetAdapter(targetConfig, craftPlan);
+      let entity: Entity;
+      try {
+        entity = await adapter.spawnEntity(craftPlan);
+      } catch (error) {
+        await adapter.dispose?.().catch(() => undefined);
+        throw error;
+      }
+      this.targets.set(entity.id, { adapter, entity });
+      entity.metadata = {
+        ...entity.metadata,
+        routeType: "compatibility",
+        accountId: this.options.accountPin?.accountId,
+        compatibilityBridgeEndpoint: status.endpoint,
+        compatibilityProtocol: targetConfig.protocol,
+      };
+      return entity;
+    }
 
     const entity: Entity = {
       id: `entity:${this.harnessKind}-compat:${craftPlan.threadId ?? randomUUID()}`,
@@ -138,15 +169,24 @@ export class CompatibilityRuntimeAdapter {
   }
 
   async createSession(entity: Entity): Promise<CraftSession> {
+    const target = this.targets.get(entity.id);
+    if (target) return target.adapter.createSession(target.entity);
     return this.createSessionHandle(entity);
   }
 
   async resumeSession(entity: Entity, sessionRef: string): Promise<CraftSession> {
+    const target = this.targets.get(entity.id);
+    if (target) return target.adapter.resumeSession(target.entity, sessionRef);
     return this.createSessionHandle(entity, sessionRef);
   }
 
   async dispose(): Promise<void> {
-    if (this.started) {
+    await Promise.allSettled(
+      [...this.targets.values()].map(({ adapter }) => Promise.resolve(adapter.dispose?.())),
+    );
+    this.targets.clear();
+    if (this.options.ownsBridge === false) await this.bridge.release(this);
+    if (this.started && this.options.ownsBridge !== false) {
       await this.bridge.stop();
       this.started = false;
     }

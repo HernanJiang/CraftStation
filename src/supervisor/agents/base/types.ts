@@ -109,6 +109,9 @@ export interface ThreadHistory {
 }
 
 export interface StructuredSessionHandle {
+  /** Some SDKs resolve startTurn after admission; their terminal event, not
+   * the HTTP acknowledgement, determines completion. Legacy handles await it. */
+  readonly turnCompletionMode?: "event" | "return";
   launchOptions: AgentLaunchOptions;
   /** Whether a provider-native root or child session belongs to this thread. */
   ownsProviderSession?(providerSessionId: string): boolean;

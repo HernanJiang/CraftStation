@@ -5,13 +5,17 @@ export function normalizeChatRelativePath(raw: string): string {
   return normalizeChatPath(raw, { preserveAbsolute: false });
 }
 
-function normalizeChatPath(raw: string, options: { preserveAbsolute: boolean }): string {
+function normalizeChatPath(
+  raw: string,
+  options: { preserveAbsolute: boolean; windowsDrivePaths?: boolean },
+): string {
   let s = raw.trim();
   if (!s) return s;
-  if (s.startsWith("file://")) {
+  if (/^file:\/\//i.test(s)) {
     try {
       const u = new URL(s);
-      s = u.pathname;
+      s = decodeURIComponent(u.pathname);
+      if (u.hostname) s = `//${u.hostname}${s}`;
       if (s.startsWith("/") && /^\/[A-Za-z]:/.test(s)) s = s.slice(1);
       else if (!options.preserveAbsolute) s = s.replace(/^\//, "");
     } catch {
@@ -19,7 +23,12 @@ function normalizeChatPath(raw: string, options: { preserveAbsolute: boolean }):
     }
   }
   s = s.replace(/^\.\//, "").replace(/\\/g, "/");
-  const collapsed = s.replace(/\/+/g, "/");
+  // Markdown 链接常把盘符写成 /D:/...（URI pathname）。仅 Windows 项目
+  // 去掉这一个前导 slash；POSIX 的 /D:/ 目录及 UNC //server/share 不得误改。
+  if (options.windowsDrivePaths) s = s.replace(/^\/(?=[A-Za-z]:\/)/, "");
+  const collapsed = s.startsWith("//")
+    ? `//${s.slice(2).replace(/\/+/g, "/")}`
+    : s.replace(/\/+/g, "/");
   return options.preserveAbsolute ? collapsed : collapsed.replace(/^\/+/, "");
 }
 
@@ -50,7 +59,10 @@ function relativizeAgainstProjectRoots(
   raw: string,
   projectLocation: ProjectLocation,
 ): { normalized: string; relative: string | null } {
-  const normalized = normalizeChatPath(raw, { preserveAbsolute: true });
+  const normalized = normalizeChatPath(raw, {
+    preserveAbsolute: true,
+    windowsDrivePaths: projectLocation.kind === "windows",
+  });
   const projectRoots = getProjectRoots(projectLocation).map((root) =>
     normalizeChatPath(root, { preserveAbsolute: true }),
   );
@@ -73,8 +85,9 @@ function getProjectRoots(projectLocation: ProjectLocation): string[] {
 function pathStartsWithRoot(path: string, root: string): boolean {
   const normalizedRoot = root.replace(/\/+$/, "");
   if (!normalizedRoot) return false;
-  const lcPath = path.toLowerCase();
-  const lcRoot = normalizedRoot.toLowerCase();
+  const windowsRoot = /^[A-Za-z]:\//.test(normalizedRoot) || normalizedRoot.startsWith("//");
+  const lcPath = windowsRoot ? path.toLowerCase() : path;
+  const lcRoot = windowsRoot ? normalizedRoot.toLowerCase() : normalizedRoot;
   if (path.length === normalizedRoot.length) return lcPath === lcRoot;
   return lcPath.startsWith(`${lcRoot}/`) || path.startsWith(`${normalizedRoot}/`);
 }

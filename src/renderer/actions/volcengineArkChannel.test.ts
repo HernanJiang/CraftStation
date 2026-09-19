@@ -4,14 +4,14 @@ import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
 
 const bridge = vi.hoisted(() => ({
-  listAccounts: vi.fn(),
-  submitOpenAiCompatibleCredentials: vi.fn(),
-  importOpenAiCompatibleProfile: vi.fn(),
+  listAccounts: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  submitOpenAiCompatibleCredentials: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  importOpenAiCompatibleProfile: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
 }));
 const toastMock = vi.hoisted(() => ({
-  success: vi.fn(),
-  warning: vi.fn(),
-  danger: vi.fn(),
+  success: vi.fn<(...args: unknown[]) => void>(),
+  warning: vi.fn<(...args: unknown[]) => void>(),
+  danger: vi.fn<(...args: unknown[]) => void>(),
 }));
 
 vi.mock("@/renderer/bridge", () => ({

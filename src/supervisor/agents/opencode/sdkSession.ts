@@ -106,8 +106,6 @@ export interface OpenCodeQuestionAnswerContext {
   optionValues: Record<string, string>;
 }
 
-
-
 function mapStatusUpdate(properties: { sessionID: string; status: { type: string } }): {
   status: ThreadStatus;
   attention: ThreadAttention;
@@ -125,6 +123,7 @@ function mapStatusUpdate(properties: { sessionID: string; status: { type: string
 }
 
 export class OpencodeSdkSession implements StructuredSessionHandle {
+  readonly turnCompletionMode = "event" as const;
   launchOptions: AgentLaunchOptions;
 
   private readonly input: CreateStructuredSessionInput;
@@ -329,7 +328,7 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
     // Portable-skills fallback: appended to the provider payload only, never
     // to the painted user_message (see StartTurnOptions.inlineInstructions).
     if (options?.inlineInstructions) {
-      parts.push({ type: "text", text: options.inlineInstructions });
+      parts.push({ type: "text", text: options.inlineInstructions, synthetic: true });
     }
     const model = parseOpenCodeModelSlug(
       config.model,
@@ -371,6 +370,12 @@ export class OpencodeSdkSession implements StructuredSessionHandle {
       }
       if (turn.completionState) return;
       turn.admitted = true;
+      // Stop may reach the server before promptAsync actually enqueues the
+      // turn. Reapply it after admission so that late work cannot escape.
+      if (turn.interrupted) {
+        await this.interruptTurn();
+        if (turn.completionState) return;
+      }
       this.armFirstOutputWatchdog(turn);
       if (turn.idleObserved) {
         this.completeTurn(turn, turn.interrupted ? "interrupted" : "completed");

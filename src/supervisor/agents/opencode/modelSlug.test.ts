@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { formatOpenCodeModelFlag, parseOpenCodeModelSlug } from "./modelSlug";
 
 describe("parseOpenCodeModelSlug", () => {
+  it("keeps foreign slash model ids on the bound third-party endpoint", () => {
+    expect(parseOpenCodeModelSlug("vendor/model", "craftstation-compat")).toEqual({
+      providerID: "craftstation-compat",
+      modelID: "vendor/model",
+    });
+    expect(
+      parseOpenCodeModelSlug("craftstation-compat/vendor/model", "craftstation-compat"),
+    ).toEqual({ providerID: "craftstation-compat", modelID: "vendor/model" });
+  });
   it("keeps an explicit provider/model slug", () => {
     expect(parseOpenCodeModelSlug("google/gemini-3.8-flash")).toEqual({
       providerID: "google",

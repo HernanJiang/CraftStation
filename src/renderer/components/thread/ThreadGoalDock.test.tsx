@@ -27,12 +27,12 @@ vi.mock("@heroui/react", async (importOriginal) => {
 describe("ThreadGoalDock", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     bridgeMock.controlThreadGoal.mockClear();
   });
 
   it("renders goal details with the shared dock chrome", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-05-12T10:00:10Z"));
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-05-12T10:00:10Z"));
     const onDismiss = vi.fn<() => void>();
 
     render(

@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { CompatibilityBridgeService } from "./bridge";
@@ -15,6 +16,7 @@ import {
 import type { SpawnFunction, FetchFunction } from "./types";
 
 describe("CompatibilityBridgeService & Exporters", () => {
+  afterEach(() => vi.unstubAllEnvs());
   function createMockProcess(): ChildProcess {
     const proc = new EventEmitter() as any;
     proc.pid = 12345;
@@ -68,6 +70,68 @@ describe("CompatibilityBridgeService & Exporters", () => {
     await service.stop();
     expect(service.getStatus().running).toBe(false);
     expect(mockProc.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+  it.each([undefined, "socks5://127.0.0.1:29002"])(
+    "projects the app proxy into CPA YAML with explicit override %s",
+    async (override) => {
+      vi.stubEnv("https_proxy", "http://127.0.0.1:29001");
+      vi.stubEnv("CLIPROXY_PROXY_URL", undefined);
+      const spawn = vi.fn<SpawnFunction>(() => createMockProcess());
+      const bridge = new CompatibilityBridgeService({
+        port: 18392,
+        proxyUrl: override,
+        spawnFn: spawn,
+        resolveBinaryFn: () => "fixture",
+        fetchFn: async () => ({ status: 200 }) as Response,
+      });
+      await bridge.start();
+      const config = readFileSync(spawn.mock.calls[0]![1]![1]!, "utf8");
+      expect(config).toContain(
+        `proxy-url: ${JSON.stringify(override ?? "http://127.0.0.1:29001")}`,
+      );
+      await bridge.stop();
+    },
+  );
+  it("shares startup, refuses account changes mid-start, and stops after the last borrower", async () => {
+    const proc = createMockProcess();
+    const spawn = vi.fn<SpawnFunction>(() => proc);
+    const bridge = new CompatibilityBridgeService({
+      port: 18391,
+      spawnFn: spawn,
+      resolveBinaryFn: () => "fixture-cpa",
+      fetchFn: async () => ({ status: 200 }) as Response,
+    });
+    const a = {};
+    const b = {};
+    bridge.pinAccount({ accountId: "one", credentialNamespace: "fixture", authDir: "fixture-one" });
+    bridge.configure({ binaryPath: "fixture-cpa", authDir: "fixture-one" });
+    bridge.retain(a);
+    bridge.retain(b);
+    const starting = bridge.start();
+    expect(() =>
+      bridge.configure({ binaryPath: "fixture-cpa", authDir: "fixture-one" }),
+    ).not.toThrow();
+    expect(() => bridge.configure({ authDir: "fixture-two" })).toThrow("Cannot reconfigure");
+    expect(() =>
+      bridge.pinAccount({
+        accountId: "two",
+        credentialNamespace: "fixture",
+        authDir: "fixture-two",
+      }),
+    ).toThrow("Cannot re-pin");
+    await Promise.all([starting, bridge.start()]);
+    expect(spawn).toHaveBeenCalledOnce();
+    await bridge.release(a);
+    expect(bridge.getStatus().running).toBe(true);
+    await bridge.release(b);
+    expect(bridge.getStatus().running).toBe(false);
+    expect(() =>
+      bridge.pinAccount({
+        accountId: "two",
+        credentialNamespace: "fixture",
+        authDir: "fixture-two",
+      }),
+    ).not.toThrow();
   });
 
   it("fails closed when readiness probe times out or process exits early", async () => {

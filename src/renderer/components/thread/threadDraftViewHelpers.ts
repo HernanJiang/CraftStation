@@ -16,7 +16,7 @@ import {
 } from "@/shared/agentSelection";
 import { i18n } from "@/renderer/i18n/i18n";
 import type { DefaultPermissionMode, ProviderModelPreference } from "@/shared/settings";
-import { resolveUnrestrictedPermissionConfig } from "@/shared/agents/unrestrictedPermissions";
+import { applyPermissionMode } from "@/shared/agents/defaultPermissions";
 import { parseContextSizeTokens } from "./customModelCatalog";
 
 /** 上下文窗口档位预设与默认档（选中时映射到模型真实档位）。 */
@@ -348,59 +348,13 @@ export function resolveProviderDraftConfig(
     : resolved;
 }
 
-function firstAdvertisedPermission(
-  ids: readonly string[],
-  options: readonly { id: string }[],
-): string | undefined {
-  return ids.find((id) => options.some((option) => option.id === id));
-}
-
-/** Apply the app-wide draft default using the target provider's own policy ids. */
+/** Apply the app-wide default using the selected CLI's advertised policy ids. */
 export function applyDefaultPermissionMode(
   agent: AgentStatus,
   config: ProviderDraftConfig,
   mode: DefaultPermissionMode,
 ): ProviderDraftConfig {
-  const capabilities = agent.capabilities;
-  const unrestricted = resolveUnrestrictedPermissionConfig(capabilities);
-  const {
-    approvalPolicy: _approval,
-    approvalsReviewer: _reviewer,
-    sandboxMode: _sandbox,
-    ...rest
-  } = config;
-
-  if (mode === "full-access") {
-    return { ...rest, ...unrestricted };
-  }
-
-  const approvalOptions = capabilities.approvalPolicies;
-  const approvalPolicy =
-    firstAdvertisedPermission(
-      ["on-request", "default", "normal", "untrusted", "on-demand", "always"],
-      approvalOptions,
-    ) ??
-    approvalOptions.find((option) => option.id !== unrestricted.approvalPolicy)?.id ??
-    (approvalOptions.length === 0 ? "default" : undefined);
-  const sandboxOptions = capabilities.sandboxModes;
-  const declaredSandbox = capabilities.defaultSandboxMode;
-  const sandboxMode =
-    (declaredSandbox &&
-    declaredSandbox !== unrestricted.sandboxMode &&
-    sandboxOptions.some((option) => option.id === declaredSandbox)
-      ? declaredSandbox
-      : undefined) ??
-    firstAdvertisedPermission(["workspace-write", "read-only"], sandboxOptions) ??
-    sandboxOptions.find((option) => option.id !== unrestricted.sandboxMode)?.id;
-
-  return {
-    ...rest,
-    ...(approvalPolicy ? { approvalPolicy } : {}),
-    ...(capabilities.defaultApprovalsReviewer
-      ? { approvalsReviewer: capabilities.defaultApprovalsReviewer }
-      : {}),
-    ...(sandboxMode ? { sandboxMode } : {}),
-  };
+  return applyPermissionMode(agent.capabilities, config, mode);
 }
 
 export function agentWithCapabilities(

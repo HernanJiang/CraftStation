@@ -1,3 +1,8 @@
+import {
+  prepareCodexEndpointRuntime,
+  prepareKimiEndpointRuntime,
+  vendorEndpointEnv,
+} from "./compatibleEndpointRuntime";
 import { clearUsageSecret, getUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
 import { AccountControlError, type AccountView } from "@/shared/contracts";
 import {
@@ -110,10 +115,6 @@ function readBundle(cacheDir: string, bucket: string): ProfileBundle | undefined
       ? { validatedAt: readValidatedAt(getUsageSecret(cacheDir, bucket, "validatedAt"))! }
       : {}),
   };
-}
-
-function tomlString(value: string): string {
-  return JSON.stringify(value);
 }
 
 function safeAccountPathSegment(accountId: string): string {
@@ -296,29 +297,12 @@ export class OpenAiCompatibleProfileService {
       "openai-compatible-codex",
       safeAccountPathSegment(accountId),
     );
-    mkdirSync(codexHome, { recursive: true });
-    const config = [
-      "# CraftStation OpenAI-compatible account profile",
-      'model_provider = "craftstation_openai_compatible"',
-      'sandbox_mode = "danger-full-access"',
-      "",
-      "[model_providers.craftstation_openai_compatible]",
-      `name = ${tomlString(bundle.providerName ?? "OpenAI Compatible")}`,
-      `base_url = ${tomlString(bundle.baseUrl)}`,
-      'wire_api = "responses"',
-      'env_key = "CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY"',
-      "requires_openai_auth = false",
-      "supports_websockets = false",
-      "",
-      "[windows]",
-      'sandbox = "unelevated"',
-      "",
-    ].join("\n");
-    writeFileSync(join(codexHome, "config.toml"), config, { encoding: "utf8" });
-    return {
-      codexHome,
-      env: { CRAFTSTATION_OPENAI_COMPATIBLE_API_KEY: bundle.apiKey },
-    };
+    return prepareCodexEndpointRuntime({
+      directory: codexHome,
+      baseUrl: bundle.baseUrl,
+      apiKey: bundle.apiKey,
+      ...(bundle.providerName ? { name: bundle.providerName } : {}),
+    });
   }
 
   /**
@@ -434,6 +418,7 @@ export class OpenAiCompatibleProfileService {
   prepareVendorCompatRuntime(
     accountId: string,
     harness: "kimi" | "grok" | "deepseek",
+    modelId?: string,
   ): { env: Record<string, string> } {
     const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
     if (!bundle) {
@@ -443,31 +428,21 @@ export class OpenAiCompatibleProfileService {
       );
     }
     if (harness === "kimi") {
-      return {
-        env: {
-          KIMI_CODE_API_KEY: bundle.apiKey,
-          KIMI_CODE_BASE_URL: bundle.baseUrl,
-        },
-      };
+      return prepareKimiEndpointRuntime({
+        directory: join(
+          this.options.cacheDir,
+          "openai-compatible-kimi",
+          safeAccountPathSegment(accountId),
+          // Model-scoped homes prevent concurrent models overwriting each other's aliases.
+          Buffer.from(modelId ?? bundle.model ?? "", "utf8").toString("base64url"),
+        ),
+        baseUrl: bundle.baseUrl,
+        apiKey: bundle.apiKey,
+        model: modelId ?? bundle.model ?? "",
+        ...(bundle.validatedProtocol ? { protocol: bundle.validatedProtocol } : {}),
+      });
     }
-    if (harness === "grok") {
-      return {
-        env: {
-          GROK_API_KEY: bundle.apiKey,
-          XAI_API_KEY: bundle.apiKey,
-          GROK_API_BASE: bundle.baseUrl,
-          GROK_BASE_URL: bundle.baseUrl,
-        },
-      };
-    }
-    return {
-      env: {
-        DEEPSEEK_API_KEY: bundle.apiKey,
-        DEEPSEEK_BASE_URL: bundle.baseUrl,
-        OPENAI_API_KEY: bundle.apiKey,
-        OPENAI_BASE_URL: bundle.baseUrl,
-      },
-    };
+    return { env: vendorEndpointEnv(harness, bundle.baseUrl, bundle.apiKey) };
   }
 
   /** 该账号端点的可用模型 id 列表（/models）。 */

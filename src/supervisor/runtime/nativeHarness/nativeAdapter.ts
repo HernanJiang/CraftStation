@@ -1,3 +1,4 @@
+import { SessionEventHistory } from "../sessionEventHistory";
 import { randomUUID } from "node:crypto";
 import { resolveExecutablePath } from "@/supervisor/agents/base";
 import { buildAntigravityModelArgs } from "@/supervisor/agents/antigravity/argv";
@@ -14,7 +15,6 @@ import {
   HarnessRuntimeAdapter,
   NativeHarnessDescriptor,
   NativeHarnessDiagnostic,
-  NativeEventEnvelope,
   RuntimeOverrides,
   SessionSnapshot,
   StartTurnCommand,
@@ -199,9 +199,7 @@ class NativeProcessCraftSession implements CraftSession {
   private _maxTokenContinuationsRemaining = DEFAULT_DEEPSEEK_MAX_TOKEN_CONTINUATIONS;
   private _abortCleanup: (() => void) | undefined;
   private _turnEventsStart = 0;
-  private readonly _events: RuntimeEvent[] = [];
-  private readonly _nativeEvents: NativeEventEnvelope[] = [];
-  private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
+  private readonly history = new SessionEventHistory();
   private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
   private readonly _explicitNativeSessionRef: string | undefined;
   /** Per-turn thinking-run state, keyed by turn id (antigravity only). */
@@ -251,14 +249,14 @@ class NativeProcessCraftSession implements CraftSession {
     return this._nativeSessionRef;
   }
   getDiagnostics(): readonly NativeHarnessDiagnostic[] {
-    return [...this._diagnostics];
+    return this.history.readDiagnostics();
   }
   /** Internal Supervisor view; this config is never sent to the provider wire. */
   getRuntimeConfig(): NativeRuntimeExecutionConfig {
     return this.runtimeConfig;
   }
   addDiagnostic(record: NativeHarnessDiagnostic): void {
-    this._diagnostics.push(record);
+    this.history.addDiagnostic(record);
   }
 
   async initializeDeepSeek(): Promise<void> {
@@ -307,20 +305,17 @@ class NativeProcessCraftSession implements CraftSession {
   }
 
   getSnapshot(): SessionSnapshot {
-    return {
+    return this.history.snapshot({
       sessionId: this.id,
       entityId: this.entityId,
       threadId: this.threadId,
       status: this._status,
       activeTurnId: this._turnId,
       activeTurnStatus: this._turnId ? "running" : undefined,
-      events: [...this._events],
       ...(this.nativeSessionRef ? { nativeSessionRef: this.nativeSessionRef } : {}),
-      nativeEvents: [...this._nativeEvents],
-      diagnostics: [...this._diagnostics],
       runtimeConfig: this.runtimeConfig,
       effectiveOverrides: effectiveOverrides(this.plan),
-    };
+    });
   }
 
   subscribe(listener: (event: RuntimeEvent, snapshot: SessionSnapshot) => void): () => void {
@@ -336,8 +331,7 @@ class NativeProcessCraftSession implements CraftSession {
         correlationId: this.transport.correlationId,
       },
     } as RuntimeEvent;
-    this._events.push(next);
-    if (next.nativeEnvelope) this._nativeEvents.push(next.nativeEnvelope);
+    this.history.append(next);
     const snapshot = this.getSnapshot();
     for (const listener of this._listeners) listener(next, snapshot);
   }
@@ -402,7 +396,7 @@ class NativeProcessCraftSession implements CraftSession {
     for (const next of events) {
       if (
         next.type === "turn.started" &&
-        this._events.some(
+        this.history.hasEvent(
           (record) =>
             record.type === "turn.started" && (record as Record<string, unknown>).turnId === turnId,
         )
@@ -414,7 +408,12 @@ class NativeProcessCraftSession implements CraftSession {
       // a provider only emits `result`, but do not double-count the streamed
       // response when both forms are present.
       if (next.type === "content.delta" && next.stream === "assistant_text") {
-        const delta = finalResponseRemainder(this._streamedResponse, next.delta);
+        // 只有 agy 的 result 是完整答案重放。流式 delta 的相同词语/重叠后缀是合法内容，
+        // DSH max-tokens 续跑也可能再次输出相同文本，不能按累计答案去重。
+        const delta =
+          this.mode === "antigravity" && event.type === "result"
+            ? finalResponseRemainder(this._streamedResponse, next.delta)
+            : next.delta;
         if (!delta) continue;
         this._streamedResponse += delta;
         this._response += delta;
@@ -435,7 +434,7 @@ class NativeProcessCraftSession implements CraftSession {
   }
 
   private failTurn(error: Error): void {
-    this._diagnostics.push({
+    this.history.addDiagnostic({
       code: "NATIVE_EXECUTION_FAILED",
       harnessKind: this.descriptor.harnessKind,
       phase: "turn",
@@ -462,7 +461,7 @@ class NativeProcessCraftSession implements CraftSession {
     if (this._status !== "terminated") {
       this._status = error ? "error" : "idle";
     }
-    const hasCompletedEvent = this._events.some(
+    const hasCompletedEvent = this.history.hasEvent(
       (e) => e.type === "turn.completed" && (e as Record<string, unknown>).turnId === turnId,
     );
     if (!hasCompletedEvent) {
@@ -483,7 +482,7 @@ class NativeProcessCraftSession implements CraftSession {
     const result: TurnResult = {
       turnId,
       status,
-      events: this._events.slice(this._turnEventsStart),
+      events: this.history.eventsSince(this._turnEventsStart),
       ...(this._response ? { response: this._response } : {}),
       ...(error ? { error: error.message } : {}),
     };
@@ -564,7 +563,7 @@ class NativeProcessCraftSession implements CraftSession {
     }
     if (this._turnId) throw CraftingError.executionFailed("A native turn is already active.");
     this._turnId = command.turnId ?? `turn:${randomUUID()}`;
-    this._turnEventsStart = this._events.length;
+    this._turnEventsStart = this.history.eventCount;
     this._response = "";
     this._streamedResponse = "";
     this._turnSignal = command.signal;
@@ -853,7 +852,11 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
           ANTIGRAVITY_DEFAULT_MODEL_ID,
           true,
         ),
-        ...(runtimeConfig.approvalPolicy === "never" ? ["--dangerously-skip-permissions"] : []),
+        ...(["never", "yolo"].includes(
+          runtimeConfig.permissionConfig?.approvalPolicy ?? runtimeConfig.approvalPolicy ?? "",
+        )
+          ? ["--dangerously-skip-permissions"]
+          : []),
         ...(sessionRef ? ["--conversation", sessionRef] : []),
         ...(this.options.runtimeArgs ?? []),
       );

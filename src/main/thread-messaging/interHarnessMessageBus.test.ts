@@ -327,12 +327,15 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
     expect(peers.map((peer) => peer.address).sort()).toEqual(["kimi:kimi-K1", "kimi:kimi-K2"]);
   });
 
-  it("Test H: a busy target is queued, never force-interrupted", async () => {
+  it("Test H: an explicitly unaccepted busy target stays queued without force-interruption", async () => {
     statuses.set("kimi1", "working");
+    sendThreadInput.mockRejectedValueOnce(
+      Object.assign(new Error("not accepted"), { code: "THREAD_TARGET_BUSY" }),
+    );
     const exchange = await bus.send("codex", "kimi:kimi-K1", "Take your time.");
     expect(exchange.status).toBe("queued");
     expect(interruptThread).not.toHaveBeenCalled();
-    expect(sendThreadInput).not.toHaveBeenCalled();
+    expect(sendThreadInput).toHaveBeenCalledTimes(1);
   });
 
   it("STOP with interrupt-and-send aborts a busy Executor without deleting the peer", async () => {
@@ -372,6 +375,9 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
 
   it("ask timeout stops waiting but keeps the message durable", async () => {
     statuses.set("kimi1", "working");
+    sendThreadInput.mockRejectedValueOnce(
+      Object.assign(new Error("not accepted"), { code: "THREAD_TARGET_BUSY" }),
+    );
     const { exchange, timedOut } = await bus.ask("codex", "kimi:kimi-K1", "Slow question.", {
       timeoutMs: 5,
     });
@@ -398,6 +404,9 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
 
   it("Test I: restart recovery re-drives queued exchanges from the same DB", async () => {
     statuses.set("kimi1", "working");
+    sendThreadInput.mockRejectedValueOnce(
+      Object.assign(new Error("not accepted"), { code: "THREAD_TARGET_BUSY" }),
+    );
     const queued = await bus.send("codex", "kimi:kimi-K1", "Survive restart.");
     expect(queued.status).toBe("queued");
     // New bus + service instances over the SAME database recover the queue.

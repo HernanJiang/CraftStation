@@ -1,3 +1,4 @@
+import { recipeLaunchHarnessKind, recipeLaunchModelId } from "@/shared/crafting/recipeIdentity";
 import { baseAgentKind } from "@/shared/contracts";
 import { providerMenuKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
 import type { ProviderModelMenuProvider } from "@/renderer/components/common/ProviderModelMenu/parts/buildItems";
@@ -25,44 +26,13 @@ export interface RecipePickerTarget {
  *   manageable in 管理模型 → 我的配方 but is skipped in the picker instead
  *   of launching a dead selection.
  */
-/** Strip `harness:` / `native-harness:` so a stored ref launches as `opencode`. */
-export function normalizeRecipeHarnessKind(raw: string | undefined): string {
-  return (raw ?? "").replace(/^harness:/u, "").replace(/^native-harness:/u, "");
-}
-
-/** Harness kind a saved recipe should launch on (`opencode`, not `harness:opencode`). */
-export function recipeLaunchHarnessKind(recipe: StoredRecipe): string {
-  return normalizeRecipeHarnessKind(recipe.lastKnownHarness?.harnessKind || recipe.harnessRef);
-}
-
-/** Provider/agent kind encoded in an `agent:` / `custom:` material ref. */
-export function providerKindFromRecipeRef(ref: string): string | undefined {
-  if (ref.startsWith("agent:") || ref.startsWith("custom:")) {
-    const head = ref.slice(ref.indexOf(":") + 1).split(":")[0]?.trim();
-    return head || undefined;
-  }
-  return undefined;
-}
-
-/**
- * Model id encoded in an `agent:<surface>:<modelId>` material ref. Custom-model
- * refs (`custom:…`) are catalog ids, not launch ids — those stay undefined.
- */
-export function modelIdFromRecipeRef(ref: string): string | undefined {
-  if (!ref.startsWith("agent:")) return undefined;
-  const withoutPrefix = ref.slice("agent:".length);
-  const lastColon = withoutPrefix.lastIndexOf(":");
-  if (lastColon <= 0) return undefined;
-  const modelId = withoutPrefix.slice(lastColon + 1).trim();
-  return modelId || undefined;
-}
-
-/** Concrete model id a saved recipe should launch, even if lastKnown stored an entry ref. */
-export function recipeLaunchModelId(recipe: StoredRecipe): string | undefined {
-  const stored = recipe.lastKnownModel?.modelId?.trim();
-  if (stored && !stored.startsWith("agent:") && !stored.startsWith("custom:")) return stored;
-  return modelIdFromRecipeRef(recipe.modelEntryRef) ?? stored;
-}
+export {
+  normalizeRecipeHarnessKind,
+  recipeLaunchHarnessKind,
+  providerKindFromRecipeRef,
+  modelIdFromRecipeRef,
+  recipeLaunchModelId,
+} from "@/shared/crafting/recipeIdentity";
 
 export function resolveRecipePickerTarget(
   recipe: StoredRecipe,
@@ -75,10 +45,7 @@ export function resolveRecipePickerTarget(
     // another vendor's inventory (Gemini on Antigravity, then OpenCode as
     // Harness). Exact material-id match must not hijack launch onto that
     // vendor — only the recipe's harness family may win here.
-    if (
-      launchKind &&
-      baseAgentKind(provider.kind) !== baseAgentKind(launchKind)
-    ) {
+    if (launchKind && baseAgentKind(provider.kind) !== baseAgentKind(launchKind)) {
       continue;
     }
     for (const model of provider.capabilities.models) {
@@ -126,6 +93,23 @@ export function resolveRecipePickerTarget(
   }
   const custom = customModels.find((entry) => entry.id === recipe.modelEntryRef);
   if (custom) {
+    // 模型来源/账号和执行 Harness 是独立的 Ingredient。跨 Harness 的显式
+    // 配方仍使用源账号，不能因模型目录挂在 Codex 下就改回 Codex 执行。
+    if (launchKind && baseAgentKind(launchKind) !== baseAgentKind(custom.provider)) {
+      const target =
+        providers.find(
+          (provider) =>
+            baseAgentKind(provider.kind) === baseAgentKind(launchKind) && !provider.accountId,
+        ) ??
+        providers.find((provider) => baseAgentKind(provider.kind) === baseAgentKind(launchKind));
+      if (!target) return undefined;
+      return {
+        agentKind: target.kind,
+        model: custom.modelId,
+        ...(custom.accountId ? { accountId: custom.accountId } : {}),
+        ...(target.presentationMode ? { presentationMode: target.presentationMode } : {}),
+      };
+    }
     // A custom model is a channel-bound material. Matching by model id alone
     // is unsafe because the same Gemini id can be served by OpenCode and
     // Antigravity at the same time. Keep both the provider family and account
@@ -138,7 +122,8 @@ export function resolveRecipePickerTarget(
       return provider.capabilities.models.some(
         (model) =>
           model.id === custom.modelId ||
-          model.id.split("/").pop()?.toLowerCase() === custom.modelId.split("/").pop()?.toLowerCase(),
+          model.id.split("/").pop()?.toLowerCase() ===
+            custom.modelId.split("/").pop()?.toLowerCase(),
       );
     });
     if (host) {
@@ -161,7 +146,9 @@ export function resolveRecipePickerTarget(
   );
   if (sameFamily.length === 0) return undefined;
   const host =
-    sameFamily.find((provider) => provider.kind === launchKind && provider.accountId === undefined) ??
+    sameFamily.find(
+      (provider) => provider.kind === launchKind && provider.accountId === undefined,
+    ) ??
     sameFamily.find((provider) => provider.kind === launchKind) ??
     sameFamily[0];
   if (!host) return undefined;

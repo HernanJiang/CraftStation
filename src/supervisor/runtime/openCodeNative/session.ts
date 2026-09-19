@@ -1,3 +1,4 @@
+import { SessionEventHistory } from "../sessionEventHistory";
 import { randomUUID } from "node:crypto";
 import type { ProjectLocation } from "@/shared/contracts";
 import { normalizeThirdPartyModelId } from "@/shared/thirdPartyRouting";
@@ -6,7 +7,6 @@ import type {
   CraftRequestResolution,
   CraftSession,
   CraftSessionStatus,
-  NativeEventEnvelope,
   NativeHarnessDiagnostic,
   RuntimeBinding,
   SessionSnapshot,
@@ -67,7 +67,7 @@ export function assertSupportedOpenCodePlanOptions(plan: CraftPlan): void {
   );
   const overrides = plan.overrides ?? {};
   const unsupportedOverrides = Object.keys(overrides).filter(
-    (key) => key !== "model" && key !== "reasoningEffort",
+    (key) => key !== "model" && key !== "reasoningEffort" && key !== "permissionConfig",
   );
   if (unsupportedOptions.length === 0 && unsupportedOverrides.length === 0) return;
   const names = [...unsupportedOptions, ...unsupportedOverrides.map((name) => `override.${name}`)];
@@ -132,9 +132,7 @@ export class OpenCodeNativeSession implements CraftSession {
   private _activeTurnStatus: TurnStatus | undefined;
   private _disposed = false;
   private _sequence = 0;
-  private readonly _events: RuntimeEvent[] = [];
-  private readonly _nativeEvents: NativeEventEnvelope[] = [];
-  private readonly _diagnostics: NativeHarnessDiagnostic[] = [];
+  private readonly history = new SessionEventHistory();
   private readonly _listeners = new Set<(event: RuntimeEvent, snapshot: SessionSnapshot) => void>();
   private readonly connection: OpenCodeNativeConnection;
   private unsubscribe: (() => void) | undefined;
@@ -267,6 +265,22 @@ export class OpenCodeNativeSession implements CraftSession {
         const result = await client.session.get({ directory, sessionID });
         sessionID =
           typeof record(result.data).id === "string" ? String(record(result.data).id) : sessionID;
+        const approval = options.plan.overrides?.permissionConfig?.approvalPolicy;
+        if (approval) {
+          if (!client.session.update)
+            throw new Error("OpenCode session.update is unavailable; cannot restore permissions.");
+          await client.session.update({
+            directory,
+            sessionID,
+            permission: [
+              {
+                permission: "*",
+                pattern: "*",
+                action: ["yolo", "never"].includes(approval) ? "allow" : "ask",
+              },
+            ],
+          });
+        }
       } else {
         const runtimeBinding = options.plan.runtimeBinding;
         const createInput: Record<string, unknown> = {
@@ -282,6 +296,15 @@ export class OpenCodeNativeSession implements CraftSession {
         if (configuredOptions.permission !== undefined) {
           createInput.permission = configuredOptions.permission;
         }
+        const approval = options.plan.overrides?.permissionConfig?.approvalPolicy;
+        if (approval)
+          createInput.permission = [
+            {
+              permission: "*",
+              pattern: "*",
+              action: ["yolo", "never"].includes(approval) ? "allow" : "ask",
+            },
+          ];
         const result = await client.session.create(createInput);
         sessionID =
           typeof record(result.data).id === "string" ? String(record(result.data).id) : undefined;
@@ -321,24 +344,21 @@ export class OpenCodeNativeSession implements CraftSession {
   }
 
   getDiagnostics(): readonly NativeHarnessDiagnostic[] {
-    return [...this._diagnostics];
+    return this.history.readDiagnostics();
   }
 
   getSnapshot(): SessionSnapshot {
-    return {
+    return this.history.snapshot({
       sessionId: this.id,
       entityId: this.entityId,
       threadId: this.threadId,
       status: this._status,
       activeTurnId: this._activeTurnId,
       activeTurnStatus: this._activeTurnStatus,
-      events: [...this._events],
       nativeSessionRef: this._providerSessionId,
-      nativeEvents: [...this._nativeEvents],
-      diagnostics: [...this._diagnostics],
       effectiveOverrides: this.options.plan.overrides,
       metadata: safeRuntimeMetadata(this.options.plan),
-    };
+    });
   }
 
   subscribe(listener: (event: RuntimeEvent, snapshot: SessionSnapshot) => void): () => void {
@@ -362,7 +382,7 @@ export class OpenCodeNativeSession implements CraftSession {
     }
 
     const turnId = command.turnId ?? `turn:${randomUUID()}`;
-    const startIndex = this._events.length;
+    const startIndex = this.history.eventCount;
     this.responseParts.length = 0;
     this._activeTurnId = turnId;
     this._activeTurnStatus = "running";
@@ -385,6 +405,25 @@ export class OpenCodeNativeSession implements CraftSession {
     try {
       const binding = this.options.plan.runtimeBinding;
       const configured = record(binding.options);
+      const approval = command.overrides?.permissionConfig?.approvalPolicy;
+      if (approval) {
+        const update = this.connection.client.session.update;
+        if (!update)
+          throw new Error(
+            "OpenCode session.update is unavailable; cannot apply changed permissions.",
+          );
+        await update.call(this.connection.client.session, {
+          directory: this.options.plan.workspace ?? projectPath(this.options.projectLocation),
+          sessionID: this._providerSessionId,
+          permission: [
+            {
+              permission: "*",
+              pattern: "*",
+              action: ["yolo", "never"].includes(approval) ? "allow" : "ask",
+            },
+          ],
+        });
+      }
       await this.withServerDeathRace(
         this.connection.client.session.promptAsync({
           directory: this.options.plan.workspace ?? projectPath(this.options.projectLocation),
@@ -412,7 +451,7 @@ export class OpenCodeNativeSession implements CraftSession {
         "session.promptAsync",
         error,
       );
-      this._diagnostics.push(diagnosticRecord);
+      this.history.addDiagnostic(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
       this._activeTurnStatus = command.signal?.aborted ? "interrupted" : "failed";
       this._status = "error";
@@ -423,7 +462,7 @@ export class OpenCodeNativeSession implements CraftSession {
       command.signal?.removeEventListener("abort", abort);
     }
 
-    const events = this._events.slice(startIndex);
+    const events = this.history.eventsSince(startIndex);
     const status = this._activeTurnStatus ?? "completed";
     return {
       turnId,
@@ -475,7 +514,7 @@ export class OpenCodeNativeSession implements CraftSession {
             : "question.reject",
         error,
       );
-      this._diagnostics.push(diagnosticRecord);
+      this.history.addDiagnostic(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
       throw error;
     }
@@ -496,7 +535,7 @@ export class OpenCodeNativeSession implements CraftSession {
       }
     } catch (error) {
       const diagnosticRecord = diagnostic(this.connection.correlationId, "session.abort", error);
-      this._diagnostics.push(diagnosticRecord);
+      this.history.addDiagnostic(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
       // The abort call failed, but the user asked for Stop: settle the local
       // pending turn so the session accepts the next prompt instead of hanging
@@ -527,7 +566,7 @@ export class OpenCodeNativeSession implements CraftSession {
         "session.summarize",
         error,
       );
-      this._diagnostics.push(diagnosticRecord);
+      this.history.addDiagnostic(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
       throw error;
     }
@@ -543,7 +582,7 @@ export class OpenCodeNativeSession implements CraftSession {
       return Array.isArray(result.data) ? result.data : [];
     } catch (error) {
       const diagnosticRecord = diagnostic(this.connection.correlationId, "session.messages", error);
-      this._diagnostics.push(diagnosticRecord);
+      this.history.addDiagnostic(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
       throw error;
     }
@@ -586,7 +625,7 @@ export class OpenCodeNativeSession implements CraftSession {
         error,
         "CLEANUP_FAILED",
       );
-      this._diagnostics.push(diagnosticRecord);
+      this.history.addDiagnostic(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
     } finally {
       this.unsubscribe?.();
@@ -630,7 +669,7 @@ export class OpenCodeNativeSession implements CraftSession {
         ...mapped.diagnostic,
         correlationId: this.connection.correlationId,
       };
-      this._diagnostics.push(diagnosticRecord);
+      this.history.addDiagnostic(diagnosticRecord);
       this.options.onDiagnostic?.(diagnosticRecord);
     }
     if (!mapped.event) return;
@@ -674,8 +713,7 @@ export class OpenCodeNativeSession implements CraftSession {
       receivedAt: new Date().toISOString(),
     };
     const next = { ...event, nativeEnvelope: envelope };
-    this._events.push(next);
-    this._nativeEvents.push(envelope);
+    this.history.append(next);
     const snapshot = this.getSnapshot();
     for (const listener of this._listeners) listener(next, snapshot);
   }

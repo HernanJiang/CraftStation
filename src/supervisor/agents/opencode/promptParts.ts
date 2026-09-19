@@ -6,7 +6,7 @@ import { formatDiffCommentPrompt } from "@/shared/promptContent";
 import { readOpenCodeErrorText } from "./opencodeErrors";
 
 export type OpenCodePromptPart =
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; synthetic?: boolean }
   | { type: "file"; mime: string; filename?: string; url: string };
 
 const OCTET_STREAM_MIME = "application/octet-stream";

@@ -47,6 +47,8 @@ export interface QueuedStructuredTurn {
    * configured cap even across session rebuilds.
    */
   turnRetryAttempt?: number;
+  /** 自动重试说明独立于历史前缀；原生 resume 可省略历史，但仍需要续接说明。 */
+  retryContext?: string;
   /**
    * Failover context carry-over ("前情提要"), rendered from the thread
    * transcript at failover time. restartThread prepends it to the SENT
@@ -134,6 +136,8 @@ export interface SessionRuntime {
    */
   pendingSteer?: PendingSteerSlot | undefined;
   structuredTurnInterruptRequested?: boolean | undefined;
+  /** 每次启动或 Stop 都递增；取消被 idle 确认后，旧异步回调仍可判断自己已失效。 */
+  structuredTurnGeneration?: number | undefined;
   /**
    * Force-stop watchdog for a structured (GUI) turn. Armed when the user
    * requests a stop and reset on any inbound sign of life (status update or

@@ -7,6 +7,9 @@ import type { SupervisorEvent } from "@/shared/ipc";
 import type { AgentAdapter, StructuredSessionHandle } from "../agents/base";
 import type { WindowsShellPreference } from "../shellPreference";
 import type { SessionRuntime } from "./sessionTypes";
+import { isolateRuntimeMcpEnvironment } from "./testSupport/runtimeEnvironment";
+
+beforeEach(isolateRuntimeMcpEnvironment);
 
 const captureSupervisorException = vi.hoisted(() =>
   vi.fn<(error: unknown, tags?: Record<string, string>) => void>(),
@@ -187,6 +190,7 @@ const managersToDispose: ThreadSessionManager[] = [];
 const tempDirs: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   for (const manager of managersToDispose.splice(0)) {
     await manager.dispose();
   }

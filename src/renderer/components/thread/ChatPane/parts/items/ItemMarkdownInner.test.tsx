@@ -547,6 +547,30 @@ flowchart TD
     expect(actions.openProjectRelativePath).toHaveBeenCalledWith("/tmp/outside.txt", undefined);
   });
 
+  it.each([
+    [
+      "/D:/Work/EQ-Agent/review/EQ-Dataset-v1-20260919/index.html",
+      "review/EQ-Dataset-v1-20260919/index.html",
+    ],
+    ["/D:/Work/EQ-Agent/review/文件%20验证/index.html", "review/文件 验证/index.html"],
+    ["file:///D:/Work/EQ-Agent/review/100%2520literal.html", "review/100%20literal.html"],
+    ["D:/External/index.html", "D:/External/index.html"],
+  ])("opens Windows markdown path %s", (href, expected) => {
+    const actions = makeActions({
+      projectLocation: { kind: "windows", path: "D:\\Work\\EQ-Agent" },
+      projectRootNames: new Set(["review"]),
+    });
+    render(
+      <AppProvider>
+        <ChatPaneActionsContext.Provider value={actions}>
+          <ItemMarkdownInner text={`[index.html](${href})`} />
+        </ChatPaneActionsContext.Provider>
+      </AppProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /index\.html|literal\.html/ }));
+    expect(actions.openProjectRelativePath).toHaveBeenCalledWith(expected, undefined);
+  });
+
   it("does not leave a malformed table as raw piped text", () => {
     // 4-cell header but only 3 separator segments. Without normalization
     // remark-gfm rejects the table and renders the source as a raw paragraph

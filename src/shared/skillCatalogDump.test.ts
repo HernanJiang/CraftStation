@@ -11,6 +11,14 @@ const GROK_DUMP =
   "skill-creator-craftstation ask-matt ast-grep code-review codebase-design context7-cli diagnosing-bugs domain-modeling grill-me grill-with-docs grilling guizang-ppt-skill handoff implement improve-codebase-architecture keep-codex-fast my-cloud-dev my-explain my-research my-workflow ppt-master prototype repomix-explorer research resolving-merge-conflicts";
 
 describe("isSkillCatalogDump", () => {
+  it.each([
+    "existing draft\n\nfirst note\n\nsecond note",
+    "red green blue orange purple white",
+    "read-only review six ordinary English words",
+  ])("preserves ordinary user text: %s", (text) => {
+    expect(isSkillCatalogDump(text)).toBe(false);
+    expect(isSkillCatalogOutboundTurn(text)).toBe(false);
+  });
   it("detects a Grok skill-catalog echo", () => {
     expect(isSkillCatalogDump(GROK_DUMP)).toBe(true);
   });
@@ -57,6 +65,14 @@ describe("isSkillCatalogDump", () => {
   });
 
   it("detects a user bubble of skill chips with no real prompt", () => {
+    const simpleChips = ["research", "prototype", "review", "explain", "debug", "build"].map(
+      (name) => ({ kind: "skill", name }),
+    );
+    expect(isSkillCatalogUserContent(simpleChips)).toBe(true);
+    expect(isSkillCatalogOutboundTurn("", simpleChips)).toBe(true);
+    expect(isSkillCatalogOutboundTurn("existing draft first note second note", simpleChips)).toBe(
+      false,
+    );
     const chips = GROK_DUMP.split(" ").map((name) => ({
       kind: "skill",
       name,

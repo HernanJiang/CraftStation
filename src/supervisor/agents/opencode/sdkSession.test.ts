@@ -140,6 +140,23 @@ describe("OpencodeSdkSession", () => {
     mocks.acquireOpenCodeServer.mockReset();
   });
 
+  it("sends portable instructions as synthetic text so provider echo cannot paint them as user input", async () => {
+    const { session, promptAsync, events } = await createTurnHarness();
+    await session.startTurn("visible prompt", config, undefined, {
+      inlineInstructions: "private harness supplement",
+    });
+    expect(promptAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parts: [
+          { type: "text", text: "visible prompt" },
+          { type: "text", text: "private harness supplement", synthetic: true },
+        ],
+      }),
+    );
+    events.close();
+    await session.dispose();
+  });
+
   describe("third-party model slug", () => {
     async function createPromptSession(options: {
       model: string;
@@ -1307,6 +1324,32 @@ describe("OpencodeSdkSession", () => {
     });
     harness.events.close();
     await harness.session.dispose();
+  });
+
+  it("reissues cancellation when Stop races the prompt admission response", async () => {
+    let admit!: () => void;
+    const admitted = new Promise<unknown>((resolve) => {
+      admit = () => resolve({ data: {} });
+    });
+    const h = await createTurnHarness({ promptAsync: () => admitted });
+    const starting = h.session.startTurn("long harmless answer", config);
+    await vi.waitFor(() => expect(h.promptAsync).toHaveBeenCalledOnce());
+    await h.session.interruptTurn();
+    expect(h.abort).toHaveBeenCalledOnce();
+    admit();
+    await starting;
+    expect(h.abort).toHaveBeenCalledTimes(2);
+    h.events.push({
+      directory: "/repo",
+      payload: { type: "session.idle", properties: { sessionID: "ses_turns" } },
+    });
+    await vi.waitFor(() =>
+      expect(h.runtimeEvents).toContainEqual(
+        expect.objectContaining({ type: "turn.completed", state: "interrupted" }),
+      ),
+    );
+    h.events.close();
+    await h.session.dispose();
   });
 
   it("allocates a distinct fallback turn id before each prompt admission", async () => {

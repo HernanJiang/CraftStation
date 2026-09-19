@@ -14,6 +14,14 @@ const PACKAGED_DIST_FILES = PACKAGED_DIST_DIRS.flatMap((dir) => [
   `!dist/${dir}/**/*.map`,
 ]);
 
+// 只排除 SQLite 重编译产生的中间文件；运行库、.node 与调试符号保持可打包。
+// 这些文件不是运行时重建能力：安装包仍由 afterPack 校验并注入目标架构的 .node。
+const PACKAGED_NATIVE_EXCLUDES = [
+  "!node_modules/better-sqlite3/build/Release/obj/**/*",
+  "!node_modules/better-sqlite3/build/deps/**/*",
+  "!node_modules/better-sqlite3/build/**/*.{iobj,ipdb,obj,lib,exp,ilk,tlog,vcxproj,filters,sln,props,targets,gypi,mk,make}",
+];
+
 function normalizeChannel(value) {
   return value === "nightly" ? "nightly" : "stable";
 }
@@ -56,6 +64,7 @@ module.exports = {
   CHANNELS,
   PACKAGED_DIST_DIRS,
   PACKAGED_DIST_FILES,
+  PACKAGED_NATIVE_EXCLUDES,
   normalizeChannel,
   productNameFor,
   appIdFor,

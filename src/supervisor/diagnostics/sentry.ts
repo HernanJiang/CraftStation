@@ -15,6 +15,7 @@ import {
   readBuildSentryEnvironment,
   shouldEnableSentryReporting,
 } from "@/shared/diagnostics/sentryBuildConfig";
+import { StructuredRuntimeDiagnosticError } from "../runtime/threadSession/structuredRuntimeDiagnosticError";
 
 type SupervisorSentryModule = typeof import("@sentry/node");
 
@@ -262,6 +263,13 @@ function errorMessage(error: unknown): string | null {
 }
 
 function structuredRuntimeClassification(error: unknown): DiagnosticFailureMetadata | undefined {
+  if (error instanceof StructuredRuntimeDiagnosticError) {
+    return {
+      failureClass: "product-defect",
+      domain: "structured-runtime",
+      errorClass: `${error.failureClass}-failed`,
+    };
+  }
   if (!(error instanceof Error) || error.name !== "StructuredRuntimeDiagnosticError") {
     return undefined;
   }
@@ -391,7 +399,12 @@ function captureSupervisorFailure(
       }),
       20,
     );
-    Sentry.captureException(error);
+    // GUI 可显示账号失败原因；遥测只接收稳定分类，不能上传账号标签或任意原因尾缀。
+    Sentry.captureException(
+      error instanceof StructuredRuntimeDiagnosticError
+        ? new StructuredRuntimeDiagnosticError(error.failureClass, error.diagnosticProvider)
+        : error,
+    );
   });
 }
 

@@ -99,6 +99,20 @@ describe("resolveUnrestrictedPermissionConfig", () => {
 describe("applyHomeScopePermissions", () => {
   const windowsHome = { kind: "windows" as const, path: "C:\\Users\\tester" };
 
+  it("does not override the app default or explicit Ask choice in Home", () => {
+    const config = { model: "test", approvalPolicy: "default" };
+    expect(
+      applyHomeScopePermissions(windowsHome, config, {
+        approvalPolicies: [
+          { id: "default", label: "Ask" },
+          { id: "auto", label: "Full" },
+        ],
+        sandboxModes: [],
+        bypassPermissions: { approvalPolicy: "auto" },
+      }),
+    ).toEqual(config);
+  });
+
   it("maps a kimi-like declared bypass into home-scope configs", () => {
     expect(
       applyHomeScopePermissions(

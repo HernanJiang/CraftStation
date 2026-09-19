@@ -53,6 +53,31 @@ function recipe(modelEntryRef: string, harnessRef?: string): StoredRecipe {
 }
 
 describe("resolveRecipePickerTarget", () => {
+  it("keeps a third-party account separate from the explicitly selected Harness", () => {
+    const custom: CustomModel = {
+      id: "custom:codex:channel:model",
+      provider: "codex",
+      accountId: "openai-compatible:channel",
+      modelId: "vendor/model:free",
+      displayName: "Custom",
+      contextSize: "",
+    };
+    const source = provider({ kind: "codex", accountId: "openai-compatible:channel" });
+    source.capabilities.models = [{ id: custom.modelId, label: "Custom" }];
+    const target = provider({ kind: "kimi" });
+    expect(
+      resolveRecipePickerTarget(recipe(custom.id, "harness:kimi"), [source, target], [custom]),
+    ).toEqual({
+      agentKind: "kimi",
+      model: custom.modelId,
+      accountId: custom.accountId,
+      presentationMode: "gui",
+    });
+    expect(
+      resolveRecipePickerTarget(recipe(custom.id, "harness:kimi"), [source], [custom]),
+    ).toBeUndefined();
+  });
+
   it("resolves an agent-surface recipe by exact entry id", () => {
     const providers = [
       provider({
@@ -74,11 +99,7 @@ describe("resolveRecipePickerTarget", () => {
         },
       }),
     ];
-    const target = resolveRecipePickerTarget(
-      recipe("agent:codex:gui:gpt-5.6-sol"),
-      providers,
-      [],
-    );
+    const target = resolveRecipePickerTarget(recipe("agent:codex:gui:gpt-5.6-sol"), providers, []);
     expect(target).toEqual({
       agentKind: "codex",
       model: "gpt-5.6-sol",
@@ -151,11 +172,7 @@ describe("resolveRecipePickerTarget", () => {
       }),
     ];
     expect(
-      resolveRecipePickerTarget(
-        recipe("agent:opencode:gui:gemini-3.8-flash"),
-        providers,
-        [],
-      ),
+      resolveRecipePickerTarget(recipe("agent:opencode:gui:gemini-3.8-flash"), providers, []),
     ).toEqual({
       agentKind: "opencode",
       model: "gemini-3.8-flash",
@@ -269,11 +286,7 @@ describe("resolveRecipePickerTarget", () => {
       }),
     ];
     expect(
-      resolveRecipePickerTarget(
-        recipe("agent:opencode:gui:gemini-3.8-flash"),
-        providers,
-        [],
-      ),
+      resolveRecipePickerTarget(recipe("agent:opencode:gui:gemini-3.8-flash"), providers, []),
     ).toEqual({
       agentKind: "opencode",
       model: "gemini-3.8-flash",
@@ -330,7 +343,7 @@ describe("resolveRecipePickerTarget", () => {
 
     expect(
       resolveRecipePickerTarget(
-        recipe("custom:opencode:openai-compatible:gemini-3.8-flash"),
+        recipe("custom:opencode:openai-compatible:gemini-3.8-flash", "harness:opencode"),
         providers,
         [custom],
       ),
@@ -363,11 +376,7 @@ describe("resolveRecipePickerTarget", () => {
       }),
     ];
     expect(
-      resolveRecipePickerTarget(
-        recipe("agent:opencode:gui:gemini-3.8-flash"),
-        providers,
-        [],
-      ),
+      resolveRecipePickerTarget(recipe("agent:opencode:gui:gemini-3.8-flash"), providers, []),
     ).toEqual({
       agentKind: "opencode",
       model: "opencode/gemini-3.8-flash",

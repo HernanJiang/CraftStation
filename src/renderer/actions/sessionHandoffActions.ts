@@ -10,7 +10,12 @@ import {
   adaptThreadConfigForCapabilities,
   capabilitiesForPresentation,
 } from "@/shared/agentSelection";
-import type { ProjectLocation, SwitchThreadProviderResult, Thread, ThreadConfig } from "@/shared/contracts";
+import type {
+  ProjectLocation,
+  SwitchThreadProviderResult,
+  Thread,
+  ThreadConfig,
+} from "@/shared/contracts";
 import {
   Crafter,
   getDefaultRegistry,
@@ -253,6 +258,10 @@ export async function switchLiveThreadProvider(input: {
   /** Sticky third-party account from the picker; never fall back to the native pool. */
   targetAccountId?: string;
 }): Promise<void> {
+  // A remote thread must never rebuild a coincidentally matching local session.
+  if (input.thread.remoteServerId) {
+    throw new Error("Remote conversations do not support in-place handoff.");
+  }
   const targetConfig = adaptSwitchTargetConfig(input);
   const compiled = compileHandoffTarget({
     thread: input.thread,

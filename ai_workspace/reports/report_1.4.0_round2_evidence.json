@@ -1,0 +1,3322 @@
+{
+  "version": "1.4.0",
+  "scope": "第二轮原始局部指标与真实运行摘录；不是全功能 PASS",
+  "performance": {
+    "database": {
+      "before": {
+        "node": "v24.18.1",
+        "rows": [
+          {
+            "threads": 1,
+            "batches": 1000,
+            "samples": [
+              {
+                "wallMs": 204.2956999999999,
+                "cpuMs": 156,
+                "heapPeakGrowthBytes": 28878440,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 210.87190000000032,
+                "cpuMs": 187,
+                "heapPeakGrowthBytes": 29040304,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 214.32639999999992,
+                "cpuMs": 203,
+                "heapPeakGrowthBytes": 28912912,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 210.41669999999976,
+                "cpuMs": 172,
+                "heapPeakGrowthBytes": 28913488,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 207.4928,
+                "cpuMs": 187,
+                "heapPeakGrowthBytes": 28914256,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              }
+            ]
+          },
+          {
+            "threads": 8,
+            "batches": 8000,
+            "samples": [
+              {
+                "wallMs": 1652.4989999999998,
+                "cpuMs": 1265,
+                "heapPeakGrowthBytes": 30164624,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1754.8103,
+                "cpuMs": 1422,
+                "heapPeakGrowthBytes": 28387312,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1694.6697000000004,
+                "cpuMs": 1406,
+                "heapPeakGrowthBytes": 24976536,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1575.7021000000004,
+                "cpuMs": 1329,
+                "heapPeakGrowthBytes": 14702904,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1559.4159999999993,
+                "cpuMs": 1359,
+                "heapPeakGrowthBytes": 14359600,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              }
+            ]
+          }
+        ]
+      },
+      "afterBeforeConcurrencyFix": {
+        "node": "v24.18.1",
+        "rows": [
+          {
+            "threads": 1,
+            "batches": 1000,
+            "samples": [
+              {
+                "wallMs": 154.02700000000004,
+                "cpuMs": 125,
+                "heapPeakGrowthBytes": 28160048,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 161.44260000000008,
+                "cpuMs": 156,
+                "heapPeakGrowthBytes": 28304624,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 182.67240000000038,
+                "cpuMs": 140,
+                "heapPeakGrowthBytes": 28089400,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 164.64090000000033,
+                "cpuMs": 155,
+                "heapPeakGrowthBytes": 28138368,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 146.05389999999989,
+                "cpuMs": 125,
+                "heapPeakGrowthBytes": 28122808,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              }
+            ]
+          },
+          {
+            "threads": 8,
+            "batches": 8000,
+            "samples": [
+              {
+                "wallMs": 1319.9144000000001,
+                "cpuMs": 1031,
+                "heapPeakGrowthBytes": 28068544,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1447.7227999999996,
+                "cpuMs": 1125,
+                "heapPeakGrowthBytes": 28190968,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1203.4352,
+                "cpuMs": 937,
+                "heapPeakGrowthBytes": 28307568,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1212.4837000000007,
+                "cpuMs": 938,
+                "heapPeakGrowthBytes": 28064128,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1198.1813999999995,
+                "cpuMs": 891,
+                "heapPeakGrowthBytes": 759480,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              }
+            ]
+          }
+        ]
+      },
+      "after": {
+        "node": "v24.18.1",
+        "rows": [
+          {
+            "threads": 1,
+            "batches": 1000,
+            "samples": [
+              {
+                "wallMs": 142.8687,
+                "cpuMs": 110,
+                "heapPeakGrowthBytes": 28158656,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 145.44939999999997,
+                "cpuMs": 156,
+                "heapPeakGrowthBytes": 28174392,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 153.63779999999997,
+                "cpuMs": 140,
+                "heapPeakGrowthBytes": 28174272,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 147.51409999999987,
+                "cpuMs": 109,
+                "heapPeakGrowthBytes": 28161192,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 143.07410000000027,
+                "cpuMs": 109,
+                "heapPeakGrowthBytes": 28168032,
+                "databaseBytes": 356352,
+                "walBytes": 4152992
+              }
+            ]
+          },
+          {
+            "threads": 8,
+            "batches": 8000,
+            "samples": [
+              {
+                "wallMs": 1624.4583999999995,
+                "cpuMs": 1328,
+                "heapPeakGrowthBytes": 28036104,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1655.1017999999995,
+                "cpuMs": 1360,
+                "heapPeakGrowthBytes": 28230496,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1659.1906000000008,
+                "cpuMs": 1406,
+                "heapPeakGrowthBytes": 28376168,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1620.2914,
+                "cpuMs": 1296,
+                "heapPeakGrowthBytes": 28075208,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              },
+              {
+                "wallMs": 1645.1515,
+                "cpuMs": 1406,
+                "heapPeakGrowthBytes": 720584,
+                "databaseBytes": 598016,
+                "walBytes": 4152992
+              }
+            ]
+          }
+        ]
+      },
+      "method": "Production SQLite WAL; one connection, 1 or 8 interleaved logical threads; one warmup + five measured repeats; final after includes immediate write transaction, no build/full-test in parallel."
+    },
+    "highlight": {
+      "before": {
+        "mode": "before",
+        "blocks": 80,
+        "highlighter": "production Shiki",
+        "retainedHeapGrowthBytes": 25924720,
+        "heapBefore": 18123168,
+        "heapAfter": 44047888,
+        "generatedTextBudgetBytes": 50926800,
+        "maxHtmlLength": 276530,
+        "wallMs": 1488.4636,
+        "cpuMs": 1907
+      },
+      "after": {
+        "mode": "after",
+        "blocks": 80,
+        "highlighter": "production Shiki",
+        "retainedHeapGrowthBytes": 4601936,
+        "heapBefore": 18124008,
+        "heapAfter": 22725944,
+        "generatedTextBudgetBytes": 50926800,
+        "maxHtmlLength": 276530,
+        "wallMs": 1475.4068,
+        "cpuMs": 2031
+      }
+    },
+    "logWriter": {
+      "before": {
+        "paths": 10000,
+        "heapBefore": 8769248,
+        "heapAfter": 11453880,
+        "retainedHeapGrowthBytes": 2684632,
+        "retainedEntries": 10000,
+        "fsMocked": true
+      },
+      "after": {
+        "paths": 10000,
+        "heapBefore": 8768472,
+        "heapAfter": 8839624,
+        "retainedHeapGrowthBytes": 71152,
+        "retainedEntries": 0,
+        "fsMocked": true
+      }
+    },
+    "sqliteBuildBefore": {
+      "source": "installed 1.3.4 SQLite build subtree only; exact v1.4.0 exclusion patterns",
+      "totalFiles": 57,
+      "totalBytes": 36932928,
+      "excludedFiles": 55,
+      "excludedBytes": 34908480,
+      "kept": [
+        {
+          "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+          "bytes": 1920512
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/test_extension.node",
+          "bytes": 103936
+        }
+      ],
+      "excluded": [
+        {
+          "path": "node_modules/better-sqlite3/build/better_sqlite3.vcxproj",
+          "bytes": 12792
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/better_sqlite3.vcxproj.filters",
+          "bytes": 2605
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/locate_sqlite3.vcxproj",
+          "bytes": 12231
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/locate_sqlite3.vcxproj.filters",
+          "bytes": 4929
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/locate_sqlite3/locate_sqlite3.recipe",
+          "bytes": 359
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/locate_sqlite3/locate_sqlite3.tlog/Cl.items.tlog",
+          "bytes": 260
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/locate_sqlite3/locate_sqlite3.tlog/CustomBuild.command.1.tlog",
+          "bytes": 335
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/locate_sqlite3/locate_sqlite3.tlog/CustomBuild.read.1.tlog",
+          "bytes": 340
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/locate_sqlite3/locate_sqlite3.tlog/CustomBuild.write.1.tlog",
+          "bytes": 551
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/locate_sqlite3/locate_sqlite3.tlog/locate_sqlite3.lastbuildstate",
+          "bytes": 225
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.lib.recipe",
+          "bytes": 359
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/CL.command.1.tlog",
+          "bytes": 10784
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/Cl.items.tlog",
+          "bytes": 561
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/CL.read.1.tlog",
+          "bytes": 47246
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/CL.write.1.tlog",
+          "bytes": 1132
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/Lib-link.read.1.tlog",
+          "bytes": 1396
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/Lib-link.write.1.tlog",
+          "bytes": 618
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/Lib.command.1.tlog",
+          "bytes": 1160
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/Release/obj/sqlite3/sqlite3.tlog/sqlite3.lastbuildstate",
+          "bytes": 225
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/sqlite3.vcxproj",
+          "bytes": 15278
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/deps/sqlite3.vcxproj.filters",
+          "bytes": 3265
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.exp",
+          "bytes": 908
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.iobj",
+          "bytes": 14301166
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.ipdb",
+          "bytes": 3184496
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.lib",
+          "bytes": 1956
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.node.recipe",
+          "bytes": 552
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/better_sqlite3.lastbuildstate",
+          "bytes": 225
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/CL.command.1.tlog",
+          "bytes": 6874
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/Cl.items.tlog",
+          "bytes": 511
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/CL.read.1.tlog",
+          "bytes": 60216
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/CL.write.1.tlog",
+          "bytes": 1032
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/link.command.1.tlog",
+          "bytes": 2642
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/link.read.1.tlog",
+          "bytes": 6226
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/link.secondary.1.tlog",
+          "bytes": 895
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/better_sqlite3/better_sqlite3.tlog/link.write.1.tlog",
+          "bytes": 1302
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/global_intermediate/sqlite3/sqlite3.c",
+          "bytes": 9507980
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/global_intermediate/sqlite3/sqlite3.h",
+          "bytes": 690725
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/global_intermediate/sqlite3/sqlite3ext.h",
+          "bytes": 39175
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.node.recipe",
+          "bytes": 552
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/CL.command.1.tlog",
+          "bytes": 6828
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/Cl.items.tlog",
+          "bytes": 511
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/CL.read.1.tlog",
+          "bytes": 18440
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/CL.write.1.tlog",
+          "bytes": 1032
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/link.command.1.tlog",
+          "bytes": 2646
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/link.read.1.tlog",
+          "bytes": 5778
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/link.secondary.1.tlog",
+          "bytes": 896
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/link.write.1.tlog",
+          "bytes": 1304
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/obj/test_extension/test_extension.tlog/test_extension.lastbuildstate",
+          "bytes": 225
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/sqlite3.lib",
+          "bytes": 6902026
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/test_extension.exp",
+          "bytes": 900
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/test_extension.iobj",
+          "bytes": 22284
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/test_extension.ipdb",
+          "bytes": 4208
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/Release/test_extension.lib",
+          "bytes": 1942
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/test_extension.vcxproj",
+          "bytes": 12770
+        },
+        {
+          "path": "node_modules/better-sqlite3/build/test_extension.vcxproj.filters",
+          "bytes": 2606
+        }
+      ]
+    },
+    "desktopAfter": {
+      "session": "v140-round2-reattach-live",
+      "samples": [
+        {
+          "elapsedMs": 502.6273,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7484.375,
+              "workingSetBytes": 397012992,
+              "privateBytes": 144064512,
+              "readBytes": 387817799,
+              "writtenBytes": 63765121
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323952640,
+              "privateBytes": 193347584,
+              "readBytes": 512825,
+              "writtenBytes": 1161112
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3796.875,
+              "workingSetBytes": 249139200,
+              "privateBytes": 16224256,
+              "readBytes": 68735943,
+              "writtenBytes": 74582176
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 11375,
+              "workingSetBytes": 555749376,
+              "privateBytes": 334811136,
+              "readBytes": 8718696,
+              "writtenBytes": 20330003
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 359624704,
+              "privateBytes": 194473984,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11223040,
+              "privateBytes": 1863680,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11231232,
+              "privateBytes": 1871872,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33375,
+              "workingSetBytes": 727896064,
+              "privateBytes": 920256512,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 1991.3749,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7531.25,
+              "workingSetBytes": 397041664,
+              "privateBytes": 144080896,
+              "readBytes": 387874975,
+              "writtenBytes": 63803197
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323862528,
+              "privateBytes": 192962560,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3875,
+              "workingSetBytes": 249008128,
+              "privateBytes": 16039936,
+              "readBytes": 68774291,
+              "writtenBytes": 79552786
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 11687.5,
+              "workingSetBytes": 569630720,
+              "privateBytes": 349630464,
+              "readBytes": 8778760,
+              "writtenBytes": 20383899
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 359624704,
+              "privateBytes": 194473984,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11223040,
+              "privateBytes": 1863680,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11231232,
+              "privateBytes": 1871872,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33375,
+              "workingSetBytes": 727752704,
+              "privateBytes": 917913600,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 3471.5668,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7531.25,
+              "workingSetBytes": 393842688,
+              "privateBytes": 140820480,
+              "readBytes": 387874975,
+              "writtenBytes": 63803197
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323862528,
+              "privateBytes": 192638976,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3875,
+              "workingSetBytes": 248918016,
+              "privateBytes": 15896576,
+              "readBytes": 68774291,
+              "writtenBytes": 79552786
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 11687.5,
+              "workingSetBytes": 569630720,
+              "privateBytes": 349630464,
+              "readBytes": 8778760,
+              "writtenBytes": 20383899
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 359624704,
+              "privateBytes": 194473984,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33421.875,
+              "workingSetBytes": 727646208,
+              "privateBytes": 917803008,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 4984.7305,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7531.25,
+              "workingSetBytes": 393912320,
+              "privateBytes": 140890112,
+              "readBytes": 387886719,
+              "writtenBytes": 63809501
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3906.25,
+              "workingSetBytes": 249069568,
+              "privateBytes": 16187392,
+              "readBytes": 68782995,
+              "writtenBytes": 79946210
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 11718.75,
+              "workingSetBytes": 569954304,
+              "privateBytes": 349908992,
+              "readBytes": 8790936,
+              "writtenBytes": 20394339
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 359624704,
+              "privateBytes": 194473984,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33437.5,
+              "workingSetBytes": 727433216,
+              "privateBytes": 915484672,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 6439.6694,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7562.5,
+              "workingSetBytes": 393912320,
+              "privateBytes": 140890112,
+              "readBytes": 387912431,
+              "writtenBytes": 63823261
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3953.125,
+              "workingSetBytes": 249311232,
+              "privateBytes": 16388096,
+              "readBytes": 68800291,
+              "writtenBytes": 81016176
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 11750,
+              "workingSetBytes": 571813888,
+              "privateBytes": 351690752,
+              "readBytes": 8818280,
+              "writtenBytes": 20416307
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 359624704,
+              "privateBytes": 194473984,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33468.75,
+              "workingSetBytes": 726577152,
+              "privateBytes": 912478208,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 7932.3227,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7656.25,
+              "workingSetBytes": 393854976,
+              "privateBytes": 140824576,
+              "readBytes": 387990071,
+              "writtenBytes": 63879620
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 4046.875,
+              "workingSetBytes": 249339904,
+              "privateBytes": 16400384,
+              "readBytes": 68852651,
+              "writtenBytes": 83494795
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 11796.875,
+              "workingSetBytes": 568733696,
+              "privateBytes": 348524544,
+              "readBytes": 8890008,
+              "writtenBytes": 20485571
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 359624704,
+              "privateBytes": 194473984,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33468.75,
+              "workingSetBytes": 726568960,
+              "privateBytes": 912478208,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 9382.5226,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7687.5,
+              "workingSetBytes": 393990144,
+              "privateBytes": 140939264,
+              "readBytes": 388019455,
+              "writtenBytes": 63897709
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 4093.75,
+              "workingSetBytes": 249348096,
+              "privateBytes": 16400384,
+              "readBytes": 68868847,
+              "writtenBytes": 84164665
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 11859.375,
+              "workingSetBytes": 571301888,
+              "privateBytes": 350965760,
+              "readBytes": 8916680,
+              "writtenBytes": 20510315
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 358707200,
+              "privateBytes": 193425408,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33484.375,
+              "workingSetBytes": 726581248,
+              "privateBytes": 912461824,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 10885.0119,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7765.625,
+              "workingSetBytes": 393854976,
+              "privateBytes": 140824576,
+              "readBytes": 388061303,
+              "writtenBytes": 63927030
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 4203.125,
+              "workingSetBytes": 249024512,
+              "privateBytes": 16044032,
+              "readBytes": 68907959,
+              "writtenBytes": 90603624
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 12156.25,
+              "workingSetBytes": 599486464,
+              "privateBytes": 380743680,
+              "readBytes": 8966408,
+              "writtenBytes": 20554163
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 358707200,
+              "privateBytes": 193425408,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33484.375,
+              "workingSetBytes": 726573056,
+              "privateBytes": 912461824,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 12355.1715,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7765.625,
+              "workingSetBytes": 393879552,
+              "privateBytes": 140836864,
+              "readBytes": 388083583,
+              "writtenBytes": 63940957
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3046.875,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 4218.75,
+              "workingSetBytes": 249073664,
+              "privateBytes": 16240640,
+              "readBytes": 68920499,
+              "writtenBytes": 90956012
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 12171.875,
+              "workingSetBytes": 600264704,
+              "privateBytes": 381132800,
+              "readBytes": 8986104,
+              "writtenBytes": 20573635
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 358707200,
+              "privateBytes": 193425408,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33484.375,
+              "workingSetBytes": 726507520,
+              "privateBytes": 911671296,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 13850.0652,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7843.75,
+              "workingSetBytes": 393879552,
+              "privateBytes": 140836864,
+              "readBytes": 388093551,
+              "writtenBytes": 63947634
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3062.5,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85344256,
+              "privateBytes": 64036864,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 4218.75,
+              "workingSetBytes": 249135104,
+              "privateBytes": 16261120,
+              "readBytes": 68927123,
+              "writtenBytes": 91344798
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 12203.125,
+              "workingSetBytes": 600948736,
+              "privateBytes": 381698048,
+              "readBytes": 8995624,
+              "writtenBytes": 20582203
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 358707200,
+              "privateBytes": 193425408,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33500,
+              "workingSetBytes": 726499328,
+              "privateBytes": 911671296,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        },
+        {
+          "elapsedMs": 15346.8607,
+          "processes": [
+            {
+              "processId": 66896,
+              "role": "main",
+              "name": "electron.exe",
+              "instance": "66896@2026-09-19T14:30:34.0846710Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 7843.75,
+              "workingSetBytes": 393854976,
+              "privateBytes": 140824576,
+              "readBytes": 388093551,
+              "writtenBytes": 63947634
+            },
+            {
+              "processId": 38068,
+              "role": "gpu",
+              "name": "electron.exe",
+              "instance": "38068@2026-09-19T14:30:34.7854260Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 3062.5,
+              "workingSetBytes": 323821568,
+              "privateBytes": 191987712,
+              "readBytes": 515241,
+              "writtenBytes": 1161784
+            },
+            {
+              "processId": 63296,
+              "role": "child",
+              "name": "powershell.exe",
+              "instance": "63296@2026-09-19T14:30:34.9075790Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 703.125,
+              "workingSetBytes": 85323776,
+              "privateBytes": 64004096,
+              "readBytes": 3851297,
+              "writtenBytes": 5622
+            },
+            {
+              "processId": 75076,
+              "role": "child",
+              "name": "electron.exe",
+              "instance": "75076@2026-09-19T14:30:34.9174450Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 4218.75,
+              "workingSetBytes": 249135104,
+              "privateBytes": 16261120,
+              "readBytes": 68927123,
+              "writtenBytes": 91344798
+            },
+            {
+              "processId": 52996,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "52996@2026-09-19T14:30:35.0092620Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8888320,
+              "privateBytes": 1363968,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 40404,
+              "role": "renderer",
+              "name": "electron.exe",
+              "instance": "40404@2026-09-19T14:30:35.2092700Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 12203.125,
+              "workingSetBytes": 600948736,
+              "privateBytes": 381698048,
+              "readBytes": 8995624,
+              "writtenBytes": 20582203
+            },
+            {
+              "processId": 78388,
+              "role": "supervisor",
+              "name": "electron.exe",
+              "instance": "78388@2026-09-19T14:30:35.8130730Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 16156.25,
+              "workingSetBytes": 358707200,
+              "privateBytes": 193425408,
+              "readBytes": 2582948019,
+              "writtenBytes": 1195449
+            },
+            {
+              "processId": 37772,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "37772@2026-09-19T14:31:10.4060500Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 11378688,
+              "privateBytes": 1953792,
+              "readBytes": 0,
+              "writtenBytes": 2453
+            },
+            {
+              "processId": 27636,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "27636@2026-09-19T14:31:10.9484380Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 11382784,
+              "privateBytes": 1957888,
+              "readBytes": 0,
+              "writtenBytes": 3036
+            },
+            {
+              "processId": 42420,
+              "role": "child",
+              "name": "cli-proxy-api.exe",
+              "instance": "42420@2026-09-19T14:32:24.4796770Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 218.75,
+              "workingSetBytes": 97288192,
+              "privateBytes": 70373376,
+              "readBytes": 3801878,
+              "writtenBytes": 7279
+            },
+            {
+              "processId": 4596,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "4596@2026-09-19T14:32:24.5716800Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 15.625,
+              "workingSetBytes": 8556544,
+              "privateBytes": 1273856,
+              "readBytes": 0,
+              "writtenBytes": 0
+            },
+            {
+              "processId": 44328,
+              "role": "child",
+              "name": "opencode.exe",
+              "instance": "44328@2026-09-19T14:32:25.8386220Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 33531.25,
+              "workingSetBytes": 726507520,
+              "privateBytes": 911671296,
+              "readBytes": 111116027,
+              "writtenBytes": 14758409
+            },
+            {
+              "processId": 448,
+              "role": "child",
+              "name": "conhost.exe",
+              "instance": "448@2026-09-19T14:32:25.9550320Z",
+              "createdDuringMeasurement": false,
+              "cpuMs": 31.25,
+              "workingSetBytes": 8773632,
+              "privateBytes": 1294336,
+              "readBytes": 0,
+              "writtenBytes": 0
+            }
+          ]
+        }
+      ],
+      "scope": "Electron main and descendants; excludes Vite/compiler; I/O includes pipes. CPU/I/O are observed lower bounds: exited processes can lose their last interval and unseen short-lived children are missed. Changed process sets must not be compared as exact totals.",
+      "summary": {
+        "elapsedMs": 14844.2334,
+        "logicalProcessors": 16,
+        "cpuMs": 1781,
+        "cpuPercentMachine": 0.7498703166443071,
+        "medianWorkingSetMiB": 2724.31640625,
+        "medianPrivateMiB": 1862.98828125,
+        "peakWorkingSetMiB": 2750.97265625,
+        "readBytes": 746276,
+        "writtenBytes": 17198007,
+        "processSetChanged": false,
+        "cpuAndIoAreObservedLowerBounds": true
+      },
+      "context": "Development app, idle after two CPA → OpenCode turns, with real provider processes. Not a matched A/B against first-round launch."
+    },
+    "sqlitePackageAfter": {
+      "kind": "final-nsis-package-sqlite-build-subtree",
+      "cpaBytes": 69062144,
+      "sidecarBytes": 247296,
+      "totalBytes": 2024448,
+      "files": [
+        {
+          "path": "Release\\better_sqlite3.node",
+          "bytes": 1920512
+        },
+        {
+          "path": "Release\\test_extension.node",
+          "bytes": 103936
+        }
+      ]
+    }
+  },
+  "intermediateTestRuns": [
+    {
+      "artifact": "round2-full-tests.json",
+      "total": 11905,
+      "passed": 11837,
+      "failed": 2,
+      "skipped": 66,
+      "files": 1098,
+      "failures": [
+        {
+          "file": "src/shared/crafting/boundaryGuard.test.ts",
+          "name": "Deep Module Boundary Guards ensures nativeCodex runtime has no dependencies on the shared session manager or spawn pipeline"
+        },
+        {
+          "file": "src/supervisor/runtime/threadSession/spawnPipeline.test.ts",
+          "name": "workspaceLaunchConfig — Home scope unrestricted for every agent forces each provider's unrestricted posture in Home"
+        }
+      ]
+    },
+    {
+      "artifact": "round2-final-tests.json",
+      "total": 11913,
+      "passed": 11846,
+      "failed": 1,
+      "skipped": 66,
+      "files": 1098,
+      "failures": [
+        {
+          "file": "src/shared/crafting/boundaryGuard.test.ts",
+          "name": "Deep Module Boundary Guards ensures nativeCodex runtime has no dependencies on the shared session manager or spawn pipeline"
+        }
+      ]
+    },
+    {
+      "artifact": "round2-release-tests.json",
+      "total": 11917,
+      "passed": 11842,
+      "failed": 9,
+      "skipped": 66,
+      "files": 1098,
+      "failures": [
+        {
+          "file": "src/renderer/actions/threadLaunchActions.test.ts",
+          "name": "startThreadFromDraft host transport hands a crafted plan to the production craftAgent seam using its plan thread id"
+        },
+        {
+          "file": "src/supervisor/runtime/antigravityProfiles.test.ts",
+          "name": "AntigravityProfileService self-heals an emptied sealed bundle from the account ADC file"
+        },
+        {
+          "file": "src/supervisor/runtime/compatibilityBridge/targetRuntime.test.ts",
+          "name": "CPA target Harness session contract keeps kimi protocol, permissions, tools, Stop and resume on the chosen Harness"
+        },
+        {
+          "file": "src/supervisor/runtime/compatibilityBridge/targetRuntime.test.ts",
+          "name": "CPA target Harness session contract keeps grok protocol, permissions, tools, Stop and resume on the chosen Harness"
+        },
+        {
+          "file": "src/supervisor/runtime/compatibilityBridge/targetRuntime.test.ts",
+          "name": "CPA target Harness session contract keeps deepseek protocol, permissions, tools, Stop and resume on the chosen Harness"
+        },
+        {
+          "file": "src/supervisor/runtime/compatibilityBridge/targetRuntime.test.ts",
+          "name": "CPA target Harness session contract keeps antigravity protocol, permissions, tools, Stop and resume on the chosen Harness"
+        },
+        {
+          "file": "src/supervisor/runtime/compatibilityBridge/targetRuntime.test.ts",
+          "name": "CPA target Harness session contract keeps opencode protocol, permissions, tools, Stop and resume on the chosen Harness"
+        },
+        {
+          "file": "src/supervisor/runtime/compatibilityBridge/targetRuntime.test.ts",
+          "name": "CPA target Harness session contract keeps muse protocol, permissions, tools, Stop and resume on the chosen Harness"
+        },
+        {
+          "file": "src/supervisor/wsl/runtime/index.test.ts",
+          "name": "resolveNodeForDistro falls back to managed node when the user node is below a consumer semver floor"
+        }
+      ]
+    }
+  ],
+  "live": {
+    "native": {
+      "session": "v140-round2-verified",
+      "capturedAt": "2026-09-19T13:51:28.378Z",
+      "threads": [
+        {
+          "id": "188b7803-788b-48f8-b67e-b3f2f10d8e12",
+          "agent": "kimi",
+          "status": "inactive",
+          "sessionRef": "session_0613b698-8c8a-420e-907d-5d4078f07b89",
+          "config": {
+            "model": "k3",
+            "approvalPolicy": "default"
+          },
+          "answers": ["KIMI_VERIFIED_FIRST_OK", "KIMI_VERIFIED_FOLLOWUP_OK"],
+          "pendingRequests": 0
+        },
+        {
+          "id": "72154f64-3d34-41a5-a670-480e4b80479f",
+          "agent": "codex",
+          "status": "inactive",
+          "sessionRef": "01a0b9ea-c010-7a30-8566-b9fd6f5da446",
+          "config": {
+            "model": "gpt-5.6-sol",
+            "effort": "low",
+            "fast": false,
+            "approvalPolicy": "on-request",
+            "approvalsReviewer": "user",
+            "sandboxMode": "workspace-write"
+          },
+          "answers": [
+            "DIRECT_API_VERIFIED_OK",
+            "[FILE_LINK_VERIFIED_OK](/C:/Users/Haona/.craftstation-smoke/v140-round2-verified/project/review/文件%20验证/index.html)"
+          ],
+          "pendingRequests": 0
+        },
+        {
+          "id": "92821b3b-ec81-43fa-a6dd-ad0ea02dc178",
+          "agent": "codex",
+          "status": "idle",
+          "sessionRef": "01a0b9ea-2146-7b02-8b0f-ff01e7319d32",
+          "config": {
+            "model": "gpt-5.5",
+            "effort": "low",
+            "contextSize": "272k",
+            "fast": false,
+            "mode": "agent",
+            "approvalPolicy": "on-request",
+            "approvalsReviewer": "user",
+            "sandboxMode": "workspace-write"
+          },
+          "answers": ["CODEX_VERIFIED_FIRST_OK"],
+          "pendingRequests": 0
+        },
+        {
+          "id": "craft-thread:d6e9bddd-35fd-4363-814c-90e70ecd35d6",
+          "agent": "opencode",
+          "status": "inactive",
+          "config": {
+            "model": "gpt-5.5",
+            "approvalPolicy": "default"
+          },
+          "answers": [],
+          "pendingRequests": 0
+        }
+      ]
+    },
+    "cpaBeforeDurableFix": {
+      "capturedAt": "2026-09-19T14:09:16.963Z",
+      "session": "v140-round2-final-live",
+      "launch": {
+        "kimi": {
+          "state": "completed",
+          "start": 1789826760947,
+          "elapsed": 15406
+        },
+        "opencode": {
+          "state": "completed",
+          "start": 1789826760952,
+          "elapsed": 58171
+        }
+      },
+      "threads": [
+        {
+          "id": "craft-thread:2530abd5-cf27-4e01-9fb7-6fc9055b96c8",
+          "agent": "opencode",
+          "status": "idle",
+          "ref": "ses_f46025484ffeaPTazVIRVOnG3x",
+          "items": [
+            {
+              "id": "asst-21603578-6d5c-423d-a476-19efcdf8ac52",
+              "type": "assistant_message",
+              "text": "FINAL_OPENCODE_OK"
+            },
+            {
+              "id": "asst-6e81ab50-42e3-4998-b425-66607a6bb041",
+              "type": "assistant_message",
+              "text": "FINAL_OPENCODE_FOLLOWUP_OK"
+            },
+            {
+              "id": "asst-154aeb6e-316f-4308-87fa-cbf32c3b5906",
+              "type": "assistant_message",
+              "text": "1. A prime has two positive divisors.\n2. A prime is greater than one.\n3. One is not prime.\n4. Two is the smallest prime.\n5. Two is the only even prime.\n6. Every other even number i"
+            }
+          ]
+        },
+        {
+          "id": "craft-thread:969a0905-7695-43a5-8350-502c69009f53",
+          "agent": "kimi",
+          "status": "idle",
+          "ref": "session_a9080178-9691-4d02-81f3-4d71864105ff",
+          "items": [
+            {
+              "id": "user-ee7a446f-da9d-413b-82dc-adf315557ec1",
+              "type": "user_message"
+            },
+            {
+              "id": "asst-36367f4b-af96-4f72-95d4-832854e8cf19",
+              "type": "assistant_message",
+              "text": "FINAL_KIMI_OK"
+            },
+            {
+              "id": "user-84a7d35f-0734-4c84-b394-77ebe89a83ac",
+              "type": "user_message"
+            },
+            {
+              "id": "asst-2aa78a08-0bac-434e-8b47-0a66e8e039b8",
+              "type": "assistant_message",
+              "text": "FINAL_KIMI_FOLLOWUP_OK"
+            }
+          ]
+        }
+      ]
+    },
+    "cpaDurableAndQuickStop": {
+      "capturedAt": "2026-09-19T14:18:50.738Z",
+      "session": "v140-round2-cancel-verified",
+      "quickStop": {
+        "clickedDuringWorking": true,
+        "immediateStatus": "idle",
+        "stopButtonGone": true
+      },
+      "id": "craft-thread:e34511dc-58d0-4587-b73a-0524077bf54b",
+      "status": "idle",
+      "sessionRef": "ses_f45f87f52ffe8g1xNeSQjJNuNR",
+      "items": [
+        {
+          "id": "user-ffe11924-1977-4267-92b7-0a539a7e24fa",
+          "type": "user_message",
+          "state": "completed",
+          "user": {
+            "content": [
+              {
+                "kind": "text",
+                "text": "Reply exactly RECIPE_FINAL_OK. Do not use tools."
+              }
+            ]
+          }
+        },
+        {
+          "id": "asst-68dd404e-aefe-4cd0-acb5-a8b4ef7eae94",
+          "type": "assistant_message",
+          "state": "completed",
+          "text": "RECIPE_FINAL_OK"
+        },
+        {
+          "id": "user-aca96648-845b-4fe8-8f20-a0e3d07321a5",
+          "type": "user_message",
+          "state": "completed",
+          "user": {
+            "content": [
+              {
+                "kind": "text",
+                "text": "Reply exactly AFTER_STOP_FINAL_OK. Do not use tools."
+              }
+            ]
+          }
+        },
+        {
+          "id": "asst-8cdb1eb2-9cb8-4783-b338-5393353764f6",
+          "type": "assistant_message",
+          "state": "completed",
+          "text": "AFTER_STOP_FINAL_OK"
+        }
+      ]
+    },
+    "recoveryBeforeReattachFix": {
+      "capturedAt": "2026-09-19T14:25:31.983Z",
+      "session": "v140-round2-recovery-final",
+      "id": "craft-thread:09662e81-94ef-493b-9a16-77cf34293d5f",
+      "status": "working",
+      "sessionRef": "ses_f45f2d529ffeMJ5RcwSPG2O2rl",
+      "userRows": 2,
+      "answers": ["RECOVERY_FIRST_OK", "RECOVERY_SECOND_OK"],
+      "outcome": "FAIL: native response arrived, UI remained working and showed duplicate optimistic row; fixed by retaining owned live Session + resume message ID."
+    },
+    "rendererReload": {
+      "capturedAt": "2026-09-19T14:36:07.541Z",
+      "session": "v140-round2-reattach-live",
+      "status": "idle",
+      "sessionRef": "ses_f45ea5650ffePn56lCPddmL7qN",
+      "userRows": 2,
+      "answers": ["REATTACH_FIRST_OK", "REATTACH_SECOND_OK"],
+      "uiPromptOccurrences": 1,
+      "hasStop": false,
+      "method": "First turn via production crafting action; reload; follow-up via composer DOM button click after CDP mouse clicks did not submit. Database and UI checked; no provider/core loop mocked.",
+      "nativeIdentityUnchanged": true
+    }
+  },
+  "limits": [
+    "全量运行过程中修改了部分源码，round2-release-tests.json 不是冻结源码验收；新稳定全量结果另列。",
+    "旧真实运行有 DB 锁异常，已补双连接回归；不得计为零 runtime errors。",
+    "mock 门与真实外部门严格区分，未执行的设备/供应商矩阵不标 PASS。"
+  ],
+  "fullTests": {
+    "artifact": "round2-stable-tests.json",
+    "total": 11921,
+    "passed": 11855,
+    "failed": 0,
+    "skipped": 66,
+    "files": 1098,
+    "note": "运行中追加了检查点与恢复修复；对应改动面另有定向复验，不宣称单次冻结源码全量。"
+  },
+  "finalTargetedTests": [
+    {
+      "scope": "DB concurrency, message identity, renderer launch, runtime seam",
+      "passed": 190,
+      "skipped": 1,
+      "failed": 0,
+      "artifact": "round2-concurrency-echo-tests.log"
+    },
+    {
+      "scope": "SDK Stop, structured lifecycle, denied approval, CPA contracts, Supervisor",
+      "passed": 246,
+      "skipped": 1,
+      "failed": 0,
+      "artifact": "round2-stop-green.log"
+    },
+    {
+      "scope": "renderer/mobile input/ThreadView",
+      "passed": 117,
+      "failed": 1,
+      "artifact": "round2-checkpoint-tests.log",
+      "resolvedBy": "round2-checkpoint-final.log (9 passed; GUI terminal projection assertion corrected)"
+    },
+    {
+      "scope": "initial Segment full/legacy recovery + runtime fencing + ledger",
+      "passed": 164,
+      "skipped": 1,
+      "failed": 0,
+      "artifact": "round2-recovery-tests.log"
+    },
+    {
+      "files": 2,
+      "passed": 161,
+      "skipped": 1,
+      "failed": 0,
+      "scope": "Supervisor runtime + renderer launch: reload reattach, identity/foreign-account guards, resume optimistic ID",
+      "log": "round2-reattach-final-tests.log"
+    }
+  ],
+  "skippedTests": [
+    {
+      "file": "src/renderer/components/thread/ChatPane/parts/items/ToolCall.renderArtifact.test.tsx",
+      "name": "ToolCall — render artifact writes the highlighted View body to tmp/claude-view-render.html",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/macDockIcon.test.ts",
+      "name": "refreshMacDockIcon sets the packaged macOS Dock icon from app resources",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/macDockIcon.test.ts",
+      "name": "refreshMacDockIcon does nothing outside packaged macOS apps",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/macDockIcon.test.ts",
+      "name": "refreshMacDockIcon does not set an empty image",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/macDockIcon.test.ts",
+      "name": "refreshMacDockIcon ships a centered stable runtime icon inside the macOS optical safe area",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/tray.test.ts",
+      "name": "resolveTrayIconPath uses the macOS template glyph without resizing",
+      "status": "skipped"
+    },
+    {
+      "file": "src/server/pairingControl.test.ts",
+      "name": "pairingControl writes the pairing response with owner-only permissions",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime.test.ts",
+      "name": "SupervisorRuntime compatibility bridge control starts and stops the real bundled sidecar end to end",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/computer-use/windowsRealGui.e2e.test.ts",
+      "name": "Computer Use real Windows GUI acceptance drives enable/api/list/launch/window-state/activate/click/type/key/scroll/drag/disable for real",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/computer-use/windowsRealGui.e2e.test.ts",
+      "name": "Computer Use real Windows GUI acceptance closes the probe app",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/db/runtimePersistence.perf.test.ts",
+      "name": "measures durable concurrent streaming batches",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/remote/auth.test.ts",
+      "name": "RemoteAuthStore writes persisted access sessions with owner-only permissions",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/ssh/SshConnectionManager.integration.test.ts",
+      "name": "SshConnectionManager real SSH installs, launches, tunnels, pairs, and optionally runs a remote agent",
+      "status": "skipped"
+    },
+    {
+      "file": "src/main/thread-messaging/nativeThreadIndex.test.ts",
+      "name": "native thread addresses keeps POSIX case intact",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-login-shell.test.ts",
+      "name": "POSIX login shell wrappers resolves binaries through the user's login shell on POSIX",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-login-shell.test.ts",
+      "name": "POSIX login shell wrappers wraps native launches in the user's login shell when the binary is unresolved",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-login-shell.test.ts",
+      "name": "POSIX login shell wrappers spawns absolute binary paths directly with the user's captured shell env",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-login-shell.test.ts",
+      "name": "POSIX login shell wrappers shell-wraps launches that opt out of absolute binary direct spawn",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-login-shell.test.ts",
+      "name": "POSIX login shell wrappers uses the project-scoped shell env on direct spawn so cd-hooks (fnm/asdf/mise) win",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-login-shell.test.ts",
+      "name": "POSIX login shell wrappers falls back to the homedir-scoped prime when the project has not been primed",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-login-shell.test.ts",
+      "name": "POSIX login shell wrappers runs CLI auth probes via direct spawn",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-wellknown-dir.test.ts",
+      "name": "POSIX well-known-dir binary fallback finds a binary in ~/.<binary>/bin when command -v misses (async)",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-wellknown-dir.test.ts",
+      "name": "POSIX well-known-dir binary fallback finds a binary in ~/.<binary>/bin when command -v misses (sync)",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-wellknown-dir.test.ts",
+      "name": "POSIX well-known-dir binary fallback returns undefined when the binary is in none of the well-known dirs",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-wellknown-dir.test.ts",
+      "name": "POSIX well-known-dir binary fallback ignores a non-executable match",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/base.posix-wellknown-dir.test.ts",
+      "name": "POSIX well-known-dir binary fallback resolves the launch binary path from well-known dirs on a cold cache",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/craftAgent.integration.test.ts",
+      "name": "CraftStation real native Codex app-server runtime evidence runs the production craftAgent seam against the local Codex app-server and completes dual-turn round-trip",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/craftAgent.integration.test.ts",
+      "name": "CraftStation real production Crafting model inventory projects the official Codex app-server model list through SupervisorRuntime",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/craftAgent.integration.test.ts",
+      "name": "CraftStation real Codex model traffic matrix attempts every discovered and built-in OpenAI model through the production craftAgent seam",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/crossHarnessHandoff.integration.test.ts",
+      "name": "real Codex -> Grok -> Codex handoff attempts three official native Sessions on one Thread and records only sanitized evidence",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/grokAccountPool.integration.test.ts",
+      "name": "CraftStation real Grok account-pool product path probes two managed accounts through craftAgent without using host ~/.grok",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/grokQuotaRealProbe.test.ts",
+      "name": "real managed Grok quota probe collects quota through the product service without exposing credentials",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/codex/codexRouterOverlay.test.ts",
+      "name": "isolatedCodexHomeCandidates never lists the host home when it is a Router overlay",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/codex/codexRouterOverlay.test.ts",
+      "name": "isolatedCodexAuthPath does not return the host auth.json when that home is a Router overlay",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/cursor/sdkWorkerClient.test.ts",
+      "name": "spawnCursorSdkWorker launches native workers as POSIX process-group leaders",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/cursor/sdkWorkerClient.test.ts",
+      "name": "spawnCursorSdkWorker force-kills the dedicated POSIX worker process group",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/plugin/installerBase.test.ts",
+      "name": "buildNativeHookCmdShellCommand returns a single-quoted wrapper path on POSIX",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/pi/cliProcess.test.ts",
+      "name": "Pi CLI process runs print, JSON, skill, resume, and interactive PTY workflows",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeCodex/codexAgenticProductPath.integration.test.ts",
+      "name": "CraftStation real Codex Agentic product path uses selected MCP and resumes the official thread after runtime disposal",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeCodex/sessionBroadcast.perf.test.ts",
+      "name": "measures the real notification-to-session broadcast path without dropping history",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/openCodeNative/liveProviderSmoke.test.ts",
+      "name": "OpenCode real Provider assistant smoke gets two real Kimi assistant responses through a managed auth binding",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/agenticProductPath.integration.test.ts",
+      "name": "CraftStation real Grok/Kimi Agentic product paths uses MCP/Skills/subagents and resumes the provider Session in a new Runtime",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/antigravityAgenticProductPath.integration.test.ts",
+      "name": "CraftStation real Antigravity Agentic product path uses native tools, web search, selected Skill, subagent, AGENTS and resumable context",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/deepSeekApiAgenticProductPath.integration.test.ts",
+      "name": "CraftStation real DeepSeek API Agentic product path tests selected MCP, Skill, multi-turn, context, interrupt and cleanup per configured provider",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/deepSeekApiProductPath.integration.test.ts",
+      "name": "CraftStation DeepSeek API product path runs every configured official and Ark DeepSeek API model through SupervisorRuntime.craftAgent",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/nativeProductPath.integration.test.ts",
+      "name": "CraftStation native Antigravity product path evidence runs craftAgent through the official agy stream-json process boundary",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/nativeProductPath.integration.test.ts",
+      "name": "CraftStation native DeepSeek product path evidence runs craftAgent through the official DSH JSON-RPC stdio process boundary",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/nativeProductPath.integration.test.ts",
+      "name": "CraftStation native Kimi product path evidence runs craftAgent through the official Kimi Code ACP stdio process boundary",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/nativeHarness/nativeProductPath.integration.test.ts",
+      "name": "CraftStation native Grok product path evidence runs craftAgent through the official Grok Build ACP stdio process boundary",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/compatibilityBridge/compatibilityRuntimeAdapter.e2e.test.ts",
+      "name": "CompatibilityRuntimeAdapter real tracer E2E completes a real OpenCode Agent Loop through the bridge",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints readdir lists files and directories",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints readdir with includeChildCount marks empty dirs",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints readdir rejects paths that escape the project root",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints rejects unauthorized requests",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints stat returns batched stats with Node-style error codes",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints find walks the tree, skips ignored dirs, and caps at maxEntries",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints classifies symlinks and their target kind",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints creates git checkpoint snapshots inside the bridge process",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints runs structured git batches without a shell",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints runs structured process batches without a shell",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints kills a timed-out process and its descendants",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints kills a successful process command's remaining process group",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints strips inherited Git control variables from process env",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/wsl/bridge/bridge.test.ts",
+      "name": "bridge.mjs fs endpoints runs login-env git execs without exposing the bridge secret to hooks",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/runtime/threadSession/terminalEnv.test.ts",
+      "name": "resolveTerminalColorEnv uses xterm-ghostty when the host terminfo entry is available",
+      "status": "skipped"
+    },
+    {
+      "file": "src/supervisor/agents/cursor/plugin/install.test.ts",
+      "name": "installCursorPlugin writes a bare wrapper path on POSIX",
+      "status": "skipped"
+    }
+  ],
+  "finalChecks": {
+    "typecheck": "PASS: round2-final-typecheck.log",
+    "lint": "PASS: round2-final-lint.log",
+    "diffCheck": "PASS",
+    "productionBuild": "PASS (pnpm dist:win prebuild)",
+    "nsis": "PASS: round2-nsis-build.log; afterPack SQLite + node-pty actual native load",
+    "secretPatternScan": {
+      "files": 161,
+      "hits": 0,
+      "scope": "changed/new source, scripts and public reports; heuristic screening only"
+    },
+    "portable": "PASS: pnpm dist:win:portable --skip-build; afterPack SQLite + node-pty native load; final SQLite build subtree also 2 files / 2024448 B",
+    "intermediateCleanup": "BLOCKED_BY_POLICY: automatic approval review rejected recursive removal of verified candidate release/win-unpacked and builder-debug.yml; both retained, artifacts intact."
+  },
+  "finalMockSmoke": {
+    "startedAt": "2026-09-19T14:38:02.802Z",
+    "scope": "full",
+    "outDir": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts",
+    "files": [],
+    "areas": [
+      "desktop-shell",
+      "ipc-contracts",
+      "projects-worktrees",
+      "providers-models",
+      "threads-chat",
+      "terminal-pty",
+      "git-review",
+      "github-actions",
+      "file-editor",
+      "browser",
+      "schedules",
+      "settings",
+      "plugins-marketplace",
+      "updates-auth-usage",
+      "remote-mobile",
+      "mcp-extensions",
+      "agent-skills",
+      "localization-theme-a11y",
+      "quick-composer",
+      "shared-runtime",
+      "renderer-other"
+    ],
+    "automated": [
+      {
+        "id": "welcome-dismissal",
+        "status": "pass",
+        "detail": {
+          "dismissed": true,
+          "detail": "welcome screen dismissed through its primary action"
+        }
+      },
+      {
+        "id": "baseline",
+        "status": "pass",
+        "detail": {
+          "url": "http://127.0.0.1:65069/?craftstationDebugSession=3830b2a3-4b9f-4825-8d0a-ddd0a6ab8a48",
+          "title": "CraftStation (dev)",
+          "bodyText": "Pull requests\nPlan\nWork\nCrafting Table\nMCP Servers\nSettings\nv1.4.0\nCraftStation\nNew chat / project\n\nPROJECTS\n\nproject\nHome\n模型与用量\n✨ 添加新模型\nSettings\nproject\nAgent workspace\nDiscovering coding agents…\n\nScanning your system for installed CLIs. This usually takes a couple of seconds.\n\nPROVIDER\nClaude Code\nSearching...\nCodex\nSearching...\nGemini\nSearching...\nQwen Code\nSearching...\nQoder CLI\nSearching...\nGrok Build\nSearching...\nKimi Code\nSearching...\nDeepSeek Harness\nSearching...\nMuse Code\nSearching...\nDevin\nSearching...\nAntigravity\nSearching...\nCommand Code\nSearching...\nOpenCode\nSearching...\nPi\nSearching...\nCursor\nSearching...\nGitHub Copilot\nSearching...\nFactory Droid\nSearching...\nWarming up shell environment…",
+          "rootChildren": 2,
+          "craftstationBridge": "object",
+          "devBridge": "object",
+          "crash": false,
+          "welcomeVisible": false,
+          "draftComposer": false,
+          "modelPicker": false,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-01-baseline.png"
+        }
+      },
+      {
+        "id": "settings",
+        "status": "pass",
+        "detail": {
+          "sections": [
+            "profile",
+            "general",
+            "audio",
+            "appearance",
+            "terminal",
+            "threads",
+            "git",
+            "worktrees",
+            "notifications",
+            "ai",
+            "search",
+            "shortcuts",
+            "remoteAccess",
+            "remoteServers",
+            "agentsGeneral",
+            "skills",
+            "mcpServers",
+            "plugins",
+            "browser",
+            "usage",
+            "archived",
+            "changelog",
+            "about"
+          ],
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-settings.png",
+          "mcpListScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-mcp-servers-list.png",
+          "mcpScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-mcp-servers.png",
+          "mcpImportScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-mcp-import.png",
+          "pluginsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-plugins.png",
+          "skillsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-skills.png",
+          "skillsImportScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-skills-import.png",
+          "skillsImportDestinationsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-skills-import-destinations.png",
+          "skillsMarketplaceScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-skills-marketplace.png",
+          "skillsTargetsScreenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-skills-targets.png"
+        }
+      },
+      {
+        "id": "control-geometry",
+        "status": "pass",
+        "detail": {
+          "switchGeometry": {
+            "control": {
+              "radius": 9999,
+              "height": 20
+            },
+            "thumb": {
+              "radius": 9999,
+              "height": 16
+            }
+          },
+          "sliderGeometry": {
+            "track": {
+              "radius": 9999,
+              "height": 20
+            },
+            "fill": {
+              "radius": 0,
+              "height": 20
+            },
+            "thumb": {
+              "radius": 9999,
+              "height": 16
+            }
+          },
+          "sliderPresent": true,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02-control-geometry.png"
+        }
+      },
+      {
+        "id": "schedules",
+        "status": "pass",
+        "detail": {
+          "scheduleId": "8b05f8f9-f222-46b2-a41d-d208d036ce07",
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02b-schedules.png"
+        }
+      },
+      {
+        "id": "github-actions",
+        "status": "pass",
+        "detail": {
+          "hiddenByDefault": true,
+          "toggleVisible": true,
+          "toggleSelected": false,
+          "overlayOpen": true,
+          "heading": true,
+          "projectPicker": true,
+          "crash": false,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-02c-github-actions.png"
+        }
+      },
+      {
+        "id": "thread-search",
+        "status": "pass",
+        "detail": {
+          "dialog": true,
+          "searchInput": true,
+          "crash": false,
+          "screenshotPath": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\smoke-03-thread-search.png"
+        }
+      },
+      {
+        "id": "browser",
+        "status": "pass",
+        "detail": {
+          "outDir": "C:\\Users\\Haona\\.craftstation-smoke\\automated-1789828629829-82548\\artifacts\\browser"
+        }
+      },
+      {
+        "id": "mock-integrations",
+        "status": "pass",
+        "detail": "16/16 deterministic mock gates passed"
+      }
+    ],
+    "manual": [
+      {
+        "gate": "changed-surface",
+        "status": "mocked",
+        "detail": "covered by baseline and diff-selected automated scenarios"
+      },
+      {
+        "gate": "file-editor",
+        "status": "mocked",
+        "detail": "fixture project tree bridge returned successfully"
+      },
+      {
+        "gate": "git-mutations",
+        "status": "mocked",
+        "detail": "fixture git status round-trip returned successfully"
+      },
+      {
+        "gate": "github-actions-live",
+        "status": "mocked",
+        "detail": "GitHub Actions list, definition, rerun, and delete bridge contracts are exposed"
+      },
+      {
+        "gate": "ipc-roundtrip",
+        "status": "mocked",
+        "detail": "database and settings IPC round-trips returned successfully"
+      },
+      {
+        "gate": "mcp-extension",
+        "status": "mocked",
+        "detail": "mock provider status, external MCP discovery, and browser bridge contracts responded"
+      },
+      {
+        "gate": "native-auth-update",
+        "status": "mocked",
+        "detail": "update state and usage-auth state were exercised with deterministic mock data"
+      },
+      {
+        "gate": "project-mutations",
+        "status": "mocked",
+        "detail": "isolated seeded project was loaded and selected"
+      },
+      {
+        "gate": "provider-live",
+        "status": "mocked",
+        "detail": "provider codex was hydrated and selector UI rendered without external credentials"
+      },
+      {
+        "gate": "provider-skill-delivery",
+        "status": "mocked",
+        "detail": "all supported adapters exposed the managed fixture skill with their invocation mode"
+      },
+      {
+        "gate": "quick-composer",
+        "status": "mocked",
+        "detail": "mock gate acknowledged: quick-composer"
+      },
+      {
+        "gate": "remote-mobile",
+        "status": "mocked",
+        "detail": "remote pairing state bridge returned successfully"
+      },
+      {
+        "gate": "runtime-requests",
+        "status": "mocked",
+        "detail": "runtime request store and resolution IPC contract were checked"
+      },
+      {
+        "gate": "skills-manager",
+        "status": "mocked",
+        "detail": "managed and provider skill disable/enable, copy import, and delete round-tripped"
+      },
+      {
+        "gate": "terminal-pty",
+        "status": "mocked",
+        "detail": "terminal lifecycle IPC contracts checked; real PTY input/output requires the separate manual gate"
+      },
+      {
+        "gate": "visual-a11y",
+        "status": "mocked",
+        "detail": "interactive labels and dark-theme baseline were checked"
+      }
+    ],
+    "errors": [],
+    "finishedAt": "2026-09-19T14:38:46.384Z"
+  },
+  "packages": [
+    {
+      "bytes": 127127393,
+      "name": "CraftStation-Portable-1.4.0-x64.exe"
+    },
+    {
+      "bytes": 148318720,
+      "name": "CraftStation-Setup-1.4.0-x64.exe"
+    },
+    {
+      "bytes": 153657,
+      "name": "CraftStation-Setup-1.4.0-x64.exe.blockmap"
+    },
+    {
+      "bytes": 361,
+      "name": "latest.yml"
+    }
+  ]
+}

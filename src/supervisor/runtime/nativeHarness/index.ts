@@ -194,6 +194,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
   },
   deepseek: ({
     projectLocation,
+    baseSpawnEnv,
     profileRef,
     resolveExecutable = resolveExecutablePath,
     spawnProcess,
@@ -220,6 +221,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
       descriptor: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
       projectLocation,
       mode: "deepseek",
+      ...(baseSpawnEnv ? { runtimeEnv: baseSpawnEnv } : {}),
       runtimeCommand: executable,
       ...(profileRef ? { profileRef } : {}),
       ...(spawnProcess ? { spawnProcess } : {}),

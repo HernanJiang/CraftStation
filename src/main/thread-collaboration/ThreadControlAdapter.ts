@@ -49,9 +49,7 @@ export interface ThreadControlRuntime {
    * that only exercise send/resume can omit it; CrossAgents cross-harness
    * switches fail closed when this is missing.
    */
-  switchThreadProvider?(
-    payload: SwitchThreadProviderPayload,
-  ): Promise<SwitchThreadProviderResult>;
+  switchThreadProvider?(payload: SwitchThreadProviderPayload): Promise<SwitchThreadProviderResult>;
 }
 
 export interface ThreadControlAdapterDeps {
@@ -125,7 +123,8 @@ export class ThreadControlAdapter {
     }
   }
 
-  async refreshSnapshot(threadId: string): Promise<ThreadControlSnapshot> {    const current = this.snapshot(threadId);
+  async refreshSnapshot(threadId: string): Promise<ThreadControlSnapshot> {
+    const current = this.snapshot(threadId);
     try {
       const live = (await this.deps.runtime.getThreadSnapshots()).find(
         (entry) => entry.threadId === threadId,
@@ -166,13 +165,9 @@ export class ThreadControlAdapter {
       return { kind: "delivered", resumed: false };
     } catch (error) {
       if (!isUnknownThreadSessionError(error)) {
-        try {
-          await this.interruptAndWait(threadId);
-          await this.deps.runtime.sendThreadInput(payload);
-          return { kind: "delivered", resumed: false };
-        } catch {
-          throw error;
-        }
+        // 普通发送失败不授予额外中断权限。只有显式 interrupt-and-send 可中断。
+        // 未知错误也不能重发：目标可能已经接纳，重发会重复执行。
+        throw error;
       }
     }
 

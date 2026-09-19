@@ -160,7 +160,7 @@ describe("mapCodexNotification — turn lifecycle", () => {
       type: "context.updated",
       threadId: "t-codex",
       usage: {
-        usedTokens: 12_000,
+        usedTokens: 10_000,
         maxTokens: 200_000,
         breakdown: [
           { id: "input", label: "Input", tokens: 10_000 },
@@ -195,7 +195,7 @@ describe("mapCodexNotification — turn lifecycle", () => {
         type: "context.updated",
         threadId: "t-codex",
         usage: {
-          usedTokens: 19_335,
+          usedTokens: 19_250,
           maxTokens: 258_400,
           breakdown: [
             { id: "input", label: "Input", tokens: 19_250 },
@@ -241,7 +241,7 @@ describe("mapCodexNotification — turn lifecycle", () => {
         type: "context.updated",
         threadId: "t-codex",
         usage: {
-          usedTokens: 130,
+          usedTokens: 120,
           maxTokens: 258_400,
           breakdown: [
             { id: "input", label: "Input", tokens: 120 },
@@ -303,7 +303,7 @@ describe("mapCodexNotification — usage.spent", () => {
         type: "context.updated",
         threadId: "t-codex",
         usage: {
-          usedTokens: 130,
+          usedTokens: 124,
           maxTokens: 258_400,
           breakdown: [
             { id: "input", label: "Input", tokens: 124 },
@@ -1612,6 +1612,33 @@ describe("mapCodexNotification — item lifecycle (item/started, item/completed)
       state,
     );
     expect(events.map((e) => e.type)).toEqual(["item.started", "content.delta", "item.completed"]);
+  });
+});
+
+describe("mapCodexNotification — declined execution", () => {
+  it("does not present a denied command as a successful execution", () => {
+    const events = mapCodexNotification(
+      "item/completed",
+      {
+        item: {
+          id: "denied-cmd",
+          type: "commandExecution",
+          command: "pwd",
+          status: "declined",
+          exitCode: null,
+        },
+      },
+      createCodexMapperState("t-codex"),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "item.completed",
+        payload: expect.objectContaining({
+          status: "error",
+          errorMessage: "Command execution was declined.",
+        }),
+      }),
+    );
   });
 });
 

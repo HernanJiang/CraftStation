@@ -120,7 +120,18 @@ describe("Crafting Registry", () => {
     const harnesses = registry.listItems("harness");
 
     expect(models.length).toBeGreaterThanOrEqual(4);
-    expect(harnesses.length).toBe(7);
+    // 旧计数早于 Muse / Devin 登记；显式列举保全要求，防止为过测试删掉新 Harness。
+    expect(harnesses.map((item) => item.id).sort()).toEqual([
+      "harness:antigravity",
+      "harness:codex",
+      "harness:deepseek",
+      "harness:deepseek-api",
+      "harness:devin",
+      "harness:grok",
+      "harness:kimi",
+      "harness:muse",
+      "harness:opencode",
+    ]);
     expect(registry.getItem(BUILTIN_CODEX_HARNESS_ITEM.id)).toBeDefined();
     expect(registry.getItem("harness:opencode")).toBeDefined();
     expect(registry.getItem("openai:gpt-5.3-codex")).toBeUndefined();

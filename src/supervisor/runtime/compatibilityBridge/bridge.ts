@@ -5,6 +5,7 @@ import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { resolveExecutablePath } from "@/supervisor/agents/base/processRuntime";
+import { resolveProxyConfig } from "../usageHttpClient";
 import type {
   CompatibilityBridgeOptions,
   CompatibilityBridgeStatus,
@@ -30,6 +31,16 @@ export class CompatibilityBridgeService extends EventEmitter {
   private startupLogs: string[] = [];
   private configPath: string | undefined;
   private proxyUrl: string | undefined;
+  private starting: Promise<CompatibilityBridgeStatus> | undefined;
+  private readonly borrowers = new Set<object>();
+
+  retain(owner: object): void {
+    this.borrowers.add(owner);
+  }
+
+  async release(owner: object): Promise<void> {
+    if (this.borrowers.delete(owner) && this.borrowers.size === 0) await this.stop();
+  }
 
   constructor(options: CompatibilityBridgeOptions = {}) {
     super();
@@ -38,7 +49,11 @@ export class CompatibilityBridgeService extends EventEmitter {
     this.binaryPath = options.binaryPath ?? process.env.CLIPROXY_BINARY_PATH;
     this.authDir = options.authDir;
     this.apiKey = options.apiKey ?? `cs-bridge-${randomUUID()}`;
-    this.proxyUrl = options.proxyUrl ?? process.env.CLIPROXY_PROXY_URL;
+    const proxy = resolveProxyConfig(process.env, { allowSystemProxyFallback: true });
+    // CPA's uTLS transport uses its YAML proxy-url instead of the CLI proxy
+    // environment. Reuse the app's route, including Explorer's system proxy.
+    this.proxyUrl =
+      options.proxyUrl ?? process.env.CLIPROXY_PROXY_URL ?? proxy?.httpsProxy ?? proxy?.httpProxy;
     // A cold CPA start downloads/refreshes provider model catalogs; give the
     // sidecar a generous window before declaring readiness failure.
     this.probeTimeoutMs = options.probeTimeoutMs ?? 15000;
@@ -62,9 +77,12 @@ export class CompatibilityBridgeService extends EventEmitter {
   }
 
   pinAccount(config: AccountPinConfig): void {
-    if (this.running && this.pinnedAccount && this.pinnedAccount.accountId !== config.accountId) {
+    if (
+      (this.running || this.starting) &&
+      (this.pinnedAccount?.accountId !== config.accountId || this.authDir !== config.authDir)
+    ) {
       throw new Error(
-        `Cannot re-pin running bridge to account ${config.accountId}; current pinned account is ${this.pinnedAccount.accountId}. Stop bridge before switching accounts.`,
+        `Cannot re-pin running bridge to account ${config.accountId}; current pinned account is ${this.pinnedAccount?.accountId ?? "unbound"}. Stop bridge before switching accounts.`,
       );
     }
     this.pinnedAccount = config;
@@ -76,7 +94,7 @@ export class CompatibilityBridgeService extends EventEmitter {
   }
 
   unpinAccount(): void {
-    if (this.running) {
+    if (this.running || this.starting) {
       throw new Error("Cannot unpin account while Compatibility Bridge is running.");
     }
     this.pinnedAccount = undefined;
@@ -90,7 +108,14 @@ export class CompatibilityBridgeService extends EventEmitter {
    * instance whose `running` flag nobody observes.
    */
   configure(options: { binaryPath?: string | undefined; authDir?: string | undefined }): void {
-    if (this.running) {
+    if (this.running || this.starting) {
+      // Concurrent recipes for the same account share startup. Repeating the
+      // exact configuration is harmless; changing its routing is forbidden.
+      if (
+        (!options.binaryPath?.trim() || options.binaryPath.trim() === this.binaryPath) &&
+        (options.authDir === undefined || options.authDir === this.authDir)
+      )
+        return;
       throw new Error("Cannot reconfigure the Compatibility Bridge while it is running.");
     }
     if (options.binaryPath?.trim()) this.binaryPath = options.binaryPath.trim();
@@ -106,14 +131,13 @@ export class CompatibilityBridgeService extends EventEmitter {
     // YAML double-quoted scalars treat `\` as an escape character, so Windows
     // paths must be written with forward slashes.
     const authDirYaml = (this.authDir ?? "").replace(/\\/g, "/");
-    const proxyYaml = (this.proxyUrl ?? "").replace(/\\/g, "/");
     const yamlContent = [
       `host: "${this.host}"`,
       `port: ${this.port}`,
       `auth-dir: "${authDirYaml}"`,
       `api-keys:`,
       `  - "${this.apiKey}"`,
-      ...(this.proxyUrl ? [`proxy-url: "${proxyYaml}"`] : []),
+      ...(this.proxyUrl ? [`proxy-url: ${JSON.stringify(this.proxyUrl)}`] : []),
       `debug: false`,
     ].join("\n");
 
@@ -122,6 +146,16 @@ export class CompatibilityBridgeService extends EventEmitter {
   }
 
   async start(): Promise<CompatibilityBridgeStatus> {
+    if (this.starting) return this.starting;
+    this.starting = this.startProcess();
+    try {
+      return await this.starting;
+    } finally {
+      this.starting = undefined;
+    }
+  }
+
+  private async startProcess(): Promise<CompatibilityBridgeStatus> {
     if (this.running) {
       return this.getStatus();
     }
@@ -144,6 +178,7 @@ export class CompatibilityBridgeService extends EventEmitter {
     const args: string[] = ["--config", this.configPath];
 
     const spawnOptions: SpawnOptions = {
+      windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
       env: {
         ...process.env,

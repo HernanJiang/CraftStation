@@ -1,6 +1,7 @@
 ﻿import { z } from "zod";
 
 import { nativeHarnessEnvironmentSchema } from "./nativeHarness";
+import { permissionConfigSchema } from "../contracts/config";
 
 export const compatibilityStatusSchema = z.enum([
   "NATIVE",
@@ -123,6 +124,7 @@ export const runtimeOverridesSchema = z.object({
   reasoningEffort: reasoningEffortSchema.optional(),
   serviceTier: serviceTierSchema.optional(),
   approvalPolicy: approvalPolicySchema.optional(),
+  permissionConfig: permissionConfigSchema.optional(),
   permissionProfile: z.string().optional(),
   mcpServerIds: z.array(z.string()).optional(),
   skills: z.array(z.string()).optional(),

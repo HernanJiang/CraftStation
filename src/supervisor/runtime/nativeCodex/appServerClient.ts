@@ -168,7 +168,9 @@ export class AppServerClient {
     return this.transport.request<CodexThreadStartResult>("thread/start", params);
   }
 
-  async resumeThread(params: { threadId: string }): Promise<CodexThreadStartResult> {
+  async resumeThread(
+    params: { threadId: string } & CodexThreadStartParams,
+  ): Promise<CodexThreadStartResult> {
     if (!this._initialized) await this.initialize();
     return this.transport.request<CodexThreadStartResult>("thread/resume", params);
   }

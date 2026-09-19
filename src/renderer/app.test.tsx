@@ -175,6 +175,7 @@ const {
       resizeTerminal: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
       resolveThreadServerRequest: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
       closeThread: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      dismissTaskbarAttention: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
       setWindowChrome: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
       onSupervisorEvent: vi.fn<(listener: (event: SupervisorEvent) => void) => () => void>(
         (listener) => {

@@ -17,18 +17,7 @@ import {
   storedRecipeId,
 } from "@/shared/crafting/workbenchTypes";
 
-function modelIdFromRecipeRef(ref: string): string | undefined {
-  if (!ref.startsWith("agent:")) return undefined;
-  const withoutPrefix = ref.slice("agent:".length);
-  const lastColon = withoutPrefix.lastIndexOf(":");
-  if (lastColon <= 0) return undefined;
-  const modelId = withoutPrefix.slice(lastColon + 1).trim();
-  return modelId || undefined;
-}
-
-function normalizeRecipeHarnessKind(raw: string | undefined): string {
-  return (raw ?? "").replace(/^harness:/u, "").replace(/^native-harness:/u, "");
-}
+import { modelIdFromRecipeRef, normalizeRecipeHarnessKind } from "@/shared/crafting/recipeIdentity";
 
 const STORE_KEY = "craftstation-crafting-workbench-v1";
 const STORE_VERSION = 1;

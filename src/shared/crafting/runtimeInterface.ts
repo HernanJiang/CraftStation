@@ -51,6 +51,8 @@ export interface SessionSnapshot {
 
 export interface StartTurnCommand {
   readonly prompt: string;
+  /** Reconcile the provider echo with the already visible optimistic row. */
+  readonly userMessageItemId?: string | undefined;
   readonly turnId?: string | undefined;
   readonly overrides?: RuntimeOverrides | undefined;
   readonly signal?: AbortSignal | undefined;

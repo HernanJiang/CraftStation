@@ -1,3 +1,5 @@
+import { AccountControlError } from "@/shared/contracts";
+
 export type StructuredRuntimeFailureClass = "session-creation" | "transport" | "turn";
 
 const STRUCTURED_RUNTIME_FAILURE_MESSAGES: Record<StructuredRuntimeFailureClass, string> = {
@@ -40,7 +42,9 @@ export function structuredRuntimeFeatureArea(failureClass: StructuredRuntimeFail
 
 /** Short, secret-free cause for the GUI error strip. */
 export function structuredRuntimeCauseHint(error: unknown): string | undefined {
-  if (!(error instanceof Error)) return undefined;
+  // 原始 provider 异常可能是完整 Prompt，不能因短且不含 key 字样就认为可安全投影。
+  // 账号控制异常由本应用构造，保留既有可行动的账号说明。
+  if (!(error instanceof AccountControlError)) return undefined;
   const line = error.message.split(/\r?\n/u, 1)[0]?.trim() ?? "";
   if (!line || line.length > 220) return undefined;
   if (/sk-[a-z0-9]|api[_-]?key|bearer |password|authorization:/iu.test(line)) return undefined;

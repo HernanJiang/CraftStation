@@ -156,7 +156,9 @@ export class SteerCoordinator {
       this.maybeDrainPendingSteer(session);
       return;
     }
-    await this.ctx.interruptStructuredTurn(session);
+    // replace-latest 只替换待发送内容；同一活动回合已有取消请求时不重复发送。
+    // 显式 Stop 仍由独立 watchdog 入口更新绝对截止时间。
+    if (!session.structuredTurnInterruptRequested) await this.ctx.interruptStructuredTurn(session);
   }
 
   maybeDrainPendingSteer(session: SessionRuntime): void {

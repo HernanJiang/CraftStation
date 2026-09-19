@@ -46,6 +46,15 @@ export interface ThreadInputTransport {
   sendThreadInput: (payload: SendThreadInputPayload) => Promise<unknown>;
 }
 
+const pendingCheckpointSubmissions = new Map<string, Set<() => void>>();
+
+/** Stop also cancels work waiting locally, before there is a native turn. */
+export function cancelPendingThreadSubmission(threadId: string): void {
+  const pending = pendingCheckpointSubmissions.get(threadId);
+  pendingCheckpointSubmissions.delete(threadId);
+  for (const cancel of pending ?? []) cancel();
+}
+
 /**
  * Submit a prompt to a running thread — the single implementation behind the
  * desktop action ({@link submitThreadInput}) and the mobile PWA's remote
@@ -122,9 +131,6 @@ export async function performThreadInputSubmit(input: {
       ...(thread.sessionRef ? { sessionRef: thread.sessionRef } : {}),
     });
     markedWorking = true;
-    if (input.captureCheckpoint) {
-      await input.captureCheckpoint(optimisticUserMessageItemId);
-    }
   }
   const rollbackOptimisticWorking = (): void => {
     if (!markedWorking) return;
@@ -137,6 +143,30 @@ export async function performThreadInputSubmit(input: {
     });
   };
   try {
+    if (optimisticUserMessageItemId && input.captureCheckpoint) {
+      let cancelled = false;
+      const cancel = () => {
+        cancelled = true;
+        rollbackOptimisticWorking();
+      };
+      const pending = pendingCheckpointSubmissions.get(thread.id) ?? new Set<() => void>();
+      pending.add(cancel);
+      pendingCheckpointSubmissions.set(thread.id, pending);
+      try {
+        await input.captureCheckpoint(optimisticUserMessageItemId);
+      } catch (error) {
+        // A cancelled checkpoint must not roll back a newer turn or relaunch
+        // the stopped prompt when its late I/O failure finally arrives.
+        if (cancelled) return;
+        throw error;
+      } finally {
+        pending.delete(cancel);
+        if (pending.size === 0 && pendingCheckpointSubmissions.get(thread.id) === pending) {
+          pendingCheckpointSubmissions.delete(thread.id);
+        }
+      }
+      if (cancelled) return;
+    }
     await transport.sendThreadInput({
       threadId: thread.id,
       prompt,
@@ -318,9 +348,7 @@ export async function setThreadPendingSteer(
   // of a misleading empty 已完成. Re-reads the live row: the passed snapshot
   // may predate the turn start.
   const live = useAppStore.getState().threads.find((item) => item.id === thread.id);
-  const displacedStartedAt = live?.activeTurnStartedAt
-    ? Date.parse(live.activeTurnStartedAt)
-    : NaN;
+  const displacedStartedAt = live?.activeTurnStartedAt ? Date.parse(live.activeTurnStartedAt) : NaN;
   if (live?.status === "working" && Number.isFinite(displacedStartedAt)) {
     useAppStore.getState().markUserCancelledTurn(thread.id, displacedStartedAt);
   }

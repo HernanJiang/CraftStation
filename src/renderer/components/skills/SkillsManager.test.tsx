@@ -51,7 +51,7 @@ const { toast: herouiToast } = vi.hoisted(() => ({
 
 vi.mock("@heroui/react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@heroui/react")>();
-  return { ...actual, toast: herouiToast };
+  return { ...actual, toast: { ...actual.toast, ...herouiToast } };
 });
 
 vi.mock("@/renderer/bridge", () => ({

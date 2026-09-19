@@ -96,7 +96,7 @@ describe("TurnRetryCoordinator", () => {
     expect(h.restartTurn).not.toHaveBeenCalled();
     expect(h.attachHistoryPreface).not.toHaveBeenCalled();
     expect(turn.turnRetryAttempt).toBe(1);
-    expect(turn.historyPreface).toContain("Craft-Harness auto-retry");
+    expect(turn.retryContext).toContain("Craft-Harness auto-retry");
     const notice = h.events.find((event) => event.type === "thread-turn-retry");
     expect(notice).toMatchObject({
       type: "thread-turn-retry",
@@ -121,11 +121,12 @@ describe("TurnRetryCoordinator", () => {
     expect(h.restartTurn).toHaveBeenCalledTimes(1);
     expect(h.startTurn).not.toHaveBeenCalled();
     expect(h.attachHistoryPreface).toHaveBeenCalledTimes(1);
-    expect(turn.historyPreface).toBe(
+    expect(turn.historyPreface).toBe("transcript preface");
+    expect(turn.retryContext).toBe(
       "[CraftStation Craft-Harness auto-retry] The previous attempt of this turn was " +
         "interrupted by a network/transport failure before completing. Continue the task " +
         "from where it stopped; if the previous attempt never actually started, simply " +
-        "carry out the original request normally.\n\ntranscript preface",
+        "carry out the original request normally.",
     );
   });
 
@@ -159,6 +160,32 @@ describe("TurnRetryCoordinator", () => {
     const tookOver = await h.coordinator.tryTurnRetry(session, makeTurn(), TRANSPORT_ERROR);
 
     expect(tookOver).toBe(false);
+  });
+
+  it.each([NETWORK_ERROR, TRANSPORT_ERROR])(
+    "does not replay after Stop during the delay: %s",
+    async (error) => {
+      const h = makeHarness();
+      const session = guiSession();
+      h.ctx.sleep = async () => {
+        session.structuredTurnInterruptRequested = true;
+      };
+      expect(await h.coordinator.tryTurnRetry(session, makeTurn(), error)).toBe(false);
+      expect(h.startTurn).not.toHaveBeenCalled();
+      expect(h.restartTurn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not replay an old turn after Stop was acknowledged and its flag cleared", async () => {
+    const h = makeHarness();
+    const session = guiSession();
+    h.ctx.sleep = async () => {
+      // Stop 的瞬时标记已被 idle 更新清除，但回合代次必须留下取消事实。
+      session.structuredTurnGeneration = 1;
+      session.structuredTurnInterruptRequested = false;
+    };
+    expect(await h.coordinator.tryTurnRetry(session, makeTurn(), NETWORK_ERROR)).toBe(false);
+    expect(h.startTurn).not.toHaveBeenCalled();
   });
 
   it("never retries quota/auth outcomes (owned by failover / fail-closed)", async () => {
