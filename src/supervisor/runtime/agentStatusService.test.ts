@@ -389,6 +389,54 @@ HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss\\{333}
       envKind: "wsl",
       wslDistro: "Ubuntu",
       agentSettings: updatedSettings,
+      signal: expect.any(AbortSignal),
     });
+  });
+
+  it("caps a wedged scoped probe and falls back to an unknown status", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let signal: AbortSignal | undefined;
+    const hangingDetect = vi.fn<AgentAdapter["detectInstall"]>((ctx) => {
+      signal = ctx?.signal;
+      return new Promise(() => undefined);
+    });
+    // The baseline full sweep below still needs a result; only the scoped
+    // re-probe wedges.
+    hangingDetect.mockResolvedValueOnce(makeStatus());
+    const healthyDetect = vi
+      .fn<AgentAdapter["detectInstall"]>()
+      .mockResolvedValue({ ...makeStatus(), kind: "kimi", label: "Kimi Code" });
+    const hangingAdapter = makeAdapter("codex", "Codex", hangingDetect);
+    const healthyAdapter = makeAdapter("kimi", "Kimi Code", healthyDetect);
+    const { service } = makeMultiAdapterService([hangingAdapter, healthyAdapter]);
+
+    try {
+      // Seed the cache so the scoped path merges instead of running a full sweep.
+      await service.refreshAgentStatuses({ wslDistros: [] });
+      hangingDetect.mockClear();
+      healthyDetect.mockClear();
+
+      const pending = service.refreshAgentStatuses({
+        wslDistros: [],
+        scope: { agentKinds: ["codex", "kimi"] },
+      });
+      await vi.advanceTimersByTimeAsync(60_000);
+      const response = await pending;
+
+      // The wedged native probe is aborted at the deadline and degrades to an
+      // honest unknown status without stalling the other adapter.
+      expect(signal?.aborted).toBe(true);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("scoped detectInstall(codex, native) timed out"),
+      );
+      const codex = response.windows.find((status) => status.kind === "codex");
+      expect(codex).toEqual(expect.objectContaining({ installed: false, authState: "unknown" }));
+      const kimi = response.windows.find((status) => status.kind === "kimi");
+      expect(kimi).toEqual(expect.objectContaining({ installed: true }));
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });

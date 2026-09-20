@@ -363,6 +363,39 @@ describe("OwnSubagentsMcpIngress", () => {
     ]);
   });
 
+  it("unwraps a JSON-stringified tasks array before dispatch (OpenCode bridge)", async () => {
+    const res = await rpc("tools/call", {
+      name: "spawn_agent",
+      arguments: {
+        tasks: JSON.stringify([
+          { provider: "codex", prompt: "one" },
+          { provider: "codex", prompt: "two" },
+        ]),
+      },
+    });
+    const body = await res.json();
+    expect(body.error).toBeUndefined();
+    expect(body.result.isError).not.toBe(true);
+    expect(spawned).toEqual([
+      expect.objectContaining({ parentThreadId: "thread-1", agent: "codex", prompt: "one" }),
+      expect.objectContaining({ parentThreadId: "thread-1", agent: "codex", prompt: "two" }),
+    ]);
+  });
+
+  it("unwraps a JSON-stringified run_ids array on wait_for_agent (OpenCode bridge)", async () => {
+    const res = await rpc("tools/call", {
+      name: "wait_for_agent",
+      arguments: { run_ids: JSON.stringify(["run-1", "run-2"]) },
+    });
+    const body = await res.json();
+    expect(body.error).toBeUndefined();
+    expect(body.result.isError).not.toBe(true);
+    expect(JSON.parse(body.result.content[0].text)).toEqual([
+      { run_id: "run-1", status: "completed", output: "done" },
+      { run_id: "run-2", status: "completed", output: "done" },
+    ]);
+  });
+
   it("executes JSON-RPC batch calls concurrently while preserving response order", async () => {
     let entered = 0;
     let release!: () => void;

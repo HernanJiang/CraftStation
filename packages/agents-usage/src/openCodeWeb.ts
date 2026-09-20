@@ -1,4 +1,4 @@
-import type { HttpClient } from "./host";
+import type { HostCacheStore, HttpClient, Logger } from "./host";
 
 /**
  * OpenCode.ai web-session primitives shared by the usage scanner (reads the Zen
@@ -18,9 +18,19 @@ const OPENCODE_WORKSPACES_SERVER_ID =
 /**
  * SolidStart server-function id for `lite.subscription.get` (Go plan windows).
  * Shared with CodexBar / community scrapers; reverse-engineered from the console.
+ * The id rotates whenever opencode.ai rebuilds the frontend; when every call
+ * with it comes back non-2xx, {@link fetchOpenCodeSubscriptionText} re-resolves
+ * it from the live route chunks (see {@link resolveOpenCodeSubscriptionServerId}).
  */
 const OPENCODE_SUBSCRIPTION_SERVER_ID =
-  "7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4";
+  "c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd";
+/** Host-cache scope holding the last dynamically resolved subscription id. */
+const OPENCODE_SUBSCRIPTION_SERVER_ID_CACHE_SCOPE = "opencode.subscription-server-id";
+/**
+ * Stable log code emitted when the subscription server-fn rejects every call
+ * with non-2xx — the telltale sign the id above has rotated again.
+ */
+export const OPENCODE_SERVER_FN_STALE_CODE = "OPENCODE_SERVER_FN_STALE";
 export const OPENCODE_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
@@ -142,20 +152,98 @@ export function looksLikeOpenCodeSubscription(text: string): boolean {
   return /rollingUsage/i.test(text) && /usagePercent/i.test(text);
 }
 
+/** Optional host wiring for {@link fetchOpenCodeSubscriptionText} self-healing. */
+export interface FetchOpenCodeSubscriptionOptions {
+  /** Persisted last-known-good server-fn id; takes precedence over the hardcoded one. */
+  serverIdCache?: HostCacheStore;
+  log?: Logger;
+}
+
+/** Total budget for one dynamic server-id re-resolution (~3 sequential fetches). */
+const OPENCODE_RESOLVE_TIMEOUT_MS = 10_000;
+
+/** Entry-client script URL (site-root-relative) from an opencode.ai HTML page. */
+export function openCodeEntryClientUrl(html: string): string | undefined {
+  return html.match(/["'](\/_build\/assets\/entry-client-[\w-]+\.js)["']/)?.[1];
+}
+
+/** Chunk file name of the `/workspace/:id/go/` route from the entry-client manifest. */
+export function openCodeGoRouteChunkUrl(entryClientJs: string): string | undefined {
+  const routeIndex = entryClientJs.indexOf('"path": "/workspace/:id/go/"');
+  if (routeIndex < 0) return undefined;
+  // The route's $component block (with its `./chunk.js` references) precedes the
+  // path key; the nearest chunk reference before it is the route chunk.
+  const before = entryClientJs.slice(Math.max(0, routeIndex - 4000), routeIndex);
+  const refs = [...before.matchAll(/"\.\/([\w-]+\.js)"/g)];
+  return refs.at(-1)?.[1];
+}
+
+/** Server-fn id bound to `lite.subscription.get` inside a route chunk. */
+export function openCodeSubscriptionServerIdFromChunk(chunkJs: string): string | undefined {
+  const bindingIndex = chunkJs.indexOf('"lite.subscription.get"');
+  if (bindingIndex < 0) return undefined;
+  // Compiled shape: `const x_query = createServerReference("<64hex>");` then
+  // `const x = query(x_query, "lite.subscription.get")` — so the binding id is
+  // the closest server reference preceding the public name.
+  const before = chunkJs.slice(0, bindingIndex);
+  const refs = [...before.matchAll(/createServerReference\(\s*"([a-f0-9]{64})"/g)];
+  return refs.at(-1)?.[1];
+}
+
 /**
- * Fetch the Go (Lite) subscription payload via the `lite.subscription.get`
- * server function. Prefer this over scraping `/workspace/{id}/go` HTML — the
- * console often hydrates windows client-side, so the page body can omit
- * `rollingUsage` even for a live Go account. Returns the raw response body, or
- * undefined when every attempt fails / looks signed out.
+ * Re-resolve the `lite.subscription.get` server-function id from the live
+ * opencode.ai frontend: home HTML -> entry-client manifest -> `/workspace/:id/go/`
+ * route chunk -> the 64-hex id bound to `lite.subscription.get`. Best-effort:
+ * any failure (network, shape drift, timeout) returns undefined so callers fall
+ * back to the last-known id without taking the usage scan down.
  */
-export async function fetchOpenCodeSubscriptionText(
+export async function resolveOpenCodeSubscriptionServerId(
+  http: HttpClient,
+): Promise<string | undefined> {
+  const deadline = Date.now() + OPENCODE_RESOLVE_TIMEOUT_MS;
+  const get = async (url: string): Promise<string | undefined> => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return undefined;
+    try {
+      const res = await http.request({
+        url,
+        headers: { "User-Agent": OPENCODE_USER_AGENT },
+        timeoutMs: remaining,
+      });
+      return res.status === 200 ? res.body : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const html = await get("https://opencode.ai/");
+  const entryPath = html ? openCodeEntryClientUrl(html) : undefined;
+  if (!entryPath) return undefined;
+  const entryJs = await get(`https://opencode.ai${entryPath}`);
+  const chunkName = entryJs ? openCodeGoRouteChunkUrl(entryJs) : undefined;
+  if (!chunkName) return undefined;
+  const chunkJs = await get(`https://opencode.ai/_build/assets/${chunkName}`);
+  return chunkJs ? openCodeSubscriptionServerIdFromChunk(chunkJs) : undefined;
+}
+
+interface SubscriptionFetchOutcome {
+  body?: string;
+  /**
+   * True when the server was reached but rejected every attempt with a non-2xx
+   * status — the signature of a rotated server-function id. A 2xx that is
+   * signed-out or a bad-args reply means the id still resolves, so those do not
+   * count as stale.
+   */
+  stale: boolean;
+}
+
+async function attemptOpenCodeSubscriptionFetch(
   http: HttpClient,
   cookie: string,
   workspaceId: string,
-): Promise<string | undefined> {
+  serverId: string,
+): Promise<SubscriptionFetchOutcome> {
   const getUrl =
-    `https://opencode.ai/_server?id=${encodeURIComponent(OPENCODE_SUBSCRIPTION_SERVER_ID)}` +
+    `https://opencode.ai/_server?id=${encodeURIComponent(serverId)}` +
     `&input=${encodeURIComponent(JSON.stringify(workspaceId))}`;
   // SolidStart server functions have accepted a few arg encodings over time;
   // try the shapes community tools (CodexBar / VS Code scrapers) have observed.
@@ -179,25 +267,82 @@ export async function fetchOpenCodeSubscriptionText(
     },
     { method: "GET", url: getUrl },
   ];
+  let sawResponse = false;
+  let sawOk = false;
   for (const req of attempts) {
     try {
       const res = await http.request({
         method: req.method,
         url: req.url,
         headers: {
-          ...serverHeaders(cookie, OPENCODE_SUBSCRIPTION_SERVER_ID),
+          ...serverHeaders(cookie, serverId),
           ...(req.headers ?? {}),
         },
         ...(req.body !== undefined ? { body: req.body } : {}),
         timeoutMs: 5000,
       });
+      sawResponse = true;
+      if (res.status >= 200 && res.status < 300) sawOk = true;
       if (res.status !== 200 || looksSignedOut(res.body)) continue;
-      if (looksLikeOpenCodeSubscription(res.body)) return res.body;
+      if (looksLikeOpenCodeSubscription(res.body)) return { body: res.body, stale: false };
     } catch {
       // try the next encoding
     }
   }
-  return undefined;
+  return { stale: sawResponse && !sawOk };
+}
+
+/**
+ * Fetch the Go (Lite) subscription payload via the `lite.subscription.get`
+ * server function. Prefer this over scraping `/workspace/{id}/go` HTML — the
+ * console often hydrates windows client-side, so the page body can omit
+ * `rollingUsage` even for a live Go account. Returns the raw response body, or
+ * undefined when every attempt fails / looks signed out.
+ *
+ * Server-id resolution order: the host-persisted cache (itself preferring this
+ * run's dynamically resolved value) over the hardcoded constant. When every
+ * reached response rejects the call (non-2xx — the id rotated with a site
+ * rebuild), the id is re-resolved once from the live route chunks, persisted,
+ * and retried once; failures degrade silently to the old "no data" behavior.
+ */
+export async function fetchOpenCodeSubscriptionText(
+  http: HttpClient,
+  cookie: string,
+  workspaceId: string,
+  options?: FetchOpenCodeSubscriptionOptions,
+): Promise<string | undefined> {
+  const usedId =
+    options?.serverIdCache?.read(OPENCODE_SUBSCRIPTION_SERVER_ID_CACHE_SCOPE) ??
+    OPENCODE_SUBSCRIPTION_SERVER_ID;
+  const initial = await attemptOpenCodeSubscriptionFetch(http, cookie, workspaceId, usedId);
+  if (initial.body !== undefined) return initial.body;
+  if (!initial.stale) return undefined;
+
+  options?.log?.warn("opencode subscription server-fn rejected every call; re-resolving id", {
+    code: OPENCODE_SERVER_FN_STALE_CODE,
+    phase: "usage-scan",
+    operation: "lite.subscription.get",
+    status: "re-resolving",
+    hint: "SolidStart server-function id rotated; attempting dynamic re-resolution",
+  });
+  const freshId = await resolveOpenCodeSubscriptionServerId(http).catch(() => undefined);
+  if (!freshId || freshId === usedId) {
+    options?.log?.warn("opencode subscription server-fn id re-resolution did not recover", {
+      code: OPENCODE_SERVER_FN_STALE_CODE,
+      phase: "usage-scan",
+      operation: "lite.subscription.get",
+      status: "unrecovered",
+      hint: "check network reachability of opencode.ai, then update the hardcoded id",
+    });
+    return undefined;
+  }
+  try {
+    options?.serverIdCache?.write(OPENCODE_SUBSCRIPTION_SERVER_ID_CACHE_SCOPE, freshId);
+  } catch {
+    // best-effort persistence; the retry below still uses the fresh id
+  }
+  const retry = await attemptOpenCodeSubscriptionFetch(http, cookie, workspaceId, freshId);
+  return retry.body;
 }
 
 /**

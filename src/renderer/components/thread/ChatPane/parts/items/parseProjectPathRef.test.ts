@@ -36,6 +36,20 @@ describe("parseProjectPathRef", () => {
     expect(parseProjectPathRef("src/foo/bar")).toEqual({ kind: "folder", path: "src/foo/bar" });
   });
 
+  it("recognizes a path with an arbitrary extension (e.g. PDF) as a file", () => {
+    expect(parseProjectPathRef("Paper/iclr2027_conference.pdf")).toEqual({
+      kind: "file",
+      path: "Paper/iclr2027_conference.pdf",
+    });
+  });
+
+  it("recognizes a bare filename with an arbitrary extension as a file", () => {
+    expect(parseProjectPathRef("iclr2027_conference.pdf")).toEqual({
+      kind: "file",
+      path: "iclr2027_conference.pdf",
+    });
+  });
+
   it("rejects whitespace, urls, and bare words", () => {
     expect(parseProjectPathRef("not a path")).toBeNull();
     expect(parseProjectPathRef("https://example.com/foo")).toBeNull();
@@ -59,6 +73,20 @@ describe("parseProjectPathRef", () => {
 
     it("rejects a slashed token whose first segment is just unknown", () => {
       expect(parseProjectPathRef("foo/bar.ts", { rootNames })).toBeNull();
+    });
+
+    it("skips the root-name check when the set is empty (tree still loading)", () => {
+      // `useProjectRootNames` yields an empty set while loading; empty means
+      // "validation unavailable", not "no entries", so links must still chip.
+      const empty = new Set<string>();
+      expect(parseProjectPathRef("Paper/iclr2027_conference.pdf", { rootNames: empty })).toEqual({
+        kind: "file",
+        path: "Paper/iclr2027_conference.pdf",
+      });
+      expect(parseProjectPathRef("src/foo/bar.ts", { rootNames: empty })).toEqual({
+        kind: "file",
+        path: "src/foo/bar.ts",
+      });
     });
 
     it("does not enforce root-name check for tokens without a separator", () => {

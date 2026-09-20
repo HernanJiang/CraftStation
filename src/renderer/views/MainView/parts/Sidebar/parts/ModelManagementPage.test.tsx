@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentStatus } from "@/shared/contracts";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import type { CustomModel } from "@/renderer/components/thread/customModelCatalog";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
+import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { formatContextBadge, ModelManagementPage } from "./ModelManagementPage";
 
 function makeStatus(kind: string, label: string, models: string[]): AgentStatus {
@@ -369,7 +370,7 @@ describe("ModelManagementPage bulk model visibility", () => {
     }
   });
 
-  it("edits a channel model's context, modalities and effort tiers in place", async () => {
+  it("edits a channel model's context and effort tiers through the edit dialog", async () => {
     const customModels: CustomModel[] = [
       {
         id: "openai-compatible:kimi-k2.8-preview",
@@ -377,7 +378,7 @@ describe("ModelManagementPage bulk model visibility", () => {
         accountId: "openai-compatible:ark",
         channelLabel: "Volcengine Ark",
         modelId: "kimi-k2.8-preview",
-        displayName: "kimi-k2.8-preview",
+        displayName: "Kimi K2.8 Preview",
         contextSize: "1000000",
         efforts: ["low", "high", "max"],
         defaultEffort: "high",
@@ -412,21 +413,46 @@ describe("ModelManagementPage bulk model visibility", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /Volcengine Ark/u }));
       const row = await screen.findByTestId("custom-model-openai-compatible:kimi-k2.8-preview");
-      fireEvent.click(within(row).getByRole("button", { name: /配置 kimi-k2.8-preview/u }));
+      fireEvent.click(within(row).getByRole("button", { name: "编辑 Kimi K2.8 Preview" }));
 
-      const contextInput = within(row).getByLabelText("上下文窗口") as HTMLInputElement;
-      fireEvent.change(contextInput, { target: { value: "2000000" } });
-      expect(onUpdateCustomModels).toHaveBeenLastCalledWith([
-        expect.objectContaining({ modelId: "kimi-k2.8-preview", contextSize: "2000000" }),
-      ]);
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText("编辑模型")).toBeInTheDocument();
+      // 模型 ID 在编辑模式锁定不可改。
+      expect(within(dialog).getByDisplayValue("kimi-k2.8-preview")).toBeDisabled();
+      expect(within(dialog).getByDisplayValue("Kimi K2.8 Preview")).toBeInTheDocument();
+      expect(within(dialog).getByDisplayValue("1000000")).toBeInTheDocument();
+      expect(within(dialog).getByDisplayValue("low, high, max")).toBeInTheDocument();
 
-      const tiersInput = within(row).getByLabelText("思考强度档位") as HTMLInputElement;
-      fireEvent.change(tiersInput, { target: { value: "low, high, max, ultra" } });
-      fireEvent.blur(tiersInput);
+      fireEvent.change(within(dialog).getByDisplayValue("1000000"), {
+        target: { value: "2000000" },
+      });
+      fireEvent.change(within(dialog).getByDisplayValue("low, high, max"), {
+        target: { value: "low, high, max, ultra" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+
       expect(onUpdateCustomModels).toHaveBeenLastCalledWith([
         expect.objectContaining({
+          id: "openai-compatible:kimi-k2.8-preview",
           modelId: "kimi-k2.8-preview",
+          contextSize: "2000000",
           efforts: ["low", "high", "max", "ultra"],
+          defaultEffort: "high",
+        }),
+      ]);
+
+      // 清空档位后保存：浅合并语义下 efforts: [] 必须正确覆盖旧值。
+      fireEvent.click(within(row).getByRole("button", { name: "编辑 Kimi K2.8 Preview" }));
+      const dialogAgain = await screen.findByRole("dialog");
+      fireEvent.change(within(dialogAgain).getByDisplayValue("low, high, max"), {
+        target: { value: "" },
+      });
+      fireEvent.click(within(dialogAgain).getByRole("button", { name: "保存" }));
+      expect(onUpdateCustomModels).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          id: "openai-compatible:kimi-k2.8-preview",
+          modelId: "kimi-k2.8-preview",
+          efforts: [],
         }),
       ]);
     } finally {

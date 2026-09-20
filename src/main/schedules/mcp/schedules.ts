@@ -11,6 +11,7 @@ import {
   type ScheduleThreadTarget,
 } from "@/shared/contracts";
 import { normalizeScheduleThreadTarget, scheduleThreadTarget } from "@/shared/schedules";
+import { tryParseStringifiedJson } from "@/shared/stringifiedJsonArgs";
 import type { ScheduleToolContext, ScheduleToolDomain } from "./types";
 
 /**
@@ -45,16 +46,43 @@ const recipeIdSchema = nullishArg(z.string().trim().min(1).max(160).nullable().o
 const targetThreadIdSchema = nullishArg(z.string().trim().min(1).max(240).nullable().optional());
 const projectIdSchema = nullishArg(z.string().min(1).nullable().optional());
 const harnessItemIdSchema = nullishArg(z.string().trim().min(1).max(160).nullable().optional());
+
+/**
+ * The same bridges also stringify scalars ("true"/"false", "5"). Coerce those
+ * back on boolean/numeric fields; anything unrecognized passes through for the
+ * normal validation error.
+ */
+const booleanArg = <S extends z.ZodTypeAny>(schema: S) =>
+  z.preprocess((value) => {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return value;
+  }, schema);
+
+const numberArg = <S extends z.ZodTypeAny>(schema: S) =>
+  z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return value;
+    const numeric = Number(trimmed);
+    return Number.isFinite(numeric) ? numeric : value;
+  }, schema);
+
+/**
+ * Some agent bridges serialize nested object params into JSON strings before
+ * sending them over MCP (observed with OpenCode threads passing
+ * `threadTarget` and `recurrence`). Accept both shapes; a string that is not
+ * valid JSON still fails validation with a clear error instead of a cryptic
+ * type error.
+ */
+const stringifiedJsonArg = <S extends z.ZodTypeAny>(schema: S) =>
+  z.preprocess(tryParseStringifiedJson, schema);
 const callingThreadUuid = (threadId: string | undefined): string | null => {
   if (!threadId) return null;
   return z.string().uuid().safeParse(threadId).success ? threadId : null;
 };
 
 /**
- * Some agent bridges serialize nested object params into JSON strings before
- * sending them over MCP (observed with OpenCode threads passing
- * `threadTarget`). Accept both shapes; a string that is not a JSON object
- * still fails validation with a clear error instead of a cryptic type error.
  * The `existing` threadId is intentionally NOT uuid-only here: it may also be
  * `thread:<uuid>` or a Crossagents `harness:nativeId` address, canonicalized
  * by {@link resolveExistingThreadRef} after parsing.
@@ -64,14 +92,7 @@ const scheduleThreadTargetInputSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("existing"), threadId: z.string().trim().min(1).max(240) }),
 ]);
 
-const threadTargetArgSchema = z.preprocess((value) => {
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}, scheduleThreadTargetInputSchema);
+const threadTargetArgSchema = stringifiedJsonArg(scheduleThreadTargetInputSchema);
 
 /**
  * Canonicalize an MCP thread reference to the sidebar thread UUID. Bare and
@@ -148,8 +169,8 @@ function serializeRun(run: ScheduledTaskRun, ctx: ScheduleToolContext): unknown 
 const createArgsSchema = z.object({
   name: z.string().trim().min(1).max(120),
   prompt: z.string().trim().min(1).max(50_000),
-  recurrence: scheduleRecurrenceSchema,
-  enabled: z.boolean().optional().default(true),
+  recurrence: stringifiedJsonArg(scheduleRecurrenceSchema),
+  enabled: booleanArg(z.boolean()).optional().default(true),
   agentKind: agentKindSchema.optional(),
   model: z.string().min(1).optional(),
   effort: z.string().min(1).optional(),
@@ -157,7 +178,7 @@ const createArgsSchema = z.object({
   recipeId: recipeIdSchema,
   targetThreadId: targetThreadIdSchema,
   threadTarget: threadTargetArgSchema.optional(),
-  continueInCurrentThread: z.boolean().optional(),
+  continueInCurrentThread: booleanArg(z.boolean()).optional(),
   harnessItemId: harnessItemIdSchema,
   projectId: projectIdSchema,
 });
@@ -166,8 +187,8 @@ const updateArgsSchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(120).optional(),
   prompt: z.string().trim().min(1).max(50_000).optional(),
-  recurrence: scheduleRecurrenceSchema.optional(),
-  enabled: z.boolean().optional(),
+  recurrence: stringifiedJsonArg(scheduleRecurrenceSchema).optional(),
+  enabled: booleanArg(z.boolean()).optional(),
   agentKind: agentKindSchema.optional(),
   model: z.string().min(1).optional(),
   effort: z.string().min(1).nullable().optional(),
@@ -175,7 +196,7 @@ const updateArgsSchema = z.object({
   recipeId: recipeIdSchema,
   targetThreadId: targetThreadIdSchema,
   threadTarget: threadTargetArgSchema.optional(),
-  continueInCurrentThread: z.boolean().optional(),
+  continueInCurrentThread: booleanArg(z.boolean()).optional(),
   harnessItemId: harnessItemIdSchema,
   projectId: projectIdSchema,
 });
@@ -183,11 +204,12 @@ const updateArgsSchema = z.object({
 const idArgsSchema = z.object({ id: z.string().uuid() });
 const listRunsArgsSchema = z.object({
   id: z.string().uuid(),
-  limit: z.number().int().min(1).max(20).optional(),
+  limit: numberArg(z.number().int().min(1).max(20)).optional(),
 });
 
 function recurrenceJsonSchema(): Record<string, unknown> {
   return {
+    description: "Recurrence rule for the schedule. A JSON-stringified object is also accepted.",
     oneOf: [
       {
         type: "object",

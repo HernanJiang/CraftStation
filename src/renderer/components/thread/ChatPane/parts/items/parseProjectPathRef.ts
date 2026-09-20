@@ -2,8 +2,7 @@ export type ProjectPathRef =
   | { kind: "file"; path: string; line?: number; endLine?: number }
   | { kind: "folder"; path: string };
 
-const PATH_EXTENSION_RE =
-  /\.(tsx?|jsx?|mjs|cjs|json|mdx?|css|scss|rs|go|py|toml|yaml|yml|vue|svelte|html?|txt)$/i;
+const PATH_EXTENSION_RE = /\.[A-Za-z0-9]{1,10}$/;
 
 export const PROJECT_PATH_TOKEN_SOURCE = String.raw`(?<![A-Za-z0-9_:/@.\\-])(\/?(?:[A-Za-z0-9_@.][A-Za-z0-9_@.-]*(?:[\\/][A-Za-z0-9_@.-]+)+|[A-Za-z0-9_@-][A-Za-z0-9_@.-]*\.[A-Za-z][A-Za-z0-9-]*))(?::(\d+)(?:-\d+)?)?`;
 
@@ -15,7 +14,9 @@ interface ParseOptions {
    * requires the candidate's first segment to match one — this prevents false
    * positives like `@tanstack/react-virtual` (an npm package, not a folder) or
    * any other `foo/bar` token that happens to look path-shaped. Pass `undefined`
-   * to skip this check (legacy callers, tests).
+   * to skip this check (legacy callers, tests). An empty set also skips it:
+   * `useProjectRootNames` yields an empty set while the tree is still loading,
+   * where empty means "validation unavailable", not "no entries".
    */
   rootNames?: ReadonlySet<string> | undefined;
 }
@@ -26,9 +27,11 @@ interface ParseOptions {
  * non-extension last segment, or trailing slash). Returns null for plain
  * words, URLs, or `name:digits` shapes that don't look like file paths.
  *
- * When `rootNames` is supplied, the candidate's first path segment must be a
- * known top-level entry; otherwise the candidate is rejected. This prevents
- * non-path tokens like `@tanstack/react-virtual` from chipping.
+ * When `rootNames` is supplied and non-empty, the candidate's first path
+ * segment must be a known top-level entry; otherwise the candidate is
+ * rejected. This prevents non-path tokens like `@tanstack/react-virtual`
+ * from chipping. An empty set means validation is unavailable (the project
+ * tree is still loading) and the check is skipped.
  */
 export function parseProjectPathRef(s: string, options: ParseOptions = {}): ProjectPathRef | null {
   const t = s.trim();
@@ -49,7 +52,13 @@ export function parseProjectPathRef(s: string, options: ParseOptions = {}): Proj
 
   const isAbsolutePosix = candidate.startsWith("/");
   const isAbsoluteWindows = /^[A-Za-z]:[\\/]/.test(candidate) || candidate.startsWith("\\\\");
-  if (options.rootNames && hasSeparator && !isAbsolutePosix && !isAbsoluteWindows) {
+  if (
+    options.rootNames &&
+    options.rootNames.size > 0 &&
+    hasSeparator &&
+    !isAbsolutePosix &&
+    !isAbsoluteWindows
+  ) {
     if (firstSegment === "" || !options.rootNames.has(firstSegment)) return null;
   }
 
@@ -75,7 +84,12 @@ export function parseProjectPathRef(s: string, options: ParseOptions = {}): Proj
   // real project entry. For absolute paths, apply the same check here so
   // slash commands like `/plan` (whose first segment isn't a project root)
   // don't get chipped as folders.
-  if (isAbsolutePosix && options.rootNames && !options.rootNames.has(firstSegment)) {
+  if (
+    isAbsolutePosix &&
+    options.rootNames &&
+    options.rootNames.size > 0 &&
+    !options.rootNames.has(firstSegment)
+  ) {
     return null;
   }
   return { kind: "folder", path: candidate };

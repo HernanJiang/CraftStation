@@ -8,6 +8,7 @@ import {
 } from "@/shared/browserMcpThread";
 import { isLocalhostOrigin, readBoundedNodeRequestBody, writeJsonResponse } from "@/shared/http";
 import { LOCAL_MCP_BIND_HOST } from "@/shared/localMcpBind";
+import { coerceStringifiedJsonArgs } from "@/shared/stringifiedJsonArgs";
 
 export interface StreamableHttpMcpIngressInfo {
   url: string;
@@ -402,6 +403,14 @@ export class StreamableHttpMcpIngress<TContext> {
           };
         }
         this.options.onBeforeToolCall?.(name, ctx);
+        // OpenCode-style bridges stringify nested object/array params into
+        // JSON text; unwrap them only where the tool's declared inputSchema
+        // types that parameter as object/array (string params keep verbatim
+        // text even when it happens to be valid JSON).
+        args = coerceStringifiedJsonArgs(
+          args,
+          this.options.tools.find((tool) => tool.name === name)?.inputSchema,
+        );
         let raw: unknown;
         try {
           raw = await this.options.dispatchTool(name, args, ctx);

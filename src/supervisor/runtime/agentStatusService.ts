@@ -70,6 +70,7 @@ const execFileAsync = promisify(execFile);
  */
 export const STATUS_CACHE_VERSION = 18;
 const WSL_AGENT_DETECTION_TIMEOUT_MS = 60_000;
+const NATIVE_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const WSL_LXSS_REGISTRY_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss";
 
 function migrateSettingDef(definition: Record<string, unknown>): Record<string, unknown> {
@@ -492,16 +493,43 @@ export class AgentStatusService {
           envKind: nativeEnvKind,
           ...(agentSettings ? { agentSettings } : {}),
         };
+    // A wedged adapter probe (e.g. an ACP handshake that never answers) must
+    // not stall the whole scoped refresh: cap each probe and fall back to an
+    // honest unknown status, same as the WSL detection sweep above.
+    const where = isWsl ? `wsl:${env.distro}` : "native";
+    const timeoutMs = isWsl ? WSL_AGENT_DETECTION_TIMEOUT_MS : NATIVE_AGENT_DETECTION_TIMEOUT_MS;
+    const abort = new AbortController();
+    let timeout: NodeJS.Timeout | undefined;
     try {
-      const detected = await adapter.detectInstall(ctx);
+      const detected = await Promise.race([
+        adapter.detectInstall({ ...ctx, signal: abort.signal }),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            abort.abort();
+            reject(
+              new Error(
+                `scoped detectInstall(${adapter.kind}, ${where}) timed out after ${timeoutMs}ms`,
+              ),
+            );
+          }, timeoutMs);
+          if (typeof timeout.unref === "function") timeout.unref();
+        }),
+      ]).finally(() => {
+        if (timeout) clearTimeout(timeout);
+      });
       return {
         ...detected,
         envKind,
         ...(envDistro ? { envDistro } : {}),
       };
     } catch (error) {
-      const where = isWsl ? `wsl:${env.distro}` : "native";
-      console.error(`[supervisor] scoped detectInstall(${adapter.kind}, ${where}) failed`, error);
+      if (abort.signal.aborted) {
+        console.warn(
+          `[supervisor] scoped detectInstall(${adapter.kind}, ${where}) timed out after ${timeoutMs}ms`,
+        );
+      } else {
+        console.error(`[supervisor] scoped detectInstall(${adapter.kind}, ${where}) failed`, error);
+      }
       return {
         kind: adapter.kind,
         label: adapter.label,

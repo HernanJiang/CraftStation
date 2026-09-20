@@ -83,6 +83,17 @@ export interface Logger {
 }
 
 /**
+ * Small persistent key-value store a host may provide for last-known-good
+ * upstream identifiers (e.g. the opencode.ai SolidStart server-function ids,
+ * which rotate with each site rebuild). Reads/writes are synchronous and
+ * best-effort; collectors must keep working when the store is absent.
+ */
+export interface HostCacheStore {
+  read(scope: string): string | undefined;
+  write(scope: string, value: string): void;
+}
+
+/**
  * Client version identifiers some usage endpoints require in headers. These rot
  * over time (the APIs are private); the host may override the package defaults.
  */
@@ -100,6 +111,8 @@ export interface HostPort {
   now(): number;
   clientVersions?: ClientVersions;
   log?: Logger;
+  /** Optional persistent cache for last-known-good upstream server-function ids. */
+  serverIdCache?: HostCacheStore;
 }
 
 /**

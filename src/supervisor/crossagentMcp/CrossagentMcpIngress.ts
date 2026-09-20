@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomBytes, randomUUID } from "node:crypto";
 import { LOCAL_MCP_BIND_HOST } from "@/shared/localMcpBind";
+import { coerceStringifiedJsonArgs } from "@/shared/stringifiedJsonArgs";
 import type { CrossagentMcpHttpConfig } from "@/supervisor/agents/crossagentMcp";
 import type { CrossagentRoutingOverride } from "@/shared/settings";
 import type { SubagentRunManager } from "./SubagentRunManager";
@@ -27,7 +28,9 @@ export interface OwnSubagentsMcpIngressDeps {
    * user already picked, instead of ranked-best ("random") dispatch.
    */
   resolveParentEntity?:
-    | ((threadId: string) =>
+    | ((
+        threadId: string,
+      ) =>
         | { agentKind: string; model?: string | undefined; effort?: string | undefined }
         | undefined)
     | undefined;
@@ -400,7 +403,13 @@ export class OwnSubagentsMcpIngress {
         }
         const parentAgentKind = this.deps.resolveParentAgentKind?.(threadId);
         const parentEntity = this.deps.resolveParentEntity?.(threadId);
-        const result = await dispatchTool(name, args, {
+        // Same stringified-JSON unwrapping as the shared MCP ingress: OpenCode
+        // bridges send tasks/fallbacks/run_ids as JSON text instead of arrays.
+        const coercedArgs = coerceStringifiedJsonArgs(
+          args,
+          TOOLS.find((tool) => tool.name === name)?.inputSchema,
+        );
+        const result = await dispatchTool(name, coercedArgs, {
           parentThreadId: threadId,
           runManager: this.deps.runManager,
           listSpawnableAgents: this.deps.getSpawnableAgents,

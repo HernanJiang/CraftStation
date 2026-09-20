@@ -1,6 +1,6 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { HostPort, Logger } from "@craftstation/agents-usage";
+import type { HostCacheStore, HostPort, Logger } from "@craftstation/agents-usage";
 import { getUsageSecret, reportUndecryptableSecret } from "@/shared/usageSecretStore";
 import { createNativeCredentialStore } from "./usageCredentials";
 import { createNodeHttpClient } from "./usageHttpClient";
@@ -27,6 +27,39 @@ function createDevFileLogger(cacheDir: string): Logger {
   };
 }
 
+/**
+ * File-backed {@link HostCacheStore}: a small JSON map in the cache dir holding
+ * last-known-good upstream server-function ids. Reads are synchronous and
+ * best-effort; writes go through tmp+rename so a crash never leaves a torn file.
+ */
+function createServerIdCache(cacheDir: string): HostCacheStore {
+  const path = join(cacheDir, "usage-server-ids.json");
+  const readAll = (): Record<string, string> => {
+    try {
+      if (!existsSync(path)) return {};
+      const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, string>)
+        : {};
+    } catch {
+      return {};
+    }
+  };
+  return {
+    read: (scope) => readAll()[scope],
+    write: (scope, value) => {
+      try {
+        const data = { ...readAll(), [scope]: value };
+        const tmp = `${path}.tmp`;
+        writeFileSync(tmp, JSON.stringify(data), "utf8");
+        renameSync(tmp, path);
+      } catch {
+        // best-effort cache; losing a write only costs one re-resolution
+      }
+    },
+  };
+}
+
 export function createNodeUsageHost(cacheDir?: string, settingsPath?: string): HostPort {
   const devLog =
     process.env.CRAFTSTATION_IS_DEV === "1" && cacheDir ? createDevFileLogger(cacheDir) : undefined;
@@ -44,6 +77,7 @@ export function createNodeUsageHost(cacheDir?: string, settingsPath?: string): H
         cacheDir ? getUsageSecret(cacheDir, providerId, key, watchUndecryptable) : undefined,
     },
     now: () => Date.now(),
+    ...(cacheDir ? { serverIdCache: createServerIdCache(cacheDir) } : {}),
     ...(devLog ? { log: devLog } : {}),
   };
 }

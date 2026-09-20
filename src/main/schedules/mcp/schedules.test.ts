@@ -201,6 +201,91 @@ describe("Schedule MCP tools", () => {
     );
   });
 
+  it("accepts a JSON-stringified recurrence object on create (OpenCode bridge)", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    await scheduleTools.handlers.create!(
+      {
+        name: "Stringified recurrence",
+        prompt: "Probe stringified recurrence.",
+        recurrence: JSON.stringify({ kind: "interval", everyMinutes: 15 }),
+        continueInCurrentThread: false,
+      },
+      ctx(service),
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrence: { kind: "interval", everyMinutes: 15 } }),
+    );
+  });
+
+  it("accepts a JSON-stringified recurrence object on update (OpenCode bridge)", async () => {
+    const current = {
+      id: "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150",
+      name: "Self check",
+      prompt: "Run the self check.",
+      agentKind: "opencode",
+      recurrence: { kind: "interval", everyMinutes: 30 },
+      enabled: true,
+      threadTarget: { kind: "new" },
+      targetThreadId: null,
+      sourceThreadId: thread.id,
+      createdByThreadId: thread.id,
+      config: { model: "opencode-go/muse-spark-1.3-contributor" },
+    } as unknown as ScheduledTask;
+    const update = vi.fn<(id: string, input: unknown) => ScheduledTask>(
+      (_id, input) => ({ ...current, ...(input as object) }) as ScheduledTask,
+    );
+    const service = {
+      get: vi.fn<(id: string) => ScheduledTask | null>(() => current),
+      update,
+    } as unknown as ScheduleCapability;
+
+    await scheduleTools.handlers.update!(
+      { id: current.id, recurrence: JSON.stringify({ kind: "hourly", minute: 5 }) },
+      ctx(service),
+    );
+
+    expect(update).toHaveBeenCalledWith(
+      current.id,
+      expect.objectContaining({ recurrence: { kind: "hourly", minute: 5 } }),
+    );
+  });
+
+  it("coerces stringified booleans on create (OpenCode bridge)", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    await scheduleTools.handlers.create!(
+      {
+        name: "Stringified scalars",
+        prompt: "Probe stringified scalars.",
+        recurrence: { kind: "interval", everyMinutes: 30 },
+        enabled: "false",
+        continueInCurrentThread: "false",
+      },
+      ctx(service),
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false, threadTarget: { kind: "new" } }),
+    );
+  });
+
+  it("accepts a stringified numeric limit on list_runs (OpenCode bridge)", async () => {
+    const task = { id: "d55dcce0-b7cb-4d57-9c00-e5a3d19eb150" } as ScheduledTask;
+    const listRuns = vi.fn<(id: string, limit?: number) => ScheduledTaskRun[]>(() => []);
+    const service = {
+      get: vi.fn<(id: string) => ScheduledTask | null>(() => task),
+      listRuns,
+    } as unknown as ScheduleCapability;
+
+    await scheduleTools.handlers.list_runs!({ id: task.id, limit: "5" }, ctx(service));
+
+    expect(listRuns).toHaveBeenCalledWith(task.id, 5);
+  });
+
   it("threadTarget {kind:'new'} is a detached schedule bound to no thread", async () => {
     const create = vi.fn<(input: unknown) => ScheduledTask>(
       (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,

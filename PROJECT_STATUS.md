@@ -1,4 +1,14 @@
-## v1.4.2 发版（2026-09-20）
+## 端到端稳定性修复批：文件链接回归 + Harness 加载 + OpenCode 用量自愈 + Schedule MCP 参数解包（2026-09-20）
+
+- **范围**：聊天文件/artifact 链接点击、合成台 Harness/CLI 面板加载、渠道模型编辑、OpenCode 用量与凭证持久化、全部内置 MCP 入口的结构化参数兼容。
+- **文件链接回归**：`parseProjectPathRef` 扩展名白名单（缺 pdf/tex/docx 等）+ `rootNames` 空集合误拒（树未加载完成时所有相对路径被拒）→ 链接渲染成死链。修为任意扩展名 + 空集合视为"校验不可用"跳过；`MdAnchor` 打开失败弹 toast（原先静默吞掉），不可打开的 href 渲染纯文本（window.open 被硬化禁用后 `<a target=_blank>` 本就打不开）。
+- **Harness 加载**：合成台 mount 先读 control-plane 投影（持久化 statusCache，零探测）立即渲染，后台再跑真实 scoped detect；`refreshHarnessInflight` 跨 mount 去重；`agentStatusService` 给 native probe 补 60s 超时 + AbortSignal（与 WSL 对齐），卡死 adapter 不再拖住整个 sweep，probe 失败逐条降级为未知状态互不阻塞。
+- **渠道模型编辑**：`CustomModelDialog` 支持编辑模式（预填全部字段、锁 modelId、不走 verifiedAdd），行内铅笔按钮打开；保存浅合并写回 `SharedSettings.customModels`（zod 新字段全 optional，旧数据兼容），`mergeCustomModelsIntoCapabilities` 把档位/上下文并入 capabilities。
+- **OpenCode 用量**：根因是 opencode.ai 前端重建导致 `lite.subscription.get` 的 SolidStart server-function id 轮换——硬编码 id 全部被 non-2xx 拒绝，用量空白。`fetchOpenCodeSubscriptionText` 现在识别"全拒"签名 → 从 live 站点 entry-client → `/workspace/:id/go/` 路由 chunk 动态重解析 id → 经 `HostPort.serverIdCache`（新增，文件 `usage-server-ids.json`）持久化 → 重试一次；失败按旧"无数据"降级并打 `OPENCODE_SERVER_FN_STALE` 日志。模型列表另有 `listChannelModelsWithTimeout` 30s 客户端超时（supervisor ~12s 必回 + IPC 悬空兜底）。
+- **凭证持久化**：既有基建确认完整——`provider-secrets.json`（safeStorage 密封）+ `provider-secrets.durable.json`（文件密钥，跨重装存活，命中后回封主库）；OpenCode cookie 登录即写盘，重启自动恢复；usage 快照持久化在 `provider-usage.json`（stale-while-revalidate，API 暂不可达仍显示上次数据）。
+- **Schedule/MCP structured args**：根因是 OpenCode 等 agent bridge 在 `tools/call` 前把嵌套 object/array 参数 JSON.stringify 成字符串。修复在统一接收层而非每 provider workaround：`coerceStringifiedJsonArgs`（按工具声明 inputSchema 只对 object/array 字段解包，string 字段原样）接入 `StreamableHttpMcpIngress`（覆盖 schedules/browser/chrome/app-controls/computer-use 全部内置 MCP）与 `OwnSubagentsMcpIngress`；schedules zod schema 另加 `tryParseStringifiedJson`/`booleanArg`/`numberArg` 预处理兜底。
+- **测试**：stringifiedJsonArgs + schedules + 双 ingress + agentStatusService 超时 + parseProjectPathRef/ItemMarkdownInner + ModelManagementPage/CustomModelDialog + CraftingWorkbenchPage 改动均带用例；新增 openCodeWeb 自愈/缓存（重解析链路、缓存优先、失败降级）与 usageHost serverIdCache（跨实例持久、坏文件容错）测试。typecheck + lint PASS。
+- **未做**：Harness/CLI 面板无 per-row "checking/lastCheck" 字段（状态枚举 ready/not-configured/unavailable/error 已够表达，刷新中由刷新按钮 spinner 表达）；MCP server probe 无跨 mount 结果缓存（指纹去重只在组件生命周期内）；跨 Harness Schedule 端到端靠统一 ingress 保证，未逐 CLI 实测。
 
 - 版本 bump 1.4.1 → 1.4.2；双包构建（`pnpm dist:win` + `pnpm dist:win:portable`，x64）成功：`release/CraftStation-Setup-1.4.2-x64.exe`（148MB）+ blockmap、`CraftStation-Portable-1.4.2-x64.exe`（127MB），`latest.yml` 指向 1.4.2。
 - 中英双语 notes：`ai_workspace/release-notes-1.4.2.md`；commit、tag `v1.4.2` 已推 main；GitHub Release 已发布（4 附件齐）。

@@ -38,6 +38,11 @@ import { MyRecipesQuickList } from "./workbench/MyRecipesQuickList";
 import { RecipeSaveDialog } from "./workbench/RecipeSaveDialog";
 import { RecipeLoadConfirmDialog } from "./workbench/RecipeLoadConfirmDialog";
 
+// Inflight dedup across mounts: re-opening the workbench tab while a scoped
+// probe is still running reuses that probe instead of stacking another full
+// 8-harness × (native + WSL) detection sweep.
+let refreshHarnessInflight: Promise<void> | undefined;
+
 /**
  * Crafting Workbench page: the "合成台" first-level tab of the model-usage
  * workspace. It composes the two workbench modes, the three-column inventory,
@@ -112,28 +117,45 @@ export function CraftingWorkbenchPage(props: {
   // Open and manual refresh: run real scoped agent detection first (this
   // invalidates the executable-path cache and re-reads PATH supervisor-side,
   // so a CLI installed while CraftStation was running is found without a
-  // restart), then project the fresh statuses into the control plane.
+  // restart), then project the fresh statuses into the control plane. The
+  // projection is re-read on every outcome — success, degraded or failure —
+  // so the panel always settles on the last cached result instead of going
+  // blank.
   const refreshHarness = useCallback(async () => {
     setNativeLoading(true);
     try {
-      const response = await readBridge().refreshAgentStatuses(currentWslDistros(), {
-        agentKinds: [...NATIVE_HARNESS_AGENT_KINDS],
-      });
-      if (response.degraded) {
-        console.warn("[crafting] agent status refresh degraded", response.degraded);
-        toast.warning("Agent 状态刷新超时，已保留上次结果。请稍后重试。");
-        return;
+      if (!refreshHarnessInflight) {
+        refreshHarnessInflight = (async () => {
+          try {
+            const response = await readBridge().refreshAgentStatuses(currentWslDistros(), {
+              agentKinds: [...NATIVE_HARNESS_AGENT_KINDS],
+            });
+            if (response.degraded) {
+              console.warn("[crafting] agent status refresh degraded", response.degraded);
+              toast.warning("Agent 状态刷新超时，已保留上次结果。请稍后重试。");
+            }
+          } catch (error) {
+            console.warn("[crafting] failed to refresh agent statuses", error);
+            toast.warning(`Agent 状态刷新失败，已保留上次结果：${friendlyError(error)}`);
+          } finally {
+            refreshHarnessInflight = undefined;
+          }
+        })();
       }
+      await refreshHarnessInflight;
       await readControlPlane();
-    } catch (error) {
-      console.warn("[crafting] failed to refresh agent statuses", error);
-      toast.warning(`Agent 状态刷新失败，已保留上次结果：${friendlyError(error)}`);
     } finally {
       setNativeLoading(false);
     }
   }, [readControlPlane]);
   useEffect(() => {
-    void refreshHarness();
+    // Stale-while-revalidate: paint the cached control-plane projection first
+    // so the panel renders without waiting for live probes, then revalidate
+    // with a real scoped detection in the background.
+    void (async () => {
+      await readControlPlane();
+      void refreshHarness();
+    })();
     const unsubscribe = readBridge().onSupervisorEvent((event) => {
       if (
         event.type === "agent-detected" ||

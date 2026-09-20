@@ -274,7 +274,7 @@ describe("CraftingWorkbenchPage", () => {
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
   });
 
-  it("runs real scoped agent detection before reading the control plane on open", async () => {
+  it("paints the cached control plane first, then revalidates with scoped detection on open", async () => {
     render(
       <CraftingWorkbenchPage
         accounts={[]}
@@ -285,6 +285,7 @@ describe("CraftingWorkbenchPage", () => {
       />,
     );
 
+    // Rows render from the cached projection, before any live probe settles.
     await screen.findByTestId("harness-cli-row-kimi");
     await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
     const [wslDistros, scope] = bridgeMock.refreshAgentStatuses.mock.calls[0] ?? [];
@@ -292,8 +293,12 @@ describe("CraftingWorkbenchPage", () => {
     expect(scope).toEqual({
       agentKinds: expect.arrayContaining(["codex", "antigravity", "kimi", "muse"]),
     });
-    // Detection happens first; the projection is read after it settles.
+    // Stale-while-revalidate: the cached projection is read before detection.
     expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalled();
+    const firstProjectionRead =
+      bridgeMock.getNativeHarnessControlPlane.mock.invocationCallOrder[0] ?? Infinity;
+    const firstDetection = bridgeMock.refreshAgentStatuses.mock.invocationCallOrder[0] ?? Infinity;
+    expect(firstProjectionRead).toBeLessThan(firstDetection);
   });
 
   it("re-runs detection when the user clicks the Harness/CLI refresh button", async () => {
@@ -339,7 +344,10 @@ describe("CraftingWorkbenchPage", () => {
 
     await waitFor(() => expect(warning).toHaveBeenCalled());
     expect(kimiRow).toBeInTheDocument();
-    expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalledTimes(1);
+    // The cached projection is re-read after the failure too, so the panel
+    // settles on the last known rows instead of going blank: mount read +
+    // post-detection read + post-failure read.
+    await waitFor(() => expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalledTimes(3));
   });
 
   it("re-reads the control plane on detection events without re-detecting", async () => {
@@ -369,20 +377,21 @@ describe("CraftingWorkbenchPage", () => {
   });
 
   it("installs an unavailable harness and refreshes status without a restart", async () => {
+    // The projection flips to installed-but-unconfigured only once the install
+    // actually completed — independent of how often it is re-read meanwhile.
+    let installed = false;
     installMock.runNativeAgentInstall.mockImplementation(
       (input: { onComplete?: (ok: boolean) => void }) => {
+        installed = true;
         input.onComplete?.(true);
         return true;
       },
     );
-    // After the install completes, the refreshed projection reports the CLI as
-    // installed-but-unconfigured — the row updates in place, no app restart.
-    bridgeMock.getNativeHarnessControlPlane.mockImplementation(async () => {
-      const calls = bridgeMock.getNativeHarnessControlPlane.mock.calls.length;
-      return calls > 1
+    bridgeMock.getNativeHarnessControlPlane.mockImplementation(async () =>
+      installed
         ? [entry("antigravity", "Antigravity Native Harness", "not-configured")]
-        : [entry("antigravity", "Antigravity Native Harness", "unavailable")];
-    });
+        : [entry("antigravity", "Antigravity Native Harness", "unavailable")],
+    );
 
     render(
       <CraftingWorkbenchPage

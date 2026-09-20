@@ -121,7 +121,10 @@ export async function fetchOpenCodeWeb(host: HostPort, nowMs: number): Promise<O
   const [home, go, subscriptionBody] = await Promise.all([
     fetchOpenCodePage(host, cookie, base),
     fetchOpenCodePage(host, cookie, `${base}/go`),
-    fetchOpenCodeSubscriptionText(host.http, cookie, workspaceId).catch(() => undefined),
+    fetchOpenCodeSubscriptionText(host.http, cookie, workspaceId, {
+      ...(host.serverIdCache ? { serverIdCache: host.serverIdCache } : {}),
+      ...(host.log ? { log: host.log } : {}),
+    }).catch(() => undefined),
   ]);
 
   const balance =

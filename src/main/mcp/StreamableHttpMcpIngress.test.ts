@@ -138,4 +138,64 @@ describe("StreamableHttpMcpIngress auth + host guards", () => {
     const loopbackIp = await rawRequest(info.port, { ...base, Host: `127.0.0.1:${info.port}` });
     expect(loopbackIp.status).toBe(200);
   });
+
+  it("unwraps stringified object/array args per the declared inputSchema (OpenCode bridge)", async () => {
+    let received: Record<string, unknown> | null = null;
+    ingress = new StreamableHttpMcpIngress<{ ok: true }>({
+      bindHost: "127.0.0.1",
+      serverInfo: { name: "test", version: "0.0.0" },
+      instructions: "test",
+      tools: [
+        {
+          name: "noop",
+          description: "noop",
+          inputSchema: {
+            type: "object",
+            properties: {
+              window: { type: "object" },
+              fields: { type: "array", items: { type: "string" } },
+              label: { type: "string" },
+            },
+          },
+        },
+      ],
+      isKnownToolName: (name) => name === "noop",
+      buildContext: () => ({ ok: true }),
+      dispatchTool: (_name, args) => {
+        received = args;
+        return Promise.resolve({});
+      },
+      formatToolResult: () => ({ content: [{ type: "text", text: "ok" }] }),
+    });
+    const info = await ingress.start();
+
+    const stringifiedLabel = JSON.stringify("keep me as a string");
+    const call = await fetch(`${info.url}/mcp?thread=test`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${info.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "noop",
+          arguments: {
+            window: JSON.stringify({ app: "calc", id: 1 }),
+            fields: JSON.stringify(["text", "box"]),
+            label: stringifiedLabel,
+          },
+        },
+      }),
+    });
+
+    expect(call.status).toBe(200);
+    expect(received).toEqual({
+      window: { app: "calc", id: 1 },
+      fields: ["text", "box"],
+      label: stringifiedLabel,
+    });
+  });
 });

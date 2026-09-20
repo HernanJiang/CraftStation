@@ -34,10 +34,13 @@ export {
   looksLikeOpenCodeSubscription,
   looksSignedOut,
   openCodeRequestCookie,
+  resolveOpenCodeSubscriptionServerId,
   workspaceIdsFromText,
   OPENCODE_AUTH_COOKIE_NAMES,
+  OPENCODE_SERVER_FN_STALE_CODE,
   OPENCODE_USER_AGENT,
 } from "./openCodeWeb";
+export type { FetchOpenCodeSubscriptionOptions } from "./openCodeWeb";
 
 // Per-provider collectors + their pure parsers, for direct use and testing.
 export {

@@ -5,6 +5,7 @@ import { Select } from "@/renderer/components/common";
 import {
   effortPresetForProvider,
   parseEffortTiers,
+  type CustomModel,
 } from "@/renderer/components/thread/customModelCatalog";
 
 export const DEFAULT_MODEL_CONTEXT_WINDOW = "1000000";
@@ -29,7 +30,7 @@ export interface CustomModelDialogValues {
   defaultEffort: string;
 }
 
-/** 复用给「管理模型」页的行内编辑：同一套模态选项与交互。 */
+/** 输入/输出模态勾选组：同一套选项与交互（text 输入恒选锁定）。 */
 export function ModalityGroup(props: {
   legend: string;
   values: string[];
@@ -85,14 +86,17 @@ export function ModalityGroup(props: {
 }
 
 /**
- * 添加模型对话框（参考第三方客户端）：模型 ID、上下文窗口、最大输出
- * Token、输入/输出类型，全部带默认值，开箱即用。保存后走与原来一致的
- * verifiedAdd 验证链路（账号渠道需探通才入库）。
+ * 添加/编辑模型对话框（参考第三方客户端）：模型 ID、上下文窗口、最大输出
+ * Token、输入/输出类型。添加模式全部带默认值，保存后走 verifiedAdd 验证链路
+ * （账号渠道需探通才入库）；编辑模式（提供 editingModel）预填该模型全部字段
+ * 并锁定模型 ID，由调用方决定如何落库。
  */
 export function CustomModelDialog(props: {
   open: boolean;
   initialModelId: string;
   initialDisplayName: string;
+  /** 编辑模式：预填该模型全部字段并锁定模型 ID（id 由 provider+accountId+modelId 派生）。 */
+  editingModel?: CustomModel;
   /** 渠道 kind，用于思考档位预设（如 codex/grok/kimi）。 */
   providerKind: string;
   /** 上游模型拉取（账号渠道）：返回精确上游 id 列表；缺省则无拉取入口。 */
@@ -101,6 +105,7 @@ export function CustomModelDialog(props: {
   onCancel: () => void;
   onSave: (values: CustomModelDialogValues) => void;
 }) {
+  const editing = props.editingModel;
   const preset = effortPresetForProvider(props.providerKind);
   const [modelId, setModelId] = useState(props.initialModelId);
   const [displayName, setDisplayName] = useState(props.initialDisplayName);
@@ -117,16 +122,19 @@ export function CustomModelDialog(props: {
 
   useEffect(() => {
     if (!props.open) return;
-    setModelId(props.initialModelId);
-    setDisplayName(props.initialDisplayName);
-    setContextSize(DEFAULT_MODEL_CONTEXT_WINDOW);
-    setMaxOutputTokens(DEFAULT_MODEL_MAX_OUTPUT_TOKENS);
-    setInputModalities(["text"]);
-    setOutputModalities(["text"]);
-    setEffortTiers("");
-    setDefaultEffort("");
+    const editingModel = props.editingModel;
+    setModelId(editingModel?.modelId ?? props.initialModelId);
+    setDisplayName(editingModel?.displayName ?? props.initialDisplayName);
+    setContextSize(editingModel ? editingModel.contextSize : DEFAULT_MODEL_CONTEXT_WINDOW);
+    setMaxOutputTokens(
+      editingModel ? (editingModel.maxOutputTokens ?? "") : DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+    );
+    setInputModalities(editingModel?.inputModalities ?? ["text"]);
+    setOutputModalities(editingModel?.outputModalities ?? ["text"]);
+    setEffortTiers((editingModel?.efforts ?? []).join(", "));
+    setDefaultEffort(editingModel?.defaultEffort ?? "");
     setUpstream({ loading: false, models: [] });
-  }, [props.open, props.initialModelId, props.initialDisplayName]);
+  }, [props.open, props.initialModelId, props.initialDisplayName, props.editingModel]);
 
   if (!props.open) return null;
   const canSave = modelId.trim().length > 0 && !props.verifying;
@@ -151,7 +159,7 @@ export function CustomModelDialog(props: {
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>添加模型</Modal.Heading>
+            <Modal.Heading>{editing ? "编辑模型" : "添加模型"}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-3 p-4">
             <TextField>
@@ -160,6 +168,7 @@ export function CustomModelDialog(props: {
                 value={modelId}
                 onChange={(event) => setModelId(event.target.value)}
                 placeholder="模型 ID"
+                disabled={editing !== undefined}
               />
             </TextField>
             <TextField>
@@ -241,7 +250,7 @@ export function CustomModelDialog(props: {
                 </div>
               ) : null}
             </div>
-            {props.onFetchUpstreamModels ? (
+            {props.onFetchUpstreamModels && !editing ? (
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <span className="text-xs text-neutral-400">

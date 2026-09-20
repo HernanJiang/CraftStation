@@ -489,6 +489,44 @@ flowchart TD
     );
   });
 
+  it("opens a project PDF link with a directory via the file open path", () => {
+    const actions = makeActions({ projectRootNames: new Set(["Paper"]) });
+
+    render(
+      <AppProvider>
+        <ChatPaneActionsContext.Provider value={actions}>
+          <ItemMarkdownInner text={"See [the paper](Paper/iclr2027_conference.pdf) for details."} />
+        </ChatPaneActionsContext.Provider>
+      </AppProvider>,
+    );
+
+    const chip = screen.getByRole("button", { name: /iclr2027_conference\.pdf/ });
+    fireEvent.click(chip);
+    expect(actions.openProjectRelativePath).toHaveBeenCalledWith(
+      "Paper/iclr2027_conference.pdf",
+      undefined,
+    );
+  });
+
+  it("autolinks a plain-text PDF path with a directory as a file chip", () => {
+    const actions = makeActions({ projectRootNames: new Set(["Paper"]) });
+
+    render(
+      <AppProvider>
+        <ChatPaneActionsContext.Provider value={actions}>
+          <ItemMarkdownInner text={"详见 Paper/iclr2027_conference.pdf 第 3 节。"} />
+        </ChatPaneActionsContext.Provider>
+      </AppProvider>,
+    );
+
+    const chip = screen.getByRole("button", { name: /iclr2027_conference\.pdf/ });
+    fireEvent.click(chip);
+    expect(actions.openProjectRelativePath).toHaveBeenCalledWith(
+      "Paper/iclr2027_conference.pdf",
+      undefined,
+    );
+  });
+
   it("renders a bare filename with a line number as a clickable file chip", () => {
     const actions = makeActions();
 

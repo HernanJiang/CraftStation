@@ -1,4 +1,4 @@
-import { Link } from "@heroui/react";
+import { Link, toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ExternalLink } from "lucide-react";
 import {
@@ -27,6 +27,8 @@ import {
   rewriteMarkdownLocalImageUrls,
 } from "@/shared/markdownLocalImages";
 import { resolveLocalImageDisplayUrl } from "@/shared/localImageDisplay";
+import { friendlyError } from "@/shared/messages";
+import { getBasename } from "@/shared/pathUtils";
 import { getProjectFsPath } from "@/shared/wsl";
 import { useChatPaneActions } from "../../chatPaneActionsContext";
 import { normalizeChatProjectPath } from "../../chatPathUtils";
@@ -485,7 +487,9 @@ function MdAnchor(props: { href: string; children?: ReactNode }) {
                 normalizeChatProjectPath(ref.path, actions.projectLocation),
                 ref.line,
               )
-              .catch(() => {});
+              .catch((error: unknown) => {
+                toast.danger(`无法打开 ${getBasename(ref.path)}：${friendlyError(error)}`);
+              });
           }}
         >
           {props.children}
@@ -493,14 +497,10 @@ function MdAnchor(props: { href: string; children?: ReactNode }) {
       );
     }
   }
-  if (href.startsWith("/") || href.startsWith("file:")) {
-    return <span>{props.children}</span>;
-  }
-  return (
-    <a href={href} target="_blank" rel="noreferrer noopener">
-      {props.children}
-    </a>
-  );
+  // Remaining hrefs can never open: the window hardening denies every
+  // window.open, and the main-side openExternal allowlist only accepts
+  // http(s)/mailto (handled above). Render plain text instead of a dead link.
+  return <span>{props.children}</span>;
 }
 
 function decodeAutoPathHref(encoded: string): string {
