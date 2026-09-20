@@ -1,3 +1,9 @@
+## v1.4.1 发版（2026-09-20）
+
+- 版本 bump 1.4.0 → 1.4.1；双包构建（`pnpm dist:win` + `pnpm dist:win:portable`，x64）成功：`release/CraftStation-Setup-1.4.1-x64.exe`（148MB）+ blockmap、`CraftStation-Portable-1.4.1-x64.exe`（127MB），`latest.yml` 指向 1.4.1。
+- 中英双语 notes：`ai_workspace/release-notes-1.4.1.md`；commit `00388b66`、tag `v1.4.1` 已推 main；GitHub Release 已发布（4 附件齐）。
+- `release\` 清理：便携版仅留 1.4.1 + 1.4.0（删 1.3.3/1.3.4），删 `win-unpacked/` 与 `builder-debug.yml`；NSIS 旧包保留（updater feed 所需）。
+
 ## 火山方舟 Kimi 模型同通道协议翻转（2026-09-20）
 
 - **用户报告**：火山方舟渠道的 kimi 模型（`kimi-k2.8-preview`）走 Kimi Code 用不了。
