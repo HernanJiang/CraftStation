@@ -9,6 +9,7 @@ import {
   normalizeThirdPartyModelId,
   THIRD_PARTY_OPENCODE_PROVIDER_ID,
 } from "@/shared/thirdPartyRouting";
+import { stripModelProviderPrefix } from "@/shared/harnessCompatibility";
 import {
   normalizeApiRoot,
   probeThirdPartyProvider,
@@ -202,6 +203,56 @@ export class OpenAiCompatibleProfileService {
       ...(bundle.validatedProtocol ? { validatedProtocol: bundle.validatedProtocol } : {}),
       ...(bundle.validatedAt !== undefined ? { validatedAt: bundle.validatedAt } : {}),
     };
+  }
+
+  /**
+   * Channel rows that can serve `modelId` right now, in pool row order.
+   * Eligibility mirrors the launch-time channel match
+   * (`resolveThirdPartyAccountForLaunch`): the account must be enabled,
+   * schedulable (`available`/`quota-low`), credentialed (sealed bundle with
+   * key), protocol-verified, and carry a custom-model catalog row for the
+   * model. Protocol must agree when both sides know it (a Responses-only
+   * Codex route can never run on a chat_completions channel). Excluded rows
+   * (same-turn tried set) never come back.
+   */
+  channelAccountsServingModel(input: {
+    modelId: string;
+    protocol?: "responses" | "chat_completions" | undefined;
+    excludedAccountIds?: readonly string[] | undefined;
+  }): string[] {
+    const excluded = new Set(input.excludedAccountIds ?? []);
+    const wanted = normalizeThirdPartyModelId(input.modelId.trim());
+    const wantedStripped = stripModelProviderPrefix(wanted);
+    if (!wanted) return [];
+    const matchesModel = (entryId: string) => {
+      const stripped = stripModelProviderPrefix(entryId);
+      return entryId === wanted || stripped === wanted || stripped === wantedStripped;
+    };
+    const eligible: string[] = [];
+    const rows = this.options.store
+      .records(PROVIDER)
+      .slice()
+      .sort((a, b) => a.order - b.order);
+    for (const row of rows) {
+      if (excluded.has(row.accountId)) continue;
+      if (!row.enabled) continue;
+      if (row.status !== "available" && row.status !== "quota-low") continue;
+      const descriptor = this.getDescriptor(row.accountId);
+      if (!descriptor?.validatedProtocol) continue;
+      if (
+        input.protocol &&
+        descriptor.validatedProtocol &&
+        descriptor.validatedProtocol !== input.protocol
+      ) {
+        continue;
+      }
+      const servesModel = this.listAccountModelEntries(row.accountId).some((entry) =>
+        matchesModel(entry.id),
+      );
+      if (!servesModel) continue;
+      eligible.push(row.accountId);
+    }
+    return eligible;
   }
 
   /** 把暂存桶导入为号池账号：默认追加；给 accountId 则换绑该账号。 */
@@ -419,6 +470,15 @@ export class OpenAiCompatibleProfileService {
     accountId: string,
     harness: "kimi" | "grok" | "deepseek",
     modelId?: string,
+    /**
+     * Wire-type override for the Kimi provider table (`responses` →
+     * `openai_responses`, anything else → `openai`). Used by same-channel
+     * protocol failover when the validated type 400s on the real workload
+     * (e.g. Volcengine Ark coding rejects Kimi CLI's Responses payload while
+     * answering the same model over chat completions). Grok/DeepSeek project
+     * protocol-agnostic env and ignore it.
+     */
+    protocolOverride?: "responses" | "chat_completions" | undefined,
   ): { env: Record<string, string> } {
     const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
     if (!bundle) {
@@ -428,6 +488,7 @@ export class OpenAiCompatibleProfileService {
       );
     }
     if (harness === "kimi") {
+      const protocol = protocolOverride ?? bundle.validatedProtocol;
       return prepareKimiEndpointRuntime({
         directory: join(
           this.options.cacheDir,
@@ -439,7 +500,7 @@ export class OpenAiCompatibleProfileService {
         baseUrl: bundle.baseUrl,
         apiKey: bundle.apiKey,
         model: modelId ?? bundle.model ?? "",
-        ...(bundle.validatedProtocol ? { protocol: bundle.validatedProtocol } : {}),
+        ...(protocol ? { protocol } : {}),
       });
     }
     return { env: vendorEndpointEnv(harness, bundle.baseUrl, bundle.apiKey) };

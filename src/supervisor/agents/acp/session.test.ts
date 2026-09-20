@@ -443,6 +443,42 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
     );
   });
 
+  it("treats a 403 carrying quota wording as Grok pool quota, never a refusal", () => {
+    // Same split as Kimi's 403 subscription-window handling: an auth STATUS
+    // carrying a quota reason must fail over, while a content refusal
+    // ("permission-denied: I can't help with that request") stays
+    // fail-closed — another account would refuse the identical prompt.
+    const quota403 = {
+      code: -32603,
+      message: "Internal error",
+      data: {
+        message: "API error (status 403 Forbidden): quota exceeded for this account",
+        http_status: 403,
+      },
+    };
+    expect(resolveAcpPromptRpcErrorMessage(quota403)).toBe("Grok 额度已耗尽");
+    expect(isGrokPoolQuotaError(quota403)).toBe(true);
+    expect(
+      isGrokPoolQuotaError(new Error("API error (status 403 Forbidden): balance exhausted")),
+    ).toBe(true);
+    const refusal = {
+      code: -32603,
+      message: "Internal error",
+      data: {
+        message:
+          "API error (status 403 Forbidden)\npermission-denied: I can't help with that request.",
+        http_status: 403,
+      },
+    };
+    expect(resolveAcpPromptRpcErrorMessage(refusal)).toBe(
+      "API error (status 403 Forbidden)\npermission-denied: I can't help with that request.",
+    );
+    expect(isGrokPoolQuotaError(refusal)).toBe(false);
+    expect(
+      isGrokPoolQuotaError(new Error("API error (status 403 Forbidden) permission-denied")),
+    ).toBe(false);
+  });
+
   it("rejects non-quota errors as pool quota signals", () => {
     expect(isGrokPoolQuotaError(new Error("Internal error"))).toBe(false);
     expect(isGrokPoolQuotaError(new Error("401 invalid access token or token expired"))).toBe(

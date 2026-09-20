@@ -4740,7 +4740,10 @@ describe("SupervisorRuntime craftAgent", () => {
           accountMode: "explicit",
           prompt: "first turn",
         }),
-      ).rejects.toMatchObject(quotaError);
+        // The single-row pool is exhausted after the tried row dies, so the
+        // turn surfaces the projected banner (legacy-lane parity) caused by
+        // the original provider rejection — never the raw "Internal error".
+      ).rejects.toMatchObject({ message: "Grok 额度已耗尽", cause: quotaError });
 
       expect(runtime.accountStore.get(account.accountId)).toMatchObject({
         status: "quota-exhausted",

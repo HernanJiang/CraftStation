@@ -75,6 +75,8 @@ import type {
   NativeHarnessDiagnostic,
   NativeHarnessControlPlaneEntry,
   NativeHarnessControlPlanePayload,
+  PromptResult,
+  TurnResult,
 } from "@/shared/crafting";
 import {
   resolveCompatibility,
@@ -86,6 +88,7 @@ import {
   type CompatibilityBridgeStatusView,
 } from "@/shared/crafting/compatibilityBridge";
 import { craftPlanSchema, nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
+import { isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
 import { sanitizePortableRecord } from "./sessionHandoff/redaction";
 import {
   AccountControlError,
@@ -191,7 +194,16 @@ import { permissionConfigSchema } from "@/shared/contracts/config";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
 import { CraftingError } from "@/shared/crafting/errors";
 import { AccountResolver } from "./runtime/accountResolver";
-import { AccountStore } from "./runtime/accountStore";
+import { AccountStore, QUOTA_INFERENCE_MARK_TTL_MS } from "./runtime/accountStore";
+import {
+  MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN,
+  POOL_FAILOVER_PROVIDERS,
+  THIRD_PARTY_CHANNEL_PROVIDER,
+  isPoolQuotaErrorForProvider,
+  isPoolRotationProvider,
+  isThirdPartyProtocolFlipError,
+  thirdPartyFailureKind,
+} from "./runtime/poolQuota";
 import { createNativeHarnessRuntimeAdapter } from "./runtime/nativeHarness";
 import {
   isGrokPoolQuotaError,
@@ -311,6 +323,71 @@ function toPublicExperimentSnapshot(
     hash: snapshot.hash,
     candidates: snapshot.candidates.map(({ diff: _diff, ...candidate }) => candidate),
   };
+}
+
+/**
+ * A native CraftSession may surface a quota death as a resolved failed
+ * turn (`TurnResult.status === "failed"` carrying the provider text)
+ * instead of a rejection. Detect that shape with the same
+ * provider-dispatched matcher so crafted pool failover runs for both —
+ * mirroring the legacy lane, where the in-stream failure rejects like an
+ * RPC quota rejection for exactly this reason.
+ */
+function readCraftedQuotaFailure(provider: string, result: unknown): Error | undefined {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return undefined;
+  const record = result as { status?: unknown; error?: unknown };
+  if (record.status !== "failed") return undefined;
+  const message = typeof record.error === "string" ? record.error : "";
+  if (!message) return undefined;
+  const probe = new Error(message);
+  return isPoolQuotaErrorForProvider(provider, probe) ? probe : undefined;
+}
+
+/**
+ * Project a raw provider quota shape into the actionable banner text before
+ * it travels further. The legacy lane gets this projection from the ACP
+ * session (raw "Internal error" becomes "Grok 额度已耗尽"); custom crafted
+ * adapters may reject with the raw shape, and the failover banner + write-
+ * back must stay readable. Idempotent: projecting an already-projected
+ * message returns it unchanged.
+ */
+function projectCraftedQuotaError(provider: string, error: unknown): Error {
+  if (provider === "grok") {
+    const message = resolveAcpPromptRpcErrorMessage(error);
+    if (error instanceof Error && error.message === message) return error;
+    return new Error(message, { cause: error });
+  }
+  return error instanceof Error ? error : new Error(String(error ?? "quota exhausted"));
+}
+
+/**
+ * Third-party counterpart of {@link readCraftedQuotaFailure}: a resolved
+ * failed turn whose text classifies as a channel quota/rate death fuels
+ * rotation the same way a rejection does.
+ */
+function readCraftedChannelFailure(result: unknown): Error | undefined {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return undefined;
+  const record = result as { status?: unknown; error?: unknown };
+  if (record.status !== "failed") return undefined;
+  const message = typeof record.error === "string" ? record.error : "";
+  if (!message) return undefined;
+  const probe = new Error(message);
+  return thirdPartyFailureKind(probe) !== undefined ? probe : undefined;
+}
+
+/**
+ * Resolved-failed-turn counterpart of the protocol-flip trigger: a failed
+ * turn carrying 400-class wire-type text fuels a same-channel flip the same
+ * way a 400 rejection does.
+ */
+function readCraftedFlipFailure(result: unknown): Error | undefined {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return undefined;
+  const record = result as { status?: unknown; error?: unknown };
+  if (record.status !== "failed") return undefined;
+  const message = typeof record.error === "string" ? record.error : "";
+  if (!message) return undefined;
+  const probe = new Error(message);
+  return isThirdPartyProtocolFlipError(probe) ? probe : undefined;
 }
 
 export class SupervisorRuntime {
@@ -528,6 +605,35 @@ export class SupervisorRuntime {
    * rebuilt session launches with every user-configured MCP server missing.
    */
   private readonly craftMcpCandidatesByThread = new Map<string, McpServer[]>();
+  /**
+   * Project location per crafted thread, captured at craft/resume/handoff
+   * time. Same-turn pool failover rebuilds the session on the next usable
+   * pool row; the rebuild needs the same location (and MCP candidates above)
+   * but `sendThreadInput` carries neither.
+   */
+  private readonly craftProjectLocationByThread = new Map<string, ProjectLocation>();
+  /**
+   * Pool accounts a crafted turn already proved dead, per thread. Lets a
+   * post-failover resume tolerate the renderer's stale stored binding (the
+   * row still names the dead account until a craft result persists the new
+   * one): a mismatch against a tried account is healed drift, not a plan
+   * violation.
+   */
+  private readonly craftedFailoverTriedByThread = new Map<string, Set<string>>();
+  /**
+   * Failover-epoch guard per crafted thread, bumped by explicit Stop. A
+   * quota failure racing a user interrupt must not rebuild + replay a turn
+   * the user just killed (same role as the legacy lane's turn generation).
+   */
+  private readonly craftedFailoverEpochByThread = new Map<string, number>();
+  /**
+   * Third-party channels proved quota-dead, with the wall-clock time the
+   * row becomes eligible again. Subscription rows persist this in the store
+   * (marks + poller TTL); channel rows must not be store-marked — the relay
+   * quota poller resets every row to available on each pass — so the
+   * cooldown lives here, process-local, with the same house TTL.
+   */
+  private readonly thirdPartyChannelCooldownUntil = new Map<string, number>();
   /** Source binding retained only across target CAS -> bootstrap commit. */
   private readonly handoffSourceBindings = new Map<string, AccountBinding | undefined>();
   private readonly pendingHandoffEvents = new Map<
@@ -958,6 +1064,19 @@ export class SupervisorRuntime {
       adapters: this.adapters,
       resolveWindowsShell: (runtime) => this.resolveWindowsShell(runtime),
       resolveAccountSessionEnv: (input) => this.resolveAccountSessionEnv(input),
+      // Same-turn channel failover scheduler for sticky third-party
+      // sessions (see ThreadSessionManagerOptions.resolveNextThirdPartyAccount).
+      resolveNextThirdPartyAccount: (input) =>
+        Promise.resolve(
+          this.resolveNextThirdPartyChannel({
+            threadId: input.threadId,
+            modelId: input.model,
+            failedAccountId: input.failedAccountId,
+            excludedAccountIds: input.excludedAccountIds,
+          }),
+        ),
+      getThirdPartyChannelProtocol: (accountId) =>
+        this.openAiCompatibleProfileService.getDescriptor(accountId)?.validatedProtocol,
       // Submit-path usability probe (mirrors the scheduler's usable rule so
       // a thread restarts onto the next usable pool row before burning a
       // turn on a dead binding).
@@ -994,9 +1113,18 @@ export class SupervisorRuntime {
         // Chat-lane quota write-back (mirrors the craftAgent lane): a prompt
         // rejected for quota marks the bound account exhausted so the pool
         // scheduler skips it on the next session.
-        // Third-party sessions stay out: their quota is probed via
-        // collectQuota, never via subscription pool write-back.
-        if (input.provider === "openai-compatible") return;
+        // Third-party channels cool down instead of store-marking: the relay
+        // quota poller resets every row on each pass, so a store mark would
+        // flap. Transient throttling never cools down either.
+        if (input.provider === "openai-compatible") {
+          if (thirdPartyFailureKind(input.error) === "quota") {
+            this.thirdPartyChannelCooldownUntil.set(
+              input.accountId,
+              Date.now() + QUOTA_INFERENCE_MARK_TTL_MS,
+            );
+          }
+          return;
+        }
         if (input.provider === "antigravity") {
           this.handleAntigravityNativePromptError(input.accountId, input.error);
           return;
@@ -1379,8 +1507,16 @@ export class SupervisorRuntime {
       payload.execution ??
       this.sessionHandoffCoordinator.executionEnvelope(payload.threadId, session);
     this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, execution);
+    // Same-turn pool failover (crafted-lane counterpart of the legacy chat
+    // lane's tryPoolFailover): when the bound pool row dies mid-conversation,
+    // rebuild on the next usable row and replay the turn in place instead of
+    // banner-signing "quota exhausted" while usable accounts wait. Sessions
+    // without a pool binding keep the direct behavior below.
+    const failoverPlan = this.craftedPlansByThread.get(payload.threadId);
+    const failoverLocation = this.craftProjectLocationByThread.get(payload.threadId);
+    const failoverBinding = this.craftedSessionBindings.get(payload.threadId);
     if (payload.config || payload.userMessageItemId) {
-      await session.startTurn({
+      const command = {
         prompt: payload.prompt,
         ...(payload.userMessageItemId ? { userMessageItemId: payload.userMessageItemId } : {}),
         ...(payload.config
@@ -1391,8 +1527,33 @@ export class SupervisorRuntime {
               },
             }
           : {}),
-      });
+      };
+      if (failoverPlan && failoverLocation && failoverBinding) {
+        await this.runCraftedTurnWithPoolFailover({
+          threadId: payload.threadId,
+          harnessKind: failoverPlan.runtimeBinding.harnessKind,
+          plan: failoverPlan,
+          projectLocation: failoverLocation,
+          provider: failoverBinding.provider,
+          failedAccountId: failoverBinding.accountId,
+          runTurn: (target) => target.startTurn(command),
+        });
+        return;
+      }
+      await session.startTurn(command);
     } else {
+      if (failoverPlan && failoverLocation && failoverBinding) {
+        await this.runCraftedTurnWithPoolFailover({
+          threadId: payload.threadId,
+          harnessKind: failoverPlan.runtimeBinding.harnessKind,
+          plan: failoverPlan,
+          projectLocation: failoverLocation,
+          provider: failoverBinding.provider,
+          failedAccountId: failoverBinding.accountId,
+          runTurn: (target) => target.sendPrompt(payload.prompt),
+        });
+        return;
+      }
       await session.sendPrompt(payload.prompt);
     }
   }
@@ -1403,6 +1564,13 @@ export class SupervisorRuntime {
       await this.threadSessionManager.interruptThread(payload);
       return;
     }
+    // Bump the failover epoch first: a quota failure racing this Stop must
+    // not rebuild + replay a turn the user just killed (same role as the
+    // legacy lane's turn generation).
+    this.craftedFailoverEpochByThread.set(
+      payload.threadId,
+      (this.craftedFailoverEpochByThread.get(payload.threadId) ?? 0) + 1,
+    );
     // Stop must never fail closed on a missing/stale execution envelope: a
     // dropped handoff event must not leave the user unable to stop a running
     // turn. Interrupt is idempotent and touches no credentials, so fencing is
@@ -2236,6 +2404,10 @@ export class SupervisorRuntime {
     let accountBinding: AccountBinding | undefined;
     let craftedThreadId: string | undefined;
     let craftedSession: CraftSession | undefined;
+    // True once the first turn runs inside pool failover: the helper owns
+    // quota write-back from then on, so the catch below must not mark (and
+    // rotate hosts) a second time for the same failure.
+    let failoverArmed = false;
     try {
       const created = await this.createCraftingAdapter(
         payload.craftPlan,
@@ -2254,6 +2426,7 @@ export class SupervisorRuntime {
       craftedThreadId = plan.threadId ?? session.threadId;
       if (craftedThreadId) {
         this.craftMcpCandidatesByThread.set(craftedThreadId, payload.mcpServers ?? []);
+        this.craftProjectLocationByThread.set(craftedThreadId, payload.projectLocation);
       }
       this.registerCraftedSession(
         craftedThreadId,
@@ -2263,38 +2436,81 @@ export class SupervisorRuntime {
         plan,
         entity.id,
       );
-      const response =
+      const firstTurn: ((target: CraftSession) => Promise<TurnResult | PromptResult>) | undefined =
         payload.prompt.trim().length > 0
           ? payload.userMessageItemId
-            ? await session.startTurn({
-                prompt: payload.prompt,
-                userMessageItemId: payload.userMessageItemId,
-              })
-            : await session.sendPrompt(payload.prompt)
-          : { response: "" };
+            ? (target: CraftSession) =>
+                target.startTurn({
+                  prompt: payload.prompt,
+                  userMessageItemId: payload.userMessageItemId,
+                })
+            : (target: CraftSession) => target.sendPrompt(payload.prompt)
+          : undefined;
+      const useFailover = !!firstTurn && !!accountBinding && !!craftedThreadId;
+      if (useFailover) failoverArmed = true;
+      const response = firstTurn
+        ? useFailover
+          ? await this.runCraftedTurnWithPoolFailover({
+              threadId: craftedThreadId!,
+              harnessKind: plan.runtimeBinding.harnessKind,
+              plan,
+              projectLocation: payload.projectLocation,
+              provider: accountBinding!.provider,
+              failedAccountId: accountBinding!.accountId,
+              runTurn: firstTurn,
+            })
+          : await firstTurn(session)
+        : { response: "" };
+      // Same staleness rule as resume: report the session + binding the
+      // failover may have moved the thread to.
+      const launchedBinding =
+        (craftedThreadId ? this.craftedSessionBindings.get(craftedThreadId) : undefined) ??
+        accountBinding;
+      const launchedSession =
+        (craftedThreadId ? this.craftedSessionsByThread.get(craftedThreadId) : undefined) ??
+        session;
       return {
         // CraftStation owns the stable user-visible Thread identity. A native
         // runtime may allocate a different provider Session/thread UUID, but
         // that identity belongs to the Runtime Segment and must not replace
         // the CraftStation Thread key used by IPC and session handoff.
-        threadId: plan.threadId ?? session.threadId ?? "",
-        entityId: entity.id,
-        sessionId: session.id,
-        ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
-        response: response.response ?? "",
-        ...(accountBinding ? { accountBinding } : {}),
+        threadId: plan.threadId ?? launchedSession.threadId ?? "",
+        entityId: launchedSession.entityId,
+        sessionId: launchedSession.id,
+        ...(launchedSession.sessionRef ? { sessionRef: launchedSession.sessionRef } : {}),
+        response: response?.response ?? "",
+        ...(launchedBinding ? { accountBinding: launchedBinding } : {}),
       };
     } catch (error) {
       // The native ACP session normally observes this before projecting the
       // failure. Keep the Supervisor boundary defensive as well: custom
-      // adapters and a first-turn rejection may bypass that callback.
-      if (accountBinding?.provider === "grok") {
-        this.handleGrokNativePromptError(accountBinding.accountId, error);
-      } else if (accountBinding?.provider === "antigravity") {
-        this.handleAntigravityNativePromptError(accountBinding.accountId, error);
+      // adapters and a first-turn rejection may bypass that callback. Skipped
+      // only for the failure the pool failover already marked (same provider
+      // quota shape) — anything else, notably Antigravity auth deaths, still
+      // needs this write-back, and the helper never marks those.
+      const failoverMarked =
+        failoverArmed &&
+        !!accountBinding &&
+        POOL_FAILOVER_PROVIDERS.has(accountBinding.provider) &&
+        isPoolQuotaErrorForProvider(accountBinding.provider, error);
+      if (!failoverMarked) {
+        if (accountBinding?.provider === "grok") {
+          this.handleGrokNativePromptError(accountBinding.accountId, error);
+        } else if (accountBinding?.provider === "antigravity") {
+          this.handleAntigravityNativePromptError(accountBinding.accountId, error);
+        }
       }
-      if (craftedSession) {
-        await craftedSession.terminate().catch(() => undefined);
+      // Launch contract is all-or-nothing: a failed launch keeps no session.
+      // Terminate the currently registered one (failover may have swapped it
+      // since `craftedSession` was captured) as well as the captured one.
+      const doomed =
+        (craftedThreadId ? this.craftedSessionsByThread.get(craftedThreadId) : undefined) ??
+        craftedSession;
+      if (doomed) {
+        await doomed.terminate().catch(() => undefined);
+        if (craftedSession && craftedSession !== doomed) {
+          await craftedSession.terminate().catch(() => undefined);
+        }
         if (craftedThreadId) this.releaseCraftedSession(craftedThreadId);
       } else if (accountBinding) {
         // Resolution succeeded but spawning/opening the session failed before
@@ -2330,6 +2546,13 @@ export class SupervisorRuntime {
       // A renderer reload must reattach to the owned Session, not spawn a
       // second handle with the same native identity and stale subscriptions.
       // Changing a composition/account still requires the handoff boundary.
+      // Exception: the stored account may name a row that automatic pool
+      // failover already proved dead and moved away from — that drift is
+      // healed history, not a plan violation.
+      const accountMismatch = !!payload.accountId && binding?.accountId !== payload.accountId;
+      const healedDrift =
+        !!payload.accountId &&
+        (this.craftedFailoverTriedByThread.get(threadId!)?.has(payload.accountId) ?? false);
       if (
         activePlan?.id !== payload.craftPlan.id ||
         activePlan.recipeId !== payload.craftPlan.recipeId ||
@@ -2340,26 +2563,57 @@ export class SupervisorRuntime {
         activePlan.runtimeBinding.routeType !== payload.craftPlan.runtimeBinding.routeType ||
         activePlan.workspace !== payload.craftPlan.workspace ||
         (live.nativeSessionRef ?? live.sessionRef) !== payload.sessionRef ||
-        (payload.accountId && binding?.accountId !== payload.accountId)
+        (accountMismatch && !healedDrift)
       )
         throw new Error("HANDOFF_ACTIVE_PLAN_MISMATCH");
       if (payload.prompt?.trim() && live.status === "busy")
         throw new Error("Cannot resume with a new prompt while the crafted Session is busy.");
+      const resumeLocation =
+        payload.projectLocation ?? this.craftProjectLocationByThread.get(threadId!);
+      if (resumeLocation) this.craftProjectLocationByThread.set(threadId!, resumeLocation);
       const response = payload.prompt?.trim()
-        ? await live.startTurn({
-            prompt: payload.prompt,
-            ...(payload.userMessageItemId ? { userMessageItemId: payload.userMessageItemId } : {}),
-            ...(payload.craftPlan.overrides ? { overrides: payload.craftPlan.overrides } : {}),
-          })
+        ? binding && activePlan && resumeLocation
+          ? await this.runCraftedTurnWithPoolFailover({
+              threadId: threadId!,
+              harnessKind: activePlan.runtimeBinding.harnessKind,
+              plan: activePlan,
+              projectLocation: resumeLocation,
+              provider: binding.provider,
+              failedAccountId: binding.accountId,
+              runTurn: (target) =>
+                target.startTurn({
+                  prompt: payload.prompt!,
+                  ...(payload.userMessageItemId
+                    ? { userMessageItemId: payload.userMessageItemId }
+                    : {}),
+                  ...(payload.craftPlan.overrides
+                    ? { overrides: payload.craftPlan.overrides }
+                    : {}),
+                }),
+            })
+          : await live.startTurn({
+              prompt: payload.prompt,
+              ...(payload.userMessageItemId
+                ? { userMessageItemId: payload.userMessageItemId }
+                : {}),
+              ...(payload.craftPlan.overrides ? { overrides: payload.craftPlan.overrides } : {}),
+            })
         : undefined;
       this.publishCraftedSessionState(threadId!, live);
+      // The turn above may have rotated the pool binding via failover;
+      // report the session + binding the thread actually runs on now, not
+      // the ones it started the turn with, so the renderer persists the
+      // live row (and its fresh native ref) instead of the dead one.
+      const effectiveBinding = this.craftedSessionBindings.get(threadId!) ?? binding;
+      const effectiveSession = this.craftedSessionsByThread.get(threadId!) ?? live;
       return {
         threadId: threadId!,
-        entityId: live.entityId,
-        sessionId: live.id,
-        sessionRef: payload.sessionRef,
+        entityId: effectiveSession.entityId,
+        sessionId: effectiveSession.id,
+        sessionRef:
+          effectiveSession.nativeSessionRef ?? effectiveSession.sessionRef ?? payload.sessionRef,
         response: response?.response ?? "",
-        ...(binding ? { accountBinding: binding } : {}),
+        ...(effectiveBinding ? { accountBinding: effectiveBinding } : {}),
       };
     }
     if (live) {
@@ -2371,23 +2625,82 @@ export class SupervisorRuntime {
     let accountBinding: AccountBinding | undefined;
     let craftedThreadId: string | undefined;
     let craftedSession: CraftSession | undefined;
+    // Same failover-armed rule as craftAgent: the helper owns quota
+    // write-back once the first turn runs inside it.
+    let failoverArmed = false;
     try {
-      const created = await this.createCraftingAdapter(
-        payload.craftPlan,
-        payload.projectLocation,
-        payload.mcpServers,
-        payload.accountId,
-      );
+      let created: Awaited<ReturnType<SupervisorRuntime["createCraftingAdapter"]>>;
+      let resumedOnFallbackAccount = false;
+      try {
+        created = await this.createCraftingAdapter(
+          payload.craftPlan,
+          payload.projectLocation,
+          payload.mcpServers,
+          payload.accountId,
+        );
+      } catch (error) {
+        // The stored binding is stickiness, not a user-explicit pin (resume
+        // carries no accountMode): when that row died since, fall back instead
+        // of bricking the thread on it — the crafted-lane counterpart of the
+        // legacy chat lane's dead-binding restart. Explicit pins keep failing
+        // closed (see craftAgent). A dead third-party channel falls back to
+        // the next validated channel for the same model, never to the
+        // subscription pool (auto would bind the wrong credential for a
+        // channel model).
+        const storedThirdParty = !!payload.accountId && isThirdPartyAccountId(payload.accountId);
+        const poolGone =
+          error instanceof AccountControlError &&
+          (error.code === "ACCOUNT_POOL_EXHAUSTED" || error.code === "ACCOUNT_UNAVAILABLE");
+        const channelUnprojectable =
+          storedThirdParty &&
+          error instanceof AccountControlError &&
+          (error.code === "ACCOUNT_PROJECTION_FAILED" || error.code === "ACCOUNT_NOT_FOUND");
+        if (payload.accountId && (poolGone || channelUnprojectable)) {
+          if (storedThirdParty) {
+            const next = this.resolveNextThirdPartyChannel({
+              threadId: payload.craftPlan.threadId,
+              modelId: payload.craftPlan.runtimeBinding.modelId,
+              failedAccountId: payload.accountId,
+              excludedAccountIds: [payload.accountId],
+            });
+            created = await this.createCraftingAdapter(
+              payload.craftPlan,
+              payload.projectLocation,
+              payload.mcpServers,
+              next.accountId,
+              "explicit",
+            );
+          } else {
+            created = await this.createCraftingAdapter(
+              payload.craftPlan,
+              payload.projectLocation,
+              payload.mcpServers,
+              undefined,
+              "auto",
+            );
+          }
+          resumedOnFallbackAccount = true;
+        } else {
+          throw error;
+        }
+      }
       const { adapter, plan } = created;
       accountBinding = created.accountBinding;
       const entity = await adapter.spawnEntity({ ...plan, sessionRef: payload.sessionRef });
-      const session = await adapter.resumeSession(entity, payload.sessionRef);
+      // A fallback account cannot resume the previous account's native
+      // session (the ref belongs to another credential home): start fresh.
+      // History loss is the same trade the legacy dead-binding restart
+      // makes; the renderer transcript stays intact.
+      const session = resumedOnFallbackAccount
+        ? await adapter.createSession(entity)
+        : await adapter.resumeSession(entity, payload.sessionRef);
       entityId = entity.id;
       craftedSession = session;
       sessionId = session.id;
       craftedThreadId = plan.threadId ?? session.threadId;
       if (craftedThreadId) {
         this.craftMcpCandidatesByThread.set(craftedThreadId, payload.mcpServers ?? []);
+        this.craftProjectLocationByThread.set(craftedThreadId, payload.projectLocation);
       }
       this.registerCraftedSession(
         craftedThreadId,
@@ -2397,33 +2710,82 @@ export class SupervisorRuntime {
         plan,
         entity.id,
       );
-      const response = payload.prompt?.trim()
-        ? payload.userMessageItemId
-          ? await session.startTurn({
-              prompt: payload.prompt,
-              userMessageItemId: payload.userMessageItemId,
+      const firstTurn: ((target: CraftSession) => Promise<TurnResult | PromptResult>) | undefined =
+        payload.prompt?.trim()
+          ? payload.userMessageItemId
+            ? (target: CraftSession) =>
+                target.startTurn({
+                  prompt: payload.prompt!,
+                  userMessageItemId: payload.userMessageItemId,
+                })
+            : (target: CraftSession) => target.sendPrompt(payload.prompt!)
+          : undefined;
+      const useFailover = !!firstTurn && !!accountBinding && !!craftedThreadId;
+      if (useFailover) failoverArmed = true;
+      const response = firstTurn
+        ? useFailover
+          ? await this.runCraftedTurnWithPoolFailover({
+              threadId: craftedThreadId!,
+              harnessKind: plan.runtimeBinding.harnessKind,
+              plan,
+              projectLocation: payload.projectLocation,
+              provider: accountBinding!.provider,
+              failedAccountId: accountBinding!.accountId,
+              runTurn: firstTurn,
             })
-          : await session.sendPrompt(payload.prompt)
+          : await firstTurn(session)
         : { response: "" };
+      // Same staleness rule as the live branch: report the session + binding
+      // the failover may have moved the thread to.
+      const rebuiltBinding =
+        (craftedThreadId ? this.craftedSessionBindings.get(craftedThreadId) : undefined) ??
+        accountBinding;
+      const rebuiltSession =
+        (craftedThreadId ? this.craftedSessionsByThread.get(craftedThreadId) : undefined) ??
+        session;
       return {
-        threadId: plan.threadId ?? session.threadId ?? "",
-        entityId: entity.id,
-        sessionId: session.id,
-        ...(session.sessionRef ? { sessionRef: session.sessionRef } : {}),
-        response: response.response ?? "",
-        ...(accountBinding ? { accountBinding } : {}),
+        threadId: plan.threadId ?? rebuiltSession.threadId ?? "",
+        entityId: rebuiltSession.entityId,
+        sessionId: rebuiltSession.id,
+        ...(rebuiltSession.sessionRef
+          ? { sessionRef: rebuiltSession.sessionRef }
+          : session.sessionRef
+            ? { sessionRef: session.sessionRef }
+            : {}),
+        response: response?.response ?? "",
+        ...(rebuiltBinding ? { accountBinding: rebuiltBinding } : {}),
       };
     } catch (error) {
-      if (accountBinding?.provider === "grok") {
-        this.handleGrokNativePromptError(accountBinding.accountId, error);
-      } else if (accountBinding?.provider === "antigravity") {
-        this.handleAntigravityNativePromptError(accountBinding.accountId, error);
+      // Same skip rule as craftAgent: the failover helper already marked the
+      // dead row when the first turn ran inside it; every other failure
+      // still needs this write-back.
+      const failoverMarked =
+        failoverArmed &&
+        !!accountBinding &&
+        POOL_FAILOVER_PROVIDERS.has(accountBinding.provider) &&
+        isPoolQuotaErrorForProvider(accountBinding.provider, error);
+      if (!failoverMarked) {
+        if (accountBinding?.provider === "grok") {
+          this.handleGrokNativePromptError(accountBinding.accountId, error);
+        } else if (accountBinding?.provider === "antigravity") {
+          this.handleAntigravityNativePromptError(accountBinding.accountId, error);
+        }
       }
-      if (craftedSession) {
-        await craftedSession.terminate().catch(() => undefined);
-        if (craftedThreadId) this.releaseCraftedSession(craftedThreadId);
-      } else if (accountBinding) {
-        this.releaseCraftedBinding(accountBinding);
+      // Unlike craftAgent's all-or-nothing launch, a failed resume must keep
+      // the thread usable: when failover swapped the session mid-flight and
+      // then exhausted the pool, the last session stays registered so the
+      // next submit retries instead of bricking on "unknown session". Only
+      // tear down when nothing newer took over.
+      const current = craftedThreadId
+        ? this.craftedSessionsByThread.get(craftedThreadId)
+        : undefined;
+      if (!current || current === craftedSession) {
+        if (craftedSession) {
+          await craftedSession.terminate().catch(() => undefined);
+          if (craftedThreadId) this.releaseCraftedSession(craftedThreadId);
+        } else if (accountBinding) {
+          this.releaseCraftedBinding(accountBinding);
+        }
       }
       if (error instanceof CraftingError) {
         throw new Error(
@@ -2449,6 +2811,20 @@ export class SupervisorRuntime {
     candidateMcpServers: McpServer[] | undefined,
     accountId?: string,
     accountMode?: "explicit" | "selected" | "auto" | "preferred",
+    /**
+     * Pool accounts to skip for this resolution (same-turn failover's tried
+     * set). Fresh starts pass nothing; failover rebuilds pass the turn's
+     * tried ids so a re-resolution can never land back on an account that
+     * already died this turn, even if its quota write-back hasn't landed.
+     */
+    excludedAccountIds?: readonly string[] | undefined,
+    /**
+     * Same-channel protocol-flip override for the Kimi provider table
+     * (`responses` ↔ `chat_completions`). Set by channel failover when the
+     * validated wire type 400s on the real workload; only meaningful with
+     * an explicit third-party `accountId`.
+     */
+    thirdPartyProtocol?: "responses" | "chat_completions" | undefined,
   ): Promise<{
     adapter: import("@/shared/crafting").HarnessRuntimeAdapter;
     plan: CraftAgentPayload["craftPlan"];
@@ -2559,6 +2935,10 @@ export class SupervisorRuntime {
         provider: managedProvider,
         mode: accountMode ?? (accountId ? "explicit" : "auto"),
         ...(accountId ? { explicitAccountId: accountId } : {}),
+        // Same-turn failover's tried set (see createCraftingAdapter): never
+        // re-resolve onto an account that already died this turn. Explicit
+        // overrides ignore it — they never fall back by contract.
+        ...(excludedAccountIds?.length ? { excludedAccountIds: [...excludedAccountIds] } : {}),
       });
       if (managedProvider === "antigravity") {
         // B-mode (user-mandated): Antigravity sessions always execute on the
@@ -2610,6 +2990,7 @@ export class SupervisorRuntime {
             resolution.account.accountId,
             plan.runtimeBinding.harnessKind,
             plan.runtimeBinding.modelId,
+            thirdPartyProtocol,
           );
           accountEnv = runtime.env;
         } else {
@@ -2771,6 +3152,51 @@ export class SupervisorRuntime {
   }
 
   /**
+   * Next usable third-party channel serving the same model — the channel
+   * catalog counterpart of subscription pool scheduling. Skips disabled and
+   * unschedulable rows, protocol-mismatched channels, rows cooling down
+   * from a quota death, and the same-turn tried set. Throws an explicit
+   * pool-exhausted error when nothing remains — never a silent ambient
+   * fallback, and never the subscription pool: a channel model must only
+   * run on a validated channel credential.
+   */
+  private resolveNextThirdPartyChannel(input: {
+    threadId?: string | undefined;
+    modelId?: string | undefined;
+    failedAccountId?: string | undefined;
+    excludedAccountIds?: readonly string[] | undefined;
+  }): { accountId: string; reason: string } {
+    const modelId = input.modelId?.trim();
+    const poolExhausted = (detail: string) =>
+      new AccountControlError(
+        "ACCOUNT_POOL_EXHAUSTED",
+        `No usable OpenAI-compatible channel for model '${modelId || "unknown"}' in the channel pool.（${detail}）` +
+          "去「渠道与额度」添加渠道或等待额度恢复后再试。",
+        { provider: THIRD_PARTY_CHANNEL_PROVIDER },
+      );
+    if (!modelId) throw poolExhausted("该厂商尚无账号");
+    // The replacement must speak the same protocol the dead row proved:
+    // a Responses-only Codex route can never run on a chat_completions row.
+    const protocol = input.failedAccountId
+      ? this.openAiCompatibleProfileService.getDescriptor(input.failedAccountId)?.validatedProtocol
+      : undefined;
+    const now = Date.now();
+    const excluded = new Set(input.excludedAccountIds ?? []);
+    const next = this.openAiCompatibleProfileService
+      .channelAccountsServingModel({ modelId, ...(protocol ? { protocol } : {}) })
+      .filter((accountId) => !excluded.has(accountId))
+      .filter((accountId) => (this.thirdPartyChannelCooldownUntil.get(accountId) ?? 0) <= now)[0];
+    if (!next) {
+      const tried = [...excluded].length > 0 ? "同回合已试过其余渠道均失败" : "没有可用渠道";
+      throw poolExhausted(tried);
+    }
+    console.log(
+      `[account] channel selected: thread=${input.threadId ?? "unknown"} model=${modelId} account=${next} reason=priority`,
+    );
+    return { accountId: next, reason: "priority" };
+  }
+
+  /**
    * Pool-first chat-session authorization (see ThreadSessionManagerOptions).
    * Providers with a managed account pool must never fall back to the ambient
    * host CLI login: a resolvable pool returns the account's scope env, an
@@ -2793,6 +3219,7 @@ export class SupervisorRuntime {
     threadId: string;
     model?: string | undefined;
     thirdPartyAccountId?: string | undefined;
+    thirdPartyProtocol?: "responses" | "chat_completions" | undefined;
     excludedAccountIds?: readonly string[] | undefined;
   }): Promise<{ accountId: string; reason: string; env: Record<string, string> } | undefined> {
     // Third-party launches bypass the subscription pool entirely. A
@@ -2805,6 +3232,7 @@ export class SupervisorRuntime {
           threadId: string;
           model?: string | undefined;
           thirdPartyAccountId: string;
+          thirdPartyProtocol?: "responses" | "chat_completions" | undefined;
         },
       );
     }
@@ -2897,6 +3325,13 @@ export class SupervisorRuntime {
     threadId: string;
     model?: string | undefined;
     thirdPartyAccountId: string;
+    /**
+     * Same-channel protocol-flip override (see
+     * `isThirdPartyProtocolFlipError`): rewrites the Kimi provider table to
+     * the other wire type on the same credential instead of walking to
+     * another account.
+     */
+    thirdPartyProtocol?: "responses" | "chat_completions" | undefined;
   }): { accountId: string; reason: string; env: Record<string, string> } {
     const record = this.accountStore.getRecord(input.thirdPartyAccountId);
     if (!record || record.provider !== "openai-compatible") {
@@ -2959,6 +3394,7 @@ export class SupervisorRuntime {
         record.accountId,
         input.provider,
         input.model,
+        input.thirdPartyProtocol,
       );
       console.log(
         `[account] third-party session bound: provider=${input.provider} thread=${input.threadId} account=${record.accountId} protocol=${protocol}`,
@@ -3200,6 +3636,11 @@ export class SupervisorRuntime {
         accountMode,
       );
       binding = created.accountBinding;
+      // Failover rebuilds reuse the handoff target's location snapshot; keep
+      // it fresh here too so a post-switch failover rebuilds in place.
+      if (craftPlan.threadId) {
+        this.craftProjectLocationByThread.set(craftPlan.threadId, projectLocation);
+      }
       const entity = await created.adapter.spawnEntity(created.plan);
       const session = await created.adapter.createSession(entity);
       return {
@@ -3464,6 +3905,9 @@ export class SupervisorRuntime {
     this.craftedPlansByThread.delete(threadId);
     this.craftedRequestsByThread.delete(threadId);
     this.craftMcpCandidatesByThread.delete(threadId);
+    this.craftProjectLocationByThread.delete(threadId);
+    this.craftedFailoverTriedByThread.delete(threadId);
+    this.craftedFailoverEpochByThread.delete(threadId);
     for (const [harnessKind, candidate] of this.nativeHarnessSessions) {
       if (candidate === session) this.nativeHarnessSessions.delete(harnessKind);
     }
@@ -3610,6 +4054,408 @@ export class SupervisorRuntime {
       .catch((rotationError) => {
         console.warn("[supervisor] failed to rotate Antigravity host login:", rotationError);
       });
+  }
+
+  /**
+   * Quota write-back for crafted-lane turns, mirroring the chat lane's
+   * `handleAccountPromptError`: a prompt rejected for quota marks the BOUND
+   * account exhausted so the pool scheduler skips it on the next session.
+   * Each provider handler re-checks its own matcher, so calling this for an
+   * already-marked account or a non-quota error is a no-op. The crafted
+   * native adapter only wires `onPromptError` for Grok — Kimi/Codex rows
+   * depend on this call, otherwise a dead row never gets marked and every
+   * failover attempt re-resolves onto it. Third-party channels cool down
+   * instead of store-marking (the relay quota poller resets every row).
+   */
+  private writeCraftedQuotaMark(
+    provider: string,
+    accountId: string | undefined,
+    error: unknown,
+  ): void {
+    if (!accountId) return;
+    if (provider === THIRD_PARTY_CHANNEL_PROVIDER) {
+      if (thirdPartyFailureKind(error) === "quota") {
+        this.thirdPartyChannelCooldownUntil.set(
+          accountId,
+          Date.now() + QUOTA_INFERENCE_MARK_TTL_MS,
+        );
+      }
+      return;
+    }
+    if (provider === "grok") {
+      this.handleGrokNativePromptError(accountId, error);
+    } else if (provider === "kimi") {
+      this.handleKimiNativePromptError(accountId, error);
+    } else if (provider === "codex") {
+      this.handleCodexNativePromptError(accountId, error);
+    } else if (provider === "antigravity") {
+      this.handleAntigravityNativePromptError(accountId, error);
+    }
+  }
+
+  /**
+   * Whether a third-party channel row is scheduler-usable for failover:
+   * enabled, schedulable status, and not cooling down from a quota death.
+   * (Descriptor presence is enforced by the channel query itself.)
+   */
+  private isThirdPartyChannelUsable(accountId: string): boolean {
+    const record = this.accountStore.getRecord(accountId);
+    return (
+      !!record &&
+      record.provider === THIRD_PARTY_CHANNEL_PROVIDER &&
+      record.enabled &&
+      (record.status === "available" || record.status === "quota-low") &&
+      (this.thirdPartyChannelCooldownUntil.get(accountId) ?? 0) <= Date.now()
+    );
+  }
+
+  /** Failover notice identities (providerAccountId → masked → label). */
+  private describeCraftedPoolAccount(provider: string, accountId: string): string | undefined {
+    const view = this.accountStore.get(accountId);
+    if (!view || view.provider !== provider) return undefined;
+    return (
+      view.providerAccountId?.trim() ||
+      view.maskedIdentity?.trim() ||
+      view.label.trim() ||
+      undefined
+    );
+  }
+
+  /**
+   * Same-turn pool failover for crafted (native-harness) sessions — the
+   * crafted-lane counterpart of the legacy chat lane's `tryPoolFailover`.
+   *
+   * A crafted session is bound to its pool account at creation and never
+   * re-resolves: without this, a thread whose account dies mid-conversation
+   * banners "quota exhausted" on every turn forever while usable pool rows
+   * wait. On a quota error we rebuild on the next usable account (same plan,
+   * same prompt, same painted user-message id) and replay the turn in place,
+   * so `sendThreadInput` still resolves with the follow-up answer. Only the
+   * truthfully empty pool still surfaces the quota banner.
+   *
+   * Open to every subscription pool (grok/kimi/codex/antigravity) with a
+   * provider-dispatched quota matcher, plus sticky third-party channels
+   * (ChatGPT-via-relay and every other channel model), which walk the
+   * channel catalog for the same model instead of a subscription pool.
+   * Compatibility routes and auth failures stay fail-closed. Never throws
+   * bookkeeping noise: rebuild declines resolve to the original quota error.
+   *
+   * Returns undefined (instead of throwing) when the chain is superseded by
+   * a handoff/close or by an explicit Stop mid-flight: like the legacy
+   * lane's generation guard, a raced turn is dropped silently because the
+   * newer flow already owns the outcome.
+   */
+  private async runCraftedTurnWithPoolFailover<R>(input: {
+    threadId: string;
+    harnessKind: string;
+    plan: CraftAgentPayload["craftPlan"];
+    projectLocation: ProjectLocation;
+    provider: string;
+    failedAccountId: string | undefined;
+    runTurn: (session: CraftSession) => Promise<R>;
+  }): Promise<R | undefined> {
+    const startedSession = this.craftedSessionsByThread.get(input.threadId);
+    if (!startedSession) throw new Error(`Unknown crafted session: ${input.threadId}`);
+    // Non-pool lanes keep the historical direct behavior: no resolution,
+    // no rebuild, the provider error propagates untouched.
+    if (
+      !isPoolRotationProvider(input.provider) ||
+      input.plan.runtimeBinding.routeType === "compatibility"
+    ) {
+      return input.runTurn(startedSession);
+    }
+    const thirdPartyChannel = input.provider === THIRD_PARTY_CHANNEL_PROVIDER;
+    const epochAtStart = this.craftedFailoverEpochByThread.get(input.threadId) ?? 0;
+    let session = startedSession;
+    let failedAccountId = input.failedAccountId;
+    const tried = new Set<string>();
+    let lastError: unknown;
+    let flippedThisTurn = false;
+    // Fast path for a binding the scheduler already knows is dead (the
+    // common repeated-submit shape): skip burning the turn on it and go
+    // straight to the next usable row, mirroring the legacy lane's
+    // dead-binding restart. The first real attempt still runs normally when
+    // the row looks usable.
+    let skipFirstAttempt = false;
+    if (failedAccountId) {
+      skipFirstAttempt = thirdPartyChannel
+        ? !this.isThirdPartyChannelUsable(failedAccountId)
+        : (() => {
+            const bound = this.accountStore.getRecord(failedAccountId);
+            return (
+              !bound ||
+              bound.provider !== input.provider ||
+              !bound.enabled ||
+              (bound.status !== "available" && bound.status !== "quota-low")
+            );
+          })();
+    }
+    const isFailoverFuel = (error: unknown): boolean =>
+      thirdPartyChannel
+        ? thirdPartyFailureKind(error) !== undefined
+        : isPoolQuotaErrorForProvider(input.provider, error);
+    for (let attempt = 0; ; attempt++) {
+      let flipProbe: Error | undefined;
+      if (!skipFirstAttempt) {
+        try {
+          const result = await input.runTurn(session);
+          if (thirdPartyChannel) {
+            const quotaFailure = readCraftedChannelFailure(result);
+            if (quotaFailure) {
+              lastError = quotaFailure;
+            } else {
+              // A resolved failed turn carrying 400-class text fuels a
+              // protocol flip, never a channel walk.
+              const flipFailure = readCraftedFlipFailure(result);
+              if (!flipFailure) return result;
+              flipProbe = flipFailure;
+            }
+          } else {
+            const quotaFailure = readCraftedQuotaFailure(input.provider, result);
+            if (!quotaFailure) return result;
+            lastError = projectCraftedQuotaError(input.provider, quotaFailure);
+          }
+        } catch (error) {
+          if (!isFailoverFuel(error)) {
+            flipProbe = error instanceof Error ? error : new Error(String(error));
+          } else {
+            lastError = thirdPartyChannel ? error : projectCraftedQuotaError(input.provider, error);
+          }
+        }
+      } else {
+        skipFirstAttempt = false;
+        lastError = new Error(
+          `No usable ${input.provider} account in the provider pool (bound row ${failedAccountId} is spent). ` +
+            `去「渠道与额度」添加账号或等待额度恢复后再试。`,
+        );
+      }
+      // Same-channel protocol flip (third-party only; subscription lanes
+      // never reach here with flipProbe set): a 400 means the channel and
+      // credential are fine but the validated wire type 400s on the real
+      // workload — rewrite the Kimi provider table to the other type on the
+      // SAME row and replay. At most one flip per turn; the row is never
+      // added to the tried set (it isn't dead). Deliberately quiet (log line
+      // only, no toast): the channel never changed.
+      if (flipProbe !== undefined) {
+        if (!thirdPartyChannel) throw flipProbe;
+        const flipped =
+          !flippedThisTurn && failedAccountId
+            ? this.flipThirdPartyChannelProtocol(failedAccountId, flipProbe)
+            : undefined;
+        if (!flipped) throw flipProbe;
+        flippedThisTurn = true;
+        if (attempt >= MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN) break;
+        if ((this.craftedFailoverEpochByThread.get(input.threadId) ?? 0) !== epochAtStart) {
+          return undefined;
+        }
+        if (this.craftedSessionsByThread.get(input.threadId) !== session) {
+          return undefined;
+        }
+        const reflipped = await this.rebuildCraftedSessionForProtocolFlip(
+          input.threadId,
+          input.plan,
+          input.projectLocation,
+          flipped.accountId,
+          flipped.protocol,
+        ).catch((rebuildError) => {
+          console.warn(
+            `[account] crafted channel protocol flip declined: provider=${input.provider} thread=${input.threadId} attempt=${attempt + 1} account=${failedAccountId} reason=${rebuildError instanceof Error ? rebuildError.message : String(rebuildError)}`,
+          );
+          return undefined;
+        });
+        if (!reflipped) throw flipProbe;
+        if (this.craftedSessionsByThread.get(input.threadId) !== session) {
+          await reflipped.session.terminate().catch(() => undefined);
+          return undefined;
+        }
+        await session.terminate().catch(() => undefined);
+        this.registerCraftedSession(
+          input.threadId,
+          input.harnessKind,
+          reflipped.session,
+          reflipped.binding,
+          input.plan,
+          reflipped.entityId,
+        );
+        console.log(
+          `[account] crafted channel protocol flip: provider=${input.provider} thread=${input.threadId} attempt=${attempt + 1} account=${failedAccountId} to=${flipped.protocol}`,
+        );
+        session = reflipped.session;
+        // failedAccountId intentionally unchanged (same row); tried untouched.
+        lastError = flipProbe;
+        continue;
+      }
+      // The quota write-back usually already ran via the adapter's
+      // onPromptError; re-mark here so providers without that wiring
+      // (Kimi/Codex on the crafted lane) still advance the scheduler.
+      this.writeCraftedQuotaMark(input.provider, failedAccountId, lastError);
+      if (failedAccountId) tried.add(failedAccountId);
+      if (attempt >= MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN) break;
+      if ((this.craftedFailoverEpochByThread.get(input.threadId) ?? 0) !== epochAtStart) {
+        // An explicit Stop landed mid-chain: drop the raced turn silently —
+        // the interrupt path already owns the outcome.
+        return undefined;
+      }
+      if (this.craftedSessionsByThread.get(input.threadId) !== session) {
+        // Superseded (handoff/close/rebuild raced us): the newer flow owns
+        // the turn, keep its outcome instead of bookkeeping noise.
+        return undefined;
+      }
+      const rebuilt = await this.rebuildCraftedSessionForFailover(
+        input.threadId,
+        input.plan,
+        input.projectLocation,
+        [...tried],
+        thirdPartyChannel
+          ? {
+              modelId: input.plan.runtimeBinding.modelId,
+              failedAccountId,
+            }
+          : undefined,
+      ).catch((rebuildError) => {
+        // Never silent: a declined failover surfaces the original quota
+        // error, so without this line a broken restart looks exactly like
+        // "no failover".
+        console.warn(
+          `[account] crafted pool failover declined: provider=${input.provider} thread=${input.threadId} attempt=${attempt + 1} from=${failedAccountId ?? "ambient"} reason=${rebuildError instanceof Error ? rebuildError.message : String(rebuildError)}`,
+        );
+        return undefined;
+      });
+      if (!rebuilt) throw lastError;
+      if (this.craftedSessionsByThread.get(input.threadId) !== session) {
+        // Superseded while rebuilding: drop the orphan (avoid a leaked CLI
+        // process) and the raced turn with it.
+        await rebuilt.session.terminate().catch(() => undefined);
+        return undefined;
+      }
+      await session.terminate().catch(() => undefined);
+      this.registerCraftedSession(
+        input.threadId,
+        input.harnessKind,
+        rebuilt.session,
+        rebuilt.binding,
+        input.plan,
+        rebuilt.entityId,
+      );
+      this.craftedFailoverTriedByThread.set(input.threadId, new Set(tried));
+      console.log(
+        `[account] crafted pool failover: provider=${input.provider} thread=${input.threadId} attempt=${attempt + 1} from=${failedAccountId} to=${rebuilt.binding.accountId}`,
+      );
+      const describe = (accountId: string | undefined) =>
+        (accountId && this.describeCraftedPoolAccount(input.provider, accountId)) ||
+        accountId ||
+        "ambient";
+      this.emit({
+        type: "thread-pool-failover",
+        threadId: input.threadId,
+        provider: input.provider,
+        fromAccount: describe(failedAccountId),
+        toAccount: describe(rebuilt.binding.accountId),
+      });
+      session = rebuilt.session;
+      failedAccountId = rebuilt.binding.accountId;
+    }
+    throw lastError;
+  }
+
+  /**
+   * Same-channel protocol-flip target: validates that `error` is a genuine
+   * 400-class wire-type failure and returns the SAME channel with the other
+   * Kimi provider-table type. Undefined = fail closed (non-400, unknown
+   * model, auth wording, or unknown current type).
+   */
+  private flipThirdPartyChannelProtocol(
+    failedAccountId: string,
+    error: unknown,
+  ): { accountId: string; protocol: "responses" | "chat_completions" } | undefined {
+    if (!isThirdPartyProtocolFlipError(error)) return undefined;
+    const current =
+      this.openAiCompatibleProfileService.getDescriptor(failedAccountId)?.validatedProtocol;
+    const flipped =
+      current === "responses"
+        ? ("chat_completions" as const)
+        : current === "chat_completions"
+          ? ("responses" as const)
+          : undefined;
+    if (!flipped) return undefined;
+    return { accountId: failedAccountId, protocol: flipped };
+  }
+
+  /**
+   * Rebuild a crafted session on the SAME third-party channel with a flipped
+   * Kimi provider-table type (see `flipThirdPartyChannelProtocol`). The
+   * channel row is reused explicitly — never pool-scheduled — so a flip can
+   * never land on a different credential.
+   */
+  private async rebuildCraftedSessionForProtocolFlip(
+    threadId: string,
+    plan: CraftAgentPayload["craftPlan"],
+    projectLocation: ProjectLocation,
+    channelId: string,
+    protocol: "responses" | "chat_completions",
+  ): Promise<{ session: CraftSession; binding: AccountBinding; entityId: string } | undefined> {
+    const created = await this.createCraftingAdapter(
+      plan,
+      projectLocation,
+      this.craftMcpCandidatesByThread.get(threadId),
+      channelId,
+      "explicit",
+      undefined,
+      protocol,
+    );
+    if (!created.accountBinding) return undefined;
+    const entity = await created.adapter.spawnEntity(created.plan);
+    const session = await created.adapter.createSession(entity);
+    return { session, binding: created.accountBinding, entityId: entity.id };
+  }
+
+  /**
+   * Rebuild a crafted session on the next usable pool row for failover:
+   * same plan, pool-scheduled account excluding every row that already died
+   * this turn. Third-party channels resolve the next validated row for the
+   * same model and bind it explicitly. Returns undefined when no usable row
+   * remains (the caller surfaces the original quota error). A missing pool
+   * binding is also a decline — failover must never silently drop a managed
+   * session onto the ambient host login.
+   */
+  private async rebuildCraftedSessionForFailover(
+    threadId: string,
+    plan: CraftAgentPayload["craftPlan"],
+    projectLocation: ProjectLocation,
+    triedAccountIds: string[],
+    channel?: { modelId: string; failedAccountId: string | undefined },
+  ): Promise<{ session: CraftSession; binding: AccountBinding; entityId: string } | undefined> {
+    if (channel) {
+      const next = this.resolveNextThirdPartyChannel({
+        threadId,
+        modelId: channel.modelId,
+        failedAccountId: channel.failedAccountId,
+        excludedAccountIds: triedAccountIds,
+      });
+      const created = await this.createCraftingAdapter(
+        plan,
+        projectLocation,
+        this.craftMcpCandidatesByThread.get(threadId),
+        next.accountId,
+        "explicit",
+      );
+      if (!created.accountBinding) return undefined;
+      const entity = await created.adapter.spawnEntity(created.plan);
+      const session = await created.adapter.createSession(entity);
+      return { session, binding: created.accountBinding, entityId: entity.id };
+    }
+    const created = await this.createCraftingAdapter(
+      plan,
+      projectLocation,
+      this.craftMcpCandidatesByThread.get(threadId),
+      undefined,
+      "auto",
+      triedAccountIds,
+    );
+    if (!created.accountBinding) return undefined;
+    const entity = await created.adapter.spawnEntity(created.plan);
+    const session = await created.adapter.createSession(entity);
+    return { session, binding: created.accountBinding, entityId: entity.id };
   }
 
   /**

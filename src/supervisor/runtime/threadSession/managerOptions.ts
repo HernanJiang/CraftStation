@@ -159,6 +159,13 @@ export interface ThreadSessionManagerOptions {
      */
     thirdPartyAccountId?: string | undefined;
     /**
+     * Same-channel protocol-flip override for the Kimi provider table
+     * (`responses` ↔ `chat_completions`). Set by channel failover when the
+     * validated wire type 400s on the real workload; only meaningful
+     * together with `thirdPartyAccountId`.
+     */
+    thirdPartyProtocol?: "responses" | "chat_completions" | undefined;
+    /**
      * Pool accounts to skip for this resolution (same-turn failover's tried
      * set). Pool scheduling only; explicit pins are never rerouted.
      */
@@ -193,4 +200,32 @@ export interface ThreadSessionManagerOptions {
    * prompt failure.
    */
   handleAccountPromptError?(input: { provider: string; accountId: string; error: unknown }): void;
+  /**
+   * Next usable third-party channel serving the same model, excluding every
+   * row that already died this turn. Powers same-turn channel failover for
+   * sticky `openai-compatible` sessions (ChatGPT-via-relay and every other
+   * channel model): the subscription pool never sees these rows, so they
+   * need their own scheduler keyed by model + verified protocol. Throws an
+   * explicit pool-exhausted error when no usable channel remains — never a
+   * silent ambient fallback. Absent = third-party sessions stay sticky
+   * (failover declines).
+   */
+  resolveNextThirdPartyAccount?(input: {
+    threadId: string;
+    /** Launch model id (channel catalog matching). */
+    model?: string | undefined;
+    /** Verified protocol of the failed channel, when known. */
+    protocol?: "responses" | "chat_completions" | undefined;
+    /** Channel account id that just died (always excluded, even unnamed). */
+    failedAccountId?: string | undefined;
+    /** Same-turn tried set: never re-resolve onto a dead channel. */
+    excludedAccountIds?: readonly string[] | undefined;
+  }): Promise<{ accountId: string; reason: string }>;
+  /**
+   * Verified wire type of a third-party channel (`getDescriptor` projection).
+   * Lets channel failover flip the Kimi provider table to the other wire
+   * type when the validated one 400s on the real workload — same channel,
+   * rewritten config, replayed turn. Absent = no flip (fail-closed).
+   */
+  getThirdPartyChannelProtocol?(accountId: string): "responses" | "chat_completions" | undefined;
 }

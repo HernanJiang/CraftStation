@@ -1,3 +1,35 @@
+## 火山方舟 Kimi 模型同通道协议翻转（2026-09-20）
+
+- **用户报告**：火山方舟渠道的 kimi 模型（`kimi-k2.8-preview`）走 Kimi Code 用不了。
+- **根因（实锤）**：该渠道隔离 home 的 Kimi CLI 日志显示 `provider=openai_responses` 请求被方舟 coding 端点（`https://ark.cn-beijing.volces.com/api/coding/v3`）以 `400 A parameter specified in the request is not valid` 拒绝。验证探针的最小 Responses 探测能过，但 Kimi CLI 的真实 Responses 负载（含 tools 等）方舟不接受——验证时“responses 可用”的结论对真实工作负载不成立。`config.toml` 证据与 `sessions/` 下 7 次失败时间戳吻合。
+- **修复**：同通道协议翻转（非换号）：400-class（排除模型不存在/鉴权文案）触发时，把 Kimi provider 表在**同一渠道**上重写为另一 wire type（`openai_responses` ↔ `openai`）并重放回合，每回合最多翻一次，第二次 400 诚实报错；tried 集合不记该行（行没死，只是线型不对），无 toast（只记日志，channel 没变）。legacy（`tryThirdPartyProtocolFlip` 经 `turn.nextThirdPartyAccountId/Protocol` + launchContext 透传）与 crafted（helper 内联 + `createCraftingAdapter` 第 7 参）双 lane；`prepareVendorCompatRuntime` 新增协议覆盖（仅 kimi 生效，grok/deepseek 的 env 本就无类型）；404/401/429/402 保持原 verdict（fail-closed/换号/冷却）。
+- **验证**：`poolQuota` 翻转 matcher 7 例、`prepareVendorCompatRuntime` 覆盖写文件 1 例、legacy 翻转 2 例（同行重建+protocol 断言、二次 400 透出）、crafted 翻转 2 例（含翻转后 `config.toml` 实为 `type = "openai"` 且绑定不变）；`runtime.test.ts` 124、threadSession 等 31 文件 442 例全过；typecheck + lint PASS。用户下次提交即走“400→翻 chat→重放”自愈，无需改配置。
+- **未做**：翻转成功后不回写 bundle 的 validatedProtocol（验证结论仍是 source of truth；且 codex 等 harness 对同一渠道的协议需求不同，全局改写会误伤）。每回合首试仍会烧一次 400，会话存续期内只一次。
+
+## 第三方渠道（ChatGPT 等）同模型自动切换（2026-09-20）
+
+- **用户要求**：原生模型走原生 CLI（不走 CPA）的前提下，kimi/Grok/Antigravity/ChatGPT 全部包进切换，所有模型可切换；且所有号都在号池里——单号即单行号池，不做单账号特殊渠道。
+- **路由事实**：`resolveExecutionRoute` 下原生配对（NATIVE_PAIRING）与第三方直连（THIRD_PARTY_DIRECT）均为 `native`，跑官方 CLI；CPA（`compatibility`，CLIProxyAPI 桥）只用于显式跨 CLI 投影（且 crafted lane 本来就排除 compatibility）。第三方此前两条 lane 均 sticky fail-closed。
+- **实现**：`poolQuota.ts` 新增 `thirdPartyFailureKind`（quota/402 类转、429 转但不标记、401/403/404/400 与未知模型 fail-closed）与 `isPoolRotationProvider`；`OpenAiCompatibleProfileService.channelAccountsServingModel` 按同模型+协议一致+行序找可用渠道；supervisor 新增 `resolveNextThirdPartyChannel`（protocol 取自死号 descriptor，cooldown 复用 6h 家规 TTL，空池抛双语 `ACCOUNT_POOL_EXHAUSTED`）与 `thirdPartyChannelCooldownUntil`（store 不 mark——relay 轮询每次重置，mark 会闪）。legacy：`tryThirdPartyChannelFailover`（tried/6 次上限/事件复用）+ `restartThread` 经 `turn.nextThirdPartyAccountId` 覆盖 sticky + 死绑定 proactive 预切（无 seam 时保持 sticky）。crafted：helper 同构分支（explicit 绑定新渠道）+ resume 重建对已删/禁用第三方行回退下一渠道（不用 subscription auto，避免绑错凭据）。单行池即走一遍 tried 后诚实报错，无单账号特殊路径。
+- **验证**：新增 legacy 第三方 6 例（codex/ChatGPT 形态走真实重启链：轮换/401 熔断/空池/预切/无 seam sticky/非池 agentKind）+ crafted 第三方 5 例（402 轮换+冷却不断言 store mark、429 轮换不冷却、单行池、401 熔断、resume 回退）+ matcher 8 例 + service 3 例；`runtime.test.ts` 124、`threadSession/*` + handoff + acp session 409 例全过；typecheck + lint PASS。kimi/Grok/Antigravity 两 lane 本就覆盖（前序工作+回归锁死），本次只新增第三方。
+- **边界**：ambient 单凭据模型（Claude/DeepSeek 原生等）无第二行可切，仍 fail-closed；429 只转不记；401/404/400 永不转不记。
+
+## Grok 403 配额文案拆分（2026-09-20）
+
+- **用户报告**：Grok 反复报 `API error (status 403 Forbidden) permission-denied: I can't help with that request`，问为什么“重试次数”不生效。
+- **结论先行**：这条是模型侧的内容拒绝（refusal），不是额度问题——重试（Craft-Harness retry，定义上只覆盖网络/传输中断：`classifyStructuredFailure === "transport"` 或 native 网络错误）与换号（同模型同安全策略，换号会原样再拒，烧掉整池会话）都对其无效，当前 fail-fast 已是正确行为，改动反而有害。重试设置本身工作正常，只是不覆盖这类错误。
+- **修的缺口**：Grok 的 403 一刀切 fail-closed——若 xAI 以 403 报配额（`quota/balance/payment/billing/insufficient` 文案），此前不轮换。已按 Kimi 403 订阅窗模式补拆分：`resolveAcpPromptRpcErrorMessage` 把 403+配额文案投影为 `Grok 额度已耗尽`，`isGrokPoolQuotaError` 经该投影自动覆盖（裸串形态同步覆盖），双 lane 轮换与回写零改动继承；拒绝原文（无配额词）原样透出、不 mark、不走。
+- **验证**：`session.test.ts` 新增 403 配额投影/拒绝透出用例、`poolQuota.test.ts` 加 Grok 403 分发用例；acp session + poolQuota 146 例、crafted/传统 failover 相关 204 例、`runtime.test.ts` 124 例全过；typecheck + lint PASS。
+- **用户侧**：若一直是 `permission-denied: I can't help…` 原文，说明模型在拒具体内容，重试/换号都救不了——看是哪个线程的哪类 prompt 触发；偶发一次时手动重发一次即可（人工重试等价）。
+
+## Crafted lane 号池自动轮换缺失修复（2026-09-20）
+
+- **用户报告**：Grok 号池自动轮换又坏了——7 个号 100% 耗尽、剩下可用号时，Manager 线程每次提交都直接报 `Grok 额度已耗尽`，不切号；1.3 最后一个版本正常。
+- **根因（crafted lane 从无 failover）**：Manager 线程 `fa585c8a…` 早在 09-19 16:34 就经切换进入 crafted lane（`runtime_segments` 有 active segment，`account_binding` 绑死号 order-3 `hernan.jiang03`），而 `sendThreadInput / resumeCraftAgent / craftAgent` 的 crafted 路径对配额错误只有 mark、无 rotation（`createCraftingAdapter` 不接受排除集，quota 直接同步抛出）。传统 lane（`ThreadSessionManager.tryPoolFailover`）一直有同回合轮换——用生产池形状（6 死 + 2 活）+ 真实重启链写的复现测试证明传统链完好，问题只在 crafted lane。另实锤 order-0（`poise.heman`，周额度 78%）在故障前后都在正常出推理，池子并非真空。
+- **修复（`supervisorRuntime`，与传统 lane 对齐语义）**：①新增 `runCraftedTurnWithPoolFailover`——grok/kimi/codex/antigravity 同回合轮换（tried 集合、6 次上限、已知死绑定跳过首试、`thread-pool-failover` 事件复用现有 toast、旧会话 terminate、segment 原位更新 binding 并重发 switch-state，跨重启 resume 经 `activeAccountBinding` 自动用新号）；第三方/`compatibility` 路线与鉴权失败保持 fail-closed；Stop 并发 epoch 守卫静默丢弃被竞态的回合。②`createCraftingAdapter` 新增 `excludedAccountIds` 直通 pool 调度。③`resumeCraftAgent` 重建分支：stored 死绑定（无 mode 的 stickiness，非用户 explicit）回退 pool 自动 + 全新会话（native ref 归属旧号故不可 resume），不再重启即砖。④resume 活会话 mismatch 校验容忍轮换漂移（tried 集合内视为已治愈）。⑤抽共用 `runtime/poolQuota.ts`（providers/上限/分发 matcher），传统 lane 改引它，零行为变化。⑥crafted adapter 只有 Grok 接了 `onPromptError`，helper 内对四家统一补回写（Kimi/Codex 死号此前在 crafted lane 永不标记）；调用方 catch 仅对 helper 已 mark 的同形 quota 错误跳过，避免 antigravity 宿主轮转调两次；Grok 原始 RPC 形错误投影为可读 banner（传统 lane 一致），cause 保留。
+- **验证**：新增 `craftedPoolFailover.test.ts` 9 例（跳死绑定直达活号、reactive 轮换、RPC 形、failed-TurnResult 形、全死走完两行才报错、非配额 fail-closed、resume 回退、漂移容忍、Stop 竞态静默）+ `poolQuota.test.ts` 6 例 + 传统 lane 生产形复现 4 例；`runtime.test.ts` 124 全过（含更新的 grok 首回合投影期望与既有 fence/mismatch 用例）；threadSession 24 文件 254 例、sessionHandoff/adapter 相关 196 例全过；`pnpm typecheck` + `pnpm lint`（oxlint/oxfmt）PASS。真实多号轮换待用户用 Manager 线程验收（应一切到 order-0 `poise.heman` 并 toast 通知）。
+- **用户侧注意**：修好的是轮换机制；6 个 100% 号仍需等周重置。order-0 为 X Premium+、order-1 为 Credits 号，若其 Build 余额也空则仍会诚实报错（此时轮换会走完两行再报）。
+
 ## Handoff（上下文切换）后 MCP 全部丢失修复（2026-09-20）
 
 - **用户报告**：切换模型/上下文续接后，新模型在同一会话里 MCP 全都不可用。

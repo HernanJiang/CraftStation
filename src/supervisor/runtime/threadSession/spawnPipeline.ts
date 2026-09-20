@@ -1017,9 +1017,20 @@ export class SpawnPipeline {
         session.presentationMode,
         // Sticky credential source: a session bound to a third-party account
         // re-enters the pool bypass on restart instead of the subscription pool.
-        session.poolProvider === "openai-compatible" && session.poolAccountId
-          ? { thirdPartyAccountId: session.poolAccountId }
-          : undefined,
+        // Channel failover overrides the sticky row with the next usable one;
+        // protocol flip keeps the row and rewrites the provider table type.
+        turn.nextThirdPartyAccountId || turn.nextThirdPartyProtocol
+          ? {
+              ...(turn.nextThirdPartyAccountId
+                ? { thirdPartyAccountId: turn.nextThirdPartyAccountId }
+                : {}),
+              ...(turn.nextThirdPartyProtocol
+                ? { thirdPartyProtocol: turn.nextThirdPartyProtocol }
+                : {}),
+            }
+          : session.poolProvider === "openai-compatible" && session.poolAccountId
+            ? { thirdPartyAccountId: session.poolAccountId }
+            : undefined,
         // Same-turn failover's tried set: never re-resolve onto an account
         // that already died this turn, even if its quota write-back hasn't
         // landed (or failed to land) yet.
@@ -2050,7 +2061,10 @@ export class SpawnPipeline {
     mcpIdentity: McpThreadIdentity | undefined,
     sessionRef?: SessionRef,
     presentationMode?: ThreadPresentationMode,
-    launchContext?: { thirdPartyAccountId?: string | undefined },
+    launchContext?: {
+      thirdPartyAccountId?: string | undefined;
+      thirdPartyProtocol?: "responses" | "chat_completions" | undefined;
+    },
     /**
      * Pool accounts to skip for this resolution (same-turn failover's tried
      * set). Fresh starts pass nothing; restarts pass the turn's tried ids so
@@ -2078,6 +2092,9 @@ export class SpawnPipeline {
         threadId,
         model: config.model,
         ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
+        ...(launchContext?.thirdPartyProtocol
+          ? { thirdPartyProtocol: launchContext.thirdPartyProtocol }
+          : {}),
         ...(excludedAccountIds?.length ? { excludedAccountIds: [...excludedAccountIds] } : {}),
       });
       const museCommandLocation = await this.resolveMuseCommandLocation(agentKind, projectLocation);

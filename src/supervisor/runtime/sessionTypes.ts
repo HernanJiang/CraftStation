@@ -41,6 +41,21 @@ export interface QueuedStructuredTurn {
   poolFailoverAttempt?: number;
   poolTriedAccountIds?: string[];
   /**
+   * Third-party channel override for the next resolution. Sticky
+   * third-party sessions re-resolve their recorded binding by default;
+   * pool failover sets this to the next usable channel so the restart
+   * rebuilds on the new credential instead of the dead one. Cleared by
+   * construction (fresh turn objects never carry it).
+   */
+  nextThirdPartyAccountId?: string;
+  /**
+   * Same-channel protocol-flip override (`responses` ↔ `chat_completions`)
+   * for the Kimi provider table. Set together with
+   * `nextThirdPartyAccountId` (naming the SAME channel) when the validated
+   * wire type 400s on the real workload — at most one flip per turn.
+   */
+  nextThirdPartyProtocol?: "responses" | "chat_completions";
+  /**
    * Craft-Harness retry chain state. Incremented each time this turn is
    * automatically replayed after a network/transport interruption; carried on
    * the turn object (like the failover chain) so the chain terminates at the

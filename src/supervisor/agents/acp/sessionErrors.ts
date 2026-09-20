@@ -205,6 +205,9 @@ export function resolveAcpPromptRpcErrorMessage(error: unknown): string {
     ) {
       return "Grok 额度已耗尽";
     }
+    if (httpStatus === 403 && GROK_QUOTA_FORBIDDEN_RE.test(providerMessage)) {
+      return "Grok 额度已耗尽";
+    }
     const detail =
       typeof data?.details === "string" && data.details.trim().length > 0
         ? data.details.trim()
@@ -244,16 +247,33 @@ export function isAcpPromptQuotaExhaustedError(error: unknown): boolean {
 }
 
 /**
+ * Wording that distinguishes a 403 quota/billing exhaustion from a genuine
+ * refusal or access denial. xAI may report a spent inference budget as
+ * `403 ... quota/balance/billing ...`, while content refusals
+ * ("permission-denied: I can't help with that request") and key problems
+ * carry no quota wording and must stay fail-closed: no retry, no pool walk
+ * — another account would refuse the identical prompt the same way.
+ */
+const GROK_QUOTA_FORBIDDEN_RE = /quota|balance|payment|billing|insufficient/i;
+
+/**
  * Pool-scheduling quota signal for Grok: the strict RPC shape above plus the
  * in-stream surfaced message (`agent_message_chunk` carrying "usage balance
- * exhausted", later mapped to "Grok 额度已耗尽"). Both must mark the bound
- * account exhausted and both may trigger same-turn pool failover — otherwise
- * a thread sticks to a dead account forever while usable pool accounts wait.
+ * exhausted", later mapped to "Grok 额度已耗尽"). A 403 carrying quota
+ * wording counts too (same split as Kimi's 403 subscription-window
+ * handling). Refusals and access denials without quota wording stay
+ * fail-closed. All shapes must mark the bound account exhausted and may
+ * trigger same-turn pool failover — otherwise a thread sticks to a dead
+ * account forever while usable pool accounts wait.
  */
 export function isGrokPoolQuotaError(error: unknown): boolean {
   if (isAcpPromptQuotaExhaustedError(error)) return true;
   const message = resolveAcpPromptRpcErrorMessage(error);
-  return message === "Grok 额度已耗尽" || /usage\s+balance\s+exhausted/i.test(message);
+  return (
+    message === "Grok 额度已耗尽" ||
+    /usage\s+balance\s+exhausted/i.test(message) ||
+    (/\b403\b/.test(message) && GROK_QUOTA_FORBIDDEN_RE.test(message))
+  );
 }
 
 /**

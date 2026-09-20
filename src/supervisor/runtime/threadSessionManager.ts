@@ -44,10 +44,14 @@ import {
   primeProjectShellEnv,
   resolveLaunchSpec,
 } from "../agents/base";
-import { isGrokPoolQuotaError, isKimiPoolQuotaError } from "../agents/acp/sessionErrors";
-import { isAntigravityQuotaError } from "../agents/antigravity/sessionErrors";
-import { isCodexPoolQuotaError } from "../agents/codex/sessionErrors";
 import { ensureNodePtySpawnHelperExecutable } from "../nodePty";
+import {
+  MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN,
+  POOL_FAILOVER_PROVIDERS,
+  isPoolQuotaErrorForProvider,
+  isThirdPartyProtocolFlipError,
+  thirdPartyFailureKind,
+} from "./poolQuota";
 import { BufferedLogWriter } from "./bufferedLogWriter";
 import type { QueuedStructuredTurn, SessionRuntime, ShellSessionRuntime } from "./sessionTypes";
 import { ThreadOutputPipeline, resolveThreadStatusSource } from "./threadOutputPipeline";
@@ -91,46 +95,6 @@ export { isUserInterruptKeystroke, USER_INTERRUPT_RECOVERY_GRACE_MS, writeSubmit
 export type { ThreadSessionManagerOptions };
 
 const RECENTLY_REMOVED_THREAD_LIMIT = 256;
-
-/**
- * Same-turn pool-failover budget: one turn may walk at most this many pool
- * accounts before the original quota error surfaces. Progress is normally
- * bounded earlier by the tried-account set (each attempt marks its account
- * exhausted); the cap only backstops pools whose marks never stick.
- */
-const MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN = 6;
-
-/**
- * Subscription pool providers whose quota exhaustion may trigger same-turn
- * failover. Third-party (`openai-compatible`) sessions never walk the pool:
- * their credential source is a single validated endpoint, not a pool
- * account. Auth failures stay fail-closed everywhere — only quota may move
- * a thread to the next row automatically.
- */
-const POOL_FAILOVER_PROVIDERS: ReadonlySet<string> = new Set([
-  "grok",
-  "kimi",
-  "codex",
-  "antigravity",
-]);
-
-/** Provider-dispatched pool-quota matcher for same-turn failover. */
-function isPoolQuotaError(provider: string, error: unknown): boolean {
-  switch (provider) {
-    case "grok":
-      return isGrokPoolQuotaError(error);
-    case "kimi":
-      return isKimiPoolQuotaError(error);
-    case "codex":
-      return isCodexPoolQuotaError(error);
-    case "antigravity": {
-      const message = error instanceof Error ? error.message : String(error ?? "");
-      return isAntigravityQuotaError(message);
-    }
-    default:
-      return false;
-  }
-}
 
 export class ThreadSessionManager {
   readonly sessions = new Map<string, SessionRuntime>();
@@ -392,11 +356,12 @@ export class ThreadSessionManager {
    * session whose bound account died earlier (or whose failover was declined)
    * would otherwise burn every new turn on the dead account. When the bound
    * account is no longer scheduler-usable, restart first — restartThread
-   * re-resolves via normal pool rules and replays the turn there. Returns
-   * true when a restart was kicked (the caller must not also start the turn
-   * on the old session). Never throws: any restart/resolution failure
-   * resolves to false so the turn falls through to the bound session and
-   * its failure surfaces honestly.
+   * re-resolves via normal pool rules and replays the turn there. Sticky
+   * third-party sessions pre-resolve the next usable channel instead of the
+   * subscription pool. Returns true when a restart was kicked (the caller
+   * must not also start the turn on the old session). Never throws: any
+   * restart/resolution failure resolves to false so the turn falls through
+   * to the bound session and its failure surfaces honestly.
    */
   private async restartForDeadPoolBinding(
     session: SessionRuntime,
@@ -404,12 +369,33 @@ export class ThreadSessionManager {
   ): Promise<boolean> {
     const accountId = session.poolAccountId;
     const provider = session.poolProvider;
-    // Ambient sessions (no pool binding) and sticky third-party sessions
-    // never walk the subscription pool.
-    if (!accountId || !provider || provider === "openai-compatible") return false;
+    // Ambient sessions (no pool binding) never walk any pool.
+    if (!accountId || !provider) return false;
     if (!session.sessionRef) return false;
     if (this.options.isPoolAccountUsable?.(provider, accountId) ?? true) return false;
     if (!this.isCurrentSession(session)) return false;
+    if (provider === "openai-compatible") {
+      // Sticky channels have no pool re-resolution: point the restart at the
+      // next usable channel up front instead of burning the turn on the dead
+      // row and relying on the reactive hop. A missing scheduler seam (or an
+      // empty catalog) falls through to the bound session; the reactive
+      // failover still covers request-time deaths.
+      if (!this.options.resolveNextThirdPartyAccount) return false;
+      const model = session.config.model?.trim();
+      if (model) {
+        try {
+          const next = await this.options.resolveNextThirdPartyAccount({
+            threadId: session.threadId,
+            model,
+            failedAccountId: accountId,
+            excludedAccountIds: [accountId],
+          });
+          if (next.accountId !== accountId) turn.nextThirdPartyAccountId = next.accountId;
+        } catch {
+          // Fall through below; the failure surfaces honestly.
+        }
+      }
+    }
     this.attachHistoryPreface(session, turn);
     try {
       await this.spawnPipeline.restartThread(session, turn);
@@ -574,8 +560,10 @@ export class ThreadSessionManager {
    * empty pool still surfaces the quota banner.
    *
    * Open to every subscription pool (grok/kimi/codex/antigravity) with a
-   * provider-dispatched quota matcher; third-party sessions and auth
-   * failures stay fail-closed.
+   * provider-dispatched quota matcher, plus sticky third-party
+   * (`openai-compatible`) channel sessions — those walk the channel catalog
+   * for the same model instead of a subscription pool. Auth failures stay
+   * fail-closed everywhere.
    *
    * Returns true when a rebuild was kicked (the caller must not also fail the
    * session); false to fall through to the normal failure path. Never throws:
@@ -587,13 +575,15 @@ export class ThreadSessionManager {
     turn: QueuedStructuredTurn,
     error: unknown,
   ): Promise<boolean> {
-    // Per-account isolated credential homes make a fresh session on the next
-    // account safe. Third-party sessions never walk the subscription pool:
-    // their credential source is a single validated endpoint, not a pool
-    // account.
-    if (!POOL_FAILOVER_PROVIDERS.has(session.agentKind)) return false;
-    if (session.poolProvider === "openai-compatible") return false;
-    if (!isPoolQuotaError(session.agentKind, error)) return false;
+    // Sticky third-party sessions never walk the subscription pool: their
+    // credential source is a validated channel endpoint, so they walk the
+    // channel catalog for the same model instead (see below).
+    const thirdPartyChannel = session.poolProvider === "openai-compatible";
+    if (!thirdPartyChannel && !POOL_FAILOVER_PROVIDERS.has(session.agentKind)) return false;
+    if (thirdPartyChannel) {
+      return this.tryThirdPartyChannelFailover(session, turn, error);
+    }
+    if (!isPoolQuotaErrorForProvider(session.agentKind, error)) return false;
     if (!this.isCurrentSession(session)) return false;
     // Sessions bound before pool adoption (or via ambient login) carry no
     // pool account id. When the provider HAS a usable pool row, resolve fresh
@@ -632,8 +622,7 @@ export class ThreadSessionManager {
     const landedAccountId = this.sessions.get(session.threadId)?.poolAccountId;
     console.log(
       `[account] pool failover: provider=${session.agentKind} thread=${session.threadId} attempt=${attempt} from=${failedAccountId} to=${landedAccountId ?? "unknown"}`,
-    );
-    // Success notice (not an error): the dead-account banner already
+    ); // Success notice (not an error): the dead-account banner already
     // painted in chat history, but the composer dock must not keep shouting
     // — the selector drops errors superseded by the follow-up answer, and
     // this toast tells the actual story (who died, who took over).
@@ -651,6 +640,158 @@ export class ThreadSessionManager {
         landedAccountId ||
         "",
     });
+    return true;
+  }
+
+  /**
+   * Same-turn channel failover for sticky third-party (`openai-compatible`)
+   * sessions — ChatGPT-via-relay and every other channel model. The
+   * subscription pool never sees these rows, so the turn walks the channel
+   * catalog for the same model instead: resolve the next usable channel
+   * (excluding every row that already died this turn), rebuild the session
+   * on its credential and replay the turn. Only a truthfully empty catalog
+   * still surfaces the channel error.
+   *
+   * Quota deaths rotate AND cool the row down; transient throttling (429)
+   * rotates within the turn but never marks the row. Auth denials, unknown
+   * models and bad requests never reach here (fail-closed in the matcher).
+   */
+  private async tryThirdPartyChannelFailover(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+    error: unknown,
+  ): Promise<boolean> {
+    const kind = thirdPartyFailureKind(error);
+    if (!kind) {
+      // Same-channel protocol flip (not a channel walk): a 400 means the
+      // channel is reachable and the credential works, but the wire type is
+      // wrong for this endpoint — e.g. Volcengine Ark coding rejects Kimi
+      // CLI's Responses payload while answering the same model over chat
+      // completions. Rewrite the provider table and replay on the SAME row.
+      return this.tryThirdPartyProtocolFlip(session, turn, error);
+    }
+    if (!this.isCurrentSession(session)) return false;
+    const failedAccountId = session.poolAccountId;
+    const model = session.config.model?.trim();
+    // Without a model id there is no channel catalog to walk, and without
+    // the scheduler seam the sticky source is the only credential.
+    if (!model || !this.options.resolveNextThirdPartyAccount) return false;
+    const tried = new Set([
+      ...(this.poolTriedByThread.get(session.threadId) ?? []),
+      ...(turn.poolTriedAccountIds ?? []),
+      ...(failedAccountId ? [failedAccountId] : []),
+    ]);
+    const attempt = (turn.poolFailoverAttempt ?? 0) + 1;
+    if (attempt > MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN) return false;
+    // Belt and braces with the harness onPromptError path: a quota death
+    // cools the channel down even when the harness never reported it, so
+    // the next submit skips the dead row instead of burning on it again.
+    // Rate-limiting never marks — it recovers on its own.
+    if (kind === "quota" && failedAccountId) {
+      try {
+        this.options.handleAccountPromptError?.({
+          provider: "openai-compatible",
+          accountId: failedAccountId,
+          error,
+        });
+      } catch {
+        // Bookkeeping must not replace the turn failure.
+      }
+    }
+    let nextAccountId: string;
+    try {
+      const resolved = await this.options.resolveNextThirdPartyAccount({
+        threadId: session.threadId,
+        model,
+        ...(failedAccountId ? { failedAccountId } : {}),
+        excludedAccountIds: [...tried],
+      });
+      nextAccountId = resolved.accountId;
+    } catch (resolveError) {
+      console.warn(
+        `[account] channel failover declined: provider=openai-compatible thread=${session.threadId} attempt=${attempt} from=${failedAccountId ?? "ambient"} reason=${resolveError instanceof Error ? resolveError.message : String(resolveError)}`,
+      );
+      return false;
+    }
+    turn.poolFailoverAttempt = attempt;
+    turn.poolTriedAccountIds = [...tried];
+    this.poolTriedByThread.set(session.threadId, tried);
+    turn.nextThirdPartyAccountId = nextAccountId;
+    this.attachHistoryPreface(session, turn);
+    try {
+      await this.spawnPipeline.restartThread(session, turn);
+    } catch (restartError) {
+      console.warn(
+        `[account] channel failover declined: provider=openai-compatible thread=${session.threadId} attempt=${attempt} from=${failedAccountId ?? "ambient"} reason=${restartError instanceof Error ? restartError.message : String(restartError)}`,
+      );
+      return false;
+    }
+    const landedAccountId = this.sessions.get(session.threadId)?.poolAccountId;
+    console.log(
+      `[account] channel failover: provider=openai-compatible thread=${session.threadId} attempt=${attempt} from=${failedAccountId} to=${landedAccountId ?? "unknown"}`,
+    );
+    const describe = this.options.describePoolAccount;
+    this.options.emit({
+      type: "thread-pool-failover",
+      threadId: session.threadId,
+      provider: session.poolProvider ?? session.agentKind,
+      fromAccount:
+        (failedAccountId && describe?.("openai-compatible", failedAccountId)) ||
+        failedAccountId ||
+        "ambient",
+      toAccount:
+        (landedAccountId && describe?.("openai-compatible", landedAccountId)) ||
+        landedAccountId ||
+        "",
+    });
+    return true;
+  }
+
+  /**
+   * Same-channel protocol flip for sticky third-party sessions. A 400-class
+   * failure with no model/auth wording means the channel and credential are
+   * fine but the validated wire type 400s on the real workload — flip the
+   * Kimi provider table to the other type (`responses` ↔ `chat_completions`)
+   * and replay on the SAME row. At most one flip per turn; a second 400 (or
+   * any other error) on the flipped session surfaces honestly. Deliberately
+   * quiet (log line only, no toast): the channel never changed, so there is
+   * no from→to story to tell.
+   */
+  private async tryThirdPartyProtocolFlip(
+    session: SessionRuntime,
+    turn: QueuedStructuredTurn,
+    error: unknown,
+  ): Promise<boolean> {
+    if (turn.nextThirdPartyProtocol) return false;
+    if (!isThirdPartyProtocolFlipError(error)) return false;
+    if (!this.isCurrentSession(session)) return false;
+    const failedAccountId = session.poolAccountId;
+    if (!failedAccountId) return false;
+    const current = this.options.getThirdPartyChannelProtocol?.(failedAccountId);
+    const flipped =
+      current === "responses"
+        ? ("chat_completions" as const)
+        : current === "chat_completions"
+          ? ("responses" as const)
+          : undefined;
+    if (!flipped) return false;
+    const attempt = (turn.poolFailoverAttempt ?? 0) + 1;
+    if (attempt > MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN) return false;
+    turn.poolFailoverAttempt = attempt;
+    turn.nextThirdPartyAccountId = failedAccountId;
+    turn.nextThirdPartyProtocol = flipped;
+    this.attachHistoryPreface(session, turn);
+    try {
+      await this.spawnPipeline.restartThread(session, turn);
+    } catch (restartError) {
+      console.warn(
+        `[account] channel protocol flip declined: provider=openai-compatible thread=${session.threadId} attempt=${attempt} account=${failedAccountId} from=${current} reason=${restartError instanceof Error ? restartError.message : String(restartError)}`,
+      );
+      return false;
+    }
+    console.log(
+      `[account] channel protocol flip: provider=openai-compatible thread=${session.threadId} attempt=${attempt} account=${failedAccountId} from=${current} to=${flipped}`,
+    );
     return true;
   }
 

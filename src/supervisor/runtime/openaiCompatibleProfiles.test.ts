@@ -349,4 +349,151 @@ describe("OpenAiCompatibleProfileService", () => {
       "glm-5.4": { name: "GLM 5.4" },
     });
   });
+
+  describe("channelAccountsServingModel", () => {
+    function seedChannel(
+      service: OpenAiCompatibleProfileService,
+      settingsPath: string,
+      providerName: string,
+      modelIds: string[],
+      protocol: "responses" | "chat_completions" = "responses",
+    ) {
+      const cacheDir = (service as unknown as { options: { cacheDir: string } }).options.cacheDir;
+      setUsageSecret(
+        cacheDir,
+        "openai-compatible:pending",
+        "baseUrl",
+        "https://relay.example.com/v1",
+      );
+      setUsageSecret(cacheDir, "openai-compatible:pending", "apiKey", "sk-test");
+      setUsageSecret(cacheDir, "openai-compatible:pending", "providerName", providerName);
+      setUsageSecret(cacheDir, "openai-compatible:pending", "model", modelIds[0] ?? "gpt-x");
+      setUsageSecret(cacheDir, "openai-compatible:pending", "validatedProtocol", protocol);
+      setUsageSecret(cacheDir, "openai-compatible:pending", "validatedAt", "1700000000000");
+      const account = service.importStaging();
+      const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
+        customModels: unknown[];
+      };
+      settings.customModels.push(
+        ...modelIds.map((modelId) => ({
+          id: `custom:codex:${account.accountId}:${modelId}`,
+          provider: "codex",
+          accountId: account.accountId,
+          modelId,
+          displayName: modelId,
+          contextSize: "",
+        })),
+      );
+      writeFileSync(settingsPath, JSON.stringify(settings));
+      return account;
+    }
+
+    function makeService() {
+      const cacheDir = makeCacheDir();
+      const store = new AccountStore(join(cacheDir, "accounts"));
+      const settingsPath = join(cacheDir, "settings.json");
+      writeFileSync(settingsPath, JSON.stringify({ customModels: [] }));
+      const service = new OpenAiCompatibleProfileService({ store, cacheDir, settingsPath });
+      return { service, store, settingsPath };
+    }
+
+    it("returns channel rows serving the model in pool order", () => {
+      const { service, store } = makeService();
+      const settingsPath = (service as unknown as { options: { settingsPath: string } }).options
+        .settingsPath;
+      const a = seedChannel(service, settingsPath, "Relay A", ["gpt-5.6-sol"]);
+      const b = seedChannel(service, settingsPath, "Relay B", ["gpt-5.6-sol", "glm-5.3-flash"]);
+      seedChannel(service, settingsPath, "Relay C", ["other-model"]);
+
+      expect(service.channelAccountsServingModel({ modelId: "gpt-5.6-sol" })).toEqual([
+        a.accountId,
+        b.accountId,
+      ]);
+      expect(service.channelAccountsServingModel({ modelId: "glm-5.3-flash" })).toEqual([
+        b.accountId,
+      ]);
+      expect(service.channelAccountsServingModel({ modelId: "missing" })).toEqual([]);
+      void store;
+    });
+
+    it("matches provider-prefixed model ids and skips excluded rows", () => {
+      const { service } = makeService();
+      const settingsPath = (service as unknown as { options: { settingsPath: string } }).options
+        .settingsPath;
+      const a = seedChannel(service, settingsPath, "Relay A", ["opencode-go/muse-spark-1.3"]);
+      const b = seedChannel(service, settingsPath, "Relay B", ["muse-spark-1.3"]);
+
+      expect(
+        service.channelAccountsServingModel({ modelId: "opencode-go/muse-spark-1.3" }),
+      ).toEqual([a.accountId, b.accountId]);
+      expect(service.channelAccountsServingModel({ modelId: "muse-spark-1.3" })).toEqual([
+        a.accountId,
+        b.accountId,
+      ]);
+      expect(
+        service.channelAccountsServingModel({
+          modelId: "muse-spark-1.3",
+          excludedAccountIds: [a.accountId],
+        }),
+      ).toEqual([b.accountId]);
+    });
+
+    it("enforces protocol agreement and skips unschedulable rows", () => {
+      const { service, store } = makeService();
+      const settingsPath = (service as unknown as { options: { settingsPath: string } }).options
+        .settingsPath;
+      const responses = seedChannel(service, settingsPath, "Relay R", ["gpt-5.6-sol"], "responses");
+      const chat = seedChannel(
+        service,
+        settingsPath,
+        "Relay C",
+        ["gpt-5.6-sol"],
+        "chat_completions",
+      );
+      const disabled = seedChannel(service, settingsPath, "Relay D", ["gpt-5.6-sol"]);
+      store.setEnabled(disabled.accountId, false);
+      const exhausted = seedChannel(service, settingsPath, "Relay E", ["gpt-5.6-sol"]);
+      store.updateStatus(exhausted.accountId, "quota-exhausted");
+
+      expect(
+        service.channelAccountsServingModel({ modelId: "gpt-5.6-sol", protocol: "responses" }),
+      ).toEqual([responses.accountId]);
+      expect(
+        service.channelAccountsServingModel({
+          modelId: "gpt-5.6-sol",
+          protocol: "chat_completions",
+        }),
+      ).toEqual([chat.accountId]);
+      // Unknown protocol on the caller side never filters.
+      expect(service.channelAccountsServingModel({ modelId: "gpt-5.6-sol" })).toEqual([
+        responses.accountId,
+        chat.accountId,
+      ]);
+    });
+
+    it("rewrites the Kimi provider table to the override wire type", () => {
+      const { service } = makeService();
+      const settingsPath = (service as unknown as { options: { settingsPath: string } }).options
+        .settingsPath;
+      const account = seedChannel(service, settingsPath, "Relay A", ["k3-256k"], "responses");
+
+      const cacheDir = (service as unknown as { options: { cacheDir: string } }).options.cacheDir;
+      const homeFor = () => {
+        const safeAccount = account.accountId.replace(/[^A-Za-z0-9._-]/g, "_");
+        const scoped = Buffer.from("k3-256k", "utf8").toString("base64url");
+        return join(cacheDir, "openai-compatible-kimi", safeAccount, scoped);
+      };
+
+      service.prepareVendorCompatRuntime(account.accountId, "kimi", "k3-256k");
+      expect(readFileSync(join(homeFor(), "config.toml"), "utf8")).toContain(
+        'type = "openai_responses"',
+      );
+
+      service.prepareVendorCompatRuntime(account.accountId, "kimi", "k3-256k", "chat_completions");
+      expect(readFileSync(join(homeFor(), "config.toml"), "utf8")).toContain('type = "openai"');
+      expect(readFileSync(join(homeFor(), "config.toml"), "utf8")).not.toContain(
+        "openai_responses",
+      );
+    });
+  });
 });
