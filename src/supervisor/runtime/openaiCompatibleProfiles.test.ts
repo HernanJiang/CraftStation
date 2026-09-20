@@ -115,7 +115,13 @@ describe("OpenAiCompatibleProfileService", () => {
     expect(refreshed.status).toBe("available");
     expect(refreshed.quotaWindows).toHaveLength(1);
     // 1250 美分 / (50 美元 × 100) = 25%。
-    expect(refreshed.quotaWindows?.[0]).toMatchObject({ label: "额度", usedPercent: 25 });
+    expect(refreshed.quotaWindows?.[0]).toMatchObject({
+      label: "额度",
+      usedPercent: 25,
+      used: 12.5,
+      limit: 50,
+      currency: "USD",
+    });
   });
 
   it("keeps an empty quota window (token-usage fallback) when billing endpoints are absent", async () => {
@@ -135,6 +141,129 @@ describe("OpenAiCompatibleProfileService", () => {
     const refreshed = await service.collectQuota(account.accountId, host);
     expect(refreshed.status).toBe("available");
     expect(refreshed.quotaWindows).toEqual([]);
+  });
+
+  function seedStepfun(cacheDir: string): void {
+    seedStaging(cacheDir, "阶越星辰");
+    // The plan-scoped inference root carries extra path segments; the balance
+    // endpoint lives at the API origin regardless.
+    setUsageSecret(
+      cacheDir,
+      "openai-compatible:pending",
+      "baseUrl",
+      "https://api.stepfun.com/step_plan/v1",
+    );
+  }
+
+  function stepfunHost(accountBody: unknown, requested: string[] = []): HostPort {
+    return hostWith((url) => {
+      requested.push(url);
+      if (url.endsWith("/models")) {
+        return { status: 200, headers: {}, body: JSON.stringify({ data: [] }) };
+      }
+      if (url === "https://api.stepfun.com/v1/accounts") {
+        return { status: 200, headers: {}, body: JSON.stringify(accountBody) };
+      }
+      return { status: 404, headers: {}, body: "" };
+    });
+  }
+
+  it("collectQuota folds a StepFun prepaid balance into a real quota window", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStepfun(cacheDir);
+    const account = service.importStaging();
+
+    const requested: string[] = [];
+    const host = stepfunHost(
+      {
+        object: "account",
+        type: "prepaid",
+        balance: 3,
+        total_cash_balance: 0,
+        total_voucher_balance: 15,
+      },
+      requested,
+    );
+    const refreshed = await service.collectQuota(account.accountId, host);
+
+    expect(requested).toContain("https://api.stepfun.com/v1/accounts");
+    expect(refreshed.status).toBe("available");
+    expect(refreshed.quotaWindows).toHaveLength(1);
+    expect(refreshed.quotaWindows?.[0]).toMatchObject({
+      id: "balance",
+      label: "余额",
+      usedPercent: 80,
+      remaining: 3,
+      limit: 15,
+      used: 12,
+      currency: "CNY",
+    });
+  });
+
+  it("marks a prepaid StepFun account quota-exhausted when the balance hits zero", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStepfun(cacheDir);
+    const account = service.importStaging();
+
+    const refreshed = await service.collectQuota(
+      account.accountId,
+      stepfunHost({
+        type: "prepaid",
+        balance: 0,
+        total_cash_balance: 0,
+        total_voucher_balance: 15,
+      }),
+    );
+    expect(refreshed.status).toBe("quota-exhausted");
+    expect(refreshed.quotaWindows?.[0]).toMatchObject({ usedPercent: 100, remaining: 0 });
+  });
+
+  it("never marks a postpaid StepFun account exhausted on a zero balance", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStepfun(cacheDir);
+    const account = service.importStaging();
+
+    const refreshed = await service.collectQuota(
+      account.accountId,
+      stepfunHost({
+        type: "postpaid",
+        balance: 0,
+        total_cash_balance: 0,
+        total_voucher_balance: 0,
+      }),
+    );
+    expect(refreshed.status).toBe("available");
+    expect(refreshed.quotaWindows?.[0]).toMatchObject({ remaining: 0, currency: "CNY" });
+    expect(refreshed.quotaWindows?.[0]?.limit).toBeUndefined();
+  });
+
+  it("does not probe provider-specific endpoints for non-StepFun hosts", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Relay A");
+    const account = service.importStaging();
+
+    const requested: string[] = [];
+    const refreshed = await service.collectQuota(
+      account.accountId,
+      hostWith((url) => {
+        requested.push(url);
+        if (url.endsWith("/models")) {
+          return { status: 200, headers: {}, body: JSON.stringify({ data: [] }) };
+        }
+        return { status: 404, headers: {}, body: "" };
+      }),
+    );
+
+    expect(refreshed.status).toBe("available");
+    expect(requested.some((url) => url.includes("/v1/accounts"))).toBe(false);
   });
 
   it("marks the row auth-expired when the relay rejects the key", async () => {

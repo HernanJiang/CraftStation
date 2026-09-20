@@ -33,7 +33,17 @@ export interface AccountQuotaWindow {
   id: string;
   label: string;
   usedPercent: number;
-  resetsAt?: number;
+  resetsAt?: number | undefined;
+  /**
+   * Optional absolute amounts for balance-style providers (e.g. StepFun
+   * prepaid `balance`/`total_*` from `/v1/accounts`): `remaining` is the
+   * currently spendable amount, `limit` the total granted credit, `used`
+   * the consumed amount — all in `currency` (ISO 4217, e.g. "CNY").
+   */
+  used?: number | undefined;
+  limit?: number | undefined;
+  remaining?: number | undefined;
+  currency?: string | undefined;
 }
 
 export const providerPoolConfigSchema = z.object({
@@ -71,6 +81,11 @@ export const accountViewSchema = z.object({
         label: z.string(),
         usedPercent: z.number().min(0).max(100),
         resetsAt: z.number().int().nonnegative().optional(),
+        /** Absolute balance amounts (see AccountQuotaWindow). */
+        used: z.number().nonnegative().optional(),
+        limit: z.number().nonnegative().optional(),
+        remaining: z.number().optional(),
+        currency: z.string().max(8).optional(),
       }),
     )
     .optional(),

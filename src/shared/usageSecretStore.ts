@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import {
@@ -60,9 +60,28 @@ function readAll(path: string): SecretsFile {
 
 function writeAll(path: string, data: SecretsFile): void {
   mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp`;
+  // Unique tmp name: the main and supervisor processes both write this file
+  // (cookie capture, server-id cache, quota secrets), and a shared `.tmp`
+  // suffix lets one writer rename the other's scratch file away mid-write.
+  const tmp = `${path}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, JSON.stringify(data), { encoding: "utf8", mode: 0o600 });
-  renameSync(tmp, path);
+  // Windows rename-over-existing can return EPERM/EBUSY when an AV scanner or
+  // the other process briefly holds the destination — a short bounded retry
+  // resolves the transient lock; other platforms succeed on the first pass.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      renameSync(tmp, path);
+      return;
+    } catch (error) {
+      lastError = error;
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EPERM" && code !== "EBUSY" && code !== "EEXIST") break;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+    }
+  }
+  rmSync(tmp, { force: true });
+  throw lastError;
 }
 
 function readOrCreateDurableKey(cacheDir: string): Buffer {
@@ -83,7 +102,12 @@ function readOrCreateDurableKey(cacheDir: string): Buffer {
   return key;
 }
 
-function writeDurableSecret(cacheDir: string, providerId: string, key: string, plaintext: string): void {
+function writeDurableSecret(
+  cacheDir: string,
+  providerId: string,
+  key: string,
+  plaintext: string,
+): void {
   const path = usageDurableSecretsPath(cacheDir);
   const data = readAll(path);
   const bucket = { ...(data[providerId] ?? {}) };
@@ -102,7 +126,12 @@ function readDurableSecret(cacheDir: string, providerId: string, key: string): s
   }
 }
 
-function writePrimarySecret(cacheDir: string, providerId: string, key: string, plaintext: string): void {
+function writePrimarySecret(
+  cacheDir: string,
+  providerId: string,
+  key: string,
+  plaintext: string,
+): void {
   const path = usageSecretsPath(cacheDir);
   const data = readAll(path);
   const bucket = { ...(data[providerId] ?? {}) };

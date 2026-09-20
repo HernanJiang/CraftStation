@@ -1,3 +1,10 @@
+## 第三方渠道真实额度条：StepFun 余额探测 + 号池卡片渲染（2026-09-21）
+
+- **实测结果**：阶跃星辰 `GET {origin}/v1/accounts` 返回真实余额（`type: prepaid/postpaid`、`balance` 可用余额、`total_cash_balance` 累计充值、`total_voucher_balance` 累计赠送）——本机账号实测 `balance=15 / granted=15`。Chiral（Sub2API 网关）sk- key 无权查用户额度接口（401 INVALID_TOKEN）；火山方舟推理端点无余额 API（套餐额度需 AK/SK 走 `volcengine` provider 的签名 OpenAPI）——两者保持 Token 行，不造假。
+- **实现**：`collectQuota` 改为探测链——先 host 匹配的 provider 真实余额端点（`probeStepfunQuota`，`api.stepfun.com/.ai` → `{origin}/v1/accounts`，baseUrl 带 `/step_plan/v1` 等段也能解析），再退回既有 one-api `/dashboard/billing/*`；`AccountQuotaWindow` 扩 `used/limit/remaining/currency` 可选字段（zod optional，旧数据兼容）。StepFun prepaid `balance<=0` 标 `quota-exhausted`（权威零余额，非 % 猜测）；postpaid 零余额不标记（后付费可合法透支）。`AccountQuotaCard` 的 openai-compatible 分支原先完全抑制额度条，现渲染真实窗口条 + "余额 ¥15.00 / 共 ¥15.00" 金额文本；无额度渠道保持纯 Token 行不显示噪音错误。
+- **稳定性**：`usageSecretStore.writeAll` 修复 Windows 偶发 EPERM rename——tmp 文件名带 pid+随机后缀（主进程与 supervisor 并发写同文件不再互踩），rename 对 EPERM/EBUSY/EEXIST 做有界重试。
+- **验证**：supervisor 新增 4 例（prepaid 折算/quota-exhausted/postpaid 不耗尽/非 StepFun host 不探测）+ one-api 窗口新增金额字段断言；卡片新增 2 例（余额条+金额、无额度纯 Token 行）；76 测试全过；**真机 live 验证**——真实 `collectQuota` 打 `api.stepfun.com/v1/accounts` 返回 `余额 usedPercent=0 remaining=15 limit=15 CNY`。typecheck + lint PASS。
+
 ## 端到端稳定性修复批：文件链接回归 + Harness 加载 + OpenCode 用量自愈 + Schedule MCP 参数解包（2026-09-20）
 
 - **范围**：聊天文件/artifact 链接点击、合成台 Harness/CLI 面板加载、渠道模型编辑、OpenCode 用量与凭证持久化、全部内置 MCP 入口的结构化参数兼容。

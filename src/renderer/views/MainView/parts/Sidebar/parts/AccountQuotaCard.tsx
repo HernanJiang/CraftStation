@@ -1,4 +1,5 @@
 import type { AccountView, UsageSnapshot } from "@/shared/contracts";
+import { formatMoney } from "@/renderer/components/providers/usageFormat";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import type { AccountUsageQueryState } from "./AccountUsageGrid";
 import { accountQuotaFailureMessage, hasAccountQuotaValue } from "./AccountUsageGrid";
@@ -34,6 +35,10 @@ type QuotaWindowLike = {
   label: string;
   usedPercent: number;
   resetsAt?: number | undefined;
+  /** Absolute balance amounts for currency-reporting providers (e.g. StepFun). */
+  remaining?: number | undefined;
+  limit?: number | undefined;
+  currency?: string | undefined;
 };
 
 function resolveQuotaWindows<T extends QuotaWindowLike>(
@@ -221,13 +226,54 @@ export function AccountQuotaCard(props: {
         : isTokenLoading
           ? "加载中"
           : "—";
+    // 渠道能拿到真实额度（如阶跃 /v1/accounts 余额、one-api 中转 billing）就
+    // 渲染额度条；拿不到时保持纯 Token 行，不造假装满的窗口。
+    const compatRows = hasQuota && !statusFailure ? quotaRows(windows) : [];
+    const balanceWindow = compatRows.find(
+      (window) => window.remaining !== undefined && window.currency,
+    );
+    const metaBits: string[] = [];
+    if (balanceWindow?.remaining !== undefined && balanceWindow.currency) {
+      const remaining = formatMoney(balanceWindow.remaining, balanceWindow.currency);
+      const limit =
+        balanceWindow.limit !== undefined
+          ? ` / 共 ${formatMoney(balanceWindow.limit, balanceWindow.currency)}`
+          : "";
+      metaBits.push(`余额 ${remaining}${limit}`);
+    } else if (compatRows.length > 0) {
+      metaBits.push(formatWindowResetParts(compatRows));
+    }
+    metaBits.push(`总用量 ${totalLabel} · 输入 ${tokenInputLabel} · 输出 ${tokenOutputLabel}`);
+    // Only surface real failures (auth/connectivity/exhaustion) — a channel
+    // that simply has no quota endpoint must not spam "暂无可用额度数据"
+    // beside the tokens. quota-exhausted is excluded from `statusFailure`
+    // above so its bar still renders at 100%; pull its message directly.
+    const compatFailure =
+      statusFailure || queryState?.quota === "error"
+        ? failureText
+        : account.status === "quota-exhausted"
+          ? accountQuotaFailureMessage(account)
+          : null;
     return (
       <div data-testid={"account-quota-card-" + account.accountId} className="space-y-2">
+        {compatRows.map((window) => (
+          <UsageBar
+            key={window.id}
+            label={deriveWindowLabel(window)}
+            value={Number.isFinite(window.usedPercent) ? window.usedPercent : null}
+          />
+        ))}
         <p
           data-testid={"account-meta-" + account.accountId}
           className="text-[10px] leading-relaxed text-neutral-500"
         >
-          {`总用量 ${totalLabel} · 输入 ${tokenInputLabel} · 输出 ${tokenOutputLabel}`}
+          {metaBits.join(" · ")}
+          {compatFailure ? (
+            <>
+              <span className="mx-1">·</span>
+              <span className="text-amber-300/80">{compatFailure}</span>
+            </>
+          ) : null}
         </p>
       </div>
     );

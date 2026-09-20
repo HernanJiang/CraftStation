@@ -83,6 +83,39 @@ describe("AccountQuotaCard openai-compatible", () => {
       "总用量 1.5k · 输入 1.2k · 输出 340",
     );
   });
+
+  it("renders a real balance bar and amounts when the provider reports one", () => {
+    // StepFun-style prepaid balance: ¥3 remaining of ¥15 granted → 80% used.
+    const account = compatibleAccount({
+      quotaWindows: [
+        {
+          id: "balance",
+          label: "余额",
+          usedPercent: 80,
+          remaining: 3,
+          limit: 15,
+          used: 12,
+          currency: "CNY",
+        },
+      ],
+    });
+    render(<AccountQuotaCard account={account} />);
+    expect(screen.getByRole("progressbar", { name: "余额" })).toHaveAttribute(
+      "aria-valuenow",
+      "80",
+    );
+    const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
+    expect(meta).toHaveTextContent("余额");
+    expect(meta).toHaveTextContent("总用量");
+    // No fake reset countdown for a balance window.
+    expect(meta).not.toHaveTextContent("恢复时间未知");
+  });
+
+  it("keeps the token-only row when the channel reports no quota", () => {
+    render(<AccountQuotaCard account={compatibleAccount({ quotaWindows: [] })} />);
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.getByTestId("account-meta-openai-compatible:chiral")).toHaveTextContent("总用量");
+  });
 });
 
 describe("ProviderQuotaCard connect action", () => {

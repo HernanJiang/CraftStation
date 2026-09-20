@@ -669,52 +669,149 @@ export class OpenAiCompatibleProfileService {
       });
     }
 
-    // 额度探测（可选中转端点）：subscription 给额度上限，usage 给已用（美分）。
-    let usedPercent: number | undefined;
-    let resetsAt: number | undefined;
-    const start = new Date();
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + 1);
-    const fmt = (date: Date): string => date.toISOString().slice(0, 10);
-    const subscription = await requestJson(
-      `${bundle.baseUrl}/dashboard/billing/subscription`,
-    ).catch(() => undefined);
-    const usage = await requestJson(
-      `${bundle.baseUrl}/dashboard/billing/usage?start_date=${fmt(start)}&end_date=${fmt(end)}`,
-    ).catch(() => undefined);
-    if (subscription && typeof subscription === "object" && usage && typeof usage === "object") {
-      const limit =
-        numeric((subscription as Record<string, unknown>).system_hard_limit_usd) ??
-        numeric((subscription as Record<string, unknown>).hard_limit_usd);
-      const totalUsage = numeric((usage as Record<string, unknown>).total_usage);
-      if (limit !== undefined && limit > 0 && totalUsage !== undefined) {
-        usedPercent = Math.min(100, Math.max(0, (totalUsage / (limit * 100)) * 100));
-      }
-      const accessUntil = numeric((subscription as Record<string, unknown>).access_until);
-      if (accessUntil !== undefined && accessUntil > 0) {
-        resetsAt = accessUntil * (accessUntil < 1e12 ? 1000 : 1);
-      }
-    }
+    // 额度探测：先走 provider 真实余额端点（按 host 匹配，如阶跃星辰
+    // /v1/accounts），再退回 one-api/new-api 风格中转 billing 端点；都拿不到
+    // 就留空窗口，卡片回退显示精确 Token 用量。
+    const probe = await probeProviderQuota(bundle.baseUrl, requestJson);
+    const quotaWindows = probe?.windows ?? [];
 
-    const status = usedPercent !== undefined && usedPercent >= 90 ? "quota-low" : "available";
+    const status =
+      probe?.exhausted === true
+        ? "quota-exhausted"
+        : quotaWindows.some((window) => window.usedPercent >= 90)
+          ? "quota-low"
+          : "available";
     const updated = this.options.store.updateStatus(accountId, status, {
       lastQuotaAt: Date.now(),
     });
-    const quotaWindows =
-      usedPercent !== undefined
-        ? [
-            {
-              id: "monthly",
-              label: "额度",
-              usedPercent,
-              ...(resetsAt !== undefined ? { resetsAt } : {}),
-            },
-          ]
-        : [];
     return this.options.store.updateQuota(accountId, quotaWindows) ?? withMetadata ?? updated;
   }
+}
+
+/**
+ * One quota probe result for a compatible channel: renderer-ready windows plus
+ * an optional `exhausted` flag for providers that report an authoritative
+ * spendable balance of zero (a real "cannot spend" signal, not a %-guess).
+ */
+interface CompatQuotaProbeResult {
+  windows: AccountView["quotaWindows"];
+  exhausted?: boolean;
+}
+
+type CompatQuotaRequestJson = (url: string) => Promise<unknown | "auth-rejected" | "unavailable">;
+
+/**
+ * 阶跃星辰 StepFun account balance. The OpenAI-compatible inference root may
+ * carry extra path segments (`/step_plan/v1`), but the documented balance
+ * endpoint always lives at `{origin}/v1/accounts` on the API host
+ * (api.stepfun.com / api.stepfun.ai).
+ * Response: `{ type: "prepaid"|"postpaid", balance, total_cash_balance,
+ * total_voucher_balance }` — `balance` is the currently spendable amount
+ * (CNY), the totals are cumulative granted credit.
+ */
+async function probeStepfunQuota(
+  baseUrl: string,
+  requestJson: CompatQuotaRequestJson,
+): Promise<CompatQuotaProbeResult | "not-stepfun" | undefined> {
+  let origin: string;
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.host !== "api.stepfun.com" && parsed.host !== "api.stepfun.ai") {
+      return "not-stepfun";
+    }
+    origin = parsed.origin;
+  } catch {
+    return "not-stepfun";
+  }
+  const body = await requestJson(`${origin}/v1/accounts`);
+  if (body === "auth-rejected" || body === "unavailable" || typeof body !== "object" || !body) {
+    return undefined;
+  }
+  const record = body as Record<string, unknown>;
+  const balance = numeric(record.balance);
+  if (balance === undefined) return undefined;
+  const granted =
+    (numeric(record.total_cash_balance) ?? 0) + (numeric(record.total_voucher_balance) ?? 0);
+  const type = typeof record.type === "string" ? record.type : undefined;
+  const usedPercent = granted > 0 ? Math.min(100, Math.max(0, (1 - balance / granted) * 100)) : 0;
+  const window = {
+    id: "balance",
+    label: "余额",
+    usedPercent,
+    remaining: balance,
+    ...(granted > 0 ? { limit: granted, used: Math.max(0, granted - balance) } : {}),
+    currency: "CNY",
+  };
+  // A prepaid account with zero spendable balance is truly exhausted — that is
+  // a provider-stated fact, unlike a percent estimate. Postpaid balances can
+  // legitimately run at/below zero mid-cycle, so only prepaid zeroes mark the
+  // row exhausted; anything else just degrades to quota-low at ≥90%.
+  const exhausted = balance <= 0 && type !== "postpaid";
+  return { windows: [window], ...(exhausted ? { exhausted: true } : {}) };
+}
+
+/**
+ * one-api / new-api style relay billing: `subscription` gives the quota cap,
+ * `usage` the month's consumed cents. Returns undefined when the relay does
+ * not implement these endpoints.
+ */
+async function probeOneApiQuota(
+  baseUrl: string,
+  requestJson: CompatQuotaRequestJson,
+): Promise<CompatQuotaProbeResult | undefined> {
+  const start = new Date();
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+  const fmt = (date: Date): string => date.toISOString().slice(0, 10);
+  const subscription = await requestJson(`${baseUrl}/dashboard/billing/subscription`).catch(
+    () => undefined,
+  );
+  const usage = await requestJson(
+    `${baseUrl}/dashboard/billing/usage?start_date=${fmt(start)}&end_date=${fmt(end)}`,
+  ).catch(() => undefined);
+  if (!subscription || typeof subscription !== "object" || !usage || typeof usage !== "object") {
+    return undefined;
+  }
+  const limit =
+    numeric((subscription as Record<string, unknown>).system_hard_limit_usd) ??
+    numeric((subscription as Record<string, unknown>).hard_limit_usd);
+  const totalUsage = numeric((usage as Record<string, unknown>).total_usage);
+  if (limit === undefined || limit <= 0 || totalUsage === undefined) return undefined;
+  const usedUsd = totalUsage / 100;
+  const resetsAtRaw = numeric((subscription as Record<string, unknown>).access_until);
+  const resetsAt =
+    resetsAtRaw !== undefined && resetsAtRaw > 0
+      ? resetsAtRaw * (resetsAtRaw < 1e12 ? 1000 : 1)
+      : undefined;
+  return {
+    windows: [
+      {
+        id: "monthly",
+        label: "额度",
+        usedPercent: Math.min(100, Math.max(0, (usedUsd / limit) * 100)),
+        used: usedUsd,
+        limit,
+        currency: "USD",
+        ...(resetsAt !== undefined ? { resetsAt } : {}),
+      },
+    ],
+  };
+}
+
+/**
+ * Provider-specific balance endpoints first (host-matched — more authoritative
+ * than relay billing), then the generic one-api/new-api probe. A probe that
+ * matched but returned nothing must not mask the generic fallback.
+ */
+async function probeProviderQuota(
+  baseUrl: string,
+  requestJson: CompatQuotaRequestJson,
+): Promise<CompatQuotaProbeResult | undefined> {
+  const stepfun = await probeStepfunQuota(baseUrl, requestJson);
+  if (stepfun !== "not-stepfun" && stepfun !== undefined) return stepfun;
+  return probeOneApiQuota(baseUrl, requestJson);
 }
 
 function numeric(value: unknown): number | undefined {
