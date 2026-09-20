@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentStatus } from "@/shared/contracts";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
@@ -230,37 +230,35 @@ describe("ModelManagementPage bulk model visibility", () => {
       },
     });
     try {
-    useCraftingWorkbenchStore.setState({
-      recipes: [
-        {
-          id: "recipe:harness:codex:agent:codex:gpt-5",
-          version: "1.0.0",
-          systemName: "Codex Harness · GPT-5",
-          modelEntryRef: "agent:codex:gpt-5",
-          harnessRef: "harness:codex",
-          compatibility: { uiStatus: "NATIVE" },
-          createdAt: "2026-01-01T00:00:00.000Z",
-          updatedAt: "2026-01-01T00:00:00.000Z",
-        },
-      ],
-    });
+      useCraftingWorkbenchStore.setState({
+        recipes: [
+          {
+            id: "recipe:harness:codex:agent:codex:gpt-5",
+            version: "1.0.0",
+            systemName: "Codex Harness · GPT-5",
+            modelEntryRef: "agent:codex:gpt-5",
+            harnessRef: "harness:codex",
+            compatibility: { uiStatus: "NATIVE" },
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      });
 
-    renderPage();
-    fireEvent.click(
-      within(screen.getByTestId("model-channel-rail")).getByRole("button", { name: /我的配方/u }),
-    );
+      renderPage();
+      fireEvent.click(
+        within(screen.getByTestId("model-channel-rail")).getByRole("button", { name: /我的配方/u }),
+      );
 
-    const rows = within(screen.getByTestId("recipe-rows"));
-    const checkbox = rows.getByRole("checkbox");
-    expect(checkbox).toHaveAttribute("aria-checked", "false");
-    fireEvent.click(checkbox);
-    expect(
-      useCraftingWorkbenchStore.getState().recipes[0]?.homepageVisible,
-    ).toBe(true);
-    // 右名单出现该配方。
-    expect(
-      within(screen.getByTestId("model-roster-panel")).getByText("Codex Harness · GPT-5"),
-    ).toBeInTheDocument();
+      const rows = within(screen.getByTestId("recipe-rows"));
+      const checkbox = rows.getByRole("checkbox");
+      expect(checkbox).toHaveAttribute("aria-checked", "false");
+      fireEvent.click(checkbox);
+      expect(useCraftingWorkbenchStore.getState().recipes[0]?.homepageVisible).toBe(true);
+      // 右名单出现该配方。
+      expect(
+        within(screen.getByTestId("model-roster-panel")).getByText("Codex Harness · GPT-5"),
+      ).toBeInTheDocument();
     } finally {
       useCraftingWorkbenchStore.setState({ recipes: [] });
       if (previousBridge === undefined) {
@@ -313,5 +311,126 @@ describe("ModelManagementPage bulk model visibility", () => {
     expect(
       within(screen.getByTestId("model-channel-rail")).getByText("Antigravity"),
     ).toBeInTheDocument();
+  });
+
+  it("turns a hanging model-list fetch into a retryable error instead of a stuck spinner", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveFetch!: (value: { models: string[] }) => void;
+      const listChannelModels = vi.fn<() => Promise<{ models: string[] }>>(
+        () =>
+          new Promise<{ models: string[] }>((resolve) => {
+            resolveFetch = resolve;
+          }),
+      );
+      Object.assign(window, {
+        craftstation: { ...(window.craftstation ?? {}), listChannelModels },
+      });
+      renderPage({
+        accounts: [
+          {
+            accountId: "openai-compatible:stepfun",
+            provider: "openai-compatible",
+            label: "StepFun",
+            providerAccountId: "StepFun",
+            createdAt: 1,
+            enabled: true,
+            selected: false,
+            order: 0,
+            status: "available",
+            credentialScopeRef: "managed:stepfun",
+          },
+        ],
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /StepFun/u }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByText(/正在获取模型列表/u)).toBeInTheDocument();
+
+      // The upstream never answers: after the client timeout the spinner must
+      // give way to an error plus a reachable retry action.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_001);
+      });
+      expect(screen.getByText(/获取模型列表超时/u)).toBeInTheDocument();
+      const retry = screen.getByRole("button", { name: /获取 StepFun 上游可用模型列表/u });
+      listChannelModels.mockResolvedValueOnce({ models: ["step-5-preview"] });
+      fireEvent.click(retry);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByText("step-5-preview")).toBeInTheDocument();
+      expect(resolveFetch).toBeDefined();
+      delete (window as unknown as { craftstation?: unknown }).craftstation;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("edits a channel model's context, modalities and effort tiers in place", async () => {
+    const customModels: CustomModel[] = [
+      {
+        id: "openai-compatible:kimi-k2.8-preview",
+        provider: "kimi",
+        accountId: "openai-compatible:ark",
+        channelLabel: "Volcengine Ark",
+        modelId: "kimi-k2.8-preview",
+        displayName: "kimi-k2.8-preview",
+        contextSize: "1000000",
+        efforts: ["low", "high", "max"],
+        defaultEffort: "high",
+      },
+    ];
+    const onUpdateCustomModels = vi.fn<(next: CustomModel[]) => void>();
+    const listChannelModels = vi
+      .fn<() => Promise<{ models: string[] }>>()
+      .mockResolvedValue({ models: [] });
+    Object.assign(window, {
+      craftstation: { ...(window.craftstation ?? {}), listChannelModels },
+    });
+    try {
+      renderPage({
+        customModels,
+        onUpdateCustomModels,
+        accounts: [
+          {
+            accountId: "openai-compatible:ark",
+            provider: "openai-compatible",
+            label: "Volcengine Ark",
+            providerAccountId: "Volcengine Ark",
+            createdAt: 1,
+            enabled: true,
+            selected: false,
+            order: 0,
+            status: "available",
+            credentialScopeRef: "managed:ark",
+          },
+        ],
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Volcengine Ark/u }));
+      const row = await screen.findByTestId("custom-model-openai-compatible:kimi-k2.8-preview");
+      fireEvent.click(within(row).getByRole("button", { name: /配置 kimi-k2.8-preview/u }));
+
+      const contextInput = within(row).getByLabelText("上下文窗口") as HTMLInputElement;
+      fireEvent.change(contextInput, { target: { value: "2000000" } });
+      expect(onUpdateCustomModels).toHaveBeenLastCalledWith([
+        expect.objectContaining({ modelId: "kimi-k2.8-preview", contextSize: "2000000" }),
+      ]);
+
+      const tiersInput = within(row).getByLabelText("思考强度档位") as HTMLInputElement;
+      fireEvent.change(tiersInput, { target: { value: "low, high, max, ultra" } });
+      fireEvent.blur(tiersInput);
+      expect(onUpdateCustomModels).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          modelId: "kimi-k2.8-preview",
+          efforts: ["low", "high", "max", "ultra"],
+        }),
+      ]);
+    } finally {
+      delete (window as unknown as { craftstation?: unknown }).craftstation;
+    }
   });
 });

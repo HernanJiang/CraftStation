@@ -29,7 +29,8 @@ export interface CustomModelDialogValues {
   defaultEffort: string;
 }
 
-function ModalityGroup(props: {
+/** 复用给「管理模型」页的行内编辑：同一套模态选项与交互。 */
+export function ModalityGroup(props: {
   legend: string;
   values: string[];
   locked?: readonly string[];
@@ -185,8 +186,17 @@ export function CustomModelDialog(props: {
                 placeholder={DEFAULT_MODEL_MAX_OUTPUT_TOKENS}
               />
             </TextField>
-            <ModalityGroup legend="输入类型" values={inputModalities} locked={["text"]} onChange={setInputModalities} />
-            <ModalityGroup legend="输出类型" values={outputModalities} onChange={setOutputModalities} />
+            <ModalityGroup
+              legend="输入类型"
+              values={inputModalities}
+              locked={["text"]}
+              onChange={setInputModalities}
+            />
+            <ModalityGroup
+              legend="输出类型"
+              values={outputModalities}
+              onChange={setOutputModalities}
+            />
             <div>
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="text-xs text-neutral-400">思考强度档位（逗号分隔，手写）</span>
@@ -234,7 +244,9 @@ export function CustomModelDialog(props: {
             {props.onFetchUpstreamModels ? (
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="text-xs text-neutral-400">上游模型（精确 id，避免手写错位）</span>
+                  <span className="text-xs text-neutral-400">
+                    上游模型（精确 id，避免手写错位）
+                  </span>
                   <button
                     type="button"
                     onClick={() => void fetchUpstream()}
@@ -275,7 +287,13 @@ export function CustomModelDialog(props: {
             ) : null}
           </Modal.Body>
           <Modal.Footer>
-            <Button slot="close" variant="ghost" size="sm" className="text-muted" onPress={props.onCancel}>
+            <Button
+              slot="close"
+              variant="ghost"
+              size="sm"
+              className="text-muted"
+              onPress={props.onCancel}
+            >
               取消
             </Button>
             <Button

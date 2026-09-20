@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Plus, RefreshCw, Search, X } from "lucide-react";
 import { toast } from "@heroui/react";
 import type { AccountView, AgentCapability, LabeledOption } from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
@@ -13,8 +13,16 @@ import { expandAgentToVisibilityProviders } from "@/renderer/components/thread/b
 import { providerVisibilityKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
 import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
 import { runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
-import { customModelId, type CustomModel } from "@/renderer/components/thread/customModelCatalog";
-import { CustomModelDialog, type CustomModelDialogValues } from "./CustomModelDialog";
+import {
+  customModelId,
+  parseEffortTiers,
+  type CustomModel,
+} from "@/renderer/components/thread/customModelCatalog";
+import {
+  CustomModelDialog,
+  ModalityGroup,
+  type CustomModelDialogValues,
+} from "./CustomModelDialog";
 import type { SharedSettings } from "@/shared/settings";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { resolveThirdPartyHarnessForModel } from "@/shared/thirdPartyRouting";
@@ -48,6 +56,35 @@ export function formatContextBadge(value: string): string | undefined {
   return raw;
 }
 
+/**
+ * 上游模型列表拉取的客户端超时（supervisor 侧 ~12s 必返回，这里再加余量）。
+ * IPC/主进程抖动时 promise 可能悬空：无超时则 spinner 常亮且重试按钮被隐藏，
+ * 用户只能干等。超时转为可重试的错误态。
+ */
+export const CHANNEL_MODELS_TIMEOUT_MS = 30_000;
+
+export async function listChannelModelsWithTimeout(
+  accountId: string | undefined,
+  timeoutMs = CHANNEL_MODELS_TIMEOUT_MS,
+): Promise<string[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      readBridge()
+        .listChannelModels({
+          provider: "openai-compatible",
+          ...(accountId ? { accountId } : {}),
+        })
+        .then((response) => response.models),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("获取模型列表超时（30s），请重试。")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 function CustomModelRow(props: {
   model: CustomModel;
   providerLabel: string;
@@ -56,6 +93,10 @@ function CustomModelRow(props: {
 }) {
   const { model, providerLabel, onUpdate, onRemove } = props;
   const contextBadge = formatContextBadge(model.contextSize);
+  // 行内配置（上下文 / 模态 / 思考强度）：与添加对话框同字段，直接写回 store。
+  // 渠道模型的档位只有落到这里才会进 capabilities，决定首页有无强度下拉。
+  const [expanded, setExpanded] = useState(false);
+  const tiers = parseEffortTiers((model.efforts ?? []).join(","));
   return (
     <li
       className="rounded-lg border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-2"
@@ -80,6 +121,18 @@ function CustomModelRow(props: {
         <span className="shrink-0 text-[10px] text-muted">{model.modelId}</span>
         <button
           type="button"
+          aria-label={expanded ? `收起 ${model.displayName} 的配置` : `配置 ${model.displayName}`}
+          aria-expanded={expanded}
+          title="上下文 / 模态 / 思考强度"
+          onClick={() => setExpanded((current) => !current)}
+          className="shrink-0 rounded-md p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+        >
+          <ChevronDown
+            className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+          />
+        </button>
+        <button
+          type="button"
           aria-label={`移除 ${model.displayName}`}
           onClick={onRemove}
           className="shrink-0 rounded-md p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
@@ -87,10 +140,87 @@ function CustomModelRow(props: {
           <X className="size-3.5" />
         </button>
       </div>
+      {expanded ? (
+        <div className="mt-2 flex flex-col gap-2 border-t border-[color:var(--hairline)] pt-2">
+          <div className="grid grid-cols-2 gap-1.5">
+            <label className="flex flex-col gap-1 text-[10px] text-muted">
+              上下文窗口
+              <input
+                aria-label="上下文窗口"
+                value={model.contextSize}
+                onChange={(event) => onUpdate({ contextSize: event.target.value })}
+                placeholder="如 1000000 / 1M，空＝默认最高"
+                className="rounded-md border border-[color:var(--hairline)] bg-[var(--field-background)] px-2 py-1 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] text-muted">
+              最大输出 Token
+              <input
+                aria-label="最大输出 Token"
+                value={model.maxOutputTokens ?? ""}
+                onChange={(event) => onUpdate({ maxOutputTokens: event.target.value })}
+                placeholder="空＝默认"
+                className="rounded-md border border-[color:var(--hairline)] bg-[var(--field-background)] px-2 py-1 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]"
+              />
+            </label>
+          </div>
+          <ModalityGroup
+            legend="输入类型"
+            values={model.inputModalities ?? ["text"]}
+            locked={["text"]}
+            onChange={(values) => onUpdate({ inputModalities: values })}
+          />
+          <ModalityGroup
+            legend="输出类型"
+            values={model.outputModalities ?? ["text"]}
+            onChange={(values) => onUpdate({ outputModalities: values })}
+          />
+          <div className="grid grid-cols-2 gap-1.5">
+            <label className="flex flex-col gap-1 text-[10px] text-muted">
+              思考强度档位（逗号分隔）
+              <input
+                aria-label="思考强度档位"
+                defaultValue={(model.efforts ?? []).join(", ")}
+                key={`efforts-${model.id}-${(model.efforts ?? []).join(",")}`}
+                onBlur={(event) => {
+                  const next = parseEffortTiers(event.target.value);
+                  onUpdate({
+                    efforts: next,
+                    ...(model.defaultEffort && !next.includes(model.defaultEffort)
+                      ? { defaultEffort: "" }
+                      : {}),
+                  });
+                }}
+                placeholder="如 low, high, max"
+                className="rounded-md border border-[color:var(--hairline)] bg-[var(--field-background)] px-2 py-1 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] text-muted">
+              默认思考强度
+              <select
+                aria-label="默认思考强度"
+                value={model.defaultEffort ?? ""}
+                onChange={(event) => onUpdate({ defaultEffort: event.target.value })}
+                className="w-full rounded-md border border-[color:var(--hairline)] bg-[var(--field-background)] px-2 py-1 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]"
+              >
+                <option value="">跟随渠道默认</option>
+                {tiers.map((tier) => (
+                  <option key={tier} value={tier}>
+                    {tier}
+                  </option>
+                ))}
+                {model.defaultEffort && !tiers.includes(model.defaultEffort) ? (
+                  <option value={model.defaultEffort}>{model.defaultEffort}</option>
+                ) : null}
+              </select>
+            </label>
+          </div>
+          <p className="text-[10px] text-muted">档位留空则跟随渠道默认；改动即时保存。</p>
+        </div>
+      ) : null}
     </li>
   );
 }
-
 /**
  * 「管理模型」页：管理首页模型选择器的模型清单。
  * 左栏为渠道列表（与首页选择器同源的 agent 渠道 + OpenAI 兼容自定义渠道，
@@ -482,13 +612,13 @@ export function ModelManagementPage(props: {
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const fetchCompatibleModels = async (accountId = selected?.accountId) => {
     // 直接从上游获取该自定义渠道当前可用的模型列表（/models），列出来供用户添加。
+    // supervisor 侧 12s 必返回，但 IPC/主进程抖动时 promise 可能悬空——客户端再加
+    // 一道 30s 超时，转为可重试的错误态。否则 spinner 常亮且重试按钮被隐藏，用户
+    // 只能干等（阶跃星辰渠道实测卡死即此形状）。
     setFetched((current) => ({ models: current.models, loading: true }));
     try {
-      const response = await readBridge().listChannelModels({
-        provider: "openai-compatible",
-        ...(accountId ? { accountId } : {}),
-      });
-      setFetched({ models: response.models, loading: false });
+      const models = await listChannelModelsWithTimeout(accountId);
+      setFetched({ models, loading: false });
     } catch (error) {
       setFetched({
         models: [],
@@ -989,13 +1119,9 @@ export function ModelManagementPage(props: {
                 }
                 {...(selected.kind === "openai-compatible" && selected.accountId
                   ? {
-                      onFetchUpstreamModels: async () => {
-                        const response = await readBridge().listChannelModels({
-                          provider: "openai-compatible",
-                          accountId: selected.accountId!,
-                        });
-                        return response.models;
-                      },
+                      // 与页面级拉取共用超时：悬空 promise 必须在对话框里也落回
+                      // 错误态，否则“从上游拉取”按钮永久 disabled。
+                      onFetchUpstreamModels: () => listChannelModelsWithTimeout(selected.accountId),
                     }
                   : {})}
                 verifying={verifyingModelKey !== null}

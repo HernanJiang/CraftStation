@@ -300,7 +300,14 @@ function ActiveSubAgentRow({
       action={<X className="size-3" />}
       actionLabel={t`Remove ${rowTitle} from panel`}
       actionTitle={t`Remove from panel`}
-      onAction={() => dismiss(threadId, itemId)}
+      // Dismissing the row also stops thread-level tracking: the user
+      // explicitly removed it, so the spinner must not stay lit on a row
+      // that no longer exists (the tracker's own poll is manifest-driven
+      // and would otherwise keep a manifest-less entry forever).
+      onAction={() => {
+        dismiss(threadId, itemId);
+        markWorkflowTerminal(threadId, itemId);
+      }}
     >
       {isDone ? (
         <Check aria-label={t`completed`} className="size-3.5 shrink-0 text-foreground-muted" />

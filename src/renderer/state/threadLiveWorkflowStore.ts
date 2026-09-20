@@ -26,12 +26,26 @@ import { readBridge } from "@/renderer/bridge";
 
 const POLL_MS = 4000;
 
+/**
+ * How long a tracked workflow may go without a manifest on disk before the
+ * entry is dropped. A healthy launch writes its manifest in seconds; a row
+ * that never materializes means the launch itself failed (wrong path,
+ * cleaned up, crashed before first write) — and without a deadline the
+ * thread spinner stays lit FOREVER with no way out (the dock row may
+ * already be gone, and nothing else clears the entry). Ten minutes is
+ * deliberately generous: it only ever fires for launches that are already
+ * dead, never for slow-but-live work (those have manifests).
+ */
+const MISSING_MANIFEST_DEADLINE_MS = 10 * 60_000;
+
 interface LiveWorkflowEntry {
   threadId: string;
   itemId: string;
   manifestPath: string;
   transcriptDir: string | undefined;
   location: ProjectLocation;
+  /** Wall-clock registration time, for the missing-manifest deadline. */
+  registeredAt: number;
 }
 
 interface RegisterInput {
@@ -120,8 +134,14 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
         }
         return;
       }
-      // No manifest on disk yet. Keep showing "working" until the workflow
-      // reports a terminal state; launch latency is not task completion.
+      // No manifest on disk yet. Launches normally materialize in seconds,
+      // so keep showing "working" briefly — but a manifest that NEVER
+      // appears is a failed launch, not a slow one. Without this deadline
+      // the thread spinner (and the composer's working state) stays lit
+      // forever: nothing else owns the entry once the dock row is gone.
+      if (Date.now() - current.registeredAt >= MISSING_MANIFEST_DEADLINE_MS) {
+        removeEntry(key);
+      }
     } catch {
       // A transient read/parse failure must not turn into an implicit task
       // deadline. The next poll can recover the manifest.
@@ -147,6 +167,7 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
         manifestPath: input.manifestPath,
         transcriptDir: input.transcriptDir,
         location: input.location,
+        registeredAt: Date.now(),
       });
       // Light the spinner immediately - the dock only registers once it has
       // confirmed a background workflow, so we trust it until a poll says

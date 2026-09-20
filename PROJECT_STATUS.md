@@ -1,3 +1,17 @@
+## v1.4.2 发版（2026-09-20）
+
+- 版本 bump 1.4.1 → 1.4.2；双包构建（`pnpm dist:win` + `pnpm dist:win:portable`，x64）成功：`release/CraftStation-Setup-1.4.2-x64.exe`（148MB）+ blockmap、`CraftStation-Portable-1.4.2-x64.exe`（127MB），`latest.yml` 指向 1.4.2。
+- 中英双语 notes：`ai_workspace/release-notes-1.4.2.md`；commit、tag `v1.4.2` 已推 main；GitHub Release 已发布（4 附件齐）。
+- `release\` 清理：便携版仅留 1.4.2 + 1.4.1，删中间产物；NSIS 旧包保留（updater feed 所需）。
+- 内容：第三方渠道模型行内配置、方舟 Kimi 强制 chat、工作卡死 deadline、模型列表超时、跨 Harness 默认权限重解。
+
+## 工作中卡死 + 模型列表卡死 + 渠道模型行内配置（2026-09-20）
+
+- **用户报告**：①子 agent 结束对话框仍显示工作中、无法彻底结束（19m34s 卡死，DB 已 idle）；②管理模型页阶跃星辰渠道“正在获取模型列表”转圈不停；③要求第三方渠道模型可点击配置上下文/模态/思考强度。
+- **根因**：①`threadLiveWorkflowStore` 对 manifest 永不出现的 entry 无 deadline、无手动清除（dock X 只关行），且 DB/行状态早已结束——卡的是渲染内存态。②supervisor `listModels` 12s 必返回，卡死在渲染/IPC 悬空 promise，且 loading 时重试按钮被隐藏。③`mergeCustomModelsIntoCapabilities` 丢弃带 accountId 条目、账号分支只映射 id/label——对话框填的档位到不了 capabilities，强度下拉出不来（以用户本机 kimi-k2.8-preview 条目实证）。
+- **修复**：①缺失 manifest 10 分钟 deadline（健康启动秒级出 manifest，只杀已死启动）+ dock X 联动 `markTerminal`。②两处拉取共用 30s 客户端超时，转可重试错误态（`listChannelModelsWithTimeout`）。③`CustomModelRow` 可展开行内编辑（上下文/最大输出/输入输出模态/档位+默认强度，即时写回 store）；`mergeCustomModelsIntoCapabilities` 合并渠道条目档位（公共列表仍只收无账号条目，内置同名优先），账号分支同步合并。
+- **验证**：liveWorkflow 8、ModelManagementPage 9（含悬空超时与行内编辑）、customModelCatalog/draftHelpers 33+、ThreadDraftView/ChatPane 127、agentSelection/渠道 failover 相关 102 全过；typecheck + lint PASS。
+
 ## 方舟 Kimi 空回应 + effort 缺失 + 默认权限漂移（2026-09-20）
 
 - **用户报告**（v1.4.1 实测）：①方舟 kimi-k2.8-preview 仍失败，报错变为 `Kimi Code ended the turn without returning a response`；②Kimi 切不了思考强度；③Kimi 新对话默认请求批准，与设置（完全访问权限）不符。

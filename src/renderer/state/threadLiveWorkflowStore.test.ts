@@ -100,14 +100,22 @@ describe("threadLiveWorkflowStore", () => {
       markTerminal("slow", "i");
     });
 
-    it("keeps a launch live while its manifest is still missing", async () => {
+    it("drops a launch whose manifest never appears past the deadline", async () => {
       workflowGetRun.mockResolvedValue({ run: null });
       register({ threadId: "dead", itemId: "i", manifestPath: "/never.json", location });
       expect(isLive("dead")).toBe(true);
 
-      // A missing manifest is not proof of completion or failure.
-      await vi.advanceTimersByTimeAsync(11 * 60_000);
+      // Slow starts are still protected: nine minutes without a manifest is
+      // launch latency, not proof of anything.
+      await vi.advanceTimersByTimeAsync(9 * 60_000);
       expect(isLive("dead")).toBe(true);
+
+      // …but a manifest that NEVER appears is a failed launch. Without this
+      // deadline the thread spinner (and the composer's working state) stays
+      // lit forever with no way out — the dock row may already be gone and
+      // nothing else owns the entry.
+      await vi.advanceTimersByTimeAsync(61_000);
+      expect(isLive("dead")).toBe(false);
       markTerminal("dead", "i");
     });
 
