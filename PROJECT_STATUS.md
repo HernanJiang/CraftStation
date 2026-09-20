@@ -1,3 +1,11 @@
+## 方舟 Kimi 空回应 + effort 缺失 + 默认权限漂移（2026-09-20）
+
+- **用户报告**（v1.4.1 实测）：①方舟 kimi-k2.8-preview 仍失败，报错变为 `Kimi Code ended the turn without returning a response`；②Kimi 切不了思考强度；③Kimi 新对话默认请求批准，与设置（完全访问权限）不符。
+- **根因**：①Kimi CLI 把 400 吃成空回合（adapter 只看 stderr，`resolveKimiEmptyResponseError` 拿不到 400 文本），v1.4.1 的协议翻转因此从未触发；且该渠道 bundle 的 `responses` 系陈旧验证（探针早知方舟只讲 chat，`isVolcengineArkApiRoot` 在 v1.2.4 即存在）。②渠道绑定自定义模型的档位从未进 capabilities：`mergeCustomModelsIntoCapabilities` 丢弃带 accountId 条目，账号分支只映射 id/label——用户在对话框里填了 low/high/max 也白填（以本机 settings 实证）。③落库 `approvalPolicy: "default"`：跨 Harness 切换时 `adaptThreadConfigForCapabilities` 原样保留泛 `default`，在 Kimi 侧读作 ask（新开草稿经单测实证为 auto，链路本身是对的）。
+- **修复**：①`prepareVendorCompatRuntime` kimi 分支：方舟 host 直接强制 chat（无视 bundle，显式翻转覆盖仍优先）。②渠道条目档位并入 capabilities（公共列表仍只收无账号条目；账号分支同步合并 modelEfforts/modelDefaultEfforts，内置同名优先）。③adapt 把泛 `default` 重解为目标 `defaultApprovalPolicy`（advertised 才换，否则走原不兼容映射；codex 既有用例保持 on-request）。
+- **验证**：Ark 强制 chat 写文件 1 例、渠道档位合并 1 例、adapt 重解 1 例、新开 kimi 草稿 full-access→auto 1 例；agentSelection 39、renderer draft 相关 85、runtime 124 + crafted 16 全过；typecheck + lint PASS。
+- **用户侧**：下次提交即走 chat 生效；已卡成 `default` 的旧线程手动点一次执行模式菜单切到完全访问即可（只影响该线程）。
+
 ## v1.4.1 发版（2026-09-20）
 
 - 版本 bump 1.4.0 → 1.4.1；双包构建（`pnpm dist:win` + `pnpm dist:win:portable`，x64）成功：`release/CraftStation-Setup-1.4.1-x64.exe`（148MB）+ blockmap、`CraftStation-Portable-1.4.1-x64.exe`（127MB），`latest.yml` 指向 1.4.1。

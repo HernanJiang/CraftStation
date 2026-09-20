@@ -11,6 +11,7 @@ import {
 } from "@/shared/thirdPartyRouting";
 import { stripModelProviderPrefix } from "@/shared/harnessCompatibility";
 import {
+  isVolcengineArkApiRoot,
   normalizeApiRoot,
   probeThirdPartyProvider,
   type ProbeFetch,
@@ -488,7 +489,16 @@ export class OpenAiCompatibleProfileService {
       );
     }
     if (harness === "kimi") {
-      const protocol = protocolOverride ?? bundle.validatedProtocol;
+      // Volcengine Ark coding/inference hosts speak Chat Completions, not
+      // Responses: a stale `responses` validation would otherwise project a
+      // provider table Kimi CLI 400s on (`400 A parameter specified in the
+      // request is not valid`). Force chat for Ark regardless of the bundle;
+      // an explicit same-channel flip override still wins.
+      const protocol =
+        protocolOverride ??
+        (bundle.baseUrl && isVolcengineArkApiRoot(bundle.baseUrl)
+          ? ("chat_completions" as const)
+          : bundle.validatedProtocol);
       return prepareKimiEndpointRuntime({
         directory: join(
           this.options.cacheDir,

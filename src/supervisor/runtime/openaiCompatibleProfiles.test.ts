@@ -205,6 +205,40 @@ describe("OpenAiCompatibleProfileService", () => {
     });
   });
 
+  it("forces chat completions for Volcengine Ark Kimi channels despite stale responses validation", () => {
+    // Production shape: an Ark coding channel whose bundle still says
+    // `responses` (validated long ago) — Kimi CLI 400s its Responses payload
+    // there, so projection must use chat regardless of the bundle.
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Volcengine Ark");
+    setUsageSecret(
+      cacheDir,
+      "openai-compatible:pending",
+      "baseUrl",
+      "https://ark.cn-beijing.volces.com/api/coding/v3",
+    );
+    setUsageSecret(cacheDir, "openai-compatible:pending", "model", "kimi-k2.8-preview");
+    const account = service.importStaging();
+
+    const home = (modelId: string) => {
+      const safeAccount = account.accountId.replace(/[^A-Za-z0-9._-]/g, "_");
+      const scoped = Buffer.from(modelId, "utf8").toString("base64url");
+      return join(cacheDir, "openai-compatible-kimi", safeAccount, scoped);
+    };
+    service.prepareVendorCompatRuntime(account.accountId, "kimi", "kimi-k2.8-preview");
+    expect(readFileSync(join(home("kimi-k2.8-preview"), "config.toml"), "utf8")).toContain(
+      'type = "openai"',
+    );
+
+    // An explicit same-channel flip override still wins over the Ark rule.
+    service.prepareVendorCompatRuntime(account.accountId, "kimi", "kimi-k2.8-preview", "responses");
+    expect(readFileSync(join(home("kimi-k2.8-preview"), "config.toml"), "utf8")).toContain(
+      'type = "openai_responses"',
+    );
+  });
+
   it("prepares an isolated Muse child env without writing the API key to disk", () => {
     const cacheDir = makeCacheDir();
     const store = new AccountStore(join(cacheDir, "accounts"));

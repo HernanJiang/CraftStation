@@ -73,26 +73,29 @@ function contextLabel(value: string): string {
  * 追加 models 条目；为带档位的模型补齐 contextSizes / modelContextSizes；
  * 为自带思考档位的模型补齐 modelEfforts / modelDefaultEfforts。
  * 与内置 model id 冲突的自定义条目跳过（内置优先）。纯函数，供首页模型选择器使用。
+ *
+ * 渠道绑定条目（带 accountId，不进公共 models 列表）同样贡献档位与上下文：
+ * 否则渠道模型的思考强度下拉永远出不来——档位只认 capabilities，
+ * 而 capabilities 之前把这类条目整个丢掉了。
  */
 export function mergeCustomModelsIntoCapabilities(
   agentKind: string,
   capabilities: AgentCapability,
   customModels: readonly CustomModel[],
 ): AgentCapability {
-  const mine = customModels.filter(
-    (model) => model.provider === agentKind && model.accountId === undefined,
-  );
+  const mine = customModels.filter((model) => model.provider === agentKind);
   if (mine.length === 0) return capabilities;
   const existing = new Set(capabilities.models.map((model) => model.id));
   const appended = mine
-    .filter((model) => !existing.has(model.modelId))
+    .filter((model) => model.accountId === undefined && !existing.has(model.modelId))
     .map((model) => ({ id: model.modelId, label: model.displayName }));
-  if (appended.length === 0) return capabilities;
-
-  const withModels: AgentCapability = {
-    ...capabilities,
-    models: [...capabilities.models, ...appended],
-  };
+  const withModels: AgentCapability =
+    appended.length === 0
+      ? capabilities
+      : {
+          ...capabilities,
+          models: [...capabilities.models, ...appended],
+        };
   const customEfforts = collectCustomModelEfforts(mine);
 
   const contextValues = [
@@ -139,7 +142,9 @@ export function mergeCustomModelsIntoCapabilities(
  */
 export function collectCustomModelEfforts(
   models: readonly CustomModel[],
-): { modelEfforts: Record<string, string[]>; modelDefaultEfforts?: Record<string, string> } | undefined {
+):
+  | { modelEfforts: Record<string, string[]>; modelDefaultEfforts?: Record<string, string> }
+  | undefined {
   const modelEfforts: Record<string, string[]> = {};
   const modelDefaultEfforts: Record<string, string> = {};
   for (const model of models) {

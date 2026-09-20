@@ -317,14 +317,30 @@ export function ThreadDraftView(props: {
     if (selectedAccountId) {
       const accountModels = customModels.filter((entry) => entry.accountId === selectedAccountId);
       if (accountModels.length > 0) {
+        // 渠道模型的思考档位同样生效：只换 models 列表会把档位弄丢，
+        // 下拉里有模型却没有强度可以切（与 mergeCustomModelsIntoCapabilities 一致，内置同名优先）。
+        const accountEfforts = collectCustomModelEfforts(accountModels);
+        const baseCapabilities = presentationAgent.capabilities;
         return {
           ...presentationAgent,
           capabilities: {
-            ...presentationAgent.capabilities,
+            ...baseCapabilities,
             models: accountModels.map((entry) => ({
               id: entry.modelId,
               label: entry.displayName,
             })),
+            ...(accountEfforts
+              ? {
+                  modelEfforts: {
+                    ...accountEfforts.modelEfforts,
+                    ...baseCapabilities.modelEfforts,
+                  },
+                  modelDefaultEfforts: {
+                    ...accountEfforts.modelDefaultEfforts,
+                    ...baseCapabilities.modelDefaultEfforts,
+                  },
+                }
+              : {}),
           },
         };
       }

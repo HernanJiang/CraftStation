@@ -117,6 +117,28 @@ describe("mergeCustomModelsIntoCapabilities", () => {
     expect(merged.modelDefaultEfforts?.["my-model"]).toBe("low");
     expect(merged.modelEfforts?.["builtin-1"]).toBeUndefined();
   });
+
+  it("merges effort tiers from channel-bound entries without listing them", () => {
+    // Channel models (accountId set) never join the shared models list, but
+    // their hand-written tiers must still reach the picker — otherwise a
+    // channel model shows no effort control at all.
+    const channelBound = [
+      {
+        id: "custom:kimi:openai-compatible:chan:kimi-k2.8-preview",
+        provider: "kimi",
+        accountId: "openai-compatible:chan",
+        modelId: "kimi-k2.8-preview",
+        displayName: "kimi-k2.8-preview",
+        contextSize: "",
+        efforts: ["low", "high", "max"],
+        defaultEffort: "high",
+      },
+    ];
+    const merged = mergeCustomModelsIntoCapabilities("kimi", baseCapabilities(), channelBound);
+    expect(merged.models.map((model) => model.id)).toEqual(["builtin-1", "builtin-2"]);
+    expect(merged.modelEfforts?.["kimi-k2.8-preview"]).toEqual(["low", "high", "max"]);
+    expect(merged.modelDefaultEfforts?.["kimi-k2.8-preview"]).toBe("high");
+  });
 });
 
 describe("effort presets", () => {

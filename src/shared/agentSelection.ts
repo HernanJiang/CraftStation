@@ -437,6 +437,18 @@ export function adaptThreadConfigForCapabilities(
   const modeIds = new Set(capabilities.modes);
 
   let approvalPolicy = config.approvalPolicy;
+  // A bare "default" is harness-relative ("whatever the harness default
+  // is"), not an explicit pick — the composer menu never offers it. Resolve
+  // it against the TARGET default so a cross-harness switch can't silently
+  // change meaning (an opencode-originated "default" carried onto Kimi reads
+  // as ask, even though the app default is full access). Anything else keeps
+  // the existing compatible-mapping below.
+  if (approvalPolicy === "default") {
+    const targetDefault = capabilities.defaultApprovalPolicy;
+    if (targetDefault && approvalIds.has(targetDefault)) {
+      approvalPolicy = targetDefault;
+    }
+  }
   if (approvalPolicy && !approvalIds.has(approvalPolicy)) {
     approvalPolicy =
       approvalIds.size === 0

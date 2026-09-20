@@ -129,6 +129,28 @@ describe("resolveProviderDraftConfig global permission default", () => {
       ),
     ).toMatchObject({ approvalPolicy: "yolo", sandboxMode: "danger-full-access" });
   });
+
+  it("resolves Kimi drafts to auto under the global full-access default", () => {
+    // Regression lock for "new Kimi threads must follow 设置 → 默认权限":
+    // Kimi's full-access id is `auto` (never ask), never the ask-flavored
+    // `default` CLI default.
+    const kimi = agentWith({
+      models: [{ id: "kimi-k2.8-preview", label: "kimi-k2.8-preview" }],
+      approvalPolicies: [
+        { id: "default", label: "Default" },
+        { id: "auto", label: "Auto Approve" },
+        { id: "yolo", label: "Bypass Approvals" },
+      ],
+      defaultApprovalPolicy: "auto",
+      bypassPermissions: { approvalPolicy: "auto" },
+    });
+    expect(
+      resolveProviderDraftConfig(kimi, { model: "kimi-k2.8-preview" }, "full-access"),
+    ).toMatchObject({ approvalPolicy: "auto" });
+    expect(resolveProviderDraftConfig(kimi, { model: "kimi-k2.8-preview" }, "ask")).toMatchObject({
+      approvalPolicy: "default",
+    });
+  });
 });
 
 describe("resolveFastValue", () => {

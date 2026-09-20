@@ -462,4 +462,26 @@ describe("adaptThreadConfigForCapabilities", () => {
       sandboxMode: "workspace-write",
     });
   });
+
+  it("resolves a bare default against the target default instead of keeping ask", () => {
+    // A bare "default" is harness-relative, not a pick: carrying an
+    // opencode-originated "default" onto Kimi must land on Kimi's default
+    // (auto = full access), not stick on the ask-flavored "default" id.
+    const kimiCaps = {
+      ...codexCaps,
+      approvalPolicies: [
+        { id: "default", label: "Default" },
+        { id: "auto", label: "Auto Approve" },
+        { id: "yolo", label: "Bypass Approvals" },
+      ],
+      defaultApprovalPolicy: "auto",
+      bypassPermissions: { approvalPolicy: "auto" },
+    } as AgentCapability;
+    expect(
+      adaptThreadConfigForCapabilities(
+        { model: "kimi-k2.8-preview", approvalPolicy: "default" },
+        kimiCaps,
+      ),
+    ).toMatchObject({ approvalPolicy: "auto" });
+  });
 });
