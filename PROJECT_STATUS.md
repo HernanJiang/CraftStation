@@ -1,3 +1,9 @@
+## Release v1.4.3（2026-09-21）
+
+- 版本 bump 1.4.2 → 1.4.3；`pnpm dist:win` + `pnpm dist:win:portable`（x64）；中英双语 notes `ai_workspace/release-notes-1.4.3.md`；commit + tag `v1.4.3` 推 main；GitHub Release 4 附件。
+- `website/public/changelog.json` 不动：该文件仍是上游 Poracode/Lightcode 的产品线数据（其 `1.4.3` 条目是上游 2026-07-02 的 Claude Fable 5 条目，与本产品版本号撞名），本仓库既有 1.4.x 发布流程未使用它。
+- 内容：17e14c61 端到端稳定性修复批 + b220e862 第三方渠道真实额度条。
+
 ## 第三方渠道真实额度条：StepFun 余额探测 + 号池卡片渲染（2026-09-21）
 
 - **实测结果**：阶跃星辰 `GET {origin}/v1/accounts` 返回真实余额（`type: prepaid/postpaid`、`balance` 可用余额、`total_cash_balance` 累计充值、`total_voucher_balance` 累计赠送）——本机账号实测 `balance=15 / granted=15`。Chiral（Sub2API 网关）sk- key 无权查用户额度接口（401 INVALID_TOKEN）；火山方舟推理端点无余额 API（套餐额度需 AK/SK 走 `volcengine` provider 的签名 OpenAPI）——两者保持 Token 行，不造假。
