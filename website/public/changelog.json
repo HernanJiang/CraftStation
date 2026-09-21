@@ -687,100 +687,44 @@
     },
     {
       "version": "1.5.0",
-      "date": "2026-07-17",
-      "title": "CraftStation arrives with mobile access & cross-provider agents",
-      "summary": "A big feature release, and the first under the CraftStation name: CraftStation graduates into CraftStation with a brand-new identity, your threads follow you to any phone or browser through the CraftStation PWA, and your agents can now hand work to one another across providers. New agents, a full MCP toolkit, multi-agent worktree experiments, and a chat rebuilt for long, tool-heavy sessions round it out.",
+      "date": "2026-09-21",
+      "title": "MiniMax Code, ZCode & recoverable agent workflows",
+      "summary": "CraftStation adds native MiniMax Code and ZCode recipes, reduces the context cost of large MCP catalogs, and makes handoffs, workflow runs, artifacts, and context usage easier to recover and trust.",
       "changes": [
         {
           "kind": "added",
-          "label": "CraftStation",
-          "text": "CraftStation becomes CraftStation — a new name and a fresh visual identity with the indigo Pora-dot wordmark, Geist type, and refreshed dark and moonlight themes, all with a new home at craftstation.com; your projects, settings, and automatic updates carry over."
+          "label": "MiniMax Code",
+          "text": "Run structured sessions through the official mcode acp runtime, with TUI and headless modes, session resume, MCP, Skills, installation guidance, and login detection."
         },
         {
           "kind": "added",
-          "label": "PWA",
-          "text": "Take your work anywhere with the CraftStation PWA at app.craftstation.com — pair it with your desktop over your local network or an SSH connection to follow live threads, read terminal output, and send messages from a phone or any browser, with dynamic port forwarding and native iOS and Android betas on the way."
+          "label": "ZCode",
+          "text": "Use an experimental ZCode Recipe with the official terminal harness and GLM-5.3, including headless JSON, session resume, status reporting, permission recognition, and source-build installation guidance."
         },
         {
-          "kind": "added",
-          "label": "Crossagents",
-          "text": "Your agents can now delegate to one another: a thread can spawn subagents on any agent you have installed — Claude, Codex, Grok, Kimi Code, Cursor, OpenCode, and more — through a built-in orchestration layer, and you can watch every subagent and workflow chat unfold live from the parent thread, approving child actions when they need it."
-        },
-        {
-          "kind": "added",
-          "label": "Kimi Code",
-          "text": "Run Kimi Code as a new built-in agent with sign-in and usage tracking, add Factory Droid through a new ACP integration, drive Antigravity in plan or accept-edits mode, and pick Codex's Fast mode straight from the model menu."
-        },
-        {
-          "kind": "added",
-          "label": "Qwen Code",
-          "text": "Run Qwen Code as a built-in agent through native terminal or ACP sessions, sign in from your browser or paste an API key, and track your usage quotas from CraftStation."
-        },
-        {
-          "kind": "added",
+          "kind": "improved",
           "label": "MCP",
-          "text": "A full MCP toolkit lands: manage MCP servers globally and toggle them per thread, give agents computer-use control of your desktop, connect an external Chrome browser, and let scheduled tasks run agents automatically or drive CraftStation itself through app-control tools."
-        },
-        {
-          "kind": "added",
-          "label": "Skills",
-          "text": "Create a skill once and inject it into any provider, then see the skills you attach rendered as badges on your message."
-        },
-        {
-          "kind": "added",
-          "label": "Experiments",
-          "text": "Race the same task across competing agents in separate Git worktrees, compare each candidate's diff and stats, have Claude judge the results, and merge the winner with safeguards."
-        },
-        {
-          "kind": "added",
-          "label": "Pull requests",
-          "text": "Review pull requests from every project in one global view, complete with check statuses and how long each run took, and start merges from a prefilled commit message."
-        },
-        {
-          "kind": "added",
-          "label": "Quick composer",
-          "text": "Summon a quick composer from anywhere with a global shortcut, and reopen recent threads straight from the system tray."
-        },
-        {
-          "kind": "added",
-          "label": "Attachments",
-          "text": "Preview PDFs inline, drop files into the composer to attach them, render local images directly in Markdown, and include media attachments in Grok sessions."
-        },
-        {
-          "kind": "added",
-          "label": "Projects",
-          "text": "Open an existing WSL folder as a project straight from the project picker, and spot threads that hold unsent drafts right in the sidebar."
+          "text": "Large built-in tool catalogs can expose search and invoke tools first, allowing agents to discover capabilities in Chinese or English without loading every schema into context while preserving permission and input validation."
         },
         {
           "kind": "improved",
-          "label": "Performance",
-          "text": "Long conversations stay fast: transcripts are virtualized with paged loading, streamed Markdown renders smoothly, background events are batched, and animations ease off while the window sits in the background."
+          "label": "Handoffs",
+          "text": "Agent handoffs retain the original goal, constraints, unanswered requests, blockers, and critical files with item anchors so the receiving session can continue with less reconstruction."
         },
         {
           "kind": "improved",
-          "label": "Chat",
-          "text": "Reasoning now groups with its tool calls into collapsible runs with live previews, repeated edits to the same file merge into a single diff, Claude goals show their iterations and completion reasons, and every message gains copy controls."
+          "label": "Workflows",
+          "text": "Active workflow runs survive renderer restarts and now expose resume lineage, supersession, stop reasons, resumability, and WSL context."
         },
         {
           "kind": "improved",
-          "label": "Threads",
-          "text": "Switching threads keeps your pane, composer text, and scroll position intact."
+          "label": "Artifacts",
+          "text": "Generated artifacts carry version, source, producer, attempt, validation, and status metadata separately from their content."
         },
         {
-          "kind": "fixed",
-          "text": "Claude now applies a model change before a steered turn and reports its usage limits correctly again."
-        },
-        {
-          "kind": "fixed",
-          "text": "Codex identifies rate-limit windows by their real duration, keeps reasoning-summary boundaries intact, and holds goal commands active through model turns."
-        },
-        {
-          "kind": "fixed",
-          "text": "Cursor usage dollars stay aligned with your plan limit and percentage, unnamed ACP tool calls keep their labels, and Grok reconnects with its current session and model ID formats."
-        },
-        {
-          "kind": "fixed",
-          "text": "The Git panel preserves staging state and decodes quoted paths, pulls follow an explicit strategy, and agent updates keep npm shims and version-prefixed releases intact across every profile that shares a binary."
+          "kind": "improved",
+          "label": "Context",
+          "text": "Context usage reports its provider or local source, scope, measurement time, freshness, cache semantics, and compaction state in desktop and mobile views."
         }
       ]
     },

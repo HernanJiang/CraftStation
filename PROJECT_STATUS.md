@@ -1,3 +1,9 @@
+## Release v1.5.0（2026-09-21）
+
+- 版本 bump 1.4.4 → 1.5.0；MiniMax Code 以官方 `mcode acp` structured runtime 接入，ZCode 以官方 terminal/PTy runtime 接入并保留实验性 Recipe；同时交付 MCP 渐进式工具发现、loss-aware Handoff、可跨 renderer 重启恢复的 Workflow index、Artifact provenance/validation 元数据和来源明确的 Context Usage。
+- 双包构建成功：`CraftStation-Setup-1.5.0-x64.exe`（141.46 MB）+ blockmap/`latest.yml`，以及 `CraftStation-Portable-1.5.0-x64.exe`（121.25 MB）；`latest.yml` 已指向 1.5.0，便携版备份仅保留 1.5.0 与 1.4.4。
+- 中英双语 notes：`ai_workspace/release-notes-1.5.0.md`；changelog 16/16、typecheck、lint、两轮 production build PASS。完整测试 12005 项通过、66 项跳过，另有 1 项未改动的 Windows 临时目录清理钩子超时；目标测试全部通过。
+
 ## Release v1.4.4（2026-09-21）
 
 - 版本 bump 1.4.3 → 1.4.4；commit `64bf905e` 计划弹层操作修复：弹层原本 Pause/Resume 与 Run-now 在暂停态同显 Play 图标造成歧义，改为 暂停/继续（Pause/CirclePlay）+ 编辑（铅笔 → `editingScheduleId` 跨视图请求 → SchedulesView 打开 `ScheduleEditor`）+ 删除（`ConfirmDialog` 确认）三操作；Run now 保留在计划主页。
