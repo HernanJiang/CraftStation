@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@heroui/react";
+import { Button, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { CalendarClock, Pause, Play } from "lucide-react";
+import { CalendarClock, CirclePlay, Pause, Pencil, Trash2 } from "lucide-react";
 import type { ScheduledTask } from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
+import { ConfirmDialog } from "@/renderer/components/common/ConfirmDialog";
 import { useAppStore } from "@/renderer/state/appStore";
 import { selectSchedulesForThread, useScheduleStore } from "@/renderer/state/scheduleStore";
 
@@ -22,6 +23,7 @@ export function ThreadScheduleIndicator(props: { threadId: string }) {
     [tasks, props.threadId],
   );
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduledTask | null>(null);
   const [panelAnchor, setPanelAnchor] = useState({ top: 48, right: 16 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -68,10 +70,9 @@ export function ThreadScheduleIndicator(props: { threadId: string }) {
     });
   }
 
-  async function mutate(task: ScheduledTask, action: "pause" | "resume" | "run"): Promise<void> {
+  async function mutate(task: ScheduledTask, action: "pause" | "resume"): Promise<void> {
     const bridge = readBridge();
-    if (action === "run") await bridge.runScheduleNow({ id: task.id });
-    else if (action === "pause") await bridge.pauseSchedule({ id: task.id });
+    if (action === "pause") await bridge.pauseSchedule({ id: task.id });
     else await bridge.resumeSchedule({ id: task.id });
     await useScheduleStore.getState().refresh();
   }
@@ -80,6 +81,23 @@ export function ThreadScheduleIndicator(props: { threadId: string }) {
     setOpen(false);
     useScheduleStore.getState().setFocusedScheduleId(task.id);
     useAppStore.getState().openSchedules();
+  }
+
+  function editSchedule(task: ScheduledTask) {
+    setOpen(false);
+    const store = useScheduleStore.getState();
+    store.setFocusedScheduleId(task.id);
+    store.setEditingScheduleId(task.id);
+    useAppStore.getState().openSchedules();
+  }
+
+  function confirmDelete() {
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    if (!target) return;
+    void readBridge()
+      .deleteSchedule({ id: target.id })
+      .then(() => useScheduleStore.getState().refresh());
   }
 
   return (
@@ -139,25 +157,47 @@ export function ThreadScheduleIndicator(props: { threadId: string }) {
                         <p className="truncate text-xs font-medium text-foreground">{task.name}</p>
                         <p className="truncate text-[11px] text-muted">{status}</p>
                       </button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        isIconOnly
-                        aria-label={task.enabled ? t`Pause` : t`Resume`}
-                        onPress={() => void mutate(task, task.enabled ? "pause" : "resume")}
-                      >
-                        {task.enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        isIconOnly
-                        isDisabled={task.lastStatus === "running"}
-                        aria-label={t`Run now`}
-                        onPress={() => void mutate(task, "run")}
-                      >
-                        <Play className="size-3.5" />
-                      </Button>
+                      <Tooltip delay={0}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          isIconOnly
+                          aria-label={task.enabled ? t`Pause` : t`Resume`}
+                          onPress={() => void mutate(task, task.enabled ? "pause" : "resume")}
+                        >
+                          {task.enabled ? (
+                            <Pause className="size-3.5" />
+                          ) : (
+                            <CirclePlay className="size-3.5" />
+                          )}
+                        </Button>
+                        <Tooltip.Content>{task.enabled ? t`Pause` : t`Resume`}</Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip delay={0}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          isIconOnly
+                          aria-label={t`Edit schedule`}
+                          onPress={() => editSchedule(task)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Tooltip.Content>{t`Edit schedule`}</Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip delay={0}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          isIconOnly
+                          className="text-muted hover:text-danger"
+                          aria-label={t`Delete schedule`}
+                          onPress={() => setDeleteTarget(task)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                        <Tooltip.Content>{t`Delete schedule`}</Tooltip.Content>
+                      </Tooltip>
                     </li>
                   );
                 })}
@@ -166,6 +206,14 @@ export function ThreadScheduleIndicator(props: { threadId: string }) {
             document.body,
           )
         : null}
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        title={t`Delete schedule?`}
+        body={<Trans>This removes the schedule and its latest result from this device.</Trans>}
+        confirmLabel={t`Delete`}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

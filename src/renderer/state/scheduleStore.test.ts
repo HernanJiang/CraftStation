@@ -53,7 +53,12 @@ vi.mock("@/renderer/bridge", () => ({
 
 describe("scheduleStore", () => {
   afterEach(() => {
-    useScheduleStore.setState({ tasks: [], loading: false, focusedScheduleId: null });
+    useScheduleStore.setState({
+      tasks: [],
+      loading: false,
+      focusedScheduleId: null,
+      editingScheduleId: null,
+    });
     bridge.getSchedules.mockReset();
     bridge.onSchedulesChanged.mockReset();
   });

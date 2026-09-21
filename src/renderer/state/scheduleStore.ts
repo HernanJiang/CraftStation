@@ -9,8 +9,15 @@ interface ScheduleStoreState {
   tasks: ScheduledTask[];
   loading: boolean;
   focusedScheduleId: string | null;
+  /**
+   * Cross-view "open the editor for this schedule" request. The schedules page
+   * consumes it (opens the draft modal) and clears it, so callers like the
+   * thread schedule popover don't need to reach into page-local state.
+   */
+  editingScheduleId: string | null;
   refresh: () => Promise<void>;
   setFocusedScheduleId: (id: string | null) => void;
+  setEditingScheduleId: (id: string | null) => void;
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -20,7 +27,9 @@ export const useScheduleStore = create<ScheduleStoreState>((set, get) => ({
   tasks: [],
   loading: false,
   focusedScheduleId: null,
+  editingScheduleId: null,
   setFocusedScheduleId: (id) => set({ focusedScheduleId: id }),
+  setEditingScheduleId: (id) => set({ editingScheduleId: id }),
   refresh: async () => {
     if (inflight) return inflight;
     const getSchedules = readBridge().getSchedules;

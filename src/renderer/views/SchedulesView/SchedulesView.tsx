@@ -71,6 +71,7 @@ export function SchedulesView() {
    */
   const hiddenProjectIds = useProjectIdsHiddenByWorkspace();
   const focusedScheduleId = useScheduleStore((state) => state.focusedScheduleId);
+  const editingScheduleId = useScheduleStore((state) => state.editingScheduleId);
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const agents = agentStatuses
     .filter((agent) => {
@@ -123,6 +124,20 @@ export function SchedulesView() {
     const node = document.querySelector(`[data-schedule-id="${focusedScheduleId}"]`);
     node?.scrollIntoView({ block: "nearest" });
   }, [focusedScheduleId, tasks]);
+
+  // Cross-view edit request (e.g. the thread schedule popover's Edit action).
+  // Wait for the task list to load before resolving the target; drop stale ids
+  // for schedules deleted in the meantime.
+  useEffect(() => {
+    if (!editingScheduleId) return;
+    const target = tasks.find((task) => task.id === editingScheduleId);
+    if (!target) {
+      if (!loading) useScheduleStore.getState().setEditingScheduleId(null);
+      return;
+    }
+    useScheduleStore.getState().setEditingScheduleId(null);
+    setDraft(taskScheduleDraft(target));
+  }, [editingScheduleId, tasks, loading]);
 
   // Poll only while a run is active. Depend on the derived boolean (not the
   // whole `tasks` array) so the interval is recreated when the running state

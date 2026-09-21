@@ -145,9 +145,16 @@ vi.mock("@/renderer/state/appStore", () => {
 });
 
 import { SchedulesView } from "./SchedulesView";
+import { useScheduleStore } from "@/renderer/state/scheduleStore";
 
 describe("SchedulesView", () => {
   beforeEach(() => {
+    useScheduleStore.setState({
+      tasks: [],
+      loading: false,
+      focusedScheduleId: null,
+      editingScheduleId: null,
+    });
     agentState.statuses = [status];
     bridge.getSchedules.mockReset().mockResolvedValue([task]);
     bridge.createSchedule.mockReset().mockResolvedValue(task);
@@ -157,7 +164,9 @@ describe("SchedulesView", () => {
     }));
     bridge.deleteSchedule.mockReset().mockResolvedValue(undefined);
     bridge.runScheduleNow.mockReset().mockResolvedValue({ ...task, lastStatus: "running" });
-    bridge.pauseSchedule.mockReset().mockResolvedValue({ ...task, enabled: false, nextRunAt: null });
+    bridge.pauseSchedule
+      .mockReset()
+      .mockResolvedValue({ ...task, enabled: false, nextRunAt: null });
     bridge.resumeSchedule.mockReset().mockResolvedValue({ ...task, enabled: true });
     bridge.getScheduleRuns.mockReset().mockResolvedValue([run]);
     bridge.onSchedulesChanged.mockReset().mockReturnValue(() => undefined);
@@ -275,6 +284,26 @@ describe("SchedulesView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     await waitFor(() => expect(bridge.pauseSchedule).toHaveBeenCalledWith({ id: task.id }));
+  });
+
+  it("opens the editor prefilled when another view requests editing", async () => {
+    useScheduleStore.setState({ editingScheduleId: task.id });
+    render(<SchedulesView />);
+
+    // Edit mode: heading, prefilled name and the "Save changes" footer.
+    expect(await screen.findByRole("heading", { name: "Edit schedule" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Daily brief")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    await waitFor(() => expect(useScheduleStore.getState().editingScheduleId).toBeNull());
+  });
+
+  it("drops a stale edit request for a schedule that no longer exists", async () => {
+    useScheduleStore.setState({ editingScheduleId: "00000000-0000-4000-8000-000000000000" });
+    render(<SchedulesView />);
+
+    await screen.findByText("Daily brief");
+    await waitFor(() => expect(useScheduleStore.getState().editingScheduleId).toBeNull());
+    expect(screen.queryByRole("heading", { name: "Edit schedule" })).not.toBeInTheDocument();
   });
 
   it("creates a Home-scoped schedule from the shared editor", async () => {
