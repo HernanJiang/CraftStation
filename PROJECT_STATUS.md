@@ -1,3 +1,8 @@
+## Release v1.4.4（2026-09-21）
+
+- 版本 bump 1.4.3 → 1.4.4；commit `64bf905e` 计划弹层操作修复：弹层原本 Pause/Resume 与 Run-now 在暂停态同显 Play 图标造成歧义，改为 暂停/继续（Pause/CirclePlay）+ 编辑（铅笔 → `editingScheduleId` 跨视图请求 → SchedulesView 打开 `ScheduleEditor`）+ 删除（`ConfirmDialog` 确认）三操作；Run now 保留在计划主页。
+- 中英双语 notes `ai_workspace/release-notes-1.4.4.md`；30/30 计划相关测试、typecheck、lint 全过。
+
 ## Release v1.4.3（2026-09-21）
 
 - 版本 bump 1.4.2 → 1.4.3；`pnpm dist:win` + `pnpm dist:win:portable`（x64）；中英双语 notes `ai_workspace/release-notes-1.4.3.md`；commit + tag `v1.4.3` 推 main；GitHub Release 4 附件。
