@@ -214,6 +214,13 @@ export interface AcpStructuredSessionOptions {
    * provider-agnostic.
    */
   sessionUpdateTransform?: (notification: SessionNotification) => SessionNotification;
+  /**
+   * Some agents continue autonomously after `session/prompt` settles, then emit
+   * a final assistant message without another ACP stop reason. When configured,
+   * close that synthetic orphan turn after this much quiet time, provided no
+   * tool call or sub-agent is still active. Later activity cancels the timer.
+   */
+  orphanTurnCompletionDelayMs?: number;
   /** Paint canonical state for this provider's `/goal` command family. */
   goalCommands?: boolean;
   /**
@@ -355,6 +362,8 @@ export class AcpStructuredSession implements StructuredSessionHandle {
    * `isOrphanTurnActivity` for why these exist.
    */
   private orphanTurnId: string | undefined;
+  private readonly orphanTurnCompletionDelayMs: number | undefined;
+  private orphanTurnCompletionTimer: ReturnType<typeof setTimeout> | undefined;
   private stableSessionRef: SessionRef | undefined;
   /**
    * usage.spent ledger scope: the ACP session id plus an epoch that bumps if
@@ -485,6 +494,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     if (options?.sessionUpdateTransform) {
       this.sessionUpdateTransform = options.sessionUpdateTransform;
     }
+    this.orphanTurnCompletionDelayMs = options?.orphanTurnCompletionDelayMs;
     this.goalCommands = options?.goalCommands === true;
     this.strictModelResolution = options?.strictModelResolution === true;
     if (options?.extensionSessionUpdateTransform) {
@@ -1316,6 +1326,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   async dispose(): Promise<void> {
     if (this.isDisposed) return;
     this.isDisposed = true;
+    this.clearOrphanTurnCompletionTimer();
 
     for (const source of this.externalSessionUpdateSources ?? []) source.dispose();
     this.externalSessionUpdateSources?.clear();
@@ -1673,7 +1684,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         detachedParentToolCallId === undefined &&
         isOrphanTurnActivity(update)
       ) {
-        this.noteOrphanTurnActivity();
+        this.noteOrphanTurnActivity(mapperState);
       }
     } else {
       return;
@@ -1872,12 +1883,13 @@ export class AcpStructuredSession implements StructuredSessionHandle {
 
   /**
    * Open (or keep alive) the synthetic turn that covers agent-initiated work.
-   * There is deliberately no idle deadline: ACP providers may spend an
-   * arbitrary amount of time between notifications. The turn closes only on
-   * an explicit prompt handover, Stop/cancel, dispose, or a provider terminal
-   * event that owns the work.
+   * By default there is no idle deadline: ACP providers may spend an arbitrary
+   * amount of time between notifications. Adapters whose provider emits a
+   * final message but no terminal event may opt into the guarded completion
+   * timer below.
    */
-  private noteOrphanTurnActivity(): void {
+  private noteOrphanTurnActivity(mapperState: AcpMapperState): void {
+    this.clearOrphanTurnCompletionTimer();
     if (!this.orphanTurnId) {
       this.orphanTurnId = `turn-${randomUUID()}`;
       this.emitRuntimeEvents([
@@ -1885,6 +1897,48 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       ]);
       this.emitListenerUpdate({ status: "working", attention: "working" });
     }
+    if (
+      this.orphanTurnCompletionDelayMs === undefined ||
+      mapperState.openAssistantItemId === undefined ||
+      mapperState.toolCallItems.size > 0 ||
+      mapperState.activeSubAgents.length > 0
+    ) {
+      return;
+    }
+
+    this.orphanTurnCompletionTimer = setTimeout(() => {
+      this.orphanTurnCompletionTimer = undefined;
+      if (
+        this.isDisposed ||
+        !this.orphanTurnId ||
+        this.promptInFlight ||
+        this.foregroundTurnOpen ||
+        this.foregroundTurnAwaitingSubagents ||
+        this.detachedTurnId
+      ) {
+        return;
+      }
+      const currentMapperState = this.ensureMapperState();
+      if (
+        currentMapperState.openAssistantItemId === undefined ||
+        currentMapperState.toolCallItems.size > 0 ||
+        currentMapperState.activeSubAgents.length > 0
+      ) {
+        return;
+      }
+      console.info("[acp] completed orphan turn after final response quiet period", {
+        threadId: this.threadId,
+        sessionId: this.sessionId,
+        delayMs: this.orphanTurnCompletionDelayMs,
+      });
+      this.completeOrphanTurn();
+    }, this.orphanTurnCompletionDelayMs);
+  }
+
+  private clearOrphanTurnCompletionTimer(): void {
+    if (this.orphanTurnCompletionTimer === undefined) return;
+    clearTimeout(this.orphanTurnCompletionTimer);
+    this.orphanTurnCompletionTimer = undefined;
   }
 
   /**
@@ -1895,6 +1949,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     silent?: boolean;
     state?: "completed" | "cancelled";
   }): void {
+    this.clearOrphanTurnCompletionTimer();
     const turnId = this.orphanTurnId;
     if (!turnId) return;
     this.orphanTurnId = undefined;

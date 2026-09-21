@@ -120,18 +120,20 @@ describe("createAcpStructuredSession baseSpawnEnv merge", () => {
     });
   });
 
-  it("forwards retrySessionOpen from adapter overrides", () => {
+  it("forwards adapter-specific lifecycle overrides", () => {
     const createSpy = spyOnCreate();
     const retrySessionOpen = { maxAttempts: 3, isRetryable: () => true };
 
     createAcpStructuredSession({ command: "devin", args: ["acp"] }, makeInput(), {
       retrySessionOpen,
       assumedMcpCapabilities: { http: true },
+      orphanTurnCompletionDelayMs: 5_000,
     });
 
     expect(createSpy.mock.calls[0]?.[3]).toMatchObject({
       assumedMcpCapabilities: { http: true },
       retrySessionOpen,
+      orphanTurnCompletionDelayMs: 5_000,
     });
   });
 });

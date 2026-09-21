@@ -98,6 +98,7 @@ function makeConfigSyncSession(
       sleep?: (delayMs: number) => Promise<void>;
       isRetryable: (error: unknown) => boolean;
     };
+    orphanTurnCompletionDelayMs?: number;
   } = {},
 ) {
   const connection = {
@@ -223,6 +224,8 @@ function makeConfigSyncSession(
   // Mirrors the constructor's `options?.fsTextCapability !== false` default.
   session["fsTextCapability"] = overrides.fsTextCapability !== false;
   session["retrySessionOpen"] = overrides.retrySessionOpen;
+  session["orphanTurnCompletionDelayMs"] = overrides.orphanTurnCompletionDelayMs;
+  session["orphanTurnCompletionTimer"] = undefined;
   session["fsAgentHomeDirs"] = [];
   session["spawnReady"] = Promise.resolve();
   return { connection, listener, session: session as unknown as TestableAcpSession };
@@ -3337,6 +3340,66 @@ describe("ACP orphan turns — agent-initiated work after prompt() settled", () 
 
     expect(statusUpdates(listener)).toEqual(["working"]);
     expect(runtimeEventTypes(listener)).not.toContain("turn.completed");
+  });
+
+  it("settles an orphan turn after the provider's final assistant message", () => {
+    vi.useFakeTimers();
+    const { listener, session } = makeConfigSyncSession({
+      orphanTurnCompletionDelayMs: 5_000,
+    });
+
+    session.handleSessionUpdate(thoughtChunk("finishing background work"));
+    session.handleSessionUpdate({
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "Task completed." },
+      },
+    });
+
+    expect(statusUpdates(listener).at(-1)).toBe("working");
+    vi.advanceTimersByTime(4_999);
+    expect(runtimeEventTypes(listener)).not.toContain("turn.completed");
+
+    vi.advanceTimersByTime(1);
+
+    expect(statusUpdates(listener).at(-1)).toBe("idle");
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "item.completed" }),
+    );
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "turn.completed", state: "completed" }),
+    );
+  });
+
+  it("keeps the orphan turn live when work resumes during the completion window", () => {
+    vi.useFakeTimers();
+    const { listener, session } = makeConfigSyncSession({
+      orphanTurnCompletionDelayMs: 5_000,
+    });
+
+    session.handleSessionUpdate({
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "One more check." },
+      },
+    });
+    vi.advanceTimersByTime(4_000);
+    session.handleSessionUpdate(thoughtChunk("continuing"));
+    vi.advanceTimersByTime(5_000);
+
+    expect(statusUpdates(listener).at(-1)).toBe("working");
+    expect(runtimeEventTypes(listener)).not.toContain("turn.completed");
+
+    session.handleSessionUpdate({
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "Now complete." },
+      },
+    });
+    vi.advanceTimersByTime(5_000);
+
+    expect(statusUpdates(listener).at(-1)).toBe("idle");
+    expect(runtimeEventTypes(listener)).toContain("turn.completed");
   });
 
   it("stays working past the idle window while a tool call is still open", () => {

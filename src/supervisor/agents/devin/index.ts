@@ -113,6 +113,11 @@ export function createDevinAdapter(): AgentAdapter {
         { ...input, config: sessionConfig },
         {
           assumedMcpCapabilities: { http: true },
+          // Devin can continue autonomously after a cancelled prompt and does
+          // not emit a second ACP stop reason when that work finishes. Its
+          // final assistant message is therefore the only safe completion
+          // boundary once all tools and sub-agents have settled.
+          orphanTurnCompletionDelayMs: 5_000,
           retrySessionOpen: {
             ...resolveDevinTeamSettingsRetryPolicy(),
             isRetryable: isDevinTeamSettingsTimeoutError,
