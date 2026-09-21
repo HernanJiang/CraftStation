@@ -664,24 +664,14 @@
     },
     {
       "version": "1.5.1",
-      "date": "2026-07-19",
-      "title": "Smoother macOS rebrand upgrades",
-      "summary": "A focused hotfix makes the move from CraftStation to CraftStation seamless on macOS, with reliable relaunching, correctly sized Dock artwork, and release notes highlighted in the sidebar after updating.",
+      "date": "2026-09-21",
+      "title": "Reliable Devin task completion",
+      "summary": "A focused hotfix prevents completed Devin sessions from remaining stuck in the working state after autonomous follow-up work finishes.",
       "changes": [
         {
           "kind": "fixed",
-          "label": "Updates",
-          "text": "CraftStation now relaunches automatically after updating an existing CraftStation installation on macOS."
-        },
-        {
-          "kind": "fixed",
-          "label": "Dock",
-          "text": "The CraftStation Dock icon now keeps the correct macOS optical size when the app launches instead of visibly growing."
-        },
-        {
-          "kind": "fixed",
-          "label": "What's New",
-          "text": "Your previous changelog state now carries over from CraftStation, and What's New appears in the sidebar after an update without interrupting launch."
+          "label": "Devin",
+          "text": "Threads now return to idle after Devin finishes autonomous work and sends its final response, while genuine follow-up activity keeps the working state active."
         }
       ]
     },
