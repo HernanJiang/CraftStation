@@ -58,7 +58,11 @@ describe("ConversationCheckpoint projection", () => {
       id: "checkpoint-fixed",
       maxCharacters: 500,
       items: [
-        message("user-1", "user_message", "Fix the handoff. api_key=sk-abcdefghijklmnop"),
+        message(
+          "user-1",
+          "user_message",
+          "Fix the handoff. api_key=sk-abcdefghijklmnop\nMust preserve the original goal.",
+        ),
         message("reasoning-1", "reasoning", "hidden chain of thought must never leave"),
         {
           id: "request-1",
@@ -85,6 +89,10 @@ describe("ConversationCheckpoint projection", () => {
         craftPlanId: plan.id,
         modelId: "gpt-test",
         harnessKind: "codex",
+      },
+      taskFacts: {
+        goalItemId: "user-1",
+        constraints: [{ itemId: "user-1", text: "Must preserve the original goal." }],
       },
     });
     const serialized = JSON.stringify(first);
@@ -131,10 +139,55 @@ describe("ConversationCheckpoint projection", () => {
       ...checkpoint.importantResults,
       ...checkpoint.workspaceChanges,
       ...checkpoint.recentCompletedMessages.map((entry) => entry.content),
+      ...(checkpoint.taskFacts?.constraints.map((entry) => entry.text) ?? []),
+      ...(checkpoint.taskFacts?.pendingUserAsks.map((entry) => entry.text) ?? []),
+      ...(checkpoint.taskFacts?.blockers.map((entry) => entry.text) ?? []),
+      ...(checkpoint.taskFacts?.criticalFiles.map((entry) => entry.path) ?? []),
     ].reduce((total, value) => total + value.length, 0);
 
     expect(portableCharacters).toBeLessThanOrEqual(120);
     expect(checkpoint.projection.truncated).toBe(true);
     expect(checkpoint.anchors.lastIncludedItemId).toBe("assistant-1");
+  });
+
+  it("keeps the original goal, verified file anchors, blockers, and unanswered user asks", () => {
+    const checkpoint = projectConversationCheckpoint({
+      threadId: "thread-1",
+      sourceSegment: segment,
+      sourcePlan: plan,
+      now: "2026-08-31T01:00:00.000Z",
+      id: "checkpoint-facts",
+      maxCharacters: 2_000,
+      items: [
+        message("user-goal", "user_message", "Implement durable workflow recovery."),
+        message("assistant-progress", "assistant_message", "The persistence module is ready."),
+        {
+          id: "file-1",
+          type: "file_change",
+          state: "completed",
+          payload: { path: "src/main/workflows/runIndex.ts", changeKind: "create" },
+          streams: {},
+        },
+        {
+          id: "error-1",
+          type: "error",
+          state: "completed",
+          payload: { message: "Live runtime could not be reattached." },
+          streams: {},
+        },
+        message("user-pending", "user_message", "Also keep the stop reason."),
+      ],
+    });
+
+    expect(checkpoint.taskSummary).toBe("Implement durable workflow recovery.");
+    expect(checkpoint.taskFacts).toMatchObject({
+      goalItemId: "user-goal",
+      pendingUserAsks: [{ itemId: "user-pending", text: "Also keep the stop reason." }],
+      blockers: [{ itemId: "error-1", text: "Live runtime could not be reattached." }],
+      criticalFiles: [{ itemId: "file-1", path: "src/main/workflows/runIndex.ts" }],
+    });
+    const rendered = renderCheckpointForTarget(checkpoint);
+    expect(rendered).toContain("Pending user asks:");
+    expect(rendered).toContain("Critical files:");
   });
 });

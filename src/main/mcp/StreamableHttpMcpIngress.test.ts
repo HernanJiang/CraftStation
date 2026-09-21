@@ -198,4 +198,62 @@ describe("StreamableHttpMcpIngress auth + host guards", () => {
       label: stringifiedLabel,
     });
   });
+
+  it("defers a large catalog and invokes a searched tool through the original guards", async () => {
+    let received: { name: string; args: Record<string, unknown> } | undefined;
+    const tools = Array.from({ length: 25 }, (_, index) => ({
+      name: `workspace_tool_${index}`,
+      description:
+        index === 17 ? "Inspect repository dependency graph" : `Workspace utility ${index}`,
+      inputSchema: {
+        type: "object",
+        properties: { path: { type: "string", description: "x".repeat(700) } },
+        required: ["path"],
+        additionalProperties: false,
+      },
+    }));
+    ingress = new StreamableHttpMcpIngress<{ ok: true }>({
+      bindHost: "127.0.0.1",
+      serverInfo: { name: "test", version: "0.0.0" },
+      instructions: "test",
+      tools,
+      progressiveDisclosure: { enabled: true },
+      isKnownToolName: (name) => tools.some((tool) => tool.name === name),
+      buildContext: () => ({ ok: true }),
+      dispatchTool: (name, args) => {
+        received = { name, args };
+        return Promise.resolve({ ok: true });
+      },
+      formatToolResult: () => ({ content: [{ type: "text", text: "ok" }] }),
+    });
+    const info = await ingress.start();
+    const headers = {
+      authorization: `Bearer ${info.token}`,
+      "content-type": "application/json",
+    };
+    const list = await fetch(`${info.url}/mcp?thread=test`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    expect((await list.json()).result.tools.map((tool: { name: string }) => tool.name)).toEqual([
+      "craftstation_tool_search",
+      "craftstation_tool_invoke",
+    ]);
+    const invoke = await fetch(`${info.url}/mcp?thread=test`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "craftstation_tool_invoke",
+          arguments: { name: "workspace_tool_17", arguments: { path: "src" } },
+        },
+      }),
+    });
+    expect((await invoke.json()).result.isError).not.toBe(true);
+    expect(received).toEqual({ name: "workspace_tool_17", args: { path: "src" } });
+  });
 });

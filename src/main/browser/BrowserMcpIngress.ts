@@ -29,6 +29,7 @@ export class BrowserMcpIngress {
     serverInfo: { name: "browser", version: "2.0.0" },
     instructions: BROWSER_MCP_INSTRUCTIONS,
     tools: TOOLS,
+    progressiveDisclosure: { enabled: true },
     isKnownToolName,
     // Agent tool calls no longer force the browser panel open — the tab's
     // <webview> stays alive off-screen (see BrowserHost "background" mode),

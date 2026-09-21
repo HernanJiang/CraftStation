@@ -9,6 +9,14 @@ import {
 import { isLocalhostOrigin, readBoundedNodeRequestBody, writeJsonResponse } from "@/shared/http";
 import { LOCAL_MCP_BIND_HOST } from "@/shared/localMcpBind";
 import { coerceStringifiedJsonArgs } from "@/shared/stringifiedJsonArgs";
+import {
+  planProgressiveToolDisclosure,
+  searchProgressiveTools,
+  TOOL_INVOKE_NAME,
+  TOOL_SEARCH_NAME,
+  validateToolArguments,
+  type ProgressiveToolDisclosureOptions,
+} from "./progressiveToolCatalog";
 
 export interface StreamableHttpMcpIngressInfo {
   url: string;
@@ -65,6 +73,7 @@ export interface StreamableHttpMcpIngressOptions<TContext> {
   onBeforeToolCall?(name: string, ctx: TContext): void;
   serverInfo: { name: string; version: string };
   tools: readonly StreamableHttpMcpToolSpec[];
+  progressiveDisclosure?: ProgressiveToolDisclosureOptions;
 }
 
 const MAX_BODY = 1024 * 1024;
@@ -327,11 +336,15 @@ export class StreamableHttpMcpIngress<TContext> {
         return { jsonrpc: "2.0", id, result: {} };
       }
       if (method === "tools/list") {
-        const disabled = new Set(identity.disabledTools ?? []);
+        const plan = planProgressiveToolDisclosure(
+          this.options.tools,
+          identity.disabledTools ?? [],
+          this.options.progressiveDisclosure,
+        );
         return {
           jsonrpc: "2.0",
           id,
-          result: { tools: this.options.tools.filter((tool) => !disabled.has(tool.name)) },
+          result: { tools: plan.visibleTools },
         };
       }
       if (method === "tools/call") {
@@ -369,63 +382,72 @@ export class StreamableHttpMcpIngress<TContext> {
           args = rest;
           identity = { ...identity, threadId: resolved };
         }
-        if (identity.disabledTools?.includes(name)) {
-          return {
-            jsonrpc: "2.0",
-            id,
-            result: {
-              isError: true,
-              content: [{ type: "text", text: `Tool disabled by CraftStation: ${name}` }],
-            },
-          };
-        }
-        if (!this.options.isKnownToolName(name)) {
-          return {
-            jsonrpc: "2.0",
-            id,
-            result: {
-              isError: true,
-              content: [{ type: "text", text: `Unknown tool: ${name}` }],
-            },
-          };
-        }
-        const ctx = this.options.buildContext(identity);
-        if (!ctx) {
-          return {
-            jsonrpc: "2.0",
-            id,
-            result: {
-              isError: true,
-              content: [
-                { type: "text", text: this.options.contextUnavailableMessage ?? "not ready" },
-              ],
-            },
-          };
-        }
-        this.options.onBeforeToolCall?.(name, ctx);
-        // OpenCode-style bridges stringify nested object/array params into
-        // JSON text; unwrap them only where the tool's declared inputSchema
-        // types that parameter as object/array (string params keep verbatim
-        // text even when it happens to be valid JSON).
-        args = coerceStringifiedJsonArgs(
-          args,
-          this.options.tools.find((tool) => tool.name === name)?.inputSchema,
+        const disclosure = planProgressiveToolDisclosure(
+          this.options.tools,
+          identity.disabledTools ?? [],
+          this.options.progressiveDisclosure,
         );
-        let raw: unknown;
-        try {
-          raw = await this.options.dispatchTool(name, args, ctx);
-        } catch (err) {
+        if (disclosure.deferred && name === TOOL_SEARCH_NAME) {
+          const query = typeof args.query === "string" ? args.query.trim() : "";
+          const requestedLimit =
+            typeof args.limit === "number" ? Math.trunc(args.limit) : disclosure.maxSearchResults;
+          if (!query) {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: { isError: true, content: [{ type: "text", text: "query is required" }] },
+            };
+          }
+          const matches = searchProgressiveTools(
+            disclosure.availableTools,
+            query,
+            Math.min(disclosure.maxSearchResults, Math.max(1, requestedLimit)),
+          );
           return {
             jsonrpc: "2.0",
             id,
-            result: {
-              isError: true,
-              content: [{ type: "text", text: (err as Error).message ?? String(err) }],
-            },
+            result: { content: [{ type: "text", text: JSON.stringify(matches) }] },
           };
         }
-        const result = this.options.formatToolResult(name, raw);
-        return { jsonrpc: "2.0", id, result };
+        if (disclosure.deferred && name === TOOL_INVOKE_NAME) {
+          const targetName = typeof args.name === "string" ? args.name.trim() : "";
+          const target = disclosure.availableTools.find((tool) => tool.name === targetName);
+          if (!target) {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                isError: true,
+                content: [
+                  { type: "text", text: `Unknown or disabled deferred tool: ${targetName}` },
+                ],
+              },
+            };
+          }
+          const targetArgs =
+            args.arguments && typeof args.arguments === "object" && !Array.isArray(args.arguments)
+              ? (args.arguments as Record<string, unknown>)
+              : {};
+          const coercedTargetArgs = coerceStringifiedJsonArgs(targetArgs, target.inputSchema);
+          const validationError = validateToolArguments(target.inputSchema, coercedTargetArgs);
+          if (validationError) {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                isError: true,
+                content: [
+                  { type: "text", text: `Invalid arguments for ${targetName}: ${validationError}` },
+                ],
+              },
+            };
+          }
+          args = coercedTargetArgs;
+          // Continue through the original authorization, context, coercion and
+          // dispatch path with the real target name.
+          return await this.dispatchResolvedTool(id, targetName, args, identity);
+        }
+        return await this.dispatchResolvedTool(id, name, args, identity);
       }
       return {
         jsonrpc: "2.0",
@@ -439,6 +461,68 @@ export class StreamableHttpMcpIngress<TContext> {
         error: { code: -32000, message: (err as Error).message ?? "internal" },
       };
     }
+  }
+
+  private async dispatchResolvedTool(
+    id: number | string | null,
+    name: string,
+    initialArgs: Record<string, unknown>,
+    identity: McpThreadIdentity,
+  ): Promise<JsonRpcResponse> {
+    let args = initialArgs;
+    if (identity.disabledTools?.includes(name)) {
+      return {
+        jsonrpc: "2.0",
+        id,
+        result: {
+          isError: true,
+          content: [{ type: "text", text: `Tool disabled by CraftStation: ${name}` }],
+        },
+      };
+    }
+    if (!this.options.isKnownToolName(name)) {
+      return {
+        jsonrpc: "2.0",
+        id,
+        result: {
+          isError: true,
+          content: [{ type: "text", text: `Unknown tool: ${name}` }],
+        },
+      };
+    }
+    const ctx = this.options.buildContext(identity);
+    if (!ctx) {
+      return {
+        jsonrpc: "2.0",
+        id,
+        result: {
+          isError: true,
+          content: [{ type: "text", text: this.options.contextUnavailableMessage ?? "not ready" }],
+        },
+      };
+    }
+    this.options.onBeforeToolCall?.(name, ctx);
+    // OpenCode-style bridges stringify nested object/array params into JSON
+    // text. Only unwrap fields whose declared schema expects object/array.
+    args = coerceStringifiedJsonArgs(
+      args,
+      this.options.tools.find((tool) => tool.name === name)?.inputSchema,
+    );
+    let raw: unknown;
+    try {
+      raw = await this.options.dispatchTool(name, args, ctx);
+    } catch (err) {
+      return {
+        jsonrpc: "2.0",
+        id,
+        result: {
+          isError: true,
+          content: [{ type: "text", text: (err as Error).message ?? String(err) }],
+        },
+      };
+    }
+    const result = this.options.formatToolResult(name, raw);
+    return { jsonrpc: "2.0", id, result };
   }
 }
 

@@ -14,6 +14,12 @@ interface TokenCounts {
   cachedReadTokens?: number | undefined;
   cachedWriteTokens?: number | undefined;
   extra?: ContextUsageBreakdownEntry[] | undefined;
+  source?: ThreadContextUsage["source"];
+  scope?: ThreadContextUsage["scope"];
+  measuredAt?: string | undefined;
+  stale?: boolean | undefined;
+  cacheInputSemantics?: ThreadContextUsage["cacheInputSemantics"];
+  compaction?: ThreadContextUsage["compaction"];
 }
 
 export function readNonNegativeInteger(value: unknown): number | undefined {
@@ -66,6 +72,12 @@ export function usageFromTokenCounts(counts: TokenCounts): ThreadContextUsage | 
     ...(usedTokens !== undefined ? { usedTokens } : {}),
     ...(counts.maxTokens !== undefined ? { maxTokens: counts.maxTokens } : {}),
     ...(breakdown.length > 0 ? { breakdown } : {}),
+    ...(counts.source ? { source: counts.source } : {}),
+    ...(counts.scope ? { scope: counts.scope } : {}),
+    ...(counts.measuredAt ? { measuredAt: counts.measuredAt } : {}),
+    ...(counts.stale !== undefined ? { stale: counts.stale } : {}),
+    ...(counts.cacheInputSemantics ? { cacheInputSemantics: counts.cacheInputSemantics } : {}),
+    ...(counts.compaction ? { compaction: counts.compaction } : {}),
   };
 }
 
@@ -241,10 +253,15 @@ export function isLikelyBillingAggregateUsage(obj: Record<string, unknown>): boo
 
 export function usageFromProviderRecord(
   obj: Record<string, unknown>,
-  options: { maxTokens?: number | undefined } = {},
+  options: { maxTokens?: number | undefined; measuredAt?: string | undefined } = {},
 ): ThreadContextUsage | undefined {
   const record = flattenUsageRecord(obj);
   return usageFromTokenCounts({
+    source: "provider-reported",
+    scope: "turn",
+    measuredAt: options.measuredAt ?? new Date().toISOString(),
+    stale: false,
+    cacheInputSemantics: "unknown",
     usedTokens: firstInteger(record, [
       "totalTokens",
       "total_tokens",

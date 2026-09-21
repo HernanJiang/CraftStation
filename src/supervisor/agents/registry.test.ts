@@ -12,6 +12,7 @@ const EXPECTED_BUILT_IN_ORDER = [
   "qwen",
   "qoder",
   "grok",
+  "minimax",
   "kimi",
   "deepseek",
   "muse",
@@ -22,6 +23,7 @@ const EXPECTED_BUILT_IN_ORDER = [
   "pi",
   "factory",
   "devin",
+  "zcode",
 ] as const;
 
 const EXPECTED_SUBAGENT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[number], string> =
@@ -33,6 +35,7 @@ const EXPECTED_SUBAGENT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)
     qwen: "never",
     qoder: "bypassPermissions",
     grok: "bypassPermissions",
+    minimax: "never",
     kimi: "auto",
     deepseek: "yolo",
     muse: "yolo",
@@ -43,6 +46,7 @@ const EXPECTED_SUBAGENT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)
     pi: "never",
     factory: "auto-high",
     devin: "yolo",
+    zcode: "yolo",
   };
 
 const EXPECTED_DEFAULT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[number], string> = {
@@ -53,6 +57,7 @@ const EXPECTED_DEFAULT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[
   qwen: "auto",
   qoder: "bypassPermissions",
   grok: "bypassPermissions",
+  minimax: "auto",
   kimi: "auto",
   deepseek: "auto",
   muse: "yolo",
@@ -63,6 +68,7 @@ const EXPECTED_DEFAULT_APPROVAL_POLICY: Record<(typeof EXPECTED_BUILT_IN_ORDER)[
   pi: "never",
   factory: "auto-high",
   devin: "accept-edits",
+  zcode: "auto",
 };
 
 function detectionProviderKinds(): string[] {

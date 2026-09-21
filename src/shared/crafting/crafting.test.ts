@@ -129,8 +129,10 @@ describe("Crafting Registry", () => {
       "harness:devin",
       "harness:grok",
       "harness:kimi",
+      "harness:minimax",
       "harness:muse",
       "harness:opencode",
+      "harness:zcode",
     ]);
     expect(registry.getItem(BUILTIN_CODEX_HARNESS_ITEM.id)).toBeDefined();
     expect(registry.getItem("harness:opencode")).toBeDefined();

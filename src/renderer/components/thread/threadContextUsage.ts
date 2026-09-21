@@ -46,6 +46,12 @@ export interface ThreadContextUsageSummary {
   breakdown: ContextUsageBreakdownEntry[];
   occupancy: ContextOccupancyRow[];
   cacheHitRate?: number;
+  source: NonNullable<ThreadContextUsage["source"]>;
+  sourceLabel: string;
+  scope?: ThreadContextUsage["scope"];
+  measuredAt?: string;
+  stale: boolean;
+  compaction?: ThreadContextUsage["compaction"];
   usedLabel: string;
   maxLabel: string;
   remainingLabel: string;
@@ -92,7 +98,8 @@ export function resolveThreadContextUsageSummary(input: {
   const breakdown =
     reportedUsage?.breakdown && reportedUsage.breakdown.length > 0 ? reportedUsage.breakdown : [];
   const occupancy = resolveContextOccupancy(breakdown, usedTokens);
-  const cacheHitRate = resolveSessionCacheHitRate(breakdown);
+  const cacheHitRate = resolveSessionCacheHitRate(breakdown, reportedUsage?.cacheInputSemantics);
+  const source = reportedUsage?.source ?? (usedTokens !== undefined ? "unknown" : "local-estimate");
   const usedLabel = usedTokens === undefined ? i18n._(msg`Unknown`) : formatTokenCount(usedTokens);
   const maxLabel = maxTokens === undefined ? i18n._(msg`Unknown`) : formatTokenCount(maxTokens);
   const remainingLabel =
@@ -119,6 +126,12 @@ export function resolveThreadContextUsageSummary(input: {
     breakdown,
     occupancy,
     ...(cacheHitRate !== undefined ? { cacheHitRate } : {}),
+    source,
+    sourceLabel: contextUsageSourceLabel(source),
+    ...(reportedUsage?.scope ? { scope: reportedUsage.scope } : {}),
+    ...(reportedUsage?.measuredAt ? { measuredAt: reportedUsage.measuredAt } : {}),
+    stale: reportedUsage?.stale === true,
+    ...(reportedUsage?.compaction ? { compaction: reportedUsage.compaction } : {}),
     usedLabel,
     maxLabel,
     remainingLabel,
@@ -186,6 +199,7 @@ export function resolveContextOccupancy(
 
 export function resolveSessionCacheHitRate(
   breakdown: readonly ContextUsageBreakdownEntry[],
+  semantics: ThreadContextUsage["cacheInputSemantics"] = "unknown",
 ): number | undefined {
   const cacheRead = breakdown
     .filter((entry) => /cache-?read|cached/.test(`${entry.id} ${entry.label}`.toLowerCase()))
@@ -199,8 +213,32 @@ export function resolveSessionCacheHitRate(
     .reduce((sum, entry) => sum + entry.tokens, 0);
   if (input <= 0) return undefined;
   if (cacheRead <= 0) return 0;
-  const prompt = input > cacheRead ? input : input + cacheRead;
+  const cacheWrite = breakdown
+    .filter((entry) => /cache-?write/.test(`${entry.id} ${entry.label}`.toLowerCase()))
+    .reduce((sum, entry) => sum + entry.tokens, 0);
+  const prompt =
+    semantics === "fresh-excludes-cache"
+      ? input + cacheRead + cacheWrite
+      : semantics === "input-includes-cache"
+        ? input
+        : input > cacheRead
+          ? input
+          : input + cacheRead + cacheWrite;
+  if (prompt <= 0) return undefined;
   return Math.round((cacheRead / prompt) * 100);
+}
+
+export function contextUsageSourceLabel(source: NonNullable<ThreadContextUsage["source"]>): string {
+  switch (source) {
+    case "provider-reported":
+      return i18n._(msg`Provider reported`);
+    case "provider-anchored":
+      return i18n._(msg`Provider anchored`);
+    case "local-estimate":
+      return i18n._(msg`Local estimate`);
+    default:
+      return i18n._(msg`Source unknown`);
+  }
 }
 
 /**

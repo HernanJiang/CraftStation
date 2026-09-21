@@ -20,6 +20,11 @@ describe("usageFromProviderRecord", () => {
       }),
     ).toEqual({
       usedTokens: 8_000,
+      source: "provider-reported",
+      scope: "turn",
+      measuredAt: expect.any(String),
+      stale: false,
+      cacheInputSemantics: "unknown",
       breakdown: [
         { id: "input", label: "Input", tokens: 8_000 },
         { id: "output", label: "Output", tokens: 500 },
@@ -74,6 +79,11 @@ describe("usageFromProviderRecord", () => {
     ).toEqual({
       usedTokens: 40_000,
       maxTokens: 500_000,
+      source: "provider-reported",
+      scope: "turn",
+      measuredAt: expect.any(String),
+      stale: false,
+      cacheInputSemantics: "unknown",
       breakdown: [
         { id: "input", label: "Input", tokens: 40_000 },
         { id: "output", label: "Output", tokens: 1_200 },
@@ -94,6 +104,11 @@ describe("usageFromProviderRecord", () => {
     ).toEqual({
       usedTokens: 24_000,
       maxTokens: 1_000_000,
+      source: "provider-reported",
+      scope: "turn",
+      measuredAt: expect.any(String),
+      stale: false,
+      cacheInputSemantics: "unknown",
       breakdown: [
         { id: "input", label: "Input", tokens: 24_000 },
         { id: "output", label: "Output", tokens: 800 },

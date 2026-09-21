@@ -111,6 +111,7 @@ export class AppControlsMcpIngress {
       serverInfo: { ...APP_CONTROLS_MCP_SERVER_INFO },
       instructions: APP_CONTROLS_MCP_INSTRUCTIONS,
       tools: TOOLS,
+      progressiveDisclosure: { enabled: true },
       isKnownToolName,
       buildContext: (identity) => ({
         ...deps,

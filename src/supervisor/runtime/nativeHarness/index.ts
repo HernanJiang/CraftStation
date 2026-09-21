@@ -3,7 +3,9 @@ import type { HarnessRuntimeAdapter } from "@/shared/crafting";
 import { createDevinAdapter } from "@/supervisor/agents/devin";
 import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
+import { createMiniMaxAdapter } from "@/supervisor/agents/minimax";
 import { createMuseAdapter } from "@/supervisor/agents/muse";
+import { createZCodeAdapter } from "@/supervisor/agents/zcode";
 import {
   ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
   antigravitySessionEnvForLocation,
@@ -18,8 +20,10 @@ import {
   DEVIN_NATIVE_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  ZCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
 } from "./descriptors";
 import {
@@ -47,8 +51,10 @@ export {
   DEVIN_NATIVE_HARNESS_DESCRIPTOR,
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  ZCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
   PtyNativeHarnessRuntimeAdapter,
   StructuredNativeHarnessRuntimeAdapter,
@@ -147,6 +153,27 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
       ...(accountBinding ? { accountBinding } : {}),
       ...(profileRef ? { profileRef } : {}),
       ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
+  minimax: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    baseSpawnEnv,
+    mcpServers,
+    onPromptError,
+    skillSegments,
+    inlineSkillInstructions,
+  }) =>
+    new StructuredNativeHarnessRuntimeAdapter({
+      adapter: withBaseSpawnEnv(createMiniMaxAdapter(), baseSpawnEnv),
+      descriptor: MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation,
+      ...(accountBinding ? { accountBinding } : {}),
+      ...(profileRef ? { profileRef } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(onPromptError ? { onPromptError } : {}),
       ...(skillSegments ? { skillSegments } : {}),
       ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
     } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
@@ -308,6 +335,14 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
         : {}),
       ...(openCodeServerPool ? { serverPool: openCodeServerPool } : {}),
     }),
+  zcode: ({ projectLocation, accountBinding, profileRef }) =>
+    new PtyNativeHarnessRuntimeAdapter({
+      adapter: createZCodeAdapter(),
+      descriptor: ZCODE_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation,
+      ...(accountBinding ? { accountBinding } : {}),
+      ...(profileRef ? { profileRef } : {}),
+    } satisfies PtyNativeHarnessRuntimeAdapterOptions),
 };
 
 export function createNativeHarnessRuntimeAdapter(

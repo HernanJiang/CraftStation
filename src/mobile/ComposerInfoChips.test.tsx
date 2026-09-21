@@ -36,6 +36,9 @@ const dockState: ThreadDockState = {
 };
 
 const contextSummary: ThreadContextUsageSummary = {
+  source: "provider-reported",
+  sourceLabel: "Provider reported",
+  stale: false,
   usedTokens: 50_000,
   maxTokens: 200_000,
   remainingTokens: 150_000,

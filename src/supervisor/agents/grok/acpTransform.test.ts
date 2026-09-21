@@ -31,7 +31,15 @@ describe("createGrokAcpSessionUpdateTransform", () => {
         {
           type: "context.updated",
           threadId: "thread-1",
-          usage: { usedTokens: 88_000, maxTokens: 500_000 },
+          usage: {
+            usedTokens: 88_000,
+            maxTokens: 500_000,
+            source: "provider-reported",
+            scope: "turn",
+            measuredAt: expect.any(String),
+            stale: false,
+            cacheInputSemantics: "unknown",
+          },
         },
       ]),
     );
@@ -56,7 +64,15 @@ describe("createGrokAcpSessionUpdateTransform", () => {
       {
         type: "context.updated",
         threadId: "thread-1",
-        usage: { usedTokens: 402_603, maxTokens: 500_000 },
+        usage: {
+          usedTokens: 402_603,
+          maxTokens: 500_000,
+          source: "provider-reported",
+          scope: "turn",
+          measuredAt: expect.any(String),
+          stale: false,
+          cacheInputSemantics: "unknown",
+        },
       },
     ]);
   });

@@ -127,6 +127,52 @@ export const BUILTIN_MODEL_ITEMS: Item[] = [
 
 export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
   {
+    id: "minimax:MiniMax-M3",
+    kind: "model",
+    metadata: {
+      id: "minimax:MiniMax-M3",
+      name: "MiniMax M3",
+      version: "minimax-code-0.4.12-source-preview",
+      vendor: "minimax",
+      source: "builtin",
+      description: "MiniMax model paired with the official MiniMax Code ACP Harness.",
+      tags: ["coding", "minimax", "acp"],
+      compatibilityStatus: "NATIVE",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "minimax",
+        modelId: "MiniMax-M3",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
+    id: "zai:GLM-5.3",
+    kind: "model",
+    metadata: {
+      id: "zai:GLM-5.3",
+      name: "GLM-5.3",
+      version: "zcode-3.14.0-source",
+      vendor: "zai",
+      source: "builtin",
+      description: "Z.ai GLM model paired with the official ZCode terminal Harness.",
+      tags: ["coding", "zai", "zcode"],
+      compatibilityStatus: "EXPERIMENTAL",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "zai",
+        modelId: "GLM-5.3",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
     id: "moonshot-openai-compatible:kimi-k2.5",
     kind: "model",
     metadata: {
@@ -532,6 +578,24 @@ export const BUILTIN_KIMI_HARNESS_ITEM = createNativeHarnessItem({
   executionMode: "structured_session",
 });
 
+export const BUILTIN_MINIMAX_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:minimax",
+  name: "MiniMax Code Harness",
+  vendor: "minimax",
+  description: "Official MiniMax Code runtime through mcode ACP stdio.",
+  executionMode: "structured_session",
+});
+
+export const BUILTIN_ZCODE_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:zcode",
+  name: "ZCode Harness",
+  vendor: "zai",
+  description:
+    "Official ZCode terminal runtime; its custom Protocol v4 app-server remains isolated from ACP.",
+  compatibilityStatus: "EXPERIMENTAL",
+  executionMode: "terminal_pty",
+});
+
 export const BUILTIN_ANTIGRAVITY_HARNESS_ITEM = createNativeHarnessItem({
   id: "harness:antigravity",
   name: "Antigravity Harness",
@@ -577,6 +641,8 @@ export const BUILTIN_DEVIN_HARNESS_ITEM = createNativeHarnessItem({
 export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_GROK_HARNESS_ITEM,
   BUILTIN_KIMI_HARNESS_ITEM,
+  BUILTIN_MINIMAX_HARNESS_ITEM,
+  BUILTIN_ZCODE_HARNESS_ITEM,
   BUILTIN_ANTIGRAVITY_HARNESS_ITEM,
   BUILTIN_DEEPSEEK_HARNESS_ITEM,
   BUILTIN_DEEPSEEK_API_HARNESS_ITEM,
@@ -678,6 +744,24 @@ export const NATIVE_HARNESS_RECIPES = [
     harnessKind: "kimi",
     harnessItemId: BUILTIN_KIMI_HARNESS_ITEM.id,
     modelVendors: ["moonshot"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:minimax-code-native",
+    name: "MiniMax Code Native Recipe",
+    description: "Native MiniMax composition through the official MiniMax Code ACP Harness.",
+    harnessKind: "minimax",
+    harnessItemId: BUILTIN_MINIMAX_HARNESS_ITEM.id,
+    modelVendors: ["minimax"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:zai-zcode-native",
+    name: "Z.ai ZCode Native Recipe",
+    description:
+      "Experimental native Z.ai composition through the official ZCode terminal Harness.",
+    harnessKind: "zcode",
+    harnessItemId: BUILTIN_ZCODE_HARNESS_ITEM.id,
+    modelVendors: ["zai"],
+    compatibilityStatus: "EXPERIMENTAL",
   }),
   new NativeHarnessRecipe({
     id: "recipe:google-antigravity-native",

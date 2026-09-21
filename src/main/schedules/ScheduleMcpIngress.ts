@@ -44,6 +44,7 @@ export class ScheduleMcpIngress {
       serverInfo: { ...SCHEDULE_MCP_SERVER_INFO },
       instructions: SCHEDULE_MCP_INSTRUCTIONS,
       tools: TOOLS,
+      progressiveDisclosure: { enabled: true },
       isKnownToolName,
       buildContext: (identity) => ({
         identity,

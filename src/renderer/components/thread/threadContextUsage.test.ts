@@ -141,6 +141,9 @@ describe("threadContextUsage", () => {
     expect(hasReportedContextUsage({ usedTokens: 1, maxTokens: 200_000 })).toBe(true);
     expect(
       shouldShowContextUsageDock({
+        source: "unknown",
+        sourceLabel: "Source unknown",
+        stale: false,
         maxTokens: 500_000,
         usedLabel: "Unknown",
         maxLabel: "500K",
@@ -410,6 +413,35 @@ describe("threadContextUsage", () => {
       ]),
     ).toBe(50);
     expect(resolveSessionCacheHitRate([{ id: "input", label: "Input", tokens: 80 }])).toBe(0);
+  });
+
+  it("uses the provider-declared cache denominator and exposes sample freshness", () => {
+    const buckets = [
+      { id: "input", label: "Input", tokens: 100 },
+      { id: "cache-read", label: "Cache read", tokens: 60 },
+      { id: "cache-write", label: "Cache write", tokens: 10 },
+    ];
+    expect(resolveSessionCacheHitRate(buckets, "fresh-excludes-cache")).toBe(35);
+    expect(resolveSessionCacheHitRate(buckets, "input-includes-cache")).toBe(60);
+
+    const summary = resolveThreadContextUsageSummary({
+      thread: baseThread,
+      agentStatus: baseAgent,
+      reportedUsage: {
+        usedTokens: 100,
+        source: "provider-anchored",
+        scope: "session",
+        measuredAt: "2026-09-21T00:00:00.000Z",
+        stale: true,
+        compaction: { state: "completed", lastCompactedAt: "2026-09-20T23:00:00.000Z" },
+      },
+    });
+    expect(summary).toMatchObject({
+      source: "provider-anchored",
+      scope: "session",
+      stale: true,
+      compaction: { state: "completed" },
+    });
   });
 
   it("does not invent occupancy rows from a bare used-token total", () => {

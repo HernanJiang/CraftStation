@@ -65,6 +65,32 @@ export const workflowRunStatusSchema = z.enum([
 ]);
 export type WorkflowRunStatus = z.infer<typeof workflowRunStatusSchema>;
 
+export const workflowArtifactSchema = z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  title: z.string().optional(),
+  version: z.string().optional(),
+  sourcePath: z.string().optional(),
+  contentState: z.enum(["declared", "produced", "validated", "failed"]).optional(),
+  producedBy: z
+    .object({
+      runId: z.string().optional(),
+      agentId: z.string().optional(),
+      attempt: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
+  validation: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        status: z.enum(["passed", "failed", "skipped"]),
+        message: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+export type WorkflowArtifact = z.infer<typeof workflowArtifactSchema>;
+
 export const workflowRunSchema = z.object({
   runId: z.string().min(1),
   taskId: z.string().optional(),
@@ -78,6 +104,11 @@ export const workflowRunSchema = z.object({
   agentCount: z.number().int().nonnegative(),
   defaultModel: z.string().optional(),
   scriptPath: z.string().optional(),
+  resumedFrom: z.string().optional(),
+  supersededBy: z.string().optional(),
+  stopReason: z.string().optional(),
+  resumable: z.boolean().optional(),
+  artifacts: z.array(workflowArtifactSchema).optional(),
   phases: z.array(workflowPhaseSchema),
   /** Agents that arrived before a `workflow_phase` event, kept in order. */
   unphasedAgents: z.array(workflowAgentSchema),

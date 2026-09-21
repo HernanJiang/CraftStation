@@ -42,6 +42,7 @@ export class ComputerUseMcpIngress {
       serverInfo: { name: "computer_use", version: "0.1.0" },
       instructions: COMPUTER_USE_MCP_INSTRUCTIONS,
       tools: TOOLS,
+      progressiveDisclosure: { enabled: true },
       isKnownToolName,
       buildContext: (identity) => this.buildContext(identity),
       dispatchTool: (name, args, ctx) => this.dispatch(name, args, ctx),

@@ -58,6 +58,24 @@ export function ThreadContextDock({
         <div className="craftstation-context-dock__bar" style={usageStyle} aria-hidden="true">
           <div className={fillClassName} />
         </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-foreground-muted">
+          <span>{summary.sourceLabel}</span>
+          {summary.scope ? (
+            <span>
+              · {summary.scope === "session" ? <Trans>Session</Trans> : <Trans>Turn</Trans>}
+            </span>
+          ) : null}
+          {summary.stale ? (
+            <span>
+              · <Trans>Stale</Trans>
+            </span>
+          ) : null}
+          {summary.compaction ? (
+            <span>
+              · <Trans>Compaction</Trans> {summary.compaction.state}
+            </span>
+          ) : null}
+        </div>
         {summary.breakdown.length > 0 ? (
           <ul className="grid gap-1">
             {summary.breakdown.map((entry) => (

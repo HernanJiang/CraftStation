@@ -162,6 +162,11 @@ describe("mapCodexNotification — turn lifecycle", () => {
       usage: {
         usedTokens: 10_000,
         maxTokens: 200_000,
+        source: "provider-reported",
+        scope: "turn",
+        measuredAt: expect.any(String),
+        stale: false,
+        cacheInputSemantics: "unknown",
         breakdown: [
           { id: "input", label: "Input", tokens: 10_000 },
           { id: "output", label: "Output", tokens: 2_000 },
@@ -197,6 +202,11 @@ describe("mapCodexNotification — turn lifecycle", () => {
         usage: {
           usedTokens: 19_250,
           maxTokens: 258_400,
+          source: "provider-reported",
+          scope: "turn",
+          measuredAt: expect.any(String),
+          stale: false,
+          cacheInputSemantics: "unknown",
           breakdown: [
             { id: "input", label: "Input", tokens: 19_250 },
             { id: "output", label: "Output", tokens: 85 },
@@ -243,6 +253,11 @@ describe("mapCodexNotification — turn lifecycle", () => {
         usage: {
           usedTokens: 120,
           maxTokens: 258_400,
+          source: "provider-reported",
+          scope: "turn",
+          measuredAt: expect.any(String),
+          stale: false,
+          cacheInputSemantics: "unknown",
           breakdown: [
             { id: "input", label: "Input", tokens: 120 },
             { id: "output", label: "Output", tokens: 6 },
@@ -305,6 +320,11 @@ describe("mapCodexNotification — usage.spent", () => {
         usage: {
           usedTokens: 124,
           maxTokens: 258_400,
+          source: "provider-reported",
+          scope: "turn",
+          measuredAt: expect.any(String),
+          stale: false,
+          cacheInputSemantics: "unknown",
           breakdown: [
             { id: "input", label: "Input", tokens: 124 },
             { id: "output", label: "Output", tokens: 6 },
