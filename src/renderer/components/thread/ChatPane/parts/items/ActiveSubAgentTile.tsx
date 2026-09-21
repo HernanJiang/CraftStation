@@ -255,7 +255,7 @@ function ActiveSubAgentRow({
     // (replayed from history on thread open) - it's already dead.
     if (!workflowOwnedThisSession) return;
     if (workflowIsTerminal) {
-      markWorkflowTerminal(threadId, itemId);
+      markWorkflowTerminal(threadId, itemId, workflowRun?.status);
       return;
     }
     registerLiveWorkflow({
@@ -271,6 +271,7 @@ function ActiveSubAgentRow({
     projectLocation,
     workflowOwnedThisSession,
     workflowIsTerminal,
+    workflowRun?.status,
     threadId,
     itemId,
     registerLiveWorkflow,

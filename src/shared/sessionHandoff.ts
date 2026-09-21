@@ -54,6 +54,16 @@ const checkpointMessageSchema = z.object({
   itemId: z.string().min(1),
 });
 
+const checkpointAnchoredTextSchema = z.object({
+  text: z.string(),
+  itemId: z.string().min(1),
+});
+
+const checkpointFileAnchorSchema = z.object({
+  path: z.string().min(1),
+  itemId: z.string().min(1),
+});
+
 export const conversationCheckpointSchema = z.object({
   schemaVersion: z.literal(1),
   id: z.string().min(1),
@@ -64,6 +74,19 @@ export const conversationCheckpointSchema = z.object({
   createdAt: z.string().datetime(),
   taskSummary: z.string(),
   currentState: z.string(),
+  /**
+   * Loss-aware task facts added after schema v1 shipped. Optional keeps old
+   * persisted checkpoints readable; every newly projected checkpoint includes it.
+   */
+  taskFacts: z
+    .object({
+      goalItemId: z.string().min(1).optional(),
+      constraints: z.array(checkpointAnchoredTextSchema),
+      pendingUserAsks: z.array(checkpointAnchoredTextSchema),
+      blockers: z.array(checkpointAnchoredTextSchema),
+      criticalFiles: z.array(checkpointFileAnchorSchema),
+    })
+    .optional(),
   importantDecisions: z.array(z.string()),
   importantResults: z.array(z.string()),
   workspaceChanges: z.array(z.string()),

@@ -32,6 +32,7 @@ export class ChromeMcpIngress {
     serverInfo: { name: "chrome", version: "1.0.0" },
     instructions: CHROME_MCP_INSTRUCTIONS,
     tools: CHROME_TOOLS,
+    progressiveDisclosure: { enabled: true },
     isKnownToolName: (name) => CHROME_TOOL_NAMES.has(name),
     buildContext: (identity) => this.buildContext(identity),
     dispatchTool: dispatchChromeTool,

@@ -23,6 +23,8 @@ describe("Native Harness registry", () => {
         "harness:codex",
         "harness:grok",
         "harness:kimi",
+        "harness:minimax",
+        "harness:zcode",
         "harness:antigravity",
         "harness:deepseek",
         "harness:deepseek-api",
@@ -30,14 +32,25 @@ describe("Native Harness registry", () => {
         "harness:devin",
       ]),
     );
-    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(7);
+    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(9);
     expect(BUILTIN_NATIVE_HARNESS_MODEL_ITEMS.map((item) => item.metadata.vendor)).toEqual(
-      expect.arrayContaining(["xai", "moonshot", "google", "deepseek", "muse", "cognition"]),
+      expect.arrayContaining([
+        "xai",
+        "moonshot",
+        "google",
+        "deepseek",
+        "muse",
+        "cognition",
+        "minimax",
+        "zai",
+      ]),
     );
     expect(NATIVE_HARNESS_RECIPES.map((recipe) => recipe.id)).toEqual(
       expect.arrayContaining([
         "recipe:xai-grok-native",
         "recipe:moonshot-kimi-native",
+        "recipe:minimax-code-native",
+        "recipe:zai-zcode-native",
         "recipe:google-antigravity-native",
         "recipe:deepseek-native",
         "recipe:deepseek-api",

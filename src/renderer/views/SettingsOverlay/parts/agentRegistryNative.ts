@@ -295,6 +295,18 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
       ),
   },
   {
+    id: "minimax",
+    description: msg`First-class MiniMax Code integration using its official ACP runtime.`,
+    docsUrl: "https://agent.minimax.io/docs/cli/quick-start",
+    installCommand: (project) =>
+      posixOrWindows(
+        project,
+        "if command -v curl >/dev/null 2>&1; then curl -fsSL https://filecdn.minimax.chat/public/install.sh | bash; " +
+          "else printf 'curl is required to install MiniMax Code. Install curl, then refresh detected agents.\\n'; fi",
+        "if (Get-Command irm -ErrorAction SilentlyContinue) { irm https://filecdn.minimax.chat/public/install.ps1 | iex } else { Write-Host 'No supported installer found. Install PowerShell Invoke-RestMethod first, then refresh detected agents.' }",
+      ),
+  },
+  {
     id: "deepseek",
     description: msg`First-class DeepSeek Harness (dsh) integration using CraftStation's ACP runtime.`,
     docsUrl: "https://github.com/deepseek-ai/deepseek-harness",
@@ -311,6 +323,20 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
         windows:
           "if (Get-Command npm -ErrorAction SilentlyContinue) { npm install -g @deepseek-ai/dsh } else { Write-Host 'No supported installer found. Install Node.js/npm first, then refresh detected agents.' }",
       }),
+  },
+  {
+    id: "zcode",
+    description: msg`First-class ZCode terminal integration built from the official open-source CLI.`,
+    docsUrl: "https://github.com/zai-org/ZCode#zcode-命令行版",
+    installCommand: (project) =>
+      posixOrWindows(
+        project,
+        "if command -v git >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then " +
+          'target="$HOME/.local/share/zcode-source"; if [ -d "$target/.git" ]; then git -C "$target" pull --ff-only; else git clone --depth 1 https://github.com/zai-org/ZCode.git "$target"; fi && ' +
+          'cd "$target" && pnpm install --frozen-lockfile && pnpm --filter @zcode/cli... build && pnpm --dir apps/zcode-cli/packages/cli link --global; ' +
+          "else printf 'Git, Node.js 24.14+ and pnpm 10.33.2 are required to build ZCode from its official source.\\n'; fi",
+        "$target = Join-Path $env:LOCALAPPDATA 'ZCodeSource'; if ((Get-Command git -ErrorAction SilentlyContinue) -and (Get-Command pnpm -ErrorAction SilentlyContinue)) { if (Test-Path -LiteralPath (Join-Path $target '.git')) { git -C $target pull --ff-only } else { git clone --depth 1 https://github.com/zai-org/ZCode.git $target }; if ($LASTEXITCODE -eq 0) { Push-Location $target; pnpm install --frozen-lockfile; if ($LASTEXITCODE -eq 0) { pnpm --filter @zcode/cli... build }; if ($LASTEXITCODE -eq 0) { pnpm --dir apps/zcode-cli/packages/cli link --global }; Pop-Location } } else { Write-Host 'Git, Node.js 24.14+ and pnpm 10.33.2 are required to build ZCode from its official source.' }",
+      ),
   },
   {
     id: "muse",

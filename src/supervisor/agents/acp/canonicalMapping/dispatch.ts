@@ -795,7 +795,9 @@ function mapAcpContextOccupancy(update: SessionUpdate, state: AcpMapperState): R
   const usage = usageFromProviderRecord(source);
   const event = createContextUsageEvent(state.threadId, usage);
   if (!event || event.type !== "context.updated") return [];
-  const signature = JSON.stringify(event.usage);
+  // Sampling time describes when we observed the provider report; it must not
+  // turn an otherwise identical occupancy snapshot into a new semantic event.
+  const signature = JSON.stringify({ ...event.usage, measuredAt: undefined });
   if (state.lastContextOccupancySignature === signature) return [];
   state.lastContextOccupancySignature = signature;
   return [event];

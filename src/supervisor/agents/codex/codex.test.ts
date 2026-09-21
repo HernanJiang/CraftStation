@@ -1464,6 +1464,11 @@ describe("CodexStructuredSession", () => {
       usage: {
         usedTokens: 80,
         maxTokens: 258_400,
+        source: "provider-reported",
+        scope: "turn",
+        measuredAt: expect.any(String),
+        stale: false,
+        cacheInputSemantics: "unknown",
         breakdown: [
           { id: "input", label: "Input", tokens: 80 },
           { id: "output", label: "Output", tokens: 15 },

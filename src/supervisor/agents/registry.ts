@@ -27,10 +27,12 @@ import { createGrokAdapter } from "./grok";
 import { createDeepSeekAdapter } from "./deepseek";
 import { createKimiAdapter } from "./kimi";
 import { createMuseAdapter } from "./muse";
+import { createMiniMaxAdapter } from "./minimax";
 import { createOpenCodeAdapter } from "./opencode";
 import { createPiAdapter } from "./pi";
 import { createQoderAdapter } from "./qoder";
 import { createQwenAdapter } from "./qwen";
+import { createZCodeAdapter } from "./zcode";
 
 export function createAgentRegistry(): AgentAdapter[] {
   return buildAgentRegistry([]);
@@ -50,6 +52,7 @@ export function buildAgentRegistry(userInstances: AgentInstanceConfig[]): AgentA
     createQwenAdapter(),
     createQoderAdapter(),
     createGrokAdapter(),
+    createMiniMaxAdapter(),
     createKimiAdapter(),
     createDeepSeekAdapter(),
     createMuseAdapter(),
@@ -60,6 +63,7 @@ export function buildAgentRegistry(userInstances: AgentInstanceConfig[]): AgentA
     createPiAdapter(),
     createFactoryAdapter(),
     createDevinAdapter(),
+    createZCodeAdapter(),
   ];
   const userAdapters = userInstances
     .filter((inst) => inst.enabled !== false && inst.driver === "acp-generic")

@@ -7,6 +7,9 @@ import type { ThreadContextUsageSummary } from "./threadContextUsage";
 import { byTextContent } from "@/renderer/testUtils/text";
 
 const summary: ThreadContextUsageSummary = {
+  source: "provider-reported",
+  sourceLabel: "Provider reported",
+  stale: false,
   usedTokens: 71_000,
   maxTokens: 200_000,
   remainingTokens: 129_000,

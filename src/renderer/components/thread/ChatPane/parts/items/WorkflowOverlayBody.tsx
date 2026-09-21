@@ -142,6 +142,8 @@ function WorkflowToolbar({
   if (duration !== undefined) statParts.push(formatDuration(duration));
   if (tokens !== undefined) statParts.push(`${formatTokenCount(tokens)} tok`);
   if (tools !== undefined) statParts.push(`${tools} tools`);
+  if (run?.artifacts?.length) statParts.push(`${run.artifacts.length} artifacts`);
+  if (run?.resumedFrom) statParts.push("resumed");
 
   const hasStats = statParts.length > 0 || status !== "unknown";
   if (phases.length === 0 && !hasStats && !error) return null;
@@ -190,6 +192,21 @@ function WorkflowToolbar({
         <p className="flex items-center gap-1.5 px-3 pb-1 text-[length:var(--lc-chat-font-size-meta)] text-danger">
           <CircleAlert className="size-3 shrink-0" /> {error}
         </p>
+      ) : null}
+      {run?.stopReason || run?.artifacts?.length ? (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-1 text-[length:var(--lc-chat-font-size-meta)] text-foreground-muted">
+          {run.stopReason ? <span>Stopped: {run.stopReason}</span> : null}
+          {run.artifacts?.map((artifact) => (
+            <span key={artifact.id} title={artifact.sourcePath}>
+              {artifact.title ?? artifact.id} · {artifact.kind}
+              {artifact.version ? ` · ${artifact.version}` : ""}
+              {artifact.producedBy?.agentId ? ` · ${artifact.producedBy.agentId}` : ""}
+              {artifact.validation?.length
+                ? ` · ${artifact.validation.filter((check) => check.status === "passed").length}/${artifact.validation.length} checks`
+                : ""}
+            </span>
+          ))}
+        </div>
       ) : null}
     </div>
   );

@@ -126,6 +126,35 @@ export const KIMI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   ),
 };
 
+export const MINIMAX_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:minimax",
+  harnessKind: "minimax",
+  label: "MiniMax Code Native Harness",
+  vendor: "minimax",
+  official: true,
+  transport: "acp-stdio",
+  machineFacingBoundary: "mcode acp",
+  capabilities: capabilityMap(
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "subagents", "context", "compaction"],
+    [],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "mcp",
+      "skills",
+      "interrupt",
+      "cleanup",
+      "diagnostics",
+    ],
+  ),
+};
+
 export const ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:antigravity",
   harnessKind: "antigravity",
@@ -302,6 +331,52 @@ export const DEVIN_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   ),
 };
 
+export const ZCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:zcode",
+  harnessKind: "zcode",
+  label: "ZCode Native Harness",
+  vendor: "zai",
+  official: true,
+  transport: "official-pty",
+  machineFacingBoundary: "zcode terminal (ZCode Protocol v4 app-server is not ACP)",
+  capabilities: capabilityMap(
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "events",
+      "tool_execution",
+      "file_access",
+      "shell_execution",
+      "permission",
+      "mcp",
+      "skills",
+      "subagents",
+      "context",
+      "compaction",
+      "interrupt",
+      "cleanup",
+      "diagnostics",
+    ],
+    [],
+    [
+      "discovery",
+      "auth",
+      "start",
+      "resume",
+      "multi_turn",
+      "streaming",
+      "permission",
+      "interrupt",
+      "cleanup",
+      "diagnostics",
+    ],
+  ),
+};
+
 export const OPENCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:opencode",
   harnessKind: "opencode",
@@ -339,10 +414,12 @@ export const NATIVE_HARNESS_DESCRIPTORS = {
   codex: CODEX_NATIVE_HARNESS_DESCRIPTOR,
   grok: GROK_NATIVE_HARNESS_DESCRIPTOR,
   kimi: KIMI_NATIVE_HARNESS_DESCRIPTOR,
+  minimax: MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   antigravity: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
   deepseek: DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR,
   "deepseek-api": DEEPSEEK_API_HARNESS_DESCRIPTOR,
   muse: MUSE_NATIVE_HARNESS_DESCRIPTOR,
   opencode: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
   devin: DEVIN_NATIVE_HARNESS_DESCRIPTOR,
+  zcode: ZCODE_NATIVE_HARNESS_DESCRIPTOR,
 } as const;

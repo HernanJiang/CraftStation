@@ -4,6 +4,7 @@ import type {
   WorkflowAgent,
   WorkflowAgentChatEntry,
   WorkflowAgentState,
+  WorkflowArtifact,
   WorkflowPhase,
   WorkflowRun,
   WorkflowRunStatus,
@@ -621,12 +622,64 @@ export function parseWorkflowManifest(raw: unknown, sourcePath?: string): Workfl
   setStringField(run, "summary", obj.summary);
   setStringField(run, "defaultModel", obj.defaultModel);
   setStringField(run, "scriptPath", obj.scriptPath);
+  setStringField(run, "resumedFrom", obj.resumedFrom);
+  setStringField(run, "supersededBy", obj.supersededBy);
+  setStringField(run, "stopReason", obj.stopReason);
+  if (typeof obj.resumable === "boolean") run.resumable = obj.resumable;
+  const artifacts = readArtifacts(obj.artifacts);
+  if (artifacts.length > 0) run.artifacts = artifacts;
   setNumberField(run, "startTime", obj.startTime);
   setNumberField(run, "durationMs", obj.durationMs);
   setNumberField(run, "totalTokens", obj.totalTokens);
   setNumberField(run, "totalToolCalls", obj.totalToolCalls);
 
   return run;
+}
+
+function readArtifacts(raw: unknown): WorkflowArtifact[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    const obj = value as Record<string, unknown>;
+    const id = readString(obj.id);
+    const kind = readString(obj.kind);
+    if (!id || !kind) return [];
+    const artifact: WorkflowArtifact = { id, kind };
+    setStringField(artifact, "title", obj.title);
+    setStringField(artifact, "version", obj.version);
+    setStringField(artifact, "sourcePath", obj.sourcePath);
+    if (["declared", "produced", "validated", "failed"].includes(String(obj.contentState))) {
+      artifact.contentState = obj.contentState as WorkflowArtifact["contentState"];
+    }
+    const producedBy = obj.producedBy;
+    if (producedBy && typeof producedBy === "object" && !Array.isArray(producedBy)) {
+      const producer = producedBy as Record<string, unknown>;
+      artifact.producedBy = {
+        ...(readString(producer.runId) ? { runId: readString(producer.runId) } : {}),
+        ...(readString(producer.agentId) ? { agentId: readString(producer.agentId) } : {}),
+        ...(readNumber(producer.attempt) !== undefined
+          ? { attempt: readNumber(producer.attempt) }
+          : {}),
+      };
+    }
+    if (Array.isArray(obj.validation)) {
+      artifact.validation = obj.validation.flatMap((entry) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+        const check = entry as Record<string, unknown>;
+        const name = readString(check.name);
+        const status = readString(check.status);
+        if (!name || !status || !["passed", "failed", "skipped"].includes(status)) return [];
+        return [
+          {
+            name,
+            status: status as "passed" | "failed" | "skipped",
+            ...(readString(check.message) ? { message: readString(check.message) } : {}),
+          },
+        ];
+      });
+    }
+    return [artifact];
+  });
 }
 
 function applyRunTerminalState(run: WorkflowRun): void {

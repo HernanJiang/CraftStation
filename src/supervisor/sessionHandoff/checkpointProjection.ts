@@ -74,6 +74,59 @@ function bulletTexts(items: readonly PortableLedgerItem[], type: string): string
   });
 }
 
+const CONSTRAINT_LINE =
+  /(?:\b(?:always|never|must|must not|only|default|require|do not|don't|keep|avoid)\b|必须|务必|不得|不要|只能|仅限|默认|保持|避免)/iu;
+
+function explicitConstraints(
+  messages: readonly { role: "user" | "assistant"; content: string; itemId: string }[],
+) {
+  return messages.flatMap((message) => {
+    if (message.role !== "user") return [];
+    return message.content
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && CONSTRAINT_LINE.test(line))
+      .map((text) => ({ text, itemId: message.itemId }));
+  });
+}
+
+function pendingUserAsks(
+  messages: readonly { role: "user" | "assistant"; content: string; itemId: string }[],
+) {
+  let lastAssistant = -1;
+  messages.forEach((message, index) => {
+    if (message.role === "assistant") lastAssistant = index;
+  });
+  return messages
+    .slice(lastAssistant + 1)
+    .filter((message): message is typeof message & { role: "user" } => message.role === "user")
+    .map(({ content: text, itemId }) => ({ text, itemId }));
+}
+
+function blockerFacts(items: readonly PortableLedgerItem[]) {
+  return items.flatMap((item) => {
+    if (item.state !== "completed" || item.type !== "error") return [];
+    const payload = record(item.payload);
+    const text =
+      (typeof payload?.message === "string" && payload.message) ||
+      (typeof payload?.error === "string" && payload.error) ||
+      item.streams.assistant_text ||
+      "";
+    return text.trim() ? [{ text: text.trim(), itemId: item.id }] : [];
+  });
+}
+
+function fileAnchors(items: readonly PortableLedgerItem[]) {
+  const seen = new Set<string>();
+  return items.flatMap((item) => {
+    if (item.state !== "completed" || item.type !== "file_change") return [];
+    const path = record(item.payload)?.path;
+    if (typeof path !== "string" || !path.trim() || seen.has(path)) return [];
+    seen.add(path);
+    return [{ path: path.trim(), itemId: item.id }];
+  });
+}
+
 export function projectConversationCheckpoint(
   input: CheckpointProjectionInput,
 ): ConversationCheckpoint {
@@ -93,12 +146,16 @@ export function projectConversationCheckpoint(
         },
       ];
     });
-  const latestUser = [...messages].reverse().find((entry) => entry.role === "user")?.content ?? "";
+  const originalGoal = messages.find((entry) => entry.role === "user");
   const latestAssistant =
     [...messages].reverse().find((entry) => entry.role === "assistant")?.content ?? "";
   const decisions = bulletTexts(completed, "plan");
   const results = bulletTexts(completed, "command_execution");
   const workspaceChanges = bulletTexts(completed, "file_change");
+  const constraints = explicitConstraints(messages);
+  const pendingAsks = pendingUserAsks(messages);
+  const blockers = blockerFacts(completed);
+  const criticalFiles = fileAnchors(completed);
   const maxCharacters = input.maxCharacters ?? DEFAULT_MAX_CHARACTERS;
   const maxRecentMessages = input.maxRecentMessages ?? DEFAULT_RECENT_MESSAGES;
   const selected = messages.slice(-maxRecentMessages);
@@ -121,7 +178,7 @@ export function projectConversationCheckpoint(
     used += content.length;
     return content;
   };
-  const task = redactPortableText(latestUser.slice(0, 2_000));
+  const task = redactPortableText((originalGoal?.content ?? "").slice(0, 4_000));
   const state = redactPortableText(latestAssistant.slice(-2_000));
   redactions += task.redactions + state.redactions;
   // Reserve deterministic semantic shares before optional detail lists. Tiny
@@ -129,10 +186,31 @@ export function projectConversationCheckpoint(
   // newest completed message instead of allowing any one field to starve all
   // others. Unused shares remain available to later fields.
   const summaryShare = Math.max(1, Math.floor(maxCharacters * 0.2));
-  const stateShare = Math.max(1, Math.floor(maxCharacters * 0.2));
-  const recentShare = Math.max(1, Math.floor(maxCharacters * 0.4));
+  const stateShare = Math.max(1, Math.floor(maxCharacters * 0.15));
+  const factsShare = Math.max(1, Math.floor(maxCharacters * 0.25));
+  const recentShare = Math.max(1, Math.floor(maxCharacters * 0.25));
   const taskSummary = take(task.text, summaryShare);
   const currentState = take(state.text, stateShare, true);
+  const factsBudgetEnd = Math.min(maxCharacters, used + factsShare);
+  const projectAnchoredTexts = (
+    values: readonly { text: string; itemId: string }[],
+    maxItems: number,
+  ) =>
+    values.slice(-maxItems).flatMap((value) => {
+      const redacted = redactPortableText(value.text);
+      redactions += redacted.redactions;
+      const text = take(redacted.text, Math.max(0, factsBudgetEnd - used));
+      return text ? [{ text, itemId: value.itemId }] : [];
+    });
+  const projectedConstraints = projectAnchoredTexts(constraints, 12);
+  const projectedPendingAsks = projectAnchoredTexts(pendingAsks, 4);
+  const projectedBlockers = projectAnchoredTexts(blockers, 8);
+  const projectedCriticalFiles = criticalFiles.slice(-20).flatMap((value) => {
+    const redacted = redactPortableText(value.path);
+    redactions += redacted.redactions;
+    const path = take(redacted.text, Math.max(0, factsBudgetEnd - used));
+    return path ? [{ path, itemId: value.itemId }] : [];
+  });
   const recentBudgetEnd = Math.min(maxCharacters, used + recentShare);
   const recentCompletedMessages = selected
     .reverse()
@@ -173,6 +251,13 @@ export function projectConversationCheckpoint(
     createdAt: input.now ?? new Date().toISOString(),
     taskSummary,
     currentState,
+    taskFacts: {
+      ...(originalGoal?.itemId ? { goalItemId: originalGoal.itemId } : {}),
+      constraints: projectedConstraints,
+      pendingUserAsks: projectedPendingAsks,
+      blockers: projectedBlockers,
+      criticalFiles: projectedCriticalFiles,
+    },
     importantDecisions,
     importantResults,
     workspaceChanges: projectedWorkspaceChanges,
@@ -210,6 +295,27 @@ export function renderCheckpointForTarget(checkpoint: ConversationCheckpoint): s
     `Task summary: ${checkpoint.taskSummary || "Not available"}`,
     `Current state: ${checkpoint.currentState || "Not available"}`,
   ];
+  if (checkpoint.taskFacts?.constraints.length) {
+    lines.push(
+      "Constraints and preferences:",
+      ...checkpoint.taskFacts.constraints.map((value) => `- ${value.text}`),
+    );
+  }
+  if (checkpoint.taskFacts?.pendingUserAsks.length) {
+    lines.push(
+      "Pending user asks:",
+      ...checkpoint.taskFacts.pendingUserAsks.map((value) => `- ${value.text}`),
+    );
+  }
+  if (checkpoint.taskFacts?.blockers.length) {
+    lines.push("Blockers:", ...checkpoint.taskFacts.blockers.map((value) => `- ${value.text}`));
+  }
+  if (checkpoint.taskFacts?.criticalFiles.length) {
+    lines.push(
+      "Critical files:",
+      ...checkpoint.taskFacts.criticalFiles.map((value) => `- ${value.path}`),
+    );
+  }
   if (checkpoint.importantDecisions.length) {
     lines.push(
       "Important decisions:",

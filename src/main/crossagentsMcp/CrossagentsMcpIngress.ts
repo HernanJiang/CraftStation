@@ -36,6 +36,7 @@ export class CrossagentsMcpIngress {
       serverInfo: { ...CROSSAGENTS_MCP_SERVER_INFO },
       instructions: CROSSAGENTS_MCP_INSTRUCTIONS,
       tools: TOOLS,
+      progressiveDisclosure: { enabled: true },
       isKnownToolName,
       buildContext: (identity: McpThreadIdentity) => ({ bus: deps.bus, identity }),
       dispatchTool,

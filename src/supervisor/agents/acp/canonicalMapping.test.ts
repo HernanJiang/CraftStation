@@ -2659,7 +2659,15 @@ describe("mapAcpSessionUpdate", () => {
       {
         type: "context.updated",
         threadId: "t-grok-occ",
-        usage: { usedTokens: 402_603, maxTokens: 500_000 },
+        usage: {
+          usedTokens: 402_603,
+          maxTokens: 500_000,
+          source: "provider-reported",
+          scope: "turn",
+          measuredAt: expect.any(String),
+          stale: false,
+          cacheInputSemantics: "unknown",
+        },
       },
     ]);
     expect(
@@ -2689,7 +2697,15 @@ describe("mapAcpSessionUpdate", () => {
         {
           type: "context.updated",
           threadId: "t-grok-meta",
-          usage: { usedTokens: 120_000, maxTokens: 500_000 },
+          usage: {
+            usedTokens: 120_000,
+            maxTokens: 500_000,
+            source: "provider-reported",
+            scope: "turn",
+            measuredAt: expect.any(String),
+            stale: false,
+            cacheInputSemantics: "unknown",
+          },
         },
       ]),
     );
@@ -2722,6 +2738,11 @@ describe("mapAcpSessionUpdate", () => {
         usage: {
           usedTokens: 71_000,
           maxTokens: 200_000,
+          source: "provider-reported",
+          scope: "turn",
+          measuredAt: expect.any(String),
+          stale: false,
+          cacheInputSemantics: "unknown",
           breakdown: [{ id: "input", label: "Input", tokens: 71_000 }],
         },
       },

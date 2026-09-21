@@ -390,6 +390,24 @@ export const threadContextUsageSchema = z.object({
   usedTokens: z.number().int().nonnegative().optional(),
   maxTokens: z.number().int().positive().optional(),
   breakdown: z.array(contextUsageBreakdownEntrySchema).optional(),
+  /** Where the occupancy number came from; callers must not present estimates as exact usage. */
+  source: z
+    .enum(["provider-reported", "provider-anchored", "local-estimate", "unknown"])
+    .optional(),
+  /** Whether the sample describes one request or the accumulated native Session. */
+  scope: z.enum(["turn", "session", "unknown"]).optional(),
+  measuredAt: z.string().datetime().optional(),
+  stale: z.boolean().optional(),
+  /** Provider contract for `input` relative to cache read/write token buckets. */
+  cacheInputSemantics: z
+    .enum(["fresh-excludes-cache", "input-includes-cache", "unknown"])
+    .optional(),
+  compaction: z
+    .object({
+      state: z.enum(["never", "running", "completed", "failed"]),
+      lastCompactedAt: z.string().datetime().optional(),
+    })
+    .optional(),
 });
 export type ThreadContextUsage = z.infer<typeof threadContextUsageSchema>;
 

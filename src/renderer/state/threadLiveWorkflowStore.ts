@@ -1,7 +1,15 @@
 import { create } from "zustand";
 import { shallow } from "zustand/shallow";
-import { isWorkflowRunLive, type ProjectLocation } from "@/shared/contracts";
+import {
+  isWorkflowRunLive,
+  type ProjectLocation,
+  type WorkflowRunStatus,
+} from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
+import {
+  readDurableWorkflowRunIndex,
+  writeDurableWorkflowRunRecord,
+} from "./durableWorkflowRunIndex";
 
 /**
  * Per-thread tracker for live background workflows.
@@ -18,10 +26,9 @@ import { readBridge } from "@/renderer/bridge";
  * Presentation only: it never touches `thread.status`, so composer
  * interrupt/steer semantics, turn timing, and notifications are unaffected.
  *
- * Coverage: entries are registered from the open thread's dock, so any thread
- * opened this session is covered (including after you switch away). Threads
- * never opened this session - or carried across an app restart - are not; full
- * coverage would require a supervisor-side watcher.
+ * Every registration and observed manifest state is also written to a compact
+ * durable index. On renderer restart, non-terminal entries are restored before
+ * any thread is opened and polling resumes from their manifest paths.
  */
 
 const POLL_MS = 4000;
@@ -62,13 +69,24 @@ interface ThreadLiveWorkflowStore {
   /** Begin (or refresh) tracking a thread's background workflow. Idempotent. */
   register: (input: RegisterInput) => void;
   /** Stop tracking a workflow (e.g. the dock already observed terminal status). */
-  markTerminal: (threadId: string, itemId: string) => void;
+  markTerminal: (threadId: string, itemId: string, status?: WorkflowRunStatus) => void;
 }
 
 // Entries and the shared timer live at module scope (like workflowRunStore's
 // pollers) so mutating them never forces a store re-render; only the derived
 // `liveThreadIds` snapshot does.
 const entries = new Map<string, LiveWorkflowEntry>();
+for (const record of readDurableWorkflowRunIndex()) {
+  if (record.status !== "running" && record.status !== "unknown") continue;
+  entries.set(`${record.threadId} ${record.itemId}`, {
+    threadId: record.threadId,
+    itemId: record.itemId,
+    manifestPath: record.manifestPath,
+    transcriptDir: record.transcriptDir,
+    location: record.location,
+    registeredAt: record.registeredAt,
+  });
+}
 let timer: ReturnType<typeof setTimeout> | null = null;
 let ticking = false;
 
@@ -127,6 +145,16 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
       const current = entries.get(key);
       if (!current) return;
       if (result.run) {
+        writeDurableWorkflowRunRecord({
+          ...current,
+          lastObservedAt: Date.now(),
+          runId: result.run.runId,
+          status: result.run.status,
+          ...(result.run.resumedFrom ? { resumedFrom: result.run.resumedFrom } : {}),
+          ...(result.run.supersededBy ? { supersededBy: result.run.supersededBy } : {}),
+          ...(result.run.stopReason ? { stopReason: result.run.stopReason } : {}),
+          ...(result.run.resumable !== undefined ? { resumable: result.run.resumable } : {}),
+        });
         // Drop only once the manifest reports an explicit terminal status. A
         // quiet running workflow remains visible until it says otherwise.
         if (!isWorkflowRunLive(result.run)) {
@@ -140,6 +168,13 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
       // the thread spinner (and the composer's working state) stays lit
       // forever: nothing else owns the entry once the dock row is gone.
       if (Date.now() - current.registeredAt >= MISSING_MANIFEST_DEADLINE_MS) {
+        writeDurableWorkflowRunRecord({
+          ...current,
+          lastObservedAt: Date.now(),
+          status: "failed",
+          stopReason: "workflow manifest did not appear before the launch deadline",
+          resumable: false,
+        });
         removeEntry(key);
       }
     } catch {
@@ -148,8 +183,10 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
     }
   }
 
+  const initialLiveThreadIds = new Set([...entries.values()].map((entry) => entry.threadId));
+  if (entries.size > 0) queueMicrotask(scheduleTick);
   return {
-    liveThreadIds: new Set<string>(),
+    liveThreadIds: initialLiveThreadIds,
     register(input) {
       const key = entryKey(input.threadId, input.itemId);
       const existing = entries.get(key);
@@ -159,15 +196,26 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
         existing.manifestPath = input.manifestPath;
         existing.location = input.location;
         existing.transcriptDir = input.transcriptDir;
+        writeDurableWorkflowRunRecord({
+          ...existing,
+          lastObservedAt: Date.now(),
+          status: "unknown",
+        });
         return;
       }
-      entries.set(key, {
+      const entry = {
         threadId: input.threadId,
         itemId: input.itemId,
         manifestPath: input.manifestPath,
         transcriptDir: input.transcriptDir,
         location: input.location,
         registeredAt: Date.now(),
+      };
+      entries.set(key, entry);
+      writeDurableWorkflowRunRecord({
+        ...entry,
+        lastObservedAt: entry.registeredAt,
+        status: "unknown",
       });
       // Light the spinner immediately - the dock only registers once it has
       // confirmed a background workflow, so we trust it until a poll says
@@ -175,8 +223,17 @@ export const useThreadLiveWorkflowStore = create<ThreadLiveWorkflowStore>((set, 
       recomputeLiveThreads();
       scheduleTick();
     },
-    markTerminal(threadId, itemId) {
-      removeEntry(entryKey(threadId, itemId));
+    markTerminal(threadId, itemId, status = "completed") {
+      const key = entryKey(threadId, itemId);
+      const entry = entries.get(key);
+      if (entry) {
+        writeDurableWorkflowRunRecord({
+          ...entry,
+          lastObservedAt: Date.now(),
+          status,
+        });
+      }
+      removeEntry(key);
     },
   };
 });

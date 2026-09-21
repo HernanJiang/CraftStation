@@ -174,6 +174,46 @@ describe("parseWorkflowManifest", () => {
     expect(() => parseWorkflowManifest(null)).toThrow(/not an object/i);
     expect(() => parseWorkflowManifest("oops")).toThrow(/not an object/i);
   });
+
+  it("preserves run lineage and artifact provenance without requiring artifact content", () => {
+    const run = parseWorkflowManifest({
+      runId: "run-2",
+      status: "failed",
+      resumedFrom: "run-1",
+      supersededBy: "run-3",
+      stopReason: "transport interrupted",
+      resumable: true,
+      artifacts: [
+        {
+          id: "report",
+          kind: "markdown",
+          title: "Review report",
+          version: "2",
+          sourcePath: "ai_workspace/report.md",
+          contentState: "validated",
+          producedBy: { runId: "run-2", agentId: "reviewer", attempt: 2 },
+          validation: [{ name: "lint", status: "passed" }],
+        },
+      ],
+      phases: [],
+      workflowProgress: [],
+    });
+
+    expect(run).toMatchObject({
+      resumedFrom: "run-1",
+      supersededBy: "run-3",
+      stopReason: "transport interrupted",
+      resumable: true,
+      artifacts: [
+        {
+          id: "report",
+          version: "2",
+          producedBy: { runId: "run-2", agentId: "reviewer", attempt: 2 },
+          validation: [{ name: "lint", status: "passed" }],
+        },
+      ],
+    });
+  });
 });
 
 describe("readWorkflowRun transcript-dir fallback", () => {
