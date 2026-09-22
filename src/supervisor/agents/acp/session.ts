@@ -1298,7 +1298,12 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     // An orphan turn has no prompt promise to cancel into, but the agent is
     // genuinely mid-work — `session/cancel` is the only thing that stops it, so
     // it must go out rather than being deferred to a prompt that may never come.
-    if (!this.promptInFlight && !this.foregroundTurnAwaitingSubagents && !this.orphanTurnId) {
+    if (
+      !this.promptInFlight &&
+      !this.foregroundTurnAwaitingSubagents &&
+      !this.orphanTurnId &&
+      !this.detachedTurnId
+    ) {
       this.pendingPromptInterrupt = true;
       return;
     }
@@ -1312,6 +1317,21 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     }
     if (this.orphanTurnId && !this.promptInFlight) {
       this.completeOrphanTurn({ state: "cancelled" });
+    }
+    // Steer and Stop both come through here. A foreground turn that already
+    // returned `end_turn` but is still "working" only because detached
+    // subagents have not reported, or a detached turn with no prompt left to
+    // cancel, never reaches idle if the provider stops sending those reports.
+    // The pending steer then waits forever. Settle locally after the cancel
+    // is out — the provider ack is not required.
+    if (!this.promptInFlight && this.foregroundTurnAwaitingSubagents) {
+      this.foregroundTurnAwaitingSubagents = false;
+      this.completeTurn(this.ensureMapperState(), "cancelled");
+      this.emitListenerUpdate({ status: "idle", attention: "none" });
+      this.clearCompletedTurnCaches();
+    }
+    if (!this.promptInFlight && this.detachedTurnId) {
+      this.completeDetachedTurn("cancelled");
     }
   }
 
@@ -1866,14 +1886,14 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     this.emitListenerUpdate({ status: "working", attention: "working" });
   }
 
-  private completeDetachedTurn(): void {
+  private completeDetachedTurn(state: "completed" | "cancelled" = "completed"): void {
     if (!this.detachedTurnId) return;
     this.emitRuntimeEvents([
       {
         type: "turn.completed",
         threadId: this.threadId,
         turnId: this.detachedTurnId,
-        state: "completed",
+        state,
       },
     ]);
     this.detachedTurnId = undefined;

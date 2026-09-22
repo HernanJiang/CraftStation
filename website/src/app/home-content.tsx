@@ -55,7 +55,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { downloadUrlFor, type ReleaseInfo } from "@/lib/releases";
+import { downloadRouteFor, type ReleaseInfo } from "@/lib/releases";
 import { localizedPath } from "@/lib/i18n/config";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { LanguageSelector } from "@/components/LanguageSelector";
@@ -448,7 +448,7 @@ function HomeBody({ release }: { release: ReleaseInfo }) {
   const versionLabel = release.version
     ? `v${release.version} • ${t("hero.tagline")}`
     : t("hero.tagline");
-  const downloadHref = downloadUrlFor(release, platform.slug);
+  const downloadHref = downloadRouteFor(platform.slug);
   const homeHref = localizedPath("/", locale);
   const aboutHref = "/about";
   const changelogHref = "/changelog";

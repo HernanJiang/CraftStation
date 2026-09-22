@@ -32,6 +32,18 @@ const TRANSIENT_REPORT_COOLDOWN_MS = 6 * 60 * 60 * 1_000;
 const GITHUB_UPDATE_OWNER = "HernanJiang";
 const GITHUB_UPDATE_REPO = "CraftStation";
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_UPDATE_OWNER}/${GITHUB_UPDATE_REPO}/releases`;
+const GITEE_RELEASES_URL = "https://gitee.com/HernanJiang/CraftStation/releases";
+
+/** Mainland time zones get the Gitee release page; everyone else stays on GitHub. */
+function manualReleasesUrl(): string {
+  try {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timeZone === "Asia/Shanghai" || timeZone === "Asia/Urumqi") return GITEE_RELEASES_URL;
+  } catch {
+    // Intl can fail in locked-down hosts; GitHub remains the default.
+  }
+  return GITHUB_RELEASES_URL;
+}
 
 function isPortableWindowsBuild(): boolean {
   return Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
@@ -294,7 +306,7 @@ export function createAutoUpdaterController(
         sendStatus({
           type: "update-available",
           version: info.version,
-          manualDownloadUrl: GITHUB_RELEASES_URL,
+          manualDownloadUrl: manualReleasesUrl(),
           openDownload: notifyOnFailure,
         });
         return;

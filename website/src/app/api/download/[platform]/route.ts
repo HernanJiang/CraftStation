@@ -1,8 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { PLATFORM_PATTERNS, downloadUrlFor, getLatestRelease } from "@/lib/releases";
+import {
+  PLATFORM_PATTERNS,
+  downloadUrlFor,
+  getLatestRelease,
+  prefersGiteeDownload,
+  toGiteeDownloadUrl,
+} from "@/lib/releases";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ platform: string }> },
 ) {
   const { platform } = await params;
@@ -15,5 +21,9 @@ export async function GET(
   }
 
   const release = await getLatestRelease();
-  return NextResponse.redirect(downloadUrlFor(release, platform), 302);
+  const githubUrl = downloadUrlFor(release, platform);
+  const target = prefersGiteeDownload((name) => request.headers.get(name))
+    ? toGiteeDownloadUrl(githubUrl)
+    : githubUrl;
+  return NextResponse.redirect(target, 302);
 }

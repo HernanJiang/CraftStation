@@ -150,7 +150,13 @@ function isLiveAssistantActivity(
   threadId: string,
   event: RuntimeEvent,
 ): boolean {
+  // Child rows and the parent sub-agent tool itself are not the parent turn.
+  // A late spawn/progress event after the session already went idle used to
+  // flip the GUI thread back to "working" with no later idle to undo it —
+  // Stop and "已工作" stayed up after the task and its agents had finished.
   if (event.type === "item.started") {
+    if (event.parentItemId) return false;
+    if (isDelegatedAgentTool(event.payload as ToolCallPayload | undefined)) return false;
     return (
       event.itemType !== "user_message" &&
       event.itemType !== "error" &&
@@ -160,8 +166,9 @@ function isLiveAssistantActivity(
   }
   if (event.type !== "item.updated" && event.type !== "content.delta") return false;
   const item = state.runtimeItemsByIdByThread[threadId]?.[event.itemId];
+  if (!item || item.parentItemId) return false;
+  if (isDelegatedAgentTool(item.payload as ToolCallPayload | undefined)) return false;
   return (
-    item !== undefined &&
     item.state !== "completed" &&
     item.type !== "user_message" &&
     item.type !== "plan" &&

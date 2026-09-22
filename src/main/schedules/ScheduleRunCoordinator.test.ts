@@ -185,7 +185,7 @@ describe("ScheduleRunCoordinator", () => {
       expect.objectContaining({
         threadId: "thread-1",
         presentationMode: "gui",
-        prompt: task.prompt,
+        prompt: expect.stringContaining(task.prompt),
       }),
     );
 
@@ -195,6 +195,25 @@ describe("ScheduleRunCoordinator", () => {
     await expect(settled).resolves.toBeNull();
     expect(runs.get("run-1")).toMatchObject({ status: "succeeded", summary: null });
     expect(runs.get("run-1")?.completedAt).not.toBeNull();
+    expect(startThread.mock.calls[0]?.[0]?.prompt).toContain("CRAFTSTATION_SCHEDULE: pause");
+  });
+
+  it("pauses the schedule when the run's last line asks, without Schedule MCP", async () => {
+    const applyScheduleSelfStop = vi.fn<(scheduleId: string, action: "pause" | "delete") => void>();
+    const { coordinator, runs } = makeHarness({
+      applyScheduleSelfStop,
+      getThreadTerminalResult: () => "本 harness 无 Schedule MCP。\nCRAFTSTATION_SCHEDULE: pause",
+    });
+
+    const settled = coordinator.runScheduleAsThread(task);
+    await flush();
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toContain("CRAFTSTATION_SCHEDULE: pause");
+
+    expect(applyScheduleSelfStop).toHaveBeenCalledOnce();
+    expect(applyScheduleSelfStop).toHaveBeenCalledWith(task.id, "pause");
+    expect(runs.get("run-1")).toMatchObject({ status: "succeeded" });
   });
 
   it("settles failed and rejects when the thread errors", async () => {
@@ -480,7 +499,10 @@ describe("ScheduleRunCoordinator", () => {
     expect(sent.some((command) => command.kind === "start")).toBe(false);
     expect(sendFollowUp).toHaveBeenCalledTimes(1);
     expect(sendFollowUp).toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: sourceId, prompt: task.prompt }),
+      expect.objectContaining({
+        threadId: sourceId,
+        prompt: expect.stringContaining(task.prompt),
+      }),
     );
     expect([...runs.values()]).toHaveLength(1);
     expect([...runs.values()][0]).toMatchObject({

@@ -261,6 +261,12 @@ export class CodexStructuredSession implements StructuredSessionHandle {
   // open turn. Cancelled by the next `turn/started`, any completion, or
   // dispose.
   private turnErrorSettleTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Bumped on every newly tracked turn. An in-flight `thread/read` reconcile
+   * started against an older generation must not drop a turn that began while
+   * the read was in flight.
+   */
+  private activeTurnReconcileGeneration = 0;
   private mapperState: CodexMapperState | undefined;
   private subAgentRouter: CodexSubAgentRouter | undefined;
   private forkNotificationBuffer:
@@ -938,7 +944,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       });
       this.activeTurnId = extractTurnField(result, "id");
       if (this.activeTurnId) {
-        this.activeTurnIds.add(this.activeTurnId);
+        this.trackActiveTurn(this.activeTurnId);
       }
       if (config.model) {
         this.lastWorkingModel = config.model;
@@ -1035,8 +1041,12 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       });
       const acceptedTurnId = typeof result?.turnId === "string" ? result.turnId : undefined;
       if (acceptedTurnId && acceptedTurnId !== expectedTurnId) {
-        this.activeTurnId = acceptedTurnId;
-        this.activeTurnIds.add(acceptedTurnId);
+        // `turn/steer` does not emit `turn/started`. The accepted id replaces
+        // the turn we asked to steer — keeping both leaves the old id in
+        // `activeTurnIds` forever, so the visible turn's `turn/completed`
+        // never settles the thread ("已工作" / Stop stuck).
+        this.activeTurnIds.delete(expectedTurnId);
+        this.trackActiveTurn(acceptedTurnId);
       }
     } catch (error) {
       if (this.isDisposed) return;
@@ -1092,8 +1102,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
         return;
       }
       this.activeTurnIds.delete(turnId);
-      this.activeTurnIds.add(retryTurnId);
-      this.activeTurnId = retryTurnId;
+      this.trackActiveTurn(retryTurnId);
       await this.rpc.request("turn/interrupt", { threadId, turnId: retryTurnId }, timeoutMs);
     }
   }
@@ -1449,6 +1458,92 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     }
   }
 
+  /** Remember a turn the server still owes us a `turn/completed` for. */
+  private trackActiveTurn(turnId: string): void {
+    this.activeTurnId = turnId;
+    this.activeTurnIds.add(turnId);
+    this.activeTurnReconcileGeneration = (this.activeTurnReconcileGeneration ?? 0) + 1;
+  }
+
+  /**
+   * Ask the server which turns are actually still running. Local tracking can
+   * outlive the real turn when a steer replaces the id, or when a sibling
+   * completion is dropped. Without this, `activeTurnIds` stays non-empty and
+   * the thread never leaves "working".
+   */
+  private scheduleActiveTurnReconcile(): void {
+    const threadId = this.remoteThreadId;
+    if (!threadId || this.activeTurnIds.size === 0 || this.isDisposed) return;
+    if (typeof this.rpc?.request !== "function") return;
+    const generation = this.activeTurnReconcileGeneration;
+    void this.reconcileActiveTurns(threadId, generation).catch((error) => {
+      if (!this.isDisposed) {
+        console.warn("[codex] failed to reconcile active turns:", error);
+      }
+    });
+  }
+
+  private async reconcileActiveTurns(threadId: string, generation: number): Promise<void> {
+    const result = await this.rpc.request("thread/read", {
+      threadId,
+      includeTurns: true,
+    });
+    if (this.isDisposed || generation !== this.activeTurnReconcileGeneration) return;
+    if (this.remoteThreadId !== threadId || this.activeTurnIds.size === 0) return;
+    const thread =
+      result && typeof result === "object" && "thread" in result ? result.thread : undefined;
+    if (!thread || typeof thread !== "object") return;
+
+    const status =
+      "status" in thread && thread.status && typeof thread.status === "object"
+        ? (thread.status as CodexThreadStatus)
+        : undefined;
+    const turns = "turns" in thread && Array.isArray(thread.turns) ? thread.turns : undefined;
+    const inProgress = new Set<string>();
+    if (turns) {
+      for (const turn of turns) {
+        if (!turn || typeof turn !== "object") continue;
+        const id = "id" in turn && typeof turn.id === "string" ? turn.id : undefined;
+        const turnStatus =
+          "status" in turn && typeof turn.status === "string" ? turn.status : undefined;
+        if (id && turnStatus === "inProgress") inProgress.add(id);
+      }
+    }
+    const serverIdle =
+      status?.type === "idle" ||
+      status?.type === "systemError" ||
+      (turns !== undefined && inProgress.size === 0);
+    if (!serverIdle) {
+      if (!turns) return;
+      for (const id of [...this.activeTurnIds]) {
+        if (!inProgress.has(id)) this.activeTurnIds.delete(id);
+      }
+    } else {
+      this.activeTurnIds.clear();
+    }
+
+    if (generation !== this.activeTurnReconcileGeneration) return;
+    if (this.activeTurnIds.size > 0) {
+      if (!this.activeTurnId || !this.activeTurnIds.has(this.activeTurnId)) {
+        this.activeTurnId = [...this.activeTurnIds].at(-1);
+      }
+      return;
+    }
+
+    this.activeTurnId = undefined;
+    this.pendingTurnInterrupt = false;
+    this.clearTurnErrorSettle();
+    if (status?.type === "systemError") {
+      this.currentThreadStatus = status;
+      this.emitDerivedUpdate();
+      return;
+    }
+    this.currentThreadStatus = { type: "idle" };
+    if (!this.errorSticky) {
+      this.emitUpdate({ status: "idle", attention: "none" });
+    }
+  }
+
   private applyMainTurnLifecycle(
     method: string,
     params: Record<string, unknown> | undefined,
@@ -1463,9 +1558,11 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       // A fresh turn means the user escaped the previous stuck state; a late
       // settle timer from the old turn must not kill the new one.
       this.clearTurnErrorSettle();
-      this.activeTurnId = readTurnId(params) ?? this.activeTurnId;
-      if (this.activeTurnId) {
-        this.activeTurnIds.add(this.activeTurnId);
+      const startedTurnId = readTurnId(params);
+      if (startedTurnId) {
+        this.trackActiveTurn(startedTurnId);
+      } else if (this.activeTurnId) {
+        this.trackActiveTurn(this.activeTurnId);
       }
       this.currentThreadStatus = { type: "active", activeFlags: [] };
       this.emitUpdate({ status: "working", attention: "working" });
@@ -1505,11 +1602,15 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       // A sibling turn (auto-compact continuation, or an earlier
       // `turn/start` the server accepted concurrently) is still running.
       // Keep the thread working and hold per-turn mapper state so the live
-      // turn keeps resolving its items.
+      // turn keeps resolving its items. Leftover ids that the server no
+      // longer considers in progress (a steered turn id that was replaced,
+      // or a child/compact turn whose completion we never observed) are
+      // dropped by the reconcile below — otherwise this branch never idles.
       this.pendingTurnInterrupt = false;
       if (this.activeTurnId === completedTurnId) {
         this.activeTurnId = [...this.activeTurnIds].at(-1);
       }
+      this.scheduleActiveTurnReconcile();
       return true;
     }
 

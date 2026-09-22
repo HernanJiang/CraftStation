@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { openUsageStatsPage } from "@/renderer/actions/panelActions";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
@@ -375,6 +376,10 @@ export function ContextQuotaRing(props: {
         type="button"
         aria-label="上下文与额度详情"
         className="flex size-6 items-center justify-center rounded-md hover:bg-white/5"
+        onClick={(event) => {
+          event.stopPropagation();
+          openUsageStatsPage();
+        }}
       >
         <svg viewBox="0 0 24 24" className="size-[18px] -rotate-90" aria-hidden="true">
           <circle

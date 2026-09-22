@@ -63,6 +63,7 @@ const panelActions = {
   openSettingsSection: vi.fn<() => void>(),
   openSettings: vi.fn<() => void>(),
   openModelUsageDialog: vi.fn<() => void>(),
+  openModelUsageWorkspace: vi.fn<(input: { tab: string }) => void>(),
 };
 const updateState = { phase: "idle", version: undefined, downloadPercent: 0 };
 
@@ -301,6 +302,13 @@ describe("MainTitlebar 顶部快捷栏", () => {
     panelActions.openSettingsSection.mockClear();
     panelActions.openSettings.mockClear();
     panelActions.openModelUsageDialog.mockClear();
+    panelActions.openModelUsageWorkspace.mockClear();
+  });
+
+  it("标题栏用量按钮打开用量统计", () => {
+    render(<MainTitlebar />);
+    fireEvent.click(screen.getByTestId("titlebar-usage"));
+    expect(panelActions.openModelUsageWorkspace).toHaveBeenCalledWith({ tab: "stats" });
   });
 
   function topButtons() {

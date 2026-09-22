@@ -1,4 +1,4 @@
-import { ChevronRight, Globe, House, PanelLeft, Plus, Search, Settings2 } from "lucide-react";
+import { ChevronRight, Globe, House, PanelLeft, Plus, Search } from "lucide-react";
 import { startTransition, useEffect, useLayoutEffect, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -21,12 +21,7 @@ import { SidebarProjectSection } from "@/renderer/views/MainView/parts/Sidebar/p
 import { ThreadContextMenu } from "@/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import { isMac, readBridge } from "@/renderer/bridge";
-import {
-  openRemoteAccessSettings,
-  openSettings,
-  toggleBrowserPanel,
-} from "@/renderer/actions/panelActions";
-import { ProviderUsageRail } from "@/renderer/components/providers/ProviderUsageRail";
+import { openRemoteAccessSettings, toggleBrowserPanel } from "@/renderer/actions/panelActions";
 import { openTerminal } from "@/renderer/actions/terminalActions";
 import { openNewThread, openThread } from "@/renderer/actions/threadActions";
 import {
@@ -52,7 +47,6 @@ import { GlobalPinnedSection } from "./parts/GlobalPinnedSection";
 import { SidebarProviderAccounts } from "./parts/SidebarProviderAccounts";
 import { SidebarProjectThreadList } from "./parts/SidebarProjectThreadList";
 import { UpdateButtons } from "./parts/UpdateButtons";
-import { useSidebarShortcuts } from "./parts/sidebarShortcuts";
 import { WhatsNewButton } from "./parts/WhatsNewButton";
 import {
   RemoteAccessSidebarIcon,
@@ -189,10 +183,7 @@ export function Sidebar() {
   const sortMode = usePanelStore((s) => s.threadSortMode);
   const settingsOpen = usePanelStore((s) => s.settingsOpen);
   const settingsSection = usePanelStore((s) => s.settingsSection);
-  // Remote Access has its own sidebar entry, so the generic Settings button
-  // lights up for every other section.
   const remoteAccessSettingsActive = settingsOpen && settingsSection === "remoteAccess";
-  const otherSettingsActive = settingsOpen && !remoteAccessSettingsActive;
   const threadSearchOpen = usePanelStore((s) => s.threadSearchOpen);
   const browserPanelOpen = usePanelStore((s) => s.browserPanelOpen);
   const browserOnScreen = useIsPanelTabVisible("browser");
@@ -212,13 +203,16 @@ export function Sidebar() {
   const { setScrollContainer, scrollFadeStyle } = useScrollFade<HTMLDivElement>({
     maxFadePx: 10,
   });
-  const sidebarShortcuts = useSidebarShortcuts();
   const pinnedProjectIds = useSidebarUiStore((s) => s.pinnedProjectIds);
   const pinnedProjectAt = useSidebarUiStore((s) => s.pinnedProjectAt);
   // Sidebar order: Global Pinned > Projects (pinned-first) > Home.
   // Pin is presentation-only — project store order and thread projectId are
   // never rewritten; unpin returns the item to its natural section.
-  const orderedProjectIds = orderProjectIdsPinnedFirst(projectIds, pinnedProjectIds, pinnedProjectAt);
+  const orderedProjectIds = orderProjectIdsPinnedFirst(
+    projectIds,
+    pinnedProjectIds,
+    pinnedProjectAt,
+  );
 
   useEffect(() => {
     if (currentProjectId) {
@@ -315,27 +309,8 @@ export function Sidebar() {
           <CollapsedThreadRail />
 
           <div className="flex flex-col gap-1 border-t border-[var(--hairline)] pt-2 pb-2 pr-2">
-            <ProviderUsageRail orientation="column" />
             <UpdateButtons iconOnly />
             <WhatsNewButton iconOnly />
-            {sidebarShortcuts.map((shortcut) => (
-              <SidebarButton
-                key={shortcut.id}
-                iconOnly
-                icon={shortcut.icon}
-                label={shortcut.label}
-                isActive={shortcut.isActive}
-                onPress={shortcut.onPress}
-              />
-            ))}
-            <SidebarButton
-              iconOnly
-              icon={<Settings2 className="size-4" />}
-              label={t`Settings`}
-              isActive={otherSettingsActive}
-              onPreload={prewarmSettings}
-              onPress={openSettings}
-            />
             <SidebarButton
               iconOnly
               icon={<RemoteAccessSidebarIcon status={remoteAccessStatus} />}

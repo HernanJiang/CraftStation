@@ -94,8 +94,8 @@ export function useTopShortcuts(): TopShortcutEntry[] {
         id,
         icon: <SpecialIcon kind="modelUsage" />,
         label: t`Usage`,
-        isActive: modelUsageDialogOpen && modelUsageWorkspaceTab === "usage",
-        onPress: () => usePanelStore.getState().openModelUsageDialog(),
+        isActive: modelUsageDialogOpen && modelUsageWorkspaceTab === "stats",
+        onPress: () => usePanelStore.getState().openModelUsageWorkspace({ tab: "stats" }),
       });
     } else if (pin.kind === "settingsHome") {
       entries.push({

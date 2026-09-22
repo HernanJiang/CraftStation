@@ -461,3 +461,8 @@ export function openExternalUrl(url: string): void {
 export function openModelUsageDialog(): void {
   usePanelStore.getState().openModelUsageDialog();
 }
+
+/** 用量图标与标题栏「用量」都进入模型与用量里的用量统计页。 */
+export function openUsageStatsPage(): void {
+  usePanelStore.getState().openModelUsageWorkspace({ tab: "stats" });
+}

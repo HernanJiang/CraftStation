@@ -1199,6 +1199,41 @@ describe("ClaudeSdkSession", () => {
     await session.dispose();
   });
 
+  it("idles an interrupted turn immediately even while a background task is still registered", async () => {
+    const fake = createFakeQuery();
+    mockSdk.query.mockReturnValue(fake.runtime);
+    const updates: StructuredSessionUpdate[] = [];
+    const session = await ClaudeSdkSession.create({
+      threadId: "thread-claude-steer-subagent",
+      projectLocation,
+      config,
+      presentationMode: "gui",
+    });
+    session.setListener({
+      onRuntimeEvent: () => {},
+      onUpdate: (update) => updates.push(update),
+      onError: () => {},
+      onClose: () => {},
+    });
+
+    const openedSessionId = await session.openThread(config);
+    await session.startTurn("do the thing", config);
+    fake.emitMessage(sdkTaskStarted(openedSessionId, "task-1", "toolu_bg1"));
+    await session.interruptTurn();
+    fake.emitMessage({
+      type: "result",
+      subtype: "error_during_execution",
+      is_error: true,
+      errors: ["[ede_diagnostic] turn interrupted before assistant content"],
+      session_id: openedSessionId,
+    } as unknown as SDKMessage);
+    await flushAsyncWork();
+
+    expect(updates.at(-1)).toMatchObject({ status: "idle", attention: "none" });
+
+    await session.dispose();
+  });
+
   it("keeps a goal active when interruptTurn is authoritative for the result", async () => {
     const fake = createFakeQuery();
     mockSdk.query.mockReturnValue(fake.runtime);

@@ -983,6 +983,10 @@ if (!hasSingleInstanceLock) {
           });
         }, 50);
       };
+      let deviceScheduleService: {
+        pause(id: string): unknown;
+        delete(id: string): void;
+      } | null = null;
       const scheduleCoordinator = new ScheduleRunCoordinator({
         startThread: (payload) => supervisorClient.call("startThread", payload),
         sendFollowUp: (input) =>
@@ -1028,6 +1032,11 @@ if (!hasSingleInstanceLock) {
           const bus = appControlsMcpIngress?.getInterHarnessMessageBus();
           return bus ? bus.bindNativeAddressForThread(threadId) : Promise.resolve(null);
         },
+        applyScheduleSelfStop: (scheduleId, action) => {
+          if (!deviceScheduleService) return;
+          if (action === "delete") deviceScheduleService.delete(scheduleId);
+          else deviceScheduleService.pause(scheduleId);
+        },
       });
       scheduleRunCoordinator = scheduleCoordinator;
       const scheduleService = createDeviceScheduleService({
@@ -1036,6 +1045,7 @@ if (!hasSingleInstanceLock) {
           dbInterruptScheduleRuns(scheduleId, new Date().toISOString()),
         onChanged: broadcastSchedulesChanged,
       });
+      deviceScheduleService = scheduleService;
       const emitRemoteThreadCommand = (command: RemoteThreadCommand): boolean => {
         if (!mainWindow) return false;
         mainWindow.webContents.send(IPC_EVENT_CHANNELS.remoteThreadCommand, command);

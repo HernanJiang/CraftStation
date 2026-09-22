@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CalendarDays,
   Download,
+  Gauge,
   GitPullRequest,
   Hammer,
   PanelLeft,
@@ -16,6 +17,7 @@ import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
 import { runCliUpdateBinary } from "@/renderer/actions/runCliUpdate";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
 import { toggleSidebar } from "@/renderer/state/sidebarOverlayStore";
 import { TopShortcutBar } from "./TopShortcuts/TopShortcutBar";
 import { useUpdateStore, type UpdatePhase } from "@/renderer/state/updateStore";
@@ -358,6 +360,9 @@ export function MainTitlebar() {
     updateSpeed,
   );
   const scheduleCount = useScheduleStore((state) => state.tasks.length);
+  const usageStatsActive = usePanelStore(
+    (state) => state.modelUsageDialogOpen && state.modelUsageWorkspaceTab === "stats",
+  );
 
   // Version pill doubles as a manual update check. The store subscription
   // (not the IPC resolution) observes the outcome so the "up to date" toast
@@ -459,6 +464,21 @@ export function MainTitlebar() {
           >
             <Hammer className="size-3.5" />
             <span>{t`Work`}</span>
+          </button>
+        </ControlTooltip>
+        <ControlTooltip label={t`Usage`}>
+          <button
+            type="button"
+            data-testid="titlebar-usage"
+            className={`${buttonClass} ${usageStatsActive ? "bg-[var(--row-active)] text-foreground" : ""}`}
+            onClick={() =>
+              startTransition(() =>
+                usePanelStore.getState().openModelUsageWorkspace({ tab: "stats" }),
+              )
+            }
+          >
+            <Gauge className="size-3.5" />
+            <span>{t`Usage`}</span>
           </button>
         </ControlTooltip>
         <TopShortcutBar />

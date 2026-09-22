@@ -79,10 +79,14 @@ Skills、Git / worktree、MCP 服务器不再散落在各家 CLI 的配置目录
 
 ## 安装
 
-请从 **GitHub Release** 下载便携版，不要用仓库里的源码目录当安装包。
+请从 Release 下载安装包或便携版，不要用仓库里的源码目录当安装包。中国大陆使用 Gitee，其他地区使用 GitHub。
 
-**当前版本：[CraftStation-Portable-1.2.5-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.2.5/CraftStation-Portable-1.2.5-x64.exe)**  
-（[全部 Releases](https://github.com/HernanJiang/CraftStation/releases)）
+**当前版本 1.5.3**
+
+- 安装包：[GitHub](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Setup-1.5.3-x64.exe) · [Gitee](https://gitee.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Setup-1.5.3-x64.exe)
+- 便携版：[GitHub](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Portable-1.5.3-x64.exe) · [Gitee](https://gitee.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Portable-1.5.3-x64.exe)
+
+（[GitHub Releases](https://github.com/HernanJiang/CraftStation/releases) · [Gitee Releases](https://gitee.com/HernanJiang/CraftStation/releases)）
 
 1. 下载上述 exe，双击运行，无需安装、无需再装 Electron / Node
 2. 包内已带运行时依赖：Chromium、原生模块（better-sqlite3 / node-pty）、外设 sidecar，以及官方 Windows **CLIProxyAPI** sidecar（跨厂商配方可直接起兼容桥）

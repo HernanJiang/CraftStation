@@ -25,7 +25,7 @@
 CraftStation treats an agent run as a **craft**: pick Items (model, harness, tools, accounts), form a Recipe, let the Crafter compile a plan, spawn an Entity, and keep working inside a Session.
 
 **Auto** chooses the native Harness for that model family so the model keeps its full runtime.  
-A Recipe you save on the workbench is an explicit composition: launch should be *that* Harness + *that* model.
+A Recipe you save on the workbench is an explicit composition: launch should be _that_ Harness + _that_ model.
 
 <p align="center">
   <img src="docs/screenshots/home-composer.png" alt="CraftStation home: model picker with recipes and many harnesses" width="960" />
@@ -79,12 +79,16 @@ Skills, Git / worktrees, and MCP servers are not scattered across each CLI’s c
 
 ## Install
 
-Download the portable build from **GitHub Releases**, not from the source tree.
+Download the installer or the portable build from Releases, not from the source tree. Mainland China uses Gitee; everywhere else uses GitHub.
 
-**Current build: [CraftStation-Portable-1.2.5-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.2.5/CraftStation-Portable-1.2.5-x64.exe)**  
-([all Releases](https://github.com/HernanJiang/CraftStation/releases))
+**Current build: 1.5.3**
 
-1. Download the exe and run it. No installer. No extra Electron / Node setup.
+- Installer: [GitHub](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Setup-1.5.3-x64.exe) · [Gitee](https://gitee.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Setup-1.5.3-x64.exe)
+- Portable: [GitHub](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Portable-1.5.3-x64.exe) · [Gitee](https://gitee.com/HernanJiang/CraftStation/releases/download/v1.5.3/CraftStation-Portable-1.5.3-x64.exe)
+
+([GitHub Releases](https://github.com/HernanJiang/CraftStation/releases) · [Gitee Releases](https://gitee.com/HernanJiang/CraftStation/releases))
+
+1. Download either exe. The installer uses NSIS; the portable build runs with a double-click. No extra Electron / Node setup.
 2. Runtime dependencies are inside the package: Chromium, native modules (`better-sqlite3` / `node-pty`), the peripheral sidecar, and the official Windows **CLIProxyAPI** sidecar (so cross-vendor recipes can start the compatibility bridge).
 3. Sign in to the agents you already use (Codex / Kimi Code / Antigravity / Grok CLIs still come from your local official installs and subscriptions).
 

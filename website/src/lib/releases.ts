@@ -1,4 +1,6 @@
-const GITHUB_REPO = "SDSLeon/craftstation";
+const GITHUB_REPO = "HernanJiang/CraftStation";
+/** Manual-download mirror. Auto-update still reads `latest.yml` from GitHub. */
+export const GITEE_REPO = "HernanJiang/CraftStation";
 const RELEASES_LATEST_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 const RELEASES_INDEX_URL = `https://github.com/${GITHUB_REPO}/releases`;
 const NIGHTLY_TAG_PATTERN = /-nightly\./;
@@ -7,6 +9,7 @@ export const PLATFORM_PATTERNS: Record<string, RegExp> = {
   "mac-arm64": /CraftStation-.*-arm64\.dmg$/,
   "mac-x64": /CraftStation-.*-x64\.dmg$/,
   "win-x64": /CraftStation-.*Setup-.*-x64\.exe$/,
+  "win-x64-portable": /CraftStation-Portable-.*-x64\.exe$/,
   "win-arm64": /CraftStation-.*Setup-.*-arm64\.exe$/,
   "linux-x64": /CraftStation-.*-x86_64\.AppImage$/,
 };
@@ -127,4 +130,30 @@ export async function getLatestNightlyRelease(): Promise<ReleaseInfo> {
 
 export function downloadUrlFor(release: ReleaseInfo, slug: string): string {
   return release.downloads[slug] ?? release.releasesUrl;
+}
+
+/** Stable click target. The route redirects to GitHub or Gitee per request. */
+export function downloadRouteFor(slug: string): string {
+  return `/api/download/${slug}`;
+}
+
+/**
+ * Mainland China uses the Gitee release asset. Missing or non-CN geo headers
+ * stay on GitHub, which is the updater feed and the worldwide default.
+ */
+export function prefersGiteeDownload(header: (name: string) => string | null): boolean {
+  const country = (
+    header("x-vercel-ip-country") ??
+    header("cf-ipcountry") ??
+    header("x-country-code") ??
+    ""
+  ).toUpperCase();
+  return country === "CN";
+}
+
+/** Rewrite a GitHub release asset URL onto the same tag and filename on Gitee. */
+export function toGiteeDownloadUrl(githubUrl: string): string {
+  const match = githubUrl.match(/\/releases\/download\/([^/]+)\/([^/?#]+)$/u);
+  if (!match) return `https://gitee.com/${GITEE_REPO}/releases`;
+  return `https://gitee.com/${GITEE_REPO}/releases/download/${match[1]}/${match[2]}`;
 }

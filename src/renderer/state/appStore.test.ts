@@ -1382,6 +1382,53 @@ describe("appStore runtime config sync", () => {
     });
   });
 
+  it("does not reopen a settled GUI turn for trailing subagent activity", () => {
+    const project = useAppStore.getState().addProject({
+      kind: "windows",
+      path: "C:\\repo",
+    });
+    const thread = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "codex",
+      config: { model: "m" },
+      prompt: "a",
+      presentationMode: "gui",
+    });
+    useAppStore.getState().applyRuntimeEvent(thread.id, {
+      type: "turn.started",
+      threadId: thread.id,
+      turnId: "turn-1",
+    });
+    useAppStore.getState().applyRuntimeEvent(thread.id, {
+      type: "item.started",
+      threadId: thread.id,
+      itemId: "agent-1",
+      itemType: "tool_call",
+      payload: { name: "spawnAgent", status: "running", isSubAgent: true },
+    });
+    useAppStore.getState().updateThreadRuntime(thread.id, {
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+    });
+
+    useAppStore.getState().applyRuntimeEvent(thread.id, {
+      type: "item.updated",
+      threadId: thread.id,
+      itemId: "agent-1",
+      payload: { name: "spawnAgent", status: "running", isSubAgent: true },
+    });
+    useAppStore.getState().applyRuntimeEvent(thread.id, {
+      type: "item.started",
+      threadId: thread.id,
+      itemId: "child-1",
+      itemType: "assistant_message",
+      parentItemId: "agent-1",
+    });
+
+    expect(useAppStore.getState().threads[0]?.status).toBe("idle");
+  });
+
   it("does not reopen a completed GUI turn for a trailing goal update", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-01T12:00:00.000Z"));

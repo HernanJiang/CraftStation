@@ -2447,6 +2447,7 @@ describe("CodexStructuredSession", () => {
     session["currentThreadStatus"] = { type: "idle" };
     session["seenErrorMessages"] = new Set<string>();
     session["activeTurnIds"] = new Set<string>();
+    session["activeTurnReconcileGeneration"] = 0;
     session["resumeActiveStatusSuppressionUntil"] = new Map();
     session["bufferedRuntimeEvents"] = [];
     const subAgentRouter = new CodexSubAgentRouter("local-thread");
@@ -2557,6 +2558,86 @@ describe("CodexStructuredSession", () => {
     });
 
     expect(updates).toContainEqual({ status: "idle", attention: "none" });
+  });
+
+  it("drops a steered turn id the server no longer has in progress", async () => {
+    const { onMessage, updates, session } = makeNotificationSession();
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    (session as unknown as Record<string, unknown>)["rpc"] = {
+      request: (method: string, params: Record<string, unknown>) => {
+        requests.push({ method, params });
+        if (method === "turn/steer") return Promise.resolve({ turnId: "turn-steered" });
+        if (method === "thread/read") {
+          return Promise.resolve({
+            thread: {
+              status: { type: "idle" },
+              turns: [{ id: "turn-live", status: "completed" }],
+            },
+          });
+        }
+        return Promise.resolve({});
+      },
+    };
+    (session as unknown as Record<string, unknown>)["activeTurnId"] = "turn-live";
+    (session as unknown as Record<string, unknown>)["activeTurnIds"] = new Set(["turn-live"]);
+
+    await session.steerTurn("focus on the failing test", { model: "gpt-5.4" });
+    updates.length = 0;
+    onMessage({
+      jsonrpc: "2.0",
+      method: "turn/completed",
+      params: {
+        threadId: "provider-thread",
+        turn: { id: "turn-live", status: "completed", items: [] },
+      },
+    });
+    await Promise.resolve();
+
+    expect(requests.map((request) => request.method)).toContain("thread/read");
+    expect(updates).toContainEqual({ status: "idle", attention: "none" });
+  });
+
+  it("keeps a sibling turn the server still reports as in progress", async () => {
+    const { onMessage, updates, session } = makeNotificationSession();
+    (session as unknown as Record<string, unknown>)["rpc"] = {
+      request: (method: string) => {
+        if (method === "thread/read") {
+          return Promise.resolve({
+            thread: {
+              status: { type: "active", activeFlags: [] },
+              turns: [
+                { id: "turn-a", status: "completed" },
+                { id: "turn-b", status: "inProgress" },
+              ],
+            },
+          });
+        }
+        return Promise.resolve({});
+      },
+    };
+    onMessage({
+      jsonrpc: "2.0",
+      method: "turn/started",
+      params: { threadId: "provider-thread", turn: { id: "turn-a", status: "inProgress" } },
+    });
+    onMessage({
+      jsonrpc: "2.0",
+      method: "turn/started",
+      params: { threadId: "provider-thread", turn: { id: "turn-b", status: "inProgress" } },
+    });
+    updates.length = 0;
+    onMessage({
+      jsonrpc: "2.0",
+      method: "turn/completed",
+      params: {
+        threadId: "provider-thread",
+        turn: { id: "turn-a", status: "completed", items: [] },
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(updates).toEqual([]);
   });
 
   it("surfaces context compaction as a ContextCompaction tool call and still skips sleep", () => {

@@ -996,7 +996,14 @@ export class ClaudeSdkSession implements StructuredSessionHandle {
         ...(errorMessage ? { errorMessage } : {}),
         ...(this.sessionId ? { sessionRef: createKnownSessionRef(this.sessionId) } : {}),
       };
-      if (this.hasLiveSubAgentTasks()) {
+      if (wasInterrupted) {
+        // A steer or Stop already asked this turn to end. Holding idle until
+        // background tasks drain blocks the replacement prompt forever when
+        // those tasks never emit `task_notification`.
+        this.clearDeferredFlushTimer();
+        this.deferredCompletion.clear();
+        this.emitUpdate(completion);
+      } else if (this.hasLiveSubAgentTasks()) {
         this.deferredCompletion.defer(completion);
       } else {
         this.emitUpdate(completion);

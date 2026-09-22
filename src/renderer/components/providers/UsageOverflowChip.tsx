@@ -1,7 +1,7 @@
 import { Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { UsageWindow } from "@craftstation/agents-usage/types";
-import { openUsagePanel } from "@/renderer/actions/panelActions";
+import { openUsageStatsPage } from "@/renderer/actions/panelActions";
 import { useProviderUsage } from "@/renderer/state/providerUsageStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { ProviderUsageCircle } from "./ProviderUsageCircle";
@@ -45,7 +45,7 @@ function OverflowRow(props: { id: string; label: string }) {
  * Overflow affordance for the usage rail: a "+N" circle standing in for the
  * providers that did not fit. Hovering lists every one of them in a single
  * compact line each, so a narrow sidebar hides circles but never information.
- * Clicking opens the docked usage panel, matching the circles it replaces.
+ * Clicking opens usage statistics, matching the circles it replaces.
  */
 export function UsageOverflowChip(props: { providers: readonly UsageProvider[] }) {
   const { providers } = props;
@@ -57,7 +57,7 @@ export function UsageOverflowChip(props: { providers: readonly UsageProvider[] }
         <button
           type="button"
           aria-label={t`More usage providers — open usage panel`}
-          onClick={openUsagePanel}
+          onClick={openUsageStatsPage}
           className="flex shrink-0 items-center justify-center rounded-full border border-[var(--hairline)] text-[10px] font-semibold text-muted outline-none hover:text-foreground focus-visible:focus-ring"
           style={{ width: RAIL_CIRCLE_SIZE, height: RAIL_CIRCLE_SIZE }}
         >

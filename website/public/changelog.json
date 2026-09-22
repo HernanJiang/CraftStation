@@ -512,99 +512,28 @@
     },
     {
       "version": "1.5.3",
-      "date": "2026-07-24",
-      "title": "Pi & Qoder agents, Opus 5, a mobile workspace & synced notes",
-      "summary": "CraftStation gains two new coding agents — Pi and Qoder — defaults new Claude threads to Opus 5, and turns the mobile web app into a real workspace with a dockable side panel and notes and to-dos that sync with your desktop. Subagents get their own views, provider token usage finally survives restarts, and a wide round of mobile and notification fixes completes the release.",
+      "date": "2026-09-22",
+      "title": "Turns finish on their own",
+      "summary": "Finished tasks return to idle, scheduled runs can stop themselves, and usage icons open usage statistics. Website downloads in mainland China come from Gitee.",
       "changes": [
         {
-          "kind": "added",
-          "label": "Providers",
-          "text": "Two new coding agents join the roster: Pi brings native structured chat with resumable sessions, readable model and reasoning-effort discovery, and goal tracking, while Qoder adds plan and approval modes, session resume, and live turn status."
+          "kind": "fixed",
+          "text": "A finished turn now returns to idle after a mid-turn prompt or sub-agent, including Codex, Claude, and other structured agents, instead of leaving Stop and the working timer up."
         },
         {
-          "kind": "added",
-          "label": "Claude",
-          "text": "Opus 5 is here and becomes the default for new Claude threads, with its effort tiers, 1M context option, and Fast-mode support read straight from the SDK rather than hardcoded."
+          "kind": "fixed",
+          "label": "Schedules",
+          "text": "A scheduled run can pause or delete its own schedule from the last line of its reply, even when that harness has no Schedule tools."
         },
         {
-          "kind": "added",
-          "label": "Subagents",
-          "text": "Delegated work opens in a view of its own — a dedicated panel beside the parent thread on desktop, a full page with real back navigation on mobile — so you can follow a subagent's live transcript without losing your place."
-        },
-        {
-          "kind": "added",
+          "kind": "fixed",
           "label": "Usage",
-          "text": "Token usage for Claude, Codex, and OpenCode is now written to a durable ledger, so your provider spend carries across app restarts, and providers that never report tokens say so instead of quietly showing zero."
-        },
-        {
-          "kind": "added",
-          "label": "Remote",
-          "text": "On a widescreen browser, the web app now docks a resizable workspace beside your threads with Git, Files, Terminal, Usage, Notes, and Ports tabs — no more full-screen hopping between tools."
-        },
-        {
-          "kind": "added",
-          "label": "Remote",
-          "text": "Notes and to-dos are now available on mobile and stay in sync with the paired desktop, including starting a new thread straight from a to-do."
-        },
-        {
-          "kind": "added",
-          "text": "Agents connected to the built-in CraftStation MCP server can now orchestrate the whole app — managing threads, projects, files, Git, GitHub pull requests, MCP servers, skills, and settings."
+          "text": "The collapsed sidebar no longer repeats the title bar shortcuts. Usage and Settings stay on the title bar, and every usage icon opens Usage statistics."
         },
         {
           "kind": "improved",
-          "label": "Skills",
-          "text": "Skills reach further: Codex and Gemini CLI now pick up the shared .agents/skills folder automatically, Claude Code and Factory see skill edits instantly, and every skill can also be invoked with the /skill:name form."
-        },
-        {
-          "kind": "improved",
-          "label": "ACP agents",
-          "text": "Delegation is tracked more faithfully — goal progress shows paused states and elapsed time, concurrent subagents are attributed to the right parent, and a turn no longer flashes idle while its background subagents are still running."
-        },
-        {
-          "kind": "improved",
-          "label": "ACP agents",
-          "text": "To-do lists that agents like Kimi Code write through tools now feed the plan dock instead of cluttering the transcript as raw tool rows, and the plan follows along as the agent revises or drops it."
-        },
-        {
-          "kind": "improved",
-          "text": "Steering a running turn is smoother: in-flight commands hand off to the background before the agent restarts with your message, and the pending-steer indicator only appears when a steer is genuinely waiting."
-        },
-        {
-          "kind": "improved",
-          "label": "Remote",
-          "text": "Mobile sessions feel more native with faster thread opening, smoother page transitions, fresher Git summaries, right-click menus for mouse users, swipe-to-dismiss toasts, real file-type icons, and a pairing QR code that rotates automatically after each device pairs."
-        },
-        {
-          "kind": "improved",
-          "text": "New threads now start in each provider's recommended autonomy preset, so Antigravity, Grok, Kimi Code, and Factory approve more actions automatically by default — switch a thread back to a supervised mode if you prefer to confirm each step."
-        },
-        {
-          "kind": "improved",
-          "label": "Settings",
-          "text": "Settings are easier to navigate: the sidebar is regrouped into clearer sections with plainer labels, and finished threads now tidy themselves away after three days instead of a week."
-        },
-        {
-          "kind": "fixed",
-          "text": "Opening a finished thread on desktop now clears its attention badge on paired phones immediately, and stopping or steering a turn no longer fires a false completion notification."
-        },
-        {
-          "kind": "fixed",
-          "label": "Remote",
-          "text": "The mobile web app no longer hangs while loading Git diffs, wakes from a suspended tab with a stale transcript, leaks data from a previously paired desktop, or misplaces the page after iOS Safari sheets and keyboards close."
-        },
-        {
-          "kind": "fixed",
-          "label": "ACP agents",
-          "text": "Background subagent progress in Kimi Code and Qwen Code survives concurrent runs and session resumes instead of being dropped or double-counted."
-        },
-        {
-          "kind": "fixed",
-          "text": "The Git review panel picks up pull request details right after you commit or open a PR, truncated previews keep their italic text, and collapsing a long message no longer leaves the chat scrolled somewhere unexpected."
-        },
-        {
-          "kind": "fixed",
-          "label": "Security",
-          "text": "Next.js and a batch of vulnerable transitive dependencies are pinned to patched releases."
+          "label": "Downloads",
+          "text": "The Windows installer and portable build downloaded from the website come from Gitee in mainland China and from GitHub elsewhere. In-app updates still use the GitHub feed."
         }
       ]
     },

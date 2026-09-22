@@ -24,6 +24,7 @@ import {
   type ThreadContextSnapshot,
 } from "./ScheduleExecutionResolver";
 import { scheduleThreadTarget } from "@/shared/schedules";
+import { readScheduleSelfStop, type ScheduleSelfStopAction } from "./scheduleSelfStop";
 
 /**
  * A `thread-state` transition ends the run only once the turn fully settles.
@@ -90,6 +91,12 @@ export interface ScheduleRunCoordinatorDeps {
    * production; the run NEVER fails because a binding could not be written.
    */
   bindRunThreadAddress?(threadId: string): Promise<string | null>;
+  /**
+   * Apply a self-stop the run asked for in its last line. Used when the
+   * firing harness has no Schedule MCP and cannot call pause/delete itself.
+   * Optional so isolated tests stay inert; production wires the live service.
+   */
+  applyScheduleSelfStop?(scheduleId: string, action: ScheduleSelfStopAction): void;
   resolveExecution?(input: {
     task: ScheduledTask;
     runThreadId: string;
@@ -102,6 +109,7 @@ export interface ScheduleRunCoordinatorDeps {
 
 interface PendingRun {
   runId: string;
+  scheduleId: string;
   sawActive: boolean;
   resolve: (summary: string | null) => void;
   reject: (error: Error) => void;
@@ -163,6 +171,7 @@ export class ScheduleRunCoordinator {
     }
     const summary = this.deps.getThreadTerminalResult?.(event.threadId) ?? null;
     this.deps.updateRun(run.runId, { completedAt, status: "succeeded", summary });
+    this.noteSelfStop(run.scheduleId, summary);
     run.resolve(summary);
   }
 
@@ -284,6 +293,7 @@ export class ScheduleRunCoordinator {
           status: "succeeded",
           summary,
         });
+        this.noteSelfStop(task.id, summary);
         return summary;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -301,7 +311,13 @@ export class ScheduleRunCoordinator {
     }
 
     const settled = new Promise<string | null>((resolve, reject) => {
-      this.pending.set(threadId, { runId: run.id, sawActive: false, resolve, reject });
+      this.pending.set(threadId, {
+        runId: run.id,
+        scheduleId: task.id,
+        sawActive: false,
+        resolve,
+        reject,
+      });
     });
 
     const startPayload: StartThreadPayload = {
@@ -485,6 +501,7 @@ export class ScheduleRunCoordinator {
           status: "succeeded",
           summary,
         });
+        this.noteSelfStop(task.id, summary);
         return { handled: true, summary };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -498,7 +515,13 @@ export class ScheduleRunCoordinator {
     }
 
     const settled = new Promise<string | null>((resolve, reject) => {
-      this.pending.set(threadId, { runId: run.id, sawActive: false, resolve, reject });
+      this.pending.set(threadId, {
+        runId: run.id,
+        scheduleId: task.id,
+        sawActive: false,
+        resolve,
+        reject,
+      });
     });
     try {
       await this.deps.sendFollowUp!({ threadId, prompt: launch.prompt, config });
@@ -574,6 +597,20 @@ export class ScheduleRunCoordinator {
         location,
       )),
     };
+  }
+
+  /** A failed self-stop must not fail the run that already succeeded. */
+  private noteSelfStop(scheduleId: string, summary: string | null): void {
+    const action = readScheduleSelfStop(summary, scheduleId);
+    if (!action || !this.deps.applyScheduleSelfStop) return;
+    try {
+      this.deps.applyScheduleSelfStop(scheduleId, action);
+    } catch (error) {
+      console.warn(
+        `[schedule] self-stop ${action} failed for ${scheduleId}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   private nowIso(): string {

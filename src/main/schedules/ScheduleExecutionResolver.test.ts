@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScheduledTask } from "@/shared/contracts";
-import {
-  resolveScheduleExecution,
-  type ThreadContextSnapshot,
-} from "./ScheduleExecutionResolver";
+import { resolveScheduleExecution, type ThreadContextSnapshot } from "./ScheduleExecutionResolver";
 
 const task: ScheduledTask = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -31,7 +28,8 @@ describe("resolveScheduleExecution", () => {
       contextSnapshot: null,
     });
     expect(mode.kind).toBe("legacy");
-    expect(mode.prompt).toBe("Do the work.");
+    expect(mode.prompt).toContain("Do the work.");
+    expect(mode.prompt).toContain("CRAFTSTATION_SCHEDULE: pause");
     expect(mode.snapshot.threadTarget).toEqual({ kind: "new" });
   });
 

@@ -241,6 +241,10 @@ export async function createHeadlessRemoteHost(
       // WebSocket reconnect (the replay window covers transient drops).
     },
   });
+  let deviceScheduleService: {
+    pause(id: string): unknown;
+    delete(id: string): void;
+  } | null = null;
   const scheduleCoordinator = new ScheduleRunCoordinator({
     startThread: (payload) => supervisorClient.call("startThread", payload),
     sendFollowUp: (input) =>
@@ -284,6 +288,11 @@ export async function createHeadlessRemoteHost(
       const bus = appControlsMcpIngress?.getInterHarnessMessageBus();
       return bus ? bus.bindNativeAddressForThread(threadId) : Promise.resolve(null);
     },
+    applyScheduleSelfStop: (scheduleId, action) => {
+      if (!deviceScheduleService) return;
+      if (action === "delete") deviceScheduleService.delete(scheduleId);
+      else deviceScheduleService.pause(scheduleId);
+    },
   });
   scheduleRunCoordinator = scheduleCoordinator;
   const scheduleService = createDeviceScheduleService({
@@ -294,6 +303,7 @@ export async function createHeadlessRemoteHost(
       serverRef?.publishSupervisorEvent({ type: "remote-schedules-changed" });
     },
   });
+  deviceScheduleService = scheduleService;
   const publishHeadlessProjectsChanged = (): void => {
     serverRef?.publishSupervisorEvent({
       type: "remote-projects-changed",

@@ -2819,6 +2819,72 @@ describe("ACP turn config sync", () => {
     expect(listener.onUpdate).toHaveBeenLastCalledWith({ status: "idle", attention: "none" });
   });
 
+  it("settles a turn that is only waiting on subagents when the user interrupts", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    let resolvePrompt!: (result: { stopReason: string }) => void;
+    connection.prompt.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePrompt = resolve;
+      }),
+    );
+
+    const turn = session.startTurn("launch a background agent", {
+      model: "model-a",
+      effort: "low",
+      mode: "agent",
+      approvalPolicy: "default",
+    });
+    await vi.waitFor(() => expect(connection.prompt).toHaveBeenCalledOnce());
+    session.handleSessionUpdate({
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "foreground-bg",
+        title: "Agent",
+        status: "in_progress",
+        rawInput: { _toolName: "task", subagent_type: "Explore", background: true },
+      },
+    });
+    resolvePrompt({ stopReason: "end_turn" });
+    await turn;
+    expect(listener.onUpdate).not.toHaveBeenLastCalledWith({ status: "idle", attention: "none" });
+
+    listener.onUpdate.mockClear();
+    await session.interruptTurn();
+
+    expect(connection.cancel).toHaveBeenCalledOnce();
+    expect(listener.onUpdate).toHaveBeenCalledWith({ status: "idle", attention: "none" });
+  });
+
+  it("settles a detached subagent turn when the user interrupts", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    session.handleSessionUpdate({
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "detached-agent",
+        title: "Agent",
+        status: "in_progress",
+        rawInput: { _toolName: "task", subagent_type: "Explore", background: true },
+      },
+    });
+    session.handleSessionUpdate({
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "still reporting" },
+        _meta: {
+          craftstationNewAssistantItem: true,
+          craftstationDetachedSubAgentActivity: "detached-agent",
+        },
+      },
+    });
+    expect(listener.onUpdate).toHaveBeenCalledWith({ status: "working", attention: "working" });
+
+    listener.onUpdate.mockClear();
+    await session.interruptTurn();
+
+    expect(connection.cancel).toHaveBeenCalledOnce();
+    expect(listener.onUpdate).toHaveBeenCalledWith({ status: "idle", attention: "none" });
+  });
+
   it("stays working until all concurrently reporting detached subagents complete", () => {
     const { listener, session } = makeConfigSyncSession();
     for (const toolCallId of ["detached-a", "detached-b"]) {

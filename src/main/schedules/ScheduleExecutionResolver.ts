@@ -5,6 +5,7 @@ import type {
   ScheduleThreadTarget,
 } from "@/shared/contracts";
 import { scheduleThreadTarget } from "@/shared/schedules";
+import { scheduleSelfStopInstructions } from "./scheduleSelfStop";
 
 /** Persisted conversation/context inherited by an existing-thread run. Text only. */
 export interface ThreadContextSnapshot {
@@ -92,16 +93,17 @@ export function buildSchedulePrompt(
   task: ScheduledTask,
   contextSnapshot: ThreadContextSnapshot | null,
 ): string {
-  if (!contextSnapshot) return task.prompt;
+  const control = scheduleSelfStopInstructions(task.id);
+  if (!contextSnapshot) return `${task.prompt}\n\n${control}`;
   const raw = contextSnapshot.conversationText;
   const context =
     raw != null && raw.length > MAX_INHERITED_CONTEXT_CHARS
       ? `${raw.slice(0, MAX_INHERITED_CONTEXT_CHARS)}…`
       : raw;
   if (context == null || context.trim() === "") {
-    return `${task.prompt}\n\n[Schedule context: continuing conversation "${contextSnapshot.title}" — no prior transcript was available. Execute the scheduled instructions above in a fresh session.]`;
+    return `${task.prompt}\n\n[Schedule context: continuing conversation "${contextSnapshot.title}" — no prior transcript was available. Execute the scheduled instructions above in a fresh session.]\n\n${control}`;
   }
-  return `${task.prompt}\n\n[Schedule context: continuing conversation "${contextSnapshot.title}". Inherited context (text only — the harness session is fresh):\n${context}\n---\nExecute the scheduled instructions above.]`;
+  return `${task.prompt}\n\n[Schedule context: continuing conversation "${contextSnapshot.title}". Inherited context (text only — the harness session is fresh):\n${context}\n---\nExecute the scheduled instructions above.]\n\n${control}`;
 }
 
 function tryCompileNativeCraftPlan(input: {

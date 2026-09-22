@@ -13,7 +13,7 @@ import {
   usageWindowDisplayLabel,
 } from "@craftstation/agents-usage/formatters";
 import type { UsageSnapshot } from "@craftstation/agents-usage/types";
-import { openUsagePanel } from "@/renderer/actions/panelActions";
+import { openUsageStatsPage } from "@/renderer/actions/panelActions";
 import { readBridge } from "@/renderer/bridge";
 import { ContextMenu, type ContextMenuEntry } from "@/renderer/components/common/ContextMenu";
 import { useProviderUsage, useProviderUsageStore } from "@/renderer/state/providerUsageStore";
@@ -174,7 +174,7 @@ function ProviderUsageRailItem(props: { id: string; label: string; index: number
           <button
             type="button"
             aria-label={t`${label} usage — open usage panel`}
-            onClick={openUsagePanel}
+            onClick={openUsageStatsPage}
             className="cursor-grab rounded-full outline-none focus-visible:focus-ring active:cursor-grabbing"
           >
             <ProviderUsageCircle

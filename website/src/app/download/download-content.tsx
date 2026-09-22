@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { localizedPath } from "@/lib/i18n/config";
-import { downloadUrlFor, type ReleaseInfo } from "@/lib/releases";
+import { downloadRouteFor, type ReleaseInfo } from "@/lib/releases";
 
 const PLATFORMS = [
   {
@@ -20,7 +20,8 @@ const PLATFORMS = [
     os: "Windows",
     icon: Monitor,
     variants: [
-      { label: "x64", slug: "win-x64", ext: ".exe" },
+      { label: "x64 installer", slug: "win-x64", ext: ".exe" },
+      { label: "x64 portable", slug: "win-x64-portable", ext: ".exe" },
       { label: "ARM64", slug: "win-arm64", ext: ".exe" },
     ],
   },
@@ -91,7 +92,7 @@ export function DownloadContent({ release }: { release: ReleaseInfo }) {
                 {platform.variants.map((variant) => (
                   <a
                     key={variant.slug}
-                    href={downloadUrlFor(release, variant.slug)}
+                    href={downloadRouteFor(variant.slug)}
                     className="group flex items-center justify-between px-5 py-4 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/10 transition-all duration-200"
                   >
                     <div className="flex items-center gap-3">
