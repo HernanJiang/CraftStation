@@ -12,6 +12,7 @@ import type { ThreadConfig } from "@/shared/contracts";
 import {
   AcpStructuredSession,
   DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS,
+  FOREGROUND_QUIET_IDLE_MS,
   isAcpHomeScopeLocation,
   resolveAcpGlobalSkillFallbackHostFsPath,
   resolveAcpReadableHostFsPath,
@@ -100,6 +101,7 @@ function makeConfigSyncSession(
       isRetryable: (error: unknown) => boolean;
     };
     orphanTurnCompletionDelayMs?: number;
+    autonomousPrompt?: boolean;
   } = {},
 ) {
   const connection = {
@@ -227,6 +229,7 @@ function makeConfigSyncSession(
   session["retrySessionOpen"] = overrides.retrySessionOpen;
   session["orphanTurnCompletionDelayMs"] =
     overrides.orphanTurnCompletionDelayMs ?? DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS;
+  session["autonomousPrompt"] = overrides.autonomousPrompt === true;
   session["orphanTurnCompletionTimer"] = undefined;
   session["foregroundQuietTimer"] = undefined;
   session["foregroundQuietIdled"] = false;
@@ -3224,6 +3227,69 @@ describe("ACP turn config sync", () => {
       type: "turn.completed",
       state: "cancelled",
     });
+  });
+
+  it("keeps an autonomous prompt working through a quiet gap", () => {
+    vi.useFakeTimers();
+    try {
+      const { listener, session } = makeConfigSyncSession({ autonomousPrompt: true });
+      (session as unknown as { promptInFlight: boolean }).promptInFlight = true;
+      session.handleSessionUpdate({
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: "still running the command" },
+        },
+      });
+
+      vi.advanceTimersByTime(FOREGROUND_QUIET_IDLE_MS);
+
+      expect(
+        listener.onUpdate.mock.calls.map((call) => (call[0] as { status?: string }).status),
+      ).not.toContain("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not record Devin's unsolicited cancelled stop as an interrupt", async () => {
+    vi.useFakeTimers();
+    try {
+      const { connection, listener, session } = makeConfigSyncSession({
+        autonomousPrompt: true,
+        orphanTurnCompletionDelayMs: 5_000,
+      });
+      connection.prompt.mockResolvedValueOnce({ stopReason: "cancelled" });
+
+      await session.startTurn("keep going", {
+        model: "swe-2-high",
+        effort: "high",
+        mode: "agent",
+        approvalPolicy: "default",
+      });
+      session.handleSessionUpdate({
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: "Task still running." },
+        },
+      });
+
+      expect(connection.cancel).not.toHaveBeenCalled();
+      expect(listener.onRuntimeEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "turn.completed", state: "cancelled" }),
+      );
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "turn.completed", state: "completed" }),
+      );
+      expect(listener.onUpdate).toHaveBeenLastCalledWith({
+        status: "idle",
+        attention: "none",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("normalizes interrupt-acknowledged end_turn results to cancelled", async () => {

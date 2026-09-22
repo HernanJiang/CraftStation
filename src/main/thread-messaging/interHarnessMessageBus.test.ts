@@ -94,6 +94,7 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
       }>
     >
   >;
+  let extraProjects: Project[];
   let bus: InterHarnessMessageBus;
   let service: ThreadCollaborationService;
   let mirrored: Thread[];
@@ -132,6 +133,7 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
     dir = mkdtempSync(join(tmpdir(), "craftstation-inter-harness-"));
     initDatabase(join(dir, "state.sqlite"));
     dbUpsertProject(project(), 0);
+    extraProjects = [];
     threads = [thread("codex"), thread("kimi1"), thread("kimi2")];
     for (const entry of threads) dbUpsertThread(entry, 0);
     statuses = new Map(threads.map((entry) => [entry.id, entry.status]));
@@ -217,7 +219,8 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
       // claimed external threads are visible to the control plane.
       getThread: (id) => dbGetThread(id),
       getThreads: () => dbGetThreads(),
-      getProject: (id) => (id === "project-1" ? project() : null),
+      getProject: (id) =>
+        id === "project-1" ? project() : (extraProjects.find((entry) => entry.id === id) ?? null),
       settings: () =>
         ({ mcpServers: [], disabledBuiltInMcpServers: {}, disabledBuiltInMcpTools: {} }) as never,
       runtime: {
@@ -262,8 +265,14 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
     bus = new InterHarnessMessageBus({
       collaboration: service,
       control,
-      getProjectLocation: (id) => (id === "project-1" ? PROJECT_LOCATION : null),
-      listProjectLocations: () => [{ projectId: "project-1", location: PROJECT_LOCATION }],
+      getProjectLocation: (id) =>
+        id === "project-1"
+          ? PROJECT_LOCATION
+          : (extraProjects.find((entry) => entry.id === id)?.location ?? null),
+      listProjectLocations: () => [
+        { projectId: "project-1", location: PROJECT_LOCATION },
+        ...extraProjects.map((entry) => ({ projectId: entry.id, location: entry.location })),
+      ],
       mirrorThreadToRenderer: (entry) => {
         mirrored.push(entry);
       },
@@ -316,6 +325,39 @@ describe.skipIf(!sqliteAvailable)("InterHarnessMessageBus native round-trips", (
     const exchanges = bus.inbox("kimi1");
     expect(exchanges).toHaveLength(0);
     expect(bus.inbox("kimi2")).toHaveLength(1);
+  });
+
+  it("lists every harness in the same workspace, including another project", () => {
+    const other = { ...project(), id: "project-2", name: "project-2" };
+    extraProjects.push(other);
+    dbUpsertProject(other, 1);
+    dbUpsertThread(
+      thread("swe", {
+        projectId: "project-2",
+        agentKind: "devin",
+        title: "SWE-HIGH",
+        config: { model: "swe-2-high" },
+        sessionRef: { providerSessionId: "crimson", discoveredAt: "2026-08-31T12:00:00.000Z" },
+      }),
+      0,
+    );
+    dbUpsertThread(
+      thread("cc", {
+        projectId: "project-2",
+        agentKind: "commandcode",
+        title: "Command Code",
+        sessionRef: { providerSessionId: "cc-1", discoveredAt: "2026-08-31T12:00:00.000Z" },
+      }),
+      0,
+    );
+
+    const peers = bus.listPeers("codex");
+    expect(peers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ address: "devin:crimson", title: "SWE-HIGH", harness: "devin" }),
+        expect.objectContaining({ address: "commandcode:cc-1", harness: "commandcode" }),
+      ]),
+    );
   });
 
   it("listPeers excludes archived, done, and schedule firing threads", async () => {

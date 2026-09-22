@@ -128,12 +128,14 @@ describe("createAcpStructuredSession baseSpawnEnv merge", () => {
       retrySessionOpen,
       assumedMcpCapabilities: { http: true },
       orphanTurnCompletionDelayMs: 5_000,
+      autonomousPrompt: true,
     });
 
     expect(createSpy.mock.calls[0]?.[3]).toMatchObject({
       assumedMcpCapabilities: { http: true },
       retrySessionOpen,
       orphanTurnCompletionDelayMs: 5_000,
+      autonomousPrompt: true,
     });
   });
 });

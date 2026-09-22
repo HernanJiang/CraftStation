@@ -779,6 +779,7 @@ describe("ToolCallGroup", () => {
 
     expect(screen.getByText(byTextContent("1 thought"))).toBeInTheDocument();
     expect(screen.getByText(byTextContent("2 views"))).toBeInTheDocument();
+    expandGroup(/1 thought/i);
     expect(screen.getByText("Thought")).toBeInTheDocument();
     expect(screen.getByText("Read file")).toBeInTheDocument();
     expect(screen.getByText("Read other file")).toBeInTheDocument();

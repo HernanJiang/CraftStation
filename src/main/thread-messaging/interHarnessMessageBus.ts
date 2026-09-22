@@ -18,6 +18,7 @@ import {
   deleteNativeBindingsForThread,
   discoverCodexThreads,
   getNativeBinding,
+  workspacesEqual,
   getNativeBindingByThread,
   inferNativeHarnessFromModel,
   putNativeBinding,
@@ -81,7 +82,7 @@ export class InterHarnessMessageBus {
     const peers = new Map<string, NativeThreadPeer>();
 
     for (const thread of this.deps.control.list()) {
-      if (thread.id === source.id || thread.projectId !== source.projectId) continue;
+      if (thread.id === source.id || !this.sharesWorkspace(source, thread)) continue;
       // Archived/done rows and Schedule firing sessions (threadTarget
       // kind:"new" runs, tagged scheduleOrigin) are not research peers:
       // recommending them routes agent traffic into dead or automated
@@ -417,7 +418,7 @@ export class InterHarnessMessageBus {
     const source = this.requireSource(sourceThreadId);
     const { threadId } = this.resolveAddress(address, source.projectId);
     const row = this.deps.control.require(threadId);
-    if (row.projectId !== source.projectId) {
+    if (!this.sharesWorkspace(source, row)) {
       throw new Error(`Peer ${address} is outside this workspace scope.`);
     }
     const previousModel = row.config.model;
@@ -507,7 +508,7 @@ export class InterHarnessMessageBus {
       throw new Error("A thread cannot stop (delete) itself.");
     }
     const row = this.deps.control.require(threadId);
-    if (row.projectId !== source.projectId) {
+    if (!this.sharesWorkspace(source, row)) {
       throw new Error(`Peer ${address} is outside this workspace scope.`);
     }
     let closed = false;
@@ -730,6 +731,16 @@ export class InterHarnessMessageBus {
 
   threadExchanges(threadId: string, limit = 30): ThreadExchange[] {
     return this.deps.collaboration.listExchanges(threadId, threadId, limit);
+  }
+
+  /** Same CraftStation project, or two projects that open the same workspace. */
+  private sharesWorkspace(left: Thread, right: Thread): boolean {
+    if (left.projectId === right.projectId) return true;
+    const leftWorkspace = this.workspaceOfThread(left);
+    const rightWorkspace = this.workspaceOfThread(right);
+    return Boolean(
+      leftWorkspace && rightWorkspace && workspacesEqual(leftWorkspace, rightWorkspace),
+    );
   }
 
   private addressOfThread(

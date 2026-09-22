@@ -105,13 +105,22 @@ export const ToolCallGroup = memo(function ToolCallGroup({
   // Mixed groups render per-segment: strictly consecutive same-file edits
   // collapse into one merged edit row; everything else stays its own row.
   const segments = segmentToolGroupRows(items);
-  const [isExpanded, setIsExpanded] = useState(() => isLive && !editOnlyGroup);
+  // Thoughts fold into the same summary as searches and views ("N thoughts").
+  // A live tool-only group still opens so the running command stays visible;
+  // once a thought is in the run, keep the count collapsed until the user opens it.
+  const containsThought = items.some((item) => item.type === "reasoning");
+  const [isExpanded, setIsExpanded] = useState(() => isLive && !editOnlyGroup && !containsThought);
   const [showAll, setShowAll] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const previousLayoutRef = useRef({ isExpanded, showAll });
   const hasOverflowRows = segments.length > TOOL_CALL_GROUP_MAX_VISIBLE_ROWS;
   // Preserve manual open/close across live-tail item updates.
   const userToggledRef = useRef(false);
+
+  useEffect(() => {
+    if (userToggledRef.current || !containsThought || !isExpanded) return;
+    setIsExpanded(false);
+  }, [containsThought, isExpanded]);
 
   useLayoutEffect(() => {
     const previous = previousLayoutRef.current;

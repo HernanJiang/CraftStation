@@ -169,23 +169,6 @@ function buildTimelineEntries(
       groupIds.push(nextId);
       idx += 1;
     }
-    // Thoughts after the last real tool stay outside the accordion so the
-    // next assistant paragraph can sit after that thinking instead of
-    // having the chain buried under "Ran N tools".
-    const trailingThoughtIds: string[] = [];
-    while (groupIds.length > 1) {
-      const lastId = groupIds[groupIds.length - 1]!;
-      const last = items?.[lastId];
-      if (last?.type !== "reasoning") break;
-      const hasToolBefore = groupIds.slice(0, -1).some((id) => {
-        const candidate = items?.[id];
-        return (
-          candidate !== undefined && candidate.type !== "reasoning" && isToolGroupItem(candidate)
-        );
-      });
-      if (!hasToolBefore) break;
-      trailingThoughtIds.unshift(groupIds.pop()!);
-    }
     if (groupIds.length === 1) {
       entries.push({ kind: "item", id: groupIds[0]! });
     } else {
@@ -198,9 +181,6 @@ function buildTimelineEntries(
         id: `tool-call-group:${groupIds[0]}`,
         itemIds: groupIds,
       });
-    }
-    for (const thoughtId of trailingThoughtIds) {
-      entries.push({ kind: "item", id: thoughtId });
     }
   }
   return entries;
@@ -223,17 +203,10 @@ function isToolGroupItem(item: RuntimeChatItem): boolean {
   if (isToolLikeItem(item) && imageViewRendersInline(item.payload)) {
     return false;
   }
-  // Reasoning carrying actual summary text stays in the main flow at its own
-  // position: folding it into a "Ran N tools" accordion hides the model's
-  // thinking between tool calls (muse variants with reasoningSummary=auto
-  // rendered as tool spam with the thinking buried). Empty reasoning brackets
-  // stay groupable glue — they complete empty, get dropped at the data layer,
-  // and folding them keeps a live tool group from splitting on noise.
-  if (item.type === "reasoning" && (item.streams.reasoning_text ?? "").trim().length > 0) {
-    return false;
-  }
-  // The groupable type set (tools, empty reasoning, commands, edits, searches)
+  // The groupable type set (tools, reasoning, commands, edits, searches)
   // lives in toolCallCategorization so it is maintained in one place.
+  // Text-bearing thoughts fold in with searches and views: the collapsed
+  // header counts them ("N thoughts") instead of leaving every thought open.
   return isGroupableItemType(item);
 }
 

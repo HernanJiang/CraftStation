@@ -184,7 +184,7 @@ export const DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS = 12_000;
  * sub-agents must not pin the parent on Working. Silence this long means the
  * foreground turn has stopped producing; a later chunk marks it working again.
  */
-const FOREGROUND_QUIET_IDLE_MS = 45_000;
+export const FOREGROUND_QUIET_IDLE_MS = 45_000;
 
 function isChildAttributedUpdate(update: SessionUpdate): boolean {
   const meta = (update as { _meta?: Record<string, unknown> })._meta;
@@ -260,6 +260,13 @@ export interface AcpStructuredSessionOptions {
    * tool call or sub-agent is still active. Later activity cancels the timer.
    */
   orphanTurnCompletionDelayMs?: number;
+  /**
+   * The provider holds one `session/prompt` open for the whole autonomous run
+   * and may return `stopReason: "cancelled"` without the user pressing Stop
+   * (Devin SWE-2). A quiet gap must not paint the thread idle, and that
+   * unsolicited cancel must not be recorded as an interrupted turn.
+   */
+  autonomousPrompt?: boolean;
   /** Paint canonical state for this provider's `/goal` command family. */
   goalCommands?: boolean;
   /**
@@ -402,6 +409,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
    */
   private orphanTurnId: string | undefined;
   private readonly orphanTurnCompletionDelayMs: number | undefined;
+  private readonly autonomousPrompt: boolean;
   private orphanTurnCompletionTimer: ReturnType<typeof setTimeout> | undefined;
   private foregroundQuietTimer: ReturnType<typeof setTimeout> | undefined;
   /** True after a quiet foreground reply was marked idle before `prompt()` returned. */
@@ -538,6 +546,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     }
     this.orphanTurnCompletionDelayMs =
       options?.orphanTurnCompletionDelayMs ?? DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS;
+    this.autonomousPrompt = options?.autonomousPrompt === true;
     this.goalCommands = options?.goalCommands === true;
     this.strictModelResolution = options?.strictModelResolution === true;
     if (options?.extensionSessionUpdateTransform) {
@@ -1222,55 +1231,67 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         if (emptyResponseError) throw emptyResponseError;
       }
       const mapperState = this.ensureMapperState();
-      const turnState = this.agentSurfacedErrorMessage
-        ? "failed"
-        : normalizedStopReason === "cancelled"
-          ? "cancelled"
-          : "completed";
       if (
-        normalizedStopReason === "end_turn" &&
-        turnState === "completed" &&
-        mapperState.activeSubAgents.length > 0
+        this.autonomousPrompt &&
+        normalizedStopReason === "cancelled" &&
+        !this.currentTurnInterruptRequested &&
+        !this.agentSurfacedErrorMessage
       ) {
-        // The foreground reply is done. Detached sub-agents may still report,
-        // but they must not keep the parent on Working — Grok, Qwen, Kimi and
-        // the other ACP harnesses all share this path, and a missed
-        // subagent-finished notice used to leave Stop up indefinitely.
-        this.foregroundTurnAwaitingSubagents = true;
-        this.clearForegroundQuietTimer();
-        this.foregroundQuietIdled = false;
-        this.emitTurnStatusAfterPrompt(normalizedStopReason);
-        this.completeTurn(mapperState, turnState);
+        // Devin ends the ACP prompt with `cancelled` and keeps working.
+        // Recording that as an interrupt is what makes SWE-2 look like it
+        // stopped itself. Keep the same turn and let the quiet settler close it.
+        this.adoptForegroundTurnAsAutonomous(mapperState);
       } else {
-        // A provider can end the prompt "normally" while surfacing the real
-        // failure as an in-stream error message (Grok quota exhaustion does
-        // exactly this). Observers must still see it — otherwise pool quota
-        // write-back never fires for these turns.
-        if (turnState === "failed" && this.onPromptError) {
-          try {
-            await this.onPromptError(new Error(this.agentSurfacedErrorMessage));
-          } catch (callbackError) {
-            console.warn("[acp] prompt error observer failed:", callbackError);
-          }
-        }
-        this.emitTurnStatusAfterPrompt(normalizedStopReason);
-        this.completeTurn(mapperState, turnState);
-        // A pool-quota in-stream failure must reject like an RPC quota
-        // rejection: resolving here leaves the dead session current, so every
-        // later turn reuses the exhausted account forever while usable pool
-        // accounts wait. The failure events above are already emitted (same as
-        // the RPC-rejection path), so callers only gain the rejection — the
-        // supervisor's failover-or-fail machinery runs for both shapes.
-        // Gated on pool-quota shapes only (Grok/Kimi today): any other
-        // in-stream failure keeps resolving exactly as before.
+        const turnState = this.agentSurfacedErrorMessage
+          ? "failed"
+          : normalizedStopReason === "cancelled"
+            ? "cancelled"
+            : "completed";
         if (
-          turnState === "failed" &&
-          this.agentSurfacedErrorMessage &&
-          (isGrokPoolQuotaError(new Error(this.agentSurfacedErrorMessage)) ||
-            isKimiPoolQuotaError(new Error(this.agentSurfacedErrorMessage)))
+          normalizedStopReason === "end_turn" &&
+          turnState === "completed" &&
+          mapperState.activeSubAgents.length > 0
         ) {
-          inStreamQuotaError = new Error(this.agentSurfacedErrorMessage);
-          throw inStreamQuotaError;
+          // The foreground reply is done. Detached sub-agents may still report,
+          // but they must not keep the parent on Working — Grok, Qwen, Kimi and
+          // the other ACP harnesses all share this path, and a missed
+          // subagent-finished notice used to leave Stop up indefinitely.
+          this.foregroundTurnAwaitingSubagents = true;
+          this.clearForegroundQuietTimer();
+          this.foregroundQuietIdled = false;
+          this.emitTurnStatusAfterPrompt(normalizedStopReason);
+          this.completeTurn(mapperState, turnState);
+        } else {
+          // A provider can end the prompt "normally" while surfacing the real
+          // failure as an in-stream error message (Grok quota exhaustion does
+          // exactly this). Observers must still see it — otherwise pool quota
+          // write-back never fires for these turns.
+          if (turnState === "failed" && this.onPromptError) {
+            try {
+              await this.onPromptError(new Error(this.agentSurfacedErrorMessage));
+            } catch (callbackError) {
+              console.warn("[acp] prompt error observer failed:", callbackError);
+            }
+          }
+          this.emitTurnStatusAfterPrompt(normalizedStopReason);
+          this.completeTurn(mapperState, turnState);
+          // A pool-quota in-stream failure must reject like an RPC quota
+          // rejection: resolving here leaves the dead session current, so every
+          // later turn reuses the exhausted account forever while usable pool
+          // accounts wait. The failure events above are already emitted (same as
+          // the RPC-rejection path), so callers only gain the rejection — the
+          // supervisor's failover-or-fail machinery runs for both shapes.
+          // Gated on pool-quota shapes only (Grok/Kimi today): any other
+          // in-stream failure keeps resolving exactly as before.
+          if (
+            turnState === "failed" &&
+            this.agentSurfacedErrorMessage &&
+            (isGrokPoolQuotaError(new Error(this.agentSurfacedErrorMessage)) ||
+              isKimiPoolQuotaError(new Error(this.agentSurfacedErrorMessage)))
+          ) {
+            inStreamQuotaError = new Error(this.agentSurfacedErrorMessage);
+            throw inStreamQuotaError;
+          }
         }
       }
     } catch (error) {
@@ -1842,6 +1863,10 @@ export class AcpStructuredSession implements StructuredSessionHandle {
    * drop Working. A later foreground chunk puts it back.
    */
   private scheduleForegroundQuietIdle(mapperState: AcpMapperState): void {
+    // Devin SWE-2 stays inside one prompt across long commands. A quiet gap
+    // is not "the reply is done"; idling here is what lets the next delivery
+    // send session/cancel and kill the run.
+    if (this.autonomousPrompt) return;
     this.clearForegroundQuietTimer();
     if (this.isDisposed || !this.promptInFlight || this.sessionRequests.hasPending()) return;
     if (mapperState.openAssistantItemId === undefined) return;
@@ -2060,6 +2085,20 @@ export class AcpStructuredSession implements StructuredSessionHandle {
    * Close the orphan turn. `silent` keeps the status untouched for the
    * supersede path, where a real prompt is about to paint `working` itself.
    */
+  /**
+   * Devin's unsolicited `cancelled` is the handoff into autonomous work, not
+   * a user Stop. Keep the foreground turn id so the transcript does not show
+   * an interrupt, and settle it only after tools and the final reply go quiet.
+   */
+  private adoptForegroundTurnAsAutonomous(mapperState: AcpMapperState): void {
+    const turnId = this.currentTurnId;
+    if (!turnId) return;
+    this.currentTurnId = undefined;
+    this.orphanTurnId = turnId;
+    this.emitListenerUpdate({ status: "working", attention: "working" });
+    this.noteOrphanTurnActivity(mapperState);
+  }
+
   private completeOrphanTurn(options?: {
     silent?: boolean;
     state?: "completed" | "cancelled";

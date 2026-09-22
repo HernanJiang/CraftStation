@@ -36,7 +36,10 @@ export interface NativeBinding {
 
 const ADDRESS_PART = /^[A-Za-z0-9_.-]+$/;
 
-/** This round's in-scope harnesses. Others are rejected, never guessed. */
+/**
+ * Harnesses with a dedicated on-disk session scan. Every other harness is
+ * still addressable from its sidebar row; this set is not a visibility gate.
+ */
 export const NATIVE_MESSAGING_HARNESSES: ReadonlySet<string> = new Set([
   "codex",
   "kimi",
@@ -46,13 +49,11 @@ export const NATIVE_MESSAGING_HARNESSES: ReadonlySet<string> = new Set([
   "devin",
 ]);
 
+/** Any harness slug can be a peer. A closed allow-list hid Devin, Claude, and the rest. */
 export function assertKnownHarness(harness: string): void {
-  if (!NATIVE_MESSAGING_HARNESSES.has(harness)) {
-    throw new Error(
-      `Harness "${harness}" is not in this round's native-messaging scope (${[...NATIVE_MESSAGING_HARNESSES].join(", ")}).`,
-    );
+  if (!ADDRESS_PART.test(harness)) {
+    throw new Error(`Invalid harness id: ${harness}.`);
   }
-  if (!ADDRESS_PART.test(harness)) throw new Error(`Invalid harness id: ${harness}.`);
 }
 
 /**

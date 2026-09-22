@@ -48,7 +48,10 @@ export function createAcpStructuredSession(
   input: CreateStructuredSessionInput,
   overrides?: Pick<
     AcpStructuredSessionOptions,
-    "assumedMcpCapabilities" | "retrySessionOpen" | "orphanTurnCompletionDelayMs"
+    | "assumedMcpCapabilities"
+    | "retrySessionOpen"
+    | "orphanTurnCompletionDelayMs"
+    | "autonomousPrompt"
   >,
 ): AcpStructuredSession | undefined {
   if (!shouldSpawnAcpSession(input)) {
@@ -97,5 +100,6 @@ export function createAcpStructuredSession(
     ...(overrides?.orphanTurnCompletionDelayMs !== undefined
       ? { orphanTurnCompletionDelayMs: overrides.orphanTurnCompletionDelayMs }
       : {}),
+    ...(overrides?.autonomousPrompt ? { autonomousPrompt: true } : {}),
   });
 }

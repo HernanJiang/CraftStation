@@ -113,10 +113,12 @@ export function createDevinAdapter(): AgentAdapter {
         { ...input, config: sessionConfig },
         {
           assumedMcpCapabilities: { http: true },
-          // Devin can continue autonomously after a cancelled prompt and does
-          // not emit a second ACP stop reason when that work finishes. Its
-          // final assistant message is therefore the only safe completion
-          // boundary once all tools and sub-agents have settled.
+          // SWE-2 holds one session/prompt for the whole run and often returns
+          // stopReason "cancelled" without the user pressing Stop. A quiet gap
+          // must not idle the thread (that is what sends session/cancel into a
+          // live command). The final assistant message, once tools have settled,
+          // is the completion boundary.
+          autonomousPrompt: true,
           orphanTurnCompletionDelayMs: 5_000,
           retrySessionOpen: {
             ...resolveDevinTeamSettingsRetryPolicy(),

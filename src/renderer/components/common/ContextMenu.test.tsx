@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ContextMenu, ContextMenuSurface } from "./ContextMenu";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 
 const dragState = { isDragging: false };
 const draggableInputs: unknown[] = [];
@@ -106,6 +107,28 @@ describe("ContextMenu", () => {
     await vi.waitFor(() => {
       expect(screen.queryByRole("menuitem", { name: "Run" })).not.toBeInTheDocument();
     });
+  });
+
+  it("counter-scales the menu anchor when whole-app zoom is not 1", async () => {
+    const previous = useSharedSettings.getState().zoomFactor;
+    useSharedSettings.setState({ zoomFactor: 1.25 });
+    try {
+      render(
+        <ContextMenuSurface
+          position={{ x: 40, y: 80 }}
+          items={[{ id: "details", label: "Thread details" }]}
+          onAction={vi.fn<(key: string) => void>()}
+          onClose={vi.fn<() => void>()}
+        />,
+      );
+      await screen.findByRole("menuitem", { name: "Thread details" });
+      expect(document.querySelectorAll(".craftstation-overlay-zoom-root").length).toBeGreaterThan(
+        0,
+      );
+      expect(document.querySelector(".craftstation-overlay-zoom-content")).not.toBeNull();
+    } finally {
+      useSharedSettings.setState({ zoomFactor: previous });
+    }
   });
 
   describe("draggable rows", () => {

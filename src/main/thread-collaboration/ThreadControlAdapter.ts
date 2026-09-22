@@ -253,6 +253,10 @@ export class ThreadControlAdapter {
     );
   }
 
+  project(projectId: string): Project | null {
+    return this.deps.getProject(projectId);
+  }
+
   private buildResumePayload(
     thread: Thread,
     prompt: string,

@@ -1,4 +1,4 @@
-import type { Thread, ThreadStatus } from "@/shared/contracts";
+import type { ProjectLocation, Thread, ThreadStatus } from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
 import {
   THREAD_COLLABORATION_MAX_HOP_DEPTH,
@@ -76,7 +76,7 @@ export class ThreadCollaborationService {
     const sourceComposition = resolveThreadRuntimeProvenance(source, this.deps.provenanceResolver);
     return this.deps.control
       .list()
-      .filter((thread) => thread.id !== source.id && thread.projectId === source.projectId)
+      .filter((thread) => thread.id !== source.id && this.sharesWorkspace(source, thread))
       .map((thread) => {
         const snapshot = this.deps.control.snapshot(thread.id);
         const provenance = resolveThreadRuntimeProvenance(thread, this.deps.provenanceResolver);
@@ -438,10 +438,10 @@ export class ThreadCollaborationService {
         "A thread cannot start a long-lived dialogue with itself.",
       );
     }
-    if (source.projectId !== target.projectId) {
+    if (!this.sharesWorkspace(source, target)) {
       throw collaborationError(
         "THREAD_COLLABORATION_CROSS_PROJECT",
-        "Cross-thread dialogue is restricted to threads in the same project.",
+        "Cross-thread dialogue is restricted to threads in the same workspace.",
       );
     }
     // The composition policy is frozen on resolved runtime provenance, never on
@@ -481,6 +481,18 @@ export class ThreadCollaborationService {
         );
       }
     }
+  }
+
+  /**
+   * Same project, or two projects opened on the same workspace path. A Devin
+   * thread and a Grok thread in one repo must see each other even when the
+   * sidebar filed them under different project rows.
+   */
+  private sharesWorkspace(source: Thread, target: Thread): boolean {
+    if (source.projectId === target.projectId) return true;
+    const left = workspaceKey(this.deps.control.project(source.projectId)?.location);
+    const right = workspaceKey(this.deps.control.project(target.projectId)?.location);
+    return Boolean(left && right && left === right);
   }
 
   private assertParticipant(actorThreadId: string, exchange: ThreadExchange): void {
@@ -524,6 +536,12 @@ function assistantText(item: PersistedRuntimeItem): string {
     .map((block) => block.text ?? "")
     .join("")
     .trim();
+}
+
+function workspaceKey(location: ProjectLocation | null | undefined): string {
+  if (!location) return "";
+  const path = location.kind === "wsl" ? location.linuxPath : location.path;
+  return path.replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase();
 }
 
 function normalizedWorktree(thread: Thread): string {

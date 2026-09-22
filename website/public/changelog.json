@@ -511,6 +511,34 @@
       ]
     },
     {
+      "version": "1.5.5",
+      "date": "2026-09-23",
+      "title": "Folded thoughts, steadier Devin turns & menus that stay put",
+      "summary": "Thinking now collapses with searches and views instead of filling the chat. Devin SWE-2 keeps working through a quiet gap, zoomed menus open on the row you clicked, and threads that share a workspace can see each other across harnesses.",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Chat",
+          "text": "Consecutive thoughts fold into the same collapsed summary as searches and views, so a run reads as a thought count instead of a stack of open thinking rows. Open the group to read each thought."
+        },
+        {
+          "kind": "improved",
+          "label": "Cross-thread",
+          "text": "Threads that share a workspace path can see and message each other across harnesses, including Devin, instead of only Codex threads in the same project."
+        },
+        {
+          "kind": "fixed",
+          "label": "Devin",
+          "text": "SWE-2 no longer treats a quiet gap, or a cancelled stop you did not request, as Stop. A live command stays running until the turn actually finishes."
+        },
+        {
+          "kind": "fixed",
+          "label": "Menus",
+          "text": "Right-click and overflow menus stay next to the row you clicked when CraftStation's zoom is not 100%."
+        }
+      ]
+    },
+    {
       "version": "1.5.4",
       "date": "2026-09-22",
       "title": "Directories collapse, side panels stay open",

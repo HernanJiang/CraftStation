@@ -2,6 +2,8 @@ import React, { type MouseEventHandler, type ReactNode, useEffect, useRef, useSt
 import { createPortal } from "react-dom";
 import { Button, Description, Dropdown, Label, Separator } from "@heroui/react";
 import { useDraggable } from "@dnd-kit/react";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { overlayZoomClasses, withOverlayClass } from "./overlayZoom";
 
 // Context menus can stack (e.g. the flat-list filter stacks a project menu
 // over its own), so dismissal tracks a stack of closers: a new surface pushes
@@ -283,6 +285,10 @@ export function ContextMenuSurface(props: {
   withBackdrop?: boolean;
 }) {
   const { position, items, onAction, onClose } = props;
+  // Same compensation as other menus: at zoom ≠ 1, React Aria's viewport
+  // coordinates are written as CSS px and the root zoom scales them again,
+  // so the menu lands (zoom-1)×distance away from the row that was clicked.
+  const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
   // A row being dragged out of the menu: the menu hides but stays mounted —
   // unmounting the dragged element cancels the dnd-kit operation — and closes
   // once the drag ends. dnd-kit promotes its drag feedback into the top layer,
@@ -367,13 +373,16 @@ export function ContextMenuSurface(props: {
             }}
           >
             {/* Invisible anchor positioned at the opening coordinates */}
-            <Dropdown.Trigger className="fixed" style={{ left: position.x, top: position.y }}>
+            <Dropdown.Trigger
+              className={withOverlayClass("fixed", overlayZoom.root)}
+              style={{ left: position.x, top: position.y }}
+            >
               <div className="size-0" />
             </Dropdown.Trigger>
             <Dropdown.Popover
               placement="bottom start"
               isNonModal
-              className={hiddenWhileDraggingClass}
+              className={withOverlayClass(hiddenWhileDraggingClass, overlayZoom.root)}
               {...(props.shouldCloseOnInteractOutside
                 ? { shouldCloseOnInteractOutside: props.shouldCloseOnInteractOutside }
                 : {})}
@@ -381,6 +390,7 @@ export function ContextMenuSurface(props: {
               <Dropdown.Menu
                 // Focusing the first item scrolls the virtualized file tree and
                 // unmounts the row that owns this menu. The menu is pointer-first.
+                {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
                 autoFocus={false}
                 disabledKeys={collectAllItems(items)
                   .filter((item) => item.isDisabled)

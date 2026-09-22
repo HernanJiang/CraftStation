@@ -37,14 +37,12 @@ describe("native thread addresses", () => {
     expect(() => parseNativeAddress("codex:")).toThrow(/Invalid native thread address/);
   });
 
-  it("rejects out-of-scope harnesses", () => {
-    expect(() => assertKnownHarness("claude")).toThrow(/not in this round's/);
+  it("accepts every harness slug and rejects an empty id", () => {
     expect(() => assertKnownHarness("codex")).not.toThrow();
-  });
-
-  it("accepts devin and prints the live scope in rejection messages", () => {
     expect(() => assertKnownHarness("devin")).not.toThrow();
-    expect(() => assertKnownHarness("claude")).toThrow(/devin/);
+    expect(() => assertKnownHarness("claude")).not.toThrow();
+    expect(() => assertKnownHarness("commandcode")).not.toThrow();
+    expect(() => assertKnownHarness("")).toThrow(/Invalid harness id/);
   });
 
   it("infers a native harness from the model family", () => {
