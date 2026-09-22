@@ -11,7 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { ProjectTreeEntry } from "@/shared/contracts";
-import { ContextMenu, PixelLoader } from "@/renderer/components/common";
+import { type ContextMenuEntry, PixelLoader } from "@/renderer/components/common";
 import { getEntryIconUrl } from "@/renderer/components/common/fileIcons";
 import { useIsTabActive, useIsPathOpenInTab } from "@/renderer/state/fileEditorSelectors";
 import { useGitFile } from "@/renderer/state/gitSelectors";
@@ -40,6 +40,8 @@ export function TreeEntryRow(props: {
   onPinFile?: (path: string) => void;
   onToggleDirectory: (path: string) => void;
   onEntryAction: (entry: ProjectTreeEntry, action: string) => void;
+  /** The parent owns the menu so a virtualized row can unmount without taking it down. */
+  onOpenContextMenu: (event: React.MouseEvent, items: ContextMenuEntry[]) => void;
   onMovePath: (sourcePath: string, nextParentPath: string) => Promise<void>;
   onHandleRename: (path: string, nextName: string) => Promise<void>;
   onHandleCreate: (parentPath: string, type: "file" | "directory", value: string) => Promise<void>;
@@ -60,187 +62,196 @@ export function TreeEntryRow(props: {
   const isWorktree = Boolean(rootContext?.worktreePath);
   const storeKey = rootContext?.worktreePath ?? rootContext?.projectId ?? "";
   const gitFile = useGitFile(storeKey, entry.path, isWorktree);
+  const menuItems: ContextMenuEntry[] = [
+    ...(props.canReveal
+      ? [
+          {
+            id: "reveal",
+            label: t`Reveal in File Explorer`,
+            icon: <FolderOpen className="size-3.5" />,
+          },
+          ...(!isDirectory
+            ? [
+                {
+                  id: "open-system",
+                  label: t`Open With System Default`,
+                  icon: <ExternalLink className="size-3.5" />,
+                },
+              ]
+            : []),
+        ]
+      : []),
+    ...(isDirectory
+      ? [
+          {
+            id: "new-file",
+            label: t`New File`,
+            icon: <FilePlus className="size-3.5" />,
+          },
+          {
+            id: "new-folder",
+            label: t`New Folder`,
+            icon: <FolderPlus className="size-3.5" />,
+          },
+        ]
+      : []),
+    {
+      id: "copy-path",
+      label: t`Copy Path`,
+      icon: <Copy className="size-3.5" />,
+    },
+    {
+      id: "copy-relative-path",
+      label: t`Copy Relative Path`,
+      icon: <Copy className="size-3.5" />,
+    },
+    {
+      id: "rename",
+      label: t`Rename`,
+      icon: <Pencil className="size-3.5" />,
+    },
+    {
+      id: "delete",
+      label: t`Delete`,
+      icon: <Trash2 className="size-3.5" />,
+      variant: "danger" as const,
+    },
+  ];
 
   return (
     <div>
-      <ContextMenu
-        items={[
-          ...(props.canReveal
-            ? [
-                {
-                  id: "reveal",
-                  label: t`Reveal in File Explorer`,
-                  icon: <FolderOpen className="size-3.5" />,
-                },
-                ...(!isDirectory
-                  ? [
-                      {
-                        id: "open-system",
-                        label: t`Open With System Default`,
-                        icon: <ExternalLink className="size-3.5" />,
-                      },
-                    ]
-                  : []),
-              ]
-            : []),
-          ...(isDirectory
-            ? [
-                {
-                  id: "new-file",
-                  label: t`New File`,
-                  icon: <FilePlus className="size-3.5" />,
-                },
-                {
-                  id: "new-folder",
-                  label: t`New Folder`,
-                  icon: <FolderPlus className="size-3.5" />,
-                },
-              ]
-            : []),
-          {
-            id: "copy-path",
-            label: t`Copy Path`,
-            icon: <Copy className="size-3.5" />,
-          },
-          {
-            id: "copy-relative-path",
-            label: t`Copy Relative Path`,
-            icon: <Copy className="size-3.5" />,
-          },
-          {
-            id: "rename",
-            label: t`Rename`,
-            icon: <Pencil className="size-3.5" />,
-          },
-          {
-            id: "delete",
-            label: t`Delete`,
-            icon: <Trash2 className="size-3.5" />,
-            variant: "danger",
-          },
-        ]}
-        onAction={(action) => props.onEntryAction(entry, action)}
-      >
-        <div
-          role="button"
-          tabIndex={0}
-          draggable
-          className={`group flex h-[24px] items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted transition-colors ${
-            isSelected
-              ? "bg-[var(--row-active)] text-foreground font-medium"
-              : isOpenInTab
-                ? "bg-[var(--row-hover)] text-foreground hover:bg-[var(--row-hover)]"
-                : "hover:bg-[var(--row-hover)] hover:text-foreground"
-          } ${isDropTarget ? "ring-1 ring-accent/40" : ""}`}
-          style={{ paddingLeft: `${depth * 14 + 6}px` }}
-          onClick={() => {
-            if (isDirectory) {
-              void props.onToggleDirectory(entry.path);
-            } else {
-              void props.onSelectFile(entry.path);
-            }
-          }}
-          onDoubleClick={() => {
-            if (!isDirectory) {
-              props.onPinFile?.(entry.path);
-            }
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" && event.key !== " ") return;
-            event.preventDefault();
-            if (isDirectory) {
-              void props.onToggleDirectory(entry.path);
-            } else {
-              void props.onSelectFile(entry.path);
-            }
-          }}
-          onDragStart={(event) => {
+      <div
+        role="button"
+        tabIndex={0}
+        draggable
+        className={`group flex h-[24px] items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted transition-colors ${
+          isSelected
+            ? "bg-[var(--row-active)] text-foreground font-medium"
+            : isOpenInTab
+              ? "bg-[var(--row-hover)] text-foreground hover:bg-[var(--row-hover)]"
+              : "hover:bg-[var(--row-hover)] hover:text-foreground"
+        } ${isDropTarget ? "ring-1 ring-accent/40" : ""}`}
+        style={{ paddingLeft: `${depth * 14 + 6}px` }}
+        onMouseDown={(event) => {
+          // Right-click would focus this row. Virtual rows sit at top:0 and
+          // are only shifted with translateY, so that focus scrolls the list
+          // and unmounts the row before a menu can show.
+          if (event.button !== 2) return;
+          if (event.target instanceof Element && event.target.closest("input, textarea")) return;
+          event.preventDefault();
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          props.onOpenContextMenu(event, menuItems);
+        }}
+        onClick={() => {
+          if (isDirectory) {
+            void props.onToggleDirectory(entry.path);
+          } else {
+            void props.onSelectFile(entry.path);
+          }
+        }}
+        onDoubleClick={() => {
+          if (!isDirectory) {
+            props.onPinFile?.(entry.path);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          if (isDirectory) {
+            void props.onToggleDirectory(entry.path);
+          } else {
+            void props.onSelectFile(entry.path);
+          }
+        }}
+        onDragStart={(event) => {
+          event.dataTransfer.setData(
+            "application/craftstation-project-tree",
+            JSON.stringify({ path: entry.path, type: entry.type }),
+          );
+          if (!isDirectory) {
             event.dataTransfer.setData(
-              "application/craftstation-project-tree",
+              COMPOSER_FILE_DRAG_TYPE,
               JSON.stringify({ path: entry.path, type: entry.type }),
             );
-            if (!isDirectory) {
-              event.dataTransfer.setData(
-                COMPOSER_FILE_DRAG_TYPE,
-                JSON.stringify({ path: entry.path, type: entry.type }),
-              );
-            }
-            event.dataTransfer.effectAllowed = isDirectory ? "move" : "copyMove";
-          }}
-          onDragOver={(event) => {
-            if (isDirectory) {
-              event.preventDefault();
-              useProjectTreeStore.getState().setDropTargetPath(entry.path);
-            }
-          }}
-          onDragLeave={() => {
-            if (useProjectTreeStore.getState().dropTargetPath === entry.path) {
-              useProjectTreeStore.getState().setDropTargetPath(null);
-            }
-          }}
-          onDrop={(event) => {
-            if (!isDirectory) return;
+          }
+          event.dataTransfer.effectAllowed = isDirectory ? "move" : "copyMove";
+        }}
+        onDragOver={(event) => {
+          if (isDirectory) {
             event.preventDefault();
+            useProjectTreeStore.getState().setDropTargetPath(entry.path);
+          }
+        }}
+        onDragLeave={() => {
+          if (useProjectTreeStore.getState().dropTargetPath === entry.path) {
             useProjectTreeStore.getState().setDropTargetPath(null);
-            const payload = event.dataTransfer.getData("application/craftstation-project-tree");
-            if (!payload) return;
-            try {
-              const { path } = JSON.parse(payload) as { path: string };
+          }
+        }}
+        onDrop={(event) => {
+          if (!isDirectory) return;
+          event.preventDefault();
+          useProjectTreeStore.getState().setDropTargetPath(null);
+          const payload = event.dataTransfer.getData("application/craftstation-project-tree");
+          if (!payload) return;
+          try {
+            const { path } = JSON.parse(payload) as { path: string };
+            void props
+              .onMovePath(path, entry.path)
+              .catch((error) =>
+                toast.danger(error instanceof Error ? error.message : String(error)),
+              );
+          } catch {
+            // ignore malformed drops
+          }
+        }}
+      >
+        <div className="flex size-3.5 shrink-0 items-center justify-center">
+          {isDirectory ? (
+            entry.hasChildren ? (
+              <ChevronRight
+                className={`size-3 text-muted/70 transition-transform ${
+                  isExpanded ? "rotate-90" : ""
+                }`}
+              />
+            ) : null
+          ) : null}
+        </div>
+        <img alt="" aria-hidden className="size-3.5 shrink-0" src={iconUrl} />
+        {isRenameDraft ? (
+          <InlineNameInput
+            value={draft?.value ?? ""}
+            onChange={(value) => setDraft((state) => (state ? { ...state, value } : state))}
+            onCancel={() => setDraft(null)}
+            onCommit={(value) => {
               void props
-                .onMovePath(path, entry.path)
+                .onHandleRename(entry.path, value)
                 .catch((error) =>
                   toast.danger(error instanceof Error ? error.message : String(error)),
                 );
-            } catch {
-              // ignore malformed drops
-            }
-          }}
-        >
-          <div className="flex size-3.5 shrink-0 items-center justify-center">
-            {isDirectory ? (
-              entry.hasChildren ? (
-                <ChevronRight
-                  className={`size-3 text-muted/70 transition-transform ${
-                    isExpanded ? "rotate-90" : ""
-                  }`}
-                />
-              ) : null
-            ) : null}
-          </div>
-          <img alt="" aria-hidden className="size-3.5 shrink-0" src={iconUrl} />
-          {isRenameDraft ? (
-            <InlineNameInput
-              value={draft?.value ?? ""}
-              onChange={(value) => setDraft((state) => (state ? { ...state, value } : state))}
-              onCancel={() => setDraft(null)}
-              onCommit={(value) => {
-                void props
-                  .onHandleRename(entry.path, value)
-                  .catch((error) =>
-                    toast.danger(error instanceof Error ? error.message : String(error)),
-                  );
-              }}
-            />
-          ) : (
-            <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-          )}
-          {gitFile && !isDirectory ? (
-            <span
-              className={`ml-auto shrink-0 font-mono text-[10px] font-semibold leading-none pr-0.5 ${
-                gitFile.status === "M"
-                  ? "text-amber-400"
-                  : gitFile.status === "A" || gitFile.status === "?"
-                    ? "text-emerald-400"
-                    : gitFile.status === "D"
-                      ? "text-rose-400"
-                      : "text-blue-400"
-              }`}
-            >
-              {gitFile.status === "?" ? "U" : gitFile.status}
-            </span>
-          ) : null}
-        </div>
-      </ContextMenu>
+            }}
+          />
+        ) : (
+          <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+        )}
+        {gitFile && !isDirectory ? (
+          <span
+            className={`ml-auto shrink-0 font-mono text-[10px] font-semibold leading-none pr-0.5 ${
+              gitFile.status === "M"
+                ? "text-amber-400"
+                : gitFile.status === "A" || gitFile.status === "?"
+                  ? "text-emerald-400"
+                  : gitFile.status === "D"
+                    ? "text-rose-400"
+                    : "text-blue-400"
+            }`}
+          >
+            {gitFile.status === "?" ? "U" : gitFile.status}
+          </span>
+        ) : null}
+      </div>
 
       {props.renderChildren !== false && isDirectory && isExpanded ? (
         <TreeChildren
@@ -255,6 +266,7 @@ export function TreeEntryRow(props: {
           {...(props.onPinFile ? { onPinFile: props.onPinFile } : {})}
           onToggleDirectory={props.onToggleDirectory}
           onEntryAction={props.onEntryAction}
+          onOpenContextMenu={props.onOpenContextMenu}
           onMovePath={props.onMovePath}
           onHandleRename={props.onHandleRename}
           onHandleCreate={props.onHandleCreate}
@@ -276,6 +288,7 @@ function TreeChildren(props: {
   onPinFile?: (path: string) => void;
   onToggleDirectory: (path: string) => void;
   onEntryAction: (entry: ProjectTreeEntry, action: string) => void;
+  onOpenContextMenu: (event: React.MouseEvent, items: ContextMenuEntry[]) => void;
   onMovePath: (sourcePath: string, nextParentPath: string) => Promise<void>;
   onHandleRename: (path: string, nextName: string) => Promise<void>;
   onHandleCreate: (parentPath: string, type: "file" | "directory", value: string) => Promise<void>;
@@ -324,6 +337,7 @@ function TreeChildren(props: {
             {...(props.onPinFile ? { onPinFile: props.onPinFile } : {})}
             onToggleDirectory={props.onToggleDirectory}
             onEntryAction={props.onEntryAction}
+            onOpenContextMenu={props.onOpenContextMenu}
             onMovePath={props.onMovePath}
             onHandleRename={props.onHandleRename}
             onHandleCreate={props.onHandleCreate}

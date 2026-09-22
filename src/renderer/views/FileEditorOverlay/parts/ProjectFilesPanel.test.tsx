@@ -20,7 +20,15 @@ vi.mock("./FileEditorPane/FileEditorPane", () => ({
 }));
 
 vi.mock("./ProjectTreeView/ProjectTreeView", () => ({
-  ProjectTreeView: () => <div data-testid="project-file-tree">tree</div>,
+  ProjectTreeView: (props: { onCollapseTree?: () => void }) => (
+    <div data-testid="project-file-tree">
+      {props.onCollapseTree ? (
+        <button type="button" onClick={props.onCollapseTree}>
+          Hide directory
+        </button>
+      ) : null}
+    </div>
+  ),
 }));
 
 const rootContext: FileEditorRootContext = {
@@ -99,5 +107,20 @@ describe("ProjectFilesPanel", () => {
     expect(aside).toHaveStyle({ width: "224px" });
     fireEvent.keyDown(handle, { key: "ArrowRight" });
     expect(aside).toHaveStyle({ width: "200px" });
+  });
+
+  it("collapses only the directory and restores it without unmounting the preview", () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide directory" }));
+
+    expect(screen.queryByTestId("project-file-tree")).not.toBeInTheDocument();
+    expect(screen.getByTestId("file-preview-workspace")).toBeInTheDocument();
+    expect(screen.queryByRole("separator", { name: "Resize file list" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show directory" }));
+
+    expect(screen.getByTestId("project-file-tree")).toBeInTheDocument();
+    expect(screen.getByTestId("file-preview-workspace")).toBeInTheDocument();
   });
 });

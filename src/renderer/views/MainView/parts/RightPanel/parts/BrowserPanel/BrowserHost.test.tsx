@@ -46,10 +46,18 @@ describe("BrowserHost idle lifecycle", () => {
 
   afterEach(cleanup);
 
-  it("unmounts hidden webviews once browser automation is idle", () => {
+  it("unmounts hidden webviews once the browser panel is closed", () => {
     render(<BrowserHost />);
 
     expect(screen.queryByTestId("browser-panel")).toBeNull();
+  });
+
+  it("keeps an open browser mounted off-screen when its tab is not showing", () => {
+    usePanelStore.setState({ browserPanelOpen: true });
+
+    render(<BrowserHost />);
+
+    expect(screen.getByTestId("browser-panel")).toBeTruthy();
   });
 
   it("keeps hidden webviews mounted while an agent is driving the browser", () => {

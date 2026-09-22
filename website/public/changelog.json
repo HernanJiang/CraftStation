@@ -511,6 +511,37 @@
       ]
     },
     {
+      "version": "1.5.4",
+      "date": "2026-09-22",
+      "title": "Directories collapse, side panels stay open",
+      "summary": "You can hide the project directory without closing the file you are reading, and switching threads no longer throws away an open browser or a file tree you just loaded. Finished replies also leave Working on every structured agent.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Files",
+          "text": "You can collapse just the project directory beside a preview and bring that column back from a small restore chip. The file you are reading stays open."
+        },
+        {
+          "kind": "improved",
+          "label": "Files",
+          "text": "The directory header no longer shows the unused new-file, new-folder, collapse-all, and refresh buttons. Those actions stay on the right-click menu."
+        },
+        {
+          "kind": "improved",
+          "text": "An open browser page and a project file tree stay ready when you switch threads or right-panel tabs, instead of reloading from scratch each time."
+        },
+        {
+          "kind": "fixed",
+          "label": "Files",
+          "text": "Right-clicking a file or folder in the project tree opens its menu, instead of jumping the preview and then doing nothing."
+        },
+        {
+          "kind": "fixed",
+          "text": "Grok, Claude, and the other structured agents leave Working when the visible reply is finished, even if a background sub-agent is still open or never reports back."
+        }
+      ]
+    },
+    {
       "version": "1.5.3",
       "date": "2026-09-22",
       "title": "Turns finish on their own",

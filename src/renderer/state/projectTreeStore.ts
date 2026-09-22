@@ -2,6 +2,26 @@ import { create } from "zustand";
 import type { ProjectTreeEntry } from "@/shared/contracts";
 
 const EMPTY_ENTRIES: ProjectTreeEntry[] = [];
+const TREE_CACHE_LIMIT = 8;
+
+interface CachedTree {
+  expandedPaths: Record<string, boolean>;
+  directoryEntries: Record<string, ProjectTreeEntry[]>;
+}
+
+/** Last opened trees, so switching threads or the side panel restores without a blank reload. */
+const treeCache = new Map<string, CachedTree>();
+
+function rememberTree(rootKey: string, snapshot: CachedTree): void {
+  if (!rootKey) return;
+  treeCache.delete(rootKey);
+  treeCache.set(rootKey, snapshot);
+  while (treeCache.size > TREE_CACHE_LIMIT) {
+    const oldest = treeCache.keys().next().value;
+    if (oldest === undefined) break;
+    treeCache.delete(oldest);
+  }
+}
 
 interface ProjectTreeState {
   /** Invalidates async directory loads when the active remote desktop changes. */
@@ -39,11 +59,18 @@ export const useProjectTreeStore = create<ProjectTreeState>()((set) => ({
   resetForRoot: (rootKey) =>
     set((state) => {
       if (state.rootKey === rootKey) return {};
+      rememberTree(state.rootKey, {
+        expandedPaths: state.expandedPaths,
+        directoryEntries: state.directoryEntries,
+      });
+      const cached = treeCache.get(rootKey);
       return {
+        // Drop in-flight listings from the previous root.
+        generation: state.generation + 1,
         rootKey,
-        expandedPaths: { "": true },
+        expandedPaths: cached?.expandedPaths ?? { "": true },
         loadingPaths: {},
-        directoryEntries: {},
+        directoryEntries: cached?.directoryEntries ?? {},
         dropTargetPath: null,
         committedSearchQuery: "",
       };
@@ -99,6 +126,7 @@ export const useProjectTreeStore = create<ProjectTreeState>()((set) => ({
 }));
 
 export function resetProjectTreeStore(): void {
+  treeCache.clear();
   useProjectTreeStore.setState((state) => ({
     generation: state.generation + 1,
     rootKey: "",

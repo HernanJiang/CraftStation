@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from "react";
 import { toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
+import { Folder, PanelLeftOpen } from "lucide-react";
 import { useFileEditorStore, type FileEditorRootContext } from "@/renderer/state/fileEditorStore";
 import { FileEditorPane } from "@/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane";
 import { ProjectTreeView } from "@/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView";
@@ -38,6 +39,7 @@ export function ProjectFilesPanel(props: { rootContext: FileEditorRootContext })
   const pinTab = useFileEditorStore((state) => state.pinTab);
   const [treeWidth, setTreeWidth] = useState(readStoredTreeWidth);
   const [isResizing, setIsResizing] = useState(false);
+  const [treeCollapsed, setTreeCollapsed] = useState(false);
 
   // Layout effects run before paint, so a project switch cannot show the
   // previous project's preview in the new project's file workspace for a frame.
@@ -105,29 +107,43 @@ export function ProjectFilesPanel(props: { rootContext: FileEditorRootContext })
   }
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 bg-[var(--content-background)]">
+    <div className="relative flex h-full min-h-0 min-w-0 bg-[var(--content-background)]">
       <section className="min-h-0 min-w-0 flex-1 overflow-hidden">
         <FileEditorPane showTabs />
       </section>
-      <aside
-        className="relative flex min-h-0 shrink-0 flex-col border-l border-[color:var(--border)] bg-[var(--content-background)]"
-        style={{ width: treeWidth }}
-      >
-        <div
-          role="separator"
-          tabIndex={0}
-          aria-orientation="vertical"
-          aria-label={t`Resize file list`}
-          className="absolute top-0 bottom-0 left-0 z-10 w-1.5 cursor-ew-resize transition-colors hover:bg-foreground/15"
-          onMouseDown={handleTreeResizeStart}
-          onKeyDown={handleTreeResizeKeyDown}
-        />
-        <ProjectTreeView
-          rootContext={props.rootContext}
-          onSelectFile={handleSelectFile}
-          onPinFile={pinTab}
-        />
-      </aside>
+      {treeCollapsed ? (
+        <button
+          type="button"
+          onClick={() => setTreeCollapsed(false)}
+          aria-label={t`Show directory`}
+          className="absolute top-1 right-2 z-30 flex h-6 items-center gap-1 rounded-md border border-[color:var(--border)] bg-[var(--content-background)] px-2 text-xs text-foreground shadow-md"
+        >
+          <Folder className="size-3.5 text-muted" />
+          <span>{t`Show directory`}</span>
+          <PanelLeftOpen className="size-3.5 text-muted" />
+        </button>
+      ) : (
+        <aside
+          className="relative flex min-h-0 shrink-0 flex-col border-l border-[color:var(--border)] bg-[var(--content-background)]"
+          style={{ width: treeWidth }}
+        >
+          <div
+            role="separator"
+            tabIndex={0}
+            aria-orientation="vertical"
+            aria-label={t`Resize file list`}
+            className="absolute top-0 bottom-0 left-0 z-10 w-1.5 cursor-ew-resize transition-colors hover:bg-foreground/15"
+            onMouseDown={handleTreeResizeStart}
+            onKeyDown={handleTreeResizeKeyDown}
+          />
+          <ProjectTreeView
+            rootContext={props.rootContext}
+            onSelectFile={handleSelectFile}
+            onPinFile={pinTab}
+            onCollapseTree={() => setTreeCollapsed(true)}
+          />
+        </aside>
+      )}
       {isResizing ? (
         <div className="fixed inset-0 z-[100]" style={{ cursor: "ew-resize" }} aria-hidden />
       ) : null}

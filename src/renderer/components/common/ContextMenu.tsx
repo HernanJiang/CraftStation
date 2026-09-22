@@ -379,7 +379,9 @@ export function ContextMenuSurface(props: {
                 : {})}
             >
               <Dropdown.Menu
-                autoFocus="first" // eslint-disable-line jsx-a11y/no-autofocus -- React Aria Menu prop, not HTML autofocus
+                // Focusing the first item scrolls the virtualized file tree and
+                // unmounts the row that owns this menu. The menu is pointer-first.
+                autoFocus={false}
                 disabledKeys={collectAllItems(items)
                   .filter((item) => item.isDisabled)
                   .map((item) => item.id)}
@@ -429,6 +431,10 @@ export function ContextMenu(props: ContextMenuProps) {
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
+    // Nested menus (a file row inside the tree) must not also open the parent
+    // menu. Two menus in one right-click dismiss each other, and the focus
+    // move scrolls the virtualized list so the row unmounts before anything shows.
+    e.stopPropagation();
     // A new right-click menu takes over: dismiss every already-open context
     // menu (the filter surface below one of them is not a context menu and
     // handles itself).

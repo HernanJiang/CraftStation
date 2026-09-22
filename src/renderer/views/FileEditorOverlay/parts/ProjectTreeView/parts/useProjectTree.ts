@@ -44,11 +44,13 @@ export function useProjectTree(props: {
   // cached rows after the active project scope changes.
   const rootKey = getRootContextKey(props.rootContext);
 
-  async function reloadPaths(paths: string[]) {
+  async function reloadPaths(paths: string[], options?: { silent?: boolean }) {
     const uniquePaths = [...new Set(paths.flatMap((path) => [getParentPath(path), path]))];
     const treeStore = useProjectTreeStore.getState();
     const generation = treeStore.generation;
-    for (const path of uniquePaths) treeStore.setLoading(path, true);
+    if (!options?.silent) {
+      for (const path of uniquePaths) treeStore.setLoading(path, true);
+    }
 
     const results = await Promise.allSettled(
       uniquePaths.map(async (path) => {
@@ -110,7 +112,8 @@ export function useProjectTree(props: {
     setSearchResults([]);
     setLoadErrors({});
     rootLoadQueuedFor.current = rootKey;
-    void reloadPaths([""]);
+    const restored = "" in useProjectTreeStore.getState().directoryEntries;
+    void reloadPaths([""], restored ? { silent: true } : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- root changes must reset and load exactly once; reloadPaths reads the matching render's root context.
   }, [rootKey]);
 

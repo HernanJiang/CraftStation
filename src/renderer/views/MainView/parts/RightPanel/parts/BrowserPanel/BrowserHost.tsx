@@ -70,9 +70,11 @@ export function BrowserHost() {
         : "drawer"
       : browserPanelOpen && dockedVisible
         ? "docked"
-        : automationActive
-          ? // Keep tabs alive off-screen only while an agent is actively driving
-            // them. The main process clears this after its grace period.
+        : (browserPanelOpen && hasTabs) || automationActive
+          ? // Keep an opened browser mounted off-screen. Switching to Files,
+            // another thread, or hiding the rail must not destroy the guest
+            // and force a full reload. Closed panels and idle automation still
+            // unmount.
             "background"
           : "hidden";
 

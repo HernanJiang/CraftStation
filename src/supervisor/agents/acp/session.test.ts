@@ -11,6 +11,7 @@ import type { CreateStructuredSessionInput } from "../base";
 import type { ThreadConfig } from "@/shared/contracts";
 import {
   AcpStructuredSession,
+  DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS,
   isAcpHomeScopeLocation,
   resolveAcpGlobalSkillFallbackHostFsPath,
   resolveAcpReadableHostFsPath,
@@ -224,8 +225,11 @@ function makeConfigSyncSession(
   // Mirrors the constructor's `options?.fsTextCapability !== false` default.
   session["fsTextCapability"] = overrides.fsTextCapability !== false;
   session["retrySessionOpen"] = overrides.retrySessionOpen;
-  session["orphanTurnCompletionDelayMs"] = overrides.orphanTurnCompletionDelayMs;
+  session["orphanTurnCompletionDelayMs"] =
+    overrides.orphanTurnCompletionDelayMs ?? DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS;
   session["orphanTurnCompletionTimer"] = undefined;
+  session["foregroundQuietTimer"] = undefined;
+  session["foregroundQuietIdled"] = false;
   session["fsAgentHomeDirs"] = [];
   session["spawnReady"] = Promise.resolve();
   return { connection, listener, session: session as unknown as TestableAcpSession };
@@ -2669,7 +2673,7 @@ describe("ACP turn config sync", () => {
     });
   });
 
-  it("keeps the foreground runtime turn open until its background subagent finishes", async () => {
+  it("idles the parent when its reply ends even if a background subagent is still open", async () => {
     const { connection, listener, session } = makeConfigSyncSession();
     let resolvePrompt!: (result: { stopReason: string }) => void;
     connection.prompt.mockReturnValueOnce(
@@ -2710,10 +2714,10 @@ describe("ACP turn config sync", () => {
     expect(listener.onRuntimeEvent).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "item.completed", itemId: parentStart?.itemId }),
     );
-    expect(listener.onRuntimeEvent).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "turn.completed" }),
+    expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "turn.completed", state: "completed" }),
     );
-    expect(listener.onUpdate).not.toHaveBeenLastCalledWith({ status: "idle", attention: "none" });
+    expect(listener.onUpdate).toHaveBeenLastCalledWith({ status: "idle", attention: "none" });
 
     listener.onRuntimeEvent.mockClear();
     listener.onUpdate.mockClear();
@@ -2758,8 +2762,10 @@ describe("ACP turn config sync", () => {
     expect(terminalEvents).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "item.completed", itemId: parentStart?.itemId }),
-        expect.objectContaining({ type: "turn.completed", state: "completed" }),
       ]),
+    );
+    expect(terminalEvents).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "turn.completed" })]),
     );
     expect(listener.onUpdate).toHaveBeenLastCalledWith({
       status: "idle",
@@ -2814,8 +2820,8 @@ describe("ACP turn config sync", () => {
     expect(events.filter((event) => event.type === "turn.completed")).toHaveLength(1);
     const updates = listener.onUpdate.mock.calls.map(([update]) => update);
     expect(
-      updates.filter((update) => JSON.stringify(update).includes('"status":"idle"')),
-    ).toHaveLength(1);
+      updates.filter((update) => JSON.stringify(update).includes('"status":"idle"')).length,
+    ).toBeGreaterThan(0);
     expect(listener.onUpdate).toHaveBeenLastCalledWith({ status: "idle", attention: "none" });
   });
 
@@ -2846,7 +2852,7 @@ describe("ACP turn config sync", () => {
     });
     resolvePrompt({ stopReason: "end_turn" });
     await turn;
-    expect(listener.onUpdate).not.toHaveBeenLastCalledWith({ status: "idle", attention: "none" });
+    expect(listener.onUpdate).toHaveBeenLastCalledWith({ status: "idle", attention: "none" });
 
     listener.onUpdate.mockClear();
     await session.interruptTurn();
@@ -3393,7 +3399,7 @@ describe("ACP orphan turns — agent-initiated work after prompt() settled", () 
     expect(runtimeEventTypes(listener)).not.toContain("turn.started");
   });
 
-  it("keeps a quiet orphan turn open until an explicit terminal action", () => {
+  it("settles a quiet orphan turn on the default deadline", () => {
     vi.useFakeTimers();
     const { listener, session } = makeConfigSyncSession();
 
@@ -3402,10 +3408,12 @@ describe("ACP orphan turns — agent-initiated work after prompt() settled", () 
     });
     expect(statusUpdates(listener)).toEqual(["working"]);
 
-    vi.advanceTimersByTime(20 * 60_000);
-
-    expect(statusUpdates(listener)).toEqual(["working"]);
+    vi.advanceTimersByTime(DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS - 1);
     expect(runtimeEventTypes(listener)).not.toContain("turn.completed");
+
+    vi.advanceTimersByTime(1);
+    expect(statusUpdates(listener).at(-1)).toBe("idle");
+    expect(runtimeEventTypes(listener)).toContain("turn.completed");
   });
 
   it("settles an orphan turn after the provider's final assistant message", () => {

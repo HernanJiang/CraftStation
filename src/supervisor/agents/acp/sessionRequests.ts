@@ -221,6 +221,11 @@ export class AcpSessionRequests {
     this.resumeAfterLastRequest();
   }
 
+  /** A permission or question is still waiting on the user. */
+  hasPending(): boolean {
+    return this.pendingPermissionResolvers.size > 0 || this.pendingElicitationResolvers.size > 0;
+  }
+
   /** Clear the yellow request state immediately once the agent is unblocked. */
   private resumeAfterLastRequest(): void {
     if (this.pendingPermissionResolvers.size === 0 && this.pendingElicitationResolvers.size === 0) {

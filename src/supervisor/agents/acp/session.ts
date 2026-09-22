@@ -171,6 +171,45 @@ function isAssumedMcpCompatibilityError(error: unknown): error is RequestError {
  * Empty text chunks and metadata-only updates are excluded — that trailing
  * chatter is exactly what must not reopen a turn.
  */
+/**
+ * After `session/prompt` has already returned, a trailing notification can open
+ * an orphan turn that would otherwise stay `working` forever. Every ACP harness
+ * (Grok included) settles that turn once the assistant reply has been quiet
+ * and nothing foreground is still running. Adapters may pass a shorter delay.
+ */
+export const DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS = 12_000;
+
+/**
+ * While `session/prompt` is still open, a finished reply plus only detached
+ * sub-agents must not pin the parent on Working. Silence this long means the
+ * foreground turn has stopped producing; a later chunk marks it working again.
+ */
+const FOREGROUND_QUIET_IDLE_MS = 45_000;
+
+function isChildAttributedUpdate(update: SessionUpdate): boolean {
+  const meta = (update as { _meta?: Record<string, unknown> })._meta;
+  if (!meta) return false;
+  return (
+    meta.craftstationParentToolCallId !== undefined ||
+    meta.craftstationDetachedSubAgentActivity !== undefined
+  );
+}
+
+/** Foreground output. Detached sub-agent chatter must not reset the parent's idle clock. */
+function isForegroundTurnActivity(update: SessionUpdate): boolean {
+  if (isChildAttributedUpdate(update)) return false;
+  switch (update.sessionUpdate) {
+    case "agent_message_chunk":
+    case "agent_thought_chunk":
+    case "plan":
+    case "tool_call":
+    case "tool_call_update":
+      return true;
+    default:
+      return false;
+  }
+}
+
 function isOrphanTurnActivity(update: SessionUpdate): boolean {
   switch (update.sessionUpdate) {
     case "agent_message_chunk": {
@@ -364,6 +403,9 @@ export class AcpStructuredSession implements StructuredSessionHandle {
   private orphanTurnId: string | undefined;
   private readonly orphanTurnCompletionDelayMs: number | undefined;
   private orphanTurnCompletionTimer: ReturnType<typeof setTimeout> | undefined;
+  private foregroundQuietTimer: ReturnType<typeof setTimeout> | undefined;
+  /** True after a quiet foreground reply was marked idle before `prompt()` returned. */
+  private foregroundQuietIdled = false;
   private stableSessionRef: SessionRef | undefined;
   /**
    * usage.spent ledger scope: the ACP session id plus an epoch that bumps if
@@ -494,7 +536,8 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     if (options?.sessionUpdateTransform) {
       this.sessionUpdateTransform = options.sessionUpdateTransform;
     }
-    this.orphanTurnCompletionDelayMs = options?.orphanTurnCompletionDelayMs;
+    this.orphanTurnCompletionDelayMs =
+      options?.orphanTurnCompletionDelayMs ?? DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS;
     this.goalCommands = options?.goalCommands === true;
     this.strictModelResolution = options?.strictModelResolution === true;
     if (options?.extensionSessionUpdateTransform) {
@@ -1189,10 +1232,15 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         turnState === "completed" &&
         mapperState.activeSubAgents.length > 0
       ) {
+        // The foreground reply is done. Detached sub-agents may still report,
+        // but they must not keep the parent on Working — Grok, Qwen, Kimi and
+        // the other ACP harnesses all share this path, and a missed
+        // subagent-finished notice used to leave Stop up indefinitely.
         this.foregroundTurnAwaitingSubagents = true;
-        // Close the foreground response now, while deliberately preserving
-        // detached subagent tool calls in the mapper until their reports land.
-        this.emitRuntimeEvents(closeOpenTurnItems(mapperState));
+        this.clearForegroundQuietTimer();
+        this.foregroundQuietIdled = false;
+        this.emitTurnStatusAfterPrompt(normalizedStopReason);
+        this.completeTurn(mapperState, turnState);
       } else {
         // A provider can end the prompt "normally" while surfacing the real
         // failure as an in-stream error message (Grok quota exhaustion does
@@ -1256,6 +1304,8 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         }
       }
     } finally {
+      this.clearForegroundQuietTimer();
+      this.foregroundQuietIdled = false;
       this.promptInFlight = false;
       this.foregroundTurnOpen = false;
       this.pendingPromptInterrupt = false;
@@ -1347,6 +1397,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     if (this.isDisposed) return;
     this.isDisposed = true;
     this.clearOrphanTurnCompletionTimer();
+    this.clearForegroundQuietTimer();
 
     for (const source of this.externalSessionUpdateSources ?? []) source.dispose();
     this.externalSessionUpdateSources?.clear();
@@ -1770,6 +1821,50 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       default:
         break;
     }
+
+    if (isForegroundTurnActivity(update)) {
+      this.noteForegroundActivity();
+      if (this.promptInFlight) this.scheduleForegroundQuietIdle(this.ensureMapperState());
+    }
+  }
+
+  private noteForegroundActivity(): void {
+    this.clearForegroundQuietTimer();
+    if (!this.foregroundQuietIdled || !this.promptInFlight) return;
+    this.foregroundQuietIdled = false;
+    this.emitListenerUpdate({ status: "working", attention: "working" });
+  }
+
+  /**
+   * `session/prompt` sometimes never returns after the reply is already on
+   * screen (Grok does this when a detached sub-agent outlives the answer).
+   * Once the foreground reply has been quiet and only detached work remains,
+   * drop Working. A later foreground chunk puts it back.
+   */
+  private scheduleForegroundQuietIdle(mapperState: AcpMapperState): void {
+    this.clearForegroundQuietTimer();
+    if (this.isDisposed || !this.promptInFlight || this.sessionRequests.hasPending()) return;
+    if (mapperState.openAssistantItemId === undefined) return;
+    for (const item of mapperState.toolCallItems.values()) {
+      if (!item.detached) return;
+    }
+    this.foregroundQuietTimer = setTimeout(() => {
+      this.foregroundQuietTimer = undefined;
+      if (this.isDisposed || !this.promptInFlight || this.sessionRequests.hasPending()) return;
+      const state = this.ensureMapperState();
+      if (state.openAssistantItemId === undefined) return;
+      for (const item of state.toolCallItems.values()) {
+        if (!item.detached) return;
+      }
+      this.foregroundQuietIdled = true;
+      this.emitListenerUpdate({ status: "idle", attention: "none" });
+    }, FOREGROUND_QUIET_IDLE_MS);
+  }
+
+  private clearForegroundQuietTimer(): void {
+    if (this.foregroundQuietTimer === undefined) return;
+    clearTimeout(this.foregroundQuietTimer);
+    this.foregroundQuietTimer = undefined;
   }
 
   /**
@@ -2006,12 +2101,14 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     turnState: "completed" | "cancelled" | "failed",
   ): void {
     if (!this.currentTurnId) return;
+    const turnId = this.currentTurnId;
+    this.currentTurnId = undefined;
     this.emitRuntimeEvents([
       ...closeOpenTurnItems(mapperState),
       {
         type: "turn.completed",
         threadId: this.threadId,
-        turnId: this.currentTurnId,
+        turnId,
         state: turnState,
       },
     ]);

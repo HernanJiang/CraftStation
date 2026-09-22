@@ -89,6 +89,12 @@ type CompletedClaudeTurn = {
  * signal, not the first streamed token).
  */
 const DEFERRED_FLUSH_RESUME_GRACE_MS = 5000;
+/**
+ * A background sub-agent that never sends `task_notification` must not keep
+ * the parent on Working after the main result. Same ceiling for every Claude
+ * model: the reply is done, so the thread stops even if the registry is stuck.
+ */
+const DEFERRED_COMPLETION_CAP_MS = 20_000;
 
 export class ClaudeSdkSession implements StructuredSessionHandle {
   launchOptions: AgentLaunchOptions = { suppressResumeConfigOverrides: true };
@@ -135,6 +141,7 @@ export class ClaudeSdkSession implements StructuredSessionHandle {
   // that gap resets the thread's "Working for" timer and fires a premature
   // done-notification. See flushDeferredCompletionIfDrained.
   private deferredFlushTimer: ReturnType<typeof setTimeout> | undefined;
+  private deferredCompletionCapTimer: ReturnType<typeof setTimeout> | undefined;
   // openThread() fires `startQuery` as a fire-and-forget IIFE and returns
   // synchronously, but the runtime calls `setListener` only afterwards from
   // `spawnThread`. Anything emitted in that window — early SDK system/stream
@@ -1005,6 +1012,7 @@ export class ClaudeSdkSession implements StructuredSessionHandle {
         this.emitUpdate(completion);
       } else if (this.hasLiveSubAgentTasks()) {
         this.deferredCompletion.defer(completion);
+        this.armDeferredCompletionCap();
       } else {
         this.emitUpdate(completion);
       }
@@ -1047,10 +1055,23 @@ export class ClaudeSdkSession implements StructuredSessionHandle {
     }, DEFERRED_FLUSH_RESUME_GRACE_MS);
   }
 
+  private armDeferredCompletionCap(): void {
+    if (this.deferredCompletionCapTimer !== undefined) return;
+    this.deferredCompletionCapTimer = setTimeout(() => {
+      this.deferredCompletionCapTimer = undefined;
+      if (this.disposed || !this.deferredCompletion.hasPending) return;
+      this.flushDeferredCompletion();
+    }, DEFERRED_COMPLETION_CAP_MS);
+  }
+
   private clearDeferredFlushTimer(): void {
     if (this.deferredFlushTimer !== undefined) {
       clearTimeout(this.deferredFlushTimer);
       this.deferredFlushTimer = undefined;
+    }
+    if (this.deferredCompletionCapTimer !== undefined) {
+      clearTimeout(this.deferredCompletionCapTimer);
+      this.deferredCompletionCapTimer = undefined;
     }
   }
 

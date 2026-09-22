@@ -2773,6 +2773,12 @@ msgstr "Codex"
 msgid "Collapse"
 msgstr "折叠"
 
+msgid "Hide directory"
+msgstr "收起目录"
+
+msgid "Show directory"
+msgstr "恢复目录"
+
 #. placeholder {0}: project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "Collapse {0}"

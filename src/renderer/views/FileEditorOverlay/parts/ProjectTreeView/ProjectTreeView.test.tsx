@@ -98,6 +98,10 @@ describe("ProjectTreeView", () => {
 
     expect(screen.getByText("CodexRouter")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Filter files…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New File" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New Folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Collapse all folders" })).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText("src")).toBeInTheDocument();
@@ -228,7 +232,33 @@ describe("ProjectTreeView", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "src" }));
 
     expect(screen.getByRole("menuitem", { name: "Reveal in File Explorer" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Open With System Default" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "New File" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Open With System Default" }),
+    ).not.toBeInTheDocument();
+    // The tree background menu must not open on the same click.
+    expect(screen.getAllByRole("menuitem", { name: "New File" })).toHaveLength(1);
+  });
+
+  it("shows a directory-only collapse control and keeps the preview actions out of the header", async () => {
+    bridge.listProjectTree.mockResolvedValue({ directoryPath: "", entries: [] });
+    const onCollapseTree = vi.fn<() => void>();
+    render(
+      <I18nProvider i18n={i18n}>
+        <ProjectTreeView
+          rootContext={rootContextA}
+          onSelectFile={vi.fn<(path: string) => void>()}
+          onCollapseTree={onCollapseTree}
+        />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Empty workspace")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Hide directory" }));
+    expect(onCollapseTree).toHaveBeenCalledTimes(1);
   });
 
   it("supports fuzzy search and clearing search query", async () => {
