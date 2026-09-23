@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import { blockingUsedPercent } from "@craftstation/agents-usage/switcherQuota";
 import {
   AccountControlError,
   type AccountRecord,
@@ -25,6 +26,23 @@ function isUsable(account: AccountRecord): boolean {
 
 function usableRecords(accounts: AccountRecord[]): AccountRecord[] {
   return accounts.filter(isUsable);
+}
+
+function pickPriorityAccount(usable: AccountRecord[]): AccountRecord | undefined {
+  const ranked = [...usable].sort((left, right) => {
+    const leftLow = left.status === "quota-low" ? 1 : 0;
+    const rightLow = right.status === "quota-low" ? 1 : 0;
+    if (leftLow !== rightLow) return leftLow - rightLow;
+    if (leftLow === 1) {
+      const leftUsed =
+        blockingUsedPercent(left.provider, left.quotaWindows) ?? Number.POSITIVE_INFINITY;
+      const rightUsed =
+        blockingUsedPercent(right.provider, right.quotaWindows) ?? Number.POSITIVE_INFINITY;
+      if (leftUsed !== rightUsed) return leftUsed - rightUsed;
+    }
+    return left.order - right.order;
+  });
+  return ranked[0];
 }
 
 /**
@@ -148,8 +166,10 @@ export class AccountResolver {
       return this.resolveRoundRobin(request, usable, accounts, candidates, excluded);
     if (mode === "random") return this.resolveRandom(request, usable, accounts, candidates);
 
-    // Priority (default): first usable account in Account Row order.
-    const first = usable[0];
+    // Priority (default): Account Row order, except a later account that still
+    // has a healthy blocking window beats one already marked quota-low. Among
+    // quota-low accounts, the one with the most remaining on that window wins.
+    const first = pickPriorityAccount(usable);
     if (!first) {
       throw poolExhaustedError(request.provider, accounts, candidates);
     }

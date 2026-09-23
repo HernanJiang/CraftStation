@@ -779,10 +779,29 @@ describe("ToolCallGroup", () => {
 
     expect(screen.getByText(byTextContent("1 thought"))).toBeInTheDocument();
     expect(screen.getByText(byTextContent("2 views"))).toBeInTheDocument();
-    expandGroup(/1 thought/i);
+    // The live tail stays open so the latest thought and tool rows are visible.
     expect(screen.getByText("Thought")).toBeInTheDocument();
     expect(screen.getByText("Read file")).toBeInTheDocument();
     expect(screen.getByText("Read other file")).toBeInTheDocument();
+  });
+
+  it("collapses a finished thought chain", () => {
+    const threadId = "thread-1";
+    const items = [
+      makeReasoningItem("reasoning-1", "Weighing the tradeoffs."),
+      makeToolItem("tool-1", "Read file"),
+    ];
+    seedThread(threadId, items);
+
+    const view = renderToolCallGroup(
+      threadId,
+      items.map((item) => item.id),
+      false,
+    );
+
+    expect(screen.getByText(byTextContent("1 thought"))).toBeInTheDocument();
+    expect(view.container.querySelector(".craftstation-tool-call-group-viewport")).toBeNull();
+    expect(screen.queryByText("Read file")).not.toBeInTheDocument();
   });
 
   it("merges consecutive same-file edits inside a mixed group into one edit row", () => {

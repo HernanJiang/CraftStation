@@ -81,10 +81,10 @@ Skills, Git / worktrees, and MCP servers are not scattered across each CLI’s c
 
 Download the installer or the portable build from GitHub Releases, not from the source tree.
 
-**Current build: 1.5.9**
+**Current build: 1.5.10**
 
-- Installer: [CraftStation-Setup-1.5.9-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.9/CraftStation-Setup-1.5.9-x64.exe)
-- Portable: [CraftStation-Portable-1.5.9-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.9/CraftStation-Portable-1.5.9-x64.exe)
+- Installer: [CraftStation-Setup-1.5.10-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.10/CraftStation-Setup-1.5.10-x64.exe)
+- Portable: [CraftStation-Portable-1.5.10-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.10/CraftStation-Portable-1.5.10-x64.exe)
 
 ([GitHub Releases](https://github.com/HernanJiang/CraftStation/releases))
 

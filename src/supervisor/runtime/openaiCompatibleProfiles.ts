@@ -20,6 +20,7 @@ import {
 import {
   normalizeOpenAiCompatibleBaseUrl,
   openAiCompatibleModelsUrl,
+  quotaStatusFromWindows,
   type HostPort,
 } from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
@@ -675,12 +676,14 @@ export class OpenAiCompatibleProfileService {
     const probe = await probeProviderQuota(bundle.baseUrl, requestJson);
     const quotaWindows = probe?.windows ?? [];
 
-    const status =
-      probe?.exhausted === true
-        ? "quota-exhausted"
-        : quotaWindows.some((window) => window.usedPercent >= 90)
-          ? "quota-low"
-          : "available";
+    const measured = quotaStatusFromWindows(
+      "openai-compatible",
+      (quotaWindows ?? []).map((window) => ({
+        id: window.id,
+        usedPercent: window.usedPercent,
+      })),
+    );
+    const status = probe?.exhausted === true ? "quota-exhausted" : measured;
     const updated = this.options.store.updateStatus(accountId, status, {
       lastQuotaAt: Date.now(),
     });

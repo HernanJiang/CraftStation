@@ -36,6 +36,10 @@
       "types": "./src/formatters.ts",
       "default": "./src/formatters.ts"
     },
+    "./switcherQuota": {
+      "types": "./src/switcherQuota.ts",
+      "default": "./src/switcherQuota.ts"
+    },
     "./providers": {
       "types": "./src/providers.ts",
       "default": "./src/providers.ts"

@@ -34,7 +34,16 @@ describe("quotaStatus", () => {
     expect(resolveAccountQuotaDisplayState("available", [])).toBe("unavailable");
   });
 
-  it("uses the highest active window for the first-row used quota", () => {
+  it("uses the weekly lane, not a fuller Claude carve-out, for the headline", () => {
+    expect(
+      maxUsedPercent(
+        [
+          { id: "weekly", usedPercent: 12 },
+          { id: "weekly-opus", usedPercent: 100 },
+        ],
+        "claude",
+      ),
+    ).toBe(12);
     expect(maxUsedPercent([{ usedPercent: 12 }, { usedPercent: 81.4 }])).toBe(81.4);
     expect(formatUsedQuota(81.4)).toBe("已用额度 81%");
     expect(formatUsedQuota(null)).toBe("已用额度 --");

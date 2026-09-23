@@ -9,6 +9,7 @@ import { AccountControlError } from "@/shared/contracts";
 import {
   CODEX_RESET_CREDIT_WINDOW_ID,
   collectCodex,
+  quotaStatusFromWindows,
   consumeCodexResetCredit,
   type HostPort,
   type UsageSnapshot,
@@ -122,11 +123,9 @@ const MANAGED_CODEX_CONFIG = [
  * fallback.
  */
 function quotaStatusForWindows(
-  windows: ReadonlyArray<{ usedPercent: number }>,
+  windows: ReadonlyArray<{ id: string; usedPercent: number; unit?: string | undefined }>,
 ): "available" | "quota-low" | "quota-exhausted" {
-  if (windows.some((window) => window.usedPercent >= 100)) return "quota-exhausted";
-  if (windows.some((window) => window.usedPercent >= 90)) return "quota-low";
-  return "available";
+  return quotaStatusFromWindows("codex", windows);
 }
 
 export function ensureManagedCodexHome(managedCodexHome: string): string {

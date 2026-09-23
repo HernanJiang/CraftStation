@@ -14,7 +14,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { AccountControlError, type AccountView } from "@/shared/contracts";
 import { shouldPreserveInferenceExhaustion } from "./accountStore";
-import { collectKimi, type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
+import {
+  collectKimi,
+  quotaStatusFromWindows,
+  type HostPort,
+  type UsageSnapshot,
+} from "@craftstation/agents-usage";
 import { writeFileAtomic } from "@/shared/atomicFile";
 import { resolveKimiManagedHomeToken } from "./kimiCredentials";
 
@@ -326,11 +331,9 @@ export class KimiProfileService {
       ...(resetsAt !== undefined ? { resetsAt } : {}),
     }));
     const quotaView = this.options.store.updateQuota(accountId, quotaWindows);
-    const status = snapshot.windows.some((w) => (w.usedPercent ?? 0) >= 100)
-      ? "quota-exhausted"
-      : "available";
+    const status = quotaStatusFromWindows("kimi", snapshot.windows);
     if (
-      status === "available" &&
+      (status === "available" || status === "quota-low") &&
       shouldPreserveInferenceExhaustion(this.options.store.getRecord(accountId), Date.now())
     ) {
       // A fresh inference failure outranks % windows (different budget): keep

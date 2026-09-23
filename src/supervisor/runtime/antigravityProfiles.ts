@@ -10,6 +10,7 @@ import {
   antigravityModelUsageRecorded,
   antigravityPoolWindows,
   antigravityProjectFromLoadCodeAssist,
+  quotaStatusFromWindows,
   type HostPort,
 } from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
@@ -637,7 +638,7 @@ export class AntigravityProfileService {
       });
       return this.options.store.updateQuota(accountId, []) ?? withMetadata ?? updated;
     }
-    const status = windows.some((window) => window.usedPercent >= 90) ? "quota-low" : "available";
+    const status = quotaStatusFromWindows("antigravity", windows);
     const updated = this.options.store.updateStatus(accountId, status, {
       lastQuotaAt: Date.now(),
     });

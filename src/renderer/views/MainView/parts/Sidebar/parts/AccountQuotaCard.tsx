@@ -1,3 +1,4 @@
+import { switcherDisplayWindow } from "@craftstation/agents-usage/switcherQuota";
 import type { AccountView, UsageSnapshot } from "@/shared/contracts";
 import { formatMoney } from "@/renderer/components/providers/usageFormat";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
@@ -80,19 +81,25 @@ function deriveWindowLabel(window: QuotaWindowLike): string {
  * really are a 5h+weekly pair — otherwise a Grok credits window rendered as a
  * meaningless "5h -- / 周月 --" pair (user acceptance defect).
  */
-function quotaRows(windows: readonly QuotaWindowLike[]): QuotaWindowLike[] {
-  const fast = windows.find(
+function quotaRows(windows: readonly QuotaWindowLike[], providerId: string): QuotaWindowLike[] {
+  const headline = switcherDisplayWindow(providerId, windows);
+  const rest = headline ? windows.filter((window) => window.id !== headline.id) : windows;
+  const ordered = headline
+    ? [windows.find((window) => window.id === headline.id), ...rest]
+    : [...windows];
+  const present = ordered.filter((window): window is QuotaWindowLike => window !== undefined);
+  const fast = present.find(
     (w) => w.id.toLowerCase().includes("5h") || w.id.toLowerCase().includes("session"),
   );
-  const long = windows.find(
+  const long = present.find(
     (w) =>
       w.id.toLowerCase().includes("week") ||
       w.id.toLowerCase().includes("month") ||
       w.label.includes("周") ||
       w.label.includes("月"),
   );
-  if (fast && long && windows.length <= 2) return [fast, long];
-  return windows.slice(0, 4);
+  if (fast && long && present.length <= 2) return [fast, long];
+  return present.slice(0, 4);
 }
 
 function formatQuotaResetParts(
@@ -211,7 +218,7 @@ export function AccountQuotaCard(props: {
       ? resetCreditWindow.limit
       : 0;
   const meterWindows = windows.filter((window) => window.id !== RESET_CREDIT_WINDOW_ID);
-  const rows = hasQuota && !statusFailure ? quotaRows(meterWindows) : [];
+  const rows = hasQuota && !statusFailure ? quotaRows(meterWindows, account.provider) : [];
   const resetsText =
     rows.length > 0 ? formatWindowResetParts(rows) : formatQuotaResetParts(fast, long);
   // Attribution-first copy: real per-account numbers when pinned, an honest
@@ -237,7 +244,7 @@ export function AccountQuotaCard(props: {
           : "—";
     // 渠道能拿到真实额度（如阶跃 /v1/accounts 余额、one-api 中转 billing）就
     // 渲染额度条；拿不到时保持纯 Token 行，不造假装满的窗口。
-    const compatRows = hasQuota && !statusFailure ? quotaRows(windows) : [];
+    const compatRows = hasQuota && !statusFailure ? quotaRows(windows, account.provider) : [];
     const balanceWindow = compatRows.find(
       (window) => window.remaining !== undefined && window.currency,
     );
@@ -412,7 +419,7 @@ export function ProviderQuotaCard(props: {
         : undefined);
   // Same honest-window contract as the account card: a Grok credits window is
   // "Monthly credits", not a fake "5h -- / 周月 --" pair.
-  const rows = quotaRows(snapshot.windows);
+  const rows = quotaRows(snapshot.windows, props.providerId);
   const showConnectAction =
     snapshot.status === "ok" && rows.length === 0 && props.onConnectUsageSession !== undefined;
 

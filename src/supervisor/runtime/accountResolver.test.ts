@@ -102,10 +102,16 @@ describe("AccountResolver", () => {
     store.updateStatus(first.accountId, "quota-low");
     store.updateStatus(second.accountId, "available");
     const resolver = new AccountResolver(store);
-    // quota-low is a warning: the first usable account is still picked.
+    // A later healthy account beats one already marked quota-low.
+    expect(resolver.resolve({ provider: "codex", mode: "auto" }).account.accountId).toBe(
+      second.accountId,
+    );
+    // quota-low stays usable when it is the only account left.
+    store.updateStatus(second.accountId, "disabled");
     expect(resolver.resolve({ provider: "codex", mode: "auto" }).account.accountId).toBe(
       first.accountId,
     );
+    store.updateStatus(second.accountId, "available");
 
     // hard error is skipped, next usable account is used, diagnostics retained.
     store.updateStatus(first.accountId, "error");
@@ -114,6 +120,19 @@ describe("AccountResolver", () => {
     expect(
       resolution.candidates.find((candidate) => candidate.accountId === first.accountId),
     ).toMatchObject({ eligible: false, status: "error" });
+  });
+
+  it("among quota-low accounts picks the one with the most remaining", () => {
+    const store = createStore();
+    const tight = store.add({ provider: "codex", label: "tight" });
+    const room = store.add({ provider: "codex", label: "room" });
+    store.updateStatus(tight.accountId, "quota-low");
+    store.updateStatus(room.accountId, "quota-low");
+    store.updateQuota(tight.accountId, [{ id: "weekly", label: "Weekly", usedPercent: 98 }]);
+    store.updateQuota(room.accountId, [{ id: "weekly", label: "Weekly", usedPercent: 91 }]);
+    expect(
+      new AccountResolver(store).resolve({ provider: "codex", mode: "auto" }).account.accountId,
+    ).toBe(room.accountId);
   });
 
   it("selects priority order by default and reports the mode", () => {

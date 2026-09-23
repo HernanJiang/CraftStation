@@ -6,6 +6,13 @@
 export * from "./types";
 export * from "./host";
 export * from "./formatters";
+export {
+  blockingUsedPercent,
+  blockingWindow,
+  quotaStatusFromWindows,
+  switcherDisplayWindow,
+} from "./switcherQuota";
+export type { SwitcherQuotaStatus, SwitcherQuotaWindow } from "./switcherQuota";
 export { createUsageCollectorRegistry } from "./registry";
 export type { UsageCollector, UsageCollectorRegistry } from "./registry";
 export {

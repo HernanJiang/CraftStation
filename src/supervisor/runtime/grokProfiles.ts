@@ -4,6 +4,7 @@ import { AccountControlError, type AccountView } from "@/shared/contracts";
 import {
   collectGrok,
   fetchGrokSettings,
+  quotaStatusFromWindows,
   planFromSettings,
   type HostPort,
   type HttpClient,
@@ -465,14 +466,7 @@ export class GrokProfileService {
       ...(snapshotError ? { lastError: snapshotError } : {}),
       lastQuotaAt: snapshot.fetchedAt,
     });
-    return (
-      this.options.store.updateQuota(
-        accountId,
-        quotaWindows,
-      ) ??
-      withMetadata ??
-      updated
-    );
+    return this.options.store.updateQuota(accountId, quotaWindows) ?? withMetadata ?? updated;
   }
 
   managedGrokHome(accountId: string): string {
@@ -495,11 +489,9 @@ function safeParseJson(content: string): unknown {
  * fallback.
  */
 function quotaStatusForWindows(
-  windows: ReadonlyArray<{ usedPercent: number }>,
+  windows: ReadonlyArray<{ id: string; usedPercent: number; unit?: string | undefined }>,
 ): "available" | "quota-low" | "quota-exhausted" {
-  if (windows.some((window) => window.usedPercent >= 100)) return "quota-exhausted";
-  if (windows.some((window) => window.usedPercent >= 90)) return "quota-low";
-  return "available";
+  return quotaStatusFromWindows("grok", windows);
 }
 
 /**

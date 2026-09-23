@@ -1,6 +1,7 @@
+import { switcherDisplayWindow } from "@craftstation/agents-usage/switcherQuota";
 import type { AccountStatus } from "@/shared/contracts/accounts";
 import type { TokenUsageSummary } from "@/shared/contracts";
-import type { UsageStatus, UsageWindow } from "@/shared/contracts/usage";
+import type { UsageStatus } from "@/shared/contracts/usage";
 
 export type QuotaDisplayState = "sufficient" | "low" | "unavailable";
 
@@ -22,9 +23,19 @@ const UNAVAILABLE_USAGE_STATUSES = new Set<UsageStatus>([
 ]);
 
 export function maxUsedPercent(
-  windows: readonly Pick<UsageWindow, "usedPercent">[],
+  windows: readonly { id?: string; usedPercent: number; unit?: string | undefined }[],
+  providerId = "",
 ): number | null {
   if (windows.length === 0) return null;
+  const headline = switcherDisplayWindow(
+    providerId,
+    windows.map((window) => ({
+      id: window.id ?? "",
+      usedPercent: window.usedPercent,
+      ...(window.unit ? { unit: window.unit } : {}),
+    })),
+  );
+  if (headline && Number.isFinite(headline.usedPercent)) return headline.usedPercent;
   const values = windows
     .map((window) => window.usedPercent)
     .filter((value) => Number.isFinite(value));
@@ -33,10 +44,11 @@ export function maxUsedPercent(
 
 export function resolveAccountQuotaDisplayState(
   status: AccountStatus,
-  windows: readonly Pick<UsageWindow, "usedPercent">[],
+  windows: readonly { id?: string; usedPercent: number; unit?: string | undefined }[],
+  providerId = "",
 ): QuotaDisplayState {
   if (UNAVAILABLE_ACCOUNT_STATUSES.has(status)) return "unavailable";
-  const measuredState = resolveMeasuredQuotaState(maxUsedPercent(windows));
+  const measuredState = resolveMeasuredQuotaState(maxUsedPercent(windows, providerId));
   // A full window is exhausted even if the persisted account status still
   // says quota-low while the asynchronous refresh is catching up.
   if (measuredState === "unavailable") return "unavailable";
@@ -46,10 +58,11 @@ export function resolveAccountQuotaDisplayState(
 
 export function resolveProviderQuotaDisplayState(
   status: UsageStatus,
-  windows: readonly Pick<UsageWindow, "usedPercent">[],
+  windows: readonly { id?: string; usedPercent: number; unit?: string | undefined }[],
+  providerId = "",
 ): QuotaDisplayState {
   if (UNAVAILABLE_USAGE_STATUSES.has(status)) return "unavailable";
-  return resolveMeasuredQuotaState(maxUsedPercent(windows));
+  return resolveMeasuredQuotaState(maxUsedPercent(windows, providerId));
 }
 
 function resolveMeasuredQuotaState(usedPercent: number | null): QuotaDisplayState {
