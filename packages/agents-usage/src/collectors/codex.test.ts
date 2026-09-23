@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createFakeHost, FAKE_NOW_MS } from "../testHost";
-import { CODEX_USAGE_ENDPOINT, collectCodex, parseCodexUsage } from "./codex";
+import {
+  CODEX_RESET_CREDIT_CONSUME_ENDPOINT,
+  CODEX_USAGE_ENDPOINT,
+  collectCodex,
+  consumeCodexResetCredit,
+  parseCodexUsage,
+} from "./codex";
 
 describe("parseCodexUsage", () => {
   it("maps primary->session and secondary->weekly with epoch-second resets", () => {
@@ -170,6 +176,28 @@ describe("parseCodexUsage", () => {
     ]);
   });
 
+  it("keeps an unused reset card off the usage meters and on its own window", () => {
+    const snap = parseCodexUsage(
+      {
+        plan_type: "plus",
+        rate_limit: {
+          primary_window: { used_percent: 0, limit_window_seconds: 18_000 },
+          secondary_window: { used_percent: 100, limit_window_seconds: 604_800 },
+        },
+        rate_limit_reset_credits: { available_count: 3, applicable_available_count: 3 },
+      },
+      {},
+      FAKE_NOW_MS,
+    );
+    expect(snap.windows.find((window) => window.id === "weekly")?.usedPercent).toBe(100);
+    expect(snap.windows.find((window) => window.id === "codex:reset-credits")).toMatchObject({
+      label: "重置卡",
+      usedPercent: 0,
+      limit: 3,
+      unit: "credits",
+    });
+  });
+
   it("falls back to x-codex-* headers when the body omits percents", () => {
     const snap = parseCodexUsage(
       { rate_limit: {} },
@@ -207,5 +235,30 @@ describe("collectCodex", () => {
     expect(snap.plan).toBe("ChatGPT Plus");
     expect(captured?.["ChatGPT-Account-Id"]).toBe("acc-1");
     expect(captured?.Authorization).toBe("Bearer t");
+  });
+});
+
+describe("consumeCodexResetCredit", () => {
+  it("posts one idempotent redeem and rejects a non-2xx", async () => {
+    let body = "";
+    const host = createFakeHost({
+      tokens: { codex: { accessToken: "t", accountId: "acc-1" } },
+      routes: { [CODEX_RESET_CREDIT_CONSUME_ENDPOINT]: { status: 200, body: "{}" } },
+      onRequest: (req) => {
+        body = req.body ?? "";
+      },
+    });
+    await consumeCodexResetCredit(host);
+    expect(JSON.parse(body)).toEqual({
+      redeem_request_id: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      ),
+    });
+
+    const denied = createFakeHost({
+      tokens: { codex: { accessToken: "t" } },
+      routes: { [CODEX_RESET_CREDIT_CONSUME_ENDPOINT]: { status: 409, body: "{}" } },
+    });
+    await expect(consumeCodexResetCredit(denied)).rejects.toThrow(/HTTP 409/);
   });
 });

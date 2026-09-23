@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { DEFAULT_CLIENT_VERSIONS } from "../clientVersions";
 import { toEpochMs } from "../formatters";
 import type { CollectOptions, HostPort, HttpResponse } from "../host";
@@ -23,6 +24,10 @@ import type { UsageSnapshot, UsageWindow } from "../types";
  */
 
 export const CODEX_USAGE_ENDPOINT = "https://chatgpt.com/backend-api/wham/usage";
+export const CODEX_RESET_CREDIT_CONSUME_ENDPOINT =
+  "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume";
+/** Quota window that carries unused reset cards. Not a usage meter. */
+export const CODEX_RESET_CREDIT_WINDOW_ID = "codex:reset-credits";
 
 const SESSION_WINDOW_MINUTES = 300;
 const WEEKLY_WINDOW_MINUTES = 10_080;
@@ -41,6 +46,10 @@ interface CodexUsageResponse {
   rate_limit?: {
     primary_window?: CodexWindowRaw;
     secondary_window?: CodexWindowRaw;
+  };
+  rate_limit_reset_credits?: {
+    available_count?: number | string;
+    applicable_available_count?: number | string;
   };
   additional_rate_limits?: Array<{
     limit_name?: string;
@@ -179,6 +188,14 @@ function readHeaderNumber(headers: Record<string, string>, name: string): number
   return undefined;
 }
 
+function codexResetCreditCount(data: CodexUsageResponse): number {
+  const credits = data.rate_limit_reset_credits;
+  const count =
+    numericValue(credits?.applicable_available_count) ?? numericValue(credits?.available_count);
+  if (count === undefined || count <= 0) return 0;
+  return Math.floor(count);
+}
+
 function readCodexCreditBalance(
   data: CodexUsageResponse,
   headers: Record<string, string>,
@@ -241,6 +258,16 @@ export function parseCodexUsage(
       nowMs,
     );
     if (extraSecondaryWindow) windows.push(extraSecondaryWindow);
+  }
+  const resetCredits = codexResetCreditCount(data);
+  if (resetCredits > 0) {
+    windows.push({
+      id: CODEX_RESET_CREDIT_WINDOW_ID,
+      label: "重置卡",
+      usedPercent: 0,
+      unit: "credits",
+      limit: resetCredits,
+    });
   }
 
   const plan = formatCodexPlanLabel(data.plan_type);
@@ -321,6 +348,37 @@ export async function collectCodex(host: HostPort, _opts?: CollectOptions): Prom
   const snapshot = parseCodexUsage(parsed, res.headers, now);
   const authenticatedAs = token.email?.trim() || token.accountId?.trim();
   return authenticatedAs ? { ...snapshot, authenticatedAs } : snapshot;
+}
+
+/**
+ * Spend one banked Codex reset card. The grant itself does not move
+ * `used_percent`; only this consume call does. A new idempotency id is used
+ * per call so a retry is a new redeem, not a silent second spend of the same one.
+ */
+export async function consumeCodexResetCredit(host: HostPort): Promise<void> {
+  const token = await host.credentials.getOAuthToken("codex");
+  if (!token?.accessToken) {
+    throw new Error("Codex access token missing");
+  }
+  const version = host.clientVersions?.codex ?? DEFAULT_CLIENT_VERSIONS.codex;
+  const res = await host.http.request({
+    method: "POST",
+    url: CODEX_RESET_CREDIT_CONSUME_ENDPOINT,
+    headers: {
+      Authorization: `Bearer ${token.accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": `codex-cli/${version}`,
+      "OpenAI-Beta": "codex-1",
+      originator: "codex-cli",
+      ...(token.accountId ? { "ChatGPT-Account-Id": token.accountId } : {}),
+    },
+    body: JSON.stringify({ redeem_request_id: randomUUID() }),
+    timeoutMs: 20_000,
+  });
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`重置卡使用失败 (HTTP ${res.status})`);
+  }
 }
 
 export { SESSION_WINDOW_MINUTES, WEEKLY_WINDOW_MINUTES };

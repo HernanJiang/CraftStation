@@ -10,12 +10,18 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { AgentSlashCommand, ProjectLocation } from "@/shared/contracts";
 import { terminateChildProcessTree } from "@/shared/processTree";
+import { parseCodexAuth, resolveCodexToken } from "../../runtime/codexCredentials";
 import { stripCodexRouterEnv } from "../../runtime/codexProfiles";
+import { createNodeHttpClient } from "../../runtime/usageHttpClient";
 import { resolveNodeForDistro } from "../../wsl/runtime";
 import { resolveProbeSpawnCwd } from "../probeCwd";
 import { buildCodexAppServerCommand } from "./argv";
+import { probeCodexCliSemver } from "./plugin/install";
 import { CodexStdioTransport } from "./stdioTransport";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -237,6 +243,216 @@ export function mapCodexModels(
     ...(Object.keys(modelEfforts).length > 0 ? { modelEfforts } : {}),
     ...(fastModels.length > 0 ? { fastModels } : {}),
   };
+}
+
+const CODEX_MODEL_CATALOG_ENDPOINT = "https://chatgpt.com/backend-api/codex/models";
+
+interface CodexCatalogModel {
+  slug?: string;
+  display_name?: string;
+  visibility?: string;
+  default_reasoning_level?: string;
+  supported_reasoning_levels?: Array<{ effort?: string; description?: string }>;
+  additional_speed_tiers?: string[];
+  service_tiers?: Array<{ id?: string }>;
+  minimal_client_version?: string;
+  priority?: number;
+}
+
+function parseSemverTriplet(value: string | undefined): [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(value?.trim() ?? "");
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function semverAtLeast(
+  actual: readonly [number, number, number],
+  required: readonly [number, number, number],
+): boolean {
+  if (actual[0] !== required[0]) return actual[0] > required[0];
+  if (actual[1] !== required[1]) return actual[1] > required[1];
+  return actual[2] >= required[2];
+}
+
+function catalogModelToEntry(model: CodexCatalogModel): CodexModelEntry | undefined {
+  const slug = model.slug?.trim();
+  if (!slug || model.visibility !== "list") return undefined;
+  const efforts = (model.supported_reasoning_levels ?? [])
+    .map((level) => ({
+      reasoningEffort: level.effort?.trim() ?? "",
+      description: level.description?.trim() ?? "",
+    }))
+    .filter((level) => level.reasoningEffort.length > 0);
+  const serviceTiers = (model.service_tiers ?? [])
+    .map((tier) => tier.id?.trim())
+    .filter((id): id is string => Boolean(id))
+    .map((id) => ({ id }));
+  return {
+    id: slug,
+    model: slug,
+    displayName: model.display_name?.trim() || slug,
+    hidden: false,
+    isDefault: false,
+    defaultReasoningEffort:
+      model.default_reasoning_level?.trim() || efforts[0]?.reasoningEffort || "medium",
+    supportedReasoningEfforts: efforts,
+    ...(Array.isArray(model.additional_speed_tiers)
+      ? { additionalSpeedTiers: model.additional_speed_tiers }
+      : {}),
+    ...(serviceTiers.length > 0 ? { serviceTiers } : {}),
+  };
+}
+
+/**
+ * The installed Codex CLI's `model/list` can lag the account catalog. GPT-6
+ * Sol and Luna shipped in the catalog for client 0.155 while that CLI's own
+ * list still only advertised the 5.6 pair. Merge listed catalog slugs the CLI
+ * omitted, and only when this CLI is new enough to run them.
+ */
+export function mergeCodexCatalogModels(
+  cliModels: CodexModelEntry[],
+  catalogBody: unknown,
+  cliVersion: readonly [number, number, number] | null,
+): CodexModelEntry[] {
+  const models = (catalogBody as { models?: unknown } | null)?.models;
+  if (!Array.isArray(models)) return cliModels;
+  const known = new Set(cliModels.map((model) => model.id));
+  const extras = models
+    .map((model) =>
+      model && typeof model === "object"
+        ? catalogModelToEntry(model as CodexCatalogModel)
+        : undefined,
+    )
+    .filter((model): model is CodexModelEntry => model !== undefined)
+    .filter((model) => !known.has(model.id))
+    .filter((model) => {
+      const raw = models.find(
+        (candidate) =>
+          candidate &&
+          typeof candidate === "object" &&
+          (candidate as CodexCatalogModel).slug === model.id,
+      ) as CodexCatalogModel | undefined;
+      const required = parseSemverTriplet(raw?.minimal_client_version);
+      if (!required || !cliVersion) return true;
+      return semverAtLeast(cliVersion, required);
+    });
+  extras.sort((a, b) => {
+    const priority = (id: string) => {
+      const raw = models.find(
+        (candidate) =>
+          candidate &&
+          typeof candidate === "object" &&
+          (candidate as CodexCatalogModel).slug === id,
+      ) as CodexCatalogModel | undefined;
+      return raw?.priority ?? 99;
+    };
+    return priority(a.id) - priority(b.id);
+  });
+  return [...cliModels, ...extras];
+}
+
+interface CodexCatalogToken {
+  accessToken: string;
+  accountId?: string;
+}
+
+/**
+ * Host `~/.codex` is often a different or expired login. The pool account the
+ * user actually refreshes (for example geminihe) lives under the managed
+ * profiles, and that token is what the official catalog will accept.
+ */
+function codexCatalogTokens(): {
+  push: (token: { accessToken?: string; accountId?: string } | undefined) => void;
+  tokens: CodexCatalogToken[];
+} {
+  const tokens: CodexCatalogToken[] = [];
+  const seen = new Set<string>();
+  const push = (token: { accessToken?: string; accountId?: string } | undefined) => {
+    const accessToken = token?.accessToken?.trim();
+    if (!accessToken || seen.has(accessToken)) return;
+    seen.add(accessToken);
+    tokens.push({
+      accessToken,
+      ...(token?.accountId?.trim() ? { accountId: token.accountId.trim() } : {}),
+    });
+  };
+  return { push, tokens };
+}
+
+function managedCodexAuthFiles(): string[] {
+  const override = process.env["CRAFTSTATION_ACCOUNTS_DIR"]?.trim();
+  const root =
+    override && override.length > 0
+      ? override
+      : join(homedir(), ".craftstation", "craftstation-accounts");
+  let entries: Array<{ name: string; isDirectory: () => boolean }> = [];
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("profile-"))
+    .map((entry) => join(root, entry.name, "auth.json"))
+    .filter((path) => existsSync(path));
+}
+
+export async function fetchFirstCodexCatalog(
+  tokens: readonly CodexCatalogToken[],
+  request: (token: CodexCatalogToken) => Promise<{ status: number; body: string }>,
+): Promise<unknown | undefined> {
+  for (const token of tokens) {
+    try {
+      const response = await request(token);
+      if (response.status < 200 || response.status >= 300) continue;
+      return JSON.parse(response.body) as unknown;
+    } catch {
+      // A dead login must not hide the next account's catalog.
+    }
+  }
+  return undefined;
+}
+
+async function mergeAccountCatalog(cliModels: CodexModelEntry[]): Promise<CodexModelEntry[]> {
+  try {
+    const version = probeCodexCliSemver();
+    if (!version) return cliModels;
+    const collected = codexCatalogTokens();
+    collected.push(await resolveCodexToken({ allowWslFallback: false }));
+    for (const path of managedCodexAuthFiles()) {
+      try {
+        collected.push(parseCodexAuth(readFileSync(path, "utf8")));
+      } catch {
+        // Skip unreadable profile homes.
+      }
+    }
+    if (collected.tokens.length === 0) return cliModels;
+    const versionText = version.join(".");
+    const client = createNodeHttpClient();
+    const catalog = await fetchFirstCodexCatalog(collected.tokens, (token) =>
+      client.request({
+        method: "GET",
+        url: `${CODEX_MODEL_CATALOG_ENDPOINT}?client_version=${encodeURIComponent(versionText)}`,
+        headers: {
+          Authorization: `Bearer ${token.accessToken}`,
+          Accept: "application/json",
+          "User-Agent": `codex-cli/${versionText}`,
+          "OpenAI-Beta": "codex-1",
+          originator: "codex-cli",
+          ...(token.accountId ? { "ChatGPT-Account-Id": token.accountId } : {}),
+        },
+        timeoutMs: 12_000,
+      }),
+    );
+    if (!catalog) return cliModels;
+    return mergeCodexCatalogModels(cliModels, catalog, version);
+  } catch (error) {
+    console.warn(
+      "[codex] official model catalog merge skipped:",
+      error instanceof Error ? error.message : error,
+    );
+    return cliModels;
+  }
 }
 
 export interface CodexRawSlashCommand {
@@ -628,8 +844,9 @@ export async function probeCodexCapabilities(
       ? (result.modelResult as { data: CodexModelEntry[] }).data
       : undefined;
 
-  if (modelData?.length) {
-    Object.assign(probeResult, mapCodexModels(modelData));
+  const mergedModels = await mergeAccountCatalog(modelData ?? []);
+  if (mergedModels.length) {
+    Object.assign(probeResult, mapCodexModels(mergedModels));
   }
 
   const requirements =

@@ -318,6 +318,11 @@ export const usageProcedures = {
     "supervisor",
     accountIdPayloadSchema,
   ),
+  redeemCodexResetCredit: definePayloadProcedure<AccountIdPayload, AccountView, "supervisor">(
+    "redeemCodexResetCredit",
+    "supervisor",
+    accountIdPayloadSchema,
+  ),
   // Apply a pool Antigravity account as the host `agy` CLI login (mirrors
   // `agm switch --target agy`): overwrites the single OS-credential-store
   // login so host/ambient sessions run as this account with a full catalog.

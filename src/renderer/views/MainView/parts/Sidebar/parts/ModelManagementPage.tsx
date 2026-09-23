@@ -267,10 +267,10 @@ export function ModelManagementPage(props: {
         .flatMap((status) => status.capabilities?.models?.map((model) => model.id) ?? []),
     );
     try {
-      // 直接从上游获取该渠道当前可用的模型列表：重新运行 adapter 的原生能力
-      // 探测（antigravity `agy models`、codex app-server `model/list`、
-      // command-code `--list-models`、opencode provider inventory ……），
-      // 用上游返回的最新目录替换渠道模型清单并列出来。
+      // 直接从该 CLI 的官网目录获取当前模型：Codex 用账号池登录去
+      // chatgpt.com 的模型目录（本机 model/list 会落后，例如缺 gpt-6-sol），
+      // 其他渠道走各自的官方探测（agy models、command-code --list-models、
+      // opencode provider inventory ……）。
       const response = await readBridge().refreshAgentStatuses?.(currentWslDistros(), {
         agentKinds: [kind],
       });

@@ -1511,6 +1511,7 @@ function AccountRow(props: {
   onSelect: (a: AccountView) => void;
   onRename: (a: AccountView) => void;
   onRefresh: (a: AccountView) => void;
+  onRedeemResetCredit?: ((a: AccountView) => void) | undefined;
   onToggleEnabled: (a: AccountView) => void;
   onRemove: (a: AccountView) => void;
   onDragStart: (id: string) => void;
@@ -1652,7 +1653,11 @@ function AccountRow(props: {
         </div>
       </div>
       <div className="mt-2">
-        <AccountQuotaCard account={account} queryState={props.queryState} />
+        <AccountQuotaCard
+          account={account}
+          queryState={props.queryState}
+          onRedeemResetCredit={props.onRedeemResetCredit}
+        />
       </div>
     </div>
   );
@@ -1722,6 +1727,7 @@ function ManagedAccountPool(props: {
   onSelect: (a: AccountView) => void;
   onRename: (a: AccountView) => void;
   onRefresh: (a: AccountView) => void;
+  onRedeemResetCredit?: ((a: AccountView) => void) | undefined;
   onToggleEnabled: (a: AccountView) => void;
   onEdit?: ((a: AccountView) => void) | undefined;
   onRemove: (a: AccountView) => void;
@@ -1866,6 +1872,7 @@ function ManagedAccountPool(props: {
             onSelect={props.onSelect}
             onRename={props.onRename}
             onRefresh={props.onRefresh}
+            onRedeemResetCredit={props.onRedeemResetCredit}
             onToggleEnabled={props.onToggleEnabled}
             onRemove={props.onRemove}
             onDragStart={props.onDragStart}
@@ -1890,6 +1897,7 @@ function ManagedAccountPool(props: {
               onSelect={props.onSelect}
               onRename={props.onRename}
               onRefresh={props.onRefresh}
+              onRedeemResetCredit={props.onRedeemResetCredit}
               onToggleEnabled={props.onToggleEnabled}
               onRemove={props.onRemove}
               onDragStart={props.onDragStart}
@@ -2428,6 +2436,14 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             refreshAccountQuota: (p: { accountId: string }) => Promise<unknown>;
           };
           await bridge.refreshAccountQuota({ accountId: a.accountId });
+          await refreshAccountList();
+        }, poolProviderId),
+      onRedeemResetCredit: (a: AccountView) =>
+        void accountActions(async () => {
+          const bridge = readBridge() as unknown as {
+            redeemCodexResetCredit: (p: { accountId: string }) => Promise<unknown>;
+          };
+          await bridge.redeemCodexResetCredit({ accountId: a.accountId });
           await refreshAccountList();
         }, poolProviderId),
       onToggleEnabled: (a: AccountView) =>

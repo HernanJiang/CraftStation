@@ -2023,6 +2023,21 @@ export class SupervisorRuntime {
     return refresh;
   }
 
+  async redeemCodexResetCredit(accountId: string): Promise<AccountView> {
+    const record = this.accountStore.getRecord(accountId);
+    if (!record)
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
+    if (record.provider !== "codex") {
+      throw new AccountControlError("ACCOUNT_RUNTIME_UNSUPPORTED", "重置卡只适用于 ChatGPT 账号。");
+    }
+    const account = await this.codexProfileService.redeemResetCredit(
+      accountId,
+      this.usageService.getHostForAccountAdapter(),
+    );
+    this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+    return account;
+  }
+
   /** Create a pending isolated Grok login home (no AccountStore row yet). */
   createGrokProfileLogin(payload: GrokProfileLoginCreatePayload): GrokProfileLoginCreateResult {
     const pendingRef = `grok-pending:${crypto.randomUUID()}`;

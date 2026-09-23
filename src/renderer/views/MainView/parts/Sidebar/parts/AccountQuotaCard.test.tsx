@@ -118,6 +118,36 @@ describe("AccountQuotaCard openai-compatible", () => {
   });
 });
 
+describe("AccountQuotaCard reset card", () => {
+  it("shows an unused reset card separately from the 100% weekly meter", () => {
+    const onRedeem = vi.fn<(account: AccountView) => void>();
+    const account: AccountView = {
+      accountId: "codex:plus",
+      provider: "codex",
+      label: "Codex",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "quota-exhausted",
+      credentialScopeRef: "managed:codex:plus",
+      quotaWindows: [
+        { id: "weekly", label: "Weekly", usedPercent: 100 },
+        { id: "codex:reset-credits", label: "重置卡", usedPercent: 0, limit: 3 },
+      ],
+    };
+    render(<AccountQuotaCard account={account} onRedeemResetCredit={onRedeem} />);
+    expect(screen.getByRole("progressbar", { name: "Weekly" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
+    expect(screen.queryByRole("progressbar", { name: "重置卡" })).toBeNull();
+    expect(screen.getByText(/重置卡 3 张未使用/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "使用重置卡" }));
+    expect(onRedeem).toHaveBeenCalledWith(account);
+  });
+});
+
 describe("ProviderQuotaCard connect action", () => {
   it("offers the connect action for authorized-but-meterless snapshots", () => {
     const onConnect = vi.fn<() => void>();

@@ -21,7 +21,9 @@ import type { OscNotification, OscTitle } from "@/shared/osc";
 import type { RuntimeEvent, ToolCallPayload } from "@/shared/contracts";
 import { codexIntentFor } from "./plugin/intentMap";
 import {
+  fetchFirstCodexCatalog,
   mapCodexModels,
+  mergeCodexCatalogModels,
   mapCodexDisabledSkillNames,
   mapCodexRequirements,
   mapCodexSkillsToSlashCommands,
@@ -3723,6 +3725,68 @@ describe("mapCodexModels", () => {
       },
     ]);
     expect(result.models?.map((model) => model.id)).toEqual(["gpt-5.4"]);
+  });
+
+  it("adds catalog models the CLI list has not caught up with", () => {
+    const cli = [
+      {
+        id: "gpt-5.6-sol",
+        model: "gpt-5.6-sol",
+        displayName: "GPT-5.6-Sol",
+        hidden: false,
+        isDefault: true,
+        defaultReasoningEffort: "medium",
+        supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Medium" }],
+      },
+    ];
+    const merged = mergeCodexCatalogModels(
+      cli,
+      {
+        models: [
+          {
+            slug: "gpt-6-sol",
+            display_name: "GPT-6-Sol",
+            visibility: "list",
+            minimal_client_version: "0.155.0",
+            priority: 2,
+            default_reasoning_level: "medium",
+            supported_reasoning_levels: [{ effort: "high", description: "High" }],
+            additional_speed_tiers: ["fast"],
+          },
+          {
+            slug: "gpt-6-luna",
+            display_name: "GPT-6-Luna",
+            visibility: "list",
+            minimal_client_version: "0.200.0",
+            priority: 3,
+          },
+          { slug: "gpt-reserve", visibility: "hide" },
+          { slug: "gpt-5.6-sol", display_name: "GPT-5.6-Sol", visibility: "list", priority: 4 },
+        ],
+      },
+      [0, 155, 1],
+    );
+    expect(mapCodexModels(merged).models?.map((model) => model.id)).toEqual([
+      "gpt-5.6-sol",
+      "gpt-6-sol",
+    ]);
+  });
+
+  it("skips a rejected login and reads the next account's official catalog", async () => {
+    const seen: string[] = [];
+    const catalog = await fetchFirstCodexCatalog(
+      [
+        { accessToken: "expired", accountId: "host" },
+        { accessToken: "pool", accountId: "geminihe" },
+      ],
+      async (token) => {
+        seen.push(token.accountId ?? "");
+        if (token.accessToken === "expired") return { status: 401, body: "{}" };
+        return { status: 200, body: JSON.stringify({ models: [{ slug: "gpt-6-sol" }] }) };
+      },
+    );
+    expect(seen).toEqual(["host", "geminihe"]);
+    expect(catalog).toEqual({ models: [{ slug: "gpt-6-sol" }] });
   });
 
   it("promotes GPT-5.5 to the Codex default model when available", () => {

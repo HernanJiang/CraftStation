@@ -6,7 +6,13 @@ import { isCodexRouterOverlayHome } from "../agents/codex/codexRouterOverlay";
 import { AccountStore, shouldPreserveInferenceExhaustion } from "./accountStore";
 import type { AccountView } from "@/shared/contracts";
 import { AccountControlError } from "@/shared/contracts";
-import { collectCodex, type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
+import {
+  CODEX_RESET_CREDIT_WINDOW_ID,
+  collectCodex,
+  consumeCodexResetCredit,
+  type HostPort,
+  type UsageSnapshot,
+} from "@craftstation/agents-usage";
 
 const CODEX_ROUTER_ENV_KEYS = [
   "CODEX_HOME",
@@ -341,6 +347,31 @@ export class CodexProfileService {
     }
   }
 
+  /**
+   * Redeem one deposited reset card, then re-read usage. The card sitting on
+   * the account does not lower `used_percent` until this call succeeds.
+   */
+  async redeemResetCredit(accountId: string, host: HostPort): Promise<AccountView> {
+    const account = this.options.store.getRecord(accountId);
+    if (!account)
+      throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
+    const codexHome = this.managedCodexHome(accountId);
+    const scopedHost: HostPort = {
+      ...host,
+      credentials: {
+        ...host.credentials,
+        getOAuthToken: () => resolveCodexToken({ codexHome, allowWslFallback: false }),
+      },
+    };
+    try {
+      await consumeCodexResetCredit(scopedHost);
+    } catch (error) {
+      const lastError = error instanceof Error ? error.message : String(error);
+      throw new AccountControlError("ACCOUNT_PROJECTION_FAILED", lastError);
+    }
+    return this.collectQuota(accountId, host);
+  }
+
   async collectQuota(accountId: string, host: HostPort): Promise<AccountView> {
     const account = this.options.store.getRecord(accountId);
     if (!account)
@@ -365,7 +396,9 @@ export class CodexProfileService {
     }
     const status =
       snapshot.status === "ok"
-        ? quotaStatusForWindows(snapshot.windows)
+        ? quotaStatusForWindows(
+            snapshot.windows.filter((window) => window.id !== CODEX_RESET_CREDIT_WINDOW_ID),
+          )
         : snapshot.status === "quota-hit"
           ? "quota-exhausted"
           : snapshot.status === "auth-missing"
@@ -407,6 +440,7 @@ export class CodexProfileService {
       label: window.label,
       usedPercent: window.usedPercent,
       ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
+      ...(window.limit !== undefined ? { limit: window.limit } : {}),
     }));
     if (
       (status === "available" || status === "quota-low") &&
@@ -416,25 +450,12 @@ export class CodexProfileService {
       // the row out of scheduling, but persist the fresh windows so the bars
       // stay truthful. The mark expires via TTL; newer quota evidence after
       // that recovers the row normally.
-      return (
-        this.options.store.updateQuota(
-          accountId,
-          quotaWindows,
-        ) ??
-        withMetadata
-      );
+      return this.options.store.updateQuota(accountId, quotaWindows) ?? withMetadata;
     }
     const updated = this.options.store.updateStatus(accountId, status, {
       ...(snapshot.error ? { lastError: snapshot.error } : {}),
       lastQuotaAt: snapshot.fetchedAt,
     });
-    return (
-      this.options.store.updateQuota(
-        accountId,
-        quotaWindows,
-      ) ??
-      withMetadata ??
-      updated
-    );
+    return this.options.store.updateQuota(accountId, quotaWindows) ?? withMetadata ?? updated;
   }
 }

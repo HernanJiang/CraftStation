@@ -85,6 +85,7 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     cancelGrokProfileLogin: (payload) => runtime.cancelGrokProfileLogin(payload),
     pollGrokProfileLogin: (payload) => runtime.pollGrokProfileLogin(payload),
     refreshAccountQuota: (payload) => runtime.refreshAccountQuota(payload.accountId),
+    redeemCodexResetCredit: (payload) => runtime.redeemCodexResetCredit(payload.accountId),
     applyAntigravityHostLogin: (payload) => runtime.applyAntigravityHostLogin(payload.accountId),
     getNativeHarnessControlPlane: (payload) => runtime.getNativeHarnessControlPlane(payload),
     getCraftingModelInventory: (payload) => runtime.getCraftingModelInventory(payload),

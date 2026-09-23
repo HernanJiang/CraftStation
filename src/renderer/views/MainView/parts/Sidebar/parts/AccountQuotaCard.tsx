@@ -161,9 +161,12 @@ function UsageBar(props: { label: string; value: number | null }) {
   );
 }
 
+const RESET_CREDIT_WINDOW_ID = "codex:reset-credits";
+
 export function AccountQuotaCard(props: {
   account: AccountView;
   queryState?: AccountUsageQueryState | undefined;
+  onRedeemResetCredit?: ((account: AccountView) => void) | undefined;
 }) {
   const { account, queryState } = props;
   const tokenResponse = useTokenUsageStore((state) => state.response);
@@ -202,7 +205,13 @@ export function AccountQuotaCard(props: {
     tokenResponse?.sources.find((source) => !source.available && source.unavailableReason)
       ?.unavailableReason;
   const windows = account.quotaWindows ?? [];
-  const rows = hasQuota && !statusFailure ? quotaRows(windows) : [];
+  const resetCreditWindow = windows.find((window) => window.id === RESET_CREDIT_WINDOW_ID);
+  const resetCreditCount =
+    resetCreditWindow?.limit !== undefined && resetCreditWindow.limit > 0
+      ? resetCreditWindow.limit
+      : 0;
+  const meterWindows = windows.filter((window) => window.id !== RESET_CREDIT_WINDOW_ID);
+  const rows = hasQuota && !statusFailure ? quotaRows(meterWindows) : [];
   const resetsText =
     rows.length > 0 ? formatWindowResetParts(rows) : formatQuotaResetParts(fast, long);
   // Attribution-first copy: real per-account numbers when pinned, an honest
@@ -293,6 +302,25 @@ export function AccountQuotaCard(props: {
           {failureText ?? "暂无可用额度数据。"}
         </p>
       )}
+      {resetCreditCount > 0 ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] leading-4 text-neutral-500">
+            重置卡 {resetCreditCount} 张未使用。额度要等核销后才会下降。
+          </p>
+          {props.onRedeemResetCredit ? (
+            <button
+              type="button"
+              className="shrink-0 rounded bg-black/5 px-1.5 py-0.5 text-[10px] text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50 dark:bg-white/5"
+              onClick={(event) => {
+                event.stopPropagation();
+                props.onRedeemResetCredit?.(account);
+              }}
+            >
+              使用重置卡
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <p
         data-testid={"account-meta-" + account.accountId}
         className="text-[10px] leading-relaxed text-neutral-500"
