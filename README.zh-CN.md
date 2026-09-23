@@ -81,10 +81,10 @@ Skills、Git / worktree、MCP 服务器不再散落在各家 CLI 的配置目录
 
 请从 GitHub Releases 下载安装包或便携版，不要用仓库里的源码目录当安装包。
 
-**当前版本 1.5.7**
+**当前版本 1.5.8**
 
-- 安装包：[CraftStation-Setup-1.5.7-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.7/CraftStation-Setup-1.5.7-x64.exe)
-- 便携版：[CraftStation-Portable-1.5.7-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.7/CraftStation-Portable-1.5.7-x64.exe)
+- 安装包：[CraftStation-Setup-1.5.8-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.8/CraftStation-Setup-1.5.8-x64.exe)
+- 便携版：[CraftStation-Portable-1.5.8-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.8/CraftStation-Portable-1.5.8-x64.exe)
 
 （[GitHub Releases](https://github.com/HernanJiang/CraftStation/releases)）
 

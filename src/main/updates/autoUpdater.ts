@@ -49,20 +49,6 @@ function isPortableWindowsBuild(): boolean {
   return Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      const error = new Error(`${label} timed out after ${ms}ms`);
-      error.name = "TimeoutError";
-      reject(error);
-    }, ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer !== undefined) clearTimeout(timer);
-  });
-}
-
 export interface AutoUpdaterController {
   initialize(): void;
   checkForUpdate(options?: { automatic?: boolean | undefined }): Promise<void>;
@@ -219,6 +205,37 @@ export function createAutoUpdaterController(
     }
   }
 
+  /**
+   * Cap a silent probe, but do not fail it once an update is already known.
+   * `checkForUpdates` keeps running after the deadline; rejecting then made
+   * the titlebar show a download that was never started.
+   */
+  function checkUntilFoundOrDeadline(): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (updateAvailable) {
+          resolve(undefined);
+          return;
+        }
+        const error = new Error(`update check timed out after ${CHECK_REQUEST_TIMEOUT_MS}ms`);
+        error.name = "TimeoutError";
+        reject(error);
+      }, CHECK_REQUEST_TIMEOUT_MS);
+      void Promise.resolve()
+        .then(() => autoUpdater.checkForUpdates())
+        .then(
+          (value) => {
+            clearTimeout(timer);
+            resolve(value);
+          },
+          (error: unknown) => {
+            clearTimeout(timer);
+            reject(error);
+          },
+        );
+    });
+  }
+
   function beginCheck(notify: boolean): Promise<void> {
     // Acknowledge every check up front — including ones that dedupe onto an
     // in-flight run — so the update menu never sits silent while main decides.
@@ -227,17 +244,12 @@ export function createAutoUpdaterController(
     checkInFlight = true;
     notifyOnFailure = notify;
     updateAvailable = false;
-    checkPromise = runOperation("check", () =>
-      withTimeout(
-        Promise.resolve().then(() => autoUpdater.checkForUpdates()),
-        CHECK_REQUEST_TIMEOUT_MS,
-        "update check",
-      ),
-    )
+    checkPromise = runOperation("check", () => checkUntilFoundOrDeadline())
       .then(() => {
-        if (updateAvailable && !updateReady && !isPortableWindowsBuild()) {
-          void beginDownload().catch(() => {});
-        } else {
+        // Download starts in the update-available handler so a late event
+        // still runs after this deadline. Only release the gate when nothing
+        // is downloading.
+        if (!(updateAvailable && !updateReady && !isPortableWindowsBuild())) {
           checkInFlight = false;
         }
       })
@@ -270,6 +282,10 @@ export function createAutoUpdaterController(
     // downloadUpdate ourselves so transient retries and final reporting belong
     // to one typed operation instead of the updater's global error event.
     autoUpdater.autoDownload = false;
+    // GitHub release assets do not honor the range requests a differential
+    // download needs. That path can sit at 0% while it fetches blockmaps and
+    // never emits byte progress. A full download reports progress immediately.
+    autoUpdater.disableDifferentialDownload = true;
     // A renderer stuck during hydration cannot reach the normal install
     // button. Once an update is downloaded, Cmd/Ctrl+Q still provides a
     // main-process-owned recovery path that applies it on quit.
@@ -313,6 +329,11 @@ export function createAutoUpdaterController(
       }
       checkInFlight = true;
       sendStatus({ type: "update-available", version: info.version });
+      // The check itself is capped at 8s and does not cancel the underlying
+      // probe. A slow GitHub response can emit this event after that cap has
+      // already failed the check, which used to flip the titlebar to
+      // "Downloading… 0%" without ever calling downloadUpdate.
+      void beginDownload().catch(() => {});
     });
     autoUpdater.on("update-not-available", () => {
       checkInFlight = false;

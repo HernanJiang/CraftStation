@@ -506,9 +506,20 @@ export function MainTitlebar() {
         {updatePhase === "downloading" || updatePhase === "downloaded" ? (
           <button
             type="button"
-            disabled={updatePhase !== "downloaded"}
-            onClick={() => void readBridge().installUpdate()}
-            className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground disabled:cursor-default disabled:hover:bg-[var(--row-hover)]"
+            data-testid="titlebar-update-progress"
+            aria-label={
+              updatePhase === "downloaded" ? t`Restart to install` : t`Download in browser instead`
+            }
+            onClick={() => {
+              if (updatePhase === "downloaded") {
+                void readBridge().installUpdate();
+                return;
+              }
+              // A download that never leaves 0% used to be a disabled button,
+              // so the click the user reached for did nothing.
+              void readBridge().openExternal(CRAFTSTATION_RELEASES_URL);
+            }}
+            className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground"
           >
             {updatePhase === "downloaded" ? (
               <Download className="size-3.5" />
@@ -520,7 +531,7 @@ export function MainTitlebar() {
                 ? `${t`Update available`}${updateVersion ? ` v${updateVersion}` : ""}`
                 : updateDownloadDetail
                   ? `${t`Downloading… ${Math.round(updatePercent)}%`} · ${updateDownloadDetail}`
-                  : t`Downloading… ${Math.round(updatePercent)}%`}
+                  : `${t`Downloading… ${Math.round(updatePercent)}%`} · ${t`Download in browser instead`}`}
             </span>
           </button>
         ) : null}

@@ -65,7 +65,11 @@ const panelActions = {
   openModelUsageDialog: vi.fn<() => void>(),
   openModelUsageWorkspace: vi.fn<(input: { tab: string }) => void>(),
 };
-const updateState = { phase: "idle", version: undefined, downloadPercent: 0 };
+const updateState: { phase: string; version: string | undefined; downloadPercent: number } = {
+  phase: "idle",
+  version: undefined,
+  downloadPercent: 0,
+};
 
 const updateStoreMock = vi.hoisted(() => {
   type MockState = { phase: string };
@@ -244,6 +248,25 @@ describe("MainTitlebar CLI 更新入口", () => {
     fireEvent.click(screen.getByTestId("titlebar-app-version"));
     expect(bridgeMock.checkForUpdate).not.toHaveBeenCalled();
     updateStoreMock.reset();
+  });
+
+  it("卡在 0% 的下载按钮改为打开浏览器，而不是点了没反应", () => {
+    updateState.phase = "downloading";
+    updateState.downloadPercent = 0;
+    bridgeMock.openExternal.mockClear();
+    render(<MainTitlebar />);
+
+    fireEvent.click(screen.getByTestId("titlebar-update-progress"));
+
+    expect(bridgeMock.openExternal).toHaveBeenCalledWith(
+      "https://github.com/HernanJiang/CraftStation/releases",
+    );
+    expect(bridgeMock.installUpdate).not.toHaveBeenCalled();
+    expect(screen.getByTestId("titlebar-update-progress")).toHaveTextContent(
+      "Download in browser instead",
+    );
+    updateState.phase = "idle";
+    updateState.downloadPercent = 0;
   });
 
   it("在窗口按钮左侧用一个小按钮汇总已安装 CLI 的更新", async () => {

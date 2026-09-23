@@ -19,6 +19,7 @@ const autoUpdaterMock = vi.hoisted(() => {
     quitAndInstall: vi.fn<(isSilent?: boolean, isForceRunAfter?: boolean) => void>(),
     setFeedURL: vi.fn<(options: unknown) => void>(),
     requestTimeout: undefined as number | undefined,
+    disableDifferentialDownload: false,
     /** Test helper: invoke a registered electron-updater event listener. */
     emit(event: string, ...args: unknown[]) {
       handlers.get(event)?.(...args);
@@ -78,6 +79,7 @@ describe("createAutoUpdaterController", () => {
     controller.initialize();
 
     expect(autoUpdaterMock.autoDownload).toBe(false);
+    expect(autoUpdaterMock.disableDifferentialDownload).toBe(true);
     expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true);
     expect(autoUpdaterMock.requestTimeout).toBe(8_000);
     expect(autoUpdaterMock.setFeedURL).toHaveBeenCalledWith({
@@ -383,6 +385,26 @@ describe("createAutoUpdaterController", () => {
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1);
   });
 
+  it("starts the download when the update is found after the check deadline", async () => {
+    const sendStatus = vi.fn<(status: UpdateStatus) => void>();
+    const controller = createAutoUpdaterController(sendStatus, "stable", false);
+    controller.initialize();
+    autoUpdaterMock.checkForUpdates.mockImplementation(() => new Promise(() => {}));
+
+    const checking = controller.checkForUpdate();
+    await vi.advanceTimersByTimeAsync(8_000);
+    await vi.advanceTimersByTimeAsync(400);
+    await vi.advanceTimersByTimeAsync(8_000);
+    await checking;
+
+    expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled();
+    autoUpdaterMock.emit("update-available", { version: "1.5.7" });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledOnce();
+    expect(sendStatus).toHaveBeenCalledWith({ type: "update-available", version: "1.5.7" });
+  });
+
   it("fails a hung GitHub check instead of leaving the UI on Checking", async () => {
     const sendStatus = vi.fn<(status: UpdateStatus) => void>();
     const controller = createAutoUpdaterController(sendStatus, "stable", false);
@@ -460,7 +482,9 @@ describe("createAutoUpdaterController", () => {
       expect(sendStatus).toHaveBeenCalledWith({
         type: "update-available",
         version: "1.2.6",
-        manualDownloadUrl: "https://github.com/HernanJiang/CraftStation/releases",
+        manualDownloadUrl: expect.stringMatching(
+          /^https:\/\/(github\.com|gitee\.com)\/HernanJiang\/CraftStation\/releases$/,
+        ),
         openDownload: true,
       });
     } finally {

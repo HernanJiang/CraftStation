@@ -511,6 +511,24 @@
       ]
     },
     {
+      "version": "1.5.8",
+      "date": "2026-09-23",
+      "title": "Update downloads no longer sit at 0%",
+      "summary": "A slow update check no longer leaves the titlebar on Downloading… 0% with a button that does nothing. The download starts once a newer version is found, and a stalled 0% pill opens the release page in the browser.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "Finding a new version after a slow check still starts the download, instead of leaving Downloading… 0% with nothing in progress."
+        },
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "The download pill stays clickable. At 0% with no bytes yet it offers a browser download, instead of ignoring the click."
+        }
+      ]
+    },
+    {
       "version": "1.5.7",
       "date": "2026-09-23",
       "title": "Titlebar shortcuts reach the version, status opens in one click",
