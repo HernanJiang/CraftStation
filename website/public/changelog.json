@@ -514,7 +514,7 @@
       "version": "1.5.7",
       "date": "2026-09-23",
       "title": "Titlebar shortcuts reach the version, status opens in one click",
-      "summary": "Pinned titlebar shortcuts now run across to the version pill instead of stopping halfway. The project status capsule opens the full Git panel on the first click.",
+      "summary": "Pinned titlebar shortcuts now run across to the version pill instead of stopping halfway. The project status capsule opens the full Git panel on the first click. Hiding the file list in the right sidebar stays hidden when you leave a thread and come back.",
       "changes": [
         {
           "kind": "fixed",
@@ -525,6 +525,11 @@
           "kind": "fixed",
           "label": "Status",
           "text": "Clicking the project status capsule opens the full Git panel immediately, with changes, branch, and commit, instead of stopping on the title row until a second click."
+        },
+        {
+          "kind": "fixed",
+          "label": "Files",
+          "text": "Hiding the file list in the right sidebar stays hidden when you leave the thread and come back."
         }
       ]
     },

@@ -123,4 +123,15 @@ describe("ProjectFilesPanel", () => {
     expect(screen.getByTestId("project-file-tree")).toBeInTheDocument();
     expect(screen.getByTestId("file-preview-workspace")).toBeInTheDocument();
   });
+
+  it("keeps the directory hidden after leaving the thread and coming back", () => {
+    const first = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Hide directory" }));
+    expect(window.localStorage.getItem("craftstation.projectFiles.treeCollapsed")).toBe("1");
+    first.unmount();
+
+    renderPanel();
+    expect(screen.queryByTestId("project-file-tree")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show directory" })).toBeInTheDocument();
+  });
 });

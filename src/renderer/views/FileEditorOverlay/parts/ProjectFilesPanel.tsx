@@ -7,6 +7,7 @@ import { FileEditorPane } from "@/renderer/views/FileEditorOverlay/parts/FileEdi
 import { ProjectTreeView } from "@/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView";
 
 const TREE_WIDTH_STORAGE_KEY = "craftstation.projectFiles.treeWidthPx";
+const TREE_COLLAPSED_STORAGE_KEY = "craftstation.projectFiles.treeCollapsed";
 const TREE_WIDTH_DEFAULT_PX = 280;
 const TREE_WIDTH_MIN_PX = 200;
 const TREE_WIDTH_MAX_PX = 560;
@@ -15,6 +16,22 @@ const TREE_RESIZE_STEP_PX = 24;
 function clampTreeWidth(width: number): number {
   if (!Number.isFinite(width)) return TREE_WIDTH_DEFAULT_PX;
   return Math.min(TREE_WIDTH_MAX_PX, Math.max(TREE_WIDTH_MIN_PX, Math.round(width)));
+}
+
+function readStoredTreeCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(TREE_COLLAPSED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistTreeCollapsed(collapsed: boolean): void {
+  try {
+    window.localStorage.setItem(TREE_COLLAPSED_STORAGE_KEY, collapsed ? "1" : "0");
+  } catch {
+    // Private-mode storage failures must not block hiding the tree.
+  }
 }
 
 function readStoredTreeWidth(): number {
@@ -39,7 +56,12 @@ export function ProjectFilesPanel(props: { rootContext: FileEditorRootContext })
   const pinTab = useFileEditorStore((state) => state.pinTab);
   const [treeWidth, setTreeWidth] = useState(readStoredTreeWidth);
   const [isResizing, setIsResizing] = useState(false);
-  const [treeCollapsed, setTreeCollapsed] = useState(false);
+  const [treeCollapsed, setTreeCollapsed] = useState(readStoredTreeCollapsed);
+
+  function setTreeCollapsedPersisted(collapsed: boolean) {
+    setTreeCollapsed(collapsed);
+    persistTreeCollapsed(collapsed);
+  }
 
   // Layout effects run before paint, so a project switch cannot show the
   // previous project's preview in the new project's file workspace for a frame.
@@ -114,7 +136,7 @@ export function ProjectFilesPanel(props: { rootContext: FileEditorRootContext })
       {treeCollapsed ? (
         <button
           type="button"
-          onClick={() => setTreeCollapsed(false)}
+          onClick={() => setTreeCollapsedPersisted(false)}
           aria-label={t`Show directory`}
           className="absolute top-1 right-2 z-30 flex h-6 items-center gap-1 rounded-md border border-[color:var(--border)] bg-[var(--content-background)] px-2 text-xs text-foreground shadow-md"
         >
@@ -140,7 +162,7 @@ export function ProjectFilesPanel(props: { rootContext: FileEditorRootContext })
             rootContext={props.rootContext}
             onSelectFile={handleSelectFile}
             onPinFile={pinTab}
-            onCollapseTree={() => setTreeCollapsed(true)}
+            onCollapseTree={() => setTreeCollapsedPersisted(true)}
           />
         </aside>
       )}
