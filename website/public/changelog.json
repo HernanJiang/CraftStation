@@ -511,6 +511,24 @@
       ]
     },
     {
+      "version": "1.5.7",
+      "date": "2026-09-23",
+      "title": "Titlebar shortcuts reach the version, status opens in one click",
+      "summary": "Pinned titlebar shortcuts now run across to the version pill instead of stopping halfway. The project status capsule opens the full Git panel on the first click.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Titlebar",
+          "text": "Pinned shortcuts now continue across the titlebar up to the version number, leaving the update badge and window buttons in place, instead of being cut off at the middle of the window."
+        },
+        {
+          "kind": "fixed",
+          "label": "Status",
+          "text": "Clicking the project status capsule opens the full Git panel immediately, with changes, branch, and commit, instead of stopping on the title row until a second click."
+        }
+      ]
+    },
+    {
       "version": "1.5.6",
       "date": "2026-09-23",
       "title": "GPT-6 Sol from the official catalog & a ChatGPT reset you can spend",

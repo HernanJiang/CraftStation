@@ -427,7 +427,7 @@ export function MainTitlebar() {
         </ControlTooltip>
       </div>
 
-      <nav className="craftstation-titlebar-control ml-1 flex min-w-0 flex-1 items-center gap-0.5">
+      <nav className="ml-1 flex min-w-0 flex-1 items-center gap-0.5">
         <ControlTooltip label={t`Pull requests`} detail={t`View and review pull requests`}>
           <button
             type="button"
@@ -484,45 +484,47 @@ export function MainTitlebar() {
         <TopShortcutBar />
       </nav>
 
-      <div className="craftstation-titlebar-drag min-w-8 flex-1 self-stretch" aria-hidden="true" />
-      <ControlTooltip
-        label={t`Check for updates`}
-        detail={t`Click to check for a new CraftStation version`}
-      >
-        <button
-          type="button"
-          data-testid="titlebar-app-version"
-          aria-label={t`Check for CraftStation updates`}
-          disabled={updatePhase === "checking"}
-          onClick={checkAppUpdate}
-          className={`${buttonClass} mr-1 px-1.5 text-[11px] tabular-nums`}
+      <div className="craftstation-titlebar-drag w-2 shrink-0 self-stretch" aria-hidden="true" />
+      <div className="flex shrink-0 items-center">
+        <ControlTooltip
+          label={t`Check for updates`}
+          detail={t`Click to check for a new CraftStation version`}
         >
-          {updatePhase === "checking" ? <RefreshCw className="size-3 animate-spin" /> : null}v
-          {readBridge().appVersion}
-        </button>
-      </ControlTooltip>
-      <CliUpdateMenu />
-      {updatePhase === "downloading" || updatePhase === "downloaded" ? (
-        <button
-          type="button"
-          disabled={updatePhase !== "downloaded"}
-          onClick={() => void readBridge().installUpdate()}
-          className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground disabled:cursor-default disabled:hover:bg-[var(--row-hover)]"
-        >
-          {updatePhase === "downloaded" ? (
-            <Download className="size-3.5" />
-          ) : (
-            <RefreshCw className="size-3.5 animate-spin" />
-          )}
-          <span>
-            {updatePhase === "downloaded"
-              ? `${t`Update available`}${updateVersion ? ` v${updateVersion}` : ""}`
-              : updateDownloadDetail
-                ? `${t`Downloading… ${Math.round(updatePercent)}%`} · ${updateDownloadDetail}`
-                : t`Downloading… ${Math.round(updatePercent)}%`}
-          </span>
-        </button>
-      ) : null}
+          <button
+            type="button"
+            data-testid="titlebar-app-version"
+            aria-label={t`Check for CraftStation updates`}
+            disabled={updatePhase === "checking"}
+            onClick={checkAppUpdate}
+            className={`${buttonClass} mr-1 px-1.5 text-[11px] tabular-nums`}
+          >
+            {updatePhase === "checking" ? <RefreshCw className="size-3 animate-spin" /> : null}v
+            {readBridge().appVersion}
+          </button>
+        </ControlTooltip>
+        <CliUpdateMenu />
+        {updatePhase === "downloading" || updatePhase === "downloaded" ? (
+          <button
+            type="button"
+            disabled={updatePhase !== "downloaded"}
+            onClick={() => void readBridge().installUpdate()}
+            className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground disabled:cursor-default disabled:hover:bg-[var(--row-hover)]"
+          >
+            {updatePhase === "downloaded" ? (
+              <Download className="size-3.5" />
+            ) : (
+              <RefreshCw className="size-3.5 animate-spin" />
+            )}
+            <span>
+              {updatePhase === "downloaded"
+                ? `${t`Update available`}${updateVersion ? ` v${updateVersion}` : ""}`
+                : updateDownloadDetail
+                  ? `${t`Downloading… ${Math.round(updatePercent)}%`} · ${updateDownloadDetail}`
+                  : t`Downloading… ${Math.round(updatePercent)}%`}
+            </span>
+          </button>
+        ) : null}
+      </div>
       {/* Electron's native min/max/close buttons occupy the transparent overlay at the right. */}
       <div
         data-testid="titlebar-window-controls-spacer"

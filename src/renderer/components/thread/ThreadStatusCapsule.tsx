@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   Bot,
@@ -145,9 +145,9 @@ export function ThreadStatusCapsule(props: ThreadStatusCapsuleProps) {
     : undefined;
   const { t } = useLingui();
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState<
-    null | "branch" | "commit" | "agents" | "dialogue"
-  >(null);
+  const [expanded, setExpanded] = useState<null | "branch" | "commit" | "agents" | "dialogue">(
+    null,
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [initializingRepo, setInitializingRepo] = useState(false);
@@ -411,6 +411,15 @@ export function ThreadStatusCapsule(props: ThreadStatusCapsuleProps) {
     }
   }, [open]);
 
+  // Opening the capsule must land on the full Git panel. A click that also
+  // hits the header chevron, or a collapse left over from last time, would
+  // otherwise stop on the title row and need a second click.
+  const wasOpenRef = useRef(false);
+  useLayoutEffect(() => {
+    if (open && !wasOpenRef.current) setCollapsed(false);
+    wasOpenRef.current = open;
+  }, [open]);
+
   // Auto-open the full card the moment an agent decomposes work into
   // multiple steps (0 → N transition only — never on plain mount/switch).
   const mountedRef = useRef(false);
@@ -600,9 +609,7 @@ export function ThreadStatusCapsule(props: ThreadStatusCapsuleProps) {
               className="z-[100] flex items-start gap-2 craftstation-overlay-zoom-root"
             >
               {expanded &&
-              (expanded === "agents" ||
-                expanded === "dialogue" ||
-                effectiveStatus?.isRepo) ? (
+              (expanded === "agents" || expanded === "dialogue" || effectiveStatus?.isRepo) ? (
                 <div
                   ref={leftCardRef}
                   className="max-h-[min(60vh,480px)] w-[300px] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-[var(--hairline)] bg-[var(--composer-surface)] p-1.5 shadow-2xl craftstation-overlay-zoom-content"
@@ -795,9 +802,7 @@ export function ThreadStatusCapsule(props: ThreadStatusCapsuleProps) {
                           <Trans>Cross-thread dialogue</Trans>
                         </span>
                         <span className={`shrink-0 text-[11px] ${dialogueTextClass}`}>
-                          {latestExchange
-                            ? collaborationStatusLabel(latestExchange.status)
-                            : null}
+                          {latestExchange ? collaborationStatusLabel(latestExchange.status) : null}
                         </span>
                         <ChevronLeft className="size-3.5 shrink-0 text-muted" aria-hidden="true" />
                       </button>

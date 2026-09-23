@@ -383,7 +383,9 @@ describe("ThreadStatusCapsule", () => {
     expect(panel).not.toHaveTextContent("目标");
   });
 
-  function seedPlanSteps(steps: Array<{ step: string; status: "pending" | "in_progress" | "completed" }>) {
+  function seedPlanSteps(
+    steps: Array<{ step: string; status: "pending" | "in_progress" | "completed" }>,
+  ) {
     useAppStore.setState({
       runtimeItemIdsByThread: { "thread-1": ["plan-1"] },
       runtimeItemsByIdByThread: {
@@ -597,6 +599,23 @@ describe("ThreadStatusCapsule", () => {
       }),
     );
     expect(screen.getByText("更改")).toBeInTheDocument();
+  });
+
+  it("reopens the full Git panel from the capsule instead of the title row", () => {
+    renderCapsule();
+    const capsule = screen.getByTestId("project-status-capsule");
+    fireEvent.click(capsule);
+    fireEvent.click(
+      within(screen.getByTestId("project-status-panel")).getByRole("button", {
+        name: "收起 Git 面板",
+      }),
+    );
+    expect(screen.queryByText("更改")).toBeNull();
+
+    fireEvent.click(capsule);
+    fireEvent.click(capsule);
+    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("更改");
+    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("提交或推送");
   });
 
   it("hides the 目标 section when there is no plan and nothing to mark", () => {
