@@ -5911,6 +5911,93 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
       expect(resolved?.accountId).not.toBe(dead.accountId);
     });
 
+    it("binds an unknown OpenCode model when the caller dropped the account id", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      writeFileSync(join(baseDir, "settings.json"), JSON.stringify({ locale: "en" }));
+      const runtime = makeRuntime(() => undefined);
+      const thirdParty = addThirdPartyAccount(runtime, {
+        model: "step-5-preview",
+        protocol: "chat_completions",
+      });
+      writeFileSync(
+        join(baseDir, "settings.json"),
+        JSON.stringify({
+          locale: "en",
+          customModels: [
+            {
+              id: "custom:opencode:step",
+              provider: "opencode",
+              accountId: thirdParty.accountId,
+              modelId: "step-5-preview",
+              displayName: "step-5-preview",
+              contextSize: "",
+            },
+          ],
+        }),
+      );
+      const resolved = await (
+        runtime as unknown as {
+          resolveAccountSessionEnv: (input: {
+            provider: string;
+            threadId: string;
+            model?: string;
+          }) => Promise<
+            { accountId: string; reason: string; env: Record<string, string> } | undefined
+          >;
+        }
+      ).resolveAccountSessionEnv({
+        provider: "opencode",
+        threadId: "thread-step",
+        model: "craftstation/step-5-preview",
+      });
+      expect(resolved?.accountId).toBe(thirdParty.accountId);
+      expect(resolved?.reason).toBe("third-party");
+      expect(resolved?.env.OPENCODE_CONFIG_DIR).toContain("openai-compatible-opencode");
+      expect(resolved?.env.CRAFTSTATION_OPENCODE_PROVIDER).toBe("craftstation");
+    });
+
+    it("does not hijack a known-family OpenCode model onto a custom account", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      writeFileSync(join(baseDir, "settings.json"), JSON.stringify({ locale: "en" }));
+      const runtime = makeRuntime(() => undefined);
+      const thirdParty = addThirdPartyAccount(runtime, {
+        model: "gemini-3.8-flash",
+        protocol: "chat_completions",
+      });
+      writeFileSync(
+        join(baseDir, "settings.json"),
+        JSON.stringify({
+          locale: "en",
+          customModels: [
+            {
+              id: "custom:opencode:gemini",
+              provider: "opencode",
+              accountId: thirdParty.accountId,
+              modelId: "gemini-3.8-flash",
+              displayName: "gemini-3.8-flash",
+              contextSize: "",
+            },
+          ],
+        }),
+      );
+      const resolved = await (
+        runtime as unknown as {
+          resolveAccountSessionEnv: (input: {
+            provider: string;
+            threadId: string;
+            model?: string;
+          }) => Promise<unknown>;
+        }
+      ).resolveAccountSessionEnv({
+        provider: "opencode",
+        threadId: "thread-gemini",
+        model: "gemini-3.8-flash",
+      });
+      expect(resolved).toBeUndefined();
+    });
+
     it("fails closed on unknown or unverified third-party accounts", async () => {
       const baseDir = makeTempDir();
       process.env.CRAFTSTATION_DATA_DIR = baseDir;

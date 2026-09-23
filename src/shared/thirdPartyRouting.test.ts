@@ -167,6 +167,35 @@ describe("thirdPartyRouting", () => {
     ).toBe("tp-1");
   });
 
+  it("binds an unknown custom model on Devin so 阶跃星辰 can leave that harness", () => {
+    expect(
+      resolveThirdPartyAccountForLaunch({
+        agentKind: "devin",
+        model: "step-5-preview",
+        customModels: [{ provider: "opencode", modelId: "step-5-preview", accountId: "tp-1" }],
+        accounts,
+      }),
+    ).toBe("tp-1");
+    expect(
+      applyThirdPartyPickerSelection({
+        agentKind: "devin",
+        model: "step-5-preview",
+        accountId: "openai-compatible:tp-1",
+      }).agentKind,
+    ).toBe("opencode");
+  });
+
+  it("does not pull a ChatGPT custom row onto Devin", () => {
+    expect(
+      resolveThirdPartyAccountForLaunch({
+        agentKind: "devin",
+        model: "gpt-5.4",
+        customModels: [{ provider: "opencode", modelId: "gpt-5.4", accountId: "tp-1" }],
+        accounts,
+      }),
+    ).toBeUndefined();
+  });
+
   it("binds a Codex GLM launch even when the custom row was filed under OpenCode", () => {
     expect(
       resolveThirdPartyAccountForLaunch({

@@ -88,7 +88,12 @@ import {
   type CompatibilityBridgeStatusView,
 } from "@/shared/crafting/compatibilityBridge";
 import { craftPlanSchema, nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
-import { isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
+import { resolveCompatibilityFamily } from "@/shared/harnessCompatibility";
+import {
+  isThirdPartyAccountId,
+  normalizeThirdPartyModelId,
+  THIRD_PARTY_OPENCODE_PROVIDER_ID,
+} from "@/shared/thirdPartyRouting";
 import { sanitizePortableRecord } from "./sessionHandoff/redaction";
 import {
   AccountControlError,
@@ -3250,6 +3255,30 @@ export class SupervisorRuntime {
           thirdPartyProtocol?: "responses" | "chat_completions" | undefined;
         },
       );
+    }
+    // A restarted OpenCode chat can resume a session that already stored
+    // provider `craftstation` after the caller dropped the account id. Unknown
+    // custom ids have no native provider; bind the validated endpoint so the
+    // server actually loads `step-5-preview` instead of reporting
+    // `craftstation/<id>` missing. Known families stay on their native login
+    // unless the caller named the third-party account.
+    if (input.provider === "opencode" && input.model?.trim()) {
+      const bare = normalizeThirdPartyModelId(input.model);
+      const reservedPrefix = input.model.trim().startsWith(`${THIRD_PARTY_OPENCODE_PROVIDER_ID}/`);
+      if (bare && (reservedPrefix || resolveCompatibilityFamily(bare) === "unknown")) {
+        const accountId = this.openAiCompatibleProfileService.channelAccountsServingModel({
+          modelId: bare,
+        })[0];
+        if (accountId) {
+          return this.resolveThirdPartySessionEnv({
+            provider: input.provider,
+            threadId: input.threadId,
+            model: bare,
+            thirdPartyAccountId: accountId,
+            ...(input.thirdPartyProtocol ? { thirdPartyProtocol: input.thirdPartyProtocol } : {}),
+          });
+        }
+      }
     }
     const provider =
       input.provider === "codex" ||

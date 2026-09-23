@@ -359,7 +359,13 @@ export function resolveThirdPartyAccountForLaunch(input: {
   // (historically "codex", briefly "opencode" for GLM). Match the model id
   // against any openai-compatible account so the launch keeps the same key.
   // Never do this for native GPT ids on Codex: they collide with ChatGPT.
+  // Unknown ids (阶跃星辰 step-5-preview, GLM, …) exist only as custom
+  // endpoints. A Devin/other harness row that still has that model id must
+  // find the account; the picker then moves the launch onto OpenCode.
+  // Known families stay channel-exact so a native ChatGPT id is never stolen.
+  const familyUnknown = family === "unknown";
   const allowCrossChannel =
+    familyUnknown ||
     input.agentKind === "muse" ||
     input.agentKind === "opencode" ||
     input.agentKind === "kimi" ||
@@ -370,7 +376,7 @@ export function resolveThirdPartyAccountForLaunch(input: {
     const remapped = (input.customModels ?? []).find((entry) => {
       if (!modelMatches(entry.modelId) || !isThirdPartyAccount(entry.accountId)) return false;
       // Leftover OpenCode / Codex GLM rows (filed under either channel) still bind.
-      if (input.agentKind === "opencode") return true;
+      if (input.agentKind === "opencode" || familyUnknown) return true;
       if (input.agentKind === "codex" && family !== "openai") return true;
       if (input.agentKind === "muse") return resolveCompatibilityFamily(entry.modelId) === "muse";
       return resolveThirdPartyHarnessForModel(entry.modelId) === input.agentKind;

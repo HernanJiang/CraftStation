@@ -58,5 +58,10 @@ export function formatOpenCodeModelFlag(modelSlug: string | undefined): string |
   const parsed = parseOpenCodeModelSlug(modelSlug);
   if (parsed) return `${parsed.providerID}/${parsed.modelID}`;
   const trimmed = modelSlug?.trim();
-  return trimmed || undefined;
+  if (!trimmed) return undefined;
+  // `craftstation/<id>` is our reserved provider namespace, not an upstream
+  // model name. Passing it through makes OpenCode look up a model that the
+  // shared server does not have. Drop it; the isolated server binds the bare id.
+  if (normalizeThirdPartyModelId(trimmed) !== trimmed) return undefined;
+  return trimmed;
 }

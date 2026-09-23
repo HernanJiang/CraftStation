@@ -511,6 +511,22 @@
       ]
     },
     {
+      "version": "1.5.9",
+      "date": "2026-09-23",
+      "title": "Custom models stay on their account",
+      "summary": "Restarting CraftStation no longer drops the account behind a custom model. StepFun step-5-preview and similar models load their own config again, and a thread that drifted onto another harness comes back when you send.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "text": "After a restart, a custom model such as StepFun step-5-preview uses the account you already configured, instead of failing with Model not found."
+        },
+        {
+          "kind": "fixed",
+          "text": "Sending that model from a thread that was moved to another harness, such as Devin, returns to OpenCode and the same account instead of asking the other harness to run it."
+        }
+      ]
+    },
+    {
       "version": "1.5.8",
       "date": "2026-09-23",
       "title": "Update downloads no longer sit at 0%",

@@ -329,7 +329,11 @@ export async function switchLiveThreadProvider(input: {
   const boundAccountId = thirdPartyAccountId ?? result?.poolAccountId;
   // With no live session there is no new native session either: keep the
   // thread's existing resume material so the next launch can still resume it.
-  const keptSessionRef = result?.sessionRef ?? input.thread.sessionRef;
+  // A cross-harness switch with no live session must not keep the old
+  // provider's session id (Devin `neat-dresser` cannot be resumed by OpenCode).
+  const keptSessionRef =
+    result?.sessionRef ??
+    (input.targetAgentKind === input.thread.agentKind ? input.thread.sessionRef : undefined);
   const updatedThread: Thread = {
     ...stable,
     agentKind: input.targetAgentKind,

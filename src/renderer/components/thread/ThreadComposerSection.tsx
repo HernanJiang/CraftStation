@@ -68,6 +68,7 @@ import {
 import { useComposerUiStore } from "@/renderer/state/composerUiStore";
 import { useGitStore } from "@/renderer/state/gitStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { isDraftContentNonEmpty } from "@/renderer/state/slices/types";
 import { selectActiveSubAgentParentItemIds } from "@/renderer/state/subAgentSelectors";
@@ -89,6 +90,7 @@ import {
   applyThirdPartyPickerSelection,
   composerPickerAgentKind,
   isThirdPartyAccountId,
+  resolveThirdPartyAccountForLaunch,
 } from "@/shared/thirdPartyRouting";
 import {
   isPendingSwitchResolved,
@@ -877,21 +879,35 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
       // The fresh session is idle by construction: never steer into it.
       switchedForSend = true;
     } else if (craftMode === "auto" && !useCraftingWorkbenchStore.getState().pendingRecipeIntent) {
+      // The chip can show a custom model (阶越星辰) after the account binding
+      // was dropped. Recover that account so the send moves onto OpenCode
+      // instead of calling Devin — or a config-less OpenCode server — with it.
+      const catalogAccountId =
+        liveAccountId ??
+        resolveThirdPartyAccountForLaunch({
+          agentKind: sendThread.agentKind,
+          model: sendThread.config.model ?? "",
+          customModels: useSharedSettings.getState().customModels ?? [],
+          accounts: useUsageAccountsStore.getState().accounts ?? [],
+        });
       const remapped = applyThirdPartyPickerSelection(
         {
           agentKind: sendThread.agentKind,
           model: sendThread.config.model ?? "",
           ...(presentationMode ? { presentationMode } : {}),
-          ...(liveAccountId ? { accountId: liveAccountId } : {}),
+          ...(catalogAccountId ? { accountId: catalogAccountId } : {}),
           ...(sendThread.config.sourceProviderKind
             ? { sourceProviderKind: sendThread.config.sourceProviderKind }
             : {}),
         },
         launchableHarnesses,
       );
+      const accountMissing =
+        catalogAccountId !== undefined && sendThread.accountBinding?.accountId !== catalogAccountId;
       if (
         remapped.agentKind !== sendThread.agentKind ||
-        remapped.presentationMode !== presentationMode
+        remapped.presentationMode !== presentationMode ||
+        accountMissing
       ) {
         setIsSubmitting(true);
         try {

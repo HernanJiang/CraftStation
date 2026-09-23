@@ -70,4 +70,8 @@ describe("formatOpenCodeModelFlag", () => {
   it("passes through an already-prefixed slug", () => {
     expect(formatOpenCodeModelFlag("opencode/big-pickle")).toBe("opencode/big-pickle");
   });
+
+  it("does not pass the reserved craftstation prefix through as a model name", () => {
+    expect(formatOpenCodeModelFlag("craftstation/step-5-preview")).toBeUndefined();
+  });
 });
