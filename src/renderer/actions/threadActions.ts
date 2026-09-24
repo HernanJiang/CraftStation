@@ -42,7 +42,6 @@ import { buildSidebarProjectRows } from "@/renderer/views/MainView/parts/Sidebar
 import { resolveWorktreeBranch } from "@/renderer/utils/gitHelpers";
 import { closeThreads } from "@/renderer/utils/shellUtils";
 import { closePanelsForUnloadedThread } from "./panelActions";
-import { selectFocusedThreadId } from "@/renderer/hooks/uiSelectors";
 import { getCurrentProjectId } from "./currentProject";
 import { switchWorkspaceForProject } from "./workspaceActions";
 import { deleteWorktreeGroup } from "./worktreeActions";
@@ -192,16 +191,10 @@ export function openThread(
   usePanelStore.getState().closeModelUsageDialog();
   const store = useAppStore.getState();
   const thread = store.threads.find((item) => item.id === threadId);
-  // Per-thread right sidebar: park the previous thread's auxiliary shell and
-  // restore the target's (defaults when it has none). Same-thread refocus is
-  // a no-op so it never clobbers live state.
-  const previousThreadId = selectFocusedThreadId(store);
-  if (previousThreadId && previousThreadId !== threadId) {
-    usePanelStore.getState().captureThreadAuxiliaryPanel(previousThreadId);
-  }
-  if (!previousThreadId || previousThreadId !== threadId) {
-    usePanelStore.getState().restoreThreadAuxiliaryPanel(threadId);
-  }
+  // The right sidebar (including open files) follows the thread that is
+  // actually focused. threadSidebarBinding does that when the view changes;
+  // doing it here would swap before a cancelled open, and the PDF would
+  // stick to the wrong thread.
   if (thread && options?.switchWorkspace) {
     switchWorkspaceForProject(thread.projectId);
   }
@@ -211,6 +204,7 @@ export function openThread(
     startTransition(() => {
       if (options?.standalone) store.openThreadStandalone(threadId);
       else store.openThread(threadId);
+      store.setFocusedPane(threadId);
       store.setPendingActiveThread(null);
       if (options?.focusComposer !== false) store.requestComposerFocus(threadId);
     });
@@ -259,6 +253,9 @@ export function openThread(
       const nextStore = useAppStore.getState();
       if (standalone) nextStore.openThreadStandalone(threadId);
       else nextStore.openThread(threadId);
+      // Focus follows the thread that actually opened, including a pane that
+      // was already on screen. The sidebar binding listens to this.
+      nextStore.setFocusedPane(threadId);
       // Clear in the same auto-batched commit as the pane swap so the highlight
       // hands off to `view.panes` without a flicker.
       nextStore.setPendingActiveThread(null);

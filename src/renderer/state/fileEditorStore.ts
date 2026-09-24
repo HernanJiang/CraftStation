@@ -105,6 +105,18 @@ export interface FileEditorPendingReveal {
   token: number;
 }
 
+/** Open files for one thread. Session-only; not persisted. */
+export interface FileEditorThreadSession {
+  rootContext: FileEditorRootContext | null;
+  overlayMode: FileEditorOverlayMode | null;
+  tabs: string[];
+  activePath: string | null;
+  previewTab: string | null;
+  markdownPreviewPath: string | null;
+  buffers: Record<string, FileEditorBuffer>;
+  pendingReveal: FileEditorPendingReveal | null;
+}
+
 interface FileEditorStoreState {
   rootContext: FileEditorRootContext | null;
   overlayMode: FileEditorOverlayMode | null;
@@ -115,6 +127,21 @@ interface FileEditorStoreState {
   buffers: Record<string, FileEditorBuffer>;
   refreshToken: number;
   pendingReveal: FileEditorPendingReveal | null;
+  /** Thread that owns the live tabs. Null until the sidebar binding attaches. */
+  boundThreadId: string | null;
+  /**
+   * Bumped by {@link FileEditorStoreState.clearSession} so a read that started
+   * before a project/desktop reset cannot land in a later session.
+   */
+  sessionEpoch: number;
+  /** Parked file workspace for threads that are not focused. */
+  sessionsByThread: Record<string, FileEditorThreadSession>;
+  /** Record which thread owns the live workspace without swapping it. */
+  bindLiveThread: (threadId: string) => void;
+  /** Snapshot the live workspace under a thread id. */
+  captureThreadSession: (threadId: string) => void;
+  /** Show a thread's workspace, or an empty one when it has none. */
+  restoreThreadSession: (threadId: string) => void;
   setRootContext: (context: FileEditorRootContext | null) => void;
   clearSession: () => void;
   openFile: (
@@ -246,6 +273,139 @@ function normalizeRootContext(rootContext: FileEditorRootContext): FileEditorRoo
     projectLocation: {
       ...rootContext.projectLocation,
       remoteServerId: rootContext.remoteServerId,
+    },
+  };
+}
+
+const EMPTY_FILE_EDITOR_SESSION: FileEditorThreadSession = {
+  rootContext: null,
+  overlayMode: null,
+  tabs: [],
+  activePath: null,
+  previewTab: null,
+  markdownPreviewPath: null,
+  buffers: {},
+  pendingReveal: null,
+};
+
+interface FileOpenOwner {
+  threadId: string | null;
+  epoch: number;
+  rootContext: FileEditorRootContext;
+}
+
+function sessionFromLive(state: {
+  rootContext: FileEditorRootContext | null;
+  overlayMode: FileEditorOverlayMode | null;
+  tabs: string[];
+  activePath: string | null;
+  previewTab: string | null;
+  markdownPreviewPath: string | null;
+  buffers: Record<string, FileEditorBuffer>;
+  pendingReveal: FileEditorPendingReveal | null;
+}): FileEditorThreadSession {
+  return {
+    rootContext: state.rootContext,
+    overlayMode: state.overlayMode,
+    tabs: state.tabs,
+    activePath: state.activePath,
+    previewTab: state.previewTab,
+    markdownPreviewPath: state.markdownPreviewPath,
+    buffers: state.buffers,
+    pendingReveal: state.pendingReveal,
+  };
+}
+
+function sessionMatchesLive(
+  state: FileEditorThreadSession & { boundThreadId: string | null },
+  session: FileEditorThreadSession,
+  threadId: string,
+): boolean {
+  return (
+    state.boundThreadId === threadId &&
+    state.rootContext === session.rootContext &&
+    state.overlayMode === session.overlayMode &&
+    state.tabs === session.tabs &&
+    state.activePath === session.activePath &&
+    state.previewTab === session.previewTab &&
+    state.markdownPreviewPath === session.markdownPreviewPath &&
+    state.buffers === session.buffers &&
+    state.pendingReveal === session.pendingReveal
+  );
+}
+
+/** A finished read belongs to the thread that started it, even if focus moved. */
+function writeBufferToOwner(
+  state: FileEditorStoreState,
+  owner: FileOpenOwner,
+  openPath: string,
+  buffer: FileEditorBuffer,
+): Partial<FileEditorStoreState> {
+  if (state.sessionEpoch !== owner.epoch) return {};
+  const liveOwnsIt =
+    state.boundThreadId === owner.threadId &&
+    rootContextsEqual(state.rootContext, owner.rootContext);
+  if (liveOwnsIt) {
+    if (!state.tabs.includes(openPath) && !state.buffers[openPath]) return {};
+    return { buffers: { ...state.buffers, [openPath]: buffer } };
+  }
+  if (!owner.threadId) return {};
+  const parked = state.sessionsByThread[owner.threadId];
+  if (!parked || !rootContextsEqual(parked.rootContext, owner.rootContext)) return {};
+  if (!parked.tabs.includes(openPath) && !parked.buffers[openPath]) return {};
+  return {
+    sessionsByThread: {
+      ...state.sessionsByThread,
+      [owner.threadId]: {
+        ...parked,
+        buffers: { ...parked.buffers, [openPath]: buffer },
+      },
+    },
+  };
+}
+
+function dropOpenTabFromOwner(
+  state: FileEditorStoreState,
+  owner: FileOpenOwner,
+  openPath: string,
+): Partial<FileEditorStoreState> {
+  if (state.sessionEpoch !== owner.epoch) return {};
+  const liveOwnsIt =
+    state.boundThreadId === owner.threadId &&
+    rootContextsEqual(state.rootContext, owner.rootContext);
+  if (liveOwnsIt) {
+    if (!state.tabs.includes(openPath) && !state.buffers[openPath]) return {};
+    const { [openPath]: _dropped, ...buffers } = state.buffers;
+    const tabs = state.tabs.filter((tabPath) => tabPath !== openPath);
+    return {
+      buffers,
+      tabs,
+      activePath:
+        state.activePath === openPath ? (tabs[tabs.length - 1] ?? null) : state.activePath,
+      previewTab: state.previewTab === openPath ? null : state.previewTab,
+      markdownPreviewPath:
+        state.markdownPreviewPath === openPath ? null : state.markdownPreviewPath,
+    };
+  }
+  if (!owner.threadId) return {};
+  const parked = state.sessionsByThread[owner.threadId];
+  if (!parked || !rootContextsEqual(parked.rootContext, owner.rootContext)) return {};
+  if (!parked.tabs.includes(openPath) && !parked.buffers[openPath]) return {};
+  const { [openPath]: _dropped, ...buffers } = parked.buffers;
+  const tabs = parked.tabs.filter((tabPath) => tabPath !== openPath);
+  return {
+    sessionsByThread: {
+      ...state.sessionsByThread,
+      [owner.threadId]: {
+        ...parked,
+        buffers,
+        tabs,
+        activePath:
+          parked.activePath === openPath ? (tabs[tabs.length - 1] ?? null) : parked.activePath,
+        previewTab: parked.previewTab === openPath ? null : parked.previewTab,
+        markdownPreviewPath:
+          parked.markdownPreviewPath === openPath ? null : parked.markdownPreviewPath,
+      },
     },
   };
 }
@@ -382,6 +542,34 @@ export const useFileEditorStore = create<FileEditorStoreState>((set, get) => ({
   buffers: {},
   refreshToken: 0,
   pendingReveal: null,
+  boundThreadId: null,
+  sessionEpoch: 0,
+  sessionsByThread: {},
+  bindLiveThread: (threadId) =>
+    set((state) => (state.boundThreadId === threadId ? {} : { boundThreadId: threadId })),
+  captureThreadSession: (threadId) =>
+    set((state) => ({
+      sessionsByThread: {
+        ...state.sessionsByThread,
+        [threadId]: sessionFromLive(state),
+      },
+    })),
+  restoreThreadSession: (threadId) =>
+    set((state) => {
+      const session = state.sessionsByThread[threadId] ?? EMPTY_FILE_EDITOR_SESSION;
+      if (sessionMatchesLive(state, session, threadId)) return {};
+      return {
+        boundThreadId: threadId,
+        rootContext: session.rootContext,
+        overlayMode: session.overlayMode,
+        tabs: session.tabs,
+        activePath: session.activePath,
+        previewTab: session.previewTab,
+        markdownPreviewPath: session.markdownPreviewPath,
+        buffers: session.buffers,
+        pendingReveal: session.pendingReveal,
+      };
+    }),
   setRootContext: (rootContext) => {
     const nextRootContext = rootContext ? normalizeRootContext(rootContext) : null;
     set((state) => {
@@ -413,6 +601,8 @@ export const useFileEditorStore = create<FileEditorStoreState>((set, get) => ({
       buffers: {},
       pendingReveal: null,
       refreshToken: state.refreshToken + 1,
+      // Invalidate reads that started against the session we just dropped.
+      sessionEpoch: state.sessionEpoch + 1,
     })),
   consumeReveal: (token) =>
     set((state) =>
@@ -431,6 +621,11 @@ export const useFileEditorStore = create<FileEditorStoreState>((set, get) => ({
     // normalizeRelativePath on the supervisor.
     const openPath = resolvePathForFileOpen(rootContext, path);
 
+    const owner: FileOpenOwner = {
+      threadId: get().boundThreadId,
+      epoch: get().sessionEpoch,
+      rootContext,
+    };
     const lineNumber = options?.lineNumber;
     const markdownPreviewPath = options?.markdownPreview ? openPath : null;
     const reveal: FileEditorPendingReveal | null =
@@ -500,38 +695,27 @@ export const useFileEditorStore = create<FileEditorStoreState>((set, get) => ({
 
     try {
       const result = await readFileForContext(rootContext, openPath);
-      if (get().rootContext !== rootContext) return result;
-      set((state) => ({
-        buffers: {
-          ...state.buffers,
-          [openPath]: withGitDiff(buildBuffer(result), options?.gitDiff),
-        },
-      }));
-      try {
-        captureProductEvent("file.opened", {
-          overlay_mode: mode ?? "unchanged",
-          source: isExternalPath(openPath) ? "external" : "project",
-        });
-      } catch (error) {
-        captureRendererException(error, { featureArea: "analytics" });
+      const loaded = withGitDiff(buildBuffer(result), options?.gitDiff);
+      set((state) => writeBufferToOwner(state, owner, openPath, loaded));
+      const applied = get();
+      const appliedToLive =
+        applied.sessionEpoch === owner.epoch &&
+        applied.boundThreadId === owner.threadId &&
+        rootContextsEqual(applied.rootContext, owner.rootContext) &&
+        applied.buffers[openPath]?.isLoading === false;
+      if (appliedToLive) {
+        try {
+          captureProductEvent("file.opened", {
+            overlay_mode: mode ?? "unchanged",
+            source: isExternalPath(openPath) ? "external" : "project",
+          });
+        } catch (error) {
+          captureRendererException(error, { featureArea: "analytics" });
+        }
       }
       return result;
     } catch (error) {
-      if (get().rootContext !== rootContext) throw error;
-      set((state) => {
-        const { [openPath]: _, ...rest } = state.buffers;
-        return {
-          buffers: rest,
-          tabs: state.tabs.filter((tabPath) => tabPath !== openPath),
-          activePath:
-            state.activePath === openPath
-              ? (state.tabs.find((tabPath) => tabPath !== openPath) ?? null)
-              : state.activePath,
-          previewTab: state.previewTab === openPath ? null : state.previewTab,
-          markdownPreviewPath:
-            state.markdownPreviewPath === openPath ? null : state.markdownPreviewPath,
-        };
-      });
+      set((state) => dropOpenTabFromOwner(state, owner, openPath));
       throw error;
     }
   },

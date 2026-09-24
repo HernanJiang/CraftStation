@@ -114,6 +114,8 @@ export interface ThreadAuxiliaryPanelSnapshot {
   browserOpen: boolean;
   usageOpen: boolean;
   notesOpen: boolean;
+  /** Which project tree this thread's Files tab was showing. */
+  filesPanelContext: FilesPanelContext | null;
 }
 
 export const EMPTY_THREAD_AUXILIARY_PANEL: ThreadAuxiliaryPanelSnapshot = {
@@ -124,6 +126,7 @@ export const EMPTY_THREAD_AUXILIARY_PANEL: ThreadAuxiliaryPanelSnapshot = {
   browserOpen: false,
   usageOpen: false,
   notesOpen: false,
+  filesPanelContext: null,
 };
 
 interface PanelState {
@@ -136,12 +139,12 @@ interface PanelState {
   auxiliaryPanelTabs: RightPanelTab[];
   /**
    * Per-thread right-sidebar snapshots. Each thread owns its auxiliary shell
-   * (placement/tab/tabs) plus the simple open flags; switching threads
-   * captures the previous thread's state and restores the target's (or
-   * defaults when the thread has none). The subagent context is part of the
-   * snapshot because it belongs to one parent thread; repo-scoped payload
-   * contexts (git review, files, PR) and layout chrome (maximized, splits,
-   * docks) stay global.
+   * (placement/tab/tabs), the simple open flags, and the Files project scope.
+   * Open file tabs live in fileEditorStore, swapped by the same thread change.
+   * Switching threads captures the previous thread and restores the target
+   * (defaults when it has none). The subagent context belongs to one parent
+   * thread. Git review, PR, and layout chrome (maximized, splits, docks) stay
+   * global. Browser page URLs stay in the browser store.
    * Session-only: never persisted (persistStoreSlice allowlist below).
    */
   threadAuxiliaryPanels: Record<string, ThreadAuxiliaryPanelSnapshot>;
@@ -322,6 +325,24 @@ function sanitizeThreadListLayout(value: unknown): ThreadListLayout {
   return value === "grouped" || value === "flat" ? value : "grouped";
 }
 
+function samePanelTabs(left: readonly RightPanelTab[], right: readonly RightPanelTab[]): boolean {
+  return left.length === right.length && left.every((tab, index) => tab === right[index]);
+}
+
+function sameFilesPanelContext(
+  left: FilesPanelContext | null,
+  right: FilesPanelContext | null,
+): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return (
+    left.projectId === right.projectId &&
+    left.projectName === right.projectName &&
+    left.rootLabel === right.rootLabel &&
+    left.worktreePath === right.worktreePath
+  );
+}
+
 function releaseClosedTab(state: PanelState, tab: RightPanelTab): Partial<PanelState> {
   const { left, right } = state.bottomPanelDocks;
   const inDocks = left === tab || right === tab;
@@ -490,6 +511,7 @@ export const usePanelStore = create<PanelState>()((set) => ({
           browserOpen: state.browserPanelOpen,
           usageOpen: state.usagePanelOpen,
           notesOpen: state.notesPanelOpen,
+          filesPanelContext: state.filesPanelContext,
         },
       },
     })),
@@ -500,10 +522,13 @@ export const usePanelStore = create<PanelState>()((set) => ({
       if (
         state.auxiliaryPanelPlacement === snapshot.placement &&
         state.auxiliaryPanelTab === snapshot.tab &&
+        samePanelTabs(state.auxiliaryPanelTabs, snapshot.tabs) &&
         state.subAgentPanelContext === snapshot.subAgentContext &&
         state.browserPanelOpen === snapshot.browserOpen &&
         state.usagePanelOpen === snapshot.usageOpen &&
-        state.notesPanelOpen === snapshot.notesOpen
+        state.notesPanelOpen === snapshot.notesOpen &&
+        sameFilesPanelContext(state.filesPanelContext, snapshot.filesPanelContext) &&
+        (snapshot.tab === null || state.rightPanelTab === snapshot.tab)
       ) {
         return {};
       }
@@ -516,6 +541,8 @@ export const usePanelStore = create<PanelState>()((set) => ({
         browserPanelOpen: snapshot.browserOpen,
         usagePanelOpen: snapshot.usageOpen,
         notesPanelOpen: snapshot.notesOpen,
+        filesPanelContext: snapshot.filesPanelContext,
+        ...(snapshot.tab ? { rightPanelTab: snapshot.tab } : {}),
       };
     }),
 

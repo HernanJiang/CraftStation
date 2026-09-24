@@ -3716,6 +3716,25 @@ html[data-platform="darwin"] .craftstation-sidebar-project-nudge {
   margin: 0.75em 0;
 }
 
+.craftstation-markdown-preview .katex {
+  color: inherit;
+  font-size: 1.05em;
+}
+
+.craftstation-markdown-preview .katex-display {
+  max-width: 100%;
+  margin: 0.85em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Fractions and subscripts sit on the katex strut. A little padding keeps
+     overflow-y:hidden from clipping them when the preview is narrow. */
+  padding-block: 0.2em;
+}
+
+.craftstation-markdown-preview .katex-display > .katex {
+  white-space: nowrap;
+}
+
 .craftstation-markdown-preview a {
   color: var(--accent);
   text-decoration: underline;

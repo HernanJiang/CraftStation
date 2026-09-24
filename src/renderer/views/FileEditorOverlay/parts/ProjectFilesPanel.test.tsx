@@ -3,9 +3,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@lingui/react";
 import { i18n } from "@/renderer/i18n/i18n";
+import { useAppStore } from "@/renderer/state/appStore";
 import type { FileEditorRootContext } from "@/renderer/state/fileEditorStore";
 import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
 import { ProjectFilesPanel } from "./ProjectFilesPanel";
+
+function focusThread(threadId: string) {
+  useAppStore.setState({
+    view: { kind: "thread", panes: [threadId] },
+    focusedPaneId: threadId,
+  });
+}
 
 function renderPanel() {
   return render(
@@ -41,6 +49,7 @@ const rootContext: FileEditorRootContext = {
 describe("ProjectFilesPanel", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    focusThread("thread-a");
     useFileEditorStore.setState({
       rootContext: null,
       overlayMode: null,
@@ -127,11 +136,36 @@ describe("ProjectFilesPanel", () => {
   it("keeps the directory hidden after leaving the thread and coming back", () => {
     const first = renderPanel();
     fireEvent.click(screen.getByRole("button", { name: "Hide directory" }));
-    expect(window.localStorage.getItem("craftstation.projectFiles.treeCollapsed")).toBe("1");
+    expect(
+      window.localStorage.getItem("craftstation.projectFiles.treeCollapsedByThread"),
+    ).toContain("thread-a");
     first.unmount();
 
     renderPanel();
     expect(screen.queryByTestId("project-file-tree")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show directory" })).toBeInTheDocument();
+  });
+
+  it("does not hide the directory of a different thread", () => {
+    const first = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Hide directory" }));
+    first.unmount();
+
+    focusThread("thread-b");
+    renderPanel();
+    expect(screen.getByTestId("project-file-tree")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show directory" })).not.toBeInTheDocument();
+  });
+
+  it("claims a legacy app-wide collapse for the open thread only", () => {
+    window.localStorage.setItem("craftstation.projectFiles.treeCollapsed", "1");
+    const first = renderPanel();
+    expect(screen.queryByTestId("project-file-tree")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("craftstation.projectFiles.treeCollapsed")).toBeNull();
+    first.unmount();
+
+    focusThread("thread-b");
+    renderPanel();
+    expect(screen.getByTestId("project-file-tree")).toBeInTheDocument();
   });
 });

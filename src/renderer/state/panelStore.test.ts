@@ -458,6 +458,25 @@ describe("per-thread auxiliary panels", () => {
     expect(store().auxiliaryPanelPlacement).toBe("hidden");
   });
 
+  it("keeps each thread's files project with its sidebar", () => {
+    const store = () => usePanelStore.getState();
+    const files = { projectId: "paper", projectName: "Paper", rootLabel: "Paper" };
+    store().setAuxiliaryPanelPlacement("right");
+    store().setAuxiliaryPanelTab("files");
+    store().setFilesPanelContext(files);
+    store().captureThreadAuxiliaryPanel("thread-a");
+
+    store().setFilesPanelContext(null);
+    store().restoreThreadAuxiliaryPanel("thread-b");
+    expect(store().filesPanelContext).toBeNull();
+    expect(store().auxiliaryPanelPlacement).toBe("hidden");
+
+    store().restoreThreadAuxiliaryPanel("thread-a");
+    expect(store().filesPanelContext).toEqual(files);
+    expect(store().auxiliaryPanelTab).toBe("files");
+    expect(store().rightPanelTab).toBe("files");
+  });
+
   it("restores each thread's open subagent as a peer right-panel tab", () => {
     const store = () => usePanelStore.getState();
     const contextA = { threadId: "thread-a", parentItemId: "agent-a" };

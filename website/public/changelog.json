@@ -511,6 +511,26 @@
       ]
     },
     {
+      "version": "1.5.11",
+      "date": "2026-09-24",
+      "title": "Each thread keeps its files, formulas render",
+      "summary": "The files you open stay with that conversation, and Markdown preview typesets display formulas instead of showing the raw TeX.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "text": "Open files, the project the file list points at, and whether the directory is hidden now stay with the current thread. Switching conversations no longer shows a PDF you opened somewhere else."
+        },
+        {
+          "kind": "fixed",
+          "text": "Hiding the directory affects only that thread. It stays hidden when you leave and come back, and other threads keep their own directory."
+        },
+        {
+          "kind": "fixed",
+          "text": "Markdown preview typesets display formulas instead of leaving the $$ source on the page. Inline math in a table header no longer shifts the score cells."
+        }
+      ]
+    },
+    {
       "version": "1.5.10",
       "date": "2026-09-23",
       "title": "Clearer quota and a live thinking trail",

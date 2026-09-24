@@ -1,28 +1,29 @@
-import { Trans } from '@lingui/react/macro';
-import { Suspense, useEffect, useState } from 'react';
-import { PixelLoader } from './components/common/PixelLoader';
-import { WelcomeOverlay } from './views/WelcomeOverlay';
-import { isWelcomeSeen } from './state/welcomeGateStore';
-import { StartupRecoveryScreen } from './components/startup/StartupRecoveryScreen';
-import { readBridge } from './bridge';
-import { useAppHydration } from './hooks/useAppHydration';
-import { usePrWatchAgentSync } from './hooks/usePrWatchAgentSync';
-import { AppProvider } from './components/ui/provider';
-import { ImageLightboxHost } from './components/composer/ImageLightbox';
-import { MainView } from './views/MainView/MainView';
-import { QuickComposerOverlay } from './views/QuickComposerOverlay/QuickComposerOverlay';
-import { useCommandPaletteStore } from './commands/commandPaletteStore';
-import { BrowserPanel } from './views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel';
-import { useBrowserSync } from './views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useBrowserSync';
-import { useStandaloneWindowViewTracking } from './analytics/useProductViewTracking';
-import { DeferredCommandPalette as PrewarmedCommandPalette } from './deferredFeatures';
-import { useWorkbenchLifecycle } from './workbench/useWorkbenchLifecycle';
-import type { Workbench } from './workbench/lifecycle';
+import { Trans } from "@lingui/react/macro";
+import { Suspense, useEffect, useState } from "react";
+import { PixelLoader } from "./components/common/PixelLoader";
+import { WelcomeOverlay } from "./views/WelcomeOverlay";
+import { isWelcomeSeen } from "./state/welcomeGateStore";
+import { StartupRecoveryScreen } from "./components/startup/StartupRecoveryScreen";
+import { readBridge } from "./bridge";
+import { useAppHydration } from "./hooks/useAppHydration";
+import { usePrWatchAgentSync } from "./hooks/usePrWatchAgentSync";
+import { AppProvider } from "./components/ui/provider";
+import { ImageLightboxHost } from "./components/composer/ImageLightbox";
+import { MainView } from "./views/MainView/MainView";
+import { QuickComposerOverlay } from "./views/QuickComposerOverlay/QuickComposerOverlay";
+import { useCommandPaletteStore } from "./commands/commandPaletteStore";
+import { BrowserPanel } from "./views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel";
+import { useBrowserSync } from "./views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useBrowserSync";
+import { useStandaloneWindowViewTracking } from "./analytics/useProductViewTracking";
+import { DeferredCommandPalette as PrewarmedCommandPalette } from "./deferredFeatures";
+import { useWorkbenchLifecycle } from "./workbench/useWorkbenchLifecycle";
+import type { Workbench } from "./workbench/lifecycle";
+import { installThreadSidebarBinding } from "./state/threadSidebarBinding";
 
 export const STARTUP_RECOVERY_TIMEOUT_MS = 15_000;
 const windowKind = readBridge().windowKind;
-const isBrowserExtractWindow = windowKind === 'browserExtract';
-const isQuickComposerWindow = windowKind === 'quickComposer';
+const isBrowserExtractWindow = windowKind === "browserExtract";
+const isQuickComposerWindow = windowKind === "quickComposer";
 
 export function App({ workbench }: { workbench: Workbench }) {
   if (isBrowserExtractWindow) {
@@ -74,6 +75,7 @@ function MainApp({ workbench }: { workbench: Workbench }) {
   // App-scoped, not overlay-scoped: PR watches must follow the current helper
   // agent whether or not the user opens the Git Review sidebar.
   usePrWatchAgentSync(!initialLoading);
+  useEffect(() => installThreadSidebarBinding(), []);
   const [showStartupRecovery, setShowStartupRecovery] = useState(false);
   const [startupRecoveryCycle, setStartupRecoveryCycle] = useState(0);
 
@@ -87,7 +89,6 @@ function MainApp({ workbench }: { workbench: Workbench }) {
     }, STARTUP_RECOVERY_TIMEOUT_MS);
     return () => window.clearTimeout(timeout);
   }, [initialLoading, startupRecoveryCycle]);
-
 
   return (
     <AppProvider contentReady={!initialLoading}>

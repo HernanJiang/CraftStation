@@ -2,12 +2,15 @@ import { useLayoutEffect, useState } from "react";
 import { toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Folder, PanelLeftOpen } from "lucide-react";
+import { useFocusedThreadId } from "@/renderer/hooks/uiSelectors";
 import { useFileEditorStore, type FileEditorRootContext } from "@/renderer/state/fileEditorStore";
 import { FileEditorPane } from "@/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane";
 import { ProjectTreeView } from "@/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView";
 
 const TREE_WIDTH_STORAGE_KEY = "craftstation.projectFiles.treeWidthPx";
-const TREE_COLLAPSED_STORAGE_KEY = "craftstation.projectFiles.treeCollapsed";
+/** Old app-wide flag. Claimed once by the thread that is open, then removed. */
+const TREE_COLLAPSED_LEGACY_KEY = "craftstation.projectFiles.treeCollapsed";
+const TREE_COLLAPSED_BY_THREAD_KEY = "craftstation.projectFiles.treeCollapsedByThread";
 const TREE_WIDTH_DEFAULT_PX = 280;
 const TREE_WIDTH_MIN_PX = 200;
 const TREE_WIDTH_MAX_PX = 560;
@@ -18,19 +21,56 @@ function clampTreeWidth(width: number): number {
   return Math.min(TREE_WIDTH_MAX_PX, Math.max(TREE_WIDTH_MIN_PX, Math.round(width)));
 }
 
-function readStoredTreeCollapsed(): boolean {
+function readCollapsedByThread(): Record<string, true> {
   try {
-    return window.localStorage.getItem(TREE_COLLAPSED_STORAGE_KEY) === "1";
+    const raw = window.localStorage.getItem(TREE_COLLAPSED_BY_THREAD_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const map: Record<string, true> = {};
+    for (const [threadId, collapsed] of Object.entries(parsed)) {
+      if (collapsed === true) map[threadId] = true;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+function writeCollapsedByThread(map: Record<string, true>): void {
+  try {
+    window.localStorage.setItem(TREE_COLLAPSED_BY_THREAD_KEY, JSON.stringify(map));
+  } catch {
+    // Private-mode storage failures must not block hiding the tree.
+  }
+}
+
+function readStoredTreeCollapsed(threadId: string | null): boolean {
+  if (!threadId) return false;
+  const map = readCollapsedByThread();
+  if (map[threadId]) return true;
+  try {
+    const legacy = window.localStorage.getItem(TREE_COLLAPSED_LEGACY_KEY);
+    if (legacy !== "1" && legacy !== "0") return false;
+    window.localStorage.removeItem(TREE_COLLAPSED_LEGACY_KEY);
+    if (legacy !== "1") return false;
+    writeCollapsedByThread({ ...map, [threadId]: true });
+    return true;
   } catch {
     return false;
   }
 }
 
-function persistTreeCollapsed(collapsed: boolean): void {
+function persistTreeCollapsed(threadId: string | null, collapsed: boolean): void {
+  if (!threadId) return;
+  const map = readCollapsedByThread();
+  if (collapsed) map[threadId] = true;
+  else delete map[threadId];
+  writeCollapsedByThread(map);
   try {
-    window.localStorage.setItem(TREE_COLLAPSED_STORAGE_KEY, collapsed ? "1" : "0");
+    window.localStorage.removeItem(TREE_COLLAPSED_LEGACY_KEY);
   } catch {
-    // Private-mode storage failures must not block hiding the tree.
+    // The per-thread map is the source of truth either way.
   }
 }
 
@@ -52,15 +92,21 @@ function readStoredTreeWidth(): number {
  */
 export function ProjectFilesPanel(props: { rootContext: FileEditorRootContext }) {
   const { t } = useLingui();
+  const threadId = useFocusedThreadId();
   const setRootContext = useFileEditorStore((state) => state.setRootContext);
   const pinTab = useFileEditorStore((state) => state.pinTab);
   const [treeWidth, setTreeWidth] = useState(readStoredTreeWidth);
   const [isResizing, setIsResizing] = useState(false);
-  const [treeCollapsed, setTreeCollapsed] = useState(readStoredTreeCollapsed);
+  const [treeCollapsed, setTreeCollapsed] = useState(() => readStoredTreeCollapsed(threadId));
+  const [collapsedThreadId, setCollapsedThreadId] = useState(threadId);
+  if (threadId !== collapsedThreadId) {
+    setCollapsedThreadId(threadId);
+    setTreeCollapsed(readStoredTreeCollapsed(threadId));
+  }
 
   function setTreeCollapsedPersisted(collapsed: boolean) {
     setTreeCollapsed(collapsed);
-    persistTreeCollapsed(collapsed);
+    persistTreeCollapsed(threadId, collapsed);
   }
 
   // Layout effects run before paint, so a project switch cannot show the
