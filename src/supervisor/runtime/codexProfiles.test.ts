@@ -3,19 +3,19 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountStore } from "./accountStore";
-import {
-  collectCodex,
-  type HostPort,
-  type UsageSnapshot,
-} from "@craftstation/agents-usage";
+import { collectCodex, type HostPort, type UsageSnapshot } from "@craftstation/agents-usage";
 import {
   CodexProfileService,
   breakManagedStateSymlink,
   buildCodexLoginScript,
   ensureManagedCodexHome,
   managedCodexProcessEnvironment,
+  sanitizeManagedCodexAuth,
   scrubManagedCodexConfig,
 } from "./codexProfiles";
+import { sanitizeCodexAuthJson } from "./codexCredentials";
+
+const JWT_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -39,13 +39,18 @@ describe("CodexProfileService", () => {
     const sourceHome = join(source, ".codex");
     const store = new AccountStore(managed);
     const service = new CodexProfileService({ store });
-    const authJson = JSON.stringify({ tokens: { access_token: "secret", account_id: "acct-1" } });
+    const authJson = JSON.stringify({
+      tokens: {
+        access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+        account_id: "acct-1",
+      },
+    });
     require("node:fs").mkdirSync(sourceHome, { recursive: true });
     writeFileSync(join(sourceHome, "auth.json"), authJson);
     const view = service.importAuthJson({ label: "Work", profileRoot: sourceHome });
     expect(view.status).toBe("available");
     expect(view.providerAccountId).toBe("acct-1");
-    expect(JSON.stringify(view)).not.toContain("secret");
+    expect(JSON.stringify(view)).not.toContain("eyJhbGciOi");
     expect(service.managedCodexHome(view.accountId).startsWith(managed)).toBe(true);
     const isolated = require("node:fs").readFileSync(
       join(service.managedCodexHome(view.accountId), "config.toml"),
@@ -62,7 +67,7 @@ describe("CodexProfileService", () => {
     mkdirSync(sourceHome, { recursive: true });
     writeFileSync(
       join(sourceHome, "auth.json"),
-      JSON.stringify({ tokens: { access_token: "secret" } }),
+      JSON.stringify({ tokens: { access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln" } }),
       "utf8",
     );
     const store = new AccountStore(managed);
@@ -85,7 +90,10 @@ describe("CodexProfileService", () => {
     writeFileSync(
       join(sourceHome, "auth.json"),
       JSON.stringify({
-        tokens: { access_token: "secret", id_token: `header.${payload}.signature` },
+        tokens: {
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+          id_token: `header.${payload}.signature`,
+        },
       }),
       "utf8",
     );
@@ -110,7 +118,12 @@ describe("CodexProfileService", () => {
     const service = new CodexProfileService({ store });
     writeFileSync(
       join(sourceHome, "auth.json"),
-      JSON.stringify({ tokens: { access_token: "secret", account_id: "Acct-1" } }),
+      JSON.stringify({
+        tokens: {
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+          account_id: "Acct-1",
+        },
+      }),
       "utf8",
     );
 
@@ -132,7 +145,12 @@ describe("CodexProfileService", () => {
     const service = new CodexProfileService({ store });
     writeFileSync(
       join(sourceHome, "auth.json"),
-      JSON.stringify({ tokens: { access_token: "secret", account_id: "Acct-1" } }),
+      JSON.stringify({
+        tokens: {
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+          account_id: "Acct-1",
+        },
+      }),
       "utf8",
     );
     const account = service.importAuthJson({ label: "Existing", profileRoot: sourceHome });
@@ -143,7 +161,12 @@ describe("CodexProfileService", () => {
 
     writeFileSync(
       join(sourceHome, "auth.json"),
-      JSON.stringify({ tokens: { access_token: "secret-2", account_id: "acct-1" } }),
+      JSON.stringify({
+        tokens: {
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LTIifQ.c2ln",
+          account_id: "acct-1",
+        },
+      }),
       "utf8",
     );
     expect(() => service.importAuthJson({ label: "Retry", profileRoot: sourceHome })).toThrow(
@@ -164,7 +187,12 @@ describe("CodexProfileService", () => {
     const service = new CodexProfileService({ store });
     writeFileSync(
       join(sourceHome, "auth.json"),
-      JSON.stringify({ tokens: { access_token: "secret", account_id: "acct-1" } }),
+      JSON.stringify({
+        tokens: {
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+          account_id: "acct-1",
+        },
+      }),
       "utf8",
     );
     const account = service.importAuthJson({ label: "Marked", profileRoot: sourceHome });
@@ -191,7 +219,8 @@ describe("CodexProfileService", () => {
     expect(record.quotaWindows?.map((window) => window.usedPercent)).toEqual([46]);
   });
 
-  it("builds PowerShell and POSIX login scripts without embedding managed CODEX_HOME", () => {    const token = "lc_test_completion";
+  it("builds PowerShell and POSIX login scripts without embedding managed CODEX_HOME", () => {
+    const token = "lc_test_completion";
 
     const winScript = buildCodexLoginScript("windows", token);
     expect(winScript).toContain("CraftStation CODEX_HOME=");
@@ -228,6 +257,26 @@ describe("managedCodexProcessEnvironment", () => {
     expect(env.USERNAME).toBe("Haona");
     expect(env.CODEX_MODEL_CATALOG_PATH).toBe("");
     expect(env.CODEX_ROUTER_USER_DATA).toBe("");
+  });
+
+  it("blanks Codex auth env overrides so a stray key cannot hijack managed auth", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-env-"));
+    roots.push(root);
+    const home = join(root, "profile");
+    const env = managedCodexProcessEnvironment(home, {
+      PATH: "C:\\Windows",
+      OPENAI_API_KEY: "sk-svcacct-host",
+      CODEX_API_KEY: "sk-svcacct-codex",
+      CODEX_ACCESS_TOKEN: "sk-svcacct-pat",
+      CODEX_BASE_URL: "http://127.0.0.1:28082/v1",
+      CODEX_MODEL_PROVIDER: "codex_router",
+    });
+    expect(env.OPENAI_API_KEY).toBe("");
+    expect(env.CODEX_API_KEY).toBe("");
+    expect(env.CODEX_ACCESS_TOKEN).toBe("");
+    expect(env.CODEX_BASE_URL).toBe("");
+    expect(env.CODEX_MODEL_PROVIDER).toBe("");
+    expect(env.CODEX_HOME).toBe(home);
   });
 
   it("writes an isolated config.toml that does not reference Codex-Router catalogs", () => {
@@ -342,5 +391,118 @@ describe("scrubManagedCodexConfig", () => {
     mkdirSync(home, { recursive: true });
 
     expect(scrubManagedCodexConfig(home)).toBe(false);
+  });
+});
+
+describe("Codex managed auth.json sanitization", () => {
+  it("strips minted API keys and alternate credential modes, pins chatgpt auth", () => {
+    const sanitized = sanitizeCodexAuthJson(
+      JSON.stringify({
+        auth_mode: "chatgpt",
+        OPENAI_API_KEY: "sk-svcacct-minted",
+        personal_access_token: "sk-svcacct-pat",
+        agent_identity: { jwt: "x" },
+        bedrock_api_key: { key: "y" },
+        last_refresh: "2026-09-01T00:00:00Z",
+        tokens: {
+          access_token: JWT_ACCESS_TOKEN,
+          refresh_token: "rt-1",
+          account_id: "acct-1",
+          id_token: "header.payload.sig",
+        },
+      }),
+    );
+    const parsed = JSON.parse(sanitized!) as Record<string, unknown>;
+    expect(parsed.auth_mode).toBe("chatgpt");
+    expect(parsed.OPENAI_API_KEY).toBeNull();
+    expect(parsed).not.toHaveProperty("personal_access_token");
+    expect(parsed).not.toHaveProperty("agent_identity");
+    expect(parsed).not.toHaveProperty("bedrock_api_key");
+    expect((parsed.tokens as { access_token: string }).access_token).toBe(JWT_ACCESS_TOKEN);
+    expect((parsed.tokens as { refresh_token: string }).refresh_token).toBe("rt-1");
+  });
+
+  it("drops the token bundle when access_token is key-shaped instead of a JWT", () => {
+    const sanitized = sanitizeCodexAuthJson(
+      JSON.stringify({
+        auth_mode: "chatgpt",
+        tokens: {
+          access_token: "sk-svcacct-poisoned",
+          refresh_token: "rt-1",
+          account_id: "acct-1",
+        },
+      }),
+    );
+    const parsed = JSON.parse(sanitized!) as Record<string, unknown>;
+    expect(parsed).not.toHaveProperty("tokens");
+    expect(parsed.auth_mode).toBe("chatgpt");
+  });
+
+  it("returns undefined for unparseable auth.json", () => {
+    expect(sanitizeCodexAuthJson("not json")).toBeUndefined();
+  });
+
+  it("importAuthJson stores only the sanitized subscription credential", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-sanitize-"));
+    roots.push(root);
+    const sourceHome = join(root, "source");
+    const managed = join(root, "managed");
+    mkdirSync(sourceHome, { recursive: true });
+    writeFileSync(
+      join(sourceHome, "auth.json"),
+      JSON.stringify({
+        auth_mode: "chatgpt",
+        OPENAI_API_KEY: "sk-svcacct-imported",
+        personal_access_token: "sk-svcacct-pat",
+        tokens: { access_token: JWT_ACCESS_TOKEN, refresh_token: "rt", account_id: "acct-9" },
+      }),
+      "utf8",
+    );
+    const service = new CodexProfileService({ store: new AccountStore(managed) });
+    const view = service.importAuthJson({ label: "Work", profileRoot: sourceHome });
+
+    const managedAuth = JSON.parse(
+      require("node:fs").readFileSync(
+        join(service.managedCodexHome(view.accountId), "auth.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    expect(managedAuth).not.toHaveProperty("personal_access_token");
+    expect(managedAuth.OPENAI_API_KEY).toBeNull();
+    expect(managedAuth.auth_mode).toBe("chatgpt");
+    expect(
+      require("node:fs").readFileSync(
+        join(service.managedCodexHome(view.accountId), "auth.json"),
+        "utf8",
+      ),
+    ).not.toContain("sk-svcacct-imported");
+  });
+
+  it("sanitizeManagedCodexAuth rewrites a polluted file and leaves clean files alone", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-codex-sanitize-home-"));
+    roots.push(root);
+    const home = join(root, "profile");
+    mkdirSync(home, { recursive: true });
+    const authPath = join(home, "auth.json");
+
+    // Polluted by a managed `codex login` writing the minted service key.
+    writeFileSync(
+      authPath,
+      JSON.stringify({
+        OPENAI_API_KEY: "sk-svcacct-login",
+        tokens: { access_token: JWT_ACCESS_TOKEN, refresh_token: "rt", account_id: "a" },
+      }),
+      "utf8",
+    );
+    expect(sanitizeManagedCodexAuth(home)).toBe(true);
+    const scrubbed = require("node:fs").readFileSync(authPath, "utf8");
+    expect(scrubbed).not.toContain("sk-svcacct-login");
+    expect(scrubbed).toContain(JWT_ACCESS_TOKEN);
+
+    // Clean file is untouched.
+    expect(sanitizeManagedCodexAuth(home)).toBe(false);
+    // Missing file is a no-op.
+    rmSync(authPath);
+    expect(sanitizeManagedCodexAuth(home)).toBe(false);
   });
 });

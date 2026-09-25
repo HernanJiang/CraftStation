@@ -54,7 +54,7 @@ export function ProjectSwitchMenu(props: {
   const remoteServerFor = useProjectRemoteServerLookup();
   const openDraft = useAppStore((state) => state.openDraft);
   const replacePaneId = useAppStore((state) => state.replacePaneId);
-  const discardDraftContent = useAppStore((state) => state.discardDraftContent);
+  const transferDraftContent = useAppStore((state) => state.transferDraftContent);
   const { mobile } = useResponsiveMenu();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -95,7 +95,9 @@ export function ProjectSwitchMenu(props: {
       onSelectProject(nextProjectId);
       return;
     }
-    discardDraftContent(currentProjectId);
+    // The typed prompt follows the retarget: the outgoing composer's unmount
+    // cleanup saves its content under the new project instead of dropping it.
+    transferDraftContent(currentProjectId, nextProjectId);
     startTransition(() => {
       if (paneId) {
         replacePaneId(paneId, makeDraftPaneId(nextProjectId));

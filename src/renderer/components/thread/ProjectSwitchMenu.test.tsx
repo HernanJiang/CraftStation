@@ -98,6 +98,27 @@ describe("ProjectSwitchMenu", () => {
     expect(useWorkspaceStore.getState().lastProjectIdByWorkspace).toEqual({ w1: "c" });
   });
 
+  it("moves the saved draft content to the picked project instead of dropping it", async () => {
+    useAppStore.setState({
+      draftContents: {
+        a: { segments: [{ kind: "text", content: "half-written prompt" }], attachments: [] },
+      },
+    });
+    render(<ProjectSwitchMenu currentProjectId="a" variant="compact" />);
+    const menu = await openMenu();
+
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Gamma" }));
+
+    await waitFor(() => {
+      expect(useAppStore.getState().view).toEqual({ kind: "draft", projectId: "c" });
+    });
+    const drafts = useAppStore.getState().draftContents;
+    expect(drafts.a).toBeUndefined();
+    expect(drafts.c?.segments[0]).toEqual({ kind: "text", content: "half-written prompt" });
+    // The live-composer retarget path is armed too (consumed on unmount).
+    expect(useAppStore.getState().draftContentTransfers).toEqual({ a: "c" });
+  });
+
   it("names the hosting machine on a mirrored project, in the trigger and the menu", async () => {
     const mirrored = {
       ...project("r", "Alpha", "w1"),

@@ -347,6 +347,32 @@ describe("ScheduleRunCoordinator", () => {
     await expect(settled).resolves.toBeNull();
   });
 
+  it("honors a Settings → General ask default instead of forcing full access", async () => {
+    const { coordinator, startThread } = makeHarness({
+      getSharedSettings: () => ({
+        ...defaultSharedSettings,
+        defaultPermissionMode: "ask",
+      }),
+    });
+    const settled = coordinator.runScheduleAsThread(task);
+    await flush();
+
+    expect(startThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: {
+          model: "claude-fable-5",
+          effort: "high",
+          approvalPolicy: "on-request",
+          sandboxMode: "workspace-write",
+        },
+      }),
+    );
+
+    coordinator.observeSupervisorEvent(threadState("thread-1", "working"));
+    coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
+    await expect(settled).resolves.toBeNull();
+  });
+
   it("falls back to the declared bypass posture when no options are advertised", async () => {
     const { coordinator, startThread } = makeHarness({
       getAgentStatuses: async () =>

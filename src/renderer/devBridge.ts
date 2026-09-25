@@ -55,6 +55,7 @@ export function installDevBridge(): void {
         threadDraftContents: {},
         pendingDraftWorktreeSelections: {},
         pendingComposerSeeds: {},
+        draftContentTransfers: {},
         draftContentDiscardRequests: {
           ...app.draftContentDiscardRequests,
           ...Object.fromEntries(

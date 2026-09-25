@@ -125,10 +125,14 @@ describe("parseCodexAuth", () => {
     const token = parseCodexAuth(
       JSON.stringify({
         OPENAI_API_KEY: null,
-        tokens: { access_token: "at", refresh_token: "rt", account_id: "acc-1" },
+        tokens: {
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+          refresh_token: "rt",
+          account_id: "acc-1",
+        },
       }),
     );
-    expect(token?.accessToken).toBe("at");
+    expect(token?.accessToken).toBe("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln");
     expect(token?.refreshToken).toBe("rt");
     expect(token?.accountId).toBe("acc-1");
   });
@@ -138,18 +142,41 @@ describe("parseCodexAuth", () => {
     expect(parseCodexAuth("nope")).toBeUndefined();
   });
 
+  it("rejects a key-shaped access token (minted sk- keys must not be bearer to ChatGPT)", () => {
+    expect(
+      parseCodexAuth(
+        JSON.stringify({
+          tokens: { access_token: "sk-svcacct-deadbeef", refresh_token: "rt", account_id: "a" },
+        }),
+      ),
+    ).toBeUndefined();
+    expect(
+      parseCodexAuth(JSON.stringify({ tokens: { access_token: "not-a-jwt", account_id: "a" } })),
+    ).toBeUndefined();
+  });
+
   it("extracts the account email from the id_token JWT payload", () => {
     const payload = Buffer.from(JSON.stringify({ email: "user@example.com" })).toString(
       "base64url",
     );
     const token = parseCodexAuth(
       JSON.stringify({
-        tokens: { access_token: "at", id_token: "header." + payload + ".sig" },
+        tokens: {
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+          id_token: "header." + payload + ".sig",
+        },
       }),
     );
     expect(token?.email).toBe("user@example.com");
     expect(
-      parseCodexAuth(JSON.stringify({ tokens: { access_token: "at", id_token: "bad" } }))?.email,
+      parseCodexAuth(
+        JSON.stringify({
+          tokens: {
+            access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
+            id_token: "bad",
+          },
+        }),
+      )?.email,
     ).toBeUndefined();
   });
 });

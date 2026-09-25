@@ -9,14 +9,14 @@ import {
 
 describe("shared settings defaults", () => {
   it("persists one global default permission mode for every model", () => {
-    expect(defaultSharedSettings.defaultPermissionMode).toBe("ask");
-    expect(normalizeSharedSettings({}).defaultPermissionMode).toBe("ask");
-    expect(
-      normalizeSharedSettings({ defaultPermissionMode: "full-access" }).defaultPermissionMode,
-    ).toBe("full-access");
+    expect(defaultSharedSettings.defaultPermissionMode).toBe("full-access");
+    expect(normalizeSharedSettings({}).defaultPermissionMode).toBe("full-access");
+    expect(normalizeSharedSettings({ defaultPermissionMode: "ask" }).defaultPermissionMode).toBe(
+      "ask",
+    );
     expect(
       normalizeSharedSettings({ defaultPermissionMode: "unsupported" }).defaultPermissionMode,
-    ).toBe("ask");
+    ).toBe("full-access");
   });
 
   it("leaves the custom global prompt blank by default", () => {

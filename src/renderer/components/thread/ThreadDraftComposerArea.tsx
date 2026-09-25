@@ -949,6 +949,11 @@ export function ThreadDraftComposerArea(props: {
   }
 
   useLayoutEffect(() => {
+    // A project switch may leave a pending draft transfer for THIS project:
+    // a fresh mount means the retargeted composer already unmounted and saved
+    // (or never existed), so any leftover entry is stale and must not redirect
+    // a future unmount's draft.
+    useAppStore.getState().consumeDraftContentTransfer(props.project.id);
     const saved = initialDraftRef.current;
     if (!saved) {
       return;
@@ -1070,7 +1075,11 @@ export function ThreadDraftComposerArea(props: {
     const pid = props.project.id;
     return () => {
       if (submittedRef.current) return;
-      if (useAppStore.getState().consumeDraftContentDiscard(pid)) return;
+      const store = useAppStore.getState();
+      if (store.consumeDraftContentDiscard(pid)) return;
+      // A project switch may have retargeted this draft (see ProjectSwitchMenu):
+      // save under the new project so the prompt survives the retarget.
+      const transferTarget = store.consumeDraftContentTransfer(pid) ?? pid;
       // Stash path-only attachment copies: `previewUrl` object URLs belong to
       // this composer's live session and are revoked when it unmounts.
       const content = {
@@ -1078,7 +1087,7 @@ export function ThreadDraftComposerArea(props: {
         attachments: attachmentsRef.current.map(storableAttachment),
       };
       if (isDraftContentNonEmpty(content)) {
-        saveDraftContent(pid, content);
+        saveDraftContent(transferTarget, content);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup-only effect keyed on project

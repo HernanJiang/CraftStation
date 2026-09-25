@@ -52,7 +52,7 @@ describe("Codex Profile Isolation (T06)", () => {
         tokens: {
           account_id: "org-account-A",
           email: "user-a@company.com",
-          access_token: "mock-token",
+          access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln",
         },
       }),
       "utf8",

@@ -1,7 +1,8 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { writeFileAtomic } from "@/shared/atomicFile";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { parseCodexAuth, resolveCodexToken } from "./codexCredentials";
+import { parseCodexAuth, resolveCodexToken, sanitizeCodexAuthJson } from "./codexCredentials";
 import { isCodexRouterOverlayHome } from "../agents/codex/codexRouterOverlay";
 import { AccountStore, shouldPreserveInferenceExhaustion } from "./accountStore";
 import type { AccountView } from "@/shared/contracts";
@@ -35,6 +36,11 @@ export const CODEX_COMPATIBILITY_ENV_KEYS = [
   "CODEX_BASE_URL",
   "CODEX_MODEL_PROVIDER",
   "OPENAI_API_KEY",
+  // Codex's own auth env overrides: a stray `CODEX_API_KEY`/`CODEX_ACCESS_TOKEN`
+  // (router tooling, `setx`, the desktop app) hijacks the managed profile's
+  // auth mode and sends the platform key to the ChatGPT subscription backend.
+  "CODEX_API_KEY",
+  "CODEX_ACCESS_TOKEN",
 ] as const;
 
 /**
@@ -136,7 +142,47 @@ export function ensureManagedCodexHome(managedCodexHome: string): string {
   // unconditional write would follow that link and replace the Router overlay.
   breakManagedStateSymlink(configPath);
   writeFileSync(configPath, MANAGED_CODEX_CONFIG, { encoding: "utf8" });
+  sanitizeManagedCodexAuth(managedCodexHome);
   return managedCodexHome;
+}
+
+/**
+ * Scrub alternate-credential fields out of a managed `auth.json`.
+ *
+ * `codex login` inside a managed home persists a minted `sk-svcacct` key and
+ * can leave a key-shaped `tokens.access_token` behind; either makes the spawned
+ * app-server hit chatgpt.com/backend-api with a platform key ("Incorrect API
+ * key provided" 401 loop that never self-refreshes — a non-JWT access_token
+ * falls back to the stale last_refresh heuristic). Managed profiles are
+ * ChatGPT-OAuth-only, so the file is rewritten to the canonical subscription
+ * shape whenever it drifts. Rewrites happen only on a real difference, before
+ * the new codex process opens the file.
+ */
+export function sanitizeManagedCodexAuth(managedCodexHome: string): boolean {
+  const authPath = join(managedCodexHome, "auth.json");
+  if (!existsSync(authPath)) return false;
+  let current: string;
+  try {
+    current = readFileSync(authPath, "utf8");
+  } catch {
+    return false;
+  }
+  const sanitized = sanitizeCodexAuthJson(current);
+  if (sanitized === undefined || sanitized === current) return false;
+  // Best-effort: a locked/unwritable auth.json must not block spawning — the
+  // scrub just runs again on the next spawn.
+  try {
+    breakManagedStateSymlink(authPath);
+    writeFileAtomic(authPath, sanitized, { encoding: "utf8", mode: 0o600 });
+  } catch {
+    return false;
+  }
+  console.warn(
+    "[account] scrubbed non-subscription credential fields from managed Codex auth.json: " +
+      "phase=runtime operation=sanitizeManagedCodexAuth status=repaired " +
+      `code=CODEX_AUTH_SANITIZED home=${managedCodexHome}`,
+  );
+  return true;
 }
 
 /**
@@ -207,7 +253,7 @@ export function buildCodexLoginScript(
   if (shellKind === "windows") {
     return [
       "Clear-Host",
-      "Remove-Item Env:CODEX_CONFIG_DIR,Env:CODEX_CONFIG_PATH,Env:CODEX_MODEL_CATALOG,Env:CODEX_MODEL_CATALOG_PATH,Env:CODEX_ROUTER_HOME,Env:CODEX_ROUTER_USER_DATA,Env:OPENAI_CODEX_HOME -ErrorAction SilentlyContinue",
+      "Remove-Item Env:CODEX_CONFIG_DIR,Env:CODEX_CONFIG_PATH,Env:CODEX_MODEL_CATALOG,Env:CODEX_MODEL_CATALOG_PATH,Env:CODEX_ROUTER_HOME,Env:CODEX_ROUTER_USER_DATA,Env:OPENAI_CODEX_HOME,Env:CODEX_API_KEY,Env:CODEX_ACCESS_TOKEN,Env:OPENAI_API_KEY,Env:CODEX_BASE_URL,Env:CODEX_MODEL_PROVIDER -ErrorAction SilentlyContinue",
       "if (-not $env:CODEX_HOME) { throw 'CODEX_HOME is missing from the isolated login shell.' }",
       "Write-Host ('CraftStation CODEX_HOME=' + $env:CODEX_HOME)",
       "Write-Host ('CraftStation login cwd=' + (Get-Location).Path)",
@@ -218,7 +264,7 @@ export function buildCodexLoginScript(
   }
   const bashCommand = [
     "clear",
-    "unset CODEX_CONFIG_DIR CODEX_CONFIG_PATH CODEX_MODEL_CATALOG CODEX_MODEL_CATALOG_PATH CODEX_ROUTER_HOME CODEX_ROUTER_USER_DATA OPENAI_CODEX_HOME",
+    "unset CODEX_CONFIG_DIR CODEX_CONFIG_PATH CODEX_MODEL_CATALOG CODEX_MODEL_CATALOG_PATH CODEX_ROUTER_HOME CODEX_ROUTER_USER_DATA OPENAI_CODEX_HOME CODEX_API_KEY CODEX_ACCESS_TOKEN OPENAI_API_KEY CODEX_BASE_URL CODEX_MODEL_PROVIDER",
     'if [ -z "$CODEX_HOME" ]; then echo "CODEX_HOME is missing from the isolated login shell." >&2; exit 1; fi',
     'echo "CraftStation CODEX_HOME=$CODEX_HOME"',
     'echo "CraftStation login cwd=$(pwd)"',
@@ -305,10 +351,15 @@ export class CodexProfileService {
       });
     }
     try {
+      // A managed subscription profile is OAuth-only. Codex login can persist a
+      // minted `sk-svcacct` key (`OPENAI_API_KEY`) or PAT/agent-identity fields;
+      // imported verbatim, they flip the managed runtime into key-auth and hit
+      // the ChatGPT backend with a platform key. Project the sanitized blob.
+      const managedAuthJson = sanitizeCodexAuthJson(authJson) ?? authJson;
       const credentialRoot = this.options.store.projectCredential({
         accountId: account.accountId,
         provider: this.provider,
-        authJson,
+        authJson: managedAuthJson,
       });
       ensureManagedCodexHome(credentialRoot);
       return this.options.store.updateStatus(account.accountId, "available");

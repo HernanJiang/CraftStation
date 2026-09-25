@@ -340,7 +340,7 @@ function launchPermissions(
   const defaults = applyPermissionMode(
     agent.capabilities,
     config,
-    hasExplicit ? "ask" : (useSharedSettings.getState().defaultPermissionMode ?? "ask"),
+    hasExplicit ? "ask" : (useSharedSettings.getState().defaultPermissionMode ?? "full-access"),
   );
   return {
     ...defaults,

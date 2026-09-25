@@ -16,7 +16,7 @@ import { DEFAULT_TERMINAL_SIZE, resolveMcpLaunchSnapshot } from "@/shared/contra
 import type { SupervisorEvent } from "@/shared/ipc";
 import type { CraftAgentPayload, CraftAgentResult } from "@/shared/ipc/schemas";
 import type { ScheduleRunPatch } from "../db/scheduleRuns";
-import { resolveUnrestrictedThreadPermissions } from "../threads/threadLaunchConfig";
+import { resolveDefaultThreadPermissions } from "../threads/threadLaunchConfig";
 import type { ScheduleRunInvocation } from "./ScheduleCapability";
 import {
   resolveScheduleExecution,
@@ -591,10 +591,11 @@ export class ScheduleRunCoordinator {
       model: task.config.model,
       ...(task.config.effort !== undefined ? { effort: task.config.effort } : {}),
       ...(task.config.fast !== undefined ? { fast: task.config.fast } : {}),
-      ...(await resolveUnrestrictedThreadPermissions(
+      ...(await resolveDefaultThreadPermissions(
         this.deps.getAgentStatuses,
         task.agentKind,
         location,
+        this.deps.getSharedSettings().defaultPermissionMode,
       )),
     };
   }

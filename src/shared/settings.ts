@@ -774,7 +774,9 @@ export const defaultSharedSettings: SharedSettings = {
   wslConflictResolverFast: false,
   wslConflictResolverPresentationMode: "gui",
   agentSettings: {},
-  defaultPermissionMode: "ask",
+  // New threads are unattended-friendly by default; Settings → General can
+  // still downgrade this to "ask" for approval-gated launches.
+  defaultPermissionMode: "full-access",
   hiddenModels: {},
   shownModels: {},
   customModels: [],
