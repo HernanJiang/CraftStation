@@ -59,6 +59,8 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
       accountReadError?: string;
       rateLimitsIdentity?: string;
       rateLimitsError?: string;
+      /** Skip the canned happy-path notification stream after turn/start. */
+      suppressTurnScript?: boolean;
     } = {},
   ) {
     const clientToHost = new PassThrough();
@@ -166,6 +168,7 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
             );
 
             // Stream official V2 notifications
+            if (options.suppressTurnScript) return;
             setTimeout(() => {
               // 1. turn/started
               hostToClient.write(
@@ -774,5 +777,195 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
 
     await new Promise((r) => setTimeout(r, 30));
     expect(handledApproval).toBe(true);
+  });
+
+  it("settles the open turn when the server sends the legacy turn/aborted", async () => {
+    const { client, hostToClient } = setupMockClientTransport({ suppressTurnScript: true });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { threadId: "thread-aborted" },
+    ).craftPlan!;
+
+    const entity = await adapter.spawnEntity(plan);
+    const session = await adapter.createSession(entity);
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    const turnPromise = session.startTurn({ prompt: "abort me" });
+    for (const notification of [
+      {
+        method: "turn/started",
+        params: { threadId: session.threadId, turn: { id: "turn-1", status: "inProgress" } },
+      },
+      {
+        method: "turn/aborted",
+        params: { threadId: session.threadId, turn: { id: "turn-1" } },
+      },
+    ]) {
+      hostToClient.write(`${JSON.stringify({ jsonrpc: "2.0", ...notification })}\n`);
+    }
+
+    const result = await turnPromise;
+    expect(result.status).toBe("interrupted");
+    expect(session.status).toBe("idle");
+  });
+
+  it("settles the open turn when the server reports the thread idle", async () => {
+    const { client, hostToClient } = setupMockClientTransport({ suppressTurnScript: true });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { threadId: "thread-idle-settle" },
+    ).craftPlan!;
+
+    const entity = await adapter.spawnEntity(plan);
+    const session = await adapter.createSession(entity);
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    const turnPromise = session.startTurn({ prompt: "quiet finish" });
+    for (const notification of [
+      {
+        method: "turn/started",
+        params: { threadId: session.threadId, turn: { id: "turn-1", status: "inProgress" } },
+      },
+      {
+        method: "thread/status/changed",
+        params: { threadId: session.threadId, status: { type: "idle" } },
+      },
+    ]) {
+      hostToClient.write(`${JSON.stringify({ jsonrpc: "2.0", ...notification })}\n`);
+    }
+
+    const result = await turnPromise;
+    expect(result.status).toBe("completed");
+    expect(session.status).toBe("idle");
+  });
+
+  it("does not synthesize a completion from idle status when no turn is open", async () => {
+    const { client, hostToClient } = setupMockClientTransport({ suppressTurnScript: true });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { threadId: "thread-idle-noop" },
+    ).craftPlan!;
+
+    const entity = await adapter.spawnEntity(plan);
+    const session = await adapter.createSession(entity);
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    hostToClient.write(
+      `${JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/status/changed",
+        params: { threadId: session.threadId, status: { type: "idle" } },
+      })}\n`,
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(events.some((event) => event.type === "turn.completed")).toBe(false);
+  });
+
+  it("force-settles a turn whose terminal error never gets a turn/completed", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { client, hostToClient } = setupMockClientTransport({ suppressTurnScript: true });
+      const adapter = new NativeCodexRuntimeAdapter({ client });
+      const plan = new Crafter().compile(
+        { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+        { threadId: "thread-error-settle" },
+      ).craftPlan!;
+
+      const entity = await adapter.spawnEntity(plan);
+      const session = await adapter.createSession(entity);
+      const events: RuntimeEvent[] = [];
+      session.subscribe((event) => events.push(event));
+
+      const turnPromise = session.startTurn({ prompt: "die silently" });
+      // Attach the rejection handler before the watchdog can fire — a late
+      // `expect().rejects` would flag an unhandled rejection window.
+      const turnOutcome = turnPromise.then(
+        (result) => ({ resolved: result }),
+        (error: unknown) => ({ rejected: error }),
+      );
+      // Streams deliver via nextTick/immediates — unaffected by the fake timers.
+      await new Promise((r) => setImmediate(r));
+      hostToClient.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          method: "error",
+          params: { threadId: session.threadId, message: "unknown provider for model" },
+        })}\n`,
+      );
+      await new Promise((r) => setImmediate(r));
+
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "error", message: "unknown provider for model" }),
+      );
+
+      await vi.advanceTimersByTimeAsync(8_000);
+      await expect(turnOutcome).resolves.toMatchObject({
+        rejected: expect.objectContaining({ code: "EXECUTION_FAILED" }),
+      });
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "turn.completed", state: "failed" }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a willRetry error as a warning without settling the turn", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { client, hostToClient } = setupMockClientTransport({ suppressTurnScript: true });
+      const adapter = new NativeCodexRuntimeAdapter({ client });
+      const plan = new Crafter().compile(
+        { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+        { threadId: "thread-retryable" },
+      ).craftPlan!;
+
+      const entity = await adapter.spawnEntity(plan);
+      const session = await adapter.createSession(entity);
+      const events: RuntimeEvent[] = [];
+      session.subscribe((event) => events.push(event));
+
+      const turnPromise = session.startTurn({ prompt: "transient blip" });
+      void turnPromise.catch(() => undefined);
+      await new Promise((r) => setImmediate(r));
+      hostToClient.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          method: "error",
+          params: {
+            threadId: session.threadId,
+            error: { message: "stream disconnected" },
+            willRetry: true,
+          },
+        })}\n`,
+      );
+      await new Promise((r) => setImmediate(r));
+      await vi.advanceTimersByTimeAsync(8_000);
+
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "warning", message: "stream disconnected" }),
+      );
+      expect(events.some((event) => event.type === "error")).toBe(false);
+      expect(events.some((event) => event.type === "turn.completed")).toBe(false);
+
+      // The real completion still settles the turn normally afterwards.
+      hostToClient.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          method: "turn/completed",
+          params: { threadId: session.threadId, turn: { id: "turn-1", status: "completed" } },
+        })}\n`,
+      );
+      await expect(turnPromise).resolves.toMatchObject({ status: "completed" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -234,12 +234,20 @@ export function mapCodexNotificationToRuntimeEvents(
       break;
     }
 
-    case "turn/completed": {
+    case "turn/completed":
+    case "turn/aborted": {
       const turn = params.turn ?? {};
       const turnId = turn.id || params.turnId || context.turnId || `turn:${Date.now()}`;
-      let state: "completed" | "interrupted" | "failed" = "completed";
-      if (turn.status === "interrupted" || params.state === "interrupted") state = "interrupted";
-      else if (turn.status === "failed" || params.state === "failed") state = "failed";
+      // `turn/aborted` is the legacy settle path; current servers report
+      // interruption via `turn/completed` with `turn.status: "interrupted"`.
+      const rawState = method === "turn/aborted" ? "interrupted" : (turn.status ?? params.state);
+      let state: "completed" | "interrupted" | "failed" | "cancelled" = "completed";
+      if (rawState === "interrupted") state = "interrupted";
+      else if (rawState === "cancelled" || rawState === "canceled") state = "cancelled";
+      else if (rawState === "failed") state = "failed";
+      // The turn is closed — drop the tracked id so a trailing
+      // thread/status/changed(idle) cannot synthesize a second completion.
+      delete context.turnId;
 
       if (turn.error?.message) {
         events.push({
@@ -255,6 +263,45 @@ export function mapCodexNotificationToRuntimeEvents(
         turnId,
         state,
       });
+      break;
+    }
+
+    case "thread/error":
+    case "error": {
+      // `willRetry` errors are transient; anything else is turn-terminal.
+      // `publishCraftedSessionState` maps `error` to the thread's error
+      // state, and the session's settle watchdog force-completes an open
+      // turn when no `turn/completed` follows.
+      const message =
+        readNonEmptyString(params.message) ??
+        readNonEmptyString(params.errorMessage) ??
+        readNonEmptyString(readRecord(params.error)?.message) ??
+        readNonEmptyString(readRecord(readRecord(params.turn)?.error)?.message) ??
+        "Codex thread error";
+      events.push({
+        type: method === "error" && params.willRetry === true ? "warning" : "error",
+        threadId,
+        message,
+      });
+      break;
+    }
+
+    case "thread/status/changed": {
+      // Server-authoritative settle: the app-server reports `idle` or
+      // `systemError` once no turn remains on the thread — covering internal
+      // compact turns and error paths that end without `turn/completed`.
+      // Without this the renderer can stay in "working" forever.
+      const statusType = readNonEmptyString(readRecord(params.status)?.type);
+      if ((statusType === "idle" || statusType === "systemError") && context.turnId) {
+        const turnId = context.turnId;
+        delete context.turnId;
+        events.push({
+          type: "turn.completed",
+          threadId,
+          turnId,
+          state: statusType === "systemError" ? "failed" : "completed",
+        });
+      }
       break;
     }
 

@@ -43,6 +43,11 @@ const DEFAULT_COLLABORATION_INSTRUCTIONS =
 // `turnTimeoutMs` remains available for deployments that require one.
 const DEFAULT_TURN_TIMEOUT_MS = 0;
 
+// Bounded window for the app-server to follow a turn-level `error`
+// notification with a real `turn/completed`. If it doesn't, the turn is
+// force-settled locally so the renderer never stays wedged in "working".
+const NATIVE_CODEX_TURN_ERROR_SETTLE_MS = 8_000;
+
 function codexDiagnostic(
   phase: NativeHarnessDiagnostic["phase"],
   operation: string,
@@ -94,6 +99,10 @@ export class NativeCodexCraftSession implements CraftSession {
   private readonly _mappingContext: EventMappingContext;
   private readonly _subAgentRouter: NativeCodexSubAgentRouter;
   private _sequence = 0;
+  // Settles a turn that failed via a bare `error` notification but never
+  // received the matching `turn/completed` (gateway/provider failures).
+  // Cancelled by the next `turn/started`, any completion, or terminate.
+  private _turnErrorSettleTimer?: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     readonly id: string,
@@ -130,6 +139,11 @@ export class NativeCodexCraftSession implements CraftSession {
         );
       for (const event of events) {
         this.emitEvent(event, notif.method, "native");
+      }
+      // A terminal-looking error while a turn is still running may be all the
+      // server sends — arm the settle watchdog in case no completion follows.
+      if (this._activeTurnStatus === "running" && events.some((event) => event.type === "error")) {
+        this.armTurnErrorSettle();
       }
     });
     this._unsubscribeClose = this.client.onClose(() => {
@@ -186,11 +200,43 @@ export class NativeCodexCraftSession implements CraftSession {
     };
   }
 
+  private armTurnErrorSettle(): void {
+    if (this._turnErrorSettleTimer) clearTimeout(this._turnErrorSettleTimer);
+    this._turnErrorSettleTimer = setTimeout(() => {
+      this._turnErrorSettleTimer = undefined;
+      if (this._status === "terminated" || this._activeTurnStatus !== "running") return;
+      const turnId = this._activeTurnId ?? `turn:${Date.now()}`;
+      console.warn(
+        "[codex-native] turn error without turn/completed — force-settling turn:",
+        turnId,
+      );
+      this._status = "idle";
+      this._activeTurnStatus = "failed";
+      this._activeTurnId = undefined;
+      delete this._mappingContext.turnId;
+      this.emitEvent(
+        { type: "turn.completed", threadId: this.threadId, turnId, state: "failed" },
+        "turn/completed",
+      );
+    }, NATIVE_CODEX_TURN_ERROR_SETTLE_MS);
+  }
+
+  private clearTurnErrorSettle(): void {
+    if (this._turnErrorSettleTimer !== undefined) {
+      clearTimeout(this._turnErrorSettleTimer);
+      this._turnErrorSettleTimer = undefined;
+    }
+  }
+
   private emitEvent(
     event: RuntimeEvent,
     nativeType: string = event.type,
     source: NativeEventEnvelope["source"] = "canonical-adapter",
   ): void {
+    // Any real settlement or a fresh turn supersedes the error watchdog.
+    if (event.type === "turn.completed" || event.type === "turn.started") {
+      this.clearTurnErrorSettle();
+    }
     const nextEvent = event.nativeEnvelope
       ? event
       : {
@@ -251,6 +297,7 @@ export class NativeCodexCraftSession implements CraftSession {
   async terminate(): Promise<void> {
     if (this._status === "terminated") return;
     this._status = "terminated";
+    this.clearTurnErrorSettle();
     this._activeTurnStatus = undefined;
     this._activeTurnId = undefined;
 
