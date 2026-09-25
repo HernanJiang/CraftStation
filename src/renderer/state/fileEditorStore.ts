@@ -900,7 +900,11 @@ export const useFileEditorStore = create<FileEditorStoreState>((set, get) => ({
 
     const paths = Object.entries(buffers)
       .filter(([path, buf]) => {
-        if (buf.status !== "ready" || buf.isDirty || buf.isLoading) return false;
+        if (buf.isDirty || buf.isLoading) return false;
+        // Previewable binaries (PDF/image/media/office) carry no text content,
+        // but they still need mtime re-checks so mounted previews reload when
+        // the file changes on disk.
+        if (buf.status !== "ready" && buf.status !== "binary") return false;
         // Filesystem events triggered by our own save round-trip don't need
         // to rebuild the buffer — suppress for a short window so Monaco
         // doesn't lose focus / blink on Ctrl+S.
@@ -927,7 +931,18 @@ export const useFileEditorStore = create<FileEditorStoreState>((set, get) => ({
         const { path, result } = entry.value;
         const current = nextBuffers[path];
         // Skip if the buffer was modified by the user while we were reading
-        if (!current || current.isDirty || current.status !== "ready") continue;
+        if (!current || current.isDirty) continue;
+
+        // Binary buffers have no text to diff — on-disk identity is path +
+        // mtime. Rebuild on change so mounted previews remount instead of
+        // showing stale bytes.
+        if (current.status !== "ready") {
+          if (result.status !== current.status || result.modifiedAtMs !== current.modifiedAtMs) {
+            nextBuffers[path] = withGitDiff(buildBuffer(result), current.gitDiff);
+            changed = true;
+          }
+          continue;
+        }
 
         // Fast path: on-disk content matches what the editor shows. Refresh
         // mtime/savedContent in-place so the next compare short-circuits,

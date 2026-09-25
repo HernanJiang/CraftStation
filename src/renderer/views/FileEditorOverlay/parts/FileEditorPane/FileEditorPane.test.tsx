@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@lingui/react";
 import { i18n } from "@/renderer/i18n/i18n";
@@ -10,7 +10,8 @@ import { FileEditorPane } from "./FileEditorPane";
 const bridge = vi.hoisted(() => ({
   revealProjectEntry: vi.fn<(payload: unknown) => Promise<void>>(),
   browserCreateTab: vi.fn<(payload: unknown) => Promise<void>>(),
-  extractOfficeDocumentText: vi.fn<(payload: unknown) => Promise<{ text: string; truncated: boolean }>>(),
+  extractOfficeDocumentText:
+    vi.fn<(payload: unknown) => Promise<{ text: string; truncated: boolean }>>(),
   openProjectEntryWithSystem: vi.fn<(payload: unknown) => Promise<void>>(),
 }));
 
@@ -131,6 +132,70 @@ describe("FileEditorPane", () => {
     expect(bridge.browserCreateTab).not.toHaveBeenCalled();
   });
 
+  it("reloads the PDF webview when the on-disk file's mtime changes", () => {
+    const seed = (modifiedAtMs: number) =>
+      useFileEditorStore.setState({
+        activePath: "docs/resume.pdf",
+        tabs: ["docs/resume.pdf"],
+        buffers: {
+          "docs/resume.pdf": makeBuffer({
+            path: "docs/resume.pdf",
+            status: "binary",
+            modifiedAtMs,
+          }),
+        },
+      });
+    seed(1);
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+
+    const first = screen.getByTitle("resume.pdf");
+    expect(first.getAttribute("src")).toContain("v=1");
+
+    // Watcher-driven refresh rebuilt the buffer with a newer mtime — the
+    // webview must remount on a new cache-busted URL instead of showing the
+    // stale document.
+    act(() => seed(2));
+
+    const second = screen.getByTitle("resume.pdf");
+    expect(second.getAttribute("src")).toContain("v=2");
+    expect(second).not.toBe(first);
+  });
+
+  it("re-extracts office documents when the on-disk file's mtime changes", async () => {
+    bridge.extractOfficeDocumentText.mockResolvedValue({ text: "v1", truncated: false });
+    const seed = (modifiedAtMs: number) =>
+      useFileEditorStore.setState({
+        activePath: "docs/report.docx",
+        tabs: ["docs/report.docx"],
+        buffers: {
+          "docs/report.docx": makeBuffer({
+            path: "docs/report.docx",
+            status: "binary",
+            modifiedAtMs,
+          }),
+        },
+      });
+    seed(1);
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("v1")).toBeInTheDocument();
+    bridge.extractOfficeDocumentText.mockResolvedValue({ text: "v2", truncated: false });
+    act(() => seed(2));
+
+    expect(await screen.findByText("v2")).toBeInTheDocument();
+    expect(bridge.extractOfficeDocumentText).toHaveBeenCalledTimes(2);
+  });
+
   it("falls back to the browser tab for PDFs in remote sessions", () => {
     isRemoteSession.mockReturnValueOnce(true);
     useFileEditorStore.setState({
@@ -235,7 +300,10 @@ describe("FileEditorPane", () => {
   });
 
   it("renders Office documents through text extraction", async () => {
-    bridge.extractOfficeDocumentText.mockResolvedValue({ text: "Quarterly results", truncated: false });
+    bridge.extractOfficeDocumentText.mockResolvedValue({
+      text: "Quarterly results",
+      truncated: false,
+    });
     useFileEditorStore.setState({
       activePath: "docs/report.docx",
       tabs: ["docs/report.docx"],

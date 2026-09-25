@@ -640,3 +640,114 @@ describe("fileEditorStore remote roots", () => {
     });
   });
 });
+
+describe("fileEditorStore refreshOpenBuffers", () => {
+  const originalCraftStation = window.craftstation;
+
+  function makeBinaryBuffer(path: string, modifiedAtMs: number) {
+    return {
+      path,
+      status: "binary" as const,
+      modifiedAtMs,
+      content: "",
+      savedContent: "",
+      lineEnding: "lf" as const,
+      hasBom: false,
+      isDirty: false,
+      isLoading: false,
+    };
+  }
+
+  function seed(path: string, modifiedAtMs: number, isDirty = false) {
+    useFileEditorStore.setState({
+      rootContext: {
+        projectId: "p1",
+        projectName: "proj",
+        projectLocation: { kind: "windows", path: "D:\\proj" },
+        rootLabel: "proj",
+      },
+      tabs: [path],
+      activePath: path,
+      buffers: { [path]: { ...makeBinaryBuffer(path, modifiedAtMs), isDirty } },
+    });
+  }
+
+  function mockRead(result: { modifiedAtMs: number } | Error) {
+    const readProjectFile = vi.fn<CraftStationBridge["readProjectFile"]>(async () => {
+      if (result instanceof Error) throw result;
+      return { path: "docs/spec.pdf", status: "binary", modifiedAtMs: result.modifiedAtMs };
+    });
+    Object.defineProperty(window, "craftstation", {
+      configurable: true,
+      writable: true,
+      value: { readProjectFile },
+    });
+    return readProjectFile;
+  }
+
+  beforeEach(() => {
+    useFileEditorStore.setState({
+      rootContext: null,
+      overlayMode: null,
+      tabs: [],
+      activePath: null,
+      previewTab: null,
+      markdownPreviewPath: null,
+      buffers: {},
+      refreshToken: 0,
+      pendingReveal: null,
+    });
+    useRemoteServersStore.getState().closeRemoteThread();
+    useRemoteServersStore.setState({ servers: [], runtime: {} });
+    Object.defineProperty(window, "craftstation", {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "craftstation", {
+      configurable: true,
+      writable: true,
+      value: originalCraftStation,
+    });
+  });
+
+  it("rebuilds binary preview buffers when the file mtime changes on disk", async () => {
+    const readProjectFile = mockRead({ modifiedAtMs: 9 });
+    seed("docs/spec.pdf", 1);
+    const before = useFileEditorStore.getState().buffers["docs/spec.pdf"];
+
+    await useFileEditorStore.getState().refreshOpenBuffers();
+
+    expect(readProjectFile).toHaveBeenCalledWith({
+      projectLocation: { kind: "windows", path: "D:\\proj" },
+      path: "docs/spec.pdf",
+    });
+    const after = useFileEditorStore.getState().buffers["docs/spec.pdf"];
+    expect(after?.status).toBe("binary");
+    expect(after?.modifiedAtMs).toBe(9);
+    expect(after).not.toBe(before);
+  });
+
+  it("keeps the same buffer object when the binary mtime is unchanged", async () => {
+    mockRead({ modifiedAtMs: 1 });
+    seed("docs/spec.pdf", 1);
+    const before = useFileEditorStore.getState().buffers["docs/spec.pdf"];
+
+    await useFileEditorStore.getState().refreshOpenBuffers();
+
+    expect(useFileEditorStore.getState().buffers["docs/spec.pdf"]).toBe(before);
+  });
+
+  it("does not reread dirty buffers", async () => {
+    const readProjectFile = mockRead({ modifiedAtMs: 9 });
+    seed("docs/spec.pdf", 1, true);
+
+    await useFileEditorStore.getState().refreshOpenBuffers();
+
+    expect(readProjectFile).not.toHaveBeenCalled();
+    expect(useFileEditorStore.getState().buffers["docs/spec.pdf"]?.modifiedAtMs).toBe(1);
+  });
+});

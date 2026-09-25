@@ -303,6 +303,12 @@ function EditorBody(props: {
   const isCsv = isCsvPath(activePath);
   const isNotebook = isNotebookPath(activePath);
   const isOffice = isOfficePath(activePath);
+  // Bumped by refreshOpenBuffers when the file's mtime changes on disk; keys
+  // and cache-busted URLs below remount previews instead of showing stale
+  // bytes (the watcher only rebuilds non-dirty buffers).
+  const previewVersion = useFileEditorStore(
+    (state) => state.buffers[activePath]?.modifiedAtMs ?? 0,
+  );
 
   useMergeConflictContribution({ editor: editorInstance, monaco: monacoInstance });
   useGitDiffContribution({ editor: editorInstance, gitDiff, bufferStatus });
@@ -352,19 +358,35 @@ function EditorBody(props: {
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       {isPdf ? (
-        <PdfBrowserPlaceholder path={activePath} projectLocation={projectLocation} />
+        <PdfBrowserPlaceholder
+          path={activePath}
+          projectLocation={projectLocation}
+          version={previewVersion}
+        />
       ) : isImage && projectLocation ? (
-        <ImagePreviewPlaceholder path={activePath} projectLocation={projectLocation} />
+        <ImagePreviewPlaceholder
+          path={activePath}
+          projectLocation={projectLocation}
+          version={previewVersion}
+        />
       ) : isVideo ? (
-        <VideoPreview path={activePath} projectLocation={projectLocation} />
+        <VideoPreview
+          path={activePath}
+          projectLocation={projectLocation}
+          version={previewVersion}
+        />
       ) : isAudio ? (
-        <AudioPreview path={activePath} projectLocation={projectLocation} />
+        <AudioPreview
+          path={activePath}
+          projectLocation={projectLocation}
+          version={previewVersion}
+        />
       ) : isCsv && bufferStatus === "ready" ? (
         <CsvPreview content={content ?? ""} />
       ) : isNotebook && bufferStatus === "ready" ? (
         <NotebookPreview content={content ?? ""} />
       ) : isOffice && projectLocation ? (
-        <OfficePreview path={activePath} projectLocation={projectLocation} />
+        <OfficePreview key={previewVersion} path={activePath} projectLocation={projectLocation} />
       ) : bufferStatus === "ready" && showPreview && isMarkdown ? (
         <MarkdownPreview content={content ?? ""} />
       ) : bufferStatus === "ready" ? (
@@ -417,7 +439,20 @@ function EditorBody(props: {
   );
 }
 
-function ImagePreviewPlaceholder(props: { path: string; projectLocation: ProjectLocation | null }) {
+/**
+ * Same-path media URLs stay byte-identical across writes, so the browser cache
+ * would keep serving the previous version. The buffer mtime rides along as a
+ * cache-busting query — the protocol handlers resolve only the pathname.
+ */
+function withCacheBust(url: string, version: number): string {
+  return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
+}
+
+function ImagePreviewPlaceholder(props: {
+  path: string;
+  projectLocation: ProjectLocation | null;
+  version: number;
+}) {
   const location = props.projectLocation;
   if (!location) {
     return (
@@ -427,7 +462,10 @@ function ImagePreviewPlaceholder(props: { path: string; projectLocation: Project
     );
   }
   const absPath = resolveAbsolutePath(location, props.path);
-  const imageUrl = resolveLocalImageDisplayUrl(toLocalFileUrl(absPath));
+  const imageUrl = withCacheBust(
+    resolveLocalImageDisplayUrl(toLocalFileUrl(absPath)),
+    props.version,
+  );
 
   return (
     <div className="flex h-full w-full items-center justify-center overflow-auto p-4 bg-black/20">
@@ -440,15 +478,24 @@ function ImagePreviewPlaceholder(props: { path: string; projectLocation: Project
   );
 }
 
-function mediaSourceUrl(path: string, projectLocation: ProjectLocation | null): string | null {
+function mediaSourceUrl(
+  path: string,
+  projectLocation: ProjectLocation | null,
+  version: number,
+): string | null {
   if (!projectLocation) return null;
-  return resolveLocalImageDisplayUrl(
-    toLocalFileUrl(resolveAbsolutePath(projectLocation, path)),
+  return withCacheBust(
+    resolveLocalImageDisplayUrl(toLocalFileUrl(resolveAbsolutePath(projectLocation, path))),
+    version,
   );
 }
 
-function VideoPreview(props: { path: string; projectLocation: ProjectLocation | null }) {
-  const mediaUrl = mediaSourceUrl(props.path, props.projectLocation);
+function VideoPreview(props: {
+  path: string;
+  projectLocation: ProjectLocation | null;
+  version: number;
+}) {
+  const mediaUrl = mediaSourceUrl(props.path, props.projectLocation, props.version);
   if (!mediaUrl) {
     return (
       <div className="flex h-full items-center justify-center p-4 text-xs text-muted">
@@ -472,8 +519,12 @@ function VideoPreview(props: { path: string; projectLocation: ProjectLocation | 
   );
 }
 
-function AudioPreview(props: { path: string; projectLocation: ProjectLocation | null }) {
-  const mediaUrl = mediaSourceUrl(props.path, props.projectLocation);
+function AudioPreview(props: {
+  path: string;
+  projectLocation: ProjectLocation | null;
+  version: number;
+}) {
+  const mediaUrl = mediaSourceUrl(props.path, props.projectLocation, props.version);
   if (!mediaUrl) {
     return (
       <div className="flex h-full items-center justify-center p-4 text-xs text-muted">
@@ -485,12 +536,23 @@ function AudioPreview(props: { path: string; projectLocation: ProjectLocation | 
     <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8">
       <p className="max-w-full truncate text-sm text-foreground">{getBasename(props.path)}</p>
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-provided local media ships no caption track */}
-      <audio key={mediaUrl} src={mediaUrl} title={getBasename(props.path)} controls preload="metadata" className="w-full max-w-md" />
+      <audio
+        key={mediaUrl}
+        src={mediaUrl}
+        title={getBasename(props.path)}
+        controls
+        preload="metadata"
+        className="w-full max-w-md"
+      />
     </div>
   );
 }
 
-function PdfBrowserPlaceholder(props: { path: string; projectLocation: ProjectLocation | null }) {
+function PdfBrowserPlaceholder(props: {
+  path: string;
+  projectLocation: ProjectLocation | null;
+  version: number;
+}) {
   const { t } = useLingui();
   const location = props.projectLocation;
   if (!location) {
@@ -524,7 +586,13 @@ function PdfBrowserPlaceholder(props: { path: string; projectLocation: ProjectLo
   // a sandboxed frame (opaque origin), which painted the blank page. A
   // <webview> paints over normal DOM, so the fallback action lives in the
   // header row above it instead of overlaying it.
-  const fileUrl = toFileUrl(resolveAbsolutePath(location, props.path));
+  // The `?v=` cache buster keys the guest's cached document on the file's
+  // mtime — Chromium resolves only the pathname for file:// URLs, so the
+  // query is inert for loading but forces a fresh fetch after each write.
+  const fileUrl = withCacheBust(
+    toFileUrl(resolveAbsolutePath(location, props.path)),
+    props.version,
+  );
 
   return (
     <div className="flex h-full w-full flex-col bg-white">
@@ -542,7 +610,12 @@ function PdfBrowserPlaceholder(props: { path: string; projectLocation: ProjectLo
           {t`Open in browser`}
         </button>
       </div>
-      <webview key={fileUrl} src={fileUrl} title={getBasename(props.path)} className="min-h-0 w-full flex-1" />
+      <webview
+        key={fileUrl}
+        src={fileUrl}
+        title={getBasename(props.path)}
+        className="min-h-0 w-full flex-1"
+      />
     </div>
   );
 }
