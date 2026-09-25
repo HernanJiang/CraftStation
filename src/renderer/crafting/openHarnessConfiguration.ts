@@ -13,6 +13,7 @@ const NATIVE_AGENT_SETTINGS_KINDS = new Set([
   "opencode",
   "muse",
   "devin",
+  "stepcode",
 ]);
 
 export type HarnessConfigurationTarget =

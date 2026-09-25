@@ -41,6 +41,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
   deepseek: "DeepSeek",
   muse: "Muse",
   devin: "Devin",
+  stepcode: "Step Code",
+  stepfun: "StepFun",
   zai: "z.ai",
   qwen: "Alibaba Token Plan",
   volcengine: "Volcengine Ark Token Plan",
@@ -66,6 +68,7 @@ const VENDOR_KIND_TO_BRAND: Record<string, string> = {
   "deepseek-api": "deepseek",
   "opencode-go": "opencode",
   meta: "muse",
+  stepfun: "stepcode",
   cognition: "devin",
   devin: "devin",
   recipes: "recipes",
@@ -159,6 +162,12 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
   },
   devin: {
     background: "#0b1220",
+    logo: "",
+  },
+  stepcode: {
+    // No vendored logo asset: dark tile + letter glyph, same treatment as
+    // muse/devin until an official StepFun mark is licensed.
+    background: "#101226",
     logo: "",
   },
   zai: {

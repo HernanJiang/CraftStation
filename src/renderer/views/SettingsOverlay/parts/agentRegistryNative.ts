@@ -266,6 +266,24 @@ export const NATIVE_AGENT_REGISTRY_ENTRIES: NativeAgentRegistryEntry[] = [
       }),
   },
   {
+    id: "stepcode",
+    description: msg`First-class Step Code integration using StepFun's official CLI and structured RPC runtime.`,
+    docsUrl: "https://platform.stepfun.com/step-code",
+    installCommand: (project) =>
+      nativeInstallCommand(project, {
+        mac:
+          "if command -v curl >/dev/null 2>&1; then curl -fsSL https://static-openapi.stepfun.com/stepcode/install.sh | sh; else " +
+          POSIX_MISSING_CURL_MESSAGE +
+          "; fi",
+        posix:
+          "if command -v curl >/dev/null 2>&1; then curl -fsSL https://static-openapi.stepfun.com/stepcode/install.sh | sh; else " +
+          POSIX_MISSING_CURL_MESSAGE +
+          "; fi",
+        windows:
+          "if (Get-Command irm -ErrorAction SilentlyContinue) { irm https://static-openapi.stepfun.com/stepcode/install.ps1 | iex } elseif (Get-Command wsl.exe -ErrorAction SilentlyContinue) { wsl.exe -e bash -lc 'curl -fsSL https://static-openapi.stepfun.com/stepcode/install.sh | sh' } else { Write-Host 'No supported installer found. Install PowerShell Invoke-RestMethod or WSL first, then refresh detected agents.' }",
+      }),
+  },
+  {
     id: "grok",
     acpRegistryAliases: [{ id: "grok-build" }],
     description: msg`First-class Grok Build CLI integration using CraftStation's native runtime.`,

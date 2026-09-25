@@ -2928,7 +2928,8 @@ export class SupervisorRuntime {
         plan.runtimeBinding.harnessKind === "muse" ||
         plan.runtimeBinding.harnessKind === "kimi" ||
         plan.runtimeBinding.harnessKind === "grok" ||
-        plan.runtimeBinding.harnessKind === "deepseek") &&
+        plan.runtimeBinding.harnessKind === "deepseek" ||
+        plan.runtimeBinding.harnessKind === "stepcode") &&
       explicitRecord?.provider === "openai-compatible"
         ? "openai-compatible"
         : plan.runtimeBinding.harnessKind === "codex"
@@ -3004,7 +3005,8 @@ export class SupervisorRuntime {
         } else if (
           plan.runtimeBinding.harnessKind === "kimi" ||
           plan.runtimeBinding.harnessKind === "grok" ||
-          plan.runtimeBinding.harnessKind === "deepseek"
+          plan.runtimeBinding.harnessKind === "deepseek" ||
+          plan.runtimeBinding.harnessKind === "stepcode"
         ) {
           const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
             resolution.account.accountId,
@@ -3433,7 +3435,15 @@ export class SupervisorRuntime {
         env: runtime.env,
       };
     }
-    if (input.provider === "kimi" || input.provider === "grok" || input.provider === "deepseek") {
+    if (
+      input.provider === "kimi" ||
+      input.provider === "grok" ||
+      input.provider === "deepseek" ||
+      // Step Code's built-in `step` provider is Chat-Completions-only
+      // (models.json merges force api=openai-completions), so a
+      // Responses-validated channel must fail closed instead of half-running.
+      (input.provider === "stepcode" && protocol === "chat_completions")
+    ) {
       const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
         record.accountId,
         input.provider,
@@ -3455,7 +3465,8 @@ export class SupervisorRuntime {
       input.provider === "grok" ||
       input.provider === "antigravity" ||
       input.provider === "opencode" ||
-      input.provider === "muse"
+      input.provider === "muse" ||
+      input.provider === "stepcode"
         ? input.provider
         : undefined;
     throw new AccountControlError(

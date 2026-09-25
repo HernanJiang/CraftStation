@@ -42,7 +42,7 @@ describe("supportsOneShot capability", () => {
       .filter((adapter) => adapter.capabilities.supportsTextOnlyOneShot === true)
       .map((adapter) => adapter.kind)
       .sort();
-    expect(supported).toEqual(["claude", "pi"]);
+    expect(supported).toEqual(["claude", "pi", "stepcode"]);
   });
 
   it("keeps the ACP-only DeepSeek adapter out of headless one-shot selectors", () => {

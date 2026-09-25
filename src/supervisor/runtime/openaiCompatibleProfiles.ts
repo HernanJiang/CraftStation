@@ -1,6 +1,7 @@
 import {
   prepareCodexEndpointRuntime,
   prepareKimiEndpointRuntime,
+  prepareStepCodeEndpointRuntime,
   vendorEndpointEnv,
 } from "./compatibleEndpointRuntime";
 import { clearUsageSecret, getUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
@@ -470,7 +471,7 @@ export class OpenAiCompatibleProfileService {
    */
   prepareVendorCompatRuntime(
     accountId: string,
-    harness: "kimi" | "grok" | "deepseek",
+    harness: "kimi" | "grok" | "deepseek" | "stepcode",
     modelId?: string,
     /**
      * Wire-type override for the Kimi provider table (`responses` →
@@ -512,6 +513,21 @@ export class OpenAiCompatibleProfileService {
         apiKey: bundle.apiKey,
         model: modelId ?? bundle.model ?? "",
         ...(protocol ? { protocol } : {}),
+      });
+    }
+    if (harness === "stepcode") {
+      return prepareStepCodeEndpointRuntime({
+        directory: join(
+          this.options.cacheDir,
+          "openai-compatible-stepcode",
+          safeAccountPathSegment(accountId),
+        ),
+        baseUrl: bundle.baseUrl,
+        apiKey: bundle.apiKey,
+        models: this.listAccountModelEntries(accountId).map((entry) => ({
+          id: entry.id,
+          name: entry.name,
+        })),
       });
     }
     return { env: vendorEndpointEnv(harness, bundle.baseUrl, bundle.apiKey) };

@@ -859,6 +859,14 @@ export class SpawnPipeline {
       projectLocation: payload.projectLocation,
     });
     const deepseekForeignEnv = deepseekPrepared.env;
+    const stepcodePrepared = await this.prepareStepCodeForeignLaunch({
+      agentKind: payload.agentKind,
+      threadId: payload.threadId,
+      model: payload.config.model,
+      thirdPartyAccountId: payload.thirdPartyAccountId,
+      projectLocation: payload.projectLocation,
+    });
+    const stepcodeForeignEnv = stepcodePrepared.env;
     argv.args = applyMuseForeignLaunchArgs(argv.args, museForeignEnv);
     if (shouldPrimeNativeProjectShellEnv(payload.projectLocation)) {
       await primeProjectShellEnv(payload.projectLocation.path);
@@ -896,11 +904,17 @@ export class SpawnPipeline {
       initialSize: payload.initialSize,
       launchPrompt,
       command,
-      ...(this.mergeLaunchExtraEnv(museForeignEnv, deepseekForeignEnv, cliHookExtras.env)
+      ...(this.mergeLaunchExtraEnv(
+        museForeignEnv,
+        deepseekForeignEnv,
+        stepcodeForeignEnv,
+        cliHookExtras.env,
+      )
         ? {
             extraEnv: this.mergeLaunchExtraEnv(
               museForeignEnv,
               deepseekForeignEnv,
+              stepcodeForeignEnv,
               cliHookExtras.env,
             )!,
           }
@@ -1188,6 +1202,15 @@ export class SpawnPipeline {
       projectLocation: session.projectLocation,
     });
     const deepseekForeignEnv = deepseekPrepared.env;
+    const stepcodePrepared = await this.prepareStepCodeForeignLaunch({
+      agentKind: session.agentKind,
+      threadId: session.threadId,
+      model: config.model,
+      thirdPartyAccountId:
+        session.poolProvider === "openai-compatible" ? session.poolAccountId : undefined,
+      projectLocation: session.projectLocation,
+    });
+    const stepcodeForeignEnv = stepcodePrepared.env;
     argv.args = applyMuseForeignLaunchArgs(argv.args, museForeignEnv);
     if (shouldPrimeNativeProjectShellEnv(session.projectLocation)) {
       await primeProjectShellEnv(session.projectLocation.path);
@@ -1230,11 +1253,17 @@ export class SpawnPipeline {
       initialSize: session.terminalSize,
       launchPrompt,
       command,
-      ...(this.mergeLaunchExtraEnv(museForeignEnv, deepseekForeignEnv, cliHookExtras.env)
+      ...(this.mergeLaunchExtraEnv(
+        museForeignEnv,
+        deepseekForeignEnv,
+        stepcodeForeignEnv,
+        cliHookExtras.env,
+      )
         ? {
             extraEnv: this.mergeLaunchExtraEnv(
               museForeignEnv,
               deepseekForeignEnv,
+              stepcodeForeignEnv,
               cliHookExtras.env,
             )!,
           }
@@ -1898,6 +1927,36 @@ export class SpawnPipeline {
       env: commandCodeCompatEnv(apiKey, isolationDir, baseUrl),
       ...(cleanup ? { cleanup } : {}),
     };
+  }
+
+  /**
+   * Step Code's terminal lane has no structured session to carry the bound
+   * third-party credential, so the account env is projected as launch extras
+   * here. `STEP_CODING_AGENT_DIR` is a host path — under WSL it would land
+   * inside the distro as a literal `C:\…` dir, so it is dropped there and the
+   * key/Base URL still reach `step` through the distro env.
+   */
+  private async prepareStepCodeForeignLaunch(input: {
+    agentKind: AgentKind;
+    threadId: string;
+    model?: string | undefined;
+    thirdPartyAccountId?: string | undefined;
+    projectLocation?: ProjectLocation;
+  }): Promise<{ env?: Record<string, string>; cleanup?: () => void }> {
+    if (baseAgentKind(input.agentKind) !== "stepcode") return {};
+    if (!input.thirdPartyAccountId) return {};
+    const accountEnv = await this.ctx.options.resolveAccountSessionEnv?.({
+      provider: "stepcode",
+      threadId: input.threadId,
+      model: input.model,
+      thirdPartyAccountId: input.thirdPartyAccountId,
+    });
+    if (!accountEnv?.env) return {};
+    const env = { ...accountEnv.env };
+    if (input.projectLocation?.kind === "wsl") {
+      delete env.STEP_CODING_AGENT_DIR;
+    }
+    return { env };
   }
 
   private mergeLaunchExtraEnv(

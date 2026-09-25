@@ -175,6 +175,9 @@ export function classifyModelFamily(model: string | undefined): string {
   if (/^grok(?:[-._]|$)/.test(unnamespaced)) return "xai";
   if (/^llama(?:[-._]|$)/.test(unnamespaced)) return "meta";
   if (/^mistral(?:[-._]|$)/.test(unnamespaced)) return "mistral";
+  if (/^step(?:[-._]|$)/.test(unnamespaced) || /^stepfun(?:[-._]|$)/.test(unnamespaced)) {
+    return "stepfun";
+  }
   if (
     /^(?:gpt|codex|chatgpt)(?:[-._]|$)/.test(unnamespaced) ||
     /^o(?:1|3|4)(?:[-._]|$)/.test(unnamespaced)

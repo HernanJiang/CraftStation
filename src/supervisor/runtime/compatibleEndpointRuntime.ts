@@ -77,6 +77,55 @@ export function prepareKimiEndpointRuntime(input: {
   return { env: { KIMI_CODE_HOME: input.directory, KIMI_MODEL_NAME: "" } };
 }
 
+/**
+ * Step Code consumes a foreign OpenAI-compatible endpoint purely through env:
+ * the built-in `step` provider resolves base URL/key from `STEP_BASE_URL` /
+ * `STEP_API_KEY`, and its models.json merger forces `api=openai-completions`
+ * plus that same base URL onto every seed entry. The API key therefore stays
+ * child-env only; `models.json` seeds just the account's bound model ids (id
+ * + display name) so they still resolve when the endpoint's `/models`
+ * listing is unreachable. `STEP_CODING_AGENT_DIR` isolates agent state
+ * (sessions, extension cache) under the supervisor cache instead of the
+ * user's real `~/.stepcode/agent`.
+ */
+export function prepareStepCodeEndpointRuntime(input: {
+  directory: string;
+  baseUrl: string;
+  apiKey: string;
+  models?: readonly { id: string; name?: string | undefined }[];
+}): { env: Record<string, string> } {
+  const agentDir = join(input.directory, "agent");
+  mkdirSync(agentDir, { recursive: true, mode: 0o700 });
+  if (input.models?.length) {
+    writeFileAtomic(
+      join(input.directory, "models.json"),
+      JSON.stringify(
+        {
+          providers: {
+            step: {
+              models: input.models.map((entry) => ({
+                id: entry.id,
+                model: entry.id,
+                ...(entry.name ? { name: entry.name } : {}),
+              })),
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      { encoding: "utf8", mode: 0o600 },
+    );
+  }
+  return {
+    env: {
+      STEP_CODING_AGENT_DIR: agentDir,
+      STEP_API_KEY: input.apiKey,
+      STEP_BASE_URL: input.baseUrl,
+    },
+  };
+}
+
 export function vendorEndpointEnv(
   harness: "kimi" | "grok" | "deepseek",
   baseUrl: string,

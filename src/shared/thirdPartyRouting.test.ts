@@ -167,21 +167,60 @@ describe("thirdPartyRouting", () => {
     ).toBe("tp-1");
   });
 
-  it("binds an unknown custom model on Devin so 阶跃星辰 can leave that harness", () => {
+  it("binds an unknown custom model on Devin so it can leave that harness", () => {
     expect(
       resolveThirdPartyAccountForLaunch({
         agentKind: "devin",
-        model: "step-5-preview",
-        customModels: [{ provider: "opencode", modelId: "step-5-preview", accountId: "tp-1" }],
+        model: "acme-ultra-9",
+        customModels: [{ provider: "opencode", modelId: "acme-ultra-9", accountId: "tp-1" }],
         accounts,
       }),
     ).toBe("tp-1");
     expect(
       applyThirdPartyPickerSelection({
         agentKind: "devin",
+        model: "acme-ultra-9",
+        accountId: "openai-compatible:tp-1",
+      }).agentKind,
+    ).toBe("opencode");
+  });
+
+  it("binds a StepFun custom model on Step Code across filed channels", () => {
+    // Same-channel row.
+    expect(
+      resolveThirdPartyAccountForLaunch({
+        agentKind: "stepcode",
+        model: "step-5-preview",
+        customModels: [{ provider: "stepcode", modelId: "step-5-preview", accountId: "tp-1" }],
+        accounts,
+      }),
+    ).toBe("tp-1");
+    // Row filed under another channel still binds on the model's native lane.
+    expect(
+      resolveThirdPartyAccountForLaunch({
+        agentKind: "stepcode",
+        model: "step-5-preview",
+        customModels: [{ provider: "opencode", modelId: "step-5-preview", accountId: "tp-1" }],
+        accounts,
+      }),
+    ).toBe("tp-1");
+    // Stepfun family prefers the Step Code harness when installed, else OpenCode.
+    expect(
+      applyThirdPartyPickerSelection({
+        agentKind: "devin",
         model: "step-5-preview",
         accountId: "openai-compatible:tp-1",
       }).agentKind,
+    ).toBe("stepcode");
+    expect(
+      applyThirdPartyPickerSelection(
+        {
+          agentKind: "devin",
+          model: "step-5-preview",
+          accountId: "openai-compatible:tp-1",
+        },
+        ["opencode"],
+      ).agentKind,
     ).toBe("opencode");
   });
 

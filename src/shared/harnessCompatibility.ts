@@ -37,6 +37,7 @@ export type CompatibilityModelFamily =
   | "gemini"
   | "deepseek"
   | "muse"
+  | "stepfun"
   | "unknown";
 
 export type CompatibilityHarnessId =
@@ -46,7 +47,8 @@ export type CompatibilityHarnessId =
   | "antigravity"
   | "opencode"
   | "deepseek"
-  | "muse";
+  | "muse"
+  | "stepcode";
 
 export interface HarnessCompatibilityResult {
   providerId: string;
@@ -108,6 +110,17 @@ export function resolveCompatibilityFamily(modelId: string): CompatibilityModelF
   ) {
     return "deepseek";
   }
+  // `step/…` is Step Code's own catalog channel; `step-…`/`step_…`/`stepfun…`
+  // are StepFun model ids wherever they surface.
+  if (
+    raw.startsWith("step/") ||
+    raw.startsWith("stepfun/") ||
+    normalized.startsWith("step-") ||
+    normalized.startsWith("step_") ||
+    normalized.startsWith("stepfun")
+  ) {
+    return "stepfun";
+  }
   // Delegate: openai/kimi/grok/gemini/unknown prefix rules already verified.
   return resolveThirdPartyFamily(normalized);
 }
@@ -156,6 +169,8 @@ export function preferredHarnessForCompatibilityFamily(
       // Muse Code is WSL-only on Windows. Auto keeps the broadly compatible
       // OpenCode runtime; users can still choose the explicit Muse Code Recipe.
       return "opencode";
+    case "stepfun":
+      return "stepcode";
     case "unknown":
       return "opencode";
   }
@@ -169,6 +184,7 @@ export const COMPATIBILITY_HARNESS_LABELS: Record<CompatibilityHarnessId, string
   opencode: "OpenCode",
   deepseek: "DeepSeek Harness",
   muse: "Muse",
+  stepcode: "Step Code",
 };
 
 export const COMPATIBILITY_FAMILY_LABELS: Record<CompatibilityModelFamily, string> = {
@@ -178,6 +194,7 @@ export const COMPATIBILITY_FAMILY_LABELS: Record<CompatibilityModelFamily, strin
   gemini: "Gemini",
   deepseek: "DeepSeek",
   muse: "Muse",
+  stepfun: "StepFun",
   unknown: "Unknown",
 };
 
@@ -196,6 +213,8 @@ export function modelFamilyIconKind(modelId: string): string | undefined {
       return "deepseek";
     case "muse":
       return "muse";
+    case "stepfun":
+      return "stepcode";
     case "unknown":
       return undefined;
   }
@@ -213,6 +232,7 @@ export const NATIVE_PROVIDER_KINDS: Record<CompatibilityHarnessId, readonly stri
   opencode: ["opencode"],
   deepseek: ["deepseek"],
   muse: ["muse"],
+  stepcode: ["stepcode"],
 };
 
 export function isNativeModelHarnessPair(input: {
@@ -265,6 +285,14 @@ export const COMPATIBILITY_HARNESS_CAPABILITIES: readonly HarnessProtocolCapabil
     supportsCustomBaseUrl: true,
   },
   { harnessId: "muse", downstreamProtocols: ["responses"], supportsCustomBaseUrl: true },
+  {
+    // Step Code's built-in `step` provider is Chat-Completions-only; its
+    // models.json merge forces api=openai-completions, so a Responses-only
+    // endpoint must fail closed (or ride OpenCode) instead of half-working.
+    harnessId: "stepcode",
+    downstreamProtocols: ["chat-completions"],
+    supportsCustomBaseUrl: true,
+  },
 ];
 
 /** Validated third-party protocol → compatibility protocol. */

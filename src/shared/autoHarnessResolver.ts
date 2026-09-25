@@ -17,9 +17,15 @@
 
 import type { ThirdPartyProtocol } from "./thirdPartyValidation";
 
-export type ThirdPartyHarnessId = "codex" | "kimi" | "grok" | "antigravity" | "opencode";
+export type ThirdPartyHarnessId =
+  | "codex"
+  | "kimi"
+  | "grok"
+  | "antigravity"
+  | "opencode"
+  | "stepcode";
 
-export type ModelFamily = "openai" | "kimi" | "grok" | "gemini" | "unknown";
+export type ModelFamily = "openai" | "kimi" | "grok" | "gemini" | "stepfun" | "unknown";
 
 export type ThirdPartyRouteKind = "third-party-native" | "third-party-fallback" | "unsupported";
 
@@ -66,6 +72,15 @@ export const THIRD_PARTY_HARNESS_CAPABILITIES: readonly ThirdPartyHarnessCapabil
     protocols: ["responses", "chat_completions"],
     supportsCustomBaseUrl: true,
   },
+  {
+    // Step Code's built-in `step` provider is hardwired to OpenAI Chat
+    // Completions (its models.json merger forces api=openai-completions),
+    // so Responses-only channels cannot be bridged through it.
+    harnessId: "stepcode",
+    protocols: ["chat_completions"],
+    supportsCustomBaseUrl: true,
+    modelFamilies: ["stepfun"],
+  },
 ];
 
 /** Model Name → family hint. Never equals the final harness by itself. */
@@ -94,6 +109,14 @@ export function resolveModelFamily(modelId: string): ModelFamily {
   }
   if (normalized.startsWith("grok-") || normalized.startsWith("xai/")) return "grok";
   if (normalized.startsWith("gemini-") || normalized.startsWith("google/")) return "gemini";
+  if (
+    normalized.startsWith("step-") ||
+    normalized.startsWith("step_") ||
+    normalized.startsWith("step/") ||
+    normalized.startsWith("stepfun")
+  ) {
+    return "stepfun";
+  }
   return "unknown";
 }
 
@@ -107,6 +130,8 @@ export function preferredHarnessForFamily(family: ModelFamily): ThirdPartyHarnes
       return "grok";
     case "gemini":
       return "antigravity";
+    case "stepfun":
+      return "stepcode";
     case "unknown":
       return "opencode";
   }
@@ -154,6 +179,7 @@ const ALL_AVAILABLE: Record<ThirdPartyHarnessId, boolean> = {
   grok: true,
   antigravity: true,
   opencode: true,
+  stepcode: true,
 };
 
 /**
@@ -170,7 +196,8 @@ export function resolveAutoHarness(input: AutoHarnessInput): AutoHarnessDecision
     available[preferred] === true &&
     isHarnessCompatibleWithThirdParty(preferred, input.validatedProtocol, capabilities)
   ) {
-    const route: ThirdPartyRouteKind = preferred === "opencode" ? "third-party-fallback" : "third-party-native";
+    const route: ThirdPartyRouteKind =
+      preferred === "opencode" ? "third-party-fallback" : "third-party-native";
     return {
       harnessId: preferred,
       route,

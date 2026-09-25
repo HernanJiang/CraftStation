@@ -30,6 +30,7 @@ const EXPECTED_PROVIDER_ORDER = [
   "devin",
   "zcode",
   "antigravity",
+  "stepcode",
   "commandcode",
   "opencode",
   "pi",

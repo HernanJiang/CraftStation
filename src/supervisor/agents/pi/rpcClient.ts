@@ -15,6 +15,8 @@ export interface PiRpcSpawnSpec {
   args: string[];
   cwd?: string;
   env?: Record<string, string>;
+  /** Provider label for user-facing error strings (default "Pi"). */
+  label?: string;
 }
 
 interface PendingRequest {
@@ -41,11 +43,14 @@ export class PiRpcClient {
   private sequence = 0;
   private closed = false;
 
-  private constructor(child: ChildProcess) {
+  private constructor(
+    child: ChildProcess,
+    private readonly label: string,
+  ) {
     this.child = child;
     this.spawnReady = new Promise<void>((resolve, reject) => {
       child.on("error", (error) => {
-        reject(new Error(`Pi RPC agent failed to start: ${error.message}`));
+        reject(new Error(`${label} RPC agent failed to start: ${error.message}`));
       });
       child.on("spawn", () => resolve());
     });
@@ -68,7 +73,7 @@ export class PiRpcClient {
       shell: false,
       windowsHide: true,
     });
-    return new PiRpcClient(child);
+    return new PiRpcClient(child, spec.label ?? "Pi");
   }
 
   get isClosed(): boolean {
@@ -99,7 +104,7 @@ export class PiRpcClient {
 
   /** Send a command and await its correlated response. */
   async request(command: string, params: Record<string, unknown> = {}): Promise<PiRpcResponse> {
-    if (this.closed) throw new Error("Pi RPC session is closed.");
+    if (this.closed) throw new Error(`${this.label} RPC session is closed.`);
     await this.spawnReady;
     const id = `pi-rpc-${++this.sequence}`;
     return new Promise<PiRpcResponse>((resolve, reject) => {
@@ -157,7 +162,7 @@ export class PiRpcClient {
   private handleClose(): void {
     this.closed = true;
     for (const pending of this.pending.values()) {
-      pending.reject(new Error("Pi RPC session closed."));
+      pending.reject(new Error(`${this.label} RPC session closed.`));
     }
     this.pending.clear();
     for (const handler of this.exitHandlers) handler();

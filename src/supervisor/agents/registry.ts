@@ -31,6 +31,7 @@ import { createMiniMaxAdapter } from "./minimax";
 import { createOpenCodeAdapter } from "./opencode";
 import { createPiAdapter } from "./pi";
 import { createQoderAdapter } from "./qoder";
+import { createStepCodeAdapter } from "./stepcode";
 import { createQwenAdapter } from "./qwen";
 import { createZCodeAdapter } from "./zcode";
 
@@ -64,6 +65,7 @@ export function buildAgentRegistry(userInstances: AgentInstanceConfig[]): AgentA
     createFactoryAdapter(),
     createDevinAdapter(),
     createZCodeAdapter(),
+    createStepCodeAdapter(),
   ];
   const userAdapters = userInstances
     .filter((inst) => inst.enabled !== false && inst.driver === "acp-generic")

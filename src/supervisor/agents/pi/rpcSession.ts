@@ -97,10 +97,11 @@ const isSubAgentTool = (name: string): boolean =>
   /(?:subagent|sub-agent|delegate|spawn|task)/i.test(name);
 
 /**
- * Structured (GUI) Pi session backed by the user's installed `pi --mode rpc`
- * CLI rather than the bundled SDK. CraftStation drives the installed agent over
- * stdin/stdout JSONL, mirroring how the Claude/OpenCode adapters drive their
- * installed CLIs — no Pi SDK is bundled into the app.
+ * Structured (GUI) session for pi-family CLIs (`pi --mode rpc`, and Step
+ * Code's `step --mode rpc`, which keeps the same JSONL command/event wire).
+ * CraftStation drives the installed agent over stdin/stdout JSONL, mirroring
+ * how the Claude/OpenCode adapters drive their installed CLIs — no Pi SDK is
+ * bundled into the app.
  */
 export class PiRpcSession implements StructuredSessionHandle {
   readonly launchOptions;
@@ -143,7 +144,8 @@ export class PiRpcSession implements StructuredSessionHandle {
   private constructor(
     private readonly input: CreateStructuredSessionInput,
     client: PiRpcClient,
-    mcpExtensionPath?: string,
+    mcpExtensionPath: string | undefined,
+    private readonly label: string,
   ) {
     this.launchOptions = {
       ...(input.agentSettings ? { agentSettings: input.agentSettings } : {}),
@@ -159,13 +161,20 @@ export class PiRpcSession implements StructuredSessionHandle {
 
   static async create(
     input: CreateStructuredSessionInput,
-    options?: { binary?: string },
+    options?: { binary?: string; label?: string; defaultBinary?: string },
   ): Promise<PiRpcSession> {
+    const label = options?.label ?? "Pi";
     if (input.projectLocation.kind === "wsl") {
-      throw new Error("Pi structured chat requires a native project; use Pi terminal mode in WSL.");
+      throw new Error(
+        `${label} structured chat requires a native project; use ${label} terminal mode in WSL.`,
+      );
     }
     const cwd = input.projectLocation.path;
-    const binary = options?.binary ?? resolveAgentBinaryPath(input.projectLocation, "pi") ?? "pi";
+    const binary =
+      options?.binary ??
+      resolveAgentBinaryPath(input.projectLocation, options?.defaultBinary ?? "pi") ??
+      options?.defaultBinary ??
+      "pi";
     const mcpExtensionPath =
       input.mcpServers && input.mcpServers.length > 0
         ? await writePiMcpExtension(input.mcpServers)
@@ -183,10 +192,16 @@ export class PiRpcSession implements StructuredSessionHandle {
     }
     if (mcpExtensionPath) args.push("--extension", mcpExtensionPath);
 
-    const client = PiRpcClient.spawn({ command: binary, args, cwd });
+    const client = PiRpcClient.spawn({
+      command: binary,
+      args,
+      cwd,
+      env: { ...input.baseSpawnEnv, ...input.env },
+      label,
+    });
     try {
       await client.spawnReady;
-      return new PiRpcSession(input, client, mcpExtensionPath);
+      return new PiRpcSession(input, client, mcpExtensionPath, label);
     } catch (error) {
       await client.close();
       throw error;
@@ -210,7 +225,7 @@ export class PiRpcSession implements StructuredSessionHandle {
     _segments?: PromptSegment[],
     options?: StartTurnOptions,
   ): Promise<void> {
-    if (this.disposed) throw new Error("Pi session is closed.");
+    if (this.disposed) throw new Error(`${this.label} session is closed.`);
     await this.applyConfig(config);
     this.beginTurn(prompt, options?.userMessageItemId);
     this.publishUpdate("working", "none");
@@ -218,7 +233,7 @@ export class PiRpcSession implements StructuredSessionHandle {
     try {
       const response = await this.client.request("prompt", { message: prompt, source: "rpc" });
       if (!response.success) {
-        this.failTurn(response.error ?? "Pi rejected the prompt.");
+        this.failTurn(response.error ?? `${this.label} rejected the prompt.`);
         return;
       }
       await completion;
@@ -245,7 +260,7 @@ export class PiRpcSession implements StructuredSessionHandle {
       this.emit({
         type: "warning",
         threadId: this.input.threadId,
-        message: response.error ?? "Pi could not steer the current turn.",
+        message: response.error ?? `${this.label} could not steer the current turn.`,
       });
     }
   }
@@ -327,7 +342,7 @@ export class PiRpcSession implements StructuredSessionHandle {
           modelId: selected.modelId,
         });
         if (!response.success)
-          throw new Error(response.error ?? `Pi model ${config.model} is unavailable.`);
+          throw new Error(response.error ?? `${this.label} model ${config.model} is unavailable.`);
       }
     }
     if (
@@ -487,7 +502,7 @@ export class PiRpcSession implements StructuredSessionHandle {
       const message =
         (typeof error?.errorMessage === "string" && error.errorMessage) ||
         (typeof error?.message === "string" && error.message) ||
-        "Pi model request failed.";
+        `${this.label} model request failed.`;
       this.turnErrorMessage ??= message;
       this.emit({ type: "error", threadId: this.input.threadId, message });
     }
@@ -979,7 +994,7 @@ export class PiRpcSession implements StructuredSessionHandle {
   }
 
   private nextItemId(kind: string): string {
-    return `pi-${kind}-${++this.itemSequence}`;
+    return `${this.label.toLowerCase().replace(/[^a-z0-9]+/gu, "-")}-${kind}-${++this.itemSequence}`;
   }
 
   private emit(event: RuntimeEvent): void {
