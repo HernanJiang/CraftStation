@@ -511,6 +511,34 @@
       ]
     },
     {
+      "version": "1.5.12",
+      "date": "2026-09-25",
+      "title": "Step Code support, live file previews & Codex fixes",
+      "summary": "StepFun's Step Code joins the provider list with its own models and sign-in. File previews refresh when a file changes on disk, and Codex threads stop showing \"working\" after the turn already ended.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Step Code",
+          "text": "StepFun's Step Code agent is now a supported provider — install it from Settings, sign in from the terminal, and chat in structured sessions that default to step-5-preview."
+        },
+        {
+          "kind": "added",
+          "label": "Step Code",
+          "text": "Third-party OpenAI-compatible accounts with a custom Base URL and API key can drive Step Code sessions, and existing Step Code sessions are discovered and can be resumed."
+        },
+        {
+          "kind": "fixed",
+          "label": "File preview",
+          "text": "PDFs, images, videos, and Office documents open in the file panel now reload when the file changes on disk, so an agent's edits show up instead of a stale copy."
+        },
+        {
+          "kind": "fixed",
+          "label": "Codex",
+          "text": "A Codex or ChatGPT thread no longer stays stuck on \"working\" when the app server ends the turn through an abort, an error, or an idle status instead of a completion event."
+        }
+      ]
+    },
+    {
       "version": "1.5.11",
       "date": "2026-09-24",
       "title": "Each thread keeps its files, formulas render",
