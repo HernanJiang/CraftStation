@@ -604,6 +604,17 @@ function buildElectronBuilderConfig(macArtifactKind = "branded") {
   const publishChannelLine = updaterChannel ? `\n  channel: ${updaterChannel}` : "";
   const macEntitlements = "build/entitlements.mac.plist";
   const macEntitlementsInherit = "build/entitlements.mac.plist";
+  // Forks and local builds without Developer ID credentials still produce
+  // unsigned zip/dmg artifacts instead of hard-failing: skip signing entirely
+  // (identity: null) and skip notarization, which cannot run unsigned anyway.
+  const macSigningConfigured = Boolean(process.env.CSC_LINK);
+  const macNotarize =
+    macSigningConfigured &&
+    Boolean(
+      (process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD) ||
+      process.env.APPLE_API_KEY,
+    );
+  const macIdentityLine = macSigningConfigured ? "" : "\n  identity: null";
   const packagedDistFilesYaml = PACKAGED_DIST_FILES.map((glob) =>
     glob.startsWith("!") ? `  - "${glob}"` : `  - ${glob}`,
   ).join("\n");
@@ -716,7 +727,7 @@ linux:
   artifactName: ${prefix}-\${version}-\${arch}.\${ext}
 
 mac:
-  executableName: ${macExecutableName}
+  executableName: ${macExecutableName}${macIdentityLine}
   target:
     - target: dmg
       arch:
@@ -735,7 +746,7 @@ mac:
     NSMicrophoneUsageDescription: CraftStation uses the microphone for local voice input in the composer.
   entitlements: ${macEntitlements}
   entitlementsInherit: ${macEntitlementsInherit}
-  notarize: true
+  notarize: ${macNotarize}
 
 npmRebuild: false
 `;

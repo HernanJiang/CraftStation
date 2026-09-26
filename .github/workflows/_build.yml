@@ -191,7 +191,11 @@ jobs:
             exit 1
           fi
           for app in "${apps[@]}"; do
-            codesign --verify --deep --strict --verbose=4 "$app"
+            # Unsigned fork builds have no Developer ID cert to verify; the
+            # artifact still ships (Gatekeeper-signed only when CSC_LINK exists).
+            if [ -n "$MAC_CSC_LINK" ]; then
+              codesign --verify --deep --strict --verbose=4 "$app"
+            fi
             main_executable="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
             expected_arch="$(lipo -archs "$main_executable")"
             if [[ "$expected_arch" == *arm64* ]]; then
@@ -205,6 +209,8 @@ jobs:
             fi
           done
         shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
 
       - name: Upload built artifacts
         uses: actions/upload-artifact@v7
