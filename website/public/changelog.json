@@ -511,6 +511,31 @@
       ]
     },
     {
+      "version": "1.5.13",
+      "date": "2026-09-26",
+      "title": "In-turn waits for agents, safer Codex auth & full access by default",
+      "summary": "Agents in any harness can now block inside a turn until a terminal pane prints something or a file under the worktree changes. Managed Codex profiles stop leaking platform API keys into ChatGPT subscription calls, and new threads default to Full Access.",
+      "changes": [
+        {
+          "kind": "added",
+          "text": "Agents can call the new wait tool inside a turn — it blocks until a timeout or a watched signal fires: new output on an integrated terminal pane (optionally matching a pattern), a pane exiting, or a file create/modify/delete under the worktree. Monitoring loops no longer spend a shell call per poll."
+        },
+        {
+          "kind": "improved",
+          "text": "New threads — created by you or by another agent — now default to the permission level set under Settings → General, which ships as Full Access."
+        },
+        {
+          "kind": "fixed",
+          "label": "Codex",
+          "text": "Managed Codex profiles no longer leak a service-account API key into ChatGPT subscription requests — the sk-… 401 loop on chatgpt.com is gone, and CODEX_API_KEY / CODEX_ACCESS_TOKEN in the environment can no longer hijack a managed session."
+        },
+        {
+          "kind": "fixed",
+          "text": "Switching projects no longer discards the prompt you were still drafting — the composer text moves with you to the new project."
+        }
+      ]
+    },
+    {
       "version": "1.5.12",
       "date": "2026-09-25",
       "title": "Step Code support, live file previews & Codex fixes",
