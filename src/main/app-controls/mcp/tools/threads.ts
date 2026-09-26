@@ -520,9 +520,7 @@ export const threadTools: ToolDomain = {
       // Without it the composer mistakes the thread for a native
       // official-login thread and demands e.g. `muse login` before it can run.
       const inheritedChannel =
-        sourceThread &&
-        sourceThread.agentKind === agentKind &&
-        sourceThread.config.model === model
+        sourceThread && sourceThread.agentKind === agentKind && sourceThread.config.model === model
           ? sourceThread.config.sourceProviderKind
           : undefined;
       const derivedChannel = modelCatalogChannel(model);
@@ -947,7 +945,7 @@ function sameWorktreePath(
   );
 }
 
-async function currentWorktreeTerminals(ctx: AppControlsToolContext) {
+export async function currentWorktreeTerminals(ctx: AppControlsToolContext) {
   const caller = currentThread(ctx);
   const project = ctx.getProject(caller.projectId);
   if (!project) {
@@ -989,7 +987,7 @@ function sameProjectLocation(left: ProjectLocation, right: ProjectLocation): boo
   return false;
 }
 
-function currentThread(ctx: AppControlsToolContext): Thread {
+export function currentThread(ctx: AppControlsToolContext): Thread {
   const threadId = ctx.identity.threadId;
   if (!threadId) {
     throw new Error("This MCP request is not associated with a CraftStation thread.");

@@ -9,7 +9,7 @@ export interface LiveThreadState {
 }
 
 interface Waiter {
-  threadIds: ReadonlySet<string>;
+  keys: ReadonlySet<string>;
   wake(): void;
 }
 
@@ -47,6 +47,13 @@ export class ThreadStateBroker {
         this.pendingSteer.delete(event.threadId);
         this.wake(event.threadId);
         return;
+      case "thread-output":
+        this.wake(event.threadId);
+        return;
+      case "project-tree-changed":
+      case "git-changed":
+        this.wake(event.projectId);
+        return;
       default:
         return;
     }
@@ -64,46 +71,57 @@ export class ThreadStateBroker {
 
   /**
    * Event-driven wait: re-evaluate `poll` on each `thread-state` /
-   * `thread-pending-steer` / `thread-exited` wake for `threadIds` (plus a
-   * coarse re-check cap) until it returns a value, or the deadline elapses.
-   * Returns the polled value, or `undefined` on timeout. No tight polling.
+   * `thread-pending-steer` / `thread-exited` / `thread-output` /
+   * `project-tree-changed` / `git-changed` wake for `keys` (thread ids,
+   * `shell:` terminal ids, or project ids — the observed event spaces never
+   * collide), plus a coarse re-check cap, until it returns a value or the
+   * deadline elapses. Returns the polled value, or `undefined` on timeout.
+   * The waiter stays registered across the whole loop so a wake landing
+   * mid-poll is never lost — it just shortens the next sleep. No tight
+   * polling.
    */
   async waitUntil<T>(
-    threadIds: string[],
+    keys: string[],
     timeoutMs: number,
-    poll: () => T | undefined,
+    poll: () => T | undefined | Promise<T | undefined>,
     maxChunkMs = 1_000,
   ): Promise<T | undefined> {
     const deadline = Date.now() + Math.max(0, timeoutMs);
-    for (;;) {
-      const value = poll();
-      if (value !== undefined) return value;
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) return undefined;
-      await this.waitForWake(threadIds, Math.min(maxChunkMs, remaining));
+    let pendingWake = false;
+    let wakeResolve: (() => void) | undefined;
+    const waiter: Waiter = {
+      keys: new Set(keys),
+      wake: () => {
+        pendingWake = true;
+        wakeResolve?.();
+      },
+    };
+    this.waiters.add(waiter);
+    try {
+      for (;;) {
+        pendingWake = false;
+        const value = await poll();
+        if (value !== undefined) return value;
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) return undefined;
+        if (!pendingWake) {
+          await new Promise<void>((resolve) => {
+            wakeResolve = resolve;
+            setTimeout(resolve, Math.min(maxChunkMs, remaining));
+          });
+          wakeResolve = undefined;
+        }
+      }
+    } finally {
+      this.waiters.delete(waiter);
+      wakeResolve?.();
     }
   }
 
-  private waitForWake(threadIds: string[], timeoutMs: number): Promise<void> {
-    return new Promise<void>((resolve) => {
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const waiter: Waiter = {
-        threadIds: new Set(threadIds),
-        wake: () => {
-          if (timer) clearTimeout(timer);
-          this.waiters.delete(waiter);
-          resolve();
-        },
-      };
-      this.waiters.add(waiter);
-      timer = setTimeout(() => waiter.wake(), Math.max(0, timeoutMs));
-    });
-  }
-
-  private wake(threadId: string): void {
+  private wake(key: string): void {
     if (this.waiters.size === 0) return;
     for (const waiter of this.waiters) {
-      if (waiter.threadIds.has(threadId)) waiter.wake();
+      if (waiter.keys.has(key)) waiter.wake();
     }
   }
 }

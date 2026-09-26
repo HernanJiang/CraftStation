@@ -210,6 +210,7 @@ export const BUILT_IN_MCP_SERVER_TOOL_NAMES = {
     "remove_mcp_server",
     "list_skills",
     "set_skill_enabled",
+    "wait",
   ],
   schedule: [
     "list",

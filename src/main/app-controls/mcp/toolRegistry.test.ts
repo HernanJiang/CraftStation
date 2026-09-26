@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type {
   AgentStatusesResponse,
@@ -2206,5 +2209,138 @@ describe("CraftStation app control tools — skills", () => {
       absolutePath: "/skills/g1",
       enabled: false,
     });
+  });
+});
+
+describe("CraftStation app control tools — wait", () => {
+  const WIN_PROJECT = "D:\\waitproj";
+
+  function localProject(path: string): Project {
+    return {
+      id: "project-1",
+      name: "Alpha",
+      location: { kind: "windows", path },
+    } as Project;
+  }
+
+  function terminal(id: string, outputLength: number): TerminalShellSnapshot {
+    return {
+      terminalId: id,
+      projectLocation: { kind: "windows", path: WIN_PROJECT },
+      outputLength,
+    } as TerminalShellSnapshot;
+  }
+
+  it("times out with a structured result when nothing fires", async () => {
+    const { ctx, supervisor } = context({ projects: [localProject(WIN_PROJECT)] });
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([]);
+
+    const result = (await dispatchTool("wait", { timeoutSeconds: 1 }, ctx)) as {
+      timedOut: boolean;
+      waitedSeconds: number;
+    };
+
+    expect(result.timedOut).toBe(true);
+    expect(result.waitedSeconds).toBeGreaterThanOrEqual(1);
+  });
+
+  it("wakes early on new terminal output", async () => {
+    const { ctx, supervisor } = context({ projects: [localProject(WIN_PROJECT)] });
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([terminal("shell:a", 100)]);
+
+    const pending = dispatchTool("wait", { timeoutSeconds: 30, terminalIds: ["shell:a"] }, ctx);
+    await new Promise((r) => setTimeout(r, 30));
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([terminal("shell:a", 240)]);
+    ctx.threadStates.observe({
+      type: "thread-output",
+      threadId: "shell:a",
+      data: "x",
+      outputLength: 240,
+    });
+
+    const result = (await pending) as { timedOut: boolean; reason: string };
+    expect(result).toMatchObject({ timedOut: false, reason: "terminal-output" });
+  });
+
+  it("holds the wait for pattern until matching output appears", async () => {
+    const { ctx, supervisor } = context({ projects: [localProject(WIN_PROJECT)] });
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([terminal("shell:a", 100)]);
+
+    const pending = dispatchTool(
+      "wait",
+      { timeoutSeconds: 30, terminalIds: ["shell:a"], pattern: "DONE" },
+      ctx,
+    );
+    await new Promise((r) => setTimeout(r, 30));
+    // Output grows but no match yet — the wait must keep blocking.
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([terminal("shell:a", 200)]);
+    supervisor.readTerminalScrollback.mockResolvedValue("boot lines\nworking...\n");
+    ctx.threadStates.observe({
+      type: "thread-output",
+      threadId: "shell:a",
+      data: "y",
+      outputLength: 200,
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    // Now the pattern arrives.
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([terminal("shell:a", 320)]);
+    supervisor.readTerminalScrollback.mockResolvedValue("boot lines\nworking...\nDONE marker\n");
+    ctx.threadStates.observe({
+      type: "thread-output",
+      threadId: "shell:a",
+      data: "z",
+      outputLength: 320,
+    });
+
+    const result = (await pending) as { timedOut: boolean; reason: string };
+    expect(result).toMatchObject({ timedOut: false, reason: "terminal-pattern" });
+  });
+
+  it("wakes on watched file creation under the worktree", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-wait-"));
+    const { ctx } = context({ projects: [localProject(dir)] });
+
+    const pending = dispatchTool("wait", { timeoutSeconds: 30, paths: ["marker.log"] }, ctx);
+    await new Promise((r) => setTimeout(r, 30));
+    writeFileSync(join(dir, "marker.log"), "created");
+    ctx.threadStates.observe({ type: "project-tree-changed", projectId: "project-1" } as never);
+
+    const result = (await pending) as { timedOut: boolean; reason: string };
+    expect(result).toMatchObject({ timedOut: false, reason: "file-change" });
+  });
+
+  it("wakes when a watched terminal exits", async () => {
+    const { ctx, supervisor } = context({ projects: [localProject(WIN_PROJECT)] });
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([terminal("shell:a", 100)]);
+
+    const pending = dispatchTool("wait", { timeoutSeconds: 30, terminalIds: ["shell:a"] }, ctx);
+    await new Promise((r) => setTimeout(r, 30));
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([]);
+    ctx.threadStates.observe({ type: "thread-exited", threadId: "shell:a" } as never);
+
+    const result = (await pending) as { timedOut: boolean; reason: string };
+    expect(result).toMatchObject({ timedOut: false, reason: "terminal-exit" });
+  });
+
+  it("rejects pattern without terminalIds", async () => {
+    const { ctx } = context({ projects: [localProject(WIN_PROJECT)] });
+    await expect(dispatchTool("wait", { pattern: "x", timeoutSeconds: 1 }, ctx)).rejects.toThrow();
+  });
+
+  it("rejects terminalIds outside the caller worktree", async () => {
+    const { ctx, supervisor } = context({ projects: [localProject(WIN_PROJECT)] });
+    supervisor.getTerminalShellSnapshots.mockResolvedValue([
+      { ...terminal("shell:other", 10), worktreePath: "D:\\elsewhere" },
+    ]);
+    await expect(
+      dispatchTool("wait", { timeoutSeconds: 1, terminalIds: ["shell:other"] }, ctx),
+    ).rejects.toThrow();
+  });
+
+  it("rejects paths that escape the worktree root", async () => {
+    const { ctx } = context({ projects: [localProject(WIN_PROJECT)] });
+    await expect(
+      dispatchTool("wait", { timeoutSeconds: 1, paths: ["..\\outside.txt"] }, ctx),
+    ).rejects.toThrow();
   });
 });

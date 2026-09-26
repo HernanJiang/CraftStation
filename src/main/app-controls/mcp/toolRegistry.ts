@@ -14,6 +14,7 @@ import { settingsTools } from "./tools/settings";
 import { skillTools } from "./tools/skills";
 import { threadTools } from "./tools/threads";
 import { usageTools } from "./tools/usage";
+import { waitTools } from "./tools/wait";
 import type { AppControlsToolContext, ToolDomain, ToolHandler } from "./tools/types";
 
 export { APP_CONTROLS_MCP_SERVER_INFO } from "./tools/serverInfo";
@@ -33,6 +34,9 @@ export const APP_CONTROLS_MCP_INSTRUCTIONS =
   "(get_usage), cross-app search (search), and app info (get_app_info). You can also read a " +
   "running workspace terminal panes and their scrollback, queue steer guidance, stage composer " +
   "input, or roll back turns; " +
+  "wait blocks inside the turn until a timeout or a watched signal (new terminal output, a pane " +
+  "exit, a changed file under the worktree) fires — use it to pace monitoring loops instead of " +
+  "busy-polling shell commands. " +
   "read project files (list/read/find); list installed CLI agents; and notify the user or check " +
   "for app updates. You can also drive a project's git (status/diff/stage/commit/branch/sync and " +
   "worktree list/merge/remove), its GitHub pull requests via the gh CLI (list/get/create/comment/" +
@@ -81,6 +85,7 @@ const DOMAINS: readonly ToolDomain[] = [
   githubTools,
   mcpServerTools,
   skillTools,
+  waitTools,
 ];
 
 export const TOOLS: readonly StreamableHttpMcpToolSpec[] = DOMAINS.flatMap(
