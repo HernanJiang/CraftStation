@@ -511,6 +511,28 @@
       ]
     },
     {
+      "version": "1.5.15",
+      "date": "2026-09-28",
+      "title": "Step Code as a first-class native harness",
+      "summary": "StepFun's Step Code CLI is now fully wired into CraftStation — it shows up in the Harness & CLI panel, the workbench, and CLI update checks, and Step-family models pick it automatically.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Harnesses",
+          "text": "Step Code is now a first-class native harness — install it from the Harness & CLI panel, select it in the workbench, and pair it with Step-family models through a native recipe."
+        },
+        {
+          "kind": "improved",
+          "label": "CLI updates",
+          "text": "Step Code participates in CLI update checks, with latest-version detection powered by StepFun's official release manifest."
+        },
+        {
+          "kind": "fixed",
+          "text": "Step-family models no longer fall back to OpenCode when Step Code is installed — Auto routes them to the Step Code native harness."
+        }
+      ]
+    },
+    {
       "version": "1.5.14",
       "date": "2026-09-27",
       "title": "Workspace shortcuts, project pins & archived projects",
