@@ -43,6 +43,20 @@ interface SidebarUiState {
    * for the global pinned section. Pin never changes workspace identity.
    */
   pinnedProjectAt: Record<string, number>;
+  /**
+   * Workspace inbox section. Pinned (default) sits above projects; unpinned
+   * sits with Home. Missing keys on old payloads keep these defaults.
+   */
+  workspaceInboxPinned: boolean;
+  workspaceInboxCollapsed: boolean;
+  /** Archived projects fold into a bottom section instead of dimmed rows. */
+  archivedProjectsCollapsed: boolean;
+  /**
+   * Thread ids whose Workspace shortcut the user hid while they still qualify.
+   * The project row is untouched. Cleared once they stop qualifying, so the
+   * next episode can show the shortcut again.
+   */
+  dismissedWorkspaceInboxIds: string[];
   /** Inline project rename target; session-scoped. */
   editingProjectId: string | null;
   editingThreadId: string | null;
@@ -55,6 +69,11 @@ interface SidebarUiState {
   setFlatListProjectFilter: (projectIds: string[] | null) => void;
   toggleFooterCollapsed: () => void;
   toggleProjectPinned: (projectId: string) => void;
+  toggleWorkspaceInboxPinned: () => void;
+  toggleWorkspaceInboxCollapsed: () => void;
+  toggleArchivedProjectsCollapsed: () => void;
+  dismissWorkspaceInboxThread: (threadId: string) => void;
+  forgetWorkspaceInboxDismissals: (threadIds: readonly string[]) => void;
   setEditingProjectId: (id: string | null) => void;
   setEditingThreadId: (id: string | null) => void;
 }
@@ -86,6 +105,10 @@ export const useSidebarUiStore = create<SidebarUiState>()(
       footerCollapsed: false,
       pinnedProjectIds: [],
       pinnedProjectAt: {},
+      workspaceInboxPinned: true,
+      workspaceInboxCollapsed: false,
+      archivedProjectsCollapsed: true,
+      dismissedWorkspaceInboxIds: [],
       editingProjectId: null,
       editingThreadId: null,
 
@@ -177,6 +200,27 @@ export const useSidebarUiStore = create<SidebarUiState>()(
             pinnedProjectAt: { ...state.pinnedProjectAt, [projectId]: Date.now() },
           };
         }),
+      toggleWorkspaceInboxPinned: () =>
+        set((state) => ({ workspaceInboxPinned: !state.workspaceInboxPinned })),
+      toggleWorkspaceInboxCollapsed: () =>
+        set((state) => ({ workspaceInboxCollapsed: !state.workspaceInboxCollapsed })),
+      toggleArchivedProjectsCollapsed: () =>
+        set((state) => ({ archivedProjectsCollapsed: !state.archivedProjectsCollapsed })),
+      dismissWorkspaceInboxThread: (threadId) =>
+        set((state) =>
+          state.dismissedWorkspaceInboxIds.includes(threadId)
+            ? {}
+            : { dismissedWorkspaceInboxIds: [...state.dismissedWorkspaceInboxIds, threadId] },
+        ),
+      forgetWorkspaceInboxDismissals: (threadIds) =>
+        set((state) => {
+          if (threadIds.length === 0) return {};
+          const drop = new Set(threadIds);
+          const next = state.dismissedWorkspaceInboxIds.filter((id) => !drop.has(id));
+          return next.length === state.dismissedWorkspaceInboxIds.length
+            ? {}
+            : { dismissedWorkspaceInboxIds: next };
+        }),
       setEditingProjectId: (editingProjectId) => set({ editingProjectId }),
       setEditingThreadId: (editingThreadId) => set({ editingThreadId }),
     }),
@@ -203,6 +247,10 @@ export const useSidebarUiStore = create<SidebarUiState>()(
         footerCollapsed: state.footerCollapsed,
         pinnedProjectIds: state.pinnedProjectIds,
         pinnedProjectAt: state.pinnedProjectAt,
+        workspaceInboxPinned: state.workspaceInboxPinned,
+        workspaceInboxCollapsed: state.workspaceInboxCollapsed,
+        archivedProjectsCollapsed: state.archivedProjectsCollapsed,
+        dismissedWorkspaceInboxIds: state.dismissedWorkspaceInboxIds,
       }),
     },
   ),

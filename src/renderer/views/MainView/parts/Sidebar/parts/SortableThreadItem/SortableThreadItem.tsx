@@ -34,8 +34,26 @@ export function SortableThreadItem(props: {
   sortDisabled?: boolean;
   /** Trailing project label for cross-project (flat) lists. */
   projectTag?: React.ReactNode;
+  /** Workspace inbox rows unpin back to their project instead of starring. */
+  pinState?: { pinned: boolean; onToggle: () => void };
+  /**
+   * Distinct sortable id for a second entry of the same thread. The inbox
+   * row is a shortcut, so it must not share `thread:${id}` with the project row.
+   */
+  sortableId?: string;
+  /** Shortcut rows are not drag sources; dragging would reorder the real thread. */
+  dragDisabled?: boolean;
 }) {
-  const { thread, project, editingThreadId, sortDisabled = false, projectTag } = props;
+  const {
+    thread,
+    project,
+    editingThreadId,
+    sortDisabled = false,
+    projectTag,
+    pinState,
+    sortableId,
+    dragDisabled = false,
+  } = props;
   const isExperimentCandidate = useExperimentStore(
     (state) => thread.groupId !== undefined && state.experiments[thread.groupId] !== undefined,
   );
@@ -47,14 +65,16 @@ export function SortableThreadItem(props: {
   const [contextMenuRequest, setContextMenuRequest] = useState<ContextMenuOpenRequest | null>(null);
 
   const { ref, handleRef } = useSortable({
-    id: `thread:${thread.id}`,
+    id: sortableId ?? `thread:${thread.id}`,
     index: props.threadIndex,
     type: "thread",
-    accept: sortDisabled || isExperimentCandidate ? [] : ["thread", "worktree-group"],
+    accept:
+      sortDisabled || isExperimentCandidate || dragDisabled ? [] : ["thread", "worktree-group"],
     group: props.group,
     // Automatic sort modes only disable reordering within the sidebar. Keep
     // ordinary threads draggable so they can still be dropped onto a pane.
-    disabled: isExperimentCandidate,
+    // A workspace shortcut is not a second copy, so it does not drag at all.
+    disabled: isExperimentCandidate || dragDisabled,
     data: {
       type: "thread",
       threadId: thread.id,
@@ -83,6 +103,7 @@ export function SortableThreadItem(props: {
     isExperimentCandidate,
     hasUnreadNotification,
     hasDraft,
+    ...(pinState ? { pinState } : {}),
     onMore: (event: React.MouseEvent<HTMLButtonElement>) => {
       const rect = event.currentTarget.getBoundingClientRect();
       setContextMenuRequest({ x: rect.right, y: rect.bottom, nonce: Date.now() });

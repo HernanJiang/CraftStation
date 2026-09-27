@@ -1,4 +1,4 @@
-import { Archive, ChevronRight, Ellipsis, Pencil, Pin, Plus, Trash2, X } from "lucide-react";
+import { Archive, ChevronRight, Ellipsis, Pencil, Pin, Plus, Trash2 } from "lucide-react";
 import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import type { Project } from "@/shared/contracts";
@@ -109,19 +109,17 @@ export function SidebarProjectHeader(props: {
         suffix={
           isUnavailable ? null : (
             <>
-              {!isCollapsed ? (
-                <button
-                  type="button"
-                  className={quickButtonClass}
-                  aria-label={t`Collapse ${project.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    useSidebarUiStore.getState().setProjectCollapsed(project.id, true);
-                  }}
-                >
-                  <X className="size-3.5" />
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className={`${quickButtonClass}${isPinned ? " text-foreground" : ""}`}
+                aria-label={isPinned ? t`Unpin ${project.name}` : t`Pin ${project.name}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  useSidebarUiStore.getState().toggleProjectPinned(project.id);
+                }}
+              >
+                <Pin className={`size-3.5${isPinned ? " fill-current" : ""}`} />
+              </button>
               <button
                 type="button"
                 className={quickButtonClass}

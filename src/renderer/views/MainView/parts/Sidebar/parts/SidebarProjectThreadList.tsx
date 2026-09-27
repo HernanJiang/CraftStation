@@ -11,7 +11,8 @@ export function SidebarProjectThreadList(props: { project: Project; sortMode: Th
   const { project, sortMode } = props;
   const allProjectThreads = useProjectThreads(project.id);
   // Global pins move to the top Pinned section (presentation only — the
-  // thread keeps its projectId; unpin returns it here).
+  // thread keeps its projectId; unpin returns it here). The Workspace inbox
+  // is an extra entry, so those threads stay in this list too.
   const projectThreads = allProjectThreads.filter((thread) => !isThreadGloballyPinned(thread));
   const experimentCandidateOrder = useExperimentCandidateOrder(project.id);
   const collapsedWorktrees = useSidebarUiStore((s) => s.collapsedWorktrees);

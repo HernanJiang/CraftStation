@@ -127,8 +127,21 @@ export function SidebarThreadRow(props: {
   setEditingThreadId: (id: string | null) => void;
   /** Trailing project label for cross-project (flat) lists. */
   projectTag?: React.ReactNode;
+  /** Workspace inbox rows unpin this shortcut instead of starring. */
+  pinState?: { pinned: boolean; onToggle: () => void };
+  sortableId?: string;
+  dragDisabled?: boolean;
 }) {
-  const { row, project, editingThreadId, setEditingThreadId, projectTag } = props;
+  const {
+    row,
+    project,
+    editingThreadId,
+    setEditingThreadId,
+    projectTag,
+    pinState,
+    sortableId,
+    dragDisabled,
+  } = props;
 
   if (row.kind === "thread") {
     const item = (
@@ -145,6 +158,9 @@ export function SidebarThreadRow(props: {
         group={row.group}
         {...(row.sortDisabled !== undefined ? { sortDisabled: row.sortDisabled } : {})}
         {...(projectTag !== undefined ? { projectTag } : {})}
+        {...(pinState !== undefined ? { pinState } : {})}
+        {...(sortableId !== undefined ? { sortableId } : {})}
+        {...(dragDisabled !== undefined ? { dragDisabled } : {})}
       />
     );
     // Group children hang off the same dashed rail as the chat tool-call group

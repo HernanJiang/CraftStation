@@ -14,6 +14,11 @@ interface ThreadItemSuffixProps {
   hasUnreadNotification?: boolean;
   hasDraft?: boolean;
   onMore?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  /**
+   * Overrides the row's star pin. The Workspace inbox uses this so "unpin"
+   * sends the thread back to its project instead of toggling a global star.
+   */
+  pinState?: { pinned: boolean; onToggle: () => void };
 }
 
 const iconButtonClass =
@@ -66,6 +71,7 @@ function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
 /** Keep the row quiet: status/unread sit on the far right; actions appear on hover. */
 export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
   const { t } = useLingui();
+  const pinned = props.pinState ? props.pinState.pinned : props.thread.starred;
   const marker = props.hasUnreadNotification ? (
     <span
       aria-label={t`Unread notification`}
@@ -87,16 +93,15 @@ export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
         <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-0.5 group-hover:pointer-events-auto">
           <button
             type="button"
-            aria-label={
-              props.thread.starred ? t`Unpin ${props.thread.title}` : t`Pin ${props.thread.title}`
-            }
-            className={`${iconButtonClass} ${props.thread.starred ? "text-foreground" : ""}`}
+            aria-label={pinned ? t`Unpin ${props.thread.title}` : t`Pin ${props.thread.title}`}
+            className={`${iconButtonClass} ${pinned ? "text-foreground" : ""}`}
             onClick={(event) => {
               event.stopPropagation();
-              toggleStarThread(props.thread.id);
+              if (props.pinState) props.pinState.onToggle();
+              else toggleStarThread(props.thread.id);
             }}
           >
-            <Pin className={`size-3 ${props.thread.starred ? "fill-current" : ""}`} />
+            <Pin className={`size-3 ${pinned ? "fill-current" : ""}`} />
           </button>
           <button
             type="button"

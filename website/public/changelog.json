@@ -511,6 +511,33 @@
       ]
     },
     {
+      "version": "1.5.14",
+      "date": "2026-09-27",
+      "title": "Workspace shortcuts, project pins & archived projects",
+      "summary": "Threads you are still working on, that stopped on an error, or that finished unread now also show up in a Workspace section. The original row stays in its project — Workspace is another way in, not a second thread.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Sidebar",
+          "text": "A Workspace section lists working, error-interrupted, and unread finished threads while each one remains under its own project. Opening either row opens the same thread."
+        },
+        {
+          "kind": "added",
+          "label": "Sidebar",
+          "text": "Hover a project and pin it to the top of the project list. Pin it again to put it back. Workspace itself starts pinned above the projects, and you can unpin that section so it sits next to Home."
+        },
+        {
+          "kind": "fixed",
+          "label": "Sidebar",
+          "text": "Archiving a project removes it from the project list instead of leaving a faded row. Expand Archive at the bottom of the sidebar and use Enable Project to bring it back."
+        },
+        {
+          "kind": "improved",
+          "text": "GitHub releases include both a portable build and an installer for Windows, macOS, and Linux."
+        }
+      ]
+    },
+    {
       "version": "1.5.13",
       "date": "2026-09-26",
       "title": "In-turn waits for agents, safer Codex auth & full access by default",

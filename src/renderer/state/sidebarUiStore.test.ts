@@ -13,6 +13,10 @@ beforeEach(() => {
     footerCollapsed: false,
     pinnedProjectIds: [],
     pinnedProjectAt: {},
+    workspaceInboxPinned: true,
+    workspaceInboxCollapsed: false,
+    archivedProjectsCollapsed: true,
+    dismissedWorkspaceInboxIds: [],
     editingThreadId: null,
   });
 });
@@ -129,6 +133,23 @@ describe("setFlatListProjectFilter", () => {
   });
 });
 
+describe("workspace inbox pin", () => {
+  it("starts pinned and toggles without touching project pins", () => {
+    expect(useSidebarUiStore.getState().workspaceInboxPinned).toBe(true);
+    useSidebarUiStore.getState().toggleWorkspaceInboxPinned();
+    expect(useSidebarUiStore.getState().workspaceInboxPinned).toBe(false);
+    expect(useSidebarUiStore.getState().pinnedProjectIds).toEqual([]);
+  });
+
+  it("drops a dismissal once the caller forgets it", () => {
+    useSidebarUiStore.getState().dismissWorkspaceInboxThread("t1");
+    useSidebarUiStore.getState().dismissWorkspaceInboxThread("t1");
+    expect(useSidebarUiStore.getState().dismissedWorkspaceInboxIds).toEqual(["t1"]);
+    useSidebarUiStore.getState().forgetWorkspaceInboxDismissals(["t1"]);
+    expect(useSidebarUiStore.getState().dismissedWorkspaceInboxIds).toEqual([]);
+  });
+});
+
 describe("toggleProjectPinned (global pin timestamps)", () => {
   it("stamps pinnedAt on pin and clears it on unpin", () => {
     useSidebarUiStore.getState().toggleProjectPinned("pA");
@@ -156,10 +177,7 @@ describe("toggleProjectPinned (global pin timestamps)", () => {
       useSidebarUiStore.persist.getOptions().merge ??
       ((persisted: unknown, current: State) => ({ ...current, ...(persisted as object) }));
     const current = useSidebarUiStore.getState();
-    const merged = merge(
-      { pinnedProjectIds: ["pB", "pA"], pinnedProjectAt: {} },
-      current,
-    ) as State;
+    const merged = merge({ pinnedProjectIds: ["pB", "pA"], pinnedProjectAt: {} }, current) as State;
     expect(merged.pinnedProjectIds).toEqual(["pB", "pA"]);
     expect(typeof merged.pinnedProjectAt.pB).toBe("number");
     expect(typeof merged.pinnedProjectAt.pA).toBe("number");

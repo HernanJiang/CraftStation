@@ -560,6 +560,16 @@ async function main() {
       }
       runElectronBuilder("dmg", "branded");
       restoreMacUpdaterManifests(join(stageRoot, "release"), updaterManifests);
+    } else if (platform === "win" && !target) {
+      // Installer first: its latest.yml is the auto-update feed. The portable
+      // pass rewrites that manifest, so put the NSIS one back before publish.
+      runWithRetry(() => runElectronBuilder("nsis"), 4, "electron-builder nsis");
+      const updaterManifests = snapshotWinUpdaterManifests(join(stageRoot, "release"));
+      if (updaterManifests.size === 0) {
+        throw new Error("Windows NSIS build produced no channel manifest");
+      }
+      runWithRetry(() => runElectronBuilder("portable"), 4, "electron-builder portable");
+      restoreWinUpdaterManifests(join(stageRoot, "release"), updaterManifests);
     } else {
       // External downloads (Electron dist, code-sign tools) flake on hostile
       // networks; caches make retries cheap.
@@ -581,6 +591,22 @@ async function main() {
 
 // macOS ZIP updates ship under the legacy executable name as a Squirrel.Mac
 // migration bridge; DMGs and every other platform stay fully CraftStation-branded.
+function snapshotWinUpdaterManifests(stageReleaseDir) {
+  if (!existsSync(stageReleaseDir)) return new Map();
+  const snapshots = new Map();
+  for (const entry of readdirSync(stageReleaseDir)) {
+    if (!/^(?:latest|nightly)\.yml$/u.test(entry)) continue;
+    snapshots.set(entry, readFileSync(join(stageReleaseDir, entry)));
+  }
+  return snapshots;
+}
+
+function restoreWinUpdaterManifests(stageReleaseDir, snapshots) {
+  for (const [entry, contents] of snapshots) {
+    writeFileSync(join(stageReleaseDir, entry), contents);
+  }
+}
+
 function macArtifactKindFor(platform, target) {
   return platform === "mac" && target === "zip" ? "updater" : "branded";
 }

@@ -5,6 +5,7 @@ import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { Project } from "@/shared/contracts";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
+import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { SidebarProjectHeader } from "./SidebarProjectHeader";
 import { SidebarProjectSection } from "./SidebarProjectSection";
 
@@ -106,6 +107,11 @@ describe("SidebarProjectHeader", () => {
       projects: [project],
       threads: [],
     });
+    useSidebarUiStore.setState({
+      pinnedProjectIds: [],
+      pinnedProjectAt: {},
+      collapsedProjects: {},
+    });
     seedRemote("online");
   });
 
@@ -176,19 +182,35 @@ describe("SidebarProjectHeader", () => {
     expect(openNewThreadMock).toHaveBeenCalledWith(project.id);
   });
 
-  it("collapses the project group from the header close button", async () => {
-    const { useSidebarUiStore } = await import("@/renderer/state/sidebarUiStore");
-    useSidebarUiStore.setState({ collapsedProjects: {} });
+  it("pins the project from the header pin button without collapsing or opening a chat", () => {
     renderHeader();
 
-    fireEvent.click(screen.getByRole("button", { name: `Collapse ${project.name}` }));
+    expect(
+      screen.queryByRole("button", { name: `Collapse ${project.name}` }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `Pin ${project.name}` }));
 
-    expect(useSidebarUiStore.getState().collapsedProjects[project.id]).toBe(true);
+    const pinned = useSidebarUiStore.getState();
+    expect(pinned.pinnedProjectIds).toEqual([project.id]);
+    expect(pinned.pinnedProjectAt[project.id]).toEqual(expect.any(Number));
+    expect(pinned.collapsedProjects[project.id]).toBeUndefined();
     expect(openNewThreadMock).not.toHaveBeenCalled();
-    useSidebarUiStore.setState({ collapsedProjects: {} });
   });
 
-  it("hides the close button while the project group is already collapsed", () => {
+  it("unpins a pinned project from the same button", () => {
+    useSidebarUiStore.setState({
+      pinnedProjectIds: [project.id],
+      pinnedProjectAt: { [project.id]: 1 },
+    });
+    renderHeader();
+
+    fireEvent.click(screen.getByRole("button", { name: `Unpin ${project.name}` }));
+
+    expect(useSidebarUiStore.getState().pinnedProjectIds).toEqual([]);
+    expect(useSidebarUiStore.getState().pinnedProjectAt[project.id]).toBeUndefined();
+  });
+
+  it("keeps the pin button while the project group is collapsed", () => {
     render(
       <SidebarProjectHeader
         project={project}
@@ -198,6 +220,7 @@ describe("SidebarProjectHeader", () => {
       />,
     );
 
+    expect(screen.getByRole("button", { name: `Pin ${project.name}` })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: `Collapse ${project.name}` }),
     ).not.toBeInTheDocument();
