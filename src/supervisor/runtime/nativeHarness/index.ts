@@ -5,6 +5,7 @@ import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
 import { createMiniMaxAdapter } from "@/supervisor/agents/minimax";
 import { createMuseAdapter } from "@/supervisor/agents/muse";
+import { createStepCodeAdapter } from "@/supervisor/agents/stepcode";
 import { createZCodeAdapter } from "@/supervisor/agents/zcode";
 import {
   ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
@@ -23,6 +24,7 @@ import {
   MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
   ZCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
 } from "./descriptors";
@@ -54,6 +56,7 @@ export {
   MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
   ZCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
   PtyNativeHarnessRuntimeAdapter,
@@ -335,6 +338,27 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
         : {}),
       ...(openCodeServerPool ? { serverPool: openCodeServerPool } : {}),
     }),
+  stepcode: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    baseSpawnEnv,
+    mcpServers,
+    onPromptError,
+    skillSegments,
+    inlineSkillInstructions,
+  }) =>
+    new StructuredNativeHarnessRuntimeAdapter({
+      adapter: withBaseSpawnEnv(createStepCodeAdapter(), baseSpawnEnv),
+      descriptor: STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation,
+      ...(accountBinding ? { accountBinding } : {}),
+      ...(profileRef ? { profileRef } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(onPromptError ? { onPromptError } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
   zcode: ({ projectLocation, accountBinding, profileRef }) =>
     new PtyNativeHarnessRuntimeAdapter({
       adapter: createZCodeAdapter(),

@@ -81,6 +81,15 @@ export function inferNativeHarnessFromModel(model: string): string | null {
   if (value.includes("kimi") || value.startsWith("moonshot:") || /^k[0-9]/.test(value)) {
     return "kimi";
   }
+  // StepFun Step family: `step-5-preview`, `step/…`, `step_…`, `stepfun/…`.
+  if (
+    value.includes("stepfun") ||
+    value.startsWith("step/") ||
+    value.startsWith("step-") ||
+    value.startsWith("step_")
+  ) {
+    return "stepcode";
+  }
   if (value.includes("muse") || value.includes("opencode")) return "opencode";
   if (
     value.includes("codex") ||

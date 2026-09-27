@@ -158,6 +158,9 @@ export const stepCodeDetectionSpec: DetectionSpec = {
   capabilities: stepCodeDefaultCapabilities,
   update: {
     builtIn: { binary: "step", args: ["update"] },
+    // Official release manifest (no GitHub Releases / npm): carries the newest
+    // published version as a top-level `version` field.
+    latestVersionUrls: ["https://static-openapi.stepfun.com/stepcode/latest.json"],
     installer: {
       posix: {
         binary: "sh",

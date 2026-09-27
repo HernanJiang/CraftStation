@@ -1,3 +1,11 @@
+## Step Code 补全为一等 Native Harness（2026-09-28）
+
+- **用户报告**：Step Code 此前只集成到 agent-adapter + 第三方路由层——Harness/CLI 面板不显示、合成台没有 `harness:stepcode` Item/Recipe、CLI 更新检查枚举不到它；Step 系模型在 Auto 下落到 OpenCode（本机 `step` 未安装时的设计回退）。
+- **修复**：`NATIVE_HARNESS_DESCRIPTORS` 新增 `stepcode`（transport `pi-jsonl-rpc-stdio`，`step --mode rpc`）；`createNativeHarnessRuntimeAdapter` 注册 `stepcode` → `StructuredNativeHarnessRuntimeAdapter` + `createStepCodeAdapter`（GUI 走既有 `PiRpcSession`）；`NATIVE_HARNESS_AGENT_KINDS` 补 `minimax`/`zcode`/`stepcode`（合成台刷新探测列表与 descriptors 对齐）；registry 新增 `stepfun:step-5-preview` 模型 Item + `BUILTIN_STEPCODE_HARNESS_ITEM` + `recipe:stepfun-stepcode-native`；`stepCodeDetectionSpec.update` 接入官方 `latest.json` manifest（`version` 字段）使 CLI 更新检查可见；`inferNativeHarnessFromModel` 识别 `step-`/`step/`/`step_`/`stepfun` → `stepcode`。
+- **Auto 默认**：`step-5-preview`/`step/…`/`stepfun/…` 第三方渠道模型在 `step` 已安装时即选 Step Code（`resolveThirdPartyHarnessForModel`/`resolveAutoHarness` 既有映射，本次补测试钉死）；未安装才回退 OpenCode。
+- **验证**：typecheck + oxlint 全过；autoHarnessResolver/thirdPartyRouting/updateAgent/nativeHarnessRegistry/minimaxZcodeIntegration/HarnessCliPanel/CraftingWorkbenchPage/CliUpdateMenu 等 116+212 测试全过。
+- **用户侧**：Harness/CLI 面板出现 "Step Code Native Harness" 行；未安装时点「下载并安装」走官方 `install.ps1`/`install.sh`（装至 `~/.stepcode/bin`）；安装后 Step 模型默认 Step Code，CLI 更新检查开始枚举 `step update`。
+
 ## Release v1.5.0（2026-09-21）
 
 - 版本 bump 1.4.4 → 1.5.0；MiniMax Code 以官方 `mcode acp` structured runtime 接入，ZCode 以官方 terminal/PTy runtime 接入并保留实验性 Recipe；同时交付 MCP 渐进式工具发现、loss-aware Handoff、可跨 renderer 重启恢复的 Workflow index、Artifact provenance/validation 元数据和来源明确的 Context Usage。

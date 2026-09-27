@@ -53,6 +53,7 @@ export const nativeHarnessTransportSchema = z.enum([
   "official-http-sse",
   "official-stream-json",
   "deepseek-json-rpc-stdio",
+  "pi-jsonl-rpc-stdio",
   "openai-compatible-http",
   "unavailable",
 ]);

@@ -14,6 +14,9 @@ describe("autoHarnessResolver", () => {
     expect(resolveModelFamily("k2-think")).toBe("kimi");
     expect(resolveModelFamily("grok-4.1")).toBe("grok");
     expect(resolveModelFamily("gemini-3.8-flash")).toBe("gemini");
+    expect(resolveModelFamily("step-5-preview")).toBe("stepfun");
+    expect(resolveModelFamily("step/step-5-preview")).toBe("stepfun");
+    expect(resolveModelFamily("stepfun/step-5")).toBe("stepfun");
     expect(resolveModelFamily("my-company-coder-v7")).toBe("unknown");
   });
 
@@ -26,7 +29,10 @@ describe("autoHarnessResolver", () => {
   });
 
   it("gpt + chat → OpenCode fallback (never force Codex)", () => {
-    const decision = resolveAutoHarness({ modelId: "gpt-5.6-sol", validatedProtocol: "chat_completions" });
+    const decision = resolveAutoHarness({
+      modelId: "gpt-5.6-sol",
+      validatedProtocol: "chat_completions",
+    });
     expect(decision.harnessId).toBe("opencode");
     expect(decision.route).toBe("third-party-fallback");
     expect(decision.reason).toContain("codex");
@@ -81,6 +87,29 @@ describe("autoHarnessResolver", () => {
     });
     expect(incompatible.route).toBe("unsupported");
     expect(incompatible.reason).toContain("does not support");
+  });
+
+  it("stepfun + chat → Step Code native (Step models default to Step Code)", () => {
+    for (const modelId of ["step-5-preview", "step/step-5-preview", "stepfun/step-5"]) {
+      const decision = resolveAutoHarness({
+        modelId,
+        validatedProtocol: "chat_completions",
+      });
+      expect(decision.harnessId).toBe("stepcode");
+      expect(decision.route).toBe("third-party-native");
+      expect(decision.modelFamily).toBe("stepfun");
+      expect(decision.bypassAccountPool).toBe(true);
+    }
+  });
+
+  it("stepfun → OpenCode only when Step Code is unavailable", () => {
+    const decision = resolveAutoHarness({
+      modelId: "step-5-preview",
+      validatedProtocol: "chat_completions",
+      harnessAvailable: { stepcode: false, opencode: true },
+    });
+    expect(decision.harnessId).toBe("opencode");
+    expect(decision.route).toBe("third-party-fallback");
   });
 
   it("unavailable preferred harness falls back to OpenCode", () => {

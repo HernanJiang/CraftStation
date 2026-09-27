@@ -24,11 +24,14 @@ export const NATIVE_HARNESS_AGENT_KINDS: readonly string[] = [
   "codex",
   "grok",
   "kimi",
+  "minimax",
   "antigravity",
   "deepseek",
   "muse",
   "opencode",
   "devin",
+  "zcode",
+  "stepcode",
 ];
 
 /**

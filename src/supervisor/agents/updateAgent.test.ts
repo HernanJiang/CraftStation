@@ -17,6 +17,7 @@ import {
   resolveUpdateCommand,
   runUpdateCommandWithFallback,
 } from "./updateAgent";
+import { stepCodeDetectionSpec } from "./stepcode";
 
 const updateByKind: Record<string, AgentAdapter["update"]> = {
   claude: {
@@ -440,6 +441,42 @@ describe("getLatestVersionForAdapter", () => {
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
       "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_amd64.json",
     );
+  });
+
+  it("fetches the Step Code latest version from the official latest.json manifest", async () => {
+    const fetchSpy = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({ version: "0.1.1", generatedAt: "2026-09-24T11:19:05.387Z" }),
+    } as Response);
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    const adapter = {
+      ...makeAdapter("stepcode"),
+      update: stepCodeDetectionSpec.update!,
+    };
+    const result = await getLatestVersionForAdapter(adapter);
+    expect(result).toEqual({ version: "0.1.1", source: "version-url" });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      "https://static-openapi.stepfun.com/stepcode/latest.json",
+    );
+  });
+
+  it("keeps Step Code on its built-in `step update` self-updater", () => {
+    const adapter = {
+      ...makeAdapter("stepcode"),
+      update: stepCodeDetectionSpec.update!,
+    };
+    const status = makeStatus({
+      kind: "stepcode",
+      executablePath: "C:\\Users\\me\\.stepcode\\bin\\step.exe",
+    });
+    expect(resolveUpdateCommand(adapter, status, NATIVE_WIN)).toEqual({
+      binary: "step",
+      args: ["update"],
+      strategy: "built-in",
+    });
   });
 
   it("fetches the latest Devin CLI version from the official manifest", async () => {

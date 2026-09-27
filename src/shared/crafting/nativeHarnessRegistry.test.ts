@@ -30,9 +30,10 @@ describe("Native Harness registry", () => {
         "harness:deepseek-api",
         "harness:muse",
         "harness:devin",
+        "harness:stepcode",
       ]),
     );
-    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(9);
+    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(10);
     expect(BUILTIN_NATIVE_HARNESS_MODEL_ITEMS.map((item) => item.metadata.vendor)).toEqual(
       expect.arrayContaining([
         "xai",
@@ -43,6 +44,7 @@ describe("Native Harness registry", () => {
         "cognition",
         "minimax",
         "zai",
+        "stepfun",
       ]),
     );
     expect(NATIVE_HARNESS_RECIPES.map((recipe) => recipe.id)).toEqual(
@@ -56,6 +58,7 @@ describe("Native Harness registry", () => {
         "recipe:deepseek-api",
         "recipe:meta-muse-native",
         "recipe:cognition-devin-native",
+        "recipe:stepfun-stepcode-native",
       ]),
     );
   });

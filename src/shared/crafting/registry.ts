@@ -312,6 +312,29 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
     ],
   },
   {
+    id: "stepfun:step-5-preview",
+    kind: "model",
+    metadata: {
+      id: "stepfun:step-5-preview",
+      name: "Step 5 Preview",
+      version: "stepcode-0.1.1-catalog",
+      vendor: "stepfun",
+      source: "builtin",
+      description: "StepFun Step model family paired with the official Step Code Harness.",
+      tags: ["coding", "stepfun", "step", "stepcode"],
+      compatibilityStatus: "NATIVE",
+    },
+    components: [
+      {
+        kind: "model_capability",
+        vendor: "stepfun",
+        modelId: "step/step-5-preview",
+        supportsStreaming: true,
+        supportsToolCalling: true,
+      },
+    ],
+  },
+  {
     id: "deepseek:deepseek-v4-flash",
     kind: "model",
     metadata: {
@@ -638,6 +661,15 @@ export const BUILTIN_DEVIN_HARNESS_ITEM = createNativeHarnessItem({
   executionMode: "structured_session",
 });
 
+export const BUILTIN_STEPCODE_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:stepcode",
+  name: "Step Code Harness",
+  vendor: "stepfun",
+  description:
+    "Official Step Code agent runtime through its pi-family JSONL RPC boundary (`step --mode rpc`).",
+  executionMode: "structured_session",
+});
+
 export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_GROK_HARNESS_ITEM,
   BUILTIN_KIMI_HARNESS_ITEM,
@@ -647,6 +679,7 @@ export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_DEEPSEEK_HARNESS_ITEM,
   BUILTIN_DEEPSEEK_API_HARNESS_ITEM,
   BUILTIN_MUSE_HARNESS_ITEM,
+  BUILTIN_STEPCODE_HARNESS_ITEM,
   BUILTIN_DEVIN_HARNESS_ITEM,
 ];
 
@@ -787,6 +820,14 @@ export const NATIVE_HARNESS_RECIPES = [
     harnessKind: "devin",
     harnessItemId: BUILTIN_DEVIN_HARNESS_ITEM.id,
     modelVendors: ["cognition"],
+  }),
+  new NativeHarnessRecipe({
+    id: "recipe:stepfun-stepcode-native",
+    name: "StepFun Step Code Native Recipe",
+    description: "Native StepFun model composition through the official Step Code Harness.",
+    harnessKind: "stepcode",
+    harnessItemId: BUILTIN_STEPCODE_HARNESS_ITEM.id,
+    modelVendors: ["stepfun"],
   }),
   new NativeHarnessRecipe({
     id: "recipe:deepseek-native",

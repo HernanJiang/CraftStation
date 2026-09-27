@@ -4,6 +4,7 @@ import {
   createNativeHarnessRuntimeAdapter,
   MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   PtyNativeHarnessRuntimeAdapter,
+  STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
   StructuredNativeHarnessRuntimeAdapter,
   ZCODE_NATIVE_HARNESS_DESCRIPTOR,
 } from "./index";
@@ -30,5 +31,16 @@ describe("MiniMax Code and ZCode native harness integration", () => {
     expect(adapter.descriptor).toBe(ZCODE_NATIVE_HARNESS_DESCRIPTOR);
     expect(adapter.descriptor.transport).toBe("official-pty");
     expect(adapter.descriptor.capabilities.events).toBe("implementation missing");
+  });
+
+  it("routes Step Code through the structured pi-family RPC session", () => {
+    const adapter = createNativeHarnessRuntimeAdapter("stepcode", { projectLocation: location });
+    if (!adapter?.descriptor) throw new Error("expected Step Code native runtime adapter");
+
+    expect(adapter).toBeInstanceOf(StructuredNativeHarnessRuntimeAdapter);
+    expect(adapter.harnessKind).toBe("stepcode");
+    expect(adapter.descriptor).toBe(STEPCODE_NATIVE_HARNESS_DESCRIPTOR);
+    expect(adapter.descriptor.transport).toBe("pi-jsonl-rpc-stdio");
+    expect(adapter.descriptor.vendor).toBe("stepfun");
   });
 });

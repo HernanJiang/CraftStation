@@ -271,6 +271,9 @@ describe("third-party picker harness", () => {
     expect(resolveThirdPartyHarnessForModel("grok-4.6")).toBe("grok");
     expect(resolveThirdPartyHarnessForModel("deepseek-v4-flash")).toBe("deepseek");
     expect(resolveThirdPartyHarnessForModel("gemini-3.8-flash")).toBe("opencode");
+    expect(resolveThirdPartyHarnessForModel("step-5-preview")).toBe("stepcode");
+    expect(resolveThirdPartyHarnessForModel("step/step-5-preview")).toBe("stepcode");
+    expect(resolveThirdPartyHarnessForModel("stepfun/step-5")).toBe("stepcode");
   });
 
   it("falls back to OpenCode when the native vendor Harness is not installed", () => {
@@ -285,6 +288,12 @@ describe("third-party picker harness", () => {
     );
     expect(resolveThirdPartyHarnessForModel("muse-spark-1.3-contributor", ["opencode"])).toBe(
       "opencode",
+    );
+    expect(resolveThirdPartyHarnessForModel("step-5-preview", ["opencode", "codex"])).toBe(
+      "opencode",
+    );
+    expect(resolveThirdPartyHarnessForModel("step-5-preview", ["stepcode", "opencode"])).toBe(
+      "stepcode",
     );
   });
 
