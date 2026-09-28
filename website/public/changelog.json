@@ -511,6 +511,24 @@
       ]
     },
     {
+      "version": "1.5.16",
+      "date": "2026-09-28",
+      "title": "Provider usage credentials that stay signed in",
+      "summary": "Usage-panel credentials now survive updates and restarts — OpenCode renews dead session cookies silently, and Antigravity accounts keep showing quota when their windows roll back to full.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Usage",
+          "text": "OpenCode and Command Code quota no longer demand a fresh login after every update or restart — expired session cookies are renewed silently from the persistent browser session, with a hidden re-auth pass before the sign-in window ever appears."
+        },
+        {
+          "kind": "fixed",
+          "label": "Usage",
+          "text": "Antigravity accounts no longer report \"no quota record\" the moment a Gemini or Claude window rolls back to full — nominal full buckets render as 0% used, and a running Antigravity session contributes its official language-server quota when its email matches the account."
+        }
+      ]
+    },
+    {
       "version": "1.5.15",
       "date": "2026-09-28",
       "title": "Step Code as a first-class native harness",
