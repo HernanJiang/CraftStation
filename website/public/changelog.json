@@ -511,6 +511,24 @@
       ]
     },
     {
+      "version": "1.5.18",
+      "date": "2026-09-29",
+      "title": "Usage sessions that heal themselves & a Step Code sign-in",
+      "summary": "Provider cards no longer get stuck on \"signed in but no quota\" — dead stored sessions renew automatically from the live browser session, and Step Code joins the sign-in channel list.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Usage",
+          "text": "OpenCode could show \"已登录\" with \"暂无额度窗口\" forever: a mid-login placeholder cookie overwrote the good snapshot and nothing repaired it on the read path. Cookie mirroring now validates before sealing, and provider cards silently renew a dead stored session — harvesting the live browser session first — before ever asking you to sign in again."
+        },
+        {
+          "kind": "added",
+          "label": "Usage",
+          "text": "Step Code now appears in the sign-in channel list. Its 登录/授权 button runs the native `step login` terminal flow — the same entry the Harness panel offers — so the Step credential lands in ~/.stepcode/auth.json where the harness reads it."
+        }
+      ]
+    },
+    {
       "version": "1.5.17",
       "date": "2026-09-29",
       "title": "Step Code routes by what the channel can speak",
