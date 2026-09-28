@@ -59,6 +59,14 @@ export function startUsageLoginCookieMirror(options: UsageLoginCookieMirrorOptio
     const header = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
     if (!header) return;
     if (getUsageSecret(options.cacheDir, target.providerId, "cookie") === header) return;
+    // Never overwrite a working snapshot with a header that cannot authenticate.
+    // Providers such as OpenCode set a placeholder `auth` cookie early in the
+    // OAuth flow — sealing it mid-flight clobbers the last good session and the
+    // quota read then reports signed-out even though the user is logged in.
+    if (target.config.validateSession) {
+      const live = await target.config.validateSession(header).catch(() => false);
+      if (!live) return;
+    }
     setUsageSecret(options.cacheDir, target.providerId, "cookie", header);
   };
 

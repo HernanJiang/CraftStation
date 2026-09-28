@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "@heroui/react";
 import { isRemoteSession, readBridge } from "@/renderer/bridge";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -24,6 +24,13 @@ import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
  * overlay capture, API-key paste, and persistent stored-session sync). Reads the
  * live snapshot to decide whether a "Sign in" affordance is warranted.
  */
+/**
+ * Renderer-side throttle for the auto-heal attempt: independent of the main
+ * process cooldown so a re-render burst can never hammer the probe endpoints.
+ */
+const autoHealAttemptedAt = new Map<string, number>();
+const AUTO_HEAL_INTERVAL_MS = 60_000;
+
 export function useUsageProviderLogin(id: string) {
   const snapshot = useProviderUsage(id);
   const hasStoredSession = useHasStoredSession(id);
@@ -65,6 +72,36 @@ export function useUsageProviderLogin(id: string) {
   // "Re-authorize". Keep this separate from `canSignIn` so callers do not
   // have to fake an auth-missing snapshot just to open the existing flow.
   const canReauthenticate = supportsLogin && isBrowserLogin;
+
+  /**
+   * Read-time self-heal: the sealed cookie can die between logins (rotation,
+   * issuer expiry, or a mid-flow placeholder that was mirrored before the real
+   * session landed). When the latest snapshot says the stored session no longer
+   * authenticates — or the provider reports signed-in but yields no windows —
+   * ask the main process to renew it silently (jar harvest → hidden re-auth,
+   * already debounced there) and refresh on success. No user click needed.
+   */
+  const meterlessAuthorized =
+    needsBrowserSessionForUsage(id) && snapshot?.status === "ok" && snapshot.windows.length === 0;
+  useEffect(() => {
+    if (isRemote || !hasStoredSession || !isBrowserLogin) return;
+    if (snapshot?.status !== "auth-missing" && !meterlessAuthorized) return;
+    const now = Date.now();
+    const last = autoHealAttemptedAt.get(id) ?? 0;
+    if (now - last < AUTO_HEAL_INTERVAL_MS) return;
+    autoHealAttemptedAt.set(id, now);
+    void (async () => {
+      try {
+        const silent = await readBridge().attemptUsageSilentLogin({ providerId: id });
+        if (!silent.ok) return;
+        useUsageLoginStateStore.getState().setStored(id, true);
+        await refreshAndMergeProviderUsage(id);
+      } catch {
+        // Heal is opportunistic — the stored-session UI stays the honest state.
+      }
+    })();
+  }, [id, isRemote, hasStoredSession, isBrowserLogin, snapshot?.status, meterlessAuthorized]);
+
   const canSignOut =
     !isRemote &&
     ((supportsLogin && hasStoredSession) ||

@@ -71,6 +71,9 @@ const CLI_LOGIN_COMMANDS: Record<string, string> = {
   // paste remains a last-resort fallback, not the primary path.
   opencode: "opencode auth login",
   devin: "devin auth login",
+  // Step Code's own OAuth login writes ~/.stepcode/auth.json — the native
+  // harness reads it from there (same command the Harness panel offers).
+  stepcode: "step login",
 };
 
 function isAuthorizedUsageStatus(status: string | undefined): boolean {

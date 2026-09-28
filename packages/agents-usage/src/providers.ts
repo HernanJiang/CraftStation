@@ -142,6 +142,16 @@ export const LOCAL_USAGE_PROVIDER_DESCRIPTORS: readonly UsageProviderDescriptor[
     needsBrowserSessionForUsage: true,
     windowIds: ["session-5h", "weekly", "monthly"],
   },
+  {
+    id: "stepcode",
+    label: "Step Code",
+    // Login is the CLI's own `step login` flow (see CLI_LOGIN_COMMANDS in the
+    // renderer); credential presence lives in ~/.stepcode/auth.json. No quota
+    // API is exposed yet, so the card reports identity only.
+    mechanism: "cli-jsonrpc",
+    needsLogin: true,
+    windowIds: [],
+  },
 ];
 
 /** Every usage provider, registry HTTP collectors first then the local ones. */

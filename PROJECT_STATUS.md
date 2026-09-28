@@ -1,3 +1,11 @@
+## OpenCode 已登录无额度 + Step Code 渠道入口（2026-09-29）
+
+- **用户报告**：OpenCode 渠道卡显示「已登录」但「暂无额度窗口」；右侧登录渠道列表没有 Step Code。
+- **根因（实测）**：密封快照里的 `auth` cookie 是登录流程中途封存的**占位值**（cookie jar 里同时存在 `__Host-console_oidc_flow`，证明抓取发生在 OIDC 流程未完成的时刻）。`UsageLoginCookieMirror.reseal` 只复制不验证——占位值直接覆盖了好快照；采集侧只读死快照报 `auth-missing`；静默续期只挂在「重新授权」按钮上，读路径无自愈，于是永远卡在空窗。
+- **修复（三层）**：① `UsageLoginCookieMirror.reseal` 在写快照前调 `config.validateSession` 做活性验证，验证不过的 header 不落盘——杜绝占位/死值覆盖好快照；② `useUsageProviderLogin` 新增读时自愈：快照 `auth-missing` 或「ok 但无窗」（OpenCode 式 meterless）且存在已存会话时，自动调 `attemptUsageSilentLogin`（jar 收割→隐藏回放的既有链路，主进程自带冷却），成功即刷新，模块级 60s 去重防重渲染风暴；③ `packages/agents-usage` LOCAL descriptor 新增 `stepcode`（`cli-jsonrpc` mechanism、无采集器=仅身份卡）+ `CLI_LOGIN_COMMANDS["stepcode"]="step login"`——渠道列表出现 Step Code 行，点「登录/授权」在登录终端跑原生 `step login`（与 Harness 面板同一入口）。
+- **验证**：487 usage/provider 测试全过；typecheck + oxlint 零告警。镜像验证失败时静默跳过（不覆盖），自愈失败不打扰 UI。
+- **用户侧**：当前构建仍需点一次「重新授权」（jar 里会话是活的，静默续期会成功）；本修复上线后死快照自动自愈。Step Code 行只提供登录入口，不显示额度窗——Step Plan 未公开 quota API。
+
 ## Step Code 第三方渠道路由修复（2026-09-29）
 
 - **用户报告**：阶越星辰渠道模型（第三方 `openai-compatible` 账号）发送时报错「该第三方 API（Responses）暂不支持直连 stepcode Harness」，要求三方 API+Base URL 可用时用三方，实在不行回退 OpenCode，账号登录走原生 `step login`。
