@@ -382,6 +382,10 @@ export const sharedSettingsSchema = z.object({
         inputModalities: z.array(z.string().min(1)).optional(),
         /** 输出模态（默认 ["text"]）。 */
         outputModalities: z.array(z.string().min(1)).optional(),
+        /** 渠道验证时确定的 wire 协议（Responses 优先探测的赢家）。 */
+        validatedProtocol: z.enum(["responses", "chat_completions"]).optional(),
+        /** 渠道是否同时服务 /chat/completions（第二面探测，Step Code 直连门槛）。 */
+        chatCompletionsOk: z.boolean().optional(),
       }),
     )
     .default([]),

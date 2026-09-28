@@ -14,6 +14,7 @@ import { stripModelProviderPrefix } from "@/shared/harnessCompatibility";
 import {
   isVolcengineArkApiRoot,
   normalizeApiRoot,
+  probeChatCompletionsSurface,
   probeThirdPartyProvider,
   type ProbeFetch,
   type ThirdPartyProtocol,
@@ -52,6 +53,7 @@ const BUNDLE_KEYS = [
   "displayName",
   "validatedProtocol",
   "validatedAt",
+  "chatCompletionsOk",
 ] as const;
 
 export interface OpenAiCompatibleProfileServiceOptions {
@@ -79,6 +81,13 @@ interface ProfileBundle {
    */
   validatedProtocol?: "responses" | "chat_completions" | undefined;
   validatedAt?: number | undefined;
+  /**
+   * Second-surface probe outcome: whether the channel also answers
+   * POST /chat/completions. `validatedProtocol` is Responses-first, so a
+   * `responses` channel may still serve chat — chat-wired harnesses (Step
+   * Code) read this before binding. Absent = not probed yet.
+   */
+  chatCompletionsOk?: boolean | undefined;
 }
 
 function readValidatedProtocol(value: string | undefined): ProfileBundle["validatedProtocol"] {
@@ -118,6 +127,10 @@ function readBundle(cacheDir: string, bucket: string): ProfileBundle | undefined
     ...(readValidatedAt(getUsageSecret(cacheDir, bucket, "validatedAt")) !== undefined
       ? { validatedAt: readValidatedAt(getUsageSecret(cacheDir, bucket, "validatedAt"))! }
       : {}),
+    ...(() => {
+      const flag = getUsageSecret(cacheDir, bucket, "chatCompletionsOk")?.trim();
+      return flag === "true" || flag === "false" ? { chatCompletionsOk: flag === "true" } : {};
+    })(),
   };
 }
 
@@ -195,6 +208,7 @@ export class OpenAiCompatibleProfileService {
         model?: string;
         validatedProtocol?: "responses" | "chat_completions";
         validatedAt?: number;
+        chatCompletionsOk?: boolean;
       }
     | undefined {
     const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
@@ -205,6 +219,9 @@ export class OpenAiCompatibleProfileService {
       ...(bundle.model ? { model: bundle.model } : {}),
       ...(bundle.validatedProtocol ? { validatedProtocol: bundle.validatedProtocol } : {}),
       ...(bundle.validatedAt !== undefined ? { validatedAt: bundle.validatedAt } : {}),
+      ...(bundle.chatCompletionsOk !== undefined
+        ? { chatCompletionsOk: bundle.chatCompletionsOk }
+        : {}),
     };
   }
 
@@ -579,7 +596,11 @@ export class OpenAiCompatibleProfileService {
     accountId: string,
     model: string,
     fetchImpl?: ProbeFetch | undefined,
-  ): Promise<{ validatedProtocol: ThirdPartyProtocol; validatedAt: number }> {
+  ): Promise<{
+    validatedProtocol: ThirdPartyProtocol;
+    validatedAt: number;
+    chatCompletionsOk?: boolean;
+  }> {
     const bundle = readBundle(this.options.cacheDir, this.bucketFor(accountId));
     if (!bundle) {
       throw new AccountControlError("ACCOUNT_NOT_FOUND", `Unknown account '${accountId}'.`);
@@ -621,7 +642,87 @@ export class OpenAiCompatibleProfileService {
         code: result.code,
       });
     }
-    return { validatedProtocol: result.validatedProtocol, validatedAt: result.validatedAt };
+    // 主探测 Responses-first：以 Responses 通过的渠道仍可能同时服务
+    // /chat/completions。补一次 chat 面探测并记录到密封桶——绑定 chat 协议的
+    // Harness（Step Code）据此判断能否直连该渠道；只对明确成功落 true，
+    // 失败保持 unknown（模型粒度的假阴性不降级渠道级标记）。
+    let chatCompletionsOk = bundle.chatCompletionsOk;
+    if (result.validatedProtocol === "responses" && chatCompletionsOk !== true) {
+      const chat = await probeChatCompletionsSurface({
+        baseUrl: bundle.baseUrl,
+        apiKey: bundle.apiKey,
+        model: normalizeThirdPartyModelId(model),
+        fetchImpl: probe,
+      });
+      if (chat.ok) {
+        setUsageSecret(
+          this.options.cacheDir,
+          this.bucketFor(accountId),
+          "chatCompletionsOk",
+          "true",
+        );
+        chatCompletionsOk = true;
+      }
+    }
+    return {
+      validatedProtocol: result.validatedProtocol,
+      validatedAt: result.validatedAt,
+      ...(chatCompletionsOk !== undefined ? { chatCompletionsOk } : {}),
+    };
+  }
+
+  /**
+   * Chat Completions 能力询问：先读密封桶缓存（chat 验证通过的渠道直接 true），
+   * 未探测过才对该渠道做一次真实 POST /chat/completions，并把确定性的结论
+   * （成功 / 不可重试失败）写回桶内，瞬时失败保持 unknown 下次重探。
+   */
+  async ensureChatCompletionsCapability(input: {
+    accountId: string;
+    model: string;
+    fetchImpl?: ProbeFetch;
+  }): Promise<{ validatedProtocol?: ThirdPartyProtocol | undefined; chatCompletionsOk: boolean }> {
+    const bundle = readBundle(this.options.cacheDir, this.bucketFor(input.accountId));
+    if (!bundle) return { chatCompletionsOk: false };
+    if (bundle.validatedProtocol === "chat_completions" || bundle.chatCompletionsOk === true) {
+      return { validatedProtocol: bundle.validatedProtocol, chatCompletionsOk: true };
+    }
+    if (bundle.chatCompletionsOk === false) {
+      return { validatedProtocol: bundle.validatedProtocol, chatCompletionsOk: false };
+    }
+    const model = (input.model.trim() || bundle.model?.trim()) ?? "";
+    if (!model) return { validatedProtocol: bundle.validatedProtocol, chatCompletionsOk: false };
+    const probe: ProbeFetch =
+      input.fetchImpl ??
+      (async (url, init, timeoutMs) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch(url, {
+            method: init.method,
+            headers: init.headers,
+            ...(init.body ? { body: init.body } : {}),
+            signal: controller.signal,
+          });
+          return { status: res.status, bodyText: await res.text().catch(() => "") };
+        } finally {
+          clearTimeout(timer);
+        }
+      });
+    const chat = await probeChatCompletionsSurface({
+      baseUrl: bundle.baseUrl,
+      apiKey: bundle.apiKey,
+      model: normalizeThirdPartyModelId(model),
+      fetchImpl: probe,
+    });
+    if (chat.ok || chat.definitive) {
+      setUsageSecret(
+        this.options.cacheDir,
+        this.bucketFor(input.accountId),
+        "chatCompletionsOk",
+        chat.ok ? "true" : "false",
+      );
+    }
+    return { validatedProtocol: bundle.validatedProtocol, chatCompletionsOk: chat.ok };
   }
 
   /**

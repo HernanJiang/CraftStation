@@ -401,6 +401,8 @@ export function ModelManagementPage(props: {
       outputModalities?: string[];
       efforts?: string[];
       defaultEffort?: string;
+      validatedProtocol?: "responses" | "chat_completions";
+      chatCompletionsOk?: boolean;
     },
   ) => {
     const trimmedId = modelId.trim();
@@ -424,6 +426,12 @@ export function ModelManagementPage(props: {
                 ...(extra?.outputModalities ? { outputModalities: extra.outputModalities } : {}),
                 ...(extra?.efforts?.length ? { efforts: extra.efforts } : {}),
                 ...(extra?.defaultEffort ? { defaultEffort: extra.defaultEffort } : {}),
+                ...(extra?.validatedProtocol !== undefined
+                  ? { validatedProtocol: extra.validatedProtocol }
+                  : {}),
+                ...(extra?.chatCompletionsOk !== undefined
+                  ? { chatCompletionsOk: extra.chatCompletionsOk }
+                  : {}),
               }
             : model,
         ),
@@ -443,6 +451,12 @@ export function ModelManagementPage(props: {
       ...(extra?.outputModalities ? { outputModalities: extra.outputModalities } : {}),
       ...(extra?.efforts?.length ? { efforts: extra.efforts } : {}),
       ...(extra?.defaultEffort ? { defaultEffort: extra.defaultEffort } : {}),
+      ...(extra?.validatedProtocol !== undefined
+        ? { validatedProtocol: extra.validatedProtocol }
+        : {}),
+      ...(extra?.chatCompletionsOk !== undefined
+        ? { chatCompletionsOk: extra.chatCompletionsOk }
+        : {}),
     };
     onUpdateCustomModels([...customModels, entry]);
   };
@@ -469,6 +483,8 @@ export function ModelManagementPage(props: {
       outputModalities?: string[];
       efforts?: string[];
       defaultEffort?: string;
+      validatedProtocol?: "responses" | "chat_completions";
+      chatCompletionsOk?: boolean;
     },
   ): Promise<boolean> => {
     const trimmedId = modelId.trim();
@@ -489,7 +505,13 @@ export function ModelManagementPage(props: {
         toast.danger(verdict.error ?? "模型验证失败，未加入首页。");
         return false;
       }
-      upsertCustomModel(provider, trimmedId, displayName, accountId, channelLabel, extra);
+      upsertCustomModel(provider, trimmedId, displayName, accountId, channelLabel, {
+        ...extra,
+        ...(verdict.validatedProtocol ? { validatedProtocol: verdict.validatedProtocol } : {}),
+        ...(verdict.chatCompletionsOk !== undefined
+          ? { chatCompletionsOk: verdict.chatCompletionsOk }
+          : {}),
+      });
       toast.success(
         verdict.validatedProtocol === "chat_completions"
           ? `已验证 · Chat Completions，已加入首页。`

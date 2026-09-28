@@ -14,6 +14,7 @@ import {
   buildProbeUrls,
   normalizeApiRoot,
   openAiCompatibleApiBase,
+  probeChatCompletionsSurface,
   probeThirdPartyProvider,
   type ProbeFetch,
   type ThirdPartyProtocol,
@@ -403,6 +404,25 @@ export class UsageLoginManager {
       "validatedAt",
       String(validation.validatedAt),
     );
+    // Second-surface probe: a Responses-first validation says nothing about
+    // /chat/completions, which chat-wired harnesses (Step Code) require. Probe
+    // it now so Auto routing has a definitive answer before the first send.
+    if (validation.validatedProtocol === "responses") {
+      const chat = await probeChatCompletionsSurface({
+        baseUrl: apiRoot,
+        apiKey,
+        model,
+        fetchImpl: probe,
+      }).catch(() => undefined);
+      if (chat && (chat.ok || chat.definitive)) {
+        setUsageSecret(
+          this.paths.cacheDir,
+          "openai-compatible:pending",
+          "chatCompletionsOk",
+          chat.ok ? "true" : "false",
+        );
+      }
+    }
     return { ok: true, validatedProtocol: validation.validatedProtocol };
   }
 

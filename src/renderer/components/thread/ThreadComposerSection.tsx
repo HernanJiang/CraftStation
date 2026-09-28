@@ -88,10 +88,17 @@ import { switchLiveThreadProvider } from "@/renderer/actions/sessionHandoffActio
 import { getLaunchableAgentStatuses } from "@/shared/agentStatus";
 import {
   applyThirdPartyPickerSelection,
+  channelInfoFromCustomModels,
   composerPickerAgentKind,
   isThirdPartyAccountId,
   resolveThirdPartyAccountForLaunch,
+  type ThirdPartyChannelInfo,
 } from "@/shared/thirdPartyRouting";
+import {
+  preferredHarnessForCompatibilityFamily,
+  resolveCompatibilityFamily,
+} from "@/shared/harnessCompatibility";
+import { resolveThirdPartyChannelInfoForSend } from "@/renderer/actions/thirdPartyChannelInfo";
 import {
   isPendingSwitchResolved,
   shouldStageModelSwitch,
@@ -511,10 +518,49 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
         ? s.worktreeStatuses[thread.worktreePath]?.branch
         : s.statuses[thread.projectId]?.branch),
   );
+  const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
+  const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
+  const launchableHarnesses = getLaunchableAgentStatuses(
+    projectLocation,
+    agentStatuses,
+    wslAgentStatuses,
+  )
+    .filter((entry) => entry.installed)
+    .map((entry) => entry.kind);
+  // Step Code needs a Chat Completions surface on the channel. Only when the
+  // remap could actually pick stepcode (installed + stepfun family) do we ask
+  // the lazy send-path probe — and ONLY that branch awaits, so the common path
+  // stays synchronous and the submit timing is unchanged.
+  const channelInfoNeedsProbe = (
+    accountId: string | undefined,
+    modelId: string | undefined,
+  ): boolean =>
+    isThirdPartyAccountId(accountId) &&
+    launchableHarnesses.includes("stepcode") &&
+    preferredHarnessForCompatibilityFamily(resolveCompatibilityFamily(modelId ?? "")) ===
+      "stepcode";
+  const stampedChannelInfo = (
+    accountId: string | undefined,
+    modelId: string | undefined,
+  ): ThirdPartyChannelInfo | undefined =>
+    channelInfoFromCustomModels(
+      useSharedSettings.getState().customModels ?? [],
+      accountId,
+      modelId,
+    );
+  // 与 applyThirdPartyPickerSelection 一致：chip 显示也用 installed + 渠道
+  // 能力解析，避免 stepcode 未装/渠道不支持 chat 时显示与实际路由不一致。
   const catalogAgentKind = composerPickerAgentKind({
     agentKind: thread.agentKind,
     model: thread.config.model,
     sourceProviderKind: thread.config.sourceProviderKind,
+    installed: launchableHarnesses,
+    channel: stampedChannelInfo(
+      isThirdPartyAccountId(thread.accountBinding?.accountId)
+        ? thread.accountBinding?.accountId
+        : undefined,
+      thread.config.model,
+    ),
   });
   const hiddenModelIds = useSharedSettings(
     (s) =>
@@ -565,15 +611,6 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     presentationMode,
     includeAgentKind: catalogAgentKind,
   });
-  const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
-  const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
-  const launchableHarnesses = getLaunchableAgentStatuses(
-    projectLocation,
-    agentStatuses,
-    wslAgentStatuses,
-  )
-    .filter((entry) => entry.installed)
-    .map((entry) => entry.kind);
   const isStagingSwitch = Boolean(
     pendingSwitch &&
     shouldStageModelSwitch(
@@ -822,6 +859,13 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
             agentKind: sendThread.agentKind,
             model: sendThread.config.model,
             sourceProviderKind: sendThread.config.sourceProviderKind,
+            installed: launchableHarnesses,
+            channel: stampedChannelInfo(
+              isThirdPartyAccountId(sendThread.accountBinding?.accountId)
+                ? sendThread.accountBinding?.accountId
+                : undefined,
+              sendThread.config.model,
+            ),
           }),
           model: sendThread.config.model,
           accountId: isThirdPartyAccountId(sendThread.accountBinding?.accountId)
@@ -833,6 +877,12 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     ) {
       setIsSubmitting(true);
       try {
+        const stagedChannel = channelInfoNeedsProbe(staged.accountId, staged.model)
+          ? await resolveThirdPartyChannelInfoForSend({
+              accountId: staged.accountId,
+              modelId: staged.model,
+            })
+          : stampedChannelInfo(staged.accountId, staged.model);
         const remapped =
           craftMode === "auto" && !useCraftingWorkbenchStore.getState().pendingRecipeIntent
             ? applyThirdPartyPickerSelection(
@@ -843,6 +893,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                   ...(staged.accountId ? { accountId: staged.accountId } : {}),
                 },
                 launchableHarnesses,
+                stagedChannel,
               )
             : staged;
         await switchLiveThreadProvider({
@@ -890,6 +941,12 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
           customModels: useSharedSettings.getState().customModels ?? [],
           accounts: useUsageAccountsStore.getState().accounts ?? [],
         });
+      const catalogChannel = channelInfoNeedsProbe(catalogAccountId, sendThread.config.model)
+        ? await resolveThirdPartyChannelInfoForSend({
+            accountId: catalogAccountId,
+            modelId: sendThread.config.model,
+          })
+        : stampedChannelInfo(catalogAccountId, sendThread.config.model);
       const remapped = applyThirdPartyPickerSelection(
         {
           agentKind: sendThread.agentKind,
@@ -901,6 +958,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
             : {}),
         },
         launchableHarnesses,
+        catalogChannel,
       );
       const accountMissing =
         catalogAccountId !== undefined && sendThread.accountBinding?.accountId !== catalogAccountId;

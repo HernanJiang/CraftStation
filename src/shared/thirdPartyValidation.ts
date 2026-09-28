@@ -52,9 +52,7 @@ export interface ThirdPartyValidationSuccess {
   modelListedHint: boolean;
 }
 
-export type ThirdPartyValidationResult =
-  | ThirdPartyValidationSuccess
-  | ThirdPartyValidationFailure;
+export type ThirdPartyValidationResult = ThirdPartyValidationSuccess | ThirdPartyValidationFailure;
 
 export const THIRD_PARTY_VALIDATION_PROMPT = "Reply with OK.";
 export const THIRD_PARTY_PROBE_MAX_TOKENS = 8;
@@ -193,7 +191,12 @@ function classifyTransportError(error: unknown): ThirdPartyValidationFailure {
     lowered.includes("ssl") ||
     lowered.includes("cert")
   ) {
-    return failure("tls_error", "TLS 证书验证失败，请检查 Base URL 与代理配置。", false, "tls failure");
+    return failure(
+      "tls_error",
+      "TLS 证书验证失败，请检查 Base URL 与代理配置。",
+      false,
+      "tls failure",
+    );
   }
   if (
     lowered.includes("enotfound") ||
@@ -202,9 +205,19 @@ function classifyTransportError(error: unknown): ThirdPartyValidationFailure {
     lowered.includes("fetch failed") ||
     lowered.includes("network")
   ) {
-    return failure("network_error", "无法连接到 Base URL，请检查地址与网络。", true, "network failure");
+    return failure(
+      "network_error",
+      "无法连接到 Base URL，请检查地址与网络。",
+      true,
+      "network failure",
+    );
   }
-  return failure("network_error", "无法连接到 Base URL，请检查地址与网络。", true, "network failure");
+  return failure(
+    "network_error",
+    "无法连接到 Base URL，请检查地址与网络。",
+    true,
+    "network failure",
+  );
 }
 
 function responsesBodyLooksOk(bodyText: string): boolean {
@@ -294,10 +307,20 @@ export async function probeThirdPartyProvider(
       return failure("unauthorized", "API Key 无效或已失效（401）。", false, "GET /v1/models 401");
     }
     if (modelsRes.status === 403 && !arkRoot) {
-      return failure("forbidden", "API Key 无权限访问该 Base URL（403）。", false, "GET /v1/models 403");
+      return failure(
+        "forbidden",
+        "API Key 无权限访问该 Base URL（403）。",
+        false,
+        "GET /v1/models 403",
+      );
     }
     if (modelsRes.status === 429) {
-      return failure("rate_limited", "服务端限流（429），请稍后重试。验证暂不可用。", true, "GET /v1/models 429");
+      return failure(
+        "rate_limited",
+        "服务端限流（429），请稍后重试。验证暂不可用。",
+        true,
+        "GET /v1/models 429",
+      );
     }
     if (modelsRes.status >= 200 && modelsRes.status < 300) {
       try {
@@ -345,7 +368,11 @@ export async function probeThirdPartyProvider(
       urls.responses,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: authHeader },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: authHeader,
+        },
         body: responsesBody,
       },
       timeoutMs,
@@ -355,34 +382,75 @@ export async function probeThirdPartyProvider(
   }
 
   if (responsesRes.status === 401) {
-    return failure("unauthorized", "API Key 无效或已失效（401）。", false, "POST /v1/responses 401");
+    return failure(
+      "unauthorized",
+      "API Key 无效或已失效（401）。",
+      false,
+      "POST /v1/responses 401",
+    );
   }
   if (responsesRes.status === 403) {
-    return failure("forbidden", "API Key 无权限调用该模型（403）。", false, "POST /v1/responses 403");
+    return failure(
+      "forbidden",
+      "API Key 无权限调用该模型（403）。",
+      false,
+      "POST /v1/responses 403",
+    );
   }
   if (responsesRes.status === 429) {
-    return failure("rate_limited", "服务端限流（429），请稍后重试。验证暂不可用。", true, "POST /v1/responses 429");
+    return failure(
+      "rate_limited",
+      "服务端限流（429），请稍后重试。验证暂不可用。",
+      true,
+      "POST /v1/responses 429",
+    );
   }
   if (responsesRes.status >= 500) {
-    return failure("server_error", "服务端错误，请稍后重试。验证暂不可用。", true, `POST /v1/responses ${responsesRes.status}`);
+    return failure(
+      "server_error",
+      "服务端错误，请稍后重试。验证暂不可用。",
+      true,
+      `POST /v1/responses ${responsesRes.status}`,
+    );
   }
   if (responsesRes.status >= 200 && responsesRes.status < 300) {
     if (!responsesBodyLooksOk(responsesRes.bodyText)) {
-      return failure("invalid_response", "Responses 返回了无法识别的结构，验证未通过。", false, "POST /v1/responses invalid shape");
+      return failure(
+        "invalid_response",
+        "Responses 返回了无法识别的结构，验证未通过。",
+        false,
+        "POST /v1/responses invalid shape",
+      );
     }
     // Responses wins even when Chat would also work — no second probe needed.
-    return { ok: true, validatedProtocol: "responses", normalizedApiRoot, validatedAt: now, modelListedHint };
+    return {
+      ok: true,
+      validatedProtocol: "responses",
+      normalizedApiRoot,
+      validatedAt: now,
+      modelListedHint,
+    };
   }
   if (responsesRes.status === 404 || responsesRes.status === 405) {
     // Candidate for fallback — but confirm it is really "unsupported", not a
     // missing model or bad key surfaced as 404/400.
     if (bodyIndicatesModelMissing(responsesRes.bodyText, model)) {
-      return failure("model_not_found", `模型 ${model} 不存在或无权访问。`, false, "POST /v1/responses model missing");
+      return failure(
+        "model_not_found",
+        `模型 ${model} 不存在或无权访问。`,
+        false,
+        "POST /v1/responses model missing",
+      );
     }
     // Fall through to Chat Completions.
   } else if (responsesRes.status === 400) {
     if (bodyIndicatesModelMissing(responsesRes.bodyText, model)) {
-      return failure("model_not_found", `模型 ${model} 不存在或无权访问。`, false, "POST /v1/responses model missing");
+      return failure(
+        "model_not_found",
+        `模型 ${model} 不存在或无权访问。`,
+        false,
+        "POST /v1/responses model missing",
+      );
     }
     if (!bodyIndicatesUnsupported(responsesRes.bodyText)) {
       return failure(
@@ -394,7 +462,12 @@ export async function probeThirdPartyProvider(
     }
     // Unsupported request shape → fall through to Chat.
   } else if (responsesRes.status === 408 || responsesRes.status === 425) {
-    return failure("timeout", "验证超时，请检查网络后重试。", true, `POST /v1/responses ${responsesRes.status}`);
+    return failure(
+      "timeout",
+      "验证超时，请检查网络后重试。",
+      true,
+      `POST /v1/responses ${responsesRes.status}`,
+    );
   } else {
     // Any other 4xx (402/413/…) is NOT protocol-unsupported evidence.
     return failure(
@@ -451,10 +524,20 @@ async function probeChatCompletions(input: {
     return classifyTransportError(error);
   }
   if (chatRes.status === 401) {
-    return failure("unauthorized", "API Key 无效或已失效（401）。", false, "POST /v1/chat/completions 401");
+    return failure(
+      "unauthorized",
+      "API Key 无效或已失效（401）。",
+      false,
+      "POST /v1/chat/completions 401",
+    );
   }
   if (chatRes.status === 403) {
-    return failure("forbidden", "API Key 无权限调用该模型（403）。", false, "POST /v1/chat/completions 403");
+    return failure(
+      "forbidden",
+      "API Key 无权限调用该模型（403）。",
+      false,
+      "POST /v1/chat/completions 403",
+    );
   }
   if (chatRes.status === 429) {
     return failure(
@@ -535,6 +618,52 @@ async function probeChatCompletions(input: {
     false,
     `POST /v1/chat/completions ${chatRes.status}`,
   );
+}
+
+export interface ChatCompletionsSurfaceProbeInput {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  fetchImpl: ProbeFetch;
+  timeoutMs?: number | undefined;
+  now?: number | undefined;
+}
+
+export interface ChatCompletionsSurfaceProbeResult {
+  ok: boolean;
+  /**
+   * True when the refusal is definitive (unsupported/missing/invalid) — safe
+   * to cache. False on transient failures (timeout/429/5xx/network): retry
+   * next time instead of permanently pinning the channel as incapable.
+   */
+  definitive: boolean;
+}
+
+/**
+ * Chat-Completions-only capability probe. The primary add-time probe is
+ * Responses-first, so a channel can validate as `responses` while still
+ * serving /chat/completions — harnesses wired to that protocol (Step Code)
+ * need this second-surface answer before they may bind the channel.
+ */
+export async function probeChatCompletionsSurface(
+  input: ChatCompletionsSurfaceProbeInput,
+): Promise<ChatCompletionsSurfaceProbeResult> {
+  const normalizedApiRoot = normalizeApiRoot(input.baseUrl);
+  const model = input.model.trim();
+  const apiKey = input.apiKey.trim();
+  if (!normalizedApiRoot || !model || !apiKey) return { ok: false, definitive: true };
+  const result = await probeChatCompletions({
+    urls: buildProbeUrls(normalizedApiRoot),
+    authHeader: `Bearer ${apiKey}`,
+    model,
+    timeoutMs: input.timeoutMs ?? THIRD_PARTY_PROBE_TIMEOUT_MS,
+    now: input.now ?? Date.now(),
+    normalizedApiRoot,
+    modelListedHint: false,
+    fetchImpl: input.fetchImpl,
+  });
+  if (result.ok) return { ok: true, definitive: true };
+  return { ok: false, definitive: !result.retryable };
 }
 
 export interface ThirdPartyValidationInputs {

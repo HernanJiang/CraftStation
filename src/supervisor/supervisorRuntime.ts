@@ -1904,7 +1904,13 @@ export class SupervisorRuntime {
         payload.accountId,
         payload.model,
       );
-      return { ok: true, validatedProtocol: result.validatedProtocol };
+      return {
+        ok: true,
+        validatedProtocol: result.validatedProtocol,
+        ...(result.chatCompletionsOk !== undefined
+          ? { chatCompletionsOk: result.chatCompletionsOk }
+          : {}),
+      };
     } catch (error) {
       if (error instanceof AccountControlError) {
         return {
@@ -1914,6 +1920,34 @@ export class SupervisorRuntime {
         };
       }
       return { ok: false, code: "probe_failed", error: "验证失败，请检查后重试。" };
+    }
+  }
+
+  /**
+   * 发送前的渠道 Chat Completions 能力询问：密封桶里已有结论（chat 验证或
+   * 第二面探测）直接返回；未探测过对该渠道做一次真实 POST /chat/completions，
+   * 确定性结果写回桶内。Auto 路由用它决定 stepfun 模型能否绑 Step Code。
+   */
+  async probeChannelChatCompletions(payload: {
+    provider: string;
+    accountId: string;
+    model: string;
+  }): Promise<import("@/shared/contracts").ProbeChannelChatCompletionsResponse> {
+    if (payload.provider !== "openai-compatible") {
+      return { ok: false, error: "该渠道不支持此探测。" };
+    }
+    try {
+      const result = await this.openAiCompatibleProfileService.ensureChatCompletionsCapability({
+        accountId: payload.accountId,
+        model: payload.model,
+      });
+      return {
+        ok: true,
+        ...(result.validatedProtocol ? { validatedProtocol: result.validatedProtocol } : {}),
+        chatCompletionsOk: result.chatCompletionsOk,
+      };
+    } catch {
+      return { ok: false, error: "渠道探测失败，请稍后重试。" };
     }
   }
 
@@ -3369,7 +3403,7 @@ export class SupervisorRuntime {
    * OpenCode (any protocol), and Kimi/Grok/DeepSeek via vendor CLI env
    * (API key + Base URL). Anything else throws THIRD_PARTY_HARNESS_INCOMPATIBLE.
    */
-  private resolveThirdPartySessionEnv(input: {
+  private async resolveThirdPartySessionEnv(input: {
     provider: string;
     threadId: string;
     model?: string | undefined;
@@ -3381,7 +3415,7 @@ export class SupervisorRuntime {
      * another account.
      */
     thirdPartyProtocol?: "responses" | "chat_completions" | undefined;
-  }): { accountId: string; reason: string; env: Record<string, string> } {
+  }): Promise<{ accountId: string; reason: string; env: Record<string, string> }> {
     const record = this.accountStore.getRecord(input.thirdPartyAccountId);
     if (!record || record.provider !== "openai-compatible") {
       throw new AccountControlError(
@@ -3438,15 +3472,50 @@ export class SupervisorRuntime {
         env: runtime.env,
       };
     }
-    if (
-      input.provider === "kimi" ||
-      input.provider === "grok" ||
-      input.provider === "deepseek" ||
+    if (input.provider === "stepcode") {
       // Step Code's built-in `step` provider is Chat-Completions-only
-      // (models.json merges force api=openai-completions), so a
-      // Responses-validated channel must fail closed instead of half-running.
-      (input.provider === "stepcode" && protocol === "chat_completions")
-    ) {
+      // (models.json merges force api=openai-completions). A Responses-first
+      // validated channel may still serve /chat/completions on its second
+      // surface — ask the cached/lazy capability probe before failing closed,
+      // so a chat-capable relay can actually run Step Code instead of always
+      // degrading to OpenCode.
+      const chatOk =
+        protocol === "chat_completions" ||
+        descriptor.chatCompletionsOk === true ||
+        (
+          await this.openAiCompatibleProfileService.ensureChatCompletionsCapability({
+            accountId: record.accountId,
+            model: input.model ?? descriptor.model ?? "",
+          })
+        ).chatCompletionsOk;
+      if (!chatOk) {
+        throw new AccountControlError(
+          "THIRD_PARTY_HARNESS_INCOMPATIBLE",
+          "该第三方 API 仅提供 Responses API，Step Code 需要 Chat Completions 协议；Auto 已改用 OpenCode，或请为该模型配置原生订阅账号。",
+          {
+            accountId: record.accountId,
+            provider: input.provider,
+            protocol,
+            ...(input.model ? { model: input.model } : {}),
+          },
+        );
+      }
+      const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
+        record.accountId,
+        input.provider,
+        input.model,
+        input.thirdPartyProtocol,
+      );
+      console.log(
+        `[account] third-party session bound: provider=stepcode thread=${input.threadId} account=${record.accountId} protocol=${protocol}`,
+      );
+      return {
+        accountId: record.accountId,
+        reason: "third-party",
+        env: runtime.env,
+      };
+    }
+    if (input.provider === "kimi" || input.provider === "grok" || input.provider === "deepseek") {
       const runtime = this.openAiCompatibleProfileService.prepareVendorCompatRuntime(
         record.accountId,
         input.provider,

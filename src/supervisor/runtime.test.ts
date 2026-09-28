@@ -5792,13 +5792,14 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
   describe("third-party chat launches bypass the subscription pool", () => {
     function addThirdPartyAccount(
       runtime: ReturnType<typeof makeRuntime>,
-      overrides?: { model?: string; protocol?: string },
+      overrides?: { model?: string; protocol?: string; label?: string },
     ) {
+      const label = overrides?.label ?? "Chiral-API";
       const account = runtime.addAccount({
         provider: "openai-compatible",
-        label: "Chiral-API",
-        maskedIdentity: "Chiral-API",
-        providerAccountId: "Chiral-API",
+        label,
+        maskedIdentity: label,
+        providerAccountId: label,
       });
       const bucket = (
         runtime as unknown as {
@@ -5996,6 +5997,76 @@ describe("SupervisorRuntime chat session pool-first authorization", () => {
         model: "gemini-3.8-flash",
       });
       expect(resolved).toBeUndefined();
+    });
+
+    it("binds Step Code on chat-capable channels and fails closed only when proven Responses-only", async () => {
+      const baseDir = makeTempDir();
+      process.env.CRAFTSTATION_DATA_DIR = baseDir;
+      const runtime = makeRuntime(() => undefined);
+      const service = (
+        runtime as unknown as {
+          openAiCompatibleProfileService: {
+            ensureChatCompletionsCapability: (input: {
+              accountId: string;
+              model: string;
+            }) => Promise<{ chatCompletionsOk: boolean }>;
+          };
+        }
+      ).openAiCompatibleProfileService;
+      const probeCalls: string[] = [];
+      service.ensureChatCompletionsCapability = async (input) => {
+        probeCalls.push(input.accountId);
+        return { chatCompletionsOk: true };
+      };
+
+      // chat_completions-validated channel binds directly — no second-surface
+      // probe at all.
+      const chat = addThirdPartyAccount(runtime, {
+        model: "step-5-preview",
+        protocol: "chat_completions",
+      });
+      const onChat = await resolveThirdParty(runtime, {
+        provider: "stepcode",
+        threadId: "thread-step-chat",
+        model: "step-5-preview",
+        thirdPartyAccountId: chat.accountId,
+      });
+      expect(onChat?.accountId).toBe(chat.accountId);
+      expect(onChat?.env.STEP_API_KEY).toBe("sk-third-party");
+      expect(onChat?.env.STEP_BASE_URL).toBe("https://relay.example.com/v1");
+      expect(probeCalls).toHaveLength(0);
+
+      // Responses-validated channel that still serves /chat/completions → the
+      // lazy probe unlocks the Step Code bind (third-party API + Base URL).
+      const responses = addThirdPartyAccount(runtime, {
+        model: "step-5-preview",
+        label: "Chiral-API-2",
+      });
+      const onResponses = await resolveThirdParty(runtime, {
+        provider: "stepcode",
+        threadId: "thread-step-resp",
+        model: "step-5-preview",
+        thirdPartyAccountId: responses.accountId,
+      });
+      expect(onResponses?.accountId).toBe(responses.accountId);
+      expect(onResponses?.env.STEP_API_KEY).toBe("sk-third-party");
+      expect(probeCalls).toEqual([responses.accountId]);
+
+      // Probed Responses-only → fail closed with a pointed message instead of
+      // half-running a wire the harness cannot speak.
+      service.ensureChatCompletionsCapability = async () => ({ chatCompletionsOk: false });
+      const dead = addThirdPartyAccount(runtime, {
+        model: "step-5-preview",
+        label: "Chiral-API-3",
+      });
+      await expect(
+        resolveThirdParty(runtime, {
+          provider: "stepcode",
+          threadId: "thread-step-dead",
+          model: "step-5-preview",
+          thirdPartyAccountId: dead.accountId,
+        }),
+      ).rejects.toThrow(/Responses API/);
     });
 
     it("fails closed on unknown or unverified third-party accounts", async () => {

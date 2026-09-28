@@ -590,9 +590,14 @@ describe("UsageLoginManager Volcengine and OpenAI-compatible flows", () => {
       });
       expect(result.ok).toBe(true);
       expect(result.validatedProtocol).toBe("responses");
-      // No Chat fallback when Responses already passed.
-      expect(seen.some((url) => url.endsWith("/v1/chat/completions"))).toBe(false);
       expect(seen.some((url) => url.includes("/v1/v1/"))).toBe(false);
+      // The primary probe does NOT fall back to Chat; a separate
+      // second-surface capability probe still asks /chat/completions once and
+      // stages the definitive refusal so Auto routing skips Step Code.
+      expect(seen.filter((url) => url.endsWith("/v1/chat/completions"))).toHaveLength(1);
+      expect(getUsageSecret(cacheDir, "openai-compatible:pending", "chatCompletionsOk")).toBe(
+        "false",
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

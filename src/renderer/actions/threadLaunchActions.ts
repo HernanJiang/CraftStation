@@ -46,11 +46,17 @@ import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import {
   applyThirdPartyPickerSelection,
+  channelInfoFromCustomModels,
   composerPickerAgentKind,
   isThirdPartyAccountId,
   resolveThirdPartyAccountForLaunch,
+  type ThirdPartyChannelInfo,
 } from "@/shared/thirdPartyRouting";
-import { resolveCompatibilityFamily } from "@/shared/harnessCompatibility";
+import {
+  preferredHarnessForCompatibilityFamily,
+  resolveCompatibilityFamily,
+} from "@/shared/harnessCompatibility";
+import { resolveThirdPartyChannelInfoForSend } from "./thirdPartyChannelInfo";
 import {
   buildCompatibilityCraftResult,
   resolveExecutionRoute,
@@ -357,16 +363,13 @@ interface ThreadLaunchHostTransport {
   startThread(input: ThreadLaunchRequest): Promise<RemoteThreadLaunchResult>;
 }
 
-function applyAutoDraftLaunch(input: DraftStartInput): DraftStartInput {
-  // 合成台配方是显式 Harness · 模型 · 订阅组合，禁止按模型名改绑 Harness。
-  // Leftover Chiral next-session account must not ride the recipe.
-  if (useCraftingWorkbenchStore.getState().pendingRecipeIntent) {
-    useCraftingWorkbenchStore.getState().clearPendingRecipeIntent();
-    if (!input.accountId) {
-      useUsageAccountsStore.getState().clearNextSessionAccount();
-    }
-    return input;
-  }
+interface DraftAccountResolution {
+  input: DraftStartInput;
+  /** Third-party account the draft will ride, after pool-safety carve-outs. */
+  accountId?: string | undefined;
+}
+
+function resolveDraftAccount(input: DraftStartInput): DraftAccountResolution {
   const storeId = useUsageAccountsStore.getState().nextSessionAccountId ?? undefined;
   const family = resolveCompatibilityFamily(input.config.model);
   const officialCodexOpenAI = input.agentKind === "codex" && family === "openai";
@@ -376,15 +379,55 @@ function applyAutoDraftLaunch(input: DraftStartInput): DraftStartInput {
       ? input.accountId
       : undefined
     : (input.accountId ?? storeId);
-  const remapped = applyThirdPartyPickerSelection({
-    agentKind: input.agentKind,
-    model: input.config.model,
-    ...(input.presentationMode ? { presentationMode: input.presentationMode } : {}),
-    ...(input.config.sourceProviderKind
-      ? { sourceProviderKind: input.config.sourceProviderKind }
-      : {}),
-    ...(accountId ? { accountId } : {}),
-  });
+  return { input, accountId };
+}
+
+/**
+ * Whether this draft launch must ask the channel's Chat Completions surface
+ * before remapping. Only true when Step Code is actually selectable
+ * (installed + stepfun-family model + third-party account) — every other send
+ * stays fully synchronous so the optimistic thread still appears instantly.
+ */
+function draftNeedsChannelProbe(
+  accountId: string | undefined,
+  modelId: string,
+  launchableHarnesses: readonly string[],
+): boolean {
+  return (
+    isThirdPartyAccountId(accountId) &&
+    launchableHarnesses.includes("stepcode") &&
+    preferredHarnessForCompatibilityFamily(resolveCompatibilityFamily(modelId)) === "stepcode"
+  );
+}
+
+function applyAutoDraftLaunch(
+  resolved: DraftAccountResolution,
+  launchableHarnesses: readonly string[],
+  channel: ThirdPartyChannelInfo | undefined,
+): DraftStartInput {
+  // 合成台配方是显式 Harness · 模型 · 订阅组合，禁止按模型名改绑 Harness。
+  // Leftover Chiral next-session account must not ride the recipe.
+  if (useCraftingWorkbenchStore.getState().pendingRecipeIntent) {
+    useCraftingWorkbenchStore.getState().clearPendingRecipeIntent();
+    if (!resolved.input.accountId) {
+      useUsageAccountsStore.getState().clearNextSessionAccount();
+    }
+    return resolved.input;
+  }
+  const { input, accountId } = resolved;
+  const remapped = applyThirdPartyPickerSelection(
+    {
+      agentKind: input.agentKind,
+      model: input.config.model,
+      ...(input.presentationMode ? { presentationMode: input.presentationMode } : {}),
+      ...(input.config.sourceProviderKind
+        ? { sourceProviderKind: input.config.sourceProviderKind }
+        : {}),
+      ...(accountId ? { accountId } : {}),
+    },
+    launchableHarnesses,
+    channel,
+  );
   if (
     remapped.agentKind === input.agentKind &&
     remapped.model === input.config.model &&
@@ -505,7 +548,35 @@ export async function startThreadFromDraft(
   // Auto (not 合成台) must remap here, not only in the draft picker. Existing
   // OpenCode + Muse Spark threads and quick-composer / MCP starts all funnel
   // through this function; 合成台 uses startThreadFromCraft instead.
-  const remapped = applyAutoDraftLaunch(input);
+  const resolved = resolveDraftAccount(input);
+  // Auto remap must see the real install state — otherwise every model is
+  // routed to its preferred native Harness even when that CLI was never
+  // installed (a missing `step` used to send Step models to stepcode and
+  // explode at bind time).
+  const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
+  const launchableHarnesses = getLaunchableAgentStatuses(
+    project.location,
+    agentStatuses,
+    wslAgentStatuses,
+  )
+    .filter((entry) => entry.installed)
+    .map((entry) => entry.kind);
+  // Step Code's wire is Chat Completions; a Responses-only channel cannot
+  // serve it. Only when the remap could actually pick stepcode does the send
+  // ask the cached/lazy channel probe — every other launch stays synchronous.
+  const channel =
+    !recipeIntent &&
+    draftNeedsChannelProbe(resolved.accountId, input.config.model, launchableHarnesses)
+      ? await resolveThirdPartyChannelInfoForSend({
+          accountId: resolved.accountId,
+          modelId: input.config.model,
+        })
+      : channelInfoFromCustomModels(
+          useSharedSettings.getState().customModels ?? [],
+          resolved.accountId,
+          input.config.model,
+        );
+  const remapped = applyAutoDraftLaunch(resolved, launchableHarnesses, channel);
   const launched = {
     ...remapped,
     config: launchPermissions(project.location, remapped.agentKind, remapped.config),
@@ -544,6 +615,8 @@ export async function startThreadFromDraft(
         agentKind,
         model: config.model,
         sourceProviderKind: config.sourceProviderKind,
+        installed: launchableHarnesses,
+        channel,
       }) || agentKind) as ProjectDraftConfig["agentKind"],
       config,
       worktreeMode: !isHomeScope && worktreeIsNewBranch === true,

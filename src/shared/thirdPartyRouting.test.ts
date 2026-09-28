@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyThirdPartyPickerSelection,
   catalogProviderKind,
+  channelInfoFromCustomModels,
   composerPickerAgentKind,
   foreignAcpModelId,
   isForeignCatalogModelForHarness,
@@ -222,6 +223,74 @@ describe("thirdPartyRouting", () => {
         ["opencode"],
       ).agentKind,
     ).toBe("opencode");
+  });
+
+  it("routes stepfun picks away from Step Code only when the channel proves chat-incapable", () => {
+    const pick = {
+      agentKind: "devin",
+      model: "step-5-preview",
+      accountId: "openai-compatible:tp-1",
+    };
+    const installed = ["stepcode", "opencode"];
+    // Responses-validated channel that also answers /chat/completions → stepcode.
+    expect(
+      applyThirdPartyPickerSelection(pick, installed, {
+        protocol: "responses",
+        chatCompletionsOk: true,
+      }).agentKind,
+    ).toBe("stepcode");
+    // Probed Responses-only → OpenCode instead of a bind-time error.
+    expect(
+      applyThirdPartyPickerSelection(pick, installed, {
+        protocol: "responses",
+        chatCompletionsOk: false,
+      }).agentKind,
+    ).toBe("opencode");
+    // Never probed (undefined) stays optimistic — the send path probes once.
+    expect(
+      applyThirdPartyPickerSelection(pick, installed, {
+        protocol: "responses",
+      }).agentKind,
+    ).toBe("stepcode");
+    // Chat-validated channels always qualify.
+    expect(
+      applyThirdPartyPickerSelection(pick, installed, {
+        protocol: "chat_completions",
+      }).agentKind,
+    ).toBe("stepcode");
+    // Chat-incapable + no OpenCode installed → still prefers stepcode (spawn
+    // surfaces the honest missing-binary error rather than silently degrading).
+    expect(
+      applyThirdPartyPickerSelection(pick, ["stepcode"], {
+        protocol: "responses",
+        chatCompletionsOk: false,
+      }).agentKind,
+    ).toBe("stepcode");
+  });
+
+  it("reads stamped channel wire info off the custom-model catalog", () => {
+    const customModels = [
+      {
+        provider: "opencode",
+        modelId: "step-5-preview",
+        accountId: "openai-compatible:tp-1",
+        validatedProtocol: "responses" as const,
+        chatCompletionsOk: false,
+      },
+      { provider: "opencode", modelId: "other", accountId: "openai-compatible:tp-2" },
+    ];
+    expect(
+      channelInfoFromCustomModels(customModels, "openai-compatible:tp-1", "step-5-preview"),
+    ).toEqual({ protocol: "responses", chatCompletionsOk: false });
+    // Another row on the same account reports the account-level stamp.
+    expect(
+      channelInfoFromCustomModels(customModels, "openai-compatible:tp-1", "unrelated-model"),
+    ).toEqual({ protocol: "responses", chatCompletionsOk: false });
+    // Native account ids and un-stamped accounts carry no info.
+    expect(
+      channelInfoFromCustomModels(customModels, "openai-compatible:tp-2", "other"),
+    ).toBeUndefined();
+    expect(channelInfoFromCustomModels(customModels, "codex:sub-1", "gpt-5.4")).toBeUndefined();
   });
 
   it("does not pull a ChatGPT custom row onto Devin", () => {

@@ -430,6 +430,9 @@ describe("OpenAiCompatibleProfileService", () => {
       return { status: 200, bodyText: JSON.stringify({ data: [] }) };
     });
     expect(ok.validatedProtocol).toBe("responses");
+    // Responses 通过后顺带探测 chat 面：mock 对所有非 responses URL 返回
+    // {data:[]}（非 chat 结构）→ 能力保持 unknown，不误标渠道。
+    expect(ok.chatCompletionsOk).toBeUndefined();
 
     await expect(
       service.verifyModel(account.accountId, "gpt-5.6-sol", async () => ({
@@ -437,6 +440,117 @@ describe("OpenAiCompatibleProfileService", () => {
         bodyText: JSON.stringify({ error: "bad key" }),
       })),
     ).rejects.toThrow(/API Key 无效/);
+  });
+
+  it("verifyModel records a positive chat-completions surface answer", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+    seedStaging(cacheDir, "Relay A");
+    const account = service.importStaging();
+
+    const ok = await service.verifyModel(account.accountId, "step-5-preview", async (url) => {
+      if (url.endsWith("/v1/responses")) {
+        return { status: 200, bodyText: JSON.stringify({ id: "r", output: [{}] }) };
+      }
+      if (url.endsWith("/v1/chat/completions")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ id: "c", choices: [{ message: { content: "OK" } }] }),
+        };
+      }
+      return { status: 200, bodyText: JSON.stringify({ data: [] }) };
+    });
+    expect(ok.chatCompletionsOk).toBe(true);
+    const bucket = service.bucketFor(account.accountId);
+    expect(getUsageSecret(cacheDir, bucket, "chatCompletionsOk")).toBe("true");
+  });
+
+  describe("ensureChatCompletionsCapability", () => {
+    function makeAccountService(cacheDir: string) {
+      const store = new AccountStore(join(cacheDir, "accounts"));
+      const service = new OpenAiCompatibleProfileService({ store, cacheDir });
+      seedStaging(cacheDir, "Relay A");
+      const account = service.importStaging();
+      return { service, account };
+    }
+
+    it("answers true without probing when the channel already validated chat", async () => {
+      const cacheDir = makeCacheDir();
+      const { service, account } = makeAccountService(cacheDir);
+      setUsageSecret(
+        cacheDir,
+        service.bucketFor(account.accountId),
+        "validatedProtocol",
+        "chat_completions",
+      );
+      const result = await service.ensureChatCompletionsCapability({
+        accountId: account.accountId,
+        model: "gpt-5.6-sol",
+        fetchImpl: async () => {
+          throw new Error("must not probe");
+        },
+      });
+      expect(result.chatCompletionsOk).toBe(true);
+    });
+
+    it("probes a responses channel once and persists a definitive answer", async () => {
+      const cacheDir = makeCacheDir();
+      const { service, account } = makeAccountService(cacheDir);
+      const bucket = service.bucketFor(account.accountId);
+      let calls = 0;
+      const fetchImpl = async (url: string) => {
+        calls += 1;
+        expect(url).toContain("/v1/chat/completions");
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ id: "c", choices: [{ message: { content: "OK" } }] }),
+        };
+      };
+      const first = await service.ensureChatCompletionsCapability({
+        accountId: account.accountId,
+        model: "step-5-preview",
+        fetchImpl,
+      });
+      expect(first).toEqual({ validatedProtocol: "responses", chatCompletionsOk: true });
+      expect(getUsageSecret(cacheDir, bucket, "chatCompletionsOk")).toBe("true");
+      // Cached flag short-circuits: no second HTTP probe.
+      const second = await service.ensureChatCompletionsCapability({
+        accountId: account.accountId,
+        model: "step-5-preview",
+        fetchImpl: async () => {
+          throw new Error("must not probe");
+        },
+      });
+      expect(second.chatCompletionsOk).toBe(true);
+      expect(calls).toBe(1);
+    });
+
+    it("persists a definitive refusal so future picks route to OpenCode", async () => {
+      const cacheDir = makeCacheDir();
+      const { service, account } = makeAccountService(cacheDir);
+      const bucket = service.bucketFor(account.accountId);
+      const result = await service.ensureChatCompletionsCapability({
+        accountId: account.accountId,
+        model: "step-5-preview",
+        fetchImpl: async () => ({ status: 404, bodyText: "no such endpoint" }),
+      });
+      expect(result.chatCompletionsOk).toBe(false);
+      expect(getUsageSecret(cacheDir, bucket, "chatCompletionsOk")).toBe("false");
+    });
+
+    it("does not persist transient failures — the next send may retry", async () => {
+      const cacheDir = makeCacheDir();
+      const { service, account } = makeAccountService(cacheDir);
+      const bucket = service.bucketFor(account.accountId);
+      const result = await service.ensureChatCompletionsCapability({
+        accountId: account.accountId,
+        model: "step-5-preview",
+        fetchImpl: async () => ({ status: 500, bodyText: "upstream exploded" }),
+      });
+      expect(result.chatCompletionsOk).toBe(false);
+      expect(getUsageSecret(cacheDir, bucket, "chatCompletionsOk")).toBeUndefined();
+    });
   });
 
   it("prepares an isolated OpenCode config for GLM without writing the key into CODEX_HOME", () => {

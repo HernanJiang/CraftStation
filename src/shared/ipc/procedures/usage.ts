@@ -30,6 +30,7 @@ import {
   openAiCompatibleProfileImportPayloadSchema,
   channelModelsPayloadSchema,
   verifyChannelModelPayloadSchema,
+  probeChannelChatCompletionsPayloadSchema,
   type AccountAddPayload,
   type AccountEnabledPayload,
   type AccountIdPayload,
@@ -77,6 +78,8 @@ import {
   type ChannelModelsResponse,
   type VerifyChannelModelPayload,
   type VerifyChannelModelResponse,
+  type ProbeChannelChatCompletionsPayload,
+  type ProbeChannelChatCompletionsResponse,
   type KimiProfileCreatePayload,
   type KimiProfileImportPayload,
   type KimiProfileApiKeyPayload,
@@ -191,6 +194,12 @@ export const usageProcedures = {
     VerifyChannelModelResponse,
     "supervisor"
   >("verifyChannelModel", "supervisor", verifyChannelModelPayloadSchema),
+  // 发送前询问渠道的 /chat/completions 能力（密封桶缓存 + 惰性探测）。
+  probeChannelChatCompletions: definePayloadProcedure<
+    ProbeChannelChatCompletionsPayload,
+    ProbeChannelChatCompletionsResponse,
+    "supervisor"
+  >("probeChannelChatCompletions", "supervisor", probeChannelChatCompletionsPayloadSchema),
   listAccounts: definePayloadProcedure<AccountProviderPayload, AccountView[], "supervisor">(
     "listAccounts",
     "supervisor",

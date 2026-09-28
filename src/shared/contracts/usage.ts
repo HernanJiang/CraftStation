@@ -136,10 +136,36 @@ export type VerifyChannelModelPayload = z.infer<typeof verifyChannelModelPayload
 export const verifyChannelModelResponseSchema = z.object({
   ok: z.boolean(),
   validatedProtocol: z.enum(["responses", "chat_completions"]).optional(),
+  /** Responses 通过的渠道是否同时服务 /chat/completions（第二面探测）。 */
+  chatCompletionsOk: z.boolean().optional(),
   code: z.string().optional(),
   error: z.string().optional(),
 });
 export type VerifyChannelModelResponse = z.infer<typeof verifyChannelModelResponseSchema>;
+
+/**
+ * 发送前的渠道 Chat Completions 能力询问：先读密封桶缓存，未探测过才做一次
+ * 真实 POST /chat/completions。Step Code 这类 chat-wired Harness 的 Auto 路由
+ * 靠它判断该渠道能否直连，不能则回退 OpenCode。
+ */
+export const probeChannelChatCompletionsPayloadSchema = z.object({
+  provider: z.string().min(1),
+  accountId: z.string().min(1).max(160),
+  model: z.string().trim().min(1).max(200),
+});
+export type ProbeChannelChatCompletionsPayload = z.infer<
+  typeof probeChannelChatCompletionsPayloadSchema
+>;
+
+export const probeChannelChatCompletionsResponseSchema = z.object({
+  ok: z.boolean(),
+  validatedProtocol: z.enum(["responses", "chat_completions"]).optional(),
+  chatCompletionsOk: z.boolean().optional(),
+  error: z.string().optional(),
+});
+export type ProbeChannelChatCompletionsResponse = z.infer<
+  typeof probeChannelChatCompletionsResponseSchema
+>;
 
 export const usageCookiePayloadSchema = z.object({
   /** Provider whose pasted session cookie is being stored (e.g. "commandcode"). */

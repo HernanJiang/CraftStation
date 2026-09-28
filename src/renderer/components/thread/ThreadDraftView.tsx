@@ -36,6 +36,7 @@ import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { recordCraftModeUse } from "@/renderer/state/usageRecorder";
 import {
   applyThirdPartyPickerSelection,
+  channelInfoFromCustomModels,
   resolveThirdPartyHarnessForModel,
 } from "@/shared/thirdPartyRouting";
 import { getLaunchableAgentStatuses } from "@/shared/agentStatus";
@@ -954,7 +955,16 @@ export function ThreadDraftView(props: {
       const effectiveSource = source ?? {
         kind:
           models[0]?.provider ??
-          (models[0] ? resolveThirdPartyHarnessForModel(models[0].modelId) : "opencode"),
+          (models[0]
+            ? resolveThirdPartyHarnessForModel(
+                models[0].modelId,
+                pickerAgents.map((agent) => agent.kind),
+                {
+                  protocol: models[0].validatedProtocol ?? undefined,
+                  chatCompletionsOk: models[0].chatCompletionsOk,
+                },
+              )
+            : "opencode"),
         label: "第三方 API",
         presentationMode: "gui" as const,
         modelPickerKey: `openai-compatible:${accountId}`,
@@ -1483,6 +1493,11 @@ export function ThreadDraftView(props: {
       )
         .filter((status) => status.installed)
         .map((status) => status.kind),
+      channelInfoFromCustomModels(
+        useSharedSettings.getState().customModels ?? [],
+        selectedAccountId,
+        withAccount.config.model,
+      ),
     );
     const sourceProviderKind =
       remapped.agentKind !== withAccount.agentKind

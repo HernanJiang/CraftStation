@@ -22,7 +22,7 @@ import {
   type CompatibilityHarnessId,
 } from "@/shared/harnessCompatibility";
 import { getLaunchableAgentStatuses } from "@/shared/agentStatus";
-import { resolveAutoModelBinding } from "@/shared/thirdPartyRouting";
+import { channelInfoFromCustomModels, resolveAutoModelBinding } from "@/shared/thirdPartyRouting";
 import type { ComposerControl } from "./ThreadComposer";
 import { CONTEXT_WINDOW_PRESETS, resolveContextPresetValue } from "./threadDraftViewHelpers";
 
@@ -135,9 +135,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
         ? recipeTargets.find(({ recipe, target }) => {
             const harness = recipeLaunchHarnessKind(recipe) || target.agentKind;
             const model = target.model || recipeLaunchModelId(recipe);
-            return (
-              harness === modelControl.currentAgentKind && model === modelControl.currentModel
-            );
+            return harness === modelControl.currentAgentKind && model === modelControl.currentModel;
           })?.recipe
         : undefined;
   const binding =
@@ -146,11 +144,14 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
           {
             agentKind: modelControl.currentAgentKind,
             model: currentModelLabel,
-            ...(modelControl.currentAccountId
-              ? { accountId: modelControl.currentAccountId }
-              : {}),
+            ...(modelControl.currentAccountId ? { accountId: modelControl.currentAccountId } : {}),
           },
           installedHarnesses,
+          channelInfoFromCustomModels(
+            customModelsForRecipes,
+            modelControl.currentAccountId,
+            currentModelLabel,
+          ),
         )
       : undefined;
   const harnessKind =
@@ -162,7 +163,9 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
       ? COMPATIBILITY_HARNESS_LABELS[harnessKind as CompatibilityHarnessId]
       : undefined;
   const autoHarnessName = identityRecipe
-    ? (identityRecipe.lastKnownHarness?.displayName ?? catalogHarnessLabel ?? selectedProvider?.label)
+    ? (identityRecipe.lastKnownHarness?.displayName ??
+      catalogHarnessLabel ??
+      selectedProvider?.label)
     : harnessKind && harnessKind !== modelControl?.currentAgentKind
       ? (catalogHarnessLabel ?? selectedProvider?.label)
       : (selectedProvider?.label ?? catalogHarnessLabel);
@@ -328,8 +331,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   >
                     {recipeTargets.map(({ recipe, target }) => {
                       const name = recipe.alias?.trim() || recipe.systemName;
-                      const recipeHarnessKind =
-                        recipeLaunchHarnessKind(recipe) || target.agentKind;
+                      const recipeHarnessKind = recipeLaunchHarnessKind(recipe) || target.agentKind;
                       const recipeModel = target.model || recipeLaunchModelId(recipe);
                       const isCurrent =
                         recipeHarnessKind === modelControl.currentAgentKind &&

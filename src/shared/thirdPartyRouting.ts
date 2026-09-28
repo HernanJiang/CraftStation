@@ -45,6 +45,25 @@ function harnessIsInstalled(kind: string, installed: readonly string[] | undefin
 }
 
 /**
+ * What the launch path knows about a third-party channel's wire surfaces.
+ * `protocol` is the add-time probe winner (Responses-first); `chatCompletionsOk`
+ * is the second-surface answer — `true` the channel also answers
+ * /chat/completions, `false` it was probed and refused, absent = never probed.
+ */
+export interface ThirdPartyChannelInfo {
+  protocol?: "responses" | "chat_completions" | undefined;
+  chatCompletionsOk?: boolean | undefined;
+}
+
+/** True when Step Code's chat-only wire can bind this channel. */
+export function stepCodeCanServeChannel(channel: ThirdPartyChannelInfo | undefined): boolean {
+  if (!channel) return true;
+  if (channel.protocol === "chat_completions") return true;
+  if (channel.protocol === "responses") return channel.chatCompletionsOk !== false;
+  return true;
+}
+
+/**
  * Model-name → Harness for a third-party OpenAI-compatible channel.
  *
  * Prefer the model's native Harness when the user has it installed:
@@ -59,10 +78,21 @@ function harnessIsInstalled(kind: string, installed: readonly string[] | undefin
 export function resolveThirdPartyHarnessForModel(
   modelId: string,
   installed?: readonly string[],
+  channel?: ThirdPartyChannelInfo | undefined,
 ): CompatibilityHarnessId {
   const family = resolveCompatibilityFamily(modelId);
   const preferred = preferredHarnessForCompatibilityFamily(family);
   if (preferred === "antigravity") return "opencode";
+  // Step Code speaks Chat Completions only — a channel already proven
+  // Responses-only routes to OpenCode instead of erroring at bind time.
+  // Unknown capability stays optimistic: the send path probes once.
+  if (
+    preferred === "stepcode" &&
+    !stepCodeCanServeChannel(channel) &&
+    harnessIsInstalled("opencode", installed)
+  ) {
+    return "opencode";
+  }
   if (harnessIsInstalled(preferred, installed)) return preferred;
   return harnessIsInstalled("opencode", installed) ? "opencode" : preferred;
 }
@@ -111,12 +141,14 @@ export function composerPickerAgentKind(input: {
   model: string;
   sourceProviderKind?: string | undefined;
   installed?: readonly string[] | undefined;
+  channel?: ThirdPartyChannelInfo | undefined;
 }): string {
   const source = input.sourceProviderKind?.trim();
   if (!source || source === input.agentKind) return input.agentKind;
   const auto = applyThirdPartyPickerSelection(
     { agentKind: source, model: input.model },
     input.installed,
+    input.channel,
   );
   if (auto.agentKind === input.agentKind) return source;
   return input.agentKind;
@@ -199,8 +231,9 @@ export function foreignAcpModelId(config: {
 export function resolveAutoModelBinding(
   pick: ThirdPartyPickerSelection,
   installed?: readonly string[],
+  channel?: ThirdPartyChannelInfo | undefined,
 ): AutoModelBinding {
-  const remapped = applyThirdPartyPickerSelection(pick, installed);
+  const remapped = applyThirdPartyPickerSelection(pick, installed, channel);
   return {
     harnessId: remapped.agentKind,
     providerId: catalogProviderKind(pick),
@@ -223,6 +256,7 @@ export function resolveAutoModelBinding(
 export function applyThirdPartyPickerSelection(
   next: ThirdPartyPickerSelection,
   installed?: readonly string[],
+  channel?: ThirdPartyChannelInfo | undefined,
 ): ThirdPartyPickerSelection {
   const nativeCommandCodeModel =
     next.agentKind === "commandcode" || modelCatalogChannel(next.model) === "commandcode"
@@ -231,7 +265,7 @@ export function applyThirdPartyPickerSelection(
   const pick =
     nativeCommandCodeModel === next.model ? next : { ...next, model: nativeCommandCodeModel };
   if (isThirdPartyAccountId(pick.accountId)) {
-    const harness = resolveThirdPartyHarnessForModel(pick.model, installed);
+    const harness = resolveThirdPartyHarnessForModel(pick.model, installed, channel);
     if (harness === pick.agentKind) return pick;
     return {
       ...pick,
@@ -282,6 +316,41 @@ export interface ThirdPartyLaunchAccount {
   accountId: string;
   provider: string;
   enabled?: boolean | undefined;
+}
+
+/**
+ * Read a channel's known wire surfaces off the custom-model catalog rows.
+ * Model-exact row wins; otherwise any row on the same account reports the
+ * account-level protocol/capability stamps written at verify time.
+ */
+export function channelInfoFromCustomModels(
+  customModels:
+    | readonly {
+        accountId?: string | undefined;
+        modelId: string;
+        validatedProtocol?: "responses" | "chat_completions" | undefined;
+        chatCompletionsOk?: boolean | undefined;
+      }[]
+    | undefined,
+  accountId: string | undefined,
+  modelId: string | undefined,
+): ThirdPartyChannelInfo | undefined {
+  if (!accountId || !isThirdPartyAccountId(accountId) || !customModels?.length) return undefined;
+  const model = modelId?.trim() ?? "";
+  const onAccount = customModels.filter((entry) => entry.accountId === accountId);
+  const entry =
+    onAccount.find(
+      (candidate) =>
+        candidate.modelId === model ||
+        stripModelProviderPrefix(candidate.modelId) === stripModelProviderPrefix(model),
+    ) ?? onAccount[0];
+  if (!entry || (entry.validatedProtocol === undefined && entry.chatCompletionsOk === undefined)) {
+    return undefined;
+  }
+  return {
+    protocol: entry.validatedProtocol,
+    chatCompletionsOk: entry.chatCompletionsOk,
+  };
 }
 
 /**

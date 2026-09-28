@@ -34,7 +34,12 @@ import {
   supportsUsableFastMode,
 } from "./threadDraftViewHelpers";
 import type { ProviderModelPreference } from "@/shared/settings";
-import { composerPickerAgentKind, sameComposerAccount } from "@/shared/thirdPartyRouting";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import {
+  channelInfoFromCustomModels,
+  composerPickerAgentKind,
+  sameComposerAccount,
+} from "@/shared/thirdPartyRouting";
 
 export type ModelPickerConfigPatch = {
   model?: string;
@@ -413,6 +418,12 @@ export function buildControls(
       agentKind: thread.agentKind,
       model: thread.config.model,
       sourceProviderKind: thread.config.sourceProviderKind,
+      installed: options?.installedHarnesses,
+      channel: channelInfoFromCustomModels(
+        useSharedSettings.getState().customModels ?? [],
+        options?.selectedAccountId,
+        thread.config.model,
+      ),
     });
   const presentationMode =
     thread.presentationMode ?? agentStatus?.capabilities.presentationMode ?? "terminal";

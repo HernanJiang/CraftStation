@@ -113,7 +113,16 @@ export function useManagedComposerProviders(input?: {
       const effectiveSource: ProviderModelMenuProvider = source ?? {
         kind:
           models[0]?.provider ??
-          (models[0] ? resolveThirdPartyHarnessForModel(models[0].modelId) : "opencode"),
+          (models[0]
+            ? resolveThirdPartyHarnessForModel(
+                models[0].modelId,
+                installed.map((agent) => agent.kind),
+                {
+                  protocol: models[0].validatedProtocol ?? undefined,
+                  chatCompletionsOk: models[0].chatCompletionsOk,
+                },
+              )
+            : "opencode"),
         label,
         presentationMode: "gui",
         modelPickerKey: `openai-compatible:${accountId}`,

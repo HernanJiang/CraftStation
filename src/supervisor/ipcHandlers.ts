@@ -57,6 +57,12 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
           ? { provider: payload.provider, accountId: payload.accountId, model: payload.model }
           : { provider: payload.provider, model: payload.model },
       ),
+    probeChannelChatCompletions: (payload) =>
+      runtime.probeChannelChatCompletions({
+        provider: payload.provider,
+        accountId: payload.accountId,
+        model: payload.model,
+      }),
     listAccounts: (payload) => runtime.listAccounts(payload),
     addAccount: (payload) => runtime.addAccount(payload),
     removeAccount: (payload) => runtime.removeAccount(payload.accountId),

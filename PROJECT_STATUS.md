@@ -1,3 +1,12 @@
+## Step Code 第三方渠道路由修复（2026-09-29）
+
+- **用户报告**：阶越星辰渠道模型（第三方 `openai-compatible` 账号）发送时报错「该第三方 API（Responses）暂不支持直连 stepcode Harness」，要求三方 API+Base URL 可用时用三方，实在不行回退 OpenCode，账号登录走原生 `step login`。
+- **根因**：`applyThirdPartyPickerSelection`/`resolveThirdPartyHarnessForModel` 把 Step 系模型无条件映射到 `stepcode`——不查渠道协议、不查本机是否安装（新建对话路径根本没传 installed 列表，`installed===undefined` 被当成已安装）。该渠道验证为 Responses-only，而 Step Code 内置 provider 只讲 Chat Completions → 绑定时 fail-closed 报错。
+- **修复（四层）**：① `probeChatCompletionsSurface`——验证阶段在 Responses 通过后顺带探测 `/chat/completions` 第二面，结论 `chatCompletionsOk` 随账号凭证密封持久化（`verifyModel` + `submitOpenAiCompatibleCredentials` 暂存桶都写）；② 路由协议/安装感知——所有 `resolveThirdPartyHarnessForModel`/`applyThirdPartyPickerSelection`/`composerPickerAgentKind`/`useManagedComposerProviders` 调用点接上 installed 列表与渠道戳，Responses-only 或无安装的 Step 模型直接回退 OpenCode；③ 发送路径惰性探测——新 IPC `probeChannelChatCompletions`，仅在「stepcode 已装 + Step 系 + 三方账号 + 无定论戳」时才 await 一次探测并把结论回写到该账号对应模型行，其余路径保持全同步；④ spawn 闸门——`resolveThirdPartySessionEnv` 对 stepcode 在绑定时读 `chatCompletionsOk`，未知则惰性探测一次，仍不通过才报错。
+- **同步性保证**：`applyAutoDraftLaunch` 保持同步、探测在 `startThreadFromDraft` 里 remap 前的单点 await；`submitPrompt` 只在需要探测的分支 await——`createThread` 与乐观 runtime 事件时序不变（此前 4 个 worktree 编排回归已修复）。
+- **验证**：新增 thirdPartyRouting 渠道协议用例、openaiCompatibleProfiles 探测/缓存用例、runtime stepcode 闸门用例；UsageLoginManager 既有用例更新为预期第二面探测并断言 `chatCompletionsOk` 落桶。244 supervisor/shared + 135 renderer 测试全过，typecheck + oxlint 零告警。
+- **用户侧**：Responses-only 渠道选 Step 模型 → 自动 OpenCode（不再报错）；渠道若支持 Chat Completions 且装了 `step` → 自动走 Step Code 原生；账号原生登录仍是 Harness 面板的 `step login` 终端登录或 `STEP_API_KEY`。
+
 ## Antigravity 额度「突然查不到」修复（2026-09-28）
 
 - **用户报告**：渠道与额度卡片上 Antigravity 账号额度「总是突然查不到」，显示「云端额度接口未返回该账号的用量记录」。
