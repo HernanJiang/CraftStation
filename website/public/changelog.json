@@ -511,6 +511,24 @@
       ]
     },
     {
+      "version": "1.5.17",
+      "date": "2026-09-29",
+      "title": "Step Code routes by what the channel can speak",
+      "summary": "Step-family third-party models no longer crash into an incompatible-harness error — channels proven Chat Completions-capable run on native Step Code, everything else falls back to OpenCode automatically.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Harness",
+          "text": "Step-family third-party models picked Step Code even when the step binary was missing or the channel was Responses-only, which failed at bind time. Routing now checks the installed harnesses and each channel's wire surface, so incapable picks land on OpenCode instead of an error."
+        },
+        {
+          "kind": "added",
+          "label": "Harness",
+          "text": "Channel verification now also probes /chat/completions once and seals the result with the account credential. A Responses-first channel that still serves Chat Completions runs Step Code natively; the send path lazily probes once per channel when the stamp is missing."
+        }
+      ]
+    },
+    {
       "version": "1.5.16",
       "date": "2026-09-28",
       "title": "Provider usage credentials that stay signed in",
