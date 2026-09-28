@@ -1,3 +1,12 @@
+## Antigravity 额度「突然查不到」修复（2026-09-28）
+
+- **用户报告**：渠道与额度卡片上 Antigravity 账号额度「总是突然查不到」，显示「云端额度接口未返回该账号的用量记录」。
+- **根因**：`retrieveUserQuotaSummary` 对无活用量记录的窗口返回合成满桶（`remainingFraction=1` 且 `resetTime` 按请求时刻漂移为重算值）；旧 parser 把这类桶整体丢弃——账号额度滚动恢复满额/无记录的瞬间窗口清空，卡片误报「未返回」。凭证与 refresh token 实测全部有效，非授权问题。
+- **修复（两层）**：① `collectQuota` 改为 LS-first——扫描本机 `agy` 语言服务器端点，用 `GetUserStatus` 的 email 匹配目标账号（不匹配不采用，防止串号），命中则取 `RetrieveUserQuotaSummary`（官方会话侧真实窗口）；② cloudcode fallback 把合成满桶渲染为 `0%` 已用、丢弃伪造 reset，只有响应完全无可解析桶时才显示空态；`fetchAvailableModels` 回退路径同步处理。另修 `refreshStoredAntigravityToken` 持久化 Google 轮换返回的新 `refresh_token`。
+- **注入面**：`AntigravityProfileService` 新增可选 `readAccountLsWindows`（测试 seam）与 `wslDistros`（由 `agentStatusService.listWslDistros` 懒绑定）；进程扫描结果 15s TTL 共享，一轮池刷新只扫一次；测试环境无注入时跳过真实进程扫描。
+- **验证**：collector 新增「合成桶渲染 0% 无 reset」「全满账号仍可读」用例；profile service 新增 LS 命中/不匹配回落/全合成桶无 lastError/refresh 轮换持久化 4 例；36+131 测试全过；**真机验证**——真实账号数据跑新 parser：全合成账号得 4 条 0% 窗口，真实账号 Gemini weekly 35.1% + 固定 reset 保留。typecheck + oxlint 零告警。
+- **边界**：账号的 `agy` LS 未运行时（纯闲置账号）以 cloudcode 为准，此时 0% 表示「该云端无用量记录」，非精确会话侧用量；LS 运行后自动切到官方真值。
+
 ## OpenCode 用量会话静默续期（2026-09-28）
 
 - **用户报告**：OpenCode 额度每次更新/重启后都要求重新登录才能读取；登录浏览器还会带出旧标签页。

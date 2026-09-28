@@ -10,11 +10,21 @@ import {
   antigravityModelUsageRecorded,
   antigravityPoolWindows,
   antigravityProjectFromLoadCodeAssist,
+  antigravityQuotaSummaryWindows,
   quotaStatusFromWindows,
   type HostPort,
+  type UsageWindow,
 } from "@craftstation/agents-usage";
 import { AccountStore } from "./accountStore";
 import { readAntigravityQuotaSummary } from "../agents/antigravity/antigravityCloudQuota";
+import { resolveAntigravityLsEndpoints } from "../agents/antigravity/antigravityProcessScan";
+import {
+  emailFromUserStatus,
+  GET_USER_STATUS,
+  modelsFromBody,
+  queryLs,
+  RETRIEVE_USER_QUOTA_SUMMARY,
+} from "../agents/antigravity/antigravityLanguageServer";
 import { CraftStationCredentialVault } from "./credentialVault";
 import {
   antigravityAdcCredentialPath,
@@ -107,14 +117,75 @@ export interface AntigravityProfileServiceOptions {
   store: AccountStore;
   /** safeStorage cacheDir for the sealed credential buckets. */
   cacheDir: string;
+  /** WSL distros to include in the language-server scan; defaults to none. */
+  wslDistros?: () => Promise<string[]>;
+  /**
+   * Test seam: read this account's quota windows from its own running
+   * language server, matched by signed-in email. Undefined means "no live LS
+   * for this account" and falls back to the cloudcode surface.
+   */
+  readAccountLsWindows?: (email: string) => Promise<UsageWindow[] | undefined>;
 }
+
+/** Process scan results stay fresh long enough for one pool-refresh pass. */
+const LS_SCAN_TTL_MS = 15_000;
 
 export class AntigravityProfileService {
   private readonly provider = "antigravity";
   private readonly vault: CraftStationCredentialVault;
+  private lsScan:
+    | { at: number; promise: Promise<{ ports: number[]; csrfTokens: string[] }> }
+    | undefined;
 
   constructor(private readonly options: AntigravityProfileServiceOptions) {
     this.vault = new CraftStationCredentialVault(options.cacheDir);
+  }
+
+  /**
+   * Share one process/port scan across a batch of parallel pool refreshes —
+   * the PowerShell enumeration is the expensive part, not the loopback RPCs.
+   */
+  private resolveLsEndpoints(): Promise<{ ports: number[]; csrfTokens: string[] }> {
+    const now = Date.now();
+    if (!this.lsScan || now - this.lsScan.at > LS_SCAN_TTL_MS) {
+      const promise = (async () => {
+        const wslDistros = await this.options.wslDistros?.().catch(() => [] as string[]);
+        return resolveAntigravityLsEndpoints(wslDistros ?? []);
+      })();
+      this.lsScan = { at: now, promise };
+    }
+    return this.lsScan.promise;
+  }
+
+  /**
+   * Read the account's quota from its own running `agy` language server — the
+   * official quota surface (real fixed resets, live records) that the
+   * cloudcode endpoint only partially mirrors. Each running LS is identified
+   * by the signed-in email from `GetUserStatus`, so a pool row only ever
+   * adopts its own session's numbers.
+   */
+  private async readAccountLsWindows(email: string): Promise<UsageWindow[] | undefined> {
+    const { ports, csrfTokens } = await this.resolveLsEndpoints();
+    for (const port of ports) {
+      const statusBody = await queryLs(port, GET_USER_STATUS, csrfTokens);
+      if (emailFromUserStatus(statusBody)?.toLowerCase() !== email) continue;
+      const summary = await queryLs(port, RETRIEVE_USER_QUOTA_SUMMARY, csrfTokens);
+      // The LS reports real window boundaries — no synthetic-bucket pruning.
+      const windows = summary !== undefined ? antigravityQuotaSummaryWindows(summary) : [];
+      if (windows.length > 0) return windows;
+      const legacy = antigravityPoolWindows(modelsFromBody(statusBody));
+      if (legacy.length > 0) return legacy;
+    }
+    return undefined;
+  }
+
+  private async accountLsWindows(email: string): Promise<UsageWindow[] | undefined> {
+    const reader = this.options.readAccountLsWindows;
+    if (reader) return reader(email).catch(() => undefined);
+    // Without an injected reader, unit tests skip the ambient process scan so
+    // results never depend on machine state (same rule as `defaultRunner`).
+    if (process.env.VITEST) return undefined;
+    return this.readAccountLsWindows(email).catch(() => undefined);
   }
 
   list(): AccountView[] {
@@ -488,8 +559,10 @@ export class AntigravityProfileService {
   }
 
   /**
-   * Account-scoped quota via the OAuth-only cloudcode surface. Never touches
-   * the language server: this path exists precisely for CLI-only machines.
+   * Account-scoped quota. When the account's own `agy` language server is
+   * running (matched by signed-in email), its session-side summary wins — it
+   * is the official quota surface. Otherwise the OAuth-only cloudcode surface
+   * answers, which is what keeps quota readable on CLI-only machines.
    */
   async collectQuota(accountId: string, host: HostPort): Promise<AccountView> {
     const account = this.options.store.getRecord(accountId);
@@ -525,6 +598,35 @@ export class AntigravityProfileService {
       }
     }
 
+    // Prefer the account's own running `agy` language server: the cloudcode
+    // endpoint fabricates always-full buckets for windows holding no live
+    // usage record — observed resets drift with the request instant — which
+    // used to empty the panel exactly when quota rolled back to full.
+    const accountEmail = (
+      account.providerAccountId ??
+      getUsageSecret(cacheDir, bucket, "email", reportUndecryptableSecret) ??
+      token.email
+    )
+      ?.trim()
+      .toLowerCase();
+    const lsWindows = accountEmail ? await this.accountLsWindows(accountEmail) : undefined;
+    if (lsWindows && lsWindows.length > 0) {
+      const status = quotaStatusFromWindows("antigravity", lsWindows);
+      const updated = this.options.store.updateStatus(accountId, status, {
+        lastQuotaAt: Date.now(),
+      });
+      return (
+        this.options.store.updateQuota(
+          accountId,
+          lsWindows.map((window) => ({
+            id: window.id,
+            label: window.label,
+            usedPercent: window.usedPercent,
+            ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
+          })),
+        ) ?? updated
+      );
+    }
     let projectId = getUsageSecret(
       cacheDir,
       bucket,
@@ -620,8 +722,12 @@ export class AntigravityProfileService {
       summaryWindows.length > 0
         ? summaryWindows
         : antigravityPoolWindows(
-            antigravityModelsFromFetchAvailableModels(parsed).filter((model) =>
-              antigravityModelUsageRecorded(model, Date.now()),
+            antigravityModelsFromFetchAvailableModels(parsed).map((model) =>
+              // Nominal always-full entries keep the account visible at 0%
+              // used; only their per-request fabricated reset is dropped.
+              antigravityModelUsageRecorded(model, Date.now())
+                ? model
+                : { ...model, resetsAt: undefined },
             ),
           );
     const email = token.email?.trim();
@@ -629,9 +735,10 @@ export class AntigravityProfileService {
       ...(email ? { providerAccountId: email } : {}),
     });
     if (windows.length === 0) {
-      // Every surface answered but carried no real usage record (synthetic
-      // full buckets filtered out). The account itself may be perfectly
-      // usable — do not mark it unavailable; clear stale windows instead.
+      // Every surface answered but carried no parseable bucket at all
+      // (nominal full buckets render at 0% — a truly empty list means the
+      // endpoint returned nothing recognizable). The account itself may be
+      // perfectly usable — do not mark it unavailable; clear stale windows.
       const updated = this.options.store.updateStatus(accountId, "available", {
         lastError: "云端额度接口未返回该账号的用量记录（Gemini 用量在官方会话侧统计）。",
         lastQuotaAt: Date.now(),

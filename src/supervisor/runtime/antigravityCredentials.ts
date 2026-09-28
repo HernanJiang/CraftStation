@@ -211,10 +211,13 @@ async function refreshStoredAntigravityTokenOnce(
       access_token?: string;
       expires_in?: number;
       token_type?: string;
+      refresh_token?: string;
     };
     if (!tokens.access_token) return undefined;
     setUsageSecret(cacheDir, bucket, "accessToken", tokens.access_token);
-    setUsageSecret(cacheDir, bucket, "refreshToken", refreshToken);
+    // Google may rotate the refresh token on use — persist the replacement so
+    // a rotated-away token is never replayed on the next refresh.
+    setUsageSecret(cacheDir, bucket, "refreshToken", tokens.refresh_token?.trim() || refreshToken);
     if (tokens.token_type) setUsageSecret(cacheDir, bucket, "tokenType", tokens.token_type);
     if (tokens.expires_in) {
       setUsageSecret(

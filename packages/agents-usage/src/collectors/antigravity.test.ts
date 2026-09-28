@@ -142,7 +142,7 @@ describe("antigravityQuotaSummaryWindows", () => {
     expect(claudeWeekly?.resetsAt).toBeUndefined();
   });
 
-  it("drops empty-default buckets when nowMs is passed (cloudcode synthetic full buckets)", () => {
+  it("renders nominal always-full buckets at 0% without their fabricated reset", () => {
     // Observed cloudcode shape: full buckets whose reset is recomputed as
     // now + window length on every request, plus one real depleted bucket
     // with a fixed reset that predates the request.
@@ -166,8 +166,46 @@ describe("antigravityQuotaSummaryWindows", () => {
       ],
     };
     const windows = antigravityQuotaSummaryWindows(body, { nowMs });
-    expect(windows.map((w) => w.id)).toEqual(["antigravity:claude:weekly"]);
-    expect(windows[0]?.usedPercent).toBeCloseTo(33.6, 1);
+    expect(windows.map((w) => w.id)).toEqual([
+      "antigravity:gemini:session-5h",
+      "antigravity:gemini:weekly",
+      "antigravity:claude:session-5h",
+      "antigravity:claude:weekly",
+    ]);
+    // Nominal buckets: 0% used and the drifting reset is dropped so the card
+    // never promises a fabricated recovery instant.
+    for (const id of [
+      "antigravity:gemini:session-5h",
+      "antigravity:gemini:weekly",
+      "antigravity:claude:session-5h",
+    ]) {
+      const window = windows.find((w) => w.id === id);
+      expect(window?.usedPercent).toBe(0);
+      expect(window?.resetsAt).toBeUndefined();
+    }
+    const claudeWeekly = windows.find((w) => w.id === "antigravity:claude:weekly");
+    expect(claudeWeekly?.usedPercent).toBeCloseTo(33.6, 1);
+    expect(claudeWeekly?.resetsAt).toBe(Date.parse("2026-09-23T15:04:08Z"));
+  });
+
+  it("keeps a quota readout for an account whose windows all rolled to full", () => {
+    // The "suddenly no quota" report: every bucket in the response is the
+    // nominal always-full shape. The panel must still render 0% windows.
+    const nowMs = Date.parse("2026-09-19T16:45:20Z");
+    const body = {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            { window: "weekly", remainingFraction: 1, resetTime: "2026-09-26T16:45:20Z" },
+            { window: "5h", remainingFraction: 1, resetTime: "2026-09-19T21:45:20Z" },
+          ],
+        },
+      ],
+    };
+    const windows = antigravityQuotaSummaryWindows(body, { nowMs });
+    expect(windows).toHaveLength(2);
+    expect(windows.every((w) => w.usedPercent === 0 && w.resetsAt === undefined)).toBe(true);
   });
 
   it("keeps full buckets whose reset does not hug the window boundary", () => {

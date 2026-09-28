@@ -6,9 +6,9 @@ import {
 
 /**
  * Account/provider-scoped weekly/5h quota from the cloudcode OAuth surface.
- * `nowMs` feeds the empty-default-bucket filter — this backend answers with
- * synthetic always-full buckets for groups whose usage is tracked elsewhere
- * (observed: every Gemini bucket), which must not render as 0% used. Old
+ * `nowMs` lets the parser mark nominal always-full buckets (reset recomputed
+ * per request = no live record): they render as 0% used without the
+ * fabricated reset so a rolled-over window never empties the panel. Old
  * model availability does not include weekly limits.
  */
 export async function readAntigravityQuotaSummary(

@@ -187,12 +187,15 @@ function quotaSummaryGroups(body: unknown): Record<string, unknown>[] {
  * body without recognizable groups so the scanner can fall back to the legacy
  * per-model pooling.
  *
- * With `nowMs`, a full bucket whose reset sits at "now + window length" is
- * dropped as an empty-default artifact: the cloudcode OAuth summary answers
- * with a synthetic always-full bucket (reset recomputed per request) for model
- * groups whose usage is tracked on a different backend — rendering it would
- * show a misleading 0% used. Buckets with any recorded usage (remaining < 1),
- * or whose reset does not hug the window boundary, are real and kept.
+ * With `nowMs`, a full bucket whose reset sits at "now + window length" is a
+ * nominal artifact: the cloudcode OAuth summary recomputes `resetTime` per
+ * request for windows that carry no live usage record (observed: the reset
+ * drifts in lockstep with the request instant). Such a bucket still answers
+ * "the account has quota remaining" — so it renders as a 0%-used window
+ * WITHOUT the fabricated reset instant instead of being dropped, which used
+ * to empty the panel exactly when a usage window rolled over to full.
+ * Buckets with any recorded usage (remaining < 1), or whose reset does not
+ * hug the window boundary, are real and keep their reset time.
  */
 export function antigravityQuotaSummaryWindows(
   body: unknown,
@@ -213,9 +216,7 @@ export function antigravityQuotaSummaryWindows(
       const cadence = antigravityCadence(bucket);
       if (!cadence) continue;
       const reset = toEpochMs(typeof bucket.resetTime === "string" ? bucket.resetTime : undefined);
-      if (nowMs !== undefined && isEmptyDefaultBucket(fraction, reset, cadence, nowMs)) {
-        continue;
-      }
+      const nominal = nowMs !== undefined && isEmptyDefaultBucket(fraction, reset, cadence, nowMs);
       const id = antigravityWindowId(groupKey, cadence);
       if (seen.has(id)) continue;
       seen.add(id);
@@ -225,7 +226,7 @@ export function antigravityQuotaSummaryWindows(
           id,
           label: `${ANTIGRAVITY_GROUP_LABEL[groupKey]} · ${ANTIGRAVITY_CADENCE_LABEL[cadence]}`,
           usedPercent: usedPercentFromRemaining(fraction),
-          ...(reset !== undefined ? { resetsAt: reset } : {}),
+          ...(reset !== undefined && !nominal ? { resetsAt: reset } : {}),
         },
       });
     }
@@ -242,10 +243,11 @@ const CADENCE_LENGTH_MS: Record<AntigravityCadence, number> = {
 };
 
 /**
- * True when a `fetchAvailableModels` per-model quota entry carries no real
- * usage record: remaining ≈ 1 with a reset recomputed as now + 5h per request.
- * The cloudcode models surface answers this way for every model whose usage is
- * tracked on another backend — folding them into pools would render 0% bars.
+ * True when a `fetchAvailableModels` per-model quota entry carries a real
+ * usage record; false for the nominal always-full entries whose reset is
+ * recomputed as now + 5h per request. Callers strip the fabricated reset from
+ * nominal entries rather than dropping them — an account whose window rolled
+ * back to full must still read as "0% used", not "no quota data".
  */
 export function antigravityModelUsageRecorded(
   model: AntigravityModelQuota,
@@ -258,9 +260,10 @@ export function antigravityModelUsageRecorded(
 }
 
 /**
- * True for the cloudcode summary's synthetic always-full bucket: remaining ≈ 1
+ * True for the cloudcode summary's nominal always-full bucket: remaining ≈ 1
  * and the reset instant is (re)computed as now + window length per request —
- * real usage buckets keep a fixed reset and/or a depleted fraction.
+ * the backend fabricates it when the window holds no live usage record. Real
+ * usage buckets keep a fixed reset and/or a depleted fraction.
  */
 function isEmptyDefaultBucket(
   fraction: number,

@@ -1256,6 +1256,9 @@ export class SupervisorRuntime {
     this.antigravityProfileService = new AntigravityProfileService({
       store: this.accountStore,
       cacheDir: paths.cacheDir,
+      // Lazy getter — the status service is constructed earlier but only
+      // resolved when a quota poll actually scans for live `agy` processes.
+      wslDistros: () => this.agentStatusService.listWslDistros(),
     });
     this.openAiCompatibleProfileService = new OpenAiCompatibleProfileService({
       store: this.accountStore,

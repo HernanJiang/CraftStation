@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { HostPort, HttpRequest, HttpResponse } from "@craftstation/agents-usage";
+import type { HostPort, HttpRequest, HttpResponse, UsageWindow } from "@craftstation/agents-usage";
 import {
   clearUsageSecret,
   getUsageSecret,
@@ -454,5 +454,136 @@ describe("AntigravityProfileService", () => {
     expect(getUsageSecret(cacheDir, bucket, "refreshToken")).toBe("adc-refresh");
     expect(getUsageSecret(cacheDir, bucket, "accessToken")).toBe("fresh-access");
     resetSecretStorageKeysForTests();
+  });
+
+  it("prefers the account's own live language-server quota over cloudcode", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const readAccountLsWindows = vi.fn<(email: string) => Promise<UsageWindow[] | undefined>>(
+      async (email: string) =>
+        email === "a@example.com"
+          ? [
+              {
+                id: "antigravity:gemini:weekly",
+                label: "Gemini · Weekly",
+                usedPercent: 35.1,
+                resetsAt: 1_800_000_000_000,
+              },
+            ]
+          : undefined,
+    );
+    const service = new AntigravityProfileService({ store, cacheDir, readAccountLsWindows });
+    seedHostLogin(cacheDir, "a@example.com");
+    const account = service.importHostLogin();
+
+    const host = okHost();
+    const refreshed = await service.collectQuota(account.accountId, host);
+
+    expect(readAccountLsWindows).toHaveBeenCalledWith("a@example.com");
+    expect(refreshed.status).toBe("available");
+    expect(refreshed.quotaWindows).toEqual([
+      expect.objectContaining({ id: "antigravity:gemini:weekly", usedPercent: 35.1 }),
+    ]);
+    // The LS answered — the cloudcode quota endpoints never ran.
+    expect(host.http.request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ url: expect.stringContaining("retrieveUserQuotaSummary") }),
+    );
+  });
+
+  it("falls back to cloudcode when no live LS matches the account email", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const readAccountLsWindows = vi.fn<(email: string) => Promise<UsageWindow[] | undefined>>(
+      async () => undefined,
+    );
+    const service = new AntigravityProfileService({ store, cacheDir, readAccountLsWindows });
+    seedHostLogin(cacheDir, "a@example.com");
+    const account = service.importHostLogin();
+
+    const refreshed = await service.collectQuota(account.accountId, okHost());
+
+    expect(readAccountLsWindows).toHaveBeenCalledWith("a@example.com");
+    expect(refreshed.status).toBe("available");
+    expect(refreshed.quotaWindows?.[0]).toMatchObject({ label: "Gemini Pro", usedPercent: 20 });
+  });
+
+  it("renders nominal always-full buckets at 0% instead of reporting no quota record", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new AntigravityProfileService({ store, cacheDir });
+    seedHostLogin(cacheDir, "full@example.com");
+    const account = service.importHostLogin();
+
+    // Observed cloudcode shape for an account whose windows rolled to full:
+    // every bucket is rem=1 with reset recomputed as now + window length.
+    const host = okHost();
+    vi.mocked(host.http.request).mockImplementation(async (req) => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify(
+        req.url.endsWith(":retrieveUserQuotaSummary")
+          ? {
+              groups: [
+                {
+                  displayName: "Gemini Models",
+                  buckets: [
+                    {
+                      window: "weekly",
+                      remainingFraction: 1,
+                      resetTime: new Date(Date.now() + 7 * 24 * 3_600_000).toISOString(),
+                    },
+                    {
+                      window: "5h",
+                      remainingFraction: 1,
+                      resetTime: new Date(Date.now() + 5 * 3_600_000).toISOString(),
+                    },
+                  ],
+                },
+              ],
+            }
+          : { models: {} },
+      ),
+    }));
+
+    const refreshed = await service.collectQuota(account.accountId, host);
+
+    expect(refreshed.status).toBe("available");
+    expect(refreshed.lastError).toBeUndefined();
+    expect(refreshed.quotaWindows).toHaveLength(2);
+    expect(
+      refreshed.quotaWindows?.every((w) => w.usedPercent === 0 && w.resetsAt === undefined),
+    ).toBe(true);
+  });
+
+  it("persists a rotated refresh token returned by the token endpoint", async () => {
+    const cacheDir = makeCacheDir();
+    const store = new AccountStore(join(cacheDir, "accounts"));
+    const service = new AntigravityProfileService({ store, cacheDir });
+    const id = seedPoolRow(service, cacheDir, "rotate@example.com");
+    const bucket = service.bucketFor(id);
+    // Force the refresh path: stored access token is already expired.
+    setUsageSecret(cacheDir, bucket, "expiresAt", "0");
+
+    const host = okHost();
+    vi.mocked(host.http.request).mockImplementation(async (req) =>
+      req.url.includes("oauth2.googleapis.com")
+        ? {
+            status: 200,
+            headers: {},
+            body: JSON.stringify({
+              access_token: "fresh-access",
+              expires_in: 3600,
+              token_type: "Bearer",
+              refresh_token: "refresh-ROTATED",
+            }),
+          }
+        : { status: 200, headers: {}, body: modelsBody() },
+    );
+
+    const refreshed = await service.collectQuota(id, host);
+
+    expect(refreshed.status).toBe("available");
+    expect(getUsageSecret(cacheDir, bucket, "refreshToken")).toBe("refresh-ROTATED");
+    expect(getUsageSecret(cacheDir, bucket, "accessToken")).toBe("fresh-access");
   });
 });

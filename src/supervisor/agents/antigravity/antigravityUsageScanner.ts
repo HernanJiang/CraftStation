@@ -238,8 +238,10 @@ async function fetchAntigravityCloudcodeQuota(host: HostPort): Promise<Antigravi
     return { kind: "error", error: "Antigravity quota endpoint unreachable" };
   }
 
-  const models = antigravityModelsFromFetchAvailableModels(parsed).filter((model) =>
-    antigravityModelUsageRecorded(model, host.now()),
+  const models = antigravityModelsFromFetchAvailableModels(parsed).map((model) =>
+    // Nominal always-full entries keep the account visible at 0% used; only
+    // their per-request fabricated reset is dropped.
+    antigravityModelUsageRecorded(model, host.now()) ? model : { ...model, resetsAt: undefined },
   );
   const windows = summaryWindows.length > 0 ? summaryWindows : antigravityPoolWindows(models);
   if (windows.length === 0) {
