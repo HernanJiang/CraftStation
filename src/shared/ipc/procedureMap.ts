@@ -190,6 +190,7 @@ export const MAIN_LOCAL_PROCEDURE_NAMES = [
   "browserInjectToMain",
   "startUsageLogin",
   "cancelUsageLogin",
+  "attemptUsageSilentLogin",
   "clearUsageLogin",
   "submitUsageApiKey",
   "submitVolcengineCredentials",

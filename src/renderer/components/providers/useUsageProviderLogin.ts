@@ -112,6 +112,23 @@ export function useUsageProviderLogin(id: string) {
       return;
     }
     setSigningIn(true);
+    // A stored session that died may be renewable without any UI — the
+    // persistent browser partition can still hold a trusted issuer session.
+    // Try the silent re-auth first so reconnecting skips the login browser.
+    if (hasStoredSession) {
+      try {
+        const silent = await readBridge().attemptUsageSilentLogin({ providerId: id });
+        if (silent.ok) {
+          useUsageLoginStateStore.getState().setStored(id, true);
+          await refreshAndMergeProviderUsage(id);
+          await refreshAgentStatus();
+          setSigningIn(false);
+          return;
+        }
+      } catch {
+        // Silent path unavailable — fall through to the visible flow.
+      }
+    }
     // Open the browser-overlay drawer (not maximized) so the login tab renders
     // there. Force-clear maximized in case a prior session left it fullscreen.
     usePanelStore.getState().setBrowserOverlayMaximized(false);

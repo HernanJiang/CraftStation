@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allUsageProviderDescriptors } from "@craftstation/agents-usage";
-import { hasUsageSecret, hasUsageSecretKey } from "@/shared/usageSecretStore";
+import {
+  getUsageSecret,
+  hasUsageSecret,
+  hasUsageSecretKey,
+  setUsageSecret,
+} from "@/shared/usageSecretStore";
 
 vi.mock("electron", () => ({ clipboard: { writeText: vi.fn<(text: string) => void>() } }));
 // Only the opencode cookie config references this; the device-flow tests don't.
@@ -12,6 +17,8 @@ vi.mock("./openCodeLoginProbe", () => ({
 }));
 
 const { UsageLoginManager } = await import("./UsageLoginManager");
+const { isOpenCodeLoginCookieLive } = await import("./openCodeLoginProbe");
+const opencodeLiveProbe = vi.mocked(isOpenCodeLoginCookieLive);
 
 const DEVICE_CODE_URL = "/login/device/code";
 const TOKEN_URL = "/login/oauth/access_token";
@@ -155,6 +162,143 @@ describe("UsageLoginManager cookie flow", () => {
     ).resolves.toBe(true);
     await expect(options.validateSession("login_aliyunid_ticket=t")).resolves.toBe(false);
     expect(hasUsageSecret(cacheDir, "qwen")).toBe(true);
+  });
+});
+
+describe("UsageLoginManager silent re-auth", () => {
+  type JarCookie = { name: string; value: string };
+
+  function newSilentManager(options: { jarCookies: () => JarCookie[]; onLoad?: () => void }) {
+    const session = {
+      cookies: { get: vi.fn(async () => options.jarCookies()) },
+    };
+    const win = {
+      load: vi.fn(async (_url: string) => {
+        options.onLoad?.();
+      }),
+      close: vi.fn(),
+    };
+    const createReauthWindow = vi.fn(() => win);
+    const manager = new UsageLoginManager({ cacheDir } as never, () => makePanel() as never, {
+      cookieSession: session,
+      createReauthWindow,
+    } as never);
+    return { manager, session, win, createReauthWindow };
+  }
+
+  it("returns true without touching the jar when the stored cookie is still live", async () => {
+    setUsageSecret(cacheDir, "opencode", "cookie", "auth=stored");
+    opencodeLiveProbe.mockResolvedValue(true);
+    const { manager, session, createReauthWindow } = newSilentManager({
+      jarCookies: () => [],
+    });
+
+    await expect(manager.attemptSilentReauth("opencode")).resolves.toBe(true);
+    expect(session.cookies.get).not.toHaveBeenCalled();
+    expect(createReauthWindow).not.toHaveBeenCalled();
+  });
+
+  it("re-seals from the live jar when the stored snapshot is dead", async () => {
+    setUsageSecret(cacheDir, "opencode", "cookie", "auth=dead");
+    opencodeLiveProbe.mockImplementation(async (header) => header.includes("auth=fresh"));
+    const { manager, createReauthWindow } = newSilentManager({
+      jarCookies: () => [{ name: "auth", value: "fresh" }],
+    });
+
+    await expect(manager.attemptSilentReauth("opencode")).resolves.toBe(true);
+    expect(getUsageSecret(cacheDir, "opencode", "cookie")).toBe("auth=fresh");
+    expect(createReauthWindow).not.toHaveBeenCalled();
+  });
+
+  it("replays the login flow in a hidden window to mint a fresh cookie", async () => {
+    setUsageSecret(cacheDir, "opencode", "cookie", "auth=dead");
+    opencodeLiveProbe.mockImplementation(async (header) => header.includes("auth=rotated"));
+    let jarCookies: JarCookie[] = [{ name: "auth", value: "dead" }];
+    const { manager, win } = newSilentManager({
+      jarCookies: () => jarCookies,
+      onLoad: () => {
+        jarCookies = [{ name: "auth", value: "rotated" }];
+      },
+    });
+
+    const promise = manager.attemptSilentReauth("opencode");
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBe(true);
+    expect(win.load).toHaveBeenCalledWith("https://opencode.ai/auth");
+    expect(win.close).toHaveBeenCalled();
+    expect(getUsageSecret(cacheDir, "opencode", "cookie")).toBe("auth=rotated");
+  });
+
+  it("fails and cools down when the issuer session no longer trusts the device", async () => {
+    setUsageSecret(cacheDir, "opencode", "cookie", "auth=dead");
+    opencodeLiveProbe.mockResolvedValue(false);
+    const { manager, win, createReauthWindow } = newSilentManager({
+      jarCookies: () => [{ name: "auth", value: "dead" }],
+    });
+
+    const promise = manager.attemptSilentReauth("opencode");
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBe(false);
+    expect(win.close).toHaveBeenCalled();
+    // Cooldown: an immediate retry resolves false without opening a window.
+    await expect(manager.attemptSilentReauth("opencode")).resolves.toBe(false);
+    expect(createReauthWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips providers that were never signed in", async () => {
+    const { manager, session, createReauthWindow } = newSilentManager({
+      jarCookies: () => [{ name: "auth", value: "fresh" }],
+    });
+
+    await expect(manager.attemptSilentReauth("opencode")).resolves.toBe(false);
+    expect(session.cookies.get).not.toHaveBeenCalled();
+    expect(createReauthWindow).not.toHaveBeenCalled();
+  });
+
+  it("skips cookie providers without a real liveness probe", async () => {
+    setUsageSecret(cacheDir, "qwen", "cookie", "login_aliyunid_ticket=t; login_aliyunid_pk=p");
+    const { manager, session, createReauthWindow } = newSilentManager({
+      jarCookies: () => [{ name: "login_aliyunid_ticket", value: "fresh" }],
+    });
+
+    await expect(manager.attemptSilentReauth("qwen")).resolves.toBe(false);
+    expect(session.cookies.get).not.toHaveBeenCalled();
+    expect(createReauthWindow).not.toHaveBeenCalled();
+  });
+
+  it("resolves startLogin silently when re-auth succeeds, never opening a tab", async () => {
+    setUsageSecret(cacheDir, "opencode", "cookie", "auth=stored");
+    opencodeLiveProbe.mockResolvedValue(true);
+    const panel = makePanel();
+    const manager = new UsageLoginManager({ cacheDir } as never, () => panel as never, {
+      cookieSession: { cookies: { get: vi.fn(async () => []) } },
+    } as never);
+
+    await expect(manager.startLogin("opencode")).resolves.toEqual({ ok: true });
+    expect(panel.createTab).not.toHaveBeenCalled();
+    expect(panel.captureLoginCookies).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the interactive capture when silent re-auth fails", async () => {
+    setUsageSecret(cacheDir, "opencode", "cookie", "auth=dead");
+    opencodeLiveProbe.mockImplementation(async (header) => header.includes("auth=fresh"));
+    const panel = makePanel();
+    panel.captureLoginCookies.mockResolvedValue({ ok: true, cookie: "auth=fresh" });
+    const { win } = {
+      win: { load: vi.fn(async () => {}), close: vi.fn() },
+    };
+    const manager = new UsageLoginManager({ cacheDir } as never, () => panel as never, {
+      cookieSession: { cookies: { get: vi.fn(async () => [{ name: "auth", value: "dead" }]) } },
+      createReauthWindow: () => win,
+    } as never);
+
+    const promise = manager.startLogin("opencode");
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toEqual({ ok: true });
+    expect(panel.captureLoginCookies).toHaveBeenCalledOnce();
   });
 });
 

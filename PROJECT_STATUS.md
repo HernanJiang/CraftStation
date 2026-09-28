@@ -1,3 +1,12 @@
+## OpenCode 用量会话静默续期（2026-09-28）
+
+- **用户报告**：OpenCode 额度每次更新/重启后都要求重新登录才能读取；登录浏览器还会带出旧标签页。
+- **根因**：密封库里的 `opencode` cookie 只是登录时刻的快照——opencode.ai 的 `auth` 会话 cookie 服务端会轮换/过期，快照一死额度就读 `auth-missing`；实测当前密封值探测返回 `actor of type "public"`（已失效）。既有 cookie 镜像只在 jar `changed` 事件时重封，应用重启后无事件可依赖。
+- **修复**：新增 `UsageLoginManager.attemptSilentReauth`——存储快照仍活则直接返回；死了先从持久化浏览器 jar 收割（镜像覆盖不到「启动时」这一步）；再不行在 `persist:craftstation-browser` 上开隐藏窗口静默重放 `loginUrl`——签发方会话仍信任本机时重定向链自动完成并种下新 `auth` cookie；所有候选值都过 `validateSession` 真实活性校验才重封，30s 上限 + 60s 失败冷却防抖动。`silentReauth` 只对 opencode/commandcode 开启（有真实活性探针）；qwen/grok 行为不变。
+- **接入点**：启动时 `maintainCookieSessions()` 串行 sweep（与 IPC 共享同一 `UsageLoginManager` 单例）；`startLogin` 对 cookie provider 先试静默路径，成功即 `{ok:true}` 不开浏览器；渲染层 `handleSignIn` 在打开 overlay 前先调新 IPC `attemptUsageSilentLogin`，静默成功完全不显示登录浏览器。
+- **验证**：`UsageLoginManager` 新增 8 用例（快照仍活/jar 收割/隐藏窗口重放/失败冷却/未登录跳过/无探针跳过/startLogin 静默命中/startLogin 回落交互）；44 项 usage-login 测试全过；typecheck + oxlint 零告警。
+- **用户侧**：更新/重启后 OpenCode 额度自动恢复，无需再点「连接」；即使要手动点，签发方会话还在时也是静默完成不弹浏览器；只有签发方会话也失效才回到交互登录。
+
 ## Step Code 补全为一等 Native Harness（2026-09-28）
 
 - **用户报告**：Step Code 此前只集成到 agent-adapter + 第三方路由层——Harness/CLI 面板不显示、合成台没有 `harness:stepcode` Item/Recipe、CLI 更新检查枚举不到它；Step 系模型在 Auto 下落到 OpenCode（本机 `step` 未安装时的设计回退）。

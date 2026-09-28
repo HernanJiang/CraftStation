@@ -1,10 +1,11 @@
-import { clipboard } from "electron";
+import { clipboard, session as electronSession, BrowserWindow, type Session } from "electron";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { BrowserPanelManager } from "../browser";
 import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import type { UsageLoginStateResponse } from "@/shared/contracts";
+import { BROWSER_SESSION_PARTITION } from "@/shared/browserPartition";
 import {
   createCredentialProbeHost,
   validateVolcengineCredentials,
@@ -18,11 +19,18 @@ import {
   type ThirdPartyProtocol,
   type ThirdPartyValidationErrorCode,
 } from "@/shared/thirdPartyValidation";
-import { clearUsageSecret, hasUsageSecret, setUsageSecret } from "@/shared/usageSecretStore";
+import {
+  clearUsageSecret,
+  getUsageSecret,
+  hasUsageSecret,
+  setUsageSecret,
+} from "@/shared/usageSecretStore";
 import {
   PROVIDER_CONFIGS,
   USAGE_PROVIDER_BY_ID,
+  cookieLoginTargets,
   usageProviderLabel,
+  type CookieLoginConfig,
   type GitHubDeviceLoginConfig,
   type LocalStorageLoginConfig,
   type ProviderLoginConfig,
@@ -62,9 +70,21 @@ interface UsageLoginManagerOptions {
   /** Test seam; production defaults to the official Command Code auth file. */
   commandCodeAuthFile?: string;
   devinCredentialFiles?: string[];
+  /** Test seam: the browser session that owns provider cookie jars. */
+  cookieSession?: Pick<Session, "cookies">;
+  /** Test seam: factory for the hidden re-auth window (load + close only). */
+  createReauthWindow?: (session: Pick<Session, "cookies">) => {
+    load(url: string): Promise<unknown>;
+    close(): void;
+  };
 }
 
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+/** A silent re-auth is a redirect chain, not a user wait — keep it bounded. */
+const SILENT_REAUTH_TIMEOUT_MS = 30_000;
+const SILENT_REAUTH_POLL_MS = 750;
+/** After a failed silent re-auth, do not re-open the hidden window inside this window. */
+const SILENT_REAUTH_COOLDOWN_MS = 60_000;
 
 interface GitHubDeviceCodeResponse {
   device_code?: string;
@@ -83,6 +103,8 @@ interface GitHubAccessTokenResponse {
 export class UsageLoginManager {
   private readonly inFlight = new Map<string, Promise<UsageLoginResult>>();
   private readonly deviceLoginCancel = new Map<string, () => void>();
+  private readonly silentReauthInFlight = new Map<string, Promise<boolean>>();
+  private readonly silentReauthFailedAt = new Map<string, number>();
   private readonly antigravityOAuth: AntigravityOAuthManager;
 
   constructor(
@@ -417,6 +439,155 @@ export class UsageLoginManager {
     return { ok: true };
   }
 
+  /**
+   * Re-acquire a provider's session cookie with zero user interaction — the
+   * "still signed in" maintenance path behind the startup sweep and the
+   * renderer's reconnect button.
+   *
+   * The snapshot sealed at sign-in ages: providers rotate the auth cookie on
+   * console visits, and session-scoped cookies expire with the issuer session.
+   * The persistent browser partition usually still holds a usable path back —
+   * a rotated cookie in the live jar, or an issuer session that silently
+   * re-completes the login redirect chain in a hidden window. Only providers
+   * the user already signed into (a stored secret exists) are eligible, and
+   * every candidate value still passes `validateSession` before being sealed.
+   */
+  async attemptSilentReauth(providerId: string): Promise<boolean> {
+    const config = PROVIDER_CONFIGS[providerId];
+    // Providers without a real liveness probe can't tell a dead snapshot from
+    // a live one — the silent path stays opt-in via `silentReauth`.
+    if (!config || config.kind !== "cookie" || !config.silentReauth || !config.validateSession) {
+      return false;
+    }
+    if (!hasUsageSecret(this.paths.cacheDir, providerId)) return false;
+    const existing = this.silentReauthInFlight.get(providerId);
+    if (existing) return existing;
+    const failedAt = this.silentReauthFailedAt.get(providerId);
+    if (failedAt !== undefined && Date.now() - failedAt < SILENT_REAUTH_COOLDOWN_MS) {
+      return false;
+    }
+    const run = this.runSilentReauth(providerId, config).finally(() => {
+      this.silentReauthInFlight.delete(providerId);
+    });
+    this.silentReauthInFlight.set(providerId, run);
+    const ok = await run;
+    if (ok) this.silentReauthFailedAt.delete(providerId);
+    else this.silentReauthFailedAt.set(providerId, Date.now());
+    return ok;
+  }
+
+  /**
+   * Startup maintenance: re-validate every cookie-login provider the user
+   * signed into and renew the dead ones silently. Serialized so simultaneous
+   * hidden windows never pile up.
+   */
+  async maintainCookieSessions(): Promise<void> {
+    for (const { providerId } of cookieLoginTargets()) {
+      try {
+        await this.attemptSilentReauth(providerId);
+      } catch {
+        // best-effort sweep; a failed renewal surfaces as auth-missing instead
+      }
+    }
+  }
+
+  private async runSilentReauth(providerId: string, config: CookieLoginConfig): Promise<boolean> {
+    const validate = config.validateSession;
+    if (!validate) return false;
+    const ses =
+      this.options.cookieSession ?? electronSession.fromPartition(BROWSER_SESSION_PARTITION);
+    // The stored snapshot may still be live — cheapest possible check first.
+    const stored = getUsageSecret(this.paths.cacheDir, providerId, "cookie");
+    if (stored && (await validate(stored).catch(() => false))) return true;
+    // The live jar may already hold a rotated cookie the snapshot missed.
+    if (await this.harvestJarCookie(providerId, config, ses)) return true;
+    return this.replayLoginHidden(providerId, config, ses);
+  }
+
+  /**
+   * Read the provider's cookie URL out of the live browser jar, verify the
+   * header authenticates, and re-seal it. Returns false when the jar has no
+   * auth cookie or the candidate fails validation.
+   */
+  private async harvestJarCookie(
+    providerId: string,
+    config: CookieLoginConfig,
+    ses: Pick<Session, "cookies">,
+  ): Promise<boolean> {
+    try {
+      const cookies = await ses.cookies.get({ url: config.cookieUrl });
+      if (!cookies.some((cookie) => config.authCookiePattern.test(cookie.name))) return false;
+      const header = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+      if (!header) return false;
+      if (!(await config.validateSession!(header).catch(() => false))) return false;
+      if (getUsageSecret(this.paths.cacheDir, providerId, "cookie") !== header) {
+        setUsageSecret(this.paths.cacheDir, providerId, "cookie", header);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Replay the provider's login flow in a hidden window on the persistent
+   * browser partition. When the issuer session still trusts this device the
+   * redirect chain lands back on the app domain and sets a fresh auth cookie
+   * with no user input; when it doesn't, the interactive login page just sits
+   * there until the bounded timeout fails the attempt.
+   */
+  private replayLoginHidden(
+    providerId: string,
+    config: CookieLoginConfig,
+    ses: Pick<Session, "cookies">,
+  ): Promise<boolean> {
+    const createWindow =
+      this.options.createReauthWindow ??
+      ((session: Pick<Session, "cookies">) => {
+        const win = new BrowserWindow({
+          show: false,
+          width: 1,
+          height: 1,
+          skipTaskbar: true,
+          webPreferences: { session: session as Session, sandbox: true },
+        });
+        return {
+          load: (url: string) => win.webContents.loadURL(url),
+          close: () => {
+            if (!win.isDestroyed()) win.destroy();
+          },
+        };
+      });
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      let polling = false;
+      const win = createWindow(ses);
+      const finish = (ok: boolean): void => {
+        if (settled) return;
+        settled = true;
+        clearInterval(timer);
+        clearTimeout(timeout);
+        try {
+          win.close();
+        } catch {}
+        resolve(ok);
+      };
+      const poll = async (): Promise<void> => {
+        if (settled || polling) return;
+        polling = true;
+        try {
+          if (await this.harvestJarCookie(providerId, config, ses)) finish(true);
+        } finally {
+          polling = false;
+        }
+      };
+      const timer = setInterval(() => void poll(), SILENT_REAUTH_POLL_MS);
+      const timeout = setTimeout(() => finish(false), SILENT_REAUTH_TIMEOUT_MS);
+      void win.load(config.loginUrl).catch(() => finish(false));
+      void poll();
+    });
+  }
+
   startLogin(providerId: string): Promise<UsageLoginResult> {
     if (providerId === "antigravity") return this.antigravityOAuth.startLogin();
     const existing = this.inFlight.get(providerId);
@@ -435,11 +606,19 @@ export class UsageLoginManager {
     if (config.kind === "native-oauth") {
       return Promise.resolve({ ok: false, error: `No native OAuth handler for ${providerId}` });
     }
-    const panel = this.getBrowserPanel();
-    if (!panel) {
-      return Promise.resolve({ ok: false, error: "Browser panel is not available" });
-    }
-    const run = this.runLogin(providerId, config, panel).finally(() => {
+    const run = (async (): Promise<UsageLoginResult> => {
+      // A dead snapshot does not always mean signed out — the issuer session
+      // may still trust this device, in which case the hidden re-auth reseals
+      // a fresh cookie without ever opening the browser overlay.
+      if (await this.attemptSilentReauth(providerId).catch(() => false)) {
+        return { ok: true };
+      }
+      const panel = this.getBrowserPanel();
+      if (!panel) {
+        return { ok: false, error: "Browser panel is not available" };
+      }
+      return this.runLogin(providerId, config, panel);
+    })().finally(() => {
       this.inFlight.delete(providerId);
     });
     this.inFlight.set(providerId, run);

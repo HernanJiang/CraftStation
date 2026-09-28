@@ -169,6 +169,18 @@ function getUsageLoginManager(
   return usageLoginManager;
 }
 
+/**
+ * Startup sweep over stored usage sessions (dead cookie snapshots get
+ * silently renewed). Uses the same manager singleton as the IPC handlers so
+ * in-flight logins are shared.
+ */
+export function maintainUsageCookieSessions(
+  requirePaths: () => CraftStationPaths,
+  getBrowserPanel: () => BrowserPanelManager | null,
+): Promise<void> {
+  return getUsageLoginManager(requirePaths, getBrowserPanel).maintainCookieSessions();
+}
+
 function roundRect(rect: { x: number; y: number; width: number; height: number }) {
   return {
     x: Math.round(rect.x),
@@ -731,6 +743,12 @@ export function createLocalIpcHandlers(
         options.getBrowserPanelManager,
       ).cancelLogin(payload.providerId);
     },
+    attemptUsageSilentLogin: async (payload) => ({
+      ok: await getUsageLoginManager(
+        options.requireCraftStationPaths,
+        options.getBrowserPanelManager,
+      ).attemptSilentReauth(payload.providerId),
+    }),
     clearUsageLogin: (payload) =>
       getUsageLoginManager(
         options.requireCraftStationPaths,

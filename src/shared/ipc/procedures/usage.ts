@@ -100,6 +100,14 @@ export const usageProcedures = {
     "main-local",
     usageLoginPayloadSchema,
   ),
+  // Silent re-auth for an already-signed-in cookie provider: refreshes the
+  // sealed session cookie from the live jar or a hidden login replay. Never
+  // opens the browser overlay; ok=false means the interactive flow is needed.
+  attemptUsageSilentLogin: definePayloadProcedure<
+    UsageLoginPayload,
+    UsageLoginResult,
+    "main-local"
+  >("attemptUsageSilentLogin", "main-local", usageLoginPayloadSchema),
   clearUsageLogin: definePayloadProcedure<UsageLoginPayload, UsageLogoutResult, "main-local">(
     "clearUsageLogin",
     "main-local",

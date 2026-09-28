@@ -28,6 +28,14 @@ export interface CookieLoginConfig {
    * reporting "Found a signed-in session".
    */
   validateSession?: (cookieHeader: string) => Promise<boolean>;
+  /**
+   * Allow the silent re-auth path to replay `loginUrl` in a hidden window on
+   * the persistent browser partition when both the stored snapshot and the
+   * live jar fail validation. Enable only for providers whose issuer session
+   * (e.g. the OpenAuth authorize step) auto-completes without user input —
+   * the interactive login page otherwise just times out harmlessly.
+   */
+  silentReauth?: boolean;
 }
 
 export interface GitHubDeviceLoginConfig {
@@ -129,6 +137,9 @@ export const PROVIDER_CONFIGS: Record<string, ProviderLoginConfig> = {
     // user signs in, and stale values linger in the jar — so confirm the cookie
     // actually authenticates before prompting.
     validateSession: isOpenCodeLoginCookieLive,
+    // auth.opencode.ai remembers the device after one sign-in, so replaying
+    // /auth in a hidden window re-mints a fresh `auth` cookie unattended.
+    silentReauth: true,
   },
   commandcode: {
     kind: "cookie",
@@ -139,6 +150,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderLoginConfig> = {
     // library name is deliberately not accepted (token-monitor finding).
     authCookiePattern: /^(?:__Secure-|__Host-)?commandcode_prod_\./i,
     validateSession: isCommandCodeLoginCookieLive,
+    silentReauth: true,
   },
   qwen: {
     kind: "cookie",

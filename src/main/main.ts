@@ -31,7 +31,11 @@ import {
   onProjectThreadDataChanged,
 } from "./db";
 import { cleanupOrphanedAttachments, prepareCraftStationDataRoot } from "./craftstationData";
-import { createLocalIpcHandlers, showAddFilesDialog } from "./ipc/localHandlers";
+import {
+  createLocalIpcHandlers,
+  maintainUsageCookieSessions,
+  showAddFilesDialog,
+} from "./ipc/localHandlers";
 import { registerIpcHandlers } from "./ipc/registerHandlers";
 import { createSleepInhibitor } from "./sleepInhibitor";
 import { shouldPreventSystemSleep } from "./sleepPolicy";
@@ -812,6 +816,18 @@ if (!hasSingleInstanceLock) {
       // refreshes it, so providers with session-scoped auth cookies (Alibaba's
       // console) don't age out of the one snapshot taken at sign-in.
       startUsageLoginCookieMirror({ cacheDir: paths.cacheDir, session: browserSession });
+      // A sealed usage cookie (e.g. opencode.ai's `auth`) can die while the
+      // app's identity or the issuer's rotation moved on — re-validate stored
+      // sessions once at startup and renew them silently so reconnects do not
+      // depend on the user opening a login browser.
+      void maintainUsageCookieSessions(requireCraftStationPaths, () => browserPanelManager).catch(
+        (error) => {
+          console.warn(
+            "[usage-login] startup session maintenance failed:",
+            error instanceof Error ? error.message : String(error),
+          );
+        },
+      );
       const initialSettings = readSharedSettingsFile(paths.settingsPath);
       syncStartupSettings(initialSettings);
       const showMainWindowOnReady = !shouldStartMinimized(
