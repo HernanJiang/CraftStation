@@ -19,6 +19,25 @@ describe("notificationStore", () => {
     expect(selectHasUnread(items)).toBe(true);
   });
 
+  it("keeps the ledger row but skips the unread dot when pushed as read", () => {
+    useNotificationStore.getState().push({
+      tone: "success",
+      title: "visible thread",
+      status: "Done",
+      threadId: "thread-1",
+      read: true,
+    });
+    push("other");
+
+    const items = useNotificationStore.getState().items;
+    expect(items.find((item) => item.threadId === "thread-1")?.read).toBe(true);
+    // The read row still counts toward the list; only unread ones light the dot.
+    expect(items).toHaveLength(2);
+    expect(selectHasUnread(items)).toBe(true);
+    useNotificationStore.getState().markAllRead();
+    expect(selectHasUnread(useNotificationStore.getState().items)).toBe(false);
+  });
+
   it("caps the list at the maximum size", () => {
     for (let index = 0; index < MAX_NOTIFICATION_ITEMS + 5; index += 1) {
       push(`task-${index}`);

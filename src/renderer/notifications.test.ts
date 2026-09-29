@@ -1,29 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Thread } from "@/shared/contracts";
 
-const { sharedSettingsState, toastMock, bridgeMock, openThreadMock } = vi.hoisted(() => ({
-  sharedSettingsState: {
-    current: {
-      notificationsEnabled: true,
-      notificationSound: true,
-      notificationFilter: "unfocused",
-      notificationStatuses: { done: true, needsAttention: true, error: true },
+const { sharedSettingsState, toastMock, bridgeMock, openThreadMock, appViewState } = vi.hoisted(
+  () => ({
+    appViewState: {
+      current: { kind: "home" } as { kind: string; panes?: Array<string> },
     },
-  },
-  toastMock: {
-    close: vi.fn<(key: string) => void>(),
-    danger: vi.fn<(title: string, options: unknown) => void>(),
-    info: vi.fn<(title: string, options: unknown) => void>(),
-    success: vi.fn<(title: string, options: unknown) => void>(),
-    warning: vi.fn<(title: string, options: unknown) => void>(),
-  },
-  bridgeMock: {
-    focusWindow: vi.fn<() => Promise<void>>(),
-    remote: false,
-    showNotification: vi.fn<(payload: unknown) => Promise<boolean>>(),
-  },
-  openThreadMock: vi.fn<(threadId: string, options?: unknown) => void>(),
-}));
+    sharedSettingsState: {
+      current: {
+        notificationsEnabled: true,
+        notificationSound: true,
+        notificationFilter: "unfocused",
+        notificationStatuses: { done: true, needsAttention: true, error: true },
+      },
+    },
+    toastMock: {
+      close: vi.fn<(key: string) => void>(),
+      danger: vi.fn<(title: string, options: unknown) => void>(),
+      info: vi.fn<(title: string, options: unknown) => void>(),
+      success: vi.fn<(title: string, options: unknown) => void>(),
+      warning: vi.fn<(title: string, options: unknown) => void>(),
+    },
+    bridgeMock: {
+      focusWindow: vi.fn<() => Promise<void>>(),
+      remote: false,
+      showNotification: vi.fn<(payload: unknown) => Promise<boolean>>(),
+    },
+    openThreadMock: vi.fn<(threadId: string, options?: unknown) => void>(),
+  }),
+);
 
 vi.mock("@heroui/react", () => ({
   toast: toastMock,
@@ -41,7 +46,7 @@ vi.mock("@/renderer/bridge", () => ({
 vi.mock("@/renderer/state/appStore", () => ({
   useAppStore: {
     getState: () => ({
-      view: { kind: "home" },
+      view: appViewState.current,
       projects: [],
     }),
   },
@@ -111,6 +116,7 @@ function installBrowserNotification(permission: NotificationPermission = "grante
 
 beforeEach(() => {
   useNotificationStore.getState().clear();
+  appViewState.current = { kind: "home" };
   bridgeMock.remote = false;
   bridgeMock.focusWindow.mockClear();
   bridgeMock.showNotification.mockClear();
@@ -153,6 +159,28 @@ describe("showInAppUserNotification", () => {
       }),
     ]);
     expect(bridgeMock.showNotification).not.toHaveBeenCalled();
+  });
+
+  it("keeps the ledger row but marks it read when the thread is already visible", () => {
+    appViewState.current = { kind: "thread", panes: ["thread-1"] };
+
+    showInAppUserNotification({
+      threadId: "thread-1",
+      title: "Done",
+      body: "Ready for review",
+    });
+
+    expect(useNotificationStore.getState().items).toEqual([
+      expect.objectContaining({
+        threadId: "thread-1",
+        read: true,
+      }),
+    ]);
+    expect(
+      useNotificationStore
+        .getState()
+        .items.some((item) => item.threadId === "thread-1" && !item.read),
+    ).toBe(false);
   });
 });
 
@@ -309,6 +337,49 @@ describe("handleThreadStateNotification unfocused path", () => {
 
     expect(toastMock.success).toHaveBeenCalledOnce();
     expect(bridgeMock.showNotification).not.toHaveBeenCalled();
+  });
+
+  it("stores the completion as read when the thread is already in an active pane", () => {
+    appViewState.current = { kind: "thread", panes: ["thread-1"] };
+    const oldThread = thread({ status: "working", attention: "working" });
+
+    handleThreadStateNotification(
+      {
+        type: "thread-state",
+        threadId: oldThread.id,
+        status: "finished",
+        attention: "none",
+      },
+      oldThread,
+      { status: "finished", attention: "none" },
+    );
+
+    // The toast still fires so a returning user notices the completion, but
+    // the sidebar row never lights up for the thread already on screen.
+    expect(toastMock.success).toHaveBeenCalledOnce();
+    expect(useNotificationStore.getState().items).toEqual([
+      expect.objectContaining({ threadId: "thread-1", read: true }),
+    ]);
+  });
+
+  it("leaves the completion unread for a thread that is not visible", () => {
+    appViewState.current = { kind: "thread", panes: ["other-thread"] };
+    const oldThread = thread({ status: "working", attention: "working" });
+
+    handleThreadStateNotification(
+      {
+        type: "thread-state",
+        threadId: oldThread.id,
+        status: "finished",
+        attention: "none",
+      },
+      oldThread,
+      { status: "finished", attention: "none" },
+    );
+
+    expect(useNotificationStore.getState().items).toEqual([
+      expect.objectContaining({ threadId: "thread-1", read: false }),
+    ]);
   });
 
   it("closes the oldest task notification when a fourth one arrives", () => {

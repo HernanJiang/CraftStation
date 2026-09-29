@@ -27,6 +27,8 @@ interface NotificationStore {
     status: string;
     project?: string;
     threadId?: string;
+    /** Already-visible threads count as read: keep the ledger row, skip the dot. */
+    read?: boolean;
   }) => void;
   /** Clears the unread dot; keeps the list for review. */
   markAllRead: () => void;
@@ -49,7 +51,7 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
         ...input,
         id: `notification-${Date.now()}-${sequence}`,
         createdAt: Date.now(),
-        read: false,
+        read: input.read ?? false,
       };
       // One row per thread: a later completion replaces the earlier one
       // instead of stacking duplicates in the bell list.

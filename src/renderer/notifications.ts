@@ -166,6 +166,7 @@ function showToastNotification(
     status: detail,
     project: projectName,
     threadId,
+    read: isThreadInActivePanes(threadId),
   });
   playSound();
 }
@@ -193,6 +194,7 @@ export function showInAppUserNotification(input: {
     title: input.title,
     status,
     ...(hasThread ? { threadId: input.threadId } : {}),
+    ...(hasThread ? { read: isThreadInActivePanes(input.threadId) } : {}),
   });
   playSound();
 }
