@@ -59,7 +59,7 @@ import { ModelManagementPage } from "./ModelManagementPage";
 import { UsageStatsPage } from "./UsageStatsPage";
 import { CraftingWorkbenchPage } from "@/renderer/components/crafting/CraftingWorkbenchPage";
 import { resolveConfiguredProviderIds } from "@/renderer/crafting/configuredProviders";
-import { MyRecipesPage } from "@/renderer/components/crafting/MyRecipesPage";
+import { HarnessMapPage } from "@/renderer/components/crafting/HarnessMapPage";
 
 const CLI_LOGIN_COMMANDS: Record<string, string> = {
   claude: "claude auth login",
@@ -1740,11 +1740,12 @@ function ManagedAccountPool(props: {
   onDropProvider?: (t: string) => void;
 }) {
   const { providerId, title, badgeLabel, addAriaLabel, accounts, busy, actionError } = props;
-  // 单账号时渲染成和 ChatGPT/Command Code 一样的紧凑卡片（占半列）；
-  // 只有 ≥2 个账号才展开成宽的多行号池布局。
+  // 单账号时渲染成紧凑卡片；分区宽度跟随账号数，1 个账号 = 1/4 行宽，
+  // 2/3 个账号分别占 2/3 列，≥4 个账号才占满整行。
   const single = accounts.length === 1;
+  const span = Math.min(Math.max(accounts.length, 1), 4);
   const header = single ? (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <ProviderBrandBadge id={providerId} label={badgeLabel} size="compact" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-semibold text-foreground">{badgeLabel}</h3>
@@ -1782,7 +1783,7 @@ function ManagedAccountPool(props: {
       ) : null}
     </div>
   ) : (
-    <div className="mb-2 flex items-center justify-between">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
       <div className="flex min-w-0 items-center gap-2.5">
         <ProviderBrandBadge id={providerId} label={badgeLabel} size="compact" />
         <div className="min-w-0">
@@ -1829,7 +1830,7 @@ function ManagedAccountPool(props: {
   return (
     <section
       data-testid={"provider-card-" + providerId}
-      data-grid-span={single ? "1" : "2"}
+      data-grid-span={String(span)}
       draggable={props.index != null}
       onDragStart={
         props.index != null && props.onDragStartProvider
@@ -1851,7 +1852,7 @@ function ManagedAccountPool(props: {
           : undefined
       }
       className={
-        (single ? "col-span-1" : "col-span-2") +
+        ["col-span-1", "col-span-2", "col-span-3", "col-span-4"][span - 1] +
         " self-start h-fit rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3"
       }
     >
@@ -1883,7 +1884,10 @@ function ManagedAccountPool(props: {
       ) : (
         <div
           data-testid={"account-grid-" + providerId}
-          className="grid grid-cols-4 items-start content-start auto-rows-max gap-2"
+          className={
+            "grid items-start content-start auto-rows-max gap-2 " +
+            ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][span - 1]
+          }
         >
           {accounts.map((account, index) => (
             <AccountRow
@@ -1936,6 +1940,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     accountId?: string;
     label?: string;
   } | null>(null);
+  /** Width (px) of the unauthenticated-provider rail on the 渠道与额度 tab — user-draggable. */
+  const [usageRailWidth, setUsageRailWidth] = useState(296);
   // The active tab lives in the panel store (persisted): reopening the page
   // restores the last-visited tab, and explicit deep links keep working.
   const workspaceTab = usePanelStore((state) => state.modelUsageWorkspaceTab);
@@ -2587,8 +2593,8 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 ["usage", "渠道与额度"],
                 ["models", "管理模型"],
                 ["stats", "用量统计"],
-                ["crafting", "合成台 / Harness"],
-                ["recipes", "我的配方"],
+                ["harnesses", "Harness 总览"],
+                ["crafting", "合成台与配方"],
               ] as const
             ).map(([tab, label]) => (
               <button
@@ -2633,16 +2639,21 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
           providerOrder={providerOrder}
           entryMode={usePanelStore.getState().modelUsageEntryMode ?? undefined}
         />
-      ) : workspaceTab === "recipes" ? (
-        <MyRecipesPage />
+      ) : workspaceTab === "harnesses" ? (
+        <HarnessMapPage
+          accounts={accounts}
+          customModels={customModels}
+          configuredProviderIds={[...configuredProviderIds]}
+          providerOrder={providerOrder}
+        />
       ) : workspaceTab === "stats" ? (
         <UsageStatsPage />
       ) : (
         <div className="flex min-h-0 flex-1 gap-3 overflow-auto p-3">
           <div
-            className="grid min-w-0 flex-1 grid-cols-2 items-start content-start auto-rows-max gap-3 overflow-y-auto pr-1"
+            className="grid min-w-0 flex-1 grid-cols-4 items-start content-start auto-rows-max gap-3 overflow-y-auto pr-1"
             data-testid="authorized-provider-grid"
-            data-layout="two-column"
+            data-layout="four-column"
           >
             {authorizedChannels.map((channel, index) => (
               <Fragment key={"provider-grid-" + channel.id}>
@@ -2672,7 +2683,31 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
             ) : null}
           </div>
           <div
-            className="grid min-w-0 w-[296px] shrink-0 grid-cols-1 items-start content-start auto-rows-max gap-3 overflow-y-auto pr-1"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="拖动调整渠道栏宽度"
+            data-testid="usage-rail-divider"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              const startX = event.clientX;
+              const startWidth = usageRailWidth;
+              const onMove = (move: PointerEvent) => {
+                setUsageRailWidth(
+                  Math.min(560, Math.max(220, startWidth + (startX - move.clientX))),
+                );
+              };
+              const onUp = () => {
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+              };
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+            }}
+            className="w-1.5 shrink-0 cursor-col-resize self-stretch rounded-full bg-white/5 transition-colors hover:bg-white/20"
+          />
+          <div
+            className="grid min-w-0 shrink-0 grid-cols-1 items-start content-start auto-rows-max gap-3 overflow-y-auto pr-1"
+            style={{ width: usageRailWidth }}
             data-testid="unauthorized-provider-grid"
           >
             {signedInCodexAccounts.length === 0 &&

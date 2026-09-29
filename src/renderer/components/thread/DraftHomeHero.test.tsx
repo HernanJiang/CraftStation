@@ -10,7 +10,7 @@ vi.mock("@/renderer/state/sidebarOverlayStore", () => ({
 }));
 
 const openModelUsageWorkspace =
-  vi.fn<(input: { tab: "crafting" | "models" | "recipes" | "usage" | "stats" }) => void>();
+  vi.fn<(input: { tab: "crafting" | "models" | "harnesses" | "usage" | "stats" }) => void>();
 
 describe("DraftHomeHero entry cards", () => {
   beforeEach(() => {
@@ -42,10 +42,10 @@ describe("DraftHomeHero entry cards", () => {
     expect(openModelUsageWorkspace).toHaveBeenCalledWith({ tab: "models" });
   });
 
-  it("opens the recipes tab from 配方管理", () => {
+  it("opens the crafting tab (recipes rail) from 配方管理", () => {
     render(<DraftHomeHero />);
     fireEvent.click(screen.getByTestId("home-entry-recipes"));
     expect(openModelUsageWorkspace).toHaveBeenCalledTimes(1);
-    expect(openModelUsageWorkspace).toHaveBeenCalledWith({ tab: "recipes" });
+    expect(openModelUsageWorkspace).toHaveBeenCalledWith({ tab: "crafting" });
   });
 });

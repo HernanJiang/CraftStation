@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "@heroui/react";
 import type { AccountView } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
 import type { SharedSettings } from "@/shared/settings";
-import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
 import type {
   CapabilityResolution,
   HarnessReference,
@@ -11,43 +10,32 @@ import type {
   StoredRecipe,
 } from "@/shared/crafting/workbenchTypes";
 import { readBridge } from "@/renderer/bridge";
-import { runNativeAgentInstall } from "@/renderer/actions/installNativeAgent";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
-import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
 import {
   buildSelectedModelInventory,
   findSelectedModelEntry,
 } from "@/renderer/crafting/selectedModelInventory";
-import {
-  buildHarnessInventory,
-  findHarnessReference,
-  isRetiredHarnessKind,
-  NATIVE_HARNESS_AGENT_KINDS,
-} from "@/renderer/crafting/harnessInventory";
+import { buildHarnessInventory, findHarnessReference } from "@/renderer/crafting/harnessInventory";
 import { openHarnessConfiguration } from "@/renderer/crafting/openHarnessConfiguration";
+import { useNativeHarnessControlPlane } from "@/renderer/crafting/useNativeHarnessControlPlane";
 import { ModelsInventory } from "./workbench/ModelsInventory";
 import { HarnessInventory } from "./workbench/HarnessInventory";
 import { ComponentsInventory } from "./workbench/ComponentsInventory";
 import { EfficientWorkbench } from "./workbench/EfficientWorkbench";
 import { CreativeWorkbenchShell } from "./workbench/CreativeWorkbenchShell";
-import { HarnessCliPanel } from "./workbench/HarnessCliPanel";
-import { MyRecipesQuickList } from "./workbench/MyRecipesQuickList";
+import { RecipesRail } from "./workbench/RecipesRail";
 import { RecipeSaveDialog } from "./workbench/RecipeSaveDialog";
 import { RecipeLoadConfirmDialog } from "./workbench/RecipeLoadConfirmDialog";
 
-// Inflight dedup across mounts: re-opening the workbench tab while a scoped
-// probe is still running reuses that probe instead of stacking another full
-// 8-harness × (native + WSL) detection sweep.
-let refreshHarnessInflight: Promise<void> | undefined;
-
 /**
- * Crafting Workbench page: the "合成台" first-level tab of the model-usage
- * workspace. It composes the two workbench modes, the three-column inventory,
- * the shared inspector, the My Recipes quick list and the right Harness/CLI
- * panel. The single Workbench store is the only source of draft/recipe state.
+ * Crafting Workbench page: the "合成台与配方" first-level tab of the
+ * model-usage workspace. It composes the two workbench modes, the
+ * three-column inventory and a right rail of saved-recipe cards. Harness/CLI
+ * channels moved to the dedicated Harness map tab. The single Workbench store
+ * is the only source of draft/recipe state.
  */
 export function CraftingWorkbenchPage(props: {
   accounts: AccountView[];
@@ -74,7 +62,6 @@ export function CraftingWorkbenchPage(props: {
   const clearCreativeDraft = useCraftingWorkbenchStore((state) => state.clearCreativeDraft);
   const attachResolution = useCraftingWorkbenchStore((state) => state.attachResolution);
   const saveRecipe = useCraftingWorkbenchStore((state) => state.saveRecipe);
-  const deleteRecipe = useCraftingWorkbenchStore((state) => state.deleteRecipe);
   const loadRecipeToDraft = useCraftingWorkbenchStore((state) => state.loadRecipeToDraft);
   const setInspector = useCraftingWorkbenchStore((state) => state.setInspector);
   const recipes = useCraftingWorkbenchStore((state) => state.recipes);
@@ -90,11 +77,7 @@ export function CraftingWorkbenchPage(props: {
   const [pendingSave, setPendingSave] = useState<Parameters<typeof saveRecipe>[0]>();
   const [loadOpen, setLoadOpen] = useState(false);
   const [loadRecipeId, setLoadRecipeId] = useState<string | undefined>(undefined);
-  const [nativeEntries, setNativeEntries] = useState<NativeHarnessControlPlaneEntry[]>([]);
-  const [nativeLoading, setNativeLoading] = useState(true);
-  const [highlightedKind, setHighlightedKind] = useState<string | undefined>(undefined);
   const [crafting, setCrafting] = useState(false);
-  const [installingKinds, setInstallingKinds] = useState<ReadonlySet<string>>(() => new Set());
 
   // Enter the requested mode once when opened from a chat entry.
   useEffect(() => {
@@ -102,103 +85,9 @@ export function CraftingWorkbenchPage(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryMode]);
 
-  // Projection read only. The control plane reshapes already-detected
-  // AgentStatuses — it never probes the machine, so supervisor detection
-  // events re-read this without re-triggering detection (no event loop).
-  const readControlPlane = useCallback(async () => {
-    try {
-      const entries = await readBridge().getNativeHarnessControlPlane({});
-      setNativeEntries(entries);
-    } catch {
-      // Keep the previous projection; the next detection event retries.
-    }
-  }, []);
-
-  // Open and manual refresh: run real scoped agent detection first (this
-  // invalidates the executable-path cache and re-reads PATH supervisor-side,
-  // so a CLI installed while CraftStation was running is found without a
-  // restart), then project the fresh statuses into the control plane. The
-  // projection is re-read on every outcome — success, degraded or failure —
-  // so the panel always settles on the last cached result instead of going
-  // blank.
-  const refreshHarness = useCallback(async () => {
-    setNativeLoading(true);
-    try {
-      if (!refreshHarnessInflight) {
-        refreshHarnessInflight = (async () => {
-          try {
-            const response = await readBridge().refreshAgentStatuses(currentWslDistros(), {
-              agentKinds: [...NATIVE_HARNESS_AGENT_KINDS],
-            });
-            if (response.degraded) {
-              console.warn("[crafting] agent status refresh degraded", response.degraded);
-              toast.warning("Agent 状态刷新超时，已保留上次结果。请稍后重试。");
-            }
-          } catch (error) {
-            console.warn("[crafting] failed to refresh agent statuses", error);
-            toast.warning(`Agent 状态刷新失败，已保留上次结果：${friendlyError(error)}`);
-          } finally {
-            refreshHarnessInflight = undefined;
-          }
-        })();
-      }
-      await refreshHarnessInflight;
-      await readControlPlane();
-    } finally {
-      setNativeLoading(false);
-    }
-  }, [readControlPlane]);
-  useEffect(() => {
-    // Stale-while-revalidate: paint the cached control-plane projection first
-    // so the panel renders without waiting for live probes, then revalidate
-    // with a real scoped detection in the background.
-    void (async () => {
-      await readControlPlane();
-      void refreshHarness();
-    })();
-    const unsubscribe = readBridge().onSupervisorEvent((event) => {
-      if (
-        event.type === "agent-detected" ||
-        event.type === "agent-status-updated" ||
-        event.type === "windows-agent-statuses" ||
-        event.type === "wsl-agent-statuses"
-      ) {
-        void readControlPlane();
-      }
-    });
-    return unsubscribe;
-  }, [refreshHarness, readControlPlane]);
-
-  const handleInstallHarness = useCallback(
-    (entry: NativeHarnessControlPlaneEntry) => {
-      const kind = entry.descriptor.harnessKind;
-      setInstallingKinds((current) => new Set(current).add(kind));
-      const finish = () =>
-        setInstallingKinds((current) => {
-          if (!current.has(kind)) return current;
-          const next = new Set(current);
-          next.delete(kind);
-          return next;
-        });
-      const opened = runNativeAgentInstall({
-        agentKind: kind,
-        label: entry.descriptor.label,
-        onComplete: (ok) => {
-          if (!ok) {
-            finish();
-            return;
-          }
-          // The shared install action already refreshed agent statuses; the
-          // fresh detection events re-read the control plane, but read it once
-          // more here so the row settles even if an event was missed.
-          void readControlPlane().finally(finish);
-        },
-        onRetry: () => handleInstallHarness(entry),
-      });
-      if (!opened) finish();
-    },
-    [readControlPlane],
-  );
+  // Native harness control plane (cached paint + scoped revalidation +
+  // supervisor events + install) is shared with the Harness map tab.
+  const { entries: nativeEntries, setHighlightedKind } = useNativeHarnessControlPlane();
 
   const modelEntries = useMemo(
     () =>
@@ -224,12 +113,6 @@ export function CraftingWorkbenchPage(props: {
     ],
   );
   const harnessEntries = useMemo(() => buildHarnessInventory(nativeEntries), [nativeEntries]);
-  // Retired catalogue entries (e.g. DeepSeek API Runtime) stay out of the
-  // sidebar list as well; the runtime remains for saved recipes/threads.
-  const visibleNativeEntries = useMemo(
-    () => nativeEntries.filter((entry) => !isRetiredHarnessKind(entry.descriptor.harnessKind)),
-    [nativeEntries],
-  );
 
   const selectedModel = findSelectedModelEntry(modelEntries, efficientDraft.modelEntryRef);
   const selectedHarness = findHarnessReference(harnessEntries, efficientDraft.harnessRef);
@@ -468,8 +351,8 @@ export function CraftingWorkbenchPage(props: {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
           {mode === "efficient" ? (
             <>
-              {/* 顶部：合成台（主视觉） | 紧凑结果详情 | 已有配方 */}
-              <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-start gap-3">
+              {/* 顶部：合成台（主视觉） | 紧凑结果详情 */}
+              <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
                 <EfficientWorkbench
                   model={selectedModel}
                   harness={selectedHarness}
@@ -521,18 +404,6 @@ export function CraftingWorkbenchPage(props: {
                     </p>
                   ) : null}
                 </div>
-
-                <div className="flex max-h-80 min-h-0 min-w-0 flex-col overflow-y-auto pr-1">
-                  <MyRecipesQuickList
-                    recipes={recipes}
-                    limit={100}
-                    onLoad={handleLoadRecipe}
-                    onDelete={(recipe) => deleteRecipe(recipe.id)}
-                    onViewAll={() =>
-                      usePanelStore.getState().openModelUsageWorkspace({ tab: "recipes" })
-                    }
-                  />
-                </div>
               </div>
 
               {/* 下方三列：填满剩余高度，各列内部滚动，不截断在半页 */}
@@ -572,11 +443,9 @@ export function CraftingWorkbenchPage(props: {
                   entries={harnessEntries}
                   selectedRef={efficientDraft.harnessRef}
                   onSelect={handleSelectHarness}
-                  onAdd={() => {
-                    document
-                      .querySelector('[data-testid="harness-cli-panel"]')
-                      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                  }}
+                  onAdd={() =>
+                    usePanelStore.getState().openModelUsageWorkspace({ tab: "harnesses" })
+                  }
                   summary={
                     selectedHarness ? (
                       <div
@@ -620,23 +489,8 @@ export function CraftingWorkbenchPage(props: {
           )}
         </div>
 
-        {/* Right Harness/CLI panel */}
-        <HarnessCliPanel
-          entries={visibleNativeEntries}
-          loading={nativeLoading}
-          highlightedKind={highlightedKind}
-          installingKinds={installingKinds}
-          onRefresh={() => void refreshHarness()}
-          onInstall={handleInstallHarness}
-          onShowDetail={(entry) => {
-            setHighlightedKind(entry.descriptor.harnessKind);
-            setInspector(entry.descriptor.harnessKind);
-            if (entry.status === "unavailable") return;
-            if (entry.status !== "ready") {
-              openHarnessConfiguration(entry.descriptor.harnessKind);
-            }
-          }}
-        />
+        {/* Right recipes rail */}
+        <RecipesRail onLoad={handleLoadRecipe} />
       </div>
 
       <RecipeSaveDialog

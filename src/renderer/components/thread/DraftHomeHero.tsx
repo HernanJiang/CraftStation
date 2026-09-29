@@ -51,7 +51,7 @@ export function DraftHomeHero() {
       icon: ScrollText,
       accentClass: "text-orange-400",
       label: "配方管理",
-      action: () => usePanelStore.getState().openModelUsageWorkspace({ tab: "recipes" }),
+      action: () => usePanelStore.getState().openModelUsageWorkspace({ tab: "crafting" }),
     },
   ];
 

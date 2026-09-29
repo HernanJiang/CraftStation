@@ -309,14 +309,17 @@ function sanitizeThreadSortMode(value: unknown): ThreadSortMode {
 }
 
 /** First-level tabs of the model-usage workspace. */
-export type ModelUsageWorkspaceTab = "usage" | "models" | "stats" | "crafting" | "recipes";
+export type ModelUsageWorkspaceTab = "usage" | "models" | "stats" | "harnesses" | "crafting";
 
 function sanitizeModelUsageWorkspaceTab(value: unknown): ModelUsageWorkspaceTab {
+  // Persisted "recipes" came from the old 我的配方 tab — that slot now shows
+  // the Harness map while recipes live inside the crafting tab's right rail.
+  if (value === "recipes") return "harnesses";
   return value === "usage" ||
     value === "models" ||
     value === "stats" ||
-    value === "crafting" ||
-    value === "recipes"
+    value === "harnesses" ||
+    value === "crafting"
     ? value
     : "usage";
 }

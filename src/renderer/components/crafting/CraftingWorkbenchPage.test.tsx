@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { toast } from "@heroui/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -163,26 +162,6 @@ describe("CraftingWorkbenchPage", () => {
     expect(screen.getByTestId("components-inventory-grid").className).not.toContain("max-h-72");
   });
 
-  it("opens agent settings when the user clicks a not-configured Harness/CLI row", async () => {
-    render(
-      <CraftingWorkbenchPage
-        accounts={[]}
-        customModels={[]}
-        onUpdateCustomModels={() => undefined}
-        configuredProviderIds={[]}
-        providerOrder={[]}
-      />,
-    );
-
-    const kimiRow = await screen.findByTestId("harness-cli-row-kimi");
-    fireEvent.click(kimiRow);
-
-    await waitFor(() => {
-      expect(usePanelStore.getState().settingsOpen).toBe(true);
-      expect(usePanelStore.getState().settingsSection).toBe("agents:kimi");
-    });
-  });
-
   it("hides the retired DeepSeek API Runtime from the bench catalogue", async () => {
     render(
       <CraftingWorkbenchPage
@@ -194,11 +173,9 @@ describe("CraftingWorkbenchPage", () => {
       />,
     );
 
-    // Sidebar rows load with the control plane; the retired kind stays out.
-    await screen.findByTestId("harness-cli-row-kimi");
-    expect(screen.queryByTestId("harness-cli-row-deepseek-api")).not.toBeInTheDocument();
-    // The pickable grid drops it too (only codex is ready/selectable here).
-    const grid = screen.getByTestId("harness-inventory-grid");
+    // The pickable grid drops the retired kind (only codex is ready/selectable
+    // here); the harness rows themselves live on the Harness map tab.
+    const grid = await screen.findByTestId("harness-inventory-grid");
     expect(grid.textContent).not.toContain("DeepSeek API Runtime");
   });
 
@@ -274,7 +251,7 @@ describe("CraftingWorkbenchPage", () => {
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
   });
 
-  it("paints the cached control plane first, then revalidates with scoped detection on open", async () => {
+  it("keeps the refresh-free workbench stable while the shared control-plane hook loads", async () => {
     render(
       <CraftingWorkbenchPage
         accounts={[]}
@@ -285,160 +262,11 @@ describe("CraftingWorkbenchPage", () => {
       />,
     );
 
-    // Rows render from the cached projection, before any live probe settles.
-    await screen.findByTestId("harness-cli-row-kimi");
+    // The shared hook paints the cached projection then revalidates with a
+    // scoped detection — the workbench itself no longer renders Harness rows
+    // (they live on the Harness map tab), but the inventory grid does.
+    await screen.findByTestId("harness-inventory-grid");
     await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
-    const [wslDistros, scope] = bridgeMock.refreshAgentStatuses.mock.calls[0] ?? [];
-    expect(wslDistros).toEqual([]);
-    expect(scope).toEqual({
-      agentKinds: expect.arrayContaining(["codex", "antigravity", "kimi", "muse"]),
-    });
-    // Stale-while-revalidate: the cached projection is read before detection.
     expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalled();
-    const firstProjectionRead =
-      bridgeMock.getNativeHarnessControlPlane.mock.invocationCallOrder[0] ?? Infinity;
-    const firstDetection = bridgeMock.refreshAgentStatuses.mock.invocationCallOrder[0] ?? Infinity;
-    expect(firstProjectionRead).toBeLessThan(firstDetection);
-  });
-
-  it("re-runs detection when the user clicks the Harness/CLI refresh button", async () => {
-    render(
-      <CraftingWorkbenchPage
-        accounts={[]}
-        customModels={[]}
-        onUpdateCustomModels={() => undefined}
-        configuredProviderIds={[]}
-        providerOrder={[]}
-      />,
-    );
-
-    await screen.findByTestId("harness-cli-row-kimi");
-    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(screen.getByTitle("刷新状态"));
-    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(bridgeMock.getNativeHarnessControlPlane.mock.calls.length).toBeGreaterThanOrEqual(2),
-    );
-  });
-
-  it("keeps the last control-plane rows and warns when status refresh times out", async () => {
-    const warning = vi.spyOn(toast, "warning").mockImplementation(() => "toast-timeout");
-    render(
-      <CraftingWorkbenchPage
-        accounts={[]}
-        customModels={[]}
-        onUpdateCustomModels={() => undefined}
-        configuredProviderIds={[]}
-        providerOrder={[]}
-      />,
-    );
-
-    const kimiRow = await screen.findByTestId("harness-cli-row-kimi");
-    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
-    bridgeMock.refreshAgentStatuses.mockRejectedValueOnce(
-      new Error('Supervisor request "refreshAgentStatuses" timed out.'),
-    );
-
-    fireEvent.click(screen.getByTitle("刷新状态"));
-
-    await waitFor(() => expect(warning).toHaveBeenCalled());
-    expect(kimiRow).toBeInTheDocument();
-    // The cached projection is re-read after the failure too, so the panel
-    // settles on the last known rows instead of going blank: mount read +
-    // post-detection read + post-failure read.
-    await waitFor(() => expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalledTimes(3));
-  });
-
-  it("re-reads the control plane on detection events without re-detecting", async () => {
-    render(
-      <CraftingWorkbenchPage
-        accounts={[]}
-        customModels={[]}
-        onUpdateCustomModels={() => undefined}
-        configuredProviderIds={[]}
-        providerOrder={[]}
-      />,
-    );
-
-    await screen.findByTestId("harness-cli-row-kimi");
-    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
-    const controlPlaneReads = bridgeMock.getNativeHarnessControlPlane.mock.calls.length;
-    const listener = bridgeMock.onSupervisorEvent.mock.calls[0]?.[0] as (event: unknown) => void;
-
-    listener({ type: "agent-status-updated", status: { kind: "antigravity" } });
-    await waitFor(() =>
-      expect(bridgeMock.getNativeHarnessControlPlane.mock.calls.length).toBeGreaterThan(
-        controlPlaneReads,
-      ),
-    );
-    // Projection events must not feed back into another detection sweep.
-    expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1);
-  });
-
-  it("installs an unavailable harness and refreshes status without a restart", async () => {
-    // The projection flips to installed-but-unconfigured only once the install
-    // actually completed — independent of how often it is re-read meanwhile.
-    let installed = false;
-    installMock.runNativeAgentInstall.mockImplementation(
-      (input: { onComplete?: (ok: boolean) => void }) => {
-        installed = true;
-        input.onComplete?.(true);
-        return true;
-      },
-    );
-    bridgeMock.getNativeHarnessControlPlane.mockImplementation(async () =>
-      installed
-        ? [entry("antigravity", "Antigravity Native Harness", "not-configured")]
-        : [entry("antigravity", "Antigravity Native Harness", "unavailable")],
-    );
-
-    render(
-      <CraftingWorkbenchPage
-        accounts={[]}
-        customModels={[]}
-        onUpdateCustomModels={() => undefined}
-        configuredProviderIds={[]}
-        providerOrder={[]}
-      />,
-    );
-
-    fireEvent.click(await screen.findByTestId("harness-cli-install-antigravity"));
-
-    await waitFor(() => expect(installMock.runNativeAgentInstall).toHaveBeenCalledTimes(1));
-    expect(installMock.runNativeAgentInstall).toHaveBeenCalledWith(
-      expect.objectContaining({ agentKind: "antigravity", label: "Antigravity Native Harness" }),
-    );
-    const row = await screen.findByTestId("harness-cli-row-antigravity");
-    await waitFor(() => expect(row.textContent).toContain("未配置"));
-    expect(row.textContent).not.toContain("未安装");
-  });
-
-  it("keeps the honest unavailable state after a failed install", async () => {
-    installMock.runNativeAgentInstall.mockImplementation(
-      (input: { onComplete?: (ok: boolean) => void }) => {
-        input.onComplete?.(false);
-        return true;
-      },
-    );
-
-    render(
-      <CraftingWorkbenchPage
-        accounts={[]}
-        customModels={[]}
-        onUpdateCustomModels={() => undefined}
-        configuredProviderIds={[]}
-        providerOrder={[]}
-      />,
-    );
-
-    fireEvent.click(await screen.findByTestId("harness-cli-install-antigravity"));
-    await waitFor(() => expect(installMock.runNativeAgentInstall).toHaveBeenCalledTimes(1));
-
-    // The row stays honestly 未安装 (the shared action surfaces the real error
-    // toast); the install action is offered again for a retry.
-    const row = await screen.findByTestId("harness-cli-row-antigravity");
-    await waitFor(() => expect(row.textContent).toContain("未安装"));
-    await waitFor(() => expect(screen.queryByText("Installing…")).not.toBeInTheDocument());
   });
 });
