@@ -1544,7 +1544,7 @@ function AccountRow(props: {
       data-account-id={account.accountId}
       className="self-start h-fit rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] dark:bg-[#17181c] p-3"
     >
-      <div className="flex min-w-0 items-start gap-2">
+      <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1">
         <GripVertical className="mt-0.5 size-3.5 shrink-0 text-neutral-500" aria-label="拖拽排序" />
         <span data-testid={"account-provider-icon-" + account.accountId} className="shrink-0">
           <ProviderBrandBadge
@@ -1553,17 +1553,15 @@ function AccountRow(props: {
             size="row"
           />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[5.5rem] flex-1">
           <p
             data-testid={"account-identity-" + account.accountId}
-            className="break-all text-[11px] font-medium leading-4 text-foreground"
+            className="truncate text-[11px] font-medium leading-4 text-foreground"
             title={account.providerAccountId ?? account.maskedIdentity ?? account.label}
           >
             {poolRowTitle(account)}
           </p>
-          <p className="break-words text-[9px] leading-4 text-neutral-500">
-            {accountPlan(account)}
-          </p>
+          <p className="truncate text-[9px] leading-4 text-neutral-500">{accountPlan(account)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1 self-start">
           {props.priorityRank ? (
@@ -1885,7 +1883,7 @@ function ManagedAccountPool(props: {
       ) : (
         <div
           data-testid={"account-grid-" + providerId}
-          className="grid grid-cols-2 items-start content-start auto-rows-max gap-2"
+          className="grid grid-cols-4 items-start content-start auto-rows-max gap-2"
         >
           {accounts.map((account, index) => (
             <AccountRow
