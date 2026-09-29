@@ -139,10 +139,16 @@ vi.mock("@/renderer/hooks/uiSelectors", () => ({
   useProjectAgentStatuses: () => fixtures.agentStatuses,
 }));
 
-vi.mock("@/renderer/state/sharedSettingsStore", () => ({
-  useSharedSettings: <T,>(selector: (state: { agentTerminalFontSize: number }) => T) =>
-    selector({ agentTerminalFontSize: 13 }),
-}));
+vi.mock("@/renderer/state/sharedSettingsStore", () => {
+  const state = { agentTerminalFontSize: 13, customModels: [] };
+  const useSharedSettings = (<T,>(selector: (s: typeof state) => T) => selector(state)) as (<T>(
+    selector: (s: typeof state) => T,
+  ) => T) & {
+    getState: () => typeof state;
+  };
+  useSharedSettings.getState = () => state;
+  return { useSharedSettings };
+});
 
 vi.mock("@/renderer/state/useThread", () => ({
   useProject: () => fixtures.project,

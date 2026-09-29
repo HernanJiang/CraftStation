@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allUsageProviderDescriptors } from "@craftstation/agents-usage";
 import {
@@ -81,6 +81,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   rmSync(cacheDir, { recursive: true, force: true });
 });
@@ -114,6 +115,46 @@ describe("UsageLoginManager provider catalog", () => {
     expect(Object.keys(manager.getLoginState().stored).every((id) => descriptorIds.has(id))).toBe(
       true,
     );
+  });
+
+  it("reports antigravity signed-in when only pooled account buckets remain", () => {
+    const manager = newManager(makePanel());
+    // Host-login import moves the bundle into `antigravity:<id>` pool rows and
+    // drains the plain bucket — the provider must still read as signed in.
+    expect(manager.getLoginState().stored["antigravity"]).toBe(false);
+
+    setUsageSecret(cacheDir, "antigravity:acct-1", "refreshToken", "refresh-1");
+
+    expect(manager.getLoginState().stored["antigravity"]).toBe(true);
+  });
+
+  it("reports stepcode signed-in from the native auth.json file", () => {
+    const home = mkdtempSync(join(tmpdir(), "lc-stepcode-home-"));
+    const authFile = join(home, ".stepcode", "auth.json");
+    mkdirSync(dirname(authFile), { recursive: true });
+    writeFileSync(authFile, JSON.stringify({ step: { type: "oauth", access: "a" } }));
+    vi.stubEnv("USERPROFILE", home);
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("STEPCODE_AUTH_PATH", "");
+    vi.stubEnv("STEPCODE_CONFIG_DIR", "");
+    vi.stubEnv("STEP_CODING_AGENT_DIR", "");
+    vi.stubEnv("STEP_API_KEY", "");
+
+    const manager = newManager(makePanel());
+    expect(manager.getLoginState().stored["stepcode"]).toBe(true);
+  });
+
+  it("reports stepcode signed-out when no credential file holds entries", () => {
+    const home = mkdtempSync(join(tmpdir(), "lc-stepcode-home-"));
+    vi.stubEnv("USERPROFILE", home);
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("STEPCODE_AUTH_PATH", "");
+    vi.stubEnv("STEPCODE_CONFIG_DIR", "");
+    vi.stubEnv("STEP_CODING_AGENT_DIR", "");
+    vi.stubEnv("STEP_API_KEY", "");
+
+    const manager = newManager(makePanel());
+    expect(manager.getLoginState().stored["stepcode"]).toBe(false);
   });
 });
 

@@ -12,8 +12,9 @@ import { resolveKimiToken } from "./kimiCredentials";
 import { resolveQwenUsageToken } from "./qwenCredentials";
 import { resolveZaiToken } from "./zaiCredentials";
 import {
+  antigravityRefreshBucket,
   refreshStoredAntigravityToken,
-  resolveStoredAntigravityToken,
+  resolveAnyStoredAntigravityToken,
 } from "./antigravityCredentials";
 
 /**
@@ -65,12 +66,14 @@ export function createNativeCredentialStore(
   settingsPath?: string,
 ): CredentialStore {
   const resolvers = tokenResolvers(settingsPath);
-  if (cacheDir) resolvers.antigravity = () => resolveStoredAntigravityToken(cacheDir);
+  if (cacheDir) resolvers.antigravity = () => resolveAnyStoredAntigravityToken(cacheDir);
   return {
     getOAuthToken: async (providerId) => resolvers[providerId]?.(),
     refreshOAuthToken: async (providerId, token) =>
       providerId === "antigravity" && cacheDir
-        ? refreshStoredAntigravityToken(cacheDir)
+        ? // Pool imports drain the plain bucket — refresh whichever bucket the
+          // token actually came from (raw.bucket), not always the empty default.
+          refreshStoredAntigravityToken(cacheDir, antigravityRefreshBucket(cacheDir, token))
         : tokenRefreshers[providerId]?.(token),
     // Captured session secrets (e.g. a browser-login cookie) live in the
     // safeStorage-sealed store written by main; decrypt and return on demand.

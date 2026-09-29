@@ -484,7 +484,14 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
 
         let effectiveStatus = input.status;
         let effectiveAttention = input.attention;
-        if (
+        if (input.status === "finished" && isVisible) {
+          // `finished` is the unread-completion badge; a thread the user is
+          // watching is already acknowledged (same rule the remote snapshot
+          // sync applies). Native adapters emit `finished` directly — without
+          // this the badge lands on the open thread and the Workspace inbox
+          // card only clears on the next navigation.
+          effectiveStatus = "idle";
+        } else if (
           input.status === "idle" &&
           (thread.status === "working" || thread.status === "finished") &&
           !isVisible

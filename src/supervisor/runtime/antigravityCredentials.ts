@@ -3,6 +3,8 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 import {
   getUsageSecret,
+  hasUsageSecretKey,
+  listUsageSecretAccountBuckets,
   reportUndecryptableSecret,
   setUsageSecret,
 } from "@/shared/usageSecretStore";
@@ -163,8 +165,62 @@ export async function resolveStoredAntigravityToken(
     ...(Number.isFinite(expiresAt) ? { expiresAt } : {}),
     ...(tokenType ? { tokenType } : {}),
     ...(email ? { email } : {}),
-    raw: { projectId: getUsageSecret(cacheDir, bucket, "projectId", reportUndecryptableSecret) },
+    raw: {
+      projectId: getUsageSecret(cacheDir, bucket, "projectId", reportUndecryptableSecret),
+      // Lets a later refreshOAuthToken call route back to the bucket this token
+      // came from (the default bucket vs. a specific pool row).
+      bucket,
+    },
   };
+}
+
+/**
+ * Usage-collector token resolution: the plain `antigravity` bucket first, then
+ * the `antigravity:<accountId>` pool rows. `importHostLogin` drains the plain
+ * bucket into the pool on every sign-in, so a provider-level lookup that stops
+ * at the default bucket reads pooled credentials as signed-out after restart.
+ * Pool rows are visited in deterministic (sorted) order; the first one holding
+ * a refresh token wins — `resolveStoredAntigravityToken` refreshes expired
+ * access tokens itself and persists rotations back into that same bucket.
+ */
+export async function resolveAnyStoredAntigravityToken(
+  cacheDir: string,
+  httpClient?: HttpClient,
+): Promise<OAuthToken | undefined> {
+  const direct = await resolveStoredAntigravityToken(cacheDir, PROVIDER_ID, httpClient);
+  if (direct?.accessToken || direct?.refreshToken) return direct;
+  for (const bucket of listUsageSecretAccountBuckets(cacheDir, PROVIDER_ID)) {
+    if (
+      !hasUsageSecretKey(cacheDir, bucket, "refreshToken") &&
+      !hasUsageSecretKey(cacheDir, bucket, "accessToken")
+    ) {
+      continue;
+    }
+    const token = await resolveStoredAntigravityToken(cacheDir, bucket, httpClient).catch(
+      () => undefined,
+    );
+    if (token?.accessToken || token?.refreshToken) return token;
+  }
+  return undefined;
+}
+
+/**
+ * Bucket to refresh against: the one the caller's token was resolved from
+ * (`raw.bucket`), else the default bucket, else the first pool row holding a
+ * refresh token. Refreshing the wrong bucket would rotate tokens nobody reads.
+ */
+export function antigravityRefreshBucket(
+  cacheDir: string,
+  token?: { raw?: Record<string, unknown> },
+): string {
+  const fromToken = token?.raw?.["bucket"];
+  if (typeof fromToken === "string" && fromToken.trim()) return fromToken;
+  if (hasUsageSecretKey(cacheDir, PROVIDER_ID, "refreshToken")) return PROVIDER_ID;
+  return (
+    listUsageSecretAccountBuckets(cacheDir, PROVIDER_ID).find((bucket) =>
+      hasUsageSecretKey(cacheDir, bucket, "refreshToken"),
+    ) ?? PROVIDER_ID
+  );
 }
 
 export async function refreshStoredAntigravityToken(

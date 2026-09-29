@@ -1,7 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, isAbsolute, join } from "node:path";
+import { readFileSync } from "node:fs";
 import type { AgentCapability, AgentProviderMetadata, ProjectLocation } from "@/shared/contracts";
+import { hasNativeStepCodeCredentials, nativeStepCodeAuthPath } from "@/shared/stepcodePaths";
 import {
   batchWslCommandsAsync,
   envVarAuthProbe,
@@ -19,37 +18,16 @@ const STEP_AUTH_ENV_KEYS = [
   "STEPCODE_CONFIG_PATH",
 ] as const;
 
-/**
- * Step Code config root holding `auth.json`/`models.json` — one level above
- * the agent dir (`<root>/agent`). `STEPCODE_CONFIG_DIR` renames the default
- * `~/.stepcode` root; `STEP_CODING_AGENT_DIR` relocates `<root>/agent`.
- */
-export function stepCodeConfigRoot(): string {
-  const agentDir = process.env.STEP_CODING_AGENT_DIR?.trim();
-  if (agentDir) return dirname(agentDir);
-  const configDir = process.env.STEPCODE_CONFIG_DIR?.trim();
-  if (configDir) return isAbsolute(configDir) ? configDir : join(homedir(), configDir);
-  return join(homedir(), ".stepcode");
-}
-
-/** Step Code agent home (`<root>/agent`) — sessions and settings live inside. */
-export function stepCodeAgentHomePath(): string {
-  return process.env.STEP_CODING_AGENT_DIR?.trim() || join(stepCodeConfigRoot(), "agent");
-}
-
-export function nativeStepCodeAuthPath(): string {
-  return process.env.STEPCODE_AUTH_PATH?.trim() || join(stepCodeConfigRoot(), "auth.json");
-}
-
-function nativeStepCodeAuthCandidates(): string[] {
-  return [
-    nativeStepCodeAuthPath(),
-    // Pre-rename locations Step Code still imports credentials from.
-    join(homedir(), ".stepcode", "legacy-auth.json"),
-    join(homedir(), ".step-harness", "auth.json"),
-    join(homedir(), ".step-harness", "agent", "auth.json"),
-  ];
-}
+// Canonical location logic lives in `@/shared/stepcodePaths` so the main
+// process (usage login state) resolves the same paths without importing the
+// supervisor's probe machinery. Re-exported here to keep this module's public
+// surface unchanged.
+export {
+  nativeStepCodeAuthCandidates,
+  nativeStepCodeAuthPath,
+  stepCodeAgentHomePath,
+  stepCodeConfigRoot,
+} from "@/shared/stepcodePaths";
 
 function nativeAuthProvidersFor(path: string): string[] {
   try {
@@ -71,11 +49,7 @@ const stepCodeAuthFileProbe: AuthProbe = async (ctx) => {
     );
     return result?.ok ? "authenticated" : "missing";
   }
-  return nativeStepCodeAuthCandidates().some(
-    (path) => existsSync(path) && nativeAuthProvidersFor(path).length > 0,
-  )
-    ? "authenticated"
-    : "missing";
+  return hasNativeStepCodeCredentials() ? "authenticated" : "missing";
 };
 
 export const stepCodeDefaultCapabilities: AgentCapability = {

@@ -1,5 +1,6 @@
 import type { HostPort, UsageSnapshot } from "@craftstation/agents-usage";
 import { scanAntigravityUsage } from "../agents/antigravity/antigravityUsageScanner";
+import { scanStepCodeUsage } from "../agents/stepcode/stepcodeUsageScanner";
 import { scanOpenCodeUsage } from "./openCodeUsageScanner";
 
 /**
@@ -31,5 +32,8 @@ export function createLocalUsageCollectors(
       collect: (nowMs, host) =>
         scanAntigravityUsage(nowMs, options.getActiveAntigravityWslDistros?.() ?? [], host),
     },
+    // auth.json presence is the whole signal — `step login` lands there
+    // regardless of which surface ran it, and Step Plan exposes no quota API.
+    { id: "stepcode", collect: (nowMs) => Promise.resolve(scanStepCodeUsage(nowMs)) },
   ];
 }

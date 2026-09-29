@@ -231,6 +231,25 @@ export function hasUsageSecretKey(cacheDir: string, providerId: string, key: str
 }
 
 /**
+ * Sorted `<providerId>:<accountId>` pool bucket names that still hold at least
+ * one key in either secrets file. Managed-account imports drain the provider's
+ * plain bucket into `providerId:accountId` rows, so provider-level lookups that
+ * only probe the plain bucket must enumerate these to see pooled credentials
+ * (e.g. Antigravity's host-login bundle always ends up in a pool row).
+ */
+export function listUsageSecretAccountBuckets(cacheDir: string, providerId: string): string[] {
+  const prefix = `${providerId}:`;
+  const names = new Set<string>();
+  for (const path of [usageSecretsPath(cacheDir), usageDurableSecretsPath(cacheDir)]) {
+    const data = readAll(path);
+    for (const [bucket, entries] of Object.entries(data)) {
+      if (bucket.startsWith(prefix) && Object.keys(entries ?? {}).length > 0) names.add(bucket);
+    }
+  }
+  return [...names].sort();
+}
+
+/**
  * Read and unseal a provider secret, or undefined when absent/undecryptable.
  *
  * Tries the Electron-scoped vault first (current key plus older-identity

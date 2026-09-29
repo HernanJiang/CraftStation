@@ -120,10 +120,11 @@ export function builtInUsageProviderDescriptors(): UsageProviderDescriptor[] {
  * Most providers are HTTP collectors registered in `registry.ts`. A couple are
  * collected supervisor-side because they need process / SQLite access the pure
  * HTTP registry can't do — they have a descriptor here but no package collector:
- * `antigravity` probes its local language server (cli-jsonrpc), and `opencode`
+ * `antigravity` probes its local language server (cli-jsonrpc), `opencode`
  * needs the supervisor for the opencode.ai cookie session plus a local
- * `auth.json` probe (Go plan badge). Go quota meters are web-only — never
- * derived from local `opencode.db` spend.
+ * `auth.json` probe (Go plan badge), and `stepcode` reads its local
+ * `~/.stepcode/auth.json` for sign-in identity. Go quota meters are web-only —
+ * never derived from local `opencode.db` spend.
  */
 export const LOCAL_USAGE_PROVIDER_DESCRIPTORS: readonly UsageProviderDescriptor[] = [
   {
@@ -146,8 +147,9 @@ export const LOCAL_USAGE_PROVIDER_DESCRIPTORS: readonly UsageProviderDescriptor[
     id: "stepcode",
     label: "Step Code",
     // Login is the CLI's own `step login` flow (see CLI_LOGIN_COMMANDS in the
-    // renderer); credential presence lives in ~/.stepcode/auth.json. No quota
-    // API is exposed yet, so the card reports identity only.
+    // renderer); a supervisor-local collector reads ~/.stepcode/auth.json for
+    // sign-in identity. No quota API is exposed yet, so the card reports
+    // identity only.
     mechanism: "cli-jsonrpc",
     needsLogin: true,
     windowIds: [],

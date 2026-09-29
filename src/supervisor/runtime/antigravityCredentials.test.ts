@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HttpClient } from "@craftstation/agents-usage";
 import { setUsageSecret } from "@/shared/usageSecretStore";
 import {
+  antigravityRefreshBucket,
   clearAntigravityAdcCredential,
   materializeAntigravityAdcCredential,
   refreshStoredAntigravityToken,
+  resolveAnyStoredAntigravityToken,
   writeAntigravityAdcCredential,
 } from "./antigravityCredentials";
 
@@ -54,6 +56,72 @@ describe("refreshStoredAntigravityToken", () => {
     expect(left?.accessToken).toBe("fresh-access");
     expect(right?.accessToken).toBe("fresh-access");
     expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveAnyStoredAntigravityToken", () => {
+  it("falls back to pool buckets when the default bucket was drained by import", async () => {
+    const cacheDir = mkdtempSync(join(tmpdir(), "craftstation-antigravity-pool-"));
+    cacheDirs.push(cacheDir);
+    // Host-login import moved the bundle into the pool row — the plain
+    // "antigravity" bucket is empty, which used to read as signed-out.
+    setUsageSecret(cacheDir, "antigravity:acct-1", "accessToken", "pool-access");
+    setUsageSecret(cacheDir, "antigravity:acct-1", "refreshToken", "pool-refresh");
+    setUsageSecret(cacheDir, "antigravity:acct-1", "email", "pool@example.com");
+
+    const token = await resolveAnyStoredAntigravityToken(cacheDir);
+    expect(token?.accessToken).toBe("pool-access");
+    expect(token?.email).toBe("pool@example.com");
+    expect(token?.raw?.["bucket"]).toBe("antigravity:acct-1");
+  });
+
+  it("prefers the plain bucket when a host-login bundle still exists", async () => {
+    const cacheDir = mkdtempSync(join(tmpdir(), "craftstation-antigravity-pool-"));
+    cacheDirs.push(cacheDir);
+    setUsageSecret(cacheDir, "antigravity", "accessToken", "host-access");
+    setUsageSecret(cacheDir, "antigravity:acct-1", "accessToken", "pool-access");
+
+    const token = await resolveAnyStoredAntigravityToken(cacheDir);
+    expect(token?.accessToken).toBe("host-access");
+    expect(token?.raw?.["bucket"]).toBe("antigravity");
+  });
+
+  it("skips buckets with no usable credential and returns undefined when empty", async () => {
+    const cacheDir = mkdtempSync(join(tmpdir(), "craftstation-antigravity-pool-"));
+    cacheDirs.push(cacheDir);
+    setUsageSecret(cacheDir, "antigravity:acct-1", "email", "only-email@example.com");
+
+    await expect(resolveAnyStoredAntigravityToken(cacheDir)).resolves.toBeUndefined();
+  });
+});
+
+describe("antigravityRefreshBucket", () => {
+  it("routes the refresh to the bucket stamped on the token", () => {
+    const cacheDir = mkdtempSync(join(tmpdir(), "craftstation-antigravity-pool-"));
+    cacheDirs.push(cacheDir);
+    setUsageSecret(cacheDir, "antigravity:acct-1", "refreshToken", "r1");
+    setUsageSecret(cacheDir, "antigravity:acct-2", "refreshToken", "r2");
+
+    expect(antigravityRefreshBucket(cacheDir, { raw: { bucket: "antigravity:acct-2" } })).toBe(
+      "antigravity:acct-2",
+    );
+  });
+
+  it("finds the first pool bucket holding a refresh token for legacy tokens", () => {
+    const cacheDir = mkdtempSync(join(tmpdir(), "craftstation-antigravity-pool-"));
+    cacheDirs.push(cacheDir);
+    setUsageSecret(cacheDir, "antigravity:acct-9", "refreshToken", "r9");
+    setUsageSecret(cacheDir, "antigravity:acct-1", "accessToken", "a1");
+
+    expect(antigravityRefreshBucket(cacheDir)).toBe("antigravity:acct-9");
+  });
+
+  it("defaults to the plain bucket when it holds the refresh token", () => {
+    const cacheDir = mkdtempSync(join(tmpdir(), "craftstation-antigravity-pool-"));
+    cacheDirs.push(cacheDir);
+    setUsageSecret(cacheDir, "antigravity", "refreshToken", "host-r");
+
+    expect(antigravityRefreshBucket(cacheDir)).toBe("antigravity");
   });
 });
 

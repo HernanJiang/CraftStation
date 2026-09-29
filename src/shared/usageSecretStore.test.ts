@@ -12,6 +12,7 @@ import {
   clearUsageSecret,
   getUsageSecret,
   hasUsageSecret,
+  listUsageSecretAccountBuckets,
   setUsageSecret,
   usageDurableSecretsPath,
   usageSecretsPath,
@@ -112,5 +113,23 @@ describe("usageSecretStore", () => {
     setUsageSecret(cacheDir, "grok", "token", "t");
     clearUsageSecret(cacheDir, "grok");
     expect(hasUsageSecret(cacheDir, "grok")).toBe(false);
+  });
+
+  it("lists pooled account buckets for one provider only, sorted and deduped", () => {
+    setUsageSecret(cacheDir, "antigravity:acct-b", "refreshToken", "rb");
+    setUsageSecret(cacheDir, "antigravity", "accessToken", "a0");
+    setUsageSecret(cacheDir, "antigravity:acct-a", "accessToken", "aa");
+    setUsageSecret(cacheDir, "opencode", "cookie", "c");
+    setUsageSecret(cacheDir, "antigravityx:other", "token", "t");
+
+    expect(listUsageSecretAccountBuckets(cacheDir, "antigravity")).toEqual([
+      "antigravity:acct-a",
+      "antigravity:acct-b",
+    ]);
+    expect(listUsageSecretAccountBuckets(cacheDir, "grok")).toEqual([]);
+  });
+
+  it("returns no buckets when the secrets files are missing or unreadable", () => {
+    expect(listUsageSecretAccountBuckets(cacheDir, "antigravity")).toEqual([]);
   });
 });

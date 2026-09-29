@@ -742,6 +742,60 @@ describe("appStore runtime config sync", () => {
     expect(useAppStore.getState().threads[0]?.status).toBe("idle");
   });
 
+  it("working→finished on a visible thread stays idle (no unread badge)", () => {
+    const project = useAppStore.getState().addProject({
+      kind: "windows",
+      path: "C:\\repo",
+    });
+    const t1 = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "codex",
+      config: { model: "m" },
+      prompt: "a",
+    });
+
+    // t1 is visible (createThread sets view to its pane). Native adapters emit
+    // `finished` directly rather than `idle` — watching the thread is the
+    // acknowledgement, so the unread-completion badge must not land.
+    useAppStore.getState().updateThreadRuntime(t1.id, {
+      status: "working",
+      attention: "working",
+      canResumeWithConfig: false,
+    });
+    useAppStore.getState().updateThreadRuntime(t1.id, {
+      status: "finished",
+      attention: "none",
+      canResumeWithConfig: true,
+    });
+    expect(useAppStore.getState().threads[0]?.status).toBe("idle");
+  });
+
+  it("working→finished on a non-visible thread keeps the finished badge", () => {
+    const project = useAppStore.getState().addProject({
+      kind: "windows",
+      path: "C:\\repo",
+    });
+    const t1 = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "codex",
+      config: { model: "m" },
+      prompt: "a",
+    });
+
+    useAppStore.setState((s) => ({ ...s, view: { kind: "home" } }));
+    useAppStore.getState().updateThreadRuntime(t1.id, {
+      status: "working",
+      attention: "working",
+      canResumeWithConfig: false,
+    });
+    useAppStore.getState().updateThreadRuntime(t1.id, {
+      status: "finished",
+      attention: "none",
+      canResumeWithConfig: true,
+    });
+    expect(useAppStore.getState().threads[0]?.status).toBe("finished");
+  });
+
   it("preserves the stored session ref when runtime re-emits the same provider id", () => {
     const project = useAppStore.getState().addProject({
       kind: "windows",

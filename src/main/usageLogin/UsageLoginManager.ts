@@ -24,8 +24,10 @@ import {
   clearUsageSecret,
   getUsageSecret,
   hasUsageSecret,
+  listUsageSecretAccountBuckets,
   setUsageSecret,
 } from "@/shared/usageSecretStore";
+import { hasNativeStepCodeCredentials, nativeStepCodeAuthCandidates } from "@/shared/stepcodePaths";
 import {
   PROVIDER_CONFIGS,
   USAGE_PROVIDER_BY_ID,
@@ -126,6 +128,19 @@ export class UsageLoginManager {
     for (const providerId of Object.keys(PROVIDER_CONFIGS)) {
       stored[providerId] = hasUsageSecret(this.paths.cacheDir, providerId);
     }
+    // Antigravity never retains its plain bucket: every host login is imported
+    // (moved) into an `antigravity:<accountId>` pool row, so the durable
+    // sign-in signal is "any pool bucket still holds a secret". Without this
+    // the card reads as signed-out after every restart even though the pool
+    // credentials are intact.
+    stored.antigravity =
+      hasUsageSecret(this.paths.cacheDir, "antigravity") ||
+      listUsageSecretAccountBuckets(this.paths.cacheDir, "antigravity").length > 0;
+    // Step Code signs in via its own `step login` terminal flow, which writes
+    // ~/.stepcode/auth.json — not the sealed vault. Report that file directly
+    // so the login state survives restarts.
+    stored.stepcode =
+      hasUsageSecret(this.paths.cacheDir, "stepcode") || hasNativeStepCodeCredentials();
     return { stored };
   }
 
@@ -146,6 +161,7 @@ export class UsageLoginManager {
     // reappear on the very next usage refresh.
     if (providerId === "opencode") this.clearOpenCodeAuth();
     if (providerId === "commandcode") this.clearCommandCodeAuth();
+    if (providerId === "stepcode") this.clearStepCodeAuth();
     if (providerId === "devin") {
       for (const path of this.options.devinCredentialFiles ?? nativeDevinCredentialPaths()) {
         rmSync(path, { force: true });
@@ -172,6 +188,28 @@ export class UsageLoginManager {
     const authPath =
       this.options.commandCodeAuthFile ?? join(homedir(), ".commandcode", "auth.json");
     rmSync(authPath, { force: true });
+  }
+
+  /**
+   * Step Code's authorization lives in the official CLI home — `auth.json`
+   * provider entries written by `step login`. Removing the `step` entry (the
+   * same key the detector and usage scanner read) makes sign-out stick across
+   * restarts instead of resurrecting on the next auth-file probe.
+   */
+  private clearStepCodeAuth(): void {
+    for (const authPath of nativeStepCodeAuthCandidates()) {
+      if (!existsSync(authPath)) continue;
+      try {
+        const parsed = JSON.parse(readFileSync(authPath, "utf8")) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+        const record = parsed as Record<string, unknown>;
+        if (!Object.prototype.hasOwnProperty.call(record, "step")) continue;
+        delete record["step"];
+        writeFileSync(authPath, JSON.stringify(record, null, 2), "utf8");
+      } catch {
+        rmSync(authPath, { force: true });
+      }
+    }
   }
 
   /**

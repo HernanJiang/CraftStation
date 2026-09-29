@@ -1,3 +1,14 @@
+## 凭证持久化 + 完成通知卡不消失 hotfix（2026-09-30）
+
+- **用户报告**：① 任务完成通知卡（Workspace 收件箱）在用户一直停留在该线程时不自动消失，必须切走再切回；② Step Code 与 Antigravity 凭证「有时候可用、有时候重启就没了」；③ Step Code 登录后应在「模型与用量」显示额度窗口。
+- **通知卡根因**：PTY/structured adapter 会直接推 `status:"finished"`（非 `idle`），`threadSlice` 的可见性抑制只拦截入站 `idle`——可见线程被挂上未读 `finished` 徽章，收件箱卡片常驻；`clearFinished` 只在 view/pane 切换时跑，所以「切走再切回」看似修复。
+- **通知卡修复**：`updateThreadRuntime` 对入站 `finished` + 线程可见时降级为 `idle`（与远程 snapshot sync 同一规则）；不可见线程照常保留未读徽章。回归用例覆盖可见/不可见两路。
+- **Antigravity 根因（实测）**：`provider-secrets*.json` 里只有 8 个 `antigravity:<accountId>` 池桶，无默认 `antigravity` 桶——host-login `importHostLogin` 把凭证搬进池行；但 scanner 的 `getOAuthToken("antigravity")` 与 `getLoginState()` 只读默认桶 → LS 停/重启后读作未登录（LS 运行时身份来自 LS，掩盖了问题）。
+- **Antigravity 修复**：`usageSecretStore` 新增 `listUsageSecretAccountBuckets`（枚举 `provider:` 前缀池桶，主/durable 两文件合并去重排序）；`resolveAnyStoredAntigravityToken` 默认桶缺失时按序兜底池桶，`token.raw.bucket` 记录来源桶；`antigravityRefreshBucket` 让 `refreshOAuthToken` 路由回实际桶（不再硬刷空的默认桶）；`getLoginState().stored.antigravity` 池桶任一非空即视为已登录。
+- **Step Code 持久化**：`~/.stepcode/auth.json` 由 `step login` 直写、从不进 sealed vault。抽 `src/shared/stepcodePaths.ts`（config root / agent home / auth 候选路径 / `hasNativeStepCodeCredentials`），detection 与 main 共用同一路径判定；`getLoginState().stored.stepcode` 纳入 auth.json 探测；`clearLogin("stepcode")` 删除各候选文件里的 `step` provider 项（保留其他 provider 项与配置），退登后不再复活。
+- **Step Code 用量卡片**：新增 `stepcodeUsageScanner`（supervisor-local collector）——读 auth.json 报 `status:"ok"` + `plan`（`step_plan`→"Step Plan"）+ 脱敏 `uid`，`windows:[]`；`STEP_API_KEY` 也认作登录态。实测 `api.stepfun.com` 除 `/v1/models`、`/step_plan/v1/models` 外全 404——无公开额度 API，卡片诚实显示身份不伪造窗口。collector 注册进 `localUsageCollectors` → stepcode 进 `configuredProviderIds` → 左侧渠道列表显示已授权的 Step Code 渠道并可管理其模型。
+- **验证**：154 个相关测试全过（新增：可见/不可见线程直收 `finished`、池桶枚举/兜底/refresh 路由、getLoginState 池桶与 auth.json、usageSecretStore 桶枚举）；typecheck + oxlint 零告警。
+
 ## 模型列表「快速模式」Fast 开关（2026-09-30）
 
 - **用户需求**：为已支持的 vendor 在模型列表加独立的 Fast/快速模式开关：Codex/ChatGPT（官方 `service_tier="fast"`）、Kimi（`kimi-for-coding` → `kimi-for-coding-highspeed`，官方 HighSpeed 档 ~5-6× 速度 ~3× 配额）、Grok（`grok-X` ↔ `grok-X-fast`，多个 fast 变体合并成一个开关）。
