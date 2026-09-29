@@ -12,6 +12,8 @@ describe("brandIdForVendorKind", () => {
     expect(brandIdForVendorKind("meta")).toBe("muse");
     expect(brandIdForVendorKind("cognition")).toBe("devin");
     expect(brandIdForVendorKind("devin")).toBe("devin");
+    expect(brandIdForVendorKind("minimax")).toBe("minimax");
+    expect(brandIdForVendorKind("stepfun")).toBe("stepcode");
   });
 
   it("passes brand keys and unknowns through, normalizes case", () => {
@@ -33,14 +35,12 @@ describe("brandIdForVendorKind", () => {
       "muse",
       "opencode",
       "devin",
+      "minimax",
+      "stepcode",
     ]) {
       expect(PROVIDER_BRANDS[target]).toBeDefined();
       expect(PROVIDER_LABELS[target]).toBeDefined();
+      expect(PROVIDER_BRANDS[target]?.logo).not.toBe("");
     }
-    expect(PROVIDER_BRANDS["deepseek"]?.logo).not.toBe("");
-    // Muse still has no licensed color mark vendored.
-    expect(PROVIDER_BRANDS["muse"]?.logo).toBe("");
-    // Grok uses the real vendored X mark.
-    expect(PROVIDER_BRANDS["grok"]?.logo).not.toBe("");
   });
 });

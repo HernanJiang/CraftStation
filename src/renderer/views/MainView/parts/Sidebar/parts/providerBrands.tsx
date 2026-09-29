@@ -14,6 +14,10 @@ import qwenLogo from "@/renderer/assets/provider-logos/qwen.png";
 import zaiLogo from "@/renderer/assets/provider-logos/zai.svg";
 import volcengineLogo from "@/renderer/assets/provider-logos/volcengine.svg";
 import deepseekLogo from "@/renderer/assets/provider-logos/deepseek.png";
+import minimaxLogo from "@/renderer/assets/provider-logos/minimax.ico";
+import stepfunLogo from "@/renderer/assets/provider-logos/stepfun.svg";
+import devinLogo from "@/renderer/assets/provider-logos/devin.ico";
+import metaLogo from "@/renderer/assets/provider-logos/meta.ico";
 import craftstationLogo from "@/renderer/assets/craftstation-logo.png";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 
@@ -40,6 +44,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   opencode: "OpenCode",
   deepseek: "DeepSeek",
   muse: "Muse",
+  minimax: "MiniMax",
   devin: "Devin",
   stepcode: "Step Code",
   stepfun: "StepFun",
@@ -68,6 +73,9 @@ const VENDOR_KIND_TO_BRAND: Record<string, string> = {
   "deepseek-api": "deepseek",
   "opencode-go": "opencode",
   meta: "muse",
+  minimax: "minimax",
+  zcode: "zai",
+  "moonshot-openai-compatible": "kimi",
   stepfun: "stepcode",
   cognition: "devin",
   devin: "devin",
@@ -154,21 +162,32 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
     logo: deepseekLogo,
     logoClassName: "size-[78%]",
   },
+  minimax: {
+    // Official favicon carries its own pink gradient square — let it fill the
+    // badge so the circular crop reads as the brand tile.
+    background: "#e21d6d",
+    logo: minimaxLogo,
+    logoClassName: "size-full",
+  },
   muse: {
-    // No licensed logo asset vendored: dark tile + letter glyph, matching
-    // the other brand badges instead of a full Meta-blue disc.
+    // Meta's Muse Code ships no dedicated mark; the official Meta favicon is
+    // the vendor's identity — the blue glyph needs a dark tile, not brand blue.
     background: "#15161b",
-    logo: "",
+    logo: metaLogo,
+    logoClassName: "size-[70%]",
   },
   devin: {
-    background: "#0b1220",
-    logo: "",
+    // Devin's favicon is a white mark on transparent — it needs a dark tile.
+    background: "#0a0a0a",
+    logo: devinLogo,
+    logoClassName: "size-[72%]",
   },
   stepcode: {
-    // No vendored logo asset: dark tile + letter glyph, same treatment as
-    // muse/devin until an official StepFun mark is licensed.
+    // StepFun's official pixel-staircase mark is white-on-transparent, so it
+    // rides the brand's dark tile.
     background: "#101226",
-    logo: "",
+    logo: stepfunLogo,
+    logoClassName: "size-[78%]",
   },
   zai: {
     background: "#2d2d2f",
