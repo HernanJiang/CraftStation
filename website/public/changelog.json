@@ -511,6 +511,24 @@
       ]
     },
     {
+      "version": "1.5.19",
+      "date": "2026-09-30",
+      "title": "A Fast toggle for Codex, Kimi, and Grok",
+      "summary": "Models with an official fast lane now offer a Fast switch in the model picker — Codex priority tier, Kimi HighSpeed, and Grok's fast variants, all off by default until you opt in.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Models",
+          "text": "The model picker gains a Fast toggle on models that genuinely support one: Codex requests run on the official fast service tier, kimi-for-coding switches to kimi-for-coding-highspeed, and Grok's fast model variants collapse into a single Fast choice on the base model. Fast defaults to off and is remembered per model once you enable it."
+        },
+        {
+          "kind": "fixed",
+          "label": "Models",
+          "text": "Fast can never fabricate a model id — a saved Fast flag on a model with no official variant degrades to the normal model instead of inventing names like k3-fast, and switching agents drops Fast when the target model has no fast lane."
+        }
+      ]
+    },
+    {
       "version": "1.5.18",
       "date": "2026-09-29",
       "title": "Usage sessions that heal themselves & a Step Code sign-in",
