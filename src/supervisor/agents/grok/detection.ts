@@ -7,6 +7,7 @@ import {
   type AgentProviderMetadata,
   type ProjectLocation,
 } from "@/shared/contracts";
+import { splitFastModelVariants } from "@/shared/fastModelVariants";
 import { dedupeAcpAuthMethods, probeAcpCapabilities } from "../acp";
 import {
   batchWslCommandsAsync,
@@ -137,9 +138,21 @@ async function probeCapabilities(
 
   const providerMetadata = buildGrokProviderMetadata(probe?.acpMeta);
 
+  // Grok ships the fast lane as separate model ids (`grok-4.7-fast` next to
+  // `grok-4.7`). Fold those rows into the base model's Fast toggle — several
+  // variants collapse into one 快速选项 — `config.fast` rewrites the wire id
+  // back to the variant when the session applies the model.
+  const probedModelIds = (probe?.models ?? []).map((model) => model.id);
+  const fastCaps = splitFastModelVariants(probedModelIds);
+  const probedModels =
+    fastCaps.fastModels.length > 0
+      ? (probe?.models ?? []).filter((model) => fastCaps.models.includes(model.id))
+      : probe?.models;
+
   return {
     ...grokDefaultCapabilities,
-    ...(probe?.models?.length ? { models: probe.models } : {}),
+    ...(probedModels?.length ? { models: probedModels } : {}),
+    ...(fastCaps.fastModels.length > 0 ? { fastModels: fastCaps.fastModels } : {}),
     // Grok advertises effort tiers in model `_meta`, not standard ACP
     // configOptions — derive them ourselves, but let the generic probe win
     // if Grok ever adds a `thought_level` config option.

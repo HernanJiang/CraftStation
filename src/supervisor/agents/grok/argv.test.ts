@@ -168,4 +168,21 @@ describe("buildGrokAcpArgs (`grok agent stdio` prefix)", () => {
       "grok-4.5",
     ]);
   });
+
+  it("resolves the fast variant id when config.fast is on (grok-4.7 → grok-4.7-fast)", () => {
+    expect(buildGrokAcpArgs({ model: "grok-4.7", fast: true } as any)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-m",
+      "grok-4.7-fast",
+    ]);
+    expect(buildGrokArgs({ model: "grok-4.7", fast: true } as any, "", undefined)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-m",
+      "grok-4.7-fast",
+    ]);
+  });
 });

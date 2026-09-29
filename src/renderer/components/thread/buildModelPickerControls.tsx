@@ -207,7 +207,7 @@ export function patchConfigForModelChange(
     model,
     effort,
     ...(nextContextSize ? { contextSize: nextContextSize } : {}),
-    fast: supportsUsableFastMode(capabilities, model) ? (current.fast ?? true) : false,
+    fast: supportsUsableFastMode(capabilities, model) ? (current.fast ?? false) : false,
     thinking: capabilities.thinkingModels?.includes(model) ?? false,
   };
 }

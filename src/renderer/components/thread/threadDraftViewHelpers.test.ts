@@ -42,8 +42,16 @@ function agentWith(overrides?: Partial<AgentCapability>): AgentStatus {
 }
 
 describe("resolveProviderDraftConfig fast mode", () => {
-  it("turns Fast on for a supported model when nothing was saved", () => {
-    expect(resolveProviderDraftConfig(agentWith(), { model: "fast-capable" }).fast).toBe(true);
+  it("keeps Fast off by default on a supported model", () => {
+    // Fast is a user opt-in — the toggle is offered but the draft defaults to
+    // the normal tier (Kimi HighSpeed spends ~3x quota per request).
+    expect(resolveProviderDraftConfig(agentWith(), { model: "fast-capable" }).fast).toBe(false);
+  });
+
+  it("honors an explicitly saved Fast preference", () => {
+    expect(
+      resolveProviderDraftConfig(agentWith(), { model: "fast-capable", fast: true }).fast,
+    ).toBe(true);
   });
 
   it("keeps Fast off when the saved draft explicitly disabled it", () => {

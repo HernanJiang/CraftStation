@@ -1,4 +1,18 @@
 import type { ThreadConfig } from "@/shared/contracts";
+import { fastVariantModelId } from "@/shared/fastModelVariants";
+
+/**
+ * The Kimi Code HighSpeed tier is a sibling model id
+ * (`kimi-for-coding` → `kimi-for-coding-highspeed`, same id under the
+ * `kimi-code/` catalog prefix). `config.fast` selects it at launch; the live
+ * ACP `configOptions` path matches the same variant through its `-highspeed`
+ * alias.
+ */
+function kimiWireModelId(config: ThreadConfig): string | undefined {
+  if (!config.model) return undefined;
+  if (config.fast !== true) return config.model;
+  return fastVariantModelId(config.model) ?? config.model;
+}
 
 /**
  * Flag references — verified against the Kimi Code CLI docs
@@ -45,8 +59,9 @@ export function buildKimiArgs(config: ThreadConfig, _prompt: string, session?: s
   if (session) {
     args.push("--session", session);
   }
-  if (config.model) {
-    args.push("-m", config.model);
+  const model = kimiWireModelId(config);
+  if (model) {
+    args.push("-m", model);
   }
   if (config.mode === "plan") {
     args.push("--plan");
@@ -71,8 +86,9 @@ export function buildKimiContinueArgs(config: ThreadConfig): string[] {
  */
 export function buildKimiAcpArgs(config: ThreadConfig): string[] {
   const args: string[] = [];
-  if (config.model) {
-    args.push("-m", config.model);
+  const model = kimiWireModelId(config);
+  if (model) {
+    args.push("-m", model);
   }
   pushApprovalFlags(args, config);
   return args;

@@ -494,11 +494,19 @@ export function adaptThreadConfigForCapabilities(
   }
 
   const effort = resolveCompatibleEffort(capabilities, config.model, config.effort);
+  // Fast is a per-model capability — a `fast:true` persisted against
+  // `grok-4.7` must not leak onto a model with no advertised fast variant
+  // (the wire layer would otherwise emit a fabricated `x-fast` id).
+  const fast =
+    config.fast === true && capabilities.fastModels?.includes(config.model) === true
+      ? true
+      : undefined;
   const {
     approvalPolicy: _approvalPolicy,
     sandboxMode: _sandboxMode,
     effort: _effort,
     mode: _mode,
+    fast: _fast,
     ...rest
   } = config;
 
@@ -508,6 +516,7 @@ export function adaptThreadConfigForCapabilities(
     ...(sandboxMode ? { sandboxMode } : {}),
     ...(mode ? { mode } : {}),
     ...(effort ? { effort } : {}),
+    ...(fast ? { fast } : {}),
   };
 }
 

@@ -1,6 +1,5 @@
 import type { ClientSideConnection, SessionUpdate } from "@agentclientprotocol/sdk";
 import { isThreadConfigEqual, type ThreadConfig } from "@/shared/contracts";
-import { foreignAcpModelId } from "@/shared/thirdPartyRouting";
 import { toErrorMessage } from "@/shared/errorMessage";
 import { normalizeAcpModeId } from "./probe";
 import {
@@ -9,6 +8,7 @@ import {
   findThoughtLevelConfig,
   listSelectConfigOptionValues,
   resolveAcpMode,
+  resolveAcpSessionModelId,
   resolveModelConfigValue,
 } from "./sessionConfig";
 import { isToggleOnlyThoughtLevelConfig, resolveThoughtLevelToggleValues } from "./thoughtLevel";
@@ -179,8 +179,11 @@ export class AcpSessionConfigSync {
     }
 
     const modelConfig = resolveModelConfigValue(nextConfig, this.currentConfigOptions);
+    // `fast` toggles the wire model id itself (variant suffix / service tier
+    // selection), so a same-model fast flip must re-drive model application.
     const modelSelectionChanged =
       nextConfig.model !== previousConfig?.model ||
+      nextConfig.fast !== previousConfig?.fast ||
       Boolean(modelConfig && modelConfig.value !== this.modelConfigValue);
     let modelChanged = false;
     if (modelSelectionChanged) {
@@ -215,7 +218,7 @@ export class AcpSessionConfigSync {
           // speak the removed pre-1.0 model API (see unstableModelCompat.ts).
           await setUnstableSessionModel(this.connection, {
             sessionId,
-            modelId: foreignAcpModelId(nextConfig),
+            modelId: resolveAcpSessionModelId(nextConfig),
           });
           modelChanged = true;
           console.log("[acp] model set to:", nextConfig.model);

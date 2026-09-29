@@ -331,7 +331,10 @@ describe("KIMI_FALLBACK_PROBE", () => {
       hasAnyCredential: false,
       hasManagedOAuthCredential: false,
     });
-    expect(capabilities.models).toHaveLength(4);
+    // The HighSpeed variant folds into its base model's Fast toggle instead
+    // of listing as a fourth row; `kimi-code/kimi-for-coding` advertises fast.
+    expect(capabilities.models).toHaveLength(3);
+    expect(capabilities.fastModels).toEqual(["kimi-code/kimi-for-coding"]);
   });
 });
 

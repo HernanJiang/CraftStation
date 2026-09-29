@@ -91,4 +91,17 @@ describe("buildKimiAcpArgs (`kimi acp` prefix)", () => {
       "--auto",
     ]);
   });
+
+  it("maps fast to the HighSpeed model id", () => {
+    expect(buildKimiAcpArgs({ model: "kimi-code/kimi-for-coding", fast: true } as any)).toEqual([
+      "-m",
+      "kimi-code/kimi-for-coding-highspeed",
+    ]);
+    expect(
+      buildKimiArgs({ model: "kimi-code/kimi-for-coding", fast: true } as any, "", undefined),
+    ).toEqual(["-m", "kimi-code/kimi-for-coding-highspeed"]);
+    // fast on a model with no known variant degrades to the base id — a stale
+    // `fast:true` must never fabricate `k3-fast`.
+    expect(buildKimiAcpArgs({ model: "k3", fast: true } as any)).toEqual(["-m", "k3"]);
+  });
 });

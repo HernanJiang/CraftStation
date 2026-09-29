@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest";
+import { fastVariantModelId, splitFastModelVariants } from "./fastModelVariants";
+
+describe("splitFastModelVariants", () => {
+  it("folds -fast variants into their advertised base model", () => {
+    const result = splitFastModelVariants(["grok-4.7", "grok-4.7-fast", "grok-4.6"]);
+    expect(result.models).toEqual(["grok-4.7", "grok-4.6"]);
+    expect(result.fastModels).toEqual(["grok-4.7"]);
+    expect(result.fastVariantByBase).toEqual({ "grok-4.7": "grok-4.7-fast" });
+  });
+
+  it("folds Kimi's -highspeed tier into kimi-for-coding under a prefix", () => {
+    const result = splitFastModelVariants([
+      "kimi-code/k3-256k",
+      "kimi-code/kimi-for-coding",
+      "kimi-code/kimi-for-coding-highspeed",
+    ]);
+    expect(result.models).toEqual(["kimi-code/k3-256k", "kimi-code/kimi-for-coding"]);
+    expect(result.fastModels).toEqual(["kimi-code/kimi-for-coding"]);
+    expect(result.fastVariantByBase["kimi-code/kimi-for-coding"]).toBe(
+      "kimi-code/kimi-for-coding-highspeed",
+    );
+  });
+
+  it("keeps unpaired fast ids as standalone rows", () => {
+    const result = splitFastModelVariants(["grok-4.6", "grok-code-fast-1"]);
+    // `grok-code-fast-1`'s base would be `grok-code-fast` — not advertised, so
+    // the row stays listed and no Fast toggle is offered for `grok-4.6`.
+    expect(result.models).toEqual(["grok-4.6", "grok-code-fast-1"]);
+    expect(result.fastModels).toEqual([]);
+  });
+
+  it("handles empty and variant-free lists", () => {
+    expect(splitFastModelVariants([]).models).toEqual([]);
+    const result = splitFastModelVariants(["k3", "k3-256k"]);
+    expect(result.fastModels).toEqual([]);
+    expect(result.models).toEqual(["k3", "k3-256k"]);
+  });
+});
+
+describe("fastVariantModelId", () => {
+  it("maps kimi-for-coding to the HighSpeed tier id", () => {
+    expect(fastVariantModelId("kimi-for-coding")).toBe("kimi-for-coding-highspeed");
+    expect(fastVariantModelId("kimi-code/kimi-for-coding")).toBe(
+      "kimi-code/kimi-for-coding-highspeed",
+    );
+  });
+
+  it("appends -fast for versioned Grok ids", () => {
+    expect(fastVariantModelId("grok-4.7")).toBe("grok-4.7-fast");
+    expect(fastVariantModelId("grok-4-fast")).toBeNull();
+  });
+
+  it("never fabricates a variant for unknown families", () => {
+    expect(fastVariantModelId("k3")).toBeNull();
+    expect(fastVariantModelId("kimi-code/k3-256k")).toBeNull();
+    expect(fastVariantModelId("claude-opus-4.6")).toBeNull();
+  });
+});

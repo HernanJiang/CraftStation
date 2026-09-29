@@ -291,6 +291,46 @@ describe("AcpSessionConfigSync", () => {
     expect(connection.request).not.toHaveBeenCalled();
   });
 
+  it("resolves the Kimi HighSpeed tier through the -highspeed alias when fast", async () => {
+    const modelOption = {
+      id: "model",
+      category: "model",
+      type: "select",
+      currentValue: "kimi-code/kimi-for-coding",
+      options: [
+        { value: "kimi-code/k3", name: "Kimi K3" },
+        { value: "kimi-code/kimi-for-coding", name: "Kimi For Coding" },
+        { value: "kimi-code/kimi-for-coding-highspeed", name: "Kimi For Coding HighSpeed" },
+      ],
+    };
+    const { connection, sync } = makeConfigSync({ configOptions: [modelOption] });
+
+    await sync.applyTurnConfig(
+      "session-1",
+      { ...previousConfig, model: "kimi-code/kimi-for-coding", fast: true },
+      previousConfig,
+    );
+
+    expect(connection.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      configId: "model",
+      value: "kimi-code/kimi-for-coding-highspeed",
+    });
+    expect(connection.request).not.toHaveBeenCalled();
+  });
+
+  it("re-drives session/set_model on a same-model fast toggle flip", async () => {
+    const { connection, sync } = makeConfigSync();
+    const prev = { ...previousConfig, model: "grok-4.7", fast: false };
+
+    await sync.applyTurnConfig("session-1", { ...prev, fast: true }, prev);
+
+    expect(connection.request).toHaveBeenCalledWith("session/set_model", {
+      sessionId: "session-1",
+      modelId: "grok-4.7-fast",
+    });
+  });
+
   it("maps Qwen's public model id to its provider-tagged ACP value", async () => {
     const modelOption = {
       id: "model",

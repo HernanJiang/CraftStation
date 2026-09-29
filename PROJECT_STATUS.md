@@ -1,3 +1,15 @@
+## 模型列表「快速模式」Fast 开关（2026-09-30）
+
+- **用户需求**：为已支持的 vendor 在模型列表加独立的 Fast/快速模式开关：Codex/ChatGPT（官方 `service_tier="fast"`）、Kimi（`kimi-for-coding` → `kimi-for-coding-highspeed`，官方 HighSpeed 档 ~5-6× 速度 ~3× 配额）、Grok（`grok-X` ↔ `grok-X-fast`，多个 fast 变体合并成一个开关）。
+- **设计**：复用既有 `fastModels` capability + `ThreadConfig.fast` + 模型选择器 Fast toggle。新增 `src/shared/fastModelVariants.ts`：`splitFastModelVariants` 在 detection 层把已广告的 fast 变体行折叠进基座模型（只在基座也在目录中时才折叠，孤立 `grok-code-fast-1` 保持独立行），`fastVariantModelId` 负责 wire 层的基座→变体拼写。
+- **Kimi**：`buildKimiProbeCapabilities` 折叠 `kimi-code/kimi-for-coding-highspeed` → `fastModels: [kimi-code/kimi-for-coding]`；`buildKimiArgs`/`buildKimiAcpArgs` 在 `config.fast` 时用变体 id 发 `-m`；ACP configOption 别名表新增 `-highspeed`（含 `-effort-highspeed`）。
+- **Grok**：`probeCapabilities` 同样折叠 `grok-X-fast` 行；`pushSharedFlags` 在 `config.fast` 时把 `-m` 重写为 `grok-X-fast`——Grok 的 `session/set_model` ACK 但无效，模型在启动时绑定，所以切换 Fast 需要重开会话生效。
+- **ACP**：新增导出 `resolveAcpSessionModelId`（unstable `set_model` 路径用的 fast 感知解析器）；`sessionConfigSync` 在 fast 翻转时对同模型也重发 `session/set_model`。
+- **防伪造**：`fastVariantModelId` 对未知家族返回 `null`（call site 回落基座 id）——陈旧 `fast:true` 不会产出 `k3-fast`；已是变体后缀的 id 幂等返回 null；`adaptThreadConfigForCapabilities` 在跨 agent 适配时丢弃目标模型不支持 fast 的 `fast:true`。
+- **默认关**：`resolveProviderDraftConfig` 与 `patchConfigForModelChange` 把 Fast 默认改为关闭（`?? false`）——普通模型是默认，Fast 仅是可选开关；显式保存的 `fast:true` 偏好仍然生效（含 Cursor 括号 id 解析出的 fast）。
+- **Codex**：既有链路不变（argv `-c service_tier="fast"`、ACP 每轮 `serviceTier`、nativeCodex runtime 透传）。
+- **验证**：新增 `fastModelVariants.test.ts`（折叠/孤立行/未知家族 null）、sessionConfigSync `-highspeed` 别名与 fast 翻转重发用例、kimi/grok argv fast 用例、agentSelection fast 清洗用例；294 provider/shared + 1403 renderer/codex 测试全过；typecheck + oxlint 零告警。
+
 ## OpenCode 已登录无额度 + Step Code 渠道入口（2026-09-29）
 
 - **用户报告**：OpenCode 渠道卡显示「已登录」但「暂无额度窗口」；右侧登录渠道列表没有 Step Code。

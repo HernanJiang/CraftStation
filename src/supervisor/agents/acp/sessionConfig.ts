@@ -1,5 +1,6 @@
 import type { ThreadConfig } from "@/shared/contracts";
 import { foreignAcpModelId, normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
+import { fastVariantModelId } from "@/shared/fastModelVariants";
 import { resolveOfficialDshModelId } from "../deepseek/modelIds";
 import { normalizeAcpModeId } from "./probe";
 import { findThoughtLevelConfigOption } from "./thoughtLevel";
@@ -312,6 +313,8 @@ function modelConfigTargetAliases(config: ThreadConfig): string[] {
           aliases.add(`${prefix}-${effort}-thinking-fast`);
         }
         aliases.add(`${prefix}-${effort}-fast`);
+        // Kimi names its fast tier `-highspeed`, not `-fast`.
+        aliases.add(`${prefix}-${effort}-highspeed`);
       }
       if (config.thinking === true) {
         aliases.add(`${prefix}-${effort}-thinking`);
@@ -323,6 +326,9 @@ function modelConfigTargetAliases(config: ThreadConfig): string[] {
         aliases.add(`${prefix}-thinking-fast`);
       }
       aliases.add(`${prefix}-fast`);
+      // Kimi's HighSpeed tier (`kimi-for-coding-highspeed`) is reached by
+      // turning the Fast toggle into the variant model id.
+      aliases.add(`${prefix}-highspeed`);
     }
     if (config.thinking === true) {
       aliases.add(`${prefix}-thinking`);
@@ -331,6 +337,18 @@ function modelConfigTargetAliases(config: ThreadConfig): string[] {
   }
 
   return [...aliases].map(normalizeConfigOptionAlias);
+}
+
+/**
+ * Model id to send on the pre-1.0 `session/set_model` path. Agents on that
+ * path (Grok via `initialize._meta.modelState`, cursor-agent via
+ * `session/new.models`) have no configOption to alias against, so the Fast
+ * toggle resolves to the vendor's fast-variant spelling directly.
+ */
+export function resolveAcpSessionModelId(config: ThreadConfig): string {
+  const base = foreignAcpModelId(config);
+  if (config.fast !== true || !base) return base;
+  return fastVariantModelId(base) ?? base;
 }
 
 export function resolveModelConfigValue(

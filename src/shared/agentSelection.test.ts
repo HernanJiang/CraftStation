@@ -484,4 +484,23 @@ describe("adaptThreadConfigForCapabilities", () => {
       ),
     ).toMatchObject({ approvalPolicy: "auto" });
   });
+
+  it("drops a stale fast:true when the model has no advertised fast variant", () => {
+    // `grok-4.7` + Fast persisted; the thread config then lands on
+    // `grok-4.5` — fast must be dropped so the wire layer never fabricates
+    // `grok-4.5-fast`.
+    const grokCaps = {
+      ...codexCaps,
+      models: [
+        { id: "grok-4.7", label: "Grok 4.7" },
+        { id: "grok-4.5", label: "Grok 4.5" },
+      ],
+      fastModels: ["grok-4.7"],
+    } as AgentCapability;
+    const adapted = adaptThreadConfigForCapabilities({ model: "grok-4.5", fast: true }, grokCaps);
+    expect(adapted.fast).toBeUndefined();
+    expect(adaptThreadConfigForCapabilities({ model: "grok-4.7", fast: true }, grokCaps).fast).toBe(
+      true,
+    );
+  });
 });
