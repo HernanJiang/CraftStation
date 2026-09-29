@@ -311,10 +311,9 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
     controls.push({
       kind: "toggle",
       label: "Fast",
-      displayLabel: msg`Fast`,
+      displayLabel: msg`Fast mode`,
       icon: <Zap className="size-3.5" />,
       iconKind: "fast",
-      iconOnly: true,
       fillIconOnSelect: true,
       tier: 3,
       isSelected: fast === true,

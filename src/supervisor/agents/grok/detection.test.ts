@@ -112,6 +112,25 @@ describe("Grok capability detection", () => {
     expect(result?.thinkingModels).toEqual(["grok-4.6"]);
   });
 
+  it("folds the advertised -build-fast variant into its base model", async () => {
+    probeAcpCapabilitiesMock.mockResolvedValue({
+      models: [
+        { id: "grok-4.7", label: "Grok 4.7" },
+        { id: "grok-4.7-build-fast", label: "Grok 4.7 Fast" },
+        { id: "grok-4.6", label: "Grok 4.6" },
+      ],
+    });
+
+    const result = await grokDetectionSpec.capabilitiesProbe?.({
+      location: { kind: "posix", path: "/repo" },
+      executablePath: "grok",
+    });
+
+    expect(result?.models?.map((model) => model.id)).toEqual(["grok-4.7", "grok-4.6"]);
+    expect(result?.fastModels).toEqual(["grok-4.7"]);
+    expect(result?.fastModelVariants).toEqual({ "grok-4.7": "grok-4.7-build-fast" });
+  });
+
   it("forwards the login-shell environment to the ACP process", async () => {
     const location: ProjectLocation = { kind: "posix", path: "/Users/demo/project" };
 

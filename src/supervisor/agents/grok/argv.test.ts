@@ -169,20 +169,27 @@ describe("buildGrokAcpArgs (`grok agent stdio` prefix)", () => {
     ]);
   });
 
-  it("resolves the fast variant id when config.fast is on (grok-4.7 → grok-4.7-fast)", () => {
+  it("resolves the catalog variant id when config.fast is on (grok-4.7 → grok-4.7-build-fast)", () => {
+    const variants = { "grok-4.7": "grok-4.7-build-fast" };
+    expect(buildGrokAcpArgs({ model: "grok-4.7", fast: true } as any, variants)).toEqual([
+      "--no-auto-update",
+      "--rules",
+      GROK_AUTOMATION_RULES,
+      "-m",
+      "grok-4.7-build-fast",
+    ]);
+    expect(
+      buildGrokArgs({ model: "grok-4.7", fast: true } as any, "", undefined, variants),
+    ).toEqual(["--no-auto-update", "--rules", GROK_AUTOMATION_RULES, "-m", "grok-4.7-build-fast"]);
+  });
+
+  it("falls back to the grok -build-fast convention without a catalog map", () => {
     expect(buildGrokAcpArgs({ model: "grok-4.7", fast: true } as any)).toEqual([
       "--no-auto-update",
       "--rules",
       GROK_AUTOMATION_RULES,
       "-m",
-      "grok-4.7-fast",
-    ]);
-    expect(buildGrokArgs({ model: "grok-4.7", fast: true } as any, "", undefined)).toEqual([
-      "--no-auto-update",
-      "--rules",
-      GROK_AUTOMATION_RULES,
-      "-m",
-      "grok-4.7-fast",
+      "grok-4.7-build-fast",
     ]);
   });
 });

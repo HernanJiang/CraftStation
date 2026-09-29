@@ -105,7 +105,7 @@ export function createKimiAdapter(): AgentAdapter {
       // discover the real id afterward (discoverSessionRef below). Returning no
       // sessionRef is what enables that discovery path.
       snapshotKimiPreSpawnSessions(location);
-      const args = buildKimiArgs(config, prompt);
+      const args = buildKimiArgs(config, prompt, undefined, capabilities.fastModelVariants);
       return { binary: "kimi", args };
     },
 
@@ -114,7 +114,9 @@ export function createKimiAdapter(): AgentAdapter {
       // (legacy/degenerate ref) fall back to `--continue`, which resumes the
       // most recent session in the cwd.
       const id = sessionRef?.providerSessionId;
-      const args = id ? buildKimiArgs(config, prompt, id) : buildKimiContinueArgs(config);
+      const args = id
+        ? buildKimiArgs(config, prompt, id, capabilities.fastModelVariants)
+        : buildKimiContinueArgs(config, capabilities.fastModelVariants);
       return { binary: "kimi", args };
     },
 
@@ -134,7 +136,7 @@ export function createKimiAdapter(): AgentAdapter {
         undefined,
         kimiHome ? { kimiHome } : undefined,
       );
-      const acpArgs = buildKimiAcpArgs(input.config);
+      const acpArgs = buildKimiAcpArgs(input.config, capabilities.fastModelVariants);
       const command = buildKimiCommand(
         input.projectLocation,
         [...acpArgs, "acp"],
@@ -178,6 +180,9 @@ export function createKimiAdapter(): AgentAdapter {
         // all. Keeping the capability unadvertised makes Kimi read and write
         // through its own local filesystem, where the errno survives.
         acpFsTextCapability: false,
+        ...(capabilities.fastModelVariants
+          ? { acpFastVariantByBase: capabilities.fastModelVariants }
+          : {}),
         acpEmptyResponseErrorResolver: resolveKimiEmptyResponseError,
         acpSessionUpdateTransform: createKimiAcpSessionUpdateTransform({
           subagents,

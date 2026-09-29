@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, Pencil, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Check, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { toast } from "@heroui/react";
 import type { AccountView, AgentCapability, LabeledOption } from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
-import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import {
+  flushSharedSettings,
+  useSharedSettings,
+  waitForPendingSharedSettings,
+} from "@/renderer/state/sharedSettingsStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { ConfirmDialog } from "@/renderer/components/common/ConfirmDialog";
 import { ProviderBrandBadge } from "./providerBrands";
 import { resolveDisplayedProviders } from "@/renderer/components/providers/usageProviders";
 import { getSettingsInstalledAgents } from "@/shared/agentStatus";
@@ -465,6 +471,39 @@ export function ModelManagementPage(props: {
     onUpdateCustomModels(customModels.filter((model) => model.id !== id));
   };
 
+  // OpenAI 兼容渠道是一条号池账号：删除 = 删账号 + 清掉绑定在该账号下的
+  // 自定义模型（与「渠道与额度」页删账号同一通路）。原生 Harness 渠道由
+  // CLI 安装/登录管理，本页不提供删除。
+  const [confirmRemoveChannel, setConfirmRemoveChannel] = useState<ChannelEntry | null>(null);
+  const [removingChannelId, setRemovingChannelId] = useState<string | null>(null);
+  const removeChannel = async (channel: ChannelEntry) => {
+    const accountId = channel.accountId;
+    if (!accountId) return;
+    const bridge = readBridge() as unknown as {
+      removeAccount?: (payload: { accountId: string }) => Promise<void>;
+    };
+    if (typeof bridge.removeAccount !== "function") {
+      toast.danger("当前版本不支持删除渠道账号。");
+      return;
+    }
+    setRemovingChannelId(accountId);
+    try {
+      await bridge.removeAccount({ accountId });
+      useUsageAccountsStore.getState().removeAccount(accountId);
+      const nextModels = customModels.filter((model) => model.accountId !== accountId);
+      if (nextModels.length !== customModels.length) {
+        onUpdateCustomModels(nextModels);
+        await waitForPendingSharedSettings();
+        await flushSharedSettings();
+      }
+      setSelectedKey("");
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : "无法删除渠道。");
+    } finally {
+      setRemovingChannelId(null);
+    }
+  };
+
   // Third-party add gate: models on an openai-compatible account must pass a
   // real Responses-first probe (sealed key, supervisor-side) before joining
   // the homepage catalog. Native channel models come from official catalogs
@@ -756,6 +795,23 @@ export function ModelManagementPage(props: {
                     : "自定义 API 渠道的模型列表"}
                 </p>
               </div>
+              {selected.kind === "openai-compatible" && selected.accountId ? (
+                <button
+                  type="button"
+                  aria-label={`删除渠道 ${selected.label}`}
+                  title="删除该渠道账号及其凭证，并移除该渠道下已添加的自定义模型"
+                  disabled={removingChannelId === selected.accountId}
+                  onClick={() => setConfirmRemoveChannel(selected)}
+                  className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {removingChannelId === selected.accountId ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3" />
+                  )}
+                  删除渠道
+                </button>
+              ) : null}
               {selectedAgentChannel ? (
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   {selected.kind === "opencode" ? (
@@ -1085,6 +1141,18 @@ export function ModelManagementPage(props: {
                 }}
               />
             ) : null}
+            <ConfirmDialog
+              isOpen={confirmRemoveChannel !== null}
+              title="删除渠道"
+              body={`删除渠道「${confirmRemoveChannel?.label ?? ""}」将同时移除其账号凭证与该渠道下已添加的自定义模型，此操作无法撤销。`}
+              confirmLabel="删除渠道"
+              onClose={() => setConfirmRemoveChannel(null)}
+              onConfirm={() => {
+                const channel = confirmRemoveChannel;
+                setConfirmRemoveChannel(null);
+                if (channel) void removeChannel(channel);
+              }}
+            />
             {editingModel ? (
               <CustomModelDialog
                 open

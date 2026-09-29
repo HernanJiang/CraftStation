@@ -276,6 +276,12 @@ export interface AcpStructuredSessionOptions {
    * runtime default model.
    */
   strictModelResolution?: boolean;
+  /**
+   * Catalog-derived base -> fast-variant model ids for the unstable
+   * `session/set_model` path (see `acpFastVariantByBase` on
+   * `CreateStructuredSessionInput`).
+   */
+  fastVariantByBase?: Record<string, string>;
   extensionSessionUpdateTransform?: import("../base/types").AcpExtensionSessionUpdateTransform;
   /** Vendor capability requests sent on ACP initialize. */
   initializeMeta?: Record<string, unknown>;
@@ -351,6 +357,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
 
   private readonly goalCommands: boolean;
   private readonly strictModelResolution: boolean;
+  private readonly fastVariantByBase: Record<string, string> | undefined;
 
   private extensionNotificationHandler?: import("../base/types").AcpExtensionNotificationHandler;
 
@@ -474,6 +481,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     if (!this._sessionConfigSync) {
       this._sessionConfigSync = new AcpSessionConfigSync(this.connection, {
         strictModelResolution: this.strictModelResolution,
+        ...(this.fastVariantByBase ? { fastVariantByBase: this.fastVariantByBase } : {}),
       });
     }
     return this._sessionConfigSync;
@@ -549,6 +557,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     this.autonomousPrompt = options?.autonomousPrompt === true;
     this.goalCommands = options?.goalCommands === true;
     this.strictModelResolution = options?.strictModelResolution === true;
+    this.fastVariantByBase = options?.fastVariantByBase;
     if (options?.extensionSessionUpdateTransform) {
       this.extensionSessionUpdateTransform = options.extensionSessionUpdateTransform;
     }

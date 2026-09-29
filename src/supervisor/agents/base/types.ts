@@ -296,6 +296,14 @@ export interface CreateStructuredSessionInput {
    * picks its servers up with no code change here.
    */
   acpOptimisticMcpTransports?: readonly McpTransportKind[];
+  /**
+   * Catalog-derived base -> fast-variant model ids (e.g. `grok-4.7` →
+   * `grok-4.7-build-fast`), from the provider's `capabilities.fastModelVariants`.
+   * Consulted when the unstable `session/set_model` path resolves
+   * `config.fast` so the wire id is the advertised variant, not a guessed
+   * `-fast` suffix.
+   */
+  acpFastVariantByBase?: Record<string, string>;
 }
 
 export type AcpEmptyResponseErrorResolver = (input: {

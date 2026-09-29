@@ -9,6 +9,20 @@ describe("splitFastModelVariants", () => {
     expect(result.fastVariantByBase).toEqual({ "grok-4.7": "grok-4.7-fast" });
   });
 
+  it("folds Grok's -build-fast variant under its base id", () => {
+    // The real catalog ships `grok-4.7-build-fast` — stripping `-fast` alone
+    // yields `grok-4.7-build`, which is not advertised and must not fold.
+    const result = splitFastModelVariants([
+      "grok-4.7",
+      "grok-4.7-build-fast",
+      "grok-4.6",
+      "grok-4.5",
+    ]);
+    expect(result.models).toEqual(["grok-4.7", "grok-4.6", "grok-4.5"]);
+    expect(result.fastModels).toEqual(["grok-4.7"]);
+    expect(result.fastVariantByBase).toEqual({ "grok-4.7": "grok-4.7-build-fast" });
+  });
+
   it("folds Kimi's -highspeed tier into kimi-for-coding under a prefix", () => {
     const result = splitFastModelVariants([
       "kimi-code/k3-256k",
@@ -39,6 +53,11 @@ describe("splitFastModelVariants", () => {
 });
 
 describe("fastVariantModelId", () => {
+  it("prefers the catalog-derived variant map over the naming heuristic", () => {
+    const variants = { "grok-4.7": "grok-4.7-build-fast" };
+    expect(fastVariantModelId("grok-4.7", variants)).toBe("grok-4.7-build-fast");
+  });
+
   it("maps kimi-for-coding to the HighSpeed tier id", () => {
     expect(fastVariantModelId("kimi-for-coding")).toBe("kimi-for-coding-highspeed");
     expect(fastVariantModelId("kimi-code/kimi-for-coding")).toBe(
@@ -46,9 +65,10 @@ describe("fastVariantModelId", () => {
     );
   });
 
-  it("appends -fast for versioned Grok ids", () => {
-    expect(fastVariantModelId("grok-4.7")).toBe("grok-4.7-fast");
+  it("appends -build-fast for versioned Grok ids", () => {
+    expect(fastVariantModelId("grok-4.7")).toBe("grok-4.7-build-fast");
     expect(fastVariantModelId("grok-4-fast")).toBeNull();
+    expect(fastVariantModelId("grok-4.7-build-fast")).toBeNull();
   });
 
   it("never fabricates a variant for unknown families", () => {

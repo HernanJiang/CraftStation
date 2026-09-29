@@ -41,6 +41,12 @@ export interface AcpSessionConfigSyncOptions {
    * of continuing on a different model.
    */
   strictModelResolution?: boolean;
+  /**
+   * Catalog-derived base -> fast-variant model ids (e.g. `grok-4.7` →
+   * `grok-4.7-build-fast`). Consulted before the vendor naming heuristic when
+   * the unstable `session/set_model` path resolves `config.fast`.
+   */
+  fastVariantByBase?: Record<string, string>;
 }
 
 export class AcpSessionConfigSync {
@@ -218,7 +224,7 @@ export class AcpSessionConfigSync {
           // speak the removed pre-1.0 model API (see unstableModelCompat.ts).
           await setUnstableSessionModel(this.connection, {
             sessionId,
-            modelId: resolveAcpSessionModelId(nextConfig),
+            modelId: resolveAcpSessionModelId(nextConfig, this.options.fastVariantByBase),
           });
           modelChanged = true;
           console.log("[acp] model set to:", nextConfig.model);

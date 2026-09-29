@@ -153,6 +153,9 @@ async function probeCapabilities(
     ...grokDefaultCapabilities,
     ...(probedModels?.length ? { models: probedModels } : {}),
     ...(fastCaps.fastModels.length > 0 ? { fastModels: fastCaps.fastModels } : {}),
+    ...(Object.keys(fastCaps.fastVariantByBase).length > 0
+      ? { fastModelVariants: fastCaps.fastVariantByBase }
+      : {}),
     // Grok advertises effort tiers in model `_meta`, not standard ACP
     // configOptions — derive them ourselves, but let the generic probe win
     // if Grok ever adds a `thought_level` config option.

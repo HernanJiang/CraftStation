@@ -8,10 +8,13 @@ import { fastVariantModelId } from "@/shared/fastModelVariants";
  * ACP `configOptions` path matches the same variant through its `-highspeed`
  * alias.
  */
-function kimiWireModelId(config: ThreadConfig): string | undefined {
+function kimiWireModelId(
+  config: ThreadConfig,
+  fastVariantByBase?: Record<string, string>,
+): string | undefined {
   if (!config.model) return undefined;
   if (config.fast !== true) return config.model;
-  return fastVariantModelId(config.model) ?? config.model;
+  return fastVariantModelId(config.model, fastVariantByBase) ?? config.model;
 }
 
 /**
@@ -53,13 +56,18 @@ function pushApprovalFlags(args: string[], config: ThreadConfig): void {
  * Plan mode and the approval flags are mutually exclusive: `--plan` starts a
  * read-only planning turn, so auto-approve flags are meaningless alongside it.
  */
-export function buildKimiArgs(config: ThreadConfig, _prompt: string, session?: string): string[] {
+export function buildKimiArgs(
+  config: ThreadConfig,
+  _prompt: string,
+  session?: string,
+  fastVariantByBase?: Record<string, string>,
+): string[] {
   const args: string[] = [];
 
   if (session) {
     args.push("--session", session);
   }
-  const model = kimiWireModelId(config);
+  const model = kimiWireModelId(config, fastVariantByBase);
   if (model) {
     args.push("-m", model);
   }
@@ -76,17 +84,23 @@ export function buildKimiArgs(config: ThreadConfig, _prompt: string, session?: s
  * Argv for `kimi -c` (resume the most recent session in the cwd) — the fallback
  * used when no discovered session id is available.
  */
-export function buildKimiContinueArgs(config: ThreadConfig): string[] {
-  return ["--continue", ...buildKimiArgs(config, "")];
+export function buildKimiContinueArgs(
+  config: ThreadConfig,
+  fastVariantByBase?: Record<string, string>,
+): string[] {
+  return ["--continue", ...buildKimiArgs(config, "", undefined, fastVariantByBase)];
 }
 
 /**
  * Argv prefix for `kimi [FLAGS] acp` (ACP / GUI tab). Model + approval ride the
  * launch flags; the ACP session negotiates modes/efforts over the protocol.
  */
-export function buildKimiAcpArgs(config: ThreadConfig): string[] {
+export function buildKimiAcpArgs(
+  config: ThreadConfig,
+  fastVariantByBase?: Record<string, string>,
+): string[] {
   const args: string[] = [];
-  const model = kimiWireModelId(config);
+  const model = kimiWireModelId(config, fastVariantByBase);
   if (model) {
     args.push("-m", model);
   }

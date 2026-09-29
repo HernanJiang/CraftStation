@@ -2044,7 +2044,8 @@ describe("ThreadDraftView", () => {
       const fast = props.controls.find((control) => control.label === "Fast");
       expect(providerModel?.currentModel).toBe("composer-2");
       expect(props.controls.some((control) => control.kind === "effort-context")).toBe(false);
-      expect(fast?.iconOnly).toBe(true);
+      // Fast 是与「模型列表 / 推理强度」平行的带标签开关，不再是纯图标按钮。
+      expect(fast?.iconOnly).not.toBe(true);
     });
   });
 

@@ -150,7 +150,7 @@ export function createGrokAdapter(): AgentAdapter {
         ? resolveGrokSessionArg(location, cwd, known)
         : ({ kind: "new", sessionId } as const);
 
-      const args = buildGrokArgs(config, prompt, sessionArg);
+      const args = buildGrokArgs(config, prompt, sessionArg, capabilities.fastModelVariants);
       // Returning the id as sessionRef lets the runtime skip post-spawn
       // discovery on the happy path (mirrors gemini/cursor).
       // discoverSessionRef stays wired up as the fallback.
@@ -168,12 +168,13 @@ export function createGrokAdapter(): AgentAdapter {
         config,
         prompt,
         known ? resolveGrokSessionArg(location, cwd, known) : undefined,
+        capabilities.fastModelVariants,
       );
       return { binary: "grok", args };
     },
 
     async createStructuredSession(input: CreateStructuredSessionInput) {
-      const acpArgs = buildGrokAcpArgs(input.config);
+      const acpArgs = buildGrokAcpArgs(input.config, capabilities.fastModelVariants);
       const command = buildGrokCommand(
         input.projectLocation,
         [...acpArgs, "agent", "stdio"],
@@ -186,6 +187,9 @@ export function createGrokAdapter(): AgentAdapter {
         // home-dir carve-out the shared fs bridge rejects those paths as
         // outside the project and every global/bundled skill fails.
         acpFsAgentHomeDirs: [".grok"],
+        ...(capabilities.fastModelVariants
+          ? { acpFastVariantByBase: capabilities.fastModelVariants }
+          : {}),
         acpSessionUpdateTransform: createGrokAcpSessionUpdateTransform(),
       });
     },

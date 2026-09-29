@@ -326,9 +326,10 @@ function modelConfigTargetAliases(config: ThreadConfig): string[] {
         aliases.add(`${prefix}-thinking-fast`);
       }
       aliases.add(`${prefix}-fast`);
-      // Kimi's HighSpeed tier (`kimi-for-coding-highspeed`) is reached by
-      // turning the Fast toggle into the variant model id.
+      // Vendor fast tiers are separate model ids: Kimi's `-highspeed`,
+      // Grok's `-build-fast`.
       aliases.add(`${prefix}-highspeed`);
+      aliases.add(`${prefix}-build-fast`);
     }
     if (config.thinking === true) {
       aliases.add(`${prefix}-thinking`);
@@ -345,10 +346,13 @@ function modelConfigTargetAliases(config: ThreadConfig): string[] {
  * `session/new.models`) have no configOption to alias against, so the Fast
  * toggle resolves to the vendor's fast-variant spelling directly.
  */
-export function resolveAcpSessionModelId(config: ThreadConfig): string {
+export function resolveAcpSessionModelId(
+  config: ThreadConfig,
+  fastVariantByBase?: Record<string, string>,
+): string {
   const base = foreignAcpModelId(config);
   if (config.fast !== true || !base) return base;
-  return fastVariantModelId(base) ?? base;
+  return fastVariantModelId(base, fastVariantByBase) ?? base;
 }
 
 export function resolveModelConfigValue(

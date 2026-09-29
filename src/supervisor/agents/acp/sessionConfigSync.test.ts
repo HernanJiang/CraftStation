@@ -54,6 +54,7 @@ function makeConfigSync(
   overrides: {
     availableModeIds?: string[];
     configOptions?: unknown[];
+    fastVariantByBase?: Record<string, string>;
   } = {},
 ) {
   const configOptions = overrides.configOptions ?? [thoughtLevelOption()];
@@ -74,7 +75,9 @@ function makeConfigSync(
       .fn<(method: string, params: { sessionId: string; modelId: string }) => Promise<unknown>>()
       .mockResolvedValue(undefined),
   };
-  const sync = new AcpSessionConfigSync(connection as unknown as ClientSideConnection);
+  const sync = new AcpSessionConfigSync(connection as unknown as ClientSideConnection, {
+    ...(overrides.fastVariantByBase ? { fastVariantByBase: overrides.fastVariantByBase } : {}),
+  });
   sync.rememberOptions(
     overrides.availableModeIds ?? ["default", "plan", "yolo", "autoEdit", "autopilot"],
     configOptions,
@@ -320,6 +323,20 @@ describe("AcpSessionConfigSync", () => {
   });
 
   it("re-drives session/set_model on a same-model fast toggle flip", async () => {
+    const { connection, sync } = makeConfigSync({
+      fastVariantByBase: { "grok-4.7": "grok-4.7-build-fast" },
+    });
+    const prev = { ...previousConfig, model: "grok-4.7", fast: false };
+
+    await sync.applyTurnConfig("session-1", { ...prev, fast: true }, prev);
+
+    expect(connection.request).toHaveBeenCalledWith("session/set_model", {
+      sessionId: "session-1",
+      modelId: "grok-4.7-build-fast",
+    });
+  });
+
+  it("falls back to the grok -build-fast convention without a catalog map", async () => {
     const { connection, sync } = makeConfigSync();
     const prev = { ...previousConfig, model: "grok-4.7", fast: false };
 
@@ -327,7 +344,7 @@ describe("AcpSessionConfigSync", () => {
 
     expect(connection.request).toHaveBeenCalledWith("session/set_model", {
       sessionId: "session-1",
-      modelId: "grok-4.7-fast",
+      modelId: "grok-4.7-build-fast",
     });
   });
 

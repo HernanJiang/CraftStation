@@ -335,6 +335,9 @@ describe("KIMI_FALLBACK_PROBE", () => {
     // of listing as a fourth row; `kimi-code/kimi-for-coding` advertises fast.
     expect(capabilities.models).toHaveLength(3);
     expect(capabilities.fastModels).toEqual(["kimi-code/kimi-for-coding"]);
+    expect(capabilities.fastModelVariants).toEqual({
+      "kimi-code/kimi-for-coding": "kimi-code/kimi-for-coding-highspeed",
+    });
   });
 });
 

@@ -76,13 +76,20 @@ function isBypassApproval(config: ThreadConfig): boolean {
   }
 }
 
-function pushSharedFlags(args: string[], config: ThreadConfig): void {
+function pushSharedFlags(
+  args: string[],
+  config: ThreadConfig,
+  fastVariantByBase?: Record<string, string>,
+): void {
   if (config.model) {
     // Grok's model is bound at launch and `session/set_model` is a no-op, so
-    // the Fast toggle must resolve to the variant id (`grok-4.7-fast`) here.
+    // the Fast toggle must resolve to the advertised variant id
+    // (`grok-4.7-build-fast`) here.
     args.push(
       "-m",
-      config.fast === true ? (fastVariantModelId(config.model) ?? config.model) : config.model,
+      config.fast === true
+        ? (fastVariantModelId(config.model, fastVariantByBase) ?? config.model)
+        : config.model,
     );
   }
   if (config.effort) {
@@ -100,6 +107,7 @@ export function buildGrokArgs(
   config: ThreadConfig,
   _prompt: string,
   session?: GrokSessionArg,
+  fastVariantByBase?: Record<string, string>,
 ): string[] {
   const args = ["--no-auto-update", "--rules", GROK_AUTOMATION_RULES];
 
@@ -109,7 +117,7 @@ export function buildGrokArgs(
     args.push("-s", session.sessionId);
   }
 
-  pushSharedFlags(args, config);
+  pushSharedFlags(args, config, fastVariantByBase);
 
   return args;
 }
@@ -117,8 +125,11 @@ export function buildGrokArgs(
 /**
  * Argv prefix for `grok [FLAGS] agent stdio` (ACP / GUI tab).
  */
-export function buildGrokAcpArgs(config: ThreadConfig): string[] {
+export function buildGrokAcpArgs(
+  config: ThreadConfig,
+  fastVariantByBase?: Record<string, string>,
+): string[] {
   const args = ["--no-auto-update", "--rules", GROK_AUTOMATION_RULES];
-  pushSharedFlags(args, config);
+  pushSharedFlags(args, config, fastVariantByBase);
   return args;
 }

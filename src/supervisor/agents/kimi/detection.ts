@@ -187,6 +187,9 @@ export function buildKimiProbeCapabilities(
     // `session/new` configOptions, which the shared probe already maps.
     ...(models?.length ? { models } : {}),
     ...(fastCaps.fastModels.length > 0 ? { fastModels: fastCaps.fastModels } : {}),
+    ...(Object.keys(fastCaps.fastVariantByBase).length > 0
+      ? { fastModelVariants: fastCaps.fastVariantByBase }
+      : {}),
     ...normalizeKimiProbeEfforts(probe),
     ...(probe?.modes?.length ? { modes: probe.modes } : {}),
     ...(probe?.approvalPolicies?.length ? { approvalPolicies: probe.approvalPolicies } : {}),

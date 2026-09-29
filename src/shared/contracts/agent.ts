@@ -176,6 +176,7 @@ const agentPresentationCapabilityOverrideSchema = z
     modelContextSizes: z.record(z.string(), z.array(z.string().min(1))).optional(),
     defaultContextSize: z.string().optional(),
     fastModels: z.array(z.string().min(1)).optional(),
+    fastModelVariants: z.record(z.string(), z.string().min(1)).optional(),
     fastDisabledReason: z.string().optional(),
     thinkingModels: z.array(z.string().min(1)).optional(),
     modes: z.array(threadModeSchema),
@@ -263,6 +264,12 @@ export const agentCapabilitySchema = z.object({
   defaultContextSize: z.string().optional(),
   /** Model ids that support a fast/turbo execution mode. */
   fastModels: z.array(z.string().min(1)).optional(),
+  /**
+   * Catalog-derived base -> fast-variant model id (e.g. `grok-4.7` →
+   * `grok-4.7-build-fast`). The wire layer consults this before falling back
+   * to vendor naming heuristics, so real variant spellings are never guessed.
+   */
+  fastModelVariants: z.record(z.string(), z.string().min(1)).optional(),
   /**
    * Set when a `fastModels` model technically supports fast mode but it is
    * unavailable for the authenticated account (e.g. disabled by the org). The

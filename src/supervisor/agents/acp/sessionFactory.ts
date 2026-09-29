@@ -93,6 +93,7 @@ export function createAcpStructuredSession(
     ...(input.acpFsTextCapability !== undefined
       ? { fsTextCapability: input.acpFsTextCapability }
       : {}),
+    ...(input.acpFastVariantByBase ? { fastVariantByBase: input.acpFastVariantByBase } : {}),
     ...(overrides?.assumedMcpCapabilities
       ? { assumedMcpCapabilities: overrides.assumedMcpCapabilities }
       : {}),
