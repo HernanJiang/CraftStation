@@ -350,9 +350,9 @@ describe("SidebarProviderAccounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace4 = await screen.findByTestId("model-usage-workspace");
     const grid = within(workspace4).getByTestId("authorized-provider-grid");
-    expect(grid).toHaveClass("grid-cols-2");
+    expect(grid).toHaveClass("grid-cols-4");
     expect(grid).toHaveClass("auto-rows-max", "content-start");
-    expect(grid).toHaveAttribute("data-layout", "two-column");
+    expect(grid).toHaveAttribute("data-layout", "four-column");
     expect(within(grid).getByTestId("provider-card-claude")).toHaveClass("col-span-1");
     expect(within(grid).getByTestId("provider-card-gemini")).toHaveClass("col-span-1");
   });
@@ -509,7 +509,7 @@ describe("SidebarProviderAccounts", () => {
     await waitFor(() =>
       expect(within(dialog).getByTestId("provider-card-grok")).toBeInTheDocument(),
     );
-    // Single-account pool renders as a compact (half-width) card, matching the
+    // Single-account pool renders as a compact quarter-width card, matching the
     // ChatGPT/Command Code card style — not the wide pool section.
     expect(within(dialog).getByTestId("provider-card-grok")).toHaveClass(
       "col-span-1",
@@ -1020,8 +1020,9 @@ describe("SidebarProviderAccounts", () => {
     expect(within(bars[0]!).getByText("已用额度 18%")).toBeInTheDocument();
     expect(within(bars[1]!).getByText("已用额度 36%")).toBeInTheDocument();
     expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("已用额度");
-    expect(card).toHaveTextContent("输入 1.2k");
-    expect(card).toHaveTextContent("输出 3.4k");
+    // Token usage is no longer rendered on the quota page at all.
+    expect(card).not.toHaveTextContent("输入");
+    expect(card).not.toHaveTextContent("输出");
     const kimiProviderCard = within(workspace).getByTestId("provider-card-kimi");
     expect(within(kimiProviderCard).queryByTestId("provider-status-kimi")).not.toBeInTheDocument();
     expect(within(kimiProviderCard).getByText("已用额度 36%")).toBeInTheDocument();
@@ -1134,7 +1135,7 @@ describe("SidebarProviderAccounts", () => {
       expect(card).toHaveTextContent("42%");
     });
     await waitFor(() =>
-      expect(within(dialog).getByTestId("account-meta-grok:refresh-on-open")).toHaveTextContent(
+      expect(within(dialog).getByTestId("account-meta-grok:refresh-on-open")).not.toHaveTextContent(
         "\u8F93\u5165",
       ),
     );
@@ -1161,11 +1162,12 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const dialog = await screen.findByTestId("model-usage-workspace");
-    const meta = await within(dialog).findByTestId("account-meta-grok:refresh-failure");
+    const card = await within(dialog).findByTestId("account-quota-card-grok:refresh-failure");
 
     await waitFor(() => {
-      expect(meta).toHaveTextContent("quota network unavailable");
-      expect(meta).toHaveTextContent("暂无精确 Token 用量");
+      expect(card).toHaveTextContent("quota network unavailable");
+      expect(card).not.toHaveTextContent("暂无精确 Token 用量");
+      expect(card).not.toHaveTextContent("token ledger unavailable");
     });
   });
 
@@ -1199,15 +1201,15 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const dialog = await screen.findByTestId("model-usage-workspace");
-    const meta2 = await within(dialog).findByTestId("account-meta-grok:unavailable-quota");
+    const card2 = await within(dialog).findByTestId("account-quota-card-grok:unavailable-quota");
 
     await waitFor(() => {
-      expect(meta2).toHaveTextContent("Grok quota request timed out");
-      expect(meta2).not.toHaveTextContent("—");
+      expect(card2).toHaveTextContent("Grok quota request timed out");
+      expect(card2).not.toHaveTextContent("—");
     });
   });
 
-  it("shows no exact token usage when the scanner has no account breakdown", async () => {
+  it("renders no token placeholder when the scanner has no account breakdown", async () => {
     const account = {
       accountId: "grok:no-exact-token",
       provider: "grok",
@@ -1262,13 +1264,14 @@ describe("SidebarProviderAccounts", () => {
     const meta3 = await within(dialog).findByTestId("account-meta-grok:no-exact-token");
 
     await waitFor(() => {
-      expect(meta3).toHaveTextContent("暂无精确 Token 用量");
+      expect(meta3).not.toHaveTextContent("暂无精确 Token 用量");
+      expect(meta3).not.toHaveTextContent("输入");
       expect(meta3).not.toHaveTextContent("Runtime ledger");
       expect(meta3).not.toHaveTextContent("—");
     });
   });
 
-  it("shows 无法精确归因 when token data exists but not for this account", async () => {
+  it("renders no token attribution text when token data exists but not for this account", async () => {
     const account = {
       accountId: "grok:unattributed",
       provider: "grok",
@@ -1326,8 +1329,9 @@ describe("SidebarProviderAccounts", () => {
     const meta = await within(dialog).findByTestId("account-meta-grok:unattributed");
 
     await waitFor(() => {
-      expect(meta).toHaveTextContent("无法精确归因");
+      expect(meta).not.toHaveTextContent("无法精确归因");
       expect(meta).not.toHaveTextContent("暂无精确 Token 用量");
+      expect(meta).not.toHaveTextContent("输入");
     });
   });
 

@@ -70,18 +70,19 @@ describe("AccountQuotaCard openai-compatible", () => {
     render(<AccountQuotaCard account={compatibleAccount()} />);
     expect(screen.queryByText("暂无可用额度数据。")).not.toBeInTheDocument();
     expect(screen.queryByText(/恢复时间未知/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("account-meta-openai-compatible:chiral")).toHaveTextContent(
-      "总用量 — · 输入 — · 输出 —",
-    );
+    const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
+    expect(meta).not.toHaveTextContent("总用量");
+    expect(meta).not.toHaveTextContent("输入");
   });
 
-  it("shows total, input, and output tokens when ledger data exists", () => {
+  it("does not render token usage even when ledger data exists", () => {
     const account = compatibleAccount();
     useTokenUsageStore.getState().setResponse(tokenResponse(account.accountId, 1200, 340));
     render(<AccountQuotaCard account={account} />);
-    expect(screen.getByTestId("account-meta-openai-compatible:chiral")).toHaveTextContent(
-      "总用量 1.5k · 输入 1.2k · 输出 340",
-    );
+    const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
+    expect(meta).not.toHaveTextContent("总用量");
+    expect(meta).not.toHaveTextContent("输入");
+    expect(meta).not.toHaveTextContent("1.5k");
   });
 
   it("renders a real balance bar and amounts when the provider reports one", () => {
@@ -106,15 +107,17 @@ describe("AccountQuotaCard openai-compatible", () => {
     );
     const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
     expect(meta).toHaveTextContent("余额");
-    expect(meta).toHaveTextContent("总用量");
     // No fake reset countdown for a balance window.
     expect(meta).not.toHaveTextContent("恢复时间未知");
+    expect(meta).not.toHaveTextContent("总用量");
   });
 
-  it("keeps the token-only row when the channel reports no quota", () => {
+  it("renders an empty meta line when the channel reports no quota", () => {
     render(<AccountQuotaCard account={compatibleAccount({ quotaWindows: [] })} />);
     expect(screen.queryByRole("progressbar")).toBeNull();
-    expect(screen.getByTestId("account-meta-openai-compatible:chiral")).toHaveTextContent("总用量");
+    const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
+    expect(meta).not.toHaveTextContent("总用量");
+    expect(meta).not.toHaveTextContent("输入");
   });
 });
 

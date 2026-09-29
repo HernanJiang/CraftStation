@@ -1,34 +1,25 @@
 import { switcherDisplayWindow } from "@craftstation/agents-usage/switcherQuota";
 import type { AccountView, UsageSnapshot } from "@/shared/contracts";
 import { formatMoney } from "@/renderer/components/providers/usageFormat";
-import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import type { AccountUsageQueryState } from "./AccountUsageGrid";
 import { accountQuotaFailureMessage, hasAccountQuotaValue } from "./AccountUsageGrid";
-import {
-  formatUsedQuota,
-  resolveAccountTokenAttribution,
-  userFacingTokenMessage,
-} from "./quotaStatus";
+import { formatUsedQuota } from "./quotaStatus";
 
-function formatResetsAt(value: number | undefined): string {
-  if (value == null || !Number.isFinite(value) || value <= 0) return "恢复时间未知";
+/** Reset time is only written when the collector actually reported one —
+ * unknown values render nothing instead of a "恢复时间未知" placeholder. */
+function formatResetsAt(value: number | undefined): string | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
   try {
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "恢复时间未知";
+    if (Number.isNaN(date.getTime())) return null;
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     const hour = String(date.getHours()).padStart(2, "0");
     const minute = String(date.getMinutes()).padStart(2, "0");
     return month + "-" + day + " " + hour + ":" + minute;
   } catch {
-    return "恢复时间未知";
+    return null;
   }
-}
-
-function formatCompactToken(value: number): string {
-  if (value >= 1000000) return (value / 1000000).toFixed(1) + "M";
-  if (value >= 1000) return (value / 1000).toFixed(1) + "k";
-  return String(value);
 }
 
 type QuotaWindowLike = {
@@ -107,26 +98,31 @@ function formatQuotaResetParts(
   long: QuotaWindowLike | undefined,
 ): string {
   const parts: string[] = [];
-  parts.push("5h " + formatResetsAt(fast?.resetsAt));
+  const fastText = fast ? formatResetsAt(fast.resetsAt) : null;
+  if (fastText) parts.push("5h " + fastText);
   if (long) {
-    const lowerId = long.id.toLowerCase();
-    const label =
-      lowerId.includes("week") || long.label.includes("周")
-        ? "周"
-        : lowerId.includes("month") || long.label.includes("月")
-          ? "月"
-          : "周/月";
-    parts.push(label + " " + formatResetsAt(long.resetsAt));
-  } else {
-    parts.push("周/月 恢复时间未知");
+    const longText = formatResetsAt(long.resetsAt);
+    if (longText) {
+      const lowerId = long.id.toLowerCase();
+      const label =
+        lowerId.includes("week") || long.label.includes("周")
+          ? "周"
+          : lowerId.includes("month") || long.label.includes("月")
+            ? "月"
+            : "周/月";
+      parts.push(label + " " + longText);
+    }
   }
   return parts.join(" · ");
 }
 
 function formatWindowResetParts(windows: readonly QuotaWindowLike[]): string {
-  if (windows.length === 0) return "恢复时间未知";
   return windows
-    .map((window) => `${deriveWindowLabel(window)} ${formatResetsAt(window.resetsAt)}`)
+    .map((window) => {
+      const resetsAt = formatResetsAt(window.resetsAt);
+      return resetsAt ? `${deriveWindowLabel(window)} ${resetsAt}` : null;
+    })
+    .filter((part): part is string => part !== null)
     .join(" · ");
 }
 
@@ -176,8 +172,6 @@ export function AccountQuotaCard(props: {
   onRedeemResetCredit?: ((account: AccountView) => void) | undefined;
 }) {
   const { account, queryState } = props;
-  const tokenResponse = useTokenUsageStore((state) => state.response);
-  const tokenLoading = useTokenUsageStore((state) => state.loading);
   const { fast, long } = resolveAccountQuotaWindows(account);
   const hasQuota = hasAccountQuotaValue(account);
   const statusFailure =
@@ -188,29 +182,6 @@ export function AccountQuotaCard(props: {
     queryState?.quotaError ??
     (statusFailure || !hasQuota ? accountQuotaFailureMessage(account) : undefined);
   const showQuotaError = !hasQuota || statusFailure || queryState?.quota === "error";
-  const tokenAttribution = resolveAccountTokenAttribution(
-    tokenResponse?.summaries,
-    account.accountId,
-  );
-  const isTokenLoading = queryState?.token === "loading" || (!queryState && tokenLoading);
-  const tokenInput = tokenAttribution.kind === "exact" ? tokenAttribution.inputTokens : undefined;
-  const tokenOutput = tokenAttribution.kind === "exact" ? tokenAttribution.outputTokens : undefined;
-  const tokenInputLabel = isTokenLoading
-    ? "加载中"
-    : tokenInput != null
-      ? formatCompactToken(tokenInput)
-      : "—";
-  const tokenOutputLabel = isTokenLoading
-    ? "加载中"
-    : tokenOutput != null
-      ? formatCompactToken(tokenOutput)
-      : "—";
-  const tokenUnavailable =
-    tokenAttribution.kind !== "exact" && !isTokenLoading && tokenResponse !== null;
-  const tokenUnavailableReason =
-    tokenResponse?.summaries.find((summary) => summary.unavailableReason)?.unavailableReason ??
-    tokenResponse?.sources.find((source) => !source.available && source.unavailableReason)
-      ?.unavailableReason;
   const windows = account.quotaWindows ?? [];
   const resetCreditWindow = windows.find((window) => window.id === RESET_CREDIT_WINDOW_ID);
   const resetCreditCount =
@@ -221,29 +192,10 @@ export function AccountQuotaCard(props: {
   const rows = hasQuota && !statusFailure ? quotaRows(meterWindows, account.provider) : [];
   const resetsText =
     rows.length > 0 ? formatWindowResetParts(rows) : formatQuotaResetParts(fast, long);
-  // Attribution-first copy: real per-account numbers when pinned, an honest
-  // "无法精确归因" when token data exists but not for this account, and the
-  // legacy "暂无精确 Token 用量" only when there is no data at all.
-  const tokenText =
-    tokenAttribution.kind === "exact"
-      ? "输入 " + tokenInputLabel + " · 输出 " + tokenOutputLabel
-      : tokenAttribution.kind === "unattributable" && !isTokenLoading
-        ? "无法精确归因"
-        : !isTokenLoading && tokenResponse !== null
-          ? "暂无精确 Token 用量"
-          : "输入 " + tokenInputLabel + " · 输出 " + tokenOutputLabel;
-  const tokenReasonText = userFacingTokenMessage(tokenUnavailableReason);
-  const tokenErrorText = userFacingTokenMessage(queryState?.tokenError);
   const failureText = showQuotaError && quotaError ? quotaError : null;
   if (account.provider === "openai-compatible") {
-    const totalLabel =
-      tokenAttribution.kind === "exact"
-        ? formatCompactToken(tokenAttribution.totalTokens)
-        : isTokenLoading
-          ? "加载中"
-          : "—";
     // 渠道能拿到真实额度（如阶跃 /v1/accounts 余额、one-api 中转 billing）就
-    // 渲染额度条；拿不到时保持纯 Token 行，不造假装满的窗口。
+    // 渲染额度条；拿不到时不造假装满的窗口。Token 用量不在这页展示。
     const compatRows = hasQuota && !statusFailure ? quotaRows(windows, account.provider) : [];
     const balanceWindow = compatRows.find(
       (window) => window.remaining !== undefined && window.currency,
@@ -257,12 +209,12 @@ export function AccountQuotaCard(props: {
           : "";
       metaBits.push(`余额 ${remaining}${limit}`);
     } else if (compatRows.length > 0) {
-      metaBits.push(formatWindowResetParts(compatRows));
+      const resetParts = formatWindowResetParts(compatRows);
+      if (resetParts) metaBits.push(resetParts);
     }
-    metaBits.push(`总用量 ${totalLabel} · 输入 ${tokenInputLabel} · 输出 ${tokenOutputLabel}`);
     // Only surface real failures (auth/connectivity/exhaustion) — a channel
-    // that simply has no quota endpoint must not spam "暂无可用额度数据"
-    // beside the tokens. quota-exhausted is excluded from `statusFailure`
+    // that simply has no quota endpoint must not spam "暂无可用额度数据".
+    // quota-exhausted is excluded from `statusFailure`
     // above so its bar still renders at 100%; pull its message directly.
     const compatFailure =
       statusFailure || queryState?.quota === "error"
@@ -286,7 +238,7 @@ export function AccountQuotaCard(props: {
           {metaBits.join(" · ")}
           {compatFailure ? (
             <>
-              <span className="mx-1">·</span>
+              {metaBits.length > 0 ? <span className="mx-1">·</span> : null}
               <span className="text-amber-300/80">{compatFailure}</span>
             </>
           ) : null}
@@ -333,28 +285,13 @@ export function AccountQuotaCard(props: {
         className="text-[10px] leading-relaxed text-neutral-500"
       >
         {/* 恢复时间 is the actionable line — emphasize it. */}
-        <span className="font-semibold text-neutral-300">{resetsText}</span>
-        <span className="mx-1">·</span>
-        <span>{tokenText}</span>
-        {tokenUnavailable &&
-        tokenAttribution.kind === "none" &&
-        tokenReasonText &&
-        tokenReasonText !== tokenText ? (
+        {resetsText ? <span className="font-semibold text-neutral-300">{resetsText}</span> : null}
+        {/* When no bars rendered, the standalone line above already carries
+         * the failure — meta only repeats it when bars exist alongside. */}
+        {failureText && rows.length > 0 ? (
           <>
-            <span className="mx-1">·</span>
-            <span className="text-amber-300/80">{tokenReasonText}</span>
-          </>
-        ) : null}
-        {failureText ? (
-          <>
-            <span className="mx-1">·</span>
+            {resetsText ? <span className="mx-1">·</span> : null}
             <span className="text-amber-300/80">{failureText}</span>
-          </>
-        ) : null}
-        {queryState?.token === "error" && tokenErrorText && tokenErrorText !== tokenText ? (
-          <>
-            <span className="mx-1">·</span>
-            <span className="text-amber-300/80">{tokenErrorText}</span>
           </>
         ) : null}
       </p>
@@ -393,7 +330,11 @@ export function ProviderQuotaCard(props: {
           className="text-[10px] leading-relaxed text-neutral-500"
         >
           {snapshot.windows
-            .map((window) => `${window.label} ${formatResetsAt(window.resetsAt)}`)
+            .map((window) => {
+              const resetsAt = formatResetsAt(window.resetsAt);
+              return resetsAt ? `${window.label} ${resetsAt}` : null;
+            })
+            .filter((part): part is string => part !== null)
             .join(" · ")}
         </p>
       </div>
@@ -401,15 +342,6 @@ export function ProviderQuotaCard(props: {
   }
   const { fast, long } = resolveQuotaWindows(snapshot.windows);
   const hasQuota = fast !== undefined || long !== undefined;
-  const tokenInput = snapshot.tokens?.input;
-  const tokenOutput = snapshot.tokens?.output;
-  const tokenText =
-    tokenInput == null && tokenOutput == null
-      ? "暂无精确 Token 用量"
-      : "输入 " +
-        (tokenInput == null ? "—" : formatCompactToken(tokenInput)) +
-        " · 输出 " +
-        (tokenOutput == null ? "—" : formatCompactToken(tokenOutput));
   const failureText =
     snapshot.error ??
     (snapshot.status === "ok" && !hasQuota
@@ -463,17 +395,23 @@ export function ProviderQuotaCard(props: {
         className="text-[10px] leading-relaxed text-neutral-500"
       >
         {/* 恢复时间 is the actionable line — emphasize it. */}
-        <span className="font-semibold text-neutral-300">
-          {rows.length > 0 ? formatWindowResetParts(rows) : formatQuotaResetParts(fast, long)}
-        </span>
-        <span className="mx-1">·</span>
-        <span>{tokenText}</span>
-        {failureText ? (
-          <>
-            <span className="mx-1">·</span>
-            <span className="text-amber-300/80">{failureText}</span>
-          </>
-        ) : null}
+        {(() => {
+          const resetsText =
+            rows.length > 0 ? formatWindowResetParts(rows) : formatQuotaResetParts(fast, long);
+          return (
+            <>
+              {resetsText ? (
+                <span className="font-semibold text-neutral-300">{resetsText}</span>
+              ) : null}
+              {failureText ? (
+                <>
+                  {resetsText ? <span className="mx-1">·</span> : null}
+                  <span className="text-amber-300/80">{failureText}</span>
+                </>
+              ) : null}
+            </>
+          );
+        })()}
       </p>
     </div>
   );
