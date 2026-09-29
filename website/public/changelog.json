@@ -511,6 +511,29 @@
       ]
     },
     {
+      "version": "1.5.21",
+      "date": "2026-09-30",
+      "title": "A Fast toggle you can actually see, and the real Grok fast model",
+      "summary": "Fast mode is now a labeled switch next to the model and effort pickers, Grok folds its true fast catalog id into one toggle, and custom channels can be removed from the model manager.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Composer",
+          "text": "Fast mode now shows as a labeled toggle beside the model list and reasoning strength — previously it was a bare icon-only button that was easy to miss entirely."
+        },
+        {
+          "kind": "fixed",
+          "label": "Grok",
+          "text": "Grok's fast tier is the real advertised id (grok-4.7-build-fast). It now folds into Grok 4.7's Fast switch and is what actually launches — no more phantom grok-4.7-fast row."
+        },
+        {
+          "kind": "added",
+          "label": "Model management",
+          "text": "Selecting a custom API channel now offers a 删除渠道 action with confirmation, which removes the account credential and its custom models together."
+        }
+      ]
+    },
+    {
       "version": "1.5.20",
       "date": "2026-09-30",
       "title": "Sign-in that survives restarts, and a completion card that dismisses itself",
