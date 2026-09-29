@@ -278,6 +278,7 @@ export async function switchLiveThreadProvider(input: {
     model: targetConfig.model,
     customModels: useSharedSettings.getState().customModels ?? [],
     accounts: useUsageAccountsStore.getState().accounts ?? [],
+    compatFallback: useSharedSettings.getState().compatDefaultHarness,
     ...(input.targetAccountId ? { explicitAccountId: input.targetAccountId } : {}),
   });
 

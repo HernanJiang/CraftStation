@@ -3,7 +3,9 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { toast } from "@heroui/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
+import type { SharedSettings } from "@/shared/settings";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { HarnessMapPage } from "./HarnessMapPage";
 
 const bridgeMock = vi.hoisted(() => ({
@@ -51,6 +53,31 @@ function entry(
 
 const initialPanelState = usePanelStore.getState();
 
+/** Custom-model rows filed under providers so they count as selected channels. */
+const TEST_CUSTOM_MODELS: SharedSettings["customModels"] = [
+  {
+    id: "cm-codex",
+    provider: "codex",
+    modelId: "gpt-5.6-sol",
+    displayName: "5.6 Sol",
+    contextSize: "",
+  },
+  {
+    id: "cm-kimi",
+    provider: "kimi",
+    modelId: "k3-256k",
+    displayName: "K3",
+    contextSize: "",
+  },
+  {
+    id: "cm-cursor",
+    provider: "cursor",
+    modelId: "cursor-1",
+    displayName: "Cursor One",
+    contextSize: "",
+  },
+];
+
 function resetStores() {
   usePanelStore.setState({
     ...initialPanelState,
@@ -59,14 +86,15 @@ function resetStores() {
     modelUsageDialogOpen: true,
     modelUsageWorkspaceTab: "harnesses",
   });
+  useSharedSettings.setState({ compatDefaultHarness: "opencode" });
 }
 
 function renderPage() {
   return render(
     <HarnessMapPage
       accounts={[]}
-      customModels={[]}
-      configuredProviderIds={[]}
+      customModels={TEST_CUSTOM_MODELS}
+      configuredProviderIds={["codex", "kimi", "cursor"]}
       providerOrder={[]}
     />,
   );
@@ -82,22 +110,49 @@ describe("HarnessMapPage", () => {
       entry("codex", "Codex Native Harness", "ready"),
       entry("kimi", "Kimi Code Native Harness", "not-configured"),
       entry("antigravity", "Antigravity Native Harness", "unavailable"),
+      entry("opencode", "OpenCode Native Harness", "ready"),
+      entry("stepcode", "Step Code Native Harness", "ready"),
       entry("deepseek-api", "DeepSeek API Runtime", "not-configured"),
     ]);
   });
 
   afterEach(resetStores);
 
-  it("pairs provider rows with their default Harness/CLI and falls back to a placeholder", async () => {
+  it("shows only model-selected providers and converges compat providers onto the trunk", async () => {
     renderPage();
     await screen.findByTestId("harness-cli-row-kimi");
     expect(screen.getByTestId("harness-map-row-kimi")).toBeInTheDocument();
     expect(screen.getByTestId("harness-map-row-codex")).toBeInTheDocument();
-    // Providers without a native harness (e.g. minimax/muse) show an honest
-    // placeholder instead of a fabricated mapping.
-    expect(screen.getAllByText("暂无原生 Harness —— 走兼容通道").length).toBeGreaterThan(0);
+    // Providers with no selected model (e.g. claude/qwen) never appear.
+    expect(screen.queryByTestId("harness-map-row-claude")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("harness-map-row-qwen")).not.toBeInTheDocument();
+    // cursor has no native harness — it joins the compat trunk (OpenCode),
+    // not a per-provider placeholder.
+    const trunk = screen.getByTestId("harness-map-compat-trunk");
+    expect(trunk).toBeInTheDocument();
+    expect(trunk.textContent).toContain("Cursor");
+    expect(screen.getByTestId("harness-cli-row-opencode")).toBeInTheDocument();
     // Retired catalogue entries stay out of the map entirely.
     expect(screen.queryByTestId("harness-cli-row-deepseek-api")).not.toBeInTheDocument();
+  });
+
+  it("lets the user repoint the compat-lane default Harness", async () => {
+    renderPage();
+    await screen.findByTestId("harness-cli-row-kimi");
+
+    const select = await screen.findByLabelText("兼容默认 Harness");
+    expect((select as HTMLSelectElement).value).toBe("opencode");
+    fireEvent.change(select, { target: { value: "stepcode" } });
+
+    expect(useSharedSettings.getState().compatDefaultHarness).toBe("stepcode");
+    // The trunk now carries Step Code; the former default drops to the
+    // unlinked-harness group rather than disappearing.
+    const trunk = screen.getByTestId("harness-map-compat-trunk");
+    await waitFor(() =>
+      expect(trunk.querySelector('[data-testid="harness-cli-row-stepcode"]')).not.toBeNull(),
+    );
+    expect(trunk.querySelector('[data-testid="harness-cli-row-opencode"]')).toBeNull();
+    expect(screen.getByTestId("harness-map-orphan-opencode")).toBeInTheDocument();
   });
 
   it("opens agent settings when the user clicks a not-configured Harness/CLI row", async () => {

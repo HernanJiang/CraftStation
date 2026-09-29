@@ -1013,7 +1013,12 @@ export function ModelManagementPage(props: {
                             type="button"
                             onClick={() =>
                               void verifiedAdd(
-                                resolveThirdPartyHarnessForModel(modelId),
+                                resolveThirdPartyHarnessForModel(
+                                  modelId,
+                                  undefined,
+                                  undefined,
+                                  useSharedSettings.getState().compatDefaultHarness,
+                                ),
                                 modelId,
                                 undefined,
                                 selected.accountId,
@@ -1103,7 +1108,12 @@ export function ModelManagementPage(props: {
                 initialDisplayName={manualDraft.displayName}
                 providerKind={
                   selected.kind === "openai-compatible"
-                    ? resolveThirdPartyHarnessForModel(manualDraft.modelId || "custom")
+                    ? resolveThirdPartyHarnessForModel(
+                        manualDraft.modelId || "custom",
+                        undefined,
+                        undefined,
+                        useSharedSettings.getState().compatDefaultHarness,
+                      )
                     : selected.kind
                 }
                 {...(selected.kind === "openai-compatible" && selected.accountId
@@ -1118,7 +1128,12 @@ export function ModelManagementPage(props: {
                 onSave={(values: CustomModelDialogValues) => {
                   void verifiedAdd(
                     selected.kind === "openai-compatible"
-                      ? resolveThirdPartyHarnessForModel(values.modelId)
+                      ? resolveThirdPartyHarnessForModel(
+                          values.modelId,
+                          undefined,
+                          undefined,
+                          useSharedSettings.getState().compatDefaultHarness,
+                        )
                       : selected.kind,
                     values.modelId,
                     values.displayName || undefined,

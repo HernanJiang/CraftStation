@@ -404,6 +404,12 @@ export const sharedSettingsSchema = z.object({
    * list fall back to the built-in default order at the tail.
    */
   providerOrder: z.array(z.string()),
+  /**
+   * Compat-lane default Harness for providers without a native Harness
+   * (Harness 总览 tree trunk). Defaults to OpenCode; the user can repoint it
+   * to another custom-base-URL-capable Harness.
+   */
+  compatDefaultHarness: z.string().default("opencode"),
   /** User-installed registry agents keyed by ACP registry id. */
   acpRegistryInstalledAgents: z.record(z.string(), installedAcpRegistryAgentSchema),
   /** User-registered agent instances, currently used by generic ACP registry installs. */
@@ -787,6 +793,7 @@ export const defaultSharedSettings: SharedSettings = {
   disabledAgents: [],
   defaultModels: {},
   providerOrder: [],
+  compatDefaultHarness: "opencode",
   acpRegistryInstalledAgents: {},
   agentInstances: {},
   collapseTerminalComposer: false,

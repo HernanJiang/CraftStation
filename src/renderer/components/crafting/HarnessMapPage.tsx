@@ -1,8 +1,13 @@
 import { useMemo } from "react";
-import { ArrowRight, RefreshCw, Unlink } from "lucide-react";
+import { ArrowRight, RefreshCw, Workflow } from "lucide-react";
 import type { AccountView } from "@/shared/contracts";
 import type { SharedSettings } from "@/shared/settings";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
+import {
+  COMPAT_FALLBACK_HARNESS_KINDS,
+  sanitizeCompatFallbackHarness,
+} from "@/shared/thirdPartyRouting";
+import { COMPATIBILITY_HARNESS_LABELS } from "@/shared/harnessCompatibility";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { resolveDisplayedProviders } from "@/renderer/components/providers/usageProviders";
@@ -21,12 +26,33 @@ const PROVIDER_TO_HARNESS_KIND: Record<string, string> = {
   zai: "zcode",
 };
 
+function ProviderCard(props: {
+  id: string;
+  label: string;
+  accountCount: number;
+  modelCount: number;
+}) {
+  const { id, label, accountCount, modelCount } = props;
+  return (
+    <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] px-2.5 py-2">
+      <ProviderBrandBadge id={id} label={label} size="compact" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-foreground">{label}</span>
+        <span className="mt-0.5 block text-[10px] text-neutral-500">
+          {accountCount} 账号 · {modelCount} 模型
+        </span>
+      </span>
+    </div>
+  );
+}
+
 /**
- * Harness map tab (replaces the old "我的配方" tab): a two-column tree pairing
- * every provider channel on the left with its default Harness/CLI on the
- * right. Providers without a native harness stay listed (they run through the
- * compatibility route); harnesses with no provider channel drop into an
- * unlinked group at the bottom.
+ * Harness map tab (replaces the old 我的配方 tab): a tree pairing every
+ * provider channel the user selected in 管理模型 with its default Harness/CLI.
+ * Providers with a native Harness pair row-by-row; providers without one all
+ * converge into a single compat trunk node — OpenCode by default, repointable
+ * to any custom-base-URL-capable Harness, persisted as the compat routing
+ * fallback. Harnesses with no provider channel drop into an unlinked group.
  */
 export function HarnessMapPage(props: {
   accounts: AccountView[];
@@ -48,11 +74,9 @@ export function HarnessMapPage(props: {
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
   const hiddenModels = useSharedSettings((state) => state.hiddenModels);
   const shownModels = useSharedSettings((state) => state.shownModels);
-
-  const providers = useMemo(
-    () => resolveDisplayedProviders(props.providerOrder, []),
-    [props.providerOrder],
-  );
+  const compatDefaultHarness = useSharedSettings((state) => state.compatDefaultHarness);
+  const setCompatDefaultHarness = useSharedSettings((state) => state.setCompatDefaultHarness);
+  const compatKind = sanitizeCompatFallbackHarness(compatDefaultHarness);
 
   const modelCountByProvider = useMemo(() => {
     const entries = buildSelectedModelInventory({
@@ -81,6 +105,16 @@ export function HarnessMapPage(props: {
     props.providerOrder,
   ]);
 
+  // Only providers the user actually selected in 管理模型 (≥1 selected model)
+  // appear on the left — the map mirrors the model inventory, not the catalog.
+  const providers = useMemo(
+    () =>
+      resolveDisplayedProviders(props.providerOrder, []).filter(
+        (provider) => (modelCountByProvider.get(provider.id) ?? 0) > 0,
+      ),
+    [props.providerOrder, modelCountByProvider],
+  );
+
   const accountCountByProvider = useMemo(() => {
     const counts = new Map<string, number>();
     for (const account of props.accounts) {
@@ -97,18 +131,28 @@ export function HarnessMapPage(props: {
   const harnessFor = (providerId: string): NativeHarnessControlPlaneEntry | undefined =>
     harnessByKind.get(PROVIDER_TO_HARNESS_KIND[providerId] ?? providerId);
 
-  const linkedKinds = useMemo(() => {
-    const linked = new Set<string>();
-    for (const provider of providers) {
-      const entry = harnessFor(provider.id);
-      if (entry) linked.add(entry.descriptor.harnessKind);
-    }
-    return linked;
-  }, [providers, harnessByKind]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Compat providers have no native Harness — they converge on the trunk
+  // (the configured compat default, OpenCode until the user repoints it).
+  const nativeRows = providers
+    .map((provider) => ({ provider, entry: harnessFor(provider.id) }))
+    .filter((row) => row.entry !== undefined);
+  const compatProviders = providers.filter((provider) => harnessFor(provider.id) === undefined);
 
-  const orphanEntries = visibleEntries.filter(
-    (entry) => !linkedKinds.has(entry.descriptor.harnessKind),
-  );
+  const trunkEntry = harnessByKind.get(compatKind);
+
+  const orphanEntries = useMemo(() => {
+    const linked = new Set<string>([
+      ...nativeRows.map((row) => row.entry!.descriptor.harnessKind),
+      ...(compatProviders.length > 0 ? [compatKind] : []),
+    ]);
+    return visibleEntries.filter((entry) => !linked.has(entry.descriptor.harnessKind));
+  }, [visibleEntries, nativeRows, compatProviders.length, compatKind]);
+
+  const compatCandidates = useMemo(() => {
+    const kinds = new Set<string>(COMPAT_FALLBACK_HARNESS_KINDS);
+    kinds.add(compatKind);
+    return [...kinds];
+  }, [compatKind]);
 
   const handleShowDetail = (entry: NativeHarnessControlPlaneEntry) => {
     setHighlightedKind(entry.descriptor.harnessKind);
@@ -127,12 +171,7 @@ export function HarnessMapPage(props: {
         onInstall={install}
         onShowDetail={handleShowDetail}
       />
-    ) : (
-      <div className="flex items-center gap-2 rounded-xl border border-dashed border-white/10 px-2.5 py-2 text-[11px] text-neutral-500">
-        <Unlink className="size-3.5 shrink-0" />
-        暂无原生 Harness —— 走兼容通道
-      </div>
-    );
+    ) : null;
 
   return (
     <div
@@ -156,30 +195,84 @@ export function HarnessMapPage(props: {
       </header>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-        {providers.map((provider) => (
+        {providers.length === 0 ? (
+          <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
+            还没有在「管理模型」中选定任何渠道
+          </p>
+        ) : null}
+
+        {nativeRows.map(({ provider, entry }) => (
           <div
             key={provider.id}
             className="grid grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-stretch gap-2"
             data-testid={`harness-map-row-${provider.id}`}
           >
-            <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] px-2.5 py-2">
-              <ProviderBrandBadge id={provider.id} label={provider.label} size="compact" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-medium text-foreground">
-                  {provider.label}
-                </span>
-                <span className="mt-0.5 block text-[10px] text-neutral-500">
-                  {accountCountByProvider.get(provider.id) ?? 0} 账号 ·{" "}
-                  {modelCountByProvider.get(provider.id) ?? 0} 模型
-                </span>
-              </span>
-            </div>
+            <ProviderCard
+              id={provider.id}
+              label={provider.label}
+              accountCount={accountCountByProvider.get(provider.id) ?? 0}
+              modelCount={modelCountByProvider.get(provider.id) ?? 0}
+            />
             <div className="flex items-center justify-center text-neutral-600">
               <ArrowRight className="size-3.5" />
             </div>
-            {renderHarnessCell(harnessFor(provider.id))}
+            {renderHarnessCell(entry)}
           </div>
         ))}
+
+        {compatProviders.length > 0 ? (
+          <div
+            className="grid grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-stretch gap-2"
+            data-testid="harness-map-compat-trunk"
+          >
+            <div className="flex min-w-0 flex-col gap-2">
+              {compatProviders.map((provider) => (
+                <ProviderCard
+                  key={provider.id}
+                  id={provider.id}
+                  label={provider.label}
+                  accountCount={accountCountByProvider.get(provider.id) ?? 0}
+                  modelCount={modelCountByProvider.get(provider.id) ?? 0}
+                />
+              ))}
+            </div>
+            {/* Tree connector: one vertical trunk line joining every leaf. */}
+            <div className="relative flex items-stretch justify-center" aria-hidden>
+              <div className="w-px bg-white/10" />
+              {compatProviders.map((provider, index) => (
+                <ArrowRight
+                  key={provider.id}
+                  className="absolute left-0 size-3.5 text-neutral-600"
+                  style={{ top: `calc(${((index + 0.5) / compatProviders.length) * 100}% - 7px)` }}
+                />
+              ))}
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 self-stretch rounded-xl border border-accent/25 bg-white/[0.03] px-2.5 py-2">
+              <p className="flex items-center gap-1 text-[10px] font-medium text-neutral-500">
+                <Workflow className="size-3" />
+                兼容默认 Harness（无原生 Harness 的渠道汇聚于此）
+              </p>
+              {trunkEntry ? renderHarnessCell(trunkEntry) : null}
+              <label className="mt-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
+                <span className="shrink-0">切换默认</span>
+                <select
+                  aria-label="兼容默认 Harness"
+                  value={compatKind}
+                  onChange={(event) => setCompatDefaultHarness(event.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-1.5 py-1 text-[10px] text-foreground outline-none focus:border-white/25"
+                >
+                  {compatCandidates.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {COMPATIBILITY_HARNESS_LABELS[
+                        kind as keyof typeof COMPATIBILITY_HARNESS_LABELS
+                      ] ?? kind}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : null}
 
         {orphanEntries.length > 0 ? (
           <div className="pt-2">

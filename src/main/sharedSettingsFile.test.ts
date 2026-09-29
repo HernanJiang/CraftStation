@@ -81,6 +81,7 @@ describe("sharedSettingsFile", () => {
     const settingsPath = join(makeTempDir(), "settings.json");
     writeSharedSettingsFile(settingsPath, {
       shownModels: {},
+      compatDefaultHarness: "opencode",
       defaultPermissionMode: "ask",
       themeMode: "dark",
       themePreset: "default",
@@ -226,6 +227,7 @@ describe("sharedSettingsFile", () => {
 
     expect(readSharedSettingsFile(settingsPath)).toEqual({
       shownModels: {},
+      compatDefaultHarness: "opencode",
       themeMode: "dark",
       themePreset: "default",
       locale: "system",

@@ -100,6 +100,8 @@ interface SharedSettingsState extends SharedSettings {
   /** Persist the user-ordered Own Subagents route (native lane + provider kinds). */
   setOwnSubagentsRouteOrder: (order: string[]) => void;
   setProviderOrder: (order: string[]) => void;
+  /** Compat-lane default Harness kind (Harness 总览 tree trunk; default "opencode"). */
+  setCompatDefaultHarness: (kind: string) => void;
   /** Record an explicit menu pick as the provider's draft default model. */
   setDefaultModel: (agentKind: string, modelId: string) => void;
   setCollapseTerminalComposer: (value: boolean) => void;
@@ -519,6 +521,12 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     const next = [...new Set(order.filter((kind) => typeof kind === "string" && kind.length > 0))];
     if (current.length === next.length && current.every((kind, i) => kind === next[i])) return;
     set({ providerOrder: next });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setCompatDefaultHarness: (kind) => {
+    const next = kind.trim();
+    if (!next || get().compatDefaultHarness === next) return;
+    set({ compatDefaultHarness: next });
     persistSettings(selectSharedSettings(get()));
   },
   setDefaultModel: (agentKind, modelId) => {
@@ -1097,6 +1105,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     disabledAgents: state.disabledAgents,
     defaultModels: state.defaultModels,
     providerOrder: state.providerOrder,
+    compatDefaultHarness: state.compatDefaultHarness,
     acpRegistryInstalledAgents: state.acpRegistryInstalledAgents,
     agentInstances: state.agentInstances,
     collapseTerminalComposer: state.collapseTerminalComposer,

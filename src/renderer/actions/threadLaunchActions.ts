@@ -197,6 +197,7 @@ export async function performInitialThreadLaunch(input: {
     model: effectiveThread.config.model,
     customModels: useSharedSettings.getState().customModels ?? [],
     accounts: useUsageAccountsStore.getState().accounts ?? [],
+    compatFallback: useSharedSettings.getState().compatDefaultHarness,
     ...(explicitAccountId ? { explicitAccountId } : {}),
   });
   const startInput = {
@@ -427,6 +428,7 @@ function applyAutoDraftLaunch(
     },
     launchableHarnesses,
     channel,
+    useSharedSettings.getState().compatDefaultHarness,
   );
   if (
     remapped.agentKind === input.agentKind &&
@@ -475,6 +477,7 @@ export async function startThreadFromDraft(
           agentKind: harnessKind,
           model: modelId,
           customModels,
+          compatFallback: useSharedSettings.getState().compatDefaultHarness,
           ...(recipe.providerProfileRef ? { explicitAccountId: recipe.providerProfileRef } : {}),
         });
       if (accountId) {
@@ -617,6 +620,7 @@ export async function startThreadFromDraft(
         sourceProviderKind: config.sourceProviderKind,
         installed: launchableHarnesses,
         channel,
+        compatFallback: useSharedSettings.getState().compatDefaultHarness,
       }) || agentKind) as ProjectDraftConfig["agentKind"],
       config,
       worktreeMode: !isHomeScope && worktreeIsNewBranch === true,

@@ -507,6 +507,7 @@ export const threadTools: ToolDomain = {
         agentKind,
         model,
         customModels: ctx.settings.read().customModels ?? [],
+        compatFallback: ctx.settings.read().compatDefaultHarness,
         trustAccountChannel: true,
         ...(sourceThread &&
         sourceThread.agentKind === agentKind &&

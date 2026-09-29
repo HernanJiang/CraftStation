@@ -423,6 +423,7 @@ export function buildControls(
         options?.selectedAccountId,
         thread.config.model,
       ),
+      compatFallback: useSharedSettings.getState().compatDefaultHarness,
     });
   const presentationMode =
     thread.presentationMode ?? agentStatus?.capabilities.presentationMode ?? "terminal";

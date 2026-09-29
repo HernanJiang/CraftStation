@@ -121,6 +121,7 @@ export function useManagedComposerProviders(input?: {
                   protocol: models[0].validatedProtocol ?? undefined,
                   chatCompletionsOk: models[0].chatCompletionsOk,
                 },
+                useSharedSettings.getState().compatDefaultHarness,
               )
             : "opencode"),
         label,

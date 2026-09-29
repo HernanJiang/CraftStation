@@ -152,6 +152,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
             modelControl.currentAccountId,
             currentModelLabel,
           ),
+          useSharedSettings.getState().compatDefaultHarness,
         )
       : undefined;
   const harnessKind =

@@ -561,6 +561,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
         : undefined,
       thread.config.model,
     ),
+    compatFallback: useSharedSettings.getState().compatDefaultHarness,
   });
   const hiddenModelIds = useSharedSettings(
     (s) =>
@@ -866,6 +867,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                 : undefined,
               sendThread.config.model,
             ),
+            compatFallback: useSharedSettings.getState().compatDefaultHarness,
           }),
           model: sendThread.config.model,
           accountId: isThirdPartyAccountId(sendThread.accountBinding?.accountId)
@@ -894,6 +896,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                 },
                 launchableHarnesses,
                 stagedChannel,
+                useSharedSettings.getState().compatDefaultHarness,
               )
             : staged;
         await switchLiveThreadProvider({
@@ -940,6 +943,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
           model: sendThread.config.model ?? "",
           customModels: useSharedSettings.getState().customModels ?? [],
           accounts: useUsageAccountsStore.getState().accounts ?? [],
+          compatFallback: useSharedSettings.getState().compatDefaultHarness,
         });
       const catalogChannel = channelInfoNeedsProbe(catalogAccountId, sendThread.config.model)
         ? await resolveThirdPartyChannelInfoForSend({
@@ -959,6 +963,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
         },
         launchableHarnesses,
         catalogChannel,
+        useSharedSettings.getState().compatDefaultHarness,
       );
       const accountMissing =
         catalogAccountId !== undefined && sendThread.accountBinding?.accountId !== catalogAccountId;

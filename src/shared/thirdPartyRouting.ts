@@ -75,26 +75,54 @@ export function stepCodeCanServeChannel(channel: ThirdPartyChannelInfo | undefin
  * the credential — never a subscription pool. Native catalog picks have no
  * third-party accountId and never go through this helper.
  */
+/**
+ * Harness kinds that can serve a custom-base-URL compat lane at all
+ * (`supportsCustomBaseUrl` in the capability table). The Harness-map trunk
+ * picker limits the compat default to this set; anything else sanitizes back
+ * to OpenCode.
+ */
+export const COMPAT_FALLBACK_HARNESS_KINDS = [
+  "codex",
+  "kimi",
+  "grok",
+  "opencode",
+  "stepcode",
+] as const satisfies readonly CompatibilityHarnessId[];
+
+export function sanitizeCompatFallbackHarness(kind: string | undefined): CompatibilityHarnessId {
+  const normalized = (kind ?? "").trim().toLowerCase();
+  return (COMPAT_FALLBACK_HARNESS_KINDS as readonly string[]).includes(normalized)
+    ? (normalized as CompatibilityHarnessId)
+    : "opencode";
+}
+
 export function resolveThirdPartyHarnessForModel(
   modelId: string,
   installed?: readonly string[],
   channel?: ThirdPartyChannelInfo | undefined,
+  /**
+   * User-configured compat-lane default (Harness 总览 trunk setting). Models
+   * whose family preferred-harness can't serve the channel land here instead
+   * of a hardcoded OpenCode.
+   */
+  compatFallback?: string,
 ): CompatibilityHarnessId {
+  const fallback = sanitizeCompatFallbackHarness(compatFallback);
   const family = resolveCompatibilityFamily(modelId);
   const preferred = preferredHarnessForCompatibilityFamily(family);
-  if (preferred === "antigravity") return "opencode";
+  if (preferred === "antigravity") return fallback;
   // Step Code speaks Chat Completions only — a channel already proven
-  // Responses-only routes to OpenCode instead of erroring at bind time.
-  // Unknown capability stays optimistic: the send path probes once.
+  // Responses-only routes to the compat fallback instead of erroring at bind
+  // time. Unknown capability stays optimistic: the send path probes once.
   if (
     preferred === "stepcode" &&
     !stepCodeCanServeChannel(channel) &&
-    harnessIsInstalled("opencode", installed)
+    harnessIsInstalled(fallback, installed)
   ) {
-    return "opencode";
+    return fallback;
   }
   if (harnessIsInstalled(preferred, installed)) return preferred;
-  return harnessIsInstalled("opencode", installed) ? "opencode" : preferred;
+  return harnessIsInstalled(fallback, installed) ? fallback : preferred;
 }
 
 export interface ThirdPartyPickerSelection {
@@ -142,6 +170,8 @@ export function composerPickerAgentKind(input: {
   sourceProviderKind?: string | undefined;
   installed?: readonly string[] | undefined;
   channel?: ThirdPartyChannelInfo | undefined;
+  /** Compat-lane fallback Harness (Harness 总览 trunk setting, default OpenCode). */
+  compatFallback?: string | undefined;
 }): string {
   const source = input.sourceProviderKind?.trim();
   if (!source || source === input.agentKind) return input.agentKind;
@@ -149,6 +179,7 @@ export function composerPickerAgentKind(input: {
     { agentKind: source, model: input.model },
     input.installed,
     input.channel,
+    input.compatFallback,
   );
   if (auto.agentKind === input.agentKind) return source;
   return input.agentKind;
@@ -232,8 +263,10 @@ export function resolveAutoModelBinding(
   pick: ThirdPartyPickerSelection,
   installed?: readonly string[],
   channel?: ThirdPartyChannelInfo | undefined,
+  /** Compat-lane fallback Harness (Harness 总览 trunk setting, default OpenCode). */
+  compatFallback?: string,
 ): AutoModelBinding {
-  const remapped = applyThirdPartyPickerSelection(pick, installed, channel);
+  const remapped = applyThirdPartyPickerSelection(pick, installed, channel, compatFallback);
   return {
     harnessId: remapped.agentKind,
     providerId: catalogProviderKind(pick),
@@ -257,6 +290,8 @@ export function applyThirdPartyPickerSelection(
   next: ThirdPartyPickerSelection,
   installed?: readonly string[],
   channel?: ThirdPartyChannelInfo | undefined,
+  /** Compat-lane fallback Harness (Harness 总览 trunk setting, default OpenCode). */
+  compatFallback?: string,
 ): ThirdPartyPickerSelection {
   const nativeCommandCodeModel =
     next.agentKind === "commandcode" || modelCatalogChannel(next.model) === "commandcode"
@@ -265,7 +300,12 @@ export function applyThirdPartyPickerSelection(
   const pick =
     nativeCommandCodeModel === next.model ? next : { ...next, model: nativeCommandCodeModel };
   if (isThirdPartyAccountId(pick.accountId)) {
-    const harness = resolveThirdPartyHarnessForModel(pick.model, installed, channel);
+    const harness = resolveThirdPartyHarnessForModel(
+      pick.model,
+      installed,
+      channel,
+      compatFallback,
+    );
     if (harness === pick.agentKind) return pick;
     return {
       ...pick,
@@ -387,6 +427,8 @@ export function resolveThirdPartyAccountForLaunch(input: {
    * because the custom-model row was filed under a different harness.
    */
   explicitAccountId?: string | undefined;
+  /** Compat-lane fallback Harness (Harness 总览 trunk setting, default OpenCode). */
+  compatFallback?: string | undefined;
 }): string | undefined {
   const byId = new Map((input.accounts ?? []).map((account) => [account.accountId, account]));
   const isThirdPartyAccount = (accountId: string | undefined) =>
@@ -452,7 +494,14 @@ export function resolveThirdPartyAccountForLaunch(input: {
       if (input.agentKind === "opencode" || familyUnknown) return true;
       if (input.agentKind === "codex" && family !== "openai") return true;
       if (input.agentKind === "muse") return resolveCompatibilityFamily(entry.modelId) === "muse";
-      return resolveThirdPartyHarnessForModel(entry.modelId) === input.agentKind;
+      return (
+        resolveThirdPartyHarnessForModel(
+          entry.modelId,
+          undefined,
+          undefined,
+          input.compatFallback,
+        ) === input.agentKind
+      );
     });
     return remapped?.accountId;
   }

@@ -963,6 +963,7 @@ export function ThreadDraftView(props: {
                   protocol: models[0].validatedProtocol ?? undefined,
                   chatCompletionsOk: models[0].chatCompletionsOk,
                 },
+                useSharedSettings.getState().compatDefaultHarness,
               )
             : "opencode"),
         label: "第三方 API",
@@ -1498,6 +1499,7 @@ export function ThreadDraftView(props: {
         selectedAccountId,
         withAccount.config.model,
       ),
+      useSharedSettings.getState().compatDefaultHarness,
     );
     const sourceProviderKind =
       remapped.agentKind !== withAccount.agentKind
