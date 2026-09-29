@@ -511,6 +511,34 @@
       ]
     },
     {
+      "version": "1.5.20",
+      "date": "2026-09-30",
+      "title": "Sign-in that survives restarts, and a completion card that dismisses itself",
+      "summary": "Antigravity and Step Code credentials are now recognized across restarts, Step Code joins the channels & usage list, and the Workspace inbox completion card clears on its own while you are watching the thread.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Workspace",
+          "text": "The completion card on a thread you are already watching now disappears on its own — finishing a task no longer leaves a stuck unread notice until you switch threads."
+        },
+        {
+          "kind": "fixed",
+          "label": "Accounts",
+          "text": "Antigravity and Step Code no longer appear signed out after a restart. Antigravity reads credentials parked in managed account-pool buckets, and Step Code reads the auth file written by step login directly."
+        },
+        {
+          "kind": "added",
+          "label": "Channels & Usage",
+          "text": "A signed-in Step Code shows up as a channel you can manage, and its usage card reports your identity (plan name + masked account id). Step Plan has no public quota API, so the card shows identity rather than invented meters."
+        },
+        {
+          "kind": "fixed",
+          "label": "Accounts",
+          "text": "Removing the Step Code authorization now also clears the step entry from the local CLI credential files, so the login cannot resurrect on the next refresh."
+        }
+      ]
+    },
+    {
       "version": "1.5.19",
       "date": "2026-09-30",
       "title": "A Fast toggle for Codex, Kimi, and Grok",

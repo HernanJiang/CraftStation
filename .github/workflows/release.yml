@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      platforms:
+        description: "Platforms to build (win / win,linux,mac). Empty = auto: minor releases (X.Y.0) build all three, patch releases build Windows only."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -29,6 +34,7 @@ jobs:
       tag: ${{ steps.resolve.outputs.tag }}
       version: ${{ steps.resolve.outputs.version }}
       source_ref: ${{ steps.commit.outputs.source_ref }}
+      platforms: ${{ steps.resolve.outputs.platforms }}
 
     steps:
       - name: Checkout
@@ -67,6 +73,19 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          # Release policy (AGENTS.md): patch releases ship Windows only;
+          # minor bumps (X.Y.0) ship win+linux+mac. Explicit input overrides.
+          INPUT_PLATFORMS="${{ inputs.platforms }}"
+          if [ -z "$INPUT_PLATFORMS" ]; then
+            PATCH="${VERSION##*.}"
+            if [ "$PATCH" = "0" ]; then
+              INPUT_PLATFORMS="win,linux,mac"
+            else
+              INPUT_PLATFORMS="win"
+            fi
+          fi
+          echo "platforms=$INPUT_PLATFORMS" >> "$GITHUB_OUTPUT"
+          echo "Resolved platforms: $INPUT_PLATFORMS"
 
       # The desktop app reads website/public/changelog.json (served by the
       # marketing site) for the in-app "What's New" entry. Require a well-formed
@@ -147,6 +166,7 @@ jobs:
       version: ${{ needs.prepare.outputs.version }}
       channel: stable
       sentry_environment: production
+      platforms: ${{ needs.prepare.outputs.platforms }}
     secrets:
       MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
       MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}

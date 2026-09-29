@@ -20,6 +20,11 @@ on:
         required: false
         type: string
         default: production
+      platforms:
+        description: "Comma-separated platforms to build (subset of win,linux,mac)"
+        required: false
+        type: string
+        default: "win,linux,mac"
     secrets:
       MAC_CSC_LINK:
         required: false
@@ -43,23 +48,45 @@ env:
   PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: "false"
 
 jobs:
+  # `jobs.<id>.if` is evaluated before the matrix is applied, so platform
+  # filtering cannot live on the build job itself. Resolve the include list in
+  # a tiny gate job instead: patch releases pass `platforms: "win"` and never
+  # even spawn the linux/mac runners (see AGENTS.md release policy).
+  platform-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.resolve.outputs.include }}
+    steps:
+      - name: Resolve platform matrix
+        id: resolve
+        env:
+          PLATFORMS: ${{ inputs.platforms }}
+        run: |
+          node -e "
+            const ALL = {
+              win:   { os: 'windows-latest', artifact: 'dist-windows', platform: 'win',   'electron-cache': '~/AppData/Local/electron/Cache' },
+              linux: { os: 'ubuntu-latest',  artifact: 'dist-linux',   platform: 'linux', 'electron-cache': '~/.cache/electron' },
+              mac:   { os: 'macos-latest',   artifact: 'dist-mac',     platform: 'mac',   'electron-cache': '~/Library/Caches/electron' },
+            };
+            const wanted = (process.env.PLATFORMS || 'win,linux,mac')
+              .split(',').map((s) => s.trim()).filter(Boolean);
+            const include = wanted.map((p) => ALL[p]).filter(Boolean);
+            const unknown = wanted.filter((p) => !ALL[p]);
+            if (unknown.length || include.length === 0) {
+              console.error('::error::Invalid platforms list: ' + (process.env.PLATFORMS || '(empty)'));
+              process.exit(1);
+            }
+            const fs = require('fs');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'include=' + JSON.stringify(include) + '\n');
+            console.log('Building platforms: ' + wanted.join(', '));
+          "
+
   build:
+    needs: platform-matrix
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            artifact: dist-windows
-            platform: win
-            electron-cache: "~/AppData/Local/electron/Cache"
-          - os: ubuntu-latest
-            artifact: dist-linux
-            platform: linux
-            electron-cache: "~/.cache/electron"
-          - os: macos-latest
-            artifact: dist-mac
-            platform: mac
-            electron-cache: "~/Library/Caches/electron"
+        include: ${{ fromJSON(needs.platform-matrix.outputs.include) }}
 
     runs-on: ${{ matrix.os }}
 
